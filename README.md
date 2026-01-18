@@ -1,7 +1,9 @@
-<p align="center">
-  <img src="https://github.com/chazu/procyon/blob/main/img/logo.png">
-</p>
-
 # Maggie
 
-A Smalltalk written in go
+A late-bound Smalltalk dialect implemented in Go.
+
+See [docs/MAGGIE_DESIGN.md](docs/MAGGIE_DESIGN.md) for the full design document.
+
+## Status
+
+Phase 1: Minimal VM (in progress)
