@@ -389,6 +389,88 @@ func TestVMExecuteWithArgs(t *testing.T) {
 	}
 }
 
+func TestVMSendSymbol(t *testing.T) {
+	vm := NewVM()
+
+	// Create a symbol
+	sym := vm.Symbols.SymbolValue("testSymbol")
+
+	// asString - should return a symbol with the same name
+	result := vm.Send(sym, "asString", nil)
+	if !result.IsSymbol() {
+		t.Errorf("asString should return a symbol")
+	}
+	if vm.Symbols.Name(result.SymbolID()) != "testSymbol" {
+		t.Errorf("asString returned wrong name")
+	}
+
+	// Symbol equality
+	sym2 := vm.Symbols.SymbolValue("testSymbol")
+	result = vm.Send(sym, "=", []Value{sym2})
+	if result != True {
+		t.Errorf("equal symbols should be =")
+	}
+
+	// Different symbols
+	sym3 := vm.Symbols.SymbolValue("otherSymbol")
+	result = vm.Send(sym, "=", []Value{sym3})
+	if result != False {
+		t.Errorf("different symbols should not be =")
+	}
+
+	// hash
+	result = vm.Send(sym, "hash", nil)
+	if !result.IsSmallInt() {
+		t.Errorf("hash should return a SmallInteger")
+	}
+
+	// size
+	result = vm.Send(sym, "size", nil)
+	if result.SmallInt() != 10 { // "testSymbol" has 10 characters
+		t.Errorf("size should be 10, got %d", result.SmallInt())
+	}
+
+	// asSymbol
+	result = vm.Send(sym, "asSymbol", nil)
+	if result != sym {
+		t.Errorf("asSymbol should return self")
+	}
+}
+
+func TestVMSendFloorDivision(t *testing.T) {
+	vm := NewVM()
+
+	// Positive numbers
+	result := vm.Send(FromSmallInt(10), "//", []Value{FromSmallInt(3)})
+	if result.SmallInt() != 3 {
+		t.Errorf("10 // 3 = %d, want 3", result.SmallInt())
+	}
+
+	// Negative dividend - floor division rounds toward negative infinity
+	result = vm.Send(FromSmallInt(-10), "//", []Value{FromSmallInt(3)})
+	if result.SmallInt() != -4 {
+		t.Errorf("-10 // 3 = %d, want -4", result.SmallInt())
+	}
+
+	// Negative divisor
+	result = vm.Send(FromSmallInt(10), "//", []Value{FromSmallInt(-3)})
+	if result.SmallInt() != -4 {
+		t.Errorf("10 // -3 = %d, want -4", result.SmallInt())
+	}
+
+	// Both negative
+	result = vm.Send(FromSmallInt(-10), "//", []Value{FromSmallInt(-3)})
+	if result.SmallInt() != 3 {
+		t.Errorf("-10 // -3 = %d, want 3", result.SmallInt())
+	}
+
+	// Division by zero
+	result = vm.Send(FromSmallInt(10), "//", []Value{FromSmallInt(0)})
+	if result != Nil {
+		t.Errorf("10 // 0 should return nil")
+	}
+}
+
 // ---------------------------------------------------------------------------
 // Benchmarks
 // ---------------------------------------------------------------------------

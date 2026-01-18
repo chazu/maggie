@@ -104,6 +104,8 @@ func (vm *VM) bootstrap() {
 	vm.registerBooleanPrimitives()
 	vm.registerSmallIntegerPrimitives()
 	vm.registerFloatPrimitives()
+	vm.registerSymbolPrimitives()
+	vm.registerStringPrimitives()
 	vm.registerArrayPrimitives()
 	vm.registerBlockPrimitives()
 
@@ -196,6 +198,71 @@ func (vm *VM) registerObjectPrimitives() {
 	c.AddMethod0(vm.Selectors, "yourself", func(_ interface{}, recv Value) Value {
 		return recv
 	})
+
+	// ifNil: - for non-nil objects, don't evaluate block
+	c.AddMethod1(vm.Selectors, "ifNil:", func(_ interface{}, recv Value, block Value) Value {
+		return Nil
+	})
+
+	// ifNotNil: - for non-nil objects, evaluate block
+	c.AddMethod1(vm.Selectors, "ifNotNil:", func(vmPtr interface{}, recv Value, block Value) Value {
+		v := vmPtr.(*VM)
+		return v.evaluateBlock(block, nil)
+	})
+
+	// ifNil:ifNotNil: - for non-nil objects, evaluate second block
+	c.AddMethod2(vm.Selectors, "ifNil:ifNotNil:", func(vmPtr interface{}, recv Value, nilBlock, notNilBlock Value) Value {
+		v := vmPtr.(*VM)
+		return v.evaluateBlock(notNilBlock, nil)
+	})
+
+	// perform: - send message by selector
+	c.AddMethod1(vm.Selectors, "perform:", func(vmPtr interface{}, recv Value, selector Value) Value {
+		v := vmPtr.(*VM)
+		if selector.IsSymbol() {
+			selName := v.Symbols.Name(selector.SymbolID())
+			return v.Send(recv, selName, nil)
+		}
+		return Nil
+	})
+
+	// perform:with: - send message with one argument
+	c.AddMethod2(vm.Selectors, "perform:with:", func(vmPtr interface{}, recv Value, selector, arg Value) Value {
+		v := vmPtr.(*VM)
+		if selector.IsSymbol() {
+			selName := v.Symbols.Name(selector.SymbolID())
+			return v.Send(recv, selName, []Value{arg})
+		}
+		return Nil
+	})
+
+	// doesNotUnderstand: - default error handler
+	c.AddMethod1(vm.Selectors, "doesNotUnderstand:", func(_ interface{}, recv Value, message Value) Value {
+		// In a full implementation, this would raise an error
+		// For now, return nil
+		return Nil
+	})
+
+	// = - value equality (default to identity)
+	c.AddMethod1(vm.Selectors, "=", func(_ interface{}, recv Value, arg Value) Value {
+		if recv == arg {
+			return True
+		}
+		return False
+	})
+
+	// ~= - value inequality
+	c.AddMethod1(vm.Selectors, "~=", func(_ interface{}, recv Value, arg Value) Value {
+		if recv != arg {
+			return True
+		}
+		return False
+	})
+
+	// hash - default hash (identity-based)
+	c.AddMethod0(vm.Selectors, "hash", func(_ interface{}, recv Value) Value {
+		return FromSmallInt(int64(recv))
+	})
 }
 
 func (vm *VM) registerBooleanPrimitives() {
@@ -226,6 +293,33 @@ func (vm *VM) registerBooleanPrimitives() {
 		return v.evaluateBlock(trueBlock, nil)
 	})
 
+	// and: - short-circuit and (evaluate block only if receiver is true)
+	vm.TrueClass.AddMethod1(vm.Selectors, "and:", func(vmPtr interface{}, recv Value, block Value) Value {
+		v := vmPtr.(*VM)
+		return v.evaluateBlock(block, nil)
+	})
+
+	// or: - short-circuit or (don't evaluate block since receiver is true)
+	vm.TrueClass.AddMethod1(vm.Selectors, "or:", func(_ interface{}, recv Value, block Value) Value {
+		return True
+	})
+
+	// xor: - exclusive or
+	vm.TrueClass.AddMethod1(vm.Selectors, "xor:", func(_ interface{}, recv Value, arg Value) Value {
+		if arg == True {
+			return False
+		}
+		return True
+	})
+
+	// eqv: - equivalence (same as =)
+	vm.TrueClass.AddMethod1(vm.Selectors, "eqv:", func(_ interface{}, recv Value, arg Value) Value {
+		if arg == True {
+			return True
+		}
+		return False
+	})
+
 	// False class
 	vm.FalseClass.AddMethod0(vm.Selectors, "not", func(_ interface{}, recv Value) Value {
 		return True
@@ -253,6 +347,33 @@ func (vm *VM) registerBooleanPrimitives() {
 		return v.evaluateBlock(falseBlock, nil)
 	})
 
+	// and: - short-circuit and (don't evaluate block since receiver is false)
+	vm.FalseClass.AddMethod1(vm.Selectors, "and:", func(_ interface{}, recv Value, block Value) Value {
+		return False
+	})
+
+	// or: - short-circuit or (evaluate block since receiver is false)
+	vm.FalseClass.AddMethod1(vm.Selectors, "or:", func(vmPtr interface{}, recv Value, block Value) Value {
+		v := vmPtr.(*VM)
+		return v.evaluateBlock(block, nil)
+	})
+
+	// xor: - exclusive or
+	vm.FalseClass.AddMethod1(vm.Selectors, "xor:", func(_ interface{}, recv Value, arg Value) Value {
+		if arg == False {
+			return False
+		}
+		return True
+	})
+
+	// eqv: - equivalence
+	vm.FalseClass.AddMethod1(vm.Selectors, "eqv:", func(_ interface{}, recv Value, arg Value) Value {
+		if arg == False {
+			return True
+		}
+		return False
+	})
+
 	// UndefinedObject (nil)
 	vm.UndefinedObjectClass.AddMethod0(vm.Selectors, "isNil", func(_ interface{}, recv Value) Value {
 		return True
@@ -269,6 +390,12 @@ func (vm *VM) registerBooleanPrimitives() {
 
 	vm.UndefinedObjectClass.AddMethod1(vm.Selectors, "ifNotNil:", func(_ interface{}, recv Value, block Value) Value {
 		return Nil
+	})
+
+	// ifNil:ifNotNil: - evaluate first block
+	vm.UndefinedObjectClass.AddMethod2(vm.Selectors, "ifNil:ifNotNil:", func(vmPtr interface{}, recv Value, nilBlock, notNilBlock Value) Value {
+		v := vmPtr.(*VM)
+		return v.evaluateBlock(nilBlock, nil)
 	})
 }
 
@@ -325,6 +452,24 @@ func (vm *VM) registerSmallIntegerPrimitives() {
 				return Nil
 			}
 			return FromSmallInt(recv.SmallInt() % arg.SmallInt())
+		}
+		return Nil
+	})
+
+	// // - truncated integer division (floor division)
+	c.AddMethod1(vm.Selectors, "//", func(_ interface{}, recv Value, arg Value) Value {
+		if arg.IsSmallInt() {
+			if arg.SmallInt() == 0 {
+				return Nil
+			}
+			// Smalltalk // is floor division
+			a, b := recv.SmallInt(), arg.SmallInt()
+			result := a / b
+			// Adjust for floor behavior with negative numbers
+			if (a < 0) != (b < 0) && a%b != 0 {
+				result--
+			}
+			return FromSmallInt(result)
 		}
 		return Nil
 	})
@@ -529,9 +674,99 @@ func (vm *VM) registerFloatPrimitives() {
 	})
 }
 
+func (vm *VM) registerSymbolPrimitives() {
+	c := vm.SymbolClass
+
+	// asString - convert symbol to string
+	c.AddMethod0(vm.Selectors, "asString", func(vmPtr interface{}, recv Value) Value {
+		v := vmPtr.(*VM)
+		if recv.IsSymbol() {
+			name := v.Symbols.Name(recv.SymbolID())
+			// Return a symbol representing the string for now
+			// Full implementation would return a String object
+			return v.Symbols.SymbolValue(name)
+		}
+		return Nil
+	})
+
+	// = - symbol equality (identity since symbols are interned)
+	c.AddMethod1(vm.Selectors, "=", func(_ interface{}, recv Value, arg Value) Value {
+		if recv == arg {
+			return True
+		}
+		return False
+	})
+
+	// hash - symbol hash (use symbol ID)
+	c.AddMethod0(vm.Selectors, "hash", func(_ interface{}, recv Value) Value {
+		if recv.IsSymbol() {
+			return FromSmallInt(int64(recv.SymbolID()))
+		}
+		return FromSmallInt(0)
+	})
+
+	// size - length of symbol name
+	c.AddMethod0(vm.Selectors, "size", func(vmPtr interface{}, recv Value) Value {
+		v := vmPtr.(*VM)
+		if recv.IsSymbol() {
+			name := v.Symbols.Name(recv.SymbolID())
+			return FromSmallInt(int64(len(name)))
+		}
+		return FromSmallInt(0)
+	})
+
+	// asSymbol - return self
+	c.AddMethod0(vm.Selectors, "asSymbol", func(_ interface{}, recv Value) Value {
+		return recv
+	})
+}
+
+func (vm *VM) registerStringPrimitives() {
+	// String primitives
+	// For Phase 1, strings are represented as symbols
+	// Full String implementation requires heap-allocated string objects
+	c := vm.StringClass
+
+	// size - return length (placeholder)
+	c.AddMethod0(vm.Selectors, "size", func(_ interface{}, recv Value) Value {
+		// For now, strings aren't fully implemented
+		return FromSmallInt(0)
+	})
+
+	// asSymbol - convert to symbol (placeholder)
+	c.AddMethod0(vm.Selectors, "asSymbol", func(_ interface{}, recv Value) Value {
+		return recv
+	})
+
+	// = - string equality (placeholder)
+	c.AddMethod1(vm.Selectors, "=", func(_ interface{}, recv Value, arg Value) Value {
+		if recv == arg {
+			return True
+		}
+		return False
+	})
+}
+
 func (vm *VM) registerArrayPrimitives() {
-	// Array primitives would go here
-	// For now, we leave as stubs since we don't have a proper Array implementation yet
+	// Array primitives
+	// For Phase 1, arrays require heap-allocated objects
+	// Placeholder implementations for now
+	c := vm.ArrayClass
+
+	// size - return array size (placeholder)
+	c.AddMethod0(vm.Selectors, "size", func(_ interface{}, recv Value) Value {
+		return FromSmallInt(0)
+	})
+
+	// at: - array access (placeholder)
+	c.AddMethod1(vm.Selectors, "at:", func(_ interface{}, recv Value, index Value) Value {
+		return Nil
+	})
+
+	// at:put: - array modification (placeholder)
+	c.AddMethod2(vm.Selectors, "at:put:", func(_ interface{}, recv Value, index, value Value) Value {
+		return recv
+	})
 }
 
 func (vm *VM) registerBlockPrimitives() {
