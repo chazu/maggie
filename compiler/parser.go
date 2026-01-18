@@ -1,0 +1,752 @@
+package compiler
+
+import (
+	"fmt"
+	"strconv"
+	"strings"
+)
+
+// ---------------------------------------------------------------------------
+// Parser: Recursive descent parser for Smalltalk syntax
+// ---------------------------------------------------------------------------
+
+// Parser parses Smalltalk source code into an AST.
+type Parser struct {
+	lexer     *Lexer
+	curToken  Token
+	peekToken Token
+	errors    []string
+}
+
+// NewParser creates a new parser for the given input.
+func NewParser(input string) *Parser {
+	p := &Parser{
+		lexer: NewLexer(input),
+	}
+	// Read two tokens to fill curToken and peekToken
+	p.nextToken()
+	p.nextToken()
+	return p
+}
+
+// nextToken advances to the next token.
+func (p *Parser) nextToken() {
+	p.curToken = p.peekToken
+	p.peekToken = p.lexer.NextToken()
+}
+
+// curTokenIs checks if the current token is of the given type.
+func (p *Parser) curTokenIs(t TokenType) bool {
+	return p.curToken.Type == t
+}
+
+// peekTokenIs checks if the peek token is of the given type.
+func (p *Parser) peekTokenIs(t TokenType) bool {
+	return p.peekToken.Type == t
+}
+
+// expect advances if the current token matches, otherwise records an error.
+func (p *Parser) expect(t TokenType) bool {
+	if p.curTokenIs(t) {
+		p.nextToken()
+		return true
+	}
+	p.errorf("expected %s, got %s", t, p.curToken.Type)
+	return false
+}
+
+// errorf records a parse error.
+func (p *Parser) errorf(format string, args ...interface{}) {
+	msg := fmt.Sprintf("line %d: %s", p.curToken.Pos.Line, fmt.Sprintf(format, args...))
+	p.errors = append(p.errors, msg)
+}
+
+// Errors returns accumulated parse errors.
+func (p *Parser) Errors() []string {
+	return p.errors
+}
+
+// ---------------------------------------------------------------------------
+// Top-level parsing
+// ---------------------------------------------------------------------------
+
+// ParseExpression parses a single expression.
+func (p *Parser) ParseExpression() Expr {
+	return p.parseKeywordSend()
+}
+
+// ParseStatement parses a single statement.
+func (p *Parser) ParseStatement() Stmt {
+	// Check for return
+	if p.curTokenIs(TokenCaret) {
+		return p.parseReturn()
+	}
+
+	// Parse expression
+	expr := p.parseKeywordSend()
+	if expr == nil {
+		return nil
+	}
+
+	// Check for assignment
+	if assign, ok := expr.(*Assignment); ok {
+		return &ExprStmt{SpanVal: assign.SpanVal, Expr: assign}
+	}
+
+	return &ExprStmt{SpanVal: expr.Span(), Expr: expr}
+}
+
+// ParseStatements parses multiple statements separated by periods.
+func (p *Parser) ParseStatements() []Stmt {
+	var stmts []Stmt
+
+	for !p.curTokenIs(TokenEOF) && !p.curTokenIs(TokenRBracket) && !p.curTokenIs(TokenRBrace) {
+		stmt := p.ParseStatement()
+		if stmt != nil {
+			stmts = append(stmts, stmt)
+		}
+
+		// Consume period if present
+		if p.curTokenIs(TokenPeriod) {
+			p.nextToken()
+		} else {
+			break
+		}
+	}
+
+	return stmts
+}
+
+// ParseMethod parses a method definition.
+func (p *Parser) ParseMethod() *MethodDef {
+	startPos := p.curToken.Pos
+
+	// Parse method signature
+	selector, params := p.parseMethodSignature()
+	if selector == "" {
+		return nil
+	}
+
+	// Parse temporaries (| temp1 temp2 |)
+	var temps []string
+	if p.curTokenIs(TokenBar) {
+		temps = p.parseTemporaries()
+	}
+
+	// Parse statements
+	stmts := p.ParseStatements()
+
+	return &MethodDef{
+		SpanVal:    MakeSpan(startPos, p.curToken.Pos),
+		Selector:   selector,
+		Parameters: params,
+		Temps:      temps,
+		Statements: stmts,
+	}
+}
+
+// parseMethodSignature parses a method signature.
+func (p *Parser) parseMethodSignature() (string, []string) {
+	switch {
+	case p.curTokenIs(TokenIdentifier):
+		// Unary method
+		selector := p.curToken.Literal
+		p.nextToken()
+		return selector, nil
+
+	case p.curTokenIs(TokenBinarySelector):
+		// Binary method
+		selector := p.curToken.Literal
+		p.nextToken()
+		if !p.curTokenIs(TokenIdentifier) {
+			p.errorf("expected parameter name after binary selector")
+			return "", nil
+		}
+		param := p.curToken.Literal
+		p.nextToken()
+		return selector, []string{param}
+
+	case p.curTokenIs(TokenKeyword):
+		// Keyword method
+		var selector strings.Builder
+		var params []string
+		for p.curTokenIs(TokenKeyword) {
+			selector.WriteString(p.curToken.Literal)
+			p.nextToken()
+			if !p.curTokenIs(TokenIdentifier) {
+				p.errorf("expected parameter name after keyword")
+				return "", nil
+			}
+			params = append(params, p.curToken.Literal)
+			p.nextToken()
+		}
+		return selector.String(), params
+
+	default:
+		p.errorf("expected method signature")
+		return "", nil
+	}
+}
+
+// parseTemporaries parses | temp1 temp2 |
+func (p *Parser) parseTemporaries() []string {
+	p.nextToken() // consume |
+	var temps []string
+	for p.curTokenIs(TokenIdentifier) {
+		temps = append(temps, p.curToken.Literal)
+		p.nextToken()
+	}
+	if !p.expect(TokenBar) {
+		return nil
+	}
+	return temps
+}
+
+// parseReturn parses ^expr
+func (p *Parser) parseReturn() *Return {
+	startPos := p.curToken.Pos
+	p.nextToken() // consume ^
+
+	value := p.parseKeywordSend()
+	if value == nil {
+		return nil
+	}
+
+	return &Return{
+		SpanVal: MakeSpan(startPos, value.Span().End),
+		Value:   value,
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Expression parsing (message precedence)
+// ---------------------------------------------------------------------------
+
+// parseKeywordSend parses keyword message sends (lowest precedence).
+func (p *Parser) parseKeywordSend() Expr {
+	receiver := p.parseBinarySend()
+	if receiver == nil {
+		return nil
+	}
+
+	// Check for keyword message
+	if !p.curTokenIs(TokenKeyword) {
+		return receiver
+	}
+
+	return p.parseKeywordMessage(receiver)
+}
+
+// parseKeywordMessage parses a keyword message with given receiver.
+func (p *Parser) parseKeywordMessage(receiver Expr) Expr {
+	startPos := receiver.Span().Start
+
+	var selector strings.Builder
+	var keywords []string
+	var args []Expr
+
+	for p.curTokenIs(TokenKeyword) {
+		keyword := p.curToken.Literal
+		keywords = append(keywords, keyword)
+		selector.WriteString(keyword)
+		p.nextToken()
+
+		// Parse argument (binary level, not keyword to avoid ambiguity)
+		arg := p.parseBinarySend()
+		if arg == nil {
+			return nil
+		}
+		args = append(args, arg)
+	}
+
+	return &KeywordMessage{
+		SpanVal:   MakeSpan(startPos, p.curToken.Pos),
+		Receiver:  receiver,
+		Selector:  selector.String(),
+		Keywords:  keywords,
+		Arguments: args,
+	}
+}
+
+// parseBinarySend parses binary message sends (middle precedence).
+func (p *Parser) parseBinarySend() Expr {
+	left := p.parseUnarySend()
+	if left == nil {
+		return nil
+	}
+
+	// Check for cascades first
+	if p.curTokenIs(TokenSemicolon) {
+		return p.parseCascade(left)
+	}
+
+	// Parse binary messages (left associative)
+	for p.curTokenIs(TokenBinarySelector) {
+		selector := p.curToken.Literal
+		p.nextToken()
+
+		right := p.parseUnarySend()
+		if right == nil {
+			return nil
+		}
+
+		left = &BinaryMessage{
+			SpanVal:  MakeSpan(left.Span().Start, right.Span().End),
+			Receiver: left,
+			Selector: selector,
+			Argument: right,
+		}
+	}
+
+	return left
+}
+
+// parseCascade parses cascaded messages.
+func (p *Parser) parseCascade(first Expr) Expr {
+	// first is already the first message send result
+	// We need to extract the receiver from first
+
+	var receiver Expr
+	var messages []CascadedMessage
+
+	// Convert first to a cascaded message
+	switch msg := first.(type) {
+	case *UnaryMessage:
+		receiver = msg.Receiver
+		messages = append(messages, CascadedMessage{
+			Type:     UnaryMsg,
+			Selector: msg.Selector,
+		})
+	case *BinaryMessage:
+		receiver = msg.Receiver
+		messages = append(messages, CascadedMessage{
+			Type:      BinaryMsg,
+			Selector:  msg.Selector,
+			Arguments: []Expr{msg.Argument},
+		})
+	case *KeywordMessage:
+		receiver = msg.Receiver
+		messages = append(messages, CascadedMessage{
+			Type:      KeywordMsg,
+			Selector:  msg.Selector,
+			Keywords:  msg.Keywords,
+			Arguments: msg.Arguments,
+		})
+	default:
+		// Not a message, can't cascade
+		p.errorf("cascade requires a message send")
+		return first
+	}
+
+	// Parse remaining cascaded messages
+	for p.curTokenIs(TokenSemicolon) {
+		p.nextToken() // consume ;
+
+		msg := p.parseCascadedMessage()
+		if msg != nil {
+			messages = append(messages, *msg)
+		}
+	}
+
+	return &Cascade{
+		SpanVal:  MakeSpan(first.Span().Start, p.curToken.Pos),
+		Receiver: receiver,
+		Messages: messages,
+	}
+}
+
+// parseCascadedMessage parses a single cascaded message (without receiver).
+func (p *Parser) parseCascadedMessage() *CascadedMessage {
+	switch {
+	case p.curTokenIs(TokenIdentifier):
+		// Unary message
+		selector := p.curToken.Literal
+		p.nextToken()
+		return &CascadedMessage{
+			Type:     UnaryMsg,
+			Selector: selector,
+		}
+
+	case p.curTokenIs(TokenBinarySelector):
+		// Binary message
+		selector := p.curToken.Literal
+		p.nextToken()
+		arg := p.parseUnarySend()
+		if arg == nil {
+			return nil
+		}
+		return &CascadedMessage{
+			Type:      BinaryMsg,
+			Selector:  selector,
+			Arguments: []Expr{arg},
+		}
+
+	case p.curTokenIs(TokenKeyword):
+		// Keyword message
+		var selector strings.Builder
+		var keywords []string
+		var args []Expr
+		for p.curTokenIs(TokenKeyword) {
+			keyword := p.curToken.Literal
+			keywords = append(keywords, keyword)
+			selector.WriteString(keyword)
+			p.nextToken()
+			arg := p.parseBinarySend()
+			if arg == nil {
+				return nil
+			}
+			args = append(args, arg)
+		}
+		return &CascadedMessage{
+			Type:      KeywordMsg,
+			Selector:  selector.String(),
+			Keywords:  keywords,
+			Arguments: args,
+		}
+
+	default:
+		p.errorf("expected message in cascade")
+		return nil
+	}
+}
+
+// parseUnarySend parses unary message sends (highest precedence).
+func (p *Parser) parseUnarySend() Expr {
+	primary := p.parsePrimary()
+	if primary == nil {
+		return nil
+	}
+
+	// Parse chain of unary messages
+	for p.curTokenIs(TokenIdentifier) && !p.peekTokenIs(TokenAssign) && !p.peekTokenIs(TokenColon) {
+		selector := p.curToken.Literal
+		p.nextToken()
+
+		primary = &UnaryMessage{
+			SpanVal:  MakeSpan(primary.Span().Start, p.curToken.Pos),
+			Receiver: primary,
+			Selector: selector,
+		}
+	}
+
+	return primary
+}
+
+// parsePrimary parses primary expressions.
+func (p *Parser) parsePrimary() Expr {
+	switch p.curToken.Type {
+	case TokenInteger:
+		return p.parseInteger()
+	case TokenFloat:
+		return p.parseFloat()
+	case TokenString:
+		return p.parseString()
+	case TokenSymbol:
+		return p.parseSymbol()
+	case TokenCharacter:
+		return p.parseCharacter()
+	case TokenHash:
+		return p.parseHashLiteral()
+	case TokenHashLParen:
+		return p.parseLiteralArray()
+	case TokenLParen:
+		return p.parseParenExpr()
+	case TokenLBracket:
+		return p.parseBlock()
+	case TokenLBrace:
+		return p.parseDynamicArray()
+	case TokenIdentifier:
+		return p.parseIdentifier()
+	case TokenSelf:
+		return p.parseSelf()
+	case TokenSuper:
+		return p.parseSuper()
+	case TokenThisContext:
+		return p.parseThisContext()
+	case TokenNil:
+		return p.parseNil()
+	case TokenTrue:
+		return p.parseTrue()
+	case TokenFalse:
+		return p.parseFalse()
+	default:
+		p.errorf("unexpected token: %s", p.curToken.Type)
+		return nil
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Literal parsing
+// ---------------------------------------------------------------------------
+
+func (p *Parser) parseInteger() *IntLiteral {
+	pos := p.curToken.Pos
+	literal := p.curToken.Literal
+
+	// Handle radix notation (16rFF)
+	var value int64
+	var err error
+	if idx := strings.Index(literal, "r"); idx > 0 {
+		radixStr := literal[:idx]
+		digits := literal[idx+1:]
+		radix, _ := strconv.ParseInt(radixStr, 10, 64)
+		value, err = strconv.ParseInt(digits, int(radix), 64)
+	} else {
+		value, err = strconv.ParseInt(literal, 10, 64)
+	}
+
+	if err != nil {
+		p.errorf("invalid integer: %s", literal)
+		value = 0
+	}
+
+	p.nextToken()
+	return &IntLiteral{
+		SpanVal: MakeSpan(pos, p.curToken.Pos),
+		Value:   value,
+	}
+}
+
+func (p *Parser) parseFloat() *FloatLiteral {
+	pos := p.curToken.Pos
+	value, err := strconv.ParseFloat(p.curToken.Literal, 64)
+	if err != nil {
+		p.errorf("invalid float: %s", p.curToken.Literal)
+		value = 0
+	}
+	p.nextToken()
+	return &FloatLiteral{
+		SpanVal: MakeSpan(pos, p.curToken.Pos),
+		Value:   value,
+	}
+}
+
+func (p *Parser) parseString() *StringLiteral {
+	pos := p.curToken.Pos
+	value := p.curToken.Literal
+	p.nextToken()
+	return &StringLiteral{
+		SpanVal: MakeSpan(pos, p.curToken.Pos),
+		Value:   value,
+	}
+}
+
+func (p *Parser) parseSymbol() *SymbolLiteral {
+	pos := p.curToken.Pos
+	value := p.curToken.Literal
+	p.nextToken()
+	return &SymbolLiteral{
+		SpanVal: MakeSpan(pos, p.curToken.Pos),
+		Value:   value,
+	}
+}
+
+func (p *Parser) parseCharacter() *CharLiteral {
+	pos := p.curToken.Pos
+	value := []rune(p.curToken.Literal)[0]
+	p.nextToken()
+	return &CharLiteral{
+		SpanVal: MakeSpan(pos, p.curToken.Pos),
+		Value:   value,
+	}
+}
+
+func (p *Parser) parseHashLiteral() Expr {
+	// We have a lone # - could be followed by ( for array or other things
+	// This case shouldn't normally occur as lexer handles #( specially
+	pos := p.curToken.Pos
+	p.nextToken()
+	if p.curTokenIs(TokenLParen) {
+		return p.parseLiteralArray()
+	}
+	p.errorf("unexpected # token")
+	return &SymbolLiteral{SpanVal: MakeSpan(pos, pos), Value: ""}
+}
+
+func (p *Parser) parseLiteralArray() *ArrayLiteral {
+	pos := p.curToken.Pos
+	p.nextToken() // consume #( or (
+
+	var elements []Expr
+	for !p.curTokenIs(TokenRParen) && !p.curTokenIs(TokenEOF) {
+		elem := p.parseLiteralArrayElement()
+		if elem != nil {
+			elements = append(elements, elem)
+		}
+	}
+
+	p.expect(TokenRParen)
+
+	return &ArrayLiteral{
+		SpanVal:  MakeSpan(pos, p.curToken.Pos),
+		Elements: elements,
+	}
+}
+
+func (p *Parser) parseLiteralArrayElement() Expr {
+	switch p.curToken.Type {
+	case TokenInteger:
+		return p.parseInteger()
+	case TokenFloat:
+		return p.parseFloat()
+	case TokenString:
+		return p.parseString()
+	case TokenSymbol:
+		return p.parseSymbol()
+	case TokenCharacter:
+		return p.parseCharacter()
+	case TokenIdentifier:
+		// In literal arrays, bare identifiers are symbols
+		pos := p.curToken.Pos
+		value := p.curToken.Literal
+		p.nextToken()
+		return &SymbolLiteral{SpanVal: MakeSpan(pos, p.curToken.Pos), Value: value}
+	case TokenHashLParen, TokenLParen:
+		return p.parseLiteralArray()
+	case TokenNil:
+		return p.parseNil()
+	case TokenTrue:
+		return p.parseTrue()
+	case TokenFalse:
+		return p.parseFalse()
+	default:
+		p.errorf("unexpected token in literal array: %s", p.curToken.Type)
+		p.nextToken()
+		return nil
+	}
+}
+
+func (p *Parser) parseParenExpr() Expr {
+	p.nextToken() // consume (
+	expr := p.parseKeywordSend()
+	p.expect(TokenRParen)
+	return expr
+}
+
+func (p *Parser) parseDynamicArray() *DynamicArray {
+	pos := p.curToken.Pos
+	p.nextToken() // consume {
+
+	var elements []Expr
+	for !p.curTokenIs(TokenRBrace) && !p.curTokenIs(TokenEOF) {
+		elem := p.parseKeywordSend()
+		if elem != nil {
+			elements = append(elements, elem)
+		}
+		if p.curTokenIs(TokenPeriod) {
+			p.nextToken()
+		} else if !p.curTokenIs(TokenRBrace) {
+			break
+		}
+	}
+
+	p.expect(TokenRBrace)
+
+	return &DynamicArray{
+		SpanVal:  MakeSpan(pos, p.curToken.Pos),
+		Elements: elements,
+	}
+}
+
+func (p *Parser) parseBlock() *Block {
+	pos := p.curToken.Pos
+	p.nextToken() // consume [
+
+	// Parse block parameters :x :y |
+	var params []string
+	for p.curTokenIs(TokenColon) {
+		p.nextToken() // consume :
+		if !p.curTokenIs(TokenIdentifier) {
+			p.errorf("expected parameter name after :")
+			break
+		}
+		params = append(params, p.curToken.Literal)
+		p.nextToken()
+	}
+
+	// Consume | after parameters
+	if len(params) > 0 {
+		if !p.expect(TokenBar) {
+			return nil
+		}
+	}
+
+	// Parse temporaries | temp1 temp2 |
+	var temps []string
+	if p.curTokenIs(TokenBar) {
+		temps = p.parseTemporaries()
+	}
+
+	// Parse statements
+	stmts := p.ParseStatements()
+
+	p.expect(TokenRBracket)
+
+	return &Block{
+		SpanVal:    MakeSpan(pos, p.curToken.Pos),
+		Parameters: params,
+		Temps:      temps,
+		Statements: stmts,
+	}
+}
+
+func (p *Parser) parseIdentifier() Expr {
+	pos := p.curToken.Pos
+	name := p.curToken.Literal
+	p.nextToken()
+
+	// Check for assignment
+	if p.curTokenIs(TokenAssign) {
+		p.nextToken() // consume :=
+		value := p.parseKeywordSend()
+		if value == nil {
+			return nil
+		}
+		return &Assignment{
+			SpanVal:  MakeSpan(pos, value.Span().End),
+			Variable: name,
+			Value:    value,
+		}
+	}
+
+	return &Variable{
+		SpanVal: MakeSpan(pos, p.curToken.Pos),
+		Name:    name,
+	}
+}
+
+func (p *Parser) parseSelf() *Self {
+	pos := p.curToken.Pos
+	p.nextToken()
+	return &Self{SpanVal: MakeSpan(pos, p.curToken.Pos)}
+}
+
+func (p *Parser) parseSuper() *Super {
+	pos := p.curToken.Pos
+	p.nextToken()
+	return &Super{SpanVal: MakeSpan(pos, p.curToken.Pos)}
+}
+
+func (p *Parser) parseThisContext() *ThisContext {
+	pos := p.curToken.Pos
+	p.nextToken()
+	return &ThisContext{SpanVal: MakeSpan(pos, p.curToken.Pos)}
+}
+
+func (p *Parser) parseNil() *Variable {
+	pos := p.curToken.Pos
+	p.nextToken()
+	return &Variable{SpanVal: MakeSpan(pos, p.curToken.Pos), Name: "nil"}
+}
+
+func (p *Parser) parseTrue() *Variable {
+	pos := p.curToken.Pos
+	p.nextToken()
+	return &Variable{SpanVal: MakeSpan(pos, p.curToken.Pos), Name: "true"}
+}
+
+func (p *Parser) parseFalse() *Variable {
+	pos := p.curToken.Pos
+	p.nextToken()
+	return &Variable{SpanVal: MakeSpan(pos, p.curToken.Pos), Name: "false"}
+}
