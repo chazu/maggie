@@ -32,6 +32,9 @@ type VM struct {
 	CompiledMethodClass    *Class
 	ChannelClass           *Class
 	ProcessClass           *Class
+	ResultClass            *Class
+	SuccessClass           *Class
+	FailureClass           *Class
 
 	// Interpreter
 	interpreter *Interpreter
@@ -106,6 +109,11 @@ func (vm *VM) bootstrap() {
 	vm.ChannelClass = vm.createClass("Channel", vm.ObjectClass)
 	vm.ProcessClass = vm.createClass("Process", vm.ObjectClass)
 
+	// Phase 5c: Create Result pattern classes
+	vm.ResultClass = vm.createClass("Result", vm.ObjectClass)
+	vm.SuccessClass = vm.createClass("Success", vm.ResultClass)
+	vm.FailureClass = vm.createClass("Failure", vm.ResultClass)
+
 	// Phase 6: Register primitives on core classes
 	vm.registerObjectPrimitives()
 	vm.registerBooleanPrimitives()
@@ -117,6 +125,7 @@ func (vm *VM) bootstrap() {
 	vm.registerBlockPrimitives()
 	vm.registerChannelPrimitives()
 	vm.registerProcessPrimitives()
+	vm.registerResultPrimitives()
 
 	// Phase 7: Set up globals
 	vm.Globals["Object"] = vm.classValue(vm.ObjectClass)
@@ -133,6 +142,9 @@ func (vm *VM) bootstrap() {
 	vm.Globals["Block"] = vm.classValue(vm.BlockClass)
 	vm.Globals["Channel"] = vm.classValue(vm.ChannelClass)
 	vm.Globals["Process"] = vm.classValue(vm.ProcessClass)
+	vm.Globals["Result"] = vm.classValue(vm.ResultClass)
+	vm.Globals["Success"] = vm.classValue(vm.SuccessClass)
+	vm.Globals["Failure"] = vm.classValue(vm.FailureClass)
 
 	// Well-known symbols
 	vm.Globals["nil"] = Nil
@@ -920,11 +932,19 @@ func (vm *VM) Send(receiver Value, selector string, args []Value) Value {
 	// Determine the class for method dispatch
 	var class *Class
 	if receiver.IsSymbol() {
-		// Check for special symbol-encoded values first (channels, processes)
+		// Check for special symbol-encoded values first (channels, processes, results)
 		if isChannelValue(receiver) {
 			class = vm.ChannelClass
 		} else if isProcessValue(receiver) {
 			class = vm.ProcessClass
+		} else if isResultValue(receiver) {
+			// Determine if it's a Success or Failure
+			r := getResult(receiver)
+			if r != nil && r.resultType == ResultSuccess {
+				class = vm.SuccessClass
+			} else {
+				class = vm.FailureClass
+			}
 		} else {
 			// Check if this symbol represents a class name (for class-side messages)
 			// This handles cases like: Channel new, Process sleep: 100
