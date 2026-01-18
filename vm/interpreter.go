@@ -32,6 +32,9 @@ type Interpreter struct {
 	Classes   *ClassTable
 	Globals   map[string]Value
 
+	// Back-reference to VM for primitives
+	vm interface{}
+
 	// Execution state
 	stack  []Value      // operand stack
 	sp     int          // stack pointer (points to next free slot)
@@ -213,15 +216,43 @@ func (i *Interpreter) popFrame() {
 
 // Execute runs a compiled method with the given receiver and arguments.
 // Returns the result value.
-func (i *Interpreter) Execute(method *CompiledMethod, receiver Value, args []Value) Value {
+func (i *Interpreter) Execute(method *CompiledMethod, receiver Value, args []Value) (result Value) {
+	// Record the home frame for this method
 	i.pushFrame(method, receiver, args)
-	return i.run()
+	homeFrame := i.fp
+
+	// Catch non-local returns from blocks
+	defer func() {
+		if r := recover(); r != nil {
+			if nlr, ok := r.(NonLocalReturn); ok {
+				// If this is the target frame, return the value
+				if nlr.HomeFrame == homeFrame {
+					// Unwind any remaining frames to our home frame
+					for i.fp > homeFrame {
+						i.popFrame()
+					}
+					if i.fp == homeFrame {
+						i.popFrame()
+					}
+					result = nlr.Value
+					return
+				}
+				// Not our frame, propagate up
+				panic(nlr)
+			}
+			// Re-panic for other errors
+			panic(r)
+		}
+	}()
+
+	result = i.run()
+	return result
 }
 
 // ExecuteBlock runs a block with captured variables and arguments.
-func (i *Interpreter) ExecuteBlock(block *BlockMethod, captures []Value, args []Value) Value {
+func (i *Interpreter) ExecuteBlock(block *BlockMethod, captures []Value, args []Value, homeFrame int, homeSelf Value) Value {
 	i.pushBlockFrame(block, captures, args)
-	return i.runBlock()
+	return i.runBlock(homeFrame, homeSelf)
 }
 
 // run is the main interpreter loop for methods.
@@ -576,7 +607,10 @@ func (i *Interpreter) run() Value {
 }
 
 // runBlock is the interpreter loop for block execution.
-func (i *Interpreter) runBlock() Value {
+// homeFrame is the frame pointer of the method that created this block,
+// used for non-local returns.
+// homeSelf is the self value captured from the enclosing method.
+func (i *Interpreter) runBlock(homeFrame int, homeSelf Value) Value {
 	for {
 		frame := i.frames[i.fp]
 		bc := frame.Block.Bytecode
@@ -612,9 +646,8 @@ func (i *Interpreter) runBlock() Value {
 			i.push(False)
 
 		case OpPushSelf:
-			// Blocks capture self from enclosing context
-			// For now, push nil
-			i.push(Nil)
+			// Use captured self from enclosing method
+			i.push(homeSelf)
 
 		case OpPushInt8:
 			val := int8(bc[frame.IP])
@@ -662,7 +695,16 @@ func (i *Interpreter) runBlock() Value {
 				frame.Captures[idx] = i.top()
 			}
 
-		// Arithmetic and comparisons
+		// Message sends
+		case OpSend:
+			sel := int(binary.LittleEndian.Uint16(bc[frame.IP:]))
+			frame.IP += 2
+			argc := int(bc[frame.IP])
+			frame.IP++
+			result := i.send(sel, argc)
+			i.push(result)
+
+		// Optimized sends
 		case OpSendPlus:
 			b := i.pop()
 			a := i.pop()
@@ -678,6 +720,16 @@ func (i *Interpreter) runBlock() Value {
 			a := i.pop()
 			i.push(i.primitiveTimes(a, b))
 
+		case OpSendDiv:
+			b := i.pop()
+			a := i.pop()
+			i.push(i.primitiveDiv(a, b))
+
+		case OpSendMod:
+			b := i.pop()
+			a := i.pop()
+			i.push(i.primitiveMod(a, b))
+
 		case OpSendLT:
 			b := i.pop()
 			a := i.pop()
@@ -688,10 +740,25 @@ func (i *Interpreter) runBlock() Value {
 			a := i.pop()
 			i.push(i.primitiveGT(a, b))
 
+		case OpSendLE:
+			b := i.pop()
+			a := i.pop()
+			i.push(i.primitiveLE(a, b))
+
+		case OpSendGE:
+			b := i.pop()
+			a := i.pop()
+			i.push(i.primitiveGE(a, b))
+
 		case OpSendEQ:
 			b := i.pop()
 			a := i.pop()
 			i.push(i.primitiveEQ(a, b))
+
+		case OpSendNE:
+			b := i.pop()
+			a := i.pop()
+			i.push(i.primitiveNE(a, b))
 
 		// Control flow
 		case OpJump:
@@ -716,6 +783,14 @@ func (i *Interpreter) runBlock() Value {
 			}
 
 		case OpReturnTop:
+			// Non-local return: return from the home context (enclosing method)
+			result := i.pop()
+			i.popFrame()
+			// Signal non-local return by panicking
+			panic(NonLocalReturn{Value: result, HomeFrame: homeFrame})
+
+		case OpBlockReturn:
+			// Normal block return: just return from this block
 			result := i.pop()
 			i.popFrame()
 			return result
@@ -732,7 +807,7 @@ func (i *Interpreter) runBlock() Value {
 // ---------------------------------------------------------------------------
 
 // send performs a message send via VTable lookup.
-func (i *Interpreter) send(selector int, argc int) Value {
+func (i *Interpreter) send(selector int, argc int) (result Value) {
 	args := i.popN(argc)
 	rcvr := i.pop()
 
@@ -752,17 +827,44 @@ func (i *Interpreter) send(selector int, argc int) Value {
 
 	// Check if it's a compiled method or primitive
 	if cm, ok := method.(*CompiledMethod); ok {
-		// Recursive interpretation
+		// Push frame and record home frame for non-local return handling
 		i.pushFrame(cm, rcvr, args)
-		return i.run()
+		homeFrame := i.fp
+
+		// Catch non-local returns from blocks created in this method
+		defer func() {
+			if r := recover(); r != nil {
+				if nlr, ok := r.(NonLocalReturn); ok {
+					// If this is the target frame, return the value
+					if nlr.HomeFrame == homeFrame {
+						// Unwind any remaining frames to our home frame
+						for i.fp > homeFrame {
+							i.popFrame()
+						}
+						if i.fp == homeFrame {
+							i.popFrame()
+						}
+						result = nlr.Value
+						return
+					}
+					// Not our frame, propagate up
+					panic(nlr)
+				}
+				// Re-panic for other errors
+				panic(r)
+			}
+		}()
+
+		result = i.run()
+		return result
 	}
 
-	// Primitive method
-	return method.Invoke(i, rcvr, args)
+	// Primitive method - pass the VM (for primitives that need it)
+	return method.Invoke(i.vm, rcvr, args)
 }
 
 // sendSuper performs a super send.
-func (i *Interpreter) sendSuper(selector int, argc int, definingClass *Class) Value {
+func (i *Interpreter) sendSuper(selector int, argc int, definingClass *Class) (result Value) {
 	args := i.popN(argc)
 	rcvr := i.pop()
 
@@ -783,22 +885,69 @@ func (i *Interpreter) sendSuper(selector int, argc int, definingClass *Class) Va
 
 	if cm, ok := method.(*CompiledMethod); ok {
 		i.pushFrame(cm, rcvr, args)
-		return i.run()
+		homeFrame := i.fp
+
+		// Catch non-local returns
+		defer func() {
+			if r := recover(); r != nil {
+				if nlr, ok := r.(NonLocalReturn); ok {
+					if nlr.HomeFrame == homeFrame {
+						for i.fp > homeFrame {
+							i.popFrame()
+						}
+						if i.fp == homeFrame {
+							i.popFrame()
+						}
+						result = nlr.Value
+						return
+					}
+					panic(nlr)
+				}
+				panic(r)
+			}
+		}()
+
+		result = i.run()
+		return result
 	}
 
-	return method.Invoke(i, rcvr, args)
+	return method.Invoke(i.vm, rcvr, args)
 }
 
 // vtableFor returns the vtable for a value.
 func (i *Interpreter) vtableFor(v Value) *VTable {
-	if v.IsObject() {
+	// Handle special values
+	switch {
+	case v == Nil:
+		if c := i.Classes.Lookup("UndefinedObject"); c != nil {
+			return c.VTable
+		}
+	case v == True:
+		if c := i.Classes.Lookup("True"); c != nil {
+			return c.VTable
+		}
+	case v == False:
+		if c := i.Classes.Lookup("False"); c != nil {
+			return c.VTable
+		}
+	case v.IsSmallInt():
+		if c := i.Classes.Lookup("SmallInteger"); c != nil {
+			return c.VTable
+		}
+	case v.IsFloat():
+		if c := i.Classes.Lookup("Float"); c != nil {
+			return c.VTable
+		}
+	case v.IsSymbol():
+		if c := i.Classes.Lookup("Symbol"); c != nil {
+			return c.VTable
+		}
+	case v.IsObject():
 		obj := ObjectFromValue(v)
 		if obj != nil {
 			return obj.VTablePtr()
 		}
 	}
-	// For non-object values, would return appropriate vtable
-	// (integerVTable, floatVTable, etc.)
 	return nil
 }
 
@@ -810,8 +959,18 @@ func (i *Interpreter) vtableFor(v Value) *VTable {
 // This is a simplified representation; a full implementation would
 // use a proper Block class.
 type BlockValue struct {
-	Block    *BlockMethod
-	Captures []Value
+	Block      *BlockMethod
+	Captures   []Value
+	HomeFrame  int   // frame pointer of the method that created this block
+	HomeSelf   Value // self from the enclosing method context
+}
+
+// NonLocalReturn is used to propagate non-local returns from blocks.
+// When a block executes ^value, it needs to return from the enclosing method,
+// not just from the block itself.
+type NonLocalReturn struct {
+	Value     Value
+	HomeFrame int // target frame to return to
 }
 
 // blockRegistry stores active blocks (temporary solution until proper Block class)
@@ -823,7 +982,22 @@ func (i *Interpreter) createBlockValue(block *BlockMethod, captures []Value) Val
 	// A full implementation would create a proper Block object
 	id := nextBlockID
 	nextBlockID++
-	blockRegistry[id] = &BlockValue{Block: block, Captures: captures}
+
+	// Capture self from the current method context
+	var homeSelf Value = Nil
+	if i.fp >= 0 {
+		frame := i.frames[i.fp]
+		if frame != nil {
+			homeSelf = frame.Receiver
+		}
+	}
+
+	blockRegistry[id] = &BlockValue{
+		Block:     block,
+		Captures:  captures,
+		HomeFrame: i.fp,     // remember the frame that created this block
+		HomeSelf:  homeSelf, // capture self from enclosing method
+	}
 	return FromSymbolID(uint32(id))
 }
 
@@ -1007,21 +1181,21 @@ func (i *Interpreter) primitiveSize(rcvr Value) Value {
 func (i *Interpreter) primitiveValue(rcvr Value) Value {
 	// Execute block with no arguments
 	if bv := i.getBlockValue(rcvr); bv != nil {
-		return i.ExecuteBlock(bv.Block, bv.Captures, nil)
+		return i.ExecuteBlock(bv.Block, bv.Captures, nil, bv.HomeFrame, bv.HomeSelf)
 	}
 	return Nil
 }
 
 func (i *Interpreter) primitiveValue1(rcvr Value, arg Value) Value {
 	if bv := i.getBlockValue(rcvr); bv != nil {
-		return i.ExecuteBlock(bv.Block, bv.Captures, []Value{arg})
+		return i.ExecuteBlock(bv.Block, bv.Captures, []Value{arg}, bv.HomeFrame, bv.HomeSelf)
 	}
 	return Nil
 }
 
 func (i *Interpreter) primitiveValue2(rcvr, arg1, arg2 Value) Value {
 	if bv := i.getBlockValue(rcvr); bv != nil {
-		return i.ExecuteBlock(bv.Block, bv.Captures, []Value{arg1, arg2})
+		return i.ExecuteBlock(bv.Block, bv.Captures, []Value{arg1, arg2}, bv.HomeFrame, bv.HomeSelf)
 	}
 	return Nil
 }

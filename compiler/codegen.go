@@ -480,8 +480,8 @@ func (c *Compiler) compileBlock(block *Block) {
 	blockIdx := len(c.blocks)
 	c.blocks = append(c.blocks, blockMethod)
 
-	// Emit create block instruction
-	c.builder.EmitByte(vm.OpCreateBlock, byte(blockIdx))
+	// Emit create block instruction (16-bit index, 8-bit capture count)
+	c.builder.EmitCreateBlock(uint16(blockIdx), 0) // TODO: capture count
 }
 
 // ---------------------------------------------------------------------------

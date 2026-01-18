@@ -60,6 +60,7 @@ func (vm *VM) newInterpreter() *Interpreter {
 	interp.Selectors = vm.Selectors
 	interp.Classes = vm.Classes
 	interp.Globals = vm.Globals
+	interp.vm = vm // Back-reference for primitives
 	return interp
 }
 
@@ -830,7 +831,7 @@ func (vm *VM) registerBlockPrimitives() {
 func (vm *VM) evaluateBlock(blockVal Value, args []Value) Value {
 	// Get block from registry
 	if bv := vm.interpreter.getBlockValue(blockVal); bv != nil {
-		return vm.interpreter.ExecuteBlock(bv.Block, bv.Captures, args)
+		return vm.interpreter.ExecuteBlock(bv.Block, bv.Captures, args, bv.HomeFrame, bv.HomeSelf)
 	}
 	return Nil
 }
