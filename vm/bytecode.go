@@ -30,6 +30,7 @@ const (
 	OpPushInt32   Opcode = 0x15 // push 32-bit signed integer
 	OpPushLiteral Opcode = 0x16 // push literal from literal frame (16-bit index)
 	OpPushFloat   Opcode = 0x17 // push inline float64 (8 bytes)
+	OpPushContext Opcode = 0x18 // push thisContext (current activation)
 )
 
 // Variable Operations
@@ -241,6 +242,11 @@ func (b *BytecodeBuilder) Len() int {
 // Emit appends an opcode with no operands.
 func (b *BytecodeBuilder) Emit(op Opcode) {
 	b.bytes = append(b.bytes, byte(op))
+}
+
+// EmitRaw appends a raw byte to the bytecode.
+func (b *BytecodeBuilder) EmitRaw(data byte) {
+	b.bytes = append(b.bytes, data)
 }
 
 // EmitByte appends an opcode with a single byte operand.
