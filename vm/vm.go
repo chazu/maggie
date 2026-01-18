@@ -30,6 +30,8 @@ type VM struct {
 	AssociationClass       *Class
 	DictionaryClass        *Class
 	CompiledMethodClass    *Class
+	ChannelClass           *Class
+	ProcessClass           *Class
 
 	// Interpreter
 	interpreter *Interpreter
@@ -100,6 +102,10 @@ func (vm *VM) bootstrap() {
 	vm.BlockClass = vm.createClass("Block", vm.ObjectClass)
 	vm.CompiledMethodClass = vm.createClass("CompiledMethod", vm.ObjectClass)
 
+	// Phase 5b: Create concurrency classes
+	vm.ChannelClass = vm.createClass("Channel", vm.ObjectClass)
+	vm.ProcessClass = vm.createClass("Process", vm.ObjectClass)
+
 	// Phase 6: Register primitives on core classes
 	vm.registerObjectPrimitives()
 	vm.registerBooleanPrimitives()
@@ -109,6 +115,8 @@ func (vm *VM) bootstrap() {
 	vm.registerStringPrimitives()
 	vm.registerArrayPrimitives()
 	vm.registerBlockPrimitives()
+	vm.registerChannelPrimitives()
+	vm.registerProcessPrimitives()
 
 	// Phase 7: Set up globals
 	vm.Globals["Object"] = vm.classValue(vm.ObjectClass)
@@ -123,6 +131,8 @@ func (vm *VM) bootstrap() {
 	vm.Globals["Symbol"] = vm.classValue(vm.SymbolClass)
 	vm.Globals["Array"] = vm.classValue(vm.ArrayClass)
 	vm.Globals["Block"] = vm.classValue(vm.BlockClass)
+	vm.Globals["Channel"] = vm.classValue(vm.ChannelClass)
+	vm.Globals["Process"] = vm.classValue(vm.ProcessClass)
 
 	// Well-known symbols
 	vm.Globals["nil"] = Nil
@@ -906,7 +916,29 @@ func (vm *VM) Execute(method *CompiledMethod, receiver Value, args []Value) Valu
 // Send sends a message to a receiver.
 func (vm *VM) Send(receiver Value, selector string, args []Value) Value {
 	selectorID := vm.Selectors.Intern(selector)
-	class := vm.ClassFor(receiver)
+
+	// Determine the class for method dispatch
+	var class *Class
+	if receiver.IsSymbol() {
+		// Check for special symbol-encoded values first (channels, processes)
+		if isChannelValue(receiver) {
+			class = vm.ChannelClass
+		} else if isProcessValue(receiver) {
+			class = vm.ProcessClass
+		} else {
+			// Check if this symbol represents a class name (for class-side messages)
+			// This handles cases like: Channel new, Process sleep: 100
+			symName := vm.Symbols.Name(receiver.SymbolID())
+			if cls := vm.Classes.Lookup(symName); cls != nil {
+				class = cls
+			} else {
+				class = vm.SymbolClass
+			}
+		}
+	} else {
+		class = vm.ClassFor(receiver)
+	}
+
 	if class == nil {
 		return Nil
 	}
