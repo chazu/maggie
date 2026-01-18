@@ -1,0 +1,206 @@
+{
+  "type": "class",
+  "name": "Collection",
+  "parent": "Object",
+  "package": "",
+  "imports": [],
+  "isTrait": false,
+  "location": {"line": 1, "col": 0},
+  "instanceVars": [
+    {"name": "items", "default": {"type": "string", "value": "[]"}, "location": {"line": 2, "col": 2}},
+    {"name": "data", "default": {"type": "string", "value": "{}"}, "location": {"line": 2, "col": 2}}
+  ],
+  "classInstanceVars": [],
+  "traits": [],
+  "requires": [],
+  "methodRequirements": [],
+  "methods": [
+    {
+      "type": "method",
+      "kind": "instance",
+      "raw": false,
+      "selector": "push_",
+      "keywords": ["push"],
+      "args": ["value"],
+      "body": {
+        "type": "block",
+        "tokens": [
+          {"type": "IDENTIFIER", "value": "items", "line": 1, "col": 0},
+          {"type": "ASSIGN", "value": ":=", "line": 1, "col": 6},
+          {"type": "IDENTIFIER", "value": "items", "line": 1, "col": 9},
+          {"type": "KEYWORD", "value": "arrayPush:", "line": 1, "col": 15},
+          {"type": "IDENTIFIER", "value": "value", "line": 1, "col": 26},
+          {"type": "NEWLINE", "value": "", "line": 1, "col": 31},
+          {"type": "CARET", "value": "^", "line": 2, "col": 0},
+          {"type": "IDENTIFIER", "value": "value", "line": 2, "col": 2}
+        ]
+      },
+      "location": {"line": 4, "col": 2}
+    },
+    {
+      "type": "method",
+      "kind": "instance",
+      "raw": false,
+      "selector": "at_",
+      "keywords": ["at"],
+      "args": ["index"],
+      "body": {
+        "type": "block",
+        "tokens": [
+          {"type": "CARET", "value": "^", "line": 1, "col": 0},
+          {"type": "IDENTIFIER", "value": "items", "line": 1, "col": 2},
+          {"type": "KEYWORD", "value": "arrayAt:", "line": 1, "col": 8},
+          {"type": "IDENTIFIER", "value": "index", "line": 1, "col": 17}
+        ]
+      },
+      "location": {"line": 8, "col": 2}
+    },
+    {
+      "type": "method",
+      "kind": "instance",
+      "raw": false,
+      "selector": "size",
+      "keywords": [],
+      "args": [],
+      "body": {
+        "type": "block",
+        "tokens": [
+          {"type": "CARET", "value": "^", "line": 1, "col": 0},
+          {"type": "IDENTIFIER", "value": "items", "line": 1, "col": 2},
+          {"type": "IDENTIFIER", "value": "arrayLength", "line": 1, "col": 8}
+        ]
+      },
+      "location": {"line": 12, "col": 2}
+    },
+    {
+      "type": "method",
+      "kind": "instance",
+      "raw": false,
+      "selector": "isEmpty",
+      "keywords": [],
+      "args": [],
+      "body": {
+        "type": "block",
+        "tokens": [
+          {"type": "CARET", "value": "^", "line": 1, "col": 0},
+          {"type": "IDENTIFIER", "value": "items", "line": 1, "col": 2},
+          {"type": "IDENTIFIER", "value": "arrayIsEmpty", "line": 1, "col": 8}
+        ]
+      },
+      "location": {"line": 16, "col": 2}
+    },
+    {
+      "type": "method",
+      "kind": "instance",
+      "raw": false,
+      "selector": "first",
+      "keywords": [],
+      "args": [],
+      "body": {
+        "type": "block",
+        "tokens": [
+          {"type": "CARET", "value": "^", "line": 1, "col": 0},
+          {"type": "IDENTIFIER", "value": "items", "line": 1, "col": 2},
+          {"type": "IDENTIFIER", "value": "arrayFirst", "line": 1, "col": 8}
+        ]
+      },
+      "location": {"line": 20, "col": 2}
+    },
+    {
+      "type": "method",
+      "kind": "instance",
+      "raw": false,
+      "selector": "last",
+      "keywords": [],
+      "args": [],
+      "body": {
+        "type": "block",
+        "tokens": [
+          {"type": "CARET", "value": "^", "line": 1, "col": 0},
+          {"type": "IDENTIFIER", "value": "items", "line": 1, "col": 2},
+          {"type": "IDENTIFIER", "value": "arrayLast", "line": 1, "col": 8}
+        ]
+      },
+      "location": {"line": 24, "col": 2}
+    },
+    {
+      "type": "method",
+      "kind": "instance",
+      "raw": false,
+      "selector": "setData_to_",
+      "keywords": ["setData", "to"],
+      "args": ["key", "value"],
+      "body": {
+        "type": "block",
+        "tokens": [
+          {"type": "IDENTIFIER", "value": "data", "line": 1, "col": 0},
+          {"type": "ASSIGN", "value": ":=", "line": 1, "col": 5},
+          {"type": "IDENTIFIER", "value": "data", "line": 1, "col": 8},
+          {"type": "KEYWORD", "value": "objectAt:", "line": 1, "col": 13},
+          {"type": "IDENTIFIER", "value": "key", "line": 1, "col": 23},
+          {"type": "KEYWORD", "value": "put:", "line": 1, "col": 27},
+          {"type": "IDENTIFIER", "value": "value", "line": 1, "col": 32},
+          {"type": "NEWLINE", "value": "", "line": 1, "col": 37},
+          {"type": "CARET", "value": "^", "line": 2, "col": 0},
+          {"type": "IDENTIFIER", "value": "value", "line": 2, "col": 2}
+        ]
+      },
+      "location": {"line": 28, "col": 2}
+    },
+    {
+      "type": "method",
+      "kind": "instance",
+      "raw": false,
+      "selector": "getData_",
+      "keywords": ["getData"],
+      "args": ["key"],
+      "body": {
+        "type": "block",
+        "tokens": [
+          {"type": "CARET", "value": "^", "line": 1, "col": 0},
+          {"type": "IDENTIFIER", "value": "data", "line": 1, "col": 2},
+          {"type": "KEYWORD", "value": "objectAt:", "line": 1, "col": 7},
+          {"type": "IDENTIFIER", "value": "key", "line": 1, "col": 17}
+        ]
+      },
+      "location": {"line": 32, "col": 2}
+    },
+    {
+      "type": "method",
+      "kind": "instance",
+      "raw": false,
+      "selector": "hasKey_",
+      "keywords": ["hasKey"],
+      "args": ["key"],
+      "body": {
+        "type": "block",
+        "tokens": [
+          {"type": "CARET", "value": "^", "line": 1, "col": 0},
+          {"type": "IDENTIFIER", "value": "data", "line": 1, "col": 2},
+          {"type": "KEYWORD", "value": "objectHasKey:", "line": 1, "col": 7},
+          {"type": "IDENTIFIER", "value": "key", "line": 1, "col": 21}
+        ]
+      },
+      "location": {"line": 36, "col": 2}
+    },
+    {
+      "type": "method",
+      "kind": "instance",
+      "raw": false,
+      "selector": "dataSize",
+      "keywords": [],
+      "args": [],
+      "body": {
+        "type": "block",
+        "tokens": [
+          {"type": "CARET", "value": "^", "line": 1, "col": 0},
+          {"type": "IDENTIFIER", "value": "data", "line": 1, "col": 2},
+          {"type": "IDENTIFIER", "value": "objectLength", "line": 1, "col": 7}
+        ]
+      },
+      "location": {"line": 40, "col": 2}
+    }
+  ],
+  "aliases": [],
+  "advice": []
+}

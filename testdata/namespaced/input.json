@@ -1,0 +1,60 @@
+{
+  "type": "class",
+  "name": "Counter",
+  "parent": "Object",
+  "package": "MyApp",
+  "imports": [],
+  "isTrait": false,
+  "location": {"line": 1, "col": 0},
+  "instanceVars": [
+    {"name": "value", "default": {"type": "number", "value": "0"}, "location": {"line": 2, "col": 0}}
+  ],
+  "classInstanceVars": [],
+  "traits": [],
+  "requires": [],
+  "methodRequirements": [],
+  "methods": [
+    {
+      "type": "method",
+      "kind": "instance",
+      "raw": false,
+      "selector": "getValue",
+      "keywords": [],
+      "args": [],
+      "body": {
+        "type": "block",
+        "tokens": [
+          {"type": "NEWLINE", "value": "\n", "line": 5, "col": 0},
+          {"type": "CARET", "value": "^", "line": 6, "col": 4},
+          {"type": "IDENTIFIER", "value": "value", "line": 6, "col": 6}
+        ]
+      },
+      "location": {"line": 5, "col": 0}
+    },
+    {
+      "type": "method",
+      "kind": "instance",
+      "raw": false,
+      "selector": "increment",
+      "keywords": [],
+      "args": [],
+      "body": {
+        "type": "block",
+        "tokens": [
+          {"type": "NEWLINE", "value": "\n", "line": 9, "col": 0},
+          {"type": "IDENTIFIER", "value": "value", "line": 10, "col": 4},
+          {"type": "ASSIGN", "value": ":=", "line": 10, "col": 10},
+          {"type": "IDENTIFIER", "value": "value", "line": 10, "col": 13},
+          {"type": "PLUS", "value": "+", "line": 10, "col": 19},
+          {"type": "NUMBER", "value": "1", "line": 10, "col": 21},
+          {"type": "NEWLINE", "value": "\n", "line": 10, "col": 22},
+          {"type": "CARET", "value": "^", "line": 11, "col": 4},
+          {"type": "IDENTIFIER", "value": "value", "line": 11, "col": 6}
+        ]
+      },
+      "location": {"line": 9, "col": 0}
+    }
+  ],
+  "aliases": [],
+  "advice": []
+}

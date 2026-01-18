@@ -1,0 +1,122 @@
+{
+  "type": "class",
+  "name": "IfNilTest",
+  "parent": "Object",
+  "isTrait": false,
+  "location": {"line": 1, "col": 0},
+  "instanceVars": [
+    {"name": "value", "default": {"type": "string", "value": ""}, "location": {"line": 2, "col": 0}}
+  ],
+  "classInstanceVars": [],
+  "traits": [],
+  "requires": [],
+  "methodRequirements": [],
+  "methods": [
+    {
+      "type": "method",
+      "kind": "instance",
+      "raw": false,
+      "selector": "testIfNilOnly",
+      "keywords": [],
+      "args": [],
+      "body": {
+        "type": "block",
+        "tokens": [
+          {"type": "NEWLINE", "value": "\n", "line": 3, "col": 0},
+          {"type": "PIPE", "value": "|", "line": 4, "col": 4},
+          {"type": "IDENTIFIER", "value": "result", "line": 4, "col": 6},
+          {"type": "PIPE", "value": "|", "line": 4, "col": 13},
+          {"type": "NEWLINE", "value": "\n", "line": 4, "col": 14},
+          {"type": "IDENTIFIER", "value": "result", "line": 5, "col": 4},
+          {"type": "ASSIGN", "value": ":=", "line": 5, "col": 11},
+          {"type": "SSTRING", "value": "default", "line": 5, "col": 14},
+          {"type": "DOT", "value": ".", "line": 5, "col": 23},
+          {"type": "NEWLINE", "value": "\n", "line": 5, "col": 24},
+          {"type": "IDENTIFIER", "value": "value", "line": 6, "col": 4},
+          {"type": "KEYWORD", "value": "ifNil:", "line": 6, "col": 10},
+          {"type": "LBRACKET", "value": "[", "line": 6, "col": 17},
+          {"type": "NEWLINE", "value": "\n", "line": 6, "col": 18},
+          {"type": "IDENTIFIER", "value": "result", "line": 7, "col": 6},
+          {"type": "ASSIGN", "value": ":=", "line": 7, "col": 13},
+          {"type": "SSTRING", "value": "was nil", "line": 7, "col": 16},
+          {"type": "NEWLINE", "value": "\n", "line": 7, "col": 25},
+          {"type": "RBRACKET", "value": "]", "line": 8, "col": 4},
+          {"type": "DOT", "value": ".", "line": 8, "col": 5},
+          {"type": "NEWLINE", "value": "\n", "line": 8, "col": 6},
+          {"type": "CARET", "value": "^", "line": 9, "col": 4},
+          {"type": "IDENTIFIER", "value": "result", "line": 9, "col": 6}
+        ]
+      },
+      "location": {"line": 3, "col": 0}
+    },
+    {
+      "type": "method",
+      "kind": "instance",
+      "raw": false,
+      "selector": "testIfNotNilOnly",
+      "keywords": [],
+      "args": [],
+      "body": {
+        "type": "block",
+        "tokens": [
+          {"type": "NEWLINE", "value": "\n", "line": 12, "col": 0},
+          {"type": "PIPE", "value": "|", "line": 13, "col": 4},
+          {"type": "IDENTIFIER", "value": "result", "line": 13, "col": 6},
+          {"type": "PIPE", "value": "|", "line": 13, "col": 13},
+          {"type": "NEWLINE", "value": "\n", "line": 13, "col": 14},
+          {"type": "IDENTIFIER", "value": "result", "line": 14, "col": 4},
+          {"type": "ASSIGN", "value": ":=", "line": 14, "col": 11},
+          {"type": "SSTRING", "value": "was nil", "line": 14, "col": 14},
+          {"type": "DOT", "value": ".", "line": 14, "col": 23},
+          {"type": "NEWLINE", "value": "\n", "line": 14, "col": 24},
+          {"type": "IDENTIFIER", "value": "value", "line": 15, "col": 4},
+          {"type": "KEYWORD", "value": "ifNotNil:", "line": 15, "col": 10},
+          {"type": "LBRACKET", "value": "[", "line": 15, "col": 20},
+          {"type": "NEWLINE", "value": "\n", "line": 15, "col": 21},
+          {"type": "IDENTIFIER", "value": "result", "line": 16, "col": 6},
+          {"type": "ASSIGN", "value": ":=", "line": 16, "col": 13},
+          {"type": "SSTRING", "value": "has value", "line": 16, "col": 16},
+          {"type": "NEWLINE", "value": "\n", "line": 16, "col": 27},
+          {"type": "RBRACKET", "value": "]", "line": 17, "col": 4},
+          {"type": "DOT", "value": ".", "line": 17, "col": 5},
+          {"type": "NEWLINE", "value": "\n", "line": 17, "col": 6},
+          {"type": "CARET", "value": "^", "line": 18, "col": 4},
+          {"type": "IDENTIFIER", "value": "result", "line": 18, "col": 6}
+        ]
+      },
+      "location": {"line": 12, "col": 0}
+    },
+    {
+      "type": "method",
+      "kind": "instance",
+      "raw": false,
+      "selector": "testIfNilIfNotNil",
+      "keywords": [],
+      "args": [],
+      "body": {
+        "type": "block",
+        "tokens": [
+          {"type": "NEWLINE", "value": "\n", "line": 21, "col": 0},
+          {"type": "IDENTIFIER", "value": "value", "line": 22, "col": 4},
+          {"type": "KEYWORD", "value": "ifNil:", "line": 22, "col": 10},
+          {"type": "LBRACKET", "value": "[", "line": 22, "col": 17},
+          {"type": "NEWLINE", "value": "\n", "line": 22, "col": 18},
+          {"type": "CARET", "value": "^", "line": 23, "col": 6},
+          {"type": "SSTRING", "value": "nil case", "line": 23, "col": 8},
+          {"type": "NEWLINE", "value": "\n", "line": 23, "col": 18},
+          {"type": "RBRACKET", "value": "]", "line": 24, "col": 4},
+          {"type": "KEYWORD", "value": "ifNotNil:", "line": 24, "col": 6},
+          {"type": "LBRACKET", "value": "[", "line": 24, "col": 16},
+          {"type": "NEWLINE", "value": "\n", "line": 24, "col": 17},
+          {"type": "CARET", "value": "^", "line": 25, "col": 6},
+          {"type": "SSTRING", "value": "not nil case", "line": 25, "col": 8},
+          {"type": "NEWLINE", "value": "\n", "line": 25, "col": 22},
+          {"type": "RBRACKET", "value": "]", "line": 26, "col": 4}
+        ]
+      },
+      "location": {"line": 21, "col": 0}
+    }
+  ],
+  "aliases": [],
+  "advice": []
+}
