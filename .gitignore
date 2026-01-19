@@ -1,6 +1,7 @@
-# Binary (root-level only)
+# Binaries
 /procyon
 /bootstrap
+/mag
 
 # Generated image files
 *.image
