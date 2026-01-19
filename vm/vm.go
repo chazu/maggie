@@ -10,6 +10,7 @@ type VM struct {
 	Selectors *SelectorTable // selector name -> ID
 	Symbols   *SymbolTable   // symbol name -> ID
 	Classes   *ClassTable    // class name -> Class
+	Traits    *TraitTable    // trait name -> Trait
 	Globals   map[string]Value
 
 	// Well-known classes (for fast-path checks and bootstrapping)
@@ -49,6 +50,7 @@ func NewVM() *VM {
 		Selectors: NewSelectorTable(),
 		Symbols:   NewSymbolTable(),
 		Classes:   NewClassTable(),
+		Traits:    NewTraitTable(),
 		Globals:   make(map[string]Value),
 	}
 

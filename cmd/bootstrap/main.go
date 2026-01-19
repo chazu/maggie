@@ -152,7 +152,37 @@ func compileFileNew(path string, vmInst *vm.VM, verbose bool) (int, error) {
 
 	compiled := 0
 
-	// Process each class definition
+	// First pass: Compile trait definitions
+	for _, traitDef := range sf.Traits {
+		trait := vm.NewTrait(traitDef.Name)
+
+		// Compile trait methods
+		for _, methodDef := range traitDef.Methods {
+			method, err := compiler.CompileMethodDef(methodDef, vmInst.Selectors, vmInst.Symbols)
+			if err != nil {
+				return compiled, fmt.Errorf("error compiling trait %s>>%s: %v", traitDef.Name, methodDef.Selector, err)
+			}
+
+			selectorID := vmInst.Selectors.Intern(method.Name())
+			trait.AddMethod(selectorID, method)
+			compiled++
+		}
+
+		// Add required method selectors
+		for _, reqSelector := range traitDef.Requires {
+			selectorID := vmInst.Selectors.Intern(reqSelector)
+			trait.AddRequires(selectorID)
+		}
+
+		// Register trait in VM
+		vmInst.Traits.Register(trait)
+
+		if verbose {
+			fmt.Printf("  trait %s: %d methods\n", traitDef.Name, len(traitDef.Methods))
+		}
+	}
+
+	// Second pass: Process each class definition
 	for _, classDef := range sf.Classes {
 		// Look up the class in the VM
 		classGetter, ok := classMapping[classDef.Name]
@@ -189,13 +219,24 @@ func compileFileNew(path string, vmInst *vm.VM, verbose bool) (int, error) {
 			compiled++
 		}
 
+		// Apply included traits
+		for _, traitName := range classDef.Traits {
+			errMsg := class.IncludeTraitByName(traitName, vmInst.Traits, vmInst.Selectors)
+			if errMsg != "" {
+				return compiled, fmt.Errorf("error including trait %s in %s: %s", traitName, classDef.Name, errMsg)
+			}
+			if verbose {
+				trait := vmInst.Traits.Lookup(traitName)
+				if trait != nil {
+					fmt.Printf("    included trait %s (%d methods)\n", traitName, trait.MethodCount())
+				}
+			}
+		}
+
 		if verbose {
 			fmt.Printf("  %s: %d methods\n", classDef.Name, len(classDef.Methods)+len(classDef.ClassMethods))
 		}
 	}
-
-	// Process trait definitions (if any)
-	// TODO: Implement trait storage in VM
 
 	return compiled, nil
 }
