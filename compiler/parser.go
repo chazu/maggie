@@ -281,7 +281,8 @@ func (p *Parser) parseBinarySend() Expr {
 	}
 
 	// Parse binary messages (left associative)
-	for p.curTokenIs(TokenBinarySelector) {
+	// Note: TokenBar (|) is also a binary selector in expression context
+	for p.curTokenIs(TokenBinarySelector) || p.curTokenIs(TokenBar) {
 		selector := p.curToken.Literal
 		p.nextToken()
 
