@@ -2,6 +2,7 @@
 package main
 
 import (
+	"bufio"
 	_ "embed"
 	"flag"
 	"fmt"
@@ -18,15 +19,19 @@ var embeddedImage []byte
 
 func main() {
 	verbose := flag.Bool("v", false, "Verbose output")
+	interactive := flag.Bool("i", false, "Start interactive REPL")
+	mainEntry := flag.String("m", "", "Main entry point (e.g., 'Main.run' or just 'main')")
+	noRC := flag.Bool("no-rc", false, "Skip loading ~/.maggierc")
+
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Usage: mag [options] [paths...]\n\n")
 		fmt.Fprintf(os.Stderr, "Starts Maggie with the default image and compiles .mag files from the given paths.\n\n")
 		fmt.Fprintf(os.Stderr, "Options:\n")
 		flag.PrintDefaults()
 		fmt.Fprintf(os.Stderr, "\nExamples:\n")
-		fmt.Fprintf(os.Stderr, "  mag                    # Start with default image only\n")
-		fmt.Fprintf(os.Stderr, "  mag ./src              # Load .mag files from ./src\n")
-		fmt.Fprintf(os.Stderr, "  mag ./...              # Load .mag files recursively\n")
+		fmt.Fprintf(os.Stderr, "  mag -i                 # Start REPL\n")
+		fmt.Fprintf(os.Stderr, "  mag ./src -m main      # Load src/, run 'main' method\n")
+		fmt.Fprintf(os.Stderr, "  mag ./... -m App.start # Load recursively, run App.start\n")
 	}
 	flag.Parse()
 
@@ -41,6 +46,13 @@ func main() {
 		fmt.Printf("Loaded default image (%d bytes)\n", len(embeddedImage))
 	}
 
+	// Load ~/.maggierc if it exists
+	if !*noRC {
+		if err := loadRC(vmInst, *verbose); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: error loading ~/.maggierc: %v\n", err)
+		}
+	}
+
 	// Compile any paths specified on command line
 	paths := flag.Args()
 	if len(paths) > 0 {
@@ -53,15 +65,219 @@ func main() {
 			}
 			totalMethods += methods
 		}
-		if totalMethods > 0 {
+		if *verbose && totalMethods > 0 {
 			fmt.Printf("Compiled %d methods\n", totalMethods)
 		}
 	}
 
-	// For now, just report success
-	// TODO: Add REPL or script execution
-	if *verbose {
-		fmt.Println("Maggie ready.")
+	// Run main entry point if specified
+	if *mainEntry != "" {
+		result, err := runMain(vmInst, *mainEntry)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			os.Exit(1)
+		}
+		// If main returns a small integer, use it as exit code
+		if result.IsSmallInt() {
+			os.Exit(int(result.SmallInt()))
+		}
+		os.Exit(0)
+	}
+
+	// Start REPL if requested or if no paths given
+	if *interactive || (len(paths) == 0 && *mainEntry == "") {
+		runREPL(vmInst)
+	}
+}
+
+// loadRC loads ~/.maggierc if it exists
+func loadRC(vmInst *vm.VM, verbose bool) error {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return nil // Can't find home dir, skip silently
+	}
+
+	rcPath := filepath.Join(home, ".maggierc")
+	if _, err := os.Stat(rcPath); os.IsNotExist(err) {
+		return nil // No .maggierc, that's fine
+	}
+
+	if verbose {
+		fmt.Printf("Loading %s\n", rcPath)
+	}
+
+	_, err = compileFile(rcPath, vmInst, verbose)
+	return err
+}
+
+// runMain executes the specified main entry point
+func runMain(vmInst *vm.VM, entry string) (vm.Value, error) {
+	var className, methodName string
+
+	// Parse entry point: "ClassName.methodName" or just "methodName"
+	if strings.Contains(entry, ".") {
+		parts := strings.SplitN(entry, ".", 2)
+		className = parts[0]
+		methodName = parts[1]
+	} else {
+		// Look for a global method or Object method
+		className = "Object"
+		methodName = entry
+	}
+
+	// Find the class
+	class := vmInst.Classes.Lookup(className)
+	if class == nil {
+		return vm.Nil, fmt.Errorf("class %q not found", className)
+	}
+
+	// Check if method exists
+	method := class.LookupMethod(vmInst.Selectors, methodName)
+	if method == nil {
+		return vm.Nil, fmt.Errorf("method %q not found on %s", methodName, className)
+	}
+
+	// Execute the method on nil (for class methods) or create an instance
+	// For simplicity, we'll send the message to nil which will find it on Object
+	result := vmInst.Send(vm.Nil, methodName, nil)
+	return result, nil
+}
+
+// runREPL starts an interactive read-eval-print loop
+func runREPL(vmInst *vm.VM) {
+	fmt.Println("Maggie REPL (type 'exit' to quit)")
+	fmt.Println()
+
+	scanner := bufio.NewScanner(os.Stdin)
+	lineBuffer := strings.Builder{}
+
+	for {
+		// Show prompt
+		if lineBuffer.Len() == 0 {
+			fmt.Print(">> ")
+		} else {
+			fmt.Print(".. ")
+		}
+
+		if !scanner.Scan() {
+			break
+		}
+
+		line := scanner.Text()
+
+		// Handle exit
+		if lineBuffer.Len() == 0 && (line == "exit" || line == "quit") {
+			break
+		}
+
+		// Empty line executes accumulated input
+		if line == "" && lineBuffer.Len() > 0 {
+			input := strings.TrimSpace(lineBuffer.String())
+			lineBuffer.Reset()
+
+			if input != "" {
+				evalAndPrint(vmInst, input)
+			}
+			continue
+		}
+
+		// Accumulate lines
+		if lineBuffer.Len() > 0 {
+			lineBuffer.WriteString("\n")
+		}
+		lineBuffer.WriteString(line)
+
+		// If line ends with '.', execute immediately
+		if strings.HasSuffix(strings.TrimSpace(line), ".") {
+			input := strings.TrimSpace(lineBuffer.String())
+			lineBuffer.Reset()
+
+			if input != "" {
+				evalAndPrint(vmInst, input)
+			}
+		}
+	}
+
+	fmt.Println()
+}
+
+// evalAndPrint compiles and executes an expression, printing the result
+func evalAndPrint(vmInst *vm.VM, input string) {
+	// Wrap input in a method body if it doesn't look like a method definition
+	source := input
+	if !looksLikeMethodDef(input) {
+		// Wrap as a doIt method
+		source = "doIt\n    ^" + strings.TrimSuffix(input, ".")
+	}
+
+	// Compile the method
+	method, err := compiler.Compile(source, vmInst.Selectors, vmInst.Symbols)
+	if err != nil {
+		fmt.Printf("Compile error: %v\n", err)
+		return
+	}
+
+	// Execute on nil
+	result := vmInst.Execute(method, vm.Nil, nil)
+
+	// Print result
+	printValue(vmInst, result)
+}
+
+// looksLikeMethodDef checks if input appears to be a method definition
+func looksLikeMethodDef(input string) bool {
+	lines := strings.Split(input, "\n")
+	if len(lines) == 0 {
+		return false
+	}
+
+	first := strings.TrimSpace(lines[0])
+	// A method def starts with a selector (word, binary op, or keyword)
+	// and the next lines are indented
+	if len(lines) == 1 {
+		return false // Single line is probably an expression
+	}
+
+	// Check if second line is indented
+	if len(lines) > 1 && len(lines[1]) > 0 {
+		if lines[1][0] == ' ' || lines[1][0] == '\t' {
+			// First line doesn't start with whitespace, second does
+			if len(first) > 0 && first[0] != ' ' && first[0] != '\t' {
+				return true
+			}
+		}
+	}
+
+	return false
+}
+
+// printValue prints a value in a readable format
+func printValue(vmInst *vm.VM, v vm.Value) {
+	switch {
+	case v == vm.Nil:
+		fmt.Println("nil")
+	case v == vm.True:
+		fmt.Println("true")
+	case v == vm.False:
+		fmt.Println("false")
+	case v.IsSmallInt():
+		fmt.Println(v.SmallInt())
+	case v.IsFloat():
+		fmt.Println(v.Float64())
+	case v.IsSymbol():
+		name := vmInst.Symbols.Name(v.SymbolID())
+		fmt.Printf("#%s\n", name)
+	case v.IsObject():
+		// Try to call printString on the object
+		result := vmInst.Send(v, "printString", nil)
+		if result.IsSmallInt() {
+			// printString returned something weird, just show class
+			fmt.Println("an Object")
+		} else {
+			printValue(vmInst, result)
+		}
+	default:
+		fmt.Printf("<%v>\n", v)
 	}
 }
 
@@ -142,6 +358,11 @@ func compileFile(path string, vmInst *vm.VM, verbose bool) (int, error) {
 	// Determine class name from filename
 	base := filepath.Base(path)
 	className := strings.TrimSuffix(base, ".mag")
+
+	// Special case: .maggierc compiles into Object
+	if className == ".maggierc" {
+		className = "Object"
+	}
 
 	// Look up or create the class
 	class := vmInst.Classes.Lookup(className)
