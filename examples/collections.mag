@@ -1,0 +1,47 @@
+# collections.mag
+# Array and collection operations
+
+# Creating arrays
+| arr |
+arr := #(1 2 3 4 5).
+
+# Basic access
+arr size.           # => 5
+arr first.          # => 1
+arr last.           # => 5
+arr at: 3.          # => 3
+
+# Iteration with do:
+arr do: [:each | each * 2].
+
+# Transform with collect:
+arr collect: [:x | x * x].    # => #(1 4 9 16 25)
+
+# Filter with select:
+arr select: [:x | x > 2].     # => #(3 4 5)
+
+# Filter with reject:
+arr reject: [:x | x > 2].     # => #(1 2)
+
+# Find with detect:
+arr detect: [:x | x > 3].     # => 4
+
+# Reduce with inject:into:
+arr inject: 0 into: [:sum :x | sum + x].  # => 15 (sum)
+arr inject: 1 into: [:prod :x | prod * x]. # => 120 (product)
+
+# Testing
+arr includes: 3.    # => true
+arr includes: 99.   # => false
+arr indexOf: 4.     # => 4
+
+# Concatenation
+#(1 2) , #(3 4).    # => #(1 2 3 4)
+
+# Copying
+arr copyFrom: 2 to: 4.  # => #(2 3 4)
+
+# Check empty
+arr isEmpty.        # => false
+arr notEmpty.       # => true
+#() isEmpty.        # => true

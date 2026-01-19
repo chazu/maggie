@@ -1,0 +1,52 @@
+# blocks.mag
+# Blocks (closures) and control flow
+
+# Simple blocks
+[3 + 4] value.              # => 7
+
+# Blocks with arguments
+[:x | x * 2] value: 5.      # => 10
+[:x :y | x + y] value: 3 value: 4.  # => 7
+
+# Blocks capture their environment (closures)
+| makeAdder add5 |
+makeAdder := [:n | [:x | x + n]].
+add5 := makeAdder value: 5.
+add5 value: 10.             # => 15
+
+# Conditional execution
+| x |
+x := 10.
+x > 5 ifTrue: [#big] ifFalse: [#small].  # => #big
+
+# Short-circuit boolean operations
+true and: [#evaluated].     # => #evaluated
+false and: [#not-evaluated]. # => false (block not evaluated)
+false or: [#evaluated].     # => #evaluated
+true or: [#not-evaluated].  # => true (block not evaluated)
+
+# While loops
+| i sum |
+i := 1.
+sum := 0.
+[i <= 10] whileTrue: [
+    sum := sum + i.
+    i := i + 1
+].
+sum.                        # => 55
+
+# Counting down
+| n |
+n := 5.
+[n > 0] whileTrue: [
+    n := n - 1
+].
+n.                          # => 0
+
+# WhileFalse variant
+| found |
+found := false.
+[found] whileFalse: [
+    found := true
+].
+found.                      # => true

@@ -1,0 +1,57 @@
+# concurrency.mag
+# Channels and processes (Go-style concurrency)
+
+# Create a channel
+| ch |
+ch := Channel new.
+
+# Send and receive
+ch send: 42.
+ch receive.                 # => 42
+
+# Fork a process
+| result |
+result := [3 + 4] fork.
+result wait.                # => 7
+
+# Producer-consumer pattern
+| ch producer consumer |
+ch := Channel new.
+
+producer := [
+    1 to: 5 do: [:i | ch send: i].
+    ch close
+] fork.
+
+consumer := [
+    | sum val |
+    sum := 0.
+    [ch isClosed not] whileTrue: [
+        val := ch receive.
+        val notNil ifTrue: [sum := sum + val]
+    ].
+    sum
+] fork.
+
+consumer wait.              # => 15
+
+# Try operations (non-blocking)
+| ch |
+ch := Channel new.
+ch trySend: 42.             # => Success or Failure
+ch tryReceive.              # => Success(42) or Failure
+
+# Check channel state
+ch isEmpty.
+ch isClosed.
+
+# Current process
+| me |
+me := Process current.
+me isAlive.                 # => true
+
+# Yielding control
+Process yield.
+
+# Sleep (milliseconds)
+Process sleep: 100.

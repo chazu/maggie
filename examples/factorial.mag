@@ -1,0 +1,32 @@
+# factorial.mag
+# Demonstrates recursion and conditionals
+
+# Using the built-in factorial method
+5 factorial.        # => 120
+10 factorial.       # => 3628800
+
+# Factorial using explicit recursion with blocks
+| fact n |
+fact := [:x |
+    x <= 1
+        ifTrue: [1]
+        ifFalse: [x * (fact value: x - 1)]
+].
+n := 5.
+fact value: n.      # => 120
+
+# Factorial using iteration
+| result i |
+result := 1.
+i := 1.
+[i <= 5] whileTrue: [
+    result := result * i.
+    i := i + 1
+].
+result.             # => 120
+
+# Using timesRepeat:
+| result |
+result := 1.
+5 timesRepeat: [result := result * (result + 1)].
+# Note: This doesn't compute factorial, just demonstrates timesRepeat:

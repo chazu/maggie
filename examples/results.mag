@@ -1,0 +1,52 @@
+# results.mag
+# Result type for functional error handling (like Rust's Result)
+
+# Creating results
+| ok err |
+ok := Success value: 42.
+err := Failure error: 'Something went wrong'.
+
+# Checking result type
+ok isSuccess.               # => true
+ok isFailure.               # => false
+err isSuccess.              # => false
+err isFailure.              # => true
+
+# Getting values
+ok value.                   # => 42
+err error.                  # => 'Something went wrong'
+
+# Pattern matching on results
+ok onSuccess: [:v | v * 2] onFailure: [:e | 0].  # => 84
+err onSuccess: [:v | v * 2] onFailure: [:e | 0]. # => 0
+
+# Conditional execution
+ok ifSuccess: [:v | v + 1].     # => 43
+ok ifFailure: [:e | #error].    # => nil (not executed)
+err ifSuccess: [:v | v + 1].    # => nil (not executed)
+err ifFailure: [:e | #error].   # => #error
+
+# Chaining with then: (like flatMap/andThen)
+| result |
+result := Success value: 10.
+result then: [:v | Success value: v * 2].  # => Success(20)
+
+# Mapping values
+(Success value: 5) map: [:v | v * 2].  # => Success(10)
+
+# Error recovery with flatMap:
+| mayFail recover |
+mayFail := Failure error: 'oops'.
+recover := mayFail flatMap: [:v | Success value: v]
+                   ifFailure: [Success value: 0].
+# Would need custom implementation for full recovery
+
+# Practical example: safe division
+| safeDivide |
+safeDivide := [:a :b |
+    b = 0
+        ifTrue: [Failure error: 'Division by zero']
+        ifFalse: [Success value: a / b]
+].
+safeDivide value: 10 value: 2.   # => Success(5)
+safeDivide value: 10 value: 0.   # => Failure('Division by zero')
