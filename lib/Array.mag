@@ -1,6 +1,7 @@
 # Array.mag
 
 Array subclass: Object
+  include: Printable
 
   # Accessing
   method: size [

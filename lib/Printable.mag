@@ -1,0 +1,21 @@
+# Printable.mag
+# A trait that provides common printing/description methods.
+
+Printable trait
+
+  # Returns a developer-friendly description of the object.
+  # Classes including this trait should override for better output.
+  method: description [
+    ^'<', self class, '>'
+  ]
+
+  # Returns a bracketed description.
+  method: bracketedDescription [
+    ^'[', self description, ']'
+  ]
+
+  # Print self and return self (for chaining).
+  method: printOn: aStream [
+    aStream nextPutAll: self description.
+    ^self
+  ]
