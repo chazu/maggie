@@ -4,53 +4,48 @@
 -- Arithmetic
 negated
     ^0.0 - self
-!
+
 abs
     self < 0.0 ifTrue: [^self negated].
     ^self
-!
+
 sign
     self < 0.0 ifTrue: [^-1.0].
     self > 0.0 ifTrue: [^1.0].
     ^0.0
-!
 
 -- Comparison
 max: other
     self > other ifTrue: [^self].
     ^other
-!
+
 min: other
     self < other ifTrue: [^self].
     ^other
-!
 
 -- Testing
 positive
     ^self > 0.0
-!
+
 negative
     ^self < 0.0
-!
+
 isZero
     ^self = 0.0
-!
 
 -- Rounding (delegates to primitives)
 floor
     ^self primFloor
-!
+
 ceiling
     ^self primCeiling
-!
+
 rounded
     ^self primRounded
-!
+
 truncated
     ^self primTruncated
-!
 
 -- Printing
 printString
     ^self primPrintString
-!

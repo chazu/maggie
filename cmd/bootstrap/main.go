@@ -126,7 +126,7 @@ func compileFile(path string, class *vm.Class, vmInst *vm.VM) (int, error) {
 }
 
 // parseMethodChunks splits a .mag file into individual method sources.
-// Methods are separated by lines containing only "!".
+// Methods are detected by looking for unindented method headers.
 // Lines starting with "--" are comments and are stripped.
 func parseMethodChunks(content string) []string {
 	var methods []string
@@ -136,18 +136,23 @@ func parseMethodChunks(content string) []string {
 	for _, line := range lines {
 		trimmed := strings.TrimSpace(line)
 
-		// Skip comment lines
-		if strings.HasPrefix(trimmed, "--") {
+		// Skip blank lines and comments between methods
+		if trimmed == "" || strings.HasPrefix(trimmed, "--") {
+			// If we're in a method, preserve blank lines (but not leading ones)
+			if current.Len() > 0 && trimmed == "" {
+				current.WriteString("\n")
+			}
 			continue
 		}
 
-		// Check for method separator
-		if trimmed == "!" {
-			if current.Len() > 0 {
-				methods = append(methods, current.String())
-				current.Reset()
-			}
-			continue
+		// Check if this line starts a new method (unindented, non-blank, non-comment)
+		// A method header has no leading whitespace
+		isMethodHeader := len(line) > 0 && line[0] != ' ' && line[0] != '\t'
+
+		if isMethodHeader && current.Len() > 0 {
+			// Save previous method and start a new one
+			methods = append(methods, strings.TrimRight(current.String(), "\n"))
+			current.Reset()
 		}
 
 		// Add line to current method
@@ -157,9 +162,9 @@ func parseMethodChunks(content string) []string {
 		current.WriteString(line)
 	}
 
-	// Don't forget the last method if file doesn't end with !
+	// Don't forget the last method
 	if current.Len() > 0 {
-		methods = append(methods, current.String())
+		methods = append(methods, strings.TrimRight(current.String(), "\n"))
 	}
 
 	return methods

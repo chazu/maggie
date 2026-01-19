@@ -7,40 +7,36 @@
 -- Abstract methods (overridden in Success/Failure)
 isSuccess
     ^self subclassResponsibility
-!
+
 isFailure
     ^self subclassResponsibility
-!
+
 value
     ^self subclassResponsibility
-!
+
 error
     ^self subclassResponsibility
-!
 
 -- Chaining
 then: block
     ^self subclassResponsibility
-!
+
 map: block
     ^self subclassResponsibility
-!
+
 flatMap: block
     ^self subclassResponsibility
-!
 
 -- Conditional execution
 ifSuccess: block
     ^self subclassResponsibility
-!
+
 ifFailure: block
     ^self subclassResponsibility
-!
+
 onSuccess: successBlock onFailure: failureBlock
     ^self subclassResponsibility
-!
 
 -- Printing
 printString
     ^'a Result'
-!

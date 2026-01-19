@@ -4,26 +4,23 @@
 -- Nil testing
 isNil
     ^true
-!
+
 notNil
     ^false
-!
 
 -- Conditional evaluation
 ifNil: block
     ^block value
-!
+
 ifNotNil: block
     ^nil
-!
+
 ifNil: nilBlock ifNotNil: notNilBlock
     ^nilBlock value
-!
+
 ifNotNil: notNilBlock ifNil: nilBlock
     ^nilBlock value
-!
 
 -- Printing
 printString
     ^'nil'
-!

@@ -4,46 +4,43 @@
 -- Arithmetic (most are primitives, these are derived)
 negated
     ^0 - self
-!
+
 abs
     self < 0 ifTrue: [^self negated].
     ^self
-!
+
 sign
     self < 0 ifTrue: [^-1].
     self > 0 ifTrue: [^1].
     ^0
-!
 
 -- Comparison
 max: other
     self > other ifTrue: [^self].
     ^other
-!
+
 min: other
     self < other ifTrue: [^self].
     ^other
-!
+
 between: min and: max
     ^self >= min & (self <= max)
-!
 
 -- Testing
 even
     ^(self \\ 2) = 0
-!
+
 odd
     ^self even not
-!
+
 positive
     ^self > 0
-!
+
 negative
     ^self < 0
-!
+
 isZero
     ^self = 0
-!
 
 -- Iteration
 timesRepeat: block
@@ -53,7 +50,7 @@ timesRepeat: block
         block value.
         count := count + 1
     ]
-!
+
 to: stop do: block
     | i |
     i := self.
@@ -61,29 +58,26 @@ to: stop do: block
         block value: i.
         i := i + 1
     ]
-!
+
 to: stop by: step do: block
     | i |
     i := self.
     step > 0
         ifTrue: [[i <= stop] whileTrue: [block value: i. i := i + step]]
         ifFalse: [[i >= stop] whileTrue: [block value: i. i := i + step]]
-!
 
 -- Mathematical
 factorial
     self = 0 ifTrue: [^1].
     ^self * (self - 1) factorial
-!
+
 gcd: other
     other = 0 ifTrue: [^self abs].
     ^other gcd: (self \\ other)
-!
+
 lcm: other
     ^(self * other) abs // (self gcd: other)
-!
 
 -- Printing
 printString
     ^self primPrintString
-!

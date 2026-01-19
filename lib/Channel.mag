@@ -7,36 +7,31 @@
 -- Sending and receiving (primitives)
 send: value
     ^self primSend: value
-!
+
 receive
     ^self primReceive
-!
 
 -- Non-blocking operations
 trySend: value
     ^self primTrySend: value
-!
+
 tryReceive
     ^self primTryReceive
-!
 
 -- Closing
 close
     ^self primClose
-!
+
 isClosed
     ^self primIsClosed
-!
 
 -- Stream-like interface
 nextPut: value
     ^self send: value
-!
+
 next
     ^self receive
-!
 
 -- Printing
 printString
     ^'a Channel'
-!

@@ -4,64 +4,57 @@
 -- Accessing
 size
     ^self primSize
-!
+
 at: index
     ^self primAt: index
-!
+
 isEmpty
     ^self size = 0
-!
+
 notEmpty
     ^self isEmpty not
-!
 
 -- Concatenation
 , other
     ^self primConcat: other
-!
 
 -- Comparison
 = other
     ^self primEquals: other
-!
+
 < other
     ^self primLessThan: other
-!
+
 > other
     ^other < self
-!
+
 <= other
     ^(self > other) not
-!
+
 >= other
     ^(self < other) not
-!
 
 -- Searching
 includes: char
     ^self primIncludes: char
-!
+
 indexOf: char
     ^self primIndexOf: char
-!
 
 -- Conversion
 asSymbol
     ^self primAsSymbol
-!
+
 asUppercase
     ^self primAsUppercase
-!
+
 asLowercase
     ^self primAsLowercase
-!
 
 -- Copying
 copyFrom: start to: end
     ^self primCopyFrom: start to: end
-!
 
 -- Printing
 printString
     ^'''', self, ''''
-!

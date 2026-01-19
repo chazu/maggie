@@ -34,17 +34,20 @@ go test ./...
 
 ## Maggie Source Files (.mag)
 
-Maggie source files use `.mag` extension and contain method definitions separated by `!`:
+Maggie source files use `.mag` extension. Method boundaries are detected automatically by looking for unindented method headers:
 
 ```smalltalk
 -- This is a comment
 factorial
     self = 0 ifTrue: [^1].
     ^self * (self - 1) factorial
-!
+
 even
     ^(self \\ 2) = 0
-!
+
+max: other
+    self > other ifTrue: [^self].
+    ^other
 ```
 
 The bootstrap tool compiles these into bytecode and saves them in a binary image (`maggie.image`).

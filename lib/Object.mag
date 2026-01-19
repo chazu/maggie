@@ -4,50 +4,44 @@
 -- Identity and comparison
 yourself
     ^self
-!
+
 == other
     ^self primIdentical: other
-!
+
 ~~ other
     ^(self == other) not
-!
+
 = other
     ^self == other
-!
+
 ~= other
     ^(self = other) not
-!
 
 -- Nil testing
 isNil
     ^false
-!
+
 notNil
     ^self isNil not
-!
 
 -- Class access
 class
     ^self primClass
-!
+
 isKindOf: aClass
     ^self class == aClass
-!
 
 -- Copying
 shallowCopy
     ^self primShallowCopy
-!
 
 -- Error handling
 error: message
     ^self primError: message
-!
+
 doesNotUnderstand: selector
     ^self error: 'Message not understood: ', selector
-!
 
 -- Printing (basic - returns class name)
 printString
     ^self class name
-!

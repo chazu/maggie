@@ -4,53 +4,51 @@
 -- Accessing
 size
     ^self primSize
-!
+
 at: index
     ^self primAt: index
-!
+
 at: index put: value
     ^self primAt: index put: value
-!
+
 first
     ^self at: 1
-!
+
 last
     ^self at: self size
-!
+
 isEmpty
     ^self size = 0
-!
+
 notEmpty
     ^self isEmpty not
-!
 
 -- Iteration
 do: block
     1 to: self size do: [:i | block value: (self at: i)]
-!
+
 collect: block
     | result |
     result := Array new: self size.
     1 to: self size do: [:i | result at: i put: (block value: (self at: i))].
     ^result
-!
+
 select: block
     | result |
     result := Array new: 0.
     self do: [:each | (block value: each) ifTrue: [result := result, (Array with: each)]].
     ^result
-!
+
 reject: block
     ^self select: [:each | (block value: each) not]
-!
+
 detect: block
     self do: [:each | (block value: each) ifTrue: [^each]].
     ^nil
-!
+
 detect: block ifNone: noneBlock
     self do: [:each | (block value: each) ifTrue: [^each]].
     ^noneBlock value
-!
 
 -- Aggregation
 inject: initial into: block
@@ -58,17 +56,15 @@ inject: initial into: block
     result := initial.
     self do: [:each | result := block value: result value: each].
     ^result
-!
 
 -- Testing
 includes: anObject
     self do: [:each | each = anObject ifTrue: [^true]].
     ^false
-!
+
 indexOf: anObject
     1 to: self size do: [:i | (self at: i) = anObject ifTrue: [^i]].
     ^0
-!
 
 -- Concatenation
 , other
@@ -77,7 +73,6 @@ indexOf: anObject
     1 to: self size do: [:i | result at: i put: (self at: i)].
     1 to: other size do: [:i | result at: self size + i put: (other at: i)].
     ^result
-!
 
 -- Copying
 copyFrom: start to: end
@@ -85,7 +80,6 @@ copyFrom: start to: end
     result := Array new: end - start + 1.
     start to: end do: [:i | result at: i - start + 1 put: (self at: i)].
     ^result
-!
 
 -- Printing
 printString
@@ -94,4 +88,3 @@ printString
     self do: [:each | s := s, each printString, ' '].
     s := s, ')'.
     ^s
-!
