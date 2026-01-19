@@ -530,3 +530,74 @@ func BenchmarkIsTruthy(b *testing.B) {
 		_ = v.IsTruthy()
 	}
 }
+
+// ---------------------------------------------------------------------------
+// Block tests
+// ---------------------------------------------------------------------------
+
+func TestBlockRoundTrip(t *testing.T) {
+	tests := []uint32{0, 1, 100, 1000000, 0xFFFFFFFF}
+
+	for _, id := range tests {
+		v := FromBlockID(id)
+		if !v.IsBlock() {
+			t.Errorf("FromBlockID(%d).IsBlock() = false, want true", id)
+			continue
+		}
+		got := v.BlockID()
+		if got != id {
+			t.Errorf("FromBlockID(%d).BlockID() = %d, want %d", id, got, id)
+		}
+	}
+}
+
+func TestBlockTypeChecks(t *testing.T) {
+	v := FromBlockID(42)
+	if v.IsFloat() {
+		t.Error("IsFloat should be false for block")
+	}
+	if v.IsSmallInt() {
+		t.Error("IsSmallInt should be false for block")
+	}
+	if v.IsObject() {
+		t.Error("IsObject should be false for block")
+	}
+	if v.IsSymbol() {
+		t.Error("IsSymbol should be false for block")
+	}
+	if !v.IsBlock() {
+		t.Error("IsBlock should be true")
+	}
+	if v.IsNil() {
+		t.Error("IsNil should be false for block")
+	}
+}
+
+func TestBlockDistinctFromSymbol(t *testing.T) {
+	// Blocks and symbols with the same ID should be distinct
+	blockVal := FromBlockID(123)
+	symbolVal := FromSymbolID(123)
+
+	if blockVal == symbolVal {
+		t.Error("Block and symbol with same ID should not be equal")
+	}
+	if !blockVal.IsBlock() {
+		t.Error("Block value should be a block")
+	}
+	if blockVal.IsSymbol() {
+		t.Error("Block value should not be a symbol")
+	}
+	if !symbolVal.IsSymbol() {
+		t.Error("Symbol value should be a symbol")
+	}
+	if symbolVal.IsBlock() {
+		t.Error("Symbol value should not be a block")
+	}
+}
+
+func BenchmarkBlockRoundtrip(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		v := FromBlockID(42)
+		_ = v.BlockID()
+	}
+}
