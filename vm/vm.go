@@ -129,6 +129,7 @@ func (vm *VM) bootstrap() {
 	vm.registerChannelPrimitives()
 	vm.registerProcessPrimitives()
 	vm.registerResultPrimitives()
+	vm.registerDictionaryPrimitives()
 
 	// Phase 7: Set up globals
 	vm.Globals["Object"] = vm.classValue(vm.ObjectClass)
@@ -148,6 +149,7 @@ func (vm *VM) bootstrap() {
 	vm.Globals["Result"] = vm.classValue(vm.ResultClass)
 	vm.Globals["Success"] = vm.classValue(vm.SuccessClass)
 	vm.Globals["Failure"] = vm.classValue(vm.FailureClass)
+	vm.Globals["Dictionary"] = vm.classValue(vm.DictionaryClass)
 
 	// Well-known symbols
 	vm.Globals["nil"] = Nil
@@ -1066,6 +1068,8 @@ func (vm *VM) ClassFor(v Value) *Class {
 		return vm.BlockClass
 	case IsStringValue(v):
 		return vm.StringClass
+	case IsDictionaryValue(v):
+		return vm.DictionaryClass
 	case v.IsSymbol():
 		return vm.SymbolClass
 	case v.IsObject():
@@ -1098,6 +1102,8 @@ func (vm *VM) Send(receiver Value, selector string, args []Value) Value {
 		// Check for string values first (they use the symbol tag but with high IDs)
 		if IsStringValue(receiver) {
 			class = vm.StringClass
+		} else if IsDictionaryValue(receiver) {
+			class = vm.DictionaryClass
 		} else if isChannelValue(receiver) {
 			// Check for special symbol-encoded values (channels, processes, results)
 			class = vm.ChannelClass

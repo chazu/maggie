@@ -44,12 +44,15 @@ func NewStringValue(s string) Value {
 }
 
 // IsStringValue returns true if the value is a string object (not a symbol).
+// String IDs are in the range [stringIDOffset, dictionaryIDOffset).
 func IsStringValue(v Value) bool {
 	if !v.IsSymbol() {
 		return false
 	}
 	id := v.SymbolID()
-	return id >= stringIDOffset
+	// String IDs: 0x80000000 to 0xBFFFFFFF
+	// Dictionary IDs: 0xC0000000+
+	return id >= stringIDOffset && id < dictionaryIDOffset
 }
 
 // GetStringContent returns the Go string content of a string Value.
