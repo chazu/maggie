@@ -15,6 +15,11 @@ import (
 type Object struct {
 	vtable *VTable // Pointer to method dispatch table
 
+	// size tracks the actual number of slots for variable-sized objects (arrays).
+	// For regular objects, this is 0 and NumSlots() returns NumInlineSlots + len(overflow).
+	// For arrays, this is set to the actual array size.
+	size int
+
 	// Inline slots for the first 4 instance variables.
 	// Most objects (Point, Association, Range, etc.) have ≤4 ivars.
 	slot0 Value
@@ -165,8 +170,18 @@ func (obj *Object) SetSlot(index int, value Value) {
 }
 
 // NumSlots returns the total number of slots in this object.
+// For variable-sized objects (like arrays), returns the actual size.
+// For regular objects, returns the physical slot count.
 func (obj *Object) NumSlots() int {
+	if obj.size > 0 {
+		return obj.size
+	}
 	return NumInlineSlots + len(obj.overflow)
+}
+
+// SetSize sets the logical size for variable-sized objects like arrays.
+func (obj *Object) SetSize(n int) {
+	obj.size = n
 }
 
 // VTablePtr returns the object's vtable.

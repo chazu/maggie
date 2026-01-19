@@ -38,6 +38,9 @@ type VM struct {
 
 	// Interpreter
 	interpreter *Interpreter
+
+	// keepAlive holds references to objects to prevent GC
+	keepAlive []*Object
 }
 
 // NewVM creates and bootstraps a new VM.
@@ -745,51 +748,165 @@ func (vm *VM) registerSymbolPrimitives() {
 }
 
 func (vm *VM) registerStringPrimitives() {
-	// String primitives
-	// For Phase 1, strings are represented as symbols
-	// Full String implementation requires heap-allocated string objects
-	c := vm.StringClass
-
-	// size - return length (placeholder)
-	c.AddMethod0(vm.Selectors, "size", func(_ interface{}, recv Value) Value {
-		// For now, strings aren't fully implemented
-		return FromSmallInt(0)
-	})
-
-	// asSymbol - convert to symbol (placeholder)
-	c.AddMethod0(vm.Selectors, "asSymbol", func(_ interface{}, recv Value) Value {
-		return recv
-	})
-
-	// = - string equality (placeholder)
-	c.AddMethod1(vm.Selectors, "=", func(_ interface{}, recv Value, arg Value) Value {
-		if recv == arg {
-			return True
-		}
-		return False
-	})
+	// Register the extended string primitives from string_primitives.go
+	vm.registerStringPrimitivesExtended()
 }
 
 func (vm *VM) registerArrayPrimitives() {
-	// Array primitives
-	// For Phase 1, arrays require heap-allocated objects
-	// Placeholder implementations for now
 	c := vm.ArrayClass
 
-	// size - return array size (placeholder)
-	c.AddMethod0(vm.Selectors, "size", func(_ interface{}, recv Value) Value {
+	// primSize - return array size
+	c.AddMethod0(vm.Selectors, "primSize", func(_ interface{}, recv Value) Value {
+		if recv.IsObject() {
+			obj := ObjectFromValue(recv)
+			if obj != nil {
+				return FromSmallInt(int64(obj.NumSlots()))
+			}
+		}
 		return FromSmallInt(0)
 	})
 
-	// at: - array access (placeholder)
-	c.AddMethod1(vm.Selectors, "at:", func(_ interface{}, recv Value, index Value) Value {
-		return Nil
+	// size - alias for primSize for direct calls
+	c.AddMethod0(vm.Selectors, "size", func(_ interface{}, recv Value) Value {
+		if recv.IsObject() {
+			obj := ObjectFromValue(recv)
+			if obj != nil {
+				return FromSmallInt(int64(obj.NumSlots()))
+			}
+		}
+		return FromSmallInt(0)
 	})
 
-	// at:put: - array modification (placeholder)
-	c.AddMethod2(vm.Selectors, "at:put:", func(_ interface{}, recv Value, index, value Value) Value {
-		return recv
+	// primAt: - array access (0-based indexing)
+	c.AddMethod1(vm.Selectors, "primAt:", func(_ interface{}, recv Value, index Value) Value {
+		if !recv.IsObject() || !index.IsSmallInt() {
+			return Nil
+		}
+		obj := ObjectFromValue(recv)
+		if obj == nil {
+			return Nil
+		}
+		idx := index.SmallInt()
+		if idx < 0 || idx >= int64(obj.NumSlots()) {
+			return Nil // Bounds error - would raise in full implementation
+		}
+		return obj.GetSlot(int(idx))
 	})
+
+	// at: - alias for primAt: for direct calls
+	c.AddMethod1(vm.Selectors, "at:", func(_ interface{}, recv Value, index Value) Value {
+		if !recv.IsObject() || !index.IsSmallInt() {
+			return Nil
+		}
+		obj := ObjectFromValue(recv)
+		if obj == nil {
+			return Nil
+		}
+		idx := index.SmallInt()
+		if idx < 0 || idx >= int64(obj.NumSlots()) {
+			return Nil // Bounds error - would raise in full implementation
+		}
+		return obj.GetSlot(int(idx))
+	})
+
+	// primAt:put: - array modification (0-based indexing)
+	c.AddMethod2(vm.Selectors, "primAt:put:", func(_ interface{}, recv Value, index, value Value) Value {
+		if !recv.IsObject() || !index.IsSmallInt() {
+			return value
+		}
+		obj := ObjectFromValue(recv)
+		if obj == nil {
+			return value
+		}
+		idx := index.SmallInt()
+		if idx < 0 || idx >= int64(obj.NumSlots()) {
+			return value // Bounds error - would raise in full implementation
+		}
+		obj.SetSlot(int(idx), value)
+		return value
+	})
+
+	// at:put: - alias for primAt:put: for direct calls
+	c.AddMethod2(vm.Selectors, "at:put:", func(_ interface{}, recv Value, index, value Value) Value {
+		if !recv.IsObject() || !index.IsSmallInt() {
+			return value
+		}
+		obj := ObjectFromValue(recv)
+		if obj == nil {
+			return value
+		}
+		idx := index.SmallInt()
+		if idx < 0 || idx >= int64(obj.NumSlots()) {
+			return value // Bounds error - would raise in full implementation
+		}
+		obj.SetSlot(int(idx), value)
+		return value
+	})
+
+	// Class-side new: - create array of given size
+	// This is registered on the Array class itself for class-side dispatch
+	c.AddMethod1(vm.Selectors, "new:", func(vmPtr interface{}, recv Value, size Value) Value {
+		v := vmPtr.(*VM)
+		if !size.IsSmallInt() {
+			return Nil
+		}
+		n := size.SmallInt()
+		if n < 0 {
+			return Nil
+		}
+		// Create array object with n slots
+		return v.NewArray(int(n))
+	})
+
+	// with: - create single-element array (class side)
+	c.AddMethod1(vm.Selectors, "with:", func(vmPtr interface{}, recv Value, elem Value) Value {
+		v := vmPtr.(*VM)
+		arr := v.NewArray(1)
+		if arr.IsObject() {
+			obj := ObjectFromValue(arr)
+			obj.SetSlot(0, elem)
+		}
+		return arr
+	})
+
+	// with:with: - create two-element array (class side)
+	c.AddMethod2(vm.Selectors, "with:with:", func(vmPtr interface{}, recv Value, elem1, elem2 Value) Value {
+		v := vmPtr.(*VM)
+		arr := v.NewArray(2)
+		if arr.IsObject() {
+			obj := ObjectFromValue(arr)
+			obj.SetSlot(0, elem1)
+			obj.SetSlot(1, elem2)
+		}
+		return arr
+	})
+}
+
+// NewArray creates a new Array object with the given number of slots.
+// All slots are initialized to Nil.
+func (vm *VM) NewArray(size int) Value {
+	if vm.ArrayClass == nil || vm.ArrayClass.VTable == nil {
+		return Nil
+	}
+	obj := NewObject(vm.ArrayClass.VTable, size)
+	obj.SetSize(size) // Set the logical size for arrays
+	val := obj.ToValue()
+	// Keep a reference to prevent GC
+	vm.keepAlive = append(vm.keepAlive, obj)
+	return val
+}
+
+// NewArrayWithElements creates a new Array object with the given elements.
+func (vm *VM) NewArrayWithElements(elements []Value) Value {
+	if vm.ArrayClass == nil || vm.ArrayClass.VTable == nil {
+		return Nil
+	}
+	obj := NewObjectWithSlots(vm.ArrayClass.VTable, elements)
+	obj.SetSize(len(elements)) // Set the logical size for arrays
+	val := obj.ToValue()
+	// Keep a reference to prevent GC
+	vm.keepAlive = append(vm.keepAlive, obj)
+	return val
 }
 
 func (vm *VM) registerBlockPrimitives() {
@@ -915,6 +1032,8 @@ func (vm *VM) primitiveClass(v Value) Value {
 		className = "Float"
 	case v.IsBlock():
 		className = "Block"
+	case IsStringValue(v):
+		className = "String"
 	case v.IsSymbol():
 		className = "Symbol"
 	case v.IsObject():
@@ -945,6 +1064,8 @@ func (vm *VM) ClassFor(v Value) *Class {
 		return vm.FloatClass
 	case v.IsBlock():
 		return vm.BlockClass
+	case IsStringValue(v):
+		return vm.StringClass
 	case v.IsSymbol():
 		return vm.SymbolClass
 	case v.IsObject():
@@ -974,8 +1095,11 @@ func (vm *VM) Send(receiver Value, selector string, args []Value) Value {
 	// Determine the class for method dispatch
 	var class *Class
 	if receiver.IsSymbol() {
-		// Check for special symbol-encoded values first (channels, processes, results)
-		if isChannelValue(receiver) {
+		// Check for string values first (they use the symbol tag but with high IDs)
+		if IsStringValue(receiver) {
+			class = vm.StringClass
+		} else if isChannelValue(receiver) {
+			// Check for special symbol-encoded values (channels, processes, results)
 			class = vm.ChannelClass
 		} else if isProcessValue(receiver) {
 			class = vm.ProcessClass
