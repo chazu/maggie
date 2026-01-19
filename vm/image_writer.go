@@ -92,6 +92,11 @@ func (w *ImageWriter) collectFromVM(vm *VM) {
 		w.registerString(name)
 	}
 
+	// Collect strings from global names (before writing string table!)
+	for name := range vm.Globals {
+		w.registerString(name)
+	}
+
 	// Collect symbols in order
 	for i := 0; i < len(allSymbols); i++ {
 		w.registerSymbol(uint32(i))
@@ -355,6 +360,11 @@ func (w *ImageWriter) writeClasses() {
 	// Sort classes by dependency (superclasses first)
 	sortedClasses := w.sortClassesByDependency()
 
+	// IMPORTANT: Update the encoder's class indices to match the sorted order.
+	// Methods reference classes by index, so the indices must match the
+	// positions in the written output (sorted order), not the registration order.
+	w.updateClassIndicesForSortedOrder(sortedClasses)
+
 	// Count
 	buf := make([]byte, 4)
 	WriteUint32(buf, uint32(len(sortedClasses)))
@@ -364,6 +374,20 @@ func (w *ImageWriter) writeClasses() {
 	for _, c := range sortedClasses {
 		w.writeClass(c)
 	}
+}
+
+// updateClassIndicesForSortedOrder updates the encoder's class mappings
+// to reflect the sorted write order instead of the registration order.
+func (w *ImageWriter) updateClassIndicesForSortedOrder(sortedClasses []*Class) {
+	// Clear existing class mappings
+	w.encoder.classIndex = make(map[*Class]uint32)
+	w.encoder.nextClass = 0
+
+	// Re-register classes in sorted order
+	for i, c := range sortedClasses {
+		w.encoder.classIndex[c] = uint32(i)
+	}
+	w.encoder.nextClass = uint32(len(sortedClasses))
 }
 
 // sortClassesByDependency sorts classes so superclasses come before subclasses.

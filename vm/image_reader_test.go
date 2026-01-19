@@ -575,8 +575,10 @@ func TestImageReaderMethods(t *testing.T) {
 	if m.Name() != "testMethod" {
 		t.Errorf("Method name = %q, want 'testMethod'", m.Name())
 	}
-	if m.Selector() != 42 {
-		t.Errorf("Method selector = %d, want 42", m.Selector())
+	// Selector should match VM's selector ID for "testMethod", not the raw image value
+	expectedSelector := vm.Selectors.Lookup("testMethod")
+	if m.Selector() != expectedSelector {
+		t.Errorf("Method selector = %d, want %d (VM's ID for 'testMethod')", m.Selector(), expectedSelector)
 	}
 	if m.Arity != 2 {
 		t.Errorf("Method arity = %d, want 2", m.Arity)

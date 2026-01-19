@@ -1,0 +1,42 @@
+-- Process.mag
+-- Methods for lightweight processes (goroutines)
+
+-- Creating (class methods)
+-- fork: is a primitive on the class side
+
+-- Process control
+yield
+    ^self primYield
+!
+terminate
+    ^self primTerminate
+!
+wait
+    ^self primWait
+!
+
+-- Status
+isAlive
+    ^self primIsAlive
+!
+isTerminated
+    ^self isAlive not
+!
+
+-- Result
+result
+    ^self primResult
+!
+
+-- Priority
+priority
+    ^self primPriority
+!
+priority: level
+    ^self primPriority: level
+!
+
+-- Printing
+printString
+    ^'a Process'
+!

@@ -1,5 +1,9 @@
-# Binary (root-level only, not cmd/procyon/)
+# Binary (root-level only)
 /procyon
+/bootstrap
+
+# Generated image files
+*.image
 
 # Test artifacts
 *.native

@@ -1,0 +1,13 @@
+-- False.mag
+-- The class of the false object
+-- Note: &, |, not, and:, or:, ifTrue:, ifFalse:, ifTrue:ifFalse: are Go primitives
+
+-- Conditional evaluation (alternate ordering)
+ifFalse: falseBlock ifTrue: trueBlock
+    ^falseBlock value
+!
+
+-- Printing
+printString
+    ^'false'
+!

@@ -1,0 +1,48 @@
+-- Success.mag
+-- Success case for Result pattern
+
+-- Testing
+isSuccess
+    ^true
+!
+isFailure
+    ^false
+!
+
+-- Accessing
+value
+    ^self primValue
+!
+error
+    ^nil
+!
+
+-- Chaining - execute the block
+then: block
+    | result |
+    result := block value: self value.
+    result isKindOf: Result ifTrue: [^result].
+    ^Success with: result
+!
+map: block
+    ^Success with: (block value: self value)
+!
+flatMap: block
+    ^block value: self value
+!
+
+-- Conditional execution
+ifSuccess: block
+    ^block value: self value
+!
+ifFailure: block
+    ^self
+!
+onSuccess: successBlock onFailure: failureBlock
+    ^successBlock value: self value
+!
+
+-- Printing
+printString
+    ^'Success(', self value printString, ')'
+!

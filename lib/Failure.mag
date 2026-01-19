@@ -1,0 +1,45 @@
+-- Failure.mag
+-- Failure case for Result pattern
+
+-- Testing
+isSuccess
+    ^false
+!
+isFailure
+    ^true
+!
+
+-- Accessing
+value
+    ^nil
+!
+error
+    ^self primError
+!
+
+-- Chaining - propagate failure, don't execute block
+then: block
+    ^self
+!
+map: block
+    ^self
+!
+flatMap: block
+    ^self
+!
+
+-- Conditional execution
+ifSuccess: block
+    ^self
+!
+ifFailure: block
+    ^block value: self error
+!
+onSuccess: successBlock onFailure: failureBlock
+    ^failureBlock value: self error
+!
+
+-- Printing
+printString
+    ^'Failure(', self error printString, ')'
+!

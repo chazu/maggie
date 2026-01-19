@@ -280,7 +280,7 @@ func (ir *ImageReader) ReadSymbolTable() (map[uint32]string, error) {
 }
 
 // ReadSelectorTable reads the selector table from the image.
-// Each entry is a symbol index that maps to a selector.
+// Each entry is a string index that maps to a selector name.
 func (ir *ImageReader) ReadSelectorTable() (map[uint32]uint32, error) {
 	// Read count
 	count, err := ir.readUint32()
@@ -292,17 +292,18 @@ func (ir *ImageReader) ReadSelectorTable() (map[uint32]uint32, error) {
 	ir.selectors = make([]uint32, count)
 
 	for i := uint32(0); i < count; i++ {
-		symbolIdx, err := ir.readUint32()
+		stringIdx, err := ir.readUint32()
 		if err != nil {
 			return nil, fmt.Errorf("failed to read selector %d: %w", i, err)
 		}
 
-		if int(symbolIdx) >= len(ir.symbols) {
-			return nil, fmt.Errorf("%w: selector %d references symbol %d", ErrInvalidSymbolIndex, i, symbolIdx)
+		// Selectors store string indices directly (like symbols)
+		if int(stringIdx) >= len(ir.strings) {
+			return nil, fmt.Errorf("%w: selector %d references string %d", ErrInvalidStringIndex, i, stringIdx)
 		}
 
-		ir.selectors[i] = symbolIdx
-		result[i] = symbolIdx
+		ir.selectors[i] = stringIdx
+		result[i] = stringIdx
 	}
 
 	return result, nil
@@ -647,9 +648,12 @@ func (ir *ImageReader) readMethod(vm *VM) (*CompiledMethod, error) {
 		}
 	}
 
-	// Create method
+	// Map selector from image space to VM's selector space using the method name
+	vmSelectorID := vm.Selectors.Intern(name)
+
+	// Create method with VM's selector ID
 	method := &CompiledMethod{
-		selector:  int(selector),
+		selector:  vmSelectorID,
 		name:      name,
 		Arity:     int(arity),
 		NumTemps:  int(numTemps),
@@ -660,14 +664,17 @@ func (ir *ImageReader) readMethod(vm *VM) (*CompiledMethod, error) {
 		SourceMap: sourceMap,
 	}
 
+	// Ignore the raw selector from image - we use vmSelectorID instead
+	_ = selector
+
 	// Link to class
 	if classIdx != 0xFFFFFFFF {
 		if int(classIdx) < len(ir.classes) {
 			class := ir.classes[classIdx]
 			method.class = class
-			// Register method in class vtable
+			// Register method in class vtable using VM's selector ID
 			if class.VTable != nil {
-				class.VTable.AddMethod(int(selector), method)
+				class.VTable.AddMethod(vmSelectorID, method)
 			}
 		}
 	}
@@ -988,14 +995,11 @@ func (ir *ImageReader) ReadAll(vm *VM) error {
 		return fmt.Errorf("failed to read selector table: %w", err)
 	}
 
-	// Intern selectors in VM
-	for _, symbolIdx := range ir.selectors {
-		if int(symbolIdx) < len(ir.symbols) {
-			stringIdx := ir.symbols[symbolIdx]
-			if int(stringIdx) < len(ir.strings) {
-				name := ir.strings[stringIdx]
-				vm.Selectors.Intern(name)
-			}
+	// Intern selectors in VM (selectors store string indices directly)
+	for _, stringIdx := range ir.selectors {
+		if int(stringIdx) < len(ir.strings) {
+			name := ir.strings[stringIdx]
+			vm.Selectors.Intern(name)
 		}
 	}
 

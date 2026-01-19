@@ -1,0 +1,58 @@
+-- Block.mag
+-- Methods for closures/blocks
+
+-- Evaluation (primitives)
+value
+    ^self primValue
+!
+value: arg
+    ^self primValue: arg
+!
+value: arg1 value: arg2
+    ^self primValue: arg1 value: arg2
+!
+value: arg1 value: arg2 value: arg3
+    ^self primValue: arg1 value: arg2 value: arg3
+!
+
+-- Control flow
+whileTrue: block
+    [self value] whileTrue: [block value]
+!
+whileFalse: block
+    [self value not] whileTrue: [block value]
+!
+whileTrue
+    self value ifTrue: [self whileTrue]
+!
+whileFalse
+    self value ifFalse: [self whileFalse]
+!
+
+-- Exception handling
+on: exception do: handler
+    ^self primOn: exception do: handler
+!
+ensure: finallyBlock
+    | result |
+    result := self value.
+    finallyBlock value.
+    ^result
+!
+ifCurtailed: curtailBlock
+    ^self primIfCurtailed: curtailBlock
+!
+
+-- Repeating
+repeat
+    self value.
+    self repeat
+!
+
+-- Forking (concurrency)
+fork
+    ^Process fork: self
+!
+forkAt: priority
+    ^Process fork: self at: priority
+!

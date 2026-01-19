@@ -1,0 +1,28 @@
+-- Boolean.mag
+-- Abstract superclass for True and False
+-- Note: & and | are Go primitives (conflict with lexer's | for temps)
+
+-- Logical operations (abstract - overridden in True/False)
+not
+    ^self subclassResponsibility
+!
+and: block
+    ^self subclassResponsibility
+!
+or: block
+    ^self subclassResponsibility
+!
+
+-- Conditional evaluation (abstract)
+ifTrue: trueBlock
+    ^self subclassResponsibility
+!
+ifFalse: falseBlock
+    ^self subclassResponsibility
+!
+ifTrue: trueBlock ifFalse: falseBlock
+    ^self subclassResponsibility
+!
+ifFalse: falseBlock ifTrue: trueBlock
+    ^self subclassResponsibility
+!

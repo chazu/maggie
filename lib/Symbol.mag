@@ -1,0 +1,20 @@
+-- Symbol.mag
+-- Methods for symbols (interned strings)
+
+-- Symbols are unique and immutable
+asSymbol
+    ^self
+!
+asString
+    ^self primAsString
+!
+
+-- Comparison (identity for symbols)
+= other
+    ^self == other
+!
+
+-- Printing
+printString
+    ^'#', self asString
+!
