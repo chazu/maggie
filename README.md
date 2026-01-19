@@ -2,7 +2,9 @@
 
 A late-bound Smalltalk dialect implemented in Go.
 
-See [docs/MAGGIE_DESIGN.md](docs/MAGGIE_DESIGN.md) for the full design document.
+**Documentation:**
+- [User Guide](docs/USER_GUIDE.md) - Getting started, syntax, core classes
+- [Design Document](docs/MAGGIE_DESIGN.md) - Architecture and implementation details
 
 ## Status
 
