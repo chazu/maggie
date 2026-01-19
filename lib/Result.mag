@@ -1,42 +1,51 @@
--- Result.mag
--- Abstract base class for functional error handling
+# Result.mag
 
--- Factory methods (class side)
--- success: and failure: are primitives on the class side
+Result subclass: Object
 
--- Abstract methods (overridden in Success/Failure)
-isSuccess
-    ^self subclassResponsibility
+  # Abstract methods (overridden in Success/Failure)
+  method: isSuccess [
+      ^self subclassResponsibility
+  ]
 
-isFailure
-    ^self subclassResponsibility
+  method: isFailure [
+      ^self subclassResponsibility
+  ]
 
-value
-    ^self subclassResponsibility
+  method: value [
+      ^self subclassResponsibility
+  ]
 
-error
-    ^self subclassResponsibility
+  method: error [
+      ^self subclassResponsibility
+  ]
 
--- Chaining
-then: block
-    ^self subclassResponsibility
+  # Chaining
+  method: then: block [
+      ^self subclassResponsibility
+  ]
 
-map: block
-    ^self subclassResponsibility
+  method: map: block [
+      ^self subclassResponsibility
+  ]
 
-flatMap: block
-    ^self subclassResponsibility
+  method: flatMap: block [
+      ^self subclassResponsibility
+  ]
 
--- Conditional execution
-ifSuccess: block
-    ^self subclassResponsibility
+  # Conditional execution
+  method: ifSuccess: block [
+      ^self subclassResponsibility
+  ]
 
-ifFailure: block
-    ^self subclassResponsibility
+  method: ifFailure: block [
+      ^self subclassResponsibility
+  ]
 
-onSuccess: successBlock onFailure: failureBlock
-    ^self subclassResponsibility
+  method: onSuccess: successBlock onFailure: failureBlock [
+      ^self subclassResponsibility
+  ]
 
--- Printing
-printString
-    ^'a Result'
+  # Printing
+  method: printString [
+      ^'a Result'
+  ]

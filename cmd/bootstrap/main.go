@@ -13,7 +13,7 @@ import (
 	"github.com/chazu/maggie/vm"
 )
 
-// classMapping maps source file names to VM classes
+// classMapping maps class names to VM classes (for core classes pre-created in Go)
 var classMapping = map[string]func(*vm.VM) *vm.Class{
 	"Object":          func(v *vm.VM) *vm.Class { return v.ObjectClass },
 	"Boolean":         func(v *vm.VM) *vm.Class { return v.BooleanClass },
@@ -31,12 +31,14 @@ var classMapping = map[string]func(*vm.VM) *vm.Class{
 	"Result":          func(v *vm.VM) *vm.Class { return v.ResultClass },
 	"Success":         func(v *vm.VM) *vm.Class { return v.SuccessClass },
 	"Failure":         func(v *vm.VM) *vm.Class { return v.FailureClass },
+	"Dictionary":      func(v *vm.VM) *vm.Class { return v.DictionaryClass },
 }
 
 func main() {
 	libDir := flag.String("lib", "lib", "Directory containing .mag source files")
 	output := flag.String("o", "maggie.image", "Output image file")
 	verbose := flag.Bool("v", false, "Verbose output")
+	newSyntax := flag.Bool("new-syntax", false, "Use new Trashtalk-style syntax")
 	flag.Parse()
 
 	// Create a fresh VM with primitives
@@ -61,27 +63,37 @@ func main() {
 	// Compile each file
 	totalMethods := 0
 	for _, file := range files {
-		className := strings.TrimSuffix(filepath.Base(file), ".mag")
-		classGetter, ok := classMapping[className]
-		if !ok {
-			fmt.Fprintf(os.Stderr, "Warning: unknown class %s, skipping\n", className)
-			continue
+		var methods int
+		var err error
+
+		if *newSyntax {
+			// New Trashtalk-style syntax
+			methods, err = compileFileNew(file, vmInst, *verbose)
+		} else {
+			// Old syntax: filename determines class
+			className := strings.TrimSuffix(filepath.Base(file), ".mag")
+			classGetter, ok := classMapping[className]
+			if !ok {
+				fmt.Fprintf(os.Stderr, "Warning: unknown class %s, skipping\n", className)
+				continue
+			}
+
+			class := classGetter(vmInst)
+			methods, err = compileFileOld(file, class, vmInst)
+			if *verbose {
+				fmt.Printf("  %s: %d methods\n", className, methods)
+			}
 		}
 
-		class := classGetter(vmInst)
-		methods, err := compileFile(file, class, vmInst)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error compiling %s: %v\n", file, err)
 			os.Exit(1)
 		}
 
 		totalMethods += methods
-		if *verbose {
-			fmt.Printf("  %s: %d methods\n", className, methods)
-		}
 	}
 
-	fmt.Printf("Compiled %d methods from %d classes\n", totalMethods, len(files))
+	fmt.Printf("Compiled %d methods from %d files\n", totalMethods, len(files))
 
 	// Save the image
 	if err := vmInst.SaveImage(*output); err != nil {
@@ -92,9 +104,9 @@ func main() {
 	fmt.Printf("Image saved to %s\n", *output)
 }
 
-// compileFile reads a .mag file and compiles all methods into the given class.
+// compileFileOld reads a .mag file in the old format and compiles all methods into the given class.
 // Returns the number of methods compiled.
-func compileFile(path string, class *vm.Class, vmInst *vm.VM) (int, error) {
+func compileFileOld(path string, class *vm.Class, vmInst *vm.VM) (int, error) {
 	content, err := os.ReadFile(path)
 	if err != nil {
 		return 0, err
@@ -125,7 +137,70 @@ func compileFile(path string, class *vm.Class, vmInst *vm.VM) (int, error) {
 	return compiled, nil
 }
 
-// parseMethodChunks splits a .mag file into individual method sources.
+// compileFileNew reads a .mag file in the new Trashtalk-style format.
+// Returns the number of methods compiled.
+func compileFileNew(path string, vmInst *vm.VM, verbose bool) (int, error) {
+	content, err := os.ReadFile(path)
+	if err != nil {
+		return 0, err
+	}
+
+	sf, err := compiler.ParseSourceFileFromString(string(content))
+	if err != nil {
+		return 0, fmt.Errorf("parse error: %v", err)
+	}
+
+	compiled := 0
+
+	// Process each class definition
+	for _, classDef := range sf.Classes {
+		// Look up the class in the VM
+		classGetter, ok := classMapping[classDef.Name]
+		if !ok {
+			return compiled, fmt.Errorf("unknown class: %s (not found in classMapping)", classDef.Name)
+		}
+
+		class := classGetter(vmInst)
+
+		// Compile instance methods
+		for _, methodDef := range classDef.Methods {
+			method, err := compiler.CompileMethodDef(methodDef, vmInst.Selectors, vmInst.Symbols)
+			if err != nil {
+				return compiled, fmt.Errorf("error compiling %s>>%s: %v", classDef.Name, methodDef.Selector, err)
+			}
+
+			method.SetClass(class)
+			class.VTable.AddMethod(vmInst.Selectors.Intern(method.Name()), method)
+			compiled++
+		}
+
+		// Compile class methods (add to metaclass)
+		for _, methodDef := range classDef.ClassMethods {
+			method, err := compiler.CompileMethodDef(methodDef, vmInst.Selectors, vmInst.Symbols)
+			if err != nil {
+				return compiled, fmt.Errorf("error compiling %s class>>%s: %v", classDef.Name, methodDef.Selector, err)
+			}
+
+			// Class methods go on the class object's vtable (metaclass)
+			// For now, we'll add them to the class's own vtable
+			// TODO: Proper metaclass support
+			method.SetClass(class)
+			class.VTable.AddMethod(vmInst.Selectors.Intern(method.Name()), method)
+			compiled++
+		}
+
+		if verbose {
+			fmt.Printf("  %s: %d methods\n", classDef.Name, len(classDef.Methods)+len(classDef.ClassMethods))
+		}
+	}
+
+	// Process trait definitions (if any)
+	// TODO: Implement trait storage in VM
+
+	return compiled, nil
+}
+
+// parseMethodChunks splits a .mag file into individual method sources (old format).
 // Methods are detected by looking for unindented method headers.
 // Lines starting with "--" are comments and are stripped.
 func parseMethodChunks(content string) []string {

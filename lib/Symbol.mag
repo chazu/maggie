@@ -1,17 +1,22 @@
--- Symbol.mag
--- Methods for symbols (interned strings)
+# Symbol.mag
 
--- Symbols are unique and immutable
-asSymbol
-    ^self
+Symbol subclass: Object
 
-asString
-    ^self primAsString
+  # Symbols are unique and immutable
+  method: asSymbol [
+      ^self
+  ]
 
--- Comparison (identity for symbols)
-= other
-    ^self == other
+  method: asString [
+      ^self primAsString
+  ]
 
--- Printing
-printString
-    ^'#', self asString
+  # Comparison (identity for symbols)
+  method: = other [
+      ^self == other
+  ]
+
+  # Printing
+  method: printString [
+      ^'#', self asString
+  ]

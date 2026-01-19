@@ -1,51 +1,65 @@
--- Float.mag
--- Methods for floating-point numbers
+# Float.mag
 
--- Arithmetic
-negated
-    ^0.0 - self
+Float subclass: Object
 
-abs
-    self < 0.0 ifTrue: [^self negated].
-    ^self
+  # Arithmetic
+  method: negated [
+      ^0.0 - self
+  ]
 
-sign
-    self < 0.0 ifTrue: [^-1.0].
-    self > 0.0 ifTrue: [^1.0].
-    ^0.0
+  method: abs [
+      self < 0.0 ifTrue: [^self negated].
+      ^self
+  ]
 
--- Comparison
-max: other
-    self > other ifTrue: [^self].
-    ^other
+  method: sign [
+      self < 0.0 ifTrue: [^-1.0].
+      self > 0.0 ifTrue: [^1.0].
+      ^0.0
+  ]
 
-min: other
-    self < other ifTrue: [^self].
-    ^other
+  # Comparison
+  method: max: other [
+      self > other ifTrue: [^self].
+      ^other
+  ]
 
--- Testing
-positive
-    ^self > 0.0
+  method: min: other [
+      self < other ifTrue: [^self].
+      ^other
+  ]
 
-negative
-    ^self < 0.0
+  # Testing
+  method: positive [
+      ^self > 0.0
+  ]
 
-isZero
-    ^self = 0.0
+  method: negative [
+      ^self < 0.0
+  ]
 
--- Rounding (delegates to primitives)
-floor
-    ^self primFloor
+  method: isZero [
+      ^self = 0.0
+  ]
 
-ceiling
-    ^self primCeiling
+  # Rounding (delegates to primitives)
+  method: floor [
+      ^self primFloor
+  ]
 
-rounded
-    ^self primRounded
+  method: ceiling [
+      ^self primCeiling
+  ]
 
-truncated
-    ^self primTruncated
+  method: rounded [
+      ^self primRounded
+  ]
 
--- Printing
-printString
-    ^self primPrintString
+  method: truncated [
+      ^self primTruncated
+  ]
+
+  # Printing
+  method: printString [
+      ^self primPrintString
+  ]

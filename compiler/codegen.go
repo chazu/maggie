@@ -521,3 +521,23 @@ func CompileExpr(source string, selectors *vm.SelectorTable, symbols *vm.SymbolT
 
 	return compiled, nil
 }
+
+// ParseAndCompileSourceFile parses a Trashtalk-style source file and returns the SourceFile AST.
+func ParseSourceFileFromString(source string) (*SourceFile, error) {
+	parser := NewParser(source)
+	sf := parser.ParseSourceFile()
+	if len(parser.Errors()) > 0 {
+		return nil, fmt.Errorf("parse errors: %v", parser.Errors())
+	}
+	return sf, nil
+}
+
+// CompileMethodDef compiles a single method definition to a CompiledMethod.
+func CompileMethodDef(method *MethodDef, selectors *vm.SelectorTable, symbols *vm.SymbolTable) (*vm.CompiledMethod, error) {
+	compiler := NewCompiler(selectors, symbols)
+	compiled := compiler.CompileMethod(method)
+	if len(compiler.Errors()) > 0 {
+		return nil, fmt.Errorf("compile errors: %v", compiler.Errors())
+	}
+	return compiled, nil
+}

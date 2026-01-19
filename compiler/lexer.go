@@ -167,7 +167,7 @@ func (l *Lexer) skipWhitespaceAndComments() {
 			l.readChar()
 		}
 
-		// Skip comments
+		// Skip Smalltalk-style comments: "..."
 		if l.ch == '"' {
 			l.readChar()
 			for l.ch != '"' && l.ch != 0 {
@@ -177,6 +177,19 @@ func (l *Lexer) skipWhitespaceAndComments() {
 				l.readChar()
 			}
 			continue
+		}
+
+		// Skip hash comments: # followed by space/tab/newline/EOF
+		// (not symbols like #foo, arrays #(, or quoted symbols #')
+		if l.ch == '#' {
+			peek := l.peekChar()
+			if peek == ' ' || peek == '\t' || peek == '\n' || peek == '\r' || peek == 0 {
+				// Line comment - skip to end of line
+				for l.ch != '\n' && l.ch != 0 {
+					l.readChar()
+				}
+				continue
+			}
 		}
 
 		break

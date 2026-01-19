@@ -1,60 +1,78 @@
--- String.mag
--- Methods for character strings
+# String.mag
 
--- Accessing
-size
-    ^self primSize
+String subclass: Object
 
-at: index
-    ^self primAt: index
+  # Accessing
+  method: size [
+      ^self primSize
+  ]
 
-isEmpty
-    ^self size = 0
+  method: at: index [
+      ^self primAt: index
+  ]
 
-notEmpty
-    ^self isEmpty not
+  method: isEmpty [
+      ^self size = 0
+  ]
 
--- Concatenation
-, other
-    ^self primConcat: other
+  method: notEmpty [
+      ^self isEmpty not
+  ]
 
--- Comparison
-= other
-    ^self primEquals: other
+  # Concatenation
+  method: , other [
+      ^self primConcat: other
+  ]
 
-< other
-    ^self primLessThan: other
+  # Comparison
+  method: = other [
+      ^self primEquals: other
+  ]
 
-> other
-    ^other < self
+  method: < other [
+      ^self primLessThan: other
+  ]
 
-<= other
-    ^(self > other) not
+  method: > other [
+      ^other < self
+  ]
 
->= other
-    ^(self < other) not
+  method: <= other [
+      ^(self > other) not
+  ]
 
--- Searching
-includes: char
-    ^self primIncludes: char
+  method: >= other [
+      ^(self < other) not
+  ]
 
-indexOf: char
-    ^self primIndexOf: char
+  # Searching
+  method: includes: char [
+      ^self primIncludes: char
+  ]
 
--- Conversion
-asSymbol
-    ^self primAsSymbol
+  method: indexOf: char [
+      ^self primIndexOf: char
+  ]
 
-asUppercase
-    ^self primAsUppercase
+  # Conversion
+  method: asSymbol [
+      ^self primAsSymbol
+  ]
 
-asLowercase
-    ^self primAsLowercase
+  method: asUppercase [
+      ^self primAsUppercase
+  ]
 
--- Copying
-copyFrom: start to: end
-    ^self primCopyFrom: start to: end
+  method: asLowercase [
+      ^self primAsLowercase
+  ]
 
--- Printing
-printString
-    ^'''', self, ''''
+  # Copying
+  method: copyFrom: start to: end [
+      ^self primCopyFrom: start to: end
+  ]
+
+  # Printing
+  method: printString [
+      ^'''', self, ''''
+  ]

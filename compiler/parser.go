@@ -751,3 +751,253 @@ func (p *Parser) parseFalse() *Variable {
 	p.nextToken()
 	return &Variable{SpanVal: MakeSpan(pos, p.curToken.Pos), Name: "false"}
 }
+
+// ---------------------------------------------------------------------------
+// Source file parsing (Trashtalk-style class definitions)
+// ---------------------------------------------------------------------------
+
+// ParseSourceFile parses a complete source file containing class and trait definitions.
+// This is the entry point for Trashtalk-style .mag files.
+func (p *Parser) ParseSourceFile() *SourceFile {
+	startPos := p.curToken.Pos
+	sf := &SourceFile{}
+
+	for !p.curTokenIs(TokenEOF) {
+		// Look for class or trait definitions
+		if p.curTokenIs(TokenIdentifier) {
+			name := p.curToken.Literal
+			p.nextToken()
+
+			switch {
+			case p.curTokenIs(TokenKeyword) && p.curToken.Literal == "subclass:":
+				// Class definition: Name subclass: Superclass
+				classDef := p.parseClassDefBody(name, startPos)
+				if classDef != nil {
+					sf.Classes = append(sf.Classes, classDef)
+				}
+
+			case p.curTokenIs(TokenIdentifier) && p.curToken.Literal == "trait":
+				// Trait definition: Name trait
+				traitDef := p.parseTraitDefBody(name, startPos)
+				if traitDef != nil {
+					sf.Traits = append(sf.Traits, traitDef)
+				}
+
+			default:
+				p.errorf("expected 'subclass:' or 'trait' after class/trait name %s", name)
+				p.nextToken()
+			}
+		} else {
+			// Skip unexpected tokens
+			p.nextToken()
+		}
+
+		startPos = p.curToken.Pos
+	}
+
+	sf.SpanVal = MakeSpan(startPos, p.curToken.Pos)
+	return sf
+}
+
+// parseClassDefBody parses the body of a class definition after the class name.
+// Expects: subclass: SuperclassName followed by indented body
+func (p *Parser) parseClassDefBody(className string, startPos Position) *ClassDef {
+	p.nextToken() // consume "subclass:"
+
+	// Accept identifier or nil as superclass
+	var superclass string
+	if p.curTokenIs(TokenIdentifier) {
+		superclass = p.curToken.Literal
+		p.nextToken()
+	} else if p.curTokenIs(TokenNil) {
+		superclass = "nil"
+		p.nextToken()
+	} else {
+		p.errorf("expected superclass name after 'subclass:'")
+		return nil
+	}
+
+	classDef := &ClassDef{
+		SpanVal:    MakeSpan(startPos, p.curToken.Pos),
+		Name:       className,
+		Superclass: superclass,
+	}
+
+	// Parse class body elements: instanceVars, include, method, classMethod
+	for !p.curTokenIs(TokenEOF) {
+		// Check if we've reached another top-level definition
+		if p.curTokenIs(TokenIdentifier) && (p.peekTokenIs(TokenKeyword) || p.peekTokenIs(TokenIdentifier)) {
+			// Could be another class or trait definition
+			// Peek ahead to see if it's "subclass:" or "trait"
+			if p.peekToken.Literal == "subclass:" || p.peekToken.Literal == "trait" {
+				break
+			}
+		}
+
+		if p.curTokenIs(TokenKeyword) {
+			keyword := p.curToken.Literal
+			switch keyword {
+			case "instanceVars:":
+				vars := p.parseInstanceVars()
+				classDef.InstanceVariables = append(classDef.InstanceVariables, vars...)
+
+			case "include:":
+				p.nextToken() // consume "include:"
+				if p.curTokenIs(TokenIdentifier) {
+					classDef.Traits = append(classDef.Traits, p.curToken.Literal)
+					p.nextToken()
+				} else {
+					p.errorf("expected trait name after 'include:'")
+				}
+
+			case "method:":
+				method := p.parseMethodInBrackets(false)
+				if method != nil {
+					classDef.Methods = append(classDef.Methods, method)
+				}
+
+			case "classMethod:":
+				method := p.parseMethodInBrackets(true)
+				if method != nil {
+					classDef.ClassMethods = append(classDef.ClassMethods, method)
+				}
+
+			default:
+				// Unknown keyword, skip
+				p.nextToken()
+			}
+		} else {
+			// Skip non-keyword tokens (whitespace handled by lexer)
+			p.nextToken()
+		}
+	}
+
+	classDef.SpanVal = MakeSpan(startPos, p.curToken.Pos)
+	return classDef
+}
+
+// parseTraitDefBody parses the body of a trait definition after the trait name.
+// Expects: trait followed by indented body with methods
+func (p *Parser) parseTraitDefBody(traitName string, startPos Position) *TraitDef {
+	p.nextToken() // consume "trait"
+
+	traitDef := &TraitDef{
+		SpanVal: MakeSpan(startPos, p.curToken.Pos),
+		Name:    traitName,
+	}
+
+	// Parse trait body: method definitions
+	for !p.curTokenIs(TokenEOF) {
+		// Check if we've reached another top-level definition
+		if p.curTokenIs(TokenIdentifier) && (p.peekTokenIs(TokenKeyword) || p.peekTokenIs(TokenIdentifier)) {
+			if p.peekToken.Literal == "subclass:" || p.peekToken.Literal == "trait" {
+				break
+			}
+		}
+
+		if p.curTokenIs(TokenKeyword) {
+			keyword := p.curToken.Literal
+			switch keyword {
+			case "method:":
+				method := p.parseMethodInBrackets(false)
+				if method != nil {
+					traitDef.Methods = append(traitDef.Methods, method)
+				}
+
+			case "requires:":
+				// Parse required method selectors
+				p.nextToken() // consume "requires:"
+				for p.curTokenIs(TokenSymbol) || p.curTokenIs(TokenIdentifier) {
+					traitDef.Requires = append(traitDef.Requires, p.curToken.Literal)
+					p.nextToken()
+				}
+
+			default:
+				p.nextToken()
+			}
+		} else {
+			p.nextToken()
+		}
+	}
+
+	traitDef.SpanVal = MakeSpan(startPos, p.curToken.Pos)
+	return traitDef
+}
+
+// parseInstanceVars parses instance variable declarations.
+// Format: instanceVars: name1 name2 name3
+func (p *Parser) parseInstanceVars() []string {
+	p.nextToken() // consume "instanceVars:"
+
+	var vars []string
+	for p.curTokenIs(TokenIdentifier) {
+		vars = append(vars, p.curToken.Literal)
+		p.nextToken()
+	}
+
+	return vars
+}
+
+// parseMethodInBrackets parses a method definition with selector and body in brackets.
+// Format: method: selector [body] or classMethod: selector [body]
+func (p *Parser) parseMethodInBrackets(isClassMethod bool) *MethodDef {
+	startPos := p.curToken.Pos
+	p.nextToken() // consume "method:" or "classMethod:"
+
+	// Parse method signature
+	selector, params := p.parseMethodSignature()
+	if selector == "" {
+		return nil
+	}
+
+	// Expect opening bracket
+	if !p.curTokenIs(TokenLBracket) {
+		p.errorf("expected '[' after method signature")
+		return nil
+	}
+	p.nextToken() // consume [
+
+	// Parse temporaries (| temp1 temp2 |)
+	var temps []string
+	if p.curTokenIs(TokenBar) {
+		temps = p.parseTemporaries()
+	}
+
+	// Parse statements until ]
+	stmts := p.parseStatementsUntilBracket()
+
+	// Expect closing bracket
+	if !p.expect(TokenRBracket) {
+		return nil
+	}
+
+	return &MethodDef{
+		SpanVal:    MakeSpan(startPos, p.curToken.Pos),
+		Selector:   selector,
+		Parameters: params,
+		Temps:      temps,
+		Statements: stmts,
+	}
+}
+
+// parseStatementsUntilBracket parses statements until a closing bracket is found.
+func (p *Parser) parseStatementsUntilBracket() []Stmt {
+	var stmts []Stmt
+
+	for !p.curTokenIs(TokenEOF) && !p.curTokenIs(TokenRBracket) {
+		stmt := p.ParseStatement()
+		if stmt != nil {
+			stmts = append(stmts, stmt)
+		}
+
+		// Consume period if present
+		if p.curTokenIs(TokenPeriod) {
+			p.nextToken()
+		} else if !p.curTokenIs(TokenRBracket) && !p.curTokenIs(TokenEOF) {
+			// No period and not at end - could be last statement
+			break
+		}
+	}
+
+	return stmts
+}

@@ -1,83 +1,102 @@
--- SmallInteger.mag
--- Methods for small integers (immediate values)
+# SmallInteger.mag
 
--- Arithmetic (most are primitives, these are derived)
-negated
-    ^0 - self
+SmallInteger subclass: Object
 
-abs
-    self < 0 ifTrue: [^self negated].
-    ^self
+  # Arithmetic (most are primitives, these are derived)
+  method: negated [
+      ^0 - self
+  ]
 
-sign
-    self < 0 ifTrue: [^-1].
-    self > 0 ifTrue: [^1].
-    ^0
+  method: abs [
+      self < 0 ifTrue: [^self negated].
+      ^self
+  ]
 
--- Comparison
-max: other
-    self > other ifTrue: [^self].
-    ^other
+  method: sign [
+      self < 0 ifTrue: [^-1].
+      self > 0 ifTrue: [^1].
+      ^0
+  ]
 
-min: other
-    self < other ifTrue: [^self].
-    ^other
+  # Comparison
+  method: max: other [
+      self > other ifTrue: [^self].
+      ^other
+  ]
 
-between: min and: max
-    ^self >= min & (self <= max)
+  method: min: other [
+      self < other ifTrue: [^self].
+      ^other
+  ]
 
--- Testing
-even
-    ^(self \\ 2) = 0
+  method: between: min and: max [
+      ^self >= min & (self <= max)
+  ]
 
-odd
-    ^self even not
+  # Testing
+  method: even [
+      ^(self \\ 2) = 0
+  ]
 
-positive
-    ^self > 0
+  method: odd [
+      ^self even not
+  ]
 
-negative
-    ^self < 0
+  method: positive [
+      ^self > 0
+  ]
 
-isZero
-    ^self = 0
+  method: negative [
+      ^self < 0
+  ]
 
--- Iteration
-timesRepeat: block
-    | count |
-    count := 1.
-    [count <= self] whileTrue: [
-        block value.
-        count := count + 1
-    ]
+  method: isZero [
+      ^self = 0
+  ]
 
-to: stop do: block
-    | i |
-    i := self.
-    [i <= stop] whileTrue: [
-        block value: i.
-        i := i + 1
-    ]
+  # Iteration
+  method: timesRepeat: block [
+      | count |
+      count := 1.
+      [count <= self] whileTrue: [
+          block value.
+          count := count + 1
+      ]
+  ]
 
-to: stop by: step do: block
-    | i |
-    i := self.
-    step > 0
-        ifTrue: [[i <= stop] whileTrue: [block value: i. i := i + step]]
-        ifFalse: [[i >= stop] whileTrue: [block value: i. i := i + step]]
+  method: to: stop do: block [
+      | i |
+      i := self.
+      [i <= stop] whileTrue: [
+          block value: i.
+          i := i + 1
+      ]
+  ]
 
--- Mathematical
-factorial
-    self = 0 ifTrue: [^1].
-    ^self * (self - 1) factorial
+  method: to: stop by: step do: block [
+      | i |
+      i := self.
+      step > 0
+          ifTrue: [[i <= stop] whileTrue: [block value: i. i := i + step]]
+          ifFalse: [[i >= stop] whileTrue: [block value: i. i := i + step]]
+  ]
 
-gcd: other
-    other = 0 ifTrue: [^self abs].
-    ^other gcd: (self \\ other)
+  # Mathematical
+  method: factorial [
+      self = 0 ifTrue: [^1].
+      ^self * (self - 1) factorial
+  ]
 
-lcm: other
-    ^(self * other) abs // (self gcd: other)
+  method: gcd: other [
+      other = 0 ifTrue: [^self abs].
+      ^other gcd: (self \\ other)
+  ]
 
--- Printing
-printString
-    ^self primPrintString
+  method: lcm: other [
+      ^(self * other) abs // (self gcd: other)
+  ]
+
+  # Printing
+  method: printString [
+      ^self primPrintString
+  ]

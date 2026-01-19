@@ -1,26 +1,34 @@
--- UndefinedObject.mag
--- The class of nil
+# UndefinedObject.mag
 
--- Nil testing
-isNil
-    ^true
+UndefinedObject subclass: Object
 
-notNil
-    ^false
+  # Nil testing
+  method: isNil [
+      ^true
+  ]
 
--- Conditional evaluation
-ifNil: block
-    ^block value
+  method: notNil [
+      ^false
+  ]
 
-ifNotNil: block
-    ^nil
+  # Conditional evaluation
+  method: ifNil: block [
+      ^block value
+  ]
 
-ifNil: nilBlock ifNotNil: notNilBlock
-    ^nilBlock value
+  method: ifNotNil: block [
+      ^nil
+  ]
 
-ifNotNil: notNilBlock ifNil: nilBlock
-    ^nilBlock value
+  method: ifNil: nilBlock ifNotNil: notNilBlock [
+      ^nilBlock value
+  ]
 
--- Printing
-printString
-    ^'nil'
+  method: ifNotNil: notNilBlock ifNil: nilBlock [
+      ^nilBlock value
+  ]
+
+  # Printing
+  method: printString [
+      ^'nil'
+  ]

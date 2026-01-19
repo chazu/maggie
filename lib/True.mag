@@ -1,11 +1,13 @@
--- True.mag
--- The class of the true object
--- Note: &, |, not, and:, or:, ifTrue:, ifFalse:, ifTrue:ifFalse: are Go primitives
+# True.mag
 
--- Conditional evaluation (alternate ordering)
-ifFalse: falseBlock ifTrue: trueBlock
-    ^trueBlock value
+True subclass: Boolean
 
--- Printing
-printString
-    ^'true'
+  # Conditional evaluation (alternate ordering)
+  method: ifFalse: falseBlock ifTrue: trueBlock [
+      ^trueBlock value
+  ]
+
+  # Printing
+  method: printString [
+      ^'true'
+  ]

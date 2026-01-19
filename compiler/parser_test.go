@@ -536,3 +536,312 @@ func TestParserIfTrueIfFalse(t *testing.T) {
 		t.Errorf("selector = %q, want ifTrue:ifFalse:", msg.Selector)
 	}
 }
+
+// ---------------------------------------------------------------------------
+// Source file parsing tests (Trashtalk-style class definitions)
+// ---------------------------------------------------------------------------
+
+func TestParserSourceFileSimpleClass(t *testing.T) {
+	input := `SmallInteger subclass: Object
+
+  method: negated [
+    ^0 - self
+  ]
+`
+	p := NewParser(input)
+	sf := p.ParseSourceFile()
+	if len(p.Errors()) > 0 {
+		t.Fatalf("parse errors: %v", p.Errors())
+	}
+
+	if len(sf.Classes) != 1 {
+		t.Fatalf("expected 1 class, got %d", len(sf.Classes))
+	}
+
+	cls := sf.Classes[0]
+	if cls.Name != "SmallInteger" {
+		t.Errorf("class name = %q, want SmallInteger", cls.Name)
+	}
+	if cls.Superclass != "Object" {
+		t.Errorf("superclass = %q, want Object", cls.Superclass)
+	}
+	if len(cls.Methods) != 1 {
+		t.Fatalf("expected 1 method, got %d", len(cls.Methods))
+	}
+	if cls.Methods[0].Selector != "negated" {
+		t.Errorf("method selector = %q, want negated", cls.Methods[0].Selector)
+	}
+}
+
+func TestParserSourceFileClassWithInstanceVars(t *testing.T) {
+	input := `Counter subclass: Object
+  instanceVars: value step
+
+  method: initialize [
+    value := 0.
+    step := 1
+  ]
+
+  method: increment [
+    value := value + step
+  ]
+`
+	p := NewParser(input)
+	sf := p.ParseSourceFile()
+	if len(p.Errors()) > 0 {
+		t.Fatalf("parse errors: %v", p.Errors())
+	}
+
+	if len(sf.Classes) != 1 {
+		t.Fatalf("expected 1 class, got %d", len(sf.Classes))
+	}
+
+	cls := sf.Classes[0]
+	if cls.Name != "Counter" {
+		t.Errorf("class name = %q, want Counter", cls.Name)
+	}
+	if len(cls.InstanceVariables) != 2 {
+		t.Fatalf("expected 2 instance vars, got %d", len(cls.InstanceVariables))
+	}
+	if cls.InstanceVariables[0] != "value" || cls.InstanceVariables[1] != "step" {
+		t.Errorf("instance vars = %v, want [value step]", cls.InstanceVariables)
+	}
+	if len(cls.Methods) != 2 {
+		t.Errorf("expected 2 methods, got %d", len(cls.Methods))
+	}
+}
+
+func TestParserSourceFileClassWithTraitInclude(t *testing.T) {
+	input := `MyClass subclass: Object
+  include: Debuggable
+  include: Persistable
+
+  method: foo [
+    ^42
+  ]
+`
+	p := NewParser(input)
+	sf := p.ParseSourceFile()
+	if len(p.Errors()) > 0 {
+		t.Fatalf("parse errors: %v", p.Errors())
+	}
+
+	if len(sf.Classes) != 1 {
+		t.Fatalf("expected 1 class, got %d", len(sf.Classes))
+	}
+
+	cls := sf.Classes[0]
+	if len(cls.Traits) != 2 {
+		t.Fatalf("expected 2 traits, got %d", len(cls.Traits))
+	}
+	if cls.Traits[0] != "Debuggable" || cls.Traits[1] != "Persistable" {
+		t.Errorf("traits = %v, want [Debuggable Persistable]", cls.Traits)
+	}
+}
+
+func TestParserSourceFileKeywordMethod(t *testing.T) {
+	input := `Array subclass: Object
+
+  method: at: index put: value [
+    ^self primAt: index put: value
+  ]
+`
+	p := NewParser(input)
+	sf := p.ParseSourceFile()
+	if len(p.Errors()) > 0 {
+		t.Fatalf("parse errors: %v", p.Errors())
+	}
+
+	if len(sf.Classes) != 1 {
+		t.Fatalf("expected 1 class, got %d", len(sf.Classes))
+	}
+
+	cls := sf.Classes[0]
+	if len(cls.Methods) != 1 {
+		t.Fatalf("expected 1 method, got %d", len(cls.Methods))
+	}
+
+	method := cls.Methods[0]
+	if method.Selector != "at:put:" {
+		t.Errorf("selector = %q, want at:put:", method.Selector)
+	}
+	if len(method.Parameters) != 2 {
+		t.Fatalf("expected 2 params, got %d", len(method.Parameters))
+	}
+	if method.Parameters[0] != "index" || method.Parameters[1] != "value" {
+		t.Errorf("params = %v, want [index value]", method.Parameters)
+	}
+}
+
+func TestParserSourceFileBinaryMethod(t *testing.T) {
+	input := `SmallInteger subclass: Object
+
+  method: + other [
+    ^self primAdd: other
+  ]
+`
+	p := NewParser(input)
+	sf := p.ParseSourceFile()
+	if len(p.Errors()) > 0 {
+		t.Fatalf("parse errors: %v", p.Errors())
+	}
+
+	if len(sf.Classes) != 1 {
+		t.Fatalf("expected 1 class, got %d", len(sf.Classes))
+	}
+
+	cls := sf.Classes[0]
+	if len(cls.Methods) != 1 {
+		t.Fatalf("expected 1 method, got %d", len(cls.Methods))
+	}
+
+	method := cls.Methods[0]
+	if method.Selector != "+" {
+		t.Errorf("selector = %q, want +", method.Selector)
+	}
+	if len(method.Parameters) != 1 || method.Parameters[0] != "other" {
+		t.Errorf("params = %v, want [other]", method.Parameters)
+	}
+}
+
+func TestParserSourceFileClassMethod(t *testing.T) {
+	input := `Point subclass: Object
+  instanceVars: x y
+
+  classMethod: x: xVal y: yVal [
+    | p |
+    p := self new.
+    p setX: xVal y: yVal.
+    ^p
+  ]
+
+  method: setX: xVal y: yVal [
+    x := xVal.
+    y := yVal
+  ]
+`
+	p := NewParser(input)
+	sf := p.ParseSourceFile()
+	if len(p.Errors()) > 0 {
+		t.Fatalf("parse errors: %v", p.Errors())
+	}
+
+	if len(sf.Classes) != 1 {
+		t.Fatalf("expected 1 class, got %d", len(sf.Classes))
+	}
+
+	cls := sf.Classes[0]
+	if len(cls.ClassMethods) != 1 {
+		t.Fatalf("expected 1 class method, got %d", len(cls.ClassMethods))
+	}
+	if len(cls.Methods) != 1 {
+		t.Fatalf("expected 1 instance method, got %d", len(cls.Methods))
+	}
+
+	classMethod := cls.ClassMethods[0]
+	if classMethod.Selector != "x:y:" {
+		t.Errorf("class method selector = %q, want x:y:", classMethod.Selector)
+	}
+}
+
+func TestParserSourceFileTrait(t *testing.T) {
+	input := `Debuggable trait
+
+  method: inspect [
+    ^'Instance of: ', self class name
+  ]
+
+  method: log: message [
+    Transcript show: message
+  ]
+`
+	p := NewParser(input)
+	sf := p.ParseSourceFile()
+	if len(p.Errors()) > 0 {
+		t.Fatalf("parse errors: %v", p.Errors())
+	}
+
+	if len(sf.Traits) != 1 {
+		t.Fatalf("expected 1 trait, got %d", len(sf.Traits))
+	}
+
+	trait := sf.Traits[0]
+	if trait.Name != "Debuggable" {
+		t.Errorf("trait name = %q, want Debuggable", trait.Name)
+	}
+	if len(trait.Methods) != 2 {
+		t.Fatalf("expected 2 methods, got %d", len(trait.Methods))
+	}
+	if trait.Methods[0].Selector != "inspect" {
+		t.Errorf("first method = %q, want inspect", trait.Methods[0].Selector)
+	}
+	if trait.Methods[1].Selector != "log:" {
+		t.Errorf("second method = %q, want log:", trait.Methods[1].Selector)
+	}
+}
+
+func TestParserSourceFileMultipleClasses(t *testing.T) {
+	input := `True subclass: Boolean
+
+  method: ifTrue: trueBlock [
+    ^trueBlock value
+  ]
+
+False subclass: Boolean
+
+  method: ifTrue: trueBlock [
+    ^nil
+  ]
+`
+	p := NewParser(input)
+	sf := p.ParseSourceFile()
+	if len(p.Errors()) > 0 {
+		t.Fatalf("parse errors: %v", p.Errors())
+	}
+
+	if len(sf.Classes) != 2 {
+		t.Fatalf("expected 2 classes, got %d", len(sf.Classes))
+	}
+
+	if sf.Classes[0].Name != "True" {
+		t.Errorf("first class = %q, want True", sf.Classes[0].Name)
+	}
+	if sf.Classes[1].Name != "False" {
+		t.Errorf("second class = %q, want False", sf.Classes[1].Name)
+	}
+}
+
+func TestParserSourceFileWithHashComments(t *testing.T) {
+	input := `# SmallInteger.mag - integer operations
+
+SmallInteger subclass: Object
+
+  # Basic arithmetic
+  method: negated [
+    ^0 - self
+  ]
+
+  method: abs [
+    # Return absolute value
+    self < 0 ifTrue: [^self negated].
+    ^self
+  ]
+`
+	p := NewParser(input)
+	sf := p.ParseSourceFile()
+	if len(p.Errors()) > 0 {
+		t.Fatalf("parse errors: %v", p.Errors())
+	}
+
+	if len(sf.Classes) != 1 {
+		t.Fatalf("expected 1 class, got %d", len(sf.Classes))
+	}
+
+	cls := sf.Classes[0]
+	if cls.Name != "SmallInteger" {
+		t.Errorf("class name = %q, want SmallInteger", cls.Name)
+	}
+	if len(cls.Methods) != 2 {
+		t.Errorf("expected 2 methods, got %d", len(cls.Methods))
+	}
+}

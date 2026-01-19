@@ -1,11 +1,13 @@
--- False.mag
--- The class of the false object
--- Note: &, |, not, and:, or:, ifTrue:, ifFalse:, ifTrue:ifFalse: are Go primitives
+# False.mag
 
--- Conditional evaluation (alternate ordering)
-ifFalse: falseBlock ifTrue: trueBlock
-    ^falseBlock value
+False subclass: Boolean
 
--- Printing
-printString
-    ^'false'
+  # Conditional evaluation (alternate ordering)
+  method: ifFalse: falseBlock ifTrue: trueBlock [
+      ^falseBlock value
+  ]
+
+  # Printing
+  method: printString [
+      ^'false'
+  ]

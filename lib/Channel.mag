@@ -1,37 +1,44 @@
--- Channel.mag
--- Methods for Go-style channels
+# Channel.mag
 
--- Creating (class method delegating to primitive)
--- new, new: are primitives on the class side
+Channel subclass: Object
 
--- Sending and receiving (primitives)
-send: value
-    ^self primSend: value
+  # Sending and receiving (primitives)
+  method: send: value [
+      ^self primSend: value
+  ]
 
-receive
-    ^self primReceive
+  method: receive [
+      ^self primReceive
+  ]
 
--- Non-blocking operations
-trySend: value
-    ^self primTrySend: value
+  # Non-blocking operations
+  method: trySend: value [
+      ^self primTrySend: value
+  ]
 
-tryReceive
-    ^self primTryReceive
+  method: tryReceive [
+      ^self primTryReceive
+  ]
 
--- Closing
-close
-    ^self primClose
+  # Closing
+  method: close [
+      ^self primClose
+  ]
 
-isClosed
-    ^self primIsClosed
+  method: isClosed [
+      ^self primIsClosed
+  ]
 
--- Stream-like interface
-nextPut: value
-    ^self send: value
+  # Stream-like interface
+  method: nextPut: value [
+      ^self send: value
+  ]
 
-next
-    ^self receive
+  method: next [
+      ^self receive
+  ]
 
--- Printing
-printString
-    ^'a Channel'
+  # Printing
+  method: printString [
+      ^'a Channel'
+  ]

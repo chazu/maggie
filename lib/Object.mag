@@ -1,47 +1,61 @@
--- Object.mag
--- Base class methods for all objects
+# Object.mag
 
--- Identity and comparison
-yourself
-    ^self
+Object subclass: nil
 
-== other
-    ^self primIdentical: other
+  # Identity and comparison
+  method: yourself [
+      ^self
+  ]
 
-~~ other
-    ^(self == other) not
+  method: == other [
+      ^self primIdentical: other
+  ]
 
-= other
-    ^self == other
+  method: ~~ other [
+      ^(self == other) not
+  ]
 
-~= other
-    ^(self = other) not
+  method: = other [
+      ^self == other
+  ]
 
--- Nil testing
-isNil
-    ^false
+  method: ~= other [
+      ^(self = other) not
+  ]
 
-notNil
-    ^self isNil not
+  # Nil testing
+  method: isNil [
+      ^false
+  ]
 
--- Class access
-class
-    ^self primClass
+  method: notNil [
+      ^self isNil not
+  ]
 
-isKindOf: aClass
-    ^self class == aClass
+  # Class access
+  method: class [
+      ^self primClass
+  ]
 
--- Copying
-shallowCopy
-    ^self primShallowCopy
+  method: isKindOf: aClass [
+      ^self class == aClass
+  ]
 
--- Error handling
-error: message
-    ^self primError: message
+  # Copying
+  method: shallowCopy [
+      ^self primShallowCopy
+  ]
 
-doesNotUnderstand: selector
-    ^self error: 'Message not understood: ', selector
+  # Error handling
+  method: error: message [
+      ^self primError: message
+  ]
 
--- Printing (basic - returns class name)
-printString
-    ^self class name
+  method: doesNotUnderstand: selector [
+      ^self error: 'Message not understood: ', selector
+  ]
+
+  # Printing (basic - returns class name)
+  method: printString [
+      ^self class name
+  ]

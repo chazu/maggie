@@ -283,12 +283,24 @@ type ClassDef struct {
 	ClassVariables    []string
 	PoolDictionaries  []string
 	Category          string
+	Traits            []string // Names of included traits
 	Methods           []*MethodDef
 	ClassMethods      []*MethodDef
 }
 
 func (n *ClassDef) Span() Span { return n.SpanVal }
 func (n *ClassDef) node()      {}
+
+// TraitDef represents a trait definition.
+type TraitDef struct {
+	SpanVal  Span
+	Name     string
+	Methods  []*MethodDef
+	Requires []string // Required method selectors
+}
+
+func (n *TraitDef) Span() Span { return n.SpanVal }
+func (n *TraitDef) node()      {}
 
 // NamespaceDecl represents a namespace declaration.
 type NamespaceDecl struct {
@@ -318,6 +330,7 @@ type SourceFile struct {
 	Namespace  *NamespaceDecl
 	Imports    []*ImportDecl
 	Classes    []*ClassDef
+	Traits     []*TraitDef
 	Methods    []*MethodDef // extension methods
 	Statements []Stmt       // top-level statements (for scripts/REPL)
 }

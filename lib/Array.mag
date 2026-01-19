@@ -1,90 +1,110 @@
--- Array.mag
--- Methods for ordered collections
+# Array.mag
 
--- Accessing
-size
-    ^self primSize
+Array subclass: Object
 
-at: index
-    ^self primAt: index
+  # Accessing
+  method: size [
+      ^self primSize
+  ]
 
-at: index put: value
-    ^self primAt: index put: value
+  method: at: index [
+      ^self primAt: index
+  ]
 
-first
-    ^self at: 1
+  method: at: index put: value [
+      ^self primAt: index put: value
+  ]
 
-last
-    ^self at: self size
+  method: first [
+      ^self at: 1
+  ]
 
-isEmpty
-    ^self size = 0
+  method: last [
+      ^self at: self size
+  ]
 
-notEmpty
-    ^self isEmpty not
+  method: isEmpty [
+      ^self size = 0
+  ]
 
--- Iteration
-do: block
-    1 to: self size do: [:i | block value: (self at: i)]
+  method: notEmpty [
+      ^self isEmpty not
+  ]
 
-collect: block
-    | result |
-    result := Array new: self size.
-    1 to: self size do: [:i | result at: i put: (block value: (self at: i))].
-    ^result
+  # Iteration
+  method: do: block [
+      1 to: self size do: [:i | block value: (self at: i)]
+  ]
 
-select: block
-    | result |
-    result := Array new: 0.
-    self do: [:each | (block value: each) ifTrue: [result := result, (Array with: each)]].
-    ^result
+  method: collect: block [
+      | result |
+      result := Array new: self size.
+      1 to: self size do: [:i | result at: i put: (block value: (self at: i))].
+      ^result
+  ]
 
-reject: block
-    ^self select: [:each | (block value: each) not]
+  method: select: block [
+      | result |
+      result := Array new: 0.
+      self do: [:each | (block value: each) ifTrue: [result := result, (Array with: each)]].
+      ^result
+  ]
 
-detect: block
-    self do: [:each | (block value: each) ifTrue: [^each]].
-    ^nil
+  method: reject: block [
+      ^self select: [:each | (block value: each) not]
+  ]
 
-detect: block ifNone: noneBlock
-    self do: [:each | (block value: each) ifTrue: [^each]].
-    ^noneBlock value
+  method: detect: block [
+      self do: [:each | (block value: each) ifTrue: [^each]].
+      ^nil
+  ]
 
--- Aggregation
-inject: initial into: block
-    | result |
-    result := initial.
-    self do: [:each | result := block value: result value: each].
-    ^result
+  method: detect: block ifNone: noneBlock [
+      self do: [:each | (block value: each) ifTrue: [^each]].
+      ^noneBlock value
+  ]
 
--- Testing
-includes: anObject
-    self do: [:each | each = anObject ifTrue: [^true]].
-    ^false
+  # Aggregation
+  method: inject: initial into: block [
+      | result |
+      result := initial.
+      self do: [:each | result := block value: result value: each].
+      ^result
+  ]
 
-indexOf: anObject
-    1 to: self size do: [:i | (self at: i) = anObject ifTrue: [^i]].
-    ^0
+  # Testing
+  method: includes: anObject [
+      self do: [:each | each = anObject ifTrue: [^true]].
+      ^false
+  ]
 
--- Concatenation
-, other
-    | result |
-    result := Array new: self size + other size.
-    1 to: self size do: [:i | result at: i put: (self at: i)].
-    1 to: other size do: [:i | result at: self size + i put: (other at: i)].
-    ^result
+  method: indexOf: anObject [
+      1 to: self size do: [:i | (self at: i) = anObject ifTrue: [^i]].
+      ^0
+  ]
 
--- Copying
-copyFrom: start to: end
-    | result |
-    result := Array new: end - start + 1.
-    start to: end do: [:i | result at: i - start + 1 put: (self at: i)].
-    ^result
+  # Concatenation
+  method: , other [
+      | result |
+      result := Array new: self size + other size.
+      1 to: self size do: [:i | result at: i put: (self at: i)].
+      1 to: other size do: [:i | result at: self size + i put: (other at: i)].
+      ^result
+  ]
 
--- Printing
-printString
-    | s |
-    s := '#('.
-    self do: [:each | s := s, each printString, ' '].
-    s := s, ')'.
-    ^s
+  # Copying
+  method: copyFrom: start to: end [
+      | result |
+      result := Array new: end - start + 1.
+      start to: end do: [:i | result at: i - start + 1 put: (self at: i)].
+      ^result
+  ]
+
+  # Printing
+  method: printString [
+      | s |
+      s := '#('.
+      self do: [:each | s := s, each printString, ' '].
+      s := s, ')'.
+      ^s
+  ]

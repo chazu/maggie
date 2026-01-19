@@ -1,40 +1,52 @@
--- Failure.mag
--- Failure case for Result pattern
+# Failure.mag
 
--- Testing
-isSuccess
-    ^false
+Failure subclass: Result
 
-isFailure
-    ^true
+  # Testing
+  method: isSuccess [
+      ^false
+  ]
 
--- Accessing
-value
-    ^nil
+  method: isFailure [
+      ^true
+  ]
 
-error
-    ^self primError
+  # Accessing
+  method: value [
+      ^nil
+  ]
 
--- Chaining - propagate failure, don't execute block
-then: block
-    ^self
+  method: error [
+      ^self primError
+  ]
 
-map: block
-    ^self
+  # Chaining - propagate failure, don't execute block
+  method: then: block [
+      ^self
+  ]
 
-flatMap: block
-    ^self
+  method: map: block [
+      ^self
+  ]
 
--- Conditional execution
-ifSuccess: block
-    ^self
+  method: flatMap: block [
+      ^self
+  ]
 
-ifFailure: block
-    ^block value: self error
+  # Conditional execution
+  method: ifSuccess: block [
+      ^self
+  ]
 
-onSuccess: successBlock onFailure: failureBlock
-    ^failureBlock value: self error
+  method: ifFailure: block [
+      ^block value: self error
+  ]
 
--- Printing
-printString
-    ^'Failure(', self error printString, ')'
+  method: onSuccess: successBlock onFailure: failureBlock [
+      ^failureBlock value: self error
+  ]
+
+  # Printing
+  method: printString [
+      ^'Failure(', self error printString, ')'
+  ]

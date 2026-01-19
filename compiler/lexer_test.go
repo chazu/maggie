@@ -263,6 +263,93 @@ func TestLexerComments(t *testing.T) {
 	}
 }
 
+func TestLexerHashComments(t *testing.T) {
+	tests := []struct {
+		name   string
+		input  string
+		tokens []struct {
+			typ TokenType
+			lit string
+		}
+	}{
+		{
+			name:  "hash comment at start of line",
+			input: "# this is a comment\nfoo",
+			tokens: []struct {
+				typ TokenType
+				lit string
+			}{
+				{TokenIdentifier, "foo"},
+				{TokenEOF, ""},
+			},
+		},
+		{
+			name:  "hash comment after code",
+			input: "foo # this is a comment\nbar",
+			tokens: []struct {
+				typ TokenType
+				lit string
+			}{
+				{TokenIdentifier, "foo"},
+				{TokenIdentifier, "bar"},
+				{TokenEOF, ""},
+			},
+		},
+		{
+			name:  "hash symbol not treated as comment",
+			input: "#symbol",
+			tokens: []struct {
+				typ TokenType
+				lit string
+			}{
+				{TokenSymbol, "symbol"},
+				{TokenEOF, ""},
+			},
+		},
+		{
+			name:  "hash array not treated as comment",
+			input: "#(1 2)",
+			tokens: []struct {
+				typ TokenType
+				lit string
+			}{
+				{TokenHashLParen, "#("},
+				{TokenInteger, "1"},
+				{TokenInteger, "2"},
+				{TokenRParen, ")"},
+				{TokenEOF, ""},
+			},
+		},
+		{
+			name:  "multiple hash comments",
+			input: "# comment 1\nfoo\n# comment 2\nbar",
+			tokens: []struct {
+				typ TokenType
+				lit string
+			}{
+				{TokenIdentifier, "foo"},
+				{TokenIdentifier, "bar"},
+				{TokenEOF, ""},
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			l := NewLexer(tc.input)
+			for i, exp := range tc.tokens {
+				tok := l.NextToken()
+				if tok.Type != exp.typ {
+					t.Errorf("token[%d] type = %v, want %v", i, tok.Type, exp.typ)
+				}
+				if tok.Literal != exp.lit {
+					t.Errorf("token[%d] literal = %q, want %q", i, tok.Literal, exp.lit)
+				}
+			}
+		})
+	}
+}
+
 func TestLexerHashParen(t *testing.T) {
 	input := `#(1 2 3)`
 	l := NewLexer(input)

@@ -1,53 +1,68 @@
--- Block.mag
--- Methods for closures/blocks
+# Block.mag
 
--- Evaluation (primitives)
-value
-    ^self primValue
+Block subclass: Object
 
-value: arg
-    ^self primValue: arg
+  # Evaluation (primitives)
+  method: value [
+      ^self primValue
+  ]
 
-value: arg1 value: arg2
-    ^self primValue: arg1 value: arg2
+  method: value: arg [
+      ^self primValue: arg
+  ]
 
-value: arg1 value: arg2 value: arg3
-    ^self primValue: arg1 value: arg2 value: arg3
+  method: value: arg1 value: arg2 [
+      ^self primValue: arg1 value: arg2
+  ]
 
--- Control flow
-whileTrue: block
-    [self value] whileTrue: [block value]
+  method: value: arg1 value: arg2 value: arg3 [
+      ^self primValue: arg1 value: arg2 value: arg3
+  ]
 
-whileFalse: block
-    [self value not] whileTrue: [block value]
+  # Control flow
+  method: whileTrue: block [
+      [self value] whileTrue: [block value]
+  ]
 
-whileTrue
-    self value ifTrue: [self whileTrue]
+  method: whileFalse: block [
+      [self value not] whileTrue: [block value]
+  ]
 
-whileFalse
-    self value ifFalse: [self whileFalse]
+  method: whileTrue [
+      self value ifTrue: [self whileTrue]
+  ]
 
--- Exception handling
-on: exception do: handler
-    ^self primOn: exception do: handler
+  method: whileFalse [
+      self value ifFalse: [self whileFalse]
+  ]
 
-ensure: finallyBlock
-    | result |
-    result := self value.
-    finallyBlock value.
-    ^result
+  # Exception handling
+  method: on: exception do: handler [
+      ^self primOn: exception do: handler
+  ]
 
-ifCurtailed: curtailBlock
-    ^self primIfCurtailed: curtailBlock
+  method: ensure: finallyBlock [
+      | result |
+      result := self value.
+      finallyBlock value.
+      ^result
+  ]
 
--- Repeating
-repeat
-    self value.
-    self repeat
+  method: ifCurtailed: curtailBlock [
+      ^self primIfCurtailed: curtailBlock
+  ]
 
--- Forking (concurrency)
-fork
-    ^Process fork: self
+  # Repeating
+  method: repeat [
+      self value.
+      self repeat
+  ]
 
-forkAt: priority
-    ^Process fork: self at: priority
+  # Forking (concurrency)
+  method: fork [
+      ^Process fork: self
+  ]
+
+  method: forkAt: priority [
+      ^Process fork: self at: priority
+  ]
