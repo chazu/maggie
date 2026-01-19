@@ -938,6 +938,10 @@ func (i *Interpreter) vtableFor(v Value) *VTable {
 		if c := i.Classes.Lookup("Float"); c != nil {
 			return c.VTable
 		}
+	case v.IsBlock():
+		if c := i.Classes.Lookup("Block"); c != nil {
+			return c.VTable
+		}
 	case v.IsSymbol():
 		if c := i.Classes.Lookup("Symbol"); c != nil {
 			return c.VTable
@@ -998,12 +1002,12 @@ func (i *Interpreter) createBlockValue(block *BlockMethod, captures []Value) Val
 		HomeFrame: i.fp,     // remember the frame that created this block
 		HomeSelf:  homeSelf, // capture self from enclosing method
 	}
-	return FromSymbolID(uint32(id))
+	return FromBlockID(uint32(id))
 }
 
 func (i *Interpreter) getBlockValue(v Value) *BlockValue {
-	if v.IsSymbol() {
-		id := int(v.SymbolID())
+	if v.IsBlock() {
+		id := int(v.BlockID())
 		return blockRegistry[id]
 	}
 	return nil
@@ -1196,6 +1200,13 @@ func (i *Interpreter) primitiveValue1(rcvr Value, arg Value) Value {
 func (i *Interpreter) primitiveValue2(rcvr, arg1, arg2 Value) Value {
 	if bv := i.getBlockValue(rcvr); bv != nil {
 		return i.ExecuteBlock(bv.Block, bv.Captures, []Value{arg1, arg2}, bv.HomeFrame, bv.HomeSelf)
+	}
+	return Nil
+}
+
+func (i *Interpreter) primitiveValue3(rcvr, arg1, arg2, arg3 Value) Value {
+	if bv := i.getBlockValue(rcvr); bv != nil {
+		return i.ExecuteBlock(bv.Block, bv.Captures, []Value{arg1, arg2, arg3}, bv.HomeFrame, bv.HomeSelf)
 	}
 	return Nil
 }

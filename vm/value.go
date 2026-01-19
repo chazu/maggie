@@ -38,6 +38,7 @@ const (
 	tagInt     uint64 = 0x0002000000000000 // 48-bit signed integer
 	tagSpecial uint64 = 0x0003000000000000 // nil, true, false
 	tagSymbol  uint64 = 0x0004000000000000 // Interned symbol ID
+	tagBlock   uint64 = 0x0005000000000000 // Block closure ID
 
 	// Sign bit for 48-bit integer sign extension
 	intSignBit uint64 = 0x0000800000000000
@@ -239,6 +240,24 @@ func (v Value) SymbolID() uint32 {
 // FromSymbolID creates a Value from a symbol ID.
 func FromSymbolID(id uint32) Value {
 	return Value(nanBits | tagSymbol | uint64(id))
+}
+
+// IsBlock returns true if v represents a block closure.
+func (v Value) IsBlock() bool {
+	return (uint64(v) & (nanBits | tagMask)) == (nanBits | tagBlock)
+}
+
+// BlockID returns the block registry ID.
+func (v Value) BlockID() uint32 {
+	if !v.IsBlock() {
+		panic("Value.BlockID: not a block")
+	}
+	return uint32(uint64(v) & payloadMask)
+}
+
+// FromBlockID creates a Value from a block ID.
+func FromBlockID(id uint32) Value {
+	return Value(nanBits | tagBlock | uint64(id))
 }
 
 // ---------------------------------------------------------------------------
