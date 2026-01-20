@@ -655,6 +655,23 @@ func (vm *VM) registerSmallIntegerPrimitives() {
 		}
 		return recv
 	})
+
+	c.AddMethod3(vm.Selectors, "to:by:do:", func(vmPtr interface{}, recv Value, stop Value, step Value, block Value) Value {
+		v := vmPtr.(*VM)
+		start := recv.SmallInt()
+		end := stop.SmallInt()
+		stepVal := step.SmallInt()
+		if stepVal > 0 {
+			for i := start; i <= end; i += stepVal {
+				v.evaluateBlock(block, []Value{FromSmallInt(i)})
+			}
+		} else if stepVal < 0 {
+			for i := start; i >= end; i += stepVal {
+				v.evaluateBlock(block, []Value{FromSmallInt(i)})
+			}
+		}
+		return recv
+	})
 }
 
 func (vm *VM) registerFloatPrimitives() {

@@ -55,26 +55,13 @@ SmallInteger subclass: Object
   ]
 
   # Iteration
-  method: timesRepeat: block [
-      | count |
-      count := 1.
-      [count <= self] whileTrue: [
-          block value.
-          count := count + 1
-      ]
-  ]
+  # Note: timesRepeat: and to:do: are implemented as primitives
+  # Do NOT define them here as compiled methods - they would override the primitives
+  # and cause performance issues by creating new blocks on each iteration
 
-  # Note: to:do: is implemented as a primitive
-  # Do NOT define it here as a compiled method - it would override the primitive
-  # and cause infinite recursion by creating new blocks on each iteration
-
-  method: to: stop by: step do: block [
-      | i |
-      i := self.
-      step > 0
-          ifTrue: [[i <= stop] whileTrue: [block value: i. i := i + step]]
-          ifFalse: [[i >= stop] whileTrue: [block value: i. i := i + step]]
-  ]
+  # Note: to:do: and to:by:do: are implemented as primitives
+  # Do NOT define them here as compiled methods - they would override the primitives
+  # and cause performance issues by creating new blocks on each iteration
 
   # Mathematical
   method: factorial [
