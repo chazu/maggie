@@ -242,21 +242,8 @@ func compileAllFilesNew(files []string, vmInst *vm.VM, verbose bool) (int, error
 					superclass = vmInst.ObjectClass
 				}
 
-				// Debug: check superclass setup
-				if classDef.Name == "Parser" || classDef.Name == "Compiler" {
-					fmt.Printf("DEBUG bootstrap: creating class %s, superclass=%v\n", classDef.Name, superclass)
-					if superclass != nil {
-						fmt.Printf("DEBUG bootstrap: superclass.VTable=%v\n", superclass.VTable)
-					}
-				}
-
 				// Create the class with instance variables
 				class = vm.NewClassWithInstVars(classDef.Name, superclass, classDef.InstanceVariables)
-
-				// Debug: verify VTable parent
-				if classDef.Name == "Parser" || classDef.Name == "Compiler" {
-					fmt.Printf("DEBUG bootstrap: class.VTable.Parent()=%v\n", class.VTable.Parent())
-				}
 
 				// Register the class in the class table (required for image serialization and method lookup)
 				vmInst.Classes.Register(class)

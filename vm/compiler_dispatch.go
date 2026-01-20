@@ -1,7 +1,6 @@
 package vm
 
 import (
-	"fmt"
 	"strings"
 )
 
@@ -211,19 +210,17 @@ func (m *MaggieCompilerBackend) extractCompiledMethod(resultVal Value, class *Cl
 	}
 
 	// Debug: print dictionary keys
-	if IsDictionaryValue(resultVal) {
-		dict := GetDictionaryObject(resultVal)
-		if dict != nil {
-// 			fmt.Printf("DEBUG extractCompiledMethod: dict has %d entries\n", len(dict.Data))
-			for h, key := range dict.Keys {
-// 				fmt.Printf("DEBUG extractCompiledMethod: key hash=%d, key=%v", h, key)
-				if key.IsSymbol() {
-					fmt.Printf(" (symbol: %s)", m.vm.Symbols.Name(key.SymbolID()))
-				}
-				fmt.Printf(", value=%v\n", dict.Data[h])
-			}
-		}
-	}
+	// if IsDictionaryValue(resultVal) {
+	// 	dict := GetDictionaryObject(resultVal)
+	// 	if dict != nil {
+	// 		for h, key := range dict.Keys {
+	// 			if key.IsSymbol() {
+	// 				fmt.Printf(" (symbol: %s)", m.vm.Symbols.Name(key.SymbolID()))
+	// 			}
+	// 			fmt.Printf(", value=%v\n", dict.Data[h])
+	// 		}
+	// 	}
+	// }
 
 	// Extract selector
 	selectorKey := m.vm.Symbols.SymbolValue("selector")
