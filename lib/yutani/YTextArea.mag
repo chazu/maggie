@@ -1,19 +1,16 @@
-"YTextArea - Editable text widget"
+# YTextArea.mag - Editable text widget
 
-YWidget subclass: #YTextArea
-    instanceVariables: ''.
+YTextArea subclass: YWidget
 
-"Text content"
+  method: text: aString [
+      handle primSetText: aString.
+      ^self
+  ]
 
-YTextArea >> text: aString
-    "Set the text content"
-    handle primSetText: aString.
-    ^ self.
+  method: text [
+      ^handle primGetText
+  ]
 
-YTextArea >> text
-    "Get the text content"
-    ^ handle primGetText.
-
-YTextArea >> clear
-    "Clear the text content"
-    ^ self text: ''.
+  method: clear [
+      ^self text: ''
+  ]

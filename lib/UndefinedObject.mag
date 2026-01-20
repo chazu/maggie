@@ -1,4 +1,5 @@
 # UndefinedObject.mag
+# Note: ifNil:/ifNotNil: are implemented as primitives in vm/vm.go
 
 UndefinedObject subclass: Object
 
@@ -9,23 +10,6 @@ UndefinedObject subclass: Object
 
   method: notNil [
       ^false
-  ]
-
-  # Conditional evaluation
-  method: ifNil: block [
-      ^block value
-  ]
-
-  method: ifNotNil: block [
-      ^nil
-  ]
-
-  method: ifNil: nilBlock ifNotNil: notNilBlock [
-      ^nilBlock value
-  ]
-
-  method: ifNotNil: notNilBlock ifNil: nilBlock [
-      ^nilBlock value
   ]
 
   # Printing

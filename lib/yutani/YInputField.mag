@@ -1,19 +1,16 @@
-"YInputField - Single-line text input widget"
+# YInputField.mag - Single-line text input widget
 
-YWidget subclass: #YInputField
-    instanceVariables: ''.
+YInputField subclass: YWidget
 
-"Text content"
+  method: text: aString [
+      handle primSetText: aString.
+      ^self
+  ]
 
-YInputField >> text: aString
-    "Set the text content"
-    handle primSetText: aString.
-    ^ self.
+  method: text [
+      ^handle primGetText
+  ]
 
-YInputField >> text
-    "Get the text content"
-    ^ handle primGetText.
-
-YInputField >> clear
-    "Clear the text content"
-    ^ self text: ''.
+  method: clear [
+      ^self text: ''
+  ]

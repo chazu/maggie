@@ -1,58 +1,59 @@
-"YWidget - Abstract base class for Yutani widgets"
+# YWidget.mag - Abstract base class for Yutani widgets
 
-Object subclass: #YWidget
-    instanceVariables: 'client handle'.
+YWidget subclass: Object
+  instanceVariables: 'client handle'
 
-"Class methods"
+  # Class methods
+  classMethod: on: aClient handle: aHandle [
+      | widget |
+      widget := self basicNew.
+      widget client: aClient.
+      widget handle: aHandle.
+      ^widget
+  ]
 
-YWidget class >> on: aClient handle: aHandle
-    "Create a widget wrapper"
-    | widget |
-    widget := self basicNew.
-    widget client: aClient.
-    widget handle: aHandle.
-    ^ widget.
+  # Accessors
+  method: client [
+      ^client
+  ]
 
-"Instance methods"
+  method: client: aClient [
+      client := aClient
+  ]
 
-YWidget >> client
-    ^ client.
+  method: handle [
+      ^handle
+  ]
 
-YWidget >> client: aClient
-    client := aClient.
+  method: handle: aHandle [
+      handle := aHandle
+  ]
 
-YWidget >> handle
-    ^ handle.
+  method: delete [
+      handle primDelete.
+      handle := nil
+  ]
 
-YWidget >> handle: aHandle
-    handle := aHandle.
+  method: widgetType [
+      ^handle primWidgetType
+  ]
 
-YWidget >> delete
-    "Delete this widget"
-    handle primDelete.
-    handle := nil.
+  method: widgetId [
+      ^handle primWidgetId
+  ]
 
-YWidget >> widgetType
-    "Return the widget type as a symbol"
-    ^ handle primWidgetType.
+  # Common properties
+  method: title: aString [
+      handle primSetTitle: aString.
+      ^self
+  ]
 
-YWidget >> widgetId
-    "Return the widget ID string"
-    ^ handle primWidgetId.
+  method: border: aBoolean [
+      handle primSetBorder: aBoolean.
+      ^self
+  ]
 
-"Common properties"
-
-YWidget >> title: aString
-    "Set the widget title"
-    handle primSetTitle: aString.
-    ^ self.
-
-YWidget >> border: aBoolean
-    "Set whether the widget has a border"
-    handle primSetBorder: aBoolean.
-    ^ self.
-
-YWidget >> setFocus
-    "Set focus to this widget"
-    handle primSetFocus.
-    ^ self.
+  method: setFocus [
+      handle primSetFocus.
+      ^self
+  ]

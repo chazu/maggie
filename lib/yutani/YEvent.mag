@@ -1,100 +1,107 @@
-"YEvent - Event wrapper for Yutani events"
+# YEvent.mag - Event wrapper for Yutani events
 
-Object subclass: #YEvent
-    instanceVariables: 'data'.
+YEvent subclass: Object
+  instanceVariables: 'data'
 
-"Class methods"
+  # Class methods
+  classMethod: from: aDictionary [
+      | event |
+      event := self basicNew.
+      event data: aDictionary.
+      ^event
+  ]
 
-YEvent class >> from: aDictionary
-    "Create an event from a dictionary"
-    | event |
-    event := self basicNew.
-    event data: aDictionary.
-    ^ event.
+  # Accessors
+  method: data [
+      ^data
+  ]
 
-"Instance methods"
+  method: data: aDictionary [
+      data := aDictionary
+  ]
 
-YEvent >> data
-    ^ data.
+  # Event type queries
+  method: type [
+      ^data at: #type
+  ]
 
-YEvent >> data: aDictionary
-    data := aDictionary.
+  method: isKey [
+      ^self type = #key
+  ]
 
-"Event type queries"
+  method: isMouse [
+      ^self type = #mouse
+  ]
 
-YEvent >> type
-    "Return the event type as a symbol (#key, #mouse, #resize, #focus, #widget)"
-    ^ data at: #type.
+  method: isResize [
+      ^self type = #resize
+  ]
 
-YEvent >> isKey
-    ^ self type = #key.
+  method: isFocus [
+      ^self type = #focus
+  ]
 
-YEvent >> isMouse
-    ^ self type = #mouse.
+  method: isWidget [
+      ^self type = #widget
+  ]
 
-YEvent >> isResize
-    ^ self type = #resize.
+  # Key event accessors
+  method: key [
+      ^data at: #key
+  ]
 
-YEvent >> isFocus
-    ^ self type = #focus.
+  method: keyRune [
+      ^data at: #rune
+  ]
 
-YEvent >> isWidget
-    ^ self type = #widget.
+  method: keyMod [
+      ^data at: #mod
+  ]
 
-"Key event accessors"
+  # Mouse event accessors
+  method: mouseX [
+      ^data at: #x
+  ]
 
-YEvent >> key
-    "Return the key name for key events"
-    ^ data at: #key.
+  method: mouseY [
+      ^data at: #y
+  ]
 
-YEvent >> keyRune
-    "Return the rune value for key events"
-    ^ data at: #rune.
+  method: mouseButton [
+      ^data at: #button
+  ]
 
-YEvent >> keyMod
-    "Return the modifier value for key events"
-    ^ data at: #mod.
+  method: mouseAction [
+      ^data at: #action
+  ]
 
-"Mouse event accessors"
+  # Resize event accessors
+  method: width [
+      ^data at: #width
+  ]
 
-YEvent >> mouseX
-    ^ data at: #x.
+  method: height [
+      ^data at: #height
+  ]
 
-YEvent >> mouseY
-    ^ data at: #y.
+  # Focus event accessors
+  method: isFocused [
+      ^data at: #focused
+  ]
 
-YEvent >> mouseButton
-    ^ data at: #button.
+  # Widget event accessors
+  method: widgetId [
+      ^data at: #widgetId
+  ]
 
-YEvent >> mouseAction
-    ^ data at: #action.
+  method: widgetEventType [
+      ^data at: #widgetEventType
+  ]
 
-"Resize event accessors"
+  method: widgetData [
+      ^data at: #data
+  ]
 
-YEvent >> width
-    ^ data at: #width.
-
-YEvent >> height
-    ^ data at: #height.
-
-"Focus event accessors"
-
-YEvent >> isFocused
-    ^ data at: #focused.
-
-"Widget event accessors"
-
-YEvent >> widgetId
-    ^ data at: #widgetId.
-
-YEvent >> widgetEventType
-    ^ data at: #widgetEventType.
-
-YEvent >> widgetData
-    ^ data at: #data.
-
-"Convenience"
-
-YEvent >> isItemSelected
-    "Return true if this is a widget selection event"
-    ^ self isWidget and: [self widgetEventType = 'WIDGET_EVENT_SELECTED'].
+  method: isItemSelected [
+      ^self isWidget and: [self widgetEventType = 'WIDGET_EVENT_SELECTED']
+  ]

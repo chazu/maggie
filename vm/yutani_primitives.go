@@ -142,9 +142,9 @@ func unregisterYutaniWidget(v Value) {
 // ---------------------------------------------------------------------------
 
 func (vm *VM) registerYutaniPrimitives() {
-	// Create YClient and YWidget classes
-	yClientClass := vm.createClass("YClient", vm.ObjectClass)
-	yWidgetClass := vm.createClass("YWidget", vm.ObjectClass)
+	// Create YClient and YWidget classes with their instance variables
+	yClientClass := vm.createClassWithIvars("YClient", vm.ObjectClass, []string{"handle", "eventChannel"})
+	yWidgetClass := vm.createClassWithIvars("YWidget", vm.ObjectClass, []string{"client", "handle"})
 
 	// Register globals
 	vm.Globals["YClient"] = vm.classValue(yClientClass)

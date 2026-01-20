@@ -943,8 +943,9 @@ func (i *Interpreter) send(selector int, argc int) (result Value) {
 	rcvr := i.pop()
 
 	// Debug: limit spam
-	if i.fp < 7 {
-// 		fmt.Printf("DEBUG send: selector=%d, argc=%d, rcvr=%v (fp=%d)\n", selector, argc, rcvr, i.fp)
+	if i.fp < 7 && false {
+		selectorName := i.Selectors.Name(selector)
+		fmt.Printf("DEBUG send: selector=%s (%d), argc=%d, rcvr=%v (fp=%d)\n", selectorName, selector, argc, rcvr, i.fp)
 	}
 
 	// Get the vtable for the receiver
@@ -955,8 +956,8 @@ func (i *Interpreter) send(selector int, argc int) (result Value) {
 	}
 
 	// Debug: show vtable class
-	if i.fp < 7 && vt.Class() != nil {
-// 		fmt.Printf("DEBUG send: vtable class=%s\n", vt.Class().Name)
+	if i.fp < 7 && false && vt.Class() != nil {
+		fmt.Printf("DEBUG send: vtable class=%s\n", vt.Class().Name)
 	}
 
 	// Lookup the method
@@ -967,8 +968,8 @@ func (i *Interpreter) send(selector int, argc int) (result Value) {
 	}
 
 	// Debug: show method type
-	if i.fp < 7 {
-// 		fmt.Printf("DEBUG send: method=%v (%T)\n", method, method)
+	if i.fp < 7 && false {
+		fmt.Printf("DEBUG send: method=(%T)\n", method)
 	}
 
 	// Check if it's a compiled method or primitive

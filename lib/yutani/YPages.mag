@@ -1,33 +1,26 @@
-"YPages - Tabbed/paged container widget"
+# YPages.mag - Tabbed/paged container widget
 
-YWidget subclass: #YPages
-    instanceVariables: ''.
+YPages subclass: YWidget
 
-"Adding pages"
+  method: add: aWidget named: pageName [
+      ^self add: aWidget named: pageName resize: true visible: true
+  ]
 
-YPages >> add: aWidget named: pageName
-    "Add a page with the given name"
-    ^ self add: aWidget named: pageName resize: true visible: true.
+  method: add: aWidget named: pageName resize: resize visible: visible [
+      handle primPagesAdd: aWidget handle name: pageName resize: resize visible: visible.
+      ^self
+  ]
 
-YPages >> add: aWidget named: pageName resize: resize visible: visible
-    "Add a page with full control"
-    handle primPagesAdd: aWidget handle name: pageName resize: resize visible: visible.
-    ^ self.
+  method: remove: pageName [
+      handle primPagesRemove: pageName.
+      ^self
+  ]
 
-"Removing pages"
+  method: show: pageName [
+      handle primPagesShow: pageName.
+      ^self
+  ]
 
-YPages >> remove: pageName
-    "Remove a page by name"
-    handle primPagesRemove: pageName.
-    ^ self.
-
-"Navigation"
-
-YPages >> show: pageName
-    "Show a page by name"
-    handle primPagesShow: pageName.
-    ^ self.
-
-YPages >> currentPage
-    "Return the name of the current page"
-    ^ handle primPagesCurrentPage.
+  method: currentPage [
+      ^handle primPagesCurrentPage
+  ]

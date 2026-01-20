@@ -222,6 +222,22 @@ func (vm *VM) registerObjectPrimitives() {
 		return recv
 	})
 
+	// basicNew - create a new instance without initialization (class-side primitive)
+	// Same as new, but in Smalltalk convention, basicNew is the raw allocator
+	c.AddClassMethod0(vm.Selectors, "basicNew", func(vmPtr interface{}, recv Value) Value {
+		v := vmPtr.(*VM)
+		// If receiver is a symbol representing a class, create an instance
+		if recv.IsSymbol() {
+			symName := v.Symbols.Name(recv.SymbolID())
+			if cls := v.Classes.Lookup(symName); cls != nil {
+				instance := cls.NewInstance()
+				v.keepAlive = append(v.keepAlive, instance)
+				return instance.ToValue()
+			}
+		}
+		return recv
+	})
+
 	// class - return the class of the receiver
 	c.AddMethod0(vm.Selectors, "class", func(_ interface{}, recv Value) Value {
 		return vm.primitiveClass(recv)
@@ -457,6 +473,32 @@ func (vm *VM) registerBooleanPrimitives() {
 	})
 
 	// ifNil:ifNotNil: - evaluate first block
+	vm.UndefinedObjectClass.AddMethod2(vm.Selectors, "ifNil:ifNotNil:", func(vmPtr interface{}, recv Value, nilBlock, notNilBlock Value) Value {
+		v := vmPtr.(*VM)
+		return v.evaluateBlock(nilBlock, nil)
+	})
+}
+
+// ReRegisterNilPrimitives forces re-registration of nil-related primitives.
+// Call this after loading an image to ensure primitives override any compiled methods.
+func (vm *VM) ReRegisterNilPrimitives() {
+	vm.UndefinedObjectClass.AddMethod0(vm.Selectors, "isNil", func(_ interface{}, recv Value) Value {
+		return True
+	})
+
+	vm.UndefinedObjectClass.AddMethod0(vm.Selectors, "notNil", func(_ interface{}, recv Value) Value {
+		return False
+	})
+
+	vm.UndefinedObjectClass.AddMethod1(vm.Selectors, "ifNil:", func(vmPtr interface{}, recv Value, block Value) Value {
+		v := vmPtr.(*VM)
+		return v.evaluateBlock(block, nil)
+	})
+
+	vm.UndefinedObjectClass.AddMethod1(vm.Selectors, "ifNotNil:", func(_ interface{}, recv Value, block Value) Value {
+		return Nil
+	})
+
 	vm.UndefinedObjectClass.AddMethod2(vm.Selectors, "ifNil:ifNotNil:", func(vmPtr interface{}, recv Value, nilBlock, notNilBlock Value) Value {
 		v := vmPtr.(*VM)
 		return v.evaluateBlock(nilBlock, nil)

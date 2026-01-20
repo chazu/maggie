@@ -1,45 +1,40 @@
-"YTable - Multi-column table widget"
+# YTable.mag - Multi-column table widget
 
-YWidget subclass: #YTable
-    instanceVariables: ''.
+YTable subclass: YWidget
 
-"Cell operations"
+  method: cellAt: row at: col put: content [
+      handle primTableSetCell: content row: row col: col.
+      ^self
+  ]
 
-YTable >> cellAt: row at: col put: content
-    "Set the cell content at row, col"
-    handle primTableSetCell: content row: row col: col.
-    ^ self.
+  method: cellAt: row at: col [
+      ^handle primTableGetCellRow: row col: col
+  ]
 
-YTable >> cellAt: row at: col
-    "Get the cell content at row, col"
-    ^ handle primTableGetCellRow: row col: col.
+  method: clear [
+      handle primTableClear.
+      ^self
+  ]
 
-YTable >> clear
-    "Clear all cells"
-    handle primTableClear.
-    ^ self.
+  method: selection [
+      ^handle primTableGetSelection
+  ]
 
-"Selection"
+  method: selectedRow [
+      | sel |
+      sel := self selection.
+      sel ifNil: [^nil].
+      ^sel at: 0
+  ]
 
-YTable >> selection
-    "Return the selection as #(row col)"
-    ^ handle primTableGetSelection.
+  method: selectedColumn [
+      | sel |
+      sel := self selection.
+      sel ifNil: [^nil].
+      ^sel at: 1
+  ]
 
-YTable >> selectedRow
-    "Return the selected row"
-    | sel |
-    sel := self selection.
-    sel ifNil: [^ nil].
-    ^ sel at: 0.
-
-YTable >> selectedColumn
-    "Return the selected column"
-    | sel |
-    sel := self selection.
-    sel ifNil: [^ nil].
-    ^ sel at: 1.
-
-YTable >> selectRow: row col: col
-    "Set the selection"
-    handle primTableSetSelectionRow: row col: col.
-    ^ self.
+  method: selectRow: row col: col [
+      handle primTableSetSelectionRow: row col: col.
+      ^self
+  ]

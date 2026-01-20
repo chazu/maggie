@@ -1,15 +1,12 @@
-"YButton - Clickable button widget"
+# YButton.mag - Clickable button widget
 
-YWidget subclass: #YButton
-    instanceVariables: ''.
+YButton subclass: YWidget
 
-"Label"
+  method: label: aString [
+      handle primSetLabel: aString.
+      ^self
+  ]
 
-YButton >> label: aString
-    "Set the button label"
-    handle primSetLabel: aString.
-    ^ self.
-
-YButton >> text: aString
-    "Alias for label:"
-    ^ self label: aString.
+  method: text: aString [
+      ^self label: aString
+  ]
