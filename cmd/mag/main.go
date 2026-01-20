@@ -22,8 +22,6 @@ func main() {
 	interactive := flag.Bool("i", false, "Start interactive REPL")
 	mainEntry := flag.String("m", "", "Main entry point (e.g., 'Main.run' or just 'main')")
 	noRC := flag.Bool("no-rc", false, "Skip loading ~/.maggierc")
-	yutaniMode := flag.Bool("yutani", false, "Start Yutani IDE mode (connects to yutani-server)")
-	yutaniAddr := flag.String("yutani-addr", "localhost:7755", "Yutani server address")
 
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Usage: mag [options] [paths...]\n\n")
@@ -34,7 +32,6 @@ func main() {
 		fmt.Fprintf(os.Stderr, "  mag -i                 # Start REPL\n")
 		fmt.Fprintf(os.Stderr, "  mag ./src -m main      # Load src/, run 'main' method\n")
 		fmt.Fprintf(os.Stderr, "  mag ./... -m App.start # Load recursively, run App.start\n")
-		fmt.Fprintf(os.Stderr, "  mag --yutani           # Start Yutani IDE\n")
 	}
 	flag.Parse()
 
@@ -73,15 +70,6 @@ func main() {
 		if *verbose && totalMethods > 0 {
 			fmt.Printf("Compiled %d methods\n", totalMethods)
 		}
-	}
-
-	// Yutani IDE mode
-	if *yutaniMode {
-		if err := startYutaniIDE(vmInst, *yutaniAddr, *verbose); err != nil {
-			fmt.Fprintf(os.Stderr, "Yutani IDE error: %v\n", err)
-			os.Exit(1)
-		}
-		os.Exit(0)
 	}
 
 	// Run main entry point if specified
@@ -447,132 +435,4 @@ func compileFile(path string, vmInst *vm.VM, verbose bool) (int, error) {
 	}
 
 	return compiled, nil
-}
-
-// startYutaniIDE loads the Yutani classes and starts the IDE
-func startYutaniIDE(vmInst *vm.VM, addr string, verbose bool) error {
-	// Find the lib/yutani directory relative to the executable or working directory
-	yutaniLibPath := findYutaniLib()
-	if yutaniLibPath == "" {
-		return fmt.Errorf("cannot find lib/yutani directory")
-	}
-
-	if verbose {
-		fmt.Printf("Loading Yutani classes from %s\n", yutaniLibPath)
-	}
-
-	// Load Yutani library classes in dependency order
-	yutaniFiles := []string{
-		"YWidget.mag",
-		"YEvent.mag",
-		"YClient.mag",
-		"YList.mag",
-		"YFlex.mag",
-		"YTextView.mag",
-		"YTextArea.mag",
-		"YButton.mag",
-		"YInputField.mag",
-		"YGrid.mag",
-		"YPages.mag",
-		"YTable.mag",
-		"YTreeView.mag",
-		"MaggieIDE.mag",
-	}
-
-	for _, file := range yutaniFiles {
-		path := filepath.Join(yutaniLibPath, file)
-		if _, err := os.Stat(path); os.IsNotExist(err) {
-			if file == "MaggieIDE.mag" {
-				// MaggieIDE is optional, we can use a default
-				continue
-			}
-			return fmt.Errorf("missing Yutani class file: %s", path)
-		}
-
-		_, err := compileFile(path, vmInst, verbose)
-		if err != nil {
-			return fmt.Errorf("loading %s: %w", file, err)
-		}
-	}
-
-	// Store the server address in a global
-	vmInst.Globals["YutaniServerAddress"] = vm.NewStringValue(addr)
-
-	// Check if MaggieIDE class exists, if not use built-in
-	ideClass := vmInst.Classes.Lookup("MaggieIDE")
-	if ideClass == nil {
-		if verbose {
-			fmt.Println("MaggieIDE.mag not found, using built-in IDE")
-		}
-		if err := loadBuiltinIDE(vmInst, verbose); err != nil {
-			return err
-		}
-	}
-
-	if verbose {
-		fmt.Printf("Connecting to Yutani server at %s\n", addr)
-	}
-
-	// Run MaggieIDE.start
-	result := vmInst.Send(vm.Nil, "startIDE", nil)
-	if result == vm.Nil {
-		return fmt.Errorf("IDE returned nil (connection failed?)")
-	}
-
-	return nil
-}
-
-// findYutaniLib looks for the lib/yutani directory
-func findYutaniLib() string {
-	// Try relative to working directory
-	candidates := []string{
-		"lib/yutani",
-		"../lib/yutani",
-		"../../lib/yutani",
-	}
-
-	// Also try relative to executable
-	if exe, err := os.Executable(); err == nil {
-		exeDir := filepath.Dir(exe)
-		candidates = append(candidates,
-			filepath.Join(exeDir, "lib/yutani"),
-			filepath.Join(exeDir, "../lib/yutani"),
-			filepath.Join(exeDir, "../../lib/yutani"),
-		)
-	}
-
-	for _, path := range candidates {
-		if abs, err := filepath.Abs(path); err == nil {
-			if info, err := os.Stat(abs); err == nil && info.IsDir() {
-				return abs
-			}
-		}
-	}
-
-	return ""
-}
-
-// loadBuiltinIDE compiles the built-in IDE code
-func loadBuiltinIDE(vmInst *vm.VM, verbose bool) error {
-	ideSource := `
-startIDE
-    "Minimal test - just try to connect"
-    | client |
-    client := YClient connectTo: 'localhost:7755'.
-    ^ client
-`
-	// Compile as Object method
-	method, err := compiler.Compile(ideSource, vmInst.Selectors, vmInst.Symbols)
-	if err != nil {
-		return fmt.Errorf("compiling built-in IDE: %w", err)
-	}
-
-	method.SetClass(vmInst.ObjectClass)
-	vmInst.ObjectClass.VTable.AddMethod(vmInst.Selectors.Intern("startIDE"), method)
-
-	if verbose {
-		fmt.Println("Loaded built-in IDE")
-	}
-
-	return nil
 }
