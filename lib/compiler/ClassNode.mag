@@ -1,0 +1,75 @@
+# ClassNode.mag
+# Represents class definitions in the AST.
+
+ClassNode subclass: Object
+  instanceVars: name superclassName instanceVariables methods classMethods traits
+
+  # Creation - simple with just name and superclass
+  classMethod: name: aName superclass: aSuperclassName [
+      ^self new name: aName superclassName: aSuperclassName instanceVariables: #() methods: #() classMethods: #() traits: #()
+  ]
+
+  # Creation - full with all fields
+  classMethod: name: aName superclassName: aSuperclassName instanceVariables: instVars methods: meths classMethods: classMeths traits: traitNames [
+      ^self new name: aName superclassName: aSuperclassName instanceVariables: instVars methods: meths classMethods: classMeths traits: traitNames
+  ]
+
+  # Initialization
+  method: name: aName superclassName: aSuperclassName instanceVariables: instVars methods: meths classMethods: classMeths traits: traitNames [
+      name := aName.
+      superclassName := aSuperclassName.
+      instanceVariables := instVars.
+      methods := meths.
+      classMethods := classMeths.
+      traits := traitNames.
+      ^self
+  ]
+
+  # Accessing
+  method: name [
+      ^name
+  ]
+
+  method: superclassName [
+      ^superclassName
+  ]
+
+  method: instanceVariables [
+      ^instanceVariables
+  ]
+
+  method: methods [
+      ^methods
+  ]
+
+  method: classMethods [
+      ^classMethods
+  ]
+
+  method: traits [
+      ^traits
+  ]
+
+  # Query
+  method: hasInstanceVariables [
+      ^instanceVariables size > 0
+  ]
+
+  method: hasTraits [
+      ^traits size > 0
+  ]
+
+  # Type testing
+  method: isClass [
+      ^true
+  ]
+
+  # Visitor pattern
+  method: accept: aVisitor [
+      ^aVisitor visitClassNode: self
+  ]
+
+  # Printing
+  method: printString [
+      ^'ClassNode(', name printString, ' < ', superclassName printString, ', ivars: ', instanceVariables printString, ', methods: ', methods size printString, ', classMethods: ', classMethods size printString, ', traits: ', traits printString, ')'
+  ]

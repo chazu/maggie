@@ -40,6 +40,9 @@ type VM struct {
 	// Interpreter
 	interpreter *Interpreter
 
+	// Compiler backend (Go or Maggie)
+	compilerBackend CompilerBackend
+
 	// keepAlive holds references to objects to prevent GC
 	keepAlive []*Object
 }

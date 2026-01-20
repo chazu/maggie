@@ -1,0 +1,664 @@
+# Parser.mag
+# Parses Maggie source code into AST nodes.
+
+Parser subclass: Object
+  instanceVars: lexer currentToken
+
+  # Creation
+  classMethod: on: aString [
+      ^self new initializeOn: aString
+  ]
+
+  # Initialization
+  method: initializeOn: aString [
+      lexer := Lexer on: aString.
+      currentToken := nil.
+      self advance.
+      ^self
+  ]
+
+  # Token handling
+  method: advance [
+      "Move to the next token."
+      currentToken := lexer nextToken.
+      ^currentToken
+  ]
+
+  method: current [
+      ^currentToken
+  ]
+
+  method: peek [
+      ^currentToken
+  ]
+
+  method: accept: tokenType [
+      "If current token matches type, consume it and return true."
+      currentToken type = tokenType ifTrue: [
+          self advance.
+          ^true
+      ].
+      ^false
+  ]
+
+  method: expect: tokenType [
+      "Consume token of expected type or signal error."
+      currentToken type = tokenType ifTrue: [
+          | token |
+          token := currentToken.
+          self advance.
+          ^token
+      ].
+      self error: 'Expected ', tokenType printString, ' but got ', currentToken type printString
+  ]
+
+  method: atEnd [
+      ^currentToken isEOF
+  ]
+
+  # ============================================
+  # Expression parsing (operator precedence)
+  # ============================================
+
+  method: parseExpression [
+      "Parse a full expression including assignments."
+      ^self parseAssignment
+  ]
+
+  # Assignments
+  method: parseAssignment [
+      "Parse assignment or cascade expression."
+      | expr |
+      expr := self parseKeywordSend.
+
+      "Check for assignment"
+      (currentToken type = #assign) ifTrue: [
+          | varNode value |
+          expr isVariable ifFalse: [
+              self error: 'Left side of assignment must be a variable'
+          ].
+          varNode := expr.
+          self advance.  "Skip :="
+          value := self parseAssignment.  "Right-associative"
+          ^AssignmentNode variable: varNode value: value
+      ].
+
+      ^expr
+  ]
+
+  # Cascades (lowest precedence after assignment)
+  method: parseCascade [
+      "Parse cascaded message sends."
+      | receiver messages |
+      receiver := self parseKeywordSend.
+
+      currentToken type = #semicolon ifFalse: [^receiver].
+
+      "Collect cascaded messages"
+      messages := Array new.
+      messages := messages copyWith: receiver.  "First message"
+
+      [currentToken type = #semicolon] whileTrue: [
+          self advance.  "Skip ;"
+          messages := messages copyWith: (self parseCascadedMessage: receiver)
+      ].
+
+      ^CascadeNode receiver: (messages first receiver) messages: messages
+  ]
+
+  method: parseCascadedMessage: originalReceiver [
+      "Parse a single cascaded message (without receiver)."
+      | selector args |
+
+      "Try keyword message"
+      currentToken type = #keyword ifTrue: [
+          ^self parseKeywordContinuation: originalReceiver
+      ].
+
+      "Try binary message"
+      currentToken type = #binary ifTrue: [
+          selector := currentToken value.
+          self advance.
+          ^MessageSendNode receiver: originalReceiver selector: selector arguments: (Array with: self parseUnaryChain)
+      ].
+
+      "Must be unary"
+      currentToken type = #identifier ifTrue: [
+          selector := currentToken value asSymbol.
+          self advance.
+          ^MessageSendNode receiver: originalReceiver selector: selector arguments: Array new
+      ].
+
+      self error: 'Expected message in cascade'
+  ]
+
+  # Keyword messages (lowest message precedence)
+  method: parseKeywordSend [
+      "Parse keyword message send."
+      | receiver |
+      receiver := self parseBinarySend.
+
+      currentToken type = #keyword ifTrue: [
+          ^self parseKeywordContinuation: receiver
+      ].
+
+      ^receiver
+  ]
+
+  method: parseKeywordContinuation: receiver [
+      "Parse keyword message parts."
+      | selector args |
+      selector := String new.
+      args := Array new.
+
+      [currentToken type = #keyword] whileTrue: [
+          selector := selector , currentToken value.
+          self advance.
+          args := args copyWith: self parseBinarySend
+      ].
+
+      ^MessageSendNode receiver: receiver selector: selector asSymbol arguments: args
+  ]
+
+  # Binary messages
+  method: parseBinarySend [
+      "Parse binary message send."
+      | receiver |
+      receiver := self parseUnaryChain.
+
+      [currentToken type = #binary] whileTrue: [
+          | selector arg |
+          selector := currentToken value.
+          self advance.
+          arg := self parseUnaryChain.
+          receiver := MessageSendNode receiver: receiver selector: selector asSymbol arguments: (Array with: arg)
+      ].
+
+      ^receiver
+  ]
+
+  # Unary messages (highest message precedence)
+  method: parseUnaryChain [
+      "Parse chain of unary messages."
+      | receiver |
+      receiver := self parsePrimary.
+
+      [currentToken type = #identifier and: [(self peekIsKeywordStart or: [self peekIsBinary]) not]] whileTrue: [
+          | selector |
+          selector := currentToken value asSymbol.
+          self advance.
+          receiver := MessageSendNode receiver: receiver selector: selector arguments: Array new
+      ].
+
+      ^receiver
+  ]
+
+  method: peekIsKeywordStart [
+      "Check if we're about to start a keyword (identifier followed by :)."
+      | nextTok |
+      currentToken type = #keyword ifTrue: [^true].
+      ^false
+  ]
+
+  method: peekIsBinary [
+      ^currentToken type = #binary
+  ]
+
+  # Primary expressions
+  method: parsePrimary [
+      "Parse a primary expression: literal, variable, block, or parenthesized."
+      | token |
+      token := currentToken.
+
+      "Literals"
+      token type = #integer ifTrue: [
+          self advance.
+          ^LiteralNode value: token value type: #integer
+      ].
+      token type = #float ifTrue: [
+          self advance.
+          ^LiteralNode value: token value type: #float
+      ].
+      token type = #string ifTrue: [
+          self advance.
+          ^LiteralNode value: token value type: #string
+      ].
+      token type = #symbol ifTrue: [
+          self advance.
+          ^LiteralNode value: token value type: #symbol
+      ].
+
+      "Special literals"
+      (token type = #identifier and: [token value = 'true']) ifTrue: [
+          self advance.
+          ^LiteralNode value: true type: #true
+      ].
+      (token type = #identifier and: [token value = 'false']) ifTrue: [
+          self advance.
+          ^LiteralNode value: false type: #false
+      ].
+      (token type = #identifier and: [token value = 'nil']) ifTrue: [
+          self advance.
+          ^LiteralNode value: nil type: #nil
+      ].
+
+      "Self and super"
+      (token type = #identifier and: [token value = 'self']) ifTrue: [
+          self advance.
+          ^VariableNode name: 'self' scope: #self
+      ].
+      (token type = #identifier and: [token value = 'super']) ifTrue: [
+          self advance.
+          ^VariableNode name: 'super' scope: #super
+      ].
+
+      "Variable"
+      token type = #identifier ifTrue: [
+          self advance.
+          ^VariableNode name: token value scope: #temp
+      ].
+
+      "Block"
+      token type = #leftBracket ifTrue: [
+          ^self parseBlock
+      ].
+
+      "Parenthesized expression"
+      token type = #leftParen ifTrue: [
+          | expr |
+          self advance.
+          expr := self parseExpression.
+          self expect: #rightParen.
+          ^expr
+      ].
+
+      "Literal array"
+      token type = #arrayStart ifTrue: [
+          ^self parseLiteralArray
+      ].
+
+      "Dynamic array"
+      token type = #leftBrace ifTrue: [
+          ^self parseDynamicArray
+      ].
+
+      self error: 'Unexpected token: ', token printString
+  ]
+
+  # Block parsing
+  method: parseBlock [
+      "Parse a block: [ :args | | temps | statements ]"
+      | params temps statements |
+      self expect: #leftBracket.
+
+      params := Array new.
+      temps := Array new.
+      statements := Array new.
+
+      "Parse block parameters :arg"
+      [currentToken type = #colon] whileTrue: [
+          self advance.  "Skip :"
+          params := params copyWith: (self expect: #identifier) value
+      ].
+
+      "Skip | after parameters if present"
+      params size > 0 ifTrue: [
+          self accept: #pipe
+      ].
+
+      "Parse temporaries | temp1 temp2 |"
+      currentToken type = #pipe ifTrue: [
+          self advance.  "Skip opening |"
+          [currentToken type = #identifier] whileTrue: [
+              temps := temps copyWith: currentToken value.
+              self advance
+          ].
+          self expect: #pipe  "Skip closing |"
+      ].
+
+      "Parse statements"
+      statements := self parseStatements.
+
+      self expect: #rightBracket.
+
+      ^BlockNode parameters: params temporaries: temps statements: statements
+  ]
+
+  # Array parsing
+  method: parseLiteralArray [
+      "Parse literal array #(1 2 3)."
+      | elements |
+      self advance.  "Skip #("
+      elements := Array new.
+
+      [currentToken type = #rightParen] whileFalse: [
+          currentToken isEOF ifTrue: [self error: 'Unterminated literal array'].
+          elements := elements copyWith: self parseLiteralArrayElement
+      ].
+
+      self expect: #rightParen.
+      ^LiteralNode value: elements type: #array
+  ]
+
+  method: parseLiteralArrayElement [
+      "Parse an element of a literal array."
+      | token |
+      token := currentToken.
+
+      token type = #integer ifTrue: [self advance. ^token value].
+      token type = #float ifTrue: [self advance. ^token value].
+      token type = #string ifTrue: [self advance. ^token value].
+      token type = #symbol ifTrue: [self advance. ^token value].
+      token type = #identifier ifTrue: [self advance. ^token value asSymbol].
+      token type = #arrayStart ifTrue: [^(self parseLiteralArray) value].
+
+      self error: 'Invalid literal array element: ', token printString
+  ]
+
+  method: parseDynamicArray [
+      "Parse dynamic array { expr. expr. expr }."
+      | elements |
+      self expect: #leftBrace.
+      elements := Array new.
+
+      [currentToken type = #rightBrace] whileFalse: [
+          currentToken isEOF ifTrue: [self error: 'Unterminated dynamic array'].
+          elements := elements copyWith: self parseExpression.
+          self accept: #period
+      ].
+
+      self expect: #rightBrace.
+      ^MessageSendNode
+          receiver: (VariableNode name: 'Array' scope: #global)
+          selector: #withAll:
+          arguments: (Array with: (LiteralNode value: elements type: #array))
+  ]
+
+  # Statement parsing
+  method: parseStatements [
+      "Parse a sequence of statements."
+      | statements |
+      statements := Array new.
+
+      [self atEnd not and: [currentToken type ~= #rightBracket and: [currentToken type ~= #rightBrace]]] whileTrue: [
+          statements := statements copyWith: self parseStatement.
+          self accept: #period
+      ].
+
+      ^statements
+  ]
+
+  method: parseStatement [
+      "Parse a single statement."
+      "Return statement"
+      currentToken type = #caret ifTrue: [
+          ^self parseReturn
+      ].
+
+      ^self parseExpression
+  ]
+
+  # Return parsing
+  method: parseReturn [
+      "Parse return statement ^expr."
+      self expect: #caret.
+      ^ReturnNode expression: self parseExpression
+  ]
+
+  # ============================================
+  # Method definition parsing
+  # ============================================
+
+  method: parseMethodDef [
+      "Parse a method definition: method: selector [ body ]"
+      | selector params temps statements isClassMethod |
+      isClassMethod := false.
+
+      "Check for classMethod: vs method:"
+      (currentToken type = #identifier and: [currentToken value = 'classMethod']) ifTrue: [
+          isClassMethod := true.
+          self advance.
+          self expect: #colon
+      ] ifFalse: [
+          (currentToken type = #identifier and: [currentToken value = 'method']) ifTrue: [
+              self advance.
+              self expect: #colon
+          ]
+      ].
+
+      "Parse selector and parameters"
+      selector := String new.
+      params := Array new.
+
+      "Unary selector"
+      currentToken type = #identifier ifTrue: [
+          selector := currentToken value.
+          self advance.
+      ] ifFalse: [
+          "Binary selector"
+          currentToken type = #binary ifTrue: [
+              selector := currentToken value.
+              self advance.
+              params := params copyWith: (self expect: #identifier) value.
+          ] ifFalse: [
+              "Keyword selector"
+              [currentToken type = #keyword] whileTrue: [
+                  selector := selector , currentToken value.
+                  self advance.
+                  params := params copyWith: (self expect: #identifier) value
+              ]
+          ]
+      ].
+
+      "Parse method body in brackets"
+      self expect: #leftBracket.
+
+      "Parse temporaries"
+      temps := Array new.
+      currentToken type = #pipe ifTrue: [
+          self advance.
+          [currentToken type = #identifier] whileTrue: [
+              temps := temps copyWith: currentToken value.
+              self advance
+          ].
+          self expect: #pipe
+      ].
+
+      "Parse statements"
+      statements := self parseStatements.
+
+      self expect: #rightBracket.
+
+      ^MethodNode
+          selector: selector asSymbol
+          parameters: params
+          temporaries: temps
+          statements: statements
+  ]
+
+  # ============================================
+  # Class definition parsing
+  # ============================================
+
+  method: parseClassDef [
+      "Parse a class definition."
+      | name superName ivars methods classMethods traits |
+
+      "Parse class name"
+      name := (self expect: #identifier) value.
+
+      "Expect 'subclass:'"
+      (currentToken type = #identifier and: [currentToken value = 'subclass']) ifTrue: [
+          self advance.
+          self expect: #colon.
+          superName := (self expect: #identifier) value
+      ] ifFalse: [
+          superName := 'Object'
+      ].
+
+      ivars := Array new.
+      methods := Array new.
+      classMethods := Array new.
+      traits := Array new.
+
+      "Parse class body"
+      [self atEnd not] whileTrue: [
+          "Instance variables"
+          (currentToken type = #identifier and: [currentToken value = 'instanceVars']) ifTrue: [
+              self advance.
+              self expect: #colon.
+              [currentToken type = #identifier] whileTrue: [
+                  ivars := ivars copyWith: currentToken value.
+                  self advance
+              ].
+          ] ifFalse: [
+              "Trait inclusion"
+              (currentToken type = #identifier and: [currentToken value = 'include']) ifTrue: [
+                  self advance.
+                  self expect: #colon.
+                  traits := traits copyWith: (self expect: #identifier) value.
+              ] ifFalse: [
+                  "Instance method"
+                  (currentToken type = #identifier and: [currentToken value = 'method']) ifTrue: [
+                      methods := methods copyWith: self parseMethodDef.
+                  ] ifFalse: [
+                      "Class method"
+                      (currentToken type = #identifier and: [currentToken value = 'classMethod']) ifTrue: [
+                          classMethods := classMethods copyWith: self parseMethodDef.
+                      ] ifFalse: [
+                          "Unknown or end of class"
+                          ^ClassNode
+                              name: name
+                              superclassName: superName
+                              instanceVariables: ivars
+                              methods: methods
+                              classMethods: classMethods
+                              traits: traits
+                      ]
+                  ]
+              ]
+          ]
+      ].
+
+      ^ClassNode
+          name: name
+          superclassName: superName
+          instanceVariables: ivars
+          methods: methods
+          classMethods: classMethods
+          traits: traits
+  ]
+
+  # ============================================
+  # Source file parsing (multiple classes/traits)
+  # ============================================
+
+  method: parseSourceFile [
+      "Parse an entire source file with classes and traits."
+      | classes traits |
+      classes := Array new.
+      traits := Array new.
+
+      [self atEnd] whileFalse: [
+          "Skip comments at top level"
+          currentToken type = #identifier ifTrue: [
+              | name |
+              name := currentToken value.
+              self advance.
+
+              "Check what follows the identifier"
+              (currentToken type = #identifier and: [currentToken value = 'subclass']) ifTrue: [
+                  "It's a class - re-parse with the name"
+                  classes := classes copyWith: (self parseClassDefWithName: name)
+              ] ifFalse: [
+                  (currentToken type = #identifier and: [currentToken value = 'trait']) ifTrue: [
+                      "It's a trait"
+                      self advance.
+                      traits := traits copyWith: (self parseTraitDefWithName: name)
+                  ]
+              ]
+          ]
+      ].
+
+      ^Array with: classes with: traits
+  ]
+
+  method: parseClassDefWithName: name [
+      "Parse class definition when name is already consumed."
+      | superName ivars methods classMethods traits |
+
+      "Expect 'subclass:'"
+      self advance.  "Skip 'subclass'"
+      self expect: #colon.
+      superName := (self expect: #identifier) value.
+
+      ivars := Array new.
+      methods := Array new.
+      classMethods := Array new.
+      traits := Array new.
+
+      "Parse class body (same as parseClassDef)"
+      [self atEnd not] whileTrue: [
+          (currentToken type = #identifier and: [currentToken value = 'instanceVars']) ifTrue: [
+              self advance. self expect: #colon.
+              [currentToken type = #identifier] whileTrue: [
+                  ivars := ivars copyWith: currentToken value.
+                  self advance
+              ].
+          ] ifFalse: [
+              (currentToken type = #identifier and: [currentToken value = 'include']) ifTrue: [
+                  self advance. self expect: #colon.
+                  traits := traits copyWith: (self expect: #identifier) value.
+              ] ifFalse: [
+                  (currentToken type = #identifier and: [currentToken value = 'method']) ifTrue: [
+                      methods := methods copyWith: self parseMethodDef.
+                  ] ifFalse: [
+                      (currentToken type = #identifier and: [currentToken value = 'classMethod']) ifTrue: [
+                          classMethods := classMethods copyWith: self parseMethodDef.
+                      ] ifFalse: [
+                          "End of class body"
+                          ^ClassNode name: name superclassName: superName instanceVariables: ivars
+                              methods: methods classMethods: classMethods traits: traits
+                      ]
+                  ]
+              ]
+          ]
+      ].
+
+      ^ClassNode name: name superclassName: superName instanceVariables: ivars
+          methods: methods classMethods: classMethods traits: traits
+  ]
+
+  method: parseTraitDefWithName: name [
+      "Parse trait definition when name is already consumed."
+      | methods requires |
+      methods := Array new.
+      requires := Array new.
+
+      [self atEnd not] whileTrue: [
+          (currentToken type = #identifier and: [currentToken value = 'method']) ifTrue: [
+              methods := methods copyWith: self parseMethodDef.
+          ] ifFalse: [
+              (currentToken type = #identifier and: [currentToken value = 'requires']) ifTrue: [
+                  self advance. self expect: #colon.
+                  requires := requires copyWith: (self expect: #identifier) value.
+              ] ifFalse: [
+                  "End of trait"
+                  ^Array with: name with: methods with: requires
+              ]
+          ]
+      ].
+
+      ^Array with: name with: methods with: requires
+  ]
+
+  # Error handling
+  method: error: message [
+      "Signal a parse error."
+      Error signal: 'Parse error at position ', lexer stream position printString, ': ', message
+  ]
+
+  # Printing
+  method: printString [
+      ^'Parser(', currentToken printString, ')'
+  ]

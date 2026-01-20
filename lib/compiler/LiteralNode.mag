@@ -1,0 +1,82 @@
+# LiteralNode.mag
+# Represents literal values in the AST (numbers, strings, symbols, literal arrays).
+
+LiteralNode subclass: Object
+  instanceVars: value literalType
+
+  # Creation
+  classMethod: value: aValue type: aType [
+      ^self new value: aValue type: aType
+  ]
+
+  # Initialization
+  method: value: aValue type: aType [
+      value := aValue.
+      literalType := aType.
+      ^self
+  ]
+
+  # Accessing
+  method: value [
+      ^value
+  ]
+
+  method: literalType [
+      ^literalType
+  ]
+
+  # AST node type testing
+  method: isLiteral [
+      ^true
+  ]
+
+  # Literal type testing
+  method: isNumber [
+      ^literalType = #integer or: [literalType = #float]
+  ]
+
+  method: isInteger [
+      ^literalType = #integer
+  ]
+
+  method: isFloat [
+      ^literalType = #float
+  ]
+
+  method: isString [
+      ^literalType = #string
+  ]
+
+  method: isSymbol [
+      ^literalType = #symbol
+  ]
+
+  method: isArray [
+      ^literalType = #array
+  ]
+
+  method: isBoolean [
+      ^literalType = #true or: [literalType = #false]
+  ]
+
+  method: isTrue [
+      ^literalType = #true
+  ]
+
+  method: isFalse [
+      ^literalType = #false
+  ]
+
+  method: isNil [
+      ^literalType = #nil
+  ]
+
+  # Visitor pattern
+  method: accept: aVisitor [
+      ^aVisitor visitLiteralNode: self
+  ]
+
+  # Printing
+  method: printString [
+      ^'LiteralNode(', literalType printString, ', ', value printString, ')'
+  ]

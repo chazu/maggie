@@ -1,0 +1,125 @@
+# Token.mag
+# Represents a lexical token from source code.
+
+Token subclass: Object
+  instanceVars: type value position
+
+  # Creation
+  classMethod: type: aType value: aValue [
+      ^self new type: aType value: aValue position: 0
+  ]
+
+  classMethod: type: aType value: aValue position: aPosition [
+      ^self new type: aType value: aValue position: aPosition
+  ]
+
+  # Initialization
+  method: type: aType value: aValue position: aPosition [
+      type := aType.
+      value := aValue.
+      position := aPosition.
+      ^self
+  ]
+
+  # Accessing
+  method: type [
+      ^type
+  ]
+
+  method: value [
+      ^value
+  ]
+
+  method: position [
+      ^position
+  ]
+
+  # Type testing
+  method: isEOF [
+      ^type = #eof
+  ]
+
+  method: isIdentifier [
+      ^type = #identifier
+  ]
+
+  method: isKeyword [
+      ^type = #keyword
+  ]
+
+  method: isNumber [
+      ^type = #integer or: [type = #float]
+  ]
+
+  method: isInteger [
+      ^type = #integer
+  ]
+
+  method: isFloat [
+      ^type = #float
+  ]
+
+  method: isString [
+      ^type = #string
+  ]
+
+  method: isSymbol [
+      ^type = #symbol
+  ]
+
+  method: isBinarySelector [
+      ^type = #binary
+  ]
+
+  method: isAssign [
+      ^type = #assign
+  ]
+
+  method: isCaret [
+      ^type = #caret
+  ]
+
+  method: isPeriod [
+      ^type = #period
+  ]
+
+  method: isSemicolon [
+      ^type = #semicolon
+  ]
+
+  method: isColon [
+      ^type = #colon
+  ]
+
+  method: isPipe [
+      ^type = #pipe
+  ]
+
+  method: isLeftParen [
+      ^type = #leftParen
+  ]
+
+  method: isRightParen [
+      ^type = #rightParen
+  ]
+
+  method: isLeftBracket [
+      ^type = #leftBracket
+  ]
+
+  method: isRightBracket [
+      ^type = #rightBracket
+  ]
+
+  method: isLeftBrace [
+      ^type = #leftBrace
+  ]
+
+  method: isRightBrace [
+      ^type = #rightBrace
+  ]
+
+  # Printing
+  method: printString [
+      ^'Token(', type printString, ', ', value printString, ')'
+  ]

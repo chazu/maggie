@@ -1,0 +1,36 @@
+# ReturnNode.mag
+# Represents a return statement (^expr) in the AST.
+
+ReturnNode subclass: Object
+  instanceVars: expression
+
+  # Creation
+  classMethod: expression: anExpression [
+      ^self new expression: anExpression
+  ]
+
+  # Initialization
+  method: expression: anExpression [
+      expression := anExpression.
+      ^self
+  ]
+
+  # Accessing
+  method: expression [
+      ^expression
+  ]
+
+  # Type testing
+  method: isReturn [
+      ^true
+  ]
+
+  # Visitor pattern
+  method: accept: aVisitor [
+      ^aVisitor visitReturnNode: self
+  ]
+
+  # Printing
+  method: printString [
+      ^'ReturnNode(', expression printString, ')'
+  ]

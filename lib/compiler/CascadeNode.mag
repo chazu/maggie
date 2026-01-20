@@ -1,0 +1,42 @@
+# CascadeNode.mag
+# Represents cascaded message sends (receiver msg1; msg2; msg3) in the AST.
+# The receiver is evaluated once, and each message is sent to it in sequence.
+
+CascadeNode subclass: Object
+  instanceVars: receiver messages
+
+  # Creation
+  classMethod: receiver: aReceiver messages: messageArray [
+      ^self new receiver: aReceiver messages: messageArray
+  ]
+
+  # Initialization
+  method: receiver: aReceiver messages: messageArray [
+      receiver := aReceiver.
+      messages := messageArray.
+      ^self
+  ]
+
+  # Accessing
+  method: receiver [
+      ^receiver
+  ]
+
+  method: messages [
+      ^messages
+  ]
+
+  # Type testing
+  method: isCascade [
+      ^true
+  ]
+
+  # Visitor pattern
+  method: accept: aVisitor [
+      ^aVisitor visitCascadeNode: self
+  ]
+
+  # Printing
+  method: printString [
+      ^'CascadeNode(', receiver printString, ', messages: ', messages printString, ')'
+  ]

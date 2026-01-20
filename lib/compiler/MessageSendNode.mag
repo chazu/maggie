@@ -1,0 +1,67 @@
+# MessageSendNode.mag
+# Represents message send expressions (receiver selector or receiver selector: arg) in the AST.
+
+MessageSendNode subclass: Object
+  instanceVars: receiver selector arguments
+
+  # Creation
+  classMethod: receiver: aReceiver selector: aSelector arguments: args [
+      ^self new receiver: aReceiver selector: aSelector arguments: args
+  ]
+
+  classMethod: receiver: aReceiver selector: aSelector [
+      ^self new receiver: aReceiver selector: aSelector arguments: #()
+  ]
+
+  # Initialization
+  method: receiver: aReceiver selector: aSelector arguments: args [
+      receiver := aReceiver.
+      selector := aSelector.
+      arguments := args.
+      ^self
+  ]
+
+  # Accessing
+  method: receiver [
+      ^receiver
+  ]
+
+  method: selector [
+      ^selector
+  ]
+
+  method: arguments [
+      ^arguments
+  ]
+
+  # Arity helpers
+  method: arity [
+      ^arguments size
+  ]
+
+  method: isUnary [
+      ^arguments size = 0
+  ]
+
+  method: isBinary [
+      ^arguments size = 1
+  ]
+
+  method: isKeyword [
+      ^arguments size > 1
+  ]
+
+  # Type testing
+  method: isMessageSend [
+      ^true
+  ]
+
+  # Visitor pattern
+  method: accept: aVisitor [
+      ^aVisitor visitMessageSendNode: self
+  ]
+
+  # Printing
+  method: printString [
+      ^'MessageSendNode(', receiver printString, ' ', selector printString, ', args: ', arguments printString, ')'
+  ]

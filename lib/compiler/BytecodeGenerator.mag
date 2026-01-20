@@ -1,0 +1,606 @@
+# BytecodeGenerator.mag
+# Compiles AST nodes to bytecode.
+
+BytecodeGenerator subclass: Object
+  instanceVars: bytecode literals selectors temps ivars captures currentClass blockMethods jumpPatches
+
+  # Opcodes (matching vm/opcodes.go)
+  classMethod: opNOP [^16r00]
+  classMethod: opPOP [^16r01]
+  classMethod: opDUP [^16r02]
+
+  classMethod: opPUSH_NIL [^16r10]
+  classMethod: opPUSH_TRUE [^16r11]
+  classMethod: opPUSH_FALSE [^16r12]
+  classMethod: opPUSH_SELF [^16r13]
+  classMethod: opPUSH_INT8 [^16r14]
+  classMethod: opPUSH_INT32 [^16r15]
+  classMethod: opPUSH_LITERAL [^16r16]
+  classMethod: opPUSH_FLOAT [^16r17]
+
+  classMethod: opPUSH_TEMP [^16r20]
+  classMethod: opPUSH_IVAR [^16r21]
+  classMethod: opPUSH_GLOBAL [^16r22]
+  classMethod: opSTORE_TEMP [^16r23]
+  classMethod: opSTORE_IVAR [^16r24]
+  classMethod: opSTORE_GLOBAL [^16r25]
+  classMethod: opPUSH_CAPTURED [^16r26]
+  classMethod: opSTORE_CAPTURED [^16r27]
+
+  classMethod: opSEND [^16r30]
+  classMethod: opSEND_SUPER [^16r31]
+
+  classMethod: opSEND_PLUS [^16r40]
+  classMethod: opSEND_MINUS [^16r41]
+  classMethod: opSEND_TIMES [^16r42]
+  classMethod: opSEND_DIV [^16r43]
+  classMethod: opSEND_MOD [^16r44]
+  classMethod: opSEND_LT [^16r45]
+  classMethod: opSEND_GT [^16r46]
+  classMethod: opSEND_LE [^16r47]
+  classMethod: opSEND_GE [^16r48]
+  classMethod: opSEND_EQ [^16r49]
+  classMethod: opSEND_NE [^16r4A]
+  classMethod: opSEND_AT [^16r4B]
+  classMethod: opSEND_AT_PUT [^16r4C]
+  classMethod: opSEND_SIZE [^16r4D]
+  classMethod: opSEND_VALUE [^16r4E]
+  classMethod: opSEND_VALUE1 [^16r4F]
+  classMethod: opSEND_VALUE2 [^16r50]
+  classMethod: opSEND_NEW [^16r51]
+  classMethod: opSEND_CLASS [^16r52]
+
+  classMethod: opJUMP [^16r60]
+  classMethod: opJUMP_TRUE [^16r61]
+  classMethod: opJUMP_FALSE [^16r62]
+  classMethod: opJUMP_NIL [^16r63]
+  classMethod: opJUMP_NOT_NIL [^16r64]
+
+  classMethod: opRETURN_TOP [^16r70]
+  classMethod: opRETURN_SELF [^16r71]
+  classMethod: opRETURN_NIL [^16r72]
+  classMethod: opBLOCK_RETURN [^16r73]
+
+  classMethod: opCREATE_BLOCK [^16r80]
+  classMethod: opCAPTURE_TEMP [^16r81]
+  classMethod: opCAPTURE_IVAR [^16r82]
+
+  classMethod: opCREATE_ARRAY [^16r90]
+  classMethod: opCREATE_OBJECT [^16r91]
+
+  # Creation
+  classMethod: new [
+      ^super new initialize
+  ]
+
+  classMethod: forClass: aClass [
+      ^self new initializeForClass: aClass
+  ]
+
+  # Initialization
+  method: initialize [
+      bytecode := Array new.
+      literals := Array new.
+      selectors := Array new.
+      temps := Array new.
+      ivars := Array new.
+      captures := Array new.
+      blockMethods := Array new.
+      jumpPatches := Array new.
+      currentClass := nil.
+      ^self
+  ]
+
+  method: initializeForClass: aClass [
+      self initialize.
+      currentClass := aClass.
+      ivars := aClass instanceVariables.
+      ^self
+  ]
+
+  # Accessing
+  method: bytecode [^bytecode]
+  method: literals [^literals]
+  method: blockMethods [^blockMethods]
+
+  # ============================================
+  # Literal table management
+  # ============================================
+
+  method: addLiteral: value [
+      "Add a literal to the table, return its index. Reuse if duplicate."
+      | index |
+      index := literals indexOf: value.
+      index > 0 ifTrue: [^index - 1].  "Already exists"
+      literals := literals copyWith: value.
+      ^literals size - 1
+  ]
+
+  method: addSelector: selector [
+      "Add a selector, return its index."
+      | index |
+      index := selectors indexOf: selector.
+      index > 0 ifTrue: [^index - 1].
+      selectors := selectors copyWith: selector.
+      ^selectors size - 1
+  ]
+
+  # ============================================
+  # Variable management
+  # ============================================
+
+  method: addTemp: name [
+      "Add a temporary variable, return its index."
+      temps := temps copyWith: name.
+      ^temps size - 1
+  ]
+
+  method: tempIndex: name [
+      "Get index of a temp variable, or -1 if not found."
+      | index |
+      index := temps indexOf: name.
+      index > 0 ifTrue: [^index - 1].
+      ^-1
+  ]
+
+  method: ivarIndex: name [
+      "Get index of an instance variable, or -1 if not found."
+      | index |
+      index := ivars indexOf: name.
+      index > 0 ifTrue: [^index - 1].
+      ^-1
+  ]
+
+  method: captureIndex: name [
+      "Get or create capture index for a variable."
+      | index |
+      index := captures indexOf: name.
+      index > 0 ifTrue: [^index - 1].
+      captures := captures copyWith: name.
+      ^captures size - 1
+  ]
+
+  # ============================================
+  # Bytecode emission helpers
+  # ============================================
+
+  method: emit: opcode [
+      "Emit a single byte."
+      bytecode := bytecode copyWith: opcode.
+      ^self
+  ]
+
+  method: emit: opcode byte: arg [
+      "Emit opcode with 8-bit argument."
+      bytecode := bytecode copyWith: opcode.
+      bytecode := bytecode copyWith: (arg bitAnd: 16rFF).
+      ^self
+  ]
+
+  method: emit: opcode short: arg [
+      "Emit opcode with 16-bit argument (big-endian)."
+      bytecode := bytecode copyWith: opcode.
+      bytecode := bytecode copyWith: ((arg bitShift: -8) bitAnd: 16rFF).
+      bytecode := bytecode copyWith: (arg bitAnd: 16rFF).
+      ^self
+  ]
+
+  method: emitShort: value [
+      "Emit a 16-bit value (big-endian)."
+      bytecode := bytecode copyWith: ((value bitShift: -8) bitAnd: 16rFF).
+      bytecode := bytecode copyWith: (value bitAnd: 16rFF).
+      ^self
+  ]
+
+  method: currentOffset [
+      ^bytecode size
+  ]
+
+  # ============================================
+  # Push instructions
+  # ============================================
+
+  method: emitPushNil [
+      self emit: BytecodeGenerator opPUSH_NIL
+  ]
+
+  method: emitPushTrue [
+      self emit: BytecodeGenerator opPUSH_TRUE
+  ]
+
+  method: emitPushFalse [
+      self emit: BytecodeGenerator opPUSH_FALSE
+  ]
+
+  method: emitPushSelf [
+      self emit: BytecodeGenerator opPUSH_SELF
+  ]
+
+  method: emitPushInteger: value [
+      "Emit push for an integer value."
+      (value >= -128 and: [value <= 127]) ifTrue: [
+          self emit: BytecodeGenerator opPUSH_INT8 byte: value.
+          ^self
+      ].
+      "Larger integers go in literal table"
+      self emit: BytecodeGenerator opPUSH_LITERAL short: (self addLiteral: value)
+  ]
+
+  method: emitPushFloat: value [
+      "Emit push for a float - store in literals."
+      self emit: BytecodeGenerator opPUSH_LITERAL short: (self addLiteral: value)
+  ]
+
+  method: emitPushLiteral: value [
+      "Emit push for any literal value."
+      self emit: BytecodeGenerator opPUSH_LITERAL short: (self addLiteral: value)
+  ]
+
+  # ============================================
+  # Variable access/store
+  # ============================================
+
+  method: emitPushTemp: index [
+      self emit: BytecodeGenerator opPUSH_TEMP byte: index
+  ]
+
+  method: emitStoreTemp: index [
+      self emit: BytecodeGenerator opSTORE_TEMP byte: index
+  ]
+
+  method: emitPushIvar: index [
+      self emit: BytecodeGenerator opPUSH_IVAR byte: index
+  ]
+
+  method: emitStoreIvar: index [
+      self emit: BytecodeGenerator opSTORE_IVAR byte: index
+  ]
+
+  method: emitPushGlobal: index [
+      self emit: BytecodeGenerator opPUSH_GLOBAL short: index
+  ]
+
+  method: emitStoreGlobal: index [
+      self emit: BytecodeGenerator opSTORE_GLOBAL short: index
+  ]
+
+  method: emitPushCaptured: index [
+      self emit: BytecodeGenerator opPUSH_CAPTURED byte: index
+  ]
+
+  method: emitStoreCaptured: index [
+      self emit: BytecodeGenerator opSTORE_CAPTURED byte: index
+  ]
+
+  # ============================================
+  # Message sends
+  # ============================================
+
+  method: emitSend: selector argc: argc [
+      "Emit a message send. Use optimized opcodes for common selectors."
+      | optimized |
+      optimized := self optimizedSendFor: selector argc: argc.
+      optimized notNil ifTrue: [
+          self emit: optimized.
+          ^self
+      ].
+      "General send"
+      self emit: BytecodeGenerator opSEND short: (self addSelector: selector).
+      self emit: argc
+  ]
+
+  method: emitSendSuper: selector argc: argc [
+      self emit: BytecodeGenerator opSEND_SUPER short: (self addSelector: selector).
+      self emit: argc
+  ]
+
+  method: optimizedSendFor: selector argc: argc [
+      "Return optimized opcode for common selectors, or nil."
+      argc = 0 ifTrue: [
+          selector = #size ifTrue: [^BytecodeGenerator opSEND_SIZE].
+          selector = #value ifTrue: [^BytecodeGenerator opSEND_VALUE].
+          selector = #class ifTrue: [^BytecodeGenerator opSEND_CLASS].
+          selector = #new ifTrue: [^BytecodeGenerator opSEND_NEW].
+      ].
+      argc = 1 ifTrue: [
+          selector = #+ ifTrue: [^BytecodeGenerator opSEND_PLUS].
+          selector = #- ifTrue: [^BytecodeGenerator opSEND_MINUS].
+          selector = #* ifTrue: [^BytecodeGenerator opSEND_TIMES].
+          selector = #/ ifTrue: [^BytecodeGenerator opSEND_DIV].
+          selector = #\\ ifTrue: [^BytecodeGenerator opSEND_MOD].
+          selector = #< ifTrue: [^BytecodeGenerator opSEND_LT].
+          selector = #> ifTrue: [^BytecodeGenerator opSEND_GT].
+          selector = #<= ifTrue: [^BytecodeGenerator opSEND_LE].
+          selector = #>= ifTrue: [^BytecodeGenerator opSEND_GE].
+          selector = #= ifTrue: [^BytecodeGenerator opSEND_EQ].
+          selector = #~= ifTrue: [^BytecodeGenerator opSEND_NE].
+          selector = #at: ifTrue: [^BytecodeGenerator opSEND_AT].
+          selector = #value: ifTrue: [^BytecodeGenerator opSEND_VALUE1].
+      ].
+      argc = 2 ifTrue: [
+          selector = #at:put: ifTrue: [^BytecodeGenerator opSEND_AT_PUT].
+          selector = #value:value: ifTrue: [^BytecodeGenerator opSEND_VALUE2].
+      ].
+      ^nil
+  ]
+
+  # ============================================
+  # Jump instructions
+  # ============================================
+
+  method: emitJump: offset [
+      self emit: BytecodeGenerator opJUMP short: offset
+  ]
+
+  method: emitJumpTrue: offset [
+      self emit: BytecodeGenerator opJUMP_TRUE short: offset
+  ]
+
+  method: emitJumpFalse: offset [
+      self emit: BytecodeGenerator opJUMP_FALSE short: offset
+  ]
+
+  method: emitJumpNil: offset [
+      self emit: BytecodeGenerator opJUMP_NIL short: offset
+  ]
+
+  method: emitJumpForward [
+      "Emit a forward jump with placeholder offset. Return patch location."
+      | patchLoc |
+      self emit: BytecodeGenerator opJUMP.
+      patchLoc := bytecode size.
+      self emitShort: 0.  "Placeholder"
+      ^patchLoc
+  ]
+
+  method: emitJumpFalseForward [
+      "Emit a conditional forward jump. Return patch location."
+      | patchLoc |
+      self emit: BytecodeGenerator opJUMP_FALSE.
+      patchLoc := bytecode size.
+      self emitShort: 0.
+      ^patchLoc
+  ]
+
+  method: emitJumpTrueForward [
+      "Emit a conditional forward jump. Return patch location."
+      | patchLoc |
+      self emit: BytecodeGenerator opJUMP_TRUE.
+      patchLoc := bytecode size.
+      self emitShort: 0.
+      ^patchLoc
+  ]
+
+  method: patchJumpAt: location [
+      "Patch a forward jump to point to current location."
+      | offset |
+      offset := bytecode size - location - 2.  "Offset from after the jump operand"
+      bytecode at: location put: ((offset bitShift: -8) bitAnd: 16rFF).
+      bytecode at: location + 1 put: (offset bitAnd: 16rFF)
+  ]
+
+  # ============================================
+  # Return instructions
+  # ============================================
+
+  method: emitReturnTop [
+      self emit: BytecodeGenerator opRETURN_TOP
+  ]
+
+  method: emitReturnSelf [
+      self emit: BytecodeGenerator opRETURN_SELF
+  ]
+
+  method: emitReturnNil [
+      self emit: BytecodeGenerator opRETURN_NIL
+  ]
+
+  method: emitBlockReturn [
+      self emit: BytecodeGenerator opBLOCK_RETURN
+  ]
+
+  # ============================================
+  # Block creation
+  # ============================================
+
+  method: emitCreateBlock: blockIndex captures: captureCount [
+      self emit: BytecodeGenerator opCREATE_BLOCK short: blockIndex.
+      self emit: captureCount
+  ]
+
+  method: emitCaptureTemp: index [
+      self emit: BytecodeGenerator opCAPTURE_TEMP byte: index
+  ]
+
+  method: emitCaptureIvar: index [
+      self emit: BytecodeGenerator opCAPTURE_IVAR byte: index
+  ]
+
+  method: addBlockMethod: blockBytecodeGen [
+      "Add a compiled block and return its index."
+      blockMethods := blockMethods copyWith: blockBytecodeGen.
+      ^blockMethods size - 1
+  ]
+
+  # ============================================
+  # Stack operations
+  # ============================================
+
+  method: emitPop [
+      self emit: BytecodeGenerator opPOP
+  ]
+
+  method: emitDup [
+      self emit: BytecodeGenerator opDUP
+  ]
+
+  # ============================================
+  # AST compilation
+  # ============================================
+
+  method: compile: node [
+      "Compile an AST node."
+      node accept: self
+  ]
+
+  method: visitLiteralNode: node [
+      | type value |
+      type := node literalType.
+      value := node value.
+
+      type = #nil ifTrue: [^self emitPushNil].
+      type = #true ifTrue: [^self emitPushTrue].
+      type = #false ifTrue: [^self emitPushFalse].
+      type = #integer ifTrue: [^self emitPushInteger: value].
+      type = #float ifTrue: [^self emitPushFloat: value].
+      "String, symbol, array"
+      self emitPushLiteral: value
+  ]
+
+  method: visitVariableNode: node [
+      | name scope index |
+      name := node name.
+      scope := node scope.
+
+      scope = #self ifTrue: [^self emitPushSelf].
+      scope = #super ifTrue: [^self emitPushSelf].  "Super uses self as receiver"
+
+      "Try temp first"
+      index := self tempIndex: name.
+      index >= 0 ifTrue: [^self emitPushTemp: index].
+
+      "Try ivar"
+      index := self ivarIndex: name.
+      index >= 0 ifTrue: [^self emitPushIvar: index].
+
+      "Must be global"
+      self emitPushGlobal: (self addLiteral: name asSymbol)
+  ]
+
+  method: visitAssignmentNode: node [
+      | varNode name index |
+      "Compile the value"
+      self compile: node value.
+      self emitDup.  "Assignment returns the value"
+
+      "Store to variable"
+      varNode := node variable.
+      name := varNode name.
+
+      index := self tempIndex: name.
+      index >= 0 ifTrue: [^self emitStoreTemp: index].
+
+      index := self ivarIndex: name.
+      index >= 0 ifTrue: [^self emitStoreIvar: index].
+
+      "Global"
+      self emitStoreGlobal: (self addLiteral: name asSymbol)
+  ]
+
+  method: visitMessageSendNode: node [
+      | selector args |
+      "Compile receiver"
+      self compile: node receiver.
+
+      "Compile arguments"
+      args := node arguments.
+      args do: [:arg | self compile: arg].
+
+      "Emit send"
+      selector := node selector.
+      node receiver isVariable ifTrue: [
+          node receiver scope = #super ifTrue: [
+              ^self emitSendSuper: selector argc: args size
+          ]
+      ].
+      self emitSend: selector argc: args size
+  ]
+
+  method: visitCascadeNode: node [
+      | messages |
+      "Compile receiver once"
+      self compile: node receiver.
+
+      messages := node messages.
+      1 to: messages size do: [:i |
+          | msg |
+          msg := messages at: i.
+          i < messages size ifTrue: [self emitDup].  "Keep receiver for next message"
+          msg arguments do: [:arg | self compile: arg].
+          self emitSend: msg selector argc: msg arguments size.
+          i < messages size ifTrue: [self emitPop]  "Discard result except last"
+      ]
+  ]
+
+  method: visitBlockNode: node [
+      "Compile block as a nested method."
+      | blockGen blockIndex params |
+      blockGen := BytecodeGenerator new.
+
+      "Add parameters as temps"
+      params := node parameters.
+      params do: [:p | blockGen addTemp: p].
+
+      "Add temporaries"
+      node temporaries do: [:t | blockGen addTemp: t].
+
+      "Compile statements"
+      node statements do: [:stmt |
+          blockGen compile: stmt.
+          blockGen emitPop  "Discard intermediate results"
+      ].
+
+      "Return last value (or nil if empty)"
+      node statements size > 0
+          ifTrue: [
+              "Remove last pop, add return"
+              blockGen emitReturnTop
+          ]
+          ifFalse: [
+              blockGen emitPushNil.
+              blockGen emitReturnTop
+          ].
+
+      "Add block to our list"
+      blockIndex := self addBlockMethod: blockGen.
+
+      "TODO: Handle captures properly"
+      self emitCreateBlock: blockIndex captures: 0
+  ]
+
+  method: visitReturnNode: node [
+      self compile: node expression.
+      self emitReturnTop
+  ]
+
+  # ============================================
+  # Method compilation
+  # ============================================
+
+  method: compileMethod: methodNode [
+      "Compile a method node to bytecode."
+      | params |
+
+      "Add parameters as temps"
+      params := methodNode parameters.
+      params do: [:p | self addTemp: p].
+
+      "Add temporaries"
+      methodNode temporaries do: [:t | self addTemp: t].
+
+      "Compile statements"
+      methodNode statements do: [:stmt |
+          self compile: stmt.
+          self emitPop
+      ].
+
+      "Implicit return self if no explicit return"
+      self emitReturnSelf.
+
+      ^self
+  ]
+
+  # Printing
+  method: printString [
+      ^'BytecodeGenerator(', bytecode size printString, ' bytes, ', literals size printString, ' literals)'
+  ]

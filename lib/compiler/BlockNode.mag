@@ -1,0 +1,64 @@
+# BlockNode.mag
+# Represents block literals [:x :y | | temp | statements] in the AST.
+
+BlockNode subclass: Object
+  instanceVars: parameters temporaries statements
+
+  # Creation
+  classMethod: parameters: params temporaries: temps statements: stmts [
+      ^self new parameters: params temporaries: temps statements: stmts
+  ]
+
+  classMethod: statements: stmts [
+      ^self new parameters: #() temporaries: #() statements: stmts
+  ]
+
+  # Initialization
+  method: parameters: params temporaries: temps statements: stmts [
+      parameters := params.
+      temporaries := temps.
+      statements := stmts.
+      ^self
+  ]
+
+  # Accessing
+  method: parameters [
+      ^parameters
+  ]
+
+  method: temporaries [
+      ^temporaries
+  ]
+
+  method: statements [
+      ^statements
+  ]
+
+  # Arity
+  method: arity [
+      ^parameters size
+  ]
+
+  # Query
+  method: hasParameters [
+      ^parameters size > 0
+  ]
+
+  method: hasTemporaries [
+      ^temporaries size > 0
+  ]
+
+  # Type testing
+  method: isBlock [
+      ^true
+  ]
+
+  # Visitor pattern
+  method: accept: aVisitor [
+      ^aVisitor visitBlockNode: self
+  ]
+
+  # Printing
+  method: printString [
+      ^'BlockNode(params: ', parameters printString, ', temps: ', temporaries printString, ', stmts: ', statements printString, ')'
+  ]

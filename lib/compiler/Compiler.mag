@@ -1,0 +1,172 @@
+# Compiler.mag
+# Main entry point for the Maggie self-hosting compiler.
+# Ties together Lexer, Parser, and BytecodeGenerator.
+
+Compiler subclass: Object
+  instanceVars: currentClass
+
+  # Creation
+  classMethod: new [
+      ^super new initialize
+  ]
+
+  classMethod: forClass: aClass [
+      ^self new initializeForClass: aClass
+  ]
+
+  # Initialization
+  method: initialize [
+      currentClass := nil.
+      ^self
+  ]
+
+  method: initializeForClass: aClass [
+      currentClass := aClass.
+      ^self
+  ]
+
+  # ============================================
+  # Main compilation entry points
+  # ============================================
+
+  method: compile: sourceString [
+      "Compile a method from source string. Returns compiled method info."
+      | parser methodNode generator |
+      parser := Parser on: sourceString.
+      methodNode := parser parseMethodDef.
+      generator := currentClass notNil
+          ifTrue: [BytecodeGenerator forClass: currentClass]
+          ifFalse: [BytecodeGenerator new].
+      generator compileMethod: methodNode.
+      ^self buildMethod: methodNode generator: generator
+  ]
+
+  method: compileExpression: sourceString [
+      "Compile a single expression. Returns compiled method that evaluates it."
+      | parser expr generator |
+      parser := Parser on: sourceString.
+      expr := parser parseExpression.
+      generator := currentClass notNil
+          ifTrue: [BytecodeGenerator forClass: currentClass]
+          ifFalse: [BytecodeGenerator new].
+      generator compile: expr.
+      generator emitReturnTop.
+      ^self buildExpressionMethod: generator
+  ]
+
+  method: compileClass: sourceString [
+      "Compile a class definition from source string."
+      | parser classNode |
+      parser := Parser on: sourceString.
+      classNode := parser parseClassDef.
+      ^self compileClassNode: classNode
+  ]
+
+  method: compileSourceFile: sourceString [
+      "Compile an entire source file with multiple classes/traits."
+      | parser result classes traits compiledClasses compiledTraits |
+      parser := Parser on: sourceString.
+      result := parser parseSourceFile.
+      classes := result at: 1.
+      traits := result at: 2.
+
+      compiledClasses := Array new.
+      compiledTraits := Array new.
+
+      classes do: [:classNode |
+          compiledClasses := compiledClasses copyWith: (self compileClassNode: classNode)
+      ].
+
+      traits do: [:traitInfo |
+          compiledTraits := compiledTraits copyWith: (self compileTraitInfo: traitInfo)
+      ].
+
+      ^Array with: compiledClasses with: compiledTraits
+  ]
+
+  # ============================================
+  # Internal compilation methods
+  # ============================================
+
+  method: compileClassNode: classNode [
+      "Compile a class definition node."
+      | compiledMethods compiledClassMethods |
+      compiledMethods := Array new.
+      compiledClassMethods := Array new.
+
+      "Compile instance methods"
+      classNode methods do: [:methodNode |
+          | generator |
+          generator := BytecodeGenerator new.
+          generator compileMethod: methodNode.
+          compiledMethods := compiledMethods copyWith: (self buildMethod: methodNode generator: generator)
+      ].
+
+      "Compile class methods"
+      classNode classMethods do: [:methodNode |
+          | generator |
+          generator := BytecodeGenerator new.
+          generator compileMethod: methodNode.
+          compiledClassMethods := compiledClassMethods copyWith: (self buildMethod: methodNode generator: generator)
+      ].
+
+      ^Dictionary new
+          at: #name put: classNode name;
+          at: #superclass put: classNode superclassName;
+          at: #instanceVariables put: classNode instanceVariables;
+          at: #traits put: classNode traits;
+          at: #methods put: compiledMethods;
+          at: #classMethods put: compiledClassMethods;
+          yourself
+  ]
+
+  method: compileTraitInfo: traitInfo [
+      "Compile a trait definition."
+      | name methods requires compiledMethods |
+      name := traitInfo at: 1.
+      methods := traitInfo at: 2.
+      requires := traitInfo at: 3.
+
+      compiledMethods := Array new.
+      methods do: [:methodNode |
+          | generator |
+          generator := BytecodeGenerator new.
+          generator compileMethod: methodNode.
+          compiledMethods := compiledMethods copyWith: (self buildMethod: methodNode generator: generator)
+      ].
+
+      ^Dictionary new
+          at: #name put: name;
+          at: #methods put: compiledMethods;
+          at: #requires put: requires;
+          yourself
+  ]
+
+  method: buildMethod: methodNode generator: generator [
+      "Build a compiled method result from generator."
+      ^Dictionary new
+          at: #selector put: methodNode selector;
+          at: #parameters put: methodNode parameters;
+          at: #bytecode put: generator bytecode;
+          at: #literals put: generator literals;
+          at: #blockMethods put: generator blockMethods;
+          yourself
+  ]
+
+  method: buildExpressionMethod: generator [
+      "Build a compiled method for an expression."
+      ^Dictionary new
+          at: #selector put: #doIt;
+          at: #parameters put: Array new;
+          at: #bytecode put: generator bytecode;
+          at: #literals put: generator literals;
+          at: #blockMethods put: generator blockMethods;
+          yourself
+  ]
+
+  # Printing
+  method: printString [
+      currentClass notNil
+          ifTrue: [^'Compiler(for: ', currentClass name, ')']
+          ifFalse: [^'Compiler']
+  ]

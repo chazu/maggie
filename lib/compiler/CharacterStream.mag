@@ -1,0 +1,149 @@
+# CharacterStream.mag
+# A stream for reading source code character by character.
+
+CharacterStream subclass: Object
+  instanceVars: source position line column
+
+  # Creation
+  classMethod: on: aString [
+      ^self new initializeOn: aString
+  ]
+
+  # Initialization
+  method: initializeOn: aString [
+      source := aString.
+      position := 1.
+      line := 1.
+      column := 1.
+      ^self
+  ]
+
+  # Accessing
+  method: source [
+      ^source
+  ]
+
+  method: position [
+      ^position
+  ]
+
+  method: line [
+      ^line
+  ]
+
+  method: column [
+      ^column
+  ]
+
+  # Reading
+  method: peek [
+      "Return the current character without advancing."
+      self atEnd ifTrue: [^nil].
+      ^source at: position
+  ]
+
+  method: peekAhead: n [
+      "Return the character n positions ahead without advancing."
+      | peekPos |
+      peekPos := position + n.
+      peekPos > source size ifTrue: [^nil].
+      ^source at: peekPos
+  ]
+
+  method: next [
+      "Return the current character and advance."
+      | ch |
+      self atEnd ifTrue: [^nil].
+      ch := source at: position.
+      position := position + 1.
+      ch = Character cr ifTrue: [
+          line := line + 1.
+          column := 1
+      ] ifFalse: [
+          ch = Character lf ifTrue: [
+              line := line + 1.
+              column := 1
+          ] ifFalse: [
+              column := column + 1
+          ]
+      ].
+      ^ch
+  ]
+
+  method: skip [
+      "Advance without returning the character."
+      self next.
+      ^self
+  ]
+
+  method: skip: n [
+      "Advance n positions."
+      n timesRepeat: [self next].
+      ^self
+  ]
+
+  # Testing
+  method: atEnd [
+      ^position > source size
+  ]
+
+  method: notAtEnd [
+      ^self atEnd not
+  ]
+
+  # Matching
+  method: match: aCharacter [
+      "If current character matches, consume it and return true."
+      (self peek = aCharacter) ifTrue: [
+          self next.
+          ^true
+      ].
+      ^false
+  ]
+
+  method: matchString: aString [
+      "If upcoming characters match the string, consume them and return true."
+      | len |
+      len := aString size.
+      1 to: len do: [:i |
+          (self peekAhead: i - 1) = (aString at: i) ifFalse: [^false]
+      ].
+      self skip: len.
+      ^true
+  ]
+
+  # Collecting
+  method: upTo: aCharacter [
+      "Collect characters until aCharacter is found (not including it)."
+      | result |
+      result := String new.
+      [self atEnd not and: [self peek ~= aCharacter]] whileTrue: [
+          result := result , (self next asString)
+      ].
+      ^result
+  ]
+
+  method: upToEnd [
+      "Collect all remaining characters."
+      | result |
+      result := String new.
+      [self atEnd] whileFalse: [
+          result := result , (self next asString)
+      ].
+      ^result
+  ]
+
+  method: whileTrue: testBlock collect: collectBlock [
+      "Collect characters while testBlock returns true for peek."
+      | result |
+      result := String new.
+      [self atEnd not and: [testBlock value: self peek]] whileTrue: [
+          result := result , (collectBlock value: self next)
+      ].
+      ^result
+  ]
+
+  # Printing
+  method: printString [
+      ^'CharacterStream(pos: ', position printString, ', line: ', line printString, ', col: ', column printString, ')'
+  ]

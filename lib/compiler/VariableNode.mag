@@ -1,0 +1,70 @@
+# VariableNode.mag
+# Represents a variable reference in the AST.
+
+VariableNode subclass: Object
+  instanceVars: name scope
+
+  # Creation
+  classMethod: name: aName scope: aScope [
+      ^self new name: aName scope: aScope
+  ]
+
+  classMethod: name: aName [
+      ^self new name: aName scope: #temp
+  ]
+
+  # Initialization
+  method: name: aName scope: aScope [
+      name := aName.
+      scope := aScope.
+      ^self
+  ]
+
+  # Accessing
+  method: name [
+      ^name
+  ]
+
+  method: scope [
+      ^scope
+  ]
+
+  # Scope testing
+  method: isTemp [
+      ^scope = #temp
+  ]
+
+  method: isArg [
+      ^scope = #arg
+  ]
+
+  method: isInstanceVariable [
+      ^scope = #ivar
+  ]
+
+  method: isGlobal [
+      ^scope = #global
+  ]
+
+  method: isSelf [
+      ^scope = #self
+  ]
+
+  method: isSuper [
+      ^scope = #super
+  ]
+
+  # Type testing
+  method: isVariable [
+      ^true
+  ]
+
+  # Visitor pattern
+  method: accept: aVisitor [
+      ^aVisitor visitVariableNode: self
+  ]
+
+  # Printing
+  method: printString [
+      ^'VariableNode(', name printString, ', ', scope printString, ')'
+  ]

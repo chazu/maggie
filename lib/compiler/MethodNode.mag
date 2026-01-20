@@ -1,0 +1,86 @@
+# MethodNode.mag
+# Represents a method definition in the AST.
+
+MethodNode subclass: Object
+  instanceVars: selector parameters temporaries statements primitive
+
+  # Creation
+  classMethod: selector: aSelector parameters: params temporaries: temps statements: stmts [
+      ^self new selector: aSelector parameters: params temporaries: temps statements: stmts primitive: nil
+  ]
+
+  classMethod: selector: aSelector parameters: params temporaries: temps statements: stmts primitive: aPrimitive [
+      ^self new selector: aSelector parameters: params temporaries: temps statements: stmts primitive: aPrimitive
+  ]
+
+  # Initialization
+  method: selector: aSelector parameters: params temporaries: temps statements: stmts primitive: aPrimitive [
+      selector := aSelector.
+      parameters := params.
+      temporaries := temps.
+      statements := stmts.
+      primitive := aPrimitive.
+      ^self
+  ]
+
+  # Accessing
+  method: selector [
+      ^selector
+  ]
+
+  method: parameters [
+      ^parameters
+  ]
+
+  method: temporaries [
+      ^temporaries
+  ]
+
+  method: statements [
+      ^statements
+  ]
+
+  method: primitive [
+      ^primitive
+  ]
+
+  # Arity
+  method: arity [
+      ^parameters size
+  ]
+
+  # Query
+  method: hasPrimitive [
+      ^primitive notNil
+  ]
+
+  method: isPrimitive [
+      ^self hasPrimitive
+  ]
+
+  # Type testing
+  method: isMethod [
+      ^true
+  ]
+
+  # Visitor pattern
+  method: accept: aVisitor [
+      ^aVisitor visitMethodNode: self
+  ]
+
+  # Printing
+  method: printString [
+      | s |
+      s := 'MethodNode(', selector printString.
+      parameters isEmpty ifFalse: [
+          s := s, ' params: ', parameters printString
+      ].
+      temporaries isEmpty ifFalse: [
+          s := s, ' temps: ', temporaries printString
+      ].
+      self hasPrimitive ifTrue: [
+          s := s, ' primitive: ', primitive printString
+      ].
+      s := s, ')'.
+      ^s
+  ]

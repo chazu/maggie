@@ -224,17 +224,26 @@ func (p *Parser) parseReturn() *Return {
 
 // parseKeywordSend parses keyword message sends (lowest precedence).
 func (p *Parser) parseKeywordSend() Expr {
-	receiver := p.parseBinarySend()
+	receiver := p.parseBinarySendNoCascade()
 	if receiver == nil {
 		return nil
 	}
 
+	var result Expr
+
 	// Check for keyword message
-	if !p.curTokenIs(TokenKeyword) {
-		return receiver
+	if p.curTokenIs(TokenKeyword) {
+		result = p.parseKeywordMessage(receiver)
+	} else {
+		result = receiver
 	}
 
-	return p.parseKeywordMessage(receiver)
+	// Check for cascade AFTER the full keyword/binary message
+	if p.curTokenIs(TokenSemicolon) {
+		return p.parseCascade(result)
+	}
+
+	return result
 }
 
 // parseKeywordMessage parses a keyword message with given receiver.
@@ -252,7 +261,8 @@ func (p *Parser) parseKeywordMessage(receiver Expr) Expr {
 		p.nextToken()
 
 		// Parse argument (binary level, not keyword to avoid ambiguity)
-		arg := p.parseBinarySend()
+		// Use NoCascade version to prevent semicolons from being consumed as cascades
+		arg := p.parseBinarySendNoCascade()
 		if arg == nil {
 			return nil
 		}
@@ -269,15 +279,27 @@ func (p *Parser) parseKeywordMessage(receiver Expr) Expr {
 }
 
 // parseBinarySend parses binary message sends (middle precedence).
+// This version includes cascade handling for standalone expressions.
 func (p *Parser) parseBinarySend() Expr {
-	left := p.parseUnarySend()
+	left := p.parseBinarySendNoCascade()
 	if left == nil {
 		return nil
 	}
 
-	// Check for cascades first
+	// Check for cascades
 	if p.curTokenIs(TokenSemicolon) {
 		return p.parseCascade(left)
+	}
+
+	return left
+}
+
+// parseBinarySendNoCascade parses binary message sends without cascade handling.
+// Used when parsing keyword message arguments where cascades shouldn't be triggered.
+func (p *Parser) parseBinarySendNoCascade() Expr {
+	left := p.parseUnarySend()
+	if left == nil {
+		return nil
 	}
 
 	// Parse binary messages (left associative)
@@ -392,7 +414,8 @@ func (p *Parser) parseCascadedMessage() *CascadedMessage {
 			keywords = append(keywords, keyword)
 			selector.WriteString(keyword)
 			p.nextToken()
-			arg := p.parseBinarySend()
+			// Use NoCascade version to prevent semicolons from being consumed as cascades
+			arg := p.parseBinarySendNoCascade()
 			if arg == nil {
 				return nil
 			}

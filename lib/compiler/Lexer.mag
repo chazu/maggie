@@ -1,0 +1,370 @@
+# Lexer.mag
+# Tokenizes Maggie source code into a stream of tokens.
+
+Lexer subclass: Object
+  instanceVars: stream currentToken
+
+  # Creation
+  classMethod: on: aString [
+      ^self new initializeOn: aString
+  ]
+
+  # Initialization
+  method: initializeOn: aString [
+      stream := CharacterStream on: aString.
+      currentToken := nil.
+      ^self
+  ]
+
+  # Accessing
+  method: stream [
+      ^stream
+  ]
+
+  # Main interface
+  method: nextToken [
+      "Return the next token from the stream."
+      | token |
+      self skipWhitespaceAndComments.
+      stream atEnd ifTrue: [
+          ^Token type: #eof value: nil position: stream position
+      ].
+      token := self scanToken.
+      currentToken := token.
+      ^token
+  ]
+
+  method: peek [
+      "Return the next token without consuming it."
+      | savedPos savedLine savedCol token |
+      currentToken notNil ifTrue: [^currentToken].
+      savedPos := stream position.
+      savedLine := stream line.
+      savedCol := stream column.
+      token := self nextToken.
+      "Restore position - note: this is a simplification, real impl would need proper state save"
+      currentToken := token.
+      ^token
+  ]
+
+  method: allTokens [
+      "Return an array of all tokens."
+      | tokens token |
+      tokens := Array new.
+      [token := self nextToken. token isEOF] whileFalse: [
+          tokens := tokens copyWith: token
+      ].
+      tokens := tokens copyWith: token.  "Include EOF"
+      ^tokens
+  ]
+
+  # Whitespace and comments
+  method: skipWhitespaceAndComments [
+      "Skip whitespace and comments."
+      | done |
+      done := false.
+      [done] whileFalse: [
+          self skipWhitespace.
+          (self skipLineComment or: [self skipBlockComment])
+              ifTrue: [done := false]
+              ifFalse: [done := true]
+      ]
+  ]
+
+  method: skipWhitespace [
+      "Skip spaces, tabs, newlines."
+      [stream atEnd not and: [self isWhitespace: stream peek]] whileTrue: [
+          stream next
+      ]
+  ]
+
+  method: skipLineComment [
+      "Skip # line comment if at one. Return true if skipped."
+      | ch peek |
+      stream atEnd ifTrue: [^false].
+      ch := stream peek.
+      ch = $# ifFalse: [^false].
+      "# is comment only if followed by space, tab, newline, or EOF"
+      peek := stream peekAhead: 1.
+      (peek isNil or: [peek = Character space or: [peek = Character tab or: [peek = Character cr or: [peek = Character lf]]]]) ifFalse: [^false].
+      "Skip to end of line"
+      [stream atEnd not and: [stream peek ~= Character cr and: [stream peek ~= Character lf]]] whileTrue: [
+          stream next
+      ].
+      ^true
+  ]
+
+  method: skipBlockComment [
+      "Skip double-quote block comment if at one. Return true if skipped."
+      stream peek = $" ifFalse: [^false].
+      stream next.  "Skip opening quote"
+      [stream atEnd not and: [stream peek ~= $"]] whileTrue: [
+          stream next
+      ].
+      stream atEnd ifFalse: [stream next].  "Skip closing quote"
+      ^true
+  ]
+
+  # Token scanning
+  method: scanToken [
+      "Scan and return the next token."
+      | ch pos |
+      pos := stream position.
+      ch := stream peek.
+
+      "Identifiers and keywords"
+      (self isLetter: ch) ifTrue: [^self scanIdentifierOrKeyword].
+
+      "Numbers"
+      (self isDigit: ch) ifTrue: [^self scanNumber].
+
+      "Negative numbers"
+      (ch = $- and: [self isDigit: (stream peekAhead: 1)]) ifTrue: [^self scanNumber].
+
+      "Strings"
+      ch = $' ifTrue: [^self scanString].
+
+      "Symbols"
+      ch = $# ifTrue: [^self scanSymbolOrArray].
+
+      "Assignment"
+      (ch = $: and: [(stream peekAhead: 1) = $=]) ifTrue: [
+          stream skip: 2.
+          ^Token type: #assign value: #':=' position: pos
+      ].
+
+      "Binary selectors and punctuation"
+      ^self scanOperatorOrPunctuation
+  ]
+
+  # Identifier scanning
+  method: scanIdentifierOrKeyword [
+      "Scan an identifier or keyword (ends with :)."
+      | pos name ch |
+      pos := stream position.
+      name := String new.
+
+      "Collect identifier characters"
+      [stream atEnd not and: [self isIdentifierChar: stream peek]] whileTrue: [
+          name := name , (stream next asString)
+      ].
+
+      "Check if it's a keyword (ends with :)"
+      (stream atEnd not and: [stream peek = $:]) ifTrue: [
+          "But not if followed by = (that's assignment)"
+          (stream peekAhead: 1) = $= ifFalse: [
+              stream next.  "Consume the colon"
+              name := name , ':'.
+              ^Token type: #keyword value: name position: pos
+          ]
+      ].
+
+      ^Token type: #identifier value: name position: pos
+  ]
+
+  # Number scanning
+  method: scanNumber [
+      "Scan an integer or float."
+      | pos numStr isFloat ch |
+      pos := stream position.
+      numStr := String new.
+      isFloat := false.
+
+      "Optional minus"
+      stream peek = $- ifTrue: [
+          numStr := numStr , (stream next asString)
+      ].
+
+      "Integer part"
+      [stream atEnd not and: [self isDigit: stream peek]] whileTrue: [
+          numStr := numStr , (stream next asString)
+      ].
+
+      "Check for decimal point"
+      (stream atEnd not and: [stream peek = $.]) ifTrue: [
+          "Only if followed by digit"
+          (self isDigit: (stream peekAhead: 1)) ifTrue: [
+              isFloat := true.
+              numStr := numStr , (stream next asString).  "The dot"
+              [stream atEnd not and: [self isDigit: stream peek]] whileTrue: [
+                  numStr := numStr , (stream next asString)
+              ]
+          ]
+      ].
+
+      isFloat
+          ifTrue: [^Token type: #float value: numStr asFloat position: pos]
+          ifFalse: [^Token type: #integer value: numStr asInteger position: pos]
+  ]
+
+  # String scanning
+  method: scanString [
+      "Scan a single-quoted string. Double quotes for escape."
+      | pos result ch |
+      pos := stream position.
+      stream next.  "Skip opening quote"
+      result := String new.
+
+      [stream atEnd not] whileTrue: [
+          ch := stream next.
+          ch = $' ifTrue: [
+              "Check for doubled quote (escape)"
+              stream peek = $' ifTrue: [
+                  stream next.
+                  result := result , ''''
+              ] ifFalse: [
+                  "End of string"
+                  ^Token type: #string value: result position: pos
+              ]
+          ] ifFalse: [
+              result := result , ch asString
+          ]
+      ].
+
+      "Unterminated string - return what we have"
+      ^Token type: #string value: result position: pos
+  ]
+
+  # Symbol scanning
+  method: scanSymbolOrArray [
+      "Scan a symbol (#foo or #'quoted') or literal array #()."
+      | pos ch |
+      pos := stream position.
+      stream next.  "Skip #"
+
+      stream atEnd ifTrue: [
+          ^Token type: #symbol value: #'' position: pos
+      ].
+
+      ch := stream peek.
+
+      "Literal array"
+      ch = $( ifTrue: [
+          stream next.
+          ^Token type: #arrayStart value: #'#(' position: pos
+      ].
+
+      "Quoted symbol"
+      ch = $' ifTrue: [
+          ^self scanQuotedSymbol: pos
+      ].
+
+      "Regular symbol - identifier or binary selector"
+      (self isLetter: ch) ifTrue: [
+          ^self scanBareSymbol: pos
+      ].
+
+      (self isBinaryChar: ch) ifTrue: [
+          ^self scanBinarySymbol: pos
+      ].
+
+      ^Token type: #symbol value: #'' position: pos
+  ]
+
+  method: scanBareSymbol: startPos [
+      "Scan a bare symbol like #foo or #foo:bar:."
+      | name |
+      name := String new.
+      [stream atEnd not and: [(self isIdentifierChar: stream peek) or: [stream peek = $:]]] whileTrue: [
+          name := name , (stream next asString)
+      ].
+      ^Token type: #symbol value: name asSymbol position: startPos
+  ]
+
+  method: scanQuotedSymbol: startPos [
+      "Scan a quoted symbol like #'hello world'."
+      | result ch |
+      stream next.  "Skip opening quote"
+      result := String new.
+
+      [stream atEnd not and: [stream peek ~= $']] whileTrue: [
+          ch := stream next.
+          ch = $' ifTrue: [
+              stream peek = $' ifTrue: [
+                  stream next.
+                  result := result , ''''
+              ]
+          ] ifFalse: [
+              result := result , ch asString
+          ]
+      ].
+
+      stream atEnd ifFalse: [stream next].  "Skip closing quote"
+      ^Token type: #symbol value: result asSymbol position: startPos
+  ]
+
+  method: scanBinarySymbol: startPos [
+      "Scan a binary selector as symbol like #+ or #>=."
+      | name |
+      name := String new.
+      [stream atEnd not and: [self isBinaryChar: stream peek]] whileTrue: [
+          name := name , (stream next asString)
+      ].
+      ^Token type: #symbol value: name asSymbol position: startPos
+  ]
+
+  # Operator and punctuation scanning
+  method: scanOperatorOrPunctuation [
+      "Scan operators and punctuation."
+      | pos ch |
+      pos := stream position.
+      ch := stream next.
+
+      "Single character punctuation"
+      ch = $. ifTrue: [^Token type: #period value: #'.' position: pos].
+      ch = $; ifTrue: [^Token type: #semicolon value: #';' position: pos].
+      ch = $^ ifTrue: [^Token type: #caret value: #'^' position: pos].
+      ch = $| ifTrue: [^Token type: #pipe value: #'|' position: pos].
+      ch = $: ifTrue: [^Token type: #colon value: #':' position: pos].
+      ch = $( ifTrue: [^Token type: #leftParen value: #'(' position: pos].
+      ch = $) ifTrue: [^Token type: #rightParen value: #')' position: pos].
+      ch = $[ ifTrue: [^Token type: #leftBracket value: #'[' position: pos].
+      ch = $] ifTrue: [^Token type: #rightBracket value: #']' position: pos].
+      ch = ${ ifTrue: [^Token type: #leftBrace value: #'{' position: pos].
+      ch = $} ifTrue: [^Token type: #rightBrace value: #'}' position: pos].
+
+      "Binary selectors (may be multi-character)"
+      (self isBinaryChar: ch) ifTrue: [
+          | selector |
+          selector := ch asString.
+          [stream atEnd not and: [self isBinaryChar: stream peek]] whileTrue: [
+              selector := selector , (stream next asString)
+          ].
+          ^Token type: #binary value: selector position: pos
+      ].
+
+      "Unknown character"
+      ^Token type: #unknown value: ch asString position: pos
+  ]
+
+  # Character classification helpers
+  method: isWhitespace: ch [
+      ch isNil ifTrue: [^false].
+      ^ch = Character space or: [ch = Character tab or: [ch = Character cr or: [ch = Character lf]]]
+  ]
+
+  method: isLetter: ch [
+      ch isNil ifTrue: [^false].
+      ^ch isLetter
+  ]
+
+  method: isDigit: ch [
+      ch isNil ifTrue: [^false].
+      ^ch isDigit
+  ]
+
+  method: isIdentifierChar: ch [
+      ch isNil ifTrue: [^false].
+      ^ch isLetter or: [ch isDigit or: [ch = $_]]
+  ]
+
+  method: isBinaryChar: ch [
+      "Characters that can be part of a binary selector."
+      ch isNil ifTrue: [^false].
+      ^'+-*/\<>=@%|&?!~,' includes: ch
+  ]
+
+  # Printing
+  method: printString [
+      ^'Lexer(', stream printString, ')'
+  ]

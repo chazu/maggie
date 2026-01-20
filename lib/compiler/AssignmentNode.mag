@@ -1,0 +1,41 @@
+# AssignmentNode.mag
+# Represents variable assignment statements (x := expr) in the AST.
+
+AssignmentNode subclass: Object
+  instanceVars: variable value
+
+  # Creation
+  classMethod: variable: aVariable value: aValue [
+      ^self new variable: aVariable value: aValue
+  ]
+
+  # Initialization
+  method: variable: aVariable value: aValue [
+      variable := aVariable.
+      value := aValue.
+      ^self
+  ]
+
+  # Accessing
+  method: variable [
+      ^variable
+  ]
+
+  method: value [
+      ^value
+  ]
+
+  # Type testing
+  method: isAssignment [
+      ^true
+  ]
+
+  # Visitor pattern
+  method: accept: aVisitor [
+      ^aVisitor visitAssignmentNode: self
+  ]
+
+  # Printing
+  method: printString [
+      ^'AssignmentNode(', variable printString, ' := ', value printString, ')'
+  ]

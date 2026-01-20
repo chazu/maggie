@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"unsafe"
 
 	"github.com/chazu/maggie/compiler"
 	"github.com/chazu/maggie/vm"
@@ -44,10 +45,21 @@ func main() {
 	// Create a fresh VM with primitives
 	vmInst := vm.NewVM()
 
-	// Find all .mag files
+	// Set up the Go compiler backend
+	vmInst.UseGoCompiler(compiler.Compile)
+
+	// Find all .mag files in lib/
 	files, err := filepath.Glob(filepath.Join(*libDir, "*.mag"))
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error finding source files: %v\n", err)
+		os.Exit(1)
+	}
+
+	// Also find compiler files in lib/compiler/
+	compilerDir := filepath.Join(*libDir, "compiler")
+	compilerFiles, err := filepath.Glob(filepath.Join(compilerDir, "*.mag"))
+	if err != nil && !os.IsNotExist(err) {
+		fmt.Fprintf(os.Stderr, "Error finding compiler files: %v\n", err)
 		os.Exit(1)
 	}
 
@@ -57,7 +69,10 @@ func main() {
 	}
 
 	if *verbose {
-		fmt.Printf("Found %d source files\n", len(files))
+		fmt.Printf("Found %d core library files\n", len(files))
+		if len(compilerFiles) > 0 {
+			fmt.Printf("Found %d compiler files\n", len(compilerFiles))
+		}
 	}
 
 	// Compile files
@@ -67,7 +82,11 @@ func main() {
 		// New Trashtalk-style syntax: two-pass compilation
 		// Pass 1: Parse all files and compile traits
 		// Pass 2: Compile classes (traits are now available)
-		methods, err := compileAllFilesNew(files, vmInst, *verbose)
+
+		// Combine core and compiler files (core first, then compiler)
+		allFiles := append(files, compilerFiles...)
+
+		methods, err := compileAllFilesNew(allFiles, vmInst, *verbose)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 			os.Exit(1)
@@ -202,13 +221,41 @@ func compileAllFilesNew(files []string, vmInst *vm.VM, verbose bool) (int, error
 	// Pass 2: Compile all classes from all files
 	for _, pf := range parsed {
 		for _, classDef := range pf.sf.Classes {
-			// Look up the class in the VM
-			classGetter, ok := classMapping[classDef.Name]
-			if !ok {
-				return compiled, fmt.Errorf("unknown class: %s (not found in classMapping) in %s", classDef.Name, pf.path)
-			}
+			var class *vm.Class
 
-			class := classGetter(vmInst)
+			// Look up the class in the VM (for core classes)
+			classGetter, ok := classMapping[classDef.Name]
+			if ok {
+				class = classGetter(vmInst)
+			} else {
+				// Dynamically create the class (for compiler and user classes)
+				var superclass *vm.Class
+				if classDef.Superclass != "" && classDef.Superclass != "Object" {
+					// Look up superclass - try classMapping first, then globals
+					if superGetter, ok := classMapping[classDef.Superclass]; ok {
+						superclass = superGetter(vmInst)
+					} else if superVal, ok := vmInst.Globals[classDef.Superclass]; ok {
+						if superVal.IsObject() {
+							superclass = (*vm.Class)(superVal.ObjectPtr())
+						}
+					}
+				} else {
+					superclass = vmInst.ObjectClass
+				}
+
+				// Create the class with instance variables
+				class = vm.NewClassWithInstVars(classDef.Name, superclass, classDef.InstanceVariables)
+
+				// Register the class in globals so it can be looked up
+				vmInst.Globals[classDef.Name] = vm.FromObjectPtr(unsafe.Pointer(class))
+
+				if verbose {
+					fmt.Printf("  created class %s (superclass: %s, instVars: %v)\n",
+						classDef.Name,
+						classDef.Superclass,
+						classDef.InstanceVariables)
+				}
+			}
 
 			// Compile instance methods
 			for _, methodDef := range classDef.Methods {
