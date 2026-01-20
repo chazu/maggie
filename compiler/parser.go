@@ -860,7 +860,7 @@ func (p *Parser) parseClassDefBody(className string, startPos Position) *ClassDe
 		if p.curTokenIs(TokenKeyword) {
 			keyword := p.curToken.Literal
 			switch keyword {
-			case "instanceVars:":
+			case "instanceVars:", "instanceVariables:":
 				vars := p.parseInstanceVars()
 				classDef.InstanceVariables = append(classDef.InstanceVariables, vars...)
 
@@ -949,10 +949,26 @@ func (p *Parser) parseTraitDefBody(traitName string, startPos Position) *TraitDe
 
 // parseInstanceVars parses instance variable declarations.
 // Format: instanceVars: name1 name2 name3
+// OR:     instanceVariables: 'name1 name2 name3'
 func (p *Parser) parseInstanceVars() []string {
-	p.nextToken() // consume "instanceVars:"
+	p.nextToken() // consume "instanceVars:" or "instanceVariables:"
 
 	var vars []string
+
+	// Handle string literal format: instanceVariables: 'var1 var2 var3'
+	if p.curTokenIs(TokenString) {
+		str := p.curToken.Literal
+		p.nextToken()
+		// Split the string by whitespace to get variable names
+		for _, v := range strings.Fields(str) {
+			if v != "" {
+				vars = append(vars, v)
+			}
+		}
+		return vars
+	}
+
+	// Handle identifier format: instanceVars: var1 var2 var3
 	for p.curTokenIs(TokenIdentifier) {
 		vars = append(vars, p.curToken.Literal)
 		p.nextToken()

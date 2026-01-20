@@ -415,9 +415,9 @@ func compileFile(path string, vmInst *vm.VM, verbose bool) (int, error) {
 			}
 		}
 
-		// Compile instance methods
+		// Compile instance methods (with instance variable context)
 		for _, methodDef := range classDef.Methods {
-			method, err := compiler.CompileMethodDef(methodDef, vmInst.Selectors, vmInst.Symbols)
+			method, err := compiler.CompileMethodDefWithIvars(methodDef, vmInst.Selectors, vmInst.Symbols, classDef.InstanceVariables)
 			if err != nil {
 				return compiled, fmt.Errorf("error compiling %s>>%s: %v", classDef.Name, methodDef.Selector, err)
 			}

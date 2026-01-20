@@ -1,6 +1,8 @@
 package vm
 
-import "strconv"
+import (
+	"strconv"
+)
 
 // ---------------------------------------------------------------------------
 // VM: The Maggie Virtual Machine

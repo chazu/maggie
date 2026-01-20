@@ -942,12 +942,6 @@ func (i *Interpreter) send(selector int, argc int) (result Value) {
 	args := i.popN(argc)
 	rcvr := i.pop()
 
-	// Debug: limit spam
-	if i.fp < 7 && false {
-		selectorName := i.Selectors.Name(selector)
-		fmt.Printf("DEBUG send: selector=%s (%d), argc=%d, rcvr=%v (fp=%d)\n", selectorName, selector, argc, rcvr, i.fp)
-	}
-
 	// Get the vtable for the receiver
 	vt := i.vtableFor(rcvr)
 	if vt == nil {
@@ -955,21 +949,11 @@ func (i *Interpreter) send(selector int, argc int) (result Value) {
 		return Nil
 	}
 
-	// Debug: show vtable class
-	if i.fp < 7 && false && vt.Class() != nil {
-		fmt.Printf("DEBUG send: vtable class=%s\n", vt.Class().Name)
-	}
-
 	// Lookup the method
 	method := vt.Lookup(selector)
 	if method == nil {
 		// Method not found - would trigger doesNotUnderstand:
 		return Nil
-	}
-
-	// Debug: show method type
-	if i.fp < 7 && false {
-		fmt.Printf("DEBUG send: method=(%T)\n", method)
 	}
 
 	// Check if it's a compiled method or primitive
