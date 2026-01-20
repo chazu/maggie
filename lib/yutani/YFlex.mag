@@ -1,0 +1,45 @@
+"YFlex - Flex layout container"
+
+YWidget subclass: #YFlex
+    instanceVariables: ''.
+
+"Adding children"
+
+YFlex >> add: aWidget
+    "Add a widget with default settings (proportion 1, no fixed size, no focus)"
+    ^ self add: aWidget proportion: 1 fixed: 0 focus: false.
+
+YFlex >> add: aWidget proportion: proportion
+    "Add a widget with a proportion"
+    ^ self add: aWidget proportion: proportion fixed: 0 focus: false.
+
+YFlex >> add: aWidget fixed: fixedSize
+    "Add a widget with a fixed size"
+    ^ self add: aWidget proportion: 0 fixed: fixedSize focus: false.
+
+YFlex >> add: aWidget proportion: proportion fixed: fixedSize focus: hasFocus
+    "Add a widget with full control over layout"
+    handle primFlexAdd: aWidget handle proportion: proportion fixed: fixedSize focus: hasFocus.
+    ^ self.
+
+"Removing children"
+
+YFlex >> remove: aWidget
+    "Remove a widget from the flex container"
+    handle primFlexRemove: aWidget handle.
+    ^ self.
+
+"Layout direction"
+
+YFlex >> direction: aSymbol
+    "Set the flex direction (#row or #column)"
+    handle primFlexDirection: aSymbol.
+    ^ self.
+
+YFlex >> row
+    "Set direction to row (horizontal)"
+    ^ self direction: #row.
+
+YFlex >> column
+    "Set direction to column (vertical)"
+    ^ self direction: #column.

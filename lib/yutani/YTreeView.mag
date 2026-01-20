@@ -1,0 +1,30 @@
+"YTreeView - Hierarchical tree widget"
+
+YWidget subclass: #YTreeView
+    instanceVariables: ''.
+
+"Root node"
+
+YTreeView >> setRoot: text
+    "Set the root node with the given text. Returns the node ID."
+    ^ handle primTreeSetRoot: text.
+
+"Selection"
+
+YTreeView >> selected
+    "Return the selected node info as a Dictionary with #nodeId, #text, #reference"
+    ^ handle primTreeGetSelected.
+
+YTreeView >> selectedText
+    "Return the text of the selected node"
+    | info |
+    info := self selected.
+    info ifNil: [^ nil].
+    ^ info at: #text.
+
+YTreeView >> selectedReference
+    "Return the reference of the selected node"
+    | info |
+    info := self selected.
+    info ifNil: [^ nil].
+    ^ info at: #reference.

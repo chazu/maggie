@@ -1,0 +1,100 @@
+"YEvent - Event wrapper for Yutani events"
+
+Object subclass: #YEvent
+    instanceVariables: 'data'.
+
+"Class methods"
+
+YEvent class >> from: aDictionary
+    "Create an event from a dictionary"
+    | event |
+    event := self basicNew.
+    event data: aDictionary.
+    ^ event.
+
+"Instance methods"
+
+YEvent >> data
+    ^ data.
+
+YEvent >> data: aDictionary
+    data := aDictionary.
+
+"Event type queries"
+
+YEvent >> type
+    "Return the event type as a symbol (#key, #mouse, #resize, #focus, #widget)"
+    ^ data at: #type.
+
+YEvent >> isKey
+    ^ self type = #key.
+
+YEvent >> isMouse
+    ^ self type = #mouse.
+
+YEvent >> isResize
+    ^ self type = #resize.
+
+YEvent >> isFocus
+    ^ self type = #focus.
+
+YEvent >> isWidget
+    ^ self type = #widget.
+
+"Key event accessors"
+
+YEvent >> key
+    "Return the key name for key events"
+    ^ data at: #key.
+
+YEvent >> keyRune
+    "Return the rune value for key events"
+    ^ data at: #rune.
+
+YEvent >> keyMod
+    "Return the modifier value for key events"
+    ^ data at: #mod.
+
+"Mouse event accessors"
+
+YEvent >> mouseX
+    ^ data at: #x.
+
+YEvent >> mouseY
+    ^ data at: #y.
+
+YEvent >> mouseButton
+    ^ data at: #button.
+
+YEvent >> mouseAction
+    ^ data at: #action.
+
+"Resize event accessors"
+
+YEvent >> width
+    ^ data at: #width.
+
+YEvent >> height
+    ^ data at: #height.
+
+"Focus event accessors"
+
+YEvent >> isFocused
+    ^ data at: #focused.
+
+"Widget event accessors"
+
+YEvent >> widgetId
+    ^ data at: #widgetId.
+
+YEvent >> widgetEventType
+    ^ data at: #widgetEventType.
+
+YEvent >> widgetData
+    ^ data at: #data.
+
+"Convenience"
+
+YEvent >> isItemSelected
+    "Return true if this is a widget selection event"
+    ^ self isWidget and: [self widgetEventType = 'WIDGET_EVENT_SELECTED'].

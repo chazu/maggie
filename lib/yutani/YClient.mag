@@ -1,0 +1,129 @@
+"YClient - Yutani display server connection wrapper"
+
+Object subclass: #YClient
+    instanceVariables: 'handle eventChannel'.
+
+"Class methods"
+
+YClient class >> connectTo: address
+    "Connect to a Yutani server at the given address (e.g., 'localhost:7755')"
+    | client |
+    client := self basicNew.
+    client handle: (YClient primConnect: address).
+    client handle ifNil: [^ nil].
+    ^ client.
+
+"Instance methods"
+
+YClient >> handle
+    ^ handle.
+
+YClient >> handle: aHandle
+    handle := aHandle.
+
+YClient >> close
+    "Close the connection to the server"
+    handle primClose.
+    handle := nil.
+
+YClient >> isConnected
+    "Return true if connected to the server"
+    handle ifNil: [^ false].
+    ^ handle primIsConnected.
+
+YClient >> isHealthy
+    "Return true if the connection is healthy"
+    handle ifNil: [^ false].
+    ^ handle primIsHealthy.
+
+"Widget creation"
+
+YClient >> newList
+    "Create a new list widget"
+    ^ YList on: self handle: (handle primNewList).
+
+YClient >> newFlex
+    "Create a new flex layout container"
+    ^ YFlex on: self handle: (handle primNewFlex).
+
+YClient >> newTextView
+    "Create a new text view widget"
+    ^ YTextView on: self handle: (handle primNewTextView).
+
+YClient >> newTextArea
+    "Create a new text area widget"
+    ^ YTextArea on: self handle: (handle primNewTextArea).
+
+YClient >> newButton
+    "Create a new button widget"
+    ^ YButton on: self handle: (handle primNewButton).
+
+YClient >> newInputField
+    "Create a new input field widget"
+    ^ YInputField on: self handle: (handle primNewInputField).
+
+YClient >> newGrid
+    "Create a new grid layout container"
+    ^ YGrid on: self handle: (handle primNewGrid).
+
+YClient >> newPages
+    "Create a new pages container"
+    ^ YPages on: self handle: (handle primNewPages).
+
+YClient >> newTable
+    "Create a new table widget"
+    ^ YTable on: self handle: (handle primNewTable).
+
+YClient >> newTreeView
+    "Create a new tree view widget"
+    ^ YTreeView on: self handle: (handle primNewTreeView).
+
+"Screen and layout"
+
+YClient >> setRoot: aWidget
+    "Set the root widget to display"
+    handle primSetRoot: aWidget handle.
+    ^ self.
+
+YClient >> screenSize
+    "Return the screen size as an Array #(width height)"
+    ^ handle primScreenSize.
+
+YClient >> clearScreen
+    "Clear the screen"
+    handle primClearScreen.
+    ^ self.
+
+YClient >> sync
+    "Synchronize the display"
+    handle primSync.
+    ^ self.
+
+"Event handling"
+
+YClient >> startEvents
+    "Start the event stream, returns a Channel for receiving events"
+    eventChannel := handle primStartEvents.
+    ^ eventChannel.
+
+YClient >> stopEvents
+    "Stop the event stream"
+    handle primStopEvents.
+    eventChannel := nil.
+    ^ self.
+
+YClient >> eventChannel
+    "Return the event channel (nil if events not started)"
+    ^ eventChannel.
+
+YClient >> onEvent: aBlock
+    "Convenience method: fork a process that handles events with aBlock.
+     Usage: client onEvent: [:event | self handleEvent: event]"
+    self startEvents.
+    [
+        [self isConnected] whileTrue: [
+            | event |
+            event := eventChannel receive.
+            event ifNotNil: [aBlock value: event].
+        ]
+    ] fork.

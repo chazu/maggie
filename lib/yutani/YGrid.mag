@@ -1,0 +1,26 @@
+"YGrid - Grid layout container"
+
+YWidget subclass: #YGrid
+    instanceVariables: ''.
+
+"Adding children"
+
+YGrid >> add: aWidget row: row col: col
+    "Add a widget at the given position"
+    ^ self add: aWidget row: row col: col rowSpan: 1 colSpan: 1 minW: 0 minH: 0 focus: false.
+
+YGrid >> add: aWidget row: row col: col rowSpan: rowSpan colSpan: colSpan
+    "Add a widget with span"
+    ^ self add: aWidget row: row col: col rowSpan: rowSpan colSpan: colSpan minW: 0 minH: 0 focus: false.
+
+YGrid >> add: aWidget row: row col: col rowSpan: rowSpan colSpan: colSpan minW: minW minH: minH focus: hasFocus
+    "Add a widget with full control"
+    handle primGridAdd: aWidget handle row: row col: col rowSpan: rowSpan colSpan: colSpan minW: minW minH: minH focus: hasFocus.
+    ^ self.
+
+"Removing children"
+
+YGrid >> remove: aWidget
+    "Remove a widget from the grid"
+    handle primGridRemove: aWidget handle.
+    ^ self.

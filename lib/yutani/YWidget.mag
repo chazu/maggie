@@ -1,0 +1,58 @@
+"YWidget - Abstract base class for Yutani widgets"
+
+Object subclass: #YWidget
+    instanceVariables: 'client handle'.
+
+"Class methods"
+
+YWidget class >> on: aClient handle: aHandle
+    "Create a widget wrapper"
+    | widget |
+    widget := self basicNew.
+    widget client: aClient.
+    widget handle: aHandle.
+    ^ widget.
+
+"Instance methods"
+
+YWidget >> client
+    ^ client.
+
+YWidget >> client: aClient
+    client := aClient.
+
+YWidget >> handle
+    ^ handle.
+
+YWidget >> handle: aHandle
+    handle := aHandle.
+
+YWidget >> delete
+    "Delete this widget"
+    handle primDelete.
+    handle := nil.
+
+YWidget >> widgetType
+    "Return the widget type as a symbol"
+    ^ handle primWidgetType.
+
+YWidget >> widgetId
+    "Return the widget ID string"
+    ^ handle primWidgetId.
+
+"Common properties"
+
+YWidget >> title: aString
+    "Set the widget title"
+    handle primSetTitle: aString.
+    ^ self.
+
+YWidget >> border: aBoolean
+    "Set whether the widget has a border"
+    handle primSetBorder: aBoolean.
+    ^ self.
+
+YWidget >> setFocus
+    "Set focus to this widget"
+    handle primSetFocus.
+    ^ self.

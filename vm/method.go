@@ -22,6 +22,12 @@ type Method2Func func(vm interface{}, receiver Value, arg1, arg2 Value) Value
 // Method3Func is a primitive taking three arguments.
 type Method3Func func(vm interface{}, receiver Value, arg1, arg2, arg3 Value) Value
 
+// Method4Func is a primitive taking four arguments.
+type Method4Func func(vm interface{}, receiver Value, arg1, arg2, arg3, arg4 Value) Value
+
+// Method8Func is a primitive taking eight arguments.
+type Method8Func func(vm interface{}, receiver Value, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8 Value) Value
+
 // ---------------------------------------------------------------------------
 // Arity-specialized method wrappers
 // ---------------------------------------------------------------------------
@@ -91,6 +97,32 @@ func (m *Method3) Invoke(vm interface{}, receiver Value, args []Value) Value {
 func (m *Method3) Name() string { return m.name }
 func (m *Method3) Arity() int   { return 3 }
 
+// Method4 wraps a four-argument primitive.
+type Method4 struct {
+	name string
+	fn   Method4Func
+}
+
+func (m *Method4) Invoke(vm interface{}, receiver Value, args []Value) Value {
+	return m.fn(vm, receiver, args[0], args[1], args[2], args[3])
+}
+
+func (m *Method4) Name() string { return m.name }
+func (m *Method4) Arity() int   { return 4 }
+
+// Method8 wraps an eight-argument primitive.
+type Method8 struct {
+	name string
+	fn   Method8Func
+}
+
+func (m *Method8) Invoke(vm interface{}, receiver Value, args []Value) Value {
+	return m.fn(vm, receiver, args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7])
+}
+
+func (m *Method8) Name() string { return m.name }
+func (m *Method8) Arity() int   { return 8 }
+
 // ---------------------------------------------------------------------------
 // Factory functions
 // ---------------------------------------------------------------------------
@@ -118,6 +150,16 @@ func NewMethod2(name string, fn Method2Func) Method {
 // NewMethod3 creates a new three-argument primitive method.
 func NewMethod3(name string, fn Method3Func) Method {
 	return &Method3{name: name, fn: fn}
+}
+
+// NewMethod4 creates a new four-argument primitive method.
+func NewMethod4(name string, fn Method4Func) Method {
+	return &Method4{name: name, fn: fn}
+}
+
+// NewMethod8 creates a new eight-argument primitive method.
+func NewMethod8(name string, fn Method8Func) Method {
+	return &Method8{name: name, fn: fn}
 }
 
 // ---------------------------------------------------------------------------

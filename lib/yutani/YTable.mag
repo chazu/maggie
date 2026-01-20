@@ -1,0 +1,45 @@
+"YTable - Multi-column table widget"
+
+YWidget subclass: #YTable
+    instanceVariables: ''.
+
+"Cell operations"
+
+YTable >> cellAt: row at: col put: content
+    "Set the cell content at row, col"
+    handle primTableSetCell: content row: row col: col.
+    ^ self.
+
+YTable >> cellAt: row at: col
+    "Get the cell content at row, col"
+    ^ handle primTableGetCellRow: row col: col.
+
+YTable >> clear
+    "Clear all cells"
+    handle primTableClear.
+    ^ self.
+
+"Selection"
+
+YTable >> selection
+    "Return the selection as #(row col)"
+    ^ handle primTableGetSelection.
+
+YTable >> selectedRow
+    "Return the selected row"
+    | sel |
+    sel := self selection.
+    sel ifNil: [^ nil].
+    ^ sel at: 0.
+
+YTable >> selectedColumn
+    "Return the selected column"
+    | sel |
+    sel := self selection.
+    sel ifNil: [^ nil].
+    ^ sel at: 1.
+
+YTable >> selectRow: row col: col
+    "Set the selection"
+    handle primTableSetSelectionRow: row col: col.
+    ^ self.

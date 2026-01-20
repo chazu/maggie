@@ -1,0 +1,15 @@
+"YTextView - Read-only text display widget"
+
+YWidget subclass: #YTextView
+    instanceVariables: ''.
+
+"Text content"
+
+YTextView >> text: aString
+    "Set the text content"
+    handle primSetText: aString.
+    ^ self.
+
+YTextView >> text
+    "Get the text content"
+    ^ handle primGetText.

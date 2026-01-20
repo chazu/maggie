@@ -102,6 +102,16 @@ func (c *Class) AddMethod3(selectors *SelectorTable, name string, fn Method3Func
 	c.AddMethod(selectors, name, NewMethod3(name, fn))
 }
 
+// AddMethod4 registers a four-argument method on this class.
+func (c *Class) AddMethod4(selectors *SelectorTable, name string, fn Method4Func) {
+	c.AddMethod(selectors, name, NewMethod4(name, fn))
+}
+
+// AddMethod8 registers an eight-argument method on this class.
+func (c *Class) AddMethod8(selectors *SelectorTable, name string, fn Method8Func) {
+	c.AddMethod(selectors, name, NewMethod8(name, fn))
+}
+
 // AddPrimitiveMethod registers a variable-arity primitive method on this class.
 func (c *Class) AddPrimitiveMethod(selectors *SelectorTable, name string, fn PrimitiveFunc) {
 	c.AddMethod(selectors, name, NewPrimitiveMethod(name, fn))

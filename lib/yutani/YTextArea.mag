@@ -1,0 +1,19 @@
+"YTextArea - Editable text widget"
+
+YWidget subclass: #YTextArea
+    instanceVariables: ''.
+
+"Text content"
+
+YTextArea >> text: aString
+    "Set the text content"
+    handle primSetText: aString.
+    ^ self.
+
+YTextArea >> text
+    "Get the text content"
+    ^ handle primGetText.
+
+YTextArea >> clear
+    "Clear the text content"
+    ^ self text: ''.

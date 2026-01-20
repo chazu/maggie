@@ -1,0 +1,74 @@
+"YList - Scrollable list widget"
+
+YWidget subclass: #YList
+    instanceVariables: ''.
+
+"Adding items"
+
+YList >> addItem: mainText
+    "Add an item with just main text"
+    ^ self addItem: mainText secondary: '' shortcut: nil.
+
+YList >> addItem: mainText secondary: secondaryText
+    "Add an item with main and secondary text"
+    ^ self addItem: mainText secondary: secondaryText shortcut: nil.
+
+YList >> addItem: mainText secondary: secondaryText shortcut: shortcutString
+    "Add an item with main text, secondary text, and optional shortcut.
+     Returns the index of the added item, or -1 on error."
+    ^ handle primListAdd: mainText secondary: secondaryText shortcut: shortcutString.
+
+"Removing items"
+
+YList >> removeAt: index
+    "Remove the item at the given index"
+    handle primListRemove: index.
+    ^ self.
+
+YList >> clear
+    "Remove all items"
+    handle primListClear.
+    ^ self.
+
+"Selection"
+
+YList >> selected
+    "Return the index of the selected item"
+    ^ handle primListSelected.
+
+YList >> selected: index
+    "Set the selected item by index"
+    handle primListSetSelected: index.
+    ^ self.
+
+YList >> selectedItem
+    "Return the main text of the selected item, or nil"
+    | idx |
+    idx := self selected.
+    idx < 0 ifTrue: [^ nil].
+    ^ self itemAt: idx.
+
+"Querying"
+
+YList >> count
+    "Return the number of items"
+    ^ handle primListCount.
+
+YList >> size
+    "Alias for count"
+    ^ self count.
+
+YList >> isEmpty
+    "Return true if the list is empty"
+    ^ self count = 0.
+
+YList >> itemAt: index
+    "Return the main text of the item at index, or nil"
+    ^ handle primListItemAt: index.
+
+"Convenience"
+
+YList >> addAll: aCollection
+    "Add all items from a collection"
+    aCollection do: [:item | self addItem: item].
+    ^ self.

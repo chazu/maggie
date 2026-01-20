@@ -139,6 +139,9 @@ func (vm *VM) bootstrap() {
 	vm.registerResultPrimitives()
 	vm.registerDictionaryPrimitives()
 
+	// Phase 6b: Register Yutani display server primitives
+	vm.registerYutaniPrimitives()
+
 	// Phase 7: Set up globals
 	vm.Globals["Object"] = vm.classValue(vm.ObjectClass)
 	vm.Globals["Class"] = vm.classValue(vm.ClassClass)
@@ -993,6 +996,35 @@ func (vm *VM) NewArrayWithElements(elements []Value) Value {
 	// Keep a reference to prevent GC
 	vm.keepAlive = append(vm.keepAlive, obj)
 	return val
+}
+
+// NewDictionary creates a new empty Dictionary.
+func (vm *VM) NewDictionary() Value {
+	return NewDictionaryValue()
+}
+
+// DictionaryAtPut sets a key-value pair in a dictionary.
+func (vm *VM) DictionaryAtPut(dict Value, key Value, value Value) {
+	d := GetDictionaryObject(dict)
+	if d == nil {
+		return
+	}
+	h := hashValue(key)
+	d.Data[h] = value
+	d.Keys[h] = key
+}
+
+// DictionaryAt gets a value from a dictionary by key.
+func (vm *VM) DictionaryAt(dict Value, key Value) Value {
+	d := GetDictionaryObject(dict)
+	if d == nil {
+		return Nil
+	}
+	h := hashValue(key)
+	if val, ok := d.Data[h]; ok {
+		return val
+	}
+	return Nil
 }
 
 func (vm *VM) registerBlockPrimitives() {
