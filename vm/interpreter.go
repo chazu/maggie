@@ -580,6 +580,7 @@ func (i *Interpreter) run() Value {
 			nCaptures := int(bc[frame.IP])
 			frame.IP++
 
+
 			// Get the block method
 			block := frame.Method.GetBlock(int(methodIdx))
 

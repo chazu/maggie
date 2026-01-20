@@ -64,14 +64,9 @@ SmallInteger subclass: Object
       ]
   ]
 
-  method: to: stop do: block [
-      | i |
-      i := self.
-      [i <= stop] whileTrue: [
-          block value: i.
-          i := i + 1
-      ]
-  ]
+  # Note: to:do: is implemented as a primitive
+  # Do NOT define it here as a compiled method - it would override the primitive
+  # and cause infinite recursion by creating new blocks on each iteration
 
   method: to: stop by: step do: block [
       | i |

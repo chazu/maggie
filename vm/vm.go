@@ -646,9 +646,13 @@ func (vm *VM) registerSmallIntegerPrimitives() {
 		return recv
 	})
 
-	c.AddMethod1(vm.Selectors, "to:do:", func(vmPtr interface{}, recv Value, end Value) Value {
-		// This is a 2-arg method, but we're defining it as 1-arg for simplicity
-		// Full implementation would use to:do: properly
+	c.AddMethod2(vm.Selectors, "to:do:", func(vmPtr interface{}, recv Value, stop Value, block Value) Value {
+		v := vmPtr.(*VM)
+		start := recv.SmallInt()
+		end := stop.SmallInt()
+		for i := start; i <= end; i++ {
+			v.evaluateBlock(block, []Value{FromSmallInt(i)})
+		}
 		return recv
 	})
 }
