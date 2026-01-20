@@ -378,76 +378,14 @@ func compilePath(path string, vmInst *vm.VM, verbose bool) (int, error) {
 	return totalMethods, nil
 }
 
-// compileFile compiles a single .mag file into the VM.
-// The class is determined by the filename (e.g., Foo.mag -> Foo class).
-// Supports both traditional method syntax and new Trashtalk-style syntax.
+// compileFile compiles a single .mag file into the VM using Trashtalk syntax.
 func compileFile(path string, vmInst *vm.VM, verbose bool) (int, error) {
 	content, err := os.ReadFile(path)
 	if err != nil {
 		return 0, err
 	}
 
-	// Check if file uses new syntax (starts with # comment or has "subclass:" declaration)
-	contentStr := string(content)
-	if strings.HasPrefix(strings.TrimSpace(contentStr), "#") || strings.Contains(contentStr, " subclass: ") {
-		return compileFileNewSyntax(path, contentStr, vmInst, verbose)
-	}
-
-	// Traditional syntax
-	return compileFileTraditional(path, contentStr, vmInst, verbose)
-}
-
-// compileFileTraditional compiles a file using traditional method-chunk syntax
-func compileFileTraditional(path string, content string, vmInst *vm.VM, verbose bool) (int, error) {
-	// Determine class name from filename
-	base := filepath.Base(path)
-	className := strings.TrimSuffix(base, ".mag")
-
-	// Special case: .maggierc compiles into Object
-	if className == ".maggierc" {
-		className = "Object"
-	}
-
-	// Look up or create the class
-	class := vmInst.Classes.Lookup(className)
-	if class == nil {
-		// Create new class inheriting from Object
-		class = vm.NewClass(className, vmInst.ObjectClass)
-		vmInst.Classes.Register(class)
-		if verbose {
-			fmt.Printf("  Created class %s\n", className)
-		}
-	}
-
-	methods := parseMethodChunks(content)
-	compiled := 0
-
-	for _, methodSource := range methods {
-		methodSource = strings.TrimSpace(methodSource)
-		if methodSource == "" {
-			continue
-		}
-
-		method, err := compiler.Compile(methodSource, vmInst.Selectors, vmInst.Symbols)
-		if err != nil {
-			return compiled, fmt.Errorf("method error: %v\n  source: %s", err, truncate(methodSource, 50))
-		}
-
-		method.SetClass(class)
-		class.VTable.AddMethod(vmInst.Selectors.Intern(method.Name()), method)
-		compiled++
-	}
-
-	if verbose {
-		fmt.Printf("  %s: %d methods\n", className, compiled)
-	}
-
-	return compiled, nil
-}
-
-// compileFileNewSyntax compiles a file using new Trashtalk-style syntax
-func compileFileNewSyntax(path string, content string, vmInst *vm.VM, verbose bool) (int, error) {
-	sf, err := compiler.ParseSourceFileFromString(content)
+	sf, err := compiler.ParseSourceFileFromString(string(content))
 	if err != nil {
 		return 0, fmt.Errorf("parse error: %v", err)
 	}
@@ -509,49 +447,6 @@ func compileFileNewSyntax(path string, content string, vmInst *vm.VM, verbose bo
 	}
 
 	return compiled, nil
-}
-
-// parseMethodChunks splits a .mag file into individual method sources.
-func parseMethodChunks(content string) []string {
-	var methods []string
-	var current strings.Builder
-
-	lines := strings.Split(content, "\n")
-	for _, line := range lines {
-		trimmed := strings.TrimSpace(line)
-
-		if trimmed == "" || strings.HasPrefix(trimmed, "--") {
-			if current.Len() > 0 && trimmed == "" {
-				current.WriteString("\n")
-			}
-			continue
-		}
-
-		isMethodHeader := len(line) > 0 && line[0] != ' ' && line[0] != '\t'
-
-		if isMethodHeader && current.Len() > 0 {
-			methods = append(methods, strings.TrimRight(current.String(), "\n"))
-			current.Reset()
-		}
-
-		if current.Len() > 0 {
-			current.WriteString("\n")
-		}
-		current.WriteString(line)
-	}
-
-	if current.Len() > 0 {
-		methods = append(methods, strings.TrimRight(current.String(), "\n"))
-	}
-
-	return methods
-}
-
-func truncate(s string, n int) string {
-	if len(s) <= n {
-		return s
-	}
-	return s[:n] + "..."
 }
 
 // startYutaniIDE loads the Yutani classes and starts the IDE

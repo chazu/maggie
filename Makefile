@@ -5,7 +5,7 @@ all: mag
 
 # Build the bootstrap tool and generate maggie.image
 bootstrap:
-	go run ./cmd/bootstrap/ --new-syntax
+	go run ./cmd/bootstrap/
 
 # Copy image to mag directory and build the mag binary
 mag: bootstrap
