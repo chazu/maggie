@@ -467,13 +467,24 @@ func (ir *ImageReader) ReadClasses(vm *VM) ([]*Class, error) {
 			return nil, fmt.Errorf("%w: class %d references superclass %d", ErrInvalidClassIndex, i, superclassIdx)
 		}
 
-		// Create VTable with proper parent
+		// Set up VTable parent based on superclass
 		var parentVT *VTable
+		var parentClassVT *VTable
 		if c.Superclass != nil {
 			parentVT = c.Superclass.VTable
+			parentClassVT = c.Superclass.ClassVTable
 		}
 		if c.VTable == nil {
 			c.VTable = NewVTable(c, parentVT)
+		} else {
+			// VTable exists but may have nil parent from first pass - update it
+			c.VTable.SetParent(parentVT)
+		}
+		// Set up ClassVTable parent for class-side method inheritance
+		if c.ClassVTable == nil {
+			c.ClassVTable = NewVTable(c, parentClassVT)
+		} else {
+			c.ClassVTable.SetParent(parentClassVT)
 		}
 
 		// Register class in VM

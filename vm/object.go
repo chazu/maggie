@@ -46,12 +46,13 @@ type VTable struct {
 // Class represents a Maggie class.
 // This is a forward declaration; full implementation is in class.go.
 type Class struct {
-	Name       string   // Class name
-	Namespace  string   // Namespace (empty for default)
-	Superclass *Class   // Parent class (nil for Object)
-	VTable     *VTable  // Method dispatch table
-	InstVars   []string // Instance variable names
-	NumSlots   int      // Total number of slots needed
+	Name        string   // Class name
+	Namespace   string   // Namespace (empty for default)
+	Superclass  *Class   // Parent class (nil for Object)
+	VTable      *VTable  // Method dispatch table for instance methods
+	ClassVTable *VTable  // Method dispatch table for class methods (metaclass)
+	InstVars    []string // Instance variable names
+	NumSlots    int      // Total number of slots needed
 }
 
 // Method represents a compiled or primitive method.

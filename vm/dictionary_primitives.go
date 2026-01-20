@@ -96,8 +96,8 @@ func hashValue(v Value) uint64 {
 func (vm *VM) registerDictionaryPrimitives() {
 	c := vm.DictionaryClass
 
-	// Class-side new - create new empty dictionary
-	c.AddMethod0(vm.Selectors, "new", func(vmPtr interface{}, recv Value) Value {
+	// Class-side new - create new empty dictionary (class method)
+	c.AddClassMethod0(vm.Selectors, "new", func(vmPtr interface{}, recv Value) Value {
 		return NewDictionaryValue()
 	})
 

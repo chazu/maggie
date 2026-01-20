@@ -80,8 +80,8 @@ func (vm *VM) registerResultPrimitives() {
 	// Success class
 	s := vm.SuccessClass
 
-	// Success class>>with: value - create a Success wrapping value
-	s.AddMethod1(vm.Selectors, "with:", func(_ interface{}, recv Value, val Value) Value {
+	// Success class>>with: value - create a Success wrapping value (class method)
+	s.AddClassMethod1(vm.Selectors, "with:", func(_ interface{}, recv Value, val Value) Value {
 		r := createResult(ResultSuccess, val)
 		return registerResult(r)
 	})
@@ -190,8 +190,8 @@ func (vm *VM) registerResultPrimitives() {
 	// Failure class
 	f := vm.FailureClass
 
-	// Failure class>>with: reason - create a Failure wrapping reason
-	f.AddMethod1(vm.Selectors, "with:", func(_ interface{}, recv Value, reason Value) Value {
+	// Failure class>>with: reason - create a Failure wrapping reason (class method)
+	f.AddClassMethod1(vm.Selectors, "with:", func(_ interface{}, recv Value, reason Value) Value {
 		r := createResult(ResultFailure, reason)
 		return registerResult(r)
 	})
@@ -277,14 +277,14 @@ func (vm *VM) registerResultPrimitives() {
 	// Result base class (abstract)
 	r := vm.ResultClass
 
-	// Result class>>success: value - create a Success
-	r.AddMethod1(vm.Selectors, "success:", func(_ interface{}, recv Value, val Value) Value {
+	// Result class>>success: value - create a Success (class method)
+	r.AddClassMethod1(vm.Selectors, "success:", func(_ interface{}, recv Value, val Value) Value {
 		result := createResult(ResultSuccess, val)
 		return registerResult(result)
 	})
 
-	// Result class>>failure: reason - create a Failure
-	r.AddMethod1(vm.Selectors, "failure:", func(_ interface{}, recv Value, reason Value) Value {
+	// Result class>>failure: reason - create a Failure (class method)
+	r.AddClassMethod1(vm.Selectors, "failure:", func(_ interface{}, recv Value, reason Value) Value {
 		result := createResult(ResultFailure, reason)
 		return registerResult(result)
 	})

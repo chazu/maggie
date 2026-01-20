@@ -8,7 +8,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"unsafe"
 
 	"github.com/chazu/maggie/compiler"
 	"github.com/chazu/maggie/vm"
@@ -243,11 +242,28 @@ func compileAllFilesNew(files []string, vmInst *vm.VM, verbose bool) (int, error
 					superclass = vmInst.ObjectClass
 				}
 
+				// Debug: check superclass setup
+				if classDef.Name == "Parser" || classDef.Name == "Compiler" {
+					fmt.Printf("DEBUG bootstrap: creating class %s, superclass=%v\n", classDef.Name, superclass)
+					if superclass != nil {
+						fmt.Printf("DEBUG bootstrap: superclass.VTable=%v\n", superclass.VTable)
+					}
+				}
+
 				// Create the class with instance variables
 				class = vm.NewClassWithInstVars(classDef.Name, superclass, classDef.InstanceVariables)
 
-				// Register the class in globals so it can be looked up
-				vmInst.Globals[classDef.Name] = vm.FromObjectPtr(unsafe.Pointer(class))
+				// Debug: verify VTable parent
+				if classDef.Name == "Parser" || classDef.Name == "Compiler" {
+					fmt.Printf("DEBUG bootstrap: class.VTable.Parent()=%v\n", class.VTable.Parent())
+				}
+
+				// Register the class in the class table (required for image serialization and method lookup)
+				vmInst.Classes.Register(class)
+
+				// Register the class in globals as a symbol (same as core classes)
+				// This allows vm.Send to find the class when the symbol is used as receiver
+				vmInst.Globals[classDef.Name] = vmInst.Symbols.SymbolValue(classDef.Name)
 
 				if verbose {
 					fmt.Printf("  created class %s (superclass: %s, instVars: %v)\n",
@@ -257,9 +273,9 @@ func compileAllFilesNew(files []string, vmInst *vm.VM, verbose bool) (int, error
 				}
 			}
 
-			// Compile instance methods
+			// Compile instance methods (with instance variable context)
 			for _, methodDef := range classDef.Methods {
-				method, err := compiler.CompileMethodDef(methodDef, vmInst.Selectors, vmInst.Symbols)
+				method, err := compiler.CompileMethodDefWithIvars(methodDef, vmInst.Selectors, vmInst.Symbols, classDef.InstanceVariables)
 				if err != nil {
 					return compiled, fmt.Errorf("error compiling %s>>%s in %s: %v", classDef.Name, methodDef.Selector, pf.path, err)
 				}
@@ -269,18 +285,16 @@ func compileAllFilesNew(files []string, vmInst *vm.VM, verbose bool) (int, error
 				compiled++
 			}
 
-			// Compile class methods (add to metaclass)
+			// Compile class methods (add to ClassVTable for class-side dispatch)
 			for _, methodDef := range classDef.ClassMethods {
 				method, err := compiler.CompileMethodDef(methodDef, vmInst.Selectors, vmInst.Symbols)
 				if err != nil {
 					return compiled, fmt.Errorf("error compiling %s class>>%s in %s: %v", classDef.Name, methodDef.Selector, pf.path, err)
 				}
 
-				// Class methods go on the class object's vtable (metaclass)
-				// For now, we'll add them to the class's own vtable
-				// TODO: Proper metaclass support
+				// Class methods go on the ClassVTable (metaclass VTable)
 				method.SetClass(class)
-				class.VTable.AddMethod(vmInst.Selectors.Intern(method.Name()), method)
+				class.ClassVTable.AddMethod(vmInst.Selectors.Intern(method.Name()), method)
 				compiled++
 			}
 
@@ -362,9 +376,9 @@ func compileFileNew(path string, vmInst *vm.VM, verbose bool) (int, error) {
 
 		class := classGetter(vmInst)
 
-		// Compile instance methods
+		// Compile instance methods (with instance variable context)
 		for _, methodDef := range classDef.Methods {
-			method, err := compiler.CompileMethodDef(methodDef, vmInst.Selectors, vmInst.Symbols)
+			method, err := compiler.CompileMethodDefWithIvars(methodDef, vmInst.Selectors, vmInst.Symbols, classDef.InstanceVariables)
 			if err != nil {
 				return compiled, fmt.Errorf("error compiling %s>>%s: %v", classDef.Name, methodDef.Selector, err)
 			}
@@ -374,7 +388,7 @@ func compileFileNew(path string, vmInst *vm.VM, verbose bool) (int, error) {
 			compiled++
 		}
 
-		// Compile class methods (add to metaclass)
+		// Compile class methods (add to metaclass) - no instance variable context
 		for _, methodDef := range classDef.ClassMethods {
 			method, err := compiler.CompileMethodDef(methodDef, vmInst.Selectors, vmInst.Symbols)
 			if err != nil {

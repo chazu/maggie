@@ -126,6 +126,41 @@ func (c *Class) HasMethod(selectors *SelectorTable, name string) bool {
 }
 
 // ---------------------------------------------------------------------------
+// Class method registration (class-side / metaclass methods)
+// ---------------------------------------------------------------------------
+
+// AddClassMethod registers a class-side method on this class.
+// The selector will be interned in the given SelectorTable.
+func (c *Class) AddClassMethod(selectors *SelectorTable, name string, method Method) {
+	selectorID := selectors.Intern(name)
+	c.ClassVTable.AddMethod(selectorID, method)
+}
+
+// AddClassMethod0 registers a zero-argument class-side method.
+func (c *Class) AddClassMethod0(selectors *SelectorTable, name string, fn Method0Func) {
+	c.AddClassMethod(selectors, name, NewMethod0(name, fn))
+}
+
+// AddClassMethod1 registers a one-argument class-side method.
+func (c *Class) AddClassMethod1(selectors *SelectorTable, name string, fn Method1Func) {
+	c.AddClassMethod(selectors, name, NewMethod1(name, fn))
+}
+
+// AddClassMethod2 registers a two-argument class-side method.
+func (c *Class) AddClassMethod2(selectors *SelectorTable, name string, fn Method2Func) {
+	c.AddClassMethod(selectors, name, NewMethod2(name, fn))
+}
+
+// LookupClassMethod looks up a class-side method by selector name.
+func (c *Class) LookupClassMethod(selectors *SelectorTable, name string) Method {
+	selectorID := selectors.Lookup(name)
+	if selectorID < 0 {
+		return nil
+	}
+	return c.ClassVTable.Lookup(selectorID)
+}
+
+// ---------------------------------------------------------------------------
 // ClassTable: Global class registry
 // ---------------------------------------------------------------------------
 
@@ -214,12 +249,14 @@ func (ct *ClassTable) classKey(c *Class) string {
 // ---------------------------------------------------------------------------
 
 // NewClass creates a new class with the given name and superclass.
-// The VTable is automatically created and linked.
+// The VTable and ClassVTable are automatically created and linked.
 func NewClass(name string, superclass *Class) *Class {
 	var parentVT *VTable
+	var parentClassVT *VTable
 	var numSlots int
 	if superclass != nil {
 		parentVT = superclass.VTable
+		parentClassVT = superclass.ClassVTable
 		numSlots = superclass.NumSlots
 	}
 
@@ -229,6 +266,7 @@ func NewClass(name string, superclass *Class) *Class {
 		NumSlots:   numSlots,
 	}
 	c.VTable = NewVTable(c, parentVT)
+	c.ClassVTable = NewVTable(c, parentClassVT)
 	return c
 }
 

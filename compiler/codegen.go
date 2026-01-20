@@ -21,10 +21,16 @@ type Compiler struct {
 	literalMap  map[interface{}]int // dedup literals
 	temps       map[string]int      // temp name -> slot index
 	args        map[string]int      // arg name -> slot index
+	instVars    map[string]int      // instance variable name -> slot index
 	numArgs     int
 	numTemps    int
 	blocks      []*vm.BlockMethod
 	errors      []string
+
+	// For block compilation - track outer scope temps for home temp access
+	outerTemps map[string]int // outer method temp name -> slot index
+	outerArgs  map[string]int // outer method arg name -> slot index
+	inBlock    bool           // true when compiling a block
 }
 
 // NewCompiler creates a new compiler.
@@ -38,6 +44,15 @@ func NewCompiler(selectors *vm.SelectorTable, symbols *vm.SymbolTable) *Compiler
 // Errors returns accumulated compilation errors.
 func (c *Compiler) Errors() []string {
 	return c.errors
+}
+
+// SetInstanceVars sets the instance variable names for compilation.
+// Must be called before CompileMethod if the method accesses instance variables.
+func (c *Compiler) SetInstanceVars(names []string) {
+	c.instVars = make(map[string]int)
+	for i, name := range names {
+		c.instVars[name] = i
+	}
 }
 
 // errorf records a compilation error.
@@ -294,6 +309,22 @@ func (c *Compiler) compileVariable(name string) {
 			c.builder.EmitByte(vm.OpPushTemp, byte(idx))
 			return
 		}
+		// Check if it's an instance variable
+		if idx, ok := c.instVars[name]; ok {
+			c.builder.EmitByte(vm.OpPushIvar, byte(idx))
+			return
+		}
+		// In a block: check outer scope temps/args (use home frame access)
+		if c.inBlock {
+			if idx, ok := c.outerTemps[name]; ok {
+				c.builder.EmitByte(vm.OpPushHomeTemp, byte(idx))
+				return
+			}
+			if idx, ok := c.outerArgs[name]; ok {
+				c.builder.EmitByte(vm.OpPushHomeTemp, byte(idx))
+				return
+			}
+		}
 		// Must be a global
 		idx := c.addLiteral(c.symbols.SymbolValue(name))
 		c.builder.EmitUint16(vm.OpPushGlobal, uint16(idx))
@@ -320,6 +351,23 @@ func (c *Compiler) compileAssignment(assign *Assignment) {
 		return
 	}
 
+	// Check if it's an instance variable
+	if idx, ok := c.instVars[name]; ok {
+		c.builder.EmitByte(vm.OpStoreIvar, byte(idx))
+		c.builder.EmitByte(vm.OpPushIvar, byte(idx)) // Leave value on stack
+		return
+	}
+
+	// In a block: check outer scope temps (use home frame access)
+	if c.inBlock {
+		if idx, ok := c.outerTemps[name]; ok {
+			c.builder.EmitByte(vm.OpStoreHomeTemp, byte(idx))
+			c.builder.EmitByte(vm.OpPushHomeTemp, byte(idx)) // Leave value on stack
+			return
+		}
+		// Note: we don't allow assigning to outer args, treat as global
+	}
+
 	// Global assignment
 	idx := c.addLiteral(c.symbols.SymbolValue(name))
 	c.builder.EmitUint16(vm.OpStoreGlobal, uint16(idx))
@@ -334,8 +382,12 @@ func (c *Compiler) compileUnaryMessage(msg *UnaryMessage) {
 	// Compile receiver
 	c.compileExpr(msg.Receiver)
 
-	// Emit send
-	c.emitSend(msg.Selector, 0)
+	// Emit send - use super send if receiver is super
+	if _, isSuper := msg.Receiver.(*Super); isSuper {
+		c.emitSendSuper(msg.Selector, 0)
+	} else {
+		c.emitSend(msg.Selector, 0)
+	}
 }
 
 func (c *Compiler) compileBinaryMessage(msg *BinaryMessage) {
@@ -343,27 +395,46 @@ func (c *Compiler) compileBinaryMessage(msg *BinaryMessage) {
 	c.compileExpr(msg.Receiver)
 	c.compileExpr(msg.Argument)
 
-	// Fast-path opcodes for common operators
-	switch msg.Selector {
-	case "+":
-		c.builder.Emit(vm.OpSendPlus)
-	case "-":
-		c.builder.Emit(vm.OpSendMinus)
-	case "*":
-		c.builder.Emit(vm.OpSendTimes)
-	case "/":
-		c.builder.Emit(vm.OpSendDiv)
-	case "<":
-		c.builder.Emit(vm.OpSendLT)
-	case ">":
-		c.builder.Emit(vm.OpSendGT)
-	case "<=":
-		c.builder.Emit(vm.OpSendLE)
-	case ">=":
-		c.builder.Emit(vm.OpSendGE)
-	case "=":
-		c.builder.Emit(vm.OpSendEQ)
-	default:
+	// Check if this is a super send
+	_, isSuper := msg.Receiver.(*Super)
+
+	// Fast-path opcodes for common operators (only for non-super sends)
+	if !isSuper {
+		switch msg.Selector {
+		case "+":
+			c.builder.Emit(vm.OpSendPlus)
+			return
+		case "-":
+			c.builder.Emit(vm.OpSendMinus)
+			return
+		case "*":
+			c.builder.Emit(vm.OpSendTimes)
+			return
+		case "/":
+			c.builder.Emit(vm.OpSendDiv)
+			return
+		case "<":
+			c.builder.Emit(vm.OpSendLT)
+			return
+		case ">":
+			c.builder.Emit(vm.OpSendGT)
+			return
+		case "<=":
+			c.builder.Emit(vm.OpSendLE)
+			return
+		case ">=":
+			c.builder.Emit(vm.OpSendGE)
+			return
+		case "=":
+			c.builder.Emit(vm.OpSendEQ)
+			return
+		}
+	}
+
+	// Generic send
+	if isSuper {
+		c.emitSendSuper(msg.Selector, 1)
+	} else {
 		c.emitSend(msg.Selector, 1)
 	}
 }
@@ -377,13 +448,22 @@ func (c *Compiler) compileKeywordMessage(msg *KeywordMessage) {
 		c.compileExpr(arg)
 	}
 
-	// Emit send
-	c.emitSend(msg.Selector, len(msg.Arguments))
+	// Emit send - use super send if receiver is super
+	if _, isSuper := msg.Receiver.(*Super); isSuper {
+		c.emitSendSuper(msg.Selector, len(msg.Arguments))
+	} else {
+		c.emitSend(msg.Selector, len(msg.Arguments))
+	}
 }
 
 func (c *Compiler) emitSend(selector string, numArgs int) {
 	selectorID := c.selectors.Intern(selector)
 	c.builder.EmitSend(vm.OpSend, uint16(selectorID), byte(numArgs))
+}
+
+func (c *Compiler) emitSendSuper(selector string, numArgs int) {
+	selectorID := c.selectors.Intern(selector)
+	c.builder.EmitSend(vm.OpSendSuper, uint16(selectorID), byte(numArgs))
 }
 
 // ---------------------------------------------------------------------------
@@ -429,19 +509,54 @@ func (c *Compiler) compileBlock(block *Block) {
 	// Create a nested compiler for the block
 	blockBuilder := vm.NewBytecodeBuilder()
 
-	// Save current state
+	// Save current state (including literals for nested block)
+	// NOTE: c.blocks is NOT saved/restored - all blocks share method's blocks list
 	oldBuilder := c.builder
 	oldTemps := c.temps
 	oldArgs := c.args
 	oldNumArgs := c.numArgs
 	oldNumTemps := c.numTemps
+	oldLiterals := c.literals
+	oldLiteralMap := c.literalMap
+	oldInBlock := c.inBlock
+	oldOuterTemps := c.outerTemps
+	oldOuterArgs := c.outerArgs
 
-	// Set up block context
+	// Build outer scope maps by merging current scope into outer scope
+	// This allows nested blocks to see all enclosing method/block temps
+	newOuterTemps := make(map[string]int)
+	newOuterArgs := make(map[string]int)
+
+	// First copy existing outer temps (for nested blocks)
+	for k, v := range c.outerTemps {
+		newOuterTemps[k] = v
+	}
+	for k, v := range c.outerArgs {
+		newOuterArgs[k] = v
+	}
+
+	// Then add current scope's temps and args (they take precedence for shadowing)
+	for k, v := range c.temps {
+		newOuterTemps[k] = v
+	}
+	for k, v := range c.args {
+		newOuterArgs[k] = v
+	}
+
+	// Set up block context with fresh literals pool
+	// NOTE: We keep c.blocks pointing to the METHOD's blocks list
+	// so that nested blocks get correct indices. Don't reset c.blocks here!
 	c.builder = blockBuilder
 	c.temps = make(map[string]int)
 	c.args = make(map[string]int)
 	c.numArgs = len(block.Parameters)
 	c.numTemps = len(block.Temps)
+	c.literals = nil
+	c.literalMap = make(map[interface{}]int)
+	// c.blocks intentionally NOT reset - all blocks share method's blocks list
+	c.inBlock = true
+	c.outerTemps = newOuterTemps
+	c.outerArgs = newOuterArgs
 
 	// Parameters
 	for i, param := range block.Parameters {
@@ -462,19 +577,26 @@ func (c *Compiler) compileBlock(block *Block) {
 	}
 	c.builder.Emit(vm.OpBlockReturn)
 
-	// Create BlockMethod
+	// Create BlockMethod with its own literals
 	blockMethod := &vm.BlockMethod{
 		Arity:    c.numArgs,
 		NumTemps: c.numTemps,
 		Bytecode: c.builder.Bytes(),
+		Literals: c.literals, // Block gets its own literals
 	}
 
 	// Restore state
+	// NOTE: c.blocks is NOT restored - all blocks accumulate in method's blocks list
 	c.builder = oldBuilder
 	c.temps = oldTemps
 	c.args = oldArgs
 	c.numArgs = oldNumArgs
 	c.numTemps = oldNumTemps
+	c.literals = oldLiterals
+	c.literalMap = oldLiteralMap
+	c.inBlock = oldInBlock
+	c.outerTemps = oldOuterTemps
+	c.outerArgs = oldOuterArgs
 
 	// Add block to list
 	blockIdx := len(c.blocks)
@@ -534,7 +656,16 @@ func ParseSourceFileFromString(source string) (*SourceFile, error) {
 
 // CompileMethodDef compiles a single method definition to a CompiledMethod.
 func CompileMethodDef(method *MethodDef, selectors *vm.SelectorTable, symbols *vm.SymbolTable) (*vm.CompiledMethod, error) {
+	return CompileMethodDefWithIvars(method, selectors, symbols, nil)
+}
+
+// CompileMethodDefWithIvars compiles a method with instance variable context.
+// The instVars slice contains the instance variable names in order.
+func CompileMethodDefWithIvars(method *MethodDef, selectors *vm.SelectorTable, symbols *vm.SymbolTable, instVars []string) (*vm.CompiledMethod, error) {
 	compiler := NewCompiler(selectors, symbols)
+	if len(instVars) > 0 {
+		compiler.SetInstanceVars(instVars)
+	}
 	compiled := compiler.CompileMethod(method)
 	if len(compiler.Errors()) > 0 {
 		return nil, fmt.Errorf("compile errors: %v", compiler.Errors())

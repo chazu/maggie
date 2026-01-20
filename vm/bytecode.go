@@ -43,6 +43,8 @@ const (
 	OpStoreGlobal   Opcode = 0x25 // store into global (16-bit index)
 	OpPushCaptured  Opcode = 0x26 // push captured variable (8-bit index)
 	OpStoreCaptured Opcode = 0x27 // store into captured variable (8-bit index)
+	OpPushHomeTemp  Opcode = 0x28 // push temp from home frame (8-bit index) - for blocks
+	OpStoreHomeTemp Opcode = 0x29 // store into temp in home frame (8-bit index) - for blocks
 )
 
 // Message Sends
@@ -141,6 +143,8 @@ var opcodeTable = map[Opcode]OpcodeInfo{
 	OpStoreGlobal:   {"STORE_GLOBAL", 2, 0},
 	OpPushCaptured:  {"PUSH_CAPTURED", 1, 1},
 	OpStoreCaptured: {"STORE_CAPTURED", 1, 0},
+	OpPushHomeTemp:  {"PUSH_HOME_TEMP", 1, 1},
+	OpStoreHomeTemp: {"STORE_HOME_TEMP", 1, 0},
 
 	// Sends
 	OpSend:      {"SEND", 3, -1}, // variable: pops receiver + args, pushes result
@@ -474,7 +478,7 @@ func DisassembleInstruction(r *BytecodeReader) string {
 		v := r.ReadInt8()
 		return fmt.Sprintf("%04d  %s %d", pos, info.Name, v)
 
-	case OpPushTemp, OpPushIvar, OpStoreTemp, OpStoreIvar, OpPushCaptured, OpStoreCaptured:
+	case OpPushTemp, OpPushIvar, OpStoreTemp, OpStoreIvar, OpPushCaptured, OpStoreCaptured, OpPushHomeTemp, OpStoreHomeTemp:
 		idx := r.ReadByte()
 		return fmt.Sprintf("%04d  %s %d", pos, info.Name, idx)
 

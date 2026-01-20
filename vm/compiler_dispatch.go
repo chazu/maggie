@@ -1,5 +1,10 @@
 package vm
 
+import (
+	"fmt"
+	"strings"
+)
+
 // ---------------------------------------------------------------------------
 // CompilerBackend: Interface for compilation backends
 // ---------------------------------------------------------------------------
@@ -82,8 +87,49 @@ func NewMaggieCompilerBackend(vm *VM, fallback CompilerBackend) *MaggieCompilerB
 	return &MaggieCompilerBackend{vm: vm, fallback: fallback}
 }
 
+// convertToNewStyleFormat converts old-style method source to new Trashtalk format.
+// Old style: "doIt\n    ^42"
+// New style: "method: doIt [\n    ^42\n]"
+func convertToNewStyleFormat(source string) string {
+	// If source already starts with method: or classMethod:, return as-is
+	trimmed := strings.TrimSpace(source)
+	if strings.HasPrefix(trimmed, "method:") || strings.HasPrefix(trimmed, "classMethod:") {
+		return source
+	}
+
+	// Split into lines
+	lines := strings.Split(source, "\n")
+	if len(lines) == 0 {
+		return source
+	}
+
+	// First line is the selector (possibly with parameters)
+	selector := strings.TrimSpace(lines[0])
+
+	// Remaining lines are the body
+	var bodyLines []string
+	if len(lines) > 1 {
+		bodyLines = lines[1:]
+	}
+
+	// Build new format
+	var result strings.Builder
+	result.WriteString("method: ")
+	result.WriteString(selector)
+	result.WriteString(" [\n")
+	for _, line := range bodyLines {
+		result.WriteString(line)
+		result.WriteString("\n")
+	}
+	result.WriteString("]")
+	return result.String()
+}
+
 // Compile compiles a method source string using the Maggie compiler.
 func (m *MaggieCompilerBackend) Compile(source string, class *Class) (*CompiledMethod, error) {
+	// Convert old-style source to new Trashtalk format
+	source = convertToNewStyleFormat(source)
+
 	// Look up the Compiler class
 	compilerClassVal, ok := m.vm.Globals["Compiler"]
 	if !ok {
@@ -107,6 +153,16 @@ func (m *MaggieCompilerBackend) Compile(source string, class *Class) (*CompiledM
 	// Compiler new compile: sourceString
 	sourceVal := NewStringValue(source)
 	resultVal := m.vm.Send(compilerInstance, "compile:", []Value{sourceVal})
+
+	// Debug: what did compile: return?
+	// fmt.Printf("DEBUG compile: resultVal = %v (IsNil: %v, IsDictionary: %v)\n",
+	// 	resultVal, resultVal == Nil, IsDictionaryValue(resultVal))
+	if IsDictionaryValue(resultVal) {
+		dict := GetDictionaryObject(resultVal)
+		if dict != nil {
+// 			fmt.Printf("DEBUG compile: dictionary entries: %d\n", len(dict.Data))
+		}
+	}
 
 	// Extract the CompiledMethod from the result
 	// The Maggie compiler returns a Dictionary with bytecode, literals, etc.
@@ -154,15 +210,36 @@ func (m *MaggieCompilerBackend) extractCompiledMethod(resultVal Value, class *Cl
 		return nil, nil
 	}
 
+	// Debug: print dictionary keys
+	if IsDictionaryValue(resultVal) {
+		dict := GetDictionaryObject(resultVal)
+		if dict != nil {
+// 			fmt.Printf("DEBUG extractCompiledMethod: dict has %d entries\n", len(dict.Data))
+			for h, key := range dict.Keys {
+// 				fmt.Printf("DEBUG extractCompiledMethod: key hash=%d, key=%v", h, key)
+				if key.IsSymbol() {
+					fmt.Printf(" (symbol: %s)", m.vm.Symbols.Name(key.SymbolID()))
+				}
+				fmt.Printf(", value=%v\n", dict.Data[h])
+			}
+		}
+	}
+
 	// Extract selector
-	selectorVal := m.vm.Send(resultVal, "at:", []Value{m.vm.Symbols.SymbolValue("selector")})
+	selectorKey := m.vm.Symbols.SymbolValue("selector")
+// 	fmt.Printf("DEBUG extractCompiledMethod: looking for 'selector' key=%v (hash=%d)\n", selectorKey, hashValue(selectorKey))
+	selectorVal := m.vm.Send(resultVal, "at:", []Value{selectorKey})
+// 	fmt.Printf("DEBUG extractCompiledMethod: selectorVal=%v\n", selectorVal)
 	selector := ""
 	if selectorVal.IsSymbol() {
 		selector = m.vm.Symbols.Name(selectorVal.SymbolID())
 	}
 
 	// Extract bytecode
-	bytecodeVal := m.vm.Send(resultVal, "at:", []Value{m.vm.Symbols.SymbolValue("bytecode")})
+	bytecodeKey := m.vm.Symbols.SymbolValue("bytecode")
+// 	fmt.Printf("DEBUG extractCompiledMethod: looking for 'bytecode' key=%v (hash=%d)\n", bytecodeKey, hashValue(bytecodeKey))
+	bytecodeVal := m.vm.Send(resultVal, "at:", []Value{bytecodeKey})
+// 	fmt.Printf("DEBUG extractCompiledMethod: bytecodeVal=%v (IsNil: %v)\n", bytecodeVal, bytecodeVal == Nil)
 	bytecode := m.extractBytecodeArray(bytecodeVal)
 
 	// Extract literals

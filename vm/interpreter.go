@@ -17,8 +17,10 @@ type CallFrame struct {
 	BP       int             // base pointer (start of this frame's temps on stack)
 
 	// For block frames
-	Block    *BlockMethod // nil for regular methods
-	Captures []Value      // captured variables for blocks
+	Block     *BlockMethod // nil for regular methods
+	Captures  []Value      // captured variables for blocks
+	HomeFrame int          // frame pointer of enclosing method (for home temp access)
+	HomeBP    int          // base pointer of home frame (for OpPushHomeTemp/OpStoreHomeTemp)
 }
 
 // ---------------------------------------------------------------------------
@@ -29,6 +31,7 @@ type CallFrame struct {
 type Interpreter struct {
 	// Global state (would be part of VM in full implementation)
 	Selectors *SelectorTable
+	Symbols   *SymbolTable
 	Classes   *ClassTable
 	Globals   map[string]Value
 
@@ -71,7 +74,7 @@ func NewInterpreter() *Interpreter {
 		Globals:   make(map[string]Value),
 		stack:     make([]Value, 1024), // Fixed-size stack
 		sp:        0,
-		frames:    make([]*CallFrame, 64), // Fixed-size frame stack
+		frames:    make([]*CallFrame, 256), // Fixed-size frame stack
 		fp:        -1,
 	}
 
@@ -177,7 +180,7 @@ func (i *Interpreter) pushFrame(method *CompiledMethod, receiver Value, args []V
 	}
 }
 
-func (i *Interpreter) pushBlockFrame(block *BlockMethod, captures []Value, args []Value) {
+func (i *Interpreter) pushBlockFrame(block *BlockMethod, captures []Value, args []Value, homeFrame int, homeBP int) {
 	i.fp++
 	if i.fp >= len(i.frames) {
 		panic("call stack overflow")
@@ -194,12 +197,14 @@ func (i *Interpreter) pushBlockFrame(block *BlockMethod, captures []Value, args 
 	}
 
 	i.frames[i.fp] = &CallFrame{
-		Method:   nil, // block frame
-		Receiver: Nil, // blocks don't have a receiver
-		IP:       0,
-		BP:       bp,
-		Block:    block,
-		Captures: captures,
+		Method:    nil, // block frame
+		Receiver:  Nil, // blocks don't have a receiver
+		IP:        0,
+		BP:        bp,
+		Block:     block,
+		Captures:  captures,
+		HomeFrame: homeFrame,
+		HomeBP:    homeBP,
 	}
 }
 
@@ -251,7 +256,13 @@ func (i *Interpreter) Execute(method *CompiledMethod, receiver Value, args []Val
 
 // ExecuteBlock runs a block with captured variables and arguments.
 func (i *Interpreter) ExecuteBlock(block *BlockMethod, captures []Value, args []Value, homeFrame int, homeSelf Value) Value {
-	i.pushBlockFrame(block, captures, args)
+	// Get the home frame's BP for OpPushHomeTemp/OpStoreHomeTemp
+	homeBP := 0
+	if homeFrame >= 0 && homeFrame < len(i.frames) && i.frames[homeFrame] != nil {
+		homeBP = i.frames[homeFrame].BP
+	}
+// 	fmt.Printf("DEBUG ExecuteBlock: homeFrame=%d, homeBP=%d, current fp=%d, sp=%d\n", homeFrame, homeBP, i.fp, i.sp)
+	i.pushBlockFrame(block, captures, args, homeFrame, homeBP)
 	return i.runBlock(homeFrame, homeSelf)
 }
 
@@ -270,6 +281,12 @@ func (i *Interpreter) run() Value {
 
 		op := Opcode(bc[frame.IP])
 		frame.IP++
+
+		// Debug: trace opcode execution (only for specific method)
+		if frame.Method.Name() == "type:value:position:" {
+			fmt.Printf("DEBUG run: fp=%d, method=%s, IP=%d, op=%d (%s), bytecode=%v\n",
+				i.fp, frame.Method.Name(), frame.IP-1, op, op.String(), frame.Method.Bytecode)
+		}
 
 		switch op {
 		// --- Stack operations ---
@@ -347,10 +364,24 @@ func (i *Interpreter) run() Value {
 		case OpPushGlobal:
 			idx := binary.LittleEndian.Uint16(bc[frame.IP:])
 			frame.IP += 2
-			// For now, use literal as global name
 			if int(idx) < len(literals) {
-				// Assume literal is a symbol or string representing global name
-				i.push(Nil) // Placeholder - would lookup in globals table
+				// Get global name from literal
+				globalName := ""
+				lit := literals[idx]
+				if lit.IsSymbol() && i.Symbols != nil {
+					globalName = i.Symbols.Name(lit.SymbolID())
+				} else if IsStringValue(lit) {
+					globalName = GetStringContent(lit)
+				}
+				if globalName != "" {
+					if val, ok := i.Globals[globalName]; ok {
+						i.push(val)
+					} else {
+						i.push(Nil)
+					}
+				} else {
+					i.push(Nil)
+				}
 			} else {
 				i.push(Nil)
 			}
@@ -358,8 +389,8 @@ func (i *Interpreter) run() Value {
 		case OpStoreGlobal:
 			idx := binary.LittleEndian.Uint16(bc[frame.IP:])
 			frame.IP += 2
-			_ = idx // Would store in globals table
-			// Value remains on stack
+			// Store global would go here, value remains on stack
+			_ = idx
 
 		case OpPushCaptured:
 			idx := bc[frame.IP]
@@ -662,6 +693,10 @@ func (i *Interpreter) runBlock(homeFrame int, homeSelf Value) Value {
 		case OpPushLiteral:
 			idx := binary.LittleEndian.Uint16(bc[frame.IP:])
 			frame.IP += 2
+			if int(idx) >= len(literals) {
+				panic(fmt.Sprintf("runBlock: literal index %d out of bounds (len=%d), block arity=%d, bytecode=%v",
+					idx, len(literals), frame.Block.Arity, bc))
+			}
 			i.push(literals[idx])
 
 		case OpPushFloat:
@@ -694,6 +729,19 @@ func (i *Interpreter) runBlock(homeFrame int, homeSelf Value) Value {
 			if int(idx) < len(frame.Captures) {
 				frame.Captures[idx] = i.top()
 			}
+
+		case OpPushHomeTemp:
+			idx := bc[frame.IP]
+			frame.IP++
+			// Access temp from home frame using HomeBP
+// 			fmt.Printf("DEBUG OpPushHomeTemp: idx=%d, HomeBP=%d, fp=%d, sp=%d, stack[HomeBP+idx]=%v\n", idx, frame.HomeBP, i.fp, i.sp, i.stack[frame.HomeBP+int(idx)])
+			i.push(i.stack[frame.HomeBP+int(idx)])
+
+		case OpStoreHomeTemp:
+			idx := bc[frame.IP]
+			frame.IP++
+			// Store into temp in home frame using HomeBP
+			i.stack[frame.HomeBP+int(idx)] = i.top()
 
 		// Message sends
 		case OpSend:
@@ -795,6 +843,95 @@ func (i *Interpreter) runBlock(homeFrame int, homeSelf Value) Value {
 			i.popFrame()
 			return result
 
+		// Global access (needed for class references like Compiler, Parser, etc.)
+		case OpPushGlobal:
+			idx := binary.LittleEndian.Uint16(bc[frame.IP:])
+			frame.IP += 2
+			if int(idx) < len(literals) {
+				// Get global name from literal
+				globalName := ""
+				lit := literals[idx]
+				if lit.IsSymbol() && i.Symbols != nil {
+					globalName = i.Symbols.Name(lit.SymbolID())
+				} else if IsStringValue(lit) {
+					globalName = GetStringContent(lit)
+				}
+				if globalName != "" {
+					if val, ok := i.Globals[globalName]; ok {
+						i.push(val)
+					} else {
+						i.push(Nil)
+					}
+				} else {
+					i.push(Nil)
+				}
+			} else {
+				i.push(Nil)
+			}
+
+		case OpStoreGlobal:
+			idx := binary.LittleEndian.Uint16(bc[frame.IP:])
+			frame.IP += 2
+			_ = idx // Value remains on stack; would store in globals table
+
+		// Instance variables - access relative to homeSelf
+		case OpPushIvar:
+			idx := bc[frame.IP]
+			frame.IP++
+			obj := ObjectFromValue(homeSelf)
+			if obj != nil && int(idx) < obj.NumSlots() {
+				i.push(obj.GetSlot(int(idx)))
+			} else {
+				i.push(Nil)
+			}
+
+		case OpStoreIvar:
+			idx := bc[frame.IP]
+			frame.IP++
+			obj := ObjectFromValue(homeSelf)
+			if obj != nil && int(idx) < obj.NumSlots() {
+				obj.SetSlot(int(idx), i.top())
+			}
+
+		// Block creation (blocks can create nested blocks)
+		case OpCreateBlock:
+			idx := binary.LittleEndian.Uint16(bc[frame.IP:])
+			frame.IP += 2
+			captureCount := bc[frame.IP]
+			frame.IP++
+
+			// Look up block from the HOME frame's method (not the current block frame)
+			// The home frame is the enclosing method that contains all block definitions
+			var blockMethod *BlockMethod
+			if frame.HomeFrame >= 0 && frame.HomeFrame < len(i.frames) && i.frames[frame.HomeFrame] != nil {
+				homeMethod := i.frames[frame.HomeFrame].Method
+				if homeMethod != nil && int(idx) < len(homeMethod.Blocks) {
+					blockMethod = homeMethod.Blocks[idx]
+				}
+			}
+
+			if blockMethod != nil {
+				// Capture variables
+				var captures []Value
+				if captureCount > 0 {
+					captures = make([]Value, captureCount)
+					for j := 0; j < int(captureCount); j++ {
+						captures[j] = i.pop()
+					}
+					// Reverse captures (they were pushed in order, popped in reverse)
+					for l, r := 0, len(captures)-1; l < r; l, r = l+1, r-1 {
+						captures[l], captures[r] = captures[r], captures[l]
+					}
+				}
+
+				// Create block value
+				blockVal := i.createBlockValue(blockMethod, captures)
+				i.push(blockVal)
+			} else {
+// 				fmt.Printf("DEBUG OpCreateBlock in runBlock: block idx=%d not found (HomeFrame=%d)\n", idx, frame.HomeFrame)
+				i.push(Nil)
+			}
+
 		default:
 			// For opcodes not yet implemented in blocks, fall back
 			panic(fmt.Sprintf("opcode %s not implemented for blocks", op))
@@ -811,6 +948,11 @@ func (i *Interpreter) send(selector int, argc int) (result Value) {
 	args := i.popN(argc)
 	rcvr := i.pop()
 
+	// Debug: limit spam
+	if i.fp < 7 {
+// 		fmt.Printf("DEBUG send: selector=%d, argc=%d, rcvr=%v (fp=%d)\n", selector, argc, rcvr, i.fp)
+	}
+
 	// Get the vtable for the receiver
 	vt := i.vtableFor(rcvr)
 	if vt == nil {
@@ -818,11 +960,21 @@ func (i *Interpreter) send(selector int, argc int) (result Value) {
 		return Nil
 	}
 
+	// Debug: show vtable class
+	if i.fp < 7 && vt.Class() != nil {
+// 		fmt.Printf("DEBUG send: vtable class=%s\n", vt.Class().Name)
+	}
+
 	// Lookup the method
 	method := vt.Lookup(selector)
 	if method == nil {
 		// Method not found - would trigger doesNotUnderstand:
 		return Nil
+	}
+
+	// Debug: show method type
+	if i.fp < 7 {
+// 		fmt.Printf("DEBUG send: method=%v (%T)\n", method, method)
 	}
 
 	// Check if it's a compiled method or primitive
@@ -870,16 +1022,24 @@ func (i *Interpreter) sendSuper(selector int, argc int, definingClass *Class) (r
 
 	// Start lookup from superclass
 	if definingClass == nil || definingClass.Superclass == nil {
+		fmt.Printf("DEBUG sendSuper: definingClass=%v, Superclass=%v - returning Nil\n",
+			definingClass, definingClass.Superclass)
 		return Nil
 	}
 
+	fmt.Printf("DEBUG sendSuper: selector=%d, definingClass=%s, Superclass=%s\n",
+		selector, definingClass.Name, definingClass.Superclass.Name)
+
 	vt := definingClass.Superclass.VTable
 	if vt == nil {
+		fmt.Println("DEBUG sendSuper: Superclass.VTable is nil - returning Nil")
 		return Nil
 	}
 
 	method := vt.Lookup(selector)
+	fmt.Printf("DEBUG sendSuper: method=%v (%T)\n", method, method)
 	if method == nil {
+		fmt.Println("DEBUG sendSuper: method not found - returning Nil")
 		return Nil
 	}
 
@@ -943,6 +1103,29 @@ func (i *Interpreter) vtableFor(v Value) *VTable {
 			return c.VTable
 		}
 	case v.IsSymbol():
+		// Check for special symbol-encoded values first
+		if IsStringValue(v) {
+			if c := i.Classes.Lookup("String"); c != nil {
+				return c.VTable
+			}
+		}
+		if IsDictionaryValue(v) {
+			if c := i.Classes.Lookup("Dictionary"); c != nil {
+				return c.VTable
+			}
+		}
+		// Check if this symbol represents a class name (for class-side messages)
+		if i.Symbols != nil {
+			symName := i.Symbols.Name(v.SymbolID())
+			if cls := i.Classes.Lookup(symName); cls != nil {
+				// Use ClassVTable for class-side dispatch (metaclass methods)
+				if cls.ClassVTable != nil {
+					return cls.ClassVTable
+				}
+				return cls.VTable // Fallback if ClassVTable not initialized
+			}
+		}
+		// Fall back to Symbol class for regular symbols
 		if c := i.Classes.Lookup("Symbol"); c != nil {
 			return c.VTable
 		}
@@ -987,20 +1170,31 @@ func (i *Interpreter) createBlockValue(block *BlockMethod, captures []Value) Val
 	id := nextBlockID
 	nextBlockID++
 
-	// Capture self from the current method context
+	// Determine the home frame (the enclosing method's frame)
+	// If we're in a block, propagate its HomeFrame; otherwise use current frame
+	homeFrame := i.fp
 	var homeSelf Value = Nil
 	if i.fp >= 0 {
 		frame := i.frames[i.fp]
 		if frame != nil {
 			homeSelf = frame.Receiver
+			// If we're in a block, use its home frame to find the enclosing method
+			if frame.Block != nil && frame.HomeFrame >= 0 {
+				homeFrame = frame.HomeFrame
+				// Also get homeSelf from the actual home frame
+				if homeFrame >= 0 && homeFrame < len(i.frames) && i.frames[homeFrame] != nil {
+					homeSelf = i.frames[homeFrame].Receiver
+				}
+			}
 		}
 	}
 
+// 	fmt.Printf("DEBUG createBlockValue: id=%d, HomeFrame=%d, sp=%d\n", id, homeFrame, i.sp)
 	blockRegistry[id] = &BlockValue{
 		Block:     block,
 		Captures:  captures,
-		HomeFrame: i.fp,     // remember the frame that created this block
-		HomeSelf:  homeSelf, // capture self from enclosing method
+		HomeFrame: homeFrame, // remember the enclosing method's frame
+		HomeSelf:  homeSelf,  // capture self from enclosing method
 	}
 	return FromBlockID(uint32(id))
 }

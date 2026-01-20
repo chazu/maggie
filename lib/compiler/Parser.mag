@@ -414,15 +414,13 @@ Parser subclass: Object
       | selector params temps statements isClassMethod |
       isClassMethod := false.
 
-      "Check for classMethod: vs method:"
-      (currentToken type = #identifier and: [currentToken value = 'classMethod']) ifTrue: [
+      "Check for classMethod: vs method: (keyword token includes the colon)"
+      (currentToken type = #keyword and: [currentToken value = 'classMethod:']) ifTrue: [
           isClassMethod := true.
-          self advance.
-          self expect: #colon
+          self advance
       ] ifFalse: [
-          (currentToken type = #identifier and: [currentToken value = 'method']) ifTrue: [
-              self advance.
-              self expect: #colon
+          (currentToken type = #keyword and: [currentToken value = 'method:']) ifTrue: [
+              self advance
           ]
       ].
 
@@ -519,11 +517,11 @@ Parser subclass: Object
                   traits := traits copyWith: (self expect: #identifier) value.
               ] ifFalse: [
                   "Instance method"
-                  (currentToken type = #identifier and: [currentToken value = 'method']) ifTrue: [
+                  (currentToken type = #keyword and: [currentToken value = 'method:']) ifTrue: [
                       methods := methods copyWith: self parseMethodDef.
                   ] ifFalse: [
                       "Class method"
-                      (currentToken type = #identifier and: [currentToken value = 'classMethod']) ifTrue: [
+                      (currentToken type = #keyword and: [currentToken value = 'classMethod:']) ifTrue: [
                           classMethods := classMethods copyWith: self parseMethodDef.
                       ] ifFalse: [
                           "Unknown or end of class"
@@ -610,10 +608,10 @@ Parser subclass: Object
                   self advance. self expect: #colon.
                   traits := traits copyWith: (self expect: #identifier) value.
               ] ifFalse: [
-                  (currentToken type = #identifier and: [currentToken value = 'method']) ifTrue: [
+                  (currentToken type = #keyword and: [currentToken value = 'method:']) ifTrue: [
                       methods := methods copyWith: self parseMethodDef.
                   ] ifFalse: [
-                      (currentToken type = #identifier and: [currentToken value = 'classMethod']) ifTrue: [
+                      (currentToken type = #keyword and: [currentToken value = 'classMethod:']) ifTrue: [
                           classMethods := classMethods copyWith: self parseMethodDef.
                       ] ifFalse: [
                           "End of class body"
@@ -636,7 +634,7 @@ Parser subclass: Object
       requires := Array new.
 
       [self atEnd not] whileTrue: [
-          (currentToken type = #identifier and: [currentToken value = 'method']) ifTrue: [
+          (currentToken type = #keyword and: [currentToken value = 'method:']) ifTrue: [
               methods := methods copyWith: self parseMethodDef.
           ] ifFalse: [
               (currentToken type = #identifier and: [currentToken value = 'requires']) ifTrue: [

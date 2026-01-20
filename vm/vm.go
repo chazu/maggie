@@ -1,5 +1,6 @@
 package vm
 
+
 // ---------------------------------------------------------------------------
 // VM: The Maggie Virtual Machine
 // ---------------------------------------------------------------------------
@@ -71,6 +72,7 @@ func (vm *VM) newInterpreter() *Interpreter {
 	interp := NewInterpreter()
 	// Share tables with VM
 	interp.Selectors = vm.Selectors
+	interp.Symbols = vm.Symbols
 	interp.Classes = vm.Classes
 	interp.Globals = vm.Globals
 	interp.vm = vm // Back-reference for primitives
@@ -195,6 +197,24 @@ func (vm *VM) classValue(c *Class) Value {
 
 func (vm *VM) registerObjectPrimitives() {
 	c := vm.ObjectClass
+
+	// new - create a new instance (class-side primitive)
+	// This is a class method - registered on ClassVTable
+	// When sent to a symbol representing a class, creates an instance of that class
+	_ = vm.Selectors.Intern("new") // Ensure "new" selector is interned
+	c.AddClassMethod0(vm.Selectors, "new", func(vmPtr interface{}, recv Value) Value {
+		v := vmPtr.(*VM)
+		// If receiver is a symbol representing a class, create an instance
+		if recv.IsSymbol() {
+			symName := v.Symbols.Name(recv.SymbolID())
+			if cls := v.Classes.Lookup(symName); cls != nil {
+				instance := cls.NewInstance()
+				return instance.ToValue()
+			}
+		}
+		// Otherwise, just return self (for instance-side call)
+		return recv
+	})
 
 	// class - return the class of the receiver
 	c.AddMethod0(vm.Selectors, "class", func(_ interface{}, recv Value) Value {
@@ -851,8 +871,8 @@ func (vm *VM) registerArrayPrimitives() {
 	})
 
 	// Class-side new: - create array of given size
-	// This is registered on the Array class itself for class-side dispatch
-	c.AddMethod1(vm.Selectors, "new:", func(vmPtr interface{}, recv Value, size Value) Value {
+	// This is a class method - registered on ClassVTable
+	c.AddClassMethod1(vm.Selectors, "new:", func(vmPtr interface{}, recv Value, size Value) Value {
 		v := vmPtr.(*VM)
 		if !size.IsSmallInt() {
 			return Nil
@@ -866,7 +886,7 @@ func (vm *VM) registerArrayPrimitives() {
 	})
 
 	// with: - create single-element array (class side)
-	c.AddMethod1(vm.Selectors, "with:", func(vmPtr interface{}, recv Value, elem Value) Value {
+	c.AddClassMethod1(vm.Selectors, "with:", func(vmPtr interface{}, recv Value, elem Value) Value {
 		v := vmPtr.(*VM)
 		arr := v.NewArray(1)
 		if arr.IsObject() {
@@ -877,7 +897,7 @@ func (vm *VM) registerArrayPrimitives() {
 	})
 
 	// with:with: - create two-element array (class side)
-	c.AddMethod2(vm.Selectors, "with:with:", func(vmPtr interface{}, recv Value, elem1, elem2 Value) Value {
+	c.AddClassMethod2(vm.Selectors, "with:with:", func(vmPtr interface{}, recv Value, elem1, elem2 Value) Value {
 		v := vmPtr.(*VM)
 		arr := v.NewArray(2)
 		if arr.IsObject() {
@@ -1014,10 +1034,12 @@ func (vm *VM) registerBlockPrimitives() {
 
 func (vm *VM) evaluateBlock(blockVal Value, args []Value) Value {
 	// Get block from registry
-	if bv := vm.interpreter.getBlockValue(blockVal); bv != nil {
-		return vm.interpreter.ExecuteBlock(bv.Block, bv.Captures, args, bv.HomeFrame, bv.HomeSelf)
+	bv := vm.interpreter.getBlockValue(blockVal)
+	if bv == nil {
+// 		fmt.Printf("DEBUG evaluateBlock: blockVal=%v is not a valid block (IsBlock=%v)\n", blockVal, blockVal.IsBlock())
+		return Nil
 	}
-	return Nil
+	return vm.interpreter.ExecuteBlock(bv.Block, bv.Captures, args, bv.HomeFrame, bv.HomeSelf)
 }
 
 // ---------------------------------------------------------------------------
@@ -1079,8 +1101,11 @@ func (vm *VM) ClassFor(v Value) *Class {
 		return vm.SymbolClass
 	case v.IsObject():
 		obj := ObjectFromValue(v)
-		if obj != nil && obj.VTablePtr() != nil && obj.VTablePtr().Class() != nil {
-			return obj.VTablePtr().Class()
+		if obj != nil {
+			vt := obj.VTablePtr()
+			if vt != nil && vt.Class() != nil {
+				return vt.Class()
+			}
 		}
 		return vm.ObjectClass
 	default:
@@ -1103,6 +1128,7 @@ func (vm *VM) Send(receiver Value, selector string, args []Value) Value {
 
 	// Determine the class for method dispatch
 	var class *Class
+	isClassSide := false // Track if this is a class-side dispatch
 	if receiver.IsSymbol() {
 		// Check for string values first (they use the symbol tag but with high IDs)
 		if IsStringValue(receiver) {
@@ -1128,6 +1154,7 @@ func (vm *VM) Send(receiver Value, selector string, args []Value) Value {
 			symName := vm.Symbols.Name(receiver.SymbolID())
 			if cls := vm.Classes.Lookup(symName); cls != nil {
 				class = cls
+				isClassSide = true // Use ClassVTable for class-side dispatch
 			} else {
 				class = vm.SymbolClass
 			}
@@ -1140,7 +1167,14 @@ func (vm *VM) Send(receiver Value, selector string, args []Value) Value {
 		return Nil
 	}
 
-	method := class.VTable.Lookup(selectorID)
+	// Use ClassVTable for class-side dispatch, VTable for instance-side
+	var method Method
+	if isClassSide && class.ClassVTable != nil {
+		method = class.ClassVTable.Lookup(selectorID)
+	} else {
+		method = class.VTable.Lookup(selectorID)
+	}
+
 	if method == nil {
 		return Nil // Would trigger doesNotUnderstand:
 	}

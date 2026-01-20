@@ -178,14 +178,14 @@ func (p *ProcessObject) isDone() bool {
 func (vm *VM) registerChannelPrimitives() {
 	c := vm.ChannelClass
 
-	// Channel class>>new - create unbuffered channel
-	c.AddMethod0(vm.Selectors, "new", func(_ interface{}, recv Value) Value {
+	// Channel class>>new - create unbuffered channel (class method)
+	c.AddClassMethod0(vm.Selectors, "new", func(_ interface{}, recv Value) Value {
 		ch := createChannel(0)
 		return registerChannel(ch)
 	})
 
-	// Channel class>>new: size - create buffered channel
-	c.AddMethod1(vm.Selectors, "new:", func(_ interface{}, recv Value, size Value) Value {
+	// Channel class>>new: size - create buffered channel (class method)
+	c.AddClassMethod1(vm.Selectors, "new:", func(_ interface{}, recv Value, size Value) Value {
 		if !size.IsSmallInt() {
 			return Nil
 		}
@@ -411,21 +411,21 @@ func (vm *VM) registerProcessPrimitives() {
 		return proc.result
 	})
 
-	// Process class>>current - get current process (placeholder for now)
-	c.AddMethod0(vm.Selectors, "current", func(_ interface{}, recv Value) Value {
+	// Process class>>current - get current process (placeholder for now) (class method)
+	c.AddClassMethod0(vm.Selectors, "current", func(_ interface{}, recv Value) Value {
 		// In a full implementation, we'd track the current process per goroutine
 		return Nil
 	})
 
-	// Process class>>yield - yield to other goroutines
-	c.AddMethod0(vm.Selectors, "yield", func(_ interface{}, recv Value) Value {
+	// Process class>>yield - yield to other goroutines (class method)
+	c.AddClassMethod0(vm.Selectors, "yield", func(_ interface{}, recv Value) Value {
 		// runtime.Gosched() is the Go equivalent
 		// For now, just return
 		return Nil
 	})
 
-	// Process class>>sleep: milliseconds - sleep for specified time
-	c.AddMethod1(vm.Selectors, "sleep:", func(_ interface{}, recv Value, ms Value) Value {
+	// Process class>>sleep: milliseconds - sleep for specified time (class method)
+	c.AddClassMethod1(vm.Selectors, "sleep:", func(_ interface{}, recv Value, ms Value) Value {
 		if !ms.IsSmallInt() {
 			return recv
 		}
