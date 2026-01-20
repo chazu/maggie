@@ -68,7 +68,7 @@ type Method interface {
 // NewObject creates a new Object with the given vtable and slot count.
 // All slots are initialized to Nil.
 func NewObject(vt *VTable, numSlots int) *Object {
-	obj := &Object{vtable: vt}
+	obj := &Object{vtable: vt, size: -1} // -1 means "use actual slot count"
 
 	// Initialize inline slots to Nil
 	obj.slot0 = Nil
@@ -90,7 +90,7 @@ func NewObject(vt *VTable, numSlots int) *Object {
 // NewObjectWithSlots creates a new Object and initializes its slots.
 // Panics if len(slots) doesn't match the expected slot count.
 func NewObjectWithSlots(vt *VTable, slots []Value) *Object {
-	obj := &Object{vtable: vt}
+	obj := &Object{vtable: vt, size: -1} // -1 means "use actual slot count"
 
 	// Copy slots
 	n := len(slots)
@@ -174,7 +174,10 @@ func (obj *Object) SetSlot(index int, value Value) {
 // For variable-sized objects (like arrays), returns the actual size.
 // For regular objects, returns the physical slot count.
 func (obj *Object) NumSlots() int {
-	if obj.size > 0 {
+	// For variable-sized objects like arrays, obj.size stores the logical size.
+	// A value of -1 means "use actual slots" (for fixed-sized objects).
+	// A value of 0 or more means "use this as the size" (for arrays).
+	if obj.size >= 0 {
 		return obj.size
 	}
 	return NumInlineSlots + len(obj.overflow)

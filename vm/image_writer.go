@@ -136,9 +136,18 @@ func (w *ImageWriter) collectClass(c *Class) {
 	w.encoder.RegisterClass(c)
 	w.classes = append(w.classes, c)
 
-	// Collect compiled methods from vtable
+	// Collect compiled methods from VTable (instance methods)
 	if c.VTable != nil {
 		for _, method := range c.VTable.methods {
+			if cm, ok := method.(*CompiledMethod); ok {
+				w.collectMethod(cm)
+			}
+		}
+	}
+
+	// Collect compiled methods from ClassVTable (class methods)
+	if c.ClassVTable != nil {
+		for _, method := range c.ClassVTable.methods {
 			if cm, ok := method.(*CompiledMethod); ok {
 				w.collectMethod(cm)
 			}
@@ -167,7 +176,10 @@ func (w *ImageWriter) collectMethod(m *CompiledMethod) {
 
 	// Collect literals that are symbols or strings
 	for _, lit := range m.Literals {
-		if lit.IsSymbol() {
+		if IsStringValue(lit) {
+			// String literals - must check before IsSymbol since both use symbol tag
+			w.registerString(GetStringContent(lit))
+		} else if lit.IsSymbol() {
 			w.registerSymbol(lit.SymbolID())
 		}
 	}
@@ -186,7 +198,10 @@ func (w *ImageWriter) collectBlock(b *BlockMethod) {
 
 	// Collect literals that are symbols or strings
 	for _, lit := range b.Literals {
-		if lit.IsSymbol() {
+		if IsStringValue(lit) {
+			// String literals - must check before IsSymbol since both use symbol tag
+			w.registerString(GetStringContent(lit))
+		} else if lit.IsSymbol() {
 			w.registerSymbol(lit.SymbolID())
 		}
 	}
@@ -450,7 +465,7 @@ func (w *ImageWriter) writeClass(c *Class) {
 		w.buf.Write(buf)
 	}
 
-	// Method count (count CompiledMethods only)
+	// Instance method count (count CompiledMethods only)
 	methodCount := 0
 	if c.VTable != nil {
 		for _, m := range c.VTable.methods {
@@ -462,9 +477,32 @@ func (w *ImageWriter) writeClass(c *Class) {
 	WriteUint32(buf, uint32(methodCount))
 	w.buf.Write(buf)
 
-	// Method indices
+	// Instance method indices
 	if c.VTable != nil {
 		for _, m := range c.VTable.methods {
+			if cm, ok := m.(*CompiledMethod); ok {
+				methodIdx, _ := w.encoder.LookupMethod(cm)
+				WriteUint32(buf, methodIdx)
+				w.buf.Write(buf)
+			}
+		}
+	}
+
+	// Class method count (ClassVTable CompiledMethods)
+	classMethodCount := 0
+	if c.ClassVTable != nil {
+		for _, m := range c.ClassVTable.methods {
+			if _, ok := m.(*CompiledMethod); ok {
+				classMethodCount++
+			}
+		}
+	}
+	WriteUint32(buf, uint32(classMethodCount))
+	w.buf.Write(buf)
+
+	// Class method indices
+	if c.ClassVTable != nil {
+		for _, m := range c.ClassVTable.methods {
 			if cm, ok := m.(*CompiledMethod); ok {
 				methodIdx, _ := w.encoder.LookupMethod(cm)
 				WriteUint32(buf, methodIdx)
@@ -519,6 +557,13 @@ func (w *ImageWriter) writeMethod(m *CompiledMethod) {
 	nameIdx, _ := w.encoder.LookupString(m.name)
 	WriteUint32(buf, nameIdx)
 	w.buf.Write(buf)
+
+	// IsClassMethod flag (1 byte: 0 = instance method, 1 = class method)
+	if m.IsClassMethod {
+		w.buf.WriteByte(1)
+	} else {
+		w.buf.WriteByte(0)
+	}
 
 	// Arity
 	WriteUint32(buf, uint32(m.Arity))

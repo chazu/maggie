@@ -395,13 +395,13 @@ func TestVMSendSymbol(t *testing.T) {
 	// Create a symbol
 	sym := vm.Symbols.SymbolValue("testSymbol")
 
-	// asString - should return a symbol with the same name
+	// asString - should return a string with the symbol's name
 	result := vm.Send(sym, "asString", nil)
-	if !result.IsSymbol() {
-		t.Errorf("asString should return a symbol")
+	if !IsStringValue(result) {
+		t.Errorf("asString should return a string, got %T", result)
 	}
-	if vm.Symbols.Name(result.SymbolID()) != "testSymbol" {
-		t.Errorf("asString returned wrong name")
+	if GetStringContent(result) != "testSymbol" {
+		t.Errorf("asString returned wrong content: %q, want %q", GetStringContent(result), "testSymbol")
 	}
 
 	// Symbol equality

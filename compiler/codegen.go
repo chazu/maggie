@@ -31,6 +31,12 @@ type Compiler struct {
 	outerTemps map[string]int // outer method temp name -> slot index
 	outerArgs  map[string]int // outer method arg name -> slot index
 	inBlock    bool           // true when compiling a block
+
+	// For nested block variable capture
+	// Variables from enclosing BLOCKS (not the method) need to be captured
+	enclosingBlockVars map[string]int // vars from enclosing blocks -> their slot index in enclosing scope
+	capturedVars       map[string]int // captured var name -> capture index (for OpPushCaptured)
+	blockNestingDepth  int            // 0 = method, 1 = first-level block, 2+ = nested blocks
 }
 
 // NewCompiler creates a new compiler.
@@ -242,8 +248,8 @@ func (c *Compiler) compileFloat(value float64) {
 }
 
 func (c *Compiler) compileString(value string) {
-	// For now, represent strings as symbols (full String requires heap objects)
-	idx := c.addLiteral(c.symbols.SymbolValue(value))
+	// Create an actual string value in the VM's string registry
+	idx := c.addLiteral(vm.NewStringValue(value))
 	c.builder.EmitUint16(vm.OpPushLiteral, uint16(idx))
 }
 
@@ -253,8 +259,8 @@ func (c *Compiler) compileSymbol(value string) {
 }
 
 func (c *Compiler) compileChar(value rune) {
-	// Represent char as small int for now
-	c.compileInt(int64(value))
+	// Characters in Maggie are single-character strings
+	c.compileString(string(value))
 }
 
 func (c *Compiler) compileArrayLiteral(arr *ArrayLiteral) {
@@ -314,8 +320,17 @@ func (c *Compiler) compileVariable(name string) {
 			c.builder.EmitByte(vm.OpPushIvar, byte(idx))
 			return
 		}
-		// In a block: check outer scope temps/args (use home frame access)
-		if c.inBlock {
+		// In a block: check captured variables first (for nested blocks)
+		if c.inBlock && c.capturedVars != nil {
+			if idx, ok := c.capturedVars[name]; ok {
+				c.builder.EmitByte(vm.OpPushCaptured, byte(idx))
+				return
+			}
+		}
+		// In a block: check outer METHOD scope temps/args (use home frame access)
+		// Only do this for first-level blocks (blockNestingDepth == 1)
+		// For nested blocks, we use captures instead
+		if c.inBlock && c.blockNestingDepth == 1 {
 			if idx, ok := c.outerTemps[name]; ok {
 				c.builder.EmitByte(vm.OpPushHomeTemp, byte(idx))
 				return
@@ -521,26 +536,64 @@ func (c *Compiler) compileBlock(block *Block) {
 	oldInBlock := c.inBlock
 	oldOuterTemps := c.outerTemps
 	oldOuterArgs := c.outerArgs
+	oldEnclosingBlockVars := c.enclosingBlockVars
+	oldCapturedVars := c.capturedVars
+	oldBlockNestingDepth := c.blockNestingDepth
 
-	// Build outer scope maps by merging current scope into outer scope
-	// This allows nested blocks to see all enclosing method/block temps
+	// Increment nesting depth: 0=method, 1=first block, 2+=nested blocks
+	newNestingDepth := oldBlockNestingDepth + 1
+
+	// Build outer scope maps for accessing method-level variables
+	// Only first-level blocks (depth=1) can use OpPushHomeTemp for method vars
 	newOuterTemps := make(map[string]int)
 	newOuterArgs := make(map[string]int)
 
-	// First copy existing outer temps (for nested blocks)
-	for k, v := range c.outerTemps {
-		newOuterTemps[k] = v
-	}
-	for k, v := range c.outerArgs {
-		newOuterArgs[k] = v
+	if newNestingDepth == 1 {
+		// First-level block: outer vars are from the method
+		for k, v := range c.temps {
+			newOuterTemps[k] = v
+		}
+		for k, v := range c.args {
+			newOuterArgs[k] = v
+		}
+	} else {
+		// Nested block: keep method-level outer vars but don't add current block vars
+		// (block vars need to be captured, not accessed via HomeBP)
+		for k, v := range c.outerTemps {
+			newOuterTemps[k] = v
+		}
+		for k, v := range c.outerArgs {
+			newOuterArgs[k] = v
+		}
 	}
 
-	// Then add current scope's temps and args (they take precedence for shadowing)
-	for k, v := range c.temps {
-		newOuterTemps[k] = v
+	// Build map of enclosing block variables (for nested blocks)
+	// These are variables from enclosing BLOCKS that need to be captured
+	newEnclosingBlockVars := make(map[string]int)
+	if oldEnclosingBlockVars != nil {
+		for k, v := range oldEnclosingBlockVars {
+			newEnclosingBlockVars[k] = v
+		}
 	}
-	for k, v := range c.args {
-		newOuterArgs[k] = v
+	// If we're already in a block (nesting >= 1), current scope's vars become enclosing block vars
+	if oldInBlock {
+		for k, v := range c.temps {
+			newEnclosingBlockVars[k] = v
+		}
+		for k, v := range c.args {
+			newEnclosingBlockVars[k] = v
+		}
+	}
+
+	// Identify which variables this block needs to capture
+	// This requires analyzing the block's AST to find referenced variables
+	varsToCapture := c.findCapturedVariables(block, newEnclosingBlockVars)
+	numCaptures := len(varsToCapture)
+
+	// Build capturedVars map for the inner block
+	newCapturedVars := make(map[string]int)
+	for i, varName := range varsToCapture {
+		newCapturedVars[varName] = i
 	}
 
 	// Set up block context with fresh literals pool
@@ -557,6 +610,9 @@ func (c *Compiler) compileBlock(block *Block) {
 	c.inBlock = true
 	c.outerTemps = newOuterTemps
 	c.outerArgs = newOuterArgs
+	c.enclosingBlockVars = newEnclosingBlockVars
+	c.capturedVars = newCapturedVars
+	c.blockNestingDepth = newNestingDepth
 
 	// Parameters
 	for i, param := range block.Parameters {
@@ -579,10 +635,11 @@ func (c *Compiler) compileBlock(block *Block) {
 
 	// Create BlockMethod with its own literals
 	blockMethod := &vm.BlockMethod{
-		Arity:    c.numArgs,
-		NumTemps: c.numTemps,
-		Bytecode: c.builder.Bytes(),
-		Literals: c.literals, // Block gets its own literals
+		Arity:       c.numArgs,
+		NumTemps:    c.numTemps,
+		NumCaptures: numCaptures,
+		Bytecode:    c.builder.Bytes(),
+		Literals:    c.literals, // Block gets its own literals
 	}
 
 	// Restore state
@@ -597,13 +654,129 @@ func (c *Compiler) compileBlock(block *Block) {
 	c.inBlock = oldInBlock
 	c.outerTemps = oldOuterTemps
 	c.outerArgs = oldOuterArgs
+	c.enclosingBlockVars = oldEnclosingBlockVars
+	c.capturedVars = oldCapturedVars
+	c.blockNestingDepth = oldBlockNestingDepth
+
+	// Emit capture instructions (push each captured variable onto stack)
+	// The variables are captured from the enclosing scope
+	for _, varName := range varsToCapture {
+		// Access the variable from the enclosing scope
+		// If it's in enclosing block vars, we need to use the appropriate opcode
+		if idx, ok := oldEnclosingBlockVars[varName]; ok {
+			// Variable from an enclosing block - already captured
+			if oldCapturedVars != nil {
+				if captIdx, ok := oldCapturedVars[varName]; ok {
+					c.builder.EmitByte(vm.OpPushCaptured, byte(captIdx))
+					continue
+				}
+			}
+			// Variable from current block scope - use PushTemp
+			c.builder.EmitByte(vm.OpPushTemp, byte(idx))
+		} else if idx, ok := c.temps[varName]; ok {
+			// Local temp in current scope
+			c.builder.EmitByte(vm.OpPushTemp, byte(idx))
+		} else if idx, ok := c.args[varName]; ok {
+			// Local arg in current scope
+			c.builder.EmitByte(vm.OpPushTemp, byte(idx))
+		} else if idx, ok := c.outerTemps[varName]; ok {
+			// Method-level temp
+			c.builder.EmitByte(vm.OpPushHomeTemp, byte(idx))
+		} else if idx, ok := c.outerArgs[varName]; ok {
+			// Method-level arg
+			c.builder.EmitByte(vm.OpPushHomeTemp, byte(idx))
+		}
+	}
 
 	// Add block to list
 	blockIdx := len(c.blocks)
 	c.blocks = append(c.blocks, blockMethod)
 
 	// Emit create block instruction (16-bit index, 8-bit capture count)
-	c.builder.EmitCreateBlock(uint16(blockIdx), 0) // TODO: capture count
+	c.builder.EmitCreateBlock(uint16(blockIdx), uint8(numCaptures))
+}
+
+// findCapturedVariables analyzes a block's AST to find variables that need to be captured.
+// Returns a list of variable names from enclosing block scopes that are referenced.
+func (c *Compiler) findCapturedVariables(block *Block, enclosingBlockVars map[string]int) []string {
+	result := make([]string, 0)
+	seen := make(map[string]bool)
+
+	// Walk the block's AST to find variable references
+	var walkExpr func(expr Expr)
+	var walkStmt func(stmt Stmt)
+
+	walkExpr = func(expr Expr) {
+		if expr == nil {
+			return
+		}
+		switch e := expr.(type) {
+		case *Variable:
+			name := e.Name
+			// Check if this variable is from an enclosing block scope
+			if _, ok := enclosingBlockVars[name]; ok {
+				// Skip if it's a parameter or temp of this block
+				for _, p := range block.Parameters {
+					if p == name {
+						return
+					}
+				}
+				for _, t := range block.Temps {
+					if t == name {
+						return
+					}
+				}
+				// It's a captured variable
+				if !seen[name] {
+					seen[name] = true
+					result = append(result, name)
+				}
+			}
+		case *Assignment:
+			walkExpr(e.Value)
+		case *UnaryMessage:
+			walkExpr(e.Receiver)
+		case *BinaryMessage:
+			walkExpr(e.Receiver)
+			walkExpr(e.Argument)
+		case *KeywordMessage:
+			walkExpr(e.Receiver)
+			for _, arg := range e.Arguments {
+				walkExpr(arg)
+			}
+		case *Cascade:
+			walkExpr(e.Receiver)
+			for _, msg := range e.Messages {
+				// CascadedMessage has Arguments for binary/keyword messages
+				for _, arg := range msg.Arguments {
+					walkExpr(arg)
+				}
+			}
+		case *Block:
+			// Recurse into nested blocks
+			for _, stmt := range e.Statements {
+				walkStmt(stmt)
+			}
+		}
+	}
+
+	walkStmt = func(stmt Stmt) {
+		if stmt == nil {
+			return
+		}
+		switch s := stmt.(type) {
+		case *ExprStmt:
+			walkExpr(s.Expr)
+		case *Return:
+			walkExpr(s.Value)
+		}
+	}
+
+	for _, stmt := range block.Statements {
+		walkStmt(stmt)
+	}
+
+	return result
 }
 
 // ---------------------------------------------------------------------------

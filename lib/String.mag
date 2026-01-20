@@ -8,7 +8,8 @@ String subclass: Object
   ]
 
   method: at: index [
-      ^self primAt: index
+      "Return character at 1-based index. primAt: uses 0-based indexing."
+      ^self primAt: index - 1
   ]
 
   method: isEmpty [
@@ -70,6 +71,32 @@ String subclass: Object
   # Copying
   method: copyFrom: start to: end [
       ^self primCopyFrom: start to: end
+  ]
+
+  # Character inspection (for single-character strings)
+  method: isDigit [
+      "Return true if this is a single digit character."
+      ^self primIsDigit
+  ]
+
+  method: isLetter [
+      "Return true if this is a single letter character."
+      ^self primIsLetter
+  ]
+
+  method: isAlphanumeric [
+      "Return true if this is a letter or digit."
+      ^self isLetter or: [self isDigit]
+  ]
+
+  method: isWhitespace [
+      "Return true if this is whitespace."
+      ^self primIsWhitespace
+  ]
+
+  method: asString [
+      "Strings are already strings."
+      ^self
   ]
 
   # Printing

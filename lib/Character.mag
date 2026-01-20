@@ -1,0 +1,35 @@
+# Character.mag
+# Character class provides character constants and inspection methods.
+# In Maggie, characters are represented as single-character strings.
+
+Character subclass: Object
+
+  # Character constants (class methods)
+  classMethod: space [
+      ^' '
+  ]
+
+  classMethod: tab [
+      ^'	'
+  ]
+
+  classMethod: cr [
+      ^'
+'
+  ]
+
+  classMethod: lf [
+      ^'
+'
+  ]
+
+  classMethod: newline [
+      ^'
+'
+  ]
+
+  # Character code conversion
+  classMethod: value: anInteger [
+      "Return the character with the given ASCII/Unicode value."
+      ^self primCharValue: anInteger
+  ]

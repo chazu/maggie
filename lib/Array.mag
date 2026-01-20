@@ -9,11 +9,13 @@ Array subclass: Object
   ]
 
   method: at: index [
-      ^self primAt: index
+      "Return element at 1-based index. primAt: uses 0-based indexing."
+      ^self primAt: index - 1
   ]
 
   method: at: index put: value [
-      ^self primAt: index put: value
+      "Set element at 1-based index. primAt:put: uses 0-based indexing."
+      ^self primAt: index - 1 put: value
   ]
 
   method: first [
@@ -99,6 +101,11 @@ Array subclass: Object
       result := Array new: end - start + 1.
       start to: end do: [:i | result at: i - start + 1 put: (self at: i)].
       ^result
+  ]
+
+  method: copyWith: element [
+      "Return a new array with element appended."
+      ^self, (Array with: element)
   ]
 
   # Printing

@@ -149,6 +149,7 @@ Compiler subclass: Object
           at: #parameters put: methodNode parameters;
           at: #bytecode put: generator bytecode;
           at: #literals put: generator literals;
+          at: #selectors put: generator selectors;
           at: #blockMethods put: generator blockMethods;
           yourself
   ]
@@ -160,6 +161,7 @@ Compiler subclass: Object
           at: #parameters put: Array new;
           at: #bytecode put: generator bytecode;
           at: #literals put: generator literals;
+          at: #selectors put: generator selectors;
           at: #blockMethods put: generator blockMethods;
           yourself
   ]

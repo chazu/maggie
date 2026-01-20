@@ -101,7 +101,9 @@ BytecodeGenerator subclass: Object
   # Accessing
   method: bytecode [^bytecode]
   method: literals [^literals]
+  method: selectors [^selectors]
   method: blockMethods [^blockMethods]
+  method: temps [^temps]
 
   # ============================================
   # Literal table management
@@ -178,17 +180,17 @@ BytecodeGenerator subclass: Object
   ]
 
   method: emit: opcode short: arg [
-      "Emit opcode with 16-bit argument (big-endian)."
+      "Emit opcode with 16-bit argument (little-endian, matching Go VM)."
       bytecode := bytecode copyWith: opcode.
-      bytecode := bytecode copyWith: ((arg bitShift: -8) bitAnd: 16rFF).
       bytecode := bytecode copyWith: (arg bitAnd: 16rFF).
+      bytecode := bytecode copyWith: ((arg bitShift: -8) bitAnd: 16rFF).
       ^self
   ]
 
   method: emitShort: value [
-      "Emit a 16-bit value (big-endian)."
-      bytecode := bytecode copyWith: ((value bitShift: -8) bitAnd: 16rFF).
+      "Emit a 16-bit value (little-endian, matching Go VM)."
       bytecode := bytecode copyWith: (value bitAnd: 16rFF).
+      bytecode := bytecode copyWith: ((value bitShift: -8) bitAnd: 16rFF).
       ^self
   ]
 
@@ -372,11 +374,11 @@ BytecodeGenerator subclass: Object
   ]
 
   method: patchJumpAt: location [
-      "Patch a forward jump to point to current location."
+      "Patch a forward jump to point to current location (little-endian)."
       | offset |
       offset := bytecode size - location - 2.  "Offset from after the jump operand"
-      bytecode at: location put: ((offset bitShift: -8) bitAnd: 16rFF).
-      bytecode at: location + 1 put: (offset bitAnd: 16rFF)
+      bytecode at: location put: (offset bitAnd: 16rFF).
+      bytecode at: location + 1 put: ((offset bitShift: -8) bitAnd: 16rFF)
   ]
 
   # ============================================
@@ -534,7 +536,7 @@ BytecodeGenerator subclass: Object
 
   method: visitBlockNode: node [
       "Compile block as a nested method."
-      | blockGen blockIndex params |
+      | blockGen blockIndex params statements |
       blockGen := BytecodeGenerator new.
 
       "Add parameters as temps"
@@ -545,21 +547,21 @@ BytecodeGenerator subclass: Object
       node temporaries do: [:t | blockGen addTemp: t].
 
       "Compile statements"
-      node statements do: [:stmt |
-          blockGen compile: stmt.
-          blockGen emitPop  "Discard intermediate results"
-      ].
-
-      "Return last value (or nil if empty)"
-      node statements size > 0
-          ifTrue: [
-              "Remove last pop, add return"
-              blockGen emitReturnTop
-          ]
-          ifFalse: [
-              blockGen emitPushNil.
-              blockGen emitReturnTop
+      statements := node statements.
+      statements size > 0 ifTrue: [
+          "Compile all but last statement with pop"
+          1 to: statements size - 1 do: [:i |
+              blockGen compile: (statements at: i).
+              blockGen emitPop
           ].
+          "Compile last statement without pop, then return"
+          blockGen compile: (statements at: statements size).
+          blockGen emitBlockReturn
+      ] ifFalse: [
+          "Empty block returns nil"
+          blockGen emitPushNil.
+          blockGen emitBlockReturn
+      ].
 
       "Add block to our list"
       blockIndex := self addBlockMethod: blockGen.
@@ -579,7 +581,7 @@ BytecodeGenerator subclass: Object
 
   method: compileMethod: methodNode [
       "Compile a method node to bytecode."
-      | params |
+      | params statements lastStmt hasExplicitReturn |
 
       "Add parameters as temps"
       params := methodNode parameters.
@@ -589,13 +591,27 @@ BytecodeGenerator subclass: Object
       methodNode temporaries do: [:t | self addTemp: t].
 
       "Compile statements"
-      methodNode statements do: [:stmt |
-          self compile: stmt.
-          self emitPop
+      statements := methodNode statements.
+      hasExplicitReturn := false.
+
+      statements size > 0 ifTrue: [
+          "Check if last statement is a return"
+          lastStmt := statements at: statements size.
+          hasExplicitReturn := lastStmt isReturn.
+
+          "Compile all but last statement with pop"
+          1 to: statements size - 1 do: [:i |
+              self compile: (statements at: i).
+              self emitPop
+          ].
+
+          "Compile last statement (no pop if it's a return)"
+          self compile: lastStmt.
+          hasExplicitReturn ifFalse: [self emitPop]
       ].
 
       "Implicit return self if no explicit return"
-      self emitReturnSelf.
+      hasExplicitReturn ifFalse: [self emitReturnSelf].
 
       ^self
   ]

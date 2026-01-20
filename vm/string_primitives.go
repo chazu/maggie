@@ -1,6 +1,7 @@
 package vm
 
 import (
+	"strconv"
 	"strings"
 	"sync"
 )
@@ -211,5 +212,64 @@ func (vm *VM) registerStringPrimitivesExtended() {
 			return NewStringValue("")
 		}
 		return NewStringValue(s[startIdx:endIdx])
+	})
+
+	// asInteger - convert string to integer
+	c.AddMethod0(vm.Selectors, "asInteger", func(_ interface{}, recv Value) Value {
+		s := GetStringContent(recv)
+		n, err := strconv.ParseInt(s, 10, 64)
+		if err != nil {
+			return Nil
+		}
+		return FromSmallInt(n)
+	})
+
+	// asFloat - convert string to float
+	c.AddMethod0(vm.Selectors, "asFloat", func(_ interface{}, recv Value) Value {
+		s := GetStringContent(recv)
+		f, err := strconv.ParseFloat(s, 64)
+		if err != nil {
+			return Nil
+		}
+		return FromFloat64(f)
+	})
+
+	// primIsDigit - check if single-char string is a digit
+	c.AddMethod0(vm.Selectors, "primIsDigit", func(_ interface{}, recv Value) Value {
+		s := GetStringContent(recv)
+		if len(s) != 1 {
+			return False
+		}
+		ch := s[0]
+		if ch >= '0' && ch <= '9' {
+			return True
+		}
+		return False
+	})
+
+	// primIsLetter - check if single-char string is a letter
+	c.AddMethod0(vm.Selectors, "primIsLetter", func(_ interface{}, recv Value) Value {
+		s := GetStringContent(recv)
+		if len(s) != 1 {
+			return False
+		}
+		ch := s[0]
+		if (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') {
+			return True
+		}
+		return False
+	})
+
+	// primIsWhitespace - check if single-char string is whitespace
+	c.AddMethod0(vm.Selectors, "primIsWhitespace", func(_ interface{}, recv Value) Value {
+		s := GetStringContent(recv)
+		if len(s) != 1 {
+			return False
+		}
+		ch := s[0]
+		if ch == ' ' || ch == '\t' || ch == '\n' || ch == '\r' {
+			return True
+		}
+		return False
 	})
 }

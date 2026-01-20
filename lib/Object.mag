@@ -32,6 +32,15 @@ Object subclass: nil
       ^self isNil not
   ]
 
+  # AST node type testing (for compiler use)
+  method: isReturn [
+      ^false
+  ]
+
+  method: isVariable [
+      ^false
+  ]
+
   # Class access
   method: class [
       ^self primClass

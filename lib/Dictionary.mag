@@ -1,0 +1,42 @@
+# Dictionary.mag
+# Additional methods for Dictionary class.
+# Core functionality is provided by primitives in dictionary_primitives.go.
+
+Dictionary subclass: Object
+
+  # Cascade support
+  method: yourself [
+      ^self
+  ]
+
+  method: notEmpty [
+      ^self isEmpty not
+  ]
+
+  method: at: key ifAbsentPut: block [
+      (self includesKey: key)
+          ifTrue: [^self at: key]
+          ifFalse: [^self at: key put: block value]
+  ]
+
+  method: keysDo: block [
+      self keys do: block
+  ]
+
+  method: copy [
+      | newDict |
+      newDict := Dictionary new.
+      self keysAndValuesDo: [:k :v | newDict at: k put: v].
+      ^newDict
+  ]
+
+  # Printing
+  method: printString [
+      | s |
+      s := 'Dictionary('.
+      self keysAndValuesDo: [:key :value |
+          s := s, key printString, ' -> ', value printString, ' '
+      ].
+      s := s, ')'.
+      ^s
+  ]

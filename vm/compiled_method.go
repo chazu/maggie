@@ -8,9 +8,10 @@ package vm
 // It stores bytecode, literals, and metadata needed for execution.
 type CompiledMethod struct {
 	// Method identity
-	selector int    // selector ID
-	class    *Class // defining class (nil for detached methods)
-	name     string // method name (for debugging)
+	selector      int    // selector ID
+	class         *Class // defining class (nil for detached methods)
+	name          string // method name (for debugging)
+	IsClassMethod bool   // true if this is a class-side method
 
 	// Method signature
 	Arity    int // number of arguments (not including self)

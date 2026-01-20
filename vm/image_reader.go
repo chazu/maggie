@@ -403,17 +403,31 @@ func (ir *ImageReader) ReadClasses(vm *VM) ([]*Class, error) {
 			}
 		}
 
-		// Read method count (skip for now, methods are loaded separately)
+		// Read instance method count (skip for now, methods are loaded separately)
 		methodCount, err := ir.readUint32()
 		if err != nil {
 			return nil, fmt.Errorf("failed to read class %d method count: %w", i, err)
 		}
 
-		// Read method indices (skip them, they'll be linked when methods are loaded)
+		// Read instance method indices (skip them, they'll be linked when methods are loaded)
 		for j := uint32(0); j < methodCount; j++ {
 			_, err := ir.readUint32()
 			if err != nil {
 				return nil, fmt.Errorf("failed to read class %d method index %d: %w", i, j, err)
+			}
+		}
+
+		// Read class method count (skip for now, methods are loaded separately)
+		classMethodCount, err := ir.readUint32()
+		if err != nil {
+			return nil, fmt.Errorf("failed to read class %d class method count: %w", i, err)
+		}
+
+		// Read class method indices (skip them, they'll be linked when methods are loaded)
+		for j := uint32(0); j < classMethodCount; j++ {
+			_, err := ir.readUint32()
+			if err != nil {
+				return nil, fmt.Errorf("failed to read class %d class method index %d: %w", i, j, err)
 			}
 		}
 
@@ -555,6 +569,13 @@ func (ir *ImageReader) readMethod(vm *VM) (*CompiledMethod, error) {
 		return nil, fmt.Errorf("failed to get method name: %w", err)
 	}
 
+	// Read IsClassMethod flag (1 byte)
+	if ir.offset >= len(ir.data) {
+		return nil, ErrUnexpectedEOF
+	}
+	isClassMethod := ir.data[ir.offset] != 0
+	ir.offset++
+
 	// Read arity
 	arity, err := ir.readUint32()
 	if err != nil {
@@ -664,28 +685,37 @@ func (ir *ImageReader) readMethod(vm *VM) (*CompiledMethod, error) {
 
 	// Create method with VM's selector ID
 	method := &CompiledMethod{
-		selector:  vmSelectorID,
-		name:      name,
-		Arity:     int(arity),
-		NumTemps:  int(numTemps),
-		Literals:  literals,
-		Bytecode:  bytecode,
-		Blocks:    blocks,
-		Source:    source,
-		SourceMap: sourceMap,
+		selector:      vmSelectorID,
+		name:          name,
+		IsClassMethod: isClassMethod,
+		Arity:         int(arity),
+		NumTemps:      int(numTemps),
+		Literals:      literals,
+		Bytecode:      bytecode,
+		Blocks:        blocks,
+		Source:        source,
+		SourceMap:     sourceMap,
 	}
 
 	// Ignore the raw selector from image - we use vmSelectorID instead
 	_ = selector
 
-	// Link to class
+	// Link to class and appropriate VTable
 	if classIdx != 0xFFFFFFFF {
 		if int(classIdx) < len(ir.classes) {
 			class := ir.classes[classIdx]
 			method.class = class
-			// Register method in class vtable using VM's selector ID
-			if class.VTable != nil {
-				class.VTable.AddMethod(vmSelectorID, method)
+			// Register method in appropriate vtable using VM's selector ID
+			if isClassMethod {
+				// Class method goes on ClassVTable
+				if class.ClassVTable != nil {
+					class.ClassVTable.AddMethod(vmSelectorID, method)
+				}
+			} else {
+				// Instance method goes on VTable
+				if class.VTable != nil {
+					class.VTable.AddMethod(vmSelectorID, method)
+				}
 			}
 		}
 	}

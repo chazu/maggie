@@ -282,12 +282,6 @@ func (i *Interpreter) run() Value {
 		op := Opcode(bc[frame.IP])
 		frame.IP++
 
-		// Debug: trace opcode execution (only for specific method)
-		if frame.Method.Name() == "type:value:position:" {
-			fmt.Printf("DEBUG run: fp=%d, method=%s, IP=%d, op=%d (%s), bytecode=%v\n",
-				i.fp, frame.Method.Name(), frame.IP-1, op, op.String(), frame.Method.Bytecode)
-		}
-
 		switch op {
 		// --- Stack operations ---
 		case OpNOP:
@@ -422,7 +416,7 @@ func (i *Interpreter) run() Value {
 			frame.IP += 2
 			argc := int(bc[frame.IP])
 			frame.IP++
-			result := i.sendSuper(sel, argc, frame.Method.Class())
+			result := i.sendSuper(sel, argc, frame.Method)
 			i.push(result)
 
 		// --- Optimized sends ---
@@ -617,9 +611,9 @@ func (i *Interpreter) run() Value {
 			size := int(bc[frame.IP])
 			frame.IP++
 			elements := i.popN(size)
-			// Create array object (placeholder)
-			_ = elements
-			i.push(Nil) // Would create actual array
+			// Create array with the elements
+			arr := i.vm.(*VM).NewArrayWithElements(elements)
+			i.push(arr)
 
 		case OpCreateObject:
 			classIdx := binary.LittleEndian.Uint16(bc[frame.IP:])
@@ -734,7 +728,6 @@ func (i *Interpreter) runBlock(homeFrame int, homeSelf Value) Value {
 			idx := bc[frame.IP]
 			frame.IP++
 			// Access temp from home frame using HomeBP
-// 			fmt.Printf("DEBUG OpPushHomeTemp: idx=%d, HomeBP=%d, fp=%d, sp=%d, stack[HomeBP+idx]=%v\n", idx, frame.HomeBP, i.fp, i.sp, i.stack[frame.HomeBP+int(idx)])
 			i.push(i.stack[frame.HomeBP+int(idx)])
 
 		case OpStoreHomeTemp:
@@ -1016,30 +1009,32 @@ func (i *Interpreter) send(selector int, argc int) (result Value) {
 }
 
 // sendSuper performs a super send.
-func (i *Interpreter) sendSuper(selector int, argc int, definingClass *Class) (result Value) {
+func (i *Interpreter) sendSuper(selector int, argc int, callingMethod *CompiledMethod) (result Value) {
 	args := i.popN(argc)
 	rcvr := i.pop()
 
+	// Get the defining class and determine if this is a class method
+	definingClass := callingMethod.Class()
+	isClassMethod := callingMethod.IsClassMethod
+
 	// Start lookup from superclass
 	if definingClass == nil || definingClass.Superclass == nil {
-		fmt.Printf("DEBUG sendSuper: definingClass=%v, Superclass=%v - returning Nil\n",
-			definingClass, definingClass.Superclass)
 		return Nil
 	}
 
-	fmt.Printf("DEBUG sendSuper: selector=%d, definingClass=%s, Superclass=%s\n",
-		selector, definingClass.Name, definingClass.Superclass.Name)
-
-	vt := definingClass.Superclass.VTable
+	// For class methods, use ClassVTable; for instance methods, use VTable
+	var vt *VTable
+	if isClassMethod {
+		vt = definingClass.Superclass.ClassVTable
+	} else {
+		vt = definingClass.Superclass.VTable
+	}
 	if vt == nil {
-		fmt.Println("DEBUG sendSuper: Superclass.VTable is nil - returning Nil")
 		return Nil
 	}
 
 	method := vt.Lookup(selector)
-	fmt.Printf("DEBUG sendSuper: method=%v (%T)\n", method, method)
 	if method == nil {
-		fmt.Println("DEBUG sendSuper: method not found - returning Nil")
 		return Nil
 	}
 
@@ -1348,6 +1343,12 @@ func (i *Interpreter) primitiveEQ(a, b Value) Value {
 	// For floats, compare values
 	if a.IsFloat() && b.IsFloat() {
 		if a.Float64() == b.Float64() {
+			return True
+		}
+	}
+	// For strings, compare content
+	if IsStringValue(a) && IsStringValue(b) {
+		if GetStringContent(a) == GetStringContent(b) {
 			return True
 		}
 	}

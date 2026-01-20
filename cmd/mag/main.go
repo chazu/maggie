@@ -264,6 +264,18 @@ func printValue(vmInst *vm.VM, v vm.Value) {
 		fmt.Println(v.SmallInt())
 	case v.IsFloat():
 		fmt.Println(v.Float64())
+	case vm.IsStringValue(v):
+		// String values (must check before IsSymbol since both use symbol tag)
+		fmt.Printf("'%s'\n", vm.GetStringContent(v))
+	case vm.IsDictionaryValue(v):
+		// Dictionary values (must check before IsSymbol since both use symbol tag)
+		// Call printString to display
+		result := vmInst.Send(v, "printString", nil)
+		if vm.IsStringValue(result) {
+			fmt.Printf("'%s'\n", vm.GetStringContent(result))
+		} else {
+			fmt.Println("a Dictionary")
+		}
 	case v.IsSymbol():
 		name := vmInst.Symbols.Name(v.SymbolID())
 		fmt.Printf("#%s\n", name)

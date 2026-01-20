@@ -1,5 +1,7 @@
 package vm
 
+import "strconv"
+
 // ---------------------------------------------------------------------------
 // VM: The Maggie Virtual Machine
 // ---------------------------------------------------------------------------
@@ -208,6 +210,8 @@ func (vm *VM) registerObjectPrimitives() {
 			symName := v.Symbols.Name(recv.SymbolID())
 			if cls := v.Classes.Lookup(symName); cls != nil {
 				instance := cls.NewInstance()
+				// Keep a reference to prevent GC - Value is just uint64 to Go
+				v.keepAlive = append(v.keepAlive, instance)
 				return instance.ToValue()
 			}
 		}
@@ -217,6 +221,11 @@ func (vm *VM) registerObjectPrimitives() {
 
 	// class - return the class of the receiver
 	c.AddMethod0(vm.Selectors, "class", func(_ interface{}, recv Value) Value {
+		return vm.primitiveClass(recv)
+	})
+
+	// primClass - same as class, but a primitive that Maggie code can call
+	c.AddMethod0(vm.Selectors, "primClass", func(_ interface{}, recv Value) Value {
 		return vm.primitiveClass(recv)
 	})
 
@@ -599,6 +608,17 @@ func (vm *VM) registerSmallIntegerPrimitives() {
 		return Nil
 	})
 
+	c.AddMethod1(vm.Selectors, "bitShift:", func(_ interface{}, recv Value, arg Value) Value {
+		if arg.IsSmallInt() {
+			shift := arg.SmallInt()
+			if shift >= 0 {
+				return FromSmallInt(recv.SmallInt() << uint(shift))
+			}
+			return FromSmallInt(recv.SmallInt() >> uint(-shift))
+		}
+		return Nil
+	})
+
 	c.AddMethod0(vm.Selectors, "negated", func(_ interface{}, recv Value) Value {
 		return FromSmallInt(-recv.SmallInt())
 	})
@@ -609,6 +629,11 @@ func (vm *VM) registerSmallIntegerPrimitives() {
 			return FromSmallInt(-n)
 		}
 		return recv
+	})
+
+	// Printing
+	c.AddMethod0(vm.Selectors, "primPrintString", func(_ interface{}, recv Value) Value {
+		return NewStringValue(strconv.FormatInt(recv.SmallInt(), 10))
 	})
 
 	// Iteration
@@ -729,14 +754,22 @@ func (vm *VM) registerFloatPrimitives() {
 func (vm *VM) registerSymbolPrimitives() {
 	c := vm.SymbolClass
 
-	// asString - convert symbol to string
+	// asString - convert symbol to string (returns actual string)
 	c.AddMethod0(vm.Selectors, "asString", func(vmPtr interface{}, recv Value) Value {
 		v := vmPtr.(*VM)
 		if recv.IsSymbol() {
 			name := v.Symbols.Name(recv.SymbolID())
-			// Return a symbol representing the string for now
-			// Full implementation would return a String object
-			return v.Symbols.SymbolValue(name)
+			return NewStringValue(name)
+		}
+		return Nil
+	})
+
+	// primAsString - same as asString, for compatibility with Symbol.mag
+	c.AddMethod0(vm.Selectors, "primAsString", func(vmPtr interface{}, recv Value) Value {
+		v := vmPtr.(*VM)
+		if recv.IsSymbol() {
+			name := v.Symbols.Name(recv.SymbolID())
+			return NewStringValue(name)
 		}
 		return Nil
 	})
@@ -867,6 +900,12 @@ func (vm *VM) registerArrayPrimitives() {
 		}
 		obj.SetSlot(int(idx), value)
 		return value
+	})
+
+	// Class-side new - create empty array
+	c.AddClassMethod0(vm.Selectors, "new", func(vmPtr interface{}, recv Value) Value {
+		v := vmPtr.(*VM)
+		return v.NewArray(0)
 	})
 
 	// Class-side new: - create array of given size

@@ -281,6 +281,7 @@ func compileAllFilesNew(files []string, vmInst *vm.VM, verbose bool) (int, error
 
 				// Class methods go on the ClassVTable (metaclass VTable)
 				method.SetClass(class)
+				method.IsClassMethod = true // Mark as class method for image serialization
 				class.ClassVTable.AddMethod(vmInst.Selectors.Intern(method.Name()), method)
 				compiled++
 			}

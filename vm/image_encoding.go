@@ -215,6 +215,13 @@ func (e *ImageEncoder) EncodeValueTo(v Value, buf []byte) {
 		bits := math.Float64bits(f)
 		binary.LittleEndian.PutUint64(buf[1:], bits)
 
+	case IsStringValue(v):
+		// String values must be checked BEFORE symbols since they use the same tag
+		buf[0] = imageTagString
+		content := GetStringContent(v)
+		idx := e.RegisterString(content)
+		binary.LittleEndian.PutUint32(buf[1:], idx)
+
 	case v.IsSymbol():
 		buf[0] = imageTagSymbol
 		symID := v.SymbolID()
@@ -458,12 +465,10 @@ func (d *ImageDecoder) DecodeValue(data []byte) Value {
 		return obj.ToValue()
 
 	case imageTagString:
-		// String values are decoded similarly to symbols
-		// but the caller may need to create a string object
+		// String values: get string content from table and create a new string value
 		idx := binary.LittleEndian.Uint32(data[1:])
-		_ = d.GetString(idx)
-		// For now, return Nil since String objects aren't fully implemented
-		return Nil
+		content := d.GetString(idx)
+		return NewStringValue(content)
 
 	case imageTagClass:
 		idx := binary.LittleEndian.Uint32(data[1:])
