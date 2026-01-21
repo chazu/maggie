@@ -1095,6 +1095,17 @@ func (i *Interpreter) vtableFor(v Value) *VTable {
 				return c.VTable
 			}
 		}
+		// Check for gRPC client/stream values
+		if isGrpcClientValue(v) {
+			if c := i.Classes.Lookup("GrpcClient"); c != nil {
+				return c.VTable
+			}
+		}
+		if isGrpcStreamValue(v) {
+			if c := i.Classes.Lookup("GrpcStream"); c != nil {
+				return c.VTable
+			}
+		}
 		// Check if this symbol represents a class name (for class-side messages)
 		if i.Symbols != nil {
 			symName := i.Symbols.Name(v.SymbolID())

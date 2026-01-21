@@ -40,6 +40,8 @@ type VM struct {
 	ResultClass            *Class
 	SuccessClass           *Class
 	FailureClass           *Class
+	GrpcClientClass        *Class
+	GrpcStreamClass        *Class
 
 	// Interpreter
 	interpreter *Interpreter
@@ -127,6 +129,10 @@ func (vm *VM) bootstrap() {
 	vm.SuccessClass = vm.createClass("Success", vm.ResultClass)
 	vm.FailureClass = vm.createClass("Failure", vm.ResultClass)
 
+	// Phase 5d: Create gRPC classes
+	vm.GrpcClientClass = vm.createClass("GrpcClient", vm.ObjectClass)
+	vm.GrpcStreamClass = vm.createClass("GrpcStream", vm.ObjectClass)
+
 	// Phase 6: Register primitives on core classes
 	vm.registerObjectPrimitives()
 	vm.registerBooleanPrimitives()
@@ -140,6 +146,7 @@ func (vm *VM) bootstrap() {
 	vm.registerProcessPrimitives()
 	vm.registerResultPrimitives()
 	vm.registerDictionaryPrimitives()
+	vm.registerGrpcPrimitives()
 
 	// Phase 7: Set up globals
 	vm.Globals["Object"] = vm.classValue(vm.ObjectClass)
@@ -160,6 +167,8 @@ func (vm *VM) bootstrap() {
 	vm.Globals["Success"] = vm.classValue(vm.SuccessClass)
 	vm.Globals["Failure"] = vm.classValue(vm.FailureClass)
 	vm.Globals["Dictionary"] = vm.classValue(vm.DictionaryClass)
+	vm.Globals["GrpcClient"] = vm.classValue(vm.GrpcClientClass)
+	vm.Globals["GrpcStream"] = vm.classValue(vm.GrpcStreamClass)
 
 	// Well-known symbols
 	vm.Globals["nil"] = Nil
