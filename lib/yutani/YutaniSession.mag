@@ -159,6 +159,16 @@ YutaniSession subclass: Object
       eventLoop stop
   ]
 
+  # Start event loop and block until done
+  method: run [
+      eventLoop run
+  ]
+
+  # Wait for event loop to finish (if already started)
+  method: wait [
+      eventLoop wait
+  ]
+
   # Event handler registration (delegates to event loop)
   method: onKey: block [
       eventLoop onKey: block

@@ -62,8 +62,8 @@ CodeEditor subclass: Object
 
   method: open [
       session setRoot: mainFlex.
-      session startEventLoop.
-      textArea focus
+      textArea focus.
+      session run  "Block until event loop terminates"
   ]
 
   method: close [

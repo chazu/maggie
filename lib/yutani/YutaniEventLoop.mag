@@ -2,7 +2,7 @@
 # Handles event streaming from Yutani server and dispatches events to handlers.
 
 YutaniEventLoop subclass: Object
-  instanceVars: session stream handlers running process
+  instanceVars: session stream handlers running process doneChannel
 
   # Creation
   classMethod: for: aSession [
@@ -13,6 +13,7 @@ YutaniEventLoop subclass: Object
       session := aSession.
       handlers := Dictionary new.
       running := false.
+      doneChannel := Channel new.
       ^self
   ]
 
@@ -60,7 +61,19 @@ YutaniEventLoop subclass: Object
                       ifTrue: [running := false]
                       ifFalse: [self handleError: err]]
       ].
-      running := false
+      running := false.
+      doneChannel send: true
+  ]
+
+  # Block until the event loop terminates
+  method: wait [
+      doneChannel receive
+  ]
+
+  # Start event loop and block until done (convenience method)
+  method: run [
+      self start.
+      self wait
   ]
 
   method: handleError: err [

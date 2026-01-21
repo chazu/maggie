@@ -76,8 +76,8 @@ ClassBrowser subclass: Object
 
   method: open [
       session setRoot: mainFlex.
-      session startEventLoop.
-      categoryList focus
+      categoryList focus.
+      session run  "Block until event loop terminates"
   ]
 
   method: close [
