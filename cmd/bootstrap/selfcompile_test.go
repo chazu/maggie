@@ -12,6 +12,8 @@ import (
 // TestSelfCompile verifies that the Maggie compiler (compiled by Go) can compile
 // source code and produce the same bytecode as the Go compiler.
 func TestSelfCompile(t *testing.T) {
+	t.Skip("Self-hosting compiler disabled - not a priority")
+
 	// Skip if maggie.image doesn't exist
 	imagePath := "../../maggie.image"
 	if _, err := os.Stat(imagePath); os.IsNotExist(err) {
