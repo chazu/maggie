@@ -78,7 +78,7 @@ func main() {
 
 	// Run main entry point if specified
 	if *mainEntry != "" {
-		result, err := runMain(vmInst, *mainEntry)
+		result, err := runMain(vmInst, *mainEntry, *verbose)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 			os.Exit(1)
@@ -126,7 +126,7 @@ func loadRC(vmInst *vm.VM, verbose bool) error {
 }
 
 // runMain executes the specified main entry point
-func runMain(vmInst *vm.VM, entry string) (vm.Value, error) {
+func runMain(vmInst *vm.VM, entry string, verbose bool) (vm.Value, error) {
 	var className, methodName string
 
 	// Parse entry point: "ClassName.methodName" or just "methodName"
@@ -140,20 +140,49 @@ func runMain(vmInst *vm.VM, entry string) (vm.Value, error) {
 		methodName = entry
 	}
 
+	if verbose {
+		fmt.Printf("Looking for %s.%s\n", className, methodName)
+	}
+
 	// Find the class
 	class := vmInst.Classes.Lookup(className)
 	if class == nil {
 		return vm.Nil, fmt.Errorf("class %q not found", className)
 	}
 
-	// Check if method exists
+	if verbose {
+		fmt.Printf("Found class %s\n", className)
+	}
+
+	// Check for class method first, then instance method
+	selectorID := vmInst.Selectors.Intern(methodName)
+	classMethod := class.ClassVTable.Lookup(selectorID)
+	if classMethod != nil {
+		if verbose {
+			fmt.Printf("Found class method %s, executing...\n", methodName)
+		}
+		// Execute class method - send to the class itself
+		// Class values are represented as symbols of the class name
+		classValue := vmInst.Symbols.SymbolValue(className)
+		result := vmInst.Send(classValue, methodName, nil)
+		return result, nil
+	}
+
+	if verbose {
+		fmt.Printf("No class method found, checking instance methods...\n")
+	}
+
+	// Check for instance method
 	method := class.LookupMethod(vmInst.Selectors, methodName)
 	if method == nil {
 		return vm.Nil, fmt.Errorf("method %q not found on %s", methodName, className)
 	}
 
-	// Execute the method on nil (for class methods) or create an instance
-	// For simplicity, we'll send the message to nil which will find it on Object
+	if verbose {
+		fmt.Printf("Found instance method %s, executing...\n", methodName)
+	}
+
+	// Execute instance method on nil
 	result := vmInst.Send(vm.Nil, methodName, nil)
 	return result, nil
 }
@@ -411,14 +440,18 @@ func compileFile(path string, vmInst *vm.VM, verbose bool) (int, error) {
 
 			class = vm.NewClassWithInstVars(classDef.Name, superclass, classDef.InstanceVariables)
 			vmInst.Classes.Register(class)
+			// Also add to Globals so it can be referenced as a variable
+			vmInst.Globals[classDef.Name] = vmInst.Symbols.SymbolValue(classDef.Name)
 			if verbose {
 				fmt.Printf("  Created class %s\n", classDef.Name)
 			}
 		}
 
 		// Compile instance methods (with instance variable context)
+		// Need to include inherited instance variables for proper slot indexing
+		allIvars := class.AllInstVarNames()
 		for _, methodDef := range classDef.Methods {
-			method, err := compiler.CompileMethodDefWithIvars(methodDef, vmInst.Selectors, vmInst.Symbols, classDef.InstanceVariables)
+			method, err := compiler.CompileMethodDefWithIvars(methodDef, vmInst.Selectors, vmInst.Symbols, allIvars)
 			if err != nil {
 				return compiled, fmt.Errorf("error compiling %s>>%s: %v", classDef.Name, methodDef.Selector, err)
 			}

@@ -35,7 +35,9 @@ YutaniFlex subclass: YutaniWidget
   ]
 
   method: addItem: widget proportion: prop fixedSize: size focus: shouldFocus [
-      | request |
+      | request client |
+      client := session client.
+      client ifNil: [self error: 'session client is nil'].
       request := Dictionary new
           at: #session_id put: session sessionId;
           at: #flex_id put: (Dictionary new at: #id put: widgetId; yourself);
@@ -44,7 +46,7 @@ YutaniFlex subclass: YutaniWidget
           at: #fixed_size put: size;
           at: #focus put: shouldFocus;
           yourself.
-      (session client call: 'industries.loosh.yutani.v1.LayoutService/FlexAddItem' with: request)
+      (client call: 'industries.loosh.yutani.v1.LayoutService/FlexAddItem' with: request)
           onSuccess: [:resp |
               children := children copyWith: widget.
               widget parent: self]

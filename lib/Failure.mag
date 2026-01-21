@@ -20,32 +20,6 @@ Failure subclass: Result
       ^self primError
   ]
 
-  # Chaining - propagate failure, don't execute block
-  method: then: block [
-      ^self
-  ]
-
-  method: map: block [
-      ^self
-  ]
-
-  method: flatMap: block [
-      ^self
-  ]
-
-  # Conditional execution
-  method: ifSuccess: block [
-      ^self
-  ]
-
-  method: ifFailure: block [
-      ^block value: self error
-  ]
-
-  method: onSuccess: successBlock onFailure: failureBlock [
-      ^failureBlock value: self error
-  ]
-
   # Printing
   method: printString [
       ^'Failure(', self error printString, ')'

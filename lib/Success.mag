@@ -20,35 +20,6 @@ Success subclass: Result
       ^nil
   ]
 
-  # Chaining - execute the block
-  method: then: block [
-      | result |
-      result := block value: self value.
-      result isKindOf: Result ifTrue: [^result].
-      ^Success with: result
-  ]
-
-  method: map: block [
-      ^Success with: (block value: self value)
-  ]
-
-  method: flatMap: block [
-      ^block value: self value
-  ]
-
-  # Conditional execution
-  method: ifSuccess: block [
-      ^block value: self value
-  ]
-
-  method: ifFailure: block [
-      ^self
-  ]
-
-  method: onSuccess: successBlock onFailure: failureBlock [
-      ^successBlock value: self value
-  ]
-
   # Printing
   method: printString [
       ^'Success(', self value printString, ')'

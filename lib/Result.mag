@@ -1,49 +1,8 @@
 # Result.mag
+# Abstract base class for Success/Failure result types.
+# Most methods are implemented as Go primitives.
 
 Result subclass: Object
-
-  # Abstract methods (overridden in Success/Failure)
-  method: isSuccess [
-      ^self subclassResponsibility
-  ]
-
-  method: isFailure [
-      ^self subclassResponsibility
-  ]
-
-  method: value [
-      ^self subclassResponsibility
-  ]
-
-  method: error [
-      ^self subclassResponsibility
-  ]
-
-  # Chaining
-  method: then: block [
-      ^self subclassResponsibility
-  ]
-
-  method: map: block [
-      ^self subclassResponsibility
-  ]
-
-  method: flatMap: block [
-      ^self subclassResponsibility
-  ]
-
-  # Conditional execution
-  method: ifSuccess: block [
-      ^self subclassResponsibility
-  ]
-
-  method: ifFailure: block [
-      ^self subclassResponsibility
-  ]
-
-  method: onSuccess: successBlock onFailure: failureBlock [
-      ^self subclassResponsibility
-  ]
 
   # Printing
   method: printString [

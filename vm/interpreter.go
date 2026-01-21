@@ -1106,6 +1106,21 @@ func (i *Interpreter) vtableFor(v Value) *VTable {
 				return c.VTable
 			}
 		}
+		// Check for Result values
+		if isResultValue(v) {
+			r := getResult(v)
+			if r != nil {
+				if r.resultType == ResultSuccess {
+					if c := i.Classes.Lookup("Success"); c != nil {
+						return c.VTable
+					}
+				} else {
+					if c := i.Classes.Lookup("Failure"); c != nil {
+						return c.VTable
+					}
+				}
+			}
+		}
 		// Check if this symbol represents a class name (for class-side messages)
 		if i.Symbols != nil {
 			symName := i.Symbols.Name(v.SymbolID())

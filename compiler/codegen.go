@@ -75,7 +75,7 @@ func (c *Compiler) CompileMethod(method *MethodDef) *vm.CompiledMethod {
 	c.temps = make(map[string]int)
 	c.args = make(map[string]int)
 	c.numArgs = len(method.Parameters)
-	c.numTemps = len(method.Temps)
+	c.numTemps = c.numArgs + len(method.Temps) // Total temps = args + locals
 
 	// Set up argument slots
 	for i, param := range method.Parameters {
@@ -603,7 +603,7 @@ func (c *Compiler) compileBlock(block *Block) {
 	c.temps = make(map[string]int)
 	c.args = make(map[string]int)
 	c.numArgs = len(block.Parameters)
-	c.numTemps = len(block.Temps)
+	c.numTemps = c.numArgs + len(block.Temps) // Total temps = args + locals
 	c.literals = nil
 	c.literalMap = make(map[interface{}]int)
 	// c.blocks intentionally NOT reset - all blocks share method's blocks list

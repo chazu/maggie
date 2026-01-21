@@ -351,6 +351,20 @@ func (vm *VM) registerObjectPrimitives() {
 	c.AddMethod0(vm.Selectors, "hash", func(_ interface{}, recv Value) Value {
 		return FromSmallInt(int64(recv))
 	})
+
+	// primError: - raise an error (halt execution)
+	c.AddMethod1(vm.Selectors, "primError:", func(vmPtr interface{}, recv Value, message Value) Value {
+		v := vmPtr.(*VM)
+		var msgStr string
+		if IsStringValue(message) {
+			msgStr = GetStringContent(message)
+		} else if message.IsSymbol() {
+			msgStr = v.Symbols.Name(message.SymbolID())
+		} else {
+			msgStr = "<unknown error>"
+		}
+		panic("Maggie error: " + msgStr)
+	})
 }
 
 func (vm *VM) registerBooleanPrimitives() {
@@ -1177,7 +1191,6 @@ func (vm *VM) evaluateBlock(blockVal Value, args []Value) Value {
 	// Get block from registry
 	bv := vm.interpreter.getBlockValue(blockVal)
 	if bv == nil {
-// 		fmt.Printf("DEBUG evaluateBlock: blockVal=%v is not a valid block (IsBlock=%v)\n", blockVal, blockVal.IsBlock())
 		return Nil
 	}
 	return vm.interpreter.ExecuteBlock(bv.Block, bv.Captures, args, bv.HomeFrame, bv.HomeSelf)

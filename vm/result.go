@@ -95,6 +95,15 @@ func (vm *VM) registerResultPrimitives() {
 		return r.value
 	})
 
+	// Success>>primValue - primitive for value (same as value)
+	s.AddMethod0(vm.Selectors, "primValue", func(_ interface{}, recv Value) Value {
+		r := getResult(recv)
+		if r == nil || r.resultType != ResultSuccess {
+			return Nil
+		}
+		return r.value
+	})
+
 	// Success>>error - return nil (Success has no error)
 	s.AddMethod0(vm.Selectors, "error", func(_ interface{}, recv Value) Value {
 		return Nil
@@ -203,6 +212,15 @@ func (vm *VM) registerResultPrimitives() {
 
 	// Failure>>error - return the error/reason
 	f.AddMethod0(vm.Selectors, "error", func(_ interface{}, recv Value) Value {
+		r := getResult(recv)
+		if r == nil || r.resultType != ResultFailure {
+			return Nil
+		}
+		return r.value
+	})
+
+	// Failure>>primError - primitive for error (same as error)
+	f.AddMethod0(vm.Selectors, "primError", func(_ interface{}, recv Value) Value {
 		r := getResult(recv)
 		if r == nil || r.resultType != ResultFailure {
 			return Nil
