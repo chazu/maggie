@@ -1,0 +1,171 @@
+# Inspector.mag
+# Object inspector for Maggie IDE.
+# Displays object slots and their values.
+
+Inspector subclass: Object
+  instanceVars: session mainFlex slotList valueView inspectedObject objectStack
+
+  # Creation
+  classMethod: inspect: anObject in: aSession [
+      ^self new initializeFor: anObject in: aSession; open
+  ]
+
+  method: initializeFor: anObject in: aSession [
+      session := aSession.
+      inspectedObject := anObject.
+      objectStack := Array new.
+      self buildUI.
+      self populateSlots.
+      ^self
+  ]
+
+  method: buildUI [
+      # Main horizontal layout
+      mainFlex := session createFlex.
+      mainFlex direction: #row.
+      mainFlex title: 'Inspector'.
+      mainFlex border: true.
+
+      # Slot list (left side)
+      slotList := session createList.
+      slotList title: 'Slots'.
+      slotList border: true.
+      slotList onSelected: [:e | self slotSelected: e].
+
+      # Value view (right side)
+      valueView := session createTextView.
+      valueView title: 'Value'.
+      valueView border: true.
+      valueView wordWrap: true.
+      valueView scrollable: true.
+
+      # Add to layout
+      mainFlex addItem: slotList proportion: 1.
+      mainFlex addItem: valueView proportion: 2.
+
+      # Set up key bindings
+      self setupKeyBindings
+  ]
+
+  method: setupKeyBindings [
+      session onKey: [:event |
+          event isCtrl ifTrue: [
+              event rune = 'q' ifTrue: [self close]
+          ].
+          event isEnter ifTrue: [self drillDown].
+          event isEscape ifTrue: [self goBack]
+      ]
+  ]
+
+  method: open [
+      session setRoot: mainFlex.
+      session startEventLoop.
+      slotList focus.
+      self updateTitle
+  ]
+
+  method: close [
+      session stopEventLoop.
+      session disconnect
+  ]
+
+  # Slot population
+  method: populateSlots [
+      slotList clear.
+
+      # Add self
+      slotList addItem: 'self' secondary: (self classNameOf: inspectedObject).
+
+      # Add instance variables
+      (self instanceVariablesOf: inspectedObject) do: [:name |
+          | value |
+          value := self valueOf: name in: inspectedObject.
+          slotList addItem: name secondary: (self classNameOf: value)
+      ]
+  ]
+
+  method: slotSelected: event [
+      | slotName value |
+      slotName := event dataAt: #main_text.
+      slotName ifNil: [^self].
+
+      slotName = 'self'
+          ifTrue: [value := inspectedObject]
+          ifFalse: [value := self valueOf: slotName in: inspectedObject].
+
+      valueView text: (self formatValue: value)
+  ]
+
+  # Navigation
+  method: drillDown [
+      | selectedIndex slotName value |
+      selectedIndex := slotList selectedIndex.
+      selectedIndex < 0 ifTrue: [^self].
+
+      selectedIndex = 0
+          ifTrue: [^self]. # Can't drill into self
+
+      # Get the slot name and value
+      slotName := (self instanceVariablesOf: inspectedObject) at: selectedIndex.
+      value := self valueOf: slotName in: inspectedObject.
+
+      # Push current object and inspect new one
+      objectStack := objectStack copyWith: inspectedObject.
+      inspectedObject := value.
+      self populateSlots.
+      self updateTitle
+  ]
+
+  method: goBack [
+      objectStack isEmpty ifTrue: [^self].
+
+      inspectedObject := objectStack last.
+      objectStack := objectStack copyFrom: 1 to: objectStack size - 1.
+      self populateSlots.
+      self updateTitle
+  ]
+
+  method: updateTitle [
+      mainFlex title: 'Inspector: ', (self classNameOf: inspectedObject)
+  ]
+
+  # Object introspection (placeholder implementations)
+  method: classNameOf: anObject [
+      # In real implementation, use anObject class name
+      anObject isNil ifTrue: [^'UndefinedObject'].
+      (anObject isKindOf: Boolean) ifTrue: [
+          anObject ifTrue: [^'True'] ifFalse: [^'False']
+      ].
+      ^anObject class name
+  ]
+
+  method: instanceVariablesOf: anObject [
+      # In real implementation, query class for ivar names
+      # Placeholder
+      ^#('instVar1' 'instVar2' 'instVar3')
+  ]
+
+  method: valueOf: slotName in: anObject [
+      # In real implementation, use instVarAt: or instVarNamed:
+      # Placeholder
+      ^nil
+  ]
+
+  method: formatValue: value [
+      value isNil ifTrue: [^'nil'].
+      (value isKindOf: String) ifTrue: [
+          ^'''', value, ''''
+      ].
+      ^value printString
+  ]
+
+  # Refresh
+  method: refresh [
+      self populateSlots.
+      valueView text: ''
+  ]
+
+  # Printing
+  method: printString [
+      ^'Inspector(', (self classNameOf: inspectedObject), ')'
+  ]

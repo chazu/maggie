@@ -1,0 +1,56 @@
+# YutaniButton.mag
+# Wrapper for Yutani Button widget.
+
+YutaniButton subclass: YutaniWidget
+
+  # Set label
+  method: label: aString [
+      self setProperties: (Dictionary new
+          at: #button put: (Dictionary new
+              at: #label put: aString;
+              yourself);
+          yourself)
+  ]
+
+  # Get label
+  method: label [
+      | props btnProps |
+      props := self getProperties.
+      btnProps := props at: #button ifAbsent: [nil].
+      ^btnProps ifNotNil: [btnProps at: #label ifAbsent: ['']] ifNil: ['']
+  ]
+
+  # Button-specific properties
+  method: labelColor: colorDict [
+      self setProperties: (Dictionary new
+          at: #button put: (Dictionary new
+              at: #label_color put: colorDict;
+              yourself);
+          yourself)
+  ]
+
+  method: buttonBackgroundColor: colorDict [
+      self setProperties: (Dictionary new
+          at: #button put: (Dictionary new
+              at: #background_color put: colorDict;
+              yourself);
+          yourself)
+  ]
+
+  method: activatedColor: colorDict [
+      self setProperties: (Dictionary new
+          at: #button put: (Dictionary new
+              at: #activated_color put: colorDict;
+              yourself);
+          yourself)
+  ]
+
+  # Convenience for click handling
+  method: onClick: block [
+      self onSubmitted: block
+  ]
+
+  # Printing
+  method: printString [
+      ^'YutaniButton(', widgetId, ')'
+  ]

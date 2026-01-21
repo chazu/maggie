@@ -1,0 +1,27 @@
+# YutaniBox.mag
+# Wrapper for Yutani Box widget (basic container).
+
+YutaniBox subclass: YutaniWidget
+
+  # Box is primarily a container, most functionality is in YutaniWidget base class
+
+  # Convenience methods for setting common box properties in one call
+  method: title: aTitle border: hasBorder [
+      self setProperties: (Dictionary new
+          at: #title put: aTitle;
+          at: #border put: hasBorder;
+          yourself)
+  ]
+
+  method: title: aTitle border: hasBorder backgroundColor: bgColor [
+      self setProperties: (Dictionary new
+          at: #title put: aTitle;
+          at: #border put: hasBorder;
+          at: #background_color put: bgColor;
+          yourself)
+  ]
+
+  # Printing
+  method: printString [
+      ^'YutaniBox(', widgetId, ')'
+  ]

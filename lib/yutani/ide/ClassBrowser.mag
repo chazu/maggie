@@ -1,0 +1,199 @@
+# ClassBrowser.mag
+# A three-pane class browser for Maggie IDE.
+# Shows categories, classes, and methods with source code view.
+
+ClassBrowser subclass: Object
+  instanceVars: session mainFlex topPane categoryList classList methodList codeView selectedClass
+
+  # Creation
+  classMethod: openIn: aSession [
+      ^self new initializeIn: aSession; open
+  ]
+
+  method: initializeIn: aSession [
+      session := aSession.
+      self buildUI.
+      self populateCategories.
+      ^self
+  ]
+
+  method: buildUI [
+      # Main vertical flex layout
+      mainFlex := session createFlex.
+      mainFlex direction: #column.
+      mainFlex title: 'Class Browser'.
+      mainFlex border: true.
+
+      # Top pane with three lists (horizontal)
+      topPane := session createFlex.
+      topPane direction: #row.
+
+      # Category list
+      categoryList := session createList.
+      categoryList title: 'Categories'.
+      categoryList border: true.
+      categoryList onSelected: [:e | self categorySelected: e].
+
+      # Class list
+      classList := session createList.
+      classList title: 'Classes'.
+      classList border: true.
+      classList onSelected: [:e | self classSelected: e].
+
+      # Method list
+      methodList := session createList.
+      methodList title: 'Methods'.
+      methodList border: true.
+      methodList onSelected: [:e | self methodSelected: e].
+
+      # Add lists to top pane with equal proportions
+      topPane addItem: categoryList proportion: 1.
+      topPane addItem: classList proportion: 1.
+      topPane addItem: methodList proportion: 1.
+
+      # Code view at bottom
+      codeView := session createTextArea.
+      codeView title: 'Source'.
+      codeView border: true.
+      codeView wordWrap: true.
+
+      # Add panes to main layout
+      mainFlex addItem: topPane proportion: 1.
+      mainFlex addItem: codeView proportion: 2.
+
+      # Set up key bindings
+      self setupKeyBindings
+  ]
+
+  method: setupKeyBindings [
+      session onKey: [:event |
+          event isCtrl ifTrue: [
+              event rune = 'q' ifTrue: [self close].
+              event rune = 'r' ifTrue: [self refresh]
+          ]
+      ]
+  ]
+
+  method: open [
+      session setRoot: mainFlex.
+      session startEventLoop.
+      categoryList focus
+  ]
+
+  method: close [
+      session stopEventLoop.
+      session disconnect
+  ]
+
+  # Data population
+  method: populateCategories [
+      | categories |
+      categories := self systemCategories.
+      categories do: [:cat | categoryList addItem: cat]
+  ]
+
+  method: categorySelected: event [
+      | category classes |
+      category := event dataAt: #main_text.
+      category ifNil: [^self].
+
+      classList clear.
+      methodList clear.
+      codeView text: ''.
+
+      classes := self classesInCategory: category.
+      classes do: [:cls | classList addItem: cls]
+  ]
+
+  method: classSelected: event [
+      | className |
+      className := event dataAt: #main_text.
+      className ifNil: [^self].
+
+      selectedClass := self classNamed: className.
+      methodList clear.
+      codeView text: ''.
+
+      selectedClass notNil ifTrue: [
+          self methodsForClass: selectedClass do: [:sel |
+              methodList addItem: sel
+          ]
+      ]
+  ]
+
+  method: methodSelected: event [
+      | selector source |
+      selector := event dataAt: #main_text.
+      selector ifNil: [^self].
+      selectedClass ifNil: [^self].
+
+      source := self sourceFor: selector in: selectedClass.
+      codeView text: (source ifNil: ['# Source not available'])
+  ]
+
+  method: refresh [
+      categoryList clear.
+      classList clear.
+      methodList clear.
+      codeView text: ''.
+      selectedClass := nil.
+      self populateCategories
+  ]
+
+  # System introspection (placeholder implementations)
+  # These should be connected to Maggie's reflection capabilities
+
+  method: systemCategories [
+      # Return list of class categories
+      # In a real implementation, this would query the class hierarchy
+      ^#('Kernel' 'Collections' 'Compiler' 'Yutani' 'IDE')
+  ]
+
+  method: classesInCategory: category [
+      # Return class names in category
+      # Placeholder implementation
+      category = 'Kernel' ifTrue: [
+          ^#('Object' 'Boolean' 'True' 'False' 'UndefinedObject' 'Block' 'Process' 'Channel')
+      ].
+      category = 'Collections' ifTrue: [
+          ^#('Array' 'Dictionary' 'String' 'Symbol' 'ByteArray')
+      ].
+      category = 'Compiler' ifTrue: [
+          ^#('Compiler' 'Lexer' 'Parser' 'BytecodeGenerator' 'Token')
+      ].
+      category = 'Yutani' ifTrue: [
+          ^#('YutaniSession' 'YutaniWidget' 'YutaniEventLoop' 'YutaniEvent'
+             'YutaniList' 'YutaniTree' 'YutaniFlex' 'YutaniPages')
+      ].
+      category = 'IDE' ifTrue: [
+          ^#('ClassBrowser' 'MaggieREPL' 'CodeEditor' 'Inspector')
+      ].
+      ^#()
+  ]
+
+  method: classNamed: className [
+      # Look up class by name
+      # Placeholder - should use Maggie's global lookup
+      ^className
+  ]
+
+  method: methodsForClass: aClass do: block [
+      # Iterate over methods of a class
+      # Placeholder implementation
+      #('initialize' 'printString' 'yourself' '=' '==' 'isNil' 'notNil'
+        'class' 'error:' 'shallowCopy') do: block
+  ]
+
+  method: sourceFor: selector in: aClass [
+      # Get source code for a method
+      # Placeholder implementation
+      ^'method: ', selector, ' [
+    # Source code would appear here
+    ^self
+]'
+  ]
+
+  # Printing
+  method: printString [
+      ^'ClassBrowser'
+  ]

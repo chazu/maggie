@@ -1,0 +1,79 @@
+# YutaniTextView.mag
+# Wrapper for Yutani TextView widget (read-only text display).
+
+YutaniTextView subclass: YutaniWidget
+
+  # Set text content
+  method: text: aString [
+      self setProperties: (Dictionary new
+          at: #text_view put: (Dictionary new
+              at: #text put: aString;
+              yourself);
+          yourself)
+  ]
+
+  # Get current text (from local properties cache)
+  method: text [
+      | props tvProps |
+      props := self getProperties.
+      tvProps := props at: #text_view ifAbsent: [nil].
+      ^tvProps ifNotNil: [tvProps at: #text ifAbsent: ['']] ifNil: ['']
+  ]
+
+  # Append text
+  method: append: aString [
+      | currentText |
+      currentText := self text.
+      self text: currentText, aString
+  ]
+
+  # Clear text
+  method: clear [
+      self text: ''
+  ]
+
+  # TextView-specific properties
+  method: dynamicColors: aBoolean [
+      self setProperties: (Dictionary new
+          at: #text_view put: (Dictionary new
+              at: #dynamic_colors put: aBoolean;
+              yourself);
+          yourself)
+  ]
+
+  method: wordWrap: aBoolean [
+      self setProperties: (Dictionary new
+          at: #text_view put: (Dictionary new
+              at: #word_wrap put: aBoolean;
+              yourself);
+          yourself)
+  ]
+
+  method: scrollable: aBoolean [
+      self setProperties: (Dictionary new
+          at: #text_view put: (Dictionary new
+              at: #scrollable put: aBoolean;
+              yourself);
+          yourself)
+  ]
+
+  method: maxLines: count [
+      self setProperties: (Dictionary new
+          at: #text_view put: (Dictionary new
+              at: #max_lines put: count;
+              yourself);
+          yourself)
+  ]
+
+  method: textColor: colorDict [
+      self setProperties: (Dictionary new
+          at: #text_view put: (Dictionary new
+              at: #text_color put: colorDict;
+              yourself);
+          yourself)
+  ]
+
+  # Printing
+  method: printString [
+      ^'YutaniTextView(', widgetId, ')'
+  ]

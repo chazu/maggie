@@ -1,0 +1,182 @@
+# MaggieREPL.mag
+# Interactive Read-Eval-Print Loop for Maggie.
+
+MaggieREPL subclass: Object
+  instanceVars: session mainFlex historyView inputField history historyIndex bindings
+
+  # Creation
+  classMethod: openIn: aSession [
+      ^self new initializeIn: aSession; open
+  ]
+
+  method: initializeIn: aSession [
+      session := aSession.
+      history := Array new.
+      historyIndex := 0.
+      bindings := Dictionary new.
+      self buildUI.
+      ^self
+  ]
+
+  method: buildUI [
+      # Main vertical layout
+      mainFlex := session createFlex.
+      mainFlex direction: #column.
+      mainFlex title: 'Maggie REPL'.
+      mainFlex border: true.
+
+      # History view (scrollable text)
+      historyView := session createTextView.
+      historyView border: false.
+      historyView scrollable: true.
+      historyView dynamicColors: true.
+      historyView text: 'Welcome to Maggie REPL
+Type expressions to evaluate. Ctrl-Q to quit.
+> '.
+
+      # Input field
+      inputField := session createInputField.
+      inputField label: '> '.
+
+      # Handle input submission
+      inputField onDone: [:e | self evaluate].
+
+      # Add to layout
+      mainFlex addItem: historyView proportion: 1.
+      mainFlex addItem: inputField fixedSize: 1.
+
+      # Set up key bindings
+      self setupKeyBindings
+  ]
+
+  method: setupKeyBindings [
+      session onKey: [:event |
+          event isCtrl ifTrue: [
+              event rune = 'q' ifTrue: [self close].
+              event rune = 'l' ifTrue: [self clearHistory]
+          ].
+          event isUp ifTrue: [self historyPrevious].
+          event isDown ifTrue: [self historyNext]
+      ]
+  ]
+
+  method: open [
+      session setRoot: mainFlex.
+      session startEventLoop.
+      inputField focus
+  ]
+
+  method: close [
+      session stopEventLoop.
+      session disconnect
+  ]
+
+  # Evaluation
+  method: evaluate [
+      | source result output |
+      source := inputField text.
+      source isEmpty ifTrue: [^self].
+
+      # Add to history
+      history := history copyWith: source.
+      historyIndex := history size.
+
+      # Try to evaluate
+      [result := self doEvaluate: source.
+       output := source, '
+=> ', result printString, '
+> ']
+          on: Error do: [:e |
+              output := source, '
+!! Error: ', e messageText, '
+> '].
+
+      self appendOutput: output.
+      inputField text: ''
+  ]
+
+  method: doEvaluate: source [
+      # Placeholder evaluation
+      # In real implementation, this would use Compiler to compile and execute
+      # For now, handle some simple cases
+
+      # Check for variable assignment
+      (source includes: ':=') ifTrue: [
+          | parts varName value |
+          parts := source splitOn: ':='.
+          parts size = 2 ifTrue: [
+              varName := (parts at: 1) trimBlanks.
+              value := (parts at: 2) trimBlanks.
+              # Store in bindings (simplified)
+              bindings at: varName put: value.
+              ^value
+          ]
+      ].
+
+      # Check for simple literals
+      source = 'true' ifTrue: [^true].
+      source = 'false' ifTrue: [^false].
+      source = 'nil' ifTrue: [^nil].
+
+      # Check for numbers
+      (source matchesRegex: '^-?[0-9]+$') ifTrue: [
+          ^source asInteger
+      ].
+
+      # Check for bound variables
+      (bindings includesKey: source) ifTrue: [
+          ^bindings at: source
+      ].
+
+      # Return the source as-is for now
+      ^source
+  ]
+
+  method: appendOutput: text [
+      | currentText |
+      currentText := historyView text.
+      historyView text: currentText, text
+  ]
+
+  method: clearHistory [
+      historyView text: '> '.
+      inputField text: ''
+  ]
+
+  # History navigation
+  method: historyPrevious [
+      history isEmpty ifTrue: [^self].
+      historyIndex > 1 ifTrue: [
+          historyIndex := historyIndex - 1.
+          inputField text: (history at: historyIndex)
+      ]
+  ]
+
+  method: historyNext [
+      history isEmpty ifTrue: [^self].
+      historyIndex < history size ifTrue: [
+          historyIndex := historyIndex + 1.
+          inputField text: (history at: historyIndex)
+      ] ifFalse: [
+          historyIndex := history size + 1.
+          inputField text: ''
+      ]
+  ]
+
+  # Bindings management
+  method: bind: name to: value [
+      bindings at: name put: value
+  ]
+
+  method: unbind: name [
+      bindings removeKey: name ifAbsent: []
+  ]
+
+  method: bindings [
+      ^bindings copy
+  ]
+
+  # Printing
+  method: printString [
+      ^'MaggieREPL'
+  ]

@@ -1,0 +1,83 @@
+# YutaniFlex.mag
+# Wrapper for Yutani Flex layout widget.
+
+YutaniFlex subclass: YutaniWidget
+
+  # Set direction
+  method: direction: dirSymbol [
+      | dir |
+      dir := dirSymbol = #column ifTrue: ['FLEX_COLUMN'] ifFalse: ['FLEX_ROW'].
+      self setProperties: (Dictionary new
+          at: #flex put: (Dictionary new
+              at: #direction put: dir;
+              yourself);
+          yourself)
+  ]
+
+  method: row [ self direction: #row ]
+  method: column [ self direction: #column ]
+
+  # Add items
+  method: addItem: widget [
+      ^self addItem: widget proportion: 1 fixedSize: 0 focus: false
+  ]
+
+  method: addItem: widget proportion: prop [
+      ^self addItem: widget proportion: prop fixedSize: 0 focus: false
+  ]
+
+  method: addItem: widget fixedSize: size [
+      ^self addItem: widget proportion: 0 fixedSize: size focus: false
+  ]
+
+  method: addItem: widget proportion: prop focus: shouldFocus [
+      ^self addItem: widget proportion: prop fixedSize: 0 focus: shouldFocus
+  ]
+
+  method: addItem: widget proportion: prop fixedSize: size focus: shouldFocus [
+      | request |
+      request := Dictionary new
+          at: #session_id put: session sessionId;
+          at: #flex_id put: (Dictionary new at: #id put: widgetId; yourself);
+          at: #item_id put: (Dictionary new at: #id put: widget widgetId; yourself);
+          at: #proportion put: prop;
+          at: #fixed_size put: size;
+          at: #focus put: shouldFocus;
+          yourself.
+      (session client call: 'industries.loosh.yutani.v1.LayoutService/FlexAddItem' with: request)
+          onSuccess: [:resp |
+              children := children copyWith: widget.
+              widget parent: self]
+          onFailure: [:err |
+              self error: 'FlexAddItem failed: ', err printString]
+  ]
+
+  # Remove items
+  method: removeItem: widget [
+      | request |
+      request := Dictionary new
+          at: #session_id put: session sessionId;
+          at: #flex_id put: (Dictionary new at: #id put: widgetId; yourself);
+          at: #item_id put: (Dictionary new at: #id put: widget widgetId; yourself);
+          yourself.
+      (session client call: 'industries.loosh.yutani.v1.LayoutService/FlexRemoveItem' with: request)
+          onSuccess: [:resp |
+              children := children reject: [:w | w = widget].
+              widget parent: nil]
+          onFailure: [:err |
+              self error: 'FlexRemoveItem failed: ', err printString]
+  ]
+
+  # Full screen mode
+  method: fullScreen: aBoolean [
+      self setProperties: (Dictionary new
+          at: #flex put: (Dictionary new
+              at: #full_screen put: aBoolean;
+              yourself);
+          yourself)
+  ]
+
+  # Printing
+  method: printString [
+      ^'YutaniFlex(', widgetId, ')'
+  ]

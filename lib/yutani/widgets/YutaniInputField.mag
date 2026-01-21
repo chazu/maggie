@@ -1,0 +1,96 @@
+# YutaniInputField.mag
+# Wrapper for Yutani InputField widget (single-line text input).
+
+YutaniInputField subclass: YutaniWidget
+
+  # Set text content
+  method: text: aString [
+      self setProperties: (Dictionary new
+          at: #input_field put: (Dictionary new
+              at: #text put: aString;
+              yourself);
+          yourself)
+  ]
+
+  # Get current text
+  method: text [
+      | props ifProps |
+      props := self getProperties.
+      ifProps := props at: #input_field ifAbsent: [nil].
+      ^ifProps ifNotNil: [ifProps at: #text ifAbsent: ['']] ifNil: ['']
+  ]
+
+  # Clear text
+  method: clear [
+      self text: ''
+  ]
+
+  # InputField-specific properties
+  method: label: aString [
+      self setProperties: (Dictionary new
+          at: #input_field put: (Dictionary new
+              at: #label put: aString;
+              yourself);
+          yourself)
+  ]
+
+  method: placeholder: aString [
+      self setProperties: (Dictionary new
+          at: #input_field put: (Dictionary new
+              at: #placeholder put: aString;
+              yourself);
+          yourself)
+  ]
+
+  method: fieldWidth: width [
+      self setProperties: (Dictionary new
+          at: #input_field put: (Dictionary new
+              at: #field_width put: width;
+              yourself);
+          yourself)
+  ]
+
+  method: masked: aBoolean [
+      self setProperties: (Dictionary new
+          at: #input_field put: (Dictionary new
+              at: #masked put: aBoolean;
+              yourself);
+          yourself)
+  ]
+
+  method: maskCharacter: aString [
+      self setProperties: (Dictionary new
+          at: #input_field put: (Dictionary new
+              at: #mask_character put: aString;
+              yourself);
+          yourself)
+  ]
+
+  method: labelColor: colorDict [
+      self setProperties: (Dictionary new
+          at: #input_field put: (Dictionary new
+              at: #label_color put: colorDict;
+              yourself);
+          yourself)
+  ]
+
+  method: fieldTextColor: colorDict [
+      self setProperties: (Dictionary new
+          at: #input_field put: (Dictionary new
+              at: #field_text_color put: colorDict;
+              yourself);
+          yourself)
+  ]
+
+  method: fieldBackgroundColor: colorDict [
+      self setProperties: (Dictionary new
+          at: #input_field put: (Dictionary new
+              at: #field_background_color put: colorDict;
+              yourself);
+          yourself)
+  ]
+
+  # Printing
+  method: printString [
+      ^'YutaniInputField(', widgetId, ')'
+  ]

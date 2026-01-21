@@ -1,0 +1,124 @@
+# YutaniList.mag
+# Wrapper for Yutani List widget.
+
+YutaniList subclass: YutaniWidget
+
+  # Add items
+  method: addItem: mainText [
+      ^self addItem: mainText secondary: ''
+  ]
+
+  method: addItem: mainText secondary: secondaryText [
+      | request |
+      request := Dictionary new
+          at: #session_id put: session sessionId;
+          at: #widget_id put: (Dictionary new at: #id put: widgetId; yourself);
+          at: #main_text put: mainText;
+          at: #secondary_text put: secondaryText;
+          yourself.
+      (session client call: 'industries.loosh.yutani.v1.ListService/AddItem' with: request)
+          onFailure: [:err |
+              self error: 'AddItem failed: ', err printString]
+  ]
+
+  method: addItem: mainText secondary: secondaryText shortcut: shortcut [
+      | request |
+      request := Dictionary new
+          at: #session_id put: session sessionId;
+          at: #widget_id put: (Dictionary new at: #id put: widgetId; yourself);
+          at: #main_text put: mainText;
+          at: #secondary_text put: secondaryText;
+          at: #shortcut put: shortcut;
+          yourself.
+      (session client call: 'industries.loosh.yutani.v1.ListService/AddItem' with: request)
+          onFailure: [:err |
+              self error: 'AddItem failed: ', err printString]
+  ]
+
+  # Remove items
+  method: removeItem: index [
+      | request |
+      request := Dictionary new
+          at: #session_id put: session sessionId;
+          at: #widget_id put: (Dictionary new at: #id put: widgetId; yourself);
+          at: #index put: index;
+          yourself.
+      (session client call: 'industries.loosh.yutani.v1.ListService/RemoveItem' with: request)
+          onFailure: [:err |
+              self error: 'RemoveItem failed: ', err printString]
+  ]
+
+  # Clear all items
+  method: clear [
+      | request |
+      request := Dictionary new
+          at: #session_id put: session sessionId;
+          at: #widget_id put: (Dictionary new at: #id put: widgetId; yourself);
+          yourself.
+      (session client call: 'industries.loosh.yutani.v1.ListService/Clear' with: request)
+          onFailure: [:err |
+              self error: 'Clear failed: ', err printString]
+  ]
+
+  # Item count
+  method: itemCount [
+      | request |
+      request := Dictionary new
+          at: #session_id put: session sessionId;
+          at: #widget_id put: (Dictionary new at: #id put: widgetId; yourself);
+          yourself.
+      (session client call: 'industries.loosh.yutani.v1.ListService/GetItemCount' with: request)
+          onSuccess: [:resp | ^resp at: #count ifAbsent: [0]]
+          onFailure: [:err | ^0]
+  ]
+
+  # Selection
+  method: selectedIndex [
+      | request |
+      request := Dictionary new
+          at: #session_id put: session sessionId;
+          at: #widget_id put: (Dictionary new at: #id put: widgetId; yourself);
+          yourself.
+      (session client call: 'industries.loosh.yutani.v1.ListService/GetSelected' with: request)
+          onSuccess: [:resp | ^resp at: #index ifAbsent: [-1]]
+          onFailure: [:err | ^-1]
+  ]
+
+  method: selectIndex: index [
+      | request |
+      request := Dictionary new
+          at: #session_id put: session sessionId;
+          at: #widget_id put: (Dictionary new at: #id put: widgetId; yourself);
+          at: #index put: index;
+          yourself.
+      (session client call: 'industries.loosh.yutani.v1.ListService/SetSelected' with: request)
+          onFailure: [:err |
+              self error: 'SetSelected failed: ', err printString]
+  ]
+
+  # Get item at index
+  method: itemAt: index [
+      | request |
+      request := Dictionary new
+          at: #session_id put: session sessionId;
+          at: #widget_id put: (Dictionary new at: #id put: widgetId; yourself);
+          at: #index put: index;
+          yourself.
+      (session client call: 'industries.loosh.yutani.v1.ListService/GetItem' with: request)
+          onSuccess: [:resp | ^resp]
+          onFailure: [:err | ^nil]
+  ]
+
+  # List-specific properties
+  method: showSecondaryText: aBoolean [
+      self setProperties: (Dictionary new
+          at: #list put: (Dictionary new
+              at: #show_secondary_text put: aBoolean;
+              yourself);
+          yourself)
+  ]
+
+  # Printing
+  method: printString [
+      ^'YutaniList(', widgetId, ')'
+  ]

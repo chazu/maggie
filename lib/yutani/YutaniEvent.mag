@@ -1,0 +1,229 @@
+# YutaniEvent.mag
+# Event wrapper classes for Yutani events.
+
+YutaniEvent subclass: Object
+  instanceVars: timestamp widgetId rawData
+
+  # Factory method to create appropriate event subclass
+  classMethod: fromDictionary: dict [
+      dict at: #key ifPresent: [:k | ^KeyEvent fromDict: dict].
+      dict at: #mouse ifPresent: [:m | ^MouseEvent fromDict: dict].
+      dict at: #resize ifPresent: [:r | ^ResizeEvent fromDict: dict].
+      dict at: #focus ifPresent: [:f | ^FocusEvent fromDict: dict].
+      dict at: #widget ifPresent: [:w | ^WidgetEvent fromDict: dict].
+      ^self new initializeFrom: dict
+  ]
+
+  method: initializeFrom: dict [
+      rawData := dict.
+      timestamp := dict at: #timestamp ifAbsent: [0].
+      ^self
+  ]
+
+  # Accessors
+  method: timestamp [ ^timestamp ]
+  method: widgetId [ ^widgetId ]
+  method: rawData [ ^rawData ]
+
+  # Override in subclasses
+  method: eventType [ ^#unknown ]
+  method: eventCategory [ ^#unknown ]
+
+  # Printing
+  method: printString [
+      ^'YutaniEvent(', self eventType printString, ')'
+  ]
+
+
+# KeyEvent - keyboard input events
+KeyEvent subclass: YutaniEvent
+  instanceVars: key rune modifiers
+
+  classMethod: fromDict: dict [
+      ^self new initializeFromKey: dict
+  ]
+
+  method: initializeFromKey: dict [
+      | keyDict |
+      self initializeFrom: dict.
+      keyDict := dict at: #key.
+      key := keyDict at: #key ifAbsent: [#KEY_RUNE].
+      rune := keyDict at: #rune ifAbsent: [''].
+      modifiers := keyDict at: #modifiers ifAbsent: [#()].
+      widgetId := (keyDict at: #widget_id ifAbsent: [nil])
+          ifNotNil: [:wid | wid at: #id ifAbsent: [nil]].
+      ^self
+  ]
+
+  method: eventType [ ^#key ]
+  method: eventCategory [ ^#key ]
+  method: key [ ^key ]
+  method: rune [ ^rune ]
+  method: modifiers [ ^modifiers ]
+
+  # Modifier tests
+  method: isCtrl [ ^modifiers includes: #MOD_CTRL ]
+  method: isAlt [ ^modifiers includes: #MOD_ALT ]
+  method: isShift [ ^modifiers includes: #MOD_SHIFT ]
+  method: isMeta [ ^modifiers includes: #MOD_META ]
+
+  # Special key tests
+  method: isEnter [ ^key = #KEY_ENTER ]
+  method: isEscape [ ^key = #KEY_ESCAPE ]
+  method: isTab [ ^key = #KEY_TAB ]
+  method: isBackspace [ ^key = #KEY_BACKSPACE ]
+  method: isDelete [ ^key = #KEY_DELETE ]
+  method: isUp [ ^key = #KEY_UP ]
+  method: isDown [ ^key = #KEY_DOWN ]
+  method: isLeft [ ^key = #KEY_LEFT ]
+  method: isRight [ ^key = #KEY_RIGHT ]
+  method: isHome [ ^key = #KEY_HOME ]
+  method: isEnd [ ^key = #KEY_END ]
+  method: isPageUp [ ^key = #KEY_PGUP ]
+  method: isPageDown [ ^key = #KEY_PGDN ]
+
+  method: printString [
+      ^'KeyEvent(', key printString, ' rune: ', rune, ')'
+  ]
+
+
+# MouseEvent - mouse input events
+MouseEvent subclass: YutaniEvent
+  instanceVars: action position screenPosition modifiers
+
+  classMethod: fromDict: dict [
+      ^self new initializeFromMouse: dict
+  ]
+
+  method: initializeFromMouse: dict [
+      | mouseDict |
+      self initializeFrom: dict.
+      mouseDict := dict at: #mouse.
+      action := mouseDict at: #action ifAbsent: [#MOUSE_CLICK].
+      position := mouseDict at: #position ifAbsent: [nil].
+      screenPosition := mouseDict at: #screen_position ifAbsent: [nil].
+      modifiers := mouseDict at: #modifiers ifAbsent: [#()].
+      widgetId := (mouseDict at: #widget_id ifAbsent: [nil])
+          ifNotNil: [:wid | wid at: #id ifAbsent: [nil]].
+      ^self
+  ]
+
+  method: eventType [ ^#mouse ]
+  method: eventCategory [ ^#mouse ]
+  method: action [ ^action ]
+  method: position [ ^position ]
+  method: screenPosition [ ^screenPosition ]
+  method: modifiers [ ^modifiers ]
+
+  # Position accessors
+  method: x [ ^position ifNotNil: [position at: #x ifAbsent: [0]] ifNil: [0] ]
+  method: y [ ^position ifNotNil: [position at: #y ifAbsent: [0]] ifNil: [0] ]
+
+  # Action tests
+  method: isClick [ ^action = #MOUSE_CLICK ]
+  method: isDoubleClick [ ^action = #MOUSE_DOUBLE_CLICK ]
+  method: isRightClick [ ^action = #MOUSE_RIGHT_CLICK ]
+  method: isScrollUp [ ^action = #MOUSE_SCROLL_UP ]
+  method: isScrollDown [ ^action = #MOUSE_SCROLL_DOWN ]
+  method: isDrag [ ^action = #MOUSE_DRAG ]
+
+  method: printString [
+      ^'MouseEvent(', action printString, ' at ', self x printString, ',', self y printString, ')'
+  ]
+
+
+# ResizeEvent - terminal resize events
+ResizeEvent subclass: YutaniEvent
+  instanceVars: newSize
+
+  classMethod: fromDict: dict [
+      ^self new initializeFromResize: dict
+  ]
+
+  method: initializeFromResize: dict [
+      | resizeDict |
+      self initializeFrom: dict.
+      resizeDict := dict at: #resize.
+      newSize := resizeDict at: #new_size ifAbsent: [nil].
+      ^self
+  ]
+
+  method: eventType [ ^#resize ]
+  method: eventCategory [ ^#resize ]
+  method: newSize [ ^newSize ]
+  method: width [ ^newSize ifNotNil: [newSize at: #width ifAbsent: [0]] ifNil: [0] ]
+  method: height [ ^newSize ifNotNil: [newSize at: #height ifAbsent: [0]] ifNil: [0] ]
+
+  method: printString [
+      ^'ResizeEvent(', self width printString, 'x', self height printString, ')'
+  ]
+
+
+# FocusEvent - focus change events
+FocusEvent subclass: YutaniEvent
+  instanceVars: oldWidgetId newWidgetId
+
+  classMethod: fromDict: dict [
+      ^self new initializeFromFocus: dict
+  ]
+
+  method: initializeFromFocus: dict [
+      | focusDict |
+      self initializeFrom: dict.
+      focusDict := dict at: #focus.
+      oldWidgetId := (focusDict at: #old_widget ifAbsent: [nil])
+          ifNotNil: [:wid | wid at: #id ifAbsent: [nil]].
+      newWidgetId := (focusDict at: #new_widget ifAbsent: [nil])
+          ifNotNil: [:wid | wid at: #id ifAbsent: [nil]].
+      widgetId := newWidgetId.
+      ^self
+  ]
+
+  method: eventType [ ^#focus ]
+  method: eventCategory [ ^#focus ]
+  method: oldWidgetId [ ^oldWidgetId ]
+  method: newWidgetId [ ^newWidgetId ]
+
+  method: printString [
+      ^'FocusEvent(', (oldWidgetId ifNil: ['nil']), ' -> ', (newWidgetId ifNil: ['nil']), ')'
+  ]
+
+
+# WidgetEvent - widget-specific events (SELECTED, CHANGED, SUBMITTED, etc.)
+WidgetEvent subclass: YutaniEvent
+  instanceVars: eventKind data
+
+  classMethod: fromDict: dict [
+      ^self new initializeFromWidget: dict
+  ]
+
+  method: initializeFromWidget: dict [
+      | widgetDict |
+      self initializeFrom: dict.
+      widgetDict := dict at: #widget.
+      widgetId := (widgetDict at: #widget_id ifAbsent: [nil])
+          ifNotNil: [:wid | wid at: #id ifAbsent: [nil]].
+      eventKind := widgetDict at: #type ifAbsent: [#WIDGET_CHANGED].
+      data := widgetDict at: #data ifAbsent: [Dictionary new].
+      ^self
+  ]
+
+  method: eventType [ ^eventKind ]
+  method: eventCategory [ ^#widget ]
+  method: data [ ^data ]
+
+  # Data accessors
+  method: dataAt: key [
+      ^data at: key ifAbsent: [nil]
+  ]
+
+  # Event kind tests
+  method: isSelected [ ^eventKind = #WIDGET_SELECTED ]
+  method: isChanged [ ^eventKind = #WIDGET_CHANGED ]
+  method: isSubmitted [ ^eventKind = #WIDGET_SUBMITTED ]
+  method: isCancelled [ ^eventKind = #WIDGET_CANCELLED ]
+  method: isDone [ ^eventKind = #WIDGET_DONE ]
+
+  method: printString [
+      ^'WidgetEvent(', eventKind printString, ' widget: ', (widgetId ifNil: ['nil']), ')'
+  ]

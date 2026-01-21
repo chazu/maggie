@@ -1,0 +1,177 @@
+# YutaniTree.mag
+# Wrapper for Yutani TreeView widget.
+
+YutaniTree subclass: YutaniWidget
+  instanceVars: nodeRegistry rootNodeId
+
+  method: initializeWith: aSession id: anId [
+      super initializeWith: aSession id: anId.
+      nodeRegistry := Dictionary new.
+      ^self
+  ]
+
+  # Set root node
+  method: setRoot: text [
+      ^self setRoot: text reference: ''
+  ]
+
+  method: setRoot: text reference: ref [
+      | request |
+      request := Dictionary new
+          at: #session_id put: session sessionId;
+          at: #widget_id put: (Dictionary new at: #id put: widgetId; yourself);
+          at: #node put: (Dictionary new
+              at: #text put: text;
+              at: #reference put: (ref ifNil: ['']);
+              at: #expanded put: true;
+              yourself);
+          yourself.
+      (session client call: 'industries.loosh.yutani.v1.TreeService/SetRoot' with: request)
+          onSuccess: [:resp |
+              | nodeId |
+              nodeId := (resp at: #node_id ifAbsent: [nil])
+                  ifNotNil: [:nid | nid at: #id ifAbsent: [nil]].
+              nodeId notNil ifTrue: [
+                  nodeRegistry at: text put: nodeId.
+                  rootNodeId := nodeId].
+              ^nodeId]
+          onFailure: [:err |
+              self error: 'SetRoot failed: ', err printString]
+  ]
+
+  # Add child nodes
+  method: addChild: text to: parentNodeId [
+      ^self addChild: text to: parentNodeId reference: ''
+  ]
+
+  method: addChild: text to: parentNodeId reference: ref [
+      | request |
+      request := Dictionary new
+          at: #session_id put: session sessionId;
+          at: #widget_id put: (Dictionary new at: #id put: widgetId; yourself);
+          at: #parent_id put: (Dictionary new at: #id put: parentNodeId; yourself);
+          at: #node put: (Dictionary new
+              at: #text put: text;
+              at: #reference put: (ref ifNil: ['']);
+              yourself);
+          yourself.
+      (session client call: 'industries.loosh.yutani.v1.TreeService/AddChild' with: request)
+          onSuccess: [:resp |
+              | nodeId |
+              nodeId := (resp at: #node_id ifAbsent: [nil])
+                  ifNotNil: [:nid | nid at: #id ifAbsent: [nil]].
+              nodeId notNil ifTrue: [nodeRegistry at: text put: nodeId].
+              ^nodeId]
+          onFailure: [:err |
+              self error: 'AddChild failed: ', err printString]
+  ]
+
+  # Remove node
+  method: removeNode: nodeId [
+      | request |
+      request := Dictionary new
+          at: #session_id put: session sessionId;
+          at: #widget_id put: (Dictionary new at: #id put: widgetId; yourself);
+          at: #node_id put: (Dictionary new at: #id put: nodeId; yourself);
+          yourself.
+      (session client call: 'industries.loosh.yutani.v1.TreeService/RemoveNode' with: request)
+          onFailure: [:err |
+              self error: 'RemoveNode failed: ', err printString]
+  ]
+
+  # Selection
+  method: selected [
+      | request |
+      request := Dictionary new
+          at: #session_id put: session sessionId;
+          at: #widget_id put: (Dictionary new at: #id put: widgetId; yourself);
+          yourself.
+      (session client call: 'industries.loosh.yutani.v1.TreeService/GetSelected' with: request)
+          onSuccess: [:resp | ^resp]
+          onFailure: [:err | ^nil]
+  ]
+
+  method: selectedNodeId [
+      | selected |
+      selected := self selected.
+      ^selected ifNotNil: [
+          (selected at: #node_id ifAbsent: [nil])
+              ifNotNil: [:nid | nid at: #id ifAbsent: [nil]]]
+  ]
+
+  method: selectedText [
+      | selected |
+      selected := self selected.
+      ^selected ifNotNil: [
+          (selected at: #node ifAbsent: [nil])
+              ifNotNil: [:n | n at: #text ifAbsent: [nil]]]
+  ]
+
+  method: selectedReference [
+      | selected |
+      selected := self selected.
+      ^selected ifNotNil: [
+          (selected at: #node ifAbsent: [nil])
+              ifNotNil: [:n | n at: #reference ifAbsent: [nil]]]
+  ]
+
+  method: selectNode: nodeId [
+      | request |
+      request := Dictionary new
+          at: #session_id put: session sessionId;
+          at: #widget_id put: (Dictionary new at: #id put: widgetId; yourself);
+          at: #node_id put: (Dictionary new at: #id put: nodeId; yourself);
+          yourself.
+      (session client call: 'industries.loosh.yutani.v1.TreeService/SetSelected' with: request)
+          onFailure: [:err |
+              self error: 'SetSelected failed: ', err printString]
+  ]
+
+  # Expand/collapse
+  method: expand: nodeId [
+      self setExpanded: nodeId to: true
+  ]
+
+  method: collapse: nodeId [
+      self setExpanded: nodeId to: false
+  ]
+
+  method: setExpanded: nodeId to: expanded [
+      | request |
+      request := Dictionary new
+          at: #session_id put: session sessionId;
+          at: #widget_id put: (Dictionary new at: #id put: widgetId; yourself);
+          at: #node_id put: (Dictionary new at: #id put: nodeId; yourself);
+          at: #expanded put: expanded;
+          yourself.
+      (session client call: 'industries.loosh.yutani.v1.TreeService/SetExpanded' with: request)
+          onFailure: [:err |
+              self error: 'SetExpanded failed: ', err printString]
+  ]
+
+  # Get children of a node
+  method: childrenOf: nodeId [
+      | request |
+      request := Dictionary new
+          at: #session_id put: session sessionId;
+          at: #widget_id put: (Dictionary new at: #id put: widgetId; yourself);
+          at: #node_id put: (Dictionary new at: #id put: nodeId; yourself);
+          yourself.
+      (session client call: 'industries.loosh.yutani.v1.TreeService/GetChildren' with: request)
+          onSuccess: [:resp | ^resp at: #children ifAbsent: [#()]]
+          onFailure: [:err | ^#()]
+  ]
+
+  # Node registry accessors
+  method: nodeIdFor: text [
+      ^nodeRegistry at: text ifAbsent: [nil]
+  ]
+
+  method: rootNodeId [
+      ^rootNodeId
+  ]
+
+  # Printing
+  method: printString [
+      ^'YutaniTree(', widgetId, ')'
+  ]

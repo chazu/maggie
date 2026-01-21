@@ -1,0 +1,164 @@
+# YutaniWidget.mag
+# Base class for all Yutani widgets.
+# Provides common functionality for property management, hierarchy, and event handling.
+
+YutaniWidget subclass: Object
+  instanceVars: session widgetId properties eventHandlers parent children
+
+  # Initialization
+  method: initializeWith: aSession id: anId [
+      session := aSession.
+      widgetId := anId.
+      properties := Dictionary new.
+      eventHandlers := Dictionary new.
+      children := Array new.
+      ^self
+  ]
+
+  # Accessors
+  method: widgetId [ ^widgetId ]
+  method: session [ ^session ]
+  method: parent [ ^parent ]
+  method: parent: aWidget [ parent := aWidget ]
+  method: children [ ^children ]
+
+  # Property management
+  method: setProperty: name to: value [
+      properties at: name put: value.
+      self updateProperties
+  ]
+
+  method: setProperties: dict [
+      dict keysAndValuesDo: [:k :v | properties at: k put: v].
+      self updateProperties
+  ]
+
+  method: updateProperties [
+      | request |
+      request := Dictionary new
+          at: #session_id put: session sessionId;
+          at: #widget_id put: (Dictionary new at: #id put: widgetId; yourself);
+          at: #properties put: properties;
+          yourself.
+      (session client call: 'industries.loosh.yutani.v1.WidgetService/SetProperties' with: request)
+          onFailure: [:err |
+              self error: 'SetProperties failed: ', err printString]
+  ]
+
+  method: getProperties [
+      | request |
+      request := Dictionary new
+          at: #session_id put: session sessionId;
+          at: #widget_id put: (Dictionary new at: #id put: widgetId; yourself);
+          yourself.
+      (session client call: 'industries.loosh.yutani.v1.WidgetService/GetProperties' with: request)
+          onSuccess: [:resp | ^resp at: #properties ifAbsent: [Dictionary new]]
+          onFailure: [:err | ^Dictionary new]
+  ]
+
+  # Common property setters
+  method: title: aString [
+      self setProperty: #title to: aString
+  ]
+
+  method: border: aBoolean [
+      self setProperty: #border to: aBoolean
+  ]
+
+  method: rect: aDict [
+      self setProperty: #rect to: aDict
+  ]
+
+  method: backgroundColor: colorDict [
+      self setProperty: #background_color to: colorDict
+  ]
+
+  method: borderColor: colorDict [
+      self setProperty: #border_color to: colorDict
+  ]
+
+  method: titleColor: colorDict [
+      self setProperty: #title_color to: colorDict
+  ]
+
+  method: padding: paddingDict [
+      self setProperty: #padding to: paddingDict
+  ]
+
+  # Hierarchy management
+  method: addChild: widget [
+      | request |
+      request := Dictionary new
+          at: #session_id put: session sessionId;
+          at: #parent_id put: (Dictionary new at: #id put: widgetId; yourself);
+          at: #child_id put: (Dictionary new at: #id put: widget widgetId; yourself);
+          yourself.
+      (session client call: 'industries.loosh.yutani.v1.WidgetService/AddChild' with: request)
+          onSuccess: [:resp |
+              children := children copyWith: widget.
+              widget parent: self]
+          onFailure: [:err |
+              self error: 'AddChild failed: ', err printString]
+  ]
+
+  method: removeChild: widget [
+      | request |
+      request := Dictionary new
+          at: #session_id put: session sessionId;
+          at: #parent_id put: (Dictionary new at: #id put: widgetId; yourself);
+          at: #child_id put: (Dictionary new at: #id put: widget widgetId; yourself);
+          yourself.
+      (session client call: 'industries.loosh.yutani.v1.WidgetService/RemoveChild' with: request)
+          onSuccess: [:resp |
+              children := children reject: [:w | w = widget].
+              widget parent: nil]
+          onFailure: [:err |
+              self error: 'RemoveChild failed: ', err printString]
+  ]
+
+  # Focus management
+  method: focus [
+      | request |
+      request := Dictionary new
+          at: #session_id put: session sessionId;
+          at: #widget_id put: (Dictionary new at: #id put: widgetId; yourself);
+          yourself.
+      (session client call: 'industries.loosh.yutani.v1.WidgetService/SetFocus' with: request)
+          onFailure: [:err |
+              self error: 'SetFocus failed: ', err printString]
+  ]
+
+  # Event handling
+  method: on: eventType do: block [
+      eventHandlers at: eventType put: block
+  ]
+
+  method: handleEvent: event [
+      | handler |
+      handler := eventHandlers at: event eventType ifAbsent: [nil].
+      handler notNil ifTrue: [handler value: event]
+  ]
+
+  # Convenience event registration
+  method: onSelected: block [ self on: #WIDGET_SELECTED do: block ]
+  method: onChanged: block [ self on: #WIDGET_CHANGED do: block ]
+  method: onSubmitted: block [ self on: #WIDGET_SUBMITTED do: block ]
+  method: onCancelled: block [ self on: #WIDGET_CANCELLED do: block ]
+  method: onDone: block [ self on: #WIDGET_DONE do: block ]
+
+  # Cleanup
+  method: delete [
+      | request |
+      request := Dictionary new
+          at: #session_id put: session sessionId;
+          at: #widget_id put: (Dictionary new at: #id put: widgetId; yourself);
+          yourself.
+      (session client call: 'industries.loosh.yutani.v1.WidgetService/DeleteWidget' with: request)
+          onFailure: [:err |
+              self error: 'DeleteWidget failed: ', err printString]
+  ]
+
+  # Printing
+  method: printString [
+      ^'YutaniWidget(', widgetId, ')'
+  ]

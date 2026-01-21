@@ -1,0 +1,191 @@
+# YutaniSession.mag
+# Central connection manager for Yutani display server.
+# Handles gRPC connection, session lifecycle, and widget factory.
+
+YutaniSession subclass: Object
+  instanceVars: client sessionId widgets eventLoop serverAddress
+
+  # Class methods for creating sessions
+  classMethod: connectTo: address [
+      | session |
+      session := self new.
+      session connectTo: address.
+      ^session
+  ]
+
+  # Connection management
+  method: connectTo: address [
+      serverAddress := address.
+      widgets := Dictionary new.
+      (GrpcClient connectTo: address)
+          onSuccess: [:c |
+              client := c.
+              self createSession]
+          onFailure: [:err |
+              self error: 'Yutani connection failed: ', err printString]
+  ]
+
+  method: createSession [
+      | request |
+      request := Dictionary new
+          at: #client_name put: 'Maggie IDE';
+          at: #preferences put: (Dictionary new
+              at: #receive_key_events put: true;
+              at: #receive_mouse_events put: true;
+              at: #receive_resize_events put: true;
+              yourself);
+          yourself.
+      (client call: 'industries.loosh.yutani.v1.SessionService/CreateSession' with: request)
+          onSuccess: [:resp |
+              sessionId := resp at: #session_id.
+              self initializeEventLoop]
+          onFailure: [:err |
+              self error: 'Session creation failed: ', err printString]
+  ]
+
+  method: initializeEventLoop [
+      eventLoop := YutaniEventLoop for: self.
+      ^self
+  ]
+
+  method: disconnect [
+      | request |
+      eventLoop notNil ifTrue: [eventLoop stop].
+      sessionId notNil ifTrue: [
+          request := Dictionary new
+              at: #session_id put: sessionId;
+              yourself.
+          client call: 'industries.loosh.yutani.v1.SessionService/DestroySession' with: request].
+      client notNil ifTrue: [client close].
+      widgets := nil
+  ]
+
+  method: isConnected [
+      ^client notNil and: [sessionId notNil]
+  ]
+
+  # Accessors
+  method: client [ ^client ]
+  method: sessionId [ ^sessionId ]
+  method: widgets [ ^widgets ]
+  method: eventLoop [ ^eventLoop ]
+
+  # Widget registration
+  method: registerWidget: widget [
+      widgets at: widget widgetId put: widget
+  ]
+
+  method: widgetAt: widgetId [
+      ^widgets at: widgetId ifAbsent: [nil]
+  ]
+
+  # Widget factory methods
+  method: createWidget: widgetType [
+      | request |
+      request := Dictionary new
+          at: #session_id put: sessionId;
+          at: #type put: widgetType;
+          yourself.
+      (client call: 'industries.loosh.yutani.v1.WidgetService/CreateWidget' with: request)
+          onSuccess: [:resp |
+              | widget widgetId |
+              widgetId := (resp at: #widget_id) at: #id.
+              widget := self wrapWidget: widgetId type: widgetType.
+              self registerWidget: widget.
+              ^widget]
+          onFailure: [:err |
+              self error: 'Widget creation failed: ', err printString]
+  ]
+
+  method: wrapWidget: widgetId type: widgetType [
+      # Create appropriate widget wrapper based on type
+      widgetType = 'WIDGET_LIST' ifTrue: [
+          ^YutaniList new initializeWith: self id: widgetId].
+      widgetType = 'WIDGET_TREE_VIEW' ifTrue: [
+          ^YutaniTree new initializeWith: self id: widgetId].
+      widgetType = 'WIDGET_TABLE' ifTrue: [
+          ^YutaniTable new initializeWith: self id: widgetId].
+      widgetType = 'WIDGET_FLEX' ifTrue: [
+          ^YutaniFlex new initializeWith: self id: widgetId].
+      widgetType = 'WIDGET_GRID' ifTrue: [
+          ^YutaniGrid new initializeWith: self id: widgetId].
+      widgetType = 'WIDGET_PAGES' ifTrue: [
+          ^YutaniPages new initializeWith: self id: widgetId].
+      widgetType = 'WIDGET_TEXT_VIEW' ifTrue: [
+          ^YutaniTextView new initializeWith: self id: widgetId].
+      widgetType = 'WIDGET_TEXT_AREA' ifTrue: [
+          ^YutaniTextArea new initializeWith: self id: widgetId].
+      widgetType = 'WIDGET_INPUT_FIELD' ifTrue: [
+          ^YutaniInputField new initializeWith: self id: widgetId].
+      widgetType = 'WIDGET_BUTTON' ifTrue: [
+          ^YutaniButton new initializeWith: self id: widgetId].
+      widgetType = 'WIDGET_BOX' ifTrue: [
+          ^YutaniBox new initializeWith: self id: widgetId].
+      # Default to base widget class
+      ^YutaniWidget new initializeWith: self id: widgetId
+  ]
+
+  # Convenience factory methods
+  method: createBox [ ^self createWidget: 'WIDGET_BOX' ]
+  method: createTextView [ ^self createWidget: 'WIDGET_TEXT_VIEW' ]
+  method: createTextArea [ ^self createWidget: 'WIDGET_TEXT_AREA' ]
+  method: createInputField [ ^self createWidget: 'WIDGET_INPUT_FIELD' ]
+  method: createButton [ ^self createWidget: 'WIDGET_BUTTON' ]
+  method: createList [ ^self createWidget: 'WIDGET_LIST' ]
+  method: createTree [ ^self createWidget: 'WIDGET_TREE_VIEW' ]
+  method: createTable [ ^self createWidget: 'WIDGET_TABLE' ]
+  method: createFlex [ ^self createWidget: 'WIDGET_FLEX' ]
+  method: createGrid [ ^self createWidget: 'WIDGET_GRID' ]
+  method: createPages [ ^self createWidget: 'WIDGET_PAGES' ]
+
+  # Display management
+  method: setRoot: widget [
+      | request |
+      request := Dictionary new
+          at: #session_id put: sessionId;
+          at: #widget_id put: (Dictionary new at: #id put: widget widgetId; yourself);
+          yourself.
+      (client call: 'industries.loosh.yutani.v1.WidgetService/SetRoot' with: request)
+          onFailure: [:err |
+              self error: 'SetRoot failed: ', err printString]
+  ]
+
+  # Event loop control
+  method: startEventLoop [
+      eventLoop start
+  ]
+
+  method: stopEventLoop [
+      eventLoop stop
+  ]
+
+  # Event handler registration (delegates to event loop)
+  method: onKey: block [
+      eventLoop onKey: block
+  ]
+
+  method: onMouse: block [
+      eventLoop onMouse: block
+  ]
+
+  method: onResize: block [
+      eventLoop onResize: block
+  ]
+
+  method: onWidget: block [
+      eventLoop onWidget: block
+  ]
+
+  # Server info
+  method: getServerInfo [
+      | request |
+      request := Dictionary new.
+      (client call: 'industries.loosh.yutani.v1.SessionService/GetServerInfo' with: request)
+          onSuccess: [:resp | ^resp]
+          onFailure: [:err | ^nil]
+  ]
+
+  # Printing
+  method: printString [
+      ^'YutaniSession(', (serverAddress ifNil: ['disconnected']), ')'
+  ]

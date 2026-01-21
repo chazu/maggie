@@ -1,0 +1,106 @@
+# YutaniEventLoop.mag
+# Handles event streaming from Yutani server and dispatches events to handlers.
+
+YutaniEventLoop subclass: Object
+  instanceVars: session stream handlers running process
+
+  # Creation
+  classMethod: for: aSession [
+      ^self new initializeFor: aSession
+  ]
+
+  method: initializeFor: aSession [
+      session := aSession.
+      handlers := Dictionary new.
+      running := false.
+      ^self
+  ]
+
+  # Event loop control
+  method: start [
+      | request |
+      running := true.
+      request := Dictionary new
+          at: #session_id put: session sessionId;
+          at: #filter put: (Dictionary new
+              at: #receive_key_events put: true;
+              at: #receive_mouse_events put: true;
+              at: #receive_resize_events put: true;
+              at: #receive_focus_events put: true;
+              at: #receive_widget_events put: true;
+              yourself);
+          yourself.
+
+      (session client serverStream: 'industries.loosh.yutani.v1.EventService/Subscribe' with: request)
+          onSuccess: [:s |
+              stream := s.
+              process := [self eventLoop] fork]
+          onFailure: [:err |
+              running := false.
+              self error: 'Event subscription failed: ', err printString]
+  ]
+
+  method: stop [
+      running := false.
+      stream notNil ifTrue: [stream close].
+      process notNil ifTrue: [process terminate]
+  ]
+
+  method: isRunning [
+      ^running
+  ]
+
+  # Main event loop
+  method: eventLoop [
+      [running and: [stream hasNext]] whileTrue: [
+          stream receive
+              onSuccess: [:eventDict | self dispatchEvent: eventDict]
+              onFailure: [:err |
+                  err = 'end of stream'
+                      ifTrue: [running := false]
+                      ifFalse: [self handleError: err]]
+      ].
+      running := false
+  ]
+
+  method: handleError: err [
+      # Log error but continue running
+      ('EventLoop error: ', err printString) println
+  ]
+
+  # Event dispatch
+  method: dispatchEvent: eventDict [
+      | event widgetId widget |
+      event := YutaniEvent fromDictionary: eventDict.
+
+      # Dispatch to widget-specific handler if widget event
+      widgetId := event widgetId.
+      widgetId notNil ifTrue: [
+          widget := session widgetAt: widgetId.
+          widget notNil ifTrue: [widget handleEvent: event]
+      ].
+
+      # Dispatch to registered global handlers
+      (handlers at: event eventCategory ifAbsent: [#()]) do: [:handler |
+          handler value: event
+      ]
+  ]
+
+  # Handler registration
+  method: on: eventCategory do: block [
+      | categoryHandlers |
+      categoryHandlers := handlers at: eventCategory ifAbsentPut: [Array new].
+      handlers at: eventCategory put: (categoryHandlers copyWith: block)
+  ]
+
+  # Convenience handler registration
+  method: onKey: block [ self on: #key do: block ]
+  method: onMouse: block [ self on: #mouse do: block ]
+  method: onResize: block [ self on: #resize do: block ]
+  method: onFocus: block [ self on: #focus do: block ]
+  method: onWidget: block [ self on: #widget do: block ]
+
+  # Printing
+  method: printString [
+      ^'YutaniEventLoop(', (running ifTrue: ['running'] ifFalse: ['stopped']), ')'
+  ]

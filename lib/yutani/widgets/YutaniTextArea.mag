@@ -1,0 +1,79 @@
+# YutaniTextArea.mag
+# Wrapper for Yutani TextArea widget (multi-line editable text).
+
+YutaniTextArea subclass: YutaniWidget
+
+  # Set text content
+  method: text: aString [
+      self setProperties: (Dictionary new
+          at: #text_area put: (Dictionary new
+              at: #text put: aString;
+              yourself);
+          yourself)
+  ]
+
+  # Get current text
+  method: text [
+      | props taProps |
+      props := self getProperties.
+      taProps := props at: #text_area ifAbsent: [nil].
+      ^taProps ifNotNil: [taProps at: #text ifAbsent: ['']] ifNil: ['']
+  ]
+
+  # Append text
+  method: append: aString [
+      | currentText |
+      currentText := self text.
+      self text: currentText, aString
+  ]
+
+  # Clear text
+  method: clear [
+      self text: ''
+  ]
+
+  # TextArea-specific properties
+  method: placeholder: aString [
+      self setProperties: (Dictionary new
+          at: #text_area put: (Dictionary new
+              at: #placeholder put: aString;
+              yourself);
+          yourself)
+  ]
+
+  method: maxLength: count [
+      self setProperties: (Dictionary new
+          at: #text_area put: (Dictionary new
+              at: #max_length put: count;
+              yourself);
+          yourself)
+  ]
+
+  method: wordWrap: aBoolean [
+      self setProperties: (Dictionary new
+          at: #text_area put: (Dictionary new
+              at: #word_wrap put: aBoolean;
+              yourself);
+          yourself)
+  ]
+
+  method: textColor: colorDict [
+      self setProperties: (Dictionary new
+          at: #text_area put: (Dictionary new
+              at: #text_color put: colorDict;
+              yourself);
+          yourself)
+  ]
+
+  method: placeholderColor: colorDict [
+      self setProperties: (Dictionary new
+          at: #text_area put: (Dictionary new
+              at: #placeholder_color put: colorDict;
+              yourself);
+          yourself)
+  ]
+
+  # Printing
+  method: printString [
+      ^'YutaniTextArea(', widgetId, ')'
+  ]

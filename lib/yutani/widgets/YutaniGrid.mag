@@ -1,0 +1,103 @@
+# YutaniGrid.mag
+# Wrapper for Yutani Grid layout widget.
+
+YutaniGrid subclass: YutaniWidget
+
+  # Set grid dimensions
+  method: rows: rows columns: cols [
+      self setRows: rows.
+      self setColumns: cols
+  ]
+
+  method: setRows: rowSpec [
+      | request |
+      request := Dictionary new
+          at: #session_id put: session sessionId;
+          at: #grid_id put: (Dictionary new at: #id put: widgetId; yourself);
+          at: #rows put: rowSpec;
+          yourself.
+      (session client call: 'industries.loosh.yutani.v1.LayoutService/GridSetRows' with: request)
+          onFailure: [:err |
+              self error: 'GridSetRows failed: ', err printString]
+  ]
+
+  method: setColumns: colSpec [
+      | request |
+      request := Dictionary new
+          at: #session_id put: session sessionId;
+          at: #grid_id put: (Dictionary new at: #id put: widgetId; yourself);
+          at: #columns put: colSpec;
+          yourself.
+      (session client call: 'industries.loosh.yutani.v1.LayoutService/GridSetColumns' with: request)
+          onFailure: [:err |
+              self error: 'GridSetColumns failed: ', err printString]
+  ]
+
+  # Add items
+  method: addItem: widget row: row col: col [
+      ^self addItem: widget row: row col: col rowSpan: 1 colSpan: 1 focus: false
+  ]
+
+  method: addItem: widget row: row col: col rowSpan: rs colSpan: cs [
+      ^self addItem: widget row: row col: col rowSpan: rs colSpan: cs focus: false
+  ]
+
+  method: addItem: widget row: row col: col rowSpan: rs colSpan: cs focus: shouldFocus [
+      | request |
+      request := Dictionary new
+          at: #session_id put: session sessionId;
+          at: #grid_id put: (Dictionary new at: #id put: widgetId; yourself);
+          at: #item_id put: (Dictionary new at: #id put: widget widgetId; yourself);
+          at: #row put: row;
+          at: #column put: col;
+          at: #row_span put: rs;
+          at: #col_span put: cs;
+          at: #min_grid_height put: 0;
+          at: #min_grid_width put: 0;
+          at: #focus put: shouldFocus;
+          yourself.
+      (session client call: 'industries.loosh.yutani.v1.LayoutService/GridAddItem' with: request)
+          onSuccess: [:resp |
+              children := children copyWith: widget.
+              widget parent: self]
+          onFailure: [:err |
+              self error: 'GridAddItem failed: ', err printString]
+  ]
+
+  # Remove items
+  method: removeItem: widget [
+      | request |
+      request := Dictionary new
+          at: #session_id put: session sessionId;
+          at: #grid_id put: (Dictionary new at: #id put: widgetId; yourself);
+          at: #item_id put: (Dictionary new at: #id put: widget widgetId; yourself);
+          yourself.
+      (session client call: 'industries.loosh.yutani.v1.LayoutService/GridRemoveItem' with: request)
+          onSuccess: [:resp |
+              children := children reject: [:w | w = widget].
+              widget parent: nil]
+          onFailure: [:err |
+              self error: 'GridRemoveItem failed: ', err printString]
+  ]
+
+  # Grid-specific properties
+  method: minWidth: width [
+      self setProperties: (Dictionary new
+          at: #grid put: (Dictionary new
+              at: #min_width put: width;
+              yourself);
+          yourself)
+  ]
+
+  method: minHeight: height [
+      self setProperties: (Dictionary new
+          at: #grid put: (Dictionary new
+              at: #min_height put: height;
+              yourself);
+          yourself)
+  ]
+
+  # Printing
+  method: printString [
+      ^'YutaniGrid(', widgetId, ')'
+  ]

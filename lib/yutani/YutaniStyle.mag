@@ -1,0 +1,92 @@
+# YutaniStyle.mag
+# Helper class for creating Yutani colors and styles.
+
+YutaniStyle subclass: Object
+
+  # Named colors
+  classMethod: black [ ^Dictionary new at: #name put: 'black'; yourself ]
+  classMethod: red [ ^Dictionary new at: #name put: 'red'; yourself ]
+  classMethod: green [ ^Dictionary new at: #name put: 'green'; yourself ]
+  classMethod: yellow [ ^Dictionary new at: #name put: 'yellow'; yourself ]
+  classMethod: blue [ ^Dictionary new at: #name put: 'blue'; yourself ]
+  classMethod: magenta [ ^Dictionary new at: #name put: 'magenta'; yourself ]
+  classMethod: cyan [ ^Dictionary new at: #name put: 'cyan'; yourself ]
+  classMethod: white [ ^Dictionary new at: #name put: 'white'; yourself ]
+  classMethod: gray [ ^Dictionary new at: #name put: 'gray'; yourself ]
+  classMethod: darkGray [ ^Dictionary new at: #name put: 'darkgray'; yourself ]
+  classMethod: lightRed [ ^Dictionary new at: #name put: 'lightred'; yourself ]
+  classMethod: lightGreen [ ^Dictionary new at: #name put: 'lightgreen'; yourself ]
+  classMethod: lightYellow [ ^Dictionary new at: #name put: 'lightyellow'; yourself ]
+  classMethod: lightBlue [ ^Dictionary new at: #name put: 'lightblue'; yourself ]
+  classMethod: lightMagenta [ ^Dictionary new at: #name put: 'lightmagenta'; yourself ]
+  classMethod: lightCyan [ ^Dictionary new at: #name put: 'lightcyan'; yourself ]
+
+  # 256-color palette
+  classMethod: index: n [
+      ^Dictionary new at: #index put: n; yourself
+  ]
+
+  # True color (RGB)
+  classMethod: rgb: r g: g b: b [
+      ^Dictionary new
+          at: #rgb put: (Dictionary new
+              at: #r put: r;
+              at: #g put: g;
+              at: #b put: b;
+              yourself);
+          yourself
+  ]
+
+  # Style with foreground and background
+  classMethod: foreground: fg background: bg [
+      ^Dictionary new
+          at: #foreground put: fg;
+          at: #background put: bg;
+          yourself
+  ]
+
+  classMethod: foreground: fg background: bg attributes: attrs [
+      ^Dictionary new
+          at: #foreground put: fg;
+          at: #background put: bg;
+          at: #attributes put: attrs;
+          yourself
+  ]
+
+  # Attributes
+  classMethod: bold [ ^#ATTR_BOLD ]
+  classMethod: italic [ ^#ATTR_ITALIC ]
+  classMethod: underline [ ^#ATTR_UNDERLINE ]
+  classMethod: reverse [ ^#ATTR_REVERSE ]
+  classMethod: blink [ ^#ATTR_BLINK ]
+  classMethod: dim [ ^#ATTR_DIM ]
+  classMethod: strikethrough [ ^#ATTR_STRIKETHROUGH ]
+
+  # Rect helper
+  classMethod: rect: x y: y width: w height: h [
+      ^Dictionary new
+          at: #x put: x;
+          at: #y put: y;
+          at: #width put: w;
+          at: #height put: h;
+          yourself
+  ]
+
+  # Padding helper
+  classMethod: padding: all [
+      ^Dictionary new
+          at: #top put: all;
+          at: #bottom put: all;
+          at: #left put: all;
+          at: #right put: all;
+          yourself
+  ]
+
+  classMethod: paddingTop: t bottom: b left: l right: r [
+      ^Dictionary new
+          at: #top put: t;
+          at: #bottom put: b;
+          at: #left put: l;
+          at: #right put: r;
+          yourself
+  ]

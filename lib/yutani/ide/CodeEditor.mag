@@ -1,0 +1,167 @@
+# CodeEditor.mag
+# Simple code editor for Maggie source files.
+
+CodeEditor subclass: Object
+  instanceVars: session mainFlex textArea statusBar filename modified
+
+  # Creation
+  classMethod: openIn: aSession [
+      ^self new initializeIn: aSession; open
+  ]
+
+  classMethod: openIn: aSession file: aFilename [
+      ^self new initializeIn: aSession; loadFile: aFilename; open
+  ]
+
+  method: initializeIn: aSession [
+      session := aSession.
+      modified := false.
+      filename := nil.
+      self buildUI.
+      ^self
+  ]
+
+  method: buildUI [
+      # Main vertical layout
+      mainFlex := session createFlex.
+      mainFlex direction: #column.
+      mainFlex title: 'Code Editor'.
+      mainFlex border: true.
+
+      # Text area for editing
+      textArea := session createTextArea.
+      textArea border: false.
+      textArea wordWrap: false.
+      textArea placeholder: '# Enter Maggie code here...'.
+      textArea onChanged: [:e | self markModified].
+
+      # Status bar
+      statusBar := session createTextView.
+      statusBar border: false.
+      statusBar text: 'Ready | Ctrl-S: Save | Ctrl-O: Open | Ctrl-E: Evaluate | Ctrl-Q: Quit'.
+
+      # Add to layout
+      mainFlex addItem: textArea proportion: 1.
+      mainFlex addItem: statusBar fixedSize: 1.
+
+      # Set up key bindings
+      self setupKeyBindings
+  ]
+
+  method: setupKeyBindings [
+      session onKey: [:event |
+          event isCtrl ifTrue: [
+              event rune = 's' ifTrue: [self save].
+              event rune = 'o' ifTrue: [self promptOpen].
+              event rune = 'n' ifTrue: [self newFile].
+              event rune = 'e' ifTrue: [self evaluateAll].
+              event rune = 'q' ifTrue: [self close]
+          ]
+      ]
+  ]
+
+  method: open [
+      session setRoot: mainFlex.
+      session startEventLoop.
+      textArea focus
+  ]
+
+  method: close [
+      modified ifTrue: [
+          # In a real implementation, prompt to save
+          self updateStatus: 'Unsaved changes! Press Ctrl-S to save or Ctrl-Q again to force quit.'
+      ] ifFalse: [
+          session stopEventLoop.
+          session disconnect
+      ]
+  ]
+
+  # File operations
+  method: newFile [
+      filename := nil.
+      modified := false.
+      textArea text: ''.
+      self updateStatus: 'New file'
+  ]
+
+  method: loadFile: aFilename [
+      # In real implementation, read from file system
+      # Placeholder: just store the filename
+      filename := aFilename.
+      modified := false.
+      textArea text: '# Loaded from: ', aFilename, '
+# (File loading not yet implemented)
+'.
+      self updateStatus: 'Loaded: ', filename
+  ]
+
+  method: save [
+      filename ifNil: [
+          self updateStatus: 'No filename set. Use save-as (not yet implemented)'.
+          ^self
+      ].
+      # In real implementation, write to file system
+      modified := false.
+      self updateStatus: 'Saved: ', filename
+  ]
+
+  method: promptOpen [
+      # In real implementation, show file picker
+      self updateStatus: 'Open file dialog not yet implemented'
+  ]
+
+  # Editing
+  method: text [
+      ^textArea text
+  ]
+
+  method: text: aString [
+      textArea text: aString.
+      modified := true.
+      self updateStatus
+  ]
+
+  method: markModified [
+      modified := true.
+      self updateStatus
+  ]
+
+  # Evaluation
+  method: evaluateAll [
+      | source result |
+      source := textArea text.
+      source isEmpty ifTrue: [
+          self updateStatus: 'Nothing to evaluate'.
+          ^self
+      ].
+
+      # In real implementation, compile and run
+      self updateStatus: 'Evaluating... (not yet implemented)'
+  ]
+
+  method: evaluateSelection [
+      # In real implementation, evaluate selected text
+      self updateStatus: 'Selection evaluation not yet implemented'
+  ]
+
+  # Status management
+  method: updateStatus [
+      | status |
+      status := filename ifNil: ['Untitled'] ifNotNil: [filename].
+      modified ifTrue: [status := status, ' [modified]'].
+      status := status, ' | Ctrl-S: Save | Ctrl-E: Evaluate | Ctrl-Q: Quit'.
+      statusBar text: status
+  ]
+
+  method: updateStatus: message [
+      statusBar text: message
+  ]
+
+  # Accessors
+  method: filename [ ^filename ]
+  method: isModified [ ^modified ]
+
+  # Printing
+  method: printString [
+      ^'CodeEditor(', (filename ifNil: ['untitled']), ')'
+  ]

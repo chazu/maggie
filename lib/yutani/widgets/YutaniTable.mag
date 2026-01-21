@@ -1,0 +1,166 @@
+# YutaniTable.mag
+# Wrapper for Yutani Table widget.
+
+YutaniTable subclass: YutaniWidget
+
+  # Set cell
+  method: setCell: row col: col text: text [
+      ^self setCell: row col: col cell: (Dictionary new at: #text put: text; yourself)
+  ]
+
+  method: setCell: row col: col cell: cellDict [
+      | request |
+      request := Dictionary new
+          at: #session_id put: session sessionId;
+          at: #widget_id put: (Dictionary new at: #id put: widgetId; yourself);
+          at: #row put: row;
+          at: #column put: col;
+          at: #cell put: cellDict;
+          yourself.
+      (session client call: 'industries.loosh.yutani.v1.TableService/SetCell' with: request)
+          onFailure: [:err |
+              self error: 'SetCell failed: ', err printString]
+  ]
+
+  # Get cell
+  method: getCell: row col: col [
+      | request |
+      request := Dictionary new
+          at: #session_id put: session sessionId;
+          at: #widget_id put: (Dictionary new at: #id put: widgetId; yourself);
+          at: #row put: row;
+          at: #column put: col;
+          yourself.
+      (session client call: 'industries.loosh.yutani.v1.TableService/GetCell' with: request)
+          onSuccess: [:resp | ^resp at: #cell ifAbsent: [nil]]
+          onFailure: [:err | ^nil]
+  ]
+
+  # Set multiple cells at once
+  method: setCells: cellsArray [
+      | request |
+      request := Dictionary new
+          at: #session_id put: session sessionId;
+          at: #widget_id put: (Dictionary new at: #id put: widgetId; yourself);
+          at: #cells put: cellsArray;
+          yourself.
+      (session client call: 'industries.loosh.yutani.v1.TableService/SetCells' with: request)
+          onFailure: [:err |
+              self error: 'SetCells failed: ', err printString]
+  ]
+
+  # Clear table
+  method: clear [
+      | request |
+      request := Dictionary new
+          at: #session_id put: session sessionId;
+          at: #widget_id put: (Dictionary new at: #id put: widgetId; yourself);
+          yourself.
+      (session client call: 'industries.loosh.yutani.v1.TableService/Clear' with: request)
+          onFailure: [:err |
+              self error: 'Clear failed: ', err printString]
+  ]
+
+  # Get dimensions
+  method: dimensions [
+      | request |
+      request := Dictionary new
+          at: #session_id put: session sessionId;
+          at: #widget_id put: (Dictionary new at: #id put: widgetId; yourself);
+          yourself.
+      (session client call: 'industries.loosh.yutani.v1.TableService/GetDimensions' with: request)
+          onSuccess: [:resp | ^resp]
+          onFailure: [:err | ^nil]
+  ]
+
+  method: rowCount [
+      | dims |
+      dims := self dimensions.
+      ^dims ifNotNil: [dims at: #rows ifAbsent: [0]] ifNil: [0]
+  ]
+
+  method: columnCount [
+      | dims |
+      dims := self dimensions.
+      ^dims ifNotNil: [dims at: #columns ifAbsent: [0]] ifNil: [0]
+  ]
+
+  # Selection
+  method: selection [
+      | request |
+      request := Dictionary new
+          at: #session_id put: session sessionId;
+          at: #widget_id put: (Dictionary new at: #id put: widgetId; yourself);
+          yourself.
+      (session client call: 'industries.loosh.yutani.v1.TableService/GetSelection' with: request)
+          onSuccess: [:resp | ^resp]
+          onFailure: [:err | ^nil]
+  ]
+
+  method: selectedRow [
+      | sel |
+      sel := self selection.
+      ^sel ifNotNil: [sel at: #row ifAbsent: [-1]] ifNil: [-1]
+  ]
+
+  method: selectedColumn [
+      | sel |
+      sel := self selection.
+      ^sel ifNotNil: [sel at: #column ifAbsent: [-1]] ifNil: [-1]
+  ]
+
+  method: selectRow: row col: col [
+      | request |
+      request := Dictionary new
+          at: #session_id put: session sessionId;
+          at: #widget_id put: (Dictionary new at: #id put: widgetId; yourself);
+          at: #row put: row;
+          at: #column put: col;
+          yourself.
+      (session client call: 'industries.loosh.yutani.v1.TableService/SetSelection' with: request)
+          onFailure: [:err |
+              self error: 'SetSelection failed: ', err printString]
+  ]
+
+  # Fixed rows/columns (headers)
+  method: setFixedRows: rows columns: cols [
+      | request |
+      request := Dictionary new
+          at: #session_id put: session sessionId;
+          at: #widget_id put: (Dictionary new at: #id put: widgetId; yourself);
+          at: #rows put: rows;
+          at: #columns put: cols;
+          yourself.
+      (session client call: 'industries.loosh.yutani.v1.TableService/SetFixed' with: request)
+          onFailure: [:err |
+              self error: 'SetFixed failed: ', err printString]
+  ]
+
+  # Table-specific properties
+  method: borders: aBoolean [
+      self setProperties: (Dictionary new
+          at: #table put: (Dictionary new
+              at: #borders put: aBoolean;
+              yourself);
+          yourself)
+  ]
+
+  method: selectable: aBoolean [
+      self setProperties: (Dictionary new
+          at: #table put: (Dictionary new
+              at: #selectable put: aBoolean;
+              yourself);
+          yourself)
+  ]
+
+  # Convenience method to set a row of data
+  method: setRow: rowIndex data: dataArray [
+      dataArray doWithIndex: [:text :colIndex |
+          self setCell: rowIndex col: colIndex - 1 text: text
+      ]
+  ]
+
+  # Printing
+  method: printString [
+      ^'YutaniTable(', widgetId, ')'
+  ]

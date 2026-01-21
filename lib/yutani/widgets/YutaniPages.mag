@@ -1,0 +1,124 @@
+# YutaniPages.mag
+# Wrapper for Yutani Pages layout widget (tabbed/stacked pages).
+
+YutaniPages subclass: YutaniWidget
+  instanceVars: pages currentPage
+
+  method: initializeWith: aSession id: anId [
+      super initializeWith: aSession id: anId.
+      pages := Dictionary new.
+      currentPage := nil.
+      ^self
+  ]
+
+  # Add pages
+  method: addPage: name content: widget [
+      ^self addPage: name content: widget visible: pages isEmpty
+  ]
+
+  method: addPage: name content: widget visible: isVisible [
+      | request |
+      request := Dictionary new
+          at: #session_id put: session sessionId;
+          at: #pages_id put: (Dictionary new at: #id put: widgetId; yourself);
+          at: #page_name put: name;
+          at: #item_id put: (Dictionary new at: #id put: widget widgetId; yourself);
+          at: #resize put: true;
+          at: #visible put: isVisible;
+          yourself.
+      (session client call: 'industries.loosh.yutani.v1.LayoutService/PagesAddPage' with: request)
+          onSuccess: [:resp |
+              pages at: name put: widget.
+              widget parent: self.
+              pages size = 1 ifTrue: [currentPage := name]]
+          onFailure: [:err |
+              self error: 'PagesAddPage failed: ', err printString]
+  ]
+
+  # Remove pages
+  method: removePage: name [
+      | request |
+      request := Dictionary new
+          at: #session_id put: session sessionId;
+          at: #pages_id put: (Dictionary new at: #id put: widgetId; yourself);
+          at: #page_name put: name;
+          yourself.
+      (session client call: 'industries.loosh.yutani.v1.LayoutService/PagesRemovePage' with: request)
+          onSuccess: [:resp |
+              | widget |
+              widget := pages at: name ifAbsent: [nil].
+              widget notNil ifTrue: [widget parent: nil].
+              pages removeKey: name ifAbsent: []]
+          onFailure: [:err |
+              self error: 'PagesRemovePage failed: ', err printString]
+  ]
+
+  # Show page
+  method: showPage: name [
+      | request |
+      request := Dictionary new
+          at: #session_id put: session sessionId;
+          at: #pages_id put: (Dictionary new at: #id put: widgetId; yourself);
+          at: #page_name put: name;
+          yourself.
+      (session client call: 'industries.loosh.yutani.v1.LayoutService/PagesShowPage' with: request)
+          onSuccess: [:resp | currentPage := name]
+          onFailure: [:err |
+              self error: 'PagesShowPage failed: ', err printString]
+  ]
+
+  # Get current page info
+  method: currentPage [
+      ^currentPage
+  ]
+
+  method: currentPageFromServer [
+      | request |
+      request := Dictionary new
+          at: #session_id put: session sessionId;
+          at: #pages_id put: (Dictionary new at: #id put: widgetId; yourself);
+          yourself.
+      (session client call: 'industries.loosh.yutani.v1.LayoutService/PagesGetCurrentPage' with: request)
+          onSuccess: [:resp |
+              currentPage := resp at: #page_name ifAbsent: [nil].
+              ^currentPage]
+          onFailure: [:err | ^nil]
+  ]
+
+  # Page accessors
+  method: pageNames [
+      ^pages keys
+  ]
+
+  method: pageAt: name [
+      ^pages at: name ifAbsent: [nil]
+  ]
+
+  method: pageCount [
+      ^pages size
+  ]
+
+  # Page navigation
+  method: nextPage [
+      | names index |
+      names := pages keys asArray.
+      names isEmpty ifTrue: [^self].
+      index := names indexOf: currentPage ifAbsent: [0].
+      index := index \\ names size + 1.
+      self showPage: (names at: index)
+  ]
+
+  method: previousPage [
+      | names index |
+      names := pages keys asArray.
+      names isEmpty ifTrue: [^self].
+      index := names indexOf: currentPage ifAbsent: [2].
+      index := index - 1.
+      index < 1 ifTrue: [index := names size].
+      self showPage: (names at: index)
+  ]
+
+  # Printing
+  method: printString [
+      ^'YutaniPages(', widgetId, ' pages: ', pages size printString, ')'
+  ]
