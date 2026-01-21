@@ -31,6 +31,8 @@ var classMapping = map[string]func(*vm.VM) *vm.Class{
 	"Success":         func(v *vm.VM) *vm.Class { return v.SuccessClass },
 	"Failure":         func(v *vm.VM) *vm.Class { return v.FailureClass },
 	"Dictionary":      func(v *vm.VM) *vm.Class { return v.DictionaryClass },
+	"GrpcClient":      func(v *vm.VM) *vm.Class { return v.GrpcClientClass },
+	"GrpcStream":      func(v *vm.VM) *vm.Class { return v.GrpcStreamClass },
 }
 
 func main() {
