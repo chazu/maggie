@@ -22,6 +22,8 @@ func main() {
 	interactive := flag.Bool("i", false, "Start interactive REPL")
 	mainEntry := flag.String("m", "", "Main entry point (e.g., 'Main.run' or just 'main')")
 	noRC := flag.Bool("no-rc", false, "Skip loading ~/.maggierc")
+	yutaniMode := flag.Bool("yutani", false, "Start Yutani IDE mode")
+	yutaniAddr := flag.String("yutani-addr", "localhost:7755", "Yutani server address")
 
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Usage: mag [options] [paths...]\n\n")
@@ -32,6 +34,8 @@ func main() {
 		fmt.Fprintf(os.Stderr, "  mag -i                 # Start REPL\n")
 		fmt.Fprintf(os.Stderr, "  mag ./src -m main      # Load src/, run 'main' method\n")
 		fmt.Fprintf(os.Stderr, "  mag ./... -m App.start # Load recursively, run App.start\n")
+		fmt.Fprintf(os.Stderr, "  mag --yutani           # Start Yutani IDE (connects to localhost:7755)\n")
+		fmt.Fprintf(os.Stderr, "  mag --yutani --yutani-addr host:port  # Connect to specific server\n")
 	}
 	flag.Parse()
 
@@ -82,6 +86,15 @@ func main() {
 		// If main returns a small integer, use it as exit code
 		if result.IsSmallInt() {
 			os.Exit(int(result.SmallInt()))
+		}
+		os.Exit(0)
+	}
+
+	// Start Yutani IDE mode if requested
+	if *yutaniMode {
+		if err := runYutaniIDE(vmInst, *yutaniAddr, *verbose); err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			os.Exit(1)
 		}
 		os.Exit(0)
 	}
@@ -435,4 +448,79 @@ func compileFile(path string, vmInst *vm.VM, verbose bool) (int, error) {
 	}
 
 	return compiled, nil
+}
+
+// runYutaniIDE loads the Yutani library and starts the IDE
+func runYutaniIDE(vmInst *vm.VM, addr string, verbose bool) error {
+	// Find the yutani library path
+	yutaniPath, err := findYutaniLib()
+	if err != nil {
+		return fmt.Errorf("cannot find Yutani library: %w", err)
+	}
+
+	if verbose {
+		fmt.Printf("Loading Yutani library from %s\n", yutaniPath)
+	}
+
+	// Load all yutani .mag files recursively
+	_, err = compilePath(yutaniPath+"/...", vmInst, verbose)
+	if err != nil {
+		return fmt.Errorf("loading Yutani library: %w", err)
+	}
+
+	// Compile and execute the IDE startup code
+	// Use nested message send to avoid local variable syntax issues
+	startupCode := fmt.Sprintf("ClassBrowser openIn: (YutaniSession connectTo: '%s')", addr)
+
+	if verbose {
+		fmt.Printf("Starting Yutani IDE, connecting to %s\n", addr)
+	}
+
+	// Wrap as a doIt method and execute
+	source := "doIt\n    ^" + startupCode
+	method, err := compiler.Compile(source, vmInst.Selectors, vmInst.Symbols)
+	if err != nil {
+		return fmt.Errorf("compiling startup code: %w", err)
+	}
+
+	vmInst.Execute(method, vm.Nil, nil)
+	return nil
+}
+
+// findYutaniLib locates the Yutani library directory
+func findYutaniLib() (string, error) {
+	// Try relative to executable
+	exe, err := os.Executable()
+	if err == nil {
+		exeDir := filepath.Dir(exe)
+		// Check ../lib/yutani (for installed binary)
+		candidate := filepath.Join(exeDir, "..", "lib", "yutani")
+		if info, err := os.Stat(candidate); err == nil && info.IsDir() {
+			return candidate, nil
+		}
+		// Check ../../lib/yutani (for cmd/mag/mag binary)
+		candidate = filepath.Join(exeDir, "..", "..", "lib", "yutani")
+		if info, err := os.Stat(candidate); err == nil && info.IsDir() {
+			return candidate, nil
+		}
+	}
+
+	// Try relative to current working directory
+	cwd, err := os.Getwd()
+	if err == nil {
+		candidate := filepath.Join(cwd, "lib", "yutani")
+		if info, err := os.Stat(candidate); err == nil && info.IsDir() {
+			return candidate, nil
+		}
+	}
+
+	// Try MAGGIE_HOME environment variable
+	if home := os.Getenv("MAGGIE_HOME"); home != "" {
+		candidate := filepath.Join(home, "lib", "yutani")
+		if info, err := os.Stat(candidate); err == nil && info.IsDir() {
+			return candidate, nil
+		}
+	}
+
+	return "", fmt.Errorf("Yutani library not found. Set MAGGIE_HOME or run from project root")
 }
