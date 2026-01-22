@@ -21,6 +21,36 @@ type CallFrame struct {
 	Captures  []Value      // captured variables for blocks
 	HomeFrame int          // frame pointer of enclosing method (for home temp access)
 	HomeBP    int          // base pointer of home frame (for OpPushHomeTemp/OpStoreHomeTemp)
+	HomeSelf  Value        // self from enclosing method (for ivar access in blocks)
+}
+
+// IsBlock returns true if this is a block frame (not a method frame).
+func (f *CallFrame) IsBlock() bool {
+	return f.Block != nil
+}
+
+// Bytecode returns the bytecode for this frame (from method or block).
+func (f *CallFrame) Bytecode() []byte {
+	if f.Block != nil {
+		return f.Block.Bytecode
+	}
+	return f.Method.Bytecode
+}
+
+// Literals returns the literals for this frame (from method or block).
+func (f *CallFrame) Literals() []Value {
+	if f.Block != nil {
+		return f.Block.Literals
+	}
+	return f.Method.Literals
+}
+
+// Self returns the appropriate self value (Receiver for methods, HomeSelf for blocks).
+func (f *CallFrame) Self() Value {
+	if f.Block != nil {
+		return f.HomeSelf
+	}
+	return f.Receiver
 }
 
 // ---------------------------------------------------------------------------
@@ -186,7 +216,7 @@ func (i *Interpreter) pushFrame(method *CompiledMethod, receiver Value, args []V
 	}
 }
 
-func (i *Interpreter) pushBlockFrame(block *BlockMethod, captures []Value, args []Value, homeFrame int, homeBP int) {
+func (i *Interpreter) pushBlockFrame(block *BlockMethod, captures []Value, args []Value, homeFrame int, homeBP int, homeSelf Value) {
 	i.fp++
 	if i.fp >= len(i.frames) {
 		// Grow the frame stack dynamically instead of panicking
@@ -214,6 +244,7 @@ func (i *Interpreter) pushBlockFrame(block *BlockMethod, captures []Value, args 
 		Captures:  captures,
 		HomeFrame: homeFrame,
 		HomeBP:    homeBP,
+		HomeSelf:  homeSelf,
 	}
 }
 
@@ -262,7 +293,7 @@ func (i *Interpreter) Execute(method *CompiledMethod, receiver Value, args []Val
 		}
 	}()
 
-	result = i.run()
+	result = i.runFrame()
 	return result
 }
 
@@ -273,22 +304,25 @@ func (i *Interpreter) ExecuteBlock(block *BlockMethod, captures []Value, args []
 	if homeFrame >= 0 && homeFrame < len(i.frames) && i.frames[homeFrame] != nil {
 		homeBP = i.frames[homeFrame].BP
 	}
-// 	fmt.Printf("DEBUG ExecuteBlock: homeFrame=%d, homeBP=%d, current fp=%d, sp=%d\n", homeFrame, homeBP, i.fp, i.sp)
-	i.pushBlockFrame(block, captures, args, homeFrame, homeBP)
-	return i.runBlock(homeFrame, homeSelf)
+	i.pushBlockFrame(block, captures, args, homeFrame, homeBP, homeSelf)
+	return i.runFrame()
 }
 
-// run is the main interpreter loop for methods.
-func (i *Interpreter) run() Value {
+// runFrame is the unified interpreter loop for both methods and blocks.
+func (i *Interpreter) runFrame() Value {
 	for {
 		frame := i.frames[i.fp]
-		bc := frame.Method.Bytecode
-		literals := frame.Method.Literals
+		bc := frame.Bytecode()
+		literals := frame.Literals()
+		isBlock := frame.IsBlock()
 
 		if frame.IP >= len(bc) {
-			// Implicit return self at end of method
+			// Implicit return at end of frame
 			i.popFrame()
-			return frame.Receiver
+			if isBlock {
+				return Nil // Blocks return nil implicitly
+			}
+			return frame.Receiver // Methods return self implicitly
 		}
 
 		op := Opcode(bc[frame.IP])
@@ -316,7 +350,7 @@ func (i *Interpreter) run() Value {
 			i.push(False)
 
 		case OpPushSelf:
-			i.push(frame.Receiver)
+			i.push(frame.Self())
 
 		case OpPushInt8:
 			val := int8(bc[frame.IP])
@@ -331,6 +365,10 @@ func (i *Interpreter) run() Value {
 		case OpPushLiteral:
 			idx := binary.LittleEndian.Uint16(bc[frame.IP:])
 			frame.IP += 2
+			if int(idx) >= len(literals) {
+				panic(fmt.Sprintf("runFrame: literal index %d out of bounds (len=%d)",
+					idx, len(literals)))
+			}
 			i.push(literals[idx])
 
 		case OpPushFloat:
@@ -349,21 +387,33 @@ func (i *Interpreter) run() Value {
 			frame.IP++
 			i.setTemp(int(idx), i.top())
 
+		case OpPushHomeTemp:
+			idx := bc[frame.IP]
+			frame.IP++
+			// Access temp from home frame using HomeBP
+			i.push(i.stack[frame.HomeBP+int(idx)])
+
+		case OpStoreHomeTemp:
+			idx := bc[frame.IP]
+			frame.IP++
+			// Store into temp in home frame using HomeBP
+			i.stack[frame.HomeBP+int(idx)] = i.top()
+
 		case OpPushIvar:
 			idx := bc[frame.IP]
 			frame.IP++
-			obj := ObjectFromValue(frame.Receiver)
-			if obj != nil {
+			obj := ObjectFromValue(frame.Self())
+			if obj != nil && int(idx) < obj.NumSlots() {
 				i.push(obj.GetSlot(int(idx)))
 			} else {
-				i.push(Nil) // Non-object receiver
+				i.push(Nil)
 			}
 
 		case OpStoreIvar:
 			idx := bc[frame.IP]
 			frame.IP++
-			obj := ObjectFromValue(frame.Receiver)
-			if obj != nil {
+			obj := ObjectFromValue(frame.Self())
+			if obj != nil && int(idx) < obj.NumSlots() {
 				obj.SetSlot(int(idx), i.top())
 			}
 
@@ -401,7 +451,7 @@ func (i *Interpreter) run() Value {
 		case OpPushCaptured:
 			idx := bc[frame.IP]
 			frame.IP++
-			if frame.Block != nil && int(idx) < len(frame.Captures) {
+			if int(idx) < len(frame.Captures) {
 				i.push(frame.Captures[idx])
 			} else {
 				i.push(Nil)
@@ -410,7 +460,7 @@ func (i *Interpreter) run() Value {
 		case OpStoreCaptured:
 			idx := bc[frame.IP]
 			frame.IP++
-			if frame.Block != nil && int(idx) < len(frame.Captures) {
+			if int(idx) < len(frame.Captures) {
 				frame.Captures[idx] = i.top()
 			}
 
@@ -428,8 +478,21 @@ func (i *Interpreter) run() Value {
 			frame.IP += 2
 			argc := int(bc[frame.IP])
 			frame.IP++
-			result := i.sendSuper(sel, argc, frame.Method)
-			i.push(result)
+			// For blocks, we need to find the method from the home frame
+			var method *CompiledMethod
+			if isBlock {
+				if frame.HomeFrame >= 0 && frame.HomeFrame < len(i.frames) && i.frames[frame.HomeFrame] != nil {
+					method = i.frames[frame.HomeFrame].Method
+				}
+			} else {
+				method = frame.Method
+			}
+			if method != nil {
+				result := i.sendSuper(sel, argc, method)
+				i.push(result)
+			} else {
+				i.push(Nil)
+			}
 
 		// --- Optimized sends ---
 		case OpSendPlus:
@@ -566,11 +629,17 @@ func (i *Interpreter) run() Value {
 		// --- Returns ---
 		case OpReturnTop:
 			result := i.pop()
+			if isBlock {
+				// Non-local return: return from the home context (enclosing method)
+				i.popFrame()
+				panic(NonLocalReturn{Value: result, HomeFrame: frame.HomeFrame})
+			}
+			// Method: local return
 			i.popFrame()
 			return result
 
 		case OpReturnSelf:
-			result := frame.Receiver
+			result := frame.Self()
 			i.popFrame()
 			return result
 
@@ -579,9 +648,8 @@ func (i *Interpreter) run() Value {
 			return Nil
 
 		case OpBlockReturn:
-			// Non-local return - need to unwind to method frame
+			// Local return from block (or method - same behavior)
 			result := i.pop()
-			// For now, just return from current frame
 			i.popFrame()
 			return result
 
@@ -592,17 +660,37 @@ func (i *Interpreter) run() Value {
 			nCaptures := int(bc[frame.IP])
 			frame.IP++
 
-
-			// Get the block method
-			block := frame.Method.GetBlock(int(methodIdx))
+			// Get the block method from the appropriate source
+			var block *BlockMethod
+			if isBlock {
+				// Look up block from the HOME frame's method
+				if frame.HomeFrame >= 0 && frame.HomeFrame < len(i.frames) && i.frames[frame.HomeFrame] != nil {
+					homeMethod := i.frames[frame.HomeFrame].Method
+					if homeMethod != nil && int(methodIdx) < len(homeMethod.Blocks) {
+						block = homeMethod.Blocks[methodIdx]
+					}
+				}
+			} else {
+				// Method frame: get block directly
+				block = frame.Method.GetBlock(int(methodIdx))
+			}
 
 			// Pop captures from stack
 			captures := i.popN(nCaptures)
 
-			// Create a block object (for now, just push a special value)
-			// In full implementation, this would create a Block object
-			blockVal := i.createBlockValue(block, captures)
-			i.push(blockVal)
+			if isBlock && nCaptures > 0 {
+				// Reverse captures (they were pushed in order, popped in reverse)
+				for l, r := 0, len(captures)-1; l < r; l, r = l+1, r-1 {
+					captures[l], captures[r] = captures[r], captures[l]
+				}
+			}
+
+			if block != nil {
+				blockVal := i.createBlockValue(block, captures)
+				i.push(blockVal)
+			} else {
+				i.push(Nil)
+			}
 
 		case OpCaptureTemp:
 			idx := bc[frame.IP]
@@ -612,7 +700,7 @@ func (i *Interpreter) run() Value {
 		case OpCaptureIvar:
 			idx := bc[frame.IP]
 			frame.IP++
-			obj := ObjectFromValue(frame.Receiver)
+			obj := ObjectFromValue(frame.Self())
 			if obj != nil {
 				i.push(obj.GetSlot(int(idx)))
 			} else {
@@ -639,308 +727,7 @@ func (i *Interpreter) run() Value {
 			i.push(Nil)
 
 		default:
-			panic(fmt.Sprintf("unknown opcode: %02X", op))
-		}
-	}
-}
-
-// runBlock is the interpreter loop for block execution.
-// homeFrame is the frame pointer of the method that created this block,
-// used for non-local returns.
-// homeSelf is the self value captured from the enclosing method.
-func (i *Interpreter) runBlock(homeFrame int, homeSelf Value) Value {
-	for {
-		frame := i.frames[i.fp]
-		bc := frame.Block.Bytecode
-		literals := frame.Block.Literals
-
-		if frame.IP >= len(bc) {
-			// Implicit return nil at end of block
-			i.popFrame()
-			return Nil
-		}
-
-		op := Opcode(bc[frame.IP])
-		frame.IP++
-
-		// Most opcodes are the same as for methods
-		switch op {
-		case OpNOP:
-			// Do nothing
-
-		case OpPOP:
-			i.pop()
-
-		case OpDUP:
-			i.push(i.top())
-
-		case OpPushNil:
-			i.push(Nil)
-
-		case OpPushTrue:
-			i.push(True)
-
-		case OpPushFalse:
-			i.push(False)
-
-		case OpPushSelf:
-			// Use captured self from enclosing method
-			i.push(homeSelf)
-
-		case OpPushInt8:
-			val := int8(bc[frame.IP])
-			frame.IP++
-			i.push(FromSmallInt(int64(val)))
-
-		case OpPushInt32:
-			val := int32(binary.LittleEndian.Uint32(bc[frame.IP:]))
-			frame.IP += 4
-			i.push(FromSmallInt(int64(val)))
-
-		case OpPushLiteral:
-			idx := binary.LittleEndian.Uint16(bc[frame.IP:])
-			frame.IP += 2
-			if int(idx) >= len(literals) {
-				panic(fmt.Sprintf("runBlock: literal index %d out of bounds (len=%d), block arity=%d, bytecode=%v",
-					idx, len(literals), frame.Block.Arity, bc))
-			}
-			i.push(literals[idx])
-
-		case OpPushFloat:
-			bits := binary.LittleEndian.Uint64(bc[frame.IP:])
-			frame.IP += 8
-			i.push(Value(bits))
-
-		case OpPushTemp:
-			idx := bc[frame.IP]
-			frame.IP++
-			i.push(i.getTemp(int(idx)))
-
-		case OpStoreTemp:
-			idx := bc[frame.IP]
-			frame.IP++
-			i.setTemp(int(idx), i.top())
-
-		case OpPushCaptured:
-			idx := bc[frame.IP]
-			frame.IP++
-			if int(idx) < len(frame.Captures) {
-				i.push(frame.Captures[idx])
-			} else {
-				i.push(Nil)
-			}
-
-		case OpStoreCaptured:
-			idx := bc[frame.IP]
-			frame.IP++
-			if int(idx) < len(frame.Captures) {
-				frame.Captures[idx] = i.top()
-			}
-
-		case OpPushHomeTemp:
-			idx := bc[frame.IP]
-			frame.IP++
-			// Access temp from home frame using HomeBP
-			i.push(i.stack[frame.HomeBP+int(idx)])
-
-		case OpStoreHomeTemp:
-			idx := bc[frame.IP]
-			frame.IP++
-			// Store into temp in home frame using HomeBP
-			i.stack[frame.HomeBP+int(idx)] = i.top()
-
-		// Message sends
-		case OpSend:
-			sel := int(binary.LittleEndian.Uint16(bc[frame.IP:]))
-			frame.IP += 2
-			argc := int(bc[frame.IP])
-			frame.IP++
-			result := i.send(sel, argc)
-			i.push(result)
-
-		// Optimized sends
-		case OpSendPlus:
-			b := i.pop()
-			a := i.pop()
-			i.push(i.primitivePlus(a, b))
-
-		case OpSendMinus:
-			b := i.pop()
-			a := i.pop()
-			i.push(i.primitiveMinus(a, b))
-
-		case OpSendTimes:
-			b := i.pop()
-			a := i.pop()
-			i.push(i.primitiveTimes(a, b))
-
-		case OpSendDiv:
-			b := i.pop()
-			a := i.pop()
-			i.push(i.primitiveDiv(a, b))
-
-		case OpSendMod:
-			b := i.pop()
-			a := i.pop()
-			i.push(i.primitiveMod(a, b))
-
-		case OpSendLT:
-			b := i.pop()
-			a := i.pop()
-			i.push(i.primitiveLT(a, b))
-
-		case OpSendGT:
-			b := i.pop()
-			a := i.pop()
-			i.push(i.primitiveGT(a, b))
-
-		case OpSendLE:
-			b := i.pop()
-			a := i.pop()
-			i.push(i.primitiveLE(a, b))
-
-		case OpSendGE:
-			b := i.pop()
-			a := i.pop()
-			i.push(i.primitiveGE(a, b))
-
-		case OpSendEQ:
-			b := i.pop()
-			a := i.pop()
-			i.push(i.primitiveEQ(a, b))
-
-		case OpSendNE:
-			b := i.pop()
-			a := i.pop()
-			i.push(i.primitiveNE(a, b))
-
-		// Control flow
-		case OpJump:
-			offset := int16(binary.LittleEndian.Uint16(bc[frame.IP:]))
-			frame.IP += 2
-			frame.IP += int(offset)
-
-		case OpJumpTrue:
-			offset := int16(binary.LittleEndian.Uint16(bc[frame.IP:]))
-			frame.IP += 2
-			cond := i.pop()
-			if cond == True {
-				frame.IP += int(offset)
-			}
-
-		case OpJumpFalse:
-			offset := int16(binary.LittleEndian.Uint16(bc[frame.IP:]))
-			frame.IP += 2
-			cond := i.pop()
-			if cond == False || cond == Nil {
-				frame.IP += int(offset)
-			}
-
-		case OpReturnTop:
-			// Non-local return: return from the home context (enclosing method)
-			result := i.pop()
-			i.popFrame()
-			// Signal non-local return by panicking
-			panic(NonLocalReturn{Value: result, HomeFrame: homeFrame})
-
-		case OpBlockReturn:
-			// Normal block return: just return from this block
-			result := i.pop()
-			i.popFrame()
-			return result
-
-		// Global access (needed for class references like Compiler, Parser, etc.)
-		case OpPushGlobal:
-			idx := binary.LittleEndian.Uint16(bc[frame.IP:])
-			frame.IP += 2
-			if int(idx) < len(literals) {
-				// Get global name from literal
-				globalName := ""
-				lit := literals[idx]
-				if lit.IsSymbol() && i.Symbols != nil {
-					globalName = i.Symbols.Name(lit.SymbolID())
-				} else if IsStringValue(lit) {
-					globalName = GetStringContent(lit)
-				}
-				if globalName != "" {
-					if val, ok := i.Globals[globalName]; ok {
-						i.push(val)
-					} else {
-						i.push(Nil)
-					}
-				} else {
-					i.push(Nil)
-				}
-			} else {
-				i.push(Nil)
-			}
-
-		case OpStoreGlobal:
-			idx := binary.LittleEndian.Uint16(bc[frame.IP:])
-			frame.IP += 2
-			_ = idx // Value remains on stack; would store in globals table
-
-		// Instance variables - access relative to homeSelf
-		case OpPushIvar:
-			idx := bc[frame.IP]
-			frame.IP++
-			obj := ObjectFromValue(homeSelf)
-			if obj != nil && int(idx) < obj.NumSlots() {
-				i.push(obj.GetSlot(int(idx)))
-			} else {
-				i.push(Nil)
-			}
-
-		case OpStoreIvar:
-			idx := bc[frame.IP]
-			frame.IP++
-			obj := ObjectFromValue(homeSelf)
-			if obj != nil && int(idx) < obj.NumSlots() {
-				obj.SetSlot(int(idx), i.top())
-			}
-
-		// Block creation (blocks can create nested blocks)
-		case OpCreateBlock:
-			idx := binary.LittleEndian.Uint16(bc[frame.IP:])
-			frame.IP += 2
-			captureCount := bc[frame.IP]
-			frame.IP++
-
-			// Look up block from the HOME frame's method (not the current block frame)
-			// The home frame is the enclosing method that contains all block definitions
-			var blockMethod *BlockMethod
-			if frame.HomeFrame >= 0 && frame.HomeFrame < len(i.frames) && i.frames[frame.HomeFrame] != nil {
-				homeMethod := i.frames[frame.HomeFrame].Method
-				if homeMethod != nil && int(idx) < len(homeMethod.Blocks) {
-					blockMethod = homeMethod.Blocks[idx]
-				}
-			}
-
-			if blockMethod != nil {
-				// Capture variables
-				var captures []Value
-				if captureCount > 0 {
-					captures = make([]Value, captureCount)
-					for j := 0; j < int(captureCount); j++ {
-						captures[j] = i.pop()
-					}
-					// Reverse captures (they were pushed in order, popped in reverse)
-					for l, r := 0, len(captures)-1; l < r; l, r = l+1, r-1 {
-						captures[l], captures[r] = captures[r], captures[l]
-					}
-				}
-
-				// Create block value
-				blockVal := i.createBlockValue(blockMethod, captures)
-				i.push(blockVal)
-			} else {
-// 				fmt.Printf("DEBUG OpCreateBlock in runBlock: block idx=%d not found (HomeFrame=%d)\n", idx, frame.HomeFrame)
-				i.push(Nil)
-			}
-
-		default:
-			// For opcodes not yet implemented in blocks, fall back
-			panic(fmt.Sprintf("opcode %s not implemented for blocks", op))
+			panic(fmt.Sprintf("unknown opcode: %02X (%s)", op, op))
 		}
 	}
 }
@@ -998,7 +785,7 @@ func (i *Interpreter) send(selector int, argc int) (result Value) {
 			}
 		}()
 
-		result = i.run()
+		result = i.runFrame()
 		return result
 	}
 
@@ -1060,7 +847,7 @@ func (i *Interpreter) sendSuper(selector int, argc int, callingMethod *CompiledM
 			}
 		}()
 
-		result = i.run()
+		result = i.runFrame()
 		return result
 	}
 
