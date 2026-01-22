@@ -712,3 +712,196 @@ func BenchmarkInterpreterLoop(b *testing.B) {
 		_ = interp.Execute(m, Nil, nil)
 	}
 }
+
+// ---------------------------------------------------------------------------
+// Dynamic stack growth tests
+// ---------------------------------------------------------------------------
+
+func TestInterpreterStackGrowth(t *testing.T) {
+	interp := NewInterpreter()
+
+	// Verify initial stack size
+	initialStackSize := len(interp.stack)
+	if initialStackSize != 1024 {
+		t.Errorf("initial stack size = %d, want 1024", initialStackSize)
+	}
+
+	// Push more values than initial capacity to trigger growth
+	// We'll push 1100 values, which exceeds the initial 1024
+	for i := 0; i < 1100; i++ {
+		interp.push(FromSmallInt(int64(i)))
+	}
+
+	// Stack should have grown
+	if len(interp.stack) <= initialStackSize {
+		t.Errorf("stack did not grow: size = %d, want > %d", len(interp.stack), initialStackSize)
+	}
+
+	// Verify the values are correct
+	for i := 1099; i >= 0; i-- {
+		v := interp.pop()
+		if v.SmallInt() != int64(i) {
+			t.Errorf("popped value = %d, want %d", v.SmallInt(), i)
+			break
+		}
+	}
+}
+
+func TestInterpreterFrameStackGrowth(t *testing.T) {
+	interp := NewInterpreter()
+
+	// Verify initial frame stack size
+	initialFrameSize := len(interp.frames)
+	if initialFrameSize != 256 {
+		t.Errorf("initial frame stack size = %d, want 256", initialFrameSize)
+	}
+
+	// Create a simple method for frame pushing
+	b := NewCompiledMethodBuilder("test", 0)
+	b.Bytecode().Emit(OpPushNil)
+	b.Bytecode().Emit(OpReturnTop)
+	m := b.Build()
+
+	// Push more frames than initial capacity to trigger growth
+	// We'll push 300 frames, which exceeds the initial 256
+	for i := 0; i < 300; i++ {
+		interp.pushFrame(m, Nil, nil)
+	}
+
+	// Frame stack should have grown
+	if len(interp.frames) <= initialFrameSize {
+		t.Errorf("frame stack did not grow: size = %d, want > %d", len(interp.frames), initialFrameSize)
+	}
+
+	// Clean up - pop all frames
+	for i := 0; i < 300; i++ {
+		interp.popFrame()
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Block registry cleanup tests
+// ---------------------------------------------------------------------------
+
+func TestBlockRegistryCleanup(t *testing.T) {
+	interp := NewInterpreter()
+
+	// Create a simple block method
+	blockMethod := &BlockMethod{
+		Arity:       0,
+		NumTemps:    0,
+		NumCaptures: 0,
+		Bytecode:    []byte{byte(OpPushNil), byte(OpBlockReturn)},
+		Literals:    nil,
+	}
+
+	// Record initial registry size
+	initialSize := len(blockRegistry)
+
+	// Create a method frame (this will be the home frame for blocks)
+	b := NewCompiledMethodBuilder("test", 0)
+	b.Bytecode().Emit(OpPushNil)
+	b.Bytecode().Emit(OpReturnTop)
+	m := b.Build()
+
+	interp.pushFrame(m, Nil, nil)
+	homeFrame := interp.fp
+
+	// Create several blocks with this home frame
+	numBlocks := 5
+	blockIDs := make([]int, numBlocks)
+	for i := 0; i < numBlocks; i++ {
+		blockVal := interp.createBlockValue(blockMethod, nil)
+		blockIDs[i] = int(blockVal.BlockID())
+	}
+
+	// Verify blocks were registered
+	if len(blockRegistry) != initialSize+numBlocks {
+		t.Errorf("block registry size after creation = %d, want %d", len(blockRegistry), initialSize+numBlocks)
+	}
+
+	// Verify blocks are tracked by home frame
+	if len(blocksByHomeFrame[homeFrame]) != numBlocks {
+		t.Errorf("blocks tracked for home frame = %d, want %d", len(blocksByHomeFrame[homeFrame]), numBlocks)
+	}
+
+	// Pop the home frame - this should clean up all blocks
+	interp.popFrame()
+
+	// Verify blocks were cleaned up
+	for _, id := range blockIDs {
+		if _, exists := blockRegistry[id]; exists {
+			t.Errorf("block %d still in registry after home frame popped", id)
+		}
+	}
+
+	// Verify home frame tracking was cleaned up
+	if _, exists := blocksByHomeFrame[homeFrame]; exists {
+		t.Errorf("home frame %d still tracked after being popped", homeFrame)
+	}
+}
+
+func TestBlockRegistryMultipleFrames(t *testing.T) {
+	interp := NewInterpreter()
+
+	// Create a simple block method
+	blockMethod := &BlockMethod{
+		Arity:       0,
+		NumTemps:    0,
+		NumCaptures: 0,
+		Bytecode:    []byte{byte(OpPushNil), byte(OpBlockReturn)},
+		Literals:    nil,
+	}
+
+	// Create method for frames
+	b := NewCompiledMethodBuilder("test", 0)
+	b.Bytecode().Emit(OpPushNil)
+	b.Bytecode().Emit(OpReturnTop)
+	m := b.Build()
+
+	// Push first frame and create blocks
+	interp.pushFrame(m, Nil, nil)
+	frame1 := interp.fp
+	block1 := interp.createBlockValue(blockMethod, nil)
+	block1ID := int(block1.BlockID())
+
+	// Push second frame and create blocks
+	interp.pushFrame(m, Nil, nil)
+	frame2 := interp.fp
+	block2 := interp.createBlockValue(blockMethod, nil)
+	block2ID := int(block2.BlockID())
+
+	// Verify both blocks exist
+	if _, exists := blockRegistry[block1ID]; !exists {
+		t.Error("block1 not in registry")
+	}
+	if _, exists := blockRegistry[block2ID]; !exists {
+		t.Error("block2 not in registry")
+	}
+
+	// Pop frame2 - should only clean up block2
+	interp.popFrame()
+
+	// block1 should still exist, block2 should be gone
+	if _, exists := blockRegistry[block1ID]; !exists {
+		t.Error("block1 was incorrectly cleaned up")
+	}
+	if _, exists := blockRegistry[block2ID]; exists {
+		t.Error("block2 was not cleaned up")
+	}
+
+	// Pop frame1 - should clean up block1
+	interp.popFrame()
+
+	if _, exists := blockRegistry[block1ID]; exists {
+		t.Error("block1 was not cleaned up after frame1 popped")
+	}
+
+	// Verify both home frames are no longer tracked
+	if _, exists := blocksByHomeFrame[frame1]; exists {
+		t.Errorf("frame1 still tracked")
+	}
+	if _, exists := blocksByHomeFrame[frame2]; exists {
+		t.Errorf("frame2 still tracked")
+	}
+}
