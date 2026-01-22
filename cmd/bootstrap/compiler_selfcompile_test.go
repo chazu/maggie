@@ -349,20 +349,16 @@ func TestSelfCompileExecutionEquivalence(t *testing.T) {
 			expected: vm.FromSmallInt(0),
 		},
 		{
-			name:       "loop accumulator",
-			source:     "sumTo: n\n    | sum i |\n    sum := 0.\n    i := 1.\n    [i <= n] whileTrue: [sum := sum + i. i := i + 1].\n    ^sum",
-			args:       []vm.Value{vm.FromSmallInt(5)},
-			expected:   vm.FromSmallInt(15), // 1+2+3+4+5
-			skipMaggie: true,
-			skipReason: "Maggie compiler doesn't implement block variable captures yet",
+			name:     "loop accumulator",
+			source:   "sumTo: n\n    | sum i |\n    sum := 0.\n    i := 1.\n    [i <= n] whileTrue: [sum := sum + i. i := i + 1].\n    ^sum",
+			args:     []vm.Value{vm.FromSmallInt(5)},
+			expected: vm.FromSmallInt(15), // 1+2+3+4+5
 		},
 		{
-			name:       "factorial",
-			source:     "factorial: n\n    | result i |\n    result := 1.\n    i := 1.\n    [i <= n] whileTrue: [result := result * i. i := i + 1].\n    ^result",
-			args:       []vm.Value{vm.FromSmallInt(5)},
-			expected:   vm.FromSmallInt(120), // 5!
-			skipMaggie: true,
-			skipReason: "Maggie compiler doesn't implement block variable captures yet",
+			name:     "factorial",
+			source:   "factorial: n\n    | result i |\n    result := 1.\n    i := 1.\n    [i <= n] whileTrue: [result := result * i. i := i + 1].\n    ^result",
+			args:     []vm.Value{vm.FromSmallInt(5)},
+			expected: vm.FromSmallInt(120), // 5!
 		},
 	}
 

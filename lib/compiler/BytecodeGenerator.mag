@@ -2,7 +2,7 @@
 # Compiles AST nodes to bytecode.
 
 BytecodeGenerator subclass: Object
-  instanceVars: bytecode literals selectors temps ivars captures currentClass blockMethods jumpPatches
+  instanceVars: bytecode literals selectors temps ivars captures currentClass blockMethods jumpPatches outerTemps inBlock
 
   # Opcodes (matching vm/opcodes.go)
   classMethod: opNOP [^16r00]
@@ -26,6 +26,8 @@ BytecodeGenerator subclass: Object
   classMethod: opSTORE_GLOBAL [^16r25]
   classMethod: opPUSH_CAPTURED [^16r26]
   classMethod: opSTORE_CAPTURED [^16r27]
+  classMethod: opPUSH_HOME_TEMP [^16r28]
+  classMethod: opSTORE_HOME_TEMP [^16r29]
 
   classMethod: opSEND [^16r30]
   classMethod: opSEND_SUPER [^16r31]
@@ -88,6 +90,8 @@ BytecodeGenerator subclass: Object
       blockMethods := Array new.
       jumpPatches := Array new.
       currentClass := nil.
+      outerTemps := nil.
+      inBlock := false.
       ^self
   ]
 
@@ -160,6 +164,22 @@ BytecodeGenerator subclass: Object
       index > 0 ifTrue: [^index - 1].
       captures := captures copyWith: name.
       ^captures size - 1
+  ]
+
+  method: setOuterTemps: aDictionary [
+      "Set the outer scope temps for block compilation."
+      outerTemps := aDictionary.
+      inBlock := true
+  ]
+
+  method: outerTempIndex: name [
+      "Get index of an outer scope temp, or -1 if not found."
+      outerTemps isNil ifTrue: [^-1].
+      ^outerTemps at: name ifAbsent: [-1]
+  ]
+
+  method: isInBlock [
+      ^inBlock
   ]
 
   # ============================================
@@ -272,6 +292,14 @@ BytecodeGenerator subclass: Object
 
   method: emitStoreCaptured: index [
       self emit: BytecodeGenerator opSTORE_CAPTURED byte: index
+  ]
+
+  method: emitPushHomeTemp: index [
+      self emit: BytecodeGenerator opPUSH_HOME_TEMP byte: index
+  ]
+
+  method: emitStoreHomeTemp: index [
+      self emit: BytecodeGenerator opSTORE_HOME_TEMP byte: index
   ]
 
   # ============================================
@@ -471,6 +499,12 @@ BytecodeGenerator subclass: Object
       index := self tempIndex: name.
       index >= 0 ifTrue: [^self emitPushTemp: index].
 
+      "Try outer scope temps (for blocks accessing method variables)"
+      inBlock ifTrue: [
+          index := self outerTempIndex: name.
+          index >= 0 ifTrue: [^self emitPushHomeTemp: index]
+      ].
+
       "Try ivar"
       index := self ivarIndex: name.
       index >= 0 ifTrue: [^self emitPushIvar: index].
@@ -491,6 +525,12 @@ BytecodeGenerator subclass: Object
 
       index := self tempIndex: name.
       index >= 0 ifTrue: [^self emitStoreTemp: index].
+
+      "Try outer scope temps (for blocks assigning method variables)"
+      inBlock ifTrue: [
+          index := self outerTempIndex: name.
+          index >= 0 ifTrue: [^self emitStoreHomeTemp: index]
+      ].
 
       index := self ivarIndex: name.
       index >= 0 ifTrue: [^self emitStoreIvar: index].
@@ -536,8 +576,25 @@ BytecodeGenerator subclass: Object
 
   method: visitBlockNode: node [
       "Compile block as a nested method."
-      | blockGen blockIndex params statements |
+      | blockGen blockIndex params statements blockOuterTemps |
       blockGen := BytecodeGenerator new.
+
+      "Build outer temps dictionary for block to access method variables.
+       If we're already in a block, pass along the existing outerTemps.
+       Otherwise, build from current temps."
+      blockOuterTemps := Dictionary new.
+      inBlock ifTrue: [
+          "Nested block: pass along outer method temps"
+          outerTemps notNil ifTrue: [
+              outerTemps keysAndValuesDo: [:k :v | blockOuterTemps at: k put: v]
+          ]
+      ] ifFalse: [
+          "First-level block: current temps are the outer temps"
+          1 to: temps size do: [:i |
+              blockOuterTemps at: (temps at: i) put: i - 1
+          ]
+      ].
+      blockGen setOuterTemps: blockOuterTemps.
 
       "Add parameters as temps"
       params := node parameters.
@@ -566,7 +623,7 @@ BytecodeGenerator subclass: Object
       "Add block to our list"
       blockIndex := self addBlockMethod: blockGen.
 
-      "TODO: Handle captures properly"
+      "Create block (captures not yet implemented for deeply nested blocks)"
       self emitCreateBlock: blockIndex captures: 0
   ]
 

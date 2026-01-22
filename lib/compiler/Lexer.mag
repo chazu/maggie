@@ -306,7 +306,7 @@ Lexer subclass: Object
   # Operator and punctuation scanning
   method: scanOperatorOrPunctuation [
       "Scan operators and punctuation."
-      | pos ch |
+      | pos ch selector |
       pos := stream position.
       ch := stream next.
 
@@ -325,7 +325,6 @@ Lexer subclass: Object
 
       "Binary selectors (may be multi-character)"
       (self isBinaryChar: ch) ifTrue: [
-          | selector |
           selector := ch asString.
           [stream atEnd not and: [self isBinaryChar: stream peek]] whileTrue: [
               selector := selector , (stream next asString)

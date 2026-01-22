@@ -376,6 +376,15 @@ func (c *Compiler) compileAssignment(assign *Assignment) {
 		return
 	}
 
+	// In a block: check captured variables first (for nested blocks)
+	if c.inBlock && c.capturedVars != nil {
+		if idx, ok := c.capturedVars[name]; ok {
+			c.builder.EmitByte(vm.OpStoreCaptured, byte(idx))
+			c.builder.EmitByte(vm.OpPushCaptured, byte(idx)) // Leave value on stack
+			return
+		}
+	}
+
 	// In a block: check outer scope temps (use home frame access)
 	if c.inBlock {
 		if idx, ok := c.outerTemps[name]; ok {
