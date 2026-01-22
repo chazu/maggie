@@ -757,22 +757,22 @@ func (p *Parser) parseThisContext() *ThisContext {
 	return &ThisContext{SpanVal: MakeSpan(pos, p.curToken.Pos)}
 }
 
-func (p *Parser) parseNil() *Variable {
+func (p *Parser) parseNil() *NilLiteral {
 	pos := p.curToken.Pos
 	p.nextToken()
-	return &Variable{SpanVal: MakeSpan(pos, p.curToken.Pos), Name: "nil"}
+	return &NilLiteral{SpanVal: MakeSpan(pos, p.curToken.Pos)}
 }
 
-func (p *Parser) parseTrue() *Variable {
+func (p *Parser) parseTrue() *TrueLiteral {
 	pos := p.curToken.Pos
 	p.nextToken()
-	return &Variable{SpanVal: MakeSpan(pos, p.curToken.Pos), Name: "true"}
+	return &TrueLiteral{SpanVal: MakeSpan(pos, p.curToken.Pos)}
 }
 
-func (p *Parser) parseFalse() *Variable {
+func (p *Parser) parseFalse() *FalseLiteral {
 	pos := p.curToken.Pos
 	p.nextToken()
-	return &Variable{SpanVal: MakeSpan(pos, p.curToken.Pos), Name: "false"}
+	return &FalseLiteral{SpanVal: MakeSpan(pos, p.curToken.Pos)}
 }
 
 // ---------------------------------------------------------------------------

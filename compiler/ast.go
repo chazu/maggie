@@ -227,6 +227,33 @@ func (n *ThisContext) Span() Span { return n.SpanVal }
 func (n *ThisContext) node()      {}
 func (n *ThisContext) expr()      {}
 
+// NilLiteral represents the 'nil' literal.
+type NilLiteral struct {
+	SpanVal Span
+}
+
+func (n *NilLiteral) Span() Span { return n.SpanVal }
+func (n *NilLiteral) node()      {}
+func (n *NilLiteral) expr()      {}
+
+// TrueLiteral represents the 'true' literal.
+type TrueLiteral struct {
+	SpanVal Span
+}
+
+func (n *TrueLiteral) Span() Span { return n.SpanVal }
+func (n *TrueLiteral) node()      {}
+func (n *TrueLiteral) expr()      {}
+
+// FalseLiteral represents the 'false' literal.
+type FalseLiteral struct {
+	SpanVal Span
+}
+
+func (n *FalseLiteral) Span() Span { return n.SpanVal }
+func (n *FalseLiteral) node()      {}
+func (n *FalseLiteral) expr()      {}
+
 // ---------------------------------------------------------------------------
 // Statement nodes
 // ---------------------------------------------------------------------------

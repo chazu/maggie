@@ -211,6 +211,12 @@ func (c *Compiler) compileExpr(expr Expr) {
 		c.builder.Emit(vm.OpPushSelf) // Super uses self but dispatches to superclass
 	case *ThisContext:
 		c.builder.Emit(vm.OpPushContext)
+	case *NilLiteral:
+		c.builder.Emit(vm.OpPushNil)
+	case *TrueLiteral:
+		c.builder.Emit(vm.OpPushTrue)
+	case *FalseLiteral:
+		c.builder.Emit(vm.OpPushFalse)
 	case *UnaryMessage:
 		c.compileUnaryMessage(e)
 	case *BinaryMessage:
@@ -297,53 +303,44 @@ func (c *Compiler) addLiteral(value vm.Value) int {
 // ---------------------------------------------------------------------------
 
 func (c *Compiler) compileVariable(name string) {
-	switch name {
-	case "nil":
-		c.builder.Emit(vm.OpPushNil)
-	case "true":
-		c.builder.Emit(vm.OpPushTrue)
-	case "false":
-		c.builder.Emit(vm.OpPushFalse)
-	default:
-		// Check if it's an argument
-		if idx, ok := c.args[name]; ok {
-			c.builder.EmitByte(vm.OpPushTemp, byte(idx))
-			return
-		}
-		// Check if it's a temp
-		if idx, ok := c.temps[name]; ok {
-			c.builder.EmitByte(vm.OpPushTemp, byte(idx))
-			return
-		}
-		// Check if it's an instance variable
-		if idx, ok := c.instVars[name]; ok {
-			c.builder.EmitByte(vm.OpPushIvar, byte(idx))
-			return
-		}
-		// In a block: check captured variables first (for nested blocks)
-		if c.inBlock && c.capturedVars != nil {
-			if idx, ok := c.capturedVars[name]; ok {
-				c.builder.EmitByte(vm.OpPushCaptured, byte(idx))
-				return
-			}
-		}
-		// In a block: check outer METHOD scope temps/args (use home frame access)
-		// Only do this for first-level blocks (blockNestingDepth == 1)
-		// For nested blocks, we use captures instead
-		if c.inBlock && c.blockNestingDepth == 1 {
-			if idx, ok := c.outerTemps[name]; ok {
-				c.builder.EmitByte(vm.OpPushHomeTemp, byte(idx))
-				return
-			}
-			if idx, ok := c.outerArgs[name]; ok {
-				c.builder.EmitByte(vm.OpPushHomeTemp, byte(idx))
-				return
-			}
-		}
-		// Must be a global
-		idx := c.addLiteral(c.symbols.SymbolValue(name))
-		c.builder.EmitUint16(vm.OpPushGlobal, uint16(idx))
+	// Check if it's an argument
+	if idx, ok := c.args[name]; ok {
+		c.builder.EmitByte(vm.OpPushTemp, byte(idx))
+		return
 	}
+	// Check if it's a temp
+	if idx, ok := c.temps[name]; ok {
+		c.builder.EmitByte(vm.OpPushTemp, byte(idx))
+		return
+	}
+	// Check if it's an instance variable
+	if idx, ok := c.instVars[name]; ok {
+		c.builder.EmitByte(vm.OpPushIvar, byte(idx))
+		return
+	}
+	// In a block: check captured variables first (for nested blocks)
+	if c.inBlock && c.capturedVars != nil {
+		if idx, ok := c.capturedVars[name]; ok {
+			c.builder.EmitByte(vm.OpPushCaptured, byte(idx))
+			return
+		}
+	}
+	// In a block: check outer METHOD scope temps/args (use home frame access)
+	// Only do this for first-level blocks (blockNestingDepth == 1)
+	// For nested blocks, we use captures instead
+	if c.inBlock && c.blockNestingDepth == 1 {
+		if idx, ok := c.outerTemps[name]; ok {
+			c.builder.EmitByte(vm.OpPushHomeTemp, byte(idx))
+			return
+		}
+		if idx, ok := c.outerArgs[name]; ok {
+			c.builder.EmitByte(vm.OpPushHomeTemp, byte(idx))
+			return
+		}
+	}
+	// Must be a global
+	idx := c.addLiteral(c.symbols.SymbolValue(name))
+	c.builder.EmitUint16(vm.OpPushGlobal, uint16(idx))
 }
 
 func (c *Compiler) compileAssignment(assign *Assignment) {

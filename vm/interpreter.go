@@ -108,7 +108,10 @@ func NewInterpreter() *Interpreter {
 
 func (i *Interpreter) push(v Value) {
 	if i.sp >= len(i.stack) {
-		panic("stack overflow")
+		// Grow the stack dynamically instead of panicking
+		newStack := make([]Value, len(i.stack)*2)
+		copy(newStack, i.stack)
+		i.stack = newStack
 	}
 	i.stack[i.sp] = v
 	i.sp++
@@ -158,7 +161,10 @@ func (i *Interpreter) setTemp(index int, v Value) {
 func (i *Interpreter) pushFrame(method *CompiledMethod, receiver Value, args []Value) {
 	i.fp++
 	if i.fp >= len(i.frames) {
-		panic("call stack overflow")
+		// Grow the frame stack dynamically instead of panicking
+		newFrames := make([]*CallFrame, len(i.frames)*2)
+		copy(newFrames, i.frames)
+		i.frames = newFrames
 	}
 
 	// Save the base pointer for this frame
@@ -183,7 +189,10 @@ func (i *Interpreter) pushFrame(method *CompiledMethod, receiver Value, args []V
 func (i *Interpreter) pushBlockFrame(block *BlockMethod, captures []Value, args []Value, homeFrame int, homeBP int) {
 	i.fp++
 	if i.fp >= len(i.frames) {
-		panic("call stack overflow")
+		// Grow the frame stack dynamically instead of panicking
+		newFrames := make([]*CallFrame, len(i.frames)*2)
+		copy(newFrames, i.frames)
+		i.frames = newFrames
 	}
 
 	bp := i.sp
@@ -209,10 +218,13 @@ func (i *Interpreter) pushBlockFrame(block *BlockMethod, captures []Value, args 
 }
 
 func (i *Interpreter) popFrame() {
-	frame := i.frames[i.fp]
+	frameIndex := i.fp
+	frame := i.frames[frameIndex]
 	i.sp = frame.BP // Discard temps
-	i.frames[i.fp] = nil
+	i.frames[frameIndex] = nil
 	i.fp--
+	// Clean up any blocks whose home frame is being popped
+	releaseBlocksForFrame(frameIndex)
 }
 
 // ---------------------------------------------------------------------------
@@ -1171,6 +1183,20 @@ type NonLocalReturn struct {
 var blockRegistry = make(map[int]*BlockValue)
 var nextBlockID = 1
 
+// blocksByHomeFrame tracks which block IDs belong to each home frame
+// This allows cleanup when frames are popped to prevent memory leaks
+var blocksByHomeFrame = make(map[int][]int)
+
+// releaseBlocksForFrame removes all blocks whose home frame is being popped
+func releaseBlocksForFrame(frameIndex int) {
+	if blockIDs, ok := blocksByHomeFrame[frameIndex]; ok {
+		for _, id := range blockIDs {
+			delete(blockRegistry, id)
+		}
+		delete(blocksByHomeFrame, frameIndex)
+	}
+}
+
 func (i *Interpreter) createBlockValue(block *BlockMethod, captures []Value) Value {
 	// Store in registry and return an ID encoded as a symbol
 	// A full implementation would create a proper Block object
@@ -1203,6 +1229,8 @@ func (i *Interpreter) createBlockValue(block *BlockMethod, captures []Value) Val
 		HomeFrame: homeFrame, // remember the enclosing method's frame
 		HomeSelf:  homeSelf,  // capture self from enclosing method
 	}
+	// Track this block by its home frame for cleanup when frame is popped
+	blocksByHomeFrame[homeFrame] = append(blocksByHomeFrame[homeFrame], id)
 	return FromBlockID(uint32(id))
 }
 
