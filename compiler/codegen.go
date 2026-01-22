@@ -333,9 +333,8 @@ func (c *Compiler) compileVariable(name string) {
 		}
 	}
 	// In a block: check outer METHOD scope temps/args (use home frame access)
-	// Only do this for first-level blocks (blockNestingDepth == 1)
-	// For nested blocks, we use captures instead
-	if c.inBlock && c.blockNestingDepth == 1 {
+	// HomeBP is propagated to all nested blocks, so they can also access method temps
+	if c.inBlock {
 		if idx, ok := c.outerTemps[name]; ok {
 			c.builder.EmitByte(vm.OpPushHomeTemp, byte(idx))
 			return

@@ -76,6 +76,7 @@ type ImageReader struct {
 
 	// Mappings for fixup
 	classNameToIndex map[string]uint32 // Class name -> index in classes
+	selectorIDMap    map[int]int       // Image selector ID -> VM selector ID
 }
 
 // NewImageReader creates a new ImageReader from an io.Reader.
@@ -105,6 +106,7 @@ func NewImageReaderFromBytes(data []byte) (*ImageReader, error) {
 		methods:          make([]*CompiledMethod, 0),
 		objects:          make([]*Object, 0),
 		classNameToIndex: make(map[string]uint32),
+		selectorIDMap:    make(map[int]int),
 	}
 
 	return ir, nil
@@ -680,6 +682,15 @@ func (ir *ImageReader) readMethod(vm *VM) (*CompiledMethod, error) {
 		}
 	}
 
+	// Remap selector IDs in bytecode from image space to VM space
+	// This is critical because primitive selectors are pre-interned and may have different IDs
+	ir.remapBytecodeSelectors(bytecode)
+
+	// Also remap selectors in block bytecode
+	for _, block := range blocks {
+		ir.remapBytecodeSelectors(block.Bytecode)
+	}
+
 	// Map selector from image space to VM's selector space using the method name
 	vmSelectorID := vm.Selectors.Intern(name)
 
@@ -820,6 +831,43 @@ func (ir *ImageReader) GetMethod(idx uint32) (*CompiledMethod, error) {
 		return nil, fmt.Errorf("%w: %d", ErrInvalidMethodIndex, idx)
 	}
 	return ir.methods[idx], nil
+}
+
+// ---------------------------------------------------------------------------
+// Bytecode Selector Remapping
+// ---------------------------------------------------------------------------
+
+// remapBytecodeSelectors scans bytecode and remaps selector IDs from image space to VM space.
+// This is necessary because selector IDs in the image may differ from VM selector IDs
+// due to primitives being registered before the image is loaded.
+func (ir *ImageReader) remapBytecodeSelectors(bytecode []byte) {
+	i := 0
+	for i < len(bytecode) {
+		op := Opcode(bytecode[i])
+		switch op {
+		case OpSend, OpSendSuper:
+			// Format: opcode (1 byte) + selector (2 bytes little-endian) + argc (1 byte)
+			if i+3 < len(bytecode) {
+				// Read original selector ID (little-endian 16-bit)
+				imageSelectorID := int(bytecode[i+1]) | (int(bytecode[i+2]) << 8)
+
+				// Look up the VM selector ID
+				if vmSelectorID, ok := ir.selectorIDMap[imageSelectorID]; ok {
+					// Only remap if different
+					if vmSelectorID != imageSelectorID {
+						// Write remapped selector ID (little-endian)
+						bytecode[i+1] = byte(vmSelectorID)
+						bytecode[i+2] = byte(vmSelectorID >> 8)
+					}
+				}
+			}
+			i += 4 // opcode + 2-byte selector + 1-byte argc
+		default:
+			// Skip instruction based on operand size
+			info := op.Info()
+			i += 1 + info.OperandBytes
+		}
+	}
 }
 
 // ---------------------------------------------------------------------------
@@ -1036,11 +1084,14 @@ func (ir *ImageReader) ReadAll(vm *VM) error {
 		return fmt.Errorf("failed to read selector table: %w", err)
 	}
 
-	// Intern selectors in VM (selectors store string indices directly)
-	for _, stringIdx := range ir.selectors {
+	// Intern selectors in VM and build mapping from image selector IDs to VM selector IDs
+	// This is critical because the VM may have pre-interned selectors from primitives,
+	// causing selector IDs to differ between bootstrap (image creation) and runtime.
+	for imageSelectorID, stringIdx := range ir.selectors {
 		if int(stringIdx) < len(ir.strings) {
 			name := ir.strings[stringIdx]
-			vm.Selectors.Intern(name)
+			vmSelectorID := vm.Selectors.Intern(name)
+			ir.selectorIDMap[imageSelectorID] = vmSelectorID
 		}
 	}
 

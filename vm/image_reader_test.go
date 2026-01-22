@@ -397,7 +397,8 @@ func TestImageReaderClasses(t *testing.T) {
 	builder.writeUint32(2)          // 2 instance variables
 	builder.writeUint32(1)          // instvar 0: "x"
 	builder.writeUint32(2)          // instvar 1: "y"
-	builder.writeUint32(0)          // 0 methods
+	builder.writeUint32(0)          // 0 instance methods
+	builder.writeUint32(0)          // 0 class methods
 
 	// Class 1: ChildClass extends TestClass (index 0)
 	builder.writeUint32(3)          // name: "ChildClass"
@@ -405,7 +406,8 @@ func TestImageReaderClasses(t *testing.T) {
 	builder.writeUint32(0)          // superclass: TestClass (index 0)
 	builder.writeUint32(2)          // numSlots (inherited from parent)
 	builder.writeUint32(0)          // 0 instance variables
-	builder.writeUint32(0)          // 0 methods
+	builder.writeUint32(0)          // 0 instance methods
+	builder.writeUint32(0)          // 0 class methods
 
 	ir, err := NewImageReaderFromBytes(builder.bytes())
 	if err != nil {
@@ -461,14 +463,15 @@ func TestImageReaderClassesUsesExistingVMClass(t *testing.T) {
 	builder.writeUint32(0) // symbols
 	builder.writeUint32(0) // selectors
 
-	// Class table (format: name, namespace, superclass, numSlots, instVarCount, methodCount)
+	// Class table (format: name, namespace, superclass, numSlots, instVarCount, instMethods, classMethods)
 	builder.writeUint32(1)
 	builder.writeUint32(0)          // name: "SmallInteger"
 	builder.writeUint32(0xFFFFFFFF) // namespace
 	builder.writeUint32(0xFFFFFFFF) // superclass
 	builder.writeUint32(0)          // numSlots
 	builder.writeUint32(0)          // 0 instance variables
-	builder.writeUint32(0)          // 0 methods
+	builder.writeUint32(0)          // 0 instance methods
+	builder.writeUint32(0)          // 0 class methods
 
 	ir, err := NewImageReaderFromBytes(builder.bytes())
 	if err != nil {
@@ -510,24 +513,26 @@ func TestImageReaderMethods(t *testing.T) {
 	builder.writeUint32(0) // symbols
 	builder.writeUint32(0) // selectors
 
-	// Classes (format: name, namespace, superclass, numSlots, instVarCount, methodCount)
+	// Classes (format: name, namespace, superclass, numSlots, instVarCount, instMethods, classMethods)
 	builder.writeUint32(1)
 	builder.writeUint32(1)          // name: "TestClass"
 	builder.writeUint32(0xFFFFFFFF) // namespace
 	builder.writeUint32(0xFFFFFFFF) // superclass
 	builder.writeUint32(0)          // numSlots
 	builder.writeUint32(0)          // 0 instance variables
-	builder.writeUint32(0)          // 0 methods
+	builder.writeUint32(0)          // 0 instance methods
+	builder.writeUint32(0)          // 0 class methods
 
-	// Methods (format: selector, class, name, arity, numTemps, literals, bytecode, blocks, source, sourceMap)
+	// Methods (format: selector, class, name, isClassMethod, arity, numTemps, literals, bytecode, blocks, source, sourceMap)
 	builder.writeUint32(1) // 1 method
 
 	// Method 0
-	builder.writeUint32(42) // selector ID
-	builder.writeUint32(0)  // class index
-	builder.writeUint32(0)  // name: "testMethod"
-	builder.writeUint32(2)  // arity
-	builder.writeUint32(5)  // numTemps
+	builder.writeUint32(42)       // selector ID
+	builder.writeUint32(0)        // class index
+	builder.writeUint32(0)        // name: "testMethod"
+	builder.writeBytes([]byte{0}) // isClassMethod: false
+	builder.writeUint32(2)        // arity
+	builder.writeUint32(5)        // numTemps
 
 	// Literals
 	builder.writeUint32(1) // 1 literal
@@ -612,25 +617,27 @@ func TestImageReaderMethodsWithBlocks(t *testing.T) {
 	builder.writeUint32(0)
 	builder.writeUint32(0)
 
-	// Classes (format: name, namespace, superclass, numSlots, instVarCount, methodCount)
+	// Classes (format: name, namespace, superclass, numSlots, instVarCount, instMethods, classMethods)
 	builder.writeUint32(1)
 	builder.writeUint32(1)          // name
 	builder.writeUint32(0xFFFFFFFF) // namespace
 	builder.writeUint32(0xFFFFFFFF) // superclass
 	builder.writeUint32(0)          // numSlots
 	builder.writeUint32(0)          // instVarCount
-	builder.writeUint32(0)          // methodCount
+	builder.writeUint32(0)          // instance methods
+	builder.writeUint32(0)          // class methods
 
-	// Methods (format: selector, class, name, arity, numTemps, literals, bytecode, blocks, source, sourceMap)
+	// Methods (format: selector, class, name, isClassMethod, arity, numTemps, literals, bytecode, blocks, source, sourceMap)
 	builder.writeUint32(1)
 
-	builder.writeUint32(1)  // selector
-	builder.writeUint32(0)  // class
-	builder.writeUint32(0)  // name
-	builder.writeUint32(0)  // arity
-	builder.writeUint32(0)  // numTemps
-	builder.writeUint32(0)  // literals
-	builder.writeUint32(1)  // bytecode length
+	builder.writeUint32(1)        // selector
+	builder.writeUint32(0)        // class
+	builder.writeUint32(0)        // name
+	builder.writeBytes([]byte{0}) // isClassMethod: false
+	builder.writeUint32(0)        // arity
+	builder.writeUint32(0)        // numTemps
+	builder.writeUint32(0)        // literals
+	builder.writeUint32(1)        // bytecode length
 	builder.writeBytes([]byte{0x00})
 
 	// 1 block
@@ -703,7 +710,7 @@ func TestImageReaderObjects(t *testing.T) {
 	builder.writeUint32(0)
 	builder.writeUint32(0)
 
-	// Classes (format: name, namespace, superclass, numSlots, instVarCount, instVarNames, methodCount)
+	// Classes (format: name, namespace, superclass, numSlots, instVarCount, instVarNames, instMethods, classMethods)
 	builder.writeUint32(1)
 	builder.writeUint32(0)          // name
 	builder.writeUint32(0xFFFFFFFF) // namespace
@@ -712,7 +719,8 @@ func TestImageReaderObjects(t *testing.T) {
 	builder.writeUint32(2)          // 2 instance variables
 	builder.writeUint32(1)          // "x"
 	builder.writeUint32(2)          // "y"
-	builder.writeUint32(0)          // 0 methods
+	builder.writeUint32(0)          // 0 instance methods
+	builder.writeUint32(0)          // 0 class methods
 
 	// Methods (empty)
 	builder.writeUint32(0)
@@ -853,7 +861,7 @@ func TestImageReaderReadAll(t *testing.T) {
 	// Selector table
 	builder.writeUint32(0)
 
-	// Classes (format: name, namespace, superclass, numSlots, instVarCount, instVarNames, methodCount)
+	// Classes (format: name, namespace, superclass, numSlots, instVarCount, instVarNames, instMethods, classMethods)
 	builder.writeUint32(1)
 	builder.writeUint32(0)          // name: "TestClass"
 	builder.writeUint32(0xFFFFFFFF) // namespace
@@ -861,7 +869,8 @@ func TestImageReaderReadAll(t *testing.T) {
 	builder.writeUint32(1)          // numSlots
 	builder.writeUint32(1)          // 1 instvar
 	builder.writeUint32(1)          // instvar "value"
-	builder.writeUint32(0)          // 0 methods
+	builder.writeUint32(0)          // 0 instance methods
+	builder.writeUint32(0)          // 0 class methods
 
 	// Methods
 	builder.writeUint32(0)
@@ -1141,14 +1150,15 @@ func TestImageReaderDecoderIntegration(t *testing.T) {
 
 	builder.writeUint32(0) // selectors
 
-	// Classes (format: name, namespace, superclass, numSlots, instVarCount, methodCount)
+	// Classes (format: name, namespace, superclass, numSlots, instVarCount, instMethods, classMethods)
 	builder.writeUint32(1)
 	builder.writeUint32(1)          // name
 	builder.writeUint32(0xFFFFFFFF) // namespace
 	builder.writeUint32(0xFFFFFFFF) // superclass
 	builder.writeUint32(0)          // numSlots
 	builder.writeUint32(0)          // instVarCount
-	builder.writeUint32(0)          // methodCount
+	builder.writeUint32(0)          // instance methods
+	builder.writeUint32(0)          // class methods
 
 	builder.writeUint32(0) // methods
 	builder.writeUint32(0) // objects
