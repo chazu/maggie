@@ -24,6 +24,7 @@ func main() {
 	noRC := flag.Bool("no-rc", false, "Skip loading ~/.maggierc")
 	yutaniMode := flag.Bool("yutani", false, "Start Yutani IDE mode")
 	yutaniAddr := flag.String("yutani-addr", "localhost:7755", "Yutani server address")
+	useMaggieCompiler := flag.Bool("experimental-maggie-compiler", false, "Use experimental Maggie self-hosting compiler instead of Go compiler")
 
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Usage: mag [options] [paths...]\n\n")
@@ -36,6 +37,8 @@ func main() {
 		fmt.Fprintf(os.Stderr, "  mag ./... -m App.start # Load recursively, run App.start\n")
 		fmt.Fprintf(os.Stderr, "  mag --yutani           # Start Yutani IDE (connects to localhost:7755)\n")
 		fmt.Fprintf(os.Stderr, "  mag --yutani --yutani-addr host:port  # Connect to specific server\n")
+		fmt.Fprintf(os.Stderr, "\nExperimental:\n")
+		fmt.Fprintf(os.Stderr, "  mag -i --experimental-maggie-compiler  # Use self-hosting compiler\n")
 	}
 	flag.Parse()
 
@@ -48,8 +51,20 @@ func main() {
 	// Re-register critical primitives that may have been overwritten by image methods
 	vmInst.ReRegisterNilPrimitives()
 
+	// Set up compiler backend (Go compiler by default)
+	vmInst.UseGoCompiler(compiler.Compile)
+
+	// Switch to experimental Maggie compiler if requested
+	if *useMaggieCompiler {
+		vmInst.UseMaggieCompiler()
+		if *verbose {
+			fmt.Println("Using experimental Maggie self-hosting compiler")
+		}
+	}
+
 	if *verbose {
 		fmt.Printf("Loaded default image (%d bytes)\n", len(embeddedImage))
+		fmt.Printf("Compiler: %s\n", vmInst.CompilerName())
 	}
 
 	// Load ~/.maggierc if it exists
@@ -189,7 +204,8 @@ func runMain(vmInst *vm.VM, entry string, verbose bool) (vm.Value, error) {
 
 // runREPL starts an interactive read-eval-print loop
 func runREPL(vmInst *vm.VM) {
-	fmt.Println("Maggie REPL (type 'exit' to quit)")
+	fmt.Println("Maggie REPL (type 'exit' to quit, ':help' for commands)")
+	fmt.Printf("Compiler: %s\n", vmInst.CompilerName())
 	fmt.Println()
 
 	scanner := bufio.NewScanner(os.Stdin)
@@ -212,6 +228,12 @@ func runREPL(vmInst *vm.VM) {
 		// Handle exit
 		if lineBuffer.Len() == 0 && (line == "exit" || line == "quit") {
 			break
+		}
+
+		// Handle REPL commands (start with ':')
+		if lineBuffer.Len() == 0 && strings.HasPrefix(line, ":") {
+			handleREPLCommand(vmInst, line)
+			continue
 		}
 
 		// Empty line executes accumulated input
@@ -245,6 +267,30 @@ func runREPL(vmInst *vm.VM) {
 	fmt.Println()
 }
 
+// handleREPLCommand handles REPL meta-commands
+func handleREPLCommand(vmInst *vm.VM, cmd string) {
+	switch cmd {
+	case ":help", ":h", ":?":
+		fmt.Println("REPL Commands:")
+		fmt.Println("  :help, :h, :?     Show this help")
+		fmt.Println("  :compiler         Show current compiler")
+		fmt.Println("  :use-go           Switch to Go compiler (default)")
+		fmt.Println("  :use-maggie       Switch to Maggie compiler (experimental)")
+		fmt.Println("  exit, quit        Exit REPL")
+	case ":compiler":
+		fmt.Printf("Current compiler: %s\n", vmInst.CompilerName())
+	case ":use-go":
+		vmInst.UseGoCompiler(compiler.Compile)
+		fmt.Println("Switched to Go compiler")
+	case ":use-maggie":
+		vmInst.UseMaggieCompiler()
+		fmt.Printf("Switched to Maggie compiler (experimental)\n")
+		fmt.Println("Note: Falls back to Go compiler if Maggie compiler unavailable")
+	default:
+		fmt.Printf("Unknown command: %s (type :help for commands)\n", cmd)
+	}
+}
+
 // evalAndPrint compiles and executes an expression, printing the result
 func evalAndPrint(vmInst *vm.VM, input string) {
 	// Wrap input in a method body if it doesn't look like a method definition
@@ -254,10 +300,14 @@ func evalAndPrint(vmInst *vm.VM, input string) {
 		source = "doIt\n    ^" + strings.TrimSuffix(input, ".")
 	}
 
-	// Compile the method
-	method, err := compiler.Compile(source, vmInst.Selectors, vmInst.Symbols)
+	// Compile the method using the active compiler backend
+	method, err := vmInst.Compile(source, nil)
 	if err != nil {
 		fmt.Printf("Compile error: %v\n", err)
+		return
+	}
+	if method == nil {
+		fmt.Println("Compile error: compiler returned nil")
 		return
 	}
 
