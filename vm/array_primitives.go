@@ -154,7 +154,7 @@ func (vm *VM) NewArray(size int) Value {
 	obj.SetSize(size) // Set the logical size for arrays
 	val := obj.ToValue()
 	// Keep a reference to prevent GC
-	vm.keepAlive = append(vm.keepAlive, obj)
+	vm.keepAlive[obj] = struct{}{}
 	return val
 }
 
@@ -167,7 +167,7 @@ func (vm *VM) NewArrayWithElements(elements []Value) Value {
 	obj.SetSize(len(elements)) // Set the logical size for arrays
 	val := obj.ToValue()
 	// Keep a reference to prevent GC
-	vm.keepAlive = append(vm.keepAlive, obj)
+	vm.keepAlive[obj] = struct{}{}
 	return val
 }
 

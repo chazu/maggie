@@ -905,3 +905,84 @@ func TestBlockRegistryMultipleFrames(t *testing.T) {
 		t.Errorf("frame2 still tracked")
 	}
 }
+
+// TestGarbageCollection verifies that unreachable objects are collected.
+func TestGarbageCollection(t *testing.T) {
+	vm := NewVM()
+
+	// Create some arrays (which go into keepAlive)
+	initialCount := vm.KeepAliveCount()
+
+	arr1 := vm.NewArray(3)
+	arr2 := vm.NewArray(5)
+	_ = vm.NewArray(2) // arr3 - intentionally unreachable
+
+	if vm.KeepAliveCount() != initialCount+3 {
+		t.Errorf("keepAlive count after creation = %d, want %d", vm.KeepAliveCount(), initialCount+3)
+	}
+
+	// Push arr1 onto the stack (making it reachable)
+	vm.interpreter.push(arr1)
+
+	// Store arr2 in globals (making it reachable)
+	vm.Globals["testArray"] = arr2
+
+	// arr3 is not reachable (not on stack, not in globals)
+
+	// Run GC
+	collected := vm.CollectGarbage()
+
+	// arr3 should have been collected
+	if collected != 1 {
+		t.Errorf("collected = %d, want 1", collected)
+	}
+
+	// keepAlive should now have 2 fewer (arr3 collected)
+	if vm.KeepAliveCount() != initialCount+2 {
+		t.Errorf("keepAlive count after GC = %d, want %d", vm.KeepAliveCount(), initialCount+2)
+	}
+
+	// Clean up
+	vm.interpreter.pop()
+	delete(vm.Globals, "testArray")
+}
+
+// TestGarbageCollectionNestedObjects verifies that objects referenced by other objects are not collected.
+func TestGarbageCollectionNestedObjects(t *testing.T) {
+	vm := NewVM()
+
+	initialCount := vm.KeepAliveCount()
+
+	// Create an array that holds another array
+	inner := vm.NewArray(2)
+	outer := vm.NewArray(1)
+
+	// Store inner in outer's slot
+	if outer.IsObject() {
+		obj := ObjectFromValue(outer)
+		obj.SetSlot(0, inner)
+	}
+
+	// Push only outer onto stack
+	vm.interpreter.push(outer)
+
+	// inner is reachable through outer, so both should survive GC
+	collected := vm.CollectGarbage()
+
+	if collected != 0 {
+		t.Errorf("collected = %d, want 0 (both should be reachable)", collected)
+	}
+
+	if vm.KeepAliveCount() != initialCount+2 {
+		t.Errorf("keepAlive count = %d, want %d", vm.KeepAliveCount(), initialCount+2)
+	}
+
+	// Now pop outer from stack - both become unreachable
+	vm.interpreter.pop()
+
+	collected = vm.CollectGarbage()
+
+	if collected != 2 {
+		t.Errorf("collected = %d, want 2 (both should be unreachable)", collected)
+	}
+}

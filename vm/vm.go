@@ -45,8 +45,9 @@ type VM struct {
 	// Compiler backend (Go or Maggie)
 	compilerBackend CompilerBackend
 
-	// keepAlive holds references to objects to prevent GC
-	keepAlive []*Object
+	// keepAlive holds references to objects to prevent GC.
+	// Uses a map for O(1) lookup and removal during garbage collection.
+	keepAlive map[*Object]struct{}
 }
 
 // NewVM creates and bootstraps a new VM.
@@ -57,6 +58,7 @@ func NewVM() *VM {
 		Classes:   NewClassTable(),
 		Traits:    NewTraitTable(),
 		Globals:   make(map[string]Value),
+		keepAlive: make(map[*Object]struct{}),
 	}
 
 	// Bootstrap core classes
@@ -375,4 +377,93 @@ func (vm *VM) SetGlobal(name string, value Value) {
 // LookupClass returns a class by name.
 func (vm *VM) LookupClass(name string) *Class {
 	return vm.Classes.Lookup(name)
+}
+
+// ---------------------------------------------------------------------------
+// Garbage Collection
+// ---------------------------------------------------------------------------
+
+// CollectGarbage performs a mark-sweep garbage collection.
+// It scans the stack, globals, and block captures to find reachable objects,
+// then removes unreachable objects from keepAlive.
+func (vm *VM) CollectGarbage() int {
+	if vm.interpreter == nil {
+		return 0
+	}
+
+	// Mark phase: find all reachable objects
+	marked := make(map[*Object]struct{})
+
+	// Mark objects reachable from the stack
+	for i := 0; i < vm.interpreter.sp; i++ {
+		vm.markValue(vm.interpreter.stack[i], marked)
+	}
+
+	// Mark objects reachable from globals
+	for _, v := range vm.Globals {
+		vm.markValue(v, marked)
+	}
+
+	// Mark objects reachable from block captures
+	for _, bv := range blockRegistry {
+		if bv != nil {
+			for _, capture := range bv.Captures {
+				vm.markValue(capture, marked)
+			}
+			vm.markValue(bv.HomeSelf, marked)
+		}
+	}
+
+	// Mark objects reachable from frames (temps on stack are already covered,
+	// but Receiver values need marking)
+	for i := 0; i <= vm.interpreter.fp; i++ {
+		if vm.interpreter.frames[i] != nil {
+			vm.markValue(vm.interpreter.frames[i].Receiver, marked)
+			if vm.interpreter.frames[i].HomeSelf != Nil {
+				vm.markValue(vm.interpreter.frames[i].HomeSelf, marked)
+			}
+		}
+	}
+
+	// Sweep phase: remove unmarked objects from keepAlive
+	collected := 0
+	for obj := range vm.keepAlive {
+		if _, isMarked := marked[obj]; !isMarked {
+			delete(vm.keepAlive, obj)
+			collected++
+		}
+	}
+
+	return collected
+}
+
+// markValue recursively marks an object and all objects it references.
+func (vm *VM) markValue(v Value, marked map[*Object]struct{}) {
+	if !v.IsObject() {
+		return
+	}
+
+	obj := ObjectFromValue(v)
+	if obj == nil {
+		return
+	}
+
+	// Already marked? Skip to avoid infinite recursion
+	if _, exists := marked[obj]; exists {
+		return
+	}
+
+	// Mark this object
+	marked[obj] = struct{}{}
+
+	// Recursively mark all slots
+	for i := 0; i < obj.NumSlots(); i++ {
+		vm.markValue(obj.GetSlot(i), marked)
+	}
+}
+
+// KeepAliveCount returns the number of objects in the keepAlive set.
+// Useful for testing and debugging.
+func (vm *VM) KeepAliveCount() int {
+	return len(vm.keepAlive)
 }

@@ -19,7 +19,7 @@ func (vm *VM) registerObjectPrimitives() {
 			if cls := v.Classes.Lookup(symName); cls != nil {
 				instance := cls.NewInstance()
 				// Keep a reference to prevent GC - Value is just uint64 to Go
-				v.keepAlive = append(v.keepAlive, instance)
+				v.keepAlive[instance] = struct{}{}
 				return instance.ToValue()
 			}
 		}
@@ -36,7 +36,7 @@ func (vm *VM) registerObjectPrimitives() {
 			symName := v.Symbols.Name(recv.SymbolID())
 			if cls := v.Classes.Lookup(symName); cls != nil {
 				instance := cls.NewInstance()
-				v.keepAlive = append(v.keepAlive, instance)
+				v.keepAlive[instance] = struct{}{}
 				return instance.ToValue()
 			}
 		}
