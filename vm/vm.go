@@ -48,6 +48,10 @@ type VM struct {
 	// keepAlive holds references to objects to prevent GC.
 	// Uses a map for O(1) lookup and removal during garbage collection.
 	keepAlive map[*Object]struct{}
+
+	// AOT compiled methods - maps (class, method) to AOT-compiled functions.
+	// When set, these are used instead of interpreting bytecode.
+	aotMethods AOTDispatchTable
 }
 
 // NewVM creates and bootstraps a new VM.
@@ -346,6 +350,12 @@ func (vm *VM) Send(receiver Value, selector string, args []Value) Value {
 
 	// Check if it's a compiled method or primitive
 	if cm, ok := method.(*CompiledMethod); ok {
+		// Check for AOT-compiled version first
+		if vm.aotMethods != nil {
+			if aotMethod := vm.aotMethods[AOTDispatchKey{class.Name, selector}]; aotMethod != nil {
+				return aotMethod(vm, receiver, args)
+			}
+		}
 		return vm.interpreter.Execute(cm, receiver, args)
 	}
 
@@ -377,6 +387,36 @@ func (vm *VM) SetGlobal(name string, value Value) {
 // LookupClass returns a class by name.
 func (vm *VM) LookupClass(name string) *Class {
 	return vm.Classes.Lookup(name)
+}
+
+// ---------------------------------------------------------------------------
+// AOT (Ahead-of-Time) Compilation Support
+// ---------------------------------------------------------------------------
+
+// RegisterAOTMethods registers a dispatch table of AOT-compiled methods.
+// When a method is found in this table, the AOT-compiled version is used
+// instead of interpreting bytecode.
+func (vm *VM) RegisterAOTMethods(methods AOTDispatchTable) {
+	if vm.aotMethods == nil {
+		vm.aotMethods = make(AOTDispatchTable)
+	}
+	for key, method := range methods {
+		vm.aotMethods[key] = method
+	}
+}
+
+// LookupAOT looks up an AOT-compiled method for a class and selector.
+// Returns nil if no AOT method is registered.
+func (vm *VM) LookupAOT(className, selector string) AOTMethod {
+	if vm.aotMethods == nil {
+		return nil
+	}
+	return vm.aotMethods[AOTDispatchKey{className, selector}]
+}
+
+// HasAOT returns true if AOT methods are registered.
+func (vm *VM) HasAOT() bool {
+	return vm.aotMethods != nil && len(vm.aotMethods) > 0
 }
 
 // ---------------------------------------------------------------------------
