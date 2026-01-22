@@ -41,11 +41,11 @@ func TestParserVariables(t *testing.T) {
 		name  string
 	}{
 		{"foo", "foo"},
-		{"self", ""},   // Self is its own type
-		{"super", ""},  // Super is its own type
-		{"nil", "nil"}, // nil/true/false are variables
-		{"true", "true"},
-		{"false", "false"},
+		{"self", ""},    // Self is its own type
+		{"super", ""},   // Super is its own type
+		{"nil", ""},     // NilLiteral is its own type
+		{"true", ""},    // TrueLiteral is its own type
+		{"false", ""},   // FalseLiteral is its own type
 	}
 
 	for _, tc := range tests {
@@ -64,6 +64,18 @@ func TestParserVariables(t *testing.T) {
 		case "super":
 			if _, ok := expr.(*Super); !ok {
 				t.Errorf("parse %q: expected Super, got %T", tc.input, expr)
+			}
+		case "nil":
+			if _, ok := expr.(*NilLiteral); !ok {
+				t.Errorf("parse %q: expected NilLiteral, got %T", tc.input, expr)
+			}
+		case "true":
+			if _, ok := expr.(*TrueLiteral); !ok {
+				t.Errorf("parse %q: expected TrueLiteral, got %T", tc.input, expr)
+			}
+		case "false":
+			if _, ok := expr.(*FalseLiteral); !ok {
+				t.Errorf("parse %q: expected FalseLiteral, got %T", tc.input, expr)
 			}
 		default:
 			v, ok := expr.(*Variable)
