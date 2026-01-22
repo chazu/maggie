@@ -45,6 +45,9 @@ const (
 	OpStoreCaptured Opcode = 0x27 // store into captured variable (8-bit index)
 	OpPushHomeTemp  Opcode = 0x28 // push temp from home frame (8-bit index) - for blocks
 	OpStoreHomeTemp Opcode = 0x29 // store into temp in home frame (8-bit index) - for blocks
+	OpMakeCell      Opcode = 0x2A // create cell from top of stack, push cell reference
+	OpCellGet       Opcode = 0x2B // pop cell reference, push contained value
+	OpCellSet       Opcode = 0x2C // pop value, pop cell, store value in cell, push value
 )
 
 // Message Sends
@@ -145,6 +148,9 @@ var opcodeTable = map[Opcode]OpcodeInfo{
 	OpStoreCaptured: {"STORE_CAPTURED", 1, 0},
 	OpPushHomeTemp:  {"PUSH_HOME_TEMP", 1, 1},
 	OpStoreHomeTemp: {"STORE_HOME_TEMP", 1, 0},
+	OpMakeCell:      {"MAKE_CELL", 0, 0},  // pops value, pushes cell (net 0)
+	OpCellGet:       {"CELL_GET", 0, 0},   // pops cell, pushes value (net 0)
+	OpCellSet:       {"CELL_SET", 0, -1},  // pops value, pops cell, stores, pushes value (net -1)
 
 	// Sends
 	OpSend:      {"SEND", 3, -1}, // variable: pops receiver + args, pushes result

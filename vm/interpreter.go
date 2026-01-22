@@ -509,6 +509,33 @@ func (i *Interpreter) runFrame() Value {
 				frame.Captures[idx] = i.top()
 			}
 
+		case OpMakeCell:
+			// Pop value from stack, create a cell containing it, push cell reference
+			val := i.pop()
+			cell := NewCell(val)
+			i.push(cell)
+
+		case OpCellGet:
+			// Pop cell reference, push the value contained in the cell
+			cellRef := i.pop()
+			if cellRef.IsCell() {
+				val := cellRef.CellGet()
+				i.push(val)
+			} else {
+				// If not a cell, just push the value back (graceful degradation)
+				i.push(cellRef)
+			}
+
+		case OpCellSet:
+			// Stack: [... cell value] -> [... value]
+			// Pop value, pop cell, store value in cell, push value back
+			val := i.pop()
+			cellRef := i.pop()
+			if cellRef.IsCell() {
+				cellRef.CellSet(val)
+			}
+			i.push(val)
+
 		// --- Message sends ---
 		case OpSend:
 			sel := int(binary.LittleEndian.Uint16(bc[frame.IP:]))
@@ -721,14 +748,8 @@ func (i *Interpreter) runFrame() Value {
 			}
 
 			// Pop captures from stack
+			// popN returns values in the same order they were pushed
 			captures := i.popN(nCaptures)
-
-			if isBlock && nCaptures > 0 {
-				// Reverse captures (they were pushed in order, popped in reverse)
-				for l, r := 0, len(captures)-1; l < r; l, r = l+1, r-1 {
-					captures[l], captures[r] = captures[r], captures[l]
-				}
-			}
 
 			if block != nil {
 				blockVal := i.createBlockValue(block, captures)

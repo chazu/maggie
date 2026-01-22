@@ -28,6 +28,9 @@ BytecodeGenerator subclass: Object
   classMethod: opSTORE_CAPTURED [^16r27]
   classMethod: opPUSH_HOME_TEMP [^16r28]
   classMethod: opSTORE_HOME_TEMP [^16r29]
+  classMethod: opMAKE_CELL [^16r2A]
+  classMethod: opCELL_GET [^16r2B]
+  classMethod: opCELL_SET [^16r2C]
 
   classMethod: opSEND [^16r30]
   classMethod: opSEND_SUPER [^16r31]
@@ -300,6 +303,18 @@ BytecodeGenerator subclass: Object
 
   method: emitStoreHomeTemp: index [
       self emit: BytecodeGenerator opSTORE_HOME_TEMP byte: index
+  ]
+
+  method: emitMakeCell [
+      self emit: BytecodeGenerator opMAKE_CELL
+  ]
+
+  method: emitCellGet [
+      self emit: BytecodeGenerator opCELL_GET
+  ]
+
+  method: emitCellSet [
+      self emit: BytecodeGenerator opCELL_SET
   ]
 
   # ============================================

@@ -1152,3 +1152,76 @@ func TestPrimitiveAtString(t *testing.T) {
 		t.Errorf("str[3] = %v, want nil (out of bounds)", result)
 	}
 }
+
+// TestCellOperations verifies the basic Cell type operations.
+func TestCellOperations(t *testing.T) {
+	// Test NewCell creates a cell with the given value
+	cell := NewCell(FromSmallInt(42))
+	if !cell.IsCell() {
+		t.Error("NewCell should return a cell value")
+	}
+
+	// Test CellGet retrieves the stored value
+	val := cell.CellGet()
+	if !val.IsSmallInt() || val.SmallInt() != 42 {
+		t.Errorf("CellGet = %v, want 42", val)
+	}
+
+	// Test CellSet updates the stored value
+	cell.CellSet(FromSmallInt(100))
+	val = cell.CellGet()
+	if val.SmallInt() != 100 {
+		t.Errorf("CellGet after CellSet = %v, want 100", val)
+	}
+
+	// Test multiple cells are independent
+	cell1 := NewCell(FromSmallInt(1))
+	cell2 := NewCell(FromSmallInt(2))
+
+	if cell1.CellGet().SmallInt() != 1 || cell2.CellGet().SmallInt() != 2 {
+		t.Error("cells should be independent")
+	}
+
+	cell1.CellSet(FromSmallInt(10))
+	if cell2.CellGet().SmallInt() != 2 {
+		t.Error("modifying cell1 should not affect cell2")
+	}
+}
+
+// TestCellOpcodes verifies the cell-related opcodes in the interpreter.
+func TestCellOpcodes(t *testing.T) {
+	interp := NewInterpreter()
+
+	// Build a simple method that tests cell operations:
+	// Create cell with 42, get value, set to 100, get value
+	b := NewCompiledMethodBuilder("testCells", 0)
+	b.SetNumTemps(1)
+
+	// Push 42, make cell, store in temp 0
+	b.Bytecode().EmitInt8(OpPushInt8, 42)
+	b.Bytecode().Emit(OpMakeCell)
+	b.Bytecode().EmitByte(OpStoreTemp, 0)
+
+	// Get cell value (should be 42), pop it
+	b.Bytecode().EmitByte(OpPushTemp, 0)
+	b.Bytecode().Emit(OpCellGet)
+	b.Bytecode().Emit(OpPOP) // discard
+
+	// Now do cell set: push cell, push 100, cell_set
+	b.Bytecode().EmitByte(OpPushTemp, 0)
+	b.Bytecode().EmitInt8(OpPushInt8, 100)
+	b.Bytecode().Emit(OpCellSet)
+	b.Bytecode().Emit(OpPOP) // discard result of cell_set
+
+	// Get cell value again (should be 100), return it
+	b.Bytecode().EmitByte(OpPushTemp, 0)
+	b.Bytecode().Emit(OpCellGet)
+	b.Bytecode().Emit(OpReturnTop)
+
+	method := b.Build()
+
+	result := interp.Execute(method, Nil, nil)
+	if !result.IsSmallInt() || result.SmallInt() != 100 {
+		t.Errorf("cell test result = %v, want 100", result)
+	}
+}

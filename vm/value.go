@@ -39,6 +39,7 @@ const (
 	tagSpecial uint64 = 0x0003000000000000 // nil, true, false
 	tagSymbol  uint64 = 0x0004000000000000 // Interned symbol ID
 	tagBlock   uint64 = 0x0005000000000000 // Block closure ID
+	tagCell    uint64 = 0x0006000000000000 // Mutable cell for captured variables
 
 	// Sign bit for 48-bit integer sign extension
 	intSignBit uint64 = 0x0000800000000000
@@ -258,6 +259,64 @@ func (v Value) BlockID() uint32 {
 // FromBlockID creates a Value from a block ID.
 func FromBlockID(id uint32) Value {
 	return Value(nanBits | tagBlock | uint64(id))
+}
+
+// ---------------------------------------------------------------------------
+// Cells (mutable boxes for captured variables)
+// ---------------------------------------------------------------------------
+
+// Cell is a heap-allocated mutable container for a single Value.
+// Used to implement proper Smalltalk semantics where captured variables
+// can be mutated and the mutation is visible in all scopes that share the cell.
+type Cell struct {
+	Value Value
+}
+
+// cellRegistry keeps cells alive to prevent Go's GC from collecting them.
+// When we convert a Cell pointer to an integer (for NaN-boxing), Go can't
+// track the reference anymore. This registry maintains a Go-visible reference.
+var cellRegistry = make(map[*Cell]struct{})
+
+// IsCell returns true if v represents a mutable cell.
+func (v Value) IsCell() bool {
+	bits := uint64(v)
+	return (bits & (nanBits | tagMask)) == (nanBits | tagCell)
+}
+
+// CellPtr returns the Cell pointer from a cell value.
+// Panics if v is not a cell.
+func (v Value) CellPtr() *Cell {
+	if !v.IsCell() {
+		panic("Value.CellPtr: not a cell")
+	}
+	ptr := uint64(v) & payloadMask
+	return (*Cell)(unsafe.Pointer(uintptr(ptr)))
+}
+
+// FromCellPtr creates a Value from a Cell pointer.
+func FromCellPtr(cell *Cell) Value {
+	ptr := uint64(uintptr(unsafe.Pointer(cell)))
+	return Value(nanBits | tagCell | (ptr & payloadMask))
+}
+
+// NewCell creates a new Cell containing the given value and returns it as a Value.
+// The cell is registered in cellRegistry to prevent garbage collection.
+func NewCell(v Value) Value {
+	cell := &Cell{Value: v}
+	cellRegistry[cell] = struct{}{} // Keep alive
+	return FromCellPtr(cell)
+}
+
+// CellGet returns the value stored in the cell.
+// Panics if v is not a cell.
+func (v Value) CellGet() Value {
+	return v.CellPtr().Value
+}
+
+// CellSet stores a value in the cell.
+// Panics if v is not a cell.
+func (v Value) CellSet(newValue Value) {
+	v.CellPtr().Value = newValue
 }
 
 // ---------------------------------------------------------------------------

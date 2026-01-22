@@ -378,3 +378,111 @@ func TestCompileUseArg(t *testing.T) {
 		t.Errorf("5 squared = %v, want 25", result)
 	}
 }
+
+// TestMutableCapture verifies that nested blocks can mutate captured variables.
+func TestMutableCapture(t *testing.T) {
+	vmInst := vm.NewVM()
+	vmInst.UseGoCompiler(Compile)
+
+	// Test simple capture mutation: x := 10, [x := 30], return x (should be 30)
+	source := `test
+    true ifTrue: [
+        | x |
+        x := 10.
+        [x := 30] value.
+        ^x
+    ].
+    ^0`
+
+	method, err := vmInst.Compile(source, nil)
+	if err != nil {
+		t.Fatalf("compile error: %v", err)
+	}
+
+	result := vmInst.Execute(method, vm.Nil, nil)
+	if !result.IsSmallInt() || result.SmallInt() != 30 {
+		t.Errorf("result = %v, want 30", result)
+	}
+}
+
+// TestMutableCaptureReadWrite verifies captured variables can be read and written.
+func TestMutableCaptureReadWrite(t *testing.T) {
+	vmInst := vm.NewVM()
+	vmInst.UseGoCompiler(Compile)
+
+	// x := 10, [x := x + 20], return x (should be 30)
+	source := `test
+    true ifTrue: [
+        | x |
+        x := 10.
+        [x := x + 20] value.
+        ^x
+    ].
+    ^0`
+
+	method, err := vmInst.Compile(source, nil)
+	if err != nil {
+		t.Fatalf("compile error: %v", err)
+	}
+
+	result := vmInst.Execute(method, vm.Nil, nil)
+	if !result.IsSmallInt() || result.SmallInt() != 30 {
+		t.Errorf("result = %v, want 30", result)
+	}
+}
+
+// TestMutableCaptureMultipleVariables verifies multiple captured variables work independently.
+func TestMutableCaptureMultipleVariables(t *testing.T) {
+	vmInst := vm.NewVM()
+	vmInst.UseGoCompiler(Compile)
+
+	// a := 10, b := 20, [a := a + b], return a (should be 30)
+	source := `test
+    true ifTrue: [
+        | a b |
+        a := 10.
+        b := 20.
+        [a := a + b] value.
+        ^a
+    ].
+    ^0`
+
+	method, err := vmInst.Compile(source, nil)
+	if err != nil {
+		t.Fatalf("compile error: %v", err)
+	}
+
+	result := vmInst.Execute(method, vm.Nil, nil)
+	if !result.IsSmallInt() || result.SmallInt() != 30 {
+		t.Errorf("result = %v, want 30", result)
+	}
+}
+
+// TestMutableCaptureIteration simulates iteration with multiple block evaluations.
+func TestMutableCaptureIteration(t *testing.T) {
+	vmInst := vm.NewVM()
+	vmInst.UseGoCompiler(Compile)
+
+	// Simulate summing 1+2+3 = 6
+	source := `test
+    true ifTrue: [
+        | sum i |
+        sum := 0.
+        i := 1.
+        [sum := sum + i. i := i + 1] value.
+        [sum := sum + i. i := i + 1] value.
+        [sum := sum + i. i := i + 1] value.
+        ^sum
+    ].
+    ^0`
+
+	method, err := vmInst.Compile(source, nil)
+	if err != nil {
+		t.Fatalf("compile error: %v", err)
+	}
+
+	result := vmInst.Execute(method, vm.Nil, nil)
+	if !result.IsSmallInt() || result.SmallInt() != 6 {
+		t.Errorf("result = %v, want 6", result)
+	}
+}
