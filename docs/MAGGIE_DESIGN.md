@@ -1644,6 +1644,73 @@ func goWrapperDoesNotUnderstand(vm *VM, receiver Value, args []Value) Value {
 
 ---
 
+## Dual-Compiler Architecture
+
+Maggie employs a dual-compiler architecture: a Go compiler for bootstrapping and AOT compilation, and a self-hosting Maggie compiler for live development.
+
+### Compiler Implementations
+
+| Location | Language | Purpose |
+|----------|----------|---------|
+| `compiler/` | Go | Bootstrap, AOT compilation, fallback |
+| `lib/compiler/` | Maggie | Live development, hot reload, REPL |
+
+### CompilerBackend Interface
+
+The `CompilerBackend` interface (defined in `vm/compiler_dispatch.go`) allows runtime switching between compilers:
+
+```go
+type CompilerBackend interface {
+    // Compile compiles a method source string for the given class.
+    Compile(source string, class *Class) (*CompiledMethod, error)
+
+    // CompileExpression compiles a single expression.
+    CompileExpression(source string) (*CompiledMethod, error)
+
+    // Name returns the name of this compiler backend.
+    Name() string
+}
+```
+
+Two implementations are provided:
+- **GoCompilerBackend**: Wraps the Go compiler in `compiler/`
+- **MaggieCompilerBackend**: Invokes the Maggie `Compiler` class, with Go fallback
+
+### Use Cases
+
+| Use Case | Recommended Compiler | Rationale |
+|----------|---------------------|-----------|
+| Bootstrap | Go | No Maggie compiler available yet |
+| AOT compilation | Go | Produces standalone binaries |
+| Image loading | Go | Parse class definitions at startup |
+| REPL | Maggie | Live, interactive development |
+| Hot reload | Maggie | Modify running code |
+| Method recompilation | Maggie | IDE-driven development |
+
+### Switching Compilers
+
+```go
+// At startup (bootstrap)
+vm.UseGoCompiler(compiler.Compile)
+
+// After loading Maggie compiler classes
+vm.UseMaggieCompiler()
+
+// Check current compiler
+fmt.Println(vm.CompilerName())  // "Go" or "Maggie"
+```
+
+### Rationale
+
+Keeping the Go compiler permanently (rather than removing it after self-hosting) provides:
+
+1. **Fast bootstrap**: Go compiler is always available, no chicken-and-egg problem
+2. **AOT compilation**: Generate optimized standalone binaries for deployment
+3. **Fallback safety**: If Maggie compiler has bugs, Go compiler still works
+4. **Testing**: Compare outputs between compilers for correctness validation
+
+---
+
 ## Bootstrap Path
 
 ### Phase 1: Minimal VM

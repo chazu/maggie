@@ -132,6 +132,38 @@ func NewInterpreter() *Interpreter {
 	return interp
 }
 
+// StackTrace returns a formatted stack trace of the current call stack.
+func (i *Interpreter) StackTrace() string {
+	if i.fp < 0 {
+		return "  (empty stack)"
+	}
+
+	var result string
+	for j := i.fp; j >= 0; j-- {
+		frame := i.frames[j]
+		if frame == nil {
+			continue
+		}
+
+		var location string
+		if frame.Block != nil {
+			// Block frame
+			location = fmt.Sprintf("  [%d] <block> at IP %d", j, frame.IP)
+		} else if frame.Method != nil {
+			// Method frame
+			methodName := frame.Method.Name()
+			className := "<unknown>"
+			if frame.Method.Class() != nil {
+				className = frame.Method.Class().Name
+			}
+			location = fmt.Sprintf("  [%d] %s>>%s at IP %d", j, className, methodName, frame.IP)
+		}
+		result += location + "\n"
+	}
+
+	return result
+}
+
 // ---------------------------------------------------------------------------
 // Stack operations
 // ---------------------------------------------------------------------------

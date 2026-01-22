@@ -61,9 +61,16 @@ func (c *Compiler) SetInstanceVars(names []string) {
 	}
 }
 
-// errorf records a compilation error.
+// errorf records a compilation error without position information.
 func (c *Compiler) errorf(format string, args ...interface{}) {
 	c.errors = append(c.errors, fmt.Sprintf(format, args...))
+}
+
+// errorAt records a compilation error with position information from a node.
+func (c *Compiler) errorAt(node Node, format string, args ...interface{}) {
+	pos := node.Span().Start
+	msg := fmt.Sprintf("line %d, column %d: %s", pos.Line, pos.Column, fmt.Sprintf(format, args...))
+	c.errors = append(c.errors, msg)
 }
 
 // CompileMethod compiles a method definition to a CompiledMethod.
@@ -788,6 +795,10 @@ func Compile(source string, selectors *vm.SelectorTable, symbols *vm.SymbolTable
 		return nil, fmt.Errorf("parse errors: %v", parser.Errors())
 	}
 
+	// Run semantic analysis (warnings only, don't fail)
+	warnings := Analyze(method, nil)
+	_ = warnings // In the future, could log these or return them
+
 	compiler := NewCompiler(selectors, symbols)
 	compiled := compiler.CompileMethod(method)
 	if len(compiler.Errors()) > 0 {
@@ -832,6 +843,10 @@ func CompileMethodDef(method *MethodDef, selectors *vm.SelectorTable, symbols *v
 // CompileMethodDefWithIvars compiles a method with instance variable context.
 // The instVars slice contains the instance variable names in order.
 func CompileMethodDefWithIvars(method *MethodDef, selectors *vm.SelectorTable, symbols *vm.SymbolTable, instVars []string) (*vm.CompiledMethod, error) {
+	// Run semantic analysis (warnings only, don't fail)
+	warnings := Analyze(method, instVars)
+	_ = warnings // In the future, could log these or return them
+
 	compiler := NewCompiler(selectors, symbols)
 	if len(instVars) > 0 {
 		compiler.SetInstanceVars(instVars)

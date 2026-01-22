@@ -160,6 +160,11 @@ func (vm *VM) registerObjectPrimitives() {
 		} else {
 			msgStr = "<unknown error>"
 		}
-		panic("Maggie error: " + msgStr)
+		// Include stack trace in error message
+		stackTrace := ""
+		if v.interpreter != nil {
+			stackTrace = "\nStack trace:\n" + v.interpreter.StackTrace()
+		}
+		panic("Maggie error: " + msgStr + stackTrace)
 	})
 }
