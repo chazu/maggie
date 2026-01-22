@@ -1038,3 +1038,117 @@ func TestInterpreterStoreGlobal(t *testing.T) {
 
 	_ = globalNameID // silence unused warning
 }
+
+// TestPrimitiveAtArray verifies primitiveAt works for array access.
+func TestPrimitiveAtArray(t *testing.T) {
+	vm := NewVM()
+
+	// Create an array with elements [10, 20, 30]
+	arr := vm.NewArray(3)
+	obj := ObjectFromValue(arr)
+	obj.SetSlot(0, FromSmallInt(10))
+	obj.SetSlot(1, FromSmallInt(20))
+	obj.SetSlot(2, FromSmallInt(30))
+
+	// Test valid access
+	result := vm.interpreter.primitiveAt(arr, FromSmallInt(0))
+	if !result.IsSmallInt() || result.SmallInt() != 10 {
+		t.Errorf("arr[0] = %v, want 10", result)
+	}
+
+	result = vm.interpreter.primitiveAt(arr, FromSmallInt(1))
+	if !result.IsSmallInt() || result.SmallInt() != 20 {
+		t.Errorf("arr[1] = %v, want 20", result)
+	}
+
+	result = vm.interpreter.primitiveAt(arr, FromSmallInt(2))
+	if !result.IsSmallInt() || result.SmallInt() != 30 {
+		t.Errorf("arr[2] = %v, want 30", result)
+	}
+
+	// Test out of bounds
+	result = vm.interpreter.primitiveAt(arr, FromSmallInt(3))
+	if result != Nil {
+		t.Errorf("arr[3] = %v, want nil (out of bounds)", result)
+	}
+
+	result = vm.interpreter.primitiveAt(arr, FromSmallInt(-1))
+	if result != Nil {
+		t.Errorf("arr[-1] = %v, want nil (negative index)", result)
+	}
+}
+
+// TestPrimitiveAtPutArray verifies primitiveAtPut works for array modification.
+func TestPrimitiveAtPutArray(t *testing.T) {
+	vm := NewVM()
+
+	// Create an array with elements [0, 0, 0]
+	arr := vm.NewArray(3)
+
+	// Set values
+	vm.interpreter.primitiveAtPut(arr, FromSmallInt(0), FromSmallInt(100))
+	vm.interpreter.primitiveAtPut(arr, FromSmallInt(1), FromSmallInt(200))
+	vm.interpreter.primitiveAtPut(arr, FromSmallInt(2), FromSmallInt(300))
+
+	// Verify values were set
+	obj := ObjectFromValue(arr)
+	if val := obj.GetSlot(0); !val.IsSmallInt() || val.SmallInt() != 100 {
+		t.Errorf("arr[0] = %v, want 100", val)
+	}
+	if val := obj.GetSlot(1); !val.IsSmallInt() || val.SmallInt() != 200 {
+		t.Errorf("arr[1] = %v, want 200", val)
+	}
+	if val := obj.GetSlot(2); !val.IsSmallInt() || val.SmallInt() != 300 {
+		t.Errorf("arr[2] = %v, want 300", val)
+	}
+}
+
+// TestPrimitiveSize verifies primitiveSize works for arrays and strings.
+func TestPrimitiveSize(t *testing.T) {
+	vm := NewVM()
+
+	// Test array size
+	arr := vm.NewArray(5)
+	result := vm.interpreter.primitiveSize(arr)
+	if !result.IsSmallInt() || result.SmallInt() != 5 {
+		t.Errorf("array size = %v, want 5", result)
+	}
+
+	// Test string size
+	str := NewStringValue("hello")
+	result = vm.interpreter.primitiveSize(str)
+	if !result.IsSmallInt() || result.SmallInt() != 5 {
+		t.Errorf("string size = %v, want 5", result)
+	}
+
+	// Test empty array
+	emptyArr := vm.NewArray(0)
+	result = vm.interpreter.primitiveSize(emptyArr)
+	if !result.IsSmallInt() || result.SmallInt() != 0 {
+		t.Errorf("empty array size = %v, want 0", result)
+	}
+}
+
+// TestPrimitiveAtString verifies primitiveAt works for string character access.
+func TestPrimitiveAtString(t *testing.T) {
+	vm := NewVM()
+
+	str := NewStringValue("ABC")
+
+	// Test valid access (returns ASCII code)
+	result := vm.interpreter.primitiveAt(str, FromSmallInt(0))
+	if !result.IsSmallInt() || result.SmallInt() != 65 { // 'A' = 65
+		t.Errorf("str[0] = %v, want 65 ('A')", result)
+	}
+
+	result = vm.interpreter.primitiveAt(str, FromSmallInt(1))
+	if !result.IsSmallInt() || result.SmallInt() != 66 { // 'B' = 66
+		t.Errorf("str[1] = %v, want 66 ('B')", result)
+	}
+
+	// Test out of bounds
+	result = vm.interpreter.primitiveAt(str, FromSmallInt(3))
+	if result != Nil {
+		t.Errorf("str[3] = %v, want nil (out of bounds)", result)
+	}
+}

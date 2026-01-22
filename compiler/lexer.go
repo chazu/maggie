@@ -336,7 +336,6 @@ func (l *Lexer) readNumber(pos Position) Token {
 	}
 
 	// Check for radix notation (16rFF)
-	digitStart := l.pos
 	for isDigit(l.ch) {
 		l.readChar()
 	}
@@ -370,9 +369,6 @@ func (l *Lexer) readNumber(pos Position) Token {
 			l.readChar()
 		}
 	}
-
-	// Handle case where we only read digits but nothing else
-	_ = digitStart
 
 	if isFloat {
 		return Token{Type: TokenFloat, Literal: l.input[start:l.pos], Pos: pos}

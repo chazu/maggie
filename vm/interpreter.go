@@ -1203,17 +1203,71 @@ func (i *Interpreter) primitiveNE(a, b Value) Value {
 }
 
 func (i *Interpreter) primitiveAt(rcvr, idx Value) Value {
-	// Placeholder - would dispatch to collection type
+	if !idx.IsSmallInt() {
+		return Nil
+	}
+	index := idx.SmallInt()
+
+	// Handle arrays/objects
+	if rcvr.IsObject() {
+		obj := ObjectFromValue(rcvr)
+		if obj != nil {
+			if index < 0 || index >= int64(obj.NumSlots()) {
+				return Nil // Bounds error
+			}
+			return obj.GetSlot(int(index))
+		}
+	}
+
+	// Handle strings
+	if IsStringValue(rcvr) {
+		str := GetStringContent(rcvr)
+		if index < 0 || index >= int64(len(str)) {
+			return Nil // Bounds error
+		}
+		// Return character as small integer (ASCII/Unicode code point)
+		return FromSmallInt(int64(str[index]))
+	}
+
 	return Nil
 }
 
 func (i *Interpreter) primitiveAtPut(rcvr, idx, val Value) Value {
-	// Placeholder
+	if !idx.IsSmallInt() {
+		return val
+	}
+	index := idx.SmallInt()
+
+	// Handle arrays/objects
+	if rcvr.IsObject() {
+		obj := ObjectFromValue(rcvr)
+		if obj != nil {
+			if index < 0 || index >= int64(obj.NumSlots()) {
+				return val // Bounds error - return value anyway
+			}
+			obj.SetSlot(int(index), val)
+		}
+	}
+
+	// Strings are immutable, so at:put: on strings is a no-op
 	return val
 }
 
 func (i *Interpreter) primitiveSize(rcvr Value) Value {
-	// Placeholder
+	// Handle arrays/objects
+	if rcvr.IsObject() {
+		obj := ObjectFromValue(rcvr)
+		if obj != nil {
+			return FromSmallInt(int64(obj.NumSlots()))
+		}
+	}
+
+	// Handle strings
+	if IsStringValue(rcvr) {
+		str := GetStringContent(rcvr)
+		return FromSmallInt(int64(len(str)))
+	}
+
 	return FromSmallInt(0)
 }
 
