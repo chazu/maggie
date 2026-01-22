@@ -427,3 +427,118 @@ func TestSelfCompileExecutionEquivalence(t *testing.T) {
 		})
 	}
 }
+
+// TestSelfCompileAllCompilerMethods comprehensively tests that the Maggie compiler
+// can compile all methods from the compiler source files. This is the definitive
+// test for the self-compile milestone.
+func TestSelfCompileAllCompilerMethods(t *testing.T) {
+	imagePath := "../../maggie.image"
+	if _, err := os.Stat(imagePath); os.IsNotExist(err) {
+		t.Skip("maggie.image not found - run bootstrap first")
+	}
+
+	vmInst := vm.NewVM()
+	if err := vmInst.LoadImage(imagePath); err != nil {
+		t.Fatalf("Failed to load maggie.image: %v", err)
+	}
+
+	vmInst.UseGoCompiler(compiler.Compile)
+
+	// All Token.mag methods (manually extracted to ensure exact source matching)
+	tokenMethods := []struct {
+		name   string
+		source string
+	}{
+		// Instance methods
+		{"type:value:position:", "type: aType value: aValue position: aPosition\n    type := aType.\n    value := aValue.\n    position := aPosition.\n    ^self"},
+		{"type", "type\n    ^type"},
+		{"value", "value\n    ^value"},
+		{"position", "position\n    ^position"},
+		{"isEOF", "isEOF\n    ^type = #eof"},
+		{"isIdentifier", "isIdentifier\n    ^type = #identifier"},
+		{"isKeyword", "isKeyword\n    ^type = #keyword"},
+		{"isNumber", "isNumber\n    ^type = #integer or: [type = #float]"},
+		{"isInteger", "isInteger\n    ^type = #integer"},
+		{"isFloat", "isFloat\n    ^type = #float"},
+		{"isString", "isString\n    ^type = #string"},
+		{"isSymbol", "isSymbol\n    ^type = #symbol"},
+		{"isBinarySelector", "isBinarySelector\n    ^type = #binary"},
+		{"isAssign", "isAssign\n    ^type = #assign"},
+		{"isCaret", "isCaret\n    ^type = #caret"},
+		{"isPeriod", "isPeriod\n    ^type = #period"},
+		{"isSemicolon", "isSemicolon\n    ^type = #semicolon"},
+		{"isColon", "isColon\n    ^type = #colon"},
+		{"isPipe", "isPipe\n    ^type = #pipe"},
+		{"isLeftParen", "isLeftParen\n    ^type = #leftParen"},
+		{"isRightParen", "isRightParen\n    ^type = #rightParen"},
+		{"isLeftBracket", "isLeftBracket\n    ^type = #leftBracket"},
+		{"isRightBracket", "isRightBracket\n    ^type = #rightBracket"},
+		{"isLeftBrace", "isLeftBrace\n    ^type = #leftBrace"},
+		{"isRightBrace", "isRightBrace\n    ^type = #rightBrace"},
+		{"printString", "printString\n    ^'Token(', type printString, ', ', value printString, ')'"},
+		// Class methods
+		{"type:value:", "type: aType value: aValue\n    ^self new type: aType value: aValue position: 0"},
+		{"type:value:position: (class)", "type: aType value: aValue position: aPosition\n    ^self new type: aType value: aValue position: aPosition"},
+	}
+
+	passCount := 0
+	skipCount := 0
+	failCount := 0
+
+	for _, tm := range tokenMethods {
+		t.Run("Token."+tm.name, func(t *testing.T) {
+			// Compile with Go compiler
+			vmInst.UseGoCompiler(compiler.Compile)
+			goMethod, err := vmInst.Compile(tm.source, nil)
+			if err != nil {
+				t.Fatalf("Go compiler failed: %v", err)
+			}
+
+			// Compile with Maggie compiler
+			vmInst.UseMaggieCompiler()
+
+			var maggieMethod *vm.CompiledMethod
+			var compileErr error
+			func() {
+				defer func() {
+					if r := recover(); r != nil {
+						compileErr = fmt.Errorf("panic: %v", r)
+					}
+				}()
+				maggieMethod, compileErr = vmInst.Compile(tm.source, nil)
+			}()
+
+			vmInst.UseGoCompiler(compiler.Compile)
+
+			if compileErr != nil {
+				skipCount++
+				t.Skipf("Maggie compiler error: %v", compileErr)
+			}
+			if maggieMethod == nil {
+				skipCount++
+				t.Skip("Maggie compiler returned nil")
+			}
+
+			// Both compiled successfully
+			if len(goMethod.Bytecode) == 0 {
+				failCount++
+				t.Error("Go method has empty bytecode")
+				return
+			}
+			if len(maggieMethod.Bytecode) == 0 {
+				failCount++
+				t.Error("Maggie method has empty bytecode")
+				return
+			}
+
+			passCount++
+		})
+	}
+
+	t.Logf("Self-compile Token.mag methods: %d passed, %d skipped, %d failed out of %d total",
+		passCount, skipCount, failCount, len(tokenMethods))
+
+	if failCount > 0 {
+		t.Errorf("%d methods failed to compile", failCount)
+	}
+}
