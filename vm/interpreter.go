@@ -445,8 +445,21 @@ func (i *Interpreter) runFrame() Value {
 		case OpStoreGlobal:
 			idx := binary.LittleEndian.Uint16(bc[frame.IP:])
 			frame.IP += 2
-			// Store global would go here, value remains on stack
-			_ = idx
+			if int(idx) < len(literals) {
+				// Get global name from literal
+				globalName := ""
+				lit := literals[idx]
+				if lit.IsSymbol() && i.Symbols != nil {
+					globalName = i.Symbols.Name(lit.SymbolID())
+				} else if IsStringValue(lit) {
+					globalName = GetStringContent(lit)
+				}
+				if globalName != "" {
+					// Store the value (top of stack) to the global
+					// Value remains on stack (like other store operations)
+					i.Globals[globalName] = i.top()
+				}
+			}
 
 		case OpPushCaptured:
 			idx := bc[frame.IP]

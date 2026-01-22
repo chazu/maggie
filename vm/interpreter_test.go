@@ -986,3 +986,55 @@ func TestGarbageCollectionNestedObjects(t *testing.T) {
 		t.Errorf("collected = %d, want 2 (both should be unreachable)", collected)
 	}
 }
+
+// TestInterpreterStoreGlobal verifies that OpStoreGlobal actually stores to globals.
+func TestInterpreterStoreGlobal(t *testing.T) {
+	interp := NewInterpreter()
+	interp.Symbols = NewSymbolTable()
+
+	// Create a symbol for the global name
+	globalNameID := interp.Symbols.Intern("myGlobal")
+	globalNameValue := interp.Symbols.SymbolValue("myGlobal")
+
+	// Method: myGlobal := 42. ^myGlobal
+	b := NewCompiledMethodBuilder("test", 0)
+
+	// Add the global name as a literal
+	litIdx := b.AddLiteral(globalNameValue)
+
+	// Push value to store
+	b.Bytecode().EmitInt8(OpPushInt8, 42)
+
+	// Store to global (value stays on stack)
+	b.Bytecode().EmitUint16(OpStoreGlobal, uint16(litIdx))
+
+	// Pop the stored value
+	b.Bytecode().Emit(OpPOP)
+
+	// Push the global back to verify it was stored
+	b.Bytecode().EmitUint16(OpPushGlobal, uint16(litIdx))
+
+	b.Bytecode().Emit(OpReturnTop)
+	m := b.Build()
+
+	// Verify global doesn't exist before execution
+	if _, exists := interp.Globals["myGlobal"]; exists {
+		t.Fatal("global should not exist before execution")
+	}
+
+	result := interp.Execute(m, Nil, nil)
+
+	// Verify the global was stored
+	if val, exists := interp.Globals["myGlobal"]; !exists {
+		t.Error("global 'myGlobal' was not stored")
+	} else if !val.IsSmallInt() || val.SmallInt() != 42 {
+		t.Errorf("global value = %v, want 42", val)
+	}
+
+	// Verify the result (pushed from global) is correct
+	if !result.IsSmallInt() || result.SmallInt() != 42 {
+		t.Errorf("result = %v, want 42", result)
+	}
+
+	_ = globalNameID // silence unused warning
+}
