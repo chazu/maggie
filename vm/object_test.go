@@ -647,3 +647,122 @@ func BenchmarkBecome(b *testing.B) {
 		objA.Become(objB)
 	}
 }
+
+// ---------------------------------------------------------------------------
+// instVarAt: primitive tests
+// ---------------------------------------------------------------------------
+
+func TestInstVarAtPrimitive(t *testing.T) {
+	vm := NewVM()
+
+	// Create a class with instance variables
+	pointClass := NewClassWithInstVars("Point", vm.ObjectClass, []string{"x", "y"})
+	vm.Classes.Register(pointClass)
+
+	// Create an instance
+	point := pointClass.NewInstance()
+	point.SetSlot(0, FromSmallInt(10)) // x
+	point.SetSlot(1, FromSmallInt(20)) // y
+	pointVal := point.ToValue()
+
+	// Test instVarAt: 1 (1-based indexing)
+	result := vm.Send(pointVal, "instVarAt:", []Value{FromSmallInt(1)})
+	if !result.IsSmallInt() || result.SmallInt() != 10 {
+		t.Errorf("instVarAt: 1 = %v, want 10", result)
+	}
+
+	// Test instVarAt: 2
+	result = vm.Send(pointVal, "instVarAt:", []Value{FromSmallInt(2)})
+	if !result.IsSmallInt() || result.SmallInt() != 20 {
+		t.Errorf("instVarAt: 2 = %v, want 20", result)
+	}
+}
+
+func TestInstVarAtOutOfRange(t *testing.T) {
+	vm := NewVM()
+
+	pointClass := NewClassWithInstVars("Point", vm.ObjectClass, []string{"x", "y"})
+	vm.Classes.Register(pointClass)
+
+	point := pointClass.NewInstance()
+	pointVal := point.ToValue()
+
+	// Test out of range (index 0 in 1-based is invalid)
+	result := vm.Send(pointVal, "instVarAt:", []Value{FromSmallInt(0)})
+	if result != Nil {
+		t.Errorf("instVarAt: 0 should return nil, got %v", result)
+	}
+
+	// Test out of range (index 100)
+	result = vm.Send(pointVal, "instVarAt:", []Value{FromSmallInt(100)})
+	if result != Nil {
+		t.Errorf("instVarAt: 100 should return nil, got %v", result)
+	}
+}
+
+func TestInstVarAtNonObject(t *testing.T) {
+	vm := NewVM()
+
+	// Test on non-object (SmallInt)
+	result := vm.Send(FromSmallInt(42), "instVarAt:", []Value{FromSmallInt(1)})
+	if result != Nil {
+		t.Errorf("instVarAt: on SmallInt should return nil, got %v", result)
+	}
+}
+
+func TestInstVarAtPutPrimitive(t *testing.T) {
+	vm := NewVM()
+
+	pointClass := NewClassWithInstVars("Point", vm.ObjectClass, []string{"x", "y"})
+	vm.Classes.Register(pointClass)
+
+	point := pointClass.NewInstance()
+	pointVal := point.ToValue()
+
+	// Set x to 100
+	result := vm.Send(pointVal, "instVarAt:put:", []Value{FromSmallInt(1), FromSmallInt(100)})
+	if result != pointVal {
+		t.Error("instVarAt:put: should return receiver")
+	}
+
+	// Verify it was set
+	if point.GetSlot(0).SmallInt() != 100 {
+		t.Errorf("slot 0 = %d, want 100", point.GetSlot(0).SmallInt())
+	}
+
+	// Set y to 200
+	vm.Send(pointVal, "instVarAt:put:", []Value{FromSmallInt(2), FromSmallInt(200)})
+	if point.GetSlot(1).SmallInt() != 200 {
+		t.Errorf("slot 1 = %d, want 200", point.GetSlot(1).SmallInt())
+	}
+}
+
+func TestInstVarSizePrimitive(t *testing.T) {
+	vm := NewVM()
+
+	// Class with 2 instance variables
+	pointClass := NewClassWithInstVars("Point", vm.ObjectClass, []string{"x", "y"})
+	vm.Classes.Register(pointClass)
+
+	point := pointClass.NewInstance()
+	pointVal := point.ToValue()
+
+	// instVarSize should return at least 2 (might have inline slots)
+	result := vm.Send(pointVal, "instVarSize", nil)
+	if !result.IsSmallInt() {
+		t.Fatalf("instVarSize should return SmallInt, got %v", result)
+	}
+	if result.SmallInt() < 2 {
+		t.Errorf("instVarSize = %d, want >= 2", result.SmallInt())
+	}
+}
+
+func TestInstVarSizeNonObject(t *testing.T) {
+	vm := NewVM()
+
+	// instVarSize on non-object should return 0
+	result := vm.Send(FromSmallInt(42), "instVarSize", nil)
+	if !result.IsSmallInt() || result.SmallInt() != 0 {
+		t.Errorf("instVarSize on SmallInt = %v, want 0", result)
+	}
+}

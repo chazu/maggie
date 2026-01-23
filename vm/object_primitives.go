@@ -220,4 +220,68 @@ func (vm *VM) registerObjectPrimitives() {
 		}
 		return False
 	})
+
+	// ---------------------------------------------------------------------------
+	// Instance variable access primitives (for Inspector/reflection)
+	// ---------------------------------------------------------------------------
+
+	// instVarAt: index - Return the value of the instance variable at index (1-based)
+	// Returns nil for non-objects or out-of-range indices
+	c.AddMethod1(vm.Selectors, "instVarAt:", func(_ interface{}, recv Value, index Value) Value {
+		if !recv.IsObject() {
+			return Nil
+		}
+		if !index.IsSmallInt() {
+			return Nil
+		}
+		idx := int(index.SmallInt()) - 1 // Convert to 0-based
+		if idx < 0 {
+			return Nil
+		}
+		obj := ObjectFromValue(recv)
+		if obj == nil {
+			return Nil
+		}
+		if idx >= obj.NumSlots() {
+			return Nil
+		}
+		return obj.GetSlot(idx)
+	})
+
+	// instVarAt:put: index value - Set the instance variable at index (1-based)
+	// Returns the receiver. Does nothing for non-objects or out-of-range indices.
+	c.AddMethod2(vm.Selectors, "instVarAt:put:", func(_ interface{}, recv Value, index Value, value Value) Value {
+		if !recv.IsObject() {
+			return recv
+		}
+		if !index.IsSmallInt() {
+			return recv
+		}
+		idx := int(index.SmallInt()) - 1 // Convert to 0-based
+		if idx < 0 {
+			return recv
+		}
+		obj := ObjectFromValue(recv)
+		if obj == nil {
+			return recv
+		}
+		if idx >= obj.NumSlots() {
+			return recv
+		}
+		obj.SetSlot(idx, value)
+		return recv
+	})
+
+	// instVarSize - Return the number of instance variables
+	// Returns 0 for non-objects
+	c.AddMethod0(vm.Selectors, "instVarSize", func(_ interface{}, recv Value) Value {
+		if !recv.IsObject() {
+			return FromSmallInt(0)
+		}
+		obj := ObjectFromValue(recv)
+		if obj == nil {
+			return FromSmallInt(0)
+		}
+		return FromSmallInt(int64(obj.NumSlots()))
+	})
 }
