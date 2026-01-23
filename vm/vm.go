@@ -52,6 +52,9 @@ type VM struct {
 	// AOT compiled methods - maps (class, method) to AOT-compiled functions.
 	// When set, these are used instead of interpreting bytecode.
 	aotMethods AOTDispatchTable
+
+	// JIT compiler for adaptive compilation of hot methods
+	jit *JITCompiler
 }
 
 // NewVM creates and bootstraps a new VM.
@@ -294,6 +297,28 @@ func (vm *VM) Execute(method *CompiledMethod, receiver Value, args []Value) Valu
 // GetProfiler returns the VM's profiler for inspecting hot code detection.
 func (vm *VM) GetProfiler() *Profiler {
 	return vm.interpreter.Profiler
+}
+
+// EnableJIT enables the JIT compiler for adaptive compilation of hot methods.
+// Returns the JIT compiler for configuration.
+func (vm *VM) EnableJIT() *JITCompiler {
+	if vm.jit == nil {
+		vm.jit = NewJITCompiler(vm)
+	}
+	vm.jit.Enabled = true
+	return vm.jit
+}
+
+// DisableJIT disables the JIT compiler.
+func (vm *VM) DisableJIT() {
+	if vm.jit != nil {
+		vm.jit.Enabled = false
+	}
+}
+
+// GetJIT returns the JIT compiler, or nil if not enabled.
+func (vm *VM) GetJIT() *JITCompiler {
+	return vm.jit
 }
 
 // Send sends a message to a receiver.

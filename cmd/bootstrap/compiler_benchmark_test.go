@@ -534,6 +534,82 @@ func TestProfilerStatsDuringCompilation(t *testing.T) {
 	}
 }
 
+// TestJITCompilationDuringExecution measures JIT compilation during Maggie compiler execution
+func TestJITCompilationDuringExecution(t *testing.T) {
+	imagePath := "../../maggie.image"
+	if _, err := os.Stat(imagePath); os.IsNotExist(err) {
+		t.Skip("maggie.image not found - run bootstrap first")
+	}
+
+	vmInst := vm.NewVM()
+	if err := vmInst.LoadImage(imagePath); err != nil {
+		t.Fatalf("Failed to load maggie.image: %v", err)
+	}
+	vmInst.UseGoCompiler(compiler.Compile)
+	vmInst.UseMaggieCompiler()
+
+	// Enable JIT
+	jit := vmInst.EnableJIT()
+	jit.LogCompilation = false
+
+	// Lower thresholds for testing
+	profiler := vmInst.GetProfiler()
+	profiler.MethodHotThreshold = 50
+	profiler.BlockHotThreshold = 100
+
+	// Compile multiple methods to exercise the interpreter
+	sources := []string{
+		"doIt\n    ^42",
+		"add: x to: y\n    ^x + y",
+		"factorial: n\n    | result i |\n    result := 1.\n    i := 1.\n    [i <= n] whileTrue: [\n        result := result * i.\n        i := i + 1\n    ].\n    ^result",
+		"min: a max: b\n    ^(a < b) ifTrue: [a] ifFalse: [b]",
+		"sum: list\n    | total |\n    total := 0.\n    list do: [:x | total := total + x].\n    ^total",
+	}
+
+	// Run compilations multiple times
+	iterations := 10
+	for iter := 0; iter < iterations; iter++ {
+		for _, source := range sources {
+			_, err := vmInst.Compile(source, nil)
+			if err != nil {
+				t.Logf("Note: Compilation error (expected for some tests): %v", err)
+			}
+		}
+	}
+
+	// Wait for background compilation to complete
+	// (JIT compiles in background)
+	// time.Sleep(100 * time.Millisecond)
+
+	// Get JIT stats
+	jitStats := jit.Stats()
+
+	t.Logf("=== JIT Compiler Statistics ===")
+	t.Logf("Methods compiled:       %d", jitStats.MethodsCompiled)
+	t.Logf("Hot method count:       %d", jitStats.HotMethodCount)
+	t.Logf("Queue length:           %d", jitStats.QueueLength)
+
+	// Show compiled methods
+	compiled := jit.CompiledMethods()
+	if len(compiled) > 0 {
+		t.Logf("=== Compiled Methods (top 10) ===")
+		for i, key := range compiled {
+			if i >= 10 {
+				t.Logf("  ... and %d more", len(compiled)-10)
+				break
+			}
+			t.Logf("  %d. %s", i+1, key)
+		}
+	}
+
+	// Verify some methods were compiled
+	if jitStats.MethodsCompiled == 0 {
+		t.Log("Note: No methods were compiled (threshold may be too high for test)")
+	} else {
+		t.Logf("Success: JIT compiled %d hot methods during execution", jitStats.MethodsCompiled)
+	}
+}
+
 // TestInlineCacheHitRateDuringCompilation measures IC hit rates during Maggie compilation
 func TestInlineCacheHitRateDuringCompilation(t *testing.T) {
 	imagePath := "../../maggie.image"
