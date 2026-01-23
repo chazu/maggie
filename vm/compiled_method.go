@@ -21,6 +21,9 @@ type CompiledMethod struct {
 	Literals []Value // constant pool (numbers, strings, symbols, classes)
 	Bytecode []byte  // the bytecode instructions
 
+	// Runtime optimization
+	InlineCaches *InlineCacheTable // inline caches for call sites (lazily created)
+
 	// Nested blocks
 	Blocks []*BlockMethod // block methods referenced by CREATE_BLOCK
 
@@ -96,6 +99,15 @@ func (m *CompiledMethod) SetClass(c *Class) {
 // SetSelector sets the selector ID.
 func (m *CompiledMethod) SetSelector(sel int) {
 	m.selector = sel
+}
+
+// GetInlineCaches returns the inline cache table, creating it if needed.
+// This is thread-safe for concurrent reads but not concurrent writes.
+func (m *CompiledMethod) GetInlineCaches() *InlineCacheTable {
+	if m.InlineCaches == nil {
+		m.InlineCaches = NewInlineCacheTable()
+	}
+	return m.InlineCaches
 }
 
 // ---------------------------------------------------------------------------

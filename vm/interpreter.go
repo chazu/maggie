@@ -803,6 +803,7 @@ func (i *Interpreter) runFrame() Value {
 // ---------------------------------------------------------------------------
 
 // send performs a message send via VTable lookup.
+// Uses inline caching for faster dispatch on monomorphic call sites.
 func (i *Interpreter) send(selector int, argc int) (result Value) {
 	args := i.popN(argc)
 	rcvr := i.pop()
@@ -814,11 +815,40 @@ func (i *Interpreter) send(selector int, argc int) (result Value) {
 		return Nil
 	}
 
-	// Lookup the method
-	method := vt.Lookup(selector)
+	// Get receiver's class for inline cache lookup
+	receiverClass := vt.Class()
+
+	// Try inline cache first (if we have a calling method context)
+	var method Method
+	var ic *InlineCache
+
+	callerFrame := i.frames[i.fp]
+	if callerFrame != nil && callerFrame.Method != nil && !callerFrame.IsBlock() {
+		// Calculate call site PC (IP is past the SEND instruction)
+		// OpSend = 1 byte opcode + 2 byte selector + 1 byte argc = 4 bytes
+		callSitePC := callerFrame.IP - 4
+
+		// Get or create inline cache for this call site
+		ic = callerFrame.Method.GetInlineCaches().GetOrCreate(callSitePC)
+
+		// Check cache
+		if cachedMethod := ic.Lookup(receiverClass); cachedMethod != nil {
+			method = cachedMethod
+		}
+	}
+
+	// Cache miss - do full vtable lookup
 	if method == nil {
-		// Method not found - would trigger doesNotUnderstand:
-		return Nil
+		method = vt.Lookup(selector)
+		if method == nil {
+			// Method not found - would trigger doesNotUnderstand:
+			return Nil
+		}
+
+		// Update cache on miss
+		if ic != nil {
+			ic.Update(receiverClass, method)
+		}
 	}
 
 	// Check if it's a compiled method or primitive

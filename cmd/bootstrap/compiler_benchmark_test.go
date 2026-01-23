@@ -453,3 +453,71 @@ func BenchmarkMaggieCompilerAllocs(b *testing.B) {
 		_, _ = vmInst.Compile(source, nil)
 	}
 }
+
+// =============================================================================
+// Inline Cache Statistics
+// =============================================================================
+
+// TestInlineCacheHitRateDuringCompilation measures IC hit rates during Maggie compilation
+func TestInlineCacheHitRateDuringCompilation(t *testing.T) {
+	imagePath := "../../maggie.image"
+	if _, err := os.Stat(imagePath); os.IsNotExist(err) {
+		t.Skip("maggie.image not found - run bootstrap first")
+	}
+
+	vmInst := vm.NewVM()
+	if err := vmInst.LoadImage(imagePath); err != nil {
+		t.Fatalf("Failed to load maggie.image: %v", err)
+	}
+	vmInst.UseGoCompiler(compiler.Compile)
+	vmInst.UseMaggieCompiler()
+
+	// Compile multiple methods to exercise the interpreter and build up IC data
+	sources := []string{
+		"doIt\n    ^42",
+		"add: x to: y\n    ^x + y",
+		"factorial: n\n    | result i |\n    result := 1.\n    i := 1.\n    [i <= n] whileTrue: [\n        result := result * i.\n        i := i + 1\n    ].\n    ^result",
+		"min: a max: b\n    ^(a < b) ifTrue: [a] ifFalse: [b]",
+		"sum: list\n    | total |\n    total := 0.\n    list do: [:x | total := total + x].\n    ^total",
+	}
+
+	// Run compilations multiple times to warm up caches
+	iterations := 10
+	for iter := 0; iter < iterations; iter++ {
+		for _, source := range sources {
+			_, err := vmInst.Compile(source, nil)
+			if err != nil {
+				t.Logf("Note: Compilation error (expected for some tests): %v", err)
+			}
+		}
+	}
+
+	// Collect stats
+	stats := vm.CollectICStats(vmInst.Classes)
+
+	t.Logf("=== Inline Cache Statistics ===")
+	t.Logf("Total call sites:     %d", stats.TotalCallSites)
+	t.Logf("  Monomorphic:        %d (%.1f%%)", stats.Monomorphic, stats.MonomorphicRate)
+	t.Logf("  Polymorphic:        %d", stats.Polymorphic)
+	t.Logf("  Megamorphic:        %d", stats.Megamorphic)
+	t.Logf("  Empty:              %d", stats.Empty)
+	t.Logf("Total hits:           %d", stats.TotalHits)
+	t.Logf("Total misses:         %d", stats.TotalMisses)
+	t.Logf("Hit rate:             %.2f%%", stats.HitRate)
+
+	// Verify we have reasonable stats (sanity check)
+	if stats.TotalCallSites == 0 {
+		t.Error("No call sites found - IC might not be instrumented correctly")
+	}
+
+	// Check hit rate is reasonable (based on Cog VM expectation of ~90% monomorphic)
+	if stats.HitRate > 0 && stats.HitRate < 50 {
+		t.Logf("Warning: Hit rate (%.2f%%) is lower than expected", stats.HitRate)
+	}
+
+	// Log expected Cog VM distribution comparison
+	t.Logf("=== Cog VM Expected Distribution ===")
+	t.Logf("  Monomorphic: ~90%% of call sites")
+	t.Logf("  Polymorphic: ~9%% of call sites")
+	t.Logf("  Megamorphic: ~1%% of call sites")
+}
