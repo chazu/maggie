@@ -40,6 +40,7 @@ const (
 	tagSymbol  uint64 = 0x0004000000000000 // Interned symbol ID
 	tagBlock   uint64 = 0x0005000000000000 // Block closure ID
 	tagCell    uint64 = 0x0006000000000000 // Mutable cell for captured variables
+	tagContext uint64 = 0x0007000000000000 // Execution context ID
 
 	// Sign bit for 48-bit integer sign extension
 	intSignBit uint64 = 0x0000800000000000
@@ -259,6 +260,28 @@ func (v Value) BlockID() uint32 {
 // FromBlockID creates a Value from a block ID.
 func FromBlockID(id uint32) Value {
 	return Value(nanBits | tagBlock | uint64(id))
+}
+
+// ---------------------------------------------------------------------------
+// Contexts (execution context / activation records)
+// ---------------------------------------------------------------------------
+
+// IsContext returns true if v represents an execution context.
+func (v Value) IsContext() bool {
+	return (uint64(v) & (nanBits | tagMask)) == (nanBits | tagContext)
+}
+
+// ContextID returns the context registry ID.
+func (v Value) ContextID() uint32 {
+	if !v.IsContext() {
+		panic("Value.ContextID: not a context")
+	}
+	return uint32(uint64(v) & payloadMask)
+}
+
+// FromContextID creates a Value from a context ID.
+func FromContextID(id uint32) Value {
+	return Value(nanBits | tagContext | uint64(id))
 }
 
 // ---------------------------------------------------------------------------

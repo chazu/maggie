@@ -437,6 +437,11 @@ func (i *Interpreter) runFrame() Value {
 			frame.IP += 8
 			i.push(Value(bits))
 
+		case OpPushContext:
+			// Create a reified context (thisContext) representing the current execution state
+			ctx := i.createContext(frame)
+			i.push(RegisterContext(ctx))
+
 		// --- Variables ---
 		case OpPushTemp:
 			idx := bc[frame.IP]
@@ -1007,6 +1012,10 @@ func (i *Interpreter) vtableFor(v Value) *VTable {
 		if c := i.Classes.Lookup("Block"); c != nil {
 			return c.VTable
 		}
+	case v.IsContext():
+		if c := i.Classes.Lookup("Context"); c != nil {
+			return c.VTable
+		}
 	case v.IsSymbol():
 		// Check for special symbol-encoded values first
 		if IsStringValue(v) {
@@ -1067,6 +1076,129 @@ func (i *Interpreter) vtableFor(v Value) *VTable {
 		}
 	}
 	return nil
+}
+
+// ---------------------------------------------------------------------------
+// Context support (thisContext)
+// ---------------------------------------------------------------------------
+
+// createContext creates a ContextValue from the current execution state.
+// This captures the state of a CallFrame at the current moment.
+func (i *Interpreter) createContext(frame *CallFrame) *ContextValue {
+	ctx := &ContextValue{
+		Receiver:   frame.Self(),
+		IP:         frame.IP,
+		FrameIndex: i.fp,
+		SenderID:   -1,
+		HomeID:     -1,
+	}
+
+	// Set method or block
+	if frame.Block != nil {
+		ctx.Block = frame.Block
+		ctx.Captures = make([]Value, len(frame.Captures))
+		copy(ctx.Captures, frame.Captures)
+	} else {
+		ctx.Method = frame.Method
+	}
+
+	// Copy arguments (first NumArgs temps)
+	numArgs := 0
+	if frame.Block != nil {
+		numArgs = frame.Block.Arity
+	} else if frame.Method != nil {
+		numArgs = frame.Method.Arity
+	}
+	if numArgs > 0 {
+		ctx.Args = make([]Value, numArgs)
+		for j := 0; j < numArgs && frame.BP+j < i.sp; j++ {
+			ctx.Args[j] = i.stack[frame.BP+j]
+		}
+	}
+
+	// Copy all temps
+	numTemps := 0
+	if frame.Block != nil {
+		numTemps = frame.Block.NumTemps
+	} else if frame.Method != nil {
+		numTemps = frame.Method.NumTemps
+	}
+	if numTemps > 0 {
+		ctx.Temps = make([]Value, numTemps)
+		for j := 0; j < numTemps && frame.BP+j < i.sp; j++ {
+			ctx.Temps[j] = i.stack[frame.BP+j]
+		}
+	}
+
+	// Set sender (calling context) if there is one
+	if i.fp > 0 {
+		// Create context for sender frame
+		senderCtx := i.createContextForFrame(i.fp - 1)
+		ctx.SenderID = int32(globalContextRegistry.Register(senderCtx))
+	}
+
+	// Set home context for blocks
+	if frame.Block != nil && frame.HomeFrame >= 0 {
+		homeCtx := i.createContextForFrame(frame.HomeFrame)
+		ctx.HomeID = int32(globalContextRegistry.Register(homeCtx))
+	}
+
+	return ctx
+}
+
+// createContextForFrame creates a context for a specific frame index.
+// This is used for sender chain creation.
+func (i *Interpreter) createContextForFrame(frameIdx int) *ContextValue {
+	if frameIdx < 0 || frameIdx > i.fp {
+		return nil
+	}
+	frame := i.frames[frameIdx]
+	if frame == nil {
+		return nil
+	}
+
+	ctx := &ContextValue{
+		Receiver:   frame.Self(),
+		IP:         frame.IP,
+		FrameIndex: frameIdx,
+		SenderID:   -1,
+		HomeID:     -1,
+	}
+
+	if frame.Block != nil {
+		ctx.Block = frame.Block
+		ctx.Captures = make([]Value, len(frame.Captures))
+		copy(ctx.Captures, frame.Captures)
+	} else {
+		ctx.Method = frame.Method
+	}
+
+	// Copy args and temps
+	numArgs := 0
+	numTemps := 0
+	if frame.Block != nil {
+		numArgs = frame.Block.Arity
+		numTemps = frame.Block.NumTemps
+	} else if frame.Method != nil {
+		numArgs = frame.Method.Arity
+		numTemps = frame.Method.NumTemps
+	}
+
+	if numArgs > 0 {
+		ctx.Args = make([]Value, numArgs)
+		for j := 0; j < numArgs && frame.BP+j < len(i.stack); j++ {
+			ctx.Args[j] = i.stack[frame.BP+j]
+		}
+	}
+
+	if numTemps > 0 {
+		ctx.Temps = make([]Value, numTemps)
+		for j := 0; j < numTemps && frame.BP+j < len(i.stack); j++ {
+			ctx.Temps[j] = i.stack[frame.BP+j]
+		}
+	}
+
+	return ctx
 }
 
 // ---------------------------------------------------------------------------

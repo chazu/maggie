@@ -202,9 +202,32 @@ func (c *AOTCompiler) compileBytecode(bc []byte, isBlock bool) {
 			c.writeLine("sp++")
 
 		case OpPushContext:
-			c.writeLine("// PUSH_CONTEXT - thisContext not available in AOT")
-			c.writeLine("stack[sp] = Nil")
-			c.writeLine("sp++")
+			// Create a minimal context for AOT-compiled code
+			// Note: This context won't have a sender chain since we're outside the interpreter
+			if isBlock {
+				c.writeLine("{ // PUSH_CONTEXT (block)")
+				c.writeLine("  ctx := &ContextValue{")
+				c.writeLine("    Receiver: self,")
+				c.writeLine("    Args:     args,")
+				c.writeLine("    Captures: captures,")
+				c.writeLine("    SenderID: -1,")
+				c.writeLine("    HomeID:   -1,")
+				c.writeLine("  }")
+				c.writeLine("  stack[sp] = RegisterContext(ctx)")
+				c.writeLine("  sp++")
+				c.writeLine("}")
+			} else {
+				c.writeLine("{ // PUSH_CONTEXT (method)")
+				c.writeLine("  ctx := &ContextValue{")
+				c.writeLine("    Receiver: self,")
+				c.writeLine("    Args:     args,")
+				c.writeLine("    SenderID: -1,")
+				c.writeLine("    HomeID:   -1,")
+				c.writeLine("  }")
+				c.writeLine("  stack[sp] = RegisterContext(ctx)")
+				c.writeLine("  sp++")
+				c.writeLine("}")
+			}
 
 		case OpPushTemp:
 			idx := bc[pos]
