@@ -39,6 +39,7 @@ type VM struct {
 	GrpcClientClass        *Class
 	GrpcStreamClass        *Class
 	ContextClass           *Class
+	WeakReferenceClass     *Class
 
 	// Exception hierarchy
 	ExceptionClass             *Class
@@ -60,6 +61,9 @@ type VM struct {
 	// Uses a map for O(1) lookup and removal during garbage collection.
 	keepAlive map[*Object]struct{}
 
+	// weakRefs tracks weak references for the GC to process.
+	weakRefs *WeakRegistry
+
 	// AOT compiled methods - maps (class, method) to AOT-compiled functions.
 	// When set, these are used instead of interpreting bytecode.
 	aotMethods AOTDispatchTable
@@ -77,6 +81,7 @@ func NewVM() *VM {
 		Traits:    NewTraitTable(),
 		Globals:   make(map[string]Value),
 		keepAlive: make(map[*Object]struct{}),
+		weakRefs:  NewWeakRegistry(),
 	}
 
 	// Bootstrap core classes
@@ -152,6 +157,9 @@ func (vm *VM) bootstrap() {
 	// Phase 5e: Create Context class for thisContext
 	vm.ContextClass = vm.createClass("Context", vm.ObjectClass)
 
+	// Phase 5g: Create WeakReference class
+	vm.WeakReferenceClass = vm.createClass("WeakReference", vm.ObjectClass)
+
 	// Phase 5f: Create Exception class hierarchy
 	vm.bootstrapExceptionClasses()
 
@@ -172,6 +180,7 @@ func (vm *VM) bootstrap() {
 	vm.registerContextPrimitives()
 	vm.registerExceptionPrimitives()
 	vm.registerExceptionBlockPrimitives()
+	vm.registerWeakReferencePrimitives()
 
 	// Phase 7: Set up globals
 	vm.Globals["Object"] = vm.classValue(vm.ObjectClass)
@@ -195,6 +204,7 @@ func (vm *VM) bootstrap() {
 	vm.Globals["GrpcClient"] = vm.classValue(vm.GrpcClientClass)
 	vm.Globals["GrpcStream"] = vm.classValue(vm.GrpcStreamClass)
 	vm.Globals["Context"] = vm.classValue(vm.ContextClass)
+	vm.Globals["WeakReference"] = vm.classValue(vm.WeakReferenceClass)
 
 	// Well-known symbols
 	vm.Globals["nil"] = Nil
@@ -256,6 +266,8 @@ func (vm *VM) primitiveClass(v Value) Value {
 		className = "Block"
 	case IsStringValue(v):
 		className = "String"
+	case v.IsWeakRef():
+		className = "WeakReference"
 	case v.IsSymbol():
 		className = "Symbol"
 	case v.IsObject():
@@ -295,6 +307,8 @@ func (vm *VM) ClassFor(v Value) *Class {
 			return exObj.ExceptionClass
 		}
 		return vm.ExceptionClass
+	case v.IsWeakRef():
+		return vm.WeakReferenceClass
 	case IsStringValue(v):
 		return vm.StringClass
 	case IsDictionaryValue(v):
@@ -385,6 +399,8 @@ func (vm *VM) Send(receiver Value, selector string, args []Value) Value {
 			} else {
 				class = vm.ExceptionClass
 			}
+		} else if receiver.IsWeakRef() {
+			class = vm.WeakReferenceClass
 		} else {
 			// Check if this symbol represents a class name (for class-side messages)
 			// This handles cases like: Channel new, Process sleep: 100
@@ -533,6 +549,11 @@ func (vm *VM) CollectGarbage() int {
 		}
 	}
 
+	// Process weak references: clear refs to unmarked objects and run finalizers
+	if vm.weakRefs != nil {
+		vm.weakRefs.ProcessGC(marked)
+	}
+
 	// Sweep phase: remove unmarked objects from keepAlive
 	collected := 0
 	for obj := range vm.keepAlive {
@@ -574,4 +595,26 @@ func (vm *VM) markValue(v Value, marked map[*Object]struct{}) {
 // Useful for testing and debugging.
 func (vm *VM) KeepAliveCount() int {
 	return len(vm.keepAlive)
+}
+
+// ---------------------------------------------------------------------------
+// Weak References
+// ---------------------------------------------------------------------------
+
+// NewWeakRef creates a new weak reference to the given object.
+// The weak reference is registered with the VM's weak reference registry.
+func (vm *VM) NewWeakRef(target *Object) *WeakReference {
+	wr := NewWeakReference(target)
+	vm.weakRefs.Register(wr)
+	return wr
+}
+
+// LookupWeakRef looks up a weak reference by ID.
+func (vm *VM) LookupWeakRef(id uint32) *WeakReference {
+	return vm.weakRefs.Lookup(id)
+}
+
+// WeakRefCount returns the number of registered weak references.
+func (vm *VM) WeakRefCount() int {
+	return vm.weakRefs.Count()
 }
