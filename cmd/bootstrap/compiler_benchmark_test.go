@@ -458,6 +458,82 @@ func BenchmarkMaggieCompilerAllocs(b *testing.B) {
 // Inline Cache Statistics
 // =============================================================================
 
+// TestProfilerStatsDuringCompilation measures method/block profiling during Maggie compilation
+func TestProfilerStatsDuringCompilation(t *testing.T) {
+	imagePath := "../../maggie.image"
+	if _, err := os.Stat(imagePath); os.IsNotExist(err) {
+		t.Skip("maggie.image not found - run bootstrap first")
+	}
+
+	vmInst := vm.NewVM()
+	if err := vmInst.LoadImage(imagePath); err != nil {
+		t.Fatalf("Failed to load maggie.image: %v", err)
+	}
+	vmInst.UseGoCompiler(compiler.Compile)
+	vmInst.UseMaggieCompiler()
+
+	// Compile multiple methods to exercise the interpreter
+	sources := []string{
+		"doIt\n    ^42",
+		"add: x to: y\n    ^x + y",
+		"factorial: n\n    | result i |\n    result := 1.\n    i := 1.\n    [i <= n] whileTrue: [\n        result := result * i.\n        i := i + 1\n    ].\n    ^result",
+		"min: a max: b\n    ^(a < b) ifTrue: [a] ifFalse: [b]",
+		"sum: list\n    | total |\n    total := 0.\n    list do: [:x | total := total + x].\n    ^total",
+	}
+
+	// Run compilations multiple times
+	iterations := 10
+	for iter := 0; iter < iterations; iter++ {
+		for _, source := range sources {
+			_, err := vmInst.Compile(source, nil)
+			if err != nil {
+				t.Logf("Note: Compilation error (expected for some tests): %v", err)
+			}
+		}
+	}
+
+	// Get profiler stats from the VM
+	profiler := vmInst.GetProfiler()
+	stats := profiler.Stats()
+
+	t.Logf("=== Profiler Statistics ===")
+	t.Logf("Total methods profiled: %d", stats.TotalMethods)
+	t.Logf("Total blocks profiled:  %d", stats.TotalBlocks)
+	t.Logf("Hot methods:            %d", stats.HotMethods)
+	t.Logf("Hot blocks:             %d", stats.HotBlocks)
+	t.Logf("Method invocations:     %d", stats.MethodInvocations)
+	t.Logf("Block invocations:      %d", stats.BlockInvocations)
+	t.Logf("Total invocations:      %d", stats.TotalInvocations)
+
+	// Show top 5 methods
+	topMethods := profiler.TopMethods(5)
+	t.Logf("=== Top 5 Methods ===")
+	for i, m := range topMethods {
+		profile := profiler.GetMethodProfile(m)
+		t.Logf("  %d. %s (invocations: %d, hot: %v)", i+1, m.String(), profile.InvocationCount, profile.IsHot)
+	}
+
+	// Show top 5 blocks
+	topBlocks := profiler.TopBlocks(5)
+	t.Logf("=== Top 5 Blocks ===")
+	for i, b := range topBlocks {
+		profile := profiler.GetBlockProfile(b)
+		ownerName := "<unknown>"
+		if profile.OwningMethod != nil {
+			ownerName = profile.OwningMethod.String()
+		}
+		t.Logf("  %d. block in %s (invocations: %d, hot: %v)", i+1, ownerName, profile.InvocationCount, profile.IsHot)
+	}
+
+	// Sanity checks
+	if stats.TotalMethods == 0 {
+		t.Error("No methods profiled - profiler might not be instrumented correctly")
+	}
+	if stats.TotalInvocations == 0 {
+		t.Error("No invocations recorded")
+	}
+}
+
 // TestInlineCacheHitRateDuringCompilation measures IC hit rates during Maggie compilation
 func TestInlineCacheHitRateDuringCompilation(t *testing.T) {
 	imagePath := "../../maggie.image"

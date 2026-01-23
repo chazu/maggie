@@ -74,6 +74,9 @@ type Interpreter struct {
 	frames []*CallFrame // call stack
 	fp     int          // frame pointer (current frame index)
 
+	// Profiling (for JIT hot code detection)
+	Profiler *Profiler
+
 	// Well-known selector IDs (cached for fast dispatch)
 	selectorPlus    int
 	selectorMinus   int
@@ -106,6 +109,7 @@ func NewInterpreter() *Interpreter {
 		sp:        0,
 		frames:    make([]*CallFrame, 256), // Fixed-size frame stack
 		fp:        -1,
+		Profiler:  NewProfiler(),
 	}
 
 	// Pre-intern common selectors
@@ -246,6 +250,11 @@ func (i *Interpreter) pushFrame(method *CompiledMethod, receiver Value, args []V
 		IP:       0,
 		BP:       bp,
 	}
+
+	// Profile method invocation
+	if i.Profiler != nil {
+		i.Profiler.RecordMethodInvocation(method)
+	}
 }
 
 func (i *Interpreter) pushBlockFrame(block *BlockMethod, captures []Value, args []Value, homeFrame int, homeBP int, homeSelf Value) {
@@ -277,6 +286,26 @@ func (i *Interpreter) pushBlockFrame(block *BlockMethod, captures []Value, args 
 		HomeFrame: homeFrame,
 		HomeBP:    homeBP,
 		HomeSelf:  homeSelf,
+	}
+
+	// Profile block invocation
+	if i.Profiler != nil {
+		// Try to get the owning method from the home frame
+		var ownerMethod *CompiledMethod
+		blockIndex := -1
+		if homeFrame >= 0 && homeFrame < len(i.frames) && i.frames[homeFrame] != nil {
+			ownerMethod = i.frames[homeFrame].Method
+			// Find block index in owner method
+			if ownerMethod != nil {
+				for idx, b := range ownerMethod.Blocks {
+					if b == block {
+						blockIndex = idx
+						break
+					}
+				}
+			}
+		}
+		i.Profiler.RecordBlockInvocation(block, ownerMethod, blockIndex)
 	}
 }
 

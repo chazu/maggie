@@ -291,6 +291,11 @@ func (vm *VM) Execute(method *CompiledMethod, receiver Value, args []Value) Valu
 	return vm.interpreter.Execute(method, receiver, args)
 }
 
+// GetProfiler returns the VM's profiler for inspecting hot code detection.
+func (vm *VM) GetProfiler() *Profiler {
+	return vm.interpreter.Profiler
+}
+
 // Send sends a message to a receiver.
 func (vm *VM) Send(receiver Value, selector string, args []Value) Value {
 	selectorID := vm.Selectors.Intern(selector)
