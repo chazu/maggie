@@ -129,26 +129,33 @@ Inspector subclass: Object
       mainFlex title: 'Inspector: ', (self classNameOf: inspectedObject)
   ]
 
-  # Object introspection (placeholder implementations)
+  # Object introspection
   method: classNameOf: anObject [
-      # In real implementation, use anObject class name
+      "Return the class name of an object as a string."
       anObject isNil ifTrue: [^'UndefinedObject'].
-      (anObject isKindOf: Boolean) ifTrue: [
-          anObject ifTrue: [^'True'] ifFalse: [^'False']
-      ].
       ^anObject class name
   ]
 
   method: instanceVariablesOf: anObject [
-      # In real implementation, query class for ivar names
-      # Placeholder
-      ^#('instVar1' 'instVar2' 'instVar3')
+      "Return an array of instance variable names for the object."
+      anObject isNil ifTrue: [^Array new].
+      ^anObject class allInstVarNames
   ]
 
   method: valueOf: slotName in: anObject [
-      # In real implementation, use instVarAt: or instVarNamed:
-      # Placeholder
-      ^nil
+      "Return the value of the named instance variable."
+      | varNames index |
+      anObject isNil ifTrue: [^nil].
+
+      varNames := self instanceVariablesOf: anObject.
+      index := varNames indexOf: slotName.
+      index = 0 ifTrue: [
+          "Try as symbol if string lookup failed"
+          index := varNames indexOf: slotName asSymbol
+      ].
+      index = 0 ifTrue: [^nil].
+
+      ^anObject instVarAt: index
   ]
 
   method: formatValue: value [
