@@ -77,6 +77,9 @@ type Interpreter struct {
 	// Profiling (for JIT hot code detection)
 	Profiler *Profiler
 
+	// Exception handling
+	exceptionHandlers *ExceptionHandler // Stack of installed exception handlers
+
 	// Well-known selector IDs (cached for fast dispatch)
 	selectorPlus    int
 	selectorMinus   int
@@ -1020,6 +1023,16 @@ func (i *Interpreter) vtableFor(v Value) *VTable {
 		// Check for special symbol-encoded values first
 		if IsStringValue(v) {
 			if c := i.Classes.Lookup("String"); c != nil {
+				return c.VTable
+			}
+		}
+		if v.IsException() {
+			// Get the specific exception class from the exception object
+			exObj := GetExceptionObject(v)
+			if exObj != nil && exObj.ExceptionClass != nil {
+				return exObj.ExceptionClass.VTable
+			}
+			if c := i.Classes.Lookup("Exception"); c != nil {
 				return c.VTable
 			}
 		}

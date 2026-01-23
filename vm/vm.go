@@ -40,6 +40,16 @@ type VM struct {
 	GrpcStreamClass        *Class
 	ContextClass           *Class
 
+	// Exception hierarchy
+	ExceptionClass             *Class
+	ErrorClass                 *Class
+	MessageNotUnderstoodClass  *Class
+	ZeroDivideClass            *Class
+	SubscriptOutOfBoundsClass  *Class
+	WarningClass               *Class
+	HaltClass                  *Class
+	NotificationClass          *Class
+
 	// Interpreter
 	interpreter *Interpreter
 
@@ -142,6 +152,9 @@ func (vm *VM) bootstrap() {
 	// Phase 5e: Create Context class for thisContext
 	vm.ContextClass = vm.createClass("Context", vm.ObjectClass)
 
+	// Phase 5f: Create Exception class hierarchy
+	vm.bootstrapExceptionClasses()
+
 	// Phase 6: Register primitives on core classes
 	vm.registerObjectPrimitives()
 	vm.registerBooleanPrimitives()
@@ -157,6 +170,8 @@ func (vm *VM) bootstrap() {
 	vm.registerDictionaryPrimitives()
 	vm.registerGrpcPrimitives()
 	vm.registerContextPrimitives()
+	vm.registerExceptionPrimitives()
+	vm.registerExceptionBlockPrimitives()
 
 	// Phase 7: Set up globals
 	vm.Globals["Object"] = vm.classValue(vm.ObjectClass)
@@ -273,6 +288,13 @@ func (vm *VM) ClassFor(v Value) *Class {
 		return vm.BlockClass
 	case v.IsContext():
 		return vm.ContextClass
+	case v.IsException():
+		// Return the specific exception class
+		exObj := GetExceptionObject(v)
+		if exObj != nil && exObj.ExceptionClass != nil {
+			return exObj.ExceptionClass
+		}
+		return vm.ExceptionClass
 	case IsStringValue(v):
 		return vm.StringClass
 	case IsDictionaryValue(v):
@@ -354,6 +376,14 @@ func (vm *VM) Send(receiver Value, selector string, args []Value) Value {
 				class = vm.SuccessClass
 			} else {
 				class = vm.FailureClass
+			}
+		} else if receiver.IsException() {
+			// Exception - get the specific exception class
+			exObj := GetExceptionObject(receiver)
+			if exObj != nil && exObj.ExceptionClass != nil {
+				class = exObj.ExceptionClass
+			} else {
+				class = vm.ExceptionClass
 			}
 		} else {
 			// Check if this symbol represents a class name (for class-side messages)
