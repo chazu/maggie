@@ -96,40 +96,19 @@ Type expressions to evaluate. Ctrl-Q to quit.
   ]
 
   method: doEvaluate: source [
-      # Placeholder evaluation
-      # In real implementation, this would use Compiler to compile and execute
-      # For now, handle some simple cases
+      "Compile and execute the source expression using the Compiler primitive."
+      | result |
 
-      # Check for variable assignment
-      (source includes: ':=') ifTrue: [
-          | parts varName value |
-          parts := source splitOn: ':='.
-          parts size = 2 ifTrue: [
-              varName := (parts at: 1) trimBlanks.
-              value := (parts at: 2) trimBlanks.
-              # Store in bindings (simplified)
-              bindings at: varName put: value.
-              ^value
-          ]
+      # Use Compiler evaluate: to compile and execute the expression
+      result := Compiler evaluate: source.
+
+      # Check if compilation/execution failed
+      result isFailure ifTrue: [
+          # Signal an error with the failure message
+          Error signal: result error
       ].
 
-      # Check for simple literals
-      source = 'true' ifTrue: [^true].
-      source = 'false' ifTrue: [^false].
-      source = 'nil' ifTrue: [^nil].
-
-      # Check for numbers
-      (source matchesRegex: '^-?[0-9]+$') ifTrue: [
-          ^source asInteger
-      ].
-
-      # Check for bound variables
-      (bindings includesKey: source) ifTrue: [
-          ^bindings at: source
-      ].
-
-      # Return the source as-is for now
-      ^source
+      ^result
   ]
 
   method: appendOutput: text [
