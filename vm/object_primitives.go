@@ -167,4 +167,57 @@ func (vm *VM) registerObjectPrimitives() {
 		}
 		panic("Maggie error: " + msgStr + stackTrace)
 	})
+
+	// ---------------------------------------------------------------------------
+	// become: primitives - object identity swapping
+	// ---------------------------------------------------------------------------
+
+	// become: - Two-way identity swap. All references to receiver see arg's
+	// contents and vice versa. Swaps vtable, size, and all slot contents.
+	c.AddMethod1(vm.Selectors, "become:", func(_ interface{}, recv Value, arg Value) Value {
+		// Both must be objects
+		if !recv.IsObject() || !arg.IsObject() {
+			return recv // Can't become: non-objects
+		}
+		// Use Raw to get actual objects (not resolved through forwarding)
+		objA := ObjectFromValueRaw(recv)
+		objB := ObjectFromValueRaw(arg)
+		if objA == nil || objB == nil {
+			return recv
+		}
+		objA.Become(objB)
+		return recv
+	})
+
+	// becomeForward: - One-way forwarding. All accesses to receiver will be
+	// redirected to arg. The arg is unchanged. Useful for proxies and lazy loading.
+	c.AddMethod1(vm.Selectors, "becomeForward:", func(_ interface{}, recv Value, arg Value) Value {
+		// Both must be objects
+		if !recv.IsObject() || !arg.IsObject() {
+			return recv // Can't forward non-objects
+		}
+		// Use Raw to get actual object (not resolved through forwarding)
+		objA := ObjectFromValueRaw(recv)
+		objB := ObjectFromValueRaw(arg)
+		if objA == nil || objB == nil {
+			return recv
+		}
+		objA.BecomeForward(objB)
+		return recv
+	})
+
+	// isForwarded - Returns true if this object has been forwarded via becomeForward:
+	c.AddMethod0(vm.Selectors, "isForwarded", func(_ interface{}, recv Value) Value {
+		if !recv.IsObject() {
+			return False
+		}
+		obj := ObjectFromValueRaw(recv)
+		if obj == nil {
+			return False
+		}
+		if obj.IsForwarded() {
+			return True
+		}
+		return False
+	})
 }

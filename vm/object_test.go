@@ -437,3 +437,213 @@ func BenchmarkObjectFromValue(b *testing.B) {
 		_ = ObjectFromValue(v)
 	}
 }
+
+// ---------------------------------------------------------------------------
+// become: tests
+// ---------------------------------------------------------------------------
+
+func TestBecomeSwapsContents(t *testing.T) {
+	// Create two objects with different vtables and slot values
+	class1 := &Class{Name: "Point"}
+	class2 := &Class{Name: "Rectangle"}
+	vt1 := &VTable{class: class1}
+	vt2 := &VTable{class: class2}
+
+	objA := NewObject(vt1, 4)
+	objA.SetSlot(0, FromSmallInt(10))
+	objA.SetSlot(1, FromSmallInt(20))
+
+	objB := NewObject(vt2, 4)
+	objB.SetSlot(0, FromSmallInt(100))
+	objB.SetSlot(1, FromSmallInt(200))
+
+	// Save original Values (these hold the raw pointers)
+	valA := objA.ToValue()
+	valB := objB.ToValue()
+
+	// Perform become:
+	objA.Become(objB)
+
+	// Now objA should have objB's original content
+	// Access through valA (which still points to objA)
+	resolvedA := ObjectFromValue(valA)
+	if resolvedA.ClassName() != "Rectangle" {
+		t.Errorf("after become:, objA class = %q, want Rectangle", resolvedA.ClassName())
+	}
+	if resolvedA.GetSlot(0).SmallInt() != 100 {
+		t.Errorf("after become:, objA slot0 = %d, want 100", resolvedA.GetSlot(0).SmallInt())
+	}
+
+	// And objB should have objA's original content
+	resolvedB := ObjectFromValue(valB)
+	if resolvedB.ClassName() != "Point" {
+		t.Errorf("after become:, objB class = %q, want Point", resolvedB.ClassName())
+	}
+	if resolvedB.GetSlot(0).SmallInt() != 10 {
+		t.Errorf("after become:, objB slot0 = %d, want 10", resolvedB.GetSlot(0).SmallInt())
+	}
+}
+
+func TestBecomeWithOverflowSlots(t *testing.T) {
+	// Test that overflow slots are also swapped
+	objA := NewObject(nil, 6)
+	objA.SetSlot(0, FromSmallInt(1))
+	objA.SetSlot(5, FromSmallInt(6)) // overflow slot
+
+	objB := NewObject(nil, 6)
+	objB.SetSlot(0, FromSmallInt(10))
+	objB.SetSlot(5, FromSmallInt(60)) // overflow slot
+
+	valA := objA.ToValue()
+	valB := objB.ToValue()
+
+	objA.Become(objB)
+
+	resolvedA := ObjectFromValue(valA)
+	if resolvedA.GetSlot(5).SmallInt() != 60 {
+		t.Errorf("overflow slot not swapped in objA, got %d, want 60", resolvedA.GetSlot(5).SmallInt())
+	}
+
+	resolvedB := ObjectFromValue(valB)
+	if resolvedB.GetSlot(5).SmallInt() != 6 {
+		t.Errorf("overflow slot not swapped in objB, got %d, want 6", resolvedB.GetSlot(5).SmallInt())
+	}
+}
+
+func TestBecomeForwardRedirects(t *testing.T) {
+	class1 := &Class{Name: "Proxy"}
+	class2 := &Class{Name: "RealObject"}
+	vt1 := &VTable{class: class1}
+	vt2 := &VTable{class: class2}
+
+	proxy := NewObject(vt1, 2)
+	real := NewObject(vt2, 4)
+	real.SetSlot(0, FromSmallInt(42))
+
+	proxyVal := proxy.ToValue()
+
+	// Before forwarding
+	if ObjectFromValue(proxyVal).ClassName() != "Proxy" {
+		t.Error("before forward, should be Proxy")
+	}
+
+	// Forward proxy to real
+	proxy.BecomeForward(real)
+
+	// Now accessing through proxyVal should resolve to real
+	resolved := ObjectFromValue(proxyVal)
+	if resolved.ClassName() != "RealObject" {
+		t.Errorf("after forward, class = %q, want RealObject", resolved.ClassName())
+	}
+	if resolved.GetSlot(0).SmallInt() != 42 {
+		t.Errorf("after forward, slot0 = %d, want 42", resolved.GetSlot(0).SmallInt())
+	}
+
+	// The real object is unchanged
+	realVal := real.ToValue()
+	resolvedReal := ObjectFromValue(realVal)
+	if resolvedReal != real {
+		t.Error("real object should still resolve to itself")
+	}
+}
+
+func TestBecomeForwardChain(t *testing.T) {
+	// Test that forwarding chains are followed correctly
+	objA := NewObject(nil, 2)
+	objA.SetSlot(0, FromSmallInt(1))
+
+	objB := NewObject(nil, 2)
+	objB.SetSlot(0, FromSmallInt(2))
+
+	objC := NewObject(nil, 2)
+	objC.SetSlot(0, FromSmallInt(3))
+
+	valA := objA.ToValue()
+
+	// A -> B -> C
+	objA.BecomeForward(objB)
+	objB.BecomeForward(objC)
+
+	// Access through A should resolve to C
+	resolved := ObjectFromValue(valA)
+	if resolved.GetSlot(0).SmallInt() != 3 {
+		t.Errorf("forwarding chain should resolve to C, got slot0 = %d, want 3", resolved.GetSlot(0).SmallInt())
+	}
+}
+
+func TestIsForwarded(t *testing.T) {
+	objA := NewObject(nil, 2)
+	objB := NewObject(nil, 2)
+
+	if objA.IsForwarded() {
+		t.Error("objA should not be forwarded initially")
+	}
+
+	objA.BecomeForward(objB)
+
+	if !objA.IsForwarded() {
+		t.Error("objA should be forwarded after BecomeForward")
+	}
+	if objB.IsForwarded() {
+		t.Error("objB should not be forwarded")
+	}
+}
+
+func TestObjectFromValueRaw(t *testing.T) {
+	objA := NewObject(nil, 2)
+	objA.SetSlot(0, FromSmallInt(1))
+
+	objB := NewObject(nil, 2)
+	objB.SetSlot(0, FromSmallInt(2))
+
+	valA := objA.ToValue()
+
+	objA.BecomeForward(objB)
+
+	// ObjectFromValue follows forwarding
+	resolved := ObjectFromValue(valA)
+	if resolved.GetSlot(0).SmallInt() != 2 {
+		t.Error("ObjectFromValue should follow forwarding")
+	}
+
+	// ObjectFromValueRaw does NOT follow forwarding
+	raw := ObjectFromValueRaw(valA)
+	if raw != objA {
+		t.Error("ObjectFromValueRaw should return original object")
+	}
+}
+
+func TestBecomeSelf(t *testing.T) {
+	// become: yourself should be a no-op
+	obj := NewObject(nil, 2)
+	obj.SetSlot(0, FromSmallInt(42))
+
+	err := obj.Become(obj)
+	if err != nil {
+		t.Errorf("become: self should not error, got %v", err)
+	}
+
+	if obj.GetSlot(0).SmallInt() != 42 {
+		t.Error("become: self should preserve slot values")
+	}
+}
+
+func BenchmarkObjectFromValueWithForwarding(b *testing.B) {
+	obj := NewObject(nil, 4)
+	target := NewObject(nil, 4)
+	obj.BecomeForward(target)
+	v := obj.ToValue()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = ObjectFromValue(v)
+	}
+}
+
+func BenchmarkBecome(b *testing.B) {
+	objA := NewObject(nil, 4)
+	objB := NewObject(nil, 4)
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		objA.Become(objB)
+	}
+}

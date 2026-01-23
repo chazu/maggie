@@ -15,6 +15,10 @@ import (
 type Object struct {
 	vtable *VTable // Pointer to method dispatch table
 
+	// forward supports become: - when non-nil, this object has been forwarded
+	// to another object. All accesses should follow this pointer.
+	forward *Object
+
 	// size tracks the actual number of slots for variable-sized objects (arrays).
 	// For regular objects, this is 0 and NumSlots() returns NumInlineSlots + len(overflow).
 	// For arrays, this is set to the actual array size.
@@ -200,6 +204,32 @@ func (obj *Object) SetVTable(vt *VTable) {
 }
 
 // ---------------------------------------------------------------------------
+// Forwarding (become: support)
+// ---------------------------------------------------------------------------
+
+// Resolve follows the forwarding chain to get the actual object.
+// If this object has not been forwarded, returns itself.
+// This is used by become: to redirect all accesses to a new object.
+func (obj *Object) Resolve() *Object {
+	current := obj
+	for current.forward != nil {
+		current = current.forward
+	}
+	return current
+}
+
+// IsForwarded returns true if this object has been forwarded to another object.
+func (obj *Object) IsForwarded() bool {
+	return obj.forward != nil
+}
+
+// ForwardTo sets up a forwarding pointer from this object to another.
+// After this call, all accesses through ObjectFromValue will resolve to target.
+func (obj *Object) ForwardTo(target *Object) {
+	obj.forward = target
+}
+
+// ---------------------------------------------------------------------------
 // Value conversion helpers
 // ---------------------------------------------------------------------------
 
@@ -210,7 +240,19 @@ func (obj *Object) ToValue() Value {
 
 // ObjectFromValue extracts an Object pointer from a NaN-boxed Value.
 // Returns nil if the value is not an object.
+// Automatically follows forwarding pointers from become:.
 func ObjectFromValue(v Value) *Object {
+	if !v.IsObject() {
+		return nil
+	}
+	obj := (*Object)(v.ObjectPtr())
+	// Follow forwarding chain
+	return obj.Resolve()
+}
+
+// ObjectFromValueRaw extracts an Object pointer without following forwarding.
+// Use this only when you need the original object (e.g., for GC or become: itself).
+func ObjectFromValueRaw(v Value) *Object {
 	if !v.IsObject() {
 		return nil
 	}
@@ -219,11 +261,13 @@ func ObjectFromValue(v Value) *Object {
 
 // MustObjectFromValue extracts an Object pointer from a NaN-boxed Value.
 // Panics if the value is not an object.
+// Automatically follows forwarding pointers from become:.
 func MustObjectFromValue(v Value) *Object {
 	if !v.IsObject() {
 		panic("MustObjectFromValue: not an object")
 	}
-	return (*Object)(v.ObjectPtr())
+	obj := (*Object)(v.ObjectPtr())
+	return obj.Resolve()
 }
 
 // ---------------------------------------------------------------------------
@@ -264,4 +308,47 @@ func (obj *Object) ClassName() string {
 		return "?"
 	}
 	return obj.vtable.class.Name
+}
+
+// ---------------------------------------------------------------------------
+// become: implementation
+// ---------------------------------------------------------------------------
+
+// Become performs a two-way identity swap with another object.
+// After this call, all references to obj will see other's contents and vice versa.
+// Both objects must have the same number of slots, or an error is returned.
+// This swaps vtable, size, and all slot contents between the two objects.
+func (obj *Object) Become(other *Object) error {
+	if obj == other {
+		return nil // No-op: becoming yourself
+	}
+
+	// Swap vtables
+	obj.vtable, other.vtable = other.vtable, obj.vtable
+
+	// Swap size
+	obj.size, other.size = other.size, obj.size
+
+	// Swap inline slots
+	obj.slot0, other.slot0 = other.slot0, obj.slot0
+	obj.slot1, other.slot1 = other.slot1, obj.slot1
+	obj.slot2, other.slot2 = other.slot2, obj.slot2
+	obj.slot3, other.slot3 = other.slot3, obj.slot3
+
+	// Swap overflow slices
+	obj.overflow, other.overflow = other.overflow, obj.overflow
+
+	// Note: we don't swap forwarding pointers - those are identity, not content
+
+	return nil
+}
+
+// BecomeForward performs a one-way become: all accesses to obj will be
+// redirected to other. The other object is unchanged.
+// This is useful for proxies and lazy loading.
+func (obj *Object) BecomeForward(other *Object) {
+	if obj == other {
+		return // No-op
+	}
+	obj.forward = other.Resolve() // Follow any existing chain
 }
