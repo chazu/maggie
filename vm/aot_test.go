@@ -305,3 +305,152 @@ func TestAOTCompilerModule(t *testing.T) {
 		t.Error("Missing dispatch key for value")
 	}
 }
+
+// ---------------------------------------------------------------------------
+// Block Compilation Tests
+// ---------------------------------------------------------------------------
+
+func TestAOTCompilerBlockSimple(t *testing.T) {
+	selectors := NewSelectorTable()
+	symbols := NewSymbolTable()
+
+	// Create a simple block: [^42]
+	block := &BlockMethod{
+		Arity:       0,
+		NumTemps:    0,
+		NumCaptures: 0,
+		Bytecode:    []byte{byte(OpPushInt8), 42, byte(OpReturnTop)},
+		Literals:    nil,
+	}
+
+	aot := NewAOTCompiler(selectors, symbols)
+	code := aot.CompileBlock(block, "Test", "example", 0)
+
+	t.Logf("Generated block code:\n%s", code)
+
+	// Verify function signature includes captures and homeReturn
+	if !strings.Contains(code, "func aot_Test_example_block0") {
+		t.Error("Missing block function declaration")
+	}
+	if !strings.Contains(code, "captures []Value") {
+		t.Error("Missing captures parameter")
+	}
+	if !strings.Contains(code, "homeReturn func(Value)") {
+		t.Error("Missing homeReturn parameter")
+	}
+	if !strings.Contains(code, "FromSmallInt(42)") {
+		t.Error("Missing push 42")
+	}
+}
+
+func TestAOTCompilerBlockWithCaptures(t *testing.T) {
+	selectors := NewSelectorTable()
+	symbols := NewSymbolTable()
+
+	// Create a block that uses captures: [captures[0] + 1]
+	block := &BlockMethod{
+		Arity:       0,
+		NumTemps:    0,
+		NumCaptures: 1,
+		Bytecode: []byte{
+			byte(OpPushCaptured), 0, // push captures[0]
+			byte(OpPushInt8), 1,     // push 1
+			byte(OpSendPlus),        // +
+			byte(OpReturnTop),
+		},
+		Literals: nil,
+	}
+
+	aot := NewAOTCompiler(selectors, symbols)
+	code := aot.CompileBlock(block, "Test", "example", 1)
+
+	t.Logf("Generated block code with captures:\n%s", code)
+
+	// Should access captures array
+	if !strings.Contains(code, "captures[0]") {
+		t.Error("Missing captures access")
+	}
+}
+
+func TestAOTCompilerBlockWithArgs(t *testing.T) {
+	selectors := NewSelectorTable()
+	symbols := NewSymbolTable()
+
+	// Create a block with argument: [:x | x * 2]
+	block := &BlockMethod{
+		Arity:       1,
+		NumTemps:    1, // args count as temps
+		NumCaptures: 0,
+		Bytecode: []byte{
+			byte(OpPushTemp), 0,  // push x (arg)
+			byte(OpPushInt8), 2,  // push 2
+			byte(OpSendTimes),    // *
+			byte(OpReturnTop),
+		},
+		Literals: nil,
+	}
+
+	aot := NewAOTCompiler(selectors, symbols)
+	code := aot.CompileBlock(block, "Test", "example", 2)
+
+	t.Logf("Generated block code with args:\n%s", code)
+
+	// Should have temps for args
+	if !strings.Contains(code, "temps := make([]Value, 1)") {
+		t.Error("Missing temps declaration")
+	}
+	if !strings.Contains(code, "copy(temps, args)") {
+		t.Error("Missing args copy to temps")
+	}
+}
+
+func TestAOTCompilerBlockReturn(t *testing.T) {
+	selectors := NewSelectorTable()
+	symbols := NewSymbolTable()
+
+	// Create a block with non-local return: [^99]
+	block := &BlockMethod{
+		Arity:       0,
+		NumTemps:    0,
+		NumCaptures: 0,
+		Bytecode: []byte{
+			byte(OpPushInt8), 99,
+			byte(OpBlockReturn), // non-local return
+		},
+		Literals: nil,
+	}
+
+	aot := NewAOTCompiler(selectors, symbols)
+	code := aot.CompileBlock(block, "Test", "example", 3)
+
+	t.Logf("Generated block code with non-local return:\n%s", code)
+
+	// Should call homeReturn for non-local return
+	if !strings.Contains(code, "homeReturn(") {
+		t.Error("Missing homeReturn call for non-local return")
+	}
+}
+
+func TestAOTCompilerBlockReturnInMethod(t *testing.T) {
+	selectors := NewSelectorTable()
+	symbols := NewSymbolTable()
+
+	// In a method context, OpBlockReturn should just return normally
+	b := NewCompiledMethodBuilder("test", 0)
+	b.Bytecode().EmitInt8(OpPushInt8, 77)
+	b.Bytecode().Emit(OpBlockReturn)
+	method := b.Build()
+
+	aot := NewAOTCompiler(selectors, symbols)
+	code := aot.CompileMethod(method, "Test", "blockReturnInMethod")
+
+	t.Logf("Generated method code with BlockReturn:\n%s", code)
+
+	// In method context, should just return (not call homeReturn)
+	if strings.Contains(code, "homeReturn") {
+		t.Error("Method should not use homeReturn")
+	}
+	if !strings.Contains(code, "return stack[sp-1]") {
+		t.Error("Should return normally in method context")
+	}
+}

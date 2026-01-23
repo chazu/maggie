@@ -62,7 +62,65 @@ func (c *AOTCompiler) CompileMethod(method *CompiledMethod, className, methodNam
 	c.writeLine("")
 
 	// Generate code for bytecode
-	c.compileBytecode(method.Bytecode)
+	c.compileBytecode(method.Bytecode, false)
+
+	// Default return (shouldn't reach here)
+	c.writeLine("return Nil")
+
+	c.indent--
+	c.writeLine("}")
+
+	return c.sb.String()
+}
+
+// AOTBlock is the signature for AOT-compiled blocks.
+// The homeReturn function can be called to perform a non-local return.
+type AOTBlock func(vm *VM, self Value, args []Value, captures []Value, homeReturn func(Value)) Value
+
+// CompileBlock generates Go code for a compiled block.
+// Blocks differ from methods in several ways:
+// - They receive captures (closed-over variables) as a parameter
+// - They can perform non-local returns to exit the home method
+// - They may access temps from their outer scope via homeTemps
+func (c *AOTCompiler) CompileBlock(block *BlockMethod, className, methodName string, blockIndex int) string {
+	c.sb.Reset()
+	c.indent = 0
+	c.stackDepth = 0
+	c.maxStack = 0
+	c.labelCounter = 0
+	c.literals = block.Literals
+
+	funcName := c.sanitizeName(className) + "_" + c.sanitizeName(methodName) + fmt.Sprintf("_block%d", blockIndex)
+
+	// Function signature - blocks take captures and homeReturn callback
+	c.writeLine("// AOT-compiled block: %s>>%s[%d]", className, methodName, blockIndex)
+	c.writeLine("func aot_%s(vm *VM, self Value, args []Value, captures []Value, homeReturn func(Value)) Value {", funcName)
+	c.indent++
+
+	// Declare temps for the block's own temporaries
+	numTemps := block.NumTemps
+	if numTemps > 0 {
+		c.writeLine("// Block temporaries (including block arguments)")
+		c.writeLine("temps := make([]Value, %d)", numTemps)
+		// Copy block args into temps
+		c.writeLine("copy(temps, args)")
+	}
+
+	// Declare stack
+	c.writeLine("// Execution stack")
+	c.writeLine("var stack [64]Value")
+	c.writeLine("sp := 0")
+	c.writeLine("")
+
+	// Silence unused variable warnings if no captures
+	if block.NumCaptures == 0 {
+		c.writeLine("_ = captures // may be unused")
+	}
+	c.writeLine("_ = homeReturn // may be unused")
+	c.writeLine("")
+
+	// Generate code for bytecode (with block context)
+	c.compileBytecode(block.Bytecode, true)
 
 	// Default return (shouldn't reach here)
 	c.writeLine("return Nil")
@@ -74,7 +132,8 @@ func (c *AOTCompiler) CompileMethod(method *CompiledMethod, className, methodNam
 }
 
 // compileBytecode generates Go code for a bytecode sequence.
-func (c *AOTCompiler) compileBytecode(bc []byte) {
+// If isBlock is true, OpBlockReturn will invoke the homeReturn callback for non-local returns.
+func (c *AOTCompiler) compileBytecode(bc []byte, isBlock bool) {
 	// First pass: find jump targets
 	jumpTargets := c.findJumpTargets(bc)
 
@@ -347,7 +406,14 @@ func (c *AOTCompiler) compileBytecode(bc []byte) {
 			c.writeLine("return Nil")
 
 		case OpBlockReturn:
-			c.writeLine("return stack[sp-1] // block return")
+			if isBlock {
+				// Non-local return: call homeReturn to exit the enclosing method
+				c.writeLine("homeReturn(stack[sp-1]) // non-local return")
+				c.writeLine("return Nil // unreachable after homeReturn")
+			} else {
+				// In a method context, just return normally
+				c.writeLine("return stack[sp-1]")
+			}
 
 		case OpCreateBlock:
 			methodIdx := binary.LittleEndian.Uint16(bc[pos:])

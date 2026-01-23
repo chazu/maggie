@@ -292,6 +292,162 @@ func TestJITCompilerSanitizeName(t *testing.T) {
 	}
 }
 
+func TestJITCompilerBlockCompilation(t *testing.T) {
+	vm := NewVM()
+	jit := vm.EnableJIT()
+	jit.LogCompilation = false
+
+	// Create a method with a block
+	class := vm.createClass("BlockTest", vm.ObjectClass)
+	builder := NewCompiledMethodBuilder("withBlock", 0)
+	builder.Bytecode().Emit(OpReturnNil)
+	method := builder.Build()
+	method.SetClass(class)
+
+	// Create a block
+	block := &BlockMethod{
+		Arity:       1,
+		NumTemps:    1,
+		NumCaptures: 1,
+		Bytecode: []byte{
+			byte(OpPushCaptured), 0,
+			byte(OpPushTemp), 0,
+			byte(OpSendPlus),
+			byte(OpReturnTop),
+		},
+		Outer: method,
+	}
+
+	// Compile the block directly
+	jit.compileBlock(block, method, 0)
+
+	// Check that block was compiled
+	stats := jit.Stats()
+	if stats.BlocksCompiled != 1 {
+		t.Errorf("Expected 1 block compiled, got %d", stats.BlocksCompiled)
+	}
+
+	// Check compiled code exists
+	code := jit.GetCompiledBlock("BlockTest", "withBlock", 0)
+	if code == "" {
+		t.Error("Expected compiled code for block")
+	}
+
+	// Verify code contains expected elements
+	if !strings.Contains(code, "aot_BlockTest_withBlock_block0") {
+		t.Error("Compiled code should contain block function name")
+	}
+	if !strings.Contains(code, "captures") {
+		t.Error("Compiled code should reference captures")
+	}
+	if !strings.Contains(code, "homeReturn") {
+		t.Error("Compiled code should have homeReturn parameter")
+	}
+}
+
+func TestJITCompilerBlockDuplicatePrevention(t *testing.T) {
+	vm := NewVM()
+	jit := vm.EnableJIT()
+	jit.LogCompilation = false
+
+	class := vm.createClass("DupBlockTest", vm.ObjectClass)
+	builder := NewCompiledMethodBuilder("test", 0)
+	builder.Bytecode().Emit(OpReturnNil)
+	method := builder.Build()
+	method.SetClass(class)
+
+	block := &BlockMethod{
+		Arity:       0,
+		NumTemps:    0,
+		NumCaptures: 0,
+		Bytecode:    []byte{byte(OpReturnNil)},
+		Outer:       method,
+	}
+
+	// Compile same block multiple times
+	for i := 0; i < 5; i++ {
+		jit.compileBlock(block, method, 0)
+	}
+
+	// Should only compile once
+	stats := jit.Stats()
+	if stats.BlocksCompiled != 1 {
+		t.Errorf("Expected 1 block compiled (deduplication), got %d", stats.BlocksCompiled)
+	}
+}
+
+func TestJITCompilerCompiledBlocks(t *testing.T) {
+	vm := NewVM()
+	jit := vm.EnableJIT()
+	jit.LogCompilation = false
+
+	class := vm.createClass("MultiBlockTest", vm.ObjectClass)
+	builder := NewCompiledMethodBuilder("test", 0)
+	builder.Bytecode().Emit(OpReturnNil)
+	method := builder.Build()
+	method.SetClass(class)
+
+	// Compile multiple blocks
+	for i := 0; i < 3; i++ {
+		block := &BlockMethod{
+			Arity:       0,
+			NumTemps:    0,
+			NumCaptures: 0,
+			Bytecode:    []byte{byte(OpPushInt8), byte(i), byte(OpReturnTop)},
+			Outer:       method,
+		}
+		jit.compileBlock(block, method, i)
+	}
+
+	blocks := jit.CompiledBlocks()
+	if len(blocks) != 3 {
+		t.Errorf("Expected 3 compiled blocks, got %d", len(blocks))
+	}
+}
+
+func TestJITCompilerAOTPackageWithBlocks(t *testing.T) {
+	vm := NewVM()
+	jit := vm.EnableJIT()
+	jit.LogCompilation = false
+
+	class := vm.createClass("PackageTest", vm.ObjectClass)
+
+	// Compile a method
+	builder := NewCompiledMethodBuilder("compute", 0)
+	builder.Bytecode().EmitInt8(OpPushInt8, 42)
+	builder.Bytecode().Emit(OpReturnTop)
+	method := builder.Build()
+	method.SetClass(class)
+	jit.compileMethod(method)
+
+	// Compile a block
+	block := &BlockMethod{
+		Arity:       0,
+		NumTemps:    0,
+		NumCaptures: 0,
+		Bytecode:    []byte{byte(OpPushInt8), 99, byte(OpReturnTop)},
+		Outer:       method,
+	}
+	jit.compileBlock(block, method, 0)
+
+	// Generate package
+	pkg := jit.GenerateAOTPackage("testpkg")
+
+	// Verify package contains both methods and blocks
+	if !strings.Contains(pkg, "Compiled Methods") {
+		t.Error("Package should have methods section")
+	}
+	if !strings.Contains(pkg, "Compiled Blocks") {
+		t.Error("Package should have blocks section")
+	}
+	if !strings.Contains(pkg, "aot_PackageTest_compute") {
+		t.Error("Package should contain method")
+	}
+	if !strings.Contains(pkg, "aot_PackageTest_compute_block0") {
+		t.Error("Package should contain block")
+	}
+}
+
 // BenchmarkJITCompilation measures JIT compilation overhead.
 func BenchmarkJITCompilation(b *testing.B) {
 	vm := NewVM()
@@ -313,6 +469,43 @@ func BenchmarkJITCompilation(b *testing.B) {
 		jit.mu.Lock()
 		delete(jit.compiledKeys, jit.methodKey(method))
 		delete(jit.hotMethods, jit.methodKey(method))
+		jit.mu.Unlock()
+	}
+}
+
+// BenchmarkJITBlockCompilation measures block compilation overhead.
+func BenchmarkJITBlockCompilation(b *testing.B) {
+	vm := NewVM()
+	jit := vm.EnableJIT()
+
+	class := vm.createClass("BenchClass", vm.ObjectClass)
+	builder := NewCompiledMethodBuilder("test", 0)
+	builder.Bytecode().Emit(OpReturnNil)
+	method := builder.Build()
+	method.SetClass(class)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		block := &BlockMethod{
+			Arity:       1,
+			NumTemps:    1,
+			NumCaptures: 2,
+			Bytecode: []byte{
+				byte(OpPushCaptured), 0,
+				byte(OpPushTemp), 0,
+				byte(OpSendPlus),
+				byte(OpReturnTop),
+			},
+			Outer: method,
+		}
+
+		jit.compileBlock(block, method, 0)
+
+		// Reset
+		jit.mu.Lock()
+		key := jit.blockKey(method, 0)
+		delete(jit.compiledKeys, key)
+		delete(jit.hotBlocks, key)
 		jit.mu.Unlock()
 	}
 }
