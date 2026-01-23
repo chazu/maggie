@@ -157,4 +157,103 @@ func (vm *VM) registerClassReflectionPrimitives() {
 		}
 		return v.Symbols.SymbolValue(cls.Superclass.Name)
 	})
+
+	// ---------------------------------------------------------------------------
+	// System-wide class reflection
+	// ---------------------------------------------------------------------------
+
+	// allClasses - returns an array of all class names in the system
+	// This is a class method on Object that returns all registered classes
+	c.AddClassMethod0(vm.Selectors, "allClasses", func(vmPtr interface{}, recv Value) Value {
+		v := vmPtr.(*VM)
+		classes := v.Classes.All()
+		values := make([]Value, len(classes))
+		for i, cls := range classes {
+			values[i] = v.Symbols.SymbolValue(cls.Name)
+		}
+		return v.NewArrayWithElements(values)
+	})
+
+	// allClassesSorted - returns an array of all class names, sorted alphabetically
+	c.AddClassMethod0(vm.Selectors, "allClassesSorted", func(vmPtr interface{}, recv Value) Value {
+		v := vmPtr.(*VM)
+		classes := v.Classes.All()
+		// Sort by name
+		names := make([]string, len(classes))
+		for i, cls := range classes {
+			names[i] = cls.Name
+		}
+		// Simple bubble sort (classes list is small)
+		for i := 0; i < len(names)-1; i++ {
+			for j := 0; j < len(names)-i-1; j++ {
+				if names[j] > names[j+1] {
+					names[j], names[j+1] = names[j+1], names[j]
+				}
+			}
+		}
+		values := make([]Value, len(names))
+		for i, name := range names {
+			values[i] = v.Symbols.SymbolValue(name)
+		}
+		return v.NewArrayWithElements(values)
+	})
+
+	// ---------------------------------------------------------------------------
+	// Method source retrieval
+	// ---------------------------------------------------------------------------
+
+	// methodSourceFor: - returns the source code of a method as a string
+	// Returns nil if the method doesn't exist or has no source
+	c.AddClassMethod1(vm.Selectors, "methodSourceFor:", func(vmPtr interface{}, recv Value, selector Value) Value {
+		v := vmPtr.(*VM)
+		cls := v.classFromValue(recv)
+		if cls == nil {
+			return Nil
+		}
+		var selName string
+		if selector.IsSymbol() {
+			selName = v.Symbols.Name(selector.SymbolID())
+		} else if IsStringValue(selector) {
+			selName = GetStringContent(selector)
+		} else {
+			return Nil
+		}
+		method := cls.MethodNamed(selName)
+		if method == nil {
+			return Nil
+		}
+		// MethodNamed returns *CompiledMethod directly
+		if method.Source != "" {
+			return NewStringValue(method.Source)
+		}
+		return Nil
+	})
+
+	// classMethodSourceFor: - returns the source code of a class-side method
+	c.AddClassMethod1(vm.Selectors, "classMethodSourceFor:", func(vmPtr interface{}, recv Value, selector Value) Value {
+		v := vmPtr.(*VM)
+		cls := v.classFromValue(recv)
+		if cls == nil {
+			return Nil
+		}
+		var selName string
+		if selector.IsSymbol() {
+			selName = v.Symbols.Name(selector.SymbolID())
+		} else if IsStringValue(selector) {
+			selName = GetStringContent(selector)
+		} else {
+			return Nil
+		}
+		method := cls.LookupClassMethod(v.Selectors, selName)
+		if method == nil {
+			return Nil
+		}
+		// Try to get source from CompiledMethod
+		if cm, ok := method.(*CompiledMethod); ok {
+			if cm.Source != "" {
+				return NewStringValue(cm.Source)
+			}
+		}
+		return Nil
+	})
 }

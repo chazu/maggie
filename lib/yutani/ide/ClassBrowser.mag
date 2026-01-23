@@ -140,57 +140,102 @@ ClassBrowser subclass: Object
       self populateCategories
   ]
 
-  # System introspection (placeholder implementations)
-  # These should be connected to Maggie's reflection capabilities
+  # System introspection using real reflection APIs
 
   method: systemCategories [
-      # Return list of class categories
-      # In a real implementation, this would query the class hierarchy
-      ^#('Kernel' 'Collections' 'Compiler' 'Yutani' 'IDE')
+      "Return list of class categories based on naming conventions."
+      ^#('All' 'Kernel' 'Collections' 'Numbers' 'Compiler' 'Yutani' 'IDE' 'Exceptions' 'Other')
   ]
 
   method: classesInCategory: category [
-      # Return class names in category
-      # Placeholder implementation
+      "Return class names matching the category."
+      | allClasses |
+      allClasses := Object allClassesSorted.
+
+      category = 'All' ifTrue: [^allClasses].
+
       category = 'Kernel' ifTrue: [
-          ^#('Object' 'Boolean' 'True' 'False' 'UndefinedObject' 'Block' 'Process' 'Channel')
+          ^allClasses select: [:c |
+              #(#Object #Boolean #True #False #UndefinedObject #Block
+                #Process #Channel #Result #Success #Failure #Context
+                #Class #WeakReference) includes: c]
       ].
       category = 'Collections' ifTrue: [
-          ^#('Array' 'Dictionary' 'String' 'Symbol' 'ByteArray')
+          ^allClasses select: [:c |
+              #(#Array #Dictionary #String #Symbol #ByteArray #Association) includes: c]
+      ].
+      category = 'Numbers' ifTrue: [
+          ^allClasses select: [:c |
+              #(#SmallInteger #Float) includes: c]
       ].
       category = 'Compiler' ifTrue: [
-          ^#('Compiler' 'Lexer' 'Parser' 'BytecodeGenerator' 'Token')
+          ^allClasses select: [:c |
+              (c asString beginsWith: 'Compiler') or: [
+              (c asString beginsWith: 'Lexer') or: [
+              (c asString beginsWith: 'Parser') or: [
+              (c asString beginsWith: 'Bytecode') or: [
+              (c asString beginsWith: 'Token') or: [
+              #(#CharacterStream #LiteralNode #VariableNode #AssignmentNode
+                #MessageSendNode #BlockNode #CascadeNode #MethodNode
+                #ReturnNode #ClassNode) includes: c]]]]]]
       ].
       category = 'Yutani' ifTrue: [
-          ^#('YutaniSession' 'YutaniWidget' 'YutaniEventLoop' 'YutaniEvent'
-             'YutaniList' 'YutaniTree' 'YutaniFlex' 'YutaniPages')
+          ^allClasses select: [:c | c asString beginsWith: 'Yutani']
       ].
       category = 'IDE' ifTrue: [
-          ^#('ClassBrowser' 'MaggieREPL' 'CodeEditor' 'Inspector')
+          ^allClasses select: [:c |
+              #(#ClassBrowser #MaggieREPL #CodeEditor #Inspector) includes: c]
+      ].
+      category = 'Exceptions' ifTrue: [
+          ^allClasses select: [:c |
+              #(#Exception #Error #MessageNotUnderstood #ZeroDivide
+                #SubscriptOutOfBounds #Warning #Halt #Notification) includes: c]
+      ].
+      category = 'Other' ifTrue: [
+          | known |
+          known := #(#Object #Boolean #True #False #UndefinedObject #Block
+                     #Process #Channel #Result #Success #Failure #Context
+                     #Class #WeakReference #Array #Dictionary #String #Symbol
+                     #ByteArray #Association #SmallInteger #Float
+                     #Exception #Error #MessageNotUnderstood #ZeroDivide
+                     #SubscriptOutOfBounds #Warning #Halt #Notification).
+          ^allClasses reject: [:c |
+              (known includes: c) or: [
+              (c asString beginsWith: 'Yutani') or: [
+              (c asString beginsWith: 'Compiler') or: [
+              (c asString beginsWith: 'Lexer') or: [
+              (c asString beginsWith: 'Parser') or: [
+              (c asString beginsWith: 'Bytecode') or: [
+              (c asString beginsWith: 'Token') or: [
+              #(#CharacterStream #LiteralNode #VariableNode #AssignmentNode
+                #MessageSendNode #BlockNode #CascadeNode #MethodNode
+                #ReturnNode #ClassNode #ClassBrowser #MaggieREPL
+                #CodeEditor #Inspector) includes: c]]]]]]]]
       ].
       ^#()
   ]
 
   method: classNamed: className [
-      # Look up class by name
-      # Placeholder - should use Maggie's global lookup
-      ^className
+      "Return the class symbol for use with reflection methods."
+      ^className asSymbol
   ]
 
   method: methodsForClass: aClass do: block [
-      # Iterate over methods of a class
-      # Placeholder implementation
-      #('initialize' 'printString' 'yourself' '=' '==' 'isNil' 'notNil'
-        'class' 'error:' 'shallowCopy') do: block
+      "Iterate over method names of a class."
+      | methods |
+      methods := aClass allMethodNames.
+      methods ifNotNil: [methods do: block]
   ]
 
   method: sourceFor: selector in: aClass [
-      # Get source code for a method
-      # Placeholder implementation
-      ^'method: ', selector, ' [
-    # Source code would appear here
-    ^self
-]'
+      "Get source code for a method using reflection."
+      | source |
+      source := aClass methodSourceFor: selector asSymbol.
+      source ifNil: [
+          "Try without asSymbol in case it's already a symbol"
+          source := aClass methodSourceFor: selector
+      ].
+      ^source
   ]
 
   # Printing
