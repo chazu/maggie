@@ -431,3 +431,140 @@ func (c *Class) Depth() int {
 	}
 	return depth
 }
+
+// ---------------------------------------------------------------------------
+// Method Categories/Protocols
+// ---------------------------------------------------------------------------
+
+// MethodCategories returns all unique category names for methods in this class.
+// Does not include inherited methods.
+func (c *Class) MethodCategories() []string {
+	categories := make(map[string]struct{})
+
+	for _, m := range c.VTable.LocalMethods() {
+		if cm, ok := m.(*CompiledMethod); ok && cm.category != "" {
+			categories[cm.category] = struct{}{}
+		}
+	}
+
+	result := make([]string, 0, len(categories))
+	for cat := range categories {
+		result = append(result, cat)
+	}
+	return result
+}
+
+// MethodsInCategory returns all methods in the given category.
+// Does not include inherited methods.
+func (c *Class) MethodsInCategory(category string) []Method {
+	var result []Method
+
+	for _, m := range c.VTable.LocalMethods() {
+		if cm, ok := m.(*CompiledMethod); ok && cm.category == category {
+			result = append(result, m)
+		}
+	}
+
+	return result
+}
+
+// CompiledMethodsInCategory returns all compiled methods in the given category.
+// Does not include inherited methods.
+func (c *Class) CompiledMethodsInCategory(category string) []*CompiledMethod {
+	var result []*CompiledMethod
+
+	for _, m := range c.VTable.LocalMethods() {
+		if cm, ok := m.(*CompiledMethod); ok && cm.category == category {
+			result = append(result, cm)
+		}
+	}
+
+	return result
+}
+
+// MethodNamesInCategory returns the names of all methods in the given category.
+// Does not include inherited methods.
+func (c *Class) MethodNamesInCategory(category string) []string {
+	var result []string
+
+	for _, m := range c.VTable.LocalMethods() {
+		if cm, ok := m.(*CompiledMethod); ok && cm.category == category {
+			result = append(result, cm.name)
+		}
+	}
+
+	return result
+}
+
+// AllMethods returns all methods defined in this class (not inherited).
+func (c *Class) AllMethods() []Method {
+	methods := c.VTable.LocalMethods()
+	result := make([]Method, 0, len(methods))
+	for _, m := range methods {
+		result = append(result, m)
+	}
+	return result
+}
+
+// AllCompiledMethods returns all compiled methods defined in this class (not inherited).
+func (c *Class) AllCompiledMethods() []*CompiledMethod {
+	var result []*CompiledMethod
+
+	for _, m := range c.VTable.LocalMethods() {
+		if cm, ok := m.(*CompiledMethod); ok {
+			result = append(result, cm)
+		}
+	}
+
+	return result
+}
+
+// MethodNamed returns the compiled method with the given name, or nil if not found.
+func (c *Class) MethodNamed(name string) *CompiledMethod {
+	for _, m := range c.VTable.LocalMethods() {
+		if cm, ok := m.(*CompiledMethod); ok && cm.name == name {
+			return cm
+		}
+	}
+	return nil
+}
+
+// AllMethodNames returns the names of all methods defined in this class (not inherited).
+func (c *Class) AllMethodNames() []string {
+	methods := c.VTable.LocalMethods()
+	result := make([]string, 0, len(methods))
+	for _, m := range methods {
+		result = append(result, MethodName(m))
+	}
+	return result
+}
+
+// ClassMethodCategories returns all unique category names for class-side methods.
+func (c *Class) ClassMethodCategories() []string {
+	categories := make(map[string]struct{})
+
+	for _, m := range c.ClassVTable.LocalMethods() {
+		if cm, ok := m.(*CompiledMethod); ok && cm.category != "" {
+			categories[cm.category] = struct{}{}
+		}
+	}
+
+	result := make([]string, 0, len(categories))
+	for cat := range categories {
+		result = append(result, cat)
+	}
+	return result
+}
+
+// ClassMethodsInCategory returns all class-side methods in the given category.
+func (c *Class) ClassMethodsInCategory(category string) []Method {
+	var result []Method
+
+	for _, m := range c.ClassVTable.LocalMethods() {
+		if cm, ok := m.(*CompiledMethod); ok && cm.category == category {
+			result = append(result, m)
+		}
+	}
+
+	return result
+}

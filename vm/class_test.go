@@ -751,3 +751,245 @@ func TestClassVarStoreOpcode(t *testing.T) {
 		t.Errorf("class var should be 99, got %d", val.SmallInt())
 	}
 }
+
+// ---------------------------------------------------------------------------
+// Method categories tests
+// ---------------------------------------------------------------------------
+
+func TestMethodCategory(t *testing.T) {
+	// Create a method with a category
+	method := NewCompiledMethod("add:", 1)
+	method.SetCategory("arithmetic")
+
+	if method.Category() != "arithmetic" {
+		t.Errorf("Category() = %q, want %q", method.Category(), "arithmetic")
+	}
+}
+
+func TestCompiledMethodBuilderCategory(t *testing.T) {
+	builder := NewCompiledMethodBuilder("subtract:", 1)
+	builder.SetCategory("arithmetic")
+	method := builder.Build()
+
+	if method.Category() != "arithmetic" {
+		t.Errorf("Category() = %q, want %q", method.Category(), "arithmetic")
+	}
+}
+
+func TestClassMethodCategories(t *testing.T) {
+	selectors := NewSelectorTable()
+	point := NewClass("Point", nil)
+
+	// Add methods with categories
+	method1 := NewCompiledMethod("x", 0)
+	method1.SetCategory("accessing")
+	method1.SetSelector(selectors.Intern("x"))
+	point.VTable.AddMethod(method1.Selector(), method1)
+
+	method2 := NewCompiledMethod("y", 0)
+	method2.SetCategory("accessing")
+	method2.SetSelector(selectors.Intern("y"))
+	point.VTable.AddMethod(method2.Selector(), method2)
+
+	method3 := NewCompiledMethod("isPoint", 0)
+	method3.SetCategory("testing")
+	method3.SetSelector(selectors.Intern("isPoint"))
+	point.VTable.AddMethod(method3.Selector(), method3)
+
+	categories := point.MethodCategories()
+	if len(categories) != 2 {
+		t.Errorf("MethodCategories() count = %d, want 2", len(categories))
+	}
+
+	// Check that both categories are present (order may vary)
+	hasAccessing := false
+	hasTesting := false
+	for _, cat := range categories {
+		if cat == "accessing" {
+			hasAccessing = true
+		}
+		if cat == "testing" {
+			hasTesting = true
+		}
+	}
+	if !hasAccessing {
+		t.Error("should have 'accessing' category")
+	}
+	if !hasTesting {
+		t.Error("should have 'testing' category")
+	}
+}
+
+func TestClassMethodsInCategory(t *testing.T) {
+	selectors := NewSelectorTable()
+	point := NewClass("Point", nil)
+
+	// Add methods with categories
+	method1 := NewCompiledMethod("x", 0)
+	method1.SetCategory("accessing")
+	method1.SetSelector(selectors.Intern("x"))
+	point.VTable.AddMethod(method1.Selector(), method1)
+
+	method2 := NewCompiledMethod("y", 0)
+	method2.SetCategory("accessing")
+	method2.SetSelector(selectors.Intern("y"))
+	point.VTable.AddMethod(method2.Selector(), method2)
+
+	method3 := NewCompiledMethod("isPoint", 0)
+	method3.SetCategory("testing")
+	method3.SetSelector(selectors.Intern("isPoint"))
+	point.VTable.AddMethod(method3.Selector(), method3)
+
+	// Get methods in 'accessing' category
+	methods := point.MethodsInCategory("accessing")
+	if len(methods) != 2 {
+		t.Errorf("MethodsInCategory('accessing') count = %d, want 2", len(methods))
+	}
+
+	// Get methods in 'testing' category
+	methods = point.MethodsInCategory("testing")
+	if len(methods) != 1 {
+		t.Errorf("MethodsInCategory('testing') count = %d, want 1", len(methods))
+	}
+
+	// Get methods in non-existent category
+	methods = point.MethodsInCategory("nonexistent")
+	if len(methods) != 0 {
+		t.Errorf("MethodsInCategory('nonexistent') count = %d, want 0", len(methods))
+	}
+}
+
+func TestClassMethodNamesInCategory(t *testing.T) {
+	selectors := NewSelectorTable()
+	point := NewClass("Point", nil)
+
+	// Add methods with categories
+	method1 := NewCompiledMethod("x", 0)
+	method1.SetCategory("accessing")
+	method1.SetSelector(selectors.Intern("x"))
+	point.VTable.AddMethod(method1.Selector(), method1)
+
+	method2 := NewCompiledMethod("y", 0)
+	method2.SetCategory("accessing")
+	method2.SetSelector(selectors.Intern("y"))
+	point.VTable.AddMethod(method2.Selector(), method2)
+
+	names := point.MethodNamesInCategory("accessing")
+	if len(names) != 2 {
+		t.Errorf("MethodNamesInCategory('accessing') count = %d, want 2", len(names))
+	}
+
+	// Check that both names are present (order may vary)
+	hasX := false
+	hasY := false
+	for _, name := range names {
+		if name == "x" {
+			hasX = true
+		}
+		if name == "y" {
+			hasY = true
+		}
+	}
+	if !hasX || !hasY {
+		t.Errorf("expected 'x' and 'y', got %v", names)
+	}
+}
+
+func TestClassMethodNamed(t *testing.T) {
+	selectors := NewSelectorTable()
+	point := NewClass("Point", nil)
+
+	method := NewCompiledMethod("x", 0)
+	method.SetCategory("accessing")
+	method.SetSelector(selectors.Intern("x"))
+	point.VTable.AddMethod(method.Selector(), method)
+
+	found := point.MethodNamed("x")
+	if found == nil {
+		t.Fatal("MethodNamed('x') should not be nil")
+	}
+	if found.Category() != "accessing" {
+		t.Errorf("found method category = %q, want %q", found.Category(), "accessing")
+	}
+
+	notFound := point.MethodNamed("notexist")
+	if notFound != nil {
+		t.Error("MethodNamed('notexist') should be nil")
+	}
+}
+
+func TestClassAllCompiledMethods(t *testing.T) {
+	selectors := NewSelectorTable()
+	point := NewClass("Point", nil)
+
+	// Add compiled methods
+	method1 := NewCompiledMethod("x", 0)
+	method1.SetSelector(selectors.Intern("x"))
+	point.VTable.AddMethod(method1.Selector(), method1)
+
+	method2 := NewCompiledMethod("y", 0)
+	method2.SetSelector(selectors.Intern("y"))
+	point.VTable.AddMethod(method2.Selector(), method2)
+
+	// Add a primitive method (not compiled)
+	point.AddMethod0(selectors, "primMethod", func(_ interface{}, recv Value) Value {
+		return Nil
+	})
+
+	compiledMethods := point.AllCompiledMethods()
+	if len(compiledMethods) != 2 {
+		t.Errorf("AllCompiledMethods() count = %d, want 2", len(compiledMethods))
+	}
+}
+
+func TestClassAllMethodNames(t *testing.T) {
+	selectors := NewSelectorTable()
+	point := NewClass("Point", nil)
+
+	method := NewCompiledMethod("x", 0)
+	method.SetSelector(selectors.Intern("x"))
+	point.VTable.AddMethod(method.Selector(), method)
+
+	point.AddMethod0(selectors, "primMethod", func(_ interface{}, recv Value) Value {
+		return Nil
+	})
+
+	names := point.AllMethodNames()
+	if len(names) != 2 {
+		t.Errorf("AllMethodNames() count = %d, want 2", len(names))
+	}
+}
+
+func TestClassMethodCategoriesEmpty(t *testing.T) {
+	point := NewClass("Point", nil)
+
+	categories := point.MethodCategories()
+	if len(categories) != 0 {
+		t.Errorf("MethodCategories() for empty class = %d, want 0", len(categories))
+	}
+}
+
+func TestClassMethodsWithoutCategory(t *testing.T) {
+	selectors := NewSelectorTable()
+	point := NewClass("Point", nil)
+
+	// Add method without category
+	method := NewCompiledMethod("x", 0)
+	// Don't set category
+	method.SetSelector(selectors.Intern("x"))
+	point.VTable.AddMethod(method.Selector(), method)
+
+	// Categories should not include empty string
+	categories := point.MethodCategories()
+	for _, cat := range categories {
+		if cat == "" {
+			t.Error("categories should not include empty string")
+		}
+	}
+
+	// MethodsInCategory("") should still find the uncategorized method
+	methods := point.MethodsInCategory("")
+	if len(methods) != 1 {
+		t.Errorf("MethodsInCategory('') count = %d, want 1", len(methods))
+	}
+}

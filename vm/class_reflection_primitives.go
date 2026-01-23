@@ -1,0 +1,160 @@
+package vm
+
+// ---------------------------------------------------------------------------
+// Class Reflection Primitives
+// ---------------------------------------------------------------------------
+
+func (vm *VM) registerClassReflectionPrimitives() {
+	c := vm.ObjectClass
+
+	// ---------------------------------------------------------------------------
+	// Instance-side class reflection (sent to instances)
+	// ---------------------------------------------------------------------------
+
+	// className - returns the name of the receiver's class as a symbol
+	c.AddMethod0(vm.Selectors, "className", func(vmPtr interface{}, recv Value) Value {
+		v := vmPtr.(*VM)
+		cls := v.ClassFor(recv)
+		if cls == nil {
+			return Nil
+		}
+		return v.Symbols.SymbolValue(cls.Name)
+	})
+
+	// ---------------------------------------------------------------------------
+	// Class-side reflection (sent to class symbols)
+	// ---------------------------------------------------------------------------
+
+	// methodCategories - returns an array of all category names for this class
+	c.AddClassMethod0(vm.Selectors, "methodCategories", func(vmPtr interface{}, recv Value) Value {
+		v := vmPtr.(*VM)
+		cls := v.classFromValue(recv)
+		if cls == nil {
+			return v.NewArrayWithElements(nil)
+		}
+		categories := cls.MethodCategories()
+		values := make([]Value, len(categories))
+		for i, cat := range categories {
+			values[i] = v.Symbols.SymbolValue(cat)
+		}
+		return v.NewArrayWithElements(values)
+	})
+
+	// classMethodCategories - returns an array of all category names for class-side methods
+	c.AddClassMethod0(vm.Selectors, "classMethodCategories", func(vmPtr interface{}, recv Value) Value {
+		v := vmPtr.(*VM)
+		cls := v.classFromValue(recv)
+		if cls == nil {
+			return v.NewArrayWithElements(nil)
+		}
+		categories := cls.ClassMethodCategories()
+		values := make([]Value, len(categories))
+		for i, cat := range categories {
+			values[i] = v.Symbols.SymbolValue(cat)
+		}
+		return v.NewArrayWithElements(values)
+	})
+
+	// methodsInCategory: - returns an array of method names in the given category
+	c.AddClassMethod1(vm.Selectors, "methodsInCategory:", func(vmPtr interface{}, recv Value, category Value) Value {
+		v := vmPtr.(*VM)
+		cls := v.classFromValue(recv)
+		if cls == nil {
+			return v.NewArrayWithElements(nil)
+		}
+		var catName string
+		if category.IsSymbol() {
+			catName = v.Symbols.Name(category.SymbolID())
+		} else if IsStringValue(category) {
+			catName = GetStringContent(category)
+		} else {
+			return v.NewArrayWithElements(nil)
+		}
+		names := cls.MethodNamesInCategory(catName)
+		values := make([]Value, len(names))
+		for i, name := range names {
+			values[i] = v.Symbols.SymbolValue(name)
+		}
+		return v.NewArrayWithElements(values)
+	})
+
+	// allMethodNames - returns an array of all method names in this class
+	c.AddClassMethod0(vm.Selectors, "allMethodNames", func(vmPtr interface{}, recv Value) Value {
+		v := vmPtr.(*VM)
+		cls := v.classFromValue(recv)
+		if cls == nil {
+			return v.NewArrayWithElements(nil)
+		}
+		names := cls.AllMethodNames()
+		values := make([]Value, len(names))
+		for i, name := range names {
+			values[i] = v.Symbols.SymbolValue(name)
+		}
+		return v.NewArrayWithElements(values)
+	})
+
+	// categoryOf: - returns the category of a method given its selector
+	c.AddClassMethod1(vm.Selectors, "categoryOf:", func(vmPtr interface{}, recv Value, selector Value) Value {
+		v := vmPtr.(*VM)
+		cls := v.classFromValue(recv)
+		if cls == nil {
+			return Nil
+		}
+		var selName string
+		if selector.IsSymbol() {
+			selName = v.Symbols.Name(selector.SymbolID())
+		} else if IsStringValue(selector) {
+			selName = GetStringContent(selector)
+		} else {
+			return Nil
+		}
+		method := cls.MethodNamed(selName)
+		if method == nil {
+			return Nil
+		}
+		cat := method.Category()
+		if cat == "" {
+			return Nil
+		}
+		return v.Symbols.SymbolValue(cat)
+	})
+
+	// allInstVarNames - returns an array of all instance variable names
+	c.AddClassMethod0(vm.Selectors, "allInstVarNames", func(vmPtr interface{}, recv Value) Value {
+		v := vmPtr.(*VM)
+		cls := v.classFromValue(recv)
+		if cls == nil {
+			return v.NewArrayWithElements(nil)
+		}
+		names := cls.AllInstVarNames()
+		values := make([]Value, len(names))
+		for i, name := range names {
+			values[i] = v.Symbols.SymbolValue(name)
+		}
+		return v.NewArrayWithElements(values)
+	})
+
+	// instVarNames - returns an array of this class's own instance variable names
+	c.AddClassMethod0(vm.Selectors, "instVarNames", func(vmPtr interface{}, recv Value) Value {
+		v := vmPtr.(*VM)
+		cls := v.classFromValue(recv)
+		if cls == nil {
+			return v.NewArrayWithElements(nil)
+		}
+		values := make([]Value, len(cls.InstVars))
+		for i, name := range cls.InstVars {
+			values[i] = v.Symbols.SymbolValue(name)
+		}
+		return v.NewArrayWithElements(values)
+	})
+
+	// superclassName - returns the name of the superclass as a symbol
+	c.AddClassMethod0(vm.Selectors, "superclassName", func(vmPtr interface{}, recv Value) Value {
+		v := vmPtr.(*VM)
+		cls := v.classFromValue(recv)
+		if cls == nil || cls.Superclass == nil {
+			return Nil
+		}
+		return v.Symbols.SymbolValue(cls.Superclass.Name)
+	})
+}

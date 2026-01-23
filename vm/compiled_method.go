@@ -12,6 +12,7 @@ type CompiledMethod struct {
 	class         *Class // defining class (nil for detached methods)
 	name          string // method name (for debugging)
 	IsClassMethod bool   // true if this is a class-side method
+	category      string // method category/protocol (e.g., "accessing", "testing", "private")
 
 	// Method signature
 	Arity    int // number of arguments (not including self)
@@ -99,6 +100,16 @@ func (m *CompiledMethod) SetClass(c *Class) {
 // SetSelector sets the selector ID.
 func (m *CompiledMethod) SetSelector(sel int) {
 	m.selector = sel
+}
+
+// Category returns the method category/protocol.
+func (m *CompiledMethod) Category() string {
+	return m.category
+}
+
+// SetCategory sets the method category/protocol.
+func (m *CompiledMethod) SetCategory(cat string) {
+	m.category = cat
 }
 
 // GetInlineCaches returns the inline cache table, creating it if needed.
@@ -258,6 +269,12 @@ func NewCompiledMethodBuilder(name string, arity int) *CompiledMethodBuilder {
 // SetSource sets the source text.
 func (b *CompiledMethodBuilder) SetSource(source string) *CompiledMethodBuilder {
 	b.method.Source = source
+	return b
+}
+
+// SetCategory sets the method category/protocol.
+func (b *CompiledMethodBuilder) SetCategory(cat string) *CompiledMethodBuilder {
+	b.method.category = cat
 	return b
 }
 
