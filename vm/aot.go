@@ -295,6 +295,27 @@ func (c *AOTCompiler) compileBytecode(bc []byte, isBlock bool) {
 			c.writeLine("  if cell.IsCell() { cell.CellSet(val) }")
 			c.writeLine("  stack[sp] = val; sp++ }")
 
+		case OpPushClassVar:
+			idx := binary.LittleEndian.Uint16(bc[pos:])
+			pos += 2
+			// Get class name at compile time from the method
+			className := ""
+			if c.method != nil && c.method.Class() != nil {
+				className = c.method.Class().Name
+			}
+			c.writeLine("stack[sp] = vm.Classes.Lookup(%q).GetClassVar(vm.Symbols.Name(literals[%d].SymbolID()))", className, idx)
+			c.writeLine("sp++")
+
+		case OpStoreClassVar:
+			idx := binary.LittleEndian.Uint16(bc[pos:])
+			pos += 2
+			// Get class name at compile time from the method
+			className := ""
+			if c.method != nil && c.method.Class() != nil {
+				className = c.method.Class().Name
+			}
+			c.writeLine("vm.Classes.Lookup(%q).SetClassVar(vm.Symbols.Name(literals[%d].SymbolID()), stack[sp-1])", className, idx)
+
 		case OpSend:
 			selIdx := binary.LittleEndian.Uint16(bc[pos:])
 			pos += 2

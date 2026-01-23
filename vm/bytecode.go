@@ -48,6 +48,8 @@ const (
 	OpMakeCell      Opcode = 0x2A // create cell from top of stack, push cell reference
 	OpCellGet       Opcode = 0x2B // pop cell reference, push contained value
 	OpCellSet       Opcode = 0x2C // pop value, pop cell, store value in cell, push value
+	OpPushClassVar  Opcode = 0x2D // push class variable (16-bit symbol ID)
+	OpStoreClassVar Opcode = 0x2E // store into class variable (16-bit symbol ID)
 )
 
 // Message Sends
@@ -151,6 +153,8 @@ var opcodeTable = map[Opcode]OpcodeInfo{
 	OpMakeCell:      {"MAKE_CELL", 0, 0},  // pops value, pushes cell (net 0)
 	OpCellGet:       {"CELL_GET", 0, 0},   // pops cell, pushes value (net 0)
 	OpCellSet:       {"CELL_SET", 0, -1},  // pops value, pops cell, stores, pushes value (net -1)
+	OpPushClassVar:  {"PUSH_CLASSVAR", 2, 1},  // pushes class variable value
+	OpStoreClassVar: {"STORE_CLASSVAR", 2, 0}, // pops value, stores in class var
 
 	// Sends
 	OpSend:      {"SEND", 3, -1}, // variable: pops receiver + args, pushes result
@@ -497,7 +501,7 @@ func DisassembleInstruction(r *BytecodeReader) string {
 		return fmt.Sprintf("%04d  %s %d", pos, info.Name, size)
 
 	// 16-bit operand
-	case OpPushLiteral, OpPushGlobal, OpStoreGlobal:
+	case OpPushLiteral, OpPushGlobal, OpStoreGlobal, OpPushClassVar, OpStoreClassVar:
 		idx := r.ReadUint16()
 		return fmt.Sprintf("%04d  %s %d", pos, info.Name, idx)
 

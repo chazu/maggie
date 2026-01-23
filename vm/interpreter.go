@@ -573,6 +573,50 @@ func (i *Interpreter) runFrame() Value {
 			}
 			i.push(val)
 
+		case OpPushClassVar:
+			idx := binary.LittleEndian.Uint16(bc[frame.IP:])
+			frame.IP += 2
+			if int(idx) < len(literals) {
+				// Get class variable name from literal
+				varName := ""
+				lit := literals[idx]
+				if lit.IsSymbol() && i.Symbols != nil {
+					varName = i.Symbols.Name(lit.SymbolID())
+				}
+				if varName != "" {
+					// Get class from the method's defining class
+					class := frame.Method.Class()
+					if class != nil {
+						i.push(class.GetClassVar(varName))
+					} else {
+						i.push(Nil)
+					}
+				} else {
+					i.push(Nil)
+				}
+			} else {
+				i.push(Nil)
+			}
+
+		case OpStoreClassVar:
+			idx := binary.LittleEndian.Uint16(bc[frame.IP:])
+			frame.IP += 2
+			if int(idx) < len(literals) {
+				// Get class variable name from literal
+				varName := ""
+				lit := literals[idx]
+				if lit.IsSymbol() && i.Symbols != nil {
+					varName = i.Symbols.Name(lit.SymbolID())
+				}
+				if varName != "" {
+					// Get class from the method's defining class
+					class := frame.Method.Class()
+					if class != nil {
+						class.SetClassVar(varName, i.top())
+					}
+				}
+			}
+
 		// --- Message sends ---
 		case OpSend:
 			sel := int(binary.LittleEndian.Uint16(bc[frame.IP:]))

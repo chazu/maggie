@@ -53,6 +53,7 @@ type Class struct {
 	ClassVTable *VTable  // Method dispatch table for class methods (metaclass)
 	InstVars    []string // Instance variable names
 	NumSlots    int      // Total number of slots needed
+	ClassVars   []string // Class variable names (shared across all instances)
 }
 
 // Method represents a compiled or primitive method.

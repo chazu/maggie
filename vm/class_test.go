@@ -565,3 +565,189 @@ func BenchmarkMethodLookup(b *testing.B) {
 		_ = point.VTable.Lookup(selectorID)
 	}
 }
+
+// ---------------------------------------------------------------------------
+// Class variable tests
+// ---------------------------------------------------------------------------
+
+func TestClassVarBasic(t *testing.T) {
+	// Create a class with class variables
+	counter := NewClass("Counter", nil)
+	counter.ClassVars = []string{"count"}
+
+	// Initially nil
+	val := counter.GetClassVar("count")
+	if val != Nil {
+		t.Errorf("initial class var should be Nil, got %v", val)
+	}
+
+	// Set and get
+	counter.SetClassVar("count", FromSmallInt(42))
+	val = counter.GetClassVar("count")
+	if val.SmallInt() != 42 {
+		t.Errorf("class var should be 42, got %d", val.SmallInt())
+	}
+
+	// Update
+	counter.SetClassVar("count", FromSmallInt(100))
+	val = counter.GetClassVar("count")
+	if val.SmallInt() != 100 {
+		t.Errorf("class var should be 100, got %d", val.SmallInt())
+	}
+}
+
+func TestClassVarInheritance(t *testing.T) {
+	// Create class hierarchy with class variables
+	object := NewClass("Object", nil)
+	animal := NewClass("Animal", object)
+	animal.ClassVars = []string{"population"}
+	dog := NewClass("Dog", animal)
+
+	// Set via parent class
+	animal.SetClassVar("population", FromSmallInt(1000))
+
+	// Subclass should see the same value
+	val := dog.GetClassVar("population")
+	if val.SmallInt() != 1000 {
+		t.Errorf("subclass should see parent's class var, got %d", val.SmallInt())
+	}
+
+	// Setting via subclass should update the same storage
+	dog.SetClassVar("population", FromSmallInt(2000))
+	val = animal.GetClassVar("population")
+	if val.SmallInt() != 2000 {
+		t.Errorf("parent should see updated class var, got %d", val.SmallInt())
+	}
+}
+
+func TestClassVarIndex(t *testing.T) {
+	object := NewClass("Object", nil)
+	counter := NewClass("Counter", object)
+	counter.ClassVars = []string{"count", "max"}
+
+	if idx := counter.ClassVarIndex("count"); idx != 0 {
+		t.Errorf("ClassVarIndex(count) = %d, want 0", idx)
+	}
+	if idx := counter.ClassVarIndex("max"); idx != 1 {
+		t.Errorf("ClassVarIndex(max) = %d, want 1", idx)
+	}
+	if idx := counter.ClassVarIndex("notfound"); idx != -1 {
+		t.Errorf("ClassVarIndex(notfound) = %d, want -1", idx)
+	}
+}
+
+func TestHasClassVar(t *testing.T) {
+	object := NewClass("Object", nil)
+	counter := NewClass("Counter", object)
+	counter.ClassVars = []string{"count"}
+	subCounter := NewClass("SubCounter", counter)
+
+	if !counter.HasClassVar("count") {
+		t.Error("Counter should have 'count' class var")
+	}
+	if !subCounter.HasClassVar("count") {
+		t.Error("SubCounter should have inherited 'count' class var")
+	}
+	if counter.HasClassVar("notfound") {
+		t.Error("Counter should not have 'notfound' class var")
+	}
+}
+
+func TestAllClassVarNames(t *testing.T) {
+	object := NewClass("Object", nil)
+	parent := NewClass("Parent", object)
+	parent.ClassVars = []string{"a", "b"}
+	child := NewClass("Child", parent)
+	child.ClassVars = []string{"c"}
+
+	names := child.AllClassVarNames()
+	if len(names) != 3 {
+		t.Fatalf("AllClassVarNames() length = %d, want 3", len(names))
+	}
+	// Should be inherited first, then own
+	expected := []string{"a", "b", "c"}
+	for i, name := range expected {
+		if names[i] != name {
+			t.Errorf("names[%d] = %q, want %q", i, names[i], name)
+		}
+	}
+}
+
+func TestClassVarOpcode(t *testing.T) {
+	// Create interpreter with symbol table
+	interp := NewInterpreter()
+	interp.Symbols = NewSymbolTable()
+
+	// Create class with class variables
+	counter := NewClass("Counter", nil)
+	counter.ClassVars = []string{"count"}
+	interp.Classes.Register(counter)
+
+	// Create symbol value for the class variable name
+	countSymbolValue := interp.Symbols.SymbolValue("count")
+
+	// Create a method that pushes the class variable
+	// Bytecode: PUSH_CLASSVAR 0, RETURN_TOP
+	b := NewCompiledMethodBuilder("getCount", 0)
+
+	// Add the symbol as a literal
+	litIdx := b.AddLiteral(countSymbolValue)
+
+	b.Bytecode().EmitUint16(OpPushClassVar, uint16(litIdx))
+	b.Bytecode().Emit(OpReturnTop)
+
+	method := b.Build()
+	method.SetClass(counter)
+
+	// Set the class variable
+	counter.SetClassVar("count", FromSmallInt(42))
+
+	// Execute
+	result := interp.Execute(method, Nil, nil)
+
+	if result.SmallInt() != 42 {
+		t.Errorf("expected 42, got %d", result.SmallInt())
+	}
+}
+
+func TestClassVarStoreOpcode(t *testing.T) {
+	// Create interpreter with symbol table
+	interp := NewInterpreter()
+	interp.Symbols = NewSymbolTable()
+
+	// Create class with class variables
+	counter := NewClass("Counter", nil)
+	counter.ClassVars = []string{"count"}
+	interp.Classes.Register(counter)
+
+	// Create symbol value for the class variable name
+	countSymbolValue := interp.Symbols.SymbolValue("count")
+
+	// Create a method that stores into the class variable
+	// Bytecode: PUSH_INT8 99, STORE_CLASSVAR 0, RETURN_TOP
+	b := NewCompiledMethodBuilder("setCount", 0)
+
+	// Add the symbol as a literal
+	litIdx := b.AddLiteral(countSymbolValue)
+
+	b.Bytecode().EmitInt8(OpPushInt8, 99)
+	b.Bytecode().EmitUint16(OpStoreClassVar, uint16(litIdx))
+	b.Bytecode().Emit(OpReturnTop)
+
+	method := b.Build()
+	method.SetClass(counter)
+
+	// Execute
+	result := interp.Execute(method, Nil, nil)
+
+	// Return value should be 99 (store leaves value on stack)
+	if result.SmallInt() != 99 {
+		t.Errorf("expected return 99, got %d", result.SmallInt())
+	}
+
+	// Class variable should be updated
+	val := counter.GetClassVar("count")
+	if val.SmallInt() != 99 {
+		t.Errorf("class var should be 99, got %d", val.SmallInt())
+	}
+}

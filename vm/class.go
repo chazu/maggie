@@ -61,6 +61,104 @@ func (c *Class) IsSuperclassOf(other *Class) bool {
 	return other.IsSubclassOf(c)
 }
 
+// ---------------------------------------------------------------------------
+// Class Variables
+// ---------------------------------------------------------------------------
+
+// classVarStorage holds the actual values for class variables.
+// Each class that declares class variables has an entry in this map.
+var classVarStorage = make(map[*Class]map[string]Value)
+var classVarMu sync.RWMutex
+
+// HasClassVar returns true if this class or any superclass declares the named class variable.
+func (c *Class) HasClassVar(name string) bool {
+	return c.findClassVarOwner(name) != nil
+}
+
+// findClassVarOwner finds the class that declares the named class variable.
+// Returns nil if not found.
+func (c *Class) findClassVarOwner(name string) *Class {
+	for current := c; current != nil; current = current.Superclass {
+		for _, cv := range current.ClassVars {
+			if cv == name {
+				return current
+			}
+		}
+	}
+	return nil
+}
+
+// GetClassVar returns the value of a class variable.
+// Walks up the class hierarchy to find the declaring class.
+func (c *Class) GetClassVar(name string) Value {
+	owner := c.findClassVarOwner(name)
+	if owner == nil {
+		return Nil
+	}
+
+	classVarMu.RLock()
+	defer classVarMu.RUnlock()
+
+	if values, ok := classVarStorage[owner]; ok {
+		if val, ok := values[name]; ok {
+			return val
+		}
+	}
+	return Nil
+}
+
+// SetClassVar sets the value of a class variable.
+// Walks up the class hierarchy to find the declaring class.
+func (c *Class) SetClassVar(name string, value Value) {
+	owner := c.findClassVarOwner(name)
+	if owner == nil {
+		// Variable not declared - could error, but for now just store on this class
+		owner = c
+	}
+
+	classVarMu.Lock()
+	defer classVarMu.Unlock()
+
+	if classVarStorage[owner] == nil {
+		classVarStorage[owner] = make(map[string]Value)
+	}
+	classVarStorage[owner][name] = value
+}
+
+// ClassVarIndex returns the index of a class variable by name.
+// Returns -1 if the variable is not found.
+func (c *Class) ClassVarIndex(name string) int {
+	for current := c; current != nil; current = current.Superclass {
+		for i, n := range current.ClassVars {
+			if n == name {
+				return i
+			}
+		}
+	}
+	return -1
+}
+
+// AllClassVarNames returns all class variable names including inherited ones.
+func (c *Class) AllClassVarNames() []string {
+	if c.Superclass == nil {
+		return c.ClassVars
+	}
+	inherited := c.Superclass.AllClassVarNames()
+	// Add this class's class vars, avoiding duplicates (shadowing)
+	seen := make(map[string]bool)
+	for _, name := range inherited {
+		seen[name] = true
+	}
+	result := make([]string, len(inherited))
+	copy(result, inherited)
+	for _, name := range c.ClassVars {
+		if !seen[name] {
+			result = append(result, name)
+		}
+	}
+	return result
+}
+
 // NewInstance creates a new instance of this class.
 func (c *Class) NewInstance() *Object {
 	return NewObject(c.VTable, c.NumSlots)
