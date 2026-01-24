@@ -1,0 +1,165 @@
+# MaggieIDE.mag
+# Unified IDE launcher and workspace manager for Maggie.
+# Provides a menu-driven interface to launch IDE tools.
+
+MaggieIDE subclass: Object
+  instanceVars: session mainFlex menuList statusBar currentTool
+
+  # Main entry point
+  classMethod: run [
+      | session |
+      session := YutaniSession connectToDefault.
+      session ifNil: [
+          Transcript show: 'Could not connect to Yutani server'.
+          ^nil
+      ].
+      ^self new initializeIn: session; open
+  ]
+
+  classMethod: runAt: address [
+      | session |
+      session := YutaniSession connectTo: address.
+      session ifNil: [
+          Transcript show: 'Could not connect to Yutani server at: ', address.
+          ^nil
+      ].
+      ^self new initializeIn: session; open
+  ]
+
+  method: initializeIn: aSession [
+      session := aSession.
+      currentTool := nil.
+      self buildUI.
+      ^self
+  ]
+
+  method: buildUI [
+      # Main vertical layout
+      mainFlex := session createFlex.
+      mainFlex direction: #column.
+      mainFlex title: 'Maggie IDE'.
+      mainFlex border: true.
+
+      # Menu list for tool selection
+      menuList := session createList.
+      menuList title: 'Tools'.
+      menuList border: true.
+      menuList onSelected: [:e | self menuItemSelected: e].
+
+      # Add menu items
+      menuList addItem: 'Class Browser' secondary: 'Browse classes and methods'.
+      menuList addItem: 'Inspector' secondary: 'Inspect objects'.
+      menuList addItem: 'REPL' secondary: 'Interactive Maggie shell'.
+      menuList addItem: 'Code Editor' secondary: 'Edit Maggie source files'.
+      menuList addItem: 'New Code Editor...' secondary: 'Open file in editor'.
+      menuList addItem: 'Quit' secondary: 'Exit the IDE'.
+
+      # Status bar
+      statusBar := session createTextView.
+      statusBar border: false.
+      statusBar text: 'Select a tool to launch | Press Enter or double-click'.
+
+      # Add to layout
+      mainFlex addItem: menuList proportion: 1.
+      mainFlex addItem: statusBar fixedSize: 1.
+
+      # Set up key bindings
+      self setupKeyBindings
+  ]
+
+  method: setupKeyBindings [
+      session onKey: [:event |
+          event isCtrl ifTrue: [
+              event rune = 'q' ifTrue: [self close].
+              event rune = 'b' ifTrue: [self launchClassBrowser].
+              event rune = 'i' ifTrue: [self launchInspector].
+              event rune = 'r' ifTrue: [self launchREPL].
+              event rune = 'e' ifTrue: [self launchCodeEditor].
+              event rune = 'n' ifTrue: [self launchNewCodeEditor]
+          ].
+          event isEnter ifTrue: [self activateSelection]
+      ]
+  ]
+
+  method: open [
+      session setRoot: mainFlex.
+      menuList focus.
+      session run  "Block until event loop terminates"
+  ]
+
+  method: close [
+      session stopEventLoop.
+      session disconnect
+  ]
+
+  # Menu handling
+  method: menuItemSelected: event [
+      | item |
+      item := event dataAt: #main_text.
+      item ifNil: [^self].
+
+      statusBar text: 'Selected: ', item, ' | Press Enter to launch'
+  ]
+
+  method: activateSelection [
+      | selectedIndex |
+      selectedIndex := menuList selectedIndex.
+      selectedIndex < 0 ifTrue: [^self].
+
+      selectedIndex = 0 ifTrue: [^self launchClassBrowser].
+      selectedIndex = 1 ifTrue: [^self launchInspector].
+      selectedIndex = 2 ifTrue: [^self launchREPL].
+      selectedIndex = 3 ifTrue: [^self launchCodeEditor].
+      selectedIndex = 4 ifTrue: [^self launchNewCodeEditor].
+      selectedIndex = 5 ifTrue: [^self close]
+  ]
+
+  # Tool launchers
+  method: launchClassBrowser [
+      statusBar text: 'Launching Class Browser...'.
+      session stopEventLoop.
+      ClassBrowser openIn: session
+  ]
+
+  method: launchInspector [
+      statusBar text: 'Launching Inspector on nil...'.
+      session stopEventLoop.
+      # Inspect nil by default; in a real IDE you'd select what to inspect
+      Inspector inspect: nil in: session
+  ]
+
+  method: launchInspector: anObject [
+      statusBar text: 'Launching Inspector...'.
+      session stopEventLoop.
+      Inspector inspect: anObject in: session
+  ]
+
+  method: launchREPL [
+      statusBar text: 'Launching REPL...'.
+      session stopEventLoop.
+      MaggieREPL openIn: session
+  ]
+
+  method: launchCodeEditor [
+      statusBar text: 'Launching Code Editor...'.
+      session stopEventLoop.
+      CodeEditor openIn: session
+  ]
+
+  method: launchNewCodeEditor [
+      # In a full implementation, this would show a file picker dialog
+      # For now, just launch a new empty editor
+      self launchCodeEditor
+  ]
+
+  method: launchCodeEditor: filename [
+      statusBar text: 'Opening: ', filename, '...'.
+      session stopEventLoop.
+      CodeEditor openIn: session file: filename
+  ]
+
+  # Printing
+  method: printString [
+      ^'MaggieIDE'
+  ]
+
