@@ -557,7 +557,7 @@ func runYutaniIDE(vmInst *vm.VM, addr string, tool string, verbose bool) error {
 	var startupCode string
 	switch tool {
 	case "launcher", "ide":
-		startupCode = fmt.Sprintf("MaggieIDE runAt: '%s'", addr)
+		startupCode = fmt.Sprintf("MaggieIDE openIn: (YutaniSession connectTo: '%s')", addr)
 	case "browser":
 		startupCode = fmt.Sprintf("ClassBrowser openIn: (YutaniSession connectTo: '%s')", addr)
 	case "inspector":

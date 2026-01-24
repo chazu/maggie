@@ -5,7 +5,12 @@
 MaggieIDE subclass: Object
   instanceVars: session mainFlex menuList statusBar currentTool
 
-  # Main entry point
+  # Main entry point - session passed in (like ClassBrowser)
+  classMethod: openIn: aSession [
+      ^self new initializeIn: aSession; open
+  ]
+
+  # Convenience methods that create their own session
   classMethod: run [
       | session |
       session := YutaniSession connectToDefault.
@@ -13,7 +18,7 @@ MaggieIDE subclass: Object
           Transcript show: 'Could not connect to Yutani server'.
           ^nil
       ].
-      ^self new initializeIn: session; open
+      ^self openIn: session
   ]
 
   classMethod: runAt: address [
@@ -23,7 +28,7 @@ MaggieIDE subclass: Object
           Transcript show: 'Could not connect to Yutani server at: ', address.
           ^nil
       ].
-      ^self new initializeIn: session; open
+      ^self openIn: session
   ]
 
   method: initializeIn: aSession [
