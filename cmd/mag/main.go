@@ -24,6 +24,7 @@ func main() {
 	noRC := flag.Bool("no-rc", false, "Skip loading ~/.maggierc")
 	yutaniMode := flag.Bool("yutani", false, "Start Yutani IDE mode")
 	yutaniAddr := flag.String("yutani-addr", "localhost:7755", "Yutani server address")
+	yutaniTool := flag.String("ide-tool", "launcher", "IDE tool to start: launcher, browser, inspector, repl, editor")
 	useMaggieCompiler := flag.Bool("experimental-maggie-compiler", false, "Use experimental Maggie self-hosting compiler instead of Go compiler")
 
 	flag.Usage = func() {
@@ -35,7 +36,8 @@ func main() {
 		fmt.Fprintf(os.Stderr, "  mag -i                 # Start REPL\n")
 		fmt.Fprintf(os.Stderr, "  mag ./src -m main      # Load src/, run 'main' method\n")
 		fmt.Fprintf(os.Stderr, "  mag ./... -m App.start # Load recursively, run App.start\n")
-		fmt.Fprintf(os.Stderr, "  mag --yutani           # Start Yutani IDE (connects to localhost:7755)\n")
+		fmt.Fprintf(os.Stderr, "  mag --yutani           # Start Yutani IDE launcher (connects to localhost:7755)\n")
+		fmt.Fprintf(os.Stderr, "  mag --yutani --ide-tool browser   # Start Class Browser directly\n")
 		fmt.Fprintf(os.Stderr, "  mag --yutani --yutani-addr host:port  # Connect to specific server\n")
 		fmt.Fprintf(os.Stderr, "\nExperimental:\n")
 		fmt.Fprintf(os.Stderr, "  mag -i --experimental-maggie-compiler  # Use self-hosting compiler\n")
@@ -107,7 +109,7 @@ func main() {
 
 	// Start Yutani IDE mode if requested
 	if *yutaniMode {
-		if err := runYutaniIDE(vmInst, *yutaniAddr, *verbose); err != nil {
+		if err := runYutaniIDE(vmInst, *yutaniAddr, *yutaniTool, *verbose); err != nil {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 			os.Exit(1)
 		}
@@ -534,7 +536,7 @@ func compileFile(path string, vmInst *vm.VM, verbose bool) (int, error) {
 }
 
 // runYutaniIDE loads the Yutani library and starts the IDE
-func runYutaniIDE(vmInst *vm.VM, addr string, verbose bool) error {
+func runYutaniIDE(vmInst *vm.VM, addr string, tool string, verbose bool) error {
 	// Find the yutani library path
 	yutaniPath, err := findYutaniLib()
 	if err != nil {
@@ -551,13 +553,25 @@ func runYutaniIDE(vmInst *vm.VM, addr string, verbose bool) error {
 		return fmt.Errorf("loading Yutani library: %w", err)
 	}
 
-	// Compile and execute the IDE startup code
-	// Use nested message send to avoid local variable syntax issues
-	startupCode := fmt.Sprintf("ClassBrowser openIn: (YutaniSession connectTo: '%s')", addr)
-
-	if verbose {
-		fmt.Printf("Starting Yutani IDE, connecting to %s\n", addr)
+	// Determine startup code based on tool selection
+	var startupCode string
+	switch tool {
+	case "launcher", "ide":
+		startupCode = fmt.Sprintf("MaggieIDE runAt: '%s'", addr)
+	case "browser":
+		startupCode = fmt.Sprintf("ClassBrowser openIn: (YutaniSession connectTo: '%s')", addr)
+	case "inspector":
+		startupCode = fmt.Sprintf("Inspector inspect: nil in: (YutaniSession connectTo: '%s')", addr)
+	case "repl":
+		startupCode = fmt.Sprintf("MaggieREPL openIn: (YutaniSession connectTo: '%s')", addr)
+	case "editor":
+		startupCode = fmt.Sprintf("CodeEditor openIn: (YutaniSession connectTo: '%s')", addr)
+	default:
+		return fmt.Errorf("unknown IDE tool: %s (use: launcher, browser, inspector, repl, editor)", tool)
 	}
+
+	fmt.Printf("Starting Yutani IDE (%s), connecting to %s...\n", tool, addr)
+	fmt.Printf("Make sure the Yutani server is running: yutani-server\n")
 
 	// Wrap as a doIt method and execute
 	source := "doIt\n    ^" + startupCode
@@ -566,7 +580,10 @@ func runYutaniIDE(vmInst *vm.VM, addr string, verbose bool) error {
 		return fmt.Errorf("compiling startup code: %w", err)
 	}
 
-	vmInst.Execute(method, vm.Nil, nil)
+	result := vmInst.Execute(method, vm.Nil, nil)
+	if result == vm.Nil {
+		fmt.Println("IDE exited. (If it exited immediately, check that yutani-server is running)")
+	}
 	return nil
 }
 
