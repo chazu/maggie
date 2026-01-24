@@ -11,7 +11,7 @@ A late-bound Smalltalk dialect implemented in Go.
 Phase 4: JIT Compilation - In Progress
 
 - Core VM with NaN-boxed values, bytecode interpreter
-- 16 core classes: Object, Boolean, True, False, UndefinedObject, SmallInteger, Float, String, Symbol, Array, Block, Channel, Process, Result, Success, Failure
+- 21 core classes: Object, Boolean, True, False, UndefinedObject, SmallInteger, Float, String, Symbol, Array, Block, Channel, Process, Mutex, WaitGroup, Semaphore, CancellationContext, Result, Success, Failure
 - Compiler: Smalltalk-like syntax to bytecode
 - Image system: Binary save/load of VM state
 - Development tools: Inspector, Debugger

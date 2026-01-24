@@ -467,40 +467,258 @@ on: exception do: handler
 ensure: finallyBlock
 
 -- Concurrency
-fork            -- spawn as new process
-forkAt: priority
+fork                    -- spawn as new process, returns Process
+forkWith: arg           -- fork with single argument
+forkWithContext: ctx    -- fork with CancellationContext
 ```
+
+**fork semantics**: When a block is forked, non-local returns (`^`) are treated as local returns within the forked process. This prevents crashes from returns attempting to cross goroutine boundaries.
 
 ### Channel
 
-Go-style communication channels.
+Go-style communication channels for safe inter-process communication.
 
 ```smalltalk
-send: value     -- blocking send
-receive         -- blocking receive
-trySend: value  -- non-blocking send (returns boolean)
-tryReceive      -- non-blocking receive (returns Result)
-close
-isClosed
+-- Creation
+Channel new             -- unbuffered channel
+Channel new: size       -- buffered channel with capacity
+
+-- Blocking operations
+send: value             -- blocking send
+receive                 -- blocking receive
+
+-- Non-blocking operations
+trySend: value          -- non-blocking send (returns true/false)
+tryReceive              -- non-blocking receive (returns value or nil)
+
+-- State
+close                   -- close the channel
+isClosed                -- check if closed
+isEmpty                 -- check if no pending values
+size                    -- number of buffered items
+capacity                -- buffer capacity
+
+-- Select (multiplexed channel operations)
+Channel select: casesArray              -- wait on multiple channels
+Channel select: casesArray ifNone: blk  -- with default case
+ch onReceive: [:v | ...]                -- create receive case for select
+ch onSend: val do: [...]                -- create send case for select
 
 -- Stream interface
-nextPut: value  -- alias for send:
-next            -- alias for receive
+nextPut: value          -- alias for send:
+next                    -- alias for receive
+```
+
+**Channel select** allows waiting on multiple channels simultaneously:
+
+```smalltalk
+result := Channel select: {
+    ch1 onReceive: [:v | 'Got from ch1: ', v].
+    ch2 onReceive: [:v | 'Got from ch2: ', v]
+}.
+
+-- Non-blocking with default
+result := Channel select: {
+    ch onReceive: [:v | v]
+} ifNone: ['No channel ready'].
 ```
 
 ### Process
 
-Lightweight concurrent processes.
+Lightweight concurrent processes (goroutines).
 
 ```smalltalk
-yield           -- give up time slice
-terminate
-wait            -- wait for completion
-isAlive
-isTerminated
-result          -- get return value
-priority
-priority: level
+-- Creation (via Block)
+[expression] fork                   -- spawn block as new process
+[expr] forkWith: arg                -- fork with argument
+[:ctx | ...] forkWithContext: ctx   -- fork with cancellation context
+Process fork: block                 -- class method version
+
+-- Waiting
+wait                    -- block until complete, returns result
+isDone                  -- check if process finished
+result                  -- get result (nil if not done)
+
+-- Control
+Process current         -- get current process
+Process yield           -- yield to other goroutines
+Process sleep: ms       -- sleep for milliseconds
+```
+
+**fork vs forkWithContext**: Use `forkWithContext:` when you need cancellation or timeout support. The context is passed to the block:
+
+```smalltalk
+ctx := CancellationContext withTimeout: 5000.
+proc := [:context |
+    [context isCancelled not] whileTrue: [
+        -- do work
+        Process sleep: 100
+    ]
+] forkWithContext: ctx.
+```
+
+### Mutex
+
+Mutual exclusion lock for protecting shared state.
+
+```smalltalk
+-- Creation
+Mutex new               -- create a mutex
+
+-- Locking
+lock                    -- acquire lock (blocks if held)
+unlock                  -- release lock
+tryLock                 -- non-blocking attempt (returns true/false)
+isLocked                -- check if currently locked
+
+-- Safe pattern
+critical: block         -- execute block while holding lock (auto-unlock)
+```
+
+**Best practice**: Always use `critical:` instead of manual lock/unlock:
+
+```smalltalk
+mutex := Mutex new.
+mutex critical: [
+    counter := counter + 1
+].
+```
+
+### WaitGroup
+
+Synchronization barrier for waiting on multiple processes.
+
+```smalltalk
+-- Creation
+WaitGroup new           -- create a wait group
+
+-- Counter operations
+add: count              -- add to counter
+done                    -- decrement counter by 1
+wait                    -- block until counter reaches zero
+count                   -- get current counter value
+
+-- Convenience
+wrap: block             -- add 1, fork block, auto-done on completion
+```
+
+**Example**: Wait for multiple workers:
+
+```smalltalk
+wg := WaitGroup new.
+results := Channel new: 5.
+
+1 to: 5 do: [:i |
+    wg wrap: [
+        Process sleep: (i * 10).
+        results send: i * i
+    ]
+].
+
+wg wait.  -- blocks until all workers done
+results close.
+```
+
+### Semaphore
+
+Counting semaphore for limiting concurrent access.
+
+```smalltalk
+-- Creation
+Semaphore new           -- binary semaphore (1 permit)
+Semaphore new: n        -- semaphore with n permits
+
+-- Permit operations
+acquire                 -- acquire permit (blocks if none available)
+release                 -- release permit
+tryAcquire              -- non-blocking attempt (returns true/false)
+
+-- State
+available               -- number of available permits
+capacity                -- total capacity
+
+-- Safe pattern
+critical: block         -- execute while holding permit (auto-release)
+withPermit: block       -- alias for critical:
+```
+
+**Example**: Limit concurrent database connections:
+
+```smalltalk
+dbPool := Semaphore new: 3.  -- max 3 connections
+
+dbPool critical: [
+    -- only 3 processes can be here at once
+    self queryDatabase
+].
+```
+
+### CancellationContext
+
+Go-style context for cancellation and timeouts.
+
+```smalltalk
+-- Creation
+CancellationContext background      -- never-cancelled base context
+CancellationContext todo            -- placeholder context
+CancellationContext withCancel      -- cancellable context
+CancellationContext withTimeout: ms -- timeout after milliseconds
+
+-- Child contexts (inherit parent cancellation)
+withCancel              -- create cancellable child
+withTimeout: ms         -- create child with timeout
+
+-- Cancellation
+cancel                  -- cancel this context
+isCancelled             -- check if cancelled
+isDone                  -- alias for isCancelled
+
+-- Deadline info
+hasDeadline             -- check if has timeout
+deadline                -- deadline in milliseconds
+remainingTime           -- milliseconds until deadline
+
+-- Blocking
+wait                    -- block until context is done
+doneChannel             -- channel that closes when cancelled
+
+-- Execution
+do: block               -- execute block, auto-cancel when done
+ifCancelled: block      -- execute if cancelled
+parent                  -- get parent context
+```
+
+**Timeout pattern**:
+
+```smalltalk
+ctx := CancellationContext withTimeout: 5000.
+
+[ctx isCancelled not] whileTrue: [
+    -- do work
+    Process sleep: 100
+].
+-- automatically stops after 5 seconds
+```
+
+**Graceful shutdown pattern**:
+
+```smalltalk
+ctx := CancellationContext withCancel.
+workers := OrderedCollection new.
+
+-- Start workers that respect cancellation
+1 to: 5 do: [:i |
+    workers add: ([:context |
+        [context isCancelled not] whileTrue: [
+            -- process work
+            Process sleep: 100
+        ]
+    ] forkWithContext: ctx)
+].
+
+-- Later: trigger shutdown
+ctx cancel.
+workers do: [:w | w wait].
 ```
 
 ### Result (Success/Failure)
@@ -594,19 +812,23 @@ mag ./App.mag -m App.start
 
 ## Example: Concurrency
 
+### Basic Producer/Consumer
+
 ```smalltalk
 -- Producer/Consumer with channels
 producer: channel count: n
     1 to: n do: [:i |
-        channel send: i.
-        'Sent: ' , i printString
+        channel send: i
     ].
     channel close
 
 consumer: channel
-    | value |
-    [(value := channel tryReceive) isSuccess] whileTrue: [
-        'Received: ' , value value printString
+    | val |
+    [channel isClosed not] whileTrue: [
+        val := channel receive.
+        val notNil ifTrue: [
+            Transcript show: 'Received: ', val printString; cr
+        ]
     ]
 
 main
@@ -616,6 +838,69 @@ main
     [self consumer: ch] fork.
     ^0
 ```
+
+### Worker Pool with WaitGroup
+
+```smalltalk
+runWorkerPool
+    | wg jobs results |
+    wg := WaitGroup new.
+    jobs := Channel new: 10.
+    results := Channel new: 10.
+
+    -- Start 3 workers
+    1 to: 3 do: [:id |
+        wg wrap: [
+            | job |
+            [(job := jobs tryReceive) notNil] whileTrue: [
+                results send: job * job
+            ]
+        ]
+    ].
+
+    -- Send jobs
+    1 to: 10 do: [:i | jobs send: i].
+    jobs close.
+
+    -- Wait for workers to finish
+    wg wait.
+    results close
+```
+
+### Timeout with CancellationContext
+
+```smalltalk
+fetchWithTimeout: url timeout: ms
+    | ctx result |
+    ctx := CancellationContext withTimeout: ms.
+    result := nil.
+
+    [:context |
+        [context isCancelled not] whileTrue: [
+            result := self fetch: url.
+            context cancel  -- done, exit loop
+        ]
+    ] forkWithContext: ctx.
+
+    ctx wait.
+    result ifNil: ['Timeout!']
+```
+
+### Select with Timeout
+
+```smalltalk
+receiveWithTimeout: channel timeout: ms
+    | timeoutCh |
+    timeoutCh := Channel new: 1.
+    [Process sleep: ms. timeoutCh send: #timeout] fork.
+
+    ^Channel select: {
+        channel onReceive: [:v | v].
+        timeoutCh onReceive: [:v | nil]
+    }
+```
+
+See `examples/concurrency.mag` for more comprehensive examples.
 
 ## Tips
 

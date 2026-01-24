@@ -1,3 +1,123 @@
+## Concurrency Primitives
+
+Maggie provides Go-style concurrency primitives. All are fully implemented.
+
+### Channel (Go-style communication)
+
+```smalltalk
+ch := Channel new.          "Unbuffered channel"
+ch := Channel new: 5.       "Buffered channel with capacity 5"
+
+ch send: value.             "Blocking send"
+ch receive.                 "Blocking receive"
+ch trySend: value.          "Non-blocking send (returns true/false)"
+ch tryReceive.              "Non-blocking receive (returns value or nil)"
+ch close.                   "Close channel"
+ch isClosed.                "Check if closed"
+ch isEmpty.                 "Check if empty"
+ch size.                    "Number of buffered items"
+ch capacity.                "Buffer capacity"
+```
+
+### Channel Select (multiplexed channel operations)
+
+```smalltalk
+"Wait on multiple channels"
+result := Channel select: {
+    ch1 onReceive: [:v | 'Got from ch1: ', v].
+    ch2 onReceive: [:v | 'Got from ch2: ', v]
+}.
+
+"Non-blocking with default"
+result := Channel select: {
+    ch onReceive: [:v | 'Received: ', v]
+} ifNone: [
+    'No channel ready'
+].
+```
+
+### Process (lightweight goroutines)
+
+```smalltalk
+proc := [expression] fork.         "Fork block, returns Process"
+proc := [expr] forkWith: arg.      "Fork with argument"
+proc := [:ctx | ...] forkWithContext: ctx.  "Fork with cancellation context"
+
+proc wait.                         "Block until complete, returns result"
+proc isDone.                       "Check if finished"
+proc result.                       "Get result (nil if not done)"
+
+Process current.                   "Current process"
+Process yield.                     "Yield to other goroutines"
+Process sleep: milliseconds.       "Sleep"
+```
+
+**fork vs forkWithResult**: `fork` treats non-local returns (^) as local returns within the forked process—they don't escape. This prevents crashes from NLRs crossing goroutine boundaries.
+
+### Mutex (mutual exclusion)
+
+```smalltalk
+mutex := Mutex new.
+mutex lock.                        "Acquire lock (blocks)"
+mutex unlock.                      "Release lock"
+mutex tryLock.                     "Non-blocking (returns true/false)"
+mutex isLocked.                    "Check if locked"
+mutex critical: [protected code]. "Execute block while holding lock"
+```
+
+### WaitGroup (synchronization barrier)
+
+```smalltalk
+wg := WaitGroup new.
+wg add: count.                     "Add to counter"
+wg done.                           "Decrement counter"
+wg wait.                           "Block until counter reaches zero"
+wg count.                          "Current counter value"
+wg wrap: [block].                  "Convenience: add 1, fork, auto-done"
+```
+
+### Semaphore (counting permits)
+
+```smalltalk
+sem := Semaphore new.              "Binary semaphore (1 permit)"
+sem := Semaphore new: 3.           "Semaphore with 3 permits"
+
+sem acquire.                       "Acquire permit (blocks)"
+sem release.                       "Release permit"
+sem tryAcquire.                    "Non-blocking (returns true/false)"
+sem available.                     "Number of available permits"
+sem capacity.                      "Total capacity"
+sem critical: [block].             "Execute while holding permit"
+```
+
+### CancellationContext (timeouts and cancellation)
+
+```smalltalk
+ctx := CancellationContext background.      "Never-cancelled base"
+ctx := CancellationContext withCancel.      "Cancellable context"
+ctx := CancellationContext withTimeout: ms. "Timeout in milliseconds"
+
+ctx cancel.                        "Cancel this context"
+ctx isCancelled.                   "Check if cancelled"
+ctx isDone.                        "Alias for isCancelled"
+ctx hasDeadline.                   "Check if has timeout"
+ctx deadline.                      "Deadline in milliseconds"
+ctx remainingTime.                 "Milliseconds until deadline"
+ctx wait.                          "Block until cancelled"
+ctx doneChannel.                   "Channel that closes on cancel"
+
+"Child contexts inherit parent cancellation"
+child := parent withCancel.
+child := parent withTimeout: 500.
+
+"Fork with context"
+[:context |
+    [context isCancelled not] whileTrue: [work]
+] forkWithContext: ctx.
+```
+
+---
+
 ## Issue Tracking
 
 We use bd (beads) for issue tracking instead of Markdown TODOs or external tools.
