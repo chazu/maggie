@@ -2,6 +2,7 @@ package vm
 
 import (
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -934,4 +935,403 @@ func TestMutexRegistryIntegrity(t *testing.T) {
 	}
 
 	t.Logf("Verified %d mutexes are accessible in registry", count)
+}
+
+// ---------------------------------------------------------------------------
+// WaitGroup Tests
+// These tests verify the WaitGroup implementation from Phase 4
+// ---------------------------------------------------------------------------
+
+// TestWaitGroupNew tests that wait groups can be created.
+func TestWaitGroupNew(t *testing.T) {
+	vm := NewVM()
+
+	wg := vm.Send(vm.classValue(vm.WaitGroupClass), "new", nil)
+	if wg == Nil {
+		t.Fatal("WaitGroup new returned nil")
+	}
+
+	if !isWaitGroupValue(wg) {
+		t.Error("Expected wait group value")
+	}
+}
+
+// TestWaitGroupAddDoneWait tests basic add, done, and wait operations.
+func TestWaitGroupAddDoneWait(t *testing.T) {
+	vm := NewVM()
+
+	wg := vm.Send(vm.classValue(vm.WaitGroupClass), "new", nil)
+
+	// Add 3 to the counter
+	vm.Send(wg, "add:", []Value{FromSmallInt(3)})
+
+	// Check count
+	count := vm.Send(wg, "count", nil)
+	if !count.IsSmallInt() || count.SmallInt() != 3 {
+		t.Errorf("Count = %v, want 3", count)
+	}
+
+	// Done three times
+	vm.Send(wg, "done", nil)
+	vm.Send(wg, "done", nil)
+	vm.Send(wg, "done", nil)
+
+	// Count should be 0
+	count = vm.Send(wg, "count", nil)
+	if !count.IsSmallInt() || count.SmallInt() != 0 {
+		t.Errorf("Count after done = %v, want 0", count)
+	}
+
+	// Wait should return immediately since count is 0
+	result := vm.Send(wg, "wait", nil)
+	if result == Nil {
+		t.Error("Wait returned nil")
+	}
+}
+
+// TestWaitGroupConcurrent tests concurrent usage of WaitGroup.
+func TestWaitGroupConcurrent(t *testing.T) {
+	vm := NewVM()
+
+	wgVal := vm.Send(vm.classValue(vm.WaitGroupClass), "new", nil)
+	wgObj := getWaitGroup(wgVal)
+	if wgObj == nil {
+		t.Fatal("Could not get wait group object")
+	}
+
+	const numWorkers = 10
+	counter := int32(0)
+
+	// Add numWorkers
+	vm.Send(wgVal, "add:", []Value{FromSmallInt(numWorkers)})
+
+	var goWg sync.WaitGroup
+	for i := 0; i < numWorkers; i++ {
+		goWg.Add(1)
+		go func() {
+			defer goWg.Done()
+			// Simulate work
+			time.Sleep(time.Millisecond)
+			atomic.AddInt32(&counter, 1)
+			// Call done
+			wgObj.counter.Add(-1)
+			wgObj.wg.Done()
+		}()
+	}
+
+	// Wait for completion
+	wgObj.wg.Wait()
+	goWg.Wait()
+
+	if counter != numWorkers {
+		t.Errorf("Counter = %d, want %d", counter, numWorkers)
+	}
+}
+
+// TestWaitGroupMultipleCreation tests concurrent creation of wait groups.
+func TestWaitGroupMultipleCreation(t *testing.T) {
+	vm := NewVM()
+
+	const numGoroutines = 10
+	const wgsPerGoroutine = 50
+
+	var wg sync.WaitGroup
+	waitGroups := make([][]Value, numGoroutines)
+
+	for g := 0; g < numGoroutines; g++ {
+		wg.Add(1)
+		go func(goroutineID int) {
+			defer wg.Done()
+			waitGroups[goroutineID] = make([]Value, wgsPerGoroutine)
+			for i := 0; i < wgsPerGoroutine; i++ {
+				waitGroups[goroutineID][i] = vm.Send(vm.classValue(vm.WaitGroupClass), "new", nil)
+			}
+		}(g)
+	}
+
+	wg.Wait()
+
+	// Verify all wait groups are valid
+	count := 0
+	for g := 0; g < numGoroutines; g++ {
+		for i := 0; i < wgsPerGoroutine; i++ {
+			w := waitGroups[g][i]
+			if w == Nil {
+				t.Errorf("WaitGroup at [%d][%d] is nil", g, i)
+				continue
+			}
+			if !isWaitGroupValue(w) {
+				t.Errorf("Value at [%d][%d] is not a wait group", g, i)
+				continue
+			}
+			count++
+		}
+	}
+
+	t.Logf("Created %d wait groups from %d goroutines", count, numGoroutines)
+}
+
+// ---------------------------------------------------------------------------
+// Semaphore Tests
+// These tests verify the Semaphore implementation from Phase 4
+// ---------------------------------------------------------------------------
+
+// TestSemaphoreNew tests that semaphores can be created.
+func TestSemaphoreNew(t *testing.T) {
+	vm := NewVM()
+
+	// Binary semaphore
+	sem := vm.Send(vm.classValue(vm.SemaphoreClass), "new", nil)
+	if sem == Nil {
+		t.Fatal("Semaphore new returned nil")
+	}
+
+	if !isSemaphoreValue(sem) {
+		t.Error("Expected semaphore value")
+	}
+
+	// Check capacity is 1
+	cap := vm.Send(sem, "capacity", nil)
+	if !cap.IsSmallInt() || cap.SmallInt() != 1 {
+		t.Errorf("Binary semaphore capacity = %v, want 1", cap)
+	}
+}
+
+// TestSemaphoreNewWithCapacity tests creating semaphores with capacity.
+func TestSemaphoreNewWithCapacity(t *testing.T) {
+	vm := NewVM()
+
+	sem := vm.Send(vm.classValue(vm.SemaphoreClass), "new:", []Value{FromSmallInt(5)})
+	if sem == Nil {
+		t.Fatal("Semaphore new: returned nil")
+	}
+
+	// Check capacity
+	cap := vm.Send(sem, "capacity", nil)
+	if !cap.IsSmallInt() || cap.SmallInt() != 5 {
+		t.Errorf("Semaphore capacity = %v, want 5", cap)
+	}
+
+	// Check available (should be full initially)
+	avail := vm.Send(sem, "available", nil)
+	if !avail.IsSmallInt() || avail.SmallInt() != 5 {
+		t.Errorf("Semaphore available = %v, want 5", avail)
+	}
+}
+
+// TestSemaphoreAcquireRelease tests basic acquire and release.
+func TestSemaphoreAcquireRelease(t *testing.T) {
+	vm := NewVM()
+
+	sem := vm.Send(vm.classValue(vm.SemaphoreClass), "new:", []Value{FromSmallInt(2)})
+
+	// Initially 2 available
+	avail := vm.Send(sem, "available", nil)
+	if avail.SmallInt() != 2 {
+		t.Errorf("Available = %v, want 2", avail)
+	}
+
+	// Acquire one
+	vm.Send(sem, "acquire", nil)
+	avail = vm.Send(sem, "available", nil)
+	if avail.SmallInt() != 1 {
+		t.Errorf("Available after acquire = %v, want 1", avail)
+	}
+
+	// Acquire another
+	vm.Send(sem, "acquire", nil)
+	avail = vm.Send(sem, "available", nil)
+	if avail.SmallInt() != 0 {
+		t.Errorf("Available after second acquire = %v, want 0", avail)
+	}
+
+	// Release one
+	vm.Send(sem, "release", nil)
+	avail = vm.Send(sem, "available", nil)
+	if avail.SmallInt() != 1 {
+		t.Errorf("Available after release = %v, want 1", avail)
+	}
+
+	// Release another
+	vm.Send(sem, "release", nil)
+	avail = vm.Send(sem, "available", nil)
+	if avail.SmallInt() != 2 {
+		t.Errorf("Available after second release = %v, want 2", avail)
+	}
+}
+
+// TestSemaphoreTryAcquire tests non-blocking acquire.
+func TestSemaphoreTryAcquire(t *testing.T) {
+	vm := NewVM()
+
+	sem := vm.Send(vm.classValue(vm.SemaphoreClass), "new:", []Value{FromSmallInt(1)})
+
+	// First tryAcquire should succeed
+	result := vm.Send(sem, "tryAcquire", nil)
+	if result != True {
+		t.Error("First tryAcquire should succeed")
+	}
+
+	// Second tryAcquire should fail (no permits available)
+	result = vm.Send(sem, "tryAcquire", nil)
+	if result != False {
+		t.Error("Second tryAcquire should fail")
+	}
+
+	// Release
+	vm.Send(sem, "release", nil)
+
+	// Now tryAcquire should succeed again
+	result = vm.Send(sem, "tryAcquire", nil)
+	if result != True {
+		t.Error("TryAcquire after release should succeed")
+	}
+}
+
+// TestSemaphoreConcurrentAccess tests concurrent usage of semaphore.
+func TestSemaphoreConcurrentAccess(t *testing.T) {
+	vm := NewVM()
+
+	sem := vm.Send(vm.classValue(vm.SemaphoreClass), "new:", []Value{FromSmallInt(3)})
+	semObj := getSemaphore(sem)
+	if semObj == nil {
+		t.Fatal("Could not get semaphore object")
+	}
+
+	const numGoroutines = 10
+	const opsPerGoroutine = 100
+
+	var wg sync.WaitGroup
+	maxConcurrent := int32(0)
+	currentConcurrent := int32(0)
+
+	for g := 0; g < numGoroutines; g++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for i := 0; i < opsPerGoroutine; i++ {
+				// Acquire
+				<-semObj.permits
+
+				// Track max concurrency
+				curr := atomic.AddInt32(&currentConcurrent, 1)
+				for {
+					old := atomic.LoadInt32(&maxConcurrent)
+					if curr <= old || atomic.CompareAndSwapInt32(&maxConcurrent, old, curr) {
+						break
+					}
+				}
+
+				// Brief work
+				time.Sleep(time.Microsecond)
+
+				atomic.AddInt32(&currentConcurrent, -1)
+
+				// Release
+				select {
+				case semObj.permits <- struct{}{}:
+				default:
+				}
+			}
+		}()
+	}
+
+	wg.Wait()
+
+	// Max concurrency should not exceed semaphore capacity (3)
+	if maxConcurrent > 3 {
+		t.Errorf("Max concurrent = %d, want <= 3", maxConcurrent)
+	}
+
+	t.Logf("Max concurrent access was %d (capacity 3)", maxConcurrent)
+}
+
+// TestSemaphoreCritical tests the critical: method.
+func TestSemaphoreCritical(t *testing.T) {
+	vm := NewVM()
+
+	sem := vm.Send(vm.classValue(vm.SemaphoreClass), "new:", []Value{FromSmallInt(1)})
+
+	// Create a simple block that returns a value
+	interp := vm.newInterpreter()
+	vm.registerInterpreter(interp)
+	defer vm.unregisterInterpreter()
+
+	blockMethod := &BlockMethod{
+		Arity:       0,
+		NumTemps:    0,
+		NumCaptures: 0,
+		Bytecode:    []byte{byte(OpPushInt8), 99, byte(OpBlockReturn)},
+		Literals:    nil,
+	}
+
+	b := NewCompiledMethodBuilder("test", 0)
+	b.Bytecode().Emit(OpPushNil)
+	b.Bytecode().Emit(OpReturnTop)
+	m := b.Build()
+
+	interp.pushFrame(m, Nil, nil)
+	blockVal := interp.createBlockValue(blockMethod, nil)
+	interp.popFrame()
+
+	// Execute critical:
+	result := vm.Send(sem, "critical:", []Value{blockVal})
+
+	if !result.IsSmallInt() || result.SmallInt() != 99 {
+		t.Errorf("critical: result = %v, want 99", result)
+	}
+
+	// Semaphore should have all permits available after critical: completes
+	avail := vm.Send(sem, "available", nil)
+	if !avail.IsSmallInt() || avail.SmallInt() != 1 {
+		t.Errorf("Available after critical: = %v, want 1", avail)
+	}
+}
+
+// TestSemaphoreMultipleCreation tests concurrent semaphore creation.
+func TestSemaphoreMultipleCreation(t *testing.T) {
+	vm := NewVM()
+
+	const numGoroutines = 10
+	const semsPerGoroutine = 50
+
+	var wg sync.WaitGroup
+	semaphores := make([][]Value, numGoroutines)
+
+	for g := 0; g < numGoroutines; g++ {
+		wg.Add(1)
+		go func(goroutineID int) {
+			defer wg.Done()
+			semaphores[goroutineID] = make([]Value, semsPerGoroutine)
+			for i := 0; i < semsPerGoroutine; i++ {
+				semaphores[goroutineID][i] = vm.Send(vm.classValue(vm.SemaphoreClass), "new:", []Value{FromSmallInt(int64(i + 1))})
+			}
+		}(g)
+	}
+
+	wg.Wait()
+
+	// Verify all semaphores are valid
+	seenIDs := make(map[uint32]bool)
+	for g := 0; g < numGoroutines; g++ {
+		for i := 0; i < semsPerGoroutine; i++ {
+			s := semaphores[g][i]
+			if s == Nil {
+				t.Errorf("Semaphore at [%d][%d] is nil", g, i)
+				continue
+			}
+			if !isSemaphoreValue(s) {
+				t.Errorf("Value at [%d][%d] is not a semaphore", g, i)
+				continue
+			}
+			id := s.SymbolID()
+			if seenIDs[id] {
+				t.Errorf("Duplicate semaphore ID %d at [%d][%d]", id, g, i)
+			}
+			seenIDs[id] = true
+		}
+	}
+
+	t.Logf("Created %d semaphores from %d goroutines, %d unique IDs",
+		numGoroutines*semsPerGoroutine, numGoroutines, len(seenIDs))
 }

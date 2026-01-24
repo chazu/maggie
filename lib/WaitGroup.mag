@@ -1,0 +1,81 @@
+# WaitGroup.mag
+# A synchronization primitive for waiting on a collection of concurrent operations.
+# Wraps Go's sync.WaitGroup.
+
+WaitGroup subclass: Object
+
+  # Create a new wait group (class method, calls primitive)
+  class method: new [
+      ^self primNew
+  ]
+
+  # Add count to the wait group counter
+  method: add: count [
+      ^self primAdd: count
+  ]
+
+  # Convenience: add 1 to the counter
+  method: add [
+      ^self add: 1
+  ]
+
+  # Decrement the counter by 1 (call when work is done)
+  method: done [
+      ^self primDone
+  ]
+
+  # Block until the counter reaches zero
+  method: wait [
+      ^self primWait
+  ]
+
+  # Get the current counter value (for debugging)
+  method: count [
+      ^self primCount
+  ]
+
+  # Fork a block and automatically manage the counter.
+  # Adds 1 before forking, calls done when block completes.
+  # Returns the forked process.
+  method: wrap: aBlock [
+      ^self primWrap: aBlock
+  ]
+
+  # Fork multiple blocks and wait for all to complete.
+  # Takes an array of blocks.
+  method: forkAll: blocks [
+      blocks do: [:block | self wrap: block].
+      ^self wait
+  ]
+
+  # Fork multiple blocks and wait, returning array of results.
+  method: forkAllCollect: blocks [
+      | results channel |
+      results := Array new: blocks size.
+      channel := Channel new: blocks size.
+
+      blocks withIndexDo: [:block :index |
+          self wrap: [
+              | result |
+              result := block value.
+              channel send: (Array with: index with: result)
+          ]
+      ].
+
+      self wait.
+
+      # Collect results from channel
+      blocks size timesRepeat: [
+          | pair |
+          pair := channel receive.
+          results at: (pair at: 1) put: (pair at: 2)
+      ].
+
+      ^results
+  ]
+
+  # Printing
+  method: printString [
+      ^'a WaitGroup (count: ', self count printString, ')'
+  ]
+

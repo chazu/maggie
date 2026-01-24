@@ -1,0 +1,77 @@
+# Semaphore.mag
+# A counting semaphore for limiting concurrent access to resources.
+# Implemented using a buffered channel pattern.
+
+Semaphore subclass: Object
+
+  # Create a semaphore with given capacity (class method)
+  class method: new: capacity [
+      ^self primNew: capacity
+  ]
+
+  # Create a binary semaphore (capacity 1)
+  class method: new [
+      ^self primNew: 1
+  ]
+
+  # Acquire a permit (blocks if none available)
+  method: acquire [
+      ^self primAcquire
+  ]
+
+  # Release a permit
+  method: release [
+      ^self primRelease
+  ]
+
+  # Try to acquire a permit without blocking.
+  # Returns true if acquired, false otherwise.
+  method: tryAcquire [
+      ^self primTryAcquire
+  ]
+
+  # Number of available permits
+  method: available [
+      ^self primAvailable
+  ]
+
+  # Total capacity of the semaphore
+  method: capacity [
+      ^self primCapacity
+  ]
+
+  # Execute block while holding a permit.
+  # Automatically releases permit when done.
+  method: critical: aBlock [
+      ^self primCritical: aBlock
+  ]
+
+  # Alias for critical: - more descriptive name
+  method: withPermit: aBlock [
+      ^self critical: aBlock
+  ]
+
+  # Execute block if a permit is immediately available.
+  # Returns block result if executed, nil if no permit available.
+  method: ifAvailable: aBlock [
+      self tryAcquire ifTrue: [
+          ^[aBlock value] ensure: [self release]
+      ].
+      ^nil
+  ]
+
+  # Check if the semaphore has any available permits
+  method: hasAvailablePermits [
+      ^self available > 0
+  ]
+
+  # Check if all permits are in use
+  method: isFull [
+      ^self available = 0
+  ]
+
+  # Printing
+  method: printString [
+      ^'a Semaphore (', self available printString, '/', self capacity printString, ' available)'
+  ]
+

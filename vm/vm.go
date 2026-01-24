@@ -41,6 +41,8 @@ type VM struct {
 	ChannelClass           *Class
 	ProcessClass           *Class
 	MutexClass             *Class
+	WaitGroupClass         *Class
+	SemaphoreClass         *Class
 	ResultClass            *Class
 	SuccessClass           *Class
 	FailureClass           *Class
@@ -163,6 +165,8 @@ func (vm *VM) bootstrap() {
 	vm.ChannelClass = vm.createClass("Channel", vm.ObjectClass)
 	vm.ProcessClass = vm.createClass("Process", vm.ObjectClass)
 	vm.MutexClass = vm.createClass("Mutex", vm.ObjectClass)
+	vm.WaitGroupClass = vm.createClass("WaitGroup", vm.ObjectClass)
+	vm.SemaphoreClass = vm.createClass("Semaphore", vm.ObjectClass)
 
 	// Phase 5c: Create Result pattern classes
 	vm.ResultClass = vm.createClass("Result", vm.ObjectClass)
@@ -194,6 +198,8 @@ func (vm *VM) bootstrap() {
 	vm.registerChannelPrimitives()
 	vm.registerProcessPrimitives()
 	vm.registerMutexPrimitives()
+	vm.registerWaitGroupPrimitives()
+	vm.registerSemaphorePrimitives()
 	vm.registerResultPrimitives()
 	vm.registerDictionaryPrimitives()
 	vm.registerGrpcPrimitives()
@@ -222,6 +228,8 @@ func (vm *VM) bootstrap() {
 	vm.Globals["Channel"] = vm.classValue(vm.ChannelClass)
 	vm.Globals["Process"] = vm.classValue(vm.ProcessClass)
 	vm.Globals["Mutex"] = vm.classValue(vm.MutexClass)
+	vm.Globals["WaitGroup"] = vm.classValue(vm.WaitGroupClass)
+	vm.Globals["Semaphore"] = vm.classValue(vm.SemaphoreClass)
 	vm.Globals["Result"] = vm.classValue(vm.ResultClass)
 	vm.Globals["Success"] = vm.classValue(vm.SuccessClass)
 	vm.Globals["Failure"] = vm.classValue(vm.FailureClass)
@@ -410,6 +418,10 @@ func (vm *VM) Send(receiver Value, selector string, args []Value) Value {
 			class = vm.ProcessClass
 		} else if isMutexValue(receiver) {
 			class = vm.MutexClass
+		} else if isWaitGroupValue(receiver) {
+			class = vm.WaitGroupClass
+		} else if isSemaphoreValue(receiver) {
+			class = vm.SemaphoreClass
 		} else if isResultValue(receiver) {
 			// Determine if it's a Success or Failure
 			r := getResult(receiver)
