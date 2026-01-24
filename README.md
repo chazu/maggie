@@ -1,22 +1,15 @@
+<p align="center">
+  <img src="https://github.com/chazu/procyon/blob/main/img/logo.png">
+</p>
+
 # Maggie
 
-A late-bound Smalltalk dialect implemented in Go.
+A Smalltalk dialect implemented in Go.
 
 **Documentation:**
 - [User Guide](docs/USER_GUIDE.md) - Getting started, syntax, core classes
 - [Design Document](docs/MAGGIE_DESIGN.md) - Architecture and implementation details
 
-## Status
-
-Phase 4: JIT Compilation - In Progress
-
-- Core VM with NaN-boxed values, bytecode interpreter
-- 21 core classes: Object, Boolean, True, False, UndefinedObject, SmallInteger, Float, String, Symbol, Array, Block, Channel, Process, Mutex, WaitGroup, Semaphore, CancellationContext, Result, Success, Failure
-- Compiler: Smalltalk-like syntax to bytecode
-- Image system: Binary save/load of VM state
-- Development tools: Inspector, Debugger
-- JIT: Inline caching, method profiling, adaptive AOT compilation
-- Persistence: Static build, plugin loading, image-embedded AOT
 
 ## Quick Start
 
