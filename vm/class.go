@@ -259,6 +259,11 @@ func (c *Class) AddClassMethod2(selectors *SelectorTable, name string, fn Method
 	c.AddClassMethod(selectors, name, NewMethod2(name, fn))
 }
 
+// AddClassMethod3 registers a three-argument class-side method.
+func (c *Class) AddClassMethod3(selectors *SelectorTable, name string, fn Method3Func) {
+	c.AddClassMethod(selectors, name, NewMethod3(name, fn))
+}
+
 // LookupClassMethod looks up a class-side method by selector name.
 func (c *Class) LookupClassMethod(selectors *SelectorTable, name string) Method {
 	selectorID := selectors.Lookup(name)

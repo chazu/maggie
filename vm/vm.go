@@ -54,6 +54,9 @@ type VM struct {
 	// Interpreter
 	interpreter *Interpreter
 
+	// Debugger for IDE integration
+	Debugger *DebugServer
+
 	// Compiler backend (Go or Maggie)
 	compilerBackend CompilerBackend
 
@@ -89,6 +92,9 @@ func NewVM() *VM {
 
 	// Create interpreter
 	vm.interpreter = vm.newInterpreter()
+
+	// Create debug server
+	vm.Debugger = NewDebugServer(vm)
 
 	return vm
 }
@@ -184,6 +190,7 @@ func (vm *VM) bootstrap() {
 	vm.registerClassReflectionPrimitives()
 	vm.registerCompilerPrimitives()
 	vm.registerFilePrimitives()
+	vm.registerDebuggerPrimitives()
 
 	// Phase 7: Set up globals
 	vm.Globals["Object"] = vm.classValue(vm.ObjectClass)
