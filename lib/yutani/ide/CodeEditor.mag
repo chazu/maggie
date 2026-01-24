@@ -85,22 +85,31 @@ CodeEditor subclass: Object
   ]
 
   method: loadFile: aFilename [
-      # In real implementation, read from file system
-      # Placeholder: just store the filename
+      | result contents |
+      result := File readFileContents: aFilename.
+      result isFailure ifTrue: [
+          self updateStatus: 'Error: ', result error.
+          ^self
+      ].
+      contents := result.
       filename := aFilename.
       modified := false.
-      textArea text: '# Loaded from: ', aFilename, '
-# (File loading not yet implemented)
-'.
+      textArea text: contents.
       self updateStatus: 'Loaded: ', filename
   ]
 
   method: save [
+      | result contents |
       filename ifNil: [
           self updateStatus: 'No filename set. Use save-as (not yet implemented)'.
           ^self
       ].
-      # In real implementation, write to file system
+      contents := textArea text.
+      result := File writeFileContents: filename contents: contents.
+      result isFailure ifTrue: [
+          self updateStatus: 'Save error: ', result error.
+          ^self
+      ].
       modified := false.
       self updateStatus: 'Saved: ', filename
   ]
@@ -135,13 +144,27 @@ CodeEditor subclass: Object
           ^self
       ].
 
-      # In real implementation, compile and run
-      self updateStatus: 'Evaluating... (not yet implemented)'
+      result := Compiler evaluate: source.
+      result isFailure ifTrue: [
+          self updateStatus: 'Error: ', result error.
+          ^self
+      ].
+      self updateStatus: 'Result: ', result printString
   ]
 
   method: evaluateSelection [
-      # In real implementation, evaluate selected text
-      self updateStatus: 'Selection evaluation not yet implemented'
+      | selection result |
+      selection := textArea selectedText.
+      selection isEmpty ifTrue: [
+          self updateStatus: 'No selection'.
+          ^self
+      ].
+      result := Compiler evaluate: selection.
+      result isFailure ifTrue: [
+          self updateStatus: 'Error: ', result error.
+          ^self
+      ].
+      self updateStatus: 'Result: ', result printString
   ]
 
   # Status management

@@ -183,6 +183,7 @@ func (vm *VM) bootstrap() {
 	vm.registerWeakReferencePrimitives()
 	vm.registerClassReflectionPrimitives()
 	vm.registerCompilerPrimitives()
+	vm.registerFilePrimitives()
 
 	// Phase 7: Set up globals
 	vm.Globals["Object"] = vm.classValue(vm.ObjectClass)
