@@ -40,6 +40,7 @@ type VM struct {
 	CompiledMethodClass    *Class
 	ChannelClass           *Class
 	ProcessClass           *Class
+	MutexClass             *Class
 	ResultClass            *Class
 	SuccessClass           *Class
 	FailureClass           *Class
@@ -161,6 +162,7 @@ func (vm *VM) bootstrap() {
 	// Phase 5b: Create concurrency classes
 	vm.ChannelClass = vm.createClass("Channel", vm.ObjectClass)
 	vm.ProcessClass = vm.createClass("Process", vm.ObjectClass)
+	vm.MutexClass = vm.createClass("Mutex", vm.ObjectClass)
 
 	// Phase 5c: Create Result pattern classes
 	vm.ResultClass = vm.createClass("Result", vm.ObjectClass)
@@ -191,6 +193,7 @@ func (vm *VM) bootstrap() {
 	vm.registerBlockPrimitives()
 	vm.registerChannelPrimitives()
 	vm.registerProcessPrimitives()
+	vm.registerMutexPrimitives()
 	vm.registerResultPrimitives()
 	vm.registerDictionaryPrimitives()
 	vm.registerGrpcPrimitives()
@@ -218,6 +221,7 @@ func (vm *VM) bootstrap() {
 	vm.Globals["Block"] = vm.classValue(vm.BlockClass)
 	vm.Globals["Channel"] = vm.classValue(vm.ChannelClass)
 	vm.Globals["Process"] = vm.classValue(vm.ProcessClass)
+	vm.Globals["Mutex"] = vm.classValue(vm.MutexClass)
 	vm.Globals["Result"] = vm.classValue(vm.ResultClass)
 	vm.Globals["Success"] = vm.classValue(vm.SuccessClass)
 	vm.Globals["Failure"] = vm.classValue(vm.FailureClass)
@@ -404,6 +408,8 @@ func (vm *VM) Send(receiver Value, selector string, args []Value) Value {
 			class = vm.ChannelClass
 		} else if isProcessValue(receiver) {
 			class = vm.ProcessClass
+		} else if isMutexValue(receiver) {
+			class = vm.MutexClass
 		} else if isResultValue(receiver) {
 			// Determine if it's a Success or Failure
 			r := getResult(receiver)

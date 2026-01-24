@@ -1,0 +1,59 @@
+# Mutex.mag
+# A mutual exclusion lock for coordinating access to shared resources.
+# Wraps Go's sync.Mutex.
+
+Mutex subclass: Object
+
+  # Create a new mutex (class method, calls primitive)
+  class method: new [
+      ^self primNew
+  ]
+
+  # Acquire the lock (blocks if already held)
+  method: lock [
+      ^self primLock
+  ]
+
+  # Release the lock
+  method: unlock [
+      ^self primUnlock
+  ]
+
+  # Try to acquire the lock without blocking
+  # Returns true if acquired, false if already held
+  method: tryLock [
+      ^self primTryLock
+  ]
+
+  # Check if the mutex is currently locked
+  method: isLocked [
+      ^self primIsLocked
+  ]
+
+  # Execute block while holding the lock.
+  # Automatically releases the lock when done, even if an exception occurs.
+  # This is the preferred way to use a mutex.
+  method: critical: aBlock [
+      ^self primCritical: aBlock
+  ]
+
+  # Alias for critical: - more Smalltalk-y name
+  method: withLock: aBlock [
+      ^self critical: aBlock
+  ]
+
+  # Execute block if lock can be acquired immediately.
+  # Returns the block result if executed, nil if lock was busy.
+  method: ifAvailable: aBlock [
+      self tryLock ifTrue: [
+          ^[aBlock value] ensure: [self unlock]
+      ].
+      ^nil
+  ]
+
+  # Printing
+  method: printString [
+      self isLocked
+          ifTrue: [^'a Mutex (locked)']
+          ifFalse: [^'a Mutex (unlocked)']
+  ]

@@ -606,3 +606,332 @@ func TestNestedDetachedBlockNLR(t *testing.T) {
 		}
 	}
 }
+
+// ---------------------------------------------------------------------------
+// Mutex Tests
+// These tests verify the Mutex implementation from Phase 3
+// ---------------------------------------------------------------------------
+
+// TestMutexNew tests that mutexes can be created via the class method.
+func TestMutexNew(t *testing.T) {
+	vm := NewVM()
+
+	// Create a mutex via class method
+	mu := vm.Send(vm.classValue(vm.MutexClass), "new", nil)
+	if mu == Nil {
+		t.Fatal("Mutex new returned nil")
+	}
+
+	if !isMutexValue(mu) {
+		t.Error("Expected mutex value")
+	}
+}
+
+// TestMutexLockUnlock tests basic lock and unlock operations.
+func TestMutexLockUnlock(t *testing.T) {
+	vm := NewVM()
+
+	mu := vm.Send(vm.classValue(vm.MutexClass), "new", nil)
+
+	// Initially should not be locked
+	locked := vm.Send(mu, "isLocked", nil)
+	if locked != False {
+		t.Error("New mutex should not be locked")
+	}
+
+	// Lock it
+	result := vm.Send(mu, "lock", nil)
+	if result == Nil {
+		t.Error("Lock returned nil")
+	}
+
+	// Should now be locked
+	locked = vm.Send(mu, "isLocked", nil)
+	if locked != True {
+		t.Error("Mutex should be locked after lock")
+	}
+
+	// Unlock it
+	result = vm.Send(mu, "unlock", nil)
+	if result == Nil {
+		t.Error("Unlock returned nil")
+	}
+
+	// Should no longer be locked
+	locked = vm.Send(mu, "isLocked", nil)
+	if locked != False {
+		t.Error("Mutex should not be locked after unlock")
+	}
+}
+
+// TestMutexTryLock tests non-blocking lock acquisition.
+func TestMutexTryLock(t *testing.T) {
+	vm := NewVM()
+
+	mu := vm.Send(vm.classValue(vm.MutexClass), "new", nil)
+
+	// First tryLock should succeed
+	result := vm.Send(mu, "tryLock", nil)
+	if result != True {
+		t.Error("First tryLock should succeed")
+	}
+
+	// Verify it's locked
+	locked := vm.Send(mu, "isLocked", nil)
+	if locked != True {
+		t.Error("Mutex should be locked after successful tryLock")
+	}
+
+	// Second tryLock in same goroutine will deadlock, so we test from another goroutine
+	done := make(chan bool)
+	go func() {
+		// This tryLock should fail because the mutex is held
+		muObj := getMutex(mu)
+		if muObj.mu.TryLock() {
+			// Shouldn't happen - mutex should be locked
+			muObj.mu.Unlock()
+			done <- false
+		} else {
+			done <- true
+		}
+	}()
+
+	succeeded := <-done
+	if !succeeded {
+		t.Error("TryLock from another goroutine should fail when mutex is held")
+	}
+
+	// Unlock
+	vm.Send(mu, "unlock", nil)
+
+	// Now tryLock should succeed again
+	result = vm.Send(mu, "tryLock", nil)
+	if result != True {
+		t.Error("TryLock should succeed after unlock")
+	}
+
+	vm.Send(mu, "unlock", nil)
+}
+
+// TestMutexCritical tests the critical: method which executes a block while holding the lock.
+func TestMutexCritical(t *testing.T) {
+	vm := NewVM()
+
+	mu := vm.Send(vm.classValue(vm.MutexClass), "new", nil)
+
+	// We need to create a proper block to test critical:
+	// Since we can't easily compile Smalltalk, we test the primitive directly
+	muObj := getMutex(mu)
+	if muObj == nil {
+		t.Fatal("Could not get mutex object")
+	}
+
+	// Create a simple block that returns a value
+	interp := vm.newInterpreter()
+	vm.registerInterpreter(interp)
+	defer vm.unregisterInterpreter()
+
+	blockMethod := &BlockMethod{
+		Arity:       0,
+		NumTemps:    0,
+		NumCaptures: 0,
+		Bytecode:    []byte{byte(OpPushInt8), 42, byte(OpBlockReturn)},
+		Literals:    nil,
+	}
+
+	// Create a block value
+	b := NewCompiledMethodBuilder("test", 0)
+	b.Bytecode().Emit(OpPushNil)
+	b.Bytecode().Emit(OpReturnTop)
+	m := b.Build()
+
+	interp.pushFrame(m, Nil, nil)
+	blockVal := interp.createBlockValue(blockMethod, nil)
+	interp.popFrame()
+
+	// Execute critical: directly using the VM's primitive
+	result := vm.Send(mu, "critical:", []Value{blockVal})
+
+	if !result.IsSmallInt() || result.SmallInt() != 42 {
+		t.Errorf("critical: result = %v, want 42", result)
+	}
+
+	// Mutex should be unlocked after critical: completes
+	locked := vm.Send(mu, "isLocked", nil)
+	if locked != False {
+		t.Error("Mutex should be unlocked after critical: completes")
+	}
+}
+
+// TestMutexConcurrentAccess tests that mutex properly serializes access
+// from multiple goroutines.
+func TestMutexConcurrentAccess(t *testing.T) {
+	vm := NewVM()
+
+	mu := vm.Send(vm.classValue(vm.MutexClass), "new", nil)
+	muObj := getMutex(mu)
+	if muObj == nil {
+		t.Fatal("Could not get mutex object")
+	}
+
+	const numGoroutines = 10
+	const incrementsPerGoroutine = 100
+
+	// Shared counter protected by mutex
+	counter := 0
+
+	var wg sync.WaitGroup
+	for g := 0; g < numGoroutines; g++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for i := 0; i < incrementsPerGoroutine; i++ {
+				muObj.mu.Lock()
+				muObj.locked.Store(true)
+				counter++
+				muObj.locked.Store(false)
+				muObj.mu.Unlock()
+			}
+		}()
+	}
+
+	wg.Wait()
+
+	expected := numGoroutines * incrementsPerGoroutine
+	if counter != expected {
+		t.Errorf("Counter = %d, want %d (race condition detected)", counter, expected)
+	}
+}
+
+// TestMutexIsLockedFromMultipleGoroutines tests the isLocked primitive
+// from concurrent goroutines.
+func TestMutexIsLockedFromMultipleGoroutines(t *testing.T) {
+	vm := NewVM()
+
+	mu := vm.Send(vm.classValue(vm.MutexClass), "new", nil)
+	muObj := getMutex(mu)
+
+	const numGoroutines = 5
+	const iterations = 100
+
+	var wg sync.WaitGroup
+
+	// Multiple goroutines checking isLocked while one toggles the lock
+	for g := 0; g < numGoroutines; g++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for i := 0; i < iterations; i++ {
+				// Just read the locked state - should never crash
+				_ = muObj.locked.Load()
+			}
+		}()
+	}
+
+	// One goroutine toggling the lock
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for i := 0; i < iterations; i++ {
+			muObj.mu.Lock()
+			muObj.locked.Store(true)
+			time.Sleep(time.Microsecond) // Brief hold
+			muObj.locked.Store(false)
+			muObj.mu.Unlock()
+		}
+	}()
+
+	wg.Wait()
+
+	// Final state should be unlocked
+	if muObj.locked.Load() {
+		t.Error("Mutex should be unlocked at end")
+	}
+}
+
+// TestMutexMultipleCreation tests creating multiple mutexes concurrently.
+func TestMutexMultipleCreation(t *testing.T) {
+	vm := NewVM()
+
+	const numGoroutines = 10
+	const mutexesPerGoroutine = 50
+
+	var wg sync.WaitGroup
+	mutexes := make([][]Value, numGoroutines)
+
+	for g := 0; g < numGoroutines; g++ {
+		wg.Add(1)
+		go func(goroutineID int) {
+			defer wg.Done()
+			mutexes[goroutineID] = make([]Value, mutexesPerGoroutine)
+			for i := 0; i < mutexesPerGoroutine; i++ {
+				mutexes[goroutineID][i] = vm.Send(vm.classValue(vm.MutexClass), "new", nil)
+			}
+		}(g)
+	}
+
+	wg.Wait()
+
+	// Verify all mutexes are valid and unique
+	seenIDs := make(map[uint32]bool)
+	for g := 0; g < numGoroutines; g++ {
+		for i := 0; i < mutexesPerGoroutine; i++ {
+			mu := mutexes[g][i]
+			if mu == Nil {
+				t.Errorf("Mutex at [%d][%d] is nil", g, i)
+				continue
+			}
+			if !isMutexValue(mu) {
+				t.Errorf("Value at [%d][%d] is not a mutex", g, i)
+				continue
+			}
+			id := mu.SymbolID()
+			if seenIDs[id] {
+				t.Errorf("Duplicate mutex ID %d at [%d][%d]", id, g, i)
+			}
+			seenIDs[id] = true
+		}
+	}
+
+	t.Logf("Created %d mutexes from %d goroutines, %d unique IDs",
+		numGoroutines*mutexesPerGoroutine, numGoroutines, len(seenIDs))
+}
+
+// TestMutexRegistryIntegrity tests that mutex registry maintains integrity
+// under concurrent access.
+func TestMutexRegistryIntegrity(t *testing.T) {
+	vm := NewVM()
+
+	const numGoroutines = 10
+	const opsPerGoroutine = 100
+
+	var wg sync.WaitGroup
+	allMutexes := make(chan Value, numGoroutines*opsPerGoroutine)
+
+	// Create mutexes concurrently
+	for g := 0; g < numGoroutines; g++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for i := 0; i < opsPerGoroutine; i++ {
+				mu := vm.Send(vm.classValue(vm.MutexClass), "new", nil)
+				allMutexes <- mu
+			}
+		}()
+	}
+
+	wg.Wait()
+	close(allMutexes)
+
+	// Verify all mutexes are still accessible
+	count := 0
+	for mu := range allMutexes {
+		muObj := getMutex(mu)
+		if muObj == nil {
+			t.Errorf("Lost mutex at count %d", count)
+		}
+		count++
+	}
+
+	t.Logf("Verified %d mutexes are accessible in registry", count)
+}
