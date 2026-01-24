@@ -376,6 +376,17 @@ func (i *Interpreter) ExecuteBlock(block *BlockMethod, captures []Value, args []
 	return i.runFrame()
 }
 
+// ExecuteBlockDetached runs a block in "detached" mode where non-local returns (^)
+// become local returns instead of attempting to return from the home frame.
+// This is used for forked blocks where the home frame is in a different goroutine.
+// When HomeFrame is -1, OpReturnTop treats ^ as a local return.
+func (i *Interpreter) ExecuteBlockDetached(block *BlockMethod, captures []Value, args []Value, homeSelf Value, homeMethod *CompiledMethod) Value {
+	// HomeFrame = -1 signals detached mode
+	// HomeBP = 0 since we can't access the home frame's stack
+	i.pushBlockFrame(block, captures, args, -1, 0, homeSelf, homeMethod)
+	return i.runFrame()
+}
+
 // runFrame is the unified interpreter loop for both methods and blocks.
 func (i *Interpreter) runFrame() Value {
 	for {
@@ -798,6 +809,14 @@ func (i *Interpreter) runFrame() Value {
 		case OpReturnTop:
 			result := i.pop()
 			if isBlock {
+				// Check if this is a detached block (HomeFrame == -1)
+				// Detached blocks treat ^ as local return instead of non-local return
+				// This is used for forked blocks where the home frame is unreachable
+				if frame.HomeFrame == -1 {
+					// Detached block: treat ^ as local return
+					i.popFrame()
+					return result
+				}
 				// Non-local return: return from the home context (enclosing method)
 				i.popFrame()
 				panic(NonLocalReturn{Value: result, HomeFrame: frame.HomeFrame})

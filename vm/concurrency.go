@@ -413,6 +413,8 @@ func (vm *VM) registerChannelPrimitives() {
 
 func (vm *VM) registerProcessPrimitives() {
 	// Block>>fork - create new process running this block
+	// Uses ExecuteBlockDetached so that non-local returns (^) in the block
+	// become local returns instead of crashing (since the home frame is unreachable)
 	vm.BlockClass.AddMethod0(vm.Selectors, "fork", func(vmPtr interface{}, recv Value) Value {
 		v := vmPtr.(*VM)
 		bv := v.currentInterpreter().getBlockValue(recv)
@@ -426,8 +428,13 @@ func (vm *VM) registerProcessPrimitives() {
 		go func() {
 			defer func() {
 				if r := recover(); r != nil {
-					// Process crashed
-					proc.markDone(Nil, nil)
+					// If somehow a NonLocalReturn escapes, capture its value
+					if nlr, ok := r.(NonLocalReturn); ok {
+						proc.markDone(nlr.Value, nil)
+					} else {
+						// Process crashed with other error
+						proc.markDone(Nil, nil)
+					}
 				}
 				// Unregister the interpreter when done
 				v.unregisterInterpreter()
@@ -437,7 +444,8 @@ func (vm *VM) registerProcessPrimitives() {
 			interp := v.newInterpreter()
 			// Register this interpreter for the current goroutine
 			v.registerInterpreter(interp)
-			result := interp.ExecuteBlock(bv.Block, bv.Captures, nil, bv.HomeFrame, bv.HomeSelf, bv.HomeMethod)
+			// Use ExecuteBlockDetached so ^ becomes local return
+			result := interp.ExecuteBlockDetached(bv.Block, bv.Captures, nil, bv.HomeSelf, bv.HomeMethod)
 			proc.markDone(result, nil)
 		}()
 
@@ -445,6 +453,7 @@ func (vm *VM) registerProcessPrimitives() {
 	})
 
 	// Block>>forkWith: arg - fork with single argument
+	// Uses ExecuteBlockDetached so that non-local returns (^) become local returns
 	vm.BlockClass.AddMethod1(vm.Selectors, "forkWith:", func(vmPtr interface{}, recv Value, arg Value) Value {
 		v := vmPtr.(*VM)
 		bv := v.currentInterpreter().getBlockValue(recv)
@@ -458,14 +467,18 @@ func (vm *VM) registerProcessPrimitives() {
 		go func() {
 			defer func() {
 				if r := recover(); r != nil {
-					proc.markDone(Nil, nil)
+					if nlr, ok := r.(NonLocalReturn); ok {
+						proc.markDone(nlr.Value, nil)
+					} else {
+						proc.markDone(Nil, nil)
+					}
 				}
 				v.unregisterInterpreter()
 			}()
 
 			interp := v.newInterpreter()
 			v.registerInterpreter(interp)
-			result := interp.ExecuteBlock(bv.Block, bv.Captures, []Value{arg}, bv.HomeFrame, bv.HomeSelf, bv.HomeMethod)
+			result := interp.ExecuteBlockDetached(bv.Block, bv.Captures, []Value{arg}, bv.HomeSelf, bv.HomeMethod)
 			proc.markDone(result, nil)
 		}()
 
@@ -475,6 +488,7 @@ func (vm *VM) registerProcessPrimitives() {
 	c := vm.ProcessClass
 
 	// Process class>>fork: block - fork a block as a new process (class method)
+	// Uses ExecuteBlockDetached so that non-local returns (^) become local returns
 	c.AddClassMethod1(vm.Selectors, "fork:", func(vmPtr interface{}, recv Value, block Value) Value {
 		v := vmPtr.(*VM)
 		bv := v.currentInterpreter().getBlockValue(block)
@@ -488,14 +502,18 @@ func (vm *VM) registerProcessPrimitives() {
 		go func() {
 			defer func() {
 				if r := recover(); r != nil {
-					proc.markDone(Nil, nil)
+					if nlr, ok := r.(NonLocalReturn); ok {
+						proc.markDone(nlr.Value, nil)
+					} else {
+						proc.markDone(Nil, nil)
+					}
 				}
 				v.unregisterInterpreter()
 			}()
 
 			interp := v.newInterpreter()
 			v.registerInterpreter(interp)
-			result := interp.ExecuteBlock(bv.Block, bv.Captures, nil, bv.HomeFrame, bv.HomeSelf, bv.HomeMethod)
+			result := interp.ExecuteBlockDetached(bv.Block, bv.Captures, nil, bv.HomeSelf, bv.HomeMethod)
 			proc.markDone(result, nil)
 		}()
 
