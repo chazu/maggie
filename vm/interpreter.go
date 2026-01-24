@@ -3,6 +3,8 @@ package vm
 import (
 	"encoding/binary"
 	"fmt"
+	"sync"
+	"sync/atomic"
 )
 
 // ---------------------------------------------------------------------------
@@ -1311,11 +1313,16 @@ type NonLocalReturn struct {
 
 // blockRegistry stores active blocks (temporary solution until proper Block class)
 var blockRegistry = make(map[int]*BlockValue)
-var nextBlockID = 1
+var blockRegistryMu sync.RWMutex
+var nextBlockID atomic.Int32
 
 // blocksByHomeFrame tracks which block IDs belong to each home frame
 // This allows cleanup when frames are popped to prevent memory leaks
 var blocksByHomeFrame = make(map[int][]int)
+
+func init() {
+	nextBlockID.Store(1)
+}
 
 // releaseBlocksForFrame removes all blocks whose home frame is being popped
 // TODO: This is disabled because blocks stored in data structures (like handlers)
@@ -1333,8 +1340,7 @@ func releaseBlocksForFrame(frameIndex int) {
 func (i *Interpreter) createBlockValue(block *BlockMethod, captures []Value) Value {
 	// Store in registry and return an ID encoded as a symbol
 	// A full implementation would create a proper Block object
-	id := nextBlockID
-	nextBlockID++
+	id := int(nextBlockID.Add(1) - 1)
 
 	// Determine the home frame (the enclosing method's frame)
 	// If we're in a block, propagate its HomeFrame; otherwise use current frame
@@ -1362,24 +1368,62 @@ func (i *Interpreter) createBlockValue(block *BlockMethod, captures []Value) Val
 		}
 	}
 
-	blockRegistry[id] = &BlockValue{
+	bv := &BlockValue{
 		Block:      block,
 		Captures:   captures,
 		HomeFrame:  homeFrame,  // remember the enclosing method's frame
 		HomeSelf:   homeSelf,   // capture self from enclosing method
 		HomeMethod: homeMethod, // capture the method containing nested blocks
 	}
+
+	blockRegistryMu.Lock()
+	blockRegistry[id] = bv
 	// Track this block by its home frame for cleanup when frame is popped
 	blocksByHomeFrame[homeFrame] = append(blocksByHomeFrame[homeFrame], id)
+	blockRegistryMu.Unlock()
+
 	return FromBlockID(uint32(id))
 }
 
 func (i *Interpreter) getBlockValue(v Value) *BlockValue {
 	if v.IsBlock() {
 		id := int(v.BlockID())
-		return blockRegistry[id]
+		blockRegistryMu.RLock()
+		bv := blockRegistry[id]
+		blockRegistryMu.RUnlock()
+		return bv
 	}
 	return nil
+}
+
+// blockRegistrySize returns the current size of the block registry (for testing)
+func blockRegistrySize() int {
+	blockRegistryMu.RLock()
+	defer blockRegistryMu.RUnlock()
+	return len(blockRegistry)
+}
+
+// blockRegistryHas checks if a block ID exists in the registry (for testing)
+func blockRegistryHas(id int) bool {
+	blockRegistryMu.RLock()
+	defer blockRegistryMu.RUnlock()
+	_, exists := blockRegistry[id]
+	return exists
+}
+
+// blocksByHomeFrameCount returns the count of blocks for a home frame (for testing)
+func blocksByHomeFrameCount(homeFrame int) int {
+	blockRegistryMu.RLock()
+	defer blockRegistryMu.RUnlock()
+	return len(blocksByHomeFrame[homeFrame])
+}
+
+// blocksByHomeFrameHas checks if a home frame is tracked (for testing)
+func blocksByHomeFrameHas(homeFrame int) bool {
+	blockRegistryMu.RLock()
+	defer blockRegistryMu.RUnlock()
+	_, exists := blocksByHomeFrame[homeFrame]
+	return exists
 }
 
 // ---------------------------------------------------------------------------

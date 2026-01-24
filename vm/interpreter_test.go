@@ -796,7 +796,7 @@ func TestBlockRegistryCleanup(t *testing.T) {
 	}
 
 	// Record initial registry size
-	initialSize := len(blockRegistry)
+	initialSize := blockRegistrySize()
 
 	// Create a method frame (this will be the home frame for blocks)
 	b := NewCompiledMethodBuilder("test", 0)
@@ -816,13 +816,13 @@ func TestBlockRegistryCleanup(t *testing.T) {
 	}
 
 	// Verify blocks were registered
-	if len(blockRegistry) != initialSize+numBlocks {
-		t.Errorf("block registry size after creation = %d, want %d", len(blockRegistry), initialSize+numBlocks)
+	if blockRegistrySize() != initialSize+numBlocks {
+		t.Errorf("block registry size after creation = %d, want %d", blockRegistrySize(), initialSize+numBlocks)
 	}
 
 	// Verify blocks are tracked by home frame
-	if len(blocksByHomeFrame[homeFrame]) != numBlocks {
-		t.Errorf("blocks tracked for home frame = %d, want %d", len(blocksByHomeFrame[homeFrame]), numBlocks)
+	if blocksByHomeFrameCount(homeFrame) != numBlocks {
+		t.Errorf("blocks tracked for home frame = %d, want %d", blocksByHomeFrameCount(homeFrame), numBlocks)
 	}
 
 	// Pop the home frame - this should clean up all blocks
@@ -830,13 +830,13 @@ func TestBlockRegistryCleanup(t *testing.T) {
 
 	// Verify blocks were cleaned up
 	for _, id := range blockIDs {
-		if _, exists := blockRegistry[id]; exists {
+		if blockRegistryHas(id) {
 			t.Errorf("block %d still in registry after home frame popped", id)
 		}
 	}
 
 	// Verify home frame tracking was cleaned up
-	if _, exists := blocksByHomeFrame[homeFrame]; exists {
+	if blocksByHomeFrameHas(homeFrame) {
 		t.Errorf("home frame %d still tracked after being popped", homeFrame)
 	}
 }
@@ -872,10 +872,10 @@ func TestBlockRegistryMultipleFrames(t *testing.T) {
 	block2ID := int(block2.BlockID())
 
 	// Verify both blocks exist
-	if _, exists := blockRegistry[block1ID]; !exists {
+	if !blockRegistryHas(block1ID) {
 		t.Error("block1 not in registry")
 	}
-	if _, exists := blockRegistry[block2ID]; !exists {
+	if !blockRegistryHas(block2ID) {
 		t.Error("block2 not in registry")
 	}
 
@@ -883,25 +883,25 @@ func TestBlockRegistryMultipleFrames(t *testing.T) {
 	interp.popFrame()
 
 	// block1 should still exist, block2 should be gone
-	if _, exists := blockRegistry[block1ID]; !exists {
+	if !blockRegistryHas(block1ID) {
 		t.Error("block1 was incorrectly cleaned up")
 	}
-	if _, exists := blockRegistry[block2ID]; exists {
+	if blockRegistryHas(block2ID) {
 		t.Error("block2 was not cleaned up")
 	}
 
 	// Pop frame1 - should clean up block1
 	interp.popFrame()
 
-	if _, exists := blockRegistry[block1ID]; exists {
+	if blockRegistryHas(block1ID) {
 		t.Error("block1 was not cleaned up after frame1 popped")
 	}
 
 	// Verify both home frames are no longer tracked
-	if _, exists := blocksByHomeFrame[frame1]; exists {
+	if blocksByHomeFrameHas(frame1) {
 		t.Errorf("frame1 still tracked")
 	}
-	if _, exists := blocksByHomeFrame[frame2]; exists {
+	if blocksByHomeFrameHas(frame2) {
 		t.Errorf("frame2 still tracked")
 	}
 }

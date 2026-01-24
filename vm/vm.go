@@ -550,6 +550,7 @@ func (vm *VM) CollectGarbage() int {
 	}
 
 	// Mark objects reachable from block captures
+	blockRegistryMu.RLock()
 	for _, bv := range blockRegistry {
 		if bv != nil {
 			for _, capture := range bv.Captures {
@@ -558,6 +559,7 @@ func (vm *VM) CollectGarbage() int {
 			vm.markValue(bv.HomeSelf, marked)
 		}
 	}
+	blockRegistryMu.RUnlock()
 
 	// Mark objects reachable from frames (temps on stack are already covered,
 	// but Receiver values need marking)

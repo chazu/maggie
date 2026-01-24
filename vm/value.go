@@ -2,6 +2,7 @@ package vm
 
 import (
 	"math"
+	"sync"
 	"unsafe"
 )
 
@@ -291,14 +292,17 @@ func FromContextID(id uint32) Value {
 // Cell is a heap-allocated mutable container for a single Value.
 // Used to implement proper Smalltalk semantics where captured variables
 // can be mutated and the mutation is visible in all scopes that share the cell.
+// The cell is thread-safe for concurrent access from forked blocks.
 type Cell struct {
-	Value Value
+	mu    sync.RWMutex
+	value Value
 }
 
 // cellRegistry keeps cells alive to prevent Go's GC from collecting them.
 // When we convert a Cell pointer to an integer (for NaN-boxing), Go can't
 // track the reference anymore. This registry maintains a Go-visible reference.
 var cellRegistry = make(map[*Cell]struct{})
+var cellRegistryMu sync.Mutex
 
 // IsCell returns true if v represents a mutable cell.
 func (v Value) IsCell() bool {
@@ -325,21 +329,31 @@ func FromCellPtr(cell *Cell) Value {
 // NewCell creates a new Cell containing the given value and returns it as a Value.
 // The cell is registered in cellRegistry to prevent garbage collection.
 func NewCell(v Value) Value {
-	cell := &Cell{Value: v}
+	cell := &Cell{value: v}
+	cellRegistryMu.Lock()
 	cellRegistry[cell] = struct{}{} // Keep alive
+	cellRegistryMu.Unlock()
 	return FromCellPtr(cell)
 }
 
 // CellGet returns the value stored in the cell.
 // Panics if v is not a cell.
+// This method is thread-safe.
 func (v Value) CellGet() Value {
-	return v.CellPtr().Value
+	cell := v.CellPtr()
+	cell.mu.RLock()
+	defer cell.mu.RUnlock()
+	return cell.value
 }
 
 // CellSet stores a value in the cell.
 // Panics if v is not a cell.
+// This method is thread-safe.
 func (v Value) CellSet(newValue Value) {
-	v.CellPtr().Value = newValue
+	cell := v.CellPtr()
+	cell.mu.Lock()
+	defer cell.mu.Unlock()
+	cell.value = newValue
 }
 
 // ---------------------------------------------------------------------------
