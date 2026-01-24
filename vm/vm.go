@@ -200,6 +200,7 @@ func (vm *VM) bootstrap() {
 	vm.registerArrayPrimitives()
 	vm.registerBlockPrimitives()
 	vm.registerChannelPrimitives()
+	vm.registerChannelSelectPrimitives()
 	vm.registerProcessPrimitives()
 	vm.registerMutexPrimitives()
 	vm.registerWaitGroupPrimitives()

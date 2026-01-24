@@ -55,3 +55,142 @@ Process yield.
 
 # Sleep (milliseconds)
 Process sleep: 100.
+
+# ---------------------------------------------------------------------------
+# Channel Select (Go-style select statement)
+# ---------------------------------------------------------------------------
+
+# Select waits on multiple channels, executing the handler
+# for whichever channel becomes ready first
+
+# Basic select with multiple channels
+| ch1 ch2 result |
+ch1 := Channel new: 1.
+ch2 := Channel new: 1.
+
+# Send to one channel
+ch2 send: 'hello'.
+
+# Select waits for any channel to be ready
+result := Channel select: {
+    ch1 onReceive: [:v | 'Got from ch1: ', v].
+    ch2 onReceive: [:v | 'Got from ch2: ', v]
+}.
+# => 'Got from ch2: hello'
+
+# Non-blocking select with default case
+| ch |
+ch := Channel new: 1.
+
+result := Channel select: {
+    ch onReceive: [:v | 'Received: ', v]
+} ifNone: [
+    'No channel ready'
+].
+# => 'No channel ready' (since channel is empty)
+
+# Select with timeout pattern
+| ch timeout |
+ch := Channel new.
+timeout := Channel new: 1.
+
+# Start a timeout in another process
+[Process sleep: 100. timeout send: 'timeout'] fork.
+
+result := Channel select: {
+    ch onReceive: [:v | 'Got value: ', v].
+    timeout onReceive: [:v | 'Timed out!']
+}.
+# => 'Timed out!' (if ch doesn't receive within 100ms)
+
+# Fan-in pattern: merge multiple channels
+| sources merged producer1 producer2 consumer |
+sources := { Channel new. Channel new. Channel new }.
+merged := Channel new: 10.
+
+# Producers send to individual channels
+producer1 := [sources at: 1. send: 'from 1'] fork.
+producer2 := [sources at: 2. send: 'from 2'] fork.
+
+# Merger forwards from all sources to merged
+[
+    | done |
+    done := false.
+    [done not] whileTrue: [
+        Channel select: {
+            (sources at: 1) onReceive: [:v | merged send: v].
+            (sources at: 2) onReceive: [:v | merged send: v].
+            (sources at: 3) onReceive: [:v | merged send: v]
+        } ifNone: [
+            done := true
+        ]
+    ]
+] fork.
+
+# ---------------------------------------------------------------------------
+# Mutex (mutual exclusion)
+# ---------------------------------------------------------------------------
+
+| mutex counter |
+mutex := Mutex new.
+counter := 0.
+
+# Critical section
+mutex lock.
+counter := counter + 1.
+mutex unlock.
+
+# Safer: using critical: block
+mutex critical: [
+    counter := counter + 1
+].
+
+# ---------------------------------------------------------------------------
+# WaitGroup (waiting for multiple processes)
+# ---------------------------------------------------------------------------
+
+| wg results |
+wg := WaitGroup new.
+results := Channel new: 5.
+
+# Start multiple workers
+1 to: 5 do: [:i |
+    wg wrap: [
+        Process sleep: (i * 10).  # Simulate work
+        results send: i * i
+    ]
+].
+
+# Wait for all workers to complete
+wg wait.
+results close.
+
+# Collect results
+results do: [:r | Transcript show: r; cr].
+
+# ---------------------------------------------------------------------------
+# Semaphore (limiting concurrent access)
+# ---------------------------------------------------------------------------
+
+| sem |
+# Create semaphore with 3 permits (allow 3 concurrent accesses)
+sem := Semaphore new: 3.
+
+# Acquire a permit (blocks if none available)
+sem acquire.
+# ... do work ...
+sem release.
+
+# Try to acquire without blocking
+sem tryAcquire ifTrue: [
+    # Got a permit
+    sem release
+] ifFalse: [
+    # No permits available
+].
+
+# Critical section with semaphore
+sem critical: [
+    # Only 3 processes can be here at once
+    # ... exclusive work ...
+].

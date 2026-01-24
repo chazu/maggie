@@ -1,6 +1,7 @@
 package vm
 
 import (
+	"reflect"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -1525,4 +1526,270 @@ func TestVMIsolation(t *testing.T) {
 	}
 
 	t.Log("VM isolation verified: each VM has independent channels")
+}
+
+// ---------------------------------------------------------------------------
+// Channel Select Tests
+// ---------------------------------------------------------------------------
+
+// TestChannelSelectReceive tests basic select with a single ready channel.
+func TestChannelSelectReceive(t *testing.T) {
+	vm := NewVM()
+
+	// Create a buffered channel and send a value
+	ch := vm.Send(vm.classValue(vm.ChannelClass), "new:", []Value{FromSmallInt(1)})
+	vm.Send(ch, "send:", []Value{FromSmallInt(42)})
+
+	// Create a handler block that returns the received value doubled
+	interp := vm.newInterpreter()
+	vm.registerInterpreter(interp)
+	defer vm.unregisterInterpreter()
+
+	blockMethod := &BlockMethod{
+		Arity:       1, // Receives the value
+		NumTemps:    0,
+		NumCaptures: 0,
+		// Block receives arg, adds 10 to it: push temp0 (arg), push 10, send +, return
+		Bytecode: []byte{byte(OpPushTemp), 0, byte(OpPushInt8), 10, byte(OpSendPlus), byte(OpBlockReturn)},
+		Literals: nil,
+	}
+
+	b := NewCompiledMethodBuilder("test", 0)
+	b.Bytecode().Emit(OpPushNil)
+	b.Bytecode().Emit(OpReturnTop)
+	m := b.Build()
+	interp.pushFrame(m, Nil, nil)
+	defer interp.popFrame()
+
+	handlerVal := interp.createBlockValue(blockMethod, nil)
+
+	// Create a select case using onReceive:
+	caseVal := vm.Send(ch, "onReceive:", []Value{handlerVal})
+	if caseVal == Nil {
+		t.Fatal("onReceive: returned nil")
+	}
+
+	// Create an array with the case
+	casesVal := vm.NewArrayWithElements([]Value{caseVal})
+
+	// Call Channel select:
+	result := vm.Send(vm.classValue(vm.ChannelClass), "select:", []Value{casesVal})
+
+	// Result should be 42 + 10 = 52
+	if !result.IsSmallInt() || result.SmallInt() != 52 {
+		t.Errorf("select: returned %v, want 52", result)
+	}
+}
+
+// TestChannelSelectMultiple tests select with multiple channels where one is ready.
+func TestChannelSelectMultiple(t *testing.T) {
+	vm := NewVM()
+
+	// Create three buffered channels
+	ch1 := vm.Send(vm.classValue(vm.ChannelClass), "new:", []Value{FromSmallInt(1)})
+	ch2 := vm.Send(vm.classValue(vm.ChannelClass), "new:", []Value{FromSmallInt(1)})
+	ch3 := vm.Send(vm.classValue(vm.ChannelClass), "new:", []Value{FromSmallInt(1)})
+
+	// Only send to channel 2
+	vm.Send(ch2, "send:", []Value{FromSmallInt(200)})
+
+	// Create handler blocks
+	interp := vm.newInterpreter()
+	vm.registerInterpreter(interp)
+	defer vm.unregisterInterpreter()
+
+	// Handler that returns 1 for ch1
+	block1 := &BlockMethod{
+		Arity:    1,
+		Bytecode: []byte{byte(OpPushInt8), 1, byte(OpBlockReturn)},
+	}
+	// Handler that returns 2 for ch2
+	block2 := &BlockMethod{
+		Arity:    1,
+		Bytecode: []byte{byte(OpPushInt8), 2, byte(OpBlockReturn)},
+	}
+	// Handler that returns 3 for ch3
+	block3 := &BlockMethod{
+		Arity:    1,
+		Bytecode: []byte{byte(OpPushInt8), 3, byte(OpBlockReturn)},
+	}
+
+	b := NewCompiledMethodBuilder("test", 0)
+	b.Bytecode().Emit(OpPushNil)
+	b.Bytecode().Emit(OpReturnTop)
+	m := b.Build()
+	interp.pushFrame(m, Nil, nil)
+	defer interp.popFrame()
+
+	h1 := interp.createBlockValue(block1, nil)
+	h2 := interp.createBlockValue(block2, nil)
+	h3 := interp.createBlockValue(block3, nil)
+
+	// Create select cases
+	case1 := vm.Send(ch1, "onReceive:", []Value{h1})
+	case2 := vm.Send(ch2, "onReceive:", []Value{h2})
+	case3 := vm.Send(ch3, "onReceive:", []Value{h3})
+
+	// Create cases array
+	casesVal := vm.NewArrayWithElements([]Value{case1, case2, case3})
+
+	// Call select
+	result := vm.Send(vm.classValue(vm.ChannelClass), "select:", []Value{casesVal})
+
+	// Should pick channel 2, returning 2
+	if !result.IsSmallInt() || result.SmallInt() != 2 {
+		t.Errorf("select: with multiple channels = %v, want 2", result)
+	}
+}
+
+// TestChannelSelectIfNone tests non-blocking select with default case.
+func TestChannelSelectIfNone(t *testing.T) {
+	vm := NewVM()
+
+	// Create channels but don't send anything
+	ch1 := vm.Send(vm.classValue(vm.ChannelClass), "new:", []Value{FromSmallInt(1)})
+	ch2 := vm.Send(vm.classValue(vm.ChannelClass), "new:", []Value{FromSmallInt(1)})
+
+	// Create handler blocks
+	interp := vm.newInterpreter()
+	vm.registerInterpreter(interp)
+	defer vm.unregisterInterpreter()
+
+	block1 := &BlockMethod{
+		Arity:    1,
+		Bytecode: []byte{byte(OpPushInt8), 1, byte(OpBlockReturn)},
+	}
+	block2 := &BlockMethod{
+		Arity:    1,
+		Bytecode: []byte{byte(OpPushInt8), 2, byte(OpBlockReturn)},
+	}
+	// Default block returns 99
+	defaultBlock := &BlockMethod{
+		Arity:    0,
+		Bytecode: []byte{byte(OpPushInt8), 99, byte(OpBlockReturn)},
+	}
+
+	b := NewCompiledMethodBuilder("test", 0)
+	b.Bytecode().Emit(OpPushNil)
+	b.Bytecode().Emit(OpReturnTop)
+	m := b.Build()
+	interp.pushFrame(m, Nil, nil)
+	defer interp.popFrame()
+
+	h1 := interp.createBlockValue(block1, nil)
+	h2 := interp.createBlockValue(block2, nil)
+	defaultVal := interp.createBlockValue(defaultBlock, nil)
+
+	// Create select cases
+	case1 := vm.Send(ch1, "onReceive:", []Value{h1})
+	case2 := vm.Send(ch2, "onReceive:", []Value{h2})
+	casesVal := vm.NewArrayWithElements([]Value{case1, case2})
+
+	// Call select:ifNone: - should execute default block since no channels are ready
+	result := vm.Send(vm.classValue(vm.ChannelClass), "select:ifNone:", []Value{casesVal, defaultVal})
+
+	// Should return 99 from default block
+	if !result.IsSmallInt() || result.SmallInt() != 99 {
+		t.Errorf("select:ifNone: with no ready channels = %v, want 99", result)
+	}
+}
+
+// TestChannelSelectWithReadyChannel tests select:ifNone: when a channel is ready.
+func TestChannelSelectWithReadyChannel(t *testing.T) {
+	vm := NewVM()
+
+	// Create channels, send to one
+	ch1 := vm.Send(vm.classValue(vm.ChannelClass), "new:", []Value{FromSmallInt(1)})
+	ch2 := vm.Send(vm.classValue(vm.ChannelClass), "new:", []Value{FromSmallInt(1)})
+	vm.Send(ch1, "send:", []Value{FromSmallInt(100)})
+
+	// Create handler blocks
+	interp := vm.newInterpreter()
+	vm.registerInterpreter(interp)
+	defer vm.unregisterInterpreter()
+
+	block1 := &BlockMethod{
+		Arity:    1,
+		Bytecode: []byte{byte(OpPushInt8), 1, byte(OpBlockReturn)},
+	}
+	block2 := &BlockMethod{
+		Arity:    1,
+		Bytecode: []byte{byte(OpPushInt8), 2, byte(OpBlockReturn)},
+	}
+	defaultBlock := &BlockMethod{
+		Arity:    0,
+		Bytecode: []byte{byte(OpPushInt8), 99, byte(OpBlockReturn)},
+	}
+
+	b := NewCompiledMethodBuilder("test", 0)
+	b.Bytecode().Emit(OpPushNil)
+	b.Bytecode().Emit(OpReturnTop)
+	m := b.Build()
+	interp.pushFrame(m, Nil, nil)
+	defer interp.popFrame()
+
+	h1 := interp.createBlockValue(block1, nil)
+	h2 := interp.createBlockValue(block2, nil)
+	defaultVal := interp.createBlockValue(defaultBlock, nil)
+
+	case1 := vm.Send(ch1, "onReceive:", []Value{h1})
+	case2 := vm.Send(ch2, "onReceive:", []Value{h2})
+	casesVal := vm.NewArrayWithElements([]Value{case1, case2})
+
+	// Call select:ifNone: - should pick ch1 since it has data
+	result := vm.Send(vm.classValue(vm.ChannelClass), "select:ifNone:", []Value{casesVal, defaultVal})
+
+	// Should return 1 from ch1's handler
+	if !result.IsSmallInt() || result.SmallInt() != 1 {
+		t.Errorf("select:ifNone: with ready channel = %v, want 1", result)
+	}
+}
+
+// TestChannelOnReceiveCreatesAssociation tests that onReceive: creates a valid case.
+func TestChannelOnReceiveCreatesAssociation(t *testing.T) {
+	vm := NewVM()
+
+	ch := vm.Send(vm.classValue(vm.ChannelClass), "new:", []Value{FromSmallInt(1)})
+
+	// Create a simple handler block
+	interp := vm.newInterpreter()
+	vm.registerInterpreter(interp)
+	defer vm.unregisterInterpreter()
+
+	block := &BlockMethod{
+		Arity:    1,
+		Bytecode: []byte{byte(OpPushInt8), 42, byte(OpBlockReturn)},
+	}
+
+	b := NewCompiledMethodBuilder("test", 0)
+	b.Bytecode().Emit(OpPushNil)
+	b.Bytecode().Emit(OpReturnTop)
+	m := b.Build()
+	interp.pushFrame(m, Nil, nil)
+	defer interp.popFrame()
+
+	handler := interp.createBlockValue(block, nil)
+
+	// Call onReceive:
+	caseVal := vm.Send(ch, "onReceive:", []Value{handler})
+
+	// Verify it's an object (Association)
+	if !caseVal.IsObject() {
+		t.Error("onReceive: should return an object (Association)")
+		return
+	}
+
+	// Verify we can parse it as a select case
+	sc, ok := vm.parseSelectCase(caseVal)
+	if !ok {
+		t.Error("Could not parse onReceive: result as SelectCase")
+		return
+	}
+
+	if sc.Channel == nil {
+		t.Error("SelectCase channel is nil")
+	}
+	if sc.Dir != reflect.SelectRecv {
+		t.Errorf("SelectCase Dir = %v, want SelectRecv (%v)", sc.Dir, reflect.SelectRecv)
+	}
 }
