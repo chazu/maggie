@@ -178,7 +178,7 @@ func TestChannelConcurrent(t *testing.T) {
 
 	// Create unbuffered channel
 	ch := vm.Send(vm.classValue(vm.ChannelClass), "new", nil)
-	chObj := getChannel(ch)
+	chObj := vm.getChannel(ch)
 
 	done := make(chan struct{})
 
@@ -687,7 +687,7 @@ func TestMutexTryLock(t *testing.T) {
 	done := make(chan bool)
 	go func() {
 		// This tryLock should fail because the mutex is held
-		muObj := getMutex(mu)
+		muObj := vm.getMutex(mu)
 		if muObj.mu.TryLock() {
 			// Shouldn't happen - mutex should be locked
 			muObj.mu.Unlock()
@@ -722,7 +722,7 @@ func TestMutexCritical(t *testing.T) {
 
 	// We need to create a proper block to test critical:
 	// Since we can't easily compile Smalltalk, we test the primitive directly
-	muObj := getMutex(mu)
+	muObj := vm.getMutex(mu)
 	if muObj == nil {
 		t.Fatal("Could not get mutex object")
 	}
@@ -770,7 +770,7 @@ func TestMutexConcurrentAccess(t *testing.T) {
 	vm := NewVM()
 
 	mu := vm.Send(vm.classValue(vm.MutexClass), "new", nil)
-	muObj := getMutex(mu)
+	muObj := vm.getMutex(mu)
 	if muObj == nil {
 		t.Fatal("Could not get mutex object")
 	}
@@ -810,7 +810,7 @@ func TestMutexIsLockedFromMultipleGoroutines(t *testing.T) {
 	vm := NewVM()
 
 	mu := vm.Send(vm.classValue(vm.MutexClass), "new", nil)
-	muObj := getMutex(mu)
+	muObj := vm.getMutex(mu)
 
 	const numGoroutines = 5
 	const iterations = 100
@@ -927,7 +927,7 @@ func TestMutexRegistryIntegrity(t *testing.T) {
 	// Verify all mutexes are still accessible
 	count := 0
 	for mu := range allMutexes {
-		muObj := getMutex(mu)
+		muObj := vm.getMutex(mu)
 		if muObj == nil {
 			t.Errorf("Lost mutex at count %d", count)
 		}
@@ -994,7 +994,7 @@ func TestWaitGroupConcurrent(t *testing.T) {
 	vm := NewVM()
 
 	wgVal := vm.Send(vm.classValue(vm.WaitGroupClass), "new", nil)
-	wgObj := getWaitGroup(wgVal)
+	wgObj := vm.getWaitGroup(wgVal)
 	if wgObj == nil {
 		t.Fatal("Could not get wait group object")
 	}
@@ -1193,7 +1193,7 @@ func TestSemaphoreConcurrentAccess(t *testing.T) {
 	vm := NewVM()
 
 	sem := vm.Send(vm.classValue(vm.SemaphoreClass), "new:", []Value{FromSmallInt(3)})
-	semObj := getSemaphore(sem)
+	semObj := vm.getSemaphore(sem)
 	if semObj == nil {
 		t.Fatal("Could not get semaphore object")
 	}
@@ -1334,4 +1334,195 @@ func TestSemaphoreMultipleCreation(t *testing.T) {
 
 	t.Logf("Created %d semaphores from %d goroutines, %d unique IDs",
 		numGoroutines*semsPerGoroutine, numGoroutines, len(seenIDs))
+}
+
+// ---------------------------------------------------------------------------
+// Memory Leak Tests
+// These tests verify that sweep functions properly clean up registries
+// ---------------------------------------------------------------------------
+
+// TestSweepClosedChannels tests that closed channels are swept from the registry.
+func TestSweepClosedChannels(t *testing.T) {
+	vm := NewVM()
+
+	// Create several channels
+	const numChannels = 10
+	channels := make([]Value, numChannels)
+	for i := 0; i < numChannels; i++ {
+		channels[i] = vm.Send(vm.classValue(vm.ChannelClass), "new:", []Value{FromSmallInt(1)})
+	}
+
+	// Verify all channels are registered
+	initialCount := vm.Concurrency().ChannelCount()
+	if initialCount < numChannels {
+		t.Errorf("Expected at least %d channels, got %d", numChannels, initialCount)
+	}
+
+	// Close half the channels
+	for i := 0; i < numChannels/2; i++ {
+		vm.Send(channels[i], "close", nil)
+	}
+
+	// Sweep
+	swept := vm.Concurrency().SweepChannels()
+
+	// Verify the right number were swept
+	if swept != numChannels/2 {
+		t.Errorf("Swept %d channels, expected %d", swept, numChannels/2)
+	}
+
+	// Verify remaining count
+	remainingCount := vm.Concurrency().ChannelCount()
+	expectedRemaining := initialCount - numChannels/2
+	if remainingCount != expectedRemaining {
+		t.Errorf("Remaining channels: %d, expected %d", remainingCount, expectedRemaining)
+	}
+
+	t.Logf("Swept %d closed channels, %d remaining", swept, remainingCount)
+}
+
+// TestSweepTerminatedProcesses tests that terminated processes are swept.
+func TestSweepTerminatedProcesses(t *testing.T) {
+	vm := NewVM()
+
+	// Create processes that complete immediately
+	const numProcesses = 10
+	processes := make([]Value, numProcesses)
+
+	// Create a simple block that returns immediately
+	interp := vm.newInterpreter()
+	vm.registerInterpreter(interp)
+
+	blockMethod := &BlockMethod{
+		Arity:       0,
+		NumTemps:    0,
+		NumCaptures: 0,
+		Bytecode:    []byte{byte(OpPushInt8), 42, byte(OpBlockReturn)},
+		Literals:    nil,
+	}
+
+	b := NewCompiledMethodBuilder("test", 0)
+	b.Bytecode().Emit(OpPushNil)
+	b.Bytecode().Emit(OpReturnTop)
+	m := b.Build()
+
+	interp.pushFrame(m, Nil, nil)
+
+	for i := 0; i < numProcesses; i++ {
+		blockVal := interp.createBlockValue(blockMethod, nil)
+		// Fork the block
+		processes[i] = vm.Send(blockVal, "fork", nil)
+	}
+
+	interp.popFrame()
+	vm.unregisterInterpreter()
+
+	// Wait for all processes to complete
+	for i := 0; i < numProcesses; i++ {
+		vm.Send(processes[i], "wait", nil)
+	}
+
+	// Verify all processes are done
+	for i := 0; i < numProcesses; i++ {
+		done := vm.Send(processes[i], "isDone", nil)
+		if done != True {
+			t.Errorf("Process %d should be done", i)
+		}
+	}
+
+	// Count before sweep
+	beforeCount := vm.Concurrency().ProcessCount()
+
+	// Sweep
+	swept := vm.Concurrency().SweepProcesses()
+
+	// Verify processes were swept
+	if swept < numProcesses {
+		t.Errorf("Swept %d processes, expected at least %d", swept, numProcesses)
+	}
+
+	afterCount := vm.Concurrency().ProcessCount()
+	t.Logf("Swept %d terminated processes (before: %d, after: %d)", swept, beforeCount, afterCount)
+}
+
+// TestConcurrencyStats tests the Stats method.
+func TestConcurrencyStats(t *testing.T) {
+	vm := NewVM()
+
+	// Create some objects
+	vm.Send(vm.classValue(vm.ChannelClass), "new", nil)
+	vm.Send(vm.classValue(vm.ChannelClass), "new:", []Value{FromSmallInt(5)})
+	vm.Send(vm.classValue(vm.MutexClass), "new", nil)
+	vm.Send(vm.classValue(vm.WaitGroupClass), "new", nil)
+	vm.Send(vm.classValue(vm.SemaphoreClass), "new:", []Value{FromSmallInt(3)})
+
+	// Get stats
+	stats := vm.ConcurrencyStats()
+
+	if stats["channels"] < 2 {
+		t.Errorf("Expected at least 2 channels, got %d", stats["channels"])
+	}
+	if stats["mutexes"] < 1 {
+		t.Errorf("Expected at least 1 mutex, got %d", stats["mutexes"])
+	}
+	if stats["waitGroups"] < 1 {
+		t.Errorf("Expected at least 1 wait group, got %d", stats["waitGroups"])
+	}
+	if stats["semaphores"] < 1 {
+		t.Errorf("Expected at least 1 semaphore, got %d", stats["semaphores"])
+	}
+
+	t.Logf("Stats: %v", stats)
+}
+
+// TestVMIsolation tests that different VMs have isolated registries.
+func TestVMIsolation(t *testing.T) {
+	vm1 := NewVM()
+	vm2 := NewVM()
+
+	// Create channels in each VM
+	ch1 := vm1.Send(vm1.classValue(vm1.ChannelClass), "new:", []Value{FromSmallInt(1)})
+	ch2 := vm2.Send(vm2.classValue(vm2.ChannelClass), "new:", []Value{FromSmallInt(1)})
+
+	// Verify each VM only sees its own channels
+	count1 := vm1.Concurrency().ChannelCount()
+	count2 := vm2.Concurrency().ChannelCount()
+
+	if count1 != 1 {
+		t.Errorf("VM1 channel count = %d, want 1", count1)
+	}
+	if count2 != 1 {
+		t.Errorf("VM2 channel count = %d, want 1", count2)
+	}
+
+	// Verify channels are accessible in their respective VMs
+	chObj1 := vm1.getChannel(ch1)
+	chObj2 := vm2.getChannel(ch2)
+
+	if chObj1 == nil {
+		t.Error("VM1 should find its own channel")
+	}
+	if chObj2 == nil {
+		t.Error("VM2 should find its own channel")
+	}
+
+	// Verify the objects are different (VM isolation means different object instances)
+	if chObj1 == chObj2 {
+		t.Error("Channels from different VMs should be different objects")
+	}
+
+	// Test that closing a channel in one VM doesn't affect the other
+	vm1.Send(ch1, "close", nil)
+
+	isClosed1 := vm1.Send(ch1, "isClosed", nil)
+	isClosed2 := vm2.Send(ch2, "isClosed", nil)
+
+	if isClosed1 != True {
+		t.Error("VM1 channel should be closed")
+	}
+	if isClosed2 != False {
+		t.Error("VM2 channel should NOT be closed")
+	}
+
+	t.Log("VM isolation verified: each VM has independent channels")
 }

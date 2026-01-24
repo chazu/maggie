@@ -182,13 +182,15 @@ func (vm *VM) registerChannelPrimitives() {
 	c := vm.ChannelClass
 
 	// Channel class>>new - create unbuffered channel (class method)
-	c.AddClassMethod0(vm.Selectors, "new", func(_ interface{}, recv Value) Value {
+	c.AddClassMethod0(vm.Selectors, "new", func(vmPtr interface{}, recv Value) Value {
+		v := vmPtr.(*VM)
 		ch := createChannel(0)
-		return registerChannel(ch)
+		return v.registerChannel(ch)
 	})
 
 	// Channel class>>new: size - create buffered channel (class method)
-	c.AddClassMethod1(vm.Selectors, "new:", func(_ interface{}, recv Value, size Value) Value {
+	c.AddClassMethod1(vm.Selectors, "new:", func(vmPtr interface{}, recv Value, size Value) Value {
+		v := vmPtr.(*VM)
 		if !size.IsSmallInt() {
 			return Nil
 		}
@@ -197,12 +199,13 @@ func (vm *VM) registerChannelPrimitives() {
 			bufSize = 0
 		}
 		ch := createChannel(bufSize)
-		return registerChannel(ch)
+		return v.registerChannel(ch)
 	})
 
 	// Channel>>primSend: value - send value to channel (blocking)
-	c.AddMethod1(vm.Selectors, "primSend:", func(_ interface{}, recv Value, val Value) Value {
-		ch := getChannel(recv)
+	c.AddMethod1(vm.Selectors, "primSend:", func(vmPtr interface{}, recv Value, val Value) Value {
+		v := vmPtr.(*VM)
+		ch := v.getChannel(recv)
 		if ch == nil {
 			return Nil
 		}
@@ -214,8 +217,9 @@ func (vm *VM) registerChannelPrimitives() {
 	})
 
 	// Channel>>primReceive - receive value from channel (blocking)
-	c.AddMethod0(vm.Selectors, "primReceive", func(_ interface{}, recv Value) Value {
-		ch := getChannel(recv)
+	c.AddMethod0(vm.Selectors, "primReceive", func(vmPtr interface{}, recv Value) Value {
+		v := vmPtr.(*VM)
+		ch := v.getChannel(recv)
 		if ch == nil {
 			return Nil
 		}
@@ -227,8 +231,9 @@ func (vm *VM) registerChannelPrimitives() {
 	})
 
 	// Channel>>primTryReceive - non-blocking receive, returns nil if nothing available
-	c.AddMethod0(vm.Selectors, "primTryReceive", func(_ interface{}, recv Value) Value {
-		ch := getChannel(recv)
+	c.AddMethod0(vm.Selectors, "primTryReceive", func(vmPtr interface{}, recv Value) Value {
+		v := vmPtr.(*VM)
+		ch := v.getChannel(recv)
 		if ch == nil {
 			return Nil
 		}
@@ -244,8 +249,9 @@ func (vm *VM) registerChannelPrimitives() {
 	})
 
 	// Channel>>primTrySend: value - non-blocking send, returns true if sent
-	c.AddMethod1(vm.Selectors, "primTrySend:", func(_ interface{}, recv Value, val Value) Value {
-		ch := getChannel(recv)
+	c.AddMethod1(vm.Selectors, "primTrySend:", func(vmPtr interface{}, recv Value, val Value) Value {
+		v := vmPtr.(*VM)
+		ch := v.getChannel(recv)
 		if ch == nil {
 			return False
 		}
@@ -261,8 +267,9 @@ func (vm *VM) registerChannelPrimitives() {
 	})
 
 	// Channel>>primClose - close the channel
-	c.AddMethod0(vm.Selectors, "primClose", func(_ interface{}, recv Value) Value {
-		ch := getChannel(recv)
+	c.AddMethod0(vm.Selectors, "primClose", func(vmPtr interface{}, recv Value) Value {
+		v := vmPtr.(*VM)
+		ch := v.getChannel(recv)
 		if ch == nil {
 			return recv
 		}
@@ -276,8 +283,9 @@ func (vm *VM) registerChannelPrimitives() {
 	})
 
 	// Channel>>primIsClosed - check if channel is closed
-	c.AddMethod0(vm.Selectors, "primIsClosed", func(_ interface{}, recv Value) Value {
-		ch := getChannel(recv)
+	c.AddMethod0(vm.Selectors, "primIsClosed", func(vmPtr interface{}, recv Value) Value {
+		v := vmPtr.(*VM)
+		ch := v.getChannel(recv)
 		if ch == nil {
 			return True
 		}
@@ -290,8 +298,9 @@ func (vm *VM) registerChannelPrimitives() {
 	// Non-prim versions for backwards compatibility and use without Channel.mag
 
 	// Channel>>send: - alias for primSend:
-	c.AddMethod1(vm.Selectors, "send:", func(_ interface{}, recv Value, val Value) Value {
-		ch := getChannel(recv)
+	c.AddMethod1(vm.Selectors, "send:", func(vmPtr interface{}, recv Value, val Value) Value {
+		v := vmPtr.(*VM)
+		ch := v.getChannel(recv)
 		if ch == nil {
 			return Nil
 		}
@@ -303,8 +312,9 @@ func (vm *VM) registerChannelPrimitives() {
 	})
 
 	// Channel>>receive - alias for primReceive
-	c.AddMethod0(vm.Selectors, "receive", func(_ interface{}, recv Value) Value {
-		ch := getChannel(recv)
+	c.AddMethod0(vm.Selectors, "receive", func(vmPtr interface{}, recv Value) Value {
+		v := vmPtr.(*VM)
+		ch := v.getChannel(recv)
 		if ch == nil {
 			return Nil
 		}
@@ -316,8 +326,9 @@ func (vm *VM) registerChannelPrimitives() {
 	})
 
 	// Channel>>trySend: - alias for primTrySend:
-	c.AddMethod1(vm.Selectors, "trySend:", func(_ interface{}, recv Value, val Value) Value {
-		ch := getChannel(recv)
+	c.AddMethod1(vm.Selectors, "trySend:", func(vmPtr interface{}, recv Value, val Value) Value {
+		v := vmPtr.(*VM)
+		ch := v.getChannel(recv)
 		if ch == nil {
 			return False
 		}
@@ -333,8 +344,9 @@ func (vm *VM) registerChannelPrimitives() {
 	})
 
 	// Channel>>tryReceive - alias for primTryReceive
-	c.AddMethod0(vm.Selectors, "tryReceive", func(_ interface{}, recv Value) Value {
-		ch := getChannel(recv)
+	c.AddMethod0(vm.Selectors, "tryReceive", func(vmPtr interface{}, recv Value) Value {
+		v := vmPtr.(*VM)
+		ch := v.getChannel(recv)
 		if ch == nil {
 			return Nil
 		}
@@ -350,8 +362,9 @@ func (vm *VM) registerChannelPrimitives() {
 	})
 
 	// Channel>>close - alias for primClose
-	c.AddMethod0(vm.Selectors, "close", func(_ interface{}, recv Value) Value {
-		ch := getChannel(recv)
+	c.AddMethod0(vm.Selectors, "close", func(vmPtr interface{}, recv Value) Value {
+		v := vmPtr.(*VM)
+		ch := v.getChannel(recv)
 		if ch == nil {
 			return recv
 		}
@@ -365,8 +378,9 @@ func (vm *VM) registerChannelPrimitives() {
 	})
 
 	// Channel>>isClosed - alias for primIsClosed
-	c.AddMethod0(vm.Selectors, "isClosed", func(_ interface{}, recv Value) Value {
-		ch := getChannel(recv)
+	c.AddMethod0(vm.Selectors, "isClosed", func(vmPtr interface{}, recv Value) Value {
+		v := vmPtr.(*VM)
+		ch := v.getChannel(recv)
 		if ch == nil {
 			return True
 		}
@@ -377,8 +391,9 @@ func (vm *VM) registerChannelPrimitives() {
 	})
 
 	// Channel>>isEmpty - check if channel has no pending values (for buffered)
-	c.AddMethod0(vm.Selectors, "isEmpty", func(_ interface{}, recv Value) Value {
-		ch := getChannel(recv)
+	c.AddMethod0(vm.Selectors, "isEmpty", func(vmPtr interface{}, recv Value) Value {
+		v := vmPtr.(*VM)
+		ch := v.getChannel(recv)
 		if ch == nil {
 			return True
 		}
@@ -389,8 +404,9 @@ func (vm *VM) registerChannelPrimitives() {
 	})
 
 	// Channel>>size - number of pending values (for buffered)
-	c.AddMethod0(vm.Selectors, "size", func(_ interface{}, recv Value) Value {
-		ch := getChannel(recv)
+	c.AddMethod0(vm.Selectors, "size", func(vmPtr interface{}, recv Value) Value {
+		v := vmPtr.(*VM)
+		ch := v.getChannel(recv)
 		if ch == nil {
 			return FromSmallInt(0)
 		}
@@ -398,8 +414,9 @@ func (vm *VM) registerChannelPrimitives() {
 	})
 
 	// Channel>>capacity - buffer capacity
-	c.AddMethod0(vm.Selectors, "capacity", func(_ interface{}, recv Value) Value {
-		ch := getChannel(recv)
+	c.AddMethod0(vm.Selectors, "capacity", func(vmPtr interface{}, recv Value) Value {
+		v := vmPtr.(*VM)
+		ch := v.getChannel(recv)
 		if ch == nil {
 			return FromSmallInt(0)
 		}
@@ -422,8 +439,8 @@ func (vm *VM) registerProcessPrimitives() {
 			return Nil
 		}
 
-		proc := createProcess()
-		procValue := registerProcess(proc)
+		proc := v.createProcess()
+		procValue := v.registerProcess(proc)
 
 		go func() {
 			defer func() {
@@ -461,8 +478,8 @@ func (vm *VM) registerProcessPrimitives() {
 			return Nil
 		}
 
-		proc := createProcess()
-		procValue := registerProcess(proc)
+		proc := v.createProcess()
+		procValue := v.registerProcess(proc)
 
 		go func() {
 			defer func() {
@@ -496,8 +513,8 @@ func (vm *VM) registerProcessPrimitives() {
 			return Nil
 		}
 
-		proc := createProcess()
-		procValue := registerProcess(proc)
+		proc := v.createProcess()
+		procValue := v.registerProcess(proc)
 
 		go func() {
 			defer func() {
@@ -521,8 +538,9 @@ func (vm *VM) registerProcessPrimitives() {
 	})
 
 	// Process>>wait - wait for process to complete, return result
-	c.AddMethod0(vm.Selectors, "wait", func(_ interface{}, recv Value) Value {
-		proc := getProcess(recv)
+	c.AddMethod0(vm.Selectors, "wait", func(vmPtr interface{}, recv Value) Value {
+		v := vmPtr.(*VM)
+		proc := v.getProcess(recv)
 		if proc == nil {
 			return Nil
 		}
@@ -530,8 +548,9 @@ func (vm *VM) registerProcessPrimitives() {
 	})
 
 	// Process>>isDone - check if process has completed
-	c.AddMethod0(vm.Selectors, "isDone", func(_ interface{}, recv Value) Value {
-		proc := getProcess(recv)
+	c.AddMethod0(vm.Selectors, "isDone", func(vmPtr interface{}, recv Value) Value {
+		v := vmPtr.(*VM)
+		proc := v.getProcess(recv)
 		if proc == nil {
 			return True
 		}
@@ -542,8 +561,9 @@ func (vm *VM) registerProcessPrimitives() {
 	})
 
 	// Process>>result - get result (nil if not done)
-	c.AddMethod0(vm.Selectors, "result", func(_ interface{}, recv Value) Value {
-		proc := getProcess(recv)
+	c.AddMethod0(vm.Selectors, "result", func(vmPtr interface{}, recv Value) Value {
+		v := vmPtr.(*VM)
+		proc := v.getProcess(recv)
 		if proc == nil {
 			return Nil
 		}

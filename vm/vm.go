@@ -81,6 +81,9 @@ type VM struct {
 	// weakRefs tracks weak references for the GC to process.
 	weakRefs *WeakRegistry
 
+	// concurrency holds registries for channels, processes, mutexes, etc.
+	concurrency *ConcurrencyRegistry
+
 	// AOT compiled methods - maps (class, method) to AOT-compiled functions.
 	// When set, these are used instead of interpreting bytecode.
 	aotMethods AOTDispatchTable
@@ -92,13 +95,14 @@ type VM struct {
 // NewVM creates and bootstraps a new VM.
 func NewVM() *VM {
 	vm := &VM{
-		Selectors: NewSelectorTable(),
-		Symbols:   NewSymbolTable(),
-		Classes:   NewClassTable(),
-		Traits:    NewTraitTable(),
-		Globals:   make(map[string]Value),
-		keepAlive: make(map[*Object]struct{}),
-		weakRefs:  NewWeakRegistry(),
+		Selectors:   NewSelectorTable(),
+		Symbols:     NewSymbolTable(),
+		Classes:     NewClassTable(),
+		Traits:      NewTraitTable(),
+		Globals:     make(map[string]Value),
+		keepAlive:   make(map[*Object]struct{}),
+		weakRefs:    NewWeakRegistry(),
+		concurrency: NewConcurrencyRegistry(),
 	}
 
 	// Bootstrap core classes
@@ -270,6 +274,87 @@ func (vm *VM) createClassWithIvars(name string, superclass *Class, ivars []strin
 // For now, we use a symbol as a placeholder.
 func (vm *VM) classValue(c *Class) Value {
 	return vm.Symbols.SymbolValue(c.Name)
+}
+
+// ---------------------------------------------------------------------------
+// Concurrency Registry Accessors
+// ---------------------------------------------------------------------------
+
+// Concurrency returns the concurrency registry for this VM.
+func (vm *VM) Concurrency() *ConcurrencyRegistry {
+	return vm.concurrency
+}
+
+// SweepConcurrency runs garbage collection on concurrency objects.
+// Removes closed channels and terminated processes.
+// Returns the number of objects swept.
+func (vm *VM) SweepConcurrency() (channels, processes, blocks int) {
+	if vm.concurrency != nil {
+		return vm.concurrency.Sweep()
+	}
+	return 0, 0, 0
+}
+
+// ConcurrencyStats returns statistics about concurrency objects.
+func (vm *VM) ConcurrencyStats() map[string]int {
+	if vm.concurrency != nil {
+		return vm.concurrency.Stats()
+	}
+	return nil
+}
+
+// --- Channel helpers ---
+
+func (vm *VM) registerChannel(ch *ChannelObject) Value {
+	return vm.concurrency.RegisterChannel(ch)
+}
+
+func (vm *VM) getChannel(v Value) *ChannelObject {
+	return vm.concurrency.GetChannel(v)
+}
+
+// --- Process helpers ---
+
+func (vm *VM) createProcess() *ProcessObject {
+	return vm.concurrency.CreateProcess()
+}
+
+func (vm *VM) registerProcess(proc *ProcessObject) Value {
+	return vm.concurrency.RegisterProcess(proc)
+}
+
+func (vm *VM) getProcess(v Value) *ProcessObject {
+	return vm.concurrency.GetProcess(v)
+}
+
+// --- Mutex helpers ---
+
+func (vm *VM) registerMutex(mu *MutexObject) Value {
+	return vm.concurrency.RegisterMutex(mu)
+}
+
+func (vm *VM) getMutex(v Value) *MutexObject {
+	return vm.concurrency.GetMutex(v)
+}
+
+// --- WaitGroup helpers ---
+
+func (vm *VM) registerWaitGroup(wg *WaitGroupObject) Value {
+	return vm.concurrency.RegisterWaitGroup(wg)
+}
+
+func (vm *VM) getWaitGroup(v Value) *WaitGroupObject {
+	return vm.concurrency.GetWaitGroup(v)
+}
+
+// --- Semaphore helpers ---
+
+func (vm *VM) registerSemaphore(sem *SemaphoreObject) Value {
+	return vm.concurrency.RegisterSemaphore(sem)
+}
+
+func (vm *VM) getSemaphore(v Value) *SemaphoreObject {
+	return vm.concurrency.GetSemaphore(v)
 }
 
 // registerStringPrimitives delegates to the extended string primitives.

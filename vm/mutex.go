@@ -73,14 +73,16 @@ func (vm *VM) registerMutexPrimitives() {
 	m := vm.MutexClass
 
 	// Mutex class>>new - create a new mutex
-	m.AddClassMethod0(vm.Selectors, "new", func(_ interface{}, recv Value) Value {
+	m.AddClassMethod0(vm.Selectors, "new", func(vmPtr interface{}, recv Value) Value {
+		v := vmPtr.(*VM)
 		mutex := createMutex()
-		return registerMutex(mutex)
+		return v.registerMutex(mutex)
 	})
 
 	// Mutex>>lock - acquire the mutex (blocks if already held)
-	m.AddMethod0(vm.Selectors, "lock", func(_ interface{}, recv Value) Value {
-		mu := getMutex(recv)
+	m.AddMethod0(vm.Selectors, "lock", func(vmPtr interface{}, recv Value) Value {
+		v := vmPtr.(*VM)
+		mu := v.getMutex(recv)
 		if mu == nil {
 			return Nil
 		}
@@ -90,8 +92,9 @@ func (vm *VM) registerMutexPrimitives() {
 	})
 
 	// Mutex>>unlock - release the mutex
-	m.AddMethod0(vm.Selectors, "unlock", func(_ interface{}, recv Value) Value {
-		mu := getMutex(recv)
+	m.AddMethod0(vm.Selectors, "unlock", func(vmPtr interface{}, recv Value) Value {
+		v := vmPtr.(*VM)
+		mu := v.getMutex(recv)
 		if mu == nil {
 			return Nil
 		}
@@ -102,8 +105,9 @@ func (vm *VM) registerMutexPrimitives() {
 
 	// Mutex>>tryLock - try to acquire the mutex without blocking
 	// Returns true if acquired, false if already held
-	m.AddMethod0(vm.Selectors, "tryLock", func(_ interface{}, recv Value) Value {
-		mu := getMutex(recv)
+	m.AddMethod0(vm.Selectors, "tryLock", func(vmPtr interface{}, recv Value) Value {
+		v := vmPtr.(*VM)
+		mu := v.getMutex(recv)
 		if mu == nil {
 			return False
 		}
@@ -115,8 +119,9 @@ func (vm *VM) registerMutexPrimitives() {
 	})
 
 	// Mutex>>isLocked - check if mutex is currently locked
-	m.AddMethod0(vm.Selectors, "isLocked", func(_ interface{}, recv Value) Value {
-		mu := getMutex(recv)
+	m.AddMethod0(vm.Selectors, "isLocked", func(vmPtr interface{}, recv Value) Value {
+		v := vmPtr.(*VM)
+		mu := v.getMutex(recv)
 		if mu == nil {
 			return False
 		}
@@ -130,7 +135,7 @@ func (vm *VM) registerMutexPrimitives() {
 	// Automatically unlocks even if block raises exception
 	m.AddMethod1(vm.Selectors, "critical:", func(vmPtr interface{}, recv Value, block Value) Value {
 		v := vmPtr.(*VM)
-		mu := getMutex(recv)
+		mu := v.getMutex(recv)
 		if mu == nil {
 			return Nil
 		}

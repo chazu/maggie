@@ -73,14 +73,16 @@ func (vm *VM) registerWaitGroupPrimitives() {
 	wg := vm.WaitGroupClass
 
 	// WaitGroup class>>new - create a new wait group
-	wg.AddClassMethod0(vm.Selectors, "new", func(_ interface{}, recv Value) Value {
+	wg.AddClassMethod0(vm.Selectors, "new", func(vmPtr interface{}, recv Value) Value {
+		v := vmPtr.(*VM)
 		waitGroup := createWaitGroup()
-		return registerWaitGroup(waitGroup)
+		return v.registerWaitGroup(waitGroup)
 	})
 
 	// WaitGroup>>add: count - add to the wait group counter
-	wg.AddMethod1(vm.Selectors, "add:", func(_ interface{}, recv Value, count Value) Value {
-		w := getWaitGroup(recv)
+	wg.AddMethod1(vm.Selectors, "add:", func(vmPtr interface{}, recv Value, count Value) Value {
+		v := vmPtr.(*VM)
+		w := v.getWaitGroup(recv)
 		if w == nil {
 			return Nil
 		}
@@ -94,8 +96,9 @@ func (vm *VM) registerWaitGroupPrimitives() {
 	})
 
 	// WaitGroup>>done - decrement the wait group counter by 1
-	wg.AddMethod0(vm.Selectors, "done", func(_ interface{}, recv Value) Value {
-		w := getWaitGroup(recv)
+	wg.AddMethod0(vm.Selectors, "done", func(vmPtr interface{}, recv Value) Value {
+		v := vmPtr.(*VM)
+		w := v.getWaitGroup(recv)
 		if w == nil {
 			return Nil
 		}
@@ -105,8 +108,9 @@ func (vm *VM) registerWaitGroupPrimitives() {
 	})
 
 	// WaitGroup>>wait - block until the counter is zero
-	wg.AddMethod0(vm.Selectors, "wait", func(_ interface{}, recv Value) Value {
-		w := getWaitGroup(recv)
+	wg.AddMethod0(vm.Selectors, "wait", func(vmPtr interface{}, recv Value) Value {
+		v := vmPtr.(*VM)
+		w := v.getWaitGroup(recv)
 		if w == nil {
 			return Nil
 		}
@@ -115,8 +119,9 @@ func (vm *VM) registerWaitGroupPrimitives() {
 	})
 
 	// WaitGroup>>count - get the current counter value (for debugging)
-	wg.AddMethod0(vm.Selectors, "count", func(_ interface{}, recv Value) Value {
-		w := getWaitGroup(recv)
+	wg.AddMethod0(vm.Selectors, "count", func(vmPtr interface{}, recv Value) Value {
+		v := vmPtr.(*VM)
+		w := v.getWaitGroup(recv)
 		if w == nil {
 			return FromSmallInt(0)
 		}
@@ -127,7 +132,7 @@ func (vm *VM) registerWaitGroupPrimitives() {
 	// Returns the forked process
 	wg.AddMethod1(vm.Selectors, "wrap:", func(vmPtr interface{}, recv Value, block Value) Value {
 		v := vmPtr.(*VM)
-		w := getWaitGroup(recv)
+		w := v.getWaitGroup(recv)
 		if w == nil {
 			return Nil
 		}
@@ -142,8 +147,8 @@ func (vm *VM) registerWaitGroupPrimitives() {
 		w.counter.Add(1)
 
 		// Fork the block with automatic done
-		proc := createProcess()
-		procValue := registerProcess(proc)
+		proc := v.createProcess()
+		procValue := v.registerProcess(proc)
 
 		go func() {
 			defer func() {
