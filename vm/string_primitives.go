@@ -1,6 +1,7 @@
 package vm
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
 	"sync"
@@ -271,5 +272,19 @@ func (vm *VM) registerStringPrimitivesExtended() {
 			return True
 		}
 		return False
+	})
+
+	// println - print the string to stdout with newline
+	c.AddMethod0(vm.Selectors, "println", func(_ interface{}, recv Value) Value {
+		s := GetStringContent(recv)
+		fmt.Println(s)
+		return recv
+	})
+
+	// print - print the string to stdout without newline
+	c.AddMethod0(vm.Selectors, "print", func(_ interface{}, recv Value) Value {
+		s := GetStringContent(recv)
+		fmt.Print(s)
+		return recv
 	})
 }

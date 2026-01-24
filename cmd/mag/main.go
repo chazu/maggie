@@ -52,6 +52,7 @@ func main() {
 	}
 	// Re-register critical primitives that may have been overwritten by image methods
 	vmInst.ReRegisterNilPrimitives()
+	vmInst.ReRegisterBooleanPrimitives()
 
 	// Set up compiler backend (Go compiler by default)
 	vmInst.UseGoCompiler(compiler.Compile)
@@ -575,12 +576,21 @@ func runYutaniIDE(vmInst *vm.VM, addr string, tool string, verbose bool) error {
 
 	// Wrap as a doIt method and execute
 	source := "doIt\n    ^" + startupCode
+	if verbose {
+		fmt.Printf("Compiling: %s\n", startupCode)
+	}
 	method, err := compiler.Compile(source, vmInst.Selectors, vmInst.Symbols)
 	if err != nil {
 		return fmt.Errorf("compiling startup code: %w", err)
 	}
 
+	if verbose {
+		fmt.Println("Executing startup code...")
+	}
 	result := vmInst.Execute(method, vm.Nil, nil)
+	if verbose {
+		fmt.Printf("Execution returned: %v (isNil=%v)\n", result, result == vm.Nil)
+	}
 	if result == vm.Nil {
 		fmt.Println("IDE exited. (If it exited immediately, check that yutani-server is running)")
 	}

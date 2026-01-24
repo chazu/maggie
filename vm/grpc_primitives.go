@@ -122,7 +122,7 @@ var grpcStreamRegistry = struct {
 	nextID:  1,
 }
 
-const grpcStreamMarker = 8 << 24 // 0x08000000
+const grpcStreamMarker = 9 << 24 // 0x09000000 (8 << 24 is used by exceptions)
 
 func grpcStreamToValue(id int) Value {
 	return FromSymbolID(uint32(id) | grpcStreamMarker)
@@ -174,8 +174,12 @@ func unregisterGrpcStream(v Value) {
 // ---------------------------------------------------------------------------
 
 func grpcSuccess(val Value) Value {
+	fmt.Println("[Go] grpcSuccess: creating result")
 	r := createResult(ResultSuccess, val)
-	return registerResult(r)
+	fmt.Println("[Go] grpcSuccess: registering result")
+	result := registerResult(r)
+	fmt.Println("[Go] grpcSuccess: done, returning")
+	return result
 }
 
 func grpcFailure(reason string) Value {
@@ -360,6 +364,7 @@ func valueToRepeatedField(vm *VM, val Value, field *desc.FieldDescriptor) (inter
 
 // protoToDictionary converts a protobuf dynamic message to a Maggie Dictionary
 func protoToDictionary(vm *VM, msg *dynamic.Message) (Value, error) {
+	fmt.Println("[Go] protoToDictionary: starting conversion")
 	dict := NewDictionaryValue()
 
 	for _, field := range msg.GetKnownFields() {
@@ -367,16 +372,20 @@ func protoToDictionary(vm *VM, msg *dynamic.Message) (Value, error) {
 			continue
 		}
 
+		fmt.Printf("[Go] protoToDictionary: converting field %s\n", field.GetName())
 		val := msg.GetField(field)
 		maggieVal, err := protoFieldToValue(vm, val, field)
 		if err != nil {
+			fmt.Printf("[Go] protoToDictionary: error converting field %s: %v\n", field.GetName(), err)
 			return Nil, fmt.Errorf("field %s: %w", field.GetName(), err)
 		}
 
+		fmt.Printf("[Go] protoToDictionary: setting field %s in dict\n", field.GetName())
 		key := vm.Symbols.SymbolValue(field.GetName())
 		vm.DictionaryAtPut(dict, key, maggieVal)
 	}
 
+	fmt.Println("[Go] protoToDictionary: conversion complete")
 	return dict, nil
 }
 
@@ -394,13 +403,23 @@ func protoFieldToValue(vm *VM, val interface{}, field *desc.FieldDescriptor) (Va
 	case descriptorpb.FieldDescriptorProto_TYPE_INT64,
 		descriptorpb.FieldDescriptorProto_TYPE_SINT64,
 		descriptorpb.FieldDescriptorProto_TYPE_SFIXED64:
-		return FromSmallInt(val.(int64)), nil
+		// Use TryFromSmallInt to handle large values (like nanosecond timestamps)
+		if v, ok := TryFromSmallInt(val.(int64)); ok {
+			return v, nil
+		}
+		// Fall back to float64 for values too large for SmallInt
+		return FromFloat64(float64(val.(int64))), nil
 	case descriptorpb.FieldDescriptorProto_TYPE_UINT32,
 		descriptorpb.FieldDescriptorProto_TYPE_FIXED32:
 		return FromSmallInt(int64(val.(uint32))), nil
 	case descriptorpb.FieldDescriptorProto_TYPE_UINT64,
 		descriptorpb.FieldDescriptorProto_TYPE_FIXED64:
-		return FromSmallInt(int64(val.(uint64))), nil
+		// Use TryFromSmallInt to handle large values
+		if v, ok := TryFromSmallInt(int64(val.(uint64))); ok {
+			return v, nil
+		}
+		// Fall back to float64 for values too large for SmallInt
+		return FromFloat64(float64(val.(uint64))), nil
 	case descriptorpb.FieldDescriptorProto_TYPE_FLOAT:
 		return FromFloat64(float64(val.(float32))), nil
 	case descriptorpb.FieldDescriptorProto_TYPE_DOUBLE:
@@ -787,16 +806,21 @@ func (vm *VM) registerGrpcPrimitives() {
 	// GrpcStream>>receive - receive a message from the stream
 	s.AddMethod0(vm.Selectors, "receive", func(vmPtr interface{}, recv Value) Value {
 		v := vmPtr.(*VM)
+		fmt.Println("[Go] GrpcStream receive called")
 		stream := getGrpcStream(recv)
 		if stream == nil {
+			fmt.Println("[Go] GrpcStream receive: stream is nil!")
 			return grpcFailure("invalid stream")
 		}
 		if stream.recvClosed.Load() {
+			fmt.Println("[Go] GrpcStream receive: stream already closed")
 			return grpcFailure("end of stream")
 		}
 
+		fmt.Println("[Go] GrpcStream receive: calling RecvMsg...")
 		msg := dynamic.NewMessage(stream.methodDesc.GetOutputType())
 		if err := stream.stream.RecvMsg(msg); err != nil {
+			fmt.Printf("[Go] GrpcStream receive: RecvMsg error: %v\n", err)
 			if err == io.EOF {
 				stream.recvClosed.Store(true)
 				return grpcFailure("end of stream")
@@ -804,11 +828,27 @@ func (vm *VM) registerGrpcPrimitives() {
 			return grpcFailure(fmt.Sprintf("receive failed: %v", err))
 		}
 
-		respDict, err := protoToDictionary(v, msg)
-		if err != nil {
-			return grpcFailure(fmt.Sprintf("response conversion: %v", err))
+		fmt.Printf("[Go] GrpcStream receive: got message: %v\n", msg)
+
+		// Catch any panics during conversion
+		var respDict Value
+		var convErr error
+		func() {
+			defer func() {
+				if r := recover(); r != nil {
+					fmt.Printf("[Go] GrpcStream receive: PANIC during protoToDictionary: %v\n", r)
+					convErr = fmt.Errorf("panic: %v", r)
+				}
+			}()
+			respDict, convErr = protoToDictionary(v, msg)
+		}()
+
+		if convErr != nil {
+			fmt.Printf("[Go] GrpcStream receive: protoToDictionary error: %v\n", convErr)
+			return grpcFailure(fmt.Sprintf("response conversion: %v", convErr))
 		}
 
+		fmt.Printf("[Go] GrpcStream receive: converted to dict, returning success\n")
 		return grpcSuccess(respDict)
 	})
 

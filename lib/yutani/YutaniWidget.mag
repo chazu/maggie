@@ -36,7 +36,7 @@ YutaniWidget subclass: Object
   method: updateProperties [
       | request |
       request := Dictionary new
-          at: #session_id put: session sessionId;
+          at: #session_id put: (Dictionary new at: #id put: session sessionId; yourself);
           at: #widget_id put: (Dictionary new at: #id put: widgetId; yourself);
           at: #properties put: properties;
           yourself.
@@ -48,7 +48,7 @@ YutaniWidget subclass: Object
   method: getProperties [
       | request |
       request := Dictionary new
-          at: #session_id put: session sessionId;
+          at: #session_id put: (Dictionary new at: #id put: session sessionId; yourself);
           at: #widget_id put: (Dictionary new at: #id put: widgetId; yourself);
           yourself.
       (session client call: 'industries.loosh.yutani.v1.WidgetService/GetProperties' with: request)
@@ -89,7 +89,7 @@ YutaniWidget subclass: Object
   method: addChild: widget [
       | request |
       request := Dictionary new
-          at: #session_id put: session sessionId;
+          at: #session_id put: (Dictionary new at: #id put: session sessionId; yourself);
           at: #parent_id put: (Dictionary new at: #id put: widgetId; yourself);
           at: #child_id put: (Dictionary new at: #id put: widget widgetId; yourself);
           yourself.
@@ -104,7 +104,7 @@ YutaniWidget subclass: Object
   method: removeChild: widget [
       | request |
       request := Dictionary new
-          at: #session_id put: session sessionId;
+          at: #session_id put: (Dictionary new at: #id put: session sessionId; yourself);
           at: #parent_id put: (Dictionary new at: #id put: widgetId; yourself);
           at: #child_id put: (Dictionary new at: #id put: widget widgetId; yourself);
           yourself.
@@ -120,7 +120,7 @@ YutaniWidget subclass: Object
   method: focus [
       | request |
       request := Dictionary new
-          at: #session_id put: session sessionId;
+          at: #session_id put: (Dictionary new at: #id put: session sessionId; yourself);
           at: #widget_id put: (Dictionary new at: #id put: widgetId; yourself);
           yourself.
       (session client call: 'industries.loosh.yutani.v1.WidgetService/SetFocus' with: request)
@@ -150,7 +150,7 @@ YutaniWidget subclass: Object
   method: delete [
       | request |
       request := Dictionary new
-          at: #session_id put: session sessionId;
+          at: #session_id put: (Dictionary new at: #id put: session sessionId; yourself);
           at: #widget_id put: (Dictionary new at: #id put: widgetId; yourself);
           yourself.
       (session client call: 'industries.loosh.yutani.v1.WidgetService/DeleteWidget' with: request)

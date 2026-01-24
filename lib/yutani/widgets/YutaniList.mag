@@ -11,7 +11,7 @@ YutaniList subclass: YutaniWidget
   method: addItem: mainText secondary: secondaryText [
       | request |
       request := Dictionary new
-          at: #session_id put: session sessionId;
+          at: #session_id put: (Dictionary new at: #id put: session sessionId; yourself);
           at: #widget_id put: (Dictionary new at: #id put: widgetId; yourself);
           at: #main_text put: mainText;
           at: #secondary_text put: secondaryText;
@@ -24,7 +24,7 @@ YutaniList subclass: YutaniWidget
   method: addItem: mainText secondary: secondaryText shortcut: shortcut [
       | request |
       request := Dictionary new
-          at: #session_id put: session sessionId;
+          at: #session_id put: (Dictionary new at: #id put: session sessionId; yourself);
           at: #widget_id put: (Dictionary new at: #id put: widgetId; yourself);
           at: #main_text put: mainText;
           at: #secondary_text put: secondaryText;
@@ -39,7 +39,7 @@ YutaniList subclass: YutaniWidget
   method: removeItem: index [
       | request |
       request := Dictionary new
-          at: #session_id put: session sessionId;
+          at: #session_id put: (Dictionary new at: #id put: session sessionId; yourself);
           at: #widget_id put: (Dictionary new at: #id put: widgetId; yourself);
           at: #index put: index;
           yourself.
@@ -52,7 +52,7 @@ YutaniList subclass: YutaniWidget
   method: clear [
       | request |
       request := Dictionary new
-          at: #session_id put: session sessionId;
+          at: #session_id put: (Dictionary new at: #id put: session sessionId; yourself);
           at: #widget_id put: (Dictionary new at: #id put: widgetId; yourself);
           yourself.
       (session client call: 'industries.loosh.yutani.v1.ListService/Clear' with: request)
@@ -64,7 +64,7 @@ YutaniList subclass: YutaniWidget
   method: itemCount [
       | request |
       request := Dictionary new
-          at: #session_id put: session sessionId;
+          at: #session_id put: (Dictionary new at: #id put: session sessionId; yourself);
           at: #widget_id put: (Dictionary new at: #id put: widgetId; yourself);
           yourself.
       (session client call: 'industries.loosh.yutani.v1.ListService/GetItemCount' with: request)
@@ -76,7 +76,7 @@ YutaniList subclass: YutaniWidget
   method: selectedIndex [
       | request |
       request := Dictionary new
-          at: #session_id put: session sessionId;
+          at: #session_id put: (Dictionary new at: #id put: session sessionId; yourself);
           at: #widget_id put: (Dictionary new at: #id put: widgetId; yourself);
           yourself.
       (session client call: 'industries.loosh.yutani.v1.ListService/GetSelected' with: request)
@@ -87,7 +87,7 @@ YutaniList subclass: YutaniWidget
   method: selectIndex: index [
       | request |
       request := Dictionary new
-          at: #session_id put: session sessionId;
+          at: #session_id put: (Dictionary new at: #id put: session sessionId; yourself);
           at: #widget_id put: (Dictionary new at: #id put: widgetId; yourself);
           at: #index put: index;
           yourself.
@@ -100,7 +100,7 @@ YutaniList subclass: YutaniWidget
   method: itemAt: index [
       | request |
       request := Dictionary new
-          at: #session_id put: session sessionId;
+          at: #session_id put: (Dictionary new at: #id put: session sessionId; yourself);
           at: #widget_id put: (Dictionary new at: #id put: widgetId; yourself);
           at: #index put: index;
           yourself.

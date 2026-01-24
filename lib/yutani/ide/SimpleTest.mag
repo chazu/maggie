@@ -1,0 +1,30 @@
+# SimpleTest.mag
+# Minimal test to debug Yutani widget display
+
+SimpleTest subclass: Object
+  instanceVars: session box
+
+  classMethod: run [
+      ^self new run
+  ]
+
+  method: run [
+      self connect.
+      self createUI.
+      self showUI.
+      session run
+  ]
+
+  method: connect [
+      session := YutaniSession connectTo: 'localhost:7755'
+  ]
+
+  method: createUI [
+      box := session createBox.
+      box title: 'Hello Yutani'.
+      box border: true
+  ]
+
+  method: showUI [
+      session setRoot: box
+  ]

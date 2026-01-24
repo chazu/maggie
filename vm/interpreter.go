@@ -17,11 +17,12 @@ type CallFrame struct {
 	BP       int             // base pointer (start of this frame's temps on stack)
 
 	// For block frames
-	Block     *BlockMethod // nil for regular methods
-	Captures  []Value      // captured variables for blocks
-	HomeFrame int          // frame pointer of enclosing method (for home temp access)
-	HomeBP    int          // base pointer of home frame (for OpPushHomeTemp/OpStoreHomeTemp)
-	HomeSelf  Value        // self from enclosing method (for ivar access in blocks)
+	Block      *BlockMethod    // nil for regular methods
+	Captures   []Value         // captured variables for blocks
+	HomeFrame  int             // frame pointer of enclosing method (for home temp access)
+	HomeBP     int             // base pointer of home frame (for OpPushHomeTemp/OpStoreHomeTemp)
+	HomeSelf   Value           // self from enclosing method (for ivar access in blocks)
+	HomeMethod *CompiledMethod // method containing nested blocks (for cross-interpreter block execution)
 }
 
 // IsBlock returns true if this is a block frame (not a method frame).
@@ -260,7 +261,7 @@ func (i *Interpreter) pushFrame(method *CompiledMethod, receiver Value, args []V
 	}
 }
 
-func (i *Interpreter) pushBlockFrame(block *BlockMethod, captures []Value, args []Value, homeFrame int, homeBP int, homeSelf Value) {
+func (i *Interpreter) pushBlockFrame(block *BlockMethod, captures []Value, args []Value, homeFrame int, homeBP int, homeSelf Value, homeMethod *CompiledMethod) {
 	i.fp++
 	if i.fp >= len(i.frames) {
 		// Grow the frame stack dynamically instead of panicking
@@ -280,15 +281,16 @@ func (i *Interpreter) pushBlockFrame(block *BlockMethod, captures []Value, args 
 	}
 
 	i.frames[i.fp] = &CallFrame{
-		Method:    nil, // block frame
-		Receiver:  Nil, // blocks don't have a receiver
-		IP:        0,
-		BP:        bp,
-		Block:     block,
-		Captures:  captures,
-		HomeFrame: homeFrame,
-		HomeBP:    homeBP,
-		HomeSelf:  homeSelf,
+		Method:     nil, // block frame
+		Receiver:   Nil, // blocks don't have a receiver
+		IP:         0,
+		BP:         bp,
+		Block:      block,
+		Captures:   captures,
+		HomeFrame:  homeFrame,
+		HomeBP:     homeBP,
+		HomeSelf:   homeSelf,
+		HomeMethod: homeMethod, // method containing nested blocks
 	}
 
 	// Profile block invocation
@@ -362,13 +364,13 @@ func (i *Interpreter) Execute(method *CompiledMethod, receiver Value, args []Val
 }
 
 // ExecuteBlock runs a block with captured variables and arguments.
-func (i *Interpreter) ExecuteBlock(block *BlockMethod, captures []Value, args []Value, homeFrame int, homeSelf Value) Value {
+func (i *Interpreter) ExecuteBlock(block *BlockMethod, captures []Value, args []Value, homeFrame int, homeSelf Value, homeMethod *CompiledMethod) Value {
 	// Get the home frame's BP for OpPushHomeTemp/OpStoreHomeTemp
 	homeBP := 0
 	if homeFrame >= 0 && homeFrame < len(i.frames) && i.frames[homeFrame] != nil {
 		homeBP = i.frames[homeFrame].BP
 	}
-	i.pushBlockFrame(block, captures, args, homeFrame, homeBP, homeSelf)
+	i.pushBlockFrame(block, captures, args, homeFrame, homeBP, homeSelf, homeMethod)
 	return i.runFrame()
 }
 
@@ -623,8 +625,19 @@ func (i *Interpreter) runFrame() Value {
 			frame.IP += 2
 			argc := int(bc[frame.IP])
 			frame.IP++
+			selName := i.Symbols.Name(uint32(sel))
+			if selName == "receive" {
+				fmt.Println("[Interp] OpSend: calling receive method")
+			}
 			result := i.send(sel, argc)
+			if selName == "receive" {
+				fmt.Printf("[Interp] OpSend: receive returned, result=%v, isResult=%v\n", result, isResultValue(result))
+				fmt.Printf("[Interp] OpSend: about to push result, sp=%d, fp=%d\n", i.sp, i.fp)
+			}
 			i.push(result)
+			if selName == "receive" {
+				fmt.Printf("[Interp] OpSend: after push, sp=%d, continuing to next instruction...\n", i.sp)
+			}
 
 		case OpSendSuper:
 			sel := int(binary.LittleEndian.Uint16(bc[frame.IP:]))
@@ -816,8 +829,12 @@ func (i *Interpreter) runFrame() Value {
 			// Get the block method from the appropriate source
 			var block *BlockMethod
 			if isBlock {
-				// Look up block from the HOME frame's method
-				if frame.HomeFrame >= 0 && frame.HomeFrame < len(i.frames) && i.frames[frame.HomeFrame] != nil {
+				// For block frames, try HomeMethod first (set when executing blocks cross-interpreter)
+				// This handles the case where a block is executed in a different goroutine/interpreter
+				if frame.HomeMethod != nil && int(methodIdx) < len(frame.HomeMethod.Blocks) {
+					block = frame.HomeMethod.Blocks[methodIdx]
+				} else if frame.HomeFrame >= 0 && frame.HomeFrame < len(i.frames) && i.frames[frame.HomeFrame] != nil {
+					// Fall back to looking up from the home frame's method (same-interpreter case)
 					homeMethod := i.frames[frame.HomeFrame].Method
 					if homeMethod != nil && int(methodIdx) < len(homeMethod.Blocks) {
 						block = homeMethod.Blocks[methodIdx]
@@ -1085,6 +1102,17 @@ func (i *Interpreter) vtableFor(v Value) *VTable {
 				return c.VTable
 			}
 		}
+		// Check for Channel and Process values
+		if isChannelValue(v) {
+			if c := i.Classes.Lookup("Channel"); c != nil {
+				return c.VTable
+			}
+		}
+		if isProcessValue(v) {
+			if c := i.Classes.Lookup("Process"); c != nil {
+				return c.VTable
+			}
+		}
 		// Check for gRPC client/stream values
 		if isGrpcClientValue(v) {
 			if c := i.Classes.Lookup("GrpcClient"); c != nil {
@@ -1268,8 +1296,9 @@ func (i *Interpreter) createContextForFrame(frameIdx int) *ContextValue {
 type BlockValue struct {
 	Block      *BlockMethod
 	Captures   []Value
-	HomeFrame  int   // frame pointer of the method that created this block
-	HomeSelf   Value // self from the enclosing method context
+	HomeFrame  int              // frame pointer of the method that created this block
+	HomeSelf   Value            // self from the enclosing method context
+	HomeMethod *CompiledMethod  // the method containing nested blocks (needed for cross-interpreter execution)
 }
 
 // NonLocalReturn is used to propagate non-local returns from blocks.
@@ -1289,13 +1318,16 @@ var nextBlockID = 1
 var blocksByHomeFrame = make(map[int][]int)
 
 // releaseBlocksForFrame removes all blocks whose home frame is being popped
+// TODO: This is disabled because blocks stored in data structures (like handlers)
+// need to outlive their home frame. Need proper reference counting.
 func releaseBlocksForFrame(frameIndex int) {
-	if blockIDs, ok := blocksByHomeFrame[frameIndex]; ok {
-		for _, id := range blockIDs {
-			delete(blockRegistry, id)
-		}
-		delete(blocksByHomeFrame, frameIndex)
-	}
+	// Disabled for now - blocks need to be kept alive when stored in data structures
+	// if blockIDs, ok := blocksByHomeFrame[frameIndex]; ok {
+	// 	for _, id := range blockIDs {
+	// 		delete(blockRegistry, id)
+	// 	}
+	// 	delete(blocksByHomeFrame, frameIndex)
+	// }
 }
 
 func (i *Interpreter) createBlockValue(block *BlockMethod, captures []Value) Value {
@@ -1308,27 +1340,34 @@ func (i *Interpreter) createBlockValue(block *BlockMethod, captures []Value) Val
 	// If we're in a block, propagate its HomeFrame; otherwise use current frame
 	homeFrame := i.fp
 	var homeSelf Value = Nil
+	var homeMethod *CompiledMethod
 	if i.fp >= 0 {
 		frame := i.frames[i.fp]
 		if frame != nil {
 			homeSelf = frame.Receiver
+			homeMethod = frame.Method // capture the method (may be nil for block frames)
 			// If we're in a block, use its home frame to find the enclosing method
 			if frame.Block != nil && frame.HomeFrame >= 0 {
 				homeFrame = frame.HomeFrame
-				// Also get homeSelf from the actual home frame
+				// Also get homeSelf and homeMethod from the actual home frame
 				if homeFrame >= 0 && homeFrame < len(i.frames) && i.frames[homeFrame] != nil {
 					homeSelf = i.frames[homeFrame].Receiver
+					homeMethod = i.frames[homeFrame].Method
 				}
+			}
+			// If frame has a HomeMethod set (e.g., from ExecuteBlock), use that
+			if frame.HomeMethod != nil {
+				homeMethod = frame.HomeMethod
 			}
 		}
 	}
 
-// 	fmt.Printf("DEBUG createBlockValue: id=%d, HomeFrame=%d, sp=%d\n", id, homeFrame, i.sp)
 	blockRegistry[id] = &BlockValue{
-		Block:     block,
-		Captures:  captures,
-		HomeFrame: homeFrame, // remember the enclosing method's frame
-		HomeSelf:  homeSelf,  // capture self from enclosing method
+		Block:      block,
+		Captures:   captures,
+		HomeFrame:  homeFrame,  // remember the enclosing method's frame
+		HomeSelf:   homeSelf,   // capture self from enclosing method
+		HomeMethod: homeMethod, // capture the method containing nested blocks
 	}
 	// Track this block by its home frame for cleanup when frame is popped
 	blocksByHomeFrame[homeFrame] = append(blocksByHomeFrame[homeFrame], id)
@@ -1575,28 +1614,28 @@ func (i *Interpreter) primitiveSize(rcvr Value) Value {
 func (i *Interpreter) primitiveValue(rcvr Value) Value {
 	// Execute block with no arguments
 	if bv := i.getBlockValue(rcvr); bv != nil {
-		return i.ExecuteBlock(bv.Block, bv.Captures, nil, bv.HomeFrame, bv.HomeSelf)
+		return i.ExecuteBlock(bv.Block, bv.Captures, nil, bv.HomeFrame, bv.HomeSelf, bv.HomeMethod)
 	}
 	return Nil
 }
 
 func (i *Interpreter) primitiveValue1(rcvr Value, arg Value) Value {
 	if bv := i.getBlockValue(rcvr); bv != nil {
-		return i.ExecuteBlock(bv.Block, bv.Captures, []Value{arg}, bv.HomeFrame, bv.HomeSelf)
+		return i.ExecuteBlock(bv.Block, bv.Captures, []Value{arg}, bv.HomeFrame, bv.HomeSelf, bv.HomeMethod)
 	}
 	return Nil
 }
 
 func (i *Interpreter) primitiveValue2(rcvr, arg1, arg2 Value) Value {
 	if bv := i.getBlockValue(rcvr); bv != nil {
-		return i.ExecuteBlock(bv.Block, bv.Captures, []Value{arg1, arg2}, bv.HomeFrame, bv.HomeSelf)
+		return i.ExecuteBlock(bv.Block, bv.Captures, []Value{arg1, arg2}, bv.HomeFrame, bv.HomeSelf, bv.HomeMethod)
 	}
 	return Nil
 }
 
 func (i *Interpreter) primitiveValue3(rcvr, arg1, arg2, arg3 Value) Value {
 	if bv := i.getBlockValue(rcvr); bv != nil {
-		return i.ExecuteBlock(bv.Block, bv.Captures, []Value{arg1, arg2, arg3}, bv.HomeFrame, bv.HomeSelf)
+		return i.ExecuteBlock(bv.Block, bv.Captures, []Value{arg1, arg2, arg3}, bv.HomeFrame, bv.HomeSelf, bv.HomeMethod)
 	}
 	return Nil
 }

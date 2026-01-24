@@ -18,7 +18,7 @@ YutaniTree subclass: YutaniWidget
   method: setRoot: text reference: ref [
       | request |
       request := Dictionary new
-          at: #session_id put: session sessionId;
+          at: #session_id put: (Dictionary new at: #id put: session sessionId; yourself);
           at: #widget_id put: (Dictionary new at: #id put: widgetId; yourself);
           at: #node put: (Dictionary new
               at: #text put: text;
@@ -47,7 +47,7 @@ YutaniTree subclass: YutaniWidget
   method: addChild: text to: parentNodeId reference: ref [
       | request |
       request := Dictionary new
-          at: #session_id put: session sessionId;
+          at: #session_id put: (Dictionary new at: #id put: session sessionId; yourself);
           at: #widget_id put: (Dictionary new at: #id put: widgetId; yourself);
           at: #parent_id put: (Dictionary new at: #id put: parentNodeId; yourself);
           at: #node put: (Dictionary new
@@ -70,7 +70,7 @@ YutaniTree subclass: YutaniWidget
   method: removeNode: nodeId [
       | request |
       request := Dictionary new
-          at: #session_id put: session sessionId;
+          at: #session_id put: (Dictionary new at: #id put: session sessionId; yourself);
           at: #widget_id put: (Dictionary new at: #id put: widgetId; yourself);
           at: #node_id put: (Dictionary new at: #id put: nodeId; yourself);
           yourself.
@@ -83,7 +83,7 @@ YutaniTree subclass: YutaniWidget
   method: selected [
       | request |
       request := Dictionary new
-          at: #session_id put: session sessionId;
+          at: #session_id put: (Dictionary new at: #id put: session sessionId; yourself);
           at: #widget_id put: (Dictionary new at: #id put: widgetId; yourself);
           yourself.
       (session client call: 'industries.loosh.yutani.v1.TreeService/GetSelected' with: request)
@@ -118,7 +118,7 @@ YutaniTree subclass: YutaniWidget
   method: selectNode: nodeId [
       | request |
       request := Dictionary new
-          at: #session_id put: session sessionId;
+          at: #session_id put: (Dictionary new at: #id put: session sessionId; yourself);
           at: #widget_id put: (Dictionary new at: #id put: widgetId; yourself);
           at: #node_id put: (Dictionary new at: #id put: nodeId; yourself);
           yourself.
@@ -139,7 +139,7 @@ YutaniTree subclass: YutaniWidget
   method: setExpanded: nodeId to: expanded [
       | request |
       request := Dictionary new
-          at: #session_id put: session sessionId;
+          at: #session_id put: (Dictionary new at: #id put: session sessionId; yourself);
           at: #widget_id put: (Dictionary new at: #id put: widgetId; yourself);
           at: #node_id put: (Dictionary new at: #id put: nodeId; yourself);
           at: #expanded put: expanded;
@@ -153,7 +153,7 @@ YutaniTree subclass: YutaniWidget
   method: childrenOf: nodeId [
       | request |
       request := Dictionary new
-          at: #session_id put: session sessionId;
+          at: #session_id put: (Dictionary new at: #id put: session sessionId; yourself);
           at: #widget_id put: (Dictionary new at: #id put: widgetId; yourself);
           at: #node_id put: (Dictionary new at: #id put: nodeId; yourself);
           yourself.

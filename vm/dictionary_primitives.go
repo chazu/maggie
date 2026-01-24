@@ -141,6 +141,21 @@ func (vm *VM) registerDictionaryPrimitives() {
 		return v.Send(block, "value", nil)
 	})
 
+	// at:ifPresent: - evaluate block with value if key exists
+	c.AddMethod2(vm.Selectors, "at:ifPresent:", func(vmPtr interface{}, recv Value, key, block Value) Value {
+		v := vmPtr.(*VM)
+		dict := GetDictionaryObject(recv)
+		if dict == nil {
+			return Nil
+		}
+		h := hashValue(key)
+		if val, ok := dict.Data[h]; ok {
+			// Evaluate the block with the value
+			return v.Send(block, "value:", []Value{val})
+		}
+		return Nil
+	})
+
 	// includesKey: - check if key exists
 	c.AddMethod1(vm.Selectors, "includesKey:", func(_ interface{}, recv Value, key Value) Value {
 		dict := GetDictionaryObject(recv)

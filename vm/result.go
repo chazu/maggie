@@ -1,6 +1,7 @@
 package vm
 
 import (
+	"fmt"
 	"sync"
 	"sync/atomic"
 )
@@ -47,9 +48,11 @@ func registerResult(r *ResultObject) Value {
 	return resultToValue(id)
 }
 
+const resultMarker uint32 = 4 << 24
+
 func resultToValue(id int) Value {
 	// Use symbol encoding with marker 4 << 24 (channels use 1, processes use 2)
-	return FromSymbolID(uint32(id) | (4 << 24))
+	return FromSymbolID(uint32(id) | resultMarker)
 }
 
 func isResultValue(v Value) bool {
@@ -57,8 +60,7 @@ func isResultValue(v Value) bool {
 		return false
 	}
 	id := v.SymbolID()
-	// Check for marker 4 in upper bits (bit 26)
-	return (id & (4 << 24)) != 0
+	return (id & (0xFF << 24)) == resultMarker
 }
 
 func getResult(v Value) *ResultObject {
@@ -111,13 +113,17 @@ func (vm *VM) registerResultPrimitives() {
 
 	// Success>>isSuccess - return true
 	s.AddMethod0(vm.Selectors, "isSuccess", func(_ interface{}, recv Value) Value {
+		fmt.Println("[Result] isSuccess called on Success")
 		r := getResult(recv)
 		if r == nil {
+			fmt.Println("[Result] isSuccess: r is nil!")
 			return False
 		}
 		if r.resultType == ResultSuccess {
+			fmt.Println("[Result] isSuccess: returning True")
 			return True
 		}
+		fmt.Println("[Result] isSuccess: returning False (wrong type)")
 		return False
 	})
 

@@ -11,7 +11,7 @@ YutaniTable subclass: YutaniWidget
   method: setCell: row col: col cell: cellDict [
       | request |
       request := Dictionary new
-          at: #session_id put: session sessionId;
+          at: #session_id put: (Dictionary new at: #id put: session sessionId; yourself);
           at: #widget_id put: (Dictionary new at: #id put: widgetId; yourself);
           at: #row put: row;
           at: #column put: col;
@@ -26,7 +26,7 @@ YutaniTable subclass: YutaniWidget
   method: getCell: row col: col [
       | request |
       request := Dictionary new
-          at: #session_id put: session sessionId;
+          at: #session_id put: (Dictionary new at: #id put: session sessionId; yourself);
           at: #widget_id put: (Dictionary new at: #id put: widgetId; yourself);
           at: #row put: row;
           at: #column put: col;
@@ -40,7 +40,7 @@ YutaniTable subclass: YutaniWidget
   method: setCells: cellsArray [
       | request |
       request := Dictionary new
-          at: #session_id put: session sessionId;
+          at: #session_id put: (Dictionary new at: #id put: session sessionId; yourself);
           at: #widget_id put: (Dictionary new at: #id put: widgetId; yourself);
           at: #cells put: cellsArray;
           yourself.
@@ -53,7 +53,7 @@ YutaniTable subclass: YutaniWidget
   method: clear [
       | request |
       request := Dictionary new
-          at: #session_id put: session sessionId;
+          at: #session_id put: (Dictionary new at: #id put: session sessionId; yourself);
           at: #widget_id put: (Dictionary new at: #id put: widgetId; yourself);
           yourself.
       (session client call: 'industries.loosh.yutani.v1.TableService/Clear' with: request)
@@ -65,7 +65,7 @@ YutaniTable subclass: YutaniWidget
   method: dimensions [
       | request |
       request := Dictionary new
-          at: #session_id put: session sessionId;
+          at: #session_id put: (Dictionary new at: #id put: session sessionId; yourself);
           at: #widget_id put: (Dictionary new at: #id put: widgetId; yourself);
           yourself.
       (session client call: 'industries.loosh.yutani.v1.TableService/GetDimensions' with: request)
@@ -89,7 +89,7 @@ YutaniTable subclass: YutaniWidget
   method: selection [
       | request |
       request := Dictionary new
-          at: #session_id put: session sessionId;
+          at: #session_id put: (Dictionary new at: #id put: session sessionId; yourself);
           at: #widget_id put: (Dictionary new at: #id put: widgetId; yourself);
           yourself.
       (session client call: 'industries.loosh.yutani.v1.TableService/GetSelection' with: request)
@@ -112,7 +112,7 @@ YutaniTable subclass: YutaniWidget
   method: selectRow: row col: col [
       | request |
       request := Dictionary new
-          at: #session_id put: session sessionId;
+          at: #session_id put: (Dictionary new at: #id put: session sessionId; yourself);
           at: #widget_id put: (Dictionary new at: #id put: widgetId; yourself);
           at: #row put: row;
           at: #column put: col;
@@ -126,7 +126,7 @@ YutaniTable subclass: YutaniWidget
   method: setFixedRows: rows columns: cols [
       | request |
       request := Dictionary new
-          at: #session_id put: session sessionId;
+          at: #session_id put: (Dictionary new at: #id put: session sessionId; yourself);
           at: #widget_id put: (Dictionary new at: #id put: widgetId; yourself);
           at: #rows put: rows;
           at: #columns put: cols;

@@ -12,7 +12,7 @@ YutaniGrid subclass: YutaniWidget
   method: setRows: rowSpec [
       | request |
       request := Dictionary new
-          at: #session_id put: session sessionId;
+          at: #session_id put: (Dictionary new at: #id put: session sessionId; yourself);
           at: #grid_id put: (Dictionary new at: #id put: widgetId; yourself);
           at: #rows put: rowSpec;
           yourself.
@@ -24,7 +24,7 @@ YutaniGrid subclass: YutaniWidget
   method: setColumns: colSpec [
       | request |
       request := Dictionary new
-          at: #session_id put: session sessionId;
+          at: #session_id put: (Dictionary new at: #id put: session sessionId; yourself);
           at: #grid_id put: (Dictionary new at: #id put: widgetId; yourself);
           at: #columns put: colSpec;
           yourself.
@@ -45,7 +45,7 @@ YutaniGrid subclass: YutaniWidget
   method: addItem: widget row: row col: col rowSpan: rs colSpan: cs focus: shouldFocus [
       | request |
       request := Dictionary new
-          at: #session_id put: session sessionId;
+          at: #session_id put: (Dictionary new at: #id put: session sessionId; yourself);
           at: #grid_id put: (Dictionary new at: #id put: widgetId; yourself);
           at: #item_id put: (Dictionary new at: #id put: widget widgetId; yourself);
           at: #row put: row;
@@ -68,7 +68,7 @@ YutaniGrid subclass: YutaniWidget
   method: removeItem: widget [
       | request |
       request := Dictionary new
-          at: #session_id put: session sessionId;
+          at: #session_id put: (Dictionary new at: #id put: session sessionId; yourself);
           at: #grid_id put: (Dictionary new at: #id put: widgetId; yourself);
           at: #item_id put: (Dictionary new at: #id put: widget widgetId; yourself);
           yourself.

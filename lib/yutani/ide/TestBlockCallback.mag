@@ -1,0 +1,50 @@
+# TestBlockCallback.mag
+# Test that blocks work when called from forked processes
+
+TestBlockCallback subclass: Object
+  classVars: sharedDict sharedChannel
+
+  classMethod: run [
+      'Test: Block called from forked process' println.
+
+      sharedDict := Dictionary new.
+      sharedChannel := Channel new.
+
+      # Register a handler in the main process
+      'Main: Registering handler' println.
+      sharedDict at: #handler put: [:flag |
+          'Handler called!' println.
+          ('Handler: flag = ', flag printString) println.
+          ('Handler: flag class = ', flag class printString) println.
+          ('Handler: flag = true? ', (flag = true) printString) println.
+          flag ifTrue: ['Flag is true - nested ifTrue worked!' println].
+          'Handler done' println
+      ].
+      'Main: Handler registered' println.
+
+      # Fork a process that will call the handler
+      'Main: Forking process' println.
+      [self runInFork] fork.
+
+      'Main: Waiting for forked process' println.
+      sharedChannel receive.
+      'Main: Test complete' println.
+  ]
+
+  classMethod: runInFork [
+      | handler |
+      'Forked: Starting' println.
+      handler := sharedDict at: #handler.
+      handler ifNil: [
+          'Forked: ERROR - handler is nil!' println.
+          sharedChannel send: false
+      ] ifNotNil: [
+          'Forked: Got handler, calling it' println.
+          handler value: true.
+          'Forked: Handler returned' println.
+          sharedChannel send: true
+      ]
+  ]
+
+# Auto-run
+TestBlockCallback run.

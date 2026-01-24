@@ -138,6 +138,58 @@ func (vm *VM) registerBooleanPrimitives() {
 	})
 }
 
+// ReRegisterBooleanPrimitives forces re-registration of True/False primitives.
+// Call this after loading an image to ensure primitives override any compiled methods.
+func (vm *VM) ReRegisterBooleanPrimitives() {
+	// True class - must override Boolean.mag's abstract methods
+	vm.TrueClass.AddMethod1(vm.Selectors, "ifTrue:", func(vmPtr interface{}, recv Value, block Value) Value {
+		v := vmPtr.(*VM)
+		return v.evaluateBlock(block, nil)
+	})
+
+	vm.TrueClass.AddMethod1(vm.Selectors, "ifFalse:", func(_ interface{}, recv Value, block Value) Value {
+		return Nil
+	})
+
+	vm.TrueClass.AddMethod2(vm.Selectors, "ifTrue:ifFalse:", func(vmPtr interface{}, recv Value, trueBlock, falseBlock Value) Value {
+		v := vmPtr.(*VM)
+		return v.evaluateBlock(trueBlock, nil)
+	})
+
+	vm.TrueClass.AddMethod1(vm.Selectors, "and:", func(vmPtr interface{}, recv Value, block Value) Value {
+		v := vmPtr.(*VM)
+		return v.evaluateBlock(block, nil)
+	})
+
+	vm.TrueClass.AddMethod1(vm.Selectors, "or:", func(_ interface{}, recv Value, block Value) Value {
+		return True
+	})
+
+	// False class - must override Boolean.mag's abstract methods
+	vm.FalseClass.AddMethod1(vm.Selectors, "ifTrue:", func(_ interface{}, recv Value, block Value) Value {
+		return Nil
+	})
+
+	vm.FalseClass.AddMethod1(vm.Selectors, "ifFalse:", func(vmPtr interface{}, recv Value, block Value) Value {
+		v := vmPtr.(*VM)
+		return v.evaluateBlock(block, nil)
+	})
+
+	vm.FalseClass.AddMethod2(vm.Selectors, "ifTrue:ifFalse:", func(vmPtr interface{}, recv Value, trueBlock, falseBlock Value) Value {
+		v := vmPtr.(*VM)
+		return v.evaluateBlock(falseBlock, nil)
+	})
+
+	vm.FalseClass.AddMethod1(vm.Selectors, "and:", func(_ interface{}, recv Value, block Value) Value {
+		return False
+	})
+
+	vm.FalseClass.AddMethod1(vm.Selectors, "or:", func(vmPtr interface{}, recv Value, block Value) Value {
+		v := vmPtr.(*VM)
+		return v.evaluateBlock(block, nil)
+	})
+}
+
 // ReRegisterNilPrimitives forces re-registration of nil-related primitives.
 // Call this after loading an image to ensure primitives override any compiled methods.
 func (vm *VM) ReRegisterNilPrimitives() {

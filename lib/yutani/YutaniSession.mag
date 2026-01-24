@@ -15,18 +15,22 @@ YutaniSession subclass: Object
 
   # Connection management
   method: connectTo: address [
+      ('YutaniSession: connecting to ', address) println.
       serverAddress := address.
       widgets := Dictionary new.
       (GrpcClient connectTo: address)
           onSuccess: [:c |
+              'YutaniSession: connected, creating session' println.
               client := c.
               self createSession]
           onFailure: [:err |
+              ('YutaniSession: connection failed: ', err printString) println.
               self error: 'Yutani connection failed: ', err printString]
   ]
 
   method: createSession [
       | request |
+      'YutaniSession: creating session' println.
       request := Dictionary new
           at: #client_name put: 'Maggie IDE';
           at: #preferences put: (Dictionary new
@@ -37,14 +41,21 @@ YutaniSession subclass: Object
           yourself.
       (client call: 'industries.loosh.yutani.v1.SessionService/CreateSession' with: request)
           onSuccess: [:resp |
-              sessionId := resp at: #session_id.
+              | sessionIdDict |
+              sessionIdDict := resp at: #session_id.
+              "Extract the actual id string from the dictionary"
+              sessionId := sessionIdDict at: #id ifAbsent: [sessionIdDict].
+              ('YutaniSession: got session id: ', sessionId printString) println.
               self initializeEventLoop]
           onFailure: [:err |
+              ('YutaniSession: session creation failed: ', err printString) println.
               self error: 'Session creation failed: ', err printString]
   ]
 
   method: initializeEventLoop [
+      'YutaniSession: initializing event loop' println.
       eventLoop := YutaniEventLoop for: self.
+      ('YutaniSession: eventLoop created: ', eventLoop printString) println.
       ^self
   ]
 
@@ -53,7 +64,7 @@ YutaniSession subclass: Object
       eventLoop notNil ifTrue: [eventLoop stop].
       sessionId notNil ifTrue: [
           request := Dictionary new
-              at: #session_id put: sessionId;
+              at: #session_id put: (Dictionary new at: #id put: sessionId; yourself);
               yourself.
           client call: 'industries.loosh.yutani.v1.SessionService/DestroySession' with: request].
       client notNil ifTrue: [client close].
@@ -83,7 +94,7 @@ YutaniSession subclass: Object
   method: createWidget: widgetType [
       | request |
       request := Dictionary new
-          at: #session_id put: sessionId;
+          at: #session_id put: (Dictionary new at: #id put: sessionId; yourself);
           at: #type put: widgetType;
           yourself.
       (client call: 'industries.loosh.yutani.v1.WidgetService/CreateWidget' with: request)
@@ -142,7 +153,7 @@ YutaniSession subclass: Object
   method: setRoot: widget [
       | request |
       request := Dictionary new
-          at: #session_id put: sessionId;
+          at: #session_id put: (Dictionary new at: #id put: sessionId; yourself);
           at: #widget_id put: (Dictionary new at: #id put: widget widgetId; yourself);
           yourself.
       (client call: 'industries.loosh.yutani.v1.WidgetService/SetRoot' with: request)
@@ -161,7 +172,14 @@ YutaniSession subclass: Object
 
   # Start event loop and block until done
   method: run [
-      eventLoop run
+      'YutaniSession: run called' println.
+      eventLoop ifNil: [
+          'YutaniSession: eventLoop is nil!' println.
+          ^self
+      ].
+      'YutaniSession: calling eventLoop run' println.
+      eventLoop run.
+      'YutaniSession: run finished' println
   ]
 
   # Wait for event loop to finish (if already started)
@@ -171,6 +189,11 @@ YutaniSession subclass: Object
 
   # Event handler registration (delegates to event loop)
   method: onKey: block [
+      ('YutaniSession: onKey: called, eventLoop = ', eventLoop printString) println.
+      eventLoop ifNil: [
+          'YutaniSession: WARNING - eventLoop is nil when registering key handler!' println.
+          ^self
+      ].
       eventLoop onKey: block
   ]
 

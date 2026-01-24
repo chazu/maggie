@@ -74,6 +74,8 @@ MaggieIDE subclass: Object
 
   method: setupKeyBindings [
       session onKey: [:event |
+          ('MaggieIDE: received key event: ', event printString) println.
+          ('MaggieIDE: key = ', event key printString, ' isEnter = ', event isEnter printString) println.
           event isCtrl ifTrue: [
               event rune = 'q' ifTrue: [self close].
               event rune = 'b' ifTrue: [self launchClassBrowser].
@@ -82,7 +84,10 @@ MaggieIDE subclass: Object
               event rune = 'e' ifTrue: [self launchCodeEditor].
               event rune = 'n' ifTrue: [self launchNewCodeEditor]
           ].
-          event isEnter ifTrue: [self activateSelection]
+          event isEnter ifTrue: [
+              'MaggieIDE: Enter pressed, activating selection' println.
+              self activateSelection
+          ]
       ]
   ]
 

@@ -19,10 +19,33 @@ YutaniEventLoop subclass: Object
 
   # Event loop control
   method: start [
-      | request |
+      | request client result |
+      'EventLoop: start called' println.
       running := true.
+
+      session ifNil: [
+          'EventLoop: session is nil!' println.
+          running := false.
+          doneChannel send: true.
+          ^self
+      ].
+      client := session client.
+      client ifNil: [
+          'EventLoop: client is nil!' println.
+          running := false.
+          doneChannel send: true.
+          ^self
+      ].
+      session sessionId ifNil: [
+          'EventLoop: sessionId is nil!' println.
+          running := false.
+          doneChannel send: true.
+          ^self
+      ].
+      ('EventLoop: subscribing with sessionId: ', session sessionId printString) println.
+
       request := Dictionary new
-          at: #session_id put: session sessionId;
+          at: #session_id put: (Dictionary new at: #id put: session sessionId; yourself);
           at: #filter put: (Dictionary new
               at: #receive_key_events put: true;
               at: #receive_mouse_events put: true;
@@ -32,13 +55,19 @@ YutaniEventLoop subclass: Object
               yourself);
           yourself.
 
-      (session client serverStream: 'industries.loosh.yutani.v1.EventService/Subscribe' with: request)
-          onSuccess: [:s |
-              stream := s.
-              process := [self eventLoop] fork]
-          onFailure: [:err |
-              running := false.
-              self error: 'Event subscription failed: ', err printString]
+      result := client serverStream: 'industries.loosh.yutani.v1.EventService/Subscribe' with: request.
+      result isSuccess ifTrue: [
+          'EventLoop: Subscribe succeeded, starting event loop' println.
+          stream := result value.
+          ('EventLoop: stream = ', stream printString) println.
+          process := [self eventLoop] fork.
+          ('EventLoop: forked process = ', process printString) println
+      ].
+      result isFailure ifTrue: [
+          ('EventLoop: Subscribe FAILED: ', result error printString) println.
+          running := false.
+          doneChannel send: true
+      ]
   ]
 
   method: stop [
@@ -53,14 +82,33 @@ YutaniEventLoop subclass: Object
 
   # Main event loop
   method: eventLoop [
-      [running and: [stream hasNext]] whileTrue: [
-          stream receive
-              onSuccess: [:eventDict | self dispatchEvent: eventDict]
-              onFailure: [:err |
-                  err = 'end of stream'
-                      ifTrue: [running := false]
-                      ifFalse: [self handleError: err]]
+      | recvResult |
+      'EventLoop: eventLoop started in forked process' println.
+      ('EventLoop: stream in forked process = ', stream printString) println.
+      stream ifNil: [
+          'EventLoop: stream is nil in forked process!' println.
+          running := false.
+          doneChannel send: true.
+          ^self
       ].
+      'EventLoop: entering receive loop' println.
+      ('EventLoop: running = ', running printString, ', hasNext = ', stream hasNext printString) println.
+      [running and: [stream hasNext]] whileTrue: [
+          'EventLoop: waiting for event...' println.
+          recvResult := stream receive.
+          ('EventLoop: receive returned, isSuccess = ', recvResult isSuccess printString) println.
+          recvResult isSuccess ifTrue: [
+              ('EventLoop: received event: ', recvResult value printString) println.
+              self dispatchEvent: recvResult value
+          ].
+          recvResult isFailure ifTrue: [
+              ('EventLoop: receive failed: ', recvResult error printString) println.
+              recvResult error = 'end of stream'
+                  ifTrue: [running := false]
+                  ifFalse: [self handleError: recvResult error]
+          ]
+      ].
+      ('EventLoop: exiting receive loop, running = ', running printString, ', hasNext = ', stream hasNext printString) println.
       running := false.
       doneChannel send: true
   ]
@@ -83,8 +131,9 @@ YutaniEventLoop subclass: Object
 
   # Event dispatch
   method: dispatchEvent: eventDict [
-      | event widgetId widget |
+      | event widgetId widget categoryHandlers |
       event := YutaniEvent fromDictionary: eventDict.
+      ('EventLoop: dispatching event category: ', event eventCategory printString) println.
 
       # Dispatch to widget-specific handler if widget event
       widgetId := event widgetId.
@@ -94,16 +143,24 @@ YutaniEventLoop subclass: Object
       ].
 
       # Dispatch to registered global handlers
-      (handlers at: event eventCategory ifAbsent: [#()]) do: [:handler |
-          handler value: event
+      categoryHandlers := handlers at: event eventCategory ifAbsent: [#()].
+      ('EventLoop: found ', categoryHandlers size printString, ' handlers for category ', event eventCategory printString) println.
+      categoryHandlers do: [:handler |
+          'EventLoop: calling handler' println.
+          ('EventLoop: handler class = ', handler class printString) println.
+          ('EventLoop: event = ', event printString) println.
+          handler value: event.
+          'EventLoop: handler returned' println
       ]
   ]
 
   # Handler registration
   method: on: eventCategory do: block [
       | categoryHandlers |
+      ('EventLoop: registering handler for category: ', eventCategory printString) println.
       categoryHandlers := handlers at: eventCategory ifAbsentPut: [Array new].
-      handlers at: eventCategory put: (categoryHandlers copyWith: block)
+      handlers at: eventCategory put: (categoryHandlers copyWith: block).
+      ('EventLoop: now have ', (handlers at: eventCategory) size printString, ' handlers for ', eventCategory printString) println
   ]
 
   # Convenience handler registration
@@ -117,3 +174,4 @@ YutaniEventLoop subclass: Object
   method: printString [
       ^'YutaniEventLoop(', (running ifTrue: ['running'] ifFalse: ['stopped']), ')'
   ]
+

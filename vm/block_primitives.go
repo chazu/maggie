@@ -101,10 +101,14 @@ func (vm *VM) registerBlockPrimitives() {
 // ---------------------------------------------------------------------------
 
 func (vm *VM) evaluateBlock(blockVal Value, args []Value) Value {
-	// Get block from registry
-	bv := vm.interpreter.getBlockValue(blockVal)
+	// Get block from registry using the current interpreter for this goroutine
+	interp := vm.currentInterpreter()
+	if interp == nil {
+		return Nil
+	}
+	bv := interp.getBlockValue(blockVal)
 	if bv == nil {
 		return Nil
 	}
-	return vm.interpreter.ExecuteBlock(bv.Block, bv.Captures, args, bv.HomeFrame, bv.HomeSelf)
+	return interp.ExecuteBlock(bv.Block, bv.Captures, args, bv.HomeFrame, bv.HomeSelf, bv.HomeMethod)
 }

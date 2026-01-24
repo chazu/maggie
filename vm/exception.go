@@ -47,7 +47,7 @@ func (v Value) IsException() bool {
 		return false
 	}
 	id := v.SymbolID()
-	return (id & exceptionMarker) == exceptionMarker
+	return (id & (0xFF << 24)) == exceptionMarker
 }
 
 // ExceptionID returns the exception ID for an exception value.
@@ -431,7 +431,7 @@ func (vm *VM) signalExceptionObject(exVal Value, ex *ExceptionObject) Value {
 	}
 
 	// Evaluate handler with the exception as argument
-	result := vm.interpreter.ExecuteBlock(bv.Block, bv.Captures, []Value{exVal}, bv.HomeFrame, bv.HomeSelf)
+	result := vm.interpreter.ExecuteBlock(bv.Block, bv.Captures, []Value{exVal}, bv.HomeFrame, bv.HomeSelf, bv.HomeMethod)
 
 	// If the exception wasn't explicitly handled (resume/return),
 	// the handler's return value becomes the result
@@ -481,6 +481,7 @@ func (vm *VM) evaluateBlockWithHandler(blockVal Value, exceptionClass *Class, ha
 							[]Value{sigEx.Exception},
 							hbv.HomeFrame,
 							hbv.HomeSelf,
+							hbv.HomeMethod,
 						)
 						sigEx.Object.Handled = true
 						return
@@ -492,7 +493,7 @@ func (vm *VM) evaluateBlockWithHandler(blockVal Value, exceptionClass *Class, ha
 				panic(r)
 			}
 		}()
-		result = vm.interpreter.ExecuteBlock(bv.Block, bv.Captures, nil, bv.HomeFrame, bv.HomeSelf)
+		result = vm.interpreter.ExecuteBlock(bv.Block, bv.Captures, nil, bv.HomeFrame, bv.HomeSelf, bv.HomeMethod)
 	}()
 
 	// Remove the handler
@@ -518,7 +519,7 @@ func (vm *VM) evaluateBlockWithEnsure(blockVal Value, ensureBlock Value) Value {
 		defer func() {
 			// Always evaluate the ensure block
 			if ebv != nil {
-				vm.interpreter.ExecuteBlock(ebv.Block, ebv.Captures, nil, ebv.HomeFrame, ebv.HomeSelf)
+				vm.interpreter.ExecuteBlock(ebv.Block, ebv.Captures, nil, ebv.HomeFrame, ebv.HomeSelf, ebv.HomeMethod)
 			}
 			// If there was a panic, we'll re-panic after ensure
 			if r := recover(); r != nil {
@@ -526,7 +527,7 @@ func (vm *VM) evaluateBlockWithEnsure(blockVal Value, ensureBlock Value) Value {
 				panicValue = r
 			}
 		}()
-		result = vm.interpreter.ExecuteBlock(bv.Block, bv.Captures, nil, bv.HomeFrame, bv.HomeSelf)
+		result = vm.interpreter.ExecuteBlock(bv.Block, bv.Captures, nil, bv.HomeFrame, bv.HomeSelf, bv.HomeMethod)
 	}()
 
 	if didPanic {
@@ -554,13 +555,13 @@ func (vm *VM) evaluateBlockIfCurtailed(blockVal Value, curtailBlock Value) Value
 			if r := recover(); r != nil {
 				// Exception occurred - evaluate curtail block
 				if cbv != nil {
-					vm.interpreter.ExecuteBlock(cbv.Block, cbv.Captures, nil, cbv.HomeFrame, cbv.HomeSelf)
+					vm.interpreter.ExecuteBlock(cbv.Block, cbv.Captures, nil, cbv.HomeFrame, cbv.HomeSelf, cbv.HomeMethod)
 				}
 				didPanic = true
 				panicValue = r
 			}
 		}()
-		result = vm.interpreter.ExecuteBlock(bv.Block, bv.Captures, nil, bv.HomeFrame, bv.HomeSelf)
+		result = vm.interpreter.ExecuteBlock(bv.Block, bv.Captures, nil, bv.HomeFrame, bv.HomeSelf, bv.HomeMethod)
 	}()
 
 	if didPanic {

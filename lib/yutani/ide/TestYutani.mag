@@ -1,0 +1,26 @@
+# TestYutani.mag
+# Simple test to verify Yutani connection works
+
+TestYutani subclass: Object
+
+  classMethod: run [
+      ^self runAt: 'localhost:7755'
+  ]
+
+  classMethod: runAt: address [
+      | session list |
+      session := YutaniSession connectTo: address.
+      list := session createList.
+      list title: 'Test List'.
+      list border: true.
+      list addItem: 'Hello'.
+      list addItem: 'World'.
+      list addItem: 'Press Ctrl-Q to quit'.
+      session setRoot: list.
+      session onKey: [:event |
+          (event isCtrl and: [event rune = 'q']) ifTrue: [
+              session stopEventLoop
+          ]
+      ].
+      session run
+  ]

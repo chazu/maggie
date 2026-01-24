@@ -1,5 +1,12 @@
 package vm
 
+import (
+	"runtime"
+	"strconv"
+	"strings"
+	"sync"
+)
+
 // ---------------------------------------------------------------------------
 // VM: The Maggie Virtual Machine
 // ---------------------------------------------------------------------------
@@ -53,6 +60,10 @@ type VM struct {
 
 	// Interpreter
 	interpreter *Interpreter
+
+	// Goroutine-local interpreter tracking (for forked processes)
+	// Maps goroutine ID to the interpreter running in that goroutine
+	interpreters sync.Map // int64 -> *Interpreter
 
 	// Debugger for IDE integration
 	Debugger *DebugServer
@@ -627,4 +638,49 @@ func (vm *VM) LookupWeakRef(id uint32) *WeakReference {
 // WeakRefCount returns the number of registered weak references.
 func (vm *VM) WeakRefCount() int {
 	return vm.weakRefs.Count()
+}
+
+// ---------------------------------------------------------------------------
+// Goroutine-Local Interpreter Tracking
+// ---------------------------------------------------------------------------
+
+// getGoroutineID returns the current goroutine's ID by parsing the stack.
+// This is a workaround since Go doesn't expose goroutine IDs directly.
+func getGoroutineID() int64 {
+	var buf [64]byte
+	n := runtime.Stack(buf[:], false)
+	// Stack starts with "goroutine <id> [...]"
+	s := string(buf[:n])
+	s = strings.TrimPrefix(s, "goroutine ")
+	idx := strings.Index(s, " ")
+	if idx > 0 {
+		s = s[:idx]
+	}
+	id, _ := strconv.ParseInt(s, 10, 64)
+	return id
+}
+
+// registerInterpreter registers an interpreter for the current goroutine.
+// Call this when starting execution in a new goroutine (e.g., forked process).
+func (vm *VM) registerInterpreter(interp *Interpreter) {
+	gid := getGoroutineID()
+	vm.interpreters.Store(gid, interp)
+}
+
+// unregisterInterpreter removes the interpreter for the current goroutine.
+// Call this when execution is complete.
+func (vm *VM) unregisterInterpreter() {
+	gid := getGoroutineID()
+	vm.interpreters.Delete(gid)
+}
+
+// currentInterpreter returns the interpreter for the current goroutine.
+// If no interpreter is registered for this goroutine, returns the main interpreter.
+func (vm *VM) currentInterpreter() *Interpreter {
+	gid := getGoroutineID()
+	if interp, ok := vm.interpreters.Load(gid); ok {
+		return interp.(*Interpreter)
+	}
+	// Fallback to main interpreter
+	return vm.interpreter
 }

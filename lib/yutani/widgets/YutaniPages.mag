@@ -19,7 +19,7 @@ YutaniPages subclass: YutaniWidget
   method: addPage: name content: widget visible: isVisible [
       | request |
       request := Dictionary new
-          at: #session_id put: session sessionId;
+          at: #session_id put: (Dictionary new at: #id put: session sessionId; yourself);
           at: #pages_id put: (Dictionary new at: #id put: widgetId; yourself);
           at: #page_name put: name;
           at: #item_id put: (Dictionary new at: #id put: widget widgetId; yourself);
@@ -39,7 +39,7 @@ YutaniPages subclass: YutaniWidget
   method: removePage: name [
       | request |
       request := Dictionary new
-          at: #session_id put: session sessionId;
+          at: #session_id put: (Dictionary new at: #id put: session sessionId; yourself);
           at: #pages_id put: (Dictionary new at: #id put: widgetId; yourself);
           at: #page_name put: name;
           yourself.
@@ -57,7 +57,7 @@ YutaniPages subclass: YutaniWidget
   method: showPage: name [
       | request |
       request := Dictionary new
-          at: #session_id put: session sessionId;
+          at: #session_id put: (Dictionary new at: #id put: session sessionId; yourself);
           at: #pages_id put: (Dictionary new at: #id put: widgetId; yourself);
           at: #page_name put: name;
           yourself.
@@ -75,7 +75,7 @@ YutaniPages subclass: YutaniWidget
   method: currentPageFromServer [
       | request |
       request := Dictionary new
-          at: #session_id put: session sessionId;
+          at: #session_id put: (Dictionary new at: #id put: session sessionId; yourself);
           at: #pages_id put: (Dictionary new at: #id put: widgetId; yourself);
           yourself.
       (session client call: 'industries.loosh.yutani.v1.LayoutService/PagesGetCurrentPage' with: request)

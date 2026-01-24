@@ -46,11 +46,12 @@ func registerChannel(ch *ChannelObject) Value {
 	return channelToValue(id)
 }
 
+const channelMarker uint32 = 1 << 24
+
 func channelToValue(id int) Value {
 	// Encode channel ID in a way we can distinguish from symbols
 	// Use the symbol encoding but with a special marker in the ID range
-	// Channel IDs will be > 1<<20 to distinguish from normal symbols
-	return FromSymbolID(uint32(id) | (1 << 24))
+	return FromSymbolID(uint32(id) | channelMarker)
 }
 
 func isChannelValue(v Value) bool {
@@ -58,14 +59,14 @@ func isChannelValue(v Value) bool {
 		return false
 	}
 	id := v.SymbolID()
-	return (id & (1 << 24)) != 0
+	return (id & (0xFF << 24)) == channelMarker
 }
 
 func getChannel(v Value) *ChannelObject {
 	if !isChannelValue(v) {
 		return nil
 	}
-	id := int(v.SymbolID() & ^uint32(1<<24))
+	id := int(v.SymbolID() & ^uint32(0xFF<<24))
 
 	channelRegistryMu.Lock()
 	defer channelRegistryMu.Unlock()
@@ -126,9 +127,11 @@ func registerProcess(proc *ProcessObject) Value {
 	return processToValue(proc.id)
 }
 
+const processMarker uint32 = 2 << 24
+
 func processToValue(id uint64) Value {
 	// Use symbol encoding with a different marker
-	return FromSymbolID(uint32(id) | (2 << 24))
+	return FromSymbolID(uint32(id) | processMarker)
 }
 
 func isProcessValue(v Value) bool {
@@ -136,14 +139,14 @@ func isProcessValue(v Value) bool {
 		return false
 	}
 	id := v.SymbolID()
-	return (id & (2 << 24)) != 0
+	return (id & (0xFF << 24)) == processMarker
 }
 
 func getProcess(v Value) *ProcessObject {
 	if !isProcessValue(v) {
 		return nil
 	}
-	id := uint64(v.SymbolID() & ^uint32(3<<24))
+	id := uint64(v.SymbolID() & ^uint32(0xFF<<24))
 
 	processRegistryMu.RLock()
 	defer processRegistryMu.RUnlock()
@@ -197,8 +200,8 @@ func (vm *VM) registerChannelPrimitives() {
 		return registerChannel(ch)
 	})
 
-	// Channel>>send: value - send value to channel (blocking)
-	c.AddMethod1(vm.Selectors, "send:", func(_ interface{}, recv Value, val Value) Value {
+	// Channel>>primSend: value - send value to channel (blocking)
+	c.AddMethod1(vm.Selectors, "primSend:", func(_ interface{}, recv Value, val Value) Value {
 		ch := getChannel(recv)
 		if ch == nil {
 			return Nil
@@ -210,8 +213,8 @@ func (vm *VM) registerChannelPrimitives() {
 		return recv
 	})
 
-	// Channel>>receive - receive value from channel (blocking)
-	c.AddMethod0(vm.Selectors, "receive", func(_ interface{}, recv Value) Value {
+	// Channel>>primReceive - receive value from channel (blocking)
+	c.AddMethod0(vm.Selectors, "primReceive", func(_ interface{}, recv Value) Value {
 		ch := getChannel(recv)
 		if ch == nil {
 			return Nil
@@ -223,8 +226,8 @@ func (vm *VM) registerChannelPrimitives() {
 		return val
 	})
 
-	// Channel>>tryReceive - non-blocking receive, returns nil if nothing available
-	c.AddMethod0(vm.Selectors, "tryReceive", func(_ interface{}, recv Value) Value {
+	// Channel>>primTryReceive - non-blocking receive, returns nil if nothing available
+	c.AddMethod0(vm.Selectors, "primTryReceive", func(_ interface{}, recv Value) Value {
 		ch := getChannel(recv)
 		if ch == nil {
 			return Nil
@@ -240,7 +243,79 @@ func (vm *VM) registerChannelPrimitives() {
 		}
 	})
 
-	// Channel>>trySend: value - non-blocking send, returns true if sent
+	// Channel>>primTrySend: value - non-blocking send, returns true if sent
+	c.AddMethod1(vm.Selectors, "primTrySend:", func(_ interface{}, recv Value, val Value) Value {
+		ch := getChannel(recv)
+		if ch == nil {
+			return False
+		}
+		if ch.closed.Load() {
+			return False
+		}
+		select {
+		case ch.ch <- val:
+			return True
+		default:
+			return False
+		}
+	})
+
+	// Channel>>primClose - close the channel
+	c.AddMethod0(vm.Selectors, "primClose", func(_ interface{}, recv Value) Value {
+		ch := getChannel(recv)
+		if ch == nil {
+			return recv
+		}
+		ch.mu.Lock()
+		defer ch.mu.Unlock()
+		if !ch.closed.Load() {
+			ch.closed.Store(true)
+			close(ch.ch)
+		}
+		return recv
+	})
+
+	// Channel>>primIsClosed - check if channel is closed
+	c.AddMethod0(vm.Selectors, "primIsClosed", func(_ interface{}, recv Value) Value {
+		ch := getChannel(recv)
+		if ch == nil {
+			return True
+		}
+		if ch.closed.Load() {
+			return True
+		}
+		return False
+	})
+
+	// Non-prim versions for backwards compatibility and use without Channel.mag
+
+	// Channel>>send: - alias for primSend:
+	c.AddMethod1(vm.Selectors, "send:", func(_ interface{}, recv Value, val Value) Value {
+		ch := getChannel(recv)
+		if ch == nil {
+			return Nil
+		}
+		if ch.closed.Load() {
+			return Nil
+		}
+		ch.ch <- val
+		return recv
+	})
+
+	// Channel>>receive - alias for primReceive
+	c.AddMethod0(vm.Selectors, "receive", func(_ interface{}, recv Value) Value {
+		ch := getChannel(recv)
+		if ch == nil {
+			return Nil
+		}
+		val, ok := <-ch.ch
+		if !ok {
+			return Nil
+		}
+		return val
+	})
+
+	// Channel>>trySend: - alias for primTrySend:
 	c.AddMethod1(vm.Selectors, "trySend:", func(_ interface{}, recv Value, val Value) Value {
 		ch := getChannel(recv)
 		if ch == nil {
@@ -257,7 +332,24 @@ func (vm *VM) registerChannelPrimitives() {
 		}
 	})
 
-	// Channel>>close - close the channel
+	// Channel>>tryReceive - alias for primTryReceive
+	c.AddMethod0(vm.Selectors, "tryReceive", func(_ interface{}, recv Value) Value {
+		ch := getChannel(recv)
+		if ch == nil {
+			return Nil
+		}
+		select {
+		case val, ok := <-ch.ch:
+			if !ok {
+				return Nil
+			}
+			return val
+		default:
+			return Nil
+		}
+	})
+
+	// Channel>>close - alias for primClose
 	c.AddMethod0(vm.Selectors, "close", func(_ interface{}, recv Value) Value {
 		ch := getChannel(recv)
 		if ch == nil {
@@ -272,7 +364,7 @@ func (vm *VM) registerChannelPrimitives() {
 		return recv
 	})
 
-	// Channel>>isClosed - check if channel is closed
+	// Channel>>isClosed - alias for primIsClosed
 	c.AddMethod0(vm.Selectors, "isClosed", func(_ interface{}, recv Value) Value {
 		ch := getChannel(recv)
 		if ch == nil {
@@ -323,7 +415,7 @@ func (vm *VM) registerProcessPrimitives() {
 	// Block>>fork - create new process running this block
 	vm.BlockClass.AddMethod0(vm.Selectors, "fork", func(vmPtr interface{}, recv Value) Value {
 		v := vmPtr.(*VM)
-		bv := v.interpreter.getBlockValue(recv)
+		bv := v.currentInterpreter().getBlockValue(recv)
 		if bv == nil {
 			return Nil
 		}
@@ -337,11 +429,15 @@ func (vm *VM) registerProcessPrimitives() {
 					// Process crashed
 					proc.markDone(Nil, nil)
 				}
+				// Unregister the interpreter when done
+				v.unregisterInterpreter()
 			}()
 
 			// Create a new interpreter for this goroutine
 			interp := v.newInterpreter()
-			result := interp.ExecuteBlock(bv.Block, bv.Captures, nil, bv.HomeFrame, bv.HomeSelf)
+			// Register this interpreter for the current goroutine
+			v.registerInterpreter(interp)
+			result := interp.ExecuteBlock(bv.Block, bv.Captures, nil, bv.HomeFrame, bv.HomeSelf, bv.HomeMethod)
 			proc.markDone(result, nil)
 		}()
 
@@ -351,7 +447,7 @@ func (vm *VM) registerProcessPrimitives() {
 	// Block>>forkWith: arg - fork with single argument
 	vm.BlockClass.AddMethod1(vm.Selectors, "forkWith:", func(vmPtr interface{}, recv Value, arg Value) Value {
 		v := vmPtr.(*VM)
-		bv := v.interpreter.getBlockValue(recv)
+		bv := v.currentInterpreter().getBlockValue(recv)
 		if bv == nil {
 			return Nil
 		}
@@ -364,10 +460,12 @@ func (vm *VM) registerProcessPrimitives() {
 				if r := recover(); r != nil {
 					proc.markDone(Nil, nil)
 				}
+				v.unregisterInterpreter()
 			}()
 
 			interp := v.newInterpreter()
-			result := interp.ExecuteBlock(bv.Block, bv.Captures, []Value{arg}, bv.HomeFrame, bv.HomeSelf)
+			v.registerInterpreter(interp)
+			result := interp.ExecuteBlock(bv.Block, bv.Captures, []Value{arg}, bv.HomeFrame, bv.HomeSelf, bv.HomeMethod)
 			proc.markDone(result, nil)
 		}()
 
@@ -375,6 +473,34 @@ func (vm *VM) registerProcessPrimitives() {
 	})
 
 	c := vm.ProcessClass
+
+	// Process class>>fork: block - fork a block as a new process (class method)
+	c.AddClassMethod1(vm.Selectors, "fork:", func(vmPtr interface{}, recv Value, block Value) Value {
+		v := vmPtr.(*VM)
+		bv := v.currentInterpreter().getBlockValue(block)
+		if bv == nil {
+			return Nil
+		}
+
+		proc := createProcess()
+		procValue := registerProcess(proc)
+
+		go func() {
+			defer func() {
+				if r := recover(); r != nil {
+					proc.markDone(Nil, nil)
+				}
+				v.unregisterInterpreter()
+			}()
+
+			interp := v.newInterpreter()
+			v.registerInterpreter(interp)
+			result := interp.ExecuteBlock(bv.Block, bv.Captures, nil, bv.HomeFrame, bv.HomeSelf, bv.HomeMethod)
+			proc.markDone(result, nil)
+		}()
+
+		return procValue
+	})
 
 	// Process>>wait - wait for process to complete, return result
 	c.AddMethod0(vm.Selectors, "wait", func(_ interface{}, recv Value) Value {

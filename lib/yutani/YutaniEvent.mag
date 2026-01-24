@@ -44,12 +44,16 @@ KeyEvent subclass: YutaniEvent
   ]
 
   method: initializeFromKey: dict [
-      | keyDict |
+      | keyDict rawKey rawMods |
       self initializeFrom: dict.
       keyDict := dict at: #key.
-      key := keyDict at: #key ifAbsent: [#KEY_RUNE].
+      "Normalize key to symbol (gRPC returns strings, asSymbol is idempotent on symbols)"
+      rawKey := keyDict at: #key ifAbsent: [#KEY_RUNE].
+      key := rawKey asSymbol.
       rune := keyDict at: #rune ifAbsent: [''].
-      modifiers := keyDict at: #modifiers ifAbsent: [#()].
+      "Normalize modifiers to symbols"
+      rawMods := keyDict at: #modifiers ifAbsent: [#()].
+      modifiers := rawMods collect: [:m | m asSymbol].
       widgetId := (keyDict at: #widget_id ifAbsent: [nil])
           ifNotNil: [:wid | wid at: #id ifAbsent: [nil]].
       ^self
@@ -61,13 +65,13 @@ KeyEvent subclass: YutaniEvent
   method: rune [ ^rune ]
   method: modifiers [ ^modifiers ]
 
-  # Modifier tests
+  # Modifier tests (keys/modifiers normalized to symbols at parse time)
   method: isCtrl [ ^modifiers includes: #MOD_CTRL ]
   method: isAlt [ ^modifiers includes: #MOD_ALT ]
   method: isShift [ ^modifiers includes: #MOD_SHIFT ]
   method: isMeta [ ^modifiers includes: #MOD_META ]
 
-  # Special key tests
+  # Special key tests (keys normalized to symbols at parse time)
   method: isEnter [ ^key = #KEY_ENTER ]
   method: isEscape [ ^key = #KEY_ESCAPE ]
   method: isTab [ ^key = #KEY_TAB ]
@@ -198,12 +202,14 @@ WidgetEvent subclass: YutaniEvent
   ]
 
   method: initializeFromWidget: dict [
-      | widgetDict |
+      | widgetDict rawKind |
       self initializeFrom: dict.
       widgetDict := dict at: #widget.
       widgetId := (widgetDict at: #widget_id ifAbsent: [nil])
           ifNotNil: [:wid | wid at: #id ifAbsent: [nil]].
-      eventKind := widgetDict at: #type ifAbsent: [#WIDGET_CHANGED].
+      "Normalize eventKind to symbol (gRPC returns strings, asSymbol is idempotent)"
+      rawKind := widgetDict at: #type ifAbsent: [#WIDGET_CHANGED].
+      eventKind := rawKind asSymbol.
       data := widgetDict at: #data ifAbsent: [Dictionary new].
       ^self
   ]

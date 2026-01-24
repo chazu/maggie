@@ -53,7 +53,15 @@ func (vm *VM) registerObjectPrimitives() {
 		return vm.primitiveClass(recv)
 	})
 
-	// == - identity comparison
+	// primIdentical: - identity comparison primitive (called from Object.mag's ==)
+	c.AddMethod1(vm.Selectors, "primIdentical:", func(_ interface{}, recv Value, arg Value) Value {
+		if recv == arg {
+			return True
+		}
+		return False
+	})
+
+	// == - identity comparison (fallback if not overridden in Smalltalk)
 	c.AddMethod1(vm.Selectors, "==", func(_ interface{}, recv Value, arg Value) Value {
 		if recv == arg {
 			return True

@@ -1,0 +1,28 @@
+# TestResult.mag
+# Test that Result handling works in forked processes
+
+TestResult subclass: Object
+
+  classMethod: run [
+      | channel |
+      'Testing Result in forked process...' println.
+      channel := Channel new.
+
+      [
+          | result |
+          'Forked: Creating Success result...' println.
+          result := Success with: 42.
+          ('Forked: result = ', result printString) println.
+          ('Forked: isSuccess = ', result isSuccess printString) println.
+          ('Forked: value = ', result value printString) println.
+          'Forked: Sending done signal' println.
+          channel send: true.
+      ] fork.
+
+      'Main: Waiting for forked process...' println.
+      channel receive.
+      'Main: Done!' println.
+  ]
+
+# Auto-run
+TestResult run.
