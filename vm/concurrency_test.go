@@ -1793,3 +1793,267 @@ func TestChannelOnReceiveCreatesAssociation(t *testing.T) {
 		t.Errorf("SelectCase Dir = %v, want SelectRecv (%v)", sc.Dir, reflect.SelectRecv)
 	}
 }
+
+// ---------------------------------------------------------------------------
+// CancellationContext Tests
+// ---------------------------------------------------------------------------
+
+// TestCancellationContextBackground tests creating a background context.
+func TestCancellationContextBackground(t *testing.T) {
+	vm := NewVM()
+
+	ctx := vm.Send(vm.classValue(vm.CancellationContextClass), "background", nil)
+	if ctx == Nil {
+		t.Fatal("CancellationContext background returned nil")
+	}
+
+	if !isCancellationContextValue(ctx) {
+		t.Error("Expected cancellation context value")
+	}
+
+	// Background context should never be cancelled
+	isCancelled := vm.Send(ctx, "isCancelled", nil)
+	if isCancelled != False {
+		t.Error("Background context should not be cancelled")
+	}
+}
+
+// TestCancellationContextWithCancel tests creating a cancellable context.
+func TestCancellationContextWithCancel(t *testing.T) {
+	vm := NewVM()
+
+	ctx := vm.Send(vm.classValue(vm.CancellationContextClass), "withCancel", nil)
+	if ctx == Nil {
+		t.Fatal("CancellationContext withCancel returned nil")
+	}
+
+	// Should not be cancelled initially
+	isCancelled := vm.Send(ctx, "isCancelled", nil)
+	if isCancelled != False {
+		t.Error("New context should not be cancelled")
+	}
+
+	// Cancel the context
+	vm.Send(ctx, "cancel", nil)
+
+	// Now should be cancelled
+	isCancelled = vm.Send(ctx, "isCancelled", nil)
+	if isCancelled != True {
+		t.Error("Context should be cancelled after cancel")
+	}
+}
+
+// TestCancellationContextWithTimeout tests context timeout.
+func TestCancellationContextWithTimeout(t *testing.T) {
+	vm := NewVM()
+
+	// Create context with 50ms timeout
+	ctx := vm.Send(vm.classValue(vm.CancellationContextClass), "withTimeout:", []Value{FromSmallInt(50)})
+	if ctx == Nil {
+		t.Fatal("CancellationContext withTimeout: returned nil")
+	}
+
+	// Should not be cancelled initially
+	isCancelled := vm.Send(ctx, "isCancelled", nil)
+	if isCancelled != False {
+		t.Error("New timeout context should not be cancelled")
+	}
+
+	// Should have a deadline
+	hasDeadline := vm.Send(ctx, "hasDeadline", nil)
+	if hasDeadline != True {
+		t.Error("Timeout context should have deadline")
+	}
+
+	// Wait for timeout
+	time.Sleep(100 * time.Millisecond)
+
+	// Now should be cancelled
+	isCancelled = vm.Send(ctx, "isCancelled", nil)
+	if isCancelled != True {
+		t.Error("Context should be cancelled after timeout")
+	}
+}
+
+// TestCancellationContextChildCancellation tests that child contexts are cancelled.
+func TestCancellationContextChildCancellation(t *testing.T) {
+	vm := NewVM()
+
+	// Create parent context
+	parent := vm.Send(vm.classValue(vm.CancellationContextClass), "withCancel", nil)
+	if parent == Nil {
+		t.Fatal("Parent context creation failed")
+	}
+
+	// Create child context
+	child := vm.Send(parent, "withCancel", nil)
+	if child == Nil {
+		t.Fatal("Child context creation failed")
+	}
+
+	// Neither should be cancelled
+	if vm.Send(parent, "isCancelled", nil) != False {
+		t.Error("Parent should not be cancelled")
+	}
+	if vm.Send(child, "isCancelled", nil) != False {
+		t.Error("Child should not be cancelled")
+	}
+
+	// Cancel parent
+	vm.Send(parent, "cancel", nil)
+
+	// Both should now be cancelled
+	if vm.Send(parent, "isCancelled", nil) != True {
+		t.Error("Parent should be cancelled")
+	}
+	if vm.Send(child, "isCancelled", nil) != True {
+		t.Error("Child should be cancelled when parent is cancelled")
+	}
+}
+
+// TestCancellationContextRemainingTime tests remaining time calculation.
+func TestCancellationContextRemainingTime(t *testing.T) {
+	vm := NewVM()
+
+	// Create context with 200ms timeout
+	ctx := vm.Send(vm.classValue(vm.CancellationContextClass), "withTimeout:", []Value{FromSmallInt(200)})
+	if ctx == Nil {
+		t.Fatal("Context creation failed")
+	}
+
+	// Remaining time should be positive
+	remaining := vm.Send(ctx, "remainingTime", nil)
+	if !remaining.IsSmallInt() {
+		t.Fatal("remainingTime should return an integer")
+	}
+	if remaining.SmallInt() <= 0 {
+		t.Errorf("remainingTime = %d, want > 0", remaining.SmallInt())
+	}
+
+	// Wait a bit and check it decreased
+	time.Sleep(50 * time.Millisecond)
+	remaining2 := vm.Send(ctx, "remainingTime", nil)
+	if !remaining2.IsSmallInt() || remaining2.SmallInt() >= remaining.SmallInt() {
+		t.Error("remainingTime should decrease over time")
+	}
+}
+
+// TestCancellationContextDoneChannel tests the doneChannel method.
+func TestCancellationContextDoneChannel(t *testing.T) {
+	vm := NewVM()
+
+	ctx := vm.Send(vm.classValue(vm.CancellationContextClass), "withCancel", nil)
+	if ctx == Nil {
+		t.Fatal("Context creation failed")
+	}
+
+	// Get the done channel
+	doneChannel := vm.Send(ctx, "doneChannel", nil)
+	if doneChannel == Nil {
+		t.Fatal("doneChannel returned nil")
+	}
+
+	if !isChannelValue(doneChannel) {
+		t.Error("doneChannel should return a channel")
+	}
+
+	// Channel should be open (tryReceive returns nil)
+	val := vm.Send(doneChannel, "tryReceive", nil)
+	if val != Nil {
+		t.Error("Done channel should be empty before cancel")
+	}
+
+	// Cancel the context
+	vm.Send(ctx, "cancel", nil)
+
+	// Give the monitor goroutine time to send
+	time.Sleep(10 * time.Millisecond)
+
+	// Now channel should have a value
+	val = vm.Send(doneChannel, "tryReceive", nil)
+	if val == Nil {
+		t.Error("Done channel should have a value after cancel")
+	}
+}
+
+// TestCancellationContextDoBlock tests the do: method.
+func TestCancellationContextDoBlock(t *testing.T) {
+	vm := NewVM()
+
+	ctx := vm.Send(vm.classValue(vm.CancellationContextClass), "withCancel", nil)
+
+	// Create a block that returns 42
+	interp := vm.newInterpreter()
+	vm.registerInterpreter(interp)
+	defer vm.unregisterInterpreter()
+
+	blockMethod := &BlockMethod{
+		Arity:    0,
+		Bytecode: []byte{byte(OpPushInt8), 42, byte(OpBlockReturn)},
+	}
+
+	b := NewCompiledMethodBuilder("test", 0)
+	b.Bytecode().Emit(OpPushNil)
+	b.Bytecode().Emit(OpReturnTop)
+	m := b.Build()
+	interp.pushFrame(m, Nil, nil)
+	defer interp.popFrame()
+
+	block := interp.createBlockValue(blockMethod, nil)
+
+	// Execute block with context
+	result := vm.Send(ctx, "do:", []Value{block})
+
+	// Should return block result
+	if !result.IsSmallInt() || result.SmallInt() != 42 {
+		t.Errorf("do: returned %v, want 42", result)
+	}
+
+	// Context should be cancelled after do: completes
+	isCancelled := vm.Send(ctx, "isCancelled", nil)
+	if isCancelled != True {
+		t.Error("Context should be cancelled after do: completes")
+	}
+}
+
+// TestForkWithContext tests the Block>>forkWithContext: method.
+func TestForkWithContext(t *testing.T) {
+	vm := NewVM()
+
+	// Create a cancellable context
+	ctx := vm.Send(vm.classValue(vm.CancellationContextClass), "withCancel", nil)
+
+	// Create a block that receives context and returns 100
+	interp := vm.newInterpreter()
+	vm.registerInterpreter(interp)
+	defer vm.unregisterInterpreter()
+
+	// Block that just returns 100 (ignores context arg for simplicity)
+	blockMethod := &BlockMethod{
+		Arity:    1, // Takes context as argument
+		Bytecode: []byte{byte(OpPushInt8), 100, byte(OpBlockReturn)},
+	}
+
+	b := NewCompiledMethodBuilder("test", 0)
+	b.Bytecode().Emit(OpPushNil)
+	b.Bytecode().Emit(OpReturnTop)
+	m := b.Build()
+	interp.pushFrame(m, Nil, nil)
+	defer interp.popFrame()
+
+	block := interp.createBlockValue(blockMethod, nil)
+
+	// Fork with context
+	proc := vm.Send(block, "forkWithContext:", []Value{ctx})
+	if proc == Nil {
+		t.Fatal("forkWithContext: returned nil")
+	}
+
+	// Wait for process to complete
+	result := vm.Send(proc, "wait", nil)
+
+	// wait returns the result
+	if !result.IsSmallInt() || result.SmallInt() != 100 {
+		t.Errorf("forked process returned %v, want 100", result)
+	}
+}

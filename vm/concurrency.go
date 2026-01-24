@@ -502,6 +502,60 @@ func (vm *VM) registerProcessPrimitives() {
 		return procValue
 	})
 
+	// Block>>forkWithContext: ctx - fork with cancellation context
+	// Passes the context to the block as first argument
+	// Block should check ctx isCancelled periodically
+	vm.BlockClass.AddMethod1(vm.Selectors, "forkWithContext:", func(vmPtr interface{}, recv Value, ctxArg Value) Value {
+		v := vmPtr.(*VM)
+		bv := v.currentInterpreter().getBlockValue(recv)
+		if bv == nil {
+			return Nil
+		}
+
+		ctx := v.getCancellationContext(ctxArg)
+		if ctx == nil {
+			return Nil
+		}
+
+		proc := v.createProcess()
+		procValue := v.registerProcess(proc)
+
+		go func() {
+			defer func() {
+				if r := recover(); r != nil {
+					if nlr, ok := r.(NonLocalReturn); ok {
+						proc.markDone(nlr.Value, nil)
+					} else {
+						proc.markDone(Nil, nil)
+					}
+				}
+				v.unregisterInterpreter()
+			}()
+
+			interp := v.newInterpreter()
+			v.registerInterpreter(interp)
+
+			// Monitor context cancellation
+			done := make(chan struct{})
+			go func() {
+				select {
+				case <-ctx.Done():
+					// Context cancelled - mark process as cancelled
+					// The block should check isCancelled and exit gracefully
+				case <-done:
+					// Block completed normally
+				}
+			}()
+
+			// Pass context as first argument
+			result := interp.ExecuteBlockDetached(bv.Block, bv.Captures, []Value{ctxArg}, bv.HomeSelf, bv.HomeMethod)
+			close(done)
+			proc.markDone(result, nil)
+		}()
+
+		return procValue
+	})
+
 	c := vm.ProcessClass
 
 	// Process class>>fork: block - fork a block as a new process (class method)

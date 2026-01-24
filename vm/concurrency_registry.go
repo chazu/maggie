@@ -10,7 +10,7 @@ import (
 // ---------------------------------------------------------------------------
 
 // ConcurrencyRegistry manages channels, processes, mutexes, wait groups,
-// semaphores, and blocks. It provides VM-local isolation and GC integration.
+// semaphores, cancellation contexts, and blocks. It provides VM-local isolation and GC integration.
 type ConcurrencyRegistry struct {
 	// Channel registry
 	channels   map[int]*ChannelObject
@@ -37,6 +37,11 @@ type ConcurrencyRegistry struct {
 	semaphoresMu sync.RWMutex
 	semaphoreID  atomic.Int32
 
+	// CancellationContext registry
+	cancellationContexts   map[int]*CancellationContextObject
+	cancellationContextsMu sync.RWMutex
+	cancellationContextID  atomic.Int32
+
 	// Block registry
 	blocks   map[int]*BlockValue
 	blocksMu sync.RWMutex
@@ -46,12 +51,13 @@ type ConcurrencyRegistry struct {
 // NewConcurrencyRegistry creates a new concurrency registry.
 func NewConcurrencyRegistry() *ConcurrencyRegistry {
 	cr := &ConcurrencyRegistry{
-		channels:   make(map[int]*ChannelObject),
-		processes:  make(map[uint64]*ProcessObject),
-		mutexes:    make(map[int]*MutexObject),
-		waitGroups: make(map[int]*WaitGroupObject),
-		semaphores: make(map[int]*SemaphoreObject),
-		blocks:     make(map[int]*BlockValue),
+		channels:             make(map[int]*ChannelObject),
+		processes:            make(map[uint64]*ProcessObject),
+		mutexes:              make(map[int]*MutexObject),
+		waitGroups:           make(map[int]*WaitGroupObject),
+		semaphores:           make(map[int]*SemaphoreObject),
+		cancellationContexts: make(map[int]*CancellationContextObject),
+		blocks:               make(map[int]*BlockValue),
 	}
 	// Start IDs at 1 (0 could be confused with nil/uninitialized)
 	cr.channelID.Store(1)
@@ -59,6 +65,7 @@ func NewConcurrencyRegistry() *ConcurrencyRegistry {
 	cr.mutexID.Store(1)
 	cr.waitGroupID.Store(1)
 	cr.semaphoreID.Store(1)
+	cr.cancellationContextID.Store(1)
 	cr.blockID.Store(1)
 	return cr
 }
@@ -276,6 +283,56 @@ func (cr *ConcurrencyRegistry) SemaphoreCount() int {
 }
 
 // ---------------------------------------------------------------------------
+// CancellationContext Registry Methods
+// ---------------------------------------------------------------------------
+
+// RegisterCancellationContext adds a cancellation context to the registry and returns its Value.
+func (cr *ConcurrencyRegistry) RegisterCancellationContext(ctx *CancellationContextObject) Value {
+	id := int(cr.cancellationContextID.Add(1) - 1)
+
+	cr.cancellationContextsMu.Lock()
+	cr.cancellationContexts[id] = ctx
+	cr.cancellationContextsMu.Unlock()
+
+	return cancellationContextToValue(id)
+}
+
+// GetCancellationContext retrieves a cancellation context by its Value.
+func (cr *ConcurrencyRegistry) GetCancellationContext(v Value) *CancellationContextObject {
+	if !isCancellationContextValue(v) {
+		return nil
+	}
+	id := int(v.SymbolID() & ^uint32(0xFF<<24))
+
+	cr.cancellationContextsMu.RLock()
+	defer cr.cancellationContextsMu.RUnlock()
+	return cr.cancellationContexts[id]
+}
+
+// SweepCancellationContexts removes cancelled contexts from the registry.
+// Returns the number of contexts swept.
+func (cr *ConcurrencyRegistry) SweepCancellationContexts() int {
+	cr.cancellationContextsMu.Lock()
+	defer cr.cancellationContextsMu.Unlock()
+
+	swept := 0
+	for id, ctx := range cr.cancellationContexts {
+		if ctx.IsCancelled() {
+			delete(cr.cancellationContexts, id)
+			swept++
+		}
+	}
+	return swept
+}
+
+// CancellationContextCount returns the number of registered cancellation contexts.
+func (cr *ConcurrencyRegistry) CancellationContextCount() int {
+	cr.cancellationContextsMu.RLock()
+	defer cr.cancellationContextsMu.RUnlock()
+	return len(cr.cancellationContexts)
+}
+
+// ---------------------------------------------------------------------------
 // Block Registry Methods
 // ---------------------------------------------------------------------------
 
@@ -357,11 +414,12 @@ func (cr *ConcurrencyRegistry) Sweep() (channels, processes, blocks int) {
 // Stats returns counts of all registered objects.
 func (cr *ConcurrencyRegistry) Stats() map[string]int {
 	return map[string]int{
-		"channels":   cr.ChannelCount(),
-		"processes":  cr.ProcessCount(),
-		"mutexes":    cr.MutexCount(),
-		"waitGroups": cr.WaitGroupCount(),
-		"semaphores": cr.SemaphoreCount(),
-		"blocks":     cr.BlockCount(),
+		"channels":             cr.ChannelCount(),
+		"processes":            cr.ProcessCount(),
+		"mutexes":              cr.MutexCount(),
+		"waitGroups":           cr.WaitGroupCount(),
+		"semaphores":           cr.SemaphoreCount(),
+		"cancellationContexts": cr.CancellationContextCount(),
+		"blocks":               cr.BlockCount(),
 	}
 }

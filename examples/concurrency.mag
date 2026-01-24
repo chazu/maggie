@@ -194,3 +194,112 @@ sem critical: [
     # Only 3 processes can be here at once
     # ... exclusive work ...
 ].
+
+# ---------------------------------------------------------------------------
+# CancellationContext (Go-style context for cancellation and timeouts)
+# ---------------------------------------------------------------------------
+
+# Background context - never cancelled, use as base
+| ctx |
+ctx := CancellationContext background.
+ctx isCancelled.             # => false (always)
+
+# Cancellable context
+| ctx |
+ctx := CancellationContext withCancel.
+ctx isCancelled.             # => false
+ctx cancel.
+ctx isCancelled.             # => true
+
+# Timeout context - automatically cancelled after timeout
+| ctx |
+ctx := CancellationContext withTimeout: 1000.  # 1 second
+ctx hasDeadline.             # => true
+ctx remainingTime.           # => ~1000 (milliseconds remaining)
+# ... after 1 second, ctx is automatically cancelled
+
+# Child contexts - cancelled when parent is cancelled
+| parent child |
+parent := CancellationContext withCancel.
+child := parent withCancel.
+parent cancel.
+child isCancelled.           # => true (inherited cancellation)
+
+# Context with timeout derived from parent
+| parent child |
+parent := CancellationContext withCancel.
+child := parent withTimeout: 500.
+# child cancelled if parent cancelled OR after 500ms
+
+# Using do: to auto-cancel when done
+| ctx result |
+ctx := CancellationContext withCancel.
+result := ctx do: [
+    # ... do work ...
+    42
+].
+# ctx is now cancelled (cleanup happened)
+
+# Fork a process with cancellation support
+| ctx proc |
+ctx := CancellationContext withTimeout: 5000.
+
+proc := [:context |
+    | i |
+    i := 0.
+    [context isCancelled not] whileTrue: [
+        i := i + 1.
+        Process sleep: 100.
+        Transcript show: 'Working... '; show: i; cr
+    ].
+    Transcript show: 'Cancelled after '; show: i; show: ' iterations'; cr.
+    i
+] forkWithContext: ctx.
+
+# Wait for process or timeout
+proc wait.
+
+# Pattern: Long-running operation with cancellation check
+| ctx |
+ctx := CancellationContext withTimeout: 10000.
+
+1 to: 1000 do: [:i |
+    ctx isCancelled ifTrue: [
+        ^ 'Operation cancelled'  # Early exit
+    ].
+    # ... do work iteration ...
+].
+
+# Pattern: Using done channel with select for timeout
+| ctx dataCh result |
+ctx := CancellationContext withTimeout: 1000.
+dataCh := Channel new.
+
+# In another process: dataCh send: someValue
+
+result := Channel select: {
+    dataCh onReceive: [:v | v].
+    ctx doneChannel onReceive: [:v | 'Timeout!']
+}.
+
+# Pattern: Graceful shutdown
+| ctx workers |
+ctx := CancellationContext withCancel.
+workers := OrderedCollection new.
+
+# Start workers that respect cancellation
+1 to: 5 do: [:i |
+    workers add: ([:context :id |
+        [context isCancelled not] whileTrue: [
+            # ... process work ...
+            Process sleep: 100
+        ].
+        Transcript show: 'Worker '; show: id; show: ' stopped'; cr
+    ] forkWithContext: ctx)
+].
+
+# Later: trigger graceful shutdown
+ctx cancel.
+
+# Wait for all workers to finish
+workers do: [:w | w wait].
