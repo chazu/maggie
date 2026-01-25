@@ -1,0 +1,164 @@
+# test_list_selection.mag
+# Test script to debug list selection issue
+# Run with: ./mag -m TestListSelection.run lib/yutani/...
+
+TestListSelection subclass: Object
+
+  classMethod: run [
+      | connectResult client request result sessionId widgetResult widgetId addResult getResult setResult |
+
+      'TestListSelection: Starting simple gRPC test...' println.
+
+      'TestListSelection: Creating gRPC client...' println.
+      connectResult := GrpcClient connectTo: 'localhost:7755'.
+      ('TestListSelection: connectResult = ', connectResult printString) println.
+      ('TestListSelection: connectResult class = ', connectResult class printString) println.
+      ('TestListSelection: connectResult isSuccess = ', connectResult isSuccess printString) println.
+
+      connectResult isFailure ifTrue: [
+          ('ERROR: Could not connect: ', connectResult error printString) println.
+          ^1
+      ].
+
+      client := connectResult value.
+      ('TestListSelection: client = ', client printString) println.
+      ('TestListSelection: client class = ', client class printString) println.
+      'TestListSelection: Connected!' println.
+
+      'TestListSelection: Creating session...' println.
+      request := Dictionary new
+          at: #client_name put: 'TestListSelection';
+          yourself.
+      result := client call: 'industries.loosh.yutani.v1.SessionService/CreateSession' with: request.
+      ('TestListSelection: CreateSession result = ', result printString) println.
+      ('TestListSelection: CreateSession result isSuccess = ', result isSuccess printString) println.
+      result isSuccess ifTrue: [
+          ('TestListSelection: Session created: ', result value printString) println
+      ].
+      result isFailure ifTrue: [
+          ('TestListSelection: Session creation failed: ', result error printString) println.
+          ^1
+      ].
+
+      # Extract session_id from response
+      sessionId := (result value at: #session_id) at: #id.
+      ('TestListSelection: session_id = ', sessionId printString) println.
+
+      # Create a List widget
+      'TestListSelection: Creating List widget...' println.
+      request := Dictionary new
+          at: #session_id put: (Dictionary new at: #id put: sessionId; yourself);
+          at: #type put: 7;  "WIDGET_LIST"
+          yourself.
+      widgetResult := client call: 'industries.loosh.yutani.v1.WidgetService/CreateWidget' with: request.
+      ('TestListSelection: CreateWidget result = ', widgetResult printString) println.
+      widgetResult isFailure ifTrue: [
+          ('TestListSelection: CreateWidget failed: ', widgetResult error printString) println.
+          ^1
+      ].
+      widgetId := (widgetResult value at: #widget_id) at: #id.
+      ('TestListSelection: widget_id = ', widgetId printString) println.
+
+      # Add some items to the list
+      'TestListSelection: Adding items to list...' println.
+      request := Dictionary new
+          at: #session_id put: (Dictionary new at: #id put: sessionId; yourself);
+          at: #widget_id put: (Dictionary new at: #id put: widgetId; yourself);
+          at: #main_text put: 'Item 1';
+          at: #secondary_text put: 'First item';
+          yourself.
+      addResult := client call: 'industries.loosh.yutani.v1.ListService/AddItem' with: request.
+      ('TestListSelection: AddItem 1 result = ', addResult printString) println.
+
+      request := Dictionary new
+          at: #session_id put: (Dictionary new at: #id put: sessionId; yourself);
+          at: #widget_id put: (Dictionary new at: #id put: widgetId; yourself);
+          at: #main_text put: 'Item 2';
+          at: #secondary_text put: 'Second item';
+          yourself.
+      addResult := client call: 'industries.loosh.yutani.v1.ListService/AddItem' with: request.
+      ('TestListSelection: AddItem 2 result = ', addResult printString) println.
+
+      request := Dictionary new
+          at: #session_id put: (Dictionary new at: #id put: sessionId; yourself);
+          at: #widget_id put: (Dictionary new at: #id put: widgetId; yourself);
+          at: #main_text put: 'Item 3';
+          at: #secondary_text put: 'Third item';
+          yourself.
+      addResult := client call: 'industries.loosh.yutani.v1.ListService/AddItem' with: request.
+      ('TestListSelection: AddItem 3 result = ', addResult printString) println.
+
+      # Test GetSelected - what is the initial selected index?
+      'TestListSelection: Getting initial selected index...' println.
+      request := Dictionary new
+          at: #session_id put: (Dictionary new at: #id put: sessionId; yourself);
+          at: #widget_id put: (Dictionary new at: #id put: widgetId; yourself);
+          yourself.
+      getResult := client call: 'industries.loosh.yutani.v1.ListService/GetSelected' with: request.
+      ('TestListSelection: GetSelected result = ', getResult printString) println.
+      getResult isSuccess ifTrue: [
+          ('TestListSelection: Initial selectedIndex = ', (getResult value at: #index) printString) println
+      ].
+
+      # Test SetSelected - set index to 1
+      'TestListSelection: Setting selected index to 1...' println.
+      request := Dictionary new
+          at: #session_id put: (Dictionary new at: #id put: sessionId; yourself);
+          at: #widget_id put: (Dictionary new at: #id put: widgetId; yourself);
+          at: #index put: 1;
+          yourself.
+      setResult := client call: 'industries.loosh.yutani.v1.ListService/SetSelected' with: request.
+      ('TestListSelection: SetSelected result = ', setResult printString) println.
+
+      # Test GetSelected again - should now return 1
+      'TestListSelection: Getting selected index after SetSelected...' println.
+      request := Dictionary new
+          at: #session_id put: (Dictionary new at: #id put: sessionId; yourself);
+          at: #widget_id put: (Dictionary new at: #id put: widgetId; yourself);
+          yourself.
+      getResult := client call: 'industries.loosh.yutani.v1.ListService/GetSelected' with: request.
+      ('TestListSelection: GetSelected result = ', getResult printString) println.
+      getResult isSuccess ifTrue: [
+          ('TestListSelection: After SetSelected(1), selectedIndex = ', (getResult value at: #index) printString) println
+      ].
+
+      'TestListSelection: Test complete!' println.
+
+      # Now test through YutaniSession and YutaniList wrapper
+      'TestListSelection: Testing YutaniSession and YutaniList wrapper...' println.
+      ^self testYutaniWrapper
+  ]
+
+  classMethod: testYutaniWrapper [
+      | session listWidget idx |
+      'TestYutaniWrapper: Connecting...' println.
+      session := YutaniSession connectTo: 'localhost:7755'.
+      session ifNil: [
+          'TestYutaniWrapper: Could not connect' println.
+          ^1
+      ].
+      ('TestYutaniWrapper: Connected! Session = ', session printString) println.
+
+      'TestYutaniWrapper: Creating list...' println.
+      listWidget := session createList.
+      ('TestYutaniWrapper: List = ', listWidget printString) println.
+
+      'TestYutaniWrapper: Adding items...' println.
+      listWidget addItem: 'Item A' secondary: 'First'.
+      listWidget addItem: 'Item B' secondary: 'Second'.
+      listWidget addItem: 'Item C' secondary: 'Third'.
+
+      'TestYutaniWrapper: Getting selectedIndex...' println.
+      idx := listWidget selectedIndex.
+      ('TestYutaniWrapper: Initial selectedIndex = ', idx printString) println.
+
+      'TestYutaniWrapper: Setting selectedIndex to 1...' println.
+      listWidget selectIndex: 1.
+
+      idx := listWidget selectedIndex.
+      ('TestYutaniWrapper: After selectIndex:1, selectedIndex = ', idx printString) println.
+
+      idx = 1
+          ifTrue: ['TestYutaniWrapper: SUCCESS!' println. ^0]
+          ifFalse: ['TestYutaniWrapper: FAILED! Expected 1' println. ^1]
+  ]

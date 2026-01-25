@@ -62,26 +62,28 @@ YutaniList subclass: YutaniWidget
 
   # Item count
   method: itemCount [
-      | request |
+      | request result |
       request := Dictionary new
           at: #session_id put: (Dictionary new at: #id put: session sessionId; yourself);
           at: #widget_id put: (Dictionary new at: #id put: widgetId; yourself);
           yourself.
-      (session client call: 'industries.loosh.yutani.v1.ListService/GetItemCount' with: request)
-          onSuccess: [:resp | ^resp at: #count ifAbsent: [0]]
-          onFailure: [:err | ^0]
+      result := session client call: 'industries.loosh.yutani.v1.ListService/GetItemCount' with: request.
+      result isSuccess
+          ifTrue: [^result value at: #count ifAbsent: [0]]
+          ifFalse: [^0]
   ]
 
   # Selection
   method: selectedIndex [
-      | request |
+      | request result |
       request := Dictionary new
           at: #session_id put: (Dictionary new at: #id put: session sessionId; yourself);
           at: #widget_id put: (Dictionary new at: #id put: widgetId; yourself);
           yourself.
-      (session client call: 'industries.loosh.yutani.v1.ListService/GetSelected' with: request)
-          onSuccess: [:resp | ^resp at: #index ifAbsent: [-1]]
-          onFailure: [:err | ^-1]
+      result := session client call: 'industries.loosh.yutani.v1.ListService/GetSelected' with: request.
+      result isSuccess
+          ifTrue: [^result value at: #index ifAbsent: [-1]]
+          ifFalse: [^-1]
   ]
 
   method: selectIndex: index [
@@ -98,15 +100,16 @@ YutaniList subclass: YutaniWidget
 
   # Get item at index
   method: itemAt: index [
-      | request |
+      | request result |
       request := Dictionary new
           at: #session_id put: (Dictionary new at: #id put: session sessionId; yourself);
           at: #widget_id put: (Dictionary new at: #id put: widgetId; yourself);
           at: #index put: index;
           yourself.
-      (session client call: 'industries.loosh.yutani.v1.ListService/GetItem' with: request)
-          onSuccess: [:resp | ^resp]
-          onFailure: [:err | ^nil]
+      result := session client call: 'industries.loosh.yutani.v1.ListService/GetItem' with: request.
+      result isSuccess
+          ifTrue: [^result value]
+          ifFalse: [^nil]
   ]
 
   # List-specific properties

@@ -13,6 +13,10 @@ YutaniSession subclass: Object
       ^session
   ]
 
+  classMethod: connectToDefault [
+      ^self connectTo: 'localhost:7755'
+  ]
+
   # Connection management
   method: connectTo: address [
       ('YutaniSession: connecting to ', address) println.
