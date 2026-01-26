@@ -1,11 +1,11 @@
 # MaggieIDE.mag
-# Unified IDE launcher and workspace manager for Maggie.
-# Provides a menu-driven interface to launch IDE tools.
+# Two-panel IDE with REPL (left) and Inspector (right).
+# Single event loop architecture - no stopEventLoop except quit.
 
 MaggieIDE subclass: Object
-  instanceVars: session mainFlex menuList statusBar currentTool
+  instanceVars: session mainFlex replPanel inspectorPanel transcript inputArea slotList valueView lastResult bindings objectStack history historyIndex focusedPanel
 
-  # Main entry point - session passed in (like ClassBrowser)
+  # Main entry point - session passed in
   classMethod: openIn: aSession [
       ^self new initializeIn: aSession; open
   ]
@@ -33,62 +33,119 @@ MaggieIDE subclass: Object
 
   method: initializeIn: aSession [
       session := aSession.
-      currentTool := nil.
+      lastResult := nil.
+      bindings := Dictionary new.
+      objectStack := Array new.
+      history := Array new.
+      historyIndex := 0.
+      focusedPanel := #repl.
       self buildUI.
       ^self
   ]
 
   method: buildUI [
-      # Main vertical layout
+      # Main horizontal layout (two panels side by side)
       mainFlex := session createFlex.
-      mainFlex direction: #column.
+      mainFlex direction: #row.
       mainFlex title: 'Maggie IDE'.
       mainFlex border: true.
 
-      # Menu list for tool selection
-      menuList := session createList.
-      menuList title: 'Tools'.
-      menuList border: true.
-      menuList onSelected: [:e | self menuItemSelected: e].
+      # Build panels
+      self buildReplPanel.
+      self buildInspectorPanel.
 
-      # Add menu items
-      menuList addItem: 'Class Browser' secondary: 'Browse classes and methods'.
-      menuList addItem: 'Inspector' secondary: 'Inspect objects'.
-      menuList addItem: 'REPL' secondary: 'Interactive Maggie shell'.
-      menuList addItem: 'Code Editor' secondary: 'Edit Maggie source files'.
-      menuList addItem: 'New Code Editor...' secondary: 'Open file in editor'.
-      menuList addItem: 'Quit' secondary: 'Exit the IDE'.
-
-      # Status bar
-      statusBar := session createTextView.
-      statusBar border: false.
-      statusBar text: 'Select a tool to launch | Press Enter or double-click'.
-
-      # Add to layout
-      mainFlex addItem: menuList proportion: 1.
-      mainFlex addItem: statusBar fixedSize: 1.
+      # Add panels to main layout (50/50 split)
+      mainFlex addItem: replPanel proportion: 1.
+      mainFlex addItem: inspectorPanel proportion: 1.
 
       # Set up key bindings
       self setupKeyBindings
   ]
 
+  method: buildReplPanel [
+      # REPL: vertical layout with transcript (top) and input (bottom)
+      replPanel := session createFlex.
+      replPanel direction: #column.
+      replPanel title: 'REPL'.
+      replPanel border: true.
+
+      # Transcript (read-only display of results)
+      transcript := session createTextView.
+      transcript border: false.
+      transcript scrollable: true.
+      transcript dynamicColors: true.
+      transcript text: 'Welcome to Maggie IDE
+Type code and press Ctrl+Enter to evaluate.
+Ctrl+I to inspect, Ctrl+Tab to switch panels, Ctrl+Q to quit.
+
+'.
+
+      # Input area (multi-line for complex expressions)
+      inputArea := session createTextArea.
+      inputArea placeholder: 'Enter code here...'.
+      inputArea border: true.
+      inputArea title: 'Input'.
+
+      # Add to REPL panel
+      replPanel addItem: transcript proportion: 3.
+      replPanel addItem: inputArea proportion: 1
+  ]
+
+  method: buildInspectorPanel [
+      # Inspector: horizontal layout with slot list (left) and value view (right)
+      inspectorPanel := session createFlex.
+      inspectorPanel direction: #row.
+      inspectorPanel title: 'Inspector'.
+      inspectorPanel border: true.
+
+      # Slot list
+      slotList := session createList.
+      slotList title: 'Slots'.
+      slotList border: true.
+      slotList onSelected: [:e | self slotSelected: e].
+
+      # Value view
+      valueView := session createTextView.
+      valueView title: 'Value'.
+      valueView border: true.
+      valueView wordWrap: true.
+      valueView scrollable: true.
+      valueView text: 'No object inspected.
+Press Ctrl+I after evaluating to inspect the result.'.
+
+      # Add to inspector panel
+      inspectorPanel addItem: slotList proportion: 1.
+      inspectorPanel addItem: valueView proportion: 2
+  ]
+
   method: setupKeyBindings [
       session onKey: [:event |
+          # Global shortcuts
           event isCtrl ifTrue: [
-              event rune = 'q' ifTrue: [self close].
-              event rune = 'b' ifTrue: [self launchClassBrowser].
-              event rune = 'i' ifTrue: [self launchInspector].
-              event rune = 'r' ifTrue: [self launchREPL].
-              event rune = 'e' ifTrue: [self launchCodeEditor].
-              event rune = 'n' ifTrue: [self launchNewCodeEditor]
+              event rune = 'q' ifTrue: [^self close].
+              event rune = 'i' ifTrue: [^self inspectLastResult].
+              event isTab ifTrue: [^self switchPanel]
           ].
-          event isEnter ifTrue: [self activateSelection]
+
+          # Ctrl+Enter to evaluate
+          (event isCtrl and: [event isEnter]) ifTrue: [^self evaluate].
+
+          # Panel-specific shortcuts
+          focusedPanel = #repl ifTrue: [
+              event isUp ifTrue: [^self historyPrevious].
+              event isDown ifTrue: [^self historyNext]
+          ].
+
+          focusedPanel = #inspector ifTrue: [
+              event isEnter ifTrue: [^self drillDown].
+              event isEscape ifTrue: [^self goBack]
+          ]
       ]
   ]
 
   method: open [
       session setRoot: mainFlex.
-      menuList focus.
+      inputArea focus.
       session run  "Block until event loop terminates"
   ]
 
@@ -97,74 +154,198 @@ MaggieIDE subclass: Object
       session disconnect
   ]
 
-  # Menu handling
-  method: menuItemSelected: event [
-      | item |
-      item := event dataAt: #main_text.
-      item ifNil: [^self].
-
-      statusBar text: 'Selected: ', item, ' | Press Enter to launch'
+  # Panel switching
+  method: switchPanel [
+      focusedPanel = #repl
+          ifTrue: [
+              focusedPanel := #inspector.
+              slotList focus.
+              inspectorPanel title: 'Inspector *'
+              replPanel title: 'REPL'
+          ]
+          ifFalse: [
+              focusedPanel := #repl.
+              inputArea focus.
+              replPanel title: 'REPL *'
+              inspectorPanel title: 'Inspector'
+          ]
   ]
 
-  method: activateSelection [
-      | selectedIndex |
-      selectedIndex := menuList selectedIndex.
+  # REPL Evaluation
+  method: evaluate [
+      | source result output |
+      source := inputArea text.
+      source isEmpty ifTrue: [^self].
+
+      # Add to history
+      history := history copyWith: source.
+      historyIndex := history size.
+
+      # Try to evaluate
+      [result := self doEvaluate: source.
+       lastResult := result.
+       bindings at: #it put: result.
+       output := '> ', source, '
+=> ', result printString, '
+
+']
+          on: Error do: [:e |
+              output := '> ', source, '
+!! Error: ', e messageText, '
+
+'].
+
+      self appendOutput: output.
+      inputArea text: ''
+  ]
+
+  method: doEvaluate: source [
+      "Compile and execute the source expression."
+      | result |
+      result := Compiler evaluate: source.
+      result isFailure ifTrue: [
+          Error signal: result error
+      ].
+      ^result
+  ]
+
+  method: appendOutput: text [
+      | currentText |
+      currentText := transcript text.
+      transcript text: currentText, text
+  ]
+
+  # History navigation
+  method: historyPrevious [
+      history isEmpty ifTrue: [^self].
+      historyIndex > 1 ifTrue: [
+          historyIndex := historyIndex - 1.
+          inputArea text: (history at: historyIndex)
+      ]
+  ]
+
+  method: historyNext [
+      history isEmpty ifTrue: [^self].
+      historyIndex < history size ifTrue: [
+          historyIndex := historyIndex + 1.
+          inputArea text: (history at: historyIndex)
+      ] ifFalse: [
+          historyIndex := history size + 1.
+          inputArea text: ''
+      ]
+  ]
+
+  # Inspector
+  method: inspectLastResult [
+      lastResult ifNil: [
+          valueView text: 'Nothing to inspect. Evaluate an expression first.'.
+          ^self
+      ].
+      objectStack := Array new.
+      self inspectObject: lastResult
+  ]
+
+  method: inspectObject: anObject [
+      | inspectedObject |
+      inspectedObject := anObject.
+
+      slotList clear.
+
+      # Add self
+      slotList addItem: 'self' secondary: (self classNameOf: inspectedObject).
+
+      # Add instance variables
+      (self instanceVariablesOf: inspectedObject) do: [:name |
+          | value |
+          value := self valueOf: name in: inspectedObject.
+          slotList addItem: name secondary: (self classNameOf: value)
+      ].
+
+      inspectorPanel title: 'Inspector: ', (self classNameOf: inspectedObject).
+      valueView text: 'Select a slot to see its value.'
+  ]
+
+  method: slotSelected: event [
+      | slotName value inspectedObject |
+      slotName := event dataAt: #main_text.
+      slotName ifNil: [^self].
+
+      # Get the currently inspected object
+      inspectedObject := objectStack isEmpty
+          ifTrue: [lastResult]
+          ifFalse: [objectStack last].
+
+      slotName = 'self'
+          ifTrue: [value := inspectedObject]
+          ifFalse: [value := self valueOf: slotName in: inspectedObject].
+
+      valueView text: (self formatValue: value)
+  ]
+
+  method: drillDown [
+      | selectedIndex slotName value inspectedObject varNames |
+      selectedIndex := slotList selectedIndex.
       selectedIndex < 0 ifTrue: [^self].
+      selectedIndex = 0 ifTrue: [^self]. # Can't drill into self
 
-      selectedIndex = 0 ifTrue: [^self launchClassBrowser].
-      selectedIndex = 1 ifTrue: [^self launchInspector].
-      selectedIndex = 2 ifTrue: [^self launchREPL].
-      selectedIndex = 3 ifTrue: [^self launchCodeEditor].
-      selectedIndex = 4 ifTrue: [^self launchNewCodeEditor].
-      selectedIndex = 5 ifTrue: [^self close]
+      # Get the currently inspected object
+      inspectedObject := objectStack isEmpty
+          ifTrue: [lastResult]
+          ifFalse: [objectStack last].
+
+      # Get the slot name and value
+      varNames := self instanceVariablesOf: inspectedObject.
+      slotName := varNames at: selectedIndex.
+      value := self valueOf: slotName in: inspectedObject.
+
+      # Push current object and inspect new one
+      objectStack := objectStack copyWith: inspectedObject.
+      self inspectObject: value
   ]
 
-  # Tool launchers
-  method: launchClassBrowser [
-      statusBar text: 'Launching Class Browser...'.
-      session stopEventLoop.
-      ClassBrowser openIn: session
+  method: goBack [
+      | previousObject |
+      objectStack isEmpty ifTrue: [^self].
+
+      previousObject := objectStack last.
+      objectStack := objectStack copyFrom: 1 to: objectStack size - 1.
+      self inspectObject: previousObject
   ]
 
-  method: launchInspector [
-      statusBar text: 'Launching Inspector on nil...'.
-      session stopEventLoop.
-      # Inspect nil by default; in a real IDE you'd select what to inspect
-      Inspector inspect: nil in: session
+  # Object introspection helpers
+  method: classNameOf: anObject [
+      anObject isNil ifTrue: [^'UndefinedObject'].
+      ^anObject class name
   ]
 
-  method: launchInspector: anObject [
-      statusBar text: 'Launching Inspector...'.
-      session stopEventLoop.
-      Inspector inspect: anObject in: session
+  method: instanceVariablesOf: anObject [
+      anObject isNil ifTrue: [^Array new].
+      ^anObject class allInstVarNames
   ]
 
-  method: launchREPL [
-      statusBar text: 'Launching REPL...'.
-      session stopEventLoop.
-      MaggieREPL openIn: session
+  method: valueOf: slotName in: anObject [
+      | varNames index |
+      anObject isNil ifTrue: [^nil].
+
+      varNames := self instanceVariablesOf: anObject.
+      index := varNames indexOf: slotName.
+      index = 0 ifTrue: [
+          index := varNames indexOf: slotName asSymbol
+      ].
+      index = 0 ifTrue: [^nil].
+
+      ^anObject instVarAt: index
   ]
 
-  method: launchCodeEditor [
-      statusBar text: 'Launching Code Editor...'.
-      session stopEventLoop.
-      CodeEditor openIn: session
-  ]
-
-  method: launchNewCodeEditor [
-      # In a full implementation, this would show a file picker dialog
-      # For now, just launch a new empty editor
-      self launchCodeEditor
-  ]
-
-  method: launchCodeEditor: filename [
-      statusBar text: 'Opening: ', filename, '...'.
-      session stopEventLoop.
-      CodeEditor openIn: session file: filename
+  method: formatValue: value [
+      value isNil ifTrue: [^'nil'].
+      (value isKindOf: String) ifTrue: [
+          ^'''', value, ''''
+      ].
+      ^value printString
   ]
 
   # Printing
   method: printString [
       ^'MaggieIDE'
   ]
-
