@@ -1,6 +1,7 @@
 package vm
 
 import (
+	"fmt"
 	"runtime"
 	"strconv"
 	"strings"
@@ -467,6 +468,26 @@ func (vm *VM) ClassFor(v Value) *Class {
 // Execute runs a compiled method with the given receiver and arguments.
 func (vm *VM) Execute(method *CompiledMethod, receiver Value, args []Value) Value {
 	return vm.interpreter.Execute(method, receiver, args)
+}
+
+// ExecuteSafe runs a compiled method and catches Maggie errors, returning them as Go errors.
+// This prevents Go panic stack traces from being shown for Maggie-level errors.
+// Set MAGGIE_DEBUG=1 to see full Go stack traces.
+func (vm *VM) ExecuteSafe(method *CompiledMethod, receiver Value, args []Value) (result Value, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			if msg, ok := r.(string); ok && len(msg) > 14 && msg[:14] == "Maggie error: " {
+				// Extract just the Maggie error message (already includes stack trace)
+				err = fmt.Errorf("%s", msg[14:])
+				result = Nil
+				return
+			}
+			// Not a Maggie error, re-panic
+			panic(r)
+		}
+	}()
+	result = vm.interpreter.Execute(method, receiver, args)
+	return result, nil
 }
 
 // GetProfiler returns the VM's profiler for inspecting hot code detection.

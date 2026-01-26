@@ -587,7 +587,10 @@ func runYutaniIDE(vmInst *vm.VM, addr string, tool string, verbose bool) error {
 	if verbose {
 		fmt.Println("Executing startup code...")
 	}
-	result := vmInst.Execute(method, vm.Nil, nil)
+	result, err := vmInst.ExecuteSafe(method, vm.Nil, nil)
+	if err != nil {
+		return err
+	}
 	if verbose {
 		fmt.Printf("Execution returned: %v (isNil=%v)\n", result, result == vm.Nil)
 	}

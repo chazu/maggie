@@ -133,7 +133,6 @@ YutaniEventLoop subclass: Object
   method: dispatchEvent: eventDict [
       | event widgetId widget categoryHandlers |
       event := YutaniEvent fromDictionary: eventDict.
-      ('EventLoop: dispatching event category: ', event eventCategory printString) println.
 
       # Dispatch to widget-specific handler if widget event
       widgetId := event widgetId.

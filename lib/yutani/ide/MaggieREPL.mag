@@ -38,9 +38,6 @@ Type expressions to evaluate. Ctrl-Q to quit.
       inputField := session createInputField.
       inputField label: '> '.
 
-      # Handle input submission
-      inputField onDone: [:e | self evaluate].
-
       # Add to layout
       mainFlex addItem: historyView proportion: 1.
       mainFlex addItem: inputField fixedSize: 1.
@@ -51,6 +48,7 @@ Type expressions to evaluate. Ctrl-Q to quit.
 
   method: setupKeyBindings [
       session onKey: [:event |
+          event isEnter ifTrue: [self evaluate].
           event isCtrl ifTrue: [
               event rune = 'q' ifTrue: [self close].
               event rune = 'l' ifTrue: [self clearHistory]

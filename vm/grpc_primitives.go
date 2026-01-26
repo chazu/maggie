@@ -174,12 +174,8 @@ func unregisterGrpcStream(v Value) {
 // ---------------------------------------------------------------------------
 
 func grpcSuccess(val Value) Value {
-	fmt.Println("[Go] grpcSuccess: creating result")
 	r := createResult(ResultSuccess, val)
-	fmt.Println("[Go] grpcSuccess: registering result")
-	result := registerResult(r)
-	fmt.Println("[Go] grpcSuccess: done, returning")
-	return result
+	return registerResult(r)
 }
 
 func grpcFailure(reason string) Value {
@@ -364,7 +360,6 @@ func valueToRepeatedField(vm *VM, val Value, field *desc.FieldDescriptor) (inter
 
 // protoToDictionary converts a protobuf dynamic message to a Maggie Dictionary
 func protoToDictionary(vm *VM, msg *dynamic.Message) (Value, error) {
-	fmt.Println("[Go] protoToDictionary: starting conversion")
 	dict := NewDictionaryValue()
 
 	for _, field := range msg.GetKnownFields() {
@@ -372,20 +367,16 @@ func protoToDictionary(vm *VM, msg *dynamic.Message) (Value, error) {
 			continue
 		}
 
-		fmt.Printf("[Go] protoToDictionary: converting field %s\n", field.GetName())
 		val := msg.GetField(field)
 		maggieVal, err := protoFieldToValue(vm, val, field)
 		if err != nil {
-			fmt.Printf("[Go] protoToDictionary: error converting field %s: %v\n", field.GetName(), err)
 			return Nil, fmt.Errorf("field %s: %w", field.GetName(), err)
 		}
 
-		fmt.Printf("[Go] protoToDictionary: setting field %s in dict\n", field.GetName())
 		key := vm.Symbols.SymbolValue(field.GetName())
 		vm.DictionaryAtPut(dict, key, maggieVal)
 	}
 
-	fmt.Println("[Go] protoToDictionary: conversion complete")
 	return dict, nil
 }
 

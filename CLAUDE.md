@@ -118,6 +118,58 @@ child := parent withTimeout: 500.
 
 ---
 
+## Debugging Yutani TUI Applications
+
+When debugging MaggieIDE or other Yutani-based TUI applications, use Yutani's DebugService to inspect screen state and widget properties.
+
+### Quick Commands
+
+```bash
+# See what's on screen (ASCII dump with widget markers)
+yutani debug screen -s <session-id> --bounds --legend
+
+# Inspect a specific widget's state
+yutani debug widget -s <session-id> -w <widget-id>
+
+# List all widgets with positions
+yutani debug bounds -s <session-id>
+
+# JSON output for detailed analysis
+yutani debug screen -s <session-id> --format json
+```
+
+### Finding the Session ID
+
+Look for this in the Maggie output when starting a Yutani app:
+```
+YutaniSession: session created with ID: f1e6eb39-...
+```
+
+### Common Debugging Scenarios
+
+**Widget not responding to clicks:**
+1. Check if widget has focus: `yutani debug bounds -s <id>` (look for `*` in Focused column)
+2. Check recent events: `yutani debug widget -s <id> -w <widget-id>` (see Recent Events)
+3. Verify widget bounds vs click coordinates
+
+**List selection not working:**
+```bash
+yutani debug widget -s <session-id> -w <list-widget-id>
+```
+Look for `selectedIndex` in Properties - if it's -1, nothing is selected.
+
+**Can't see what's on screen (LLM debugging):**
+```bash
+yutani debug screen -s <session-id> --bounds --legend
+```
+This gives an ASCII representation with widget overlay that LLMs can reason about.
+
+### Full Documentation
+
+See `~/dev/go/yutani/DEBUG_GUIDE.md` for complete debugging documentation.
+
+---
+
 ## Issue Tracking
 
 We use bd (beads) for issue tracking instead of Markdown TODOs or external tools.
