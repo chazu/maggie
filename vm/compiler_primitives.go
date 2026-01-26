@@ -75,6 +75,50 @@ func (vm *VM) registerCompilerPrimitives() {
 		return result
 	})
 
+	// setGlobal:to: - Set a global variable directly
+	// Useful for REPL bindings like 'it'
+	compilerClass.AddClassMethod2(vm.Selectors, "setGlobal:to:", func(vmPtr interface{}, recv Value, nameVal, valueVal Value) Value {
+		v := vmPtr.(*VM)
+
+		// Get the global name
+		var name string
+		if nameVal.IsSymbol() {
+			name = v.Symbols.Name(nameVal.SymbolID())
+		} else if IsStringValue(nameVal) {
+			name = GetStringContent(nameVal)
+		} else {
+			return v.newFailureResult("setGlobal:to: requires a Symbol or String name")
+		}
+
+		// Set the global
+		v.interpreter.Globals[name] = valueVal
+
+		return valueVal
+	})
+
+	// getGlobal: - Get a global variable directly
+	// Returns nil if not found
+	compilerClass.AddClassMethod1(vm.Selectors, "getGlobal:", func(vmPtr interface{}, recv Value, nameVal Value) Value {
+		v := vmPtr.(*VM)
+
+		// Get the global name
+		var name string
+		if nameVal.IsSymbol() {
+			name = v.Symbols.Name(nameVal.SymbolID())
+		} else if IsStringValue(nameVal) {
+			name = GetStringContent(nameVal)
+		} else {
+			return v.newFailureResult("getGlobal: requires a Symbol or String name")
+		}
+
+		// Get the global
+		if val, ok := v.interpreter.Globals[name]; ok {
+			return val
+		}
+
+		return Nil
+	})
+
 	// compileMethod: - Compile a method definition and return the CompiledMethod info
 	// Returns a Dictionary with bytecode, literals, etc. (same as Maggie Compiler.compile:)
 	// This is mainly for tooling/IDE use

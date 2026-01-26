@@ -118,6 +118,48 @@ child := parent withTimeout: 500.
 
 ---
 
+## Compiler Primitives
+
+The Compiler class provides methods for dynamic code evaluation with persistent globals.
+
+### Dynamic Evaluation
+
+```smalltalk
+"Evaluate expressions at runtime"
+Compiler evaluate: '3 + 4'.           "→ 7"
+Compiler evaluate: 'Array new: 5'.    "→ #(nil nil nil nil nil)"
+
+"Evaluate with a specific receiver context"
+arr := Array new: 3.
+Compiler evaluate: 'self size' in: arr.  "→ 3"
+```
+
+### Global Variable Persistence
+
+Variables assigned in evaluated expressions persist across evaluations:
+
+```smalltalk
+Compiler evaluate: 'x := 42'.         "→ 42, x is now a global"
+Compiler evaluate: 'x + 1'.           "→ 43"
+Compiler evaluate: 'x := x * 2'.      "→ 84"
+```
+
+### Direct Global Access
+
+For REPL tools and IDE integration:
+
+```smalltalk
+"Set a global directly"
+Compiler setGlobal: #it to: someObject.
+
+"Get a global (returns nil if not found)"
+value := Compiler getGlobal: #myVar.
+```
+
+This is used by MaggieIDE to bind `it` to the last evaluated result, making it available in subsequent expressions.
+
+---
+
 ## Debugging Yutani TUI Applications
 
 When debugging MaggieIDE or other Yutani-based TUI applications, use Yutani's DebugService to inspect screen state and widget properties.

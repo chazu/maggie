@@ -3,7 +3,7 @@
 # Single event loop architecture - no stopEventLoop except quit.
 
 MaggieIDE subclass: Object
-  instanceVars: session mainFlex replPanel inspectorPanel transcript inputArea slotList valueView lastResult bindings objectStack history historyIndex focusedPanel
+  instanceVars: session mainFlex replPanel inspectorPanel transcript inputArea slotList valueView lastResult objectStack history historyIndex focusedPanel
 
   # Main entry point - session passed in
   classMethod: openIn: aSession [
@@ -34,7 +34,6 @@ MaggieIDE subclass: Object
   method: initializeIn: aSession [
       session := aSession.
       lastResult := nil.
-      bindings := Dictionary new.
       objectStack := Array new.
       history := Array new.
       historyIndex := 0.
@@ -184,7 +183,7 @@ Press Ctrl+I after evaluating to inspect the result.'.
       # Try to evaluate
       [result := self doEvaluate: source.
        lastResult := result.
-       bindings at: #it put: result.
+       Compiler setGlobal: #it to: result.
        output := '> ', source, '
 => ', result printString, '
 
