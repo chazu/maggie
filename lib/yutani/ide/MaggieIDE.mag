@@ -118,26 +118,33 @@ Press Ctrl+I after evaluating to inspect the result.'.
   ]
 
   method: setupKeyBindings [
+      "Store self in a global to work around closure capture bug"
+      Compiler setGlobal: #__maggieIDE to: self.
       session onKey: [:event |
-          # Global shortcuts
-          event isCtrl ifTrue: [
-              event rune = 'q' ifTrue: [^self close].
-              event rune = 'i' ifTrue: [^self inspectLastResult].
-              event isTab ifTrue: [^self switchPanel]
-          ].
+          | ide |
+          ide := Compiler getGlobal: #__maggieIDE.
+          # Ctrl+Enter to evaluate (check first since it's most common)
+          (event isCtrl and: [event isEnter]) ifTrue: [
+              ide evaluate
+          ]
+          ifFalse: [
+              # Global shortcuts
+              event isCtrl ifTrue: [
+                  event rune = 'q' ifTrue: [ide close].
+                  event rune = 'i' ifTrue: [ide inspectLastResult].
+                  event isTab ifTrue: [ide switchPanel]
+              ].
 
-          # Ctrl+Enter to evaluate
-          (event isCtrl and: [event isEnter]) ifTrue: [^self evaluate].
+              # Panel-specific shortcuts
+              ide focusedPanel = #repl ifTrue: [
+                  event isUp ifTrue: [ide historyPrevious].
+                  event isDown ifTrue: [ide historyNext]
+              ].
 
-          # Panel-specific shortcuts
-          focusedPanel = #repl ifTrue: [
-              event isUp ifTrue: [^self historyPrevious].
-              event isDown ifTrue: [^self historyNext]
-          ].
-
-          focusedPanel = #inspector ifTrue: [
-              event isEnter ifTrue: [^self drillDown].
-              event isEscape ifTrue: [^self goBack]
+              ide focusedPanel = #inspector ifTrue: [
+                  event isEnter ifTrue: [ide drillDown].
+                  event isEscape ifTrue: [ide goBack]
+              ]
           ]
       ]
   ]
@@ -184,13 +191,11 @@ Press Ctrl+I after evaluating to inspect the result.'.
       [result := self doEvaluate: source.
        lastResult := result.
        Compiler setGlobal: #it to: result.
-       output := '> ', source, '
-=> ', result printString, '
+       output := '> ', source, '=> ', result printString, '
 
 ']
-          on: Error do: [:e |
-              output := '> ', source, '
-!! Error: ', e messageText, '
+          on: Exception do: [:e |
+              output := '> ', source, '!! Error: ', e messageText, '
 
 '].
 
@@ -342,6 +347,11 @@ Press Ctrl+I after evaluating to inspect the result.'.
           ^'''', value, ''''
       ].
       ^value printString
+  ]
+
+  # Accessors
+  method: focusedPanel [
+      ^focusedPanel
   ]
 
   # Printing

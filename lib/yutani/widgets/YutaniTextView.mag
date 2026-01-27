@@ -12,12 +12,21 @@ YutaniTextView subclass: YutaniWidget
           yourself)
   ]
 
-  # Get current text (from local properties cache)
+  # Get current text
   method: text [
-      | props tvProps |
+      | props tvProps result |
       props := self getProperties.
       tvProps := props at: #text_view ifAbsent: [nil].
-      ^tvProps ifNotNil: [tvProps at: #text ifAbsent: ['']] ifNil: ['']
+      tvProps ifNil: [^''].
+
+      "Try symbol key first, then string"
+      result := tvProps at: #text ifAbsent: [nil].
+      result ifNotNil: [^result].
+
+      result := tvProps at: 'text' ifAbsent: [nil].
+      result ifNotNil: [^result].
+
+      ^''
   ]
 
   # Append text

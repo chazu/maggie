@@ -14,10 +14,21 @@ YutaniTextArea subclass: YutaniWidget
 
   # Get current text
   method: text [
-      | props taProps |
+      | props taProps result |
       props := self getProperties.
       taProps := props at: #text_area ifAbsent: [nil].
-      ^taProps ifNotNil: [taProps at: #text ifAbsent: ['']] ifNil: ['']
+      taProps ifNil: [^''].
+
+      "Try symbol key first, then string"
+      result := taProps at: #text ifAbsent: [nil].
+      result ifNotNil: [^result].
+
+      result := taProps at: 'text' ifAbsent: [nil].
+      result ifNotNil: [^result].
+
+      "Not found - report the keys for debugging"
+      ('TextArea: text not found, keys = ' , taProps keys printString) println.
+      ^''
   ]
 
   # Append text

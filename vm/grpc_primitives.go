@@ -386,6 +386,11 @@ func protoFieldToValue(vm *VM, val interface{}, field *desc.FieldDescriptor) (Va
 		return repeatedFieldToValue(vm, val, field)
 	}
 
+	// Handle map fields
+	if field.IsMap() {
+		return mapFieldToValue(vm, val, field)
+	}
+
 	switch field.GetType() {
 	case descriptorpb.FieldDescriptorProto_TYPE_INT32,
 		descriptorpb.FieldDescriptorProto_TYPE_SINT32,
@@ -445,7 +450,9 @@ func repeatedFieldToValue(vm *VM, val interface{}, field *desc.FieldDescriptor) 
 
 	for i := 0; i < slice.Len(); i++ {
 		elem := slice.Index(i).Interface()
-		maggieVal, err := protoFieldToValue(vm, elem, field)
+		// Convert individual elements using protoElementToValue (not protoFieldToValue)
+		// to avoid re-checking IsRepeated() which would cause infinite recursion
+		maggieVal, err := protoElementToValue(vm, elem, field)
 		if err != nil {
 			return Nil, err
 		}
@@ -453,6 +460,134 @@ func repeatedFieldToValue(vm *VM, val interface{}, field *desc.FieldDescriptor) 
 	}
 
 	return vm.NewArrayWithElements(elements), nil
+}
+
+// protoElementToValue converts a single element from a repeated field to a Maggie Value
+// This is similar to protoFieldToValue but skips the IsRepeated check
+func protoElementToValue(vm *VM, val interface{}, field *desc.FieldDescriptor) (Value, error) {
+	switch field.GetType() {
+	case descriptorpb.FieldDescriptorProto_TYPE_INT32,
+		descriptorpb.FieldDescriptorProto_TYPE_SINT32,
+		descriptorpb.FieldDescriptorProto_TYPE_SFIXED32:
+		return FromSmallInt(int64(val.(int32))), nil
+	case descriptorpb.FieldDescriptorProto_TYPE_INT64,
+		descriptorpb.FieldDescriptorProto_TYPE_SINT64,
+		descriptorpb.FieldDescriptorProto_TYPE_SFIXED64:
+		if v, ok := TryFromSmallInt(val.(int64)); ok {
+			return v, nil
+		}
+		return FromFloat64(float64(val.(int64))), nil
+	case descriptorpb.FieldDescriptorProto_TYPE_UINT32,
+		descriptorpb.FieldDescriptorProto_TYPE_FIXED32:
+		return FromSmallInt(int64(val.(uint32))), nil
+	case descriptorpb.FieldDescriptorProto_TYPE_UINT64,
+		descriptorpb.FieldDescriptorProto_TYPE_FIXED64:
+		if v, ok := TryFromSmallInt(int64(val.(uint64))); ok {
+			return v, nil
+		}
+		return FromFloat64(float64(val.(uint64))), nil
+	case descriptorpb.FieldDescriptorProto_TYPE_FLOAT:
+		return FromFloat64(float64(val.(float32))), nil
+	case descriptorpb.FieldDescriptorProto_TYPE_DOUBLE:
+		return FromFloat64(val.(float64)), nil
+	case descriptorpb.FieldDescriptorProto_TYPE_BOOL:
+		if val.(bool) {
+			return True, nil
+		}
+		return False, nil
+	case descriptorpb.FieldDescriptorProto_TYPE_STRING:
+		return NewStringValue(val.(string)), nil
+	case descriptorpb.FieldDescriptorProto_TYPE_BYTES:
+		return NewStringValue(string(val.([]byte))), nil
+	case descriptorpb.FieldDescriptorProto_TYPE_MESSAGE:
+		return protoToDictionary(vm, val.(*dynamic.Message))
+	case descriptorpb.FieldDescriptorProto_TYPE_ENUM:
+		enumNum := val.(int32)
+		enumVal := field.GetEnumType().FindValueByNumber(enumNum)
+		if enumVal != nil {
+			return vm.Symbols.SymbolValue(enumVal.GetName()), nil
+		}
+		return FromSmallInt(int64(enumNum)), nil
+	}
+
+	return Nil, fmt.Errorf("unsupported proto type: %v", field.GetType())
+}
+
+// mapFieldToValue converts a protobuf map field to a Maggie Dictionary
+func mapFieldToValue(vm *VM, val interface{}, field *desc.FieldDescriptor) (Value, error) {
+	// Maps come as map[interface{}]interface{} from dynamic.Message
+	mapVal, ok := val.(map[interface{}]interface{})
+	if !ok {
+		return Nil, fmt.Errorf("expected map, got %T", val)
+	}
+
+	dict := NewDictionaryValue()
+	mapEntry := field.GetMapKeyType()
+	valueField := field.GetMapValueType()
+
+	for k, v := range mapVal {
+		// Convert key - for string keys, use as symbol
+		var keyVal Value
+		switch kTyped := k.(type) {
+		case string:
+			keyVal = vm.Symbols.SymbolValue(kTyped)
+		case int32:
+			keyVal = FromSmallInt(int64(kTyped))
+		case int64:
+			if sv, ok := TryFromSmallInt(kTyped); ok {
+				keyVal = sv
+			} else {
+				keyVal = FromFloat64(float64(kTyped))
+			}
+		default:
+			// Use map key field type for proper conversion
+			if mapEntry != nil {
+				var err error
+				keyVal, err = protoElementToValue(vm, k, mapEntry)
+				if err != nil {
+					return Nil, fmt.Errorf("map key conversion: %w", err)
+				}
+			} else {
+				keyVal = NewStringValue(fmt.Sprintf("%v", k))
+			}
+		}
+
+		// Convert value
+		var valueVal Value
+		if valueField != nil {
+			var err error
+			valueVal, err = protoElementToValue(vm, v, valueField)
+			if err != nil {
+				return Nil, fmt.Errorf("map value conversion: %w", err)
+			}
+		} else {
+			// Fallback for unknown value types
+			switch vTyped := v.(type) {
+			case string:
+				valueVal = NewStringValue(vTyped)
+			case int32:
+				valueVal = FromSmallInt(int64(vTyped))
+			case int64:
+				if sv, ok := TryFromSmallInt(vTyped); ok {
+					valueVal = sv
+				} else {
+					valueVal = FromFloat64(float64(vTyped))
+				}
+			case bool:
+				if vTyped {
+					valueVal = True
+				} else {
+					valueVal = False
+				}
+			default:
+				valueVal = NewStringValue(fmt.Sprintf("%v", v))
+			}
+		}
+
+		vm.DictionaryAtPut(dict, keyVal, valueVal)
+	}
+
+	return dict, nil
 }
 
 // ---------------------------------------------------------------------------
