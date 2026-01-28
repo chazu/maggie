@@ -932,21 +932,16 @@ func (vm *VM) registerGrpcPrimitives() {
 	// GrpcStream>>receive - receive a message from the stream
 	s.AddMethod0(vm.Selectors, "receive", func(vmPtr interface{}, recv Value) Value {
 		v := vmPtr.(*VM)
-		fmt.Println("[Go] GrpcStream receive called")
 		stream := getGrpcStream(recv)
 		if stream == nil {
-			fmt.Println("[Go] GrpcStream receive: stream is nil!")
 			return grpcFailure("invalid stream")
 		}
 		if stream.recvClosed.Load() {
-			fmt.Println("[Go] GrpcStream receive: stream already closed")
 			return grpcFailure("end of stream")
 		}
 
-		fmt.Println("[Go] GrpcStream receive: calling RecvMsg...")
 		msg := dynamic.NewMessage(stream.methodDesc.GetOutputType())
 		if err := stream.stream.RecvMsg(msg); err != nil {
-			fmt.Printf("[Go] GrpcStream receive: RecvMsg error: %v\n", err)
 			if err == io.EOF {
 				stream.recvClosed.Store(true)
 				return grpcFailure("end of stream")
@@ -954,15 +949,12 @@ func (vm *VM) registerGrpcPrimitives() {
 			return grpcFailure(fmt.Sprintf("receive failed: %v", err))
 		}
 
-		fmt.Printf("[Go] GrpcStream receive: got message: %v\n", msg)
-
 		// Catch any panics during conversion
 		var respDict Value
 		var convErr error
 		func() {
 			defer func() {
 				if r := recover(); r != nil {
-					fmt.Printf("[Go] GrpcStream receive: PANIC during protoToDictionary: %v\n", r)
 					convErr = fmt.Errorf("panic: %v", r)
 				}
 			}()
@@ -970,11 +962,9 @@ func (vm *VM) registerGrpcPrimitives() {
 		}()
 
 		if convErr != nil {
-			fmt.Printf("[Go] GrpcStream receive: protoToDictionary error: %v\n", convErr)
 			return grpcFailure(fmt.Sprintf("response conversion: %v", convErr))
 		}
 
-		fmt.Printf("[Go] GrpcStream receive: converted to dict, returning success\n")
 		return grpcSuccess(respDict)
 	})
 
