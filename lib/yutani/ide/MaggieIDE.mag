@@ -121,12 +121,12 @@ Press Ctrl+I after evaluating to inspect the result.'.
       "Store self in a global to work around closure capture bug"
       Compiler setGlobal: #__maggieIDE to: self.
       session onKey: [:event |
-          | ide |
+          | ide isCtrlEnter |
           ide := Compiler getGlobal: #__maggieIDE.
-          # Ctrl+Enter to evaluate (check first since it's most common)
-          (event isCtrl and: [event isEnter]) ifTrue: [
-              ide evaluate
-          ]
+
+          # Ctrl+Enter to evaluate
+          isCtrlEnter := event isEnter and: [event isCtrl].
+          isCtrlEnter ifTrue: [ide evaluate]
           ifFalse: [
               # Global shortcuts
               event isCtrl ifTrue: [
@@ -187,17 +187,13 @@ Press Ctrl+I after evaluating to inspect the result.'.
       history := history copyWith: source.
       historyIndex := history size.
 
-      # Try to evaluate
-      [result := self doEvaluate: source.
-       lastResult := result.
-       Compiler setGlobal: #it to: result.
-       output := '> ', source, '=> ', result printString, '
+      # Evaluate the expression
+      result := self doEvaluate: source.
+      lastResult := result.
+      Compiler setGlobal: #it to: result.
+      output := '> ', source, '=> ', result printString, '
 
-']
-          on: Exception do: [:e |
-              output := '> ', source, '!! Error: ', e messageText, '
-
-'].
+'.
 
       self appendOutput: output.
       inputArea text: ''
@@ -205,12 +201,7 @@ Press Ctrl+I after evaluating to inspect the result.'.
 
   method: doEvaluate: source [
       "Compile and execute the source expression."
-      | result |
-      result := Compiler evaluate: source.
-      result isFailure ifTrue: [
-          Error signal: result error
-      ].
-      ^result
+      ^Compiler evaluate: source
   ]
 
   method: appendOutput: text [

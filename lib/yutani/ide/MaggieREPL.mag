@@ -47,14 +47,18 @@ Type expressions to evaluate. Ctrl-Q to quit.
   ]
 
   method: setupKeyBindings [
+      "Store self in a global to work around closure capture bug in forked processes"
+      Compiler setGlobal: #__maggieREPL to: self.
       session onKey: [:event |
-          event isEnter ifTrue: [self evaluate].
+          | repl |
+          repl := Compiler getGlobal: #__maggieREPL.
+          event isEnter ifTrue: [repl evaluate].
           event isCtrl ifTrue: [
-              event rune = 'q' ifTrue: [self close].
-              event rune = 'l' ifTrue: [self clearHistory]
+              event rune = 'q' ifTrue: [repl close].
+              event rune = 'l' ifTrue: [repl clearHistory]
           ].
-          event isUp ifTrue: [self historyPrevious].
-          event isDown ifTrue: [self historyNext]
+          event isUp ifTrue: [repl historyPrevious].
+          event isDown ifTrue: [repl historyNext]
       ]
   ]
 
@@ -79,15 +83,11 @@ Type expressions to evaluate. Ctrl-Q to quit.
       history := history copyWith: source.
       historyIndex := history size.
 
-      # Try to evaluate
-      [result := self doEvaluate: source.
-       output := source, '
+      # Evaluate the expression
+      result := self doEvaluate: source.
+      output := source, '
 => ', result printString, '
-> ']
-          on: Error do: [:e |
-              output := source, '
-!! Error: ', e messageText, '
-> '].
+> '.
 
       self appendOutput: output.
       inputField text: ''
@@ -95,18 +95,7 @@ Type expressions to evaluate. Ctrl-Q to quit.
 
   method: doEvaluate: source [
       "Compile and execute the source expression using the Compiler primitive."
-      | result |
-
-      # Use Compiler evaluate: to compile and execute the expression
-      result := Compiler evaluate: source.
-
-      # Check if compilation/execution failed
-      result isFailure ifTrue: [
-          # Signal an error with the failure message
-          Error signal: result error
-      ].
-
-      ^result
+      ^Compiler evaluate: source
   ]
 
   method: appendOutput: text [

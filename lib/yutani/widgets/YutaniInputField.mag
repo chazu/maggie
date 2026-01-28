@@ -16,8 +16,8 @@ YutaniInputField subclass: YutaniWidget
   method: text [
       | props ifProps |
       props := self getProperties.
-      ifProps := props at: #input_field ifAbsent: [nil].
-      ^ifProps ifNotNil: [ifProps at: #text ifAbsent: ['']] ifNil: ['']
+      ifProps := props at: #input_field ifAbsent: [^''].
+      ^ifProps at: #text ifAbsent: ['']
   ]
 
   # Clear text
