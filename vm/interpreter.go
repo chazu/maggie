@@ -1369,16 +1369,22 @@ func (i *Interpreter) createBlockValue(block *BlockMethod, captures []Value) Val
 	if i.fp >= 0 {
 		frame := i.frames[i.fp]
 		if frame != nil {
-			homeSelf = frame.Receiver
 			homeMethod = frame.Method // capture the method (may be nil for block frames)
-			// If we're in a block, use its home frame to find the enclosing method
-			if frame.Block != nil && frame.HomeFrame >= 0 {
-				homeFrame = frame.HomeFrame
-				// Also get homeSelf and homeMethod from the actual home frame
-				if homeFrame >= 0 && homeFrame < len(i.frames) && i.frames[homeFrame] != nil {
-					homeSelf = i.frames[homeFrame].Receiver
-					homeMethod = i.frames[homeFrame].Method
+			if frame.Block != nil {
+				// We're inside a block. Use HomeSelf which was captured when
+				// this block was created (correct for both same-interpreter
+				// and detached/forked blocks).
+				homeSelf = frame.HomeSelf
+				if frame.HomeFrame >= 0 {
+					homeFrame = frame.HomeFrame
+					// Also get homeMethod from the actual home frame
+					if homeFrame < len(i.frames) && i.frames[homeFrame] != nil {
+						homeMethod = i.frames[homeFrame].Method
+					}
 				}
+			} else {
+				// We're in a method frame. The receiver is self.
+				homeSelf = frame.Receiver
 			}
 			// If frame has a HomeMethod set (e.g., from ExecuteBlock), use that
 			if frame.HomeMethod != nil {

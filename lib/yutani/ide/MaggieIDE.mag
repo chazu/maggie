@@ -116,33 +116,28 @@ Press Ctrl+I after evaluating to inspect the result.'.
   ]
 
   method: setupKeyBindings [
-      "Store self in a global to work around closure capture bug (maggie-gc62)"
-      Compiler setGlobal: #__maggieIDE to: self.
       session onKey: [:event |
-          | ide |
-          ide := Compiler getGlobal: #__maggieIDE.
-
           # Enter to evaluate (when REPL focused)
           event isEnter ifTrue: [
-              ide focusedPanel = #repl
-                  ifTrue: [ide evaluate]
-                  ifFalse: [ide drillDown]
+              self focusedPanel = #repl
+                  ifTrue: [self evaluate]
+                  ifFalse: [self drillDown]
           ] ifFalse: [
               # Global shortcuts
               event isCtrl ifTrue: [
-                  event rune = 'q' ifTrue: [ide close].
-                  event rune = 'i' ifTrue: [ide inspectLastResult].
-                  event isTab ifTrue: [ide switchPanel]
+                  event rune = 'q' ifTrue: [self close].
+                  event rune = 'i' ifTrue: [self inspectLastResult].
+                  event isTab ifTrue: [self switchPanel]
               ].
 
               # Panel-specific shortcuts
-              ide focusedPanel = #repl ifTrue: [
-                  event isUp ifTrue: [ide historyPrevious].
-                  event isDown ifTrue: [ide historyNext]
+              self focusedPanel = #repl ifTrue: [
+                  event isUp ifTrue: [self historyPrevious].
+                  event isDown ifTrue: [self historyNext]
               ].
 
-              ide focusedPanel = #inspector ifTrue: [
-                  event isEscape ifTrue: [ide goBack]
+              self focusedPanel = #inspector ifTrue: [
+                  event isEscape ifTrue: [self goBack]
               ]
           ]
       ]

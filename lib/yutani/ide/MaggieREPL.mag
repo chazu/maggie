@@ -47,18 +47,14 @@ Type expressions to evaluate. Ctrl-Q to quit.
   ]
 
   method: setupKeyBindings [
-      "Store self in a global to work around closure capture bug in forked processes"
-      Compiler setGlobal: #__maggieREPL to: self.
       session onKey: [:event |
-          | repl |
-          repl := Compiler getGlobal: #__maggieREPL.
-          event isEnter ifTrue: [repl evaluate].
+          event isEnter ifTrue: [self evaluate].
           event isCtrl ifTrue: [
-              event rune = 'q' ifTrue: [repl close].
-              event rune = 'l' ifTrue: [repl clearHistory]
+              event rune = 'q' ifTrue: [self close].
+              event rune = 'l' ifTrue: [self clearHistory]
           ].
-          event isUp ifTrue: [repl historyPrevious].
-          event isDown ifTrue: [repl historyNext]
+          event isUp ifTrue: [self historyPrevious].
+          event isDown ifTrue: [self historyNext]
       ]
   ]
 
