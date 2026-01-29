@@ -160,7 +160,7 @@ This ensures production servers reject all injection attempts.
 
 ### Step 6: Register Service in BOTH Servers
 
-**Critical**: Register in both `yutani-server` and `yutani-test-server`:
+**Critical**: Register the TestService in the unified `yutani` server binary:
 
 ```go
 testService := services.NewTestService(yutaniServer)
@@ -195,8 +195,7 @@ rootCmd.AddCommand(injectCmd)
 | `pkg/services/test.go` | New - Service implementation |
 | `pkg/cli/inject.go` | New - CLI commands |
 | `pkg/server/server.go` | Added IsTestMode, GetSimulationScreen |
-| `cmd/yutani-server/main.go` | Registered TestService |
-| `cmd/yutani-test-server/main.go` | Registered TestService |
+| `cmd/yutani/main.go` | Registered TestService |
 | `pkg/cli/root.go` | Added injectCmd |
 
 ## Usage
@@ -230,9 +229,9 @@ func (s *Server) GetSimulationScreen() *tcell.SimulationScreen
 func (s *Server) GetSimulationScreen() tcell.SimulationScreen
 ```
 
-### 2. Must Register in BOTH Servers
+### 2. Single Binary, Two Modes
 
-Forgetting to register in `yutani-test-server/main.go` means the test server won't have the TestService endpoints.
+The TestService is registered in the unified `yutani` binary and is available in both TUI and headless (`--headless`) modes.
 
 ### 3. WaitForIdle Needs Timeout
 
@@ -252,11 +251,10 @@ Without timeout handling, WaitForIdle could block forever if the event loop is s
 2. Run `make proto` to generate Go code
 3. Create `pkg/services/service.go` with implementation
 4. Add any needed server methods to `pkg/server/server.go`
-5. Register in `cmd/yutani-server/main.go`
-6. Register in `cmd/yutani-test-server/main.go`
-7. Create CLI commands in `pkg/cli/`
-8. Register CLI in `pkg/cli/root.go`
-9. Build and test: `make build && go test ./...`
+5. Register in the unified `yutani` server (`cmd/yutani/main.go`)
+6. Create CLI commands in `pkg/cli/`
+7. Register CLI in `pkg/cli/root.go`
+8. Build and test: `make build && go test ./...`
 
 ## Related
 

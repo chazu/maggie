@@ -572,7 +572,7 @@ func runYutaniIDE(vmInst *vm.VM, addr string, tool string, verbose bool) error {
 	}
 
 	fmt.Printf("Starting Yutani IDE (%s), connecting to %s...\n", tool, addr)
-	fmt.Printf("Make sure the Yutani server is running: yutani-server\n")
+	fmt.Printf("Make sure the Yutani server is running: yutani server\n")
 
 	// Wrap as a doIt method and execute
 	source := "doIt\n    ^" + startupCode
@@ -595,7 +595,7 @@ func runYutaniIDE(vmInst *vm.VM, addr string, tool string, verbose bool) error {
 		fmt.Printf("Execution returned: %v (isNil=%v)\n", result, result == vm.Nil)
 	}
 	if result == vm.Nil {
-		fmt.Println("IDE exited. (If it exited immediately, check that yutani-server is running)")
+		fmt.Println("IDE exited. (If it exited immediately, check that yutani server is running)")
 	}
 	return nil
 }
