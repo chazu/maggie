@@ -19,22 +19,18 @@ YutaniSession subclass: Object
 
   # Connection management
   method: connectTo: address [
-      ('YutaniSession: connecting to ', address) println.
       serverAddress := address.
       widgets := Dictionary new.
       (GrpcClient connectTo: address)
           onSuccess: [:c |
-              'YutaniSession: connected, creating session' println.
               client := c.
               self createSession]
           onFailure: [:err |
-              ('YutaniSession: connection failed: ', err printString) println.
               self error: 'Yutani connection failed: ', err printString]
   ]
 
   method: createSession [
       | request |
-      'YutaniSession: creating session' println.
       request := Dictionary new
           at: #client_name put: 'Maggie IDE';
           at: #preferences put: (Dictionary new
@@ -47,19 +43,14 @@ YutaniSession subclass: Object
           onSuccess: [:resp |
               | sessionIdDict |
               sessionIdDict := resp at: #session_id.
-              "Extract the actual id string from the dictionary"
               sessionId := sessionIdDict at: #id ifAbsent: [sessionIdDict].
-              ('YutaniSession: got session id: ', sessionId printString) println.
               self initializeEventLoop]
           onFailure: [:err |
-              ('YutaniSession: session creation failed: ', err printString) println.
               self error: 'Session creation failed: ', err printString]
   ]
 
   method: initializeEventLoop [
-      'YutaniSession: initializing event loop' println.
       eventLoop := YutaniEventLoop for: self.
-      ('YutaniSession: eventLoop created: ', eventLoop printString) println.
       ^self
   ]
 
@@ -176,14 +167,8 @@ YutaniSession subclass: Object
 
   # Start event loop and block until done
   method: run [
-      'YutaniSession: run called' println.
-      eventLoop ifNil: [
-          'YutaniSession: eventLoop is nil!' println.
-          ^self
-      ].
-      'YutaniSession: calling eventLoop run' println.
-      eventLoop run.
-      'YutaniSession: run finished' println
+      eventLoop ifNil: [^self].
+      eventLoop run
   ]
 
   # Wait for event loop to finish (if already started)
@@ -193,11 +178,7 @@ YutaniSession subclass: Object
 
   # Event handler registration (delegates to event loop)
   method: onKey: block [
-      ('YutaniSession: onKey: called, eventLoop = ', eventLoop printString) println.
-      eventLoop ifNil: [
-          'YutaniSession: WARNING - eventLoop is nil when registering key handler!' println.
-          ^self
-      ].
+      eventLoop ifNil: [^self].
       eventLoop onKey: block
   ]
 

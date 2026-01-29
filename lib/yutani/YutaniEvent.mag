@@ -202,11 +202,11 @@ WidgetEvent subclass: YutaniEvent
   ]
 
   method: initializeFromWidget: dict [
-      | widgetDict rawKind |
+      | widgetDict rawKind widRaw |
       self initializeFrom: dict.
       widgetDict := dict at: #widget.
-      widgetId := (widgetDict at: #widget_id ifAbsent: [nil])
-          ifNotNil: [:wid | wid at: #id ifAbsent: [nil]].
+      widRaw := widgetDict at: #widget_id ifAbsent: [nil].
+      widgetId := widRaw ifNotNil: [:wid | wid at: #id ifAbsent: [nil]].
       "Normalize eventKind to symbol (gRPC returns strings, asSymbol is idempotent)"
       rawKind := widgetDict at: #type ifAbsent: [#WIDGET_CHANGED].
       eventKind := rawKind asSymbol.

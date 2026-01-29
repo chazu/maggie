@@ -80,7 +80,7 @@ YutaniList subclass: YutaniWidget
           at: #session_id put: (Dictionary new at: #id put: session sessionId; yourself);
           at: #widget_id put: (Dictionary new at: #id put: widgetId; yourself);
           yourself.
-      result := session client call: 'industries.loosh.yutani.v1.ListService/GetSelected' with: request.
+      result := session client call: 'industries.loosh.yutani.v1.ListService/GetSelection' with: request.
       result isSuccess
           ifTrue: [^result value at: #index ifAbsent: [-1]]
           ifFalse: [^-1]
@@ -93,9 +93,9 @@ YutaniList subclass: YutaniWidget
           at: #widget_id put: (Dictionary new at: #id put: widgetId; yourself);
           at: #index put: index;
           yourself.
-      (session client call: 'industries.loosh.yutani.v1.ListService/SetSelected' with: request)
+      (session client call: 'industries.loosh.yutani.v1.ListService/SetSelection' with: request)
           onFailure: [:err |
-              self error: 'SetSelected failed: ', err printString]
+              self error: 'SetSelection failed: ', err printString]
   ]
 
   # Get item at index

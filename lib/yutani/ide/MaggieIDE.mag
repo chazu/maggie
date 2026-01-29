@@ -74,20 +74,18 @@ MaggieIDE subclass: Object
       transcript scrollable: true.
       transcript dynamicColors: true.
       transcript text: 'Welcome to Maggie IDE
-Type code and press Ctrl+Enter to evaluate.
+Type code and press Enter to evaluate.
 Ctrl+I to inspect, Ctrl+Tab to switch panels, Ctrl+Q to quit.
 
 '.
 
-      # Input area (multi-line for complex expressions)
-      inputArea := session createTextArea.
-      inputArea placeholder: 'Enter code here...'.
-      inputArea border: true.
-      inputArea title: 'Input'.
+      # Input field (single-line, Enter to evaluate)
+      inputArea := session createInputField.
+      inputArea label: '> '.
 
       # Add to REPL panel
-      replPanel addItem: transcript proportion: 3.
-      replPanel addItem: inputArea proportion: 1
+      replPanel addItem: transcript proportion: 1.
+      replPanel addItem: inputArea fixedSize: 1
   ]
 
   method: buildInspectorPanel [
@@ -118,16 +116,18 @@ Press Ctrl+I after evaluating to inspect the result.'.
   ]
 
   method: setupKeyBindings [
-      "Store self in a global to work around closure capture bug"
+      "Store self in a global to work around closure capture bug (maggie-gc62)"
       Compiler setGlobal: #__maggieIDE to: self.
       session onKey: [:event |
-          | ide isCtrlEnter |
+          | ide |
           ide := Compiler getGlobal: #__maggieIDE.
 
-          # Ctrl+Enter to evaluate
-          isCtrlEnter := event isEnter and: [event isCtrl].
-          isCtrlEnter ifTrue: [ide evaluate]
-          ifFalse: [
+          # Enter to evaluate (when REPL focused)
+          event isEnter ifTrue: [
+              ide focusedPanel = #repl
+                  ifTrue: [ide evaluate]
+                  ifFalse: [ide drillDown]
+          ] ifFalse: [
               # Global shortcuts
               event isCtrl ifTrue: [
                   event rune = 'q' ifTrue: [ide close].
@@ -142,7 +142,6 @@ Press Ctrl+I after evaluating to inspect the result.'.
               ].
 
               ide focusedPanel = #inspector ifTrue: [
-                  event isEnter ifTrue: [ide drillDown].
                   event isEscape ifTrue: [ide goBack]
               ]
           ]
@@ -191,7 +190,8 @@ Press Ctrl+I after evaluating to inspect the result.'.
       result := self doEvaluate: source.
       lastResult := result.
       Compiler setGlobal: #it to: result.
-      output := '> ', source, '=> ', result printString, '
+      output := '> ', source, '
+=> ', result printString, '
 
 '.
 

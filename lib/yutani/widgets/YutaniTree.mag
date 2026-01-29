@@ -86,7 +86,7 @@ YutaniTree subclass: YutaniWidget
           at: #session_id put: (Dictionary new at: #id put: session sessionId; yourself);
           at: #widget_id put: (Dictionary new at: #id put: widgetId; yourself);
           yourself.
-      (session client call: 'industries.loosh.yutani.v1.TreeService/GetSelected' with: request)
+      (session client call: 'industries.loosh.yutani.v1.TreeService/GetSelection' with: request)
           onSuccess: [:resp | ^resp]
           onFailure: [:err | ^nil]
   ]
@@ -122,9 +122,9 @@ YutaniTree subclass: YutaniWidget
           at: #widget_id put: (Dictionary new at: #id put: widgetId; yourself);
           at: #node_id put: (Dictionary new at: #id put: nodeId; yourself);
           yourself.
-      (session client call: 'industries.loosh.yutani.v1.TreeService/SetSelected' with: request)
+      (session client call: 'industries.loosh.yutani.v1.TreeService/SetSelection' with: request)
           onFailure: [:err |
-              self error: 'SetSelected failed: ', err printString]
+              self error: 'SetSelection failed: ', err printString]
   ]
 
   # Expand/collapse

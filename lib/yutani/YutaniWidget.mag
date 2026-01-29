@@ -85,37 +85,6 @@ YutaniWidget subclass: Object
       self setProperty: #padding to: paddingDict
   ]
 
-  # Hierarchy management
-  method: addChild: widget [
-      | request |
-      request := Dictionary new
-          at: #session_id put: (Dictionary new at: #id put: session sessionId; yourself);
-          at: #parent_id put: (Dictionary new at: #id put: widgetId; yourself);
-          at: #child_id put: (Dictionary new at: #id put: widget widgetId; yourself);
-          yourself.
-      (session client call: 'industries.loosh.yutani.v1.WidgetService/AddChild' with: request)
-          onSuccess: [:resp |
-              children := children copyWith: widget.
-              widget parent: self]
-          onFailure: [:err |
-              self error: 'AddChild failed: ', err printString]
-  ]
-
-  method: removeChild: widget [
-      | request |
-      request := Dictionary new
-          at: #session_id put: (Dictionary new at: #id put: session sessionId; yourself);
-          at: #parent_id put: (Dictionary new at: #id put: widgetId; yourself);
-          at: #child_id put: (Dictionary new at: #id put: widget widgetId; yourself);
-          yourself.
-      (session client call: 'industries.loosh.yutani.v1.WidgetService/RemoveChild' with: request)
-          onSuccess: [:resp |
-              children := children reject: [:w | w = widget].
-              widget parent: nil]
-          onFailure: [:err |
-              self error: 'RemoveChild failed: ', err printString]
-  ]
-
   # Focus management
   method: focus [
       | request |

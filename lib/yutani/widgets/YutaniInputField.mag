@@ -1,10 +1,33 @@
 # YutaniInputField.mag
 # Wrapper for Yutani InputField widget (single-line text input).
+# Caches text from WIDGET_CHANGED events since GetProperties
+# does not reliably return the text field from the server.
 
 YutaniInputField subclass: YutaniWidget
+  instanceVars: cachedText
+
+  method: initializeWith: aSession id: anId [
+      super initializeWith: aSession id: anId.
+      cachedText := ''.
+      ^self
+  ]
+
+  # Intercept widget events to cache text from WIDGET_CHANGED
+  method: handleEvent: event [
+      | handler |
+      event isChanged ifTrue: [
+          | text |
+          text := event dataAt: #text.
+          text notNil ifTrue: [cachedText := text]
+      ].
+      "Dispatch to registered handlers (parent behavior)"
+      handler := eventHandlers at: event eventType ifAbsent: [nil].
+      handler notNil ifTrue: [handler value: event]
+  ]
 
   # Set text content
   method: text: aString [
+      cachedText := aString.
       self setProperties: (Dictionary new
           at: #input_field put: (Dictionary new
               at: #text put: aString;
@@ -12,12 +35,9 @@ YutaniInputField subclass: YutaniWidget
           yourself)
   ]
 
-  # Get current text
+  # Get current text (from cache, updated by WIDGET_CHANGED events)
   method: text [
-      | props ifProps |
-      props := self getProperties.
-      ifProps := props at: #input_field ifAbsent: [^''].
-      ^ifProps at: #text ifAbsent: ['']
+      ^cachedText
   ]
 
   # Clear text

@@ -88,38 +88,38 @@ TestListSelection subclass: Object
       addResult := client call: 'industries.loosh.yutani.v1.ListService/AddItem' with: request.
       ('TestListSelection: AddItem 3 result = ', addResult printString) println.
 
-      # Test GetSelected - what is the initial selected index?
+      # Test GetSelection - what is the initial selected index?
       'TestListSelection: Getting initial selected index...' println.
       request := Dictionary new
           at: #session_id put: (Dictionary new at: #id put: sessionId; yourself);
           at: #widget_id put: (Dictionary new at: #id put: widgetId; yourself);
           yourself.
-      getResult := client call: 'industries.loosh.yutani.v1.ListService/GetSelected' with: request.
-      ('TestListSelection: GetSelected result = ', getResult printString) println.
+      getResult := client call: 'industries.loosh.yutani.v1.ListService/GetSelection' with: request.
+      ('TestListSelection: GetSelection result = ', getResult printString) println.
       getResult isSuccess ifTrue: [
           ('TestListSelection: Initial selectedIndex = ', (getResult value at: #index) printString) println
       ].
 
-      # Test SetSelected - set index to 1
+      # Test SetSelection - set index to 1
       'TestListSelection: Setting selected index to 1...' println.
       request := Dictionary new
           at: #session_id put: (Dictionary new at: #id put: sessionId; yourself);
           at: #widget_id put: (Dictionary new at: #id put: widgetId; yourself);
           at: #index put: 1;
           yourself.
-      setResult := client call: 'industries.loosh.yutani.v1.ListService/SetSelected' with: request.
-      ('TestListSelection: SetSelected result = ', setResult printString) println.
+      setResult := client call: 'industries.loosh.yutani.v1.ListService/SetSelection' with: request.
+      ('TestListSelection: SetSelection result = ', setResult printString) println.
 
-      # Test GetSelected again - should now return 1
-      'TestListSelection: Getting selected index after SetSelected...' println.
+      # Test GetSelection again - should now return 1
+      'TestListSelection: Getting selected index after SetSelection...' println.
       request := Dictionary new
           at: #session_id put: (Dictionary new at: #id put: sessionId; yourself);
           at: #widget_id put: (Dictionary new at: #id put: widgetId; yourself);
           yourself.
-      getResult := client call: 'industries.loosh.yutani.v1.ListService/GetSelected' with: request.
-      ('TestListSelection: GetSelected result = ', getResult printString) println.
+      getResult := client call: 'industries.loosh.yutani.v1.ListService/GetSelection' with: request.
+      ('TestListSelection: GetSelection result = ', getResult printString) println.
       getResult isSuccess ifTrue: [
-          ('TestListSelection: After SetSelected(1), selectedIndex = ', (getResult value at: #index) printString) println
+          ('TestListSelection: After SetSelection(1), selectedIndex = ', (getResult value at: #index) printString) println
       ].
 
       'TestListSelection: Test complete!' println.
