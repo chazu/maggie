@@ -1,0 +1,129 @@
+# REPLComponent.mag
+# Reusable REPL component: owns historyView, inputField, history navigation,
+# and evaluation logic. Can be embedded in any IDE tool.
+
+REPLComponent subclass: Object
+  instanceVars: session historyView inputField history historyIndex lastInputText onEvaluateBlock
+
+  classMethod: in: aSession [
+      ^self new initializeIn: aSession
+  ]
+
+  method: initializeIn: aSession [
+      session := aSession.
+      history := Array new.
+      historyIndex := 0.
+      lastInputText := ''.
+      self buildWidgets.
+      ^self
+  ]
+
+  # Build the REPL widgets (historyView + inputField)
+  method: buildWidgets [
+      historyView := session createTextView.
+      historyView border: false.
+      historyView scrollable: true.
+      historyView dynamicColors: true.
+      historyView text: 'Welcome to Maggie REPL
+Type expressions to evaluate. Ctrl-Q to quit.
+> '.
+
+      inputField := session createInputField.
+      inputField label: '> '.
+
+      # Global widget handler: widget_id extraction from protobuf sub-messages
+      # fails (at: on nested proto dicts returns nil), so we handle all widget
+      # events globally. Track text from CHANGED events, evaluate on DONE.
+      session onWidget: [:e |
+          e isChanged ifTrue: [
+              | text |
+              text := e dataAt: #text.
+              text ifNotNil: [lastInputText := text]
+          ].
+          e isDone ifTrue: [self evaluate]
+      ]
+  ]
+
+  # Widget accessors (for adding to layouts)
+  method: historyView [ ^historyView ]
+  method: inputField [ ^inputField ]
+
+  # Callback registration
+  method: onEvaluate: aBlock [
+      onEvaluateBlock := aBlock
+  ]
+
+  # Focus the input field
+  method: focus [
+      inputField focus
+  ]
+
+  # Evaluation
+  method: evaluate [
+      | source result output |
+      source := lastInputText.
+      source isEmpty ifTrue: [^self].
+
+      history := history copyWith: source.
+      historyIndex := history size + 1.
+
+      result := self doEvaluate: source.
+      output := source, '
+=> ', result printString, '
+> '.
+
+      self appendOutput: output.
+      lastInputText := ''.
+      inputField text: ''.
+
+      # Notify callback
+      onEvaluateBlock ifNotNil: [onEvaluateBlock value: result]
+  ]
+
+  method: doEvaluate: source [
+      ^Compiler evaluate: source
+  ]
+
+  method: appendOutput: text [
+      | currentText |
+      currentText := historyView text.
+      historyView text: currentText, text
+  ]
+
+  method: clearHistory [
+      historyView text: '> '.
+      inputField text: ''
+  ]
+
+  # History navigation
+  method: historyPrevious [
+      history isEmpty ifTrue: [^self].
+      historyIndex > 1 ifTrue: [
+          historyIndex := historyIndex - 1.
+          inputField text: (history at: historyIndex)
+      ]
+  ]
+
+  method: historyNext [
+      history isEmpty ifTrue: [^self].
+      historyIndex < history size ifTrue: [
+          historyIndex := historyIndex + 1.
+          inputField text: (history at: historyIndex)
+      ] ifFalse: [
+          historyIndex := history size + 1.
+          inputField text: ''
+      ]
+  ]
+
+  # Key event handling (call from owner's key handler)
+  method: handleKeyEvent: event [
+      event isUp ifTrue: [self historyPrevious].
+      event isDown ifTrue: [self historyNext].
+      event isCtrl ifTrue: [
+          event rune = 'l' ifTrue: [self clearHistory]
+      ]
+  ]
+
+  method: printString [
+      ^'REPLComponent'
+  ]

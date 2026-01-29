@@ -120,7 +120,9 @@ YutaniEventLoop subclass: Object
       widgetId := event widgetId.
       widgetId notNil ifTrue: [
           widget := session widgetAt: widgetId.
-          widget notNil ifTrue: [widget handleEvent: event]
+          widget notNil ifTrue: [
+              widget handleEvent: event
+          ]
       ].
 
       # Dispatch to registered global handlers

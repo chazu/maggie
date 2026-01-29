@@ -1,157 +1,95 @@
 # MaggieIDE.mag
 # Two-panel IDE with REPL (left) and Inspector (right).
-# Single event loop architecture - no stopEventLoop except quit.
+# Composes REPLComponent + InspectorComponent.
 
-MaggieIDE subclass: Object
-  instanceVars: session mainFlex replPanel inspectorPanel transcript inputArea slotList valueView lastResult objectStack history historyIndex focusedPanel
-
-  # Main entry point - session passed in
-  classMethod: openIn: aSession [
-      ^self new initializeIn: aSession; open
-  ]
-
-  # Convenience methods that create their own session
-  classMethod: run [
-      | session |
-      session := YutaniSession connectToDefault.
-      session ifNil: [
-          Transcript show: 'Could not connect to Yutani server'.
-          ^nil
-      ].
-      ^self openIn: session
-  ]
-
-  classMethod: runAt: address [
-      | session |
-      session := YutaniSession connectTo: address.
-      session ifNil: [
-          Transcript show: 'Could not connect to Yutani server at: ', address.
-          ^nil
-      ].
-      ^self openIn: session
-  ]
+MaggieIDE subclass: IDEToolBase
+  instanceVars: replComponent inspectorComponent replPanel inspectorPanel lastResult focusedPanel
 
   method: initializeIn: aSession [
-      session := aSession.
       lastResult := nil.
-      objectStack := Array new.
-      history := Array new.
-      historyIndex := 0.
       focusedPanel := #repl.
-      self buildUI.
-      ^self
+      ^super initializeIn: aSession
   ]
 
   method: buildUI [
-      # Main horizontal layout (two panels side by side)
-      mainFlex := session createFlex.
-      mainFlex direction: #row.
-      mainFlex title: 'Maggie IDE'.
-      mainFlex border: true.
+      replComponent := REPLComponent in: session.
+      inspectorComponent := InspectorComponent in: session.
 
-      # Build panels
+      # Capture evaluation results for inspection
+      replComponent onEvaluate: [:result |
+          lastResult := result.
+          Compiler setGlobal: #it to: result
+      ].
+
+      # Main horizontal layout (two panels side by side)
+      mainWidget := session createFlex.
+      mainWidget direction: #row.
+      mainWidget title: 'Maggie IDE'.
+      mainWidget border: true.
+
       self buildReplPanel.
       self buildInspectorPanel.
 
-      # Add panels to main layout (50/50 split)
-      mainFlex addItem: replPanel proportion: 1.
-      mainFlex addItem: inspectorPanel proportion: 1.
+      mainWidget addItem: replPanel proportion: 1.
+      mainWidget addItem: inspectorPanel proportion: 1.
 
-      # Set up key bindings
       self setupKeyBindings
   ]
 
   method: buildReplPanel [
-      # REPL: vertical layout with transcript (top) and input (bottom)
       replPanel := session createFlex.
       replPanel direction: #column.
       replPanel title: 'REPL'.
       replPanel border: true.
 
-      # Transcript (read-only display of results)
-      transcript := session createTextView.
-      transcript border: false.
-      transcript scrollable: true.
-      transcript dynamicColors: true.
-      transcript text: 'Welcome to Maggie IDE
+      # Override default welcome text
+      replComponent historyView text: 'Welcome to Maggie IDE
 Type code and press Enter to evaluate.
 Ctrl+I to inspect, Ctrl+Tab to switch panels, Ctrl+Q to quit.
 
 '.
 
-      # Input field (single-line, Enter to evaluate)
-      inputArea := session createInputField.
-      inputArea label: '> '.
-
-      # Add to REPL panel
-      replPanel addItem: transcript proportion: 1.
-      replPanel addItem: inputArea fixedSize: 1
+      replPanel addItem: replComponent historyView proportion: 1.
+      replPanel addItem: replComponent inputField fixedSize: 1
   ]
 
   method: buildInspectorPanel [
-      # Inspector: horizontal layout with slot list (left) and value view (right)
       inspectorPanel := session createFlex.
       inspectorPanel direction: #row.
       inspectorPanel title: 'Inspector'.
       inspectorPanel border: true.
 
-      # Slot list
-      slotList := session createList.
-      slotList title: 'Slots'.
-      slotList border: true.
-      slotList onSelected: [:e | self slotSelected: e].
+      # Update panel title when inspector navigates
+      inspectorComponent onTitleChange: [:title | inspectorPanel title: title].
 
-      # Value view
-      valueView := session createTextView.
-      valueView title: 'Value'.
-      valueView border: true.
-      valueView wordWrap: true.
-      valueView scrollable: true.
-      valueView text: 'No object inspected.
-Press Ctrl+I after evaluating to inspect the result.'.
+      inspectorPanel addItem: inspectorComponent slotList proportion: 1.
+      inspectorPanel addItem: inspectorComponent valueView proportion: 2
+  ]
 
-      # Add to inspector panel
-      inspectorPanel addItem: slotList proportion: 1.
-      inspectorPanel addItem: valueView proportion: 2
+  method: focusDefaultWidget [
+      replComponent focus
   ]
 
   method: setupKeyBindings [
+      # Register key handler directly (not via setupBaseKeyBindings:) because
+      # the VM has a known issue with invoking blocks passed as method arguments
+      # from within closure contexts (nested block invocation bug).
       session onKey: [:event |
-          # Enter to evaluate (when REPL focused)
-          event isEnter ifTrue: [
-              self focusedPanel = #repl
-                  ifTrue: [self evaluate]
-                  ifFalse: [self drillDown]
-          ] ifFalse: [
-              # Global shortcuts
-              event isCtrl ifTrue: [
-                  event rune = 'q' ifTrue: [self close].
-                  event rune = 'i' ifTrue: [self inspectLastResult].
-                  event isTab ifTrue: [self switchPanel]
-              ].
+          # Global shortcuts
+          event isCtrl ifTrue: [
+              event rune = 'q' ifTrue: [self close].
+              event rune = 'i' ifTrue: [self inspectLastResult].
+              event isTab ifTrue: [self switchPanel]
+          ].
 
-              # Panel-specific shortcuts
-              self focusedPanel = #repl ifTrue: [
-                  event isUp ifTrue: [self historyPrevious].
-                  event isDown ifTrue: [self historyNext]
-              ].
-
-              self focusedPanel = #inspector ifTrue: [
-                  event isEscape ifTrue: [self goBack]
-              ]
+          # Delegate to focused panel's component
+          self focusedPanel = #repl ifTrue: [
+              replComponent handleKeyEvent: event
+          ].
+          self focusedPanel = #inspector ifTrue: [
+              inspectorComponent handleKeyEvent: event
           ]
       ]
-  ]
-
-  method: open [
-      session setRoot: mainFlex.
-      inputArea focus.
-      session run  "Block until event loop terminates"
-  ]
-
-  method: close [
-      session stopEventLoop.
-      session disconnect
   ]
 
   # Panel switching
@@ -159,180 +97,25 @@ Press Ctrl+I after evaluating to inspect the result.'.
       focusedPanel = #repl
           ifTrue: [
               focusedPanel := #inspector.
-              slotList focus.
-              inspectorPanel title: 'Inspector *'
+              inspectorComponent focus.
+              inspectorPanel title: 'Inspector *'.
               replPanel title: 'REPL'
           ]
           ifFalse: [
               focusedPanel := #repl.
-              inputArea focus.
-              replPanel title: 'REPL *'
+              replComponent focus.
+              replPanel title: 'REPL *'.
               inspectorPanel title: 'Inspector'
           ]
   ]
 
-  # REPL Evaluation
-  method: evaluate [
-      | source result output |
-      source := inputArea text.
-      source isEmpty ifTrue: [^self].
-
-      # Add to history
-      history := history copyWith: source.
-      historyIndex := history size.
-
-      # Evaluate the expression
-      result := self doEvaluate: source.
-      lastResult := result.
-      Compiler setGlobal: #it to: result.
-      output := '> ', source, '
-=> ', result printString, '
-
-'.
-
-      self appendOutput: output.
-      inputArea text: ''
-  ]
-
-  method: doEvaluate: source [
-      "Compile and execute the source expression."
-      ^Compiler evaluate: source
-  ]
-
-  method: appendOutput: text [
-      | currentText |
-      currentText := transcript text.
-      transcript text: currentText, text
-  ]
-
-  # History navigation
-  method: historyPrevious [
-      history isEmpty ifTrue: [^self].
-      historyIndex > 1 ifTrue: [
-          historyIndex := historyIndex - 1.
-          inputArea text: (history at: historyIndex)
-      ]
-  ]
-
-  method: historyNext [
-      history isEmpty ifTrue: [^self].
-      historyIndex < history size ifTrue: [
-          historyIndex := historyIndex + 1.
-          inputArea text: (history at: historyIndex)
-      ] ifFalse: [
-          historyIndex := history size + 1.
-          inputArea text: ''
-      ]
-  ]
-
-  # Inspector
+  # Inspect the last evaluation result
   method: inspectLastResult [
       lastResult ifNil: [
-          valueView text: 'Nothing to inspect. Evaluate an expression first.'.
+          inspectorComponent valueView text: 'Nothing to inspect. Evaluate an expression first.'.
           ^self
       ].
-      objectStack := Array new.
-      self inspectObject: lastResult
-  ]
-
-  method: inspectObject: anObject [
-      | inspectedObject |
-      inspectedObject := anObject.
-
-      slotList clear.
-
-      # Add self
-      slotList addItem: 'self' secondary: (self classNameOf: inspectedObject).
-
-      # Add instance variables
-      (self instanceVariablesOf: inspectedObject) do: [:name |
-          | value |
-          value := self valueOf: name in: inspectedObject.
-          slotList addItem: name secondary: (self classNameOf: value)
-      ].
-
-      inspectorPanel title: 'Inspector: ', (self classNameOf: inspectedObject).
-      valueView text: 'Select a slot to see its value.'
-  ]
-
-  method: slotSelected: event [
-      | slotName value inspectedObject |
-      slotName := event dataAt: #main_text.
-      slotName ifNil: [^self].
-
-      # Get the currently inspected object
-      inspectedObject := objectStack isEmpty
-          ifTrue: [lastResult]
-          ifFalse: [objectStack last].
-
-      slotName = 'self'
-          ifTrue: [value := inspectedObject]
-          ifFalse: [value := self valueOf: slotName in: inspectedObject].
-
-      valueView text: (self formatValue: value)
-  ]
-
-  method: drillDown [
-      | selectedIndex slotName value inspectedObject varNames |
-      selectedIndex := slotList selectedIndex.
-      selectedIndex < 0 ifTrue: [^self].
-      selectedIndex = 0 ifTrue: [^self]. # Can't drill into self
-
-      # Get the currently inspected object
-      inspectedObject := objectStack isEmpty
-          ifTrue: [lastResult]
-          ifFalse: [objectStack last].
-
-      # Get the slot name and value
-      varNames := self instanceVariablesOf: inspectedObject.
-      slotName := varNames at: selectedIndex.
-      value := self valueOf: slotName in: inspectedObject.
-
-      # Push current object and inspect new one
-      objectStack := objectStack copyWith: inspectedObject.
-      self inspectObject: value
-  ]
-
-  method: goBack [
-      | previousObject |
-      objectStack isEmpty ifTrue: [^self].
-
-      previousObject := objectStack last.
-      objectStack := objectStack copyFrom: 1 to: objectStack size - 1.
-      self inspectObject: previousObject
-  ]
-
-  # Object introspection helpers
-  method: classNameOf: anObject [
-      anObject isNil ifTrue: [^'UndefinedObject'].
-      ^anObject class name
-  ]
-
-  method: instanceVariablesOf: anObject [
-      anObject isNil ifTrue: [^Array new].
-      ^anObject class allInstVarNames
-  ]
-
-  method: valueOf: slotName in: anObject [
-      | varNames index |
-      anObject isNil ifTrue: [^nil].
-
-      varNames := self instanceVariablesOf: anObject.
-      index := varNames indexOf: slotName.
-      index = 0 ifTrue: [
-          index := varNames indexOf: slotName asSymbol
-      ].
-      index = 0 ifTrue: [^nil].
-
-      ^anObject instVarAt: index
-  ]
-
-  method: formatValue: value [
-      value isNil ifTrue: [^'nil'].
-      (value isKindOf: String) ifTrue: [
-          ^'''', value, ''''
-      ].
-      ^value printString
+      inspectorComponent inspect: lastResult
   ]
 
   # Accessors
@@ -340,7 +123,6 @@ Press Ctrl+I after evaluating to inspect the result.'.
       ^focusedPanel
   ]
 
-  # Printing
   method: printString [
       ^'MaggieIDE'
   ]

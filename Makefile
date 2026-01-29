@@ -1,4 +1,4 @@
-.PHONY: all bootstrap mag clean test
+.PHONY: all bootstrap mag clean test test-ide test-all
 
 # Default target builds everything
 all: mag
@@ -12,9 +12,16 @@ mag: bootstrap
 	cp maggie.image cmd/mag/
 	go build -o mag ./cmd/mag/
 
-# Run all tests
+# Run Go unit tests
 test:
 	go test ./...
+
+# Run headless IDE integration tests (requires yutani binary in PATH)
+test-ide: mag
+	bash test/ide/run_all.sh
+
+# Run all tests (Go unit + IDE integration)
+test-all: test test-ide
 
 # Clean build artifacts
 clean:

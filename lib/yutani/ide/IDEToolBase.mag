@@ -1,0 +1,55 @@
+# IDEToolBase.mag
+# Base class for all Yutani IDE tools.
+# Provides common lifecycle: openIn:, open, close, buildUI (abstract), focusDefaultWidget (abstract).
+
+IDEToolBase subclass: Object
+  instanceVars: session mainWidget
+
+  # Creation -- the standard entry point for all IDE tools.
+  classMethod: openIn: aSession [
+      ^self new initializeIn: aSession; open
+  ]
+
+  method: initializeIn: aSession [
+      session := aSession.
+      self buildUI.
+      ^self
+  ]
+
+  # Subclass responsibility
+  method: buildUI [
+      "Subclasses must override to create mainWidget and all UI."
+      self error: 'Subclass must implement buildUI'
+  ]
+
+  method: focusDefaultWidget [
+      "Subclasses must override to focus their default widget."
+      self error: 'Subclass must implement focusDefaultWidget'
+  ]
+
+  # Lifecycle
+  method: open [
+      session setRoot: mainWidget.
+      self focusDefaultWidget.
+      session run  "Block until event loop terminates"
+  ]
+
+  method: close [
+      session stopEventLoop.
+      session disconnect
+  ]
+
+  # Accessors
+  method: session [ ^session ]
+  method: mainWidget [ ^mainWidget ]
+
+  # Default key handling -- Ctrl+Q quits
+  method: setupBaseKeyBindings: aBlock [
+      "Install key handler that checks Ctrl+Q first, then delegates to aBlock."
+      session onKey: [:event |
+          event isCtrl ifTrue: [
+              event rune = 'q' ifTrue: [self close]
+          ].
+          aBlock value: event
+      ]
+  ]

@@ -1,0 +1,41 @@
+# ObjectIntrospection.mag
+# Shared reflection utilities for IDE tools.
+# All methods are class-side so callers use: ObjectIntrospection classNameOf: obj
+
+ObjectIntrospection subclass: Object
+
+  classMethod: classNameOf: anObject [
+      "Return the class name of an object as a string."
+      anObject isNil ifTrue: [^'UndefinedObject'].
+      ^anObject class name
+  ]
+
+  classMethod: instanceVariablesOf: anObject [
+      "Return an array of instance variable names for the object."
+      anObject isNil ifTrue: [^Array new].
+      ^anObject class allInstVarNames
+  ]
+
+  classMethod: valueOf: slotName in: anObject [
+      "Return the value of the named instance variable."
+      | varNames index |
+      anObject isNil ifTrue: [^nil].
+
+      varNames := self instanceVariablesOf: anObject.
+      index := varNames indexOf: slotName.
+      index = 0 ifTrue: [
+          "Try as symbol if string lookup failed"
+          index := varNames indexOf: slotName asSymbol
+      ].
+      index = 0 ifTrue: [^nil].
+
+      ^anObject instVarAt: index
+  ]
+
+  classMethod: formatValue: value [
+      value isNil ifTrue: [^'nil'].
+      (value isKindOf: String) ifTrue: [
+          ^'''', value, ''''
+      ].
+      ^value printString
+  ]

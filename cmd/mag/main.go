@@ -24,7 +24,7 @@ func main() {
 	noRC := flag.Bool("no-rc", false, "Skip loading ~/.maggierc")
 	yutaniMode := flag.Bool("yutani", false, "Start Yutani IDE mode")
 	yutaniAddr := flag.String("yutani-addr", "localhost:7755", "Yutani server address")
-	yutaniTool := flag.String("ide-tool", "launcher", "IDE tool to start: launcher, browser, inspector, repl, editor")
+	yutaniTool := flag.String("ide-tool", "launcher", "IDE tool to start: launcher, inspector, repl")
 	useMaggieCompiler := flag.Bool("experimental-maggie-compiler", false, "Use experimental Maggie self-hosting compiler instead of Go compiler")
 
 	flag.Usage = func() {
@@ -37,7 +37,7 @@ func main() {
 		fmt.Fprintf(os.Stderr, "  mag ./src -m main      # Load src/, run 'main' method\n")
 		fmt.Fprintf(os.Stderr, "  mag ./... -m App.start # Load recursively, run App.start\n")
 		fmt.Fprintf(os.Stderr, "  mag --yutani           # Start Yutani IDE launcher (connects to localhost:7755)\n")
-		fmt.Fprintf(os.Stderr, "  mag --yutani --ide-tool browser   # Start Class Browser directly\n")
+		fmt.Fprintf(os.Stderr, "  mag --yutani --ide-tool inspector  # Start Inspector directly\n")
 		fmt.Fprintf(os.Stderr, "  mag --yutani --yutani-addr host:port  # Connect to specific server\n")
 		fmt.Fprintf(os.Stderr, "\nExperimental:\n")
 		fmt.Fprintf(os.Stderr, "  mag -i --experimental-maggie-compiler  # Use self-hosting compiler\n")
@@ -560,15 +560,15 @@ func runYutaniIDE(vmInst *vm.VM, addr string, tool string, verbose bool) error {
 	case "launcher", "ide":
 		startupCode = fmt.Sprintf("MaggieIDE openIn: (YutaniSession connectTo: '%s')", addr)
 	case "browser":
-		startupCode = fmt.Sprintf("ClassBrowser openIn: (YutaniSession connectTo: '%s')", addr)
+		return fmt.Errorf("ClassBrowser is shelved (see lib/yutani/ide/shelved/). Use: launcher, inspector, repl")
 	case "inspector":
 		startupCode = fmt.Sprintf("Inspector inspect: nil in: (YutaniSession connectTo: '%s')", addr)
 	case "repl":
 		startupCode = fmt.Sprintf("MaggieREPL openIn: (YutaniSession connectTo: '%s')", addr)
 	case "editor":
-		startupCode = fmt.Sprintf("CodeEditor openIn: (YutaniSession connectTo: '%s')", addr)
+		return fmt.Errorf("CodeEditor is shelved (see lib/yutani/ide/shelved/). Use: launcher, inspector, repl")
 	default:
-		return fmt.Errorf("unknown IDE tool: %s (use: launcher, browser, inspector, repl, editor)", tool)
+		return fmt.Errorf("unknown IDE tool: %s (use: launcher, inspector, repl)", tool)
 	}
 
 	fmt.Printf("Starting Yutani IDE (%s), connecting to %s...\n", tool, addr)

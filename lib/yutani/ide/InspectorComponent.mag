@@ -1,0 +1,137 @@
+# InspectorComponent.mag
+# Reusable Inspector component: owns slotList, valueView, object navigation.
+# Can be embedded in any IDE tool.
+
+InspectorComponent subclass: Object
+  instanceVars: session slotList valueView inspectedObject objectStack onTitleChangeBlock
+
+  classMethod: in: aSession [
+      ^self new initializeIn: aSession
+  ]
+
+  method: initializeIn: aSession [
+      session := aSession.
+      inspectedObject := nil.
+      objectStack := Array new.
+      self buildWidgets.
+      ^self
+  ]
+
+  method: buildWidgets [
+      slotList := session createList.
+      slotList title: 'Slots'.
+      slotList border: true.
+      slotList onSelected: [:e | self slotSelected: e].
+
+      valueView := session createTextView.
+      valueView title: 'Value'.
+      valueView border: true.
+      valueView wordWrap: true.
+      valueView scrollable: true.
+
+      self populateSlots
+  ]
+
+  # Widget accessors (for adding to layouts)
+  method: slotList [ ^slotList ]
+  method: valueView [ ^valueView ]
+
+  # Callback registration
+  method: onTitleChange: aBlock [
+      onTitleChangeBlock := aBlock
+  ]
+
+  # Focus the slot list
+  method: focus [
+      slotList focus
+  ]
+
+  # Inspect a new object
+  method: inspect: anObject [
+      objectStack := Array new.
+      inspectedObject := anObject.
+      self populateSlots.
+      self notifyTitleChange
+  ]
+
+  # Slot population
+  method: populateSlots [
+      slotList clear.
+
+      # Add self
+      slotList addItem: 'self' secondary: (ObjectIntrospection classNameOf: inspectedObject).
+
+      # Add instance variables
+      (ObjectIntrospection instanceVariablesOf: inspectedObject) do: [:name |
+          | value |
+          value := ObjectIntrospection valueOf: name in: inspectedObject.
+          slotList addItem: name secondary: (ObjectIntrospection classNameOf: value)
+      ].
+
+      valueView text: 'Select a slot to see its value.'
+  ]
+
+  method: slotSelected: event [
+      | slotName value |
+      slotName := event dataAt: #main_text.
+      slotName ifNil: [^self].
+
+      slotName = 'self'
+          ifTrue: [value := inspectedObject]
+          ifFalse: [value := ObjectIntrospection valueOf: slotName in: inspectedObject].
+
+      valueView text: (ObjectIntrospection formatValue: value)
+  ]
+
+  # Navigation
+  method: drillDown [
+      | selectedIndex slotName value |
+      selectedIndex := slotList selectedIndex.
+      selectedIndex < 0 ifTrue: [^self].
+      selectedIndex = 0 ifTrue: [^self].
+
+      slotName := (ObjectIntrospection instanceVariablesOf: inspectedObject) at: selectedIndex.
+      value := ObjectIntrospection valueOf: slotName in: inspectedObject.
+
+      objectStack := objectStack copyWith: inspectedObject.
+      inspectedObject := value.
+      self populateSlots.
+      self notifyTitleChange
+  ]
+
+  method: goBack [
+      objectStack isEmpty ifTrue: [^self].
+
+      inspectedObject := objectStack last.
+      objectStack := objectStack copyFrom: 1 to: objectStack size - 1.
+      self populateSlots.
+      self notifyTitleChange
+  ]
+
+  # Key event handling (call from owner's key handler)
+  method: handleKeyEvent: event [
+      event isEnter ifTrue: [self drillDown].
+      event isEscape ifTrue: [self goBack]
+  ]
+
+  # Title notification
+  method: notifyTitleChange [
+      onTitleChangeBlock ifNotNil: [
+          onTitleChangeBlock value: 'Inspector: ', (ObjectIntrospection classNameOf: inspectedObject)
+      ]
+  ]
+
+  # Current title
+  method: title [
+      ^'Inspector: ', (ObjectIntrospection classNameOf: inspectedObject)
+  ]
+
+  # Refresh
+  method: refresh [
+      self populateSlots.
+      valueView text: ''
+  ]
+
+  method: printString [
+      ^'InspectorComponent(', (ObjectIntrospection classNameOf: inspectedObject), ')'
+  ]

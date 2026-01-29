@@ -398,8 +398,32 @@ func (vm *VM) primitiveClass(v Value) Value {
 		className = "Block"
 	case IsStringValue(v):
 		className = "String"
+	case IsDictionaryValue(v):
+		className = "Dictionary"
+	case v.IsException():
+		exObj := GetExceptionObject(v)
+		if exObj != nil && exObj.ExceptionClass != nil {
+			className = exObj.ExceptionClass.Name
+		} else {
+			className = "Exception"
+		}
 	case v.IsWeakRef():
 		className = "WeakReference"
+	case isChannelValue(v):
+		className = "Channel"
+	case isProcessValue(v):
+		className = "Process"
+	case isResultValue(v):
+		r := getResult(v)
+		if r != nil && r.resultType == ResultSuccess {
+			className = "Success"
+		} else {
+			className = "Failure"
+		}
+	case isGrpcClientValue(v):
+		className = "GrpcClient"
+	case isGrpcStreamValue(v):
+		className = "GrpcStream"
 	case v.IsSymbol():
 		className = "Symbol"
 	case v.IsObject():

@@ -18,6 +18,7 @@ import (
 	"google.golang.org/protobuf/types/descriptorpb"
 )
 
+
 // ---------------------------------------------------------------------------
 // GrpcClient Registry
 // ---------------------------------------------------------------------------
@@ -363,7 +364,8 @@ func protoToDictionary(vm *VM, msg *dynamic.Message) (Value, error) {
 	dict := NewDictionaryValue()
 
 	for _, field := range msg.GetKnownFields() {
-		if !msg.HasField(field) {
+		hasField := msg.HasField(field)
+		if !hasField {
 			continue
 		}
 

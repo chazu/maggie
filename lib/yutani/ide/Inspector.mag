@@ -1,9 +1,9 @@
 # Inspector.mag
 # Object inspector for Maggie IDE.
-# Displays object slots and their values.
+# Delegates to InspectorComponent for all inspection logic.
 
-Inspector subclass: Object
-  instanceVars: session mainFlex slotList valueView inspectedObject objectStack
+Inspector subclass: IDEToolBase
+  instanceVars: inspectorComponent
 
   # Creation
   classMethod: inspect: anObject in: aSession [
@@ -11,168 +11,46 @@ Inspector subclass: Object
   ]
 
   method: initializeFor: anObject in: aSession [
-      session := aSession.
-      inspectedObject := anObject.
-      objectStack := Array new.
-      self buildUI.
-      self populateSlots.
-      ^self
+      | result |
+      result := self initializeIn: aSession.
+      inspectorComponent inspect: anObject.
+      ^result
   ]
 
   method: buildUI [
+      inspectorComponent := InspectorComponent in: session.
+
       # Main horizontal layout
-      mainFlex := session createFlex.
-      mainFlex direction: #row.
-      mainFlex title: 'Inspector'.
-      mainFlex border: true.
+      mainWidget := session createFlex.
+      mainWidget direction: #row.
+      mainWidget title: inspectorComponent title.
+      mainWidget border: true.
 
-      # Slot list (left side)
-      slotList := session createList.
-      slotList title: 'Slots'.
-      slotList border: true.
-      slotList onSelected: [:e | self slotSelected: e].
+      mainWidget addItem: inspectorComponent slotList proportion: 1.
+      mainWidget addItem: inspectorComponent valueView proportion: 2.
 
-      # Value view (right side)
-      valueView := session createTextView.
-      valueView title: 'Value'.
-      valueView border: true.
-      valueView wordWrap: true.
-      valueView scrollable: true.
+      # Update title when navigation changes
+      inspectorComponent onTitleChange: [:title | mainWidget title: title].
 
-      # Add to layout
-      mainFlex addItem: slotList proportion: 1.
-      mainFlex addItem: valueView proportion: 2.
-
-      # Set up key bindings
       self setupKeyBindings
   ]
 
+  method: focusDefaultWidget [
+      inspectorComponent focus
+  ]
+
   method: setupKeyBindings [
+      # Register key handler directly (not via setupBaseKeyBindings:) because
+      # the VM has a known issue with invoking blocks passed as method arguments
+      # from within closure contexts (nested block invocation bug).
       session onKey: [:event |
           event isCtrl ifTrue: [
               event rune = 'q' ifTrue: [self close]
           ].
-          event isEnter ifTrue: [self drillDown].
-          event isEscape ifTrue: [self goBack]
+          inspectorComponent handleKeyEvent: event
       ]
   ]
 
-  method: open [
-      session setRoot: mainFlex.
-      slotList focus.
-      self updateTitle.
-      session run  "Block until event loop terminates"
-  ]
-
-  method: close [
-      session stopEventLoop.
-      session disconnect
-  ]
-
-  # Slot population
-  method: populateSlots [
-      slotList clear.
-
-      # Add self
-      slotList addItem: 'self' secondary: (self classNameOf: inspectedObject).
-
-      # Add instance variables
-      (self instanceVariablesOf: inspectedObject) do: [:name |
-          | value |
-          value := self valueOf: name in: inspectedObject.
-          slotList addItem: name secondary: (self classNameOf: value)
-      ]
-  ]
-
-  method: slotSelected: event [
-      | slotName value |
-      slotName := event dataAt: #main_text.
-      slotName ifNil: [^self].
-
-      slotName = 'self'
-          ifTrue: [value := inspectedObject]
-          ifFalse: [value := self valueOf: slotName in: inspectedObject].
-
-      valueView text: (self formatValue: value)
-  ]
-
-  # Navigation
-  method: drillDown [
-      | selectedIndex slotName value |
-      selectedIndex := slotList selectedIndex.
-      selectedIndex < 0 ifTrue: [^self].
-
-      selectedIndex = 0
-          ifTrue: [^self]. # Can't drill into self
-
-      # Get the slot name and value
-      slotName := (self instanceVariablesOf: inspectedObject) at: selectedIndex.
-      value := self valueOf: slotName in: inspectedObject.
-
-      # Push current object and inspect new one
-      objectStack := objectStack copyWith: inspectedObject.
-      inspectedObject := value.
-      self populateSlots.
-      self updateTitle
-  ]
-
-  method: goBack [
-      objectStack isEmpty ifTrue: [^self].
-
-      inspectedObject := objectStack last.
-      objectStack := objectStack copyFrom: 1 to: objectStack size - 1.
-      self populateSlots.
-      self updateTitle
-  ]
-
-  method: updateTitle [
-      mainFlex title: 'Inspector: ', (self classNameOf: inspectedObject)
-  ]
-
-  # Object introspection
-  method: classNameOf: anObject [
-      "Return the class name of an object as a string."
-      anObject isNil ifTrue: [^'UndefinedObject'].
-      ^anObject class name
-  ]
-
-  method: instanceVariablesOf: anObject [
-      "Return an array of instance variable names for the object."
-      anObject isNil ifTrue: [^Array new].
-      ^anObject class allInstVarNames
-  ]
-
-  method: valueOf: slotName in: anObject [
-      "Return the value of the named instance variable."
-      | varNames index |
-      anObject isNil ifTrue: [^nil].
-
-      varNames := self instanceVariablesOf: anObject.
-      index := varNames indexOf: slotName.
-      index = 0 ifTrue: [
-          "Try as symbol if string lookup failed"
-          index := varNames indexOf: slotName asSymbol
-      ].
-      index = 0 ifTrue: [^nil].
-
-      ^anObject instVarAt: index
-  ]
-
-  method: formatValue: value [
-      value isNil ifTrue: [^'nil'].
-      (value isKindOf: String) ifTrue: [
-          ^'''', value, ''''
-      ].
-      ^value printString
-  ]
-
-  # Refresh
-  method: refresh [
-      self populateSlots.
-      valueView text: ''
-  ]
-
-  # Printing
   method: printString [
-      ^'Inspector(', (self classNameOf: inspectedObject), ')'
+      ^'Inspector'
   ]

@@ -1,144 +1,41 @@
 # MaggieREPL.mag
 # Interactive Read-Eval-Print Loop for Maggie.
+# Delegates to REPLComponent for all REPL logic.
 
-MaggieREPL subclass: Object
-  instanceVars: session mainFlex historyView inputField history historyIndex bindings
-
-  # Creation
-  classMethod: openIn: aSession [
-      ^self new initializeIn: aSession; open
-  ]
-
-  method: initializeIn: aSession [
-      session := aSession.
-      history := Array new.
-      historyIndex := 0.
-      bindings := Dictionary new.
-      self buildUI.
-      ^self
-  ]
+MaggieREPL subclass: IDEToolBase
+  instanceVars: replComponent
 
   method: buildUI [
+      replComponent := REPLComponent in: session.
+
       # Main vertical layout
-      mainFlex := session createFlex.
-      mainFlex direction: #column.
-      mainFlex title: 'Maggie REPL'.
-      mainFlex border: true.
+      mainWidget := session createFlex.
+      mainWidget direction: #column.
+      mainWidget title: 'Maggie REPL'.
+      mainWidget border: true.
 
-      # History view (scrollable text)
-      historyView := session createTextView.
-      historyView border: false.
-      historyView scrollable: true.
-      historyView dynamicColors: true.
-      historyView text: 'Welcome to Maggie REPL
-Type expressions to evaluate. Ctrl-Q to quit.
-> '.
+      mainWidget addItem: replComponent historyView proportion: 1.
+      mainWidget addItem: replComponent inputField fixedSize: 1.
 
-      # Input field
-      inputField := session createInputField.
-      inputField label: '> '.
-
-      # Add to layout
-      mainFlex addItem: historyView proportion: 1.
-      mainFlex addItem: inputField fixedSize: 1.
-
-      # Set up key bindings
       self setupKeyBindings
   ]
 
+  method: focusDefaultWidget [
+      replComponent focus
+  ]
+
   method: setupKeyBindings [
+      # Register key handler directly (not via setupBaseKeyBindings:) because
+      # the VM has a known issue with invoking blocks passed as method arguments
+      # from within closure contexts (nested block invocation bug).
       session onKey: [:event |
-          event isEnter ifTrue: [self evaluate].
           event isCtrl ifTrue: [
-              event rune = 'q' ifTrue: [self close].
-              event rune = 'l' ifTrue: [self clearHistory]
+              event rune = 'q' ifTrue: [self close]
           ].
-          event isUp ifTrue: [self historyPrevious].
-          event isDown ifTrue: [self historyNext]
+          replComponent handleKeyEvent: event
       ]
   ]
 
-  method: open [
-      session setRoot: mainFlex.
-      inputField focus.
-      session run  "Block until event loop terminates"
-  ]
-
-  method: close [
-      session stopEventLoop.
-      session disconnect
-  ]
-
-  # Evaluation
-  method: evaluate [
-      | source result output |
-      source := inputField text.
-      source isEmpty ifTrue: [^self].
-
-      # Add to history
-      history := history copyWith: source.
-      historyIndex := history size.
-
-      # Evaluate the expression
-      result := self doEvaluate: source.
-      output := source, '
-=> ', result printString, '
-> '.
-
-      self appendOutput: output.
-      inputField text: ''
-  ]
-
-  method: doEvaluate: source [
-      "Compile and execute the source expression using the Compiler primitive."
-      ^Compiler evaluate: source
-  ]
-
-  method: appendOutput: text [
-      | currentText |
-      currentText := historyView text.
-      historyView text: currentText, text
-  ]
-
-  method: clearHistory [
-      historyView text: '> '.
-      inputField text: ''
-  ]
-
-  # History navigation
-  method: historyPrevious [
-      history isEmpty ifTrue: [^self].
-      historyIndex > 1 ifTrue: [
-          historyIndex := historyIndex - 1.
-          inputField text: (history at: historyIndex)
-      ]
-  ]
-
-  method: historyNext [
-      history isEmpty ifTrue: [^self].
-      historyIndex < history size ifTrue: [
-          historyIndex := historyIndex + 1.
-          inputField text: (history at: historyIndex)
-      ] ifFalse: [
-          historyIndex := history size + 1.
-          inputField text: ''
-      ]
-  ]
-
-  # Bindings management
-  method: bind: name to: value [
-      bindings at: name put: value
-  ]
-
-  method: unbind: name [
-      bindings removeKey: name ifAbsent: []
-  ]
-
-  method: bindings [
-      ^bindings copy
-  ]
-
-  # Printing
   method: printString [
       ^'MaggieREPL'
   ]

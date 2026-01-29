@@ -421,6 +421,88 @@ func TestDictionaryOverwriteValue(t *testing.T) {
 	}
 }
 
+// TestDictionaryNestedProtoStyle tests that nested dictionaries created via
+// DictionaryAtPut (simulating protoToDictionary) work with Send-based at:/keys
+func TestDictionaryNestedProtoStyle(t *testing.T) {
+	vm := NewVM()
+
+	// Simulate what protoToDictionary does for widget_id: {id: "some-uuid"}
+	innerDict := NewDictionaryValue()
+	idKey := vm.Symbols.SymbolValue("id")
+	idVal := NewStringValue("test-uuid-1234")
+	vm.DictionaryAtPut(innerDict, idKey, idVal)
+
+	// Verify the inner dict is a proper dictionary
+	if !IsDictionaryValue(innerDict) {
+		t.Fatal("inner dict is not a dictionary value")
+	}
+
+	// Verify ClassFor returns DictionaryClass
+	class := vm.ClassFor(innerDict)
+	if class != vm.DictionaryClass {
+		t.Errorf("ClassFor(innerDict) = %v, want DictionaryClass", class.Name)
+	}
+
+	// Test keys via Send
+	keysResult := vm.Send(innerDict, "keys", nil)
+	if keysResult == Nil {
+		t.Fatal("keys returned Nil")
+	}
+	if !keysResult.IsObject() {
+		t.Fatalf("keys returned non-object: IsSmallInt=%v IsSymbol=%v", keysResult.IsSmallInt(), keysResult.IsSymbol())
+	}
+	keysArr := ObjectFromValue(keysResult)
+	if keysArr == nil {
+		t.Fatal("keys returned nil object")
+	}
+	if keysArr.NumSlots() != 1 {
+		t.Errorf("keys has %d elements, want 1", keysArr.NumSlots())
+	}
+
+	// Test at: with symbol key via Send
+	lookupKey := vm.Symbols.SymbolValue("id")
+	result := vm.Send(innerDict, "at:", []Value{lookupKey})
+	if result == Nil {
+		t.Fatal("at: #id returned Nil on nested dict")
+	}
+	if !IsStringValue(result) {
+		t.Fatalf("at: #id returned non-string, IsSymbol=%v IsSmallInt=%v", result.IsSymbol(), result.IsSmallInt())
+	}
+	if GetStringContent(result) != "test-uuid-1234" {
+		t.Errorf("at: #id returned %q, want %q", GetStringContent(result), "test-uuid-1234")
+	}
+
+	// Test size
+	sizeResult := vm.Send(innerDict, "size", nil)
+	if !sizeResult.IsSmallInt() || sizeResult.SmallInt() != 1 {
+		t.Errorf("size = %v, want 1", sizeResult)
+	}
+
+	// Now simulate full proto structure: outer dict with nested dict as value
+	outerDict := NewDictionaryValue()
+	vm.DictionaryAtPut(outerDict, vm.Symbols.SymbolValue("widget_id"), innerDict)
+	vm.DictionaryAtPut(outerDict, vm.Symbols.SymbolValue("type"), vm.Symbols.SymbolValue("WIDGET_DONE"))
+
+	// Get the nested dict back
+	widgetIdKey := vm.Symbols.SymbolValue("widget_id")
+	nestedResult := vm.Send(outerDict, "at:", []Value{widgetIdKey})
+	if nestedResult == Nil {
+		t.Fatal("at: #widget_id returned Nil")
+	}
+	if !IsDictionaryValue(nestedResult) {
+		t.Fatalf("at: #widget_id returned non-dict, IsDictionary=%v IsSymbol=%v", IsDictionaryValue(nestedResult), nestedResult.IsSymbol())
+	}
+
+	// Now lookup #id on the retrieved nested dict
+	idResult := vm.Send(nestedResult, "at:", []Value{vm.Symbols.SymbolValue("id")})
+	if idResult == Nil {
+		t.Fatal("at: #id on retrieved nested dict returned Nil")
+	}
+	if GetStringContent(idResult) != "test-uuid-1234" {
+		t.Errorf("at: #id on nested dict = %q, want %q", GetStringContent(idResult), "test-uuid-1234")
+	}
+}
+
 func TestDictionaryClassAssignment(t *testing.T) {
 	vm := NewVM()
 

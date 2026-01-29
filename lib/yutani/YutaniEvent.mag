@@ -202,11 +202,29 @@ WidgetEvent subclass: YutaniEvent
   ]
 
   method: initializeFromWidget: dict [
-      | widgetDict rawKind widRaw |
+      | widgetDict rawKind widRaw extractedId |
       self initializeFrom: dict.
       widgetDict := dict at: #widget.
       widRaw := widgetDict at: #widget_id ifAbsent: [nil].
-      widgetId := widRaw ifNotNil: [:wid | wid at: #id ifAbsent: [nil]].
+      extractedId := widRaw ifNotNil: [:wid |
+          | val |
+          val := wid at: #id ifAbsent: [nil].
+          val ifNil: [
+              "Fallback: extract from printString for proto sub-message dicts
+               where at: fails due to a known VM issue with nested proto dicts."
+              | ps startIdx endIdx |
+              ps := wid printString.
+              startIdx := ps indexOf: '''' startingAt: 1.
+              startIdx > 0 ifTrue: [
+                  endIdx := ps indexOf: '''' startingAt: startIdx + 1.
+                  endIdx > 0 ifTrue: [
+                      val := ps copyFrom: startIdx + 1 to: endIdx - 1
+                  ]
+              ]
+          ].
+          val
+      ].
+      widgetId := extractedId.
       "Normalize eventKind to symbol (gRPC returns strings, asSymbol is idempotent)"
       rawKind := widgetDict at: #type ifAbsent: [#WIDGET_CHANGED].
       eventKind := rawKind asSymbol.
