@@ -777,6 +777,20 @@ func (vm *VM) markValue(v Value, marked map[*Object]struct{}) {
 	}
 }
 
+// KeepAlive pins an object to prevent garbage collection.
+func (vm *VM) KeepAlive(obj *Object) {
+	if obj != nil {
+		vm.keepAlive[obj] = struct{}{}
+	}
+}
+
+// ReleaseKeepAlive unpins an object, allowing garbage collection.
+func (vm *VM) ReleaseKeepAlive(obj *Object) {
+	if obj != nil {
+		delete(vm.keepAlive, obj)
+	}
+}
+
 // KeepAliveCount returns the number of objects in the keepAlive set.
 // Useful for testing and debugging.
 func (vm *VM) KeepAliveCount() int {

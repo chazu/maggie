@@ -1,0 +1,49 @@
+syntax = "proto3";
+
+package maggie.v1;
+
+option go_package = "github.com/chazu/maggie/gen/maggie/v1;maggiev1";
+
+import "maggie/v1/common.proto";
+
+service SessionService {
+  // CreateSession creates a new workspace session with its own globals.
+  rpc CreateSession(CreateSessionRequest) returns (CreateSessionResponse);
+
+  // DestroySession destroys a session and releases all its handles.
+  rpc DestroySession(DestroySessionRequest) returns (DestroySessionResponse);
+
+  // Complete returns completion candidates at a given prefix.
+  rpc Complete(CompleteRequest) returns (CompleteResponse);
+}
+
+message CreateSessionRequest {
+  string name = 1;  // optional: human-readable session name
+}
+
+message CreateSessionResponse {
+  string session_id = 1;
+}
+
+message DestroySessionRequest {
+  string session_id = 1;
+}
+
+message DestroySessionResponse {}
+
+message CompleteRequest {
+  string session_id = 1;
+  string prefix = 2;           // text before cursor
+  string context_source = 3;   // full buffer for richer completion (optional)
+}
+
+message CompletionItem {
+  string label = 1;        // the completion text
+  string kind = 2;         // "selector", "class", "global", "keyword"
+  string detail = 3;       // e.g. class name, argument pattern
+  string insert_text = 4;  // text to insert (may differ from label for keywords)
+}
+
+message CompleteResponse {
+  repeated CompletionItem items = 1;
+}

@@ -1,0 +1,46 @@
+syntax = "proto3";
+
+package maggie.v1;
+
+option go_package = "github.com/chazu/maggie/gen/maggie/v1;maggiev1";
+
+import "maggie/v1/common.proto";
+
+service EvaluationService {
+  // Evaluate executes a Maggie expression and returns the result.
+  rpc Evaluate(EvaluateRequest) returns (EvaluateResponse);
+
+  // EvaluateInContext executes an expression with a specific receiver object.
+  rpc EvaluateInContext(EvaluateInContextRequest) returns (EvaluateResponse);
+
+  // CheckSyntax validates source without executing it.
+  rpc CheckSyntax(CheckSyntaxRequest) returns (CheckSyntaxResponse);
+}
+
+message EvaluateRequest {
+  string source = 1;
+  string session_id = 2;  // optional: use session globals
+}
+
+message EvaluateInContextRequest {
+  string source = 1;
+  string session_id = 2;
+  ObjectHandle context = 3;  // receiver object for evaluation
+}
+
+message EvaluateResponse {
+  bool success = 1;
+  string result = 2;            // printString of the result
+  ObjectHandle handle = 3;      // handle to result object (for inspectIt)
+  string error_message = 4;     // set when success=false
+  repeated Diagnostic diagnostics = 5;
+}
+
+message CheckSyntaxRequest {
+  string source = 1;
+}
+
+message CheckSyntaxResponse {
+  bool valid = 1;
+  repeated Diagnostic diagnostics = 2;
+}

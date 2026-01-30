@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/chazu/maggie/compiler"
+	"github.com/chazu/maggie/server"
 	"github.com/chazu/maggie/vm"
 )
 
@@ -26,6 +27,8 @@ func main() {
 	yutaniAddr := flag.String("yutani-addr", "localhost:7755", "Yutani server address")
 	yutaniTool := flag.String("ide-tool", "launcher", "IDE tool to start: launcher, inspector, repl")
 	useMaggieCompiler := flag.Bool("experimental-maggie-compiler", false, "Use experimental Maggie self-hosting compiler instead of Go compiler")
+	serveMode := flag.Bool("serve", false, "Start language server (gRPC + Connect HTTP/JSON)")
+	servePort := flag.Int("port", 4567, "Language server port (used with --serve)")
 
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Usage: mag [options] [paths...]\n\n")
@@ -39,6 +42,9 @@ func main() {
 		fmt.Fprintf(os.Stderr, "  mag --yutani           # Start Yutani IDE launcher (connects to localhost:7755)\n")
 		fmt.Fprintf(os.Stderr, "  mag --yutani --ide-tool inspector  # Start Inspector directly\n")
 		fmt.Fprintf(os.Stderr, "  mag --yutani --yutani-addr host:port  # Connect to specific server\n")
+		fmt.Fprintf(os.Stderr, "\nLanguage Server:\n")
+		fmt.Fprintf(os.Stderr, "  mag --serve                    # Start language server on :4567\n")
+		fmt.Fprintf(os.Stderr, "  mag ./lib/... --serve --port 8080  # Load libs, serve on :8080\n")
 		fmt.Fprintf(os.Stderr, "\nExperimental:\n")
 		fmt.Fprintf(os.Stderr, "  mag -i --experimental-maggie-compiler  # Use self-hosting compiler\n")
 	}
@@ -104,6 +110,18 @@ func main() {
 		// If main returns a small integer, use it as exit code
 		if result.IsSmallInt() {
 			os.Exit(int(result.SmallInt()))
+		}
+		os.Exit(0)
+	}
+
+	// Start language server if requested
+	if *serveMode {
+		addr := fmt.Sprintf(":%d", *servePort)
+		srv := server.New(vmInst)
+		defer srv.Stop()
+		if err := srv.ListenAndServe(addr); err != nil {
+			fmt.Fprintf(os.Stderr, "Server error: %v\n", err)
+			os.Exit(1)
 		}
 		os.Exit(0)
 	}
@@ -557,8 +575,8 @@ func runYutaniIDE(vmInst *vm.VM, addr string, tool string, verbose bool) error {
 	// Determine startup code based on tool selection
 	var startupCode string
 	switch tool {
-	case "launcher", "ide":
-		startupCode = fmt.Sprintf("MaggieIDE openIn: (YutaniSession connectTo: '%s')", addr)
+	case "launcher", "ide", "desktop":
+		startupCode = fmt.Sprintf("MaggieDesktop openIn: (YutaniSession connectTo: '%s')", addr)
 	case "browser":
 		return fmt.Errorf("ClassBrowser is shelved (see lib/yutani/ide/shelved/). Use: launcher, inspector, repl")
 	case "inspector":

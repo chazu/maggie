@@ -1,0 +1,54 @@
+syntax = "proto3";
+
+package maggie.v1;
+
+option go_package = "github.com/chazu/maggie/gen/maggie/v1;maggiev1";
+
+// ObjectHandle is an opaque reference to a VM-side object.
+// Clients pass handles back to the server for inspection/manipulation.
+message ObjectHandle {
+  string id = 1;            // e.g. "h-42"
+  string class_name = 2;    // e.g. "Array"
+  string display_string = 3; // printString result
+}
+
+// SourcePosition identifies a location in source code.
+message SourcePosition {
+  string source = 1;  // filename or class>>selector
+  int32 line = 2;
+  int32 column = 3;
+}
+
+// Diagnostic represents a compiler error or warning.
+message Diagnostic {
+  enum Severity {
+    SEVERITY_UNSPECIFIED = 0;
+    ERROR = 1;
+    WARNING = 2;
+    INFO = 3;
+    HINT = 4;
+  }
+
+  Severity severity = 1;
+  string message = 2;
+  SourcePosition position = 3;
+}
+
+// ClassInfo provides summary information about a class.
+message ClassInfo {
+  string name = 1;
+  string superclass_name = 2;
+  repeated string instance_variable_names = 3;
+  repeated string class_variable_names = 4;
+  int32 instance_method_count = 5;
+  int32 class_method_count = 6;
+}
+
+// MethodInfo provides summary information about a method.
+message MethodInfo {
+  string selector = 1;
+  string class_name = 2;
+  bool is_class_side = 3;
+  bool is_primitive = 4;
+  string source = 5;  // source code if available
+}

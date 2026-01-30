@@ -1,4 +1,4 @@
-.PHONY: all bootstrap mag clean test test-ide test-all
+.PHONY: all bootstrap mag clean test test-ide test-all proto serve
 
 # Default target builds everything
 all: mag
@@ -11,6 +11,14 @@ bootstrap:
 mag: bootstrap
 	cp maggie.image cmd/mag/
 	go build -o mag ./cmd/mag/
+
+# Generate Go code from protobuf definitions
+proto:
+	cd proto && buf generate
+
+# Start the language server on port 4567
+serve: mag
+	./mag --serve --port 4567
 
 # Run Go unit tests
 test:
