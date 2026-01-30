@@ -36,6 +36,14 @@ YutaniMenu subclass: YutaniWidget
               self error: 'RemoveMenuItem failed: ', err printString]
   ]
 
+  # Add a separator item
+  method: addSeparator [
+      | sep |
+      sep := session createMenuItem.
+      sep separator: true.
+      self addItem: sep
+  ]
+
   # Printing
   method: printString [
       ^'YutaniMenu(', widgetId, ')'

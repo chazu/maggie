@@ -26,7 +26,7 @@ ScratchpadComponent subclass: Object
       textArea border: false.
 
       "Suppress keys that we handle ourselves"
-      textArea suppressKeys: #('ctrl+d' 'ctrl+p' 'ctrl+i' 'ctrl+space' 'ctrl+g').
+      textArea suppressKeys: #('ctrl+d' 'ctrl+p' 'ctrl+i' 'ctrl+space' 'ctrl+g' 'ctrl+n').
   ]
 
   # Public API

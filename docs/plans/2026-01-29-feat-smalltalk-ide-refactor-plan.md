@@ -742,14 +742,14 @@ method: quit [
 - Test focus routing: type in one scratchpad, switch to another, verify input goes to correct one
 
 **Acceptance criteria:**
-- [ ] IDE launches to empty desktop with menu bar
-- [ ] File > New Scratchpad creates a floating scratchpad window
-- [ ] Ctrl+N creates a new scratchpad
-- [ ] Ctrl+Q quits cleanly (only place stopEventLoop is called)
-- [ ] Ctrl+I in scratchpad opens a floating inspector for the result
-- [ ] Multiple scratchpads and inspectors can coexist
-- [ ] Window close properly cleans up components
-- [ ] Keyboard input routes to the active (frontmost) window
+- [x] IDE launches to empty desktop with menu bar
+- [x] File > New Scratchpad creates a floating scratchpad window
+- [x] Ctrl+N creates a new scratchpad
+- [x] Ctrl+Q quits cleanly (only place stopEventLoop is called)
+- [x] Ctrl+I in scratchpad opens a floating inspector for the result
+- [x] Multiple scratchpads and inspectors can coexist
+- [x] Window close properly cleans up components
+- [x] Keyboard input routes to the active (frontmost) window
 
 ---
 
