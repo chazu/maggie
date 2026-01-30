@@ -1,0 +1,42 @@
+# ScratchpadEnvironment.mag
+# Provides per-scratchpad variable scope for evaluate-and-inspect workflows.
+# Each ScratchpadEnvironment maintains its own local variables dictionary
+# that is overlaid onto globals during evaluation.
+
+ScratchpadEnvironment subclass: Object
+  instanceVars: locals
+
+  method: initialize [
+      locals := Dictionary new
+  ]
+
+  # Evaluate source code with this environment's local variables.
+  # New assignments are captured into the locals dictionary.
+  method: evaluate: sourceCode [
+      ^Compiler evaluate: sourceCode withLocals: locals
+  ]
+
+  # Access a local variable by name
+  method: localAt: name [
+      ^locals at: name ifAbsent: [nil]
+  ]
+
+  # Set a local variable by name
+  method: localAt: name put: value [
+      locals at: name put: value
+  ]
+
+  # Get the full locals dictionary
+  method: locals [
+      ^locals
+  ]
+
+  # Clear all local variables
+  method: clearLocals [
+      locals := Dictionary new
+  ]
+
+  # Printing
+  method: printString [
+      ^'ScratchpadEnvironment(', locals size printString, ' locals)'
+  ]

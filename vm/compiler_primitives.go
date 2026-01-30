@@ -119,6 +119,111 @@ func (vm *VM) registerCompilerPrimitives() {
 		return Nil
 	})
 
+	// evaluate:withLocals: - Compile and execute an expression with local variable bindings.
+	// The locals parameter is a Maggie Dictionary mapping variable names (symbols/strings) to values.
+	// Locals are overlaid onto globals during evaluation. Assignments write to local scope.
+	// After execution, new/modified variables are written back to the locals dictionary.
+	compilerClass.AddClassMethod2(vm.Selectors, "evaluate:withLocals:", func(vmPtr interface{}, recv Value, sourceVal, localsVal Value) Value {
+		v := vmPtr.(*VM)
+
+		// Get the source string
+		var source string
+		if IsStringValue(sourceVal) {
+			source = GetStringContent(sourceVal)
+		} else if sourceVal.IsSymbol() {
+			source = v.Symbols.Name(sourceVal.SymbolID())
+		} else {
+			return v.newFailureResult("evaluate:withLocals: requires a String argument")
+		}
+
+		// Get the locals dictionary
+		dict := GetDictionaryObject(localsVal)
+		if dict == nil {
+			return v.newFailureResult("evaluate:withLocals: requires a Dictionary for locals")
+		}
+
+		// Extract local variable names and values from the dictionary
+		localNames := make(map[string]bool)
+		savedGlobals := make(map[string]Value)
+
+		for h, keyVal := range dict.Keys {
+			var name string
+			if keyVal.IsSymbol() {
+				name = v.Symbols.Name(keyVal.SymbolID())
+			} else if IsStringValue(keyVal) {
+				name = GetStringContent(keyVal)
+			} else {
+				continue
+			}
+
+			localNames[name] = true
+
+			// Save existing global value (if any) for restoration
+			if existing, ok := v.interpreter.Globals[name]; ok {
+				savedGlobals[name] = existing
+			}
+
+			// Inject local value into globals
+			v.interpreter.Globals[name] = dict.Data[h]
+		}
+
+		// Take a snapshot of all global keys before execution
+		// so we can detect new assignments
+		preExecGlobals := make(map[string]bool)
+		for k := range v.interpreter.Globals {
+			preExecGlobals[k] = true
+		}
+
+		// Compile the expression
+		method, err := v.CompileExpression(source)
+		if err != nil {
+			// Restore globals before returning error
+			v.restoreGlobals(localNames, savedGlobals)
+			return v.newFailureResult("Compilation error: " + err.Error())
+		}
+		if method == nil {
+			v.restoreGlobals(localNames, savedGlobals)
+			return v.newFailureResult("Compilation returned nil")
+		}
+
+		// Execute the compiled method
+		result := v.Execute(method, Nil, nil)
+
+		// Write back modified/new locals to the dictionary
+		for name := range localNames {
+			if val, ok := v.interpreter.Globals[name]; ok {
+				// Write current value back to locals dict
+				symKey := v.Symbols.SymbolValue(name)
+				h := hashValue(symKey)
+				dict.Data[h] = val
+				dict.Keys[h] = symKey
+			}
+		}
+
+		// Also capture any NEW variables assigned during execution
+		// (variables that didn't exist in globals before and aren't class names)
+		for name, val := range v.interpreter.Globals {
+			if !preExecGlobals[name] && !localNames[name] {
+				// This is a new variable created during evaluation
+				// Write it to the locals dictionary
+				symKey := v.Symbols.SymbolValue(name)
+				h := hashValue(symKey)
+				dict.Data[h] = val
+				dict.Keys[h] = symKey
+				localNames[name] = true
+
+				// Save for cleanup (it wasn't in globals before)
+				// savedGlobals won't have it, which means restoreGlobals
+				// will delete it from globals
+			}
+		}
+
+		// Restore globals to their pre-evaluation state
+		v.restoreGlobals(localNames, savedGlobals)
+
+		return result
+	})
+
 	// compileMethod: - Compile a method definition and return the CompiledMethod info
 	// Returns a Dictionary with bytecode, literals, etc. (same as Maggie Compiler.compile:)
 	// This is mainly for tooling/IDE use
@@ -143,6 +248,18 @@ func (vm *VM) registerCompilerPrimitives() {
 		// Return info about the compiled method as a Dictionary
 		return v.methodInfoDict(method)
 	})
+}
+
+// restoreGlobals restores the interpreter's Globals map after evaluate:withLocals: execution.
+// For each local name: if it had a saved value, restore it; otherwise delete it from globals.
+func (vm *VM) restoreGlobals(localNames map[string]bool, savedGlobals map[string]Value) {
+	for name := range localNames {
+		if saved, ok := savedGlobals[name]; ok {
+			vm.interpreter.Globals[name] = saved
+		} else {
+			delete(vm.interpreter.Globals, name)
+		}
+	}
 }
 
 // newFailureResult creates a Failure result with the given reason string.

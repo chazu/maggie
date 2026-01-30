@@ -1,0 +1,46 @@
+# YutaniMenuItem.mag
+# Wrapper for Yutani MenuItem widget.
+# Represents a single item in a menu (label, shortcut, separator, or disabled).
+
+YutaniMenuItem subclass: YutaniWidget
+
+  # Label
+  method: label: aString [
+      self setProperties: (Dictionary new
+          at: #menu_item put: (Dictionary new
+              at: #label put: aString;
+              yourself);
+          yourself)
+  ]
+
+  # Shortcut display text (cosmetic only)
+  method: shortcutDisplay: aString [
+      self setProperties: (Dictionary new
+          at: #menu_item put: (Dictionary new
+              at: #shortcut_display put: aString;
+              yourself);
+          yourself)
+  ]
+
+  # Separator
+  method: separator: aBoolean [
+      self setProperties: (Dictionary new
+          at: #menu_item put: (Dictionary new
+              at: #separator put: aBoolean;
+              yourself);
+          yourself)
+  ]
+
+  # Disabled
+  method: disabled: aBoolean [
+      self setProperties: (Dictionary new
+          at: #menu_item put: (Dictionary new
+              at: #disabled put: aBoolean;
+              yourself);
+          yourself)
+  ]
+
+  # Printing
+  method: printString [
+      ^'YutaniMenuItem(', widgetId, ')'
+  ]

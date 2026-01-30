@@ -127,6 +127,16 @@ YutaniSession subclass: Object
           ^YutaniButton new initializeWith: self id: widgetId].
       widgetType = 'WIDGET_BOX' ifTrue: [
           ^YutaniBox new initializeWith: self id: widgetId].
+      widgetType = 'WIDGET_WINDOW' ifTrue: [
+          ^YutaniWindow new initializeWith: self id: widgetId].
+      widgetType = 'WIDGET_WINDOW_MANAGER' ifTrue: [
+          ^YutaniWindowManager new initializeWith: self id: widgetId].
+      widgetType = 'WIDGET_MENU_BAR' ifTrue: [
+          ^YutaniMenuBar new initializeWith: self id: widgetId].
+      widgetType = 'WIDGET_MENU' ifTrue: [
+          ^YutaniMenu new initializeWith: self id: widgetId].
+      widgetType = 'WIDGET_MENU_ITEM' ifTrue: [
+          ^YutaniMenuItem new initializeWith: self id: widgetId].
       # Default to base widget class
       ^YutaniWidget new initializeWith: self id: widgetId
   ]
@@ -143,6 +153,11 @@ YutaniSession subclass: Object
   method: createFlex [ ^self createWidget: 'WIDGET_FLEX' ]
   method: createGrid [ ^self createWidget: 'WIDGET_GRID' ]
   method: createPages [ ^self createWidget: 'WIDGET_PAGES' ]
+  method: createWindow [ ^self createWidget: 'WIDGET_WINDOW' ]
+  method: createWindowManager [ ^self createWidget: 'WIDGET_WINDOW_MANAGER' ]
+  method: createMenuBar [ ^self createWidget: 'WIDGET_MENU_BAR' ]
+  method: createMenu [ ^self createWidget: 'WIDGET_MENU' ]
+  method: createMenuItem [ ^self createWidget: 'WIDGET_MENU_ITEM' ]
 
   # Display management
   method: setRoot: widget [

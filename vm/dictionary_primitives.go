@@ -72,6 +72,11 @@ func GetDictionaryObject(v Value) *DictionaryObject {
 	return nil
 }
 
+// HashValue computes a hash for a Maggie Value (exported for testing).
+func HashValue(v Value) uint64 {
+	return hashValue(v)
+}
+
 // hashValue computes a hash for a Maggie Value.
 // This is used as the key in the underlying Go map.
 func hashValue(v Value) uint64 {

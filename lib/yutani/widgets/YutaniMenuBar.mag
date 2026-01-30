@@ -1,0 +1,64 @@
+# YutaniMenuBar.mag
+# Wrapper for Yutani MenuBar widget.
+# Renders a horizontal menu bar with dropdown menus.
+
+YutaniMenuBar subclass: YutaniWidget
+
+  # Add a menu to this menu bar
+  method: addMenu: aMenu [
+      | request |
+      request := Dictionary new
+          at: #session_id put: (Dictionary new at: #id put: session sessionId; yourself);
+          at: #menu_bar_id put: (Dictionary new at: #id put: widgetId; yourself);
+          at: #menu_id put: (Dictionary new at: #id put: aMenu widgetId; yourself);
+          yourself.
+      (session client call: 'industries.loosh.yutani.v1.MenuService/AddMenu' with: request)
+          onSuccess: [:resp |
+              children := children copyWith: aMenu.
+              aMenu parent: self]
+          onFailure: [:err |
+              self error: 'AddMenu failed: ', err printString]
+  ]
+
+  # Color properties
+  method: barBackgroundColor: colorDict [
+      self setProperties: (Dictionary new
+          at: #menu_bar put: (Dictionary new
+              at: #background_color put: colorDict;
+              yourself);
+          yourself)
+  ]
+
+  method: barTextColor: colorDict [
+      self setProperties: (Dictionary new
+          at: #menu_bar put: (Dictionary new
+              at: #text_color put: colorDict;
+              yourself);
+          yourself)
+  ]
+
+  method: activeBackgroundColor: colorDict [
+      self setProperties: (Dictionary new
+          at: #menu_bar put: (Dictionary new
+              at: #active_background_color put: colorDict;
+              yourself);
+          yourself)
+  ]
+
+  method: activeTextColor: colorDict [
+      self setProperties: (Dictionary new
+          at: #menu_bar put: (Dictionary new
+              at: #active_text_color put: colorDict;
+              yourself);
+          yourself)
+  ]
+
+  # Event handler for menu item selection
+  method: onItemSelected: aBlock [
+      self on: #WIDGET_MENU_ITEM_SELECTED do: aBlock
+  ]
+
+  # Printing
+  method: printString [
+      ^'YutaniMenuBar(', widgetId, ')'
+  ]

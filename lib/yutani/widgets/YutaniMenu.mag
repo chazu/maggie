@@ -1,0 +1,42 @@
+# YutaniMenu.mag
+# Wrapper for Yutani Menu widget.
+# A named menu that contains menu items.
+
+YutaniMenu subclass: YutaniWidget
+
+  # Add a menu item to this menu
+  method: addItem: aMenuItem [
+      | request |
+      request := Dictionary new
+          at: #session_id put: (Dictionary new at: #id put: session sessionId; yourself);
+          at: #menu_id put: (Dictionary new at: #id put: widgetId; yourself);
+          at: #menu_item_id put: (Dictionary new at: #id put: aMenuItem widgetId; yourself);
+          yourself.
+      (session client call: 'industries.loosh.yutani.v1.MenuService/AddMenuItem' with: request)
+          onSuccess: [:resp |
+              children := children copyWith: aMenuItem.
+              aMenuItem parent: self]
+          onFailure: [:err |
+              self error: 'AddMenuItem failed: ', err printString]
+  ]
+
+  # Remove a menu item from this menu
+  method: removeItem: aMenuItem [
+      | request |
+      request := Dictionary new
+          at: #session_id put: (Dictionary new at: #id put: session sessionId; yourself);
+          at: #menu_id put: (Dictionary new at: #id put: widgetId; yourself);
+          at: #menu_item_id put: (Dictionary new at: #id put: aMenuItem widgetId; yourself);
+          yourself.
+      (session client call: 'industries.loosh.yutani.v1.MenuService/RemoveMenuItem' with: request)
+          onSuccess: [:resp |
+              children := children reject: [:w | w = aMenuItem].
+              aMenuItem parent: nil]
+          onFailure: [:err |
+              self error: 'RemoveMenuItem failed: ', err printString]
+  ]
+
+  # Printing
+  method: printString [
+      ^'YutaniMenu(', widgetId, ')'
+  ]

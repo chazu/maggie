@@ -398,11 +398,11 @@ class: ScratchpadEnvironment [
 - Test global fallthrough: scratchpad can read Compiler globals (class names, previously set globals)
 
 **Acceptance criteria:**
-- [ ] `YutaniWindow` can be created, positioned, resized, and titled from Maggie code
-- [ ] `YutaniWindowManager` manages multiple windows with z-ordering
-- [ ] `Compiler evaluate:withLocals:` reads from locals, falls through to globals
-- [ ] Assignments in evaluated code write to the local scope dictionary
-- [ ] Two scopes with the same variable name don't interfere
+- [x] `YutaniWindow` can be created, positioned, resized, and titled from Maggie code
+- [x] `YutaniWindowManager` manages multiple windows with z-ordering
+- [x] `Compiler evaluate:withLocals:` reads from locals, falls through to globals
+- [x] Assignments in evaluated code write to the local scope dictionary
+- [x] Two scopes with the same variable name don't interfere
 
 ---
 

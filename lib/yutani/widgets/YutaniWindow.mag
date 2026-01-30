@@ -1,0 +1,179 @@
+# YutaniWindow.mag
+# Wrapper for Yutani Window widget.
+# Provides methods for window management: move, resize, state, z-order, constraints.
+
+YutaniWindow subclass: YutaniWidget
+
+  # Title management
+  method: title: aString [
+      self setProperties: (Dictionary new
+          at: #window put: (Dictionary new);
+          at: #title put: aString;
+          yourself)
+  ]
+
+  method: title [
+      | props |
+      props := self getProperties.
+      ^props at: #title ifAbsent: ['']
+  ]
+
+  # Movement
+  method: move: x y: y [
+      | request |
+      request := Dictionary new
+          at: #session_id put: (Dictionary new at: #id put: session sessionId; yourself);
+          at: #window_id put: (Dictionary new at: #id put: widgetId; yourself);
+          at: #x put: x;
+          at: #y put: y;
+          yourself.
+      (session client call: 'industries.loosh.yutani.v1.WindowService/WindowMove' with: request)
+          onFailure: [:err |
+              self error: 'WindowMove failed: ', err printString]
+  ]
+
+  # Resizing
+  method: resize: w height: h [
+      | request |
+      request := Dictionary new
+          at: #session_id put: (Dictionary new at: #id put: session sessionId; yourself);
+          at: #window_id put: (Dictionary new at: #id put: widgetId; yourself);
+          at: #width put: w;
+          at: #height put: h;
+          yourself.
+      (session client call: 'industries.loosh.yutani.v1.WindowService/WindowResize' with: request)
+          onFailure: [:err |
+              self error: 'WindowResize failed: ', err printString]
+  ]
+
+  # State management
+  # Returns #normal, #minimized, or #maximized
+  method: state [
+      | request |
+      request := Dictionary new
+          at: #session_id put: (Dictionary new at: #id put: session sessionId; yourself);
+          at: #window_id put: (Dictionary new at: #id put: widgetId; yourself);
+          yourself.
+      (session client call: 'industries.loosh.yutani.v1.WindowService/WindowGetState' with: request)
+          onSuccess: [:resp |
+              | stateVal |
+              stateVal := resp at: #state ifAbsent: [0].
+              stateVal = 0 ifTrue: [^#normal].
+              stateVal = 1 ifTrue: [^#maximized].
+              stateVal = 2 ifTrue: [^#minimized].
+              ^#normal]
+          onFailure: [:err |
+              self error: 'WindowGetState failed: ', err printString]
+  ]
+
+  method: setState: aState [
+      | stateVal request |
+      stateVal := 0.
+      aState = #maximized ifTrue: [stateVal := 1].
+      aState = #minimized ifTrue: [stateVal := 2].
+      request := Dictionary new
+          at: #session_id put: (Dictionary new at: #id put: session sessionId; yourself);
+          at: #window_id put: (Dictionary new at: #id put: widgetId; yourself);
+          at: #state put: stateVal;
+          yourself.
+      (session client call: 'industries.loosh.yutani.v1.WindowService/WindowSetState' with: request)
+          onFailure: [:err |
+              self error: 'WindowSetState failed: ', err printString]
+  ]
+
+  # Z-order management (requires manager ID, so we look up parent)
+  method: bringToFront [
+      | request |
+      parent ifNil: [self error: 'Window has no parent manager'].
+      request := Dictionary new
+          at: #session_id put: (Dictionary new at: #id put: session sessionId; yourself);
+          at: #manager_id put: (Dictionary new at: #id put: parent widgetId; yourself);
+          at: #window_id put: (Dictionary new at: #id put: widgetId; yourself);
+          yourself.
+      (session client call: 'industries.loosh.yutani.v1.WindowService/WindowBringToFront' with: request)
+          onFailure: [:err |
+              self error: 'WindowBringToFront failed: ', err printString]
+  ]
+
+  method: sendToBack [
+      | request |
+      parent ifNil: [self error: 'Window has no parent manager'].
+      request := Dictionary new
+          at: #session_id put: (Dictionary new at: #id put: session sessionId; yourself);
+          at: #manager_id put: (Dictionary new at: #id put: parent widgetId; yourself);
+          at: #window_id put: (Dictionary new at: #id put: widgetId; yourself);
+          yourself.
+      (session client call: 'industries.loosh.yutani.v1.WindowService/WindowSendToBack' with: request)
+          onFailure: [:err |
+              self error: 'WindowSendToBack failed: ', err printString]
+  ]
+
+  # Constraints
+  method: setConstraints: aDict [
+      | request constraints |
+      constraints := Dictionary new.
+      aDict keysAndValuesDo: [:k :v | constraints at: k put: v].
+      request := Dictionary new
+          at: #session_id put: (Dictionary new at: #id put: session sessionId; yourself);
+          at: #window_id put: (Dictionary new at: #id put: widgetId; yourself);
+          at: #constraints put: constraints;
+          yourself.
+      (session client call: 'industries.loosh.yutani.v1.WindowService/WindowSetConstraints' with: request)
+          onFailure: [:err |
+              self error: 'WindowSetConstraints failed: ', err printString]
+  ]
+
+  # Convenience constraint setters
+  method: movable: aBoolean [
+      self setConstraints: (Dictionary new at: #movable put: aBoolean; yourself)
+  ]
+
+  method: resizable: aBoolean [
+      self setConstraints: (Dictionary new at: #resizable put: aBoolean; yourself)
+  ]
+
+  method: closable: aBoolean [
+      self setConstraints: (Dictionary new at: #closable put: aBoolean; yourself)
+  ]
+
+  method: minimizable: aBoolean [
+      self setConstraints: (Dictionary new at: #minimizable put: aBoolean; yourself)
+  ]
+
+  method: maximizable: aBoolean [
+      self setConstraints: (Dictionary new at: #maximizable put: aBoolean; yourself)
+  ]
+
+  # Content management - set the child widget for this window
+  method: setContent: aWidget [
+      | request |
+      request := Dictionary new
+          at: #session_id put: (Dictionary new at: #id put: session sessionId; yourself);
+          at: #parent_id put: (Dictionary new at: #id put: widgetId; yourself);
+          at: #child_id put: (Dictionary new at: #id put: aWidget widgetId; yourself);
+          yourself.
+      (session client call: 'industries.loosh.yutani.v1.WidgetService/AddChild' with: request)
+          onSuccess: [:resp |
+              children := children copyWith: aWidget.
+              aWidget parent: self]
+          onFailure: [:err |
+              self error: 'SetContent failed: ', err printString]
+  ]
+
+  # Event handler registration
+  method: onClosed: aBlock [
+      self on: #WIDGET_WINDOW_CLOSED do: aBlock
+  ]
+
+  method: onActivated: aBlock [
+      self on: #WIDGET_WINDOW_ACTIVATED do: aBlock
+  ]
+
+  method: onStateChanged: aBlock [
+      self on: #WIDGET_WINDOW_STATE_CHANGED do: aBlock
+  ]
+
+  # Printing
+  method: printString [
+      ^'YutaniWindow(', widgetId, ')'
+  ]

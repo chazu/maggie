@@ -1,0 +1,76 @@
+# YutaniWindowManager.mag
+# Wrapper for Yutani WindowManager widget.
+# Manages multiple windows with z-ordering.
+
+YutaniWindowManager subclass: YutaniWidget
+
+  # Add a window to this manager
+  method: addWindow: aWindow [
+      | request |
+      request := Dictionary new
+          at: #session_id put: (Dictionary new at: #id put: session sessionId; yourself);
+          at: #manager_id put: (Dictionary new at: #id put: widgetId; yourself);
+          at: #window_id put: (Dictionary new at: #id put: aWindow widgetId; yourself);
+          yourself.
+      (session client call: 'industries.loosh.yutani.v1.WindowService/WindowManagerAddWindow' with: request)
+          onSuccess: [:resp |
+              children := children copyWith: aWindow.
+              aWindow parent: self]
+          onFailure: [:err |
+              self error: 'WindowManagerAddWindow failed: ', err printString]
+  ]
+
+  # Remove a window from this manager
+  method: removeWindow: aWindow [
+      | request |
+      request := Dictionary new
+          at: #session_id put: (Dictionary new at: #id put: session sessionId; yourself);
+          at: #manager_id put: (Dictionary new at: #id put: widgetId; yourself);
+          at: #window_id put: (Dictionary new at: #id put: aWindow widgetId; yourself);
+          yourself.
+      (session client call: 'industries.loosh.yutani.v1.WindowService/WindowManagerRemoveWindow' with: request)
+          onSuccess: [:resp |
+              children := children reject: [:w | w = aWindow].
+              aWindow parent: nil]
+          onFailure: [:err |
+              self error: 'WindowManagerRemoveWindow failed: ', err printString]
+  ]
+
+  # Get the list of managed windows
+  method: windows [
+      ^children
+  ]
+
+  # Get the currently active (focused) window
+  # Returns the first window in z-order, or nil if none
+  method: activeWindow [
+      | zOrder |
+      zOrder := self zOrder.
+      zOrder isEmpty ifTrue: [^nil].
+      ^zOrder first
+  ]
+
+  # Get z-order as array of windows (front-to-back)
+  method: zOrder [
+      | request |
+      request := Dictionary new
+          at: #session_id put: (Dictionary new at: #id put: session sessionId; yourself);
+          at: #manager_id put: (Dictionary new at: #id put: widgetId; yourself);
+          yourself.
+      (session client call: 'industries.loosh.yutani.v1.WindowService/WindowManagerGetZOrder' with: request)
+          onSuccess: [:resp |
+              | windowIds orderedWindows |
+              windowIds := resp at: #window_ids ifAbsent: [Array new].
+              orderedWindows := windowIds collect: [:idDict |
+                  | wid |
+                  wid := idDict at: #id ifAbsent: [idDict].
+                  session widgetAt: wid].
+              ^orderedWindows reject: [:w | w isNil]]
+          onFailure: [:err |
+              self error: 'WindowManagerGetZOrder failed: ', err printString]
+  ]
+
+  # Printing
+  method: printString [
+      ^'YutaniWindowManager(', widgetId, ')'
+  ]
