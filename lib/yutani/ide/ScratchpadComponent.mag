@@ -1,0 +1,174 @@
+# ScratchpadComponent.mag
+# A windowed text editor with Emacs-style selection and Smalltalk evaluation.
+# Provides Ctrl+D (do it), Ctrl+P (print it), Ctrl+I (inspect it) keybinds.
+# Uses ScratchpadEnvironment for per-scratchpad variable scope.
+
+ScratchpadComponent subclass: Object
+  instanceVars: session textArea environment markSet onInspectBlock
+
+  # Factory method
+  classMethod: in: aSession [
+      ^self new initializeIn: aSession
+  ]
+
+  method: initializeIn: aSession [
+      session := aSession.
+      markSet := false.
+      environment := ScratchpadEnvironment new initialize.
+      self buildWidgets.
+      ^self
+  ]
+
+  # Build the text area widget with key suppression
+  method: buildWidgets [
+      textArea := session createTextArea.
+      textArea wordWrap: true.
+      textArea border: false.
+
+      "Suppress keys that we handle ourselves"
+      textArea suppressKeys: #('ctrl+d' 'ctrl+p' 'ctrl+i' 'ctrl+space' 'ctrl+g').
+  ]
+
+  # Public API
+
+  # Returns the textArea widget (for embedding in a Window)
+  method: widget [ ^textArea ]
+
+  # Returns the ScratchpadEnvironment
+  method: environment [ ^environment ]
+
+  # Register inspect callback: receives the evaluated result object
+  method: onInspect: aBlock [
+      onInspectBlock := aBlock
+  ]
+
+  # Handle a key event from the event loop
+  method: handleKeyEvent: event [
+      event isCtrl ifTrue: [
+          | r |
+          r := event rune.
+
+          "Ctrl+Space - toggle mark"
+          (event key = #KEY_RUNE and: [r = ' ']) ifTrue: [^self toggleMark].
+          event key = #KEY_SPACE ifTrue: [^self toggleMark].
+
+          "Ctrl+G - cancel selection"
+          r = 'g' ifTrue: [^self cancelSelection].
+
+          "Ctrl+D - do it"
+          r = 'd' ifTrue: [^self doIt].
+
+          "Ctrl+P - print it"
+          r = 'p' ifTrue: [^self printIt].
+
+          "Ctrl+I - inspect it"
+          r = 'i' ifTrue: [^self inspectIt].
+      ]
+  ]
+
+  # Emacs-style mark/selection
+
+  method: toggleMark [
+      markSet ifTrue: [
+          "Mark already set - clear selection"
+          self cancelSelection
+      ] ifFalse: [
+          "Set mark at current cursor position"
+          | pos offset |
+          pos := textArea cursorPosition.
+          offset := self offsetForRow: (pos at: #row) column: (pos at: #column).
+          textArea setSelection: offset end: offset.
+          markSet := true
+      ]
+  ]
+
+  method: cancelSelection [
+      markSet := false.
+      "Clear selection by setting start=end at cursor"
+      | pos offset |
+      pos := textArea cursorPosition.
+      offset := self offsetForRow: (pos at: #row) column: (pos at: #column).
+      textArea setSelection: offset end: offset.
+  ]
+
+  # Convert row/column to byte offset in the text
+  method: offsetForRow: row column: col [
+      | text lines offset currentRow |
+      text := textArea text.
+      lines := text lines.
+      offset := 0.
+      currentRow := 0.
+      [currentRow < row and: [currentRow < lines size]] whileTrue: [
+          offset := offset + (lines at: currentRow + 1) size + 1. "line + newline"
+          currentRow := currentRow + 1.
+      ].
+      ^offset + col
+  ]
+
+  # Smalltalk evaluation
+
+  # Get the text to evaluate: selected text, or current line if no selection
+  method: evaluationSource [
+      | hasSel |
+      hasSel := textArea hasSelection.
+      hasSel ifTrue: [
+          ^textArea selectedText
+      ].
+      "No selection: evaluate the current line"
+      ^self currentLine
+  ]
+
+  # Get the text of the current line
+  method: currentLine [
+      | text pos row lines |
+      text := textArea text.
+      text isEmpty ifTrue: [^''].
+      pos := textArea cursorPosition.
+      row := pos at: #row.
+      lines := text lines.
+      (row >= 0 and: [row < lines size]) ifTrue: [
+          ^lines at: row + 1
+      ].
+      ^''
+  ]
+
+  # Ctrl+D: do it (evaluate silently, variables persist)
+  method: doIt [
+      | source |
+      source := self evaluationSource.
+      source isEmpty ifTrue: [^self].
+      environment evaluate: source.
+  ]
+
+  # Ctrl+P: print it (evaluate and insert result)
+  method: printIt [
+      | source result output |
+      source := self evaluationSource.
+      source isEmpty ifTrue: [^self].
+
+      result := environment evaluate: source.
+
+      "Result printString already handles Failure objects nicely"
+      output := '
+', result printString.
+
+      textArea insertAtCursor: output.
+  ]
+
+  # Ctrl+I: inspect it (evaluate and fire inspect callback)
+  method: inspectIt [
+      | source result |
+      source := self evaluationSource.
+      source isEmpty ifTrue: [^self].
+
+      result := environment evaluate: source.
+
+      onInspectBlock ifNotNil: [
+          onInspectBlock value: result
+      ]
+  ]
+
+  # Printing
+  method: printString [
+      ^'ScratchpadComponent'
+  ]

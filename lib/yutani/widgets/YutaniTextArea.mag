@@ -84,6 +84,111 @@ YutaniTextArea subclass: YutaniWidget
           yourself)
   ]
 
+  # Selection and cursor API (via TextAreaService RPCs)
+
+  # Get cursor position as Dictionary with #row, #column
+  method: cursorPosition [
+      | request |
+      request := Dictionary new
+          at: #session_id put: (Dictionary new at: #id put: session sessionId; yourself);
+          at: #widget_id put: (Dictionary new at: #id put: widgetId; yourself);
+          yourself.
+      (session client call: 'industries.loosh.yutani.v1.TextAreaService/GetCursorPosition' with: request)
+          onSuccess: [:resp |
+              ^Dictionary new
+                  at: #row put: (resp at: #row ifAbsent: [0]);
+                  at: #column put: (resp at: #column ifAbsent: [0]);
+                  yourself]
+          onFailure: [:err |
+              ^Dictionary new at: #row put: 0; at: #column put: 0; yourself]
+  ]
+
+  # Set cursor position
+  method: setCursorPosition: row column: column [
+      | request |
+      request := Dictionary new
+          at: #session_id put: (Dictionary new at: #id put: session sessionId; yourself);
+          at: #widget_id put: (Dictionary new at: #id put: widgetId; yourself);
+          at: #row put: row;
+          at: #column put: column;
+          yourself.
+      (session client call: 'industries.loosh.yutani.v1.TextAreaService/SetCursorPosition' with: request)
+          onFailure: [:err |
+              self error: 'SetCursorPosition failed: ', err printString]
+  ]
+
+  # Get selection info as Dictionary
+  method: getSelection [
+      | request |
+      request := Dictionary new
+          at: #session_id put: (Dictionary new at: #id put: session sessionId; yourself);
+          at: #widget_id put: (Dictionary new at: #id put: widgetId; yourself);
+          yourself.
+      (session client call: 'industries.loosh.yutani.v1.TextAreaService/GetSelection' with: request)
+          onSuccess: [:resp | ^resp]
+          onFailure: [:err | ^Dictionary new]
+  ]
+
+  # Set selection range (byte offsets)
+  method: setSelection: start end: end [
+      | request |
+      request := Dictionary new
+          at: #session_id put: (Dictionary new at: #id put: session sessionId; yourself);
+          at: #widget_id put: (Dictionary new at: #id put: widgetId; yourself);
+          at: #start put: start;
+          at: #end put: end;
+          yourself.
+      (session client call: 'industries.loosh.yutani.v1.TextAreaService/SetSelection' with: request)
+          onFailure: [:err |
+              self error: 'SetSelection failed: ', err printString]
+  ]
+
+  # Check if text is selected
+  method: hasSelection [
+      | request |
+      request := Dictionary new
+          at: #session_id put: (Dictionary new at: #id put: session sessionId; yourself);
+          at: #widget_id put: (Dictionary new at: #id put: widgetId; yourself);
+          yourself.
+      (session client call: 'industries.loosh.yutani.v1.TextAreaService/HasSelection' with: request)
+          onSuccess: [:resp | ^resp at: #has_selection ifAbsent: [false]]
+          onFailure: [:err | ^false]
+  ]
+
+  # Get selected text
+  method: selectedText [
+      | request |
+      request := Dictionary new
+          at: #session_id put: (Dictionary new at: #id put: session sessionId; yourself);
+          at: #widget_id put: (Dictionary new at: #id put: widgetId; yourself);
+          yourself.
+      (session client call: 'industries.loosh.yutani.v1.TextAreaService/GetSelectedText' with: request)
+          onSuccess: [:resp | ^resp at: #text ifAbsent: ['']]
+          onFailure: [:err | ^'']
+  ]
+
+  # Insert text at cursor position
+  method: insertAtCursor: aString [
+      | request |
+      request := Dictionary new
+          at: #session_id put: (Dictionary new at: #id put: session sessionId; yourself);
+          at: #widget_id put: (Dictionary new at: #id put: widgetId; yourself);
+          at: #text put: aString;
+          yourself.
+      (session client call: 'industries.loosh.yutani.v1.TextAreaService/InsertTextAtCursor' with: request)
+          onFailure: [:err |
+              self error: 'InsertTextAtCursor failed: ', err printString]
+  ]
+
+  # Set suppressed keys (keys that the widget ignores, letting the client handle them)
+  method: suppressKeys: keyArray [
+      self setProperties: (Dictionary new
+          at: #text_area put: (Dictionary new
+              at: #suppressed_keys put: keyArray;
+              yourself);
+          yourself)
+  ]
+
   # Printing
   method: printString [
       ^'YutaniTextArea(', widgetId, ')'

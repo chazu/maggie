@@ -489,13 +489,13 @@ windowManager addWindow: window.
 - Test global access: scratchpad can reference `Array`, `Dictionary`, etc.
 
 **Acceptance criteria:**
-- [ ] Ctrl+Space toggles mark mode with visual selection highlight
-- [ ] Ctrl+D evaluates selected text silently, variables persist
-- [ ] Ctrl+P evaluates and inserts result on next line
-- [ ] Ctrl+I evaluates and fires inspect callback with result
-- [ ] No selection falls back to evaluating the current line
-- [ ] Per-scratchpad scope isolates variables between scratchpads
-- [ ] Errors in Ctrl+P insert `!! <message>` on next line
+- [x] Ctrl+Space toggles mark mode with visual selection highlight
+- [x] Ctrl+D evaluates selected text silently, variables persist
+- [x] Ctrl+P evaluates and inserts result on next line
+- [x] Ctrl+I evaluates and fires inspect callback with result
+- [x] No selection falls back to evaluating the current line
+- [x] Per-scratchpad scope isolates variables between scratchpads
+- [x] Errors in Ctrl+P insert Failure(...) on next line (printString on Failure objects)
 
 ---
 
