@@ -39,3 +39,80 @@ ObjectIntrospection subclass: Object
       ].
       ^value printString
   ]
+
+  classMethod: isPrimitive: anObject [
+      "Return true if anObject is a primitive (no meaningful slots to drill into)."
+      anObject isNil ifTrue: [^true].
+      (anObject isKindOf: SmallInteger) ifTrue: [^true].
+      (anObject isKindOf: String) ifTrue: [^true].
+      (anObject isKindOf: Symbol) ifTrue: [^true].
+      anObject = true ifTrue: [^true].
+      anObject = false ifTrue: [^true].
+      ^false
+  ]
+
+  classMethod: isArrayLike: anObject [
+      "Return true if anObject is an Array."
+      anObject isNil ifTrue: [^false].
+      ^anObject class name = 'Array'
+  ]
+
+  classMethod: isDictionaryLike: anObject [
+      "Return true if anObject is a Dictionary."
+      anObject isNil ifTrue: [^false].
+      ^anObject class name = 'Dictionary'
+  ]
+
+  classMethod: slotNamesOf: anObject [
+      "Return an array of slot name strings for the inspector.
+       Handles special cases: primitives (empty), arrays (indexed),
+       dictionaries (keyed), and regular objects (instance vars)."
+      (self isPrimitive: anObject) ifTrue: [^Array new].
+      (self isArrayLike: anObject) ifTrue: [
+          | names i |
+          names := Array new: anObject size.
+          i := 1.
+          [i <= anObject size] whileTrue: [
+              names at: i put: i printString, ':'.
+              i := i + 1
+          ].
+          ^names
+      ].
+      (self isDictionaryLike: anObject) ifTrue: [
+          | keys names i |
+          keys := anObject keys.
+          names := Array new: keys size.
+          i := 1.
+          [i <= keys size] whileTrue: [
+              names at: i put: (keys at: i) printString, ':'.
+              i := i + 1
+          ].
+          ^names
+      ].
+      ^self instanceVariablesOf: anObject
+  ]
+
+  classMethod: slotValueOf: slotName in: anObject [
+      "Return the value of a slot by name. Handles Array/Dictionary special cases."
+      (self isArrayLike: anObject) ifTrue: [
+          | index |
+          "Slot names are '1:', '2:', etc. Strip trailing colon."
+          index := (slotName copyFrom: 1 to: slotName size - 1) asInteger.
+          ^anObject at: index
+      ].
+      (self isDictionaryLike: anObject) ifTrue: [
+          | keyStr keys i |
+          "Slot names are 'key:', strip trailing colon and look up."
+          keyStr := slotName copyFrom: 1 to: slotName size - 1.
+          keys := anObject keys.
+          i := 1.
+          [i <= keys size] whileTrue: [
+              (keys at: i) printString = keyStr ifTrue: [
+                  ^anObject at: (keys at: i)
+              ].
+              i := i + 1
+          ].
+          ^nil
+      ].
+      ^self valueOf: slotName in: anObject
+  ]

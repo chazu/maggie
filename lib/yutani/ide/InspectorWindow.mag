@@ -1,0 +1,159 @@
+# InspectorWindow.mag
+# Windowed inspector with slot browser, in-place navigation, and mini evaluator.
+# Special-case slot display for Array (indexed), Dictionary (keyed), and primitives.
+
+InspectorWindow subclass: Object
+  instanceVars: session flex slotList evaluator currentObject objectStack onTitleChangeBlock slotValues
+
+  # Factory method
+  classMethod: in: aSession for: anObject [
+      ^self new initializeIn: aSession for: anObject
+  ]
+
+  method: initializeIn: aSession for: anObject [
+      session := aSession.
+      currentObject := anObject.
+      objectStack := Array new.
+      slotValues := Array new.
+      self buildWidgets.
+      self populateSlots.
+      ^self
+  ]
+
+  method: buildWidgets [
+      slotList := session createList.
+      slotList border: false.
+      slotList showSecondaryText: true.
+
+      evaluator := session createInputField.
+      evaluator label: 'self>'.
+      evaluator placeholder: 'expression'.
+
+      evaluator onDone: [:event | self evaluateExpression].
+
+      flex := session createFlex.
+      flex column.
+      flex addItem: slotList proportion: 1 focus: true.
+      flex addItem: evaluator fixedSize: 1.
+  ]
+
+  # Public API
+
+  # Returns the flex layout widget (for embedding in a Window)
+  method: widget [ ^flex ]
+
+  # Register title change callback
+  method: onTitleChange: aBlock [
+      onTitleChangeBlock := aBlock
+  ]
+
+  # Inspect a new object (resets stack)
+  method: inspect: anObject [
+      objectStack := Array new.
+      currentObject := anObject.
+      self populateSlots.
+      self notifyTitleChange
+  ]
+
+  # Current title text
+  method: title [
+      ^'Inspector: ', (ObjectIntrospection classNameOf: currentObject)
+  ]
+
+  # Handle key events from the event loop
+  method: handleKeyEvent: event [
+      event isEnter ifTrue: [^self drillDown].
+      event isEscape ifTrue: [^self goBack]
+  ]
+
+  # Focus the slot list
+  method: focus [ slotList focus ]
+
+  # Slot population
+
+  method: populateSlots [
+      | slotNames |
+      slotList clear.
+      slotValues := Array new.
+
+      "Always show self as first entry"
+      slotList addItem: 'self' secondary: (self truncate: currentObject printString).
+      slotValues := slotValues copyWith: currentObject.
+
+      "Get slot names (handles Array, Dictionary, primitives, regular objects)"
+      slotNames := ObjectIntrospection slotNamesOf: currentObject.
+
+      slotNames do: [:name |
+          | value |
+          value := ObjectIntrospection slotValueOf: name in: currentObject.
+          slotList addItem: name secondary: (self truncate: value printString).
+          slotValues := slotValues copyWith: value
+      ]
+  ]
+
+  method: truncate: aString [
+      "Truncate display strings for the secondary text column."
+      aString size > 60 ifTrue: [
+          ^(aString copyFrom: 1 to: 57), '...'
+      ].
+      ^aString
+  ]
+
+  # Navigation
+
+  method: drillDown [
+      | selectedIndex value |
+      selectedIndex := slotList selectedIndex.
+      selectedIndex < 0 ifTrue: [^self].
+
+      "Index 0 = self, don't drill into self"
+      selectedIndex = 0 ifTrue: [^self].
+
+      "Get the value at this slot index (slotValues is 1-based, selectedIndex is 0-based)"
+      value := slotValues at: selectedIndex + 1.
+
+      "Don't drill into primitives"
+      (ObjectIntrospection isPrimitive: value) ifTrue: [^self].
+
+      "Push current object and navigate"
+      objectStack := objectStack copyWith: currentObject.
+      currentObject := value.
+      self populateSlots.
+      self notifyTitleChange
+  ]
+
+  method: goBack [
+      objectStack isEmpty ifTrue: [^self].
+
+      currentObject := objectStack last.
+      objectStack := objectStack copyFrom: 1 to: objectStack size - 1.
+      self populateSlots.
+      self notifyTitleChange
+  ]
+
+  # Mini evaluator
+
+  method: evaluateExpression [
+      | source result |
+      source := evaluator text.
+      source isEmpty ifTrue: [^self].
+
+      "Evaluate with self = currentObject"
+      result := Compiler evaluate: source in: currentObject.
+
+      "Show result in the evaluator"
+      evaluator text: result printString
+  ]
+
+  # Title notification
+
+  method: notifyTitleChange [
+      onTitleChangeBlock ifNotNil: [
+          onTitleChangeBlock value: self title
+      ]
+  ]
+
+  # Printing
+  method: printString [
+      ^'InspectorWindow(', (ObjectIntrospection classNameOf: currentObject), ')'
+  ]

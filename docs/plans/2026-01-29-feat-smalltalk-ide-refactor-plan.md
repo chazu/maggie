@@ -560,13 +560,13 @@ InspectorWindow
 - Test title update: drilling into a slot updates the title callback
 
 **Acceptance criteria:**
-- [ ] Inspector shows slot names and values for the inspected object
-- [ ] Arrays show indexed elements as slots
-- [ ] Dictionaries show key-value pairs as slots
-- [ ] Enter drills into a slot's value (in-place navigation)
-- [ ] Escape returns to the previous object
-- [ ] Mini evaluator evaluates with self = inspected object
-- [ ] Title callback fires on navigation
+- [x] Inspector shows slot names and values for the inspected object
+- [x] Arrays show indexed elements as slots
+- [x] Dictionaries show key-value pairs as slots
+- [x] Enter drills into a slot's value (in-place navigation)
+- [x] Escape returns to the previous object
+- [x] Mini evaluator evaluates with self = inspected object
+- [x] Title callback fires on navigation
 
 ---
 
