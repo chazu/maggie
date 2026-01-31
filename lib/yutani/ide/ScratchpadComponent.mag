@@ -83,9 +83,9 @@ ScratchpadComponent subclass: Object
   ]
 
   method: cancelSelection [
+      | pos offset |
       markSet := false.
       "Clear selection by setting start=end at cursor"
-      | pos offset |
       pos := textArea cursorPosition.
       offset := self offsetForRow: (pos at: #row) column: (pos at: #column).
       textArea setSelection: offset end: offset.

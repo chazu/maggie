@@ -156,13 +156,13 @@ Compiler setGlobal: #it to: someObject.
 value := Compiler getGlobal: #myVar.
 ```
 
-This is used by MaggieIDE to bind `it` to the last evaluated result, making it available in subsequent expressions.
+This is used by the IDE to bind `it` to the last evaluated result, making it available in subsequent expressions.
 
 ---
 
 ## Debugging Yutani TUI Applications
 
-When debugging MaggieIDE or other Yutani-based TUI applications, use Yutani's DebugService to inspect screen state and widget properties.
+When debugging MaggieDesktop or other Yutani-based TUI applications, use Yutani's DebugService to inspect screen state and widget properties.
 
 ### Quick Commands
 

@@ -331,6 +331,12 @@ func valueToProtoField(vm *VM, val Value, field *desc.FieldDescriptor) (interfac
 			if enumVal != nil {
 				return enumVal.GetNumber(), nil
 			}
+			enumType := field.GetEnumType()
+			var enumNames []string
+			for _, ev := range enumType.GetValues() {
+				enumNames = append(enumNames, ev.GetName())
+			}
+			return nil, fmt.Errorf("enum value %q not found in %s (available: %v)", name, enumType.GetName(), enumNames)
 		}
 	}
 

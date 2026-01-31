@@ -4,40 +4,32 @@
 
 YutaniMenuItem subclass: YutaniWidget
 
+  # Private: merge a key/value into the menu_item sub-dictionary
+  method: setMenuItemProperty: key to: value [
+      | menuItemDict |
+      menuItemDict := properties at: #menu_item ifAbsent: [Dictionary new].
+      menuItemDict at: key put: value.
+      self setProperty: #menu_item to: menuItemDict
+  ]
+
   # Label
   method: label: aString [
-      self setProperties: (Dictionary new
-          at: #menu_item put: (Dictionary new
-              at: #label put: aString;
-              yourself);
-          yourself)
+      self setMenuItemProperty: #label to: aString
   ]
 
   # Shortcut display text (cosmetic only)
   method: shortcutDisplay: aString [
-      self setProperties: (Dictionary new
-          at: #menu_item put: (Dictionary new
-              at: #shortcut_display put: aString;
-              yourself);
-          yourself)
+      self setMenuItemProperty: #shortcut_display to: aString
   ]
 
   # Separator
   method: separator: aBoolean [
-      self setProperties: (Dictionary new
-          at: #menu_item put: (Dictionary new
-              at: #separator put: aBoolean;
-              yourself);
-          yourself)
+      self setMenuItemProperty: #separator to: aBoolean
   ]
 
   # Disabled
   method: disabled: aBoolean [
-      self setProperties: (Dictionary new
-          at: #menu_item put: (Dictionary new
-              at: #disabled put: aBoolean;
-              yourself);
-          yourself)
+      self setMenuItemProperty: #disabled to: aBoolean
   ]
 
   # Printing
