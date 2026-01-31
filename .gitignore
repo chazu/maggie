@@ -2,6 +2,7 @@
 /procyon
 /bootstrap
 /mag
+/maggie
 
 # Generated image files
 *.image
@@ -19,6 +20,9 @@
 *.test
 *.out
 go.work
+
+# Emacs byte-compiled files
+*.elc
 
 # IDE
 .idea/
