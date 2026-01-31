@@ -1,7 +1,7 @@
 # MaggieDesktop.mag
 # Windowed Smalltalk IDE desktop shell.
 # Manages floating scratchpad and inspector windows with a global menu bar.
-# Replaces the two-panel MaggieIDE with a multi-window desktop environment.
+# Multi-window desktop environment with scratchpads and floating inspectors.
 
 MaggieDesktop subclass: IDEToolBase
   instanceVars: windowManager menuBar desktopFlex scratchpadCount scratchpads inspectors windowComponents
@@ -27,6 +27,7 @@ MaggieDesktop subclass: IDEToolBase
 
       fileMenu := session createMenu.
       fileMenu title: 'File'.
+      menuBar addMenu: fileMenu.
 
       newScratchpadItem := session createMenuItem.
       newScratchpadItem label: 'New Scratchpad'.
@@ -38,9 +39,7 @@ MaggieDesktop subclass: IDEToolBase
       quitItem := session createMenuItem.
       quitItem label: 'Quit'.
       quitItem shortcutDisplay: 'Ctrl+Q'.
-      fileMenu addItem: quitItem.
-
-      menuBar addMenu: fileMenu
+      fileMenu addItem: quitItem
   ]
 
   method: buildDesktopLayout [
@@ -54,14 +53,12 @@ MaggieDesktop subclass: IDEToolBase
       mainWidget := desktopFlex
   ]
 
-  # Key bindings — registered directly in buildUI context per VM closure bug note
+  # Key bindings
   method: setupKeyBindings [
       session onKey: [:event |
-          | r |
           event isCtrl ifTrue: [
-              r := event rune.
-              r = 'q' ifTrue: [self quit].
-              r = 'n' ifTrue: [self createScratchpad]
+              event rune = 'q' ifTrue: [self quit].
+              event rune = 'n' ifTrue: [self createScratchpad]
           ].
 
           "Route key events to the active window's component"
@@ -94,7 +91,6 @@ MaggieDesktop subclass: IDEToolBase
       window resizable: true.
       window closable: true.
 
-      "Cascade position"
       window move: (5 + (scratchpadCount - 1 * 2)) y: (3 + (scratchpadCount - 1)).
       window resize: 60 height: 15.
 
@@ -104,7 +100,6 @@ MaggieDesktop subclass: IDEToolBase
       scratchpads := scratchpads copyWith: scratchpad.
       windowComponents at: window widgetId put: scratchpad.
 
-      "Handle window close"
       window onClosed: [
           scratchpads := scratchpads reject: [:s | s = scratchpad].
           windowComponents removeKey: window widgetId

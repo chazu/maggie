@@ -72,15 +72,16 @@ InspectorComponent subclass: Object
   ]
 
   method: slotSelected: event [
-      | slotName value |
+      | slotName |
       slotName := event dataAt: #main_text.
       slotName ifNil: [^self].
 
-      slotName = 'self'
-          ifTrue: [value := inspectedObject]
-          ifFalse: [value := ObjectIntrospection valueOf: slotName in: inspectedObject].
+      valueView text: (ObjectIntrospection formatValue: (self resolveSlotValue: slotName))
+  ]
 
-      valueView text: (ObjectIntrospection formatValue: value)
+  method: resolveSlotValue: slotName [
+      slotName = 'self' ifTrue: [^inspectedObject].
+      ^ObjectIntrospection valueOf: slotName in: inspectedObject
   ]
 
   # Navigation

@@ -25,9 +25,6 @@ MaggieREPL subclass: IDEToolBase
   ]
 
   method: setupKeyBindings [
-      # Register key handler directly (not via setupBaseKeyBindings:) because
-      # the VM has a known issue with invoking blocks passed as method arguments
-      # from within closure contexts (nested block invocation bug).
       session onKey: [:event |
           event isCtrl ifTrue: [
               event rune = 'q' ifTrue: [self close]

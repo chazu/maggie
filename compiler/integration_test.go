@@ -114,16 +114,63 @@ func TestIntegrationBetweenAnd(t *testing.T) {
 	}
 }
 
-func TestIntegrationTimesRepeat(t *testing.T) {
-	// Skip: requires closure variable capture (blocks accessing outer temps)
-	// which is not yet implemented. Blocks currently can't access sum and i
-	// from the enclosing method.
-	t.Skip("closure variable capture not yet implemented")
-
+// Test method-level cell vars: assign in nested block, read at method level
+func TestIntegrationMethodCellVarBasic(t *testing.T) {
 	vmInst := vm.NewVM()
 
-	// Test that we can compile and run code that uses blocks
-	// Compile sum: method that adds 1 to 10
+	// Method: | r | r := 0. self > 0 ifTrue: [r := self]. ^r
+	source := `testMethodCell
+	| r |
+	r := 0.
+	self > 0 ifTrue: [r := self].
+	^r`
+
+	method, err := Compile(source, vmInst.Selectors, vmInst.Symbols)
+	if err != nil {
+		t.Fatalf("compile error: %v", err)
+	}
+	vmInst.SmallIntegerClass.VTable.AddMethod(vmInst.Selectors.Intern("testMethodCell"), method)
+
+	// 5 testMethodCell → r should be 5
+	result := vmInst.Send(vm.FromSmallInt(5), "testMethodCell", nil)
+	if !result.IsSmallInt() || result.SmallInt() != 5 {
+		t.Errorf("5 testMethodCell = %v, want 5", result)
+	}
+
+	// -1 testMethodCell → ifTrue: not taken, r stays 0
+	result = vmInst.Send(vm.FromSmallInt(-1), "testMethodCell", nil)
+	if !result.IsSmallInt() || result.SmallInt() != 0 {
+		t.Errorf("-1 testMethodCell = %v, want 0", result)
+	}
+}
+
+// Test method-level cell vars with a simple counting loop
+func TestIntegrationMethodCellVarSimple(t *testing.T) {
+	vmInst := vm.NewVM()
+
+	// Simple: | i | i := 0. [i < 3] whileTrue: [i := i + 1]. ^i
+	source := `testCount
+	| i |
+	i := 0.
+	[i < 3] whileTrue: [i := i + 1].
+	^i`
+
+	method, err := Compile(source, vmInst.Selectors, vmInst.Symbols)
+	if err != nil {
+		t.Fatalf("compile error: %v", err)
+	}
+	vmInst.SmallIntegerClass.VTable.AddMethod(vmInst.Selectors.Intern("testCount"), method)
+
+	result := vmInst.Send(vm.FromSmallInt(1), "testCount", nil)
+	if !result.IsSmallInt() || result.SmallInt() != 3 {
+		t.Errorf("testCount = %v, want 3", result)
+	}
+}
+
+func TestIntegrationTimesRepeat(t *testing.T) {
+	vmInst := vm.NewVM()
+
+	// Test whileTrue: with method-level variables accessed from blocks
 	source := `sumTo
 	| sum i |
 	sum := 0.
@@ -208,6 +255,115 @@ func TestIntegrationOdd(t *testing.T) {
 	result = vmInst.Send(vm.FromSmallInt(4), "odd", nil)
 	if result != vm.False {
 		t.Errorf("4 odd = %v, want false", result)
+	}
+}
+
+// Test that writing to a block-local variable from a nested block works.
+// This was broken because cell variables were only created on first assignment
+// in the DEFINING scope; when the first assignment was in a nested block,
+// no cell existed and the captured value was nil.
+func TestIntegrationClosureMutation(t *testing.T) {
+	vmInst := vm.NewVM()
+
+	// Method: ^[ | r | self > 0 ifTrue: [ r := self ]. r ] value
+	// r is block-local (depth 1), assigned in ifTrue: block (depth 2), read back at depth 1
+	source := `testClosureMutation
+	^[ | r |
+		self > 0 ifTrue: [ r := self ].
+		r
+	] value`
+
+	method, err := Compile(source, vmInst.Selectors, vmInst.Symbols)
+	if err != nil {
+		t.Fatalf("compile error: %v", err)
+	}
+	vmInst.SmallIntegerClass.VTable.AddMethod(vmInst.Selectors.Intern("testClosureMutation"), method)
+
+	// 5 testClosureMutation → r should be 5
+	result := vmInst.Send(vm.FromSmallInt(5), "testClosureMutation", nil)
+	if !result.IsSmallInt() || result.SmallInt() != 5 {
+		t.Errorf("5 testClosureMutation = %v, want 5", result)
+	}
+
+	// -1 testClosureMutation → ifTrue: not taken, r stays nil
+	result = vmInst.Send(vm.FromSmallInt(-1), "testClosureMutation", nil)
+	if result != vm.Nil {
+		t.Errorf("-1 testClosureMutation = %v, want nil", result)
+	}
+}
+
+// Test that writing to a block-local variable from a nested block and reading it
+// back also works when the variable is assigned BEFORE and AFTER the nested block.
+func TestIntegrationClosureMutationWithLocalAssign(t *testing.T) {
+	vmInst := vm.NewVM()
+
+	// r := 0 at depth 1, then r := self inside ifTrue: at depth 2, then read r at depth 1
+	source := `testClosureMut2
+	^[ | r |
+		r := 0.
+		self > 0 ifTrue: [ r := self ].
+		r
+	] value`
+
+	method, err := Compile(source, vmInst.Selectors, vmInst.Symbols)
+	if err != nil {
+		t.Fatalf("compile error: %v", err)
+	}
+	vmInst.SmallIntegerClass.VTable.AddMethod(vmInst.Selectors.Intern("testClosureMut2"), method)
+
+	// 5 testClosureMut2 → r should be 5
+	result := vmInst.Send(vm.FromSmallInt(5), "testClosureMut2", nil)
+	if !result.IsSmallInt() || result.SmallInt() != 5 {
+		t.Errorf("5 testClosureMut2 = %v, want 5", result)
+	}
+
+	// -1 testClosureMut2 → ifTrue: not taken, r stays 0
+	result = vmInst.Send(vm.FromSmallInt(-1), "testClosureMut2", nil)
+	if !result.IsSmallInt() || result.SmallInt() != 0 {
+		t.Errorf("-1 testClosureMut2 = %v, want 0", result)
+	}
+}
+
+// Test that a block passed as a method argument can mutate method-level variables.
+// This is the core P2 scenario: blocks passed to other methods via arguments
+// must capture method vars via cells, not via HomeBP, so they work correctly
+// even when the creating method's frame is still active (or has been reclaimed).
+func TestIntegrationBlockPassedAsArg(t *testing.T) {
+	vmInst := vm.NewVM()
+
+	// Helper method: callBlock: evaluates its argument block
+	callBlockSource := `callBlock: aBlock
+	^aBlock value`
+
+	callBlockMethod, err := Compile(callBlockSource, vmInst.Selectors, vmInst.Symbols)
+	if err != nil {
+		t.Fatalf("compile callBlock: error: %v", err)
+	}
+	vmInst.SmallIntegerClass.VTable.AddMethod(vmInst.Selectors.Intern("callBlock:"), callBlockMethod)
+
+	// Method that passes a closure (capturing method-level var) as argument
+	source := `testBlockArg
+	| r |
+	r := 0.
+	self callBlock: [r := self].
+	^r`
+
+	method, err := Compile(source, vmInst.Selectors, vmInst.Symbols)
+	if err != nil {
+		t.Fatalf("compile error: %v", err)
+	}
+	vmInst.SmallIntegerClass.VTable.AddMethod(vmInst.Selectors.Intern("testBlockArg"), method)
+
+	// 5 testBlockArg → r should be 5 (block mutated r via cell)
+	result := vmInst.Send(vm.FromSmallInt(5), "testBlockArg", nil)
+	if !result.IsSmallInt() || result.SmallInt() != 5 {
+		t.Errorf("5 testBlockArg = %v, want 5", result)
+	}
+
+	// 0 testBlockArg → r should be 0 (block sets r := 0)
+	result = vmInst.Send(vm.FromSmallInt(0), "testBlockArg", nil)
+	if !result.IsSmallInt() || result.SmallInt() != 0 {
+		t.Errorf("0 testBlockArg = %v, want 0", result)
 	}
 }
 

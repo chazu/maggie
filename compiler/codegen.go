@@ -104,6 +104,28 @@ func (c *Compiler) CompileMethod(method *MethodDef) *vm.CompiledMethod {
 		c.temps[temp] = c.numArgs + i
 	}
 
+	// Pre-initialize method-level cell variables.
+	// Method args that are cells: wrap existing arg value in a cell.
+	for name, idx := range c.args {
+		if c.cellVars[name] {
+			c.builder.EmitByte(vm.OpPushTemp, byte(idx)) // Push current arg value
+			c.builder.Emit(vm.OpMakeCell)                 // Wrap in cell
+			c.builder.EmitByte(vm.OpStoreTemp, byte(idx)) // Store cell back
+			c.builder.Emit(vm.OpPOP)                      // Clean up stack
+			c.cellInitialized[name] = true
+		}
+	}
+	// Method temps that are cells: wrap nil in a cell.
+	for name, idx := range c.temps {
+		if c.cellVars[name] {
+			c.builder.Emit(vm.OpPushNil)
+			c.builder.Emit(vm.OpMakeCell)
+			c.builder.EmitByte(vm.OpStoreTemp, byte(idx))
+			c.builder.Emit(vm.OpPOP)
+			c.cellInitialized[name] = true
+		}
+	}
+
 	// Compile statements
 	c.compileStatements(method.Statements)
 
@@ -323,6 +345,10 @@ func (c *Compiler) compileVariable(name string) {
 	// Check if it's an argument
 	if idx, ok := c.args[name]; ok {
 		c.builder.EmitByte(vm.OpPushTemp, byte(idx))
+		// If this is a cell variable, dereference the cell
+		if c.cellVars[name] {
+			c.builder.Emit(vm.OpCellGet)
+		}
 		return
 	}
 	// Check if it's a temp
@@ -372,22 +398,29 @@ func (c *Compiler) compileAssignment(assign *Assignment) {
 
 	// Check if this is a cell variable assignment
 	if c.cellVars[name] {
-		// Cell variable: special handling for mutable captures
+		// Cell variable: special handling for mutable captures.
+		// Check both temps and args since both use OpPushTemp/OpStoreTemp.
+		localIdx := -1
 		if idx, ok := c.temps[name]; ok {
-			// Local cell variable in this scope
+			localIdx = idx
+		} else if idx, ok := c.args[name]; ok {
+			localIdx = idx
+		}
+		if localIdx >= 0 {
+			// Local cell variable in this scope (temp or arg)
 			if !c.cellInitialized[name] {
 				// First assignment: create the cell
 				c.compileExpr(assign.Value)
 				c.builder.Emit(vm.OpMakeCell)
-				c.builder.EmitByte(vm.OpStoreTemp, byte(idx))
-				c.builder.EmitByte(vm.OpPushTemp, byte(idx))
+				c.builder.EmitByte(vm.OpStoreTemp, byte(localIdx))
+				c.builder.EmitByte(vm.OpPushTemp, byte(localIdx))
 				c.builder.Emit(vm.OpCellGet) // Leave the VALUE on stack
 				c.cellInitialized[name] = true
 			} else {
 				// Subsequent assignment: store into existing cell
-				c.builder.EmitByte(vm.OpPushTemp, byte(idx)) // Get cell ref
-				c.compileExpr(assign.Value)                  // Value to store
-				c.builder.Emit(vm.OpCellSet)                 // Store and leave value on stack
+				c.builder.EmitByte(vm.OpPushTemp, byte(localIdx)) // Get cell ref
+				c.compileExpr(assign.Value)                       // Value to store
+				c.builder.Emit(vm.OpCellSet)                      // Store and leave value on stack
 			}
 			return
 		}
@@ -607,40 +640,31 @@ func (c *Compiler) compileBlock(block *Block) {
 	// Increment nesting depth: 0=method, 1=first block, 2+=nested blocks
 	newNestingDepth := oldBlockNestingDepth + 1
 
-	// Build outer scope maps for accessing method-level variables
-	// Only first-level blocks (depth=1) can use OpPushHomeTemp for method vars
+	// All outer-scope variables are now accessed via captures (not HomeBP).
+	// This ensures blocks work correctly even if they outlive their method frame.
+	// outerTemps/outerArgs are kept empty — HomeBP is only used for non-local returns.
 	newOuterTemps := make(map[string]int)
 	newOuterArgs := make(map[string]int)
 
-	if newNestingDepth == 1 {
-		// First-level block: outer vars are from the method
-		for k, v := range c.temps {
-			newOuterTemps[k] = v
-		}
-		for k, v := range c.args {
-			newOuterArgs[k] = v
-		}
-	} else {
-		// Nested block: keep method-level outer vars but don't add current block vars
-		// (block vars need to be captured, not accessed via HomeBP)
-		for k, v := range c.outerTemps {
-			newOuterTemps[k] = v
-		}
-		for k, v := range c.outerArgs {
-			newOuterArgs[k] = v
-		}
-	}
-
-	// Build map of enclosing block variables (for nested blocks)
-	// These are variables from enclosing BLOCKS that need to be captured
+	// Build map of enclosing scope variables that this block can capture.
+	// For depth-1 blocks, this includes method-level vars.
+	// For deeper blocks, this includes vars from all enclosing scopes.
 	newEnclosingBlockVars := make(map[string]int)
 	if oldEnclosingBlockVars != nil {
 		for k, v := range oldEnclosingBlockVars {
 			newEnclosingBlockVars[k] = v
 		}
 	}
-	// If we're already in a block (nesting >= 1), current scope's vars become enclosing block vars
-	if oldInBlock {
+	if newNestingDepth == 1 {
+		// First-level block: method-level vars are the enclosing scope
+		for k, v := range c.temps {
+			newEnclosingBlockVars[k] = v
+		}
+		for k, v := range c.args {
+			newEnclosingBlockVars[k] = v
+		}
+	} else if oldInBlock {
+		// Nested block: current block's vars become enclosing block vars
 		for k, v := range c.temps {
 			newEnclosingBlockVars[k] = v
 		}
@@ -688,6 +712,28 @@ func (c *Compiler) compileBlock(block *Block) {
 	// Temps
 	for i, temp := range block.Temps {
 		c.temps[temp] = c.numArgs + i
+	}
+
+	// Pre-initialize cell variables with Cell(nil) so that nested blocks
+	// always capture a cell reference, even when the first assignment
+	// happens in a nested block rather than in the defining scope.
+	for name, idx := range c.temps {
+		if c.cellVars[name] {
+			c.builder.Emit(vm.OpPushNil)
+			c.builder.Emit(vm.OpMakeCell)
+			c.builder.EmitByte(vm.OpStoreTemp, byte(idx))
+			c.builder.Emit(vm.OpPOP) // Clean up stack; no expression result needed
+			c.cellInitialized[name] = true
+		}
+	}
+	for name, idx := range c.args {
+		if c.cellVars[name] {
+			c.builder.EmitByte(vm.OpPushTemp, byte(idx)) // Push current arg value
+			c.builder.Emit(vm.OpMakeCell)                 // Wrap in cell
+			c.builder.EmitByte(vm.OpStoreTemp, byte(idx)) // Store cell back
+			c.builder.Emit(vm.OpPOP)                      // Clean up stack
+			c.cellInitialized[name] = true
+		}
 	}
 
 	// Compile block body
@@ -872,10 +918,9 @@ func (c *Compiler) findCapturedVariables(block *Block, enclosingBlockVars map[st
 }
 
 // findCellVariables analyzes a method to find variables that need cell boxing.
-// A variable needs a cell if:
-// 1. It's defined in a block (not method level - method level uses HOME_TEMP)
-// 2. It's captured by a nested block
-// 3. It's assigned in a nested block (not just in the defining scope)
+// A variable (method-level or block-local) needs a cell if it's captured by a
+// nested block AND assigned in that nested block. This ensures mutations through
+// the cell are visible to all scopes sharing the reference.
 func (c *Compiler) findCellVariables(method *MethodDef) map[string]bool {
 	cellVars := make(map[string]bool)
 
@@ -900,14 +945,14 @@ func (c *Compiler) findCellVariables(method *MethodDef) map[string]bool {
 		switch e := expr.(type) {
 		case *Variable:
 			name := e.Name
-			// Check if accessing a variable from an outer block scope
-			if vi, ok := varInfos[name]; ok && vi.definedInBlock && vi.blockDepth < currentDepth {
+			// Check if accessing a variable from an outer scope (block or method level)
+			if vi, ok := varInfos[name]; ok && vi.blockDepth < currentDepth {
 				vi.captured = true
 			}
 		case *Assignment:
 			name := e.Variable
-			// Track assignment - if assigning to an outer block variable, it's both captured and assigned
-			if vi, ok := varInfos[name]; ok && vi.definedInBlock && vi.blockDepth < currentDepth {
+			// Track assignment - if assigning to an outer scope variable, it's both captured and assigned
+			if vi, ok := varInfos[name]; ok && vi.blockDepth < currentDepth {
 				vi.captured = true            // Need to capture the cell reference
 				vi.assignedInNestedBlk = true // And mark as assigned in nested block
 			}
@@ -993,10 +1038,13 @@ func (c *Compiler) findCellVariables(method *MethodDef) map[string]bool {
 		walkStmt(stmt, 0, methodVars)
 	}
 
-	// Collect variables that need cells
-	// A variable needs a cell if it's defined in a block, captured, AND assigned in a nested block
+	// Collect variables that need cells.
+	// A variable needs a cell if it's captured by a block AND assigned from a block.
+	// This applies to both block-local and method-level variables. Method-level
+	// variables now go through captures (not HomeBP) so blocks can outlive
+	// their method frame without reading stale stack data.
 	for name, vi := range varInfos {
-		if vi.definedInBlock && vi.captured && vi.assignedInNestedBlk {
+		if vi.captured && vi.assignedInNestedBlk {
 			cellVars[name] = true
 		}
 	}
