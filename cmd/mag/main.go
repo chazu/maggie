@@ -29,6 +29,7 @@ func main() {
 	useMaggieCompiler := flag.Bool("experimental-maggie-compiler", false, "Use experimental Maggie self-hosting compiler instead of Go compiler")
 	serveMode := flag.Bool("serve", false, "Start language server (gRPC + Connect HTTP/JSON)")
 	servePort := flag.Int("port", 4567, "Language server port (used with --serve)")
+	lspMode := flag.Bool("lsp", false, "Start LSP server on stdio")
 
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Usage: mag [options] [paths...]\n\n")
@@ -45,10 +46,17 @@ func main() {
 		fmt.Fprintf(os.Stderr, "\nLanguage Server:\n")
 		fmt.Fprintf(os.Stderr, "  mag --serve                    # Start language server on :4567\n")
 		fmt.Fprintf(os.Stderr, "  mag ./lib/... --serve --port 8080  # Load libs, serve on :8080\n")
+		fmt.Fprintf(os.Stderr, "  mag --lsp                      # Start LSP server on stdio\n")
+		fmt.Fprintf(os.Stderr, "  mag lsp                        # Same as --lsp (subcommand form)\n")
 		fmt.Fprintf(os.Stderr, "\nExperimental:\n")
 		fmt.Fprintf(os.Stderr, "  mag -i --experimental-maggie-compiler  # Use self-hosting compiler\n")
 	}
 	flag.Parse()
+
+	// Support "mag lsp" as a subcommand alias for --lsp
+	if args := flag.Args(); len(args) > 0 && args[0] == "lsp" {
+		*lspMode = true
+	}
 
 	// Create VM and load embedded image
 	vmInst := vm.NewVM()
@@ -85,6 +93,9 @@ func main() {
 
 	// Compile any paths specified on command line
 	paths := flag.Args()
+	if *lspMode && len(paths) > 0 && paths[0] == "lsp" {
+		paths = paths[1:] // strip "lsp" subcommand from paths
+	}
 	if len(paths) > 0 {
 		totalMethods := 0
 		for _, path := range paths {
@@ -110,6 +121,16 @@ func main() {
 		// If main returns a small integer, use it as exit code
 		if result.IsSmallInt() {
 			os.Exit(int(result.SmallInt()))
+		}
+		os.Exit(0)
+	}
+
+	// Start LSP server if requested
+	if *lspMode {
+		lsp := server.NewLSP(vmInst)
+		if err := lsp.Run(); err != nil {
+			fmt.Fprintf(os.Stderr, "LSP error: %v\n", err)
+			os.Exit(1)
 		}
 		os.Exit(0)
 	}
