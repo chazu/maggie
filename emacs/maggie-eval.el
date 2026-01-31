@@ -15,6 +15,7 @@
 ;;; Code:
 
 (require 'maggie-connection)
+(require 'maggie-inspector)
 
 (defun maggie--get-expression ()
   "Get the expression to evaluate.
@@ -72,17 +73,15 @@ Bound to C-c C-p in `maggie-mode'."
 ;;;###autoload
 (defun maggie-inspect-it ()
   "Evaluate the selected expression and open an inspector buffer.
-Bound to C-c C-i in `maggie-mode'. (Placeholder for Phase 4.)"
+Bound to C-c C-i in `maggie-mode'."
   (interactive)
   (let ((source (maggie--get-expression)))
     (let ((resp (maggie--evaluate-sync source)))
       (if (eq (alist-get 'success resp) :json-false)
           (message "Error: %s" (alist-get 'errorMessage resp))
         (let* ((handle (alist-get 'handle resp))
-               (class-name (alist-get 'className handle))
-               (display (alist-get 'displayString handle))
                (id (alist-get 'id handle)))
-          (message "Inspect: %s (%s) [handle: %s]" display class-name id))))))
+          (maggie-inspect-object id))))))
 
 ;;;###autoload
 (defun maggie-check-syntax ()

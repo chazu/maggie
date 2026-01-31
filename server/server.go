@@ -39,16 +39,19 @@ func New(v *vm.VM) *MaggieServer {
 	sessionSvc := NewSessionServiceImpl(worker, sessions)
 	browseSvc := NewBrowseService(worker)
 	modifySvc := NewModifyService(worker, handles, sessions)
+	inspectSvc := NewInspectService(worker, handles)
 
 	evalPath, evalHandler := maggiev1connect.NewEvaluationServiceHandler(evalSvc)
 	sessionPath, sessionHandler := maggiev1connect.NewSessionServiceHandler(sessionSvc)
 	browsePath, browseHandler := maggiev1connect.NewBrowsingServiceHandler(browseSvc)
 	modifyPath, modifyHandler := maggiev1connect.NewModificationServiceHandler(modifySvc)
+	inspectPath, inspectHandler := maggiev1connect.NewInspectionServiceHandler(inspectSvc)
 
 	s.mux.Handle(evalPath, evalHandler)
 	s.mux.Handle(sessionPath, sessionHandler)
 	s.mux.Handle(browsePath, browseHandler)
 	s.mux.Handle(modifyPath, modifyHandler)
+	s.mux.Handle(inspectPath, inspectHandler)
 
 	// Start handle TTL sweeper (sweep every 5 minutes, 30-minute TTL)
 	s.stopSweeper = handles.StartSweeper(5*time.Minute, 30*time.Minute)

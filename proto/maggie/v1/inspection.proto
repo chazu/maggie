@@ -1,0 +1,88 @@
+syntax = "proto3";
+
+package maggie.v1;
+
+option go_package = "github.com/chazu/maggie/gen/maggie/v1;maggiev1";
+
+import "maggie/v1/common.proto";
+
+service InspectionService {
+  // Inspect returns full inspection details for an object by handle.
+  rpc Inspect(InspectRequest) returns (InspectResponse);
+
+  // InspectSlot drills into a named slot (instance variable) of an object.
+  rpc InspectSlot(InspectSlotRequest) returns (InspectResponse);
+
+  // InspectIndex drills into an indexed element of an indexable object (arrays).
+  rpc InspectIndex(InspectIndexRequest) returns (InspectResponse);
+
+  // SendMessage sends a message to an inspected object and returns the result.
+  rpc SendMessage(SendMessageRequest) returns (SendMessageResponse);
+
+  // ReleaseHandle releases an object handle, allowing the VM to garbage-collect it.
+  rpc ReleaseHandle(ReleaseHandleRequest) returns (ReleaseHandleResponse);
+}
+
+// --- Inspect ---
+
+message InspectRequest {
+  string handle_id = 1;
+}
+
+// --- Inspect Slot ---
+
+message InspectSlotRequest {
+  string handle_id = 1;
+  string slot_name = 2;
+}
+
+// --- Inspect Index ---
+
+message InspectIndexRequest {
+  string handle_id = 1;
+  int32 index = 2;
+}
+
+// --- Inspect Response (shared by Inspect, InspectSlot, InspectIndex) ---
+
+// SlotInfo represents one named instance variable or indexed element of the inspected object.
+message SlotInfo {
+  string name = 1;
+  string value_display = 2;   // printString of the slot value
+  string value_class = 3;     // class name of the slot value
+  ObjectHandle value_handle = 4;  // handle for further drilling
+}
+
+message InspectResponse {
+  string class_name = 1;
+  string display_string = 2;       // printString of the object
+  repeated SlotInfo slots = 3;     // named slots (instance variables)
+  bool is_indexable = 4;           // true for arrays and similar
+  int32 indexable_size = 5;        // number of indexed elements (when is_indexable)
+  ObjectHandle handle = 6;         // handle for this object
+}
+
+// --- Send Message ---
+
+message SendMessageRequest {
+  string handle_id = 1;
+  string selector = 2;
+  repeated string arguments = 3;   // source expressions to evaluate as arguments
+}
+
+message SendMessageResponse {
+  bool success = 1;
+  string result = 2;               // printString of the result
+  ObjectHandle result_handle = 3;  // handle to the result object
+  string error_message = 4;        // set when success=false
+}
+
+// --- Release Handle ---
+
+message ReleaseHandleRequest {
+  string handle_id = 1;
+}
+
+message ReleaseHandleResponse {
+  bool success = 1;
+}

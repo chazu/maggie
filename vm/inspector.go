@@ -159,9 +159,12 @@ func (i *Inspector) inspectObject(v Value, depth int) *InspectionResult {
 
 		// Check if this might be a collection-like object
 		if result.ClassName == "Array" || result.ClassName == "OrderedCollection" {
-			result.Size = classNumSlots
+			// Use obj.NumSlots() for variable-sized objects (arrays store
+			// their logical size separately from class.NumSlots)
+			actualSize := obj.NumSlots()
+			result.Size = actualSize
 			// Limit elements preview
-			previewCount := classNumSlots
+			previewCount := actualSize
 			if previewCount > MaxElementPreview {
 				previewCount = MaxElementPreview
 			}
