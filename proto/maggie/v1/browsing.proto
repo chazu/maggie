@@ -1,0 +1,158 @@
+syntax = "proto3";
+
+package maggie.v1;
+
+option go_package = "github.com/chazu/maggie/gen/maggie/v1;maggiev1";
+
+import "maggie/v1/common.proto";
+
+service BrowsingService {
+  // ListClasses returns all classes in the image.
+  rpc ListClasses(ListClassesRequest) returns (ListClassesResponse);
+
+  // GetClass returns detailed information about a single class.
+  rpc GetClass(GetClassRequest) returns (GetClassResponse);
+
+  // GetHierarchy returns the class hierarchy (superclass chain and subclasses).
+  rpc GetHierarchy(GetHierarchyRequest) returns (GetHierarchyResponse);
+
+  // ListMethods returns methods for a class (instance, class, or both).
+  rpc ListMethods(ListMethodsRequest) returns (ListMethodsResponse);
+
+  // GetMethod returns full details for a single method including source.
+  rpc GetMethod(GetMethodRequest) returns (GetMethodResponse);
+
+  // FindSenders returns methods that send a given selector.
+  rpc FindSenders(FindSendersRequest) returns (FindSendersResponse);
+
+  // FindImplementors returns classes that implement a given selector.
+  rpc FindImplementors(FindImplementorsRequest) returns (FindImplementorsResponse);
+
+  // SearchSelectors returns selectors matching a substring.
+  rpc SearchSelectors(SearchSelectorsRequest) returns (SearchSelectorsResponse);
+
+  // SearchClasses returns classes matching a substring.
+  rpc SearchClasses(SearchClassesRequest) returns (SearchClassesResponse);
+}
+
+// --- List Classes ---
+
+message ListClassesRequest {
+  string category = 1;  // optional: filter by namespace/category
+}
+
+message ListClassesResponse {
+  repeated ClassInfo classes = 1;
+}
+
+// --- Get Class ---
+
+message GetClassRequest {
+  string name = 1;
+}
+
+message GetClassResponse {
+  ClassInfo class = 1;
+  string comment = 2;  // class comment if available
+  repeated string categories = 3;  // method categories/protocols
+}
+
+// --- Get Hierarchy ---
+
+message GetHierarchyRequest {
+  string class_name = 1;
+}
+
+message HierarchyEntry {
+  string name = 1;
+  int32 depth = 2;       // 0 = root (Object)
+  int32 method_count = 3;
+}
+
+message GetHierarchyResponse {
+  repeated HierarchyEntry superclasses = 1;  // from root to parent
+  HierarchyEntry self = 2;
+  repeated HierarchyEntry subclasses = 3;    // direct subclasses
+}
+
+// --- List Methods ---
+
+message ListMethodsRequest {
+  string class_name = 1;
+  enum Side {
+    INSTANCE = 0;
+    CLASS = 1;
+    BOTH = 2;
+  }
+  Side side = 2;
+  string category = 3;  // optional: filter by method category
+}
+
+message ListMethodsResponse {
+  repeated MethodInfo methods = 1;
+}
+
+// --- Get Method ---
+
+message GetMethodRequest {
+  string class_name = 1;
+  string selector = 2;
+  bool class_side = 3;
+}
+
+message GetMethodResponse {
+  MethodInfo method = 1;
+  string category = 2;
+  int32 arity = 3;
+}
+
+// --- Find Senders ---
+
+message FindSendersRequest {
+  string selector = 1;
+}
+
+message SenderInfo {
+  string class_name = 1;
+  string method_selector = 2;
+  bool is_class_side = 3;
+}
+
+message FindSendersResponse {
+  repeated SenderInfo senders = 1;
+}
+
+// --- Find Implementors ---
+
+message FindImplementorsRequest {
+  string selector = 1;
+}
+
+message ImplementorInfo {
+  string class_name = 1;
+  bool is_class_side = 2;
+}
+
+message FindImplementorsResponse {
+  repeated ImplementorInfo implementors = 1;
+}
+
+// --- Search Selectors ---
+
+message SearchSelectorsRequest {
+  string query = 1;  // substring match
+}
+
+message SearchSelectorsResponse {
+  repeated string selectors = 1;
+}
+
+// --- Search Classes ---
+
+message SearchClassesRequest {
+  string query = 1;  // substring match
+}
+
+message SearchClassesResponse {
+  repeated ClassInfo classes = 1;
+}
