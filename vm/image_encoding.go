@@ -222,6 +222,14 @@ func (e *ImageEncoder) EncodeValueTo(v Value, buf []byte) {
 		idx := e.RegisterString(content)
 		binary.LittleEndian.PutUint32(buf[1:], idx)
 
+	case isClassValue(v):
+		buf[0] = imageTagClass
+		cls := getClassFromValue(v)
+		if cls != nil {
+			idx := e.RegisterClass(cls)
+			binary.LittleEndian.PutUint32(buf[1:], idx)
+		}
+
 	case v.IsSymbol():
 		buf[0] = imageTagSymbol
 		symID := v.SymbolID()
@@ -476,9 +484,7 @@ func (d *ImageDecoder) DecodeValue(data []byte) Value {
 		if c == nil {
 			return Nil
 		}
-		// Classes are currently represented as symbols with the class name
-		// This is a placeholder until proper class values are implemented
-		return Nil
+		return registerClassValue(c)
 
 	case imageTagMethod:
 		idx := binary.LittleEndian.Uint32(data[1:])

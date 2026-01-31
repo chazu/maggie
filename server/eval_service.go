@@ -208,6 +208,12 @@ func formatValue(v *vm.VM, val vm.Value) string {
 		return fmt.Sprintf("%g", val.Float64())
 	case vm.IsStringValue(val):
 		return "'" + vm.GetStringContent(val) + "'"
+	case vm.IsClassValue(val):
+		cls := vm.GetClassFromValue(val)
+		if cls != nil {
+			return cls.Name
+		}
+		return "<class>"
 	case val.IsSymbol():
 		name := v.Symbols.Name(val.SymbolID())
 		return "#" + name

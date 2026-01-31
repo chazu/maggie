@@ -58,6 +58,8 @@ type Class struct {
 	InstVars    []string // Instance variable names
 	NumSlots    int      // Total number of slots needed
 	ClassVars   []string // Class variable names (shared across all instances)
+
+	classValueID int // Registry ID for class value encoding (0 = not yet registered)
 }
 
 // Method represents a compiled or primitive method.

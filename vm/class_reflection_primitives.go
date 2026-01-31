@@ -162,26 +162,28 @@ func (vm *VM) registerClassReflectionPrimitives() {
 	// System-wide class reflection
 	// ---------------------------------------------------------------------------
 
-	// allClasses - returns an array of all class names in the system
+	// allClasses - returns an array of all class objects in the system
 	// This is a class method on Object that returns all registered classes
 	c.AddClassMethod0(vm.Selectors, "allClasses", func(vmPtr interface{}, recv Value) Value {
 		v := vmPtr.(*VM)
 		classes := v.Classes.All()
 		values := make([]Value, len(classes))
 		for i, cls := range classes {
-			values[i] = v.Symbols.SymbolValue(cls.Name)
+			values[i] = registerClassValue(cls)
 		}
 		return v.NewArrayWithElements(values)
 	})
 
-	// allClassesSorted - returns an array of all class names, sorted alphabetically
+	// allClassesSorted - returns an array of all class objects, sorted alphabetically by name
 	c.AddClassMethod0(vm.Selectors, "allClassesSorted", func(vmPtr interface{}, recv Value) Value {
 		v := vmPtr.(*VM)
 		classes := v.Classes.All()
 		// Sort by name
 		names := make([]string, len(classes))
+		classMap := make(map[string]*Class, len(classes))
 		for i, cls := range classes {
 			names[i] = cls.Name
+			classMap[cls.Name] = cls
 		}
 		// Simple bubble sort (classes list is small)
 		for i := 0; i < len(names)-1; i++ {
@@ -193,9 +195,44 @@ func (vm *VM) registerClassReflectionPrimitives() {
 		}
 		values := make([]Value, len(names))
 		for i, name := range names {
-			values[i] = v.Symbols.SymbolValue(name)
+			values[i] = registerClassValue(classMap[name])
 		}
 		return v.NewArrayWithElements(values)
+	})
+
+	// ---------------------------------------------------------------------------
+	// Class-side identity methods (name, superclass, printString)
+	// These are on ObjectClass so all classes inherit them.
+	// ---------------------------------------------------------------------------
+
+	// name - returns the class name as a symbol
+	c.AddClassMethod0(vm.Selectors, "name", func(vmPtr interface{}, recv Value) Value {
+		v := vmPtr.(*VM)
+		cls := v.classFromValue(recv)
+		if cls == nil {
+			return Nil
+		}
+		return v.Symbols.SymbolValue(cls.Name)
+	})
+
+	// superclass - returns the superclass as a class value, or nil
+	c.AddClassMethod0(vm.Selectors, "superclass", func(vmPtr interface{}, recv Value) Value {
+		v := vmPtr.(*VM)
+		cls := v.classFromValue(recv)
+		if cls == nil || cls.Superclass == nil {
+			return Nil
+		}
+		return registerClassValue(cls.Superclass)
+	})
+
+	// printString - returns the class name as a string
+	c.AddClassMethod0(vm.Selectors, "printString", func(vmPtr interface{}, recv Value) Value {
+		v := vmPtr.(*VM)
+		cls := v.classFromValue(recv)
+		if cls == nil {
+			return NewStringValue("a Class")
+		}
+		return NewStringValue(cls.Name)
 	})
 
 	// ---------------------------------------------------------------------------

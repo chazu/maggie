@@ -573,7 +573,11 @@ func (vm *VM) evaluateBlockIfCurtailed(blockVal Value, curtailBlock Value) Value
 
 // classFromValue extracts a Class from a value (for class-side methods).
 func (vm *VM) classFromValue(v Value) *Class {
-	// If it's a symbol, look up the class by name
+	// Check for first-class class values first
+	if isClassValue(v) {
+		return getClassFromValue(v)
+	}
+	// If it's a symbol, look up the class by name (backward compatibility)
 	if v.IsSymbol() {
 		name := vm.Symbols.Name(v.SymbolID())
 		return vm.Classes.Lookup(name)

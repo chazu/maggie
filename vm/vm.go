@@ -277,9 +277,9 @@ func (vm *VM) createClassWithIvars(name string, superclass *Class, ivars []strin
 }
 
 // classValue returns a Value representing a class.
-// For now, we use a symbol as a placeholder.
+// Uses the class value registry to produce a first-class class value.
 func (vm *VM) classValue(c *Class) Value {
-	return vm.Symbols.SymbolValue(c.Name)
+	return registerClassValue(c)
 }
 
 // ---------------------------------------------------------------------------
@@ -424,6 +424,8 @@ func (vm *VM) primitiveClass(v Value) Value {
 		className = "GrpcClient"
 	case isGrpcStreamValue(v):
 		className = "GrpcStream"
+	case isClassValue(v):
+		className = "Class"
 	case v.IsSymbol():
 		className = "Symbol"
 	case v.IsObject():
@@ -469,6 +471,8 @@ func (vm *VM) ClassFor(v Value) *Class {
 		return vm.StringClass
 	case IsDictionaryValue(v):
 		return vm.DictionaryClass
+	case isClassValue(v):
+		return vm.ClassClass
 	case v.IsSymbol():
 		return vm.SymbolClass
 	case v.IsObject():
@@ -554,6 +558,9 @@ func (vm *VM) Send(receiver Value, selector string, args []Value) Value {
 			class = vm.StringClass
 		} else if IsDictionaryValue(receiver) {
 			class = vm.DictionaryClass
+		} else if isClassValue(receiver) {
+			class = getClassFromValue(receiver)
+			isClassSide = true
 		} else if isChannelValue(receiver) {
 			// Check for special symbol-encoded values (channels, processes, results)
 			class = vm.ChannelClass

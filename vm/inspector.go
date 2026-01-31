@@ -72,6 +72,9 @@ func (i *Inspector) InspectDepth(v Value, depth int) *InspectionResult {
 
 	case v.IsSymbol():
 		// Check for special symbol-encoded values first
+		if isClassValue(v) {
+			return i.inspectClass(v, depth)
+		}
 		if isChannelValue(v) {
 			return i.inspectChannel(v, depth)
 		}
@@ -292,6 +295,60 @@ func (i *Inspector) inspectResult(v Value, depth int) *InspectionResult {
 			result.Value = "a Failure"
 		}
 	}
+
+	return result
+}
+
+// inspectClass handles inspection of Class values.
+func (i *Inspector) inspectClass(v Value, depth int) *InspectionResult {
+	result := &InspectionResult{
+		Type:      "Class",
+		ClassName: "Class",
+	}
+
+	cls := getClassFromValue(v)
+	if cls == nil {
+		result.Value = "<invalid class>"
+		return result
+	}
+
+	result.Value = cls.Name
+
+	if depth <= 0 {
+		return result
+	}
+
+	// superclass
+	if cls.Superclass != nil {
+		superVal := registerClassValue(cls.Superclass)
+		result.InstVars = append(result.InstVars, InstVarInfo{
+			Name:  "superclass",
+			Value: i.InspectDepth(superVal, depth-1),
+		})
+	} else {
+		result.InstVars = append(result.InstVars, InstVarInfo{
+			Name:  "superclass",
+			Value: &InspectionResult{Type: "Nil", Value: "nil"},
+		})
+	}
+
+	// instanceVariables (names as an array description)
+	ivarNames := cls.AllInstVarNames()
+	ivarStr := fmt.Sprintf("#(%s)", strings.Join(ivarNames, " "))
+	result.InstVars = append(result.InstVars, InstVarInfo{
+		Name:  "instanceVariables",
+		Value: &InspectionResult{Type: "Array", Value: ivarStr, Size: len(ivarNames)},
+	})
+
+	// methodCount
+	methodCount := 0
+	if cls.VTable != nil {
+		methodCount = len(cls.VTable.LocalMethods())
+	}
+	result.InstVars = append(result.InstVars, InstVarInfo{
+		Name:  "methodCount",
+		Value: &InspectionResult{Type: "SmallInt", Value: fmt.Sprintf("%d", methodCount)},
+	})
 
 	return result
 }

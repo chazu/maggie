@@ -638,19 +638,8 @@ func (i *Interpreter) runFrame() Value {
 			frame.IP += 2
 			argc := int(bc[frame.IP])
 			frame.IP++
-			selName := i.Symbols.Name(uint32(sel))
-			if selName == "receive" {
-				fmt.Println("[Interp] OpSend: calling receive method")
-			}
 			result := i.send(sel, argc)
-			if selName == "receive" {
-				fmt.Printf("[Interp] OpSend: receive returned, result=%v, isResult=%v\n", result, isResultValue(result))
-				fmt.Printf("[Interp] OpSend: about to push result, sp=%d, fp=%d\n", i.sp, i.fp)
-			}
 			i.push(result)
-			if selName == "receive" {
-				fmt.Printf("[Interp] OpSend: after push, sp=%d, continuing to next instruction...\n", i.sp)
-			}
 
 		case OpSendSuper:
 			sel := int(binary.LittleEndian.Uint16(bc[frame.IP:]))
@@ -1121,6 +1110,13 @@ func (i *Interpreter) vtableFor(v Value) *VTable {
 		if IsDictionaryValue(v) {
 			if c := i.Classes.Lookup("Dictionary"); c != nil {
 				return c.VTable
+			}
+		}
+		// Check for class values (first-class class objects)
+		if isClassValue(v) {
+			cls := getClassFromValue(v)
+			if cls != nil && cls.ClassVTable != nil {
+				return cls.ClassVTable
 			}
 		}
 		// Check for Channel and Process values

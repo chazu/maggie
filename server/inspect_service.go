@@ -256,6 +256,56 @@ func (s *InspectService) inspectValue(v *vm.VM, val vm.Value, handleID string) *
 	// Populate named slots (instance variables)
 	var slots []*maggiev1.SlotInfo
 
+	// Check for class values first
+	if vm.IsClassValue(val) {
+		cls := vm.GetClassFromValue(val)
+		if cls != nil {
+			// superclass slot (drillable)
+			if cls.Superclass != nil {
+				superVal := v.Send(val, "superclass", nil)
+				superDisplay := formatValue(v, superVal)
+				superClassName := classNameFor(v, superVal)
+				superHandleID := s.handles.Create(superVal, superClassName, superDisplay, "")
+				slots = append(slots, &maggiev1.SlotInfo{
+					Name:         "superclass",
+					ValueDisplay: superDisplay,
+					ValueClass:   superClassName,
+					ValueHandle: &maggiev1.ObjectHandle{
+						Id:            superHandleID,
+						ClassName:     superClassName,
+						DisplayString: superDisplay,
+					},
+				})
+			} else {
+				slots = append(slots, &maggiev1.SlotInfo{
+					Name:         "superclass",
+					ValueDisplay: "nil",
+					ValueClass:   "UndefinedObject",
+				})
+			}
+
+			// instanceVariables slot
+			ivarNames := cls.AllInstVarNames()
+			ivarDisplay := fmt.Sprintf("#(%s)", strings.Join(ivarNames, " "))
+			slots = append(slots, &maggiev1.SlotInfo{
+				Name:         "instanceVariables",
+				ValueDisplay: ivarDisplay,
+				ValueClass:   "Array",
+			})
+
+			// methodCount slot
+			methodCount := 0
+			if cls.VTable != nil {
+				methodCount = len(cls.VTable.LocalMethods())
+			}
+			slots = append(slots, &maggiev1.SlotInfo{
+				Name:         "methodCount",
+				ValueDisplay: fmt.Sprintf("%d", methodCount),
+				ValueClass:   "SmallInteger",
+			})
+		}
+	}
+
 	obj := vm.ObjectFromValue(val)
 	if obj != nil {
 		cls := v.ClassFor(val)
