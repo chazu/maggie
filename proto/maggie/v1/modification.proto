@@ -1,0 +1,101 @@
+syntax = "proto3";
+
+package maggie.v1;
+
+option go_package = "github.com/chazu/maggie/gen/maggie/v1;maggiev1";
+
+import "maggie/v1/common.proto";
+
+service ModificationService {
+  // CompileMethod compiles and installs a method on a class.
+  rpc CompileMethod(CompileMethodRequest) returns (CompileMethodResponse);
+
+  // RemoveMethod removes a method from a class.
+  rpc RemoveMethod(RemoveMethodRequest) returns (RemoveMethodResponse);
+
+  // CreateClass creates a new class in the image.
+  rpc CreateClass(CreateClassRequest) returns (CreateClassResponse);
+
+  // SaveImage persists the current image to disk.
+  rpc SaveImage(SaveImageRequest) returns (SaveImageResponse);
+
+  // EvaluateWithLocals evaluates an expression with persistent local variables.
+  rpc EvaluateWithLocals(EvaluateWithLocalsRequest) returns (EvaluateWithLocalsResponse);
+}
+
+// --- Compile Method ---
+
+message CompileMethodRequest {
+  string class_name = 1;
+  string source = 2;       // full method source (selector + body)
+  bool class_side = 3;
+}
+
+message CompileMethodResponse {
+  bool success = 1;
+  string selector = 2;           // parsed selector name
+  string error_message = 3;      // set when success=false
+  repeated Diagnostic diagnostics = 4;
+}
+
+// --- Remove Method ---
+
+message RemoveMethodRequest {
+  string class_name = 1;
+  string selector = 2;
+  bool class_side = 3;
+}
+
+message RemoveMethodResponse {
+  bool success = 1;
+  string error_message = 2;
+}
+
+// --- Create Class ---
+
+message CreateClassRequest {
+  string name = 1;
+  string superclass_name = 2;              // defaults to "Object" if empty
+  repeated string instance_variable_names = 3;
+}
+
+message CreateClassResponse {
+  bool success = 1;
+  ClassInfo class = 2;
+  string error_message = 3;
+}
+
+// --- Save Image ---
+
+message SaveImageRequest {
+  string path = 1;  // optional: defaults to current image path
+}
+
+message SaveImageResponse {
+  bool success = 1;
+  string path = 2;          // actual path saved to
+  string error_message = 3;
+}
+
+// --- Evaluate With Locals ---
+
+message LocalVariable {
+  string name = 1;
+  string value = 2;  // printString representation (for display)
+  ObjectHandle handle = 3;  // handle to the actual value
+}
+
+message EvaluateWithLocalsRequest {
+  string source = 1;
+  string session_id = 2;
+  repeated LocalVariable locals = 3;  // pre-existing locals to inject
+}
+
+message EvaluateWithLocalsResponse {
+  bool success = 1;
+  string result = 2;
+  ObjectHandle handle = 3;
+  string error_message = 4;
+  repeated LocalVariable updated_locals = 5;  // locals after evaluation (includes new vars)
+  repeated Diagnostic diagnostics = 6;
+}

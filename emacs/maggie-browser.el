@@ -155,42 +155,56 @@
              (cons 'arity arity)
              (cons 'isPrimitive (alist-get 'isPrimitive method-info)))))))
 
+(defvar maggie-browser--source-start nil
+  "Buffer position where editable source code begins.")
+(make-variable-buffer-local 'maggie-browser--source-start)
+
 (defun maggie-browser--render-source (info)
   "Render the source view buffer. INFO is an alist or nil."
   (with-current-buffer (get-buffer-create maggie-browser-source-buffer)
     (let ((inhibit-read-only t))
       (erase-buffer)
       (if (not info)
-          (insert "(select a method to view source)\n")
+          (progn
+            (insert "(select a method to view source)\n")
+            (setq maggie-browser--source-start nil))
         (let ((source (alist-get 'source info))
               (category (alist-get 'category info))
               (arity (alist-get 'arity info))
               (prim (alist-get 'isPrimitive info)))
-          (insert (propertize
-                   (format "%s >> %s%s"
-                           maggie-browser--current-class
-                           (if maggie-browser--class-side "class " "")
-                           maggie-browser--current-method)
-                   'face 'bold)
-                  "\n")
-          (when category
-            (insert (propertize (format "category: %s" category)
-                                'face 'font-lock-comment-face)
-                    "\n"))
-          (when arity
-            (insert (propertize (format "arity: %s" arity)
-                                'face 'font-lock-comment-face)
-                    "\n"))
-          (insert (make-string 50 ?-) "\n")
+          ;; Header (read-only)
+          (let ((header-start (point)))
+            (insert (propertize
+                     (format "%s >> %s%s"
+                             maggie-browser--current-class
+                             (if maggie-browser--class-side "class " "")
+                             maggie-browser--current-method)
+                     'face 'bold)
+                    "\n")
+            (when category
+              (insert (propertize (format "category: %s" category)
+                                  'face 'font-lock-comment-face)
+                      "\n"))
+            (when arity
+              (insert (propertize (format "arity: %s" arity)
+                                  'face 'font-lock-comment-face)
+                      "\n"))
+            (insert (make-string 50 ?-) "\n")
+            (put-text-property header-start (point) 'read-only t))
+          ;; Source (editable)
+          (setq maggie-browser--source-start (point))
           (cond
            ((eq prim t)
-            (insert (propertize "<primitive method>" 'face 'font-lock-warning-face) "\n"))
+            (insert (propertize "<primitive method>" 'face 'font-lock-warning-face) "\n")
+            (setq maggie-browser--source-start nil))
            ((and source (not (string-empty-p source)))
             (insert source "\n"))
            (t
-            (insert "(no source available)\n")))))
-      (goto-char (point-min))
-      (maggie-mode))))
+            (insert "(no source available)\n")
+            (setq maggie-browser--source-start nil))))))
+    (goto-char (or maggie-browser--source-start (point-min)))
+    (maggie-browser-source-mode)
+    (set-buffer-modified-p nil)))
 
 ;; --- Find senders / implementors ---
 
@@ -287,6 +301,8 @@
     (define-key map (kbd "s") #'maggie-browser-find-senders)
     (define-key map (kbd "i") #'maggie-browser-find-implementors)
     (define-key map (kbd "/") #'maggie-browser-search-classes)
+    (define-key map (kbd "n") #'maggie-browser-create-class)
+    (define-key map (kbd "S") #'maggie-browser-save-image)
     map))
 
 (define-derived-mode maggie-browser-classes-mode special-mode "Maggie-Classes"
@@ -299,10 +315,23 @@
     (define-key map (kbd "s") #'maggie-browser-find-senders)
     (define-key map (kbd "i") #'maggie-browser-find-implementors)
     (define-key map (kbd "t") #'maggie-browser--toggle-side)
+    (define-key map (kbd "d") #'maggie-browser-remove-method)
     map))
 
 (define-derived-mode maggie-browser-methods-mode special-mode "Maggie-Methods"
   "Mode for the Maggie method list pane.")
+
+(defvar maggie-browser-source-mode-map
+  (let ((map (make-sparse-keymap)))
+    (define-key map (kbd "C-x C-s") #'maggie-browser-compile-method)
+    (define-key map (kbd "C-c C-d") #'maggie-do-it)
+    (define-key map (kbd "C-c C-p") #'maggie-print-it)
+    (define-key map (kbd "C-c C-s") #'maggie-check-syntax)
+    map))
+
+(define-derived-mode maggie-browser-source-mode maggie-mode "Maggie-Source"
+  "Mode for the Maggie source pane. Supports editing and compiling methods."
+  (setq-local inhibit-read-only nil))
 
 ;; --- Commands ---
 
@@ -351,6 +380,104 @@
   (maggie-browser--render-source nil)
   (maggie-browser--setup-layout)
   (message "Maggie System Browser: %d classes loaded" (length maggie-browser--class-list)))
+
+;; --- Compile method from source pane ---
+
+(defun maggie-browser-compile-method ()
+  "Compile the source in the source pane and install it on the current class.
+Bound to C-x C-s in the source pane."
+  (interactive)
+  (unless maggie-browser--current-class
+    (error "No class selected"))
+  (unless maggie-browser--source-start
+    (error "No editable source in this buffer"))
+  (let* ((source (string-trim
+                  (buffer-substring-no-properties
+                   maggie-browser--source-start (point-max))))
+         (resp (maggie--connect-call-sync
+                "maggie.v1.ModificationService" "CompileMethod"
+                `((className . ,maggie-browser--current-class)
+                  (source . ,source)
+                  (classSide . ,(if maggie-browser--class-side t :json-false))))))
+    (if (eq (alist-get 'success resp) t)
+        (let ((selector (alist-get 'selector resp)))
+          (setq maggie-browser--current-method selector)
+          (set-buffer-modified-p nil)
+          ;; Refresh method list to reflect changes
+          (maggie-browser--fetch-and-render-methods)
+          (message "Compiled: %s >> %s%s"
+                   maggie-browser--current-class
+                   (if maggie-browser--class-side "class " "")
+                   selector))
+      (let ((err (alist-get 'errorMessage resp))
+            (diags (alist-get 'diagnostics resp)))
+        (message "Compile error: %s" (or err "unknown error"))
+        (when diags
+          (dolist (d diags)
+            (message "  %s" (alist-get 'message d))))))))
+
+;; --- Create class ---
+
+(defun maggie-browser-create-class (name superclass-name ivars)
+  "Create a new class NAME with SUPERCLASS-NAME and instance variables IVARS."
+  (interactive
+   (list (read-string "Class name: ")
+         (read-string "Superclass (default Object): " nil nil "Object")
+         (split-string (read-string "Instance variables (space-separated): ") " " t)))
+  (let ((resp (maggie--connect-call-sync
+               "maggie.v1.ModificationService" "CreateClass"
+               `((name . ,name)
+                 (superclassName . ,superclass-name)
+                 (instanceVariableNames . ,(vconcat ivars))))))
+    (if (eq (alist-get 'success resp) t)
+        (progn
+          (maggie-browser--fetch-classes)
+          (maggie-browser--render-classes)
+          (maggie-browser--select-class name)
+          (message "Created class %s < %s" name superclass-name))
+      (message "Error: %s" (alist-get 'errorMessage resp)))))
+
+;; --- Remove method ---
+
+(defun maggie-browser-remove-method ()
+  "Remove the currently selected method from the current class."
+  (interactive)
+  (unless maggie-browser--current-class
+    (error "No class selected"))
+  (unless maggie-browser--current-method
+    (error "No method selected"))
+  (when (yes-or-no-p (format "Remove %s >> %s%s? "
+                              maggie-browser--current-class
+                              (if maggie-browser--class-side "class " "")
+                              maggie-browser--current-method))
+    (let ((resp (maggie--connect-call-sync
+                 "maggie.v1.ModificationService" "RemoveMethod"
+                 `((className . ,maggie-browser--current-class)
+                   (selector . ,maggie-browser--current-method)
+                   (classSide . ,(if maggie-browser--class-side t :json-false))))))
+      (if (eq (alist-get 'success resp) t)
+          (progn
+            (message "Removed %s >> %s"
+                     maggie-browser--current-class maggie-browser--current-method)
+            (setq maggie-browser--current-method nil)
+            (maggie-browser--fetch-and-render-methods)
+            (maggie-browser--render-source nil))
+        (message "Error: %s" (alist-get 'errorMessage resp))))))
+
+;; --- Save image ---
+
+(defun maggie-browser-save-image (&optional path)
+  "Save the current image to disk.
+With prefix arg, prompt for PATH."
+  (interactive
+   (list (when current-prefix-arg
+           (read-file-name "Save image to: "))))
+  (let ((resp (maggie--connect-call-sync
+               "maggie.v1.ModificationService" "SaveImage"
+               (if path `((path . ,path)) '()))))
+    (if (eq (alist-get 'success resp) t)
+        (message "Image saved to %s" (alist-get 'path resp))
+      (message "Save error: %s" (alist-get 'errorMessage resp)))))
 
 (provide 'maggie-browser)
 ;;; maggie-browser.el ends here
