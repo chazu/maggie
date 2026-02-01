@@ -158,6 +158,148 @@ value := Compiler getGlobal: #myVar.
 
 This is used by the IDE to bind `it` to the last evaluated result, making it available in subsequent expressions.
 
+### File Loading (fileIn/fileOut)
+
+```smalltalk
+"Load a .mag source file into the running VM"
+Compiler fileIn: 'path/to/file.mag'.
+
+"Recursively load all .mag files from a directory"
+Compiler fileInAll: 'path/to/dir'.
+
+"Write a class back to a .mag file (reconstructs source)"
+Compiler fileOut: 'ClassName' to: '/tmp/ClassName.mag'.
+
+"Write all classes in a namespace to a directory (one file per class)"
+Compiler fileOutNamespace: 'MyApp::Models' to: '/tmp/models/'.
+```
+
+fileOut reconstructs source from stored method text. Methods compiled from `.mag` files preserve their original source text; methods defined via `evaluate:` or primitives produce a stub comment instead.
+
+### Image Persistence
+
+```smalltalk
+"Save current VM state (all classes, methods, globals) to an image file"
+Compiler saveImage: 'my-app.image'.
+```
+
+From the CLI:
+
+```bash
+# Build image from source
+mag ./src/... --save-image my-app.image
+
+# Run from a custom image instead of the embedded default
+mag --image my-app.image -m Main.start
+```
+
+---
+
+## Module System
+
+Maggie has a module system built on namespaces, source file conventions, and a project manifest.
+
+### Namespaces and Imports
+
+Source files can declare a namespace and import other namespaces. These must appear before any class or trait definitions.
+
+```smalltalk
+namespace: 'Yutani::Widgets'
+
+import: 'Yutani'
+import: 'Yutani::Events'
+
+YutaniButton subclass: YutaniWidget
+  instanceVars: label onClick
+  method: label [ ^label ]
+```
+
+- `namespace:` — optional, one per file, sets the namespace for all classes defined in the file
+- `import:` — zero or more, allows unqualified references to classes in imported namespaces
+- `::` is the namespace separator (e.g., `Yutani::Widgets::Button`)
+- Files without `namespace:`/`import:` work exactly as before (backward compatible)
+
+**Class resolution order** (when looking up a class name):
+1. Current namespace (`MyNS::ClassName`)
+2. Each imported namespace in order (`Import1::ClassName`, `Import2::ClassName`, ...)
+3. Bare name (`ClassName` — the root/default namespace)
+
+### Directory-as-Namespace Convention
+
+When loading files from directories, namespaces are derived automatically from the directory structure:
+
+```
+src/myapp/models/User.mag  -> MyApp::Models
+src/myapp/Main.mag          -> MyApp
+src/Helper.mag              -> (no namespace, root)
+```
+
+- Path segments relative to the base directory become PascalCase namespace segments joined by `::`
+- An explicit `namespace:` declaration in the file overrides the directory-derived namespace
+- Root-level files (directly in the base directory) have no namespace
+
+### Project Manifest (maggie.toml)
+
+A `maggie.toml` file in the project root configures the project:
+
+```toml
+[project]
+name = "my-app"
+namespace = "MyApp"
+version = "0.1.0"
+
+[source]
+dirs = ["src"]               # source directories to compile
+entry = "Main.start"         # entry point (resolved relative to project namespace)
+
+[dependencies]
+yutani = { git = "https://github.com/chazu/yutani-mag", tag = "v0.5.0" }
+local-lib = { path = "../shared-lib" }
+
+[image]
+output = "my-app.image"
+include-source = true         # preserve method source in image for fileOut
+```
+
+When `mag` is invoked without explicit paths and a `maggie.toml` exists, the project is loaded automatically:
+
+```bash
+mag -m Main.start       # Detects maggie.toml, resolves deps, loads src/, runs Main.start
+mag --save-image app.image  # Same, but also saves image
+```
+
+### Dependency Management
+
+Dependencies are declared in `maggie.toml` and managed via the `mag deps` subcommand.
+
+```bash
+mag deps          # Resolve and fetch all dependencies
+mag deps update   # Re-resolve ignoring lock file
+mag deps list     # Show dependency tree
+```
+
+**Dependency types:**
+- `git` — cloned to `.maggie/deps/<name>/`, checked out to the specified tag
+- `path` — local filesystem path (relative to project root)
+
+**Dependency storage layout:**
+
+```
+my-app/
+  maggie.toml
+  .maggie/
+    deps/
+      yutani/           # git clone
+      local-lib/        # resolved path
+    lock.toml           # locked versions (auto-generated)
+  src/
+    Main.mag
+```
+
+Dependencies are loaded in topological order (transitive deps before direct deps, deps before the project itself). Each dependency's own `maggie.toml` is read for transitive dependency resolution.
+
+The lock file (`.maggie/lock.toml`) records exact commit hashes for reproducible builds. It is auto-generated — do not edit by hand.
+
 ---
 
 ## Debugging Yutani TUI Applications
