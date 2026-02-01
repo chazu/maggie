@@ -25,29 +25,102 @@ go test ./...
 
 - `vm/` - Virtual machine implementation (values, classes, interpreter, image I/O)
 - `compiler/` - Lexer, parser, and bytecode compiler
+- `manifest/` - Project manifest (`maggie.toml`) and dependency resolution
 - `cmd/bootstrap/` - Bootstrap tool that compiles core library to binary image
+- `cmd/mag/` - Main CLI entry point
 - `lib/` - Core class library in Maggie source (`.mag` files)
 - `docs/` - Design documentation
 
 ## Maggie Source Files (.mag)
 
-Maggie source files use `.mag` extension. Method boundaries are detected automatically by looking for unindented method headers:
+Maggie source files use `.mag` extension. Files can define classes with Trashtalk-style declarations, or add methods to existing classes with unindented method headers:
 
 ```smalltalk
--- This is a comment
-factorial
-    self = 0 ifTrue: [^1].
-    ^self * (self - 1) factorial
+-- Define a class with instance variables and methods
+Counter subclass: Object
+  instanceVars: value
 
-even
-    ^(self \\ 2) = 0
+  method: increment [
+    value := value + 1.
+    ^value
+  ]
 
-max: other
-    self > other ifTrue: [^self].
-    ^other
+  method: value [ ^value ]
 ```
 
-The bootstrap tool compiles these into bytecode and saves them in a binary image (`maggie.image`).
+Files can also declare a namespace and imports:
+
+```smalltalk
+namespace: 'MyApp::Models'
+import: 'MyApp::Core'
+
+User subclass: Object
+  instanceVars: name email
+
+  method: name [ ^name ]
+  method: email [ ^email ]
+```
+
+The bootstrap tool compiles core library files into bytecode and saves them in a binary image (`maggie.image`).
+
+## Module System
+
+Maggie supports class-level namespaces using `::` as the separator:
+
+- **Namespace declaration**: `namespace: 'MyApp::Models'` at the top of a `.mag` file
+- **Imports**: `import: 'MyApp::Core'` to reference classes from another namespace without qualification
+- **Directory convention**: Directory structure maps to namespaces automatically (`src/myapp/models/` becomes `Myapp::Models`)
+- **Class resolution order**: Current namespace, then imports, then bare name
+
+## Project Manifest (maggie.toml)
+
+Projects can be managed with a `maggie.toml` manifest:
+
+```toml
+[project]
+name = "my-app"
+namespace = "MyApp"
+version = "0.1.0"
+
+[source]
+dirs = ["src"]
+entry = "Main.start"
+
+[dependencies]
+yutani = { git = "https://github.com/chazu/yutani-mag", tag = "v0.5.0" }
+helper = { path = "../helper" }
+
+[image]
+output = "my-app.image"
+include-source = true
+```
+
+When `mag` is invoked in a directory with `maggie.toml`, it automatically resolves dependencies, loads source directories, and runs the entry point.
+
+### Dependency Management
+
+```bash
+mag deps              # Resolve and fetch dependencies
+mag deps update       # Re-resolve ignoring lock file
+mag deps list         # Show resolved dependency tree
+```
+
+Dependencies are stored in `.maggie/deps/` and locked in `.maggie/lock.toml`.
+
+## Images
+
+Maggie uses binary images to snapshot VM state (classes, methods, globals).
+
+```bash
+# Save an image after loading source
+mag ./src/... --save-image my-app.image
+
+# Run from a custom image
+mag --image my-app.image -m Main.start
+
+# Save from within Maggie code
+Compiler saveImage: 'my-app.image'.
+```
 
 ## JIT Compilation
 

@@ -43,6 +43,16 @@ mag [options] [paths...]
 | `-m <entry>` | Run specified method as main (e.g., `main` or `App.start`) |
 | `-v` | Verbose output |
 | `-no-rc` | Skip loading ~/.maggierc |
+| `--image <path>` | Load a custom image instead of the embedded default |
+| `--save-image <path>` | Save VM state to an image after loading all files |
+
+### Subcommands
+
+| Command | Description |
+|---------|-------------|
+| `mag deps` | Resolve and fetch project dependencies |
+| `mag deps update` | Re-resolve dependencies, ignoring lock file |
+| `mag deps list` | Show the resolved dependency tree |
 
 ### Examples
 
@@ -61,6 +71,20 @@ mag ./app -m App.start
 
 # Verbose loading
 mag -v ./lib
+
+# Build and save an image
+mag ./src/... --save-image my-app.image
+
+# Run from a custom image
+mag --image my-app.image -m Main.start
+
+# Run a project (auto-detects maggie.toml)
+mag
+
+# Manage dependencies
+mag deps
+mag deps update
+mag deps list
 ```
 
 ## The REPL
@@ -259,14 +283,39 @@ x := 42  -- inline comment
 
 ## Source Files (.mag)
 
-Maggie source files use the `.mag` extension. The filename determines the class name:
+Maggie source files use the `.mag` extension. Files can define classes using Trashtalk-style declarations, or add methods to existing classes.
 
-- `Foo.mag` → methods for class `Foo`
-- `MyApp.mag` → methods for class `MyApp`
+### Class Definitions
 
-### File Structure
+Classes are defined with `subclass:`, instance variables with `instanceVars:`, and methods with `method:` / `classMethod:`:
 
-Methods are separated by blank lines. No delimiters needed:
+```smalltalk
+-- Counter.mag
+Counter subclass: Object
+  instanceVars: value
+
+  method: initialize [
+    value := 0
+  ]
+
+  method: increment [
+    value := value + 1.
+    ^value
+  ]
+
+  method: value [ ^value ]
+
+  classMethod: startingAt: n [
+    | c |
+    c := self new.
+    c setValue: n.
+    ^c
+  ]
+```
+
+### Adding Methods to Existing Classes
+
+Files can also add methods to existing classes. The filename determines the class name (`MyMath.mag` adds methods to class `MyMath`). Methods are separated by blank lines:
 
 ```smalltalk
 -- MyMath.mag
@@ -281,6 +330,43 @@ cube
 sqrt
     ^self primSqrt
 ```
+
+### Namespaces and Imports
+
+Files can declare a namespace and import other namespaces. These must appear before any class or method definitions:
+
+```smalltalk
+namespace: 'MyApp::Models'
+import: 'MyApp::Core'
+
+User subclass: Object
+  instanceVars: name email
+
+  method: name [ ^name ]
+  method: email [ ^email ]
+```
+
+- `namespace:` — optional, one per file, sets the namespace for all classes defined in the file
+- `import:` — zero or more, allows referencing classes from other namespaces without full qualification
+- The `::` separator is used for nested namespaces (e.g., `'MyApp::Models::Base'`)
+- Files without `namespace:` or `import:` work exactly as before (backward compatible)
+
+**Class resolution order**: When a class name is referenced, Maggie looks in this order:
+1. Current namespace (e.g., `MyApp::Models::ClassName`)
+2. Each imported namespace (e.g., `MyApp::Core::ClassName`)
+3. Bare name (e.g., `ClassName` — the default/root namespace)
+
+### Directory-as-Namespace Convention
+
+When loading directories, the directory structure automatically maps to namespaces:
+
+```
+src/myapp/models/User.mag  → namespace MyApp::Models
+src/myapp/Main.mag         → namespace MyApp
+src/Helper.mag             → no namespace (root)
+```
+
+Path segments are converted to PascalCase (e.g., `my-app` becomes `MyApp`). An explicit `namespace:` declaration in the file overrides the directory-derived namespace.
 
 ### Loading Files
 
@@ -901,6 +987,118 @@ receiveWithTimeout: channel timeout: ms
 ```
 
 See `examples/concurrency.mag` for more comprehensive examples.
+
+## Compiler Primitives
+
+The `Compiler` class provides methods for dynamic code loading, saving, and evaluation.
+
+### fileIn / fileOut
+
+Load source files at runtime or export classes back to source:
+
+```smalltalk
+-- Load a single source file
+Compiler fileIn: 'path/to/MyClass.mag'.
+
+-- Load all .mag files from a directory (recursive)
+Compiler fileInAll: 'path/to/src'.
+
+-- Export a class to a .mag file
+Compiler fileOut: 'Counter' to: '/tmp/Counter.mag'.
+
+-- Export all classes in a namespace to a directory (one file per class)
+Compiler fileOutNamespace: 'MyApp::Models' to: '/tmp/models/'.
+```
+
+### Image Persistence
+
+Save the entire VM state (all loaded classes, methods, and globals) to a binary image:
+
+```smalltalk
+-- Save current VM state
+Compiler saveImage: 'my-app.image'.
+```
+
+From the command line:
+
+```bash
+# Build an image from source files
+mag ./src/... --save-image my-app.image
+
+# Run from a saved image
+mag --image my-app.image -m Main.start
+```
+
+### Dynamic Evaluation
+
+```smalltalk
+-- Evaluate expressions at runtime
+Compiler evaluate: '3 + 4'.           -- 7
+
+-- Evaluate with a specific receiver
+arr := Array new: 3.
+Compiler evaluate: 'self size' in: arr.  -- 3
+
+-- Globals persist across evaluations
+Compiler evaluate: 'x := 42'.
+Compiler evaluate: 'x + 1'.           -- 43
+```
+
+## Project Manifest (maggie.toml)
+
+For larger projects, create a `maggie.toml` manifest in the project root:
+
+```toml
+[project]
+name = "my-app"
+namespace = "MyApp"
+version = "0.1.0"
+
+[source]
+dirs = ["src", "lib"]
+entry = "Main.start"
+
+[dependencies]
+yutani = { git = "https://github.com/chazu/yutani-mag", tag = "v0.5.0" }
+helper = { path = "../helper" }
+
+[image]
+output = "my-app.image"
+include-source = true
+```
+
+### Sections
+
+| Section | Description |
+|---------|-------------|
+| `[project]` | Project metadata: `name`, `namespace`, `version` |
+| `[source]` | Source directories (`dirs`, default `["src"]`) and `entry` point |
+| `[dependencies]` | External packages — `git` (with optional `tag`) or local `path` |
+| `[image]` | Image output path and whether to include source for `fileOut:` |
+
+### Running a Project
+
+When `mag` is invoked in a directory containing `maggie.toml` (with no explicit paths), it automatically:
+1. Resolves and fetches dependencies
+2. Loads dependency source directories (in topological order)
+3. Loads project source directories
+4. Runs the entry point
+
+```bash
+cd my-app/
+mag              # auto-detects maggie.toml
+mag -v           # verbose loading
+```
+
+### Dependency Management
+
+```bash
+mag deps              # Resolve and fetch all dependencies
+mag deps update       # Re-resolve, ignoring the lock file
+mag deps list         # Show the resolved dependency tree
+```
+
+Dependencies are cloned/fetched into `.maggie/deps/` and their resolved versions are recorded in `.maggie/lock.toml`. Transitive dependencies are resolved automatically.
 
 ## Tips
 

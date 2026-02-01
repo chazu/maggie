@@ -61,37 +61,51 @@ counter increment: 5.
 
 ## Module System
 
-Maggie uses **class-level namespaces**. Classes live in namespaces; methods belong to their class.
+Maggie uses **class-level namespaces** with `::` as the separator. Classes live in namespaces; methods belong to their class.
 
 ### Declaring Namespaces
 
-```smalltalk
-namespace: MyApp.
-
-Object subclass: #Counter
-    instanceVariableNames: 'value'
-    package: 'MyApp-Core'.
-
-Counter >> increment [
-    ^value := value + 1
-]
-```
-
-### Referencing Classes
+Namespace and import declarations appear at the top of a `.mag` file, before any class or method definitions:
 
 ```smalltalk
-"Fully qualified"
-c := MyApp.Counter new.
+namespace: 'MyApp::Core'
+import: 'MyApp::Utils'
 
-"Or with import"
-import: MyApp.Counter.
-c := Counter new.
+Counter subclass: Object
+  instanceVars: value
 
-"Import all from namespace"
-import: MyApp.
-c := Counter new.
-w := Widget new.
+  method: increment [
+    value := value + 1.
+    ^value
+  ]
 ```
+
+### Imports and Class Resolution
+
+```smalltalk
+namespace: 'MyApp::Views'
+import: 'MyApp::Models'
+import: 'MyApp::Core'
+
+-- User is resolved by checking:
+-- 1. MyApp::Views::User (current namespace)
+-- 2. MyApp::Models::User (first import)
+-- 3. MyApp::Core::User (second import)
+-- 4. User (bare/root namespace)
+profile := User find: userId.
+```
+
+### Directory-as-Namespace Convention
+
+When loading source from directories, the directory structure maps to namespaces automatically:
+
+```
+src/myapp/models/User.mag  → MyApp::Models
+src/myapp/Main.mag         → MyApp
+lib/Array.mag              → (no namespace, root)
+```
+
+Path segments are PascalCased: `my-app/` → `MyApp`, `user_models/` → `UserModels`. An explicit `namespace:` in the file overrides the derived namespace.
 
 ### Rules
 
@@ -100,8 +114,46 @@ w := Widget new.
 - Within a namespace, classes can reference each other unqualified
 - Cross-namespace references require qualification or import
 - The empty namespace is the default (for bootstrapping and REPL)
+- Classes are registered with both `Namespace::Name` and bare `Name` (bare name only if no conflict)
 
-**Rationale**: Simple, matches how most modern languages work. Avoids the complexity of method-level namespacing while preventing class name collisions.
+### Runtime fileIn/fileOut
+
+Source files can be loaded and exported at runtime:
+
+```smalltalk
+Compiler fileIn: 'path/to/File.mag'.              -- load one file
+Compiler fileInAll: 'path/to/src'.                 -- load directory recursively
+Compiler fileOut: 'Counter' to: '/tmp/Counter.mag'. -- export class to source
+Compiler fileOutNamespace: 'MyApp' to: '/tmp/'.     -- export namespace
+Compiler saveImage: 'my-app.image'.                 -- save VM state
+```
+
+### Project Manifest (maggie.toml)
+
+Projects use a TOML manifest for configuration and dependency management:
+
+```toml
+[project]
+name = "my-app"
+namespace = "MyApp"
+version = "0.1.0"
+
+[source]
+dirs = ["src"]
+entry = "Main.start"
+
+[dependencies]
+yutani = { git = "https://github.com/chazu/yutani-mag", tag = "v0.5.0" }
+helper = { path = "../helper" }
+
+[image]
+output = "my-app.image"
+include-source = true
+```
+
+Dependencies are resolved via topological sort, fetched to `.maggie/deps/`, and locked in `.maggie/lock.toml`. Transitive dependencies are handled automatically.
+
+**Rationale**: Simple, matches how most modern languages work. Avoids the complexity of method-level namespacing while preventing class name collisions. The `::` separator follows Ruby/C++ convention and is familiar to developers.
 
 ---
 
@@ -1757,7 +1809,9 @@ Maggie is a Smalltalk dialect that combines:
 - **Standard Smalltalk syntax**: Familiar, proven, well-documented
 - **Piumarta-inspired object model**: Everything is an object, vtable dispatch
 - **NaN-boxing**: Floats are unboxed for native performance
-- **Class-level namespaces**: Simple module system
+- **Class-level namespaces**: `::` separated module system with imports and directory convention
+- **Project manifest**: `maggie.toml` with dependency resolution and lock files
+- **fileIn/fileOut**: Runtime source loading and class-to-source export
 - **Result types**: For expected failures (file not found, parse errors)
 - **Exceptions**: For unexpected failures (bugs, invariant violations)
 - **Rich numeric tower**: SmallInteger, LargeInteger, Float, Fraction, Decimal
@@ -1771,5 +1825,5 @@ The design prioritizes pragmatism over purity: simple core, room for optimizatio
 ---
 
 *Document created: 2026-01-18*
-*Updated: 2026-01-18 - NaN-boxing, namespaces, Result types, numeric tower finalized*
+*Updated: 2026-01-31 - Module system (:: namespaces, imports, directory convention, maggie.toml, dependency resolution, fileIn/fileOut)*
 *Based on design discussions for Maggie (forked from Procyon)*
