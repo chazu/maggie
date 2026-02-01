@@ -9,7 +9,7 @@ arr := #(1 2 3 4 5).
 arr size.           # => 5
 arr first.          # => 1
 arr last.           # => 5
-arr at: 3.          # => 3
+arr at: 2.          # => 3
 
 # Iteration with do:
 arr do: [:each | each * 2].
@@ -33,13 +33,13 @@ arr inject: 1 into: [:prod :x | prod * x]. # => 120 (product)
 # Testing
 arr includes: 3.    # => true
 arr includes: 99.   # => false
-arr indexOf: 4.     # => 4
+arr indexOf: 4.     # => 3
 
 # Concatenation
 #(1 2) , #(3 4).    # => #(1 2 3 4)
 
 # Copying
-arr copyFrom: 2 to: 4.  # => #(2 3 4)
+arr copyFrom: 1 to: 4.  # => #(2 3 4)
 
 # Check empty
 arr isEmpty.        # => false

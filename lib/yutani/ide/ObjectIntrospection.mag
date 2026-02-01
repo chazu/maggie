@@ -23,11 +23,11 @@ ObjectIntrospection subclass: Object
 
       varNames := self instanceVariablesOf: anObject.
       index := varNames indexOf: slotName.
-      index = 0 ifTrue: [
+      index = -1 ifTrue: [
           "Try as symbol if string lookup failed"
           index := varNames indexOf: slotName asSymbol
       ].
-      index = 0 ifTrue: [^nil].
+      index = -1 ifTrue: [^nil].
 
       ^anObject instVarAt: index
   ]
@@ -71,8 +71,8 @@ ObjectIntrospection subclass: Object
       (self isArrayLike: anObject) ifTrue: [
           | names i |
           names := Array new: anObject size.
-          i := 1.
-          [i <= anObject size] whileTrue: [
+          i := 0.
+          [i < anObject size] whileTrue: [
               names at: i put: i printString, ':'.
               i := i + 1
           ].
@@ -82,8 +82,8 @@ ObjectIntrospection subclass: Object
           | keys names i |
           keys := anObject keys.
           names := Array new: keys size.
-          i := 1.
-          [i <= keys size] whileTrue: [
+          i := 0.
+          [i < keys size] whileTrue: [
               names at: i put: (keys at: i) printString, ':'.
               i := i + 1
           ].
@@ -96,17 +96,17 @@ ObjectIntrospection subclass: Object
       "Return the value of a slot by name. Handles Array/Dictionary special cases."
       (self isArrayLike: anObject) ifTrue: [
           | index |
-          "Slot names are '1:', '2:', etc. Strip trailing colon."
-          index := (slotName copyFrom: 1 to: slotName size - 1) asInteger.
+          "Slot names are '0:', '1:', etc. Strip trailing colon."
+          index := (slotName copyFrom: 0 to: slotName size - 1) asInteger.
           ^anObject at: index
       ].
       (self isDictionaryLike: anObject) ifTrue: [
           | keyStr keys i |
           "Slot names are 'key:', strip trailing colon and look up."
-          keyStr := slotName copyFrom: 1 to: slotName size - 1.
+          keyStr := slotName copyFrom: 0 to: slotName size - 1.
           keys := anObject keys.
-          i := 1.
-          [i <= keys size] whileTrue: [
+          i := 0.
+          [i < keys size] whileTrue: [
               (keys at: i) printString = keyStr ifTrue: [
                   ^anObject at: (keys at: i)
               ].

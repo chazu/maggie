@@ -8,8 +8,8 @@ String subclass: Object
   ]
 
   method: at: index [
-      "Return character at 1-based index. primAt: uses 0-based indexing."
-      ^self primAt: index - 1
+      "Return character at 0-based index."
+      ^self primAt: index
   ]
 
   method: isEmpty [

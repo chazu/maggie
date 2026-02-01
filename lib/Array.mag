@@ -9,21 +9,21 @@ Array subclass: Object
   ]
 
   method: at: index [
-      "Return element at 1-based index. primAt: uses 0-based indexing."
-      ^self primAt: index - 1
+      "Return element at 0-based index."
+      ^self primAt: index
   ]
 
   method: at: index put: value [
-      "Set element at 1-based index. primAt:put: uses 0-based indexing."
-      ^self primAt: index - 1 put: value
+      "Set element at 0-based index."
+      ^self primAt: index put: value
   ]
 
   method: first [
-      ^self at: 1
+      ^self at: 0
   ]
 
   method: last [
-      ^self at: self size
+      ^self at: self size - 1
   ]
 
   method: isEmpty [
@@ -36,13 +36,13 @@ Array subclass: Object
 
   # Iteration
   method: do: block [
-      1 to: self size do: [:i | block value: (self at: i)]
+      0 to: self size - 1 do: [:i | block value: (self at: i)]
   ]
 
   method: collect: block [
       | result |
       result := Array new: self size.
-      1 to: self size do: [:i | result at: i put: (block value: (self at: i))].
+      0 to: self size - 1 do: [:i | result at: i put: (block value: (self at: i))].
       ^result
   ]
 
@@ -82,24 +82,26 @@ Array subclass: Object
   ]
 
   method: indexOf: anObject [
-      1 to: self size do: [:i | (self at: i) = anObject ifTrue: [^i]].
-      ^0
+      "Return the 0-based index of anObject, or -1 if not found."
+      0 to: self size - 1 do: [:i | (self at: i) = anObject ifTrue: [^i]].
+      ^-1
   ]
 
   # Concatenation
   method: , other [
       | result |
       result := Array new: self size + other size.
-      1 to: self size do: [:i | result at: i put: (self at: i)].
-      1 to: other size do: [:i | result at: self size + i put: (other at: i)].
+      0 to: self size - 1 do: [:i | result at: i put: (self at: i)].
+      0 to: other size - 1 do: [:i | result at: self size + i put: (other at: i)].
       ^result
   ]
 
   # Copying
   method: copyFrom: start to: end [
+      "Return elements from start (inclusive) to end (exclusive), 0-based."
       | result |
-      result := Array new: end - start + 1.
-      start to: end do: [:i | result at: i - start + 1 put: (self at: i)].
+      result := Array new: end - start.
+      start to: end - 1 do: [:i | result at: i - start put: (self at: i)].
       ^result
   ]
 

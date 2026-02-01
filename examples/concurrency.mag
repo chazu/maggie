@@ -109,8 +109,8 @@ sources := { Channel new. Channel new. Channel new }.
 merged := Channel new: 10.
 
 # Producers send to individual channels
-producer1 := [sources at: 1. send: 'from 1'] fork.
-producer2 := [sources at: 2. send: 'from 2'] fork.
+producer1 := [sources at: 0. send: 'from 1'] fork.
+producer2 := [sources at: 1. send: 'from 2'] fork.
 
 # Merger forwards from all sources to merged
 [
@@ -118,9 +118,9 @@ producer2 := [sources at: 2. send: 'from 2'] fork.
     done := false.
     [done not] whileTrue: [
         Channel select: {
+            (sources at: 0) onReceive: [:v | merged send: v].
             (sources at: 1) onReceive: [:v | merged send: v].
-            (sources at: 2) onReceive: [:v | merged send: v].
-            (sources at: 3) onReceive: [:v | merged send: v]
+            (sources at: 2) onReceive: [:v | merged send: v]
         } ifNone: [
             done := true
         ]

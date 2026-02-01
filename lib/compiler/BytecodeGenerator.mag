@@ -120,7 +120,7 @@ BytecodeGenerator subclass: Object
       "Add a literal to the table, return its index. Reuse if duplicate."
       | index |
       index := literals indexOf: value.
-      index > 0 ifTrue: [^index - 1].  "Already exists"
+      index >= 0 ifTrue: [^index].  "Already exists"
       literals := literals copyWith: value.
       ^literals size - 1
   ]
@@ -129,7 +129,7 @@ BytecodeGenerator subclass: Object
       "Add a selector, return its index."
       | index |
       index := selectors indexOf: selector.
-      index > 0 ifTrue: [^index - 1].
+      index >= 0 ifTrue: [^index].
       selectors := selectors copyWith: selector.
       ^selectors size - 1
   ]
@@ -146,25 +146,19 @@ BytecodeGenerator subclass: Object
 
   method: tempIndex: name [
       "Get index of a temp variable, or -1 if not found."
-      | index |
-      index := temps indexOf: name.
-      index > 0 ifTrue: [^index - 1].
-      ^-1
+      ^temps indexOf: name
   ]
 
   method: ivarIndex: name [
       "Get index of an instance variable, or -1 if not found."
-      | index |
-      index := ivars indexOf: name.
-      index > 0 ifTrue: [^index - 1].
-      ^-1
+      ^ivars indexOf: name
   ]
 
   method: captureIndex: name [
       "Get or create capture index for a variable."
       | index |
       index := captures indexOf: name.
-      index > 0 ifTrue: [^index - 1].
+      index >= 0 ifTrue: [^index].
       captures := captures copyWith: name.
       ^captures size - 1
   ]
@@ -579,13 +573,13 @@ BytecodeGenerator subclass: Object
       self compile: node receiver.
 
       messages := node messages.
-      1 to: messages size do: [:i |
+      0 to: messages size - 1 do: [:i |
           | msg |
           msg := messages at: i.
-          i < messages size ifTrue: [self emitDup].  "Keep receiver for next message"
+          i < (messages size - 1) ifTrue: [self emitDup].  "Keep receiver for next message"
           msg arguments do: [:arg | self compile: arg].
           self emitSend: msg selector argc: msg arguments size.
-          i < messages size ifTrue: [self emitPop]  "Discard result except last"
+          i < (messages size - 1) ifTrue: [self emitPop]  "Discard result except last"
       ]
   ]
 
@@ -605,8 +599,8 @@ BytecodeGenerator subclass: Object
           ]
       ] ifFalse: [
           "First-level block: current temps are the outer temps"
-          1 to: temps size do: [:i |
-              blockOuterTemps at: (temps at: i) put: i - 1
+          0 to: temps size - 1 do: [:i |
+              blockOuterTemps at: (temps at: i) put: i
           ]
       ].
       blockGen setOuterTemps: blockOuterTemps.
@@ -622,12 +616,12 @@ BytecodeGenerator subclass: Object
       statements := node statements.
       statements size > 0 ifTrue: [
           "Compile all but last statement with pop"
-          1 to: statements size - 1 do: [:i |
+          0 to: statements size - 2 do: [:i |
               blockGen compile: (statements at: i).
               blockGen emitPop
           ].
           "Compile last statement without pop, then return"
-          blockGen compile: (statements at: statements size).
+          blockGen compile: (statements at: statements size - 1).
           blockGen emitBlockReturn
       ] ifFalse: [
           "Empty block returns nil"
@@ -668,11 +662,11 @@ BytecodeGenerator subclass: Object
 
       statements size > 0 ifTrue: [
           "Check if last statement is a return"
-          lastStmt := statements at: statements size.
+          lastStmt := statements at: statements size - 1.
           hasExplicitReturn := lastStmt isReturn.
 
           "Compile all but last statement with pop"
-          1 to: statements size - 1 do: [:i |
+          0 to: statements size - 2 do: [:i |
               self compile: (statements at: i).
               self emitPop
           ].

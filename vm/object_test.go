@@ -665,16 +665,16 @@ func TestInstVarAtPrimitive(t *testing.T) {
 	point.SetSlot(1, FromSmallInt(20)) // y
 	pointVal := point.ToValue()
 
-	// Test instVarAt: 1 (1-based indexing)
-	result := vm.Send(pointVal, "instVarAt:", []Value{FromSmallInt(1)})
+	// Test instVarAt: 0 (0-based indexing)
+	result := vm.Send(pointVal, "instVarAt:", []Value{FromSmallInt(0)})
 	if !result.IsSmallInt() || result.SmallInt() != 10 {
-		t.Errorf("instVarAt: 1 = %v, want 10", result)
+		t.Errorf("instVarAt: 0 = %v, want 10", result)
 	}
 
-	// Test instVarAt: 2
-	result = vm.Send(pointVal, "instVarAt:", []Value{FromSmallInt(2)})
+	// Test instVarAt: 1
+	result = vm.Send(pointVal, "instVarAt:", []Value{FromSmallInt(1)})
 	if !result.IsSmallInt() || result.SmallInt() != 20 {
-		t.Errorf("instVarAt: 2 = %v, want 20", result)
+		t.Errorf("instVarAt: 1 = %v, want 20", result)
 	}
 }
 
@@ -687,10 +687,10 @@ func TestInstVarAtOutOfRange(t *testing.T) {
 	point := pointClass.NewInstance()
 	pointVal := point.ToValue()
 
-	// Test out of range (index 0 in 1-based is invalid)
-	result := vm.Send(pointVal, "instVarAt:", []Value{FromSmallInt(0)})
+	// Test out of range (index -1 is invalid)
+	result := vm.Send(pointVal, "instVarAt:", []Value{FromSmallInt(-1)})
 	if result != Nil {
-		t.Errorf("instVarAt: 0 should return nil, got %v", result)
+		t.Errorf("instVarAt: -1 should return nil, got %v", result)
 	}
 
 	// Test out of range (index 100)
@@ -704,7 +704,7 @@ func TestInstVarAtNonObject(t *testing.T) {
 	vm := NewVM()
 
 	// Test on non-object (SmallInt)
-	result := vm.Send(FromSmallInt(42), "instVarAt:", []Value{FromSmallInt(1)})
+	result := vm.Send(FromSmallInt(42), "instVarAt:", []Value{FromSmallInt(0)})
 	if result != Nil {
 		t.Errorf("instVarAt: on SmallInt should return nil, got %v", result)
 	}
@@ -720,7 +720,7 @@ func TestInstVarAtPutPrimitive(t *testing.T) {
 	pointVal := point.ToValue()
 
 	// Set x to 100
-	result := vm.Send(pointVal, "instVarAt:put:", []Value{FromSmallInt(1), FromSmallInt(100)})
+	result := vm.Send(pointVal, "instVarAt:put:", []Value{FromSmallInt(0), FromSmallInt(100)})
 	if result != pointVal {
 		t.Error("instVarAt:put: should return receiver")
 	}
@@ -731,7 +731,7 @@ func TestInstVarAtPutPrimitive(t *testing.T) {
 	}
 
 	// Set y to 200
-	vm.Send(pointVal, "instVarAt:put:", []Value{FromSmallInt(2), FromSmallInt(200)})
+	vm.Send(pointVal, "instVarAt:put:", []Value{FromSmallInt(1), FromSmallInt(200)})
 	if point.GetSlot(1).SmallInt() != 200 {
 		t.Errorf("slot 1 = %d, want 200", point.GetSlot(1).SmallInt())
 	}

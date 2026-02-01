@@ -214,11 +214,11 @@ WidgetEvent subclass: YutaniEvent
                where at: fails due to a known VM issue with nested proto dicts."
               | ps startIdx endIdx |
               ps := wid printString.
-              startIdx := ps indexOf: '''' startingAt: 1.
-              startIdx > 0 ifTrue: [
+              startIdx := ps indexOf: '''' startingAt: 0.
+              startIdx >= 0 ifTrue: [
                   endIdx := ps indexOf: '''' startingAt: startIdx + 1.
-                  endIdx > 0 ifTrue: [
-                      val := ps copyFrom: startIdx + 1 to: endIdx - 1
+                  endIdx >= 0 ifTrue: [
+                      val := ps copyFrom: startIdx + 1 to: endIdx
                   ]
               ]
           ].

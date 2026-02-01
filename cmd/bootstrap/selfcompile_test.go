@@ -318,8 +318,8 @@ func TestArrayIndexOf(t *testing.T) {
 	t.Logf("Array size: %d", size.SmallInt())
 
 	// Check first element
-	first := vmInst.Send(arr, "at:", []vm.Value{vm.FromSmallInt(1)})
-	t.Logf("Array at: 1 = %v", first)
+	first := vmInst.Send(arr, "at:", []vm.Value{vm.FromSmallInt(0)})
+	t.Logf("Array at: 0 = %v", first)
 	if vm.IsStringValue(first) {
 		t.Logf("  content: %q", vm.GetStringContent(first))
 	}
@@ -381,8 +381,8 @@ func TestBytecodeGeneratorTemps(t *testing.T) {
 	t.Logf("temps size: %v", tempsSize)
 
 	if tempsSize.IsSmallInt() && tempsSize.SmallInt() > 0 {
-		firstTemp := vmInst.Send(temps, "at:", []vm.Value{vm.FromSmallInt(1)})
-		t.Logf("temps at: 1 = %v", firstTemp)
+		firstTemp := vmInst.Send(temps, "at:", []vm.Value{vm.FromSmallInt(0)})
+		t.Logf("temps at: 0 = %v", firstTemp)
 		if vm.IsStringValue(firstTemp) {
 			t.Logf("first temp content: %q", vm.GetStringContent(firstTemp))
 		}
@@ -444,7 +444,7 @@ func TestParserTemporaries(t *testing.T) {
 
 	if tempsSize.IsSmallInt() && tempsSize.SmallInt() > 0 {
 		// Get first temp
-		firstTemp := vmInst.Send(temps, "at:", []vm.Value{vm.FromSmallInt(1)})
+		firstTemp := vmInst.Send(temps, "at:", []vm.Value{vm.FromSmallInt(0)})
 		t.Logf("first temp: %v", firstTemp)
 		if vm.IsStringValue(firstTemp) {
 			t.Logf("first temp content: %q", vm.GetStringContent(firstTemp))

@@ -290,8 +290,7 @@ func (m *MaggieCompilerBackend) extractBytecodeArray(arrVal Value) []byte {
 	result := make([]byte, size)
 
 	for i := 0; i < size; i++ {
-		// Maggie arrays are 1-based, so use i+1
-		elemVal := m.vm.Send(arrVal, "at:", []Value{FromSmallInt(int64(i + 1))})
+		elemVal := m.vm.Send(arrVal, "at:", []Value{FromSmallInt(int64(i))})
 		if elemVal.IsSmallInt() {
 			result[i] = byte(elemVal.SmallInt())
 		}
@@ -315,8 +314,7 @@ func (m *MaggieCompilerBackend) extractLiteralsArray(arrVal Value) []Value {
 	result := make([]Value, size)
 
 	for i := 0; i < size; i++ {
-		// Maggie arrays are 1-based, so use i+1
-		result[i] = m.vm.Send(arrVal, "at:", []Value{FromSmallInt(int64(i + 1))})
+		result[i] = m.vm.Send(arrVal, "at:", []Value{FromSmallInt(int64(i))})
 	}
 
 	return result
@@ -347,8 +345,7 @@ func (m *MaggieCompilerBackend) translateSelectorIndices(bytecode []byte, select
 	selectorMap := make([]uint16, size)
 
 	for i := 0; i < size; i++ {
-		// Get selector symbol at local index (1-based in Maggie)
-		selVal := m.vm.Send(selectorsVal, "at:", []Value{FromSmallInt(int64(i + 1))})
+		selVal := m.vm.Send(selectorsVal, "at:", []Value{FromSmallInt(int64(i))})
 		if selVal.IsSymbol() {
 			// Get the selector name and intern it in VM's selector table
 			name := m.vm.Symbols.Name(selVal.SymbolID())
@@ -393,8 +390,7 @@ func (m *MaggieCompilerBackend) extractBlockMethods(builder *CompiledMethodBuild
 
 	size := int(sizeVal.SmallInt())
 	for i := 0; i < size; i++ {
-		// Get the BytecodeGenerator at index i (1-based in Maggie)
-		blockGenVal := m.vm.Send(blockMethodsVal, "at:", []Value{FromSmallInt(int64(i + 1))})
+		blockGenVal := m.vm.Send(blockMethodsVal, "at:", []Value{FromSmallInt(int64(i))})
 		if blockGenVal == Nil {
 			continue
 		}

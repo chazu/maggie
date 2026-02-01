@@ -67,8 +67,8 @@ Compiler subclass: Object
       | parser result classes traits compiledClasses compiledTraits |
       parser := Parser on: sourceString.
       result := parser parseSourceFile.
-      classes := result at: 1.
-      traits := result at: 2.
+      classes := result at: 0.
+      traits := result at: 1.
 
       compiledClasses := Array new.
       compiledTraits := Array new.
@@ -123,9 +123,9 @@ Compiler subclass: Object
   method: compileTraitInfo: traitInfo [
       "Compile a trait definition."
       | name methods requires compiledMethods |
-      name := traitInfo at: 1.
-      methods := traitInfo at: 2.
-      requires := traitInfo at: 3.
+      name := traitInfo at: 0.
+      methods := traitInfo at: 1.
+      requires := traitInfo at: 2.
 
       compiledMethods := Array new.
       methods do: [:methodNode |

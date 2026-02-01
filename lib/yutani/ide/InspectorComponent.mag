@@ -91,7 +91,7 @@ InspectorComponent subclass: Object
       selectedIndex < 0 ifTrue: [^self].
       selectedIndex = 0 ifTrue: [^self].
 
-      slotName := (ObjectIntrospection instanceVariablesOf: inspectedObject) at: selectedIndex.
+      slotName := (ObjectIntrospection instanceVariablesOf: inspectedObject) at: selectedIndex - 1.
       value := ObjectIntrospection valueOf: slotName in: inspectedObject.
 
       objectStack := objectStack copyWith: inspectedObject.
@@ -104,7 +104,7 @@ InspectorComponent subclass: Object
       objectStack isEmpty ifTrue: [^self].
 
       inspectedObject := objectStack last.
-      objectStack := objectStack copyFrom: 1 to: objectStack size - 1.
+      objectStack := objectStack copyFrom: 0 to: objectStack size - 1.
       self populateSlots.
       self notifyTitleChange
   ]

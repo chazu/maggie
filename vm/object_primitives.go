@@ -233,7 +233,7 @@ func (vm *VM) registerObjectPrimitives() {
 	// Instance variable access primitives (for Inspector/reflection)
 	// ---------------------------------------------------------------------------
 
-	// instVarAt: index - Return the value of the instance variable at index (1-based)
+	// instVarAt: index - Return the value of the instance variable at index (0-based)
 	// Returns nil for non-objects or out-of-range indices
 	c.AddMethod1(vm.Selectors, "instVarAt:", func(_ interface{}, recv Value, index Value) Value {
 		if !recv.IsObject() {
@@ -242,7 +242,7 @@ func (vm *VM) registerObjectPrimitives() {
 		if !index.IsSmallInt() {
 			return Nil
 		}
-		idx := int(index.SmallInt()) - 1 // Convert to 0-based
+		idx := int(index.SmallInt())
 		if idx < 0 {
 			return Nil
 		}
@@ -256,7 +256,7 @@ func (vm *VM) registerObjectPrimitives() {
 		return obj.GetSlot(idx)
 	})
 
-	// instVarAt:put: index value - Set the instance variable at index (1-based)
+	// instVarAt:put: index value - Set the instance variable at index (0-based)
 	// Returns the receiver. Does nothing for non-objects or out-of-range indices.
 	c.AddMethod2(vm.Selectors, "instVarAt:put:", func(_ interface{}, recv Value, index Value, value Value) Value {
 		if !recv.IsObject() {
@@ -265,7 +265,7 @@ func (vm *VM) registerObjectPrimitives() {
 		if !index.IsSmallInt() {
 			return recv
 		}
-		idx := int(index.SmallInt()) - 1 // Convert to 0-based
+		idx := int(index.SmallInt())
 		if idx < 0 {
 			return recv
 		}

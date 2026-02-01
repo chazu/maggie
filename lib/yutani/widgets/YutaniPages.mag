@@ -103,8 +103,8 @@ YutaniPages subclass: YutaniWidget
       | names index |
       names := pages keys asArray.
       names isEmpty ifTrue: [^self].
-      index := names indexOf: currentPage ifAbsent: [0].
-      index := index \\ names size + 1.
+      index := names indexOf: currentPage.
+      index := (index + 1) \\ names size.
       self showPage: (names at: index)
   ]
 
@@ -112,9 +112,10 @@ YutaniPages subclass: YutaniWidget
       | names index |
       names := pages keys asArray.
       names isEmpty ifTrue: [^self].
-      index := names indexOf: currentPage ifAbsent: [2].
-      index := index - 1.
-      index < 1 ifTrue: [index := names size].
+      index := names indexOf: currentPage.
+      index <= 0
+          ifTrue: [index := names size - 1]
+          ifFalse: [index := index - 1].
       self showPage: (names at: index)
   ]
 
