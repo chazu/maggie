@@ -4,6 +4,7 @@ go 1.24.5
 
 require (
 	connectrpc.com/connect v1.19.1
+	github.com/BurntSushi/toml v1.6.0
 	github.com/jhump/protoreflect v1.15.4
 	github.com/tliron/commonlog v0.2.8
 	github.com/tliron/glsp v0.2.2

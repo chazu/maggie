@@ -295,7 +295,8 @@ type MethodDef struct {
 	Parameters []string // argument names
 	Temps      []string // temporary variables
 	Statements []Stmt
-	Primitive  int // primitive number, 0 if not primitive
+	Primitive  int    // primitive number, 0 if not primitive
+	SourceText string // original source text (for fileOut)
 }
 
 func (n *MethodDef) Span() Span { return n.SpanVal }

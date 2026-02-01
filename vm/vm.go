@@ -92,6 +92,10 @@ type VM struct {
 
 	// JIT compiler for adaptive compilation of hot methods
 	jit *JITCompiler
+
+	// fileInFunc compiles source text into the VM.
+	// Set by cmd/mag after compiler initialization to avoid circular imports.
+	fileInFunc FileInFunc
 }
 
 // NewVM creates and bootstraps a new VM.

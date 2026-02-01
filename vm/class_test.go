@@ -993,3 +993,59 @@ func TestClassMethodsWithoutCategory(t *testing.T) {
 		t.Errorf("MethodsInCategory('') count = %d, want 1", len(methods))
 	}
 }
+
+func TestLookupWithImports(t *testing.T) {
+	ct := NewClassTable()
+
+	// Register classes in different namespaces
+	rootObj := NewClass("Object", nil)
+	ct.Register(rootObj)
+
+	widgetBtn := NewClassInNamespace("Yutani::Widgets", "Button", nil)
+	ct.Register(widgetBtn)
+
+	evtClick := NewClassInNamespace("Yutani::Events", "ClickEvent", nil)
+	ct.Register(evtClick)
+
+	appMain := NewClassInNamespace("MyApp", "Main", nil)
+	ct.Register(appMain)
+
+	// Test: find class in current namespace
+	found := ct.LookupWithImports("Main", "MyApp", nil)
+	if found != appMain {
+		t.Errorf("LookupWithImports(Main, MyApp) = %v, want MyApp::Main", found)
+	}
+
+	// Test: find class via import
+	found = ct.LookupWithImports("Button", "MyApp", []string{"Yutani::Widgets"})
+	if found != widgetBtn {
+		t.Errorf("LookupWithImports(Button, MyApp, [Yutani::Widgets]) = %v, want Yutani::Widgets::Button", found)
+	}
+
+	// Test: find class by bare name (no namespace, no imports match)
+	found = ct.LookupWithImports("Object", "MyApp", []string{"Yutani::Widgets"})
+	if found != rootObj {
+		t.Errorf("LookupWithImports(Object, MyApp, ...) = %v, want Object", found)
+	}
+
+	// Test: current namespace takes priority over imports
+	appButton := NewClassInNamespace("MyApp", "Button", nil)
+	ct.Register(appButton)
+
+	found = ct.LookupWithImports("Button", "MyApp", []string{"Yutani::Widgets"})
+	if found != appButton {
+		t.Errorf("LookupWithImports should prefer current namespace, got %v", found)
+	}
+
+	// Test: import order matters (first import wins)
+	found = ct.LookupWithImports("ClickEvent", "", []string{"Yutani::Events", "Other"})
+	if found != evtClick {
+		t.Errorf("LookupWithImports via import = %v, want Yutani::Events::ClickEvent", found)
+	}
+
+	// Test: not found returns nil
+	found = ct.LookupWithImports("NonExistent", "MyApp", []string{"Yutani"})
+	if found != nil {
+		t.Errorf("LookupWithImports(NonExistent) = %v, want nil", found)
+	}
+}

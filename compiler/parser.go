@@ -16,12 +16,14 @@ type Parser struct {
 	curToken  Token
 	peekToken Token
 	errors    []string
+	input     string // original source text (for source preservation)
 }
 
 // NewParser creates a new parser for the given input.
 func NewParser(input string) *Parser {
 	p := &Parser{
 		lexer: NewLexer(input),
+		input: input,
 	}
 	// Read two tokens to fill curToken and peekToken
 	p.nextToken()
@@ -781,9 +783,40 @@ func (p *Parser) parseFalse() *FalseLiteral {
 
 // ParseSourceFile parses a complete source file containing class and trait definitions.
 // This is the entry point for Trashtalk-style .mag files.
+//
+// File format:
+//
+//	namespace: 'Yutani::Widgets'     (optional, one per file, before classes)
+//	import: 'Yutani'                 (zero or more, before classes)
+//	import: 'Yutani::Events'
+//
+//	MyClass subclass: Object
+//	  ...
 func (p *Parser) ParseSourceFile() *SourceFile {
 	startPos := p.curToken.Pos
 	sf := &SourceFile{}
+
+	// Parse namespace and import declarations (must come before class/trait defs)
+	for !p.curTokenIs(TokenEOF) {
+		if p.curTokenIs(TokenKeyword) {
+			switch p.curToken.Literal {
+			case "namespace:":
+				ns := p.parseNamespaceDecl()
+				if ns != nil {
+					sf.Namespace = ns
+				}
+				continue
+			case "import:":
+				imp := p.parseImportDecl()
+				if imp != nil {
+					sf.Imports = append(sf.Imports, imp)
+				}
+				continue
+			}
+		}
+		// Not a namespace/import — stop preamble parsing
+		break
+	}
 
 	for !p.curTokenIs(TokenEOF) {
 		// Look for class or trait definitions
@@ -820,6 +853,56 @@ func (p *Parser) ParseSourceFile() *SourceFile {
 
 	sf.SpanVal = MakeSpan(startPos, p.curToken.Pos)
 	return sf
+}
+
+// parseNamespaceDecl parses a namespace declaration.
+// Format: namespace: 'Yutani::Widgets' or namespace: Compiler
+func (p *Parser) parseNamespaceDecl() *NamespaceDecl {
+	startPos := p.curToken.Pos
+	p.nextToken() // consume "namespace:"
+
+	var name string
+	if p.curTokenIs(TokenString) {
+		name = p.curToken.Literal
+		p.nextToken()
+	} else if p.curTokenIs(TokenIdentifier) {
+		// Single-segment namespace can be a bare identifier
+		name = p.curToken.Literal
+		p.nextToken()
+	} else {
+		p.errorf("expected string or identifier after 'namespace:'")
+		return nil
+	}
+
+	return &NamespaceDecl{
+		SpanVal: MakeSpan(startPos, p.curToken.Pos),
+		Name:    name,
+	}
+}
+
+// parseImportDecl parses an import declaration.
+// Format: import: 'Yutani::Events' or import: Yutani
+func (p *Parser) parseImportDecl() *ImportDecl {
+	startPos := p.curToken.Pos
+	p.nextToken() // consume "import:"
+
+	var path string
+	if p.curTokenIs(TokenString) {
+		path = p.curToken.Literal
+		p.nextToken()
+	} else if p.curTokenIs(TokenIdentifier) {
+		// Single-segment import can be a bare identifier
+		path = p.curToken.Literal
+		p.nextToken()
+	} else {
+		p.errorf("expected string or identifier after 'import:'")
+		return nil
+	}
+
+	return &ImportDecl{
+		SpanVal: MakeSpan(startPos, p.curToken.Pos),
+		Path:    path,
+	}
 }
 
 // parseClassDefBody parses the body of a class definition after the class name.
@@ -981,7 +1064,8 @@ func (p *Parser) parseInstanceVars() []string {
 // Format: method: selector [body] or classMethod: selector [body]
 func (p *Parser) parseMethodInBrackets(isClassMethod bool) *MethodDef {
 	startPos := p.curToken.Pos
-	p.nextToken() // consume "method:" or "classMethod:"
+	sourceStart := p.curToken.Pos.Offset // capture start offset for source text
+	p.nextToken()                         // consume "method:" or "classMethod:"
 
 	// Parse method signature
 	selector, params := p.parseMethodSignature()
@@ -1010,12 +1094,20 @@ func (p *Parser) parseMethodInBrackets(isClassMethod bool) *MethodDef {
 		return nil
 	}
 
+	// Capture original source text for fileOut support
+	sourceEnd := p.curToken.Pos.Offset
+	var sourceText string
+	if sourceEnd > sourceStart && sourceEnd <= len(p.input) {
+		sourceText = p.input[sourceStart:sourceEnd]
+	}
+
 	return &MethodDef{
 		SpanVal:    MakeSpan(startPos, p.curToken.Pos),
 		Selector:   selector,
 		Parameters: params,
 		Temps:      temps,
 		Statements: stmts,
+		SourceText: sourceText,
 	}
 }
 

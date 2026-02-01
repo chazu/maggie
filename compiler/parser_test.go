@@ -857,3 +857,128 @@ SmallInteger subclass: Object
 		t.Errorf("expected 2 methods, got %d", len(cls.Methods))
 	}
 }
+
+func TestParseNamespaceDecl(t *testing.T) {
+	tests := []struct {
+		input     string
+		namespace string
+		desc      string
+	}{
+		{
+			"namespace: 'Yutani::Widgets'\nMyButton subclass: Object\n  method: label [ ^label ]",
+			"Yutani::Widgets",
+			"string namespace",
+		},
+		{
+			"namespace: Compiler\nMyClass subclass: Object\n  method: run [ ^self ]",
+			"Compiler",
+			"bare identifier namespace",
+		},
+	}
+
+	for _, tc := range tests {
+		sf, err := ParseSourceFileFromString(tc.input)
+		if err != nil {
+			t.Errorf("%s: parse error: %v", tc.desc, err)
+			continue
+		}
+		if sf.Namespace == nil {
+			t.Errorf("%s: namespace is nil", tc.desc)
+			continue
+		}
+		if sf.Namespace.Name != tc.namespace {
+			t.Errorf("%s: namespace = %q, want %q", tc.desc, sf.Namespace.Name, tc.namespace)
+		}
+		if len(sf.Classes) != 1 {
+			t.Errorf("%s: expected 1 class, got %d", tc.desc, len(sf.Classes))
+		}
+	}
+}
+
+func TestParseImportDecls(t *testing.T) {
+	input := `namespace: 'MyApp'
+import: 'Yutani'
+import: 'Yutani::Events'
+
+MyView subclass: Object
+  method: render [ ^self ]
+`
+	sf, err := ParseSourceFileFromString(input)
+	if err != nil {
+		t.Fatalf("parse error: %v", err)
+	}
+
+	if sf.Namespace == nil || sf.Namespace.Name != "MyApp" {
+		t.Fatalf("namespace = %v, want MyApp", sf.Namespace)
+	}
+
+	if len(sf.Imports) != 2 {
+		t.Fatalf("expected 2 imports, got %d", len(sf.Imports))
+	}
+
+	if sf.Imports[0].Path != "Yutani" {
+		t.Errorf("import[0] = %q, want Yutani", sf.Imports[0].Path)
+	}
+	if sf.Imports[1].Path != "Yutani::Events" {
+		t.Errorf("import[1] = %q, want Yutani::Events", sf.Imports[1].Path)
+	}
+
+	if len(sf.Classes) != 1 {
+		t.Errorf("expected 1 class, got %d", len(sf.Classes))
+	}
+}
+
+func TestParseNoNamespace(t *testing.T) {
+	// Files without namespace/import should work exactly as before
+	input := `MyClass subclass: Object
+  method: hello [ ^'hello' ]
+`
+	sf, err := ParseSourceFileFromString(input)
+	if err != nil {
+		t.Fatalf("parse error: %v", err)
+	}
+
+	if sf.Namespace != nil {
+		t.Errorf("expected nil namespace, got %q", sf.Namespace.Name)
+	}
+	if len(sf.Imports) != 0 {
+		t.Errorf("expected 0 imports, got %d", len(sf.Imports))
+	}
+	if len(sf.Classes) != 1 {
+		t.Errorf("expected 1 class, got %d", len(sf.Classes))
+	}
+}
+
+func TestMethodSourceText(t *testing.T) {
+	input := `MyClass subclass: Object
+  method: hello [ ^'hello world' ]
+  classMethod: new [ ^super new ]
+`
+	sf, err := ParseSourceFileFromString(input)
+	if err != nil {
+		t.Fatalf("parse error: %v", err)
+	}
+
+	if len(sf.Classes) != 1 {
+		t.Fatalf("expected 1 class, got %d", len(sf.Classes))
+	}
+
+	cls := sf.Classes[0]
+
+	if len(cls.Methods) != 1 {
+		t.Fatalf("expected 1 instance method, got %d", len(cls.Methods))
+	}
+
+	// The source text should contain the method definition
+	if cls.Methods[0].SourceText == "" {
+		t.Error("instance method SourceText is empty")
+	}
+
+	if len(cls.ClassMethods) != 1 {
+		t.Fatalf("expected 1 class method, got %d", len(cls.ClassMethods))
+	}
+
+	if cls.ClassMethods[0].SourceText == "" {
+		t.Error("class method SourceText is empty")
+	}
+}

@@ -349,6 +349,30 @@ func (ct *ClassTable) Len() int {
 	return len(ct.classes)
 }
 
+// LookupWithImports resolves a class name using namespace and import context.
+// It tries: currentNS::name, then each import::name, then bare name.
+func (ct *ClassTable) LookupWithImports(name, currentNS string, imports []string) *Class {
+	ct.mu.RLock()
+	defer ct.mu.RUnlock()
+
+	// 1. Try current namespace first
+	if currentNS != "" {
+		if c := ct.classes[currentNS+"::"+name]; c != nil {
+			return c
+		}
+	}
+
+	// 2. Try each import namespace
+	for _, imp := range imports {
+		if c := ct.classes[imp+"::"+name]; c != nil {
+			return c
+		}
+	}
+
+	// 3. Fall back to bare name (no namespace)
+	return ct.classes[name]
+}
+
 // classKey generates the lookup key for a class.
 func (ct *ClassTable) classKey(c *Class) string {
 	if c.Namespace == "" {

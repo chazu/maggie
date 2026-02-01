@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/chazu/maggie/compiler"
+	"github.com/chazu/maggie/manifest"
 	"github.com/chazu/maggie/server"
 	"github.com/chazu/maggie/vm"
 )
@@ -27,6 +28,8 @@ func main() {
 	yutaniAddr := flag.String("yutani-addr", "localhost:7755", "Yutani server address")
 	yutaniTool := flag.String("ide-tool", "launcher", "IDE tool to start: launcher, inspector, repl")
 	useMaggieCompiler := flag.Bool("experimental-maggie-compiler", false, "Use experimental Maggie self-hosting compiler instead of Go compiler")
+	saveImagePath := flag.String("save-image", "", "Save VM state to image file after loading sources")
+	customImagePath := flag.String("image", "", "Load custom image instead of embedded default")
 	serveMode := flag.Bool("serve", false, "Start language server (gRPC + Connect HTTP/JSON)")
 	servePort := flag.Int("port", 4567, "Language server port (used with --serve)")
 	lspMode := flag.Bool("lsp", false, "Start LSP server on stdio")
@@ -53,16 +56,30 @@ func main() {
 	}
 	flag.Parse()
 
-	// Support "mag lsp" as a subcommand alias for --lsp
-	if args := flag.Args(); len(args) > 0 && args[0] == "lsp" {
-		*lspMode = true
+	// Handle subcommands
+	args := flag.Args()
+	if len(args) > 0 {
+		switch args[0] {
+		case "lsp":
+			*lspMode = true
+		case "deps":
+			handleDepsCommand(args[1:], *verbose)
+			return
+		}
 	}
 
-	// Create VM and load embedded image
+	// Create VM and load image
 	vmInst := vm.NewVM()
-	if err := vmInst.LoadImageFromBytes(embeddedImage); err != nil {
-		fmt.Fprintf(os.Stderr, "Error loading embedded image: %v\n", err)
-		os.Exit(1)
+	if *customImagePath != "" {
+		if err := vmInst.LoadImage(*customImagePath); err != nil {
+			fmt.Fprintf(os.Stderr, "Error loading image %s: %v\n", *customImagePath, err)
+			os.Exit(1)
+		}
+	} else {
+		if err := vmInst.LoadImageFromBytes(embeddedImage); err != nil {
+			fmt.Fprintf(os.Stderr, "Error loading embedded image: %v\n", err)
+			os.Exit(1)
+		}
 	}
 	// Re-register critical primitives that may have been overwritten by image methods
 	vmInst.ReRegisterNilPrimitives()
@@ -79,6 +96,11 @@ func main() {
 		}
 	}
 
+	// Wire up fileIn support so Compiler fileIn: primitives work
+	vmInst.SetFileInFunc(func(v *vm.VM, source string, sourcePath string, nsOverride string, verbose bool) (int, error) {
+		return compileSourceFile(v, source, sourcePath, nsOverride, verbose)
+	})
+
 	if *verbose {
 		fmt.Printf("Loaded default image (%d bytes)\n", len(embeddedImage))
 		fmt.Printf("Compiler: %s\n", vmInst.CompilerName())
@@ -91,11 +113,12 @@ func main() {
 		}
 	}
 
-	// Compile any paths specified on command line
+	// Compile paths from command line or project manifest
 	paths := flag.Args()
 	if *lspMode && len(paths) > 0 && paths[0] == "lsp" {
 		paths = paths[1:] // strip "lsp" subcommand from paths
 	}
+
 	if len(paths) > 0 {
 		totalMethods := 0
 		for _, path := range paths {
@@ -108,6 +131,33 @@ func main() {
 		}
 		if *verbose && totalMethods > 0 {
 			fmt.Printf("Compiled %d methods\n", totalMethods)
+		}
+	} else if *mainEntry != "" || *saveImagePath != "" {
+		// No paths but main/save-image requested: try loading from maggie.toml
+		if m, _ := manifest.FindAndLoad("."); m != nil {
+			methods, err := loadProject(vmInst, m, *verbose)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Error loading project: %v\n", err)
+				os.Exit(1)
+			}
+			if *verbose && methods > 0 {
+				fmt.Printf("Project %s: compiled %d methods\n", m.Project.Name, methods)
+			}
+			// Use project entry point as main if not specified
+			if *mainEntry == "" && m.Source.Entry != "" {
+				*mainEntry = m.Source.Entry
+			}
+		}
+	}
+
+	// Save image if requested (after loading all sources, before running main)
+	if *saveImagePath != "" {
+		if err := vmInst.SaveImage(*saveImagePath); err != nil {
+			fmt.Fprintf(os.Stderr, "Error saving image: %v\n", err)
+			os.Exit(1)
+		}
+		if *verbose {
+			fmt.Printf("Image saved to %s\n", *saveImagePath)
 		}
 	}
 
@@ -431,6 +481,7 @@ func printValue(vmInst *vm.VM, v vm.Value) {
 
 // compilePath compiles .mag files from a path into the VM.
 // Supports ./... syntax for recursive loading.
+// When loading from directories, namespace is derived from directory structure.
 func compilePath(path string, vmInst *vm.VM, verbose bool) (int, error) {
 	// Check for recursive pattern
 	recursive := false
@@ -449,6 +500,9 @@ func compilePath(path string, vmInst *vm.VM, verbose bool) (int, error) {
 	if err != nil {
 		return 0, fmt.Errorf("cannot access %q: %w", path, err)
 	}
+
+	// basePath is the root from which namespaces are derived
+	basePath := path
 
 	var files []string
 	if info.IsDir() {
@@ -479,7 +533,8 @@ func compilePath(path string, vmInst *vm.VM, verbose bool) (int, error) {
 			}
 		}
 	} else {
-		// Single file
+		// Single file — no directory namespace derivation
+		basePath = ""
 		if strings.HasSuffix(path, ".mag") {
 			files = append(files, path)
 		} else {
@@ -487,10 +542,21 @@ func compilePath(path string, vmInst *vm.VM, verbose bool) (int, error) {
 		}
 	}
 
-	// Compile each file
+	// Compile each file with directory-derived namespace
 	totalMethods := 0
 	for _, file := range files {
-		methods, err := compileFile(file, vmInst, verbose)
+		content, err := os.ReadFile(file)
+		if err != nil {
+			return totalMethods, fmt.Errorf("reading %q: %w", file, err)
+		}
+
+		// Derive namespace from directory structure (falls back to empty string)
+		nsOverride := ""
+		if basePath != "" {
+			nsOverride = deriveNamespace(file, basePath)
+		}
+
+		methods, err := compileSourceFile(vmInst, string(content), file, nsOverride, verbose)
 		if err != nil {
 			return totalMethods, fmt.Errorf("compiling %q: %w", file, err)
 		}
@@ -500,6 +566,69 @@ func compilePath(path string, vmInst *vm.VM, verbose bool) (int, error) {
 	return totalMethods, nil
 }
 
+// deriveNamespace computes a namespace from a file's relative directory path.
+// Given filePath="/app/src/myapp/models/User.mag" and basePath="/app/src",
+// returns "Myapp::Models".
+// Returns empty string for files at the root level (no subdirectory).
+func deriveNamespace(filePath, basePath string) string {
+	rel, err := filepath.Rel(basePath, filepath.Dir(filePath))
+	if err != nil || rel == "." {
+		return ""
+	}
+
+	segments := strings.Split(rel, string(filepath.Separator))
+	var nsSegments []string
+	for _, seg := range segments {
+		if seg == "" || seg == "." {
+			continue
+		}
+		nsSegments = append(nsSegments, toPascalCase(seg))
+	}
+
+	if len(nsSegments) == 0 {
+		return ""
+	}
+
+	return strings.Join(nsSegments, "::")
+}
+
+// toPascalCase converts a string to PascalCase.
+// "my-app" -> "MyApp", "models" -> "Models", "myApp" -> "MyApp"
+func toPascalCase(s string) string {
+	// Split on hyphens, underscores, and case transitions
+	var words []string
+	current := ""
+	for i, r := range s {
+		if r == '-' || r == '_' {
+			if current != "" {
+				words = append(words, current)
+				current = ""
+			}
+			continue
+		}
+		if i > 0 && r >= 'A' && r <= 'Z' {
+			prev := rune(s[i-1])
+			if prev >= 'a' && prev <= 'z' {
+				words = append(words, current)
+				current = ""
+			}
+		}
+		current += string(r)
+	}
+	if current != "" {
+		words = append(words, current)
+	}
+
+	var result string
+	for _, w := range words {
+		if w == "" {
+			continue
+		}
+		result += strings.ToUpper(w[:1]) + strings.ToLower(w[1:])
+	}
+	return result
+}
+
 // compileFile compiles a single .mag file into the VM using Trashtalk syntax.
 func compileFile(path string, vmInst *vm.VM, verbose bool) (int, error) {
 	content, err := os.ReadFile(path)
@@ -507,22 +636,49 @@ func compileFile(path string, vmInst *vm.VM, verbose bool) (int, error) {
 		return 0, err
 	}
 
-	sf, err := compiler.ParseSourceFileFromString(string(content))
+	return compileSourceFile(vmInst, string(content), path, "", verbose)
+}
+
+// compileSourceFile compiles source text into the VM.
+// namespace is an optional override (from directory convention or explicit); if empty,
+// the file's own namespace: declaration is used.
+// This is the shared compilation function used by compileFile, fileIn, and loadProject.
+func compileSourceFile(vmInst *vm.VM, source string, sourcePath string, nsOverride string, verbose bool) (int, error) {
+	sf, err := compiler.ParseSourceFileFromString(source)
 	if err != nil {
-		return 0, fmt.Errorf("parse error: %v", err)
+		return 0, fmt.Errorf("parse error in %s: %v", sourcePath, err)
+	}
+
+	// Determine the effective namespace
+	namespace := nsOverride
+	if namespace == "" && sf.Namespace != nil {
+		namespace = sf.Namespace.Name
+	}
+
+	// Collect import paths
+	var imports []string
+	for _, imp := range sf.Imports {
+		imports = append(imports, imp.Path)
 	}
 
 	compiled := 0
 
 	// Compile classes
 	for _, classDef := range sf.Classes {
-		// Look up or create the class
-		class := vmInst.Classes.Lookup(classDef.Name)
+		// Look up the class: try namespaced key first, then bare name
+		var class *vm.Class
+		if namespace != "" {
+			class = vmInst.Classes.LookupInNamespace(namespace, classDef.Name)
+		}
 		if class == nil {
-			// Find superclass
+			class = vmInst.Classes.Lookup(classDef.Name)
+		}
+
+		if class == nil {
+			// Find superclass using import resolution
 			var superclass *vm.Class
 			if classDef.Superclass != "" {
-				superclass = vmInst.Classes.Lookup(classDef.Superclass)
+				superclass = vmInst.Classes.LookupWithImports(classDef.Superclass, namespace, imports)
 				if superclass == nil {
 					superclass = vmInst.ObjectClass
 				}
@@ -531,11 +687,29 @@ func compileFile(path string, vmInst *vm.VM, verbose bool) (int, error) {
 			}
 
 			class = vm.NewClassWithInstVars(classDef.Name, superclass, classDef.InstanceVariables)
+
+			// Set namespace on the class
+			if namespace != "" {
+				class.Namespace = namespace
+			}
+
 			vmInst.Classes.Register(class)
-			// Also add to Globals so it can be referenced as a variable
+
+			// Register short name in Globals (for unqualified references)
 			vmInst.Globals[classDef.Name] = vmInst.Symbols.SymbolValue(classDef.Name)
+
+			// Also register fully-qualified name if namespaced
+			if namespace != "" {
+				fullName := namespace + "::" + classDef.Name
+				vmInst.Globals[fullName] = vmInst.Symbols.SymbolValue(classDef.Name)
+			}
+
 			if verbose {
-				fmt.Printf("  Created class %s\n", classDef.Name)
+				if namespace != "" {
+					fmt.Printf("  Created class %s::%s\n", namespace, classDef.Name)
+				} else {
+					fmt.Printf("  Created class %s\n", classDef.Name)
+				}
 			}
 		}
 
@@ -546,6 +720,11 @@ func compileFile(path string, vmInst *vm.VM, verbose bool) (int, error) {
 			method, err := compiler.CompileMethodDefWithIvars(methodDef, vmInst.Selectors, vmInst.Symbols, allIvars)
 			if err != nil {
 				return compiled, fmt.Errorf("error compiling %s>>%s: %v", classDef.Name, methodDef.Selector, err)
+			}
+
+			// Preserve source text on compiled method
+			if methodDef.SourceText != "" {
+				method.Source = methodDef.SourceText
 			}
 
 			method.SetClass(class)
@@ -561,6 +740,11 @@ func compileFile(path string, vmInst *vm.VM, verbose bool) (int, error) {
 				return compiled, fmt.Errorf("error compiling %s class>>%s: %v", classDef.Name, methodDef.Selector, err)
 			}
 
+			// Preserve source text on compiled method
+			if methodDef.SourceText != "" {
+				method.Source = methodDef.SourceText
+			}
+
 			method.SetClass(class)
 			selectorID := vmInst.Selectors.Intern(method.Name())
 			class.ClassVTable.AddMethod(selectorID, method)
@@ -569,7 +753,7 @@ func compileFile(path string, vmInst *vm.VM, verbose bool) (int, error) {
 	}
 
 	if verbose && compiled > 0 {
-		fmt.Printf("  %s: %d methods\n", filepath.Base(path), compiled)
+		fmt.Printf("  %s: %d methods\n", filepath.Base(sourcePath), compiled)
 	}
 
 	return compiled, nil
@@ -675,4 +859,134 @@ func findYutaniLib() (string, error) {
 	}
 
 	return "", fmt.Errorf("Yutani library not found. Set MAGGIE_HOME or run from project root")
+}
+
+// loadProject resolves dependencies and loads source directories from a project manifest.
+// Returns total method count.
+func loadProject(vmInst *vm.VM, m *manifest.Manifest, verbose bool) (int, error) {
+	totalMethods := 0
+
+	// Resolve and load dependencies first
+	if len(m.Dependencies) > 0 {
+		resolver := manifest.NewResolver(m, verbose)
+		deps, err := resolver.Resolve()
+		if err != nil {
+			return 0, fmt.Errorf("dependency resolution failed: %w", err)
+		}
+
+		// Load each dependency's source dirs
+		for _, dep := range deps {
+			if dep.Manifest != nil {
+				for _, srcDir := range dep.Manifest.SourceDirPaths() {
+					if _, err := os.Stat(srcDir); err != nil {
+						continue // skip missing source dirs
+					}
+					methods, err := compilePath(srcDir+"/...", vmInst, verbose)
+					if err != nil {
+						return totalMethods, fmt.Errorf("loading dependency %s: %w", dep.Name, err)
+					}
+					totalMethods += methods
+				}
+			} else {
+				// No manifest - load all .mag files from dep root
+				depPath := dep.LocalPath + "/..."
+				methods, err := compilePath(depPath, vmInst, verbose)
+				if err != nil {
+					return totalMethods, fmt.Errorf("loading dependency %s: %w", dep.Name, err)
+				}
+				totalMethods += methods
+			}
+		}
+	}
+
+	// Load project source directories
+	for _, srcDir := range m.SourceDirPaths() {
+		if _, err := os.Stat(srcDir); err != nil {
+			if verbose {
+				fmt.Printf("  Skipping missing source dir: %s\n", srcDir)
+			}
+			continue
+		}
+		methods, err := compilePath(srcDir+"/...", vmInst, verbose)
+		if err != nil {
+			return totalMethods, fmt.Errorf("loading source %s: %w", srcDir, err)
+		}
+		totalMethods += methods
+	}
+
+	return totalMethods, nil
+}
+
+// handleDepsCommand handles the "mag deps" subcommand.
+func handleDepsCommand(args []string, verbose bool) {
+	m, err := manifest.FindAndLoad(".")
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		os.Exit(1)
+	}
+	if m == nil {
+		fmt.Fprintf(os.Stderr, "Error: no maggie.toml found\n")
+		os.Exit(1)
+	}
+
+	subcmd := ""
+	if len(args) > 0 {
+		subcmd = args[0]
+	}
+
+	switch subcmd {
+	case "", "resolve":
+		// Default: resolve and fetch dependencies
+		resolver := manifest.NewResolver(m, verbose)
+		deps, err := resolver.Resolve()
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error resolving dependencies: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Printf("Resolved %d dependencies:\n", len(deps))
+		for _, dep := range deps {
+			fmt.Printf("  %s -> %s\n", dep.Name, dep.LocalPath)
+		}
+
+	case "update":
+		// Re-resolve ignoring lock file
+		// Remove lock file first
+		lockPath := m.LockFilePath()
+		os.Remove(lockPath)
+
+		resolver := manifest.NewResolver(m, verbose)
+		deps, err := resolver.Resolve()
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error resolving dependencies: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Printf("Updated %d dependencies:\n", len(deps))
+		for _, dep := range deps {
+			fmt.Printf("  %s -> %s\n", dep.Name, dep.LocalPath)
+		}
+
+	case "list":
+		// Show resolved dependency tree
+		if len(m.Dependencies) == 0 {
+			fmt.Println("No dependencies configured.")
+			return
+		}
+		fmt.Printf("Dependencies for %s:\n", m.Project.Name)
+		for name, dep := range m.Dependencies {
+			if dep.Git != "" {
+				tag := dep.Tag
+				if tag == "" {
+					tag = "(latest)"
+				}
+				fmt.Printf("  %s: %s @ %s\n", name, dep.Git, tag)
+			} else if dep.Path != "" {
+				fmt.Printf("  %s: path %s\n", name, dep.Path)
+			}
+		}
+
+	default:
+		fmt.Fprintf(os.Stderr, "Unknown deps subcommand: %s\n", subcmd)
+		fmt.Fprintf(os.Stderr, "Usage: mag deps [resolve|update|list]\n")
+		os.Exit(1)
+	}
 }
