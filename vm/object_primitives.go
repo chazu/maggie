@@ -9,21 +9,28 @@ func (vm *VM) registerObjectPrimitives() {
 
 	// new - create a new instance (class-side primitive)
 	// This is a class method - registered on ClassVTable
-	// When sent to a symbol representing a class, creates an instance of that class
+	// Handles both first-class class values and legacy symbol-based class references
 	_ = vm.Selectors.Intern("new") // Ensure "new" selector is interned
 	c.AddClassMethod0(vm.Selectors, "new", func(vmPtr interface{}, recv Value) Value {
 		v := vmPtr.(*VM)
-		// If receiver is a symbol representing a class, create an instance
-		if recv.IsSymbol() {
-			symName := v.Symbols.Name(recv.SymbolID())
-			if cls := v.Classes.Lookup(symName); cls != nil {
+		// Handle first-class class values
+		if IsClassValue(recv) {
+			cls := GetClassFromValue(recv)
+			if cls != nil {
 				instance := cls.NewInstance()
-				// Keep a reference to prevent GC - Value is just uint64 to Go
 				v.keepAlive[instance] = struct{}{}
 				return instance.ToValue()
 			}
 		}
-		// Otherwise, just return self (for instance-side call)
+		// Handle symbol-based class references (legacy)
+		if recv.IsSymbol() {
+			symName := v.Symbols.Name(recv.SymbolID())
+			if cls := v.Classes.Lookup(symName); cls != nil {
+				instance := cls.NewInstance()
+				v.keepAlive[instance] = struct{}{}
+				return instance.ToValue()
+			}
+		}
 		return recv
 	})
 
@@ -31,7 +38,14 @@ func (vm *VM) registerObjectPrimitives() {
 	// Same as new, but in Smalltalk convention, basicNew is the raw allocator
 	c.AddClassMethod0(vm.Selectors, "basicNew", func(vmPtr interface{}, recv Value) Value {
 		v := vmPtr.(*VM)
-		// If receiver is a symbol representing a class, create an instance
+		if IsClassValue(recv) {
+			cls := GetClassFromValue(recv)
+			if cls != nil {
+				instance := cls.NewInstance()
+				v.keepAlive[instance] = struct{}{}
+				return instance.ToValue()
+			}
+		}
 		if recv.IsSymbol() {
 			symName := v.Symbols.Name(recv.SymbolID())
 			if cls := v.Classes.Lookup(symName); cls != nil {
