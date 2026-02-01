@@ -72,7 +72,7 @@ func (s *InspectService) InspectSlot(
 		if strings.HasPrefix(req.Msg.SlotName, "[") && strings.HasSuffix(req.Msg.SlotName, "]") {
 			var idx int
 			if _, scanErr := fmt.Sscanf(req.Msg.SlotName, "[%d]", &idx); scanErr == nil {
-				elemVal := v.Send(val, "at:", []vm.Value{vm.FromSmallInt(int64(idx))})
+				elemVal := v.Send(val, "primAt:", []vm.Value{vm.FromSmallInt(int64(idx))})
 				display := formatValue(v, elemVal)
 				className := classNameFor(v, elemVal)
 				handleID := s.handles.Create(elemVal, className, display, "")
@@ -137,7 +137,7 @@ func (s *InspectService) InspectIndex(
 	}
 
 	result, err := s.worker.Do(func(v *vm.VM) interface{} {
-		elemVal := v.Send(val, "at:", []vm.Value{vm.FromSmallInt(int64(req.Msg.Index))})
+		elemVal := v.Send(val, "primAt:", []vm.Value{vm.FromSmallInt(int64(req.Msg.Index))})
 		display := formatValue(v, elemVal)
 		className := classNameFor(v, elemVal)
 		handleID := s.handles.Create(elemVal, className, display, "")
@@ -342,7 +342,7 @@ func (s *InspectService) inspectValue(v *vm.VM, val vm.Value, handleID string) *
 			limit = 100
 		}
 		for i := 0; i < limit; i++ {
-			elemVal := v.Send(val, "at:", []vm.Value{vm.FromSmallInt(int64(i))})
+			elemVal := v.Send(val, "primAt:", []vm.Value{vm.FromSmallInt(int64(i))})
 			elemDisplay := formatValue(v, elemVal)
 			elemClassName := classNameFor(v, elemVal)
 			elemHandleID := s.handles.Create(elemVal, elemClassName, elemDisplay, "")

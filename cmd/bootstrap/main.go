@@ -169,9 +169,13 @@ func compileAllFiles(files []string, vmInst *vm.VM, verbose bool) (int, error) {
 					if superGetter, ok := classMapping[classDef.Superclass]; ok {
 						superclass = superGetter(vmInst)
 					} else if superVal, ok := vmInst.Globals[classDef.Superclass]; ok {
-						if superVal.IsObject() {
+						if vm.IsClassValue(superVal) {
+							superclass = vm.GetClassFromValue(superVal)
+						} else if superVal.IsObject() {
 							superclass = (*vm.Class)(superVal.ObjectPtr())
 						}
+					} else if c := vmInst.Classes.Lookup(classDef.Superclass); c != nil {
+						superclass = c
 					}
 				} else {
 					superclass = vmInst.ObjectClass
@@ -183,8 +187,8 @@ func compileAllFiles(files []string, vmInst *vm.VM, verbose bool) (int, error) {
 				// Register the class in the class table
 				vmInst.Classes.Register(class)
 
-				// Register the class in globals as a symbol
-				vmInst.Globals[classDef.Name] = vmInst.Symbols.SymbolValue(classDef.Name)
+				// Register the class in globals as a first-class class value
+				vmInst.Globals[classDef.Name] = vmInst.ClassValue(class)
 
 				if verbose {
 					fmt.Printf("  created class %s (superclass: %s, instVars: %v)\n",

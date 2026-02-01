@@ -705,13 +705,14 @@ func compileSourceFile(vmInst *vm.VM, source string, sourcePath string, nsOverri
 
 			vmInst.Classes.Register(class)
 
-			// Register short name in Globals (for unqualified references)
-			vmInst.Globals[classDef.Name] = vmInst.Symbols.SymbolValue(classDef.Name)
+			// Register as first-class class value in Globals
+			classVal := vmInst.ClassValue(class)
+			vmInst.Globals[classDef.Name] = classVal
 
 			// Also register fully-qualified name if namespaced
 			if namespace != "" {
 				fullName := namespace + "::" + classDef.Name
-				vmInst.Globals[fullName] = vmInst.Symbols.SymbolValue(classDef.Name)
+				vmInst.Globals[fullName] = classVal
 			}
 
 			if verbose {

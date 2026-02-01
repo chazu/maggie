@@ -286,6 +286,12 @@ func (vm *VM) classValue(c *Class) Value {
 	return registerClassValue(c)
 }
 
+// ClassValue returns a first-class Value representing the given class.
+// This is the exported version for use by cmd/mag and other packages.
+func (vm *VM) ClassValue(c *Class) Value {
+	return registerClassValue(c)
+}
+
 // ---------------------------------------------------------------------------
 // Concurrency Registry Accessors
 // ---------------------------------------------------------------------------
