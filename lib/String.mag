@@ -73,6 +73,12 @@ String subclass: Object
       ^self primCopyFrom: start to: end
   ]
 
+  # Iteration
+  method: do: aBlock [
+      "Evaluate aBlock with each Character in the string."
+      ^self primDo: aBlock
+  ]
+
   # Character inspection (for single-character strings)
   method: isDigit [
       "Return true if this is a single digit character."

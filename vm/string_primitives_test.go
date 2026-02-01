@@ -64,16 +64,22 @@ func TestStringPrimAt(t *testing.T) {
 
 	s := NewStringValue("hello")
 
-	// Test getting character at index 0 (0-based)
+	// Test getting character at index 0 (0-based) — now returns a Character value
 	result := vm.Send(s, "primAt:", []Value{FromSmallInt(0)})
-	if GetStringContent(result) != "h" {
-		t.Errorf("primAt: 0 returned %q, want %q", GetStringContent(result), "h")
+	if !IsCharacterValue(result) {
+		t.Fatalf("primAt: 0 returned non-Character value")
+	}
+	if GetCharacterCodePoint(result) != 'h' {
+		t.Errorf("primAt: 0 returned %c, want 'h'", GetCharacterCodePoint(result))
 	}
 
 	// Test getting character at index 2
 	result = vm.Send(s, "primAt:", []Value{FromSmallInt(2)})
-	if GetStringContent(result) != "l" {
-		t.Errorf("primAt: 2 returned %q, want %q", GetStringContent(result), "l")
+	if !IsCharacterValue(result) {
+		t.Fatalf("primAt: 2 returned non-Character value")
+	}
+	if GetCharacterCodePoint(result) != 'l' {
+		t.Errorf("primAt: 2 returned %c, want 'l'", GetCharacterCodePoint(result))
 	}
 
 	// Test out of bounds (positive)

@@ -1,0 +1,21 @@
+# Message.mag
+# Message is a reified message object created by the VM when method dispatch fails.
+# It is passed to doesNotUnderstand: with the original selector and arguments.
+
+Message subclass: Object
+  instanceVars: selector arguments
+
+  # Accessing
+  # selector and arguments are primitives registered in the VM.
+
+  method: numArgs [
+      ^self arguments size
+  ]
+
+  # Printing
+  method: printOn: aStream [
+      aStream nextPutAll: self printString
+  ]
+
+  # Re-sending
+  # sendTo: is a primitive registered in the VM.

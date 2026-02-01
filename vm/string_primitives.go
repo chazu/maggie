@@ -94,6 +94,19 @@ func GetStringObject(v Value) *StringObject {
 	return stringRegistry.strings[id]
 }
 
+// getStringLike returns the string content from a Value that is
+// a String, Character, or Symbol. Returns "" for other types.
+func getStringLike(v Value) string {
+	if IsStringValue(v) {
+		return GetStringContent(v)
+	}
+	if IsCharacterValue(v) {
+		return string(GetCharacterCodePoint(v))
+	}
+	// Symbols are not handled here — use vm.Symbols.Name() for that
+	return ""
+}
+
 // ---------------------------------------------------------------------------
 // String Primitives Implementation
 // ---------------------------------------------------------------------------
@@ -109,7 +122,7 @@ func (vm *VM) registerStringPrimitivesExtended() {
 		return FromSmallInt(int64(len(s)))
 	})
 
-	// primAt: - return the character at the given 0-based index
+	// primAt: - return the Character at the given 0-based index
 	c.AddMethod1(vm.Selectors, "primAt:", func(_ interface{}, recv Value, index Value) Value {
 		if !index.IsSmallInt() {
 			return Nil
@@ -119,14 +132,13 @@ func (vm *VM) registerStringPrimitivesExtended() {
 		if idx < 0 || idx >= len(s) {
 			return Nil // Index out of bounds
 		}
-		// Return a single-character string
-		return NewStringValue(string(s[idx]))
+		return FromCharacter(rune(s[idx]))
 	})
 
-	// primConcat: - concatenate two strings
+	// primConcat: - concatenate two strings (also accepts Characters)
 	c.AddMethod1(vm.Selectors, "primConcat:", func(_ interface{}, recv Value, other Value) Value {
 		s1 := GetStringContent(recv)
-		s2 := GetStringContent(other)
+		s2 := getStringLike(other)
 		return NewStringValue(s1 + s2)
 	})
 
@@ -150,10 +162,10 @@ func (vm *VM) registerStringPrimitivesExtended() {
 		return False
 	})
 
-	// primIncludes: - check if string contains a character
+	// primIncludes: - check if string contains a character or substring
 	c.AddMethod1(vm.Selectors, "primIncludes:", func(_ interface{}, recv Value, char Value) Value {
 		s := GetStringContent(recv)
-		ch := GetStringContent(char)
+		ch := getStringLike(char)
 		if len(ch) == 0 {
 			return False
 		}
@@ -163,10 +175,10 @@ func (vm *VM) registerStringPrimitivesExtended() {
 		return False
 	})
 
-	// primIndexOf: - return the 0-based index of a substring, or -1 if not found
+	// primIndexOf: - return the 0-based index of a substring or character, or -1 if not found
 	c.AddMethod1(vm.Selectors, "primIndexOf:", func(_ interface{}, recv Value, char Value) Value {
 		s := GetStringContent(recv)
-		ch := GetStringContent(char)
+		ch := getStringLike(char)
 		if len(ch) == 0 {
 			return FromSmallInt(-1)
 		}
@@ -272,6 +284,18 @@ func (vm *VM) registerStringPrimitivesExtended() {
 			return True
 		}
 		return False
+	})
+
+	// primDo: - iterate over characters, yielding Character values to the block
+	c.AddMethod1(vm.Selectors, "primDo:", func(vmPtr interface{}, recv Value, block Value) Value {
+		v := vmPtr.(*VM)
+		s := GetStringContent(recv)
+		var last Value = Nil
+		for _, ch := range s {
+			charVal := FromCharacter(ch)
+			last = v.Send(block, "value:", []Value{charVal})
+		}
+		return last
 	})
 
 	// println - print the string to stdout with newline

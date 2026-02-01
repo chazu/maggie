@@ -60,8 +60,8 @@ Object subclass: nil
       ^self primError: message
   ]
 
-  method: doesNotUnderstand: selector [
-      ^self error: 'Message not understood: ', selector
+  method: doesNotUnderstand: aMessage [
+      ^self error: 'Message not understood: ', aMessage selector
   ]
 
   # Printing (basic - returns class name)

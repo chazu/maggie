@@ -304,8 +304,9 @@ func (c *Compiler) compileSymbol(value string) {
 }
 
 func (c *Compiler) compileChar(value rune) {
-	// Characters in Maggie are single-character strings
-	c.compileString(string(value))
+	// Characters are first-class value types encoded via FromCharacter
+	idx := c.addLiteral(vm.FromCharacter(value))
+	c.builder.EmitUint16(vm.OpPushLiteral, uint16(idx))
 }
 
 func (c *Compiler) compileArrayLiteral(arr *ArrayLiteral) {

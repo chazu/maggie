@@ -11,16 +11,17 @@ import (
 
 // Image encoding tags - high 4 bits indicate type, remaining bits are payload
 const (
-	imageTagFloat    byte = 0x0 // 64-bit float (stored directly)
-	imageTagSmallInt byte = 0x1 // 48-bit signed integer
-	imageTagObject   byte = 0x2 // object index
-	imageTagNil      byte = 0x3
-	imageTagTrue     byte = 0x4
-	imageTagFalse    byte = 0x5
-	imageTagSymbol   byte = 0x6 // symbol table index
-	imageTagString   byte = 0x7 // string table index (for literal strings)
-	imageTagClass    byte = 0x8 // class table index
-	imageTagMethod   byte = 0x9 // method table index
+	imageTagFloat     byte = 0x0 // 64-bit float (stored directly)
+	imageTagSmallInt  byte = 0x1 // 48-bit signed integer
+	imageTagObject    byte = 0x2 // object index
+	imageTagNil       byte = 0x3
+	imageTagTrue      byte = 0x4
+	imageTagFalse     byte = 0x5
+	imageTagSymbol    byte = 0x6 // symbol table index
+	imageTagString    byte = 0x7 // string table index (for literal strings)
+	imageTagClass     byte = 0x8 // class table index
+	imageTagMethod    byte = 0x9 // method table index
+	imageTagCharacter byte = 0xA // Unicode code point (stored as uint32)
 )
 
 // EncodedValueSize is the size of an encoded value in bytes.
@@ -221,6 +222,12 @@ func (e *ImageEncoder) EncodeValueTo(v Value, buf []byte) {
 		content := GetStringContent(v)
 		idx := e.RegisterString(content)
 		binary.LittleEndian.PutUint32(buf[1:], idx)
+
+	case IsCharacterValue(v):
+		// Character values must be checked BEFORE symbols since they use the same tag
+		buf[0] = imageTagCharacter
+		cp := GetCharacterCodePoint(v)
+		binary.LittleEndian.PutUint32(buf[1:], uint32(cp))
 
 	case isClassValue(v):
 		buf[0] = imageTagClass
@@ -463,6 +470,10 @@ func (d *ImageDecoder) DecodeValue(data []byte) Value {
 		idx := binary.LittleEndian.Uint32(data[1:])
 		symID := d.GetSymbol(idx)
 		return FromSymbolID(symID)
+
+	case imageTagCharacter:
+		cp := binary.LittleEndian.Uint32(data[1:])
+		return FromCharacter(rune(cp))
 
 	case imageTagObject:
 		idx := binary.LittleEndian.Uint32(data[1:])

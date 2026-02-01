@@ -52,6 +52,8 @@ type VM struct {
 	GrpcStreamClass        *Class
 	ContextClass           *Class
 	WeakReferenceClass     *Class
+	CharacterClass         *Class
+	MessageClass           *Class
 
 	// Exception hierarchy
 	ExceptionClass             *Class
@@ -86,6 +88,9 @@ type VM struct {
 	// concurrency holds registries for channels, processes, mutexes, etc.
 	concurrency *ConcurrencyRegistry
 
+	// symbolDispatch centralises marker-based class resolution for symbol-encoded types.
+	symbolDispatch *SymbolDispatch
+
 	// AOT compiled methods - maps (class, method) to AOT-compiled functions.
 	// When set, these are used instead of interpreting bytecode.
 	aotMethods AOTDispatchTable
@@ -101,14 +106,15 @@ type VM struct {
 // NewVM creates and bootstraps a new VM.
 func NewVM() *VM {
 	vm := &VM{
-		Selectors:   NewSelectorTable(),
-		Symbols:     NewSymbolTable(),
-		Classes:     NewClassTable(),
-		Traits:      NewTraitTable(),
-		Globals:     make(map[string]Value),
-		keepAlive:   make(map[*Object]struct{}),
-		weakRefs:    NewWeakRegistry(),
-		concurrency: NewConcurrencyRegistry(),
+		Selectors:      NewSelectorTable(),
+		Symbols:        NewSymbolTable(),
+		Classes:        NewClassTable(),
+		Traits:         NewTraitTable(),
+		Globals:        make(map[string]Value),
+		keepAlive:      make(map[*Object]struct{}),
+		weakRefs:       NewWeakRegistry(),
+		concurrency:    NewConcurrencyRegistry(),
+		symbolDispatch: NewSymbolDispatch(),
 	}
 
 	// Bootstrap core classes
@@ -194,6 +200,12 @@ func (vm *VM) bootstrap() {
 	// Phase 5g: Create WeakReference class
 	vm.WeakReferenceClass = vm.createClass("WeakReference", vm.ObjectClass)
 
+	// Phase 5h: Create Character class
+	vm.CharacterClass = vm.createClass("Character", vm.ObjectClass)
+
+	// Phase 5i: Create Message class (for doesNotUnderstand:)
+	vm.bootstrapMessageClass()
+
 	// Phase 5f: Create Exception class hierarchy
 	vm.bootstrapExceptionClasses()
 
@@ -220,6 +232,8 @@ func (vm *VM) bootstrap() {
 	vm.registerExceptionPrimitives()
 	vm.registerExceptionBlockPrimitives()
 	vm.registerWeakReferencePrimitives()
+	vm.registerCharacterPrimitives()
+	vm.registerMessagePrimitives()
 	vm.registerClassReflectionPrimitives()
 	vm.registerCompilerPrimitives()
 	vm.registerFilePrimitives()
@@ -252,11 +266,15 @@ func (vm *VM) bootstrap() {
 	vm.Globals["GrpcStream"] = vm.classValue(vm.GrpcStreamClass)
 	vm.Globals["Context"] = vm.classValue(vm.ContextClass)
 	vm.Globals["WeakReference"] = vm.classValue(vm.WeakReferenceClass)
+	vm.Globals["Character"] = vm.classValue(vm.CharacterClass)
 
 	// Well-known symbols
 	vm.Globals["nil"] = Nil
 	vm.Globals["true"] = True
 	vm.Globals["false"] = False
+
+	// Phase 8: Register symbol-encoded types in the central dispatch table
+	vm.registerSymbolDispatch()
 }
 
 // createBootstrapClass creates a class during early bootstrap.
@@ -278,6 +296,65 @@ func (vm *VM) createClassWithIvars(name string, superclass *Class, ivars []strin
 	c := NewClassWithInstVars(name, superclass, ivars)
 	vm.Classes.Register(c)
 	return c
+}
+
+// registerSymbolDispatch registers all symbol-encoded value types in the
+// central dispatch table. This replaces the duplicated if/else chains in
+// vtableFor(), Send(), and ClassFor().
+func (vm *VM) registerSymbolDispatch() {
+	sd := vm.symbolDispatch
+
+	// Concurrency primitives
+	sd.Register(channelMarker, &SymbolTypeEntry{Class: vm.ChannelClass})
+	sd.Register(processMarker, &SymbolTypeEntry{Class: vm.ProcessClass})
+	sd.Register(mutexMarker, &SymbolTypeEntry{Class: vm.MutexClass})
+	sd.Register(waitGroupMarker, &SymbolTypeEntry{Class: vm.WaitGroupClass})
+	sd.Register(semaphoreMarker, &SymbolTypeEntry{Class: vm.SemaphoreClass})
+	sd.Register(cancellationContextMarker, &SymbolTypeEntry{Class: vm.CancellationContextClass})
+
+	// gRPC
+	sd.Register(grpcClientMarker, &SymbolTypeEntry{Class: vm.GrpcClientClass})
+	sd.Register(grpcStreamMarker, &SymbolTypeEntry{Class: vm.GrpcStreamClass})
+
+	// Weak references
+	sd.Register(weakRefMarker, &SymbolTypeEntry{Class: vm.WeakReferenceClass})
+
+	// Characters
+	sd.Register(characterMarker, &SymbolTypeEntry{Class: vm.CharacterClass})
+
+	// Class values — dispatch via ClassVTable
+	sd.Register(classValueMarker, &SymbolTypeEntry{
+		ClassSide: true,
+		Resolve: func(v Value, _ *VM) (*Class, bool) {
+			cls := getClassFromValue(v)
+			if cls != nil {
+				return cls, true
+			}
+			return nil, false
+		},
+	})
+
+	// Exceptions — resolve to the specific exception subclass
+	sd.Register(exceptionMarker, &SymbolTypeEntry{
+		Resolve: func(v Value, _ *VM) (*Class, bool) {
+			exObj := GetExceptionObject(v)
+			if exObj != nil && exObj.ExceptionClass != nil {
+				return exObj.ExceptionClass, true
+			}
+			return vm.ExceptionClass, true
+		},
+	})
+
+	// Results — resolve to Success or Failure
+	sd.Register(resultMarker, &SymbolTypeEntry{
+		Resolve: func(v Value, _ *VM) (*Class, bool) {
+			r := getResult(v)
+			if r != nil && r.resultType == ResultSuccess {
+				return vm.SuccessClass, true
+			}
+			return vm.FailureClass, true
+		},
+	})
 }
 
 // classValue returns a Value representing a class.
@@ -392,63 +469,11 @@ func (vm *VM) registerStringPrimitives() {
 // ---------------------------------------------------------------------------
 
 func (vm *VM) primitiveClass(v Value) Value {
-	var className string
-	switch {
-	case v == Nil:
-		className = "UndefinedObject"
-	case v == True:
-		className = "True"
-	case v == False:
-		className = "False"
-	case v.IsSmallInt():
-		className = "SmallInteger"
-	case v.IsFloat():
-		className = "Float"
-	case v.IsBlock():
-		className = "Block"
-	case IsStringValue(v):
-		className = "String"
-	case IsDictionaryValue(v):
-		className = "Dictionary"
-	case v.IsException():
-		exObj := GetExceptionObject(v)
-		if exObj != nil && exObj.ExceptionClass != nil {
-			className = exObj.ExceptionClass.Name
-		} else {
-			className = "Exception"
-		}
-	case v.IsWeakRef():
-		className = "WeakReference"
-	case isChannelValue(v):
-		className = "Channel"
-	case isProcessValue(v):
-		className = "Process"
-	case isResultValue(v):
-		r := getResult(v)
-		if r != nil && r.resultType == ResultSuccess {
-			className = "Success"
-		} else {
-			className = "Failure"
-		}
-	case isGrpcClientValue(v):
-		className = "GrpcClient"
-	case isGrpcStreamValue(v):
-		className = "GrpcStream"
-	case isClassValue(v):
-		className = "Class"
-	case v.IsSymbol():
-		className = "Symbol"
-	case v.IsObject():
-		obj := ObjectFromValue(v)
-		if obj != nil && obj.VTablePtr() != nil && obj.VTablePtr().Class() != nil {
-			className = obj.VTablePtr().Class().Name
-		} else {
-			className = "Object"
-		}
-	default:
-		className = "Object"
+	cls := vm.ClassFor(v)
+	if cls != nil {
+		return vm.Symbols.SymbolValue(cls.Name)
 	}
-	return vm.Symbols.SymbolValue(className)
+	return vm.Symbols.SymbolValue("Object")
 }
 
 // ClassFor returns the class for a value.
@@ -468,22 +493,14 @@ func (vm *VM) ClassFor(v Value) *Class {
 		return vm.BlockClass
 	case v.IsContext():
 		return vm.ContextClass
-	case v.IsException():
-		// Return the specific exception class
-		exObj := GetExceptionObject(v)
-		if exObj != nil && exObj.ExceptionClass != nil {
-			return exObj.ExceptionClass
-		}
-		return vm.ExceptionClass
-	case v.IsWeakRef():
-		return vm.WeakReferenceClass
-	case IsStringValue(v):
-		return vm.StringClass
-	case IsDictionaryValue(v):
-		return vm.DictionaryClass
-	case isClassValue(v):
-		return vm.ClassClass
 	case v.IsSymbol():
+		// Use the central dispatch table for all symbol-encoded types
+		if cls, isClassSide := vm.symbolDispatch.ClassForSymbolVM(v, vm); cls != nil {
+			if isClassSide {
+				return vm.ClassClass
+			}
+			return cls
+		}
 		return vm.SymbolClass
 	case v.IsObject():
 		obj := ObjectFromValue(v)
@@ -561,54 +578,16 @@ func (vm *VM) Send(receiver Value, selector string, args []Value) Value {
 
 	// Determine the class for method dispatch
 	var class *Class
-	isClassSide := false // Track if this is a class-side dispatch
+	isClassSide := false
 	if receiver.IsSymbol() {
-		// Check for string values first (they use the symbol tag but with high IDs)
-		if IsStringValue(receiver) {
-			class = vm.StringClass
-		} else if IsDictionaryValue(receiver) {
-			class = vm.DictionaryClass
-		} else if isClassValue(receiver) {
-			class = getClassFromValue(receiver)
-			isClassSide = true
-		} else if isChannelValue(receiver) {
-			// Check for special symbol-encoded values (channels, processes, results)
-			class = vm.ChannelClass
-		} else if isProcessValue(receiver) {
-			class = vm.ProcessClass
-		} else if isMutexValue(receiver) {
-			class = vm.MutexClass
-		} else if isWaitGroupValue(receiver) {
-			class = vm.WaitGroupClass
-		} else if isSemaphoreValue(receiver) {
-			class = vm.SemaphoreClass
-		} else if isCancellationContextValue(receiver) {
-			class = vm.CancellationContextClass
-		} else if isResultValue(receiver) {
-			// Determine if it's a Success or Failure
-			r := getResult(receiver)
-			if r != nil && r.resultType == ResultSuccess {
-				class = vm.SuccessClass
-			} else {
-				class = vm.FailureClass
-			}
-		} else if receiver.IsException() {
-			// Exception - get the specific exception class
-			exObj := GetExceptionObject(receiver)
-			if exObj != nil && exObj.ExceptionClass != nil {
-				class = exObj.ExceptionClass
-			} else {
-				class = vm.ExceptionClass
-			}
-		} else if receiver.IsWeakRef() {
-			class = vm.WeakReferenceClass
-		} else {
-			// Check if this symbol represents a class name (for class-side messages)
-			// This handles cases like: Channel new, Process sleep: 100
+		// Use the central dispatch table for all symbol-encoded types
+		class, isClassSide = vm.symbolDispatch.ClassForSymbolVM(receiver, vm)
+		if class == nil {
+			// Not a registered symbol type — check if it's a class name
 			symName := vm.Symbols.Name(receiver.SymbolID())
 			if cls := vm.Classes.Lookup(symName); cls != nil {
 				class = cls
-				isClassSide = true // Use ClassVTable for class-side dispatch
+				isClassSide = true
 			} else {
 				class = vm.SymbolClass
 			}
@@ -630,7 +609,7 @@ func (vm *VM) Send(receiver Value, selector string, args []Value) Value {
 	}
 
 	if method == nil {
-		return Nil // Would trigger doesNotUnderstand:
+		return vm.sendDoesNotUnderstand(receiver, selector, args)
 	}
 
 	// Check if it's a compiled method or primitive
@@ -646,6 +625,30 @@ func (vm *VM) Send(receiver Value, selector string, args []Value) Value {
 
 	// Primitive method - pass VM as the vm parameter
 	return method.Invoke(vm, receiver, args)
+}
+
+// sendDoesNotUnderstand dispatches doesNotUnderstand: with a reified Message.
+// If doesNotUnderstand: is not defined (e.g. before .mag libraries are loaded),
+// falls back to returning Nil for backward compatibility.
+func (vm *VM) sendDoesNotUnderstand(receiver Value, selector string, args []Value) Value {
+	dnuSelectorID := vm.Selectors.Intern("doesNotUnderstand:")
+	class := vm.ClassFor(receiver)
+	if class == nil {
+		return Nil
+	}
+
+	dnuMethod := class.VTable.Lookup(dnuSelectorID)
+	if dnuMethod == nil {
+		return Nil
+	}
+
+	// If the doesNotUnderstand: method is a primitive (Go function), pass a Message.
+	// If it's a compiled method (from .mag files), also pass a Message — but the
+	// compiled method must expect a Message object (not a bare selector string).
+	selectorSym := vm.Symbols.SymbolValue(selector)
+	msg := vm.createMessage(selectorSym, args)
+
+	return dnuMethod.Invoke(vm, receiver, []Value{msg})
 }
 
 // Intern returns the symbol ID for a name.

@@ -143,11 +143,35 @@ func (vm *VM) registerObjectPrimitives() {
 		return Nil
 	})
 
-	// doesNotUnderstand: - default error handler
-	c.AddMethod1(vm.Selectors, "doesNotUnderstand:", func(_ interface{}, recv Value, message Value) Value {
-		// In a full implementation, this would raise an error
-		// For now, return nil
-		return Nil
+	// doesNotUnderstand: - default error handler.
+	// Receives a Message object with selector and arguments.
+	// Panics with a "Maggie error: Message not understood: X" message
+	// which is caught by ExecuteSafe.
+	c.AddMethod1(vm.Selectors, "doesNotUnderstand:", func(vmPtr interface{}, recv Value, message Value) Value {
+		v := vmPtr.(*VM)
+		selectorName := "<unknown>"
+
+		// Extract selector name from the Message object
+		if message.IsObject() {
+			obj := ObjectFromValue(message)
+			if obj != nil && obj.NumSlots() > 0 {
+				selectorSym := obj.GetSlot(0)
+				if selectorSym.IsSymbol() {
+					selectorName = v.Symbols.Name(selectorSym.SymbolID())
+				}
+			}
+		} else if IsStringValue(message) {
+			// Backward compat: if a bare string is passed (old-style)
+			selectorName = GetStringContent(message)
+		} else if message.IsSymbol() {
+			selectorName = v.Symbols.Name(message.SymbolID())
+		}
+
+		stackTrace := ""
+		if v.interpreter != nil {
+			stackTrace = "\nStack trace:\n" + v.interpreter.StackTrace()
+		}
+		panic("Maggie error: Message not understood: " + selectorName + stackTrace)
 	})
 
 	// = - value equality (default to identity)

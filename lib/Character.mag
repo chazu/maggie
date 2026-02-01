@@ -1,35 +1,35 @@
 # Character.mag
-# Character class provides character constants and inspection methods.
-# In Maggie, characters are represented as single-character strings.
+# Character represents a single Unicode code point.
+# Characters are first-class value types encoded in the VM (like SmallInteger).
+# Use $X literal syntax or Character value: to create characters.
 
 Character subclass: Object
 
-  # Character constants (class methods)
-  classMethod: space [
-      ^' '
+  # Printing
+  method: printOn: aStream [
+      aStream nextPutAll: self printString
   ]
 
-  classMethod: tab [
-      ^'	'
+  # Conversion
+  method: asCharacter [
+      ^self
   ]
 
-  classMethod: cr [
-      ^'
-'
+  # Testing
+  method: isCharacter [
+      ^true
   ]
 
-  classMethod: lf [
-      ^'
-'
+  method: isAlphaNumeric [
+      ^self isLetter or: [self isDigit]
   ]
 
-  classMethod: newline [
-      ^'
-'
+  method: isVowel [
+      | lower |
+      lower := self asLowercase.
+      ^(lower = $a) or: [(lower = $e) or: [(lower = $i) or: [(lower = $o) or: [lower = $u]]]]
   ]
 
-  # Character code conversion
-  classMethod: value: anInteger [
-      "Return the character with the given ASCII/Unicode value."
-      ^self primCharValue: anInteger
+  method: isSeparator [
+      ^self isWhitespace
   ]

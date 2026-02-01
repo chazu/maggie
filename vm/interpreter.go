@@ -919,8 +919,7 @@ func (i *Interpreter) send(selector int, argc int) (result Value) {
 	// Get the vtable for the receiver
 	vt := i.vtableFor(rcvr)
 	if vt == nil {
-		// No vtable - would trigger doesNotUnderstand:
-		return Nil
+		return i.sendDoesNotUnderstand(rcvr, selector, args)
 	}
 
 	// Get receiver's class for inline cache lookup
@@ -949,8 +948,7 @@ func (i *Interpreter) send(selector int, argc int) (result Value) {
 	if method == nil {
 		method = vt.Lookup(selector)
 		if method == nil {
-			// Method not found - would trigger doesNotUnderstand:
-			return Nil
+			return i.sendDoesNotUnderstand(rcvr, selector, args)
 		}
 
 		// Update cache on miss
@@ -995,6 +993,44 @@ func (i *Interpreter) send(selector int, argc int) (result Value) {
 
 	// Primitive method - pass the VM (for primitives that need it)
 	return method.Invoke(i.vm, rcvr, args)
+}
+
+// sendDoesNotUnderstand dispatches doesNotUnderstand: with a reified Message.
+// It looks up doesNotUnderstand: on the receiver's vtable and invokes it with
+// a Message object containing the original selector and arguments.
+// If doesNotUnderstand: is not defined (e.g. before .mag libraries are loaded),
+// falls back to returning Nil for backward compatibility.
+func (i *Interpreter) sendDoesNotUnderstand(receiver Value, selectorID int, args []Value) Value {
+	vm, ok := i.vm.(*VM)
+	if !ok || vm == nil {
+		return Nil
+	}
+
+	// Look up doesNotUnderstand: on the receiver
+	dnuSelectorID := vm.Selectors.Intern("doesNotUnderstand:")
+	vt := i.vtableFor(receiver)
+	if vt == nil {
+		return Nil
+	}
+
+	dnuMethod := vt.Lookup(dnuSelectorID)
+	if dnuMethod == nil {
+		// doesNotUnderstand: not yet installed — fall back to Nil
+		return Nil
+	}
+
+	// Create a Message object with the original selector and arguments.
+	// Convert selector ID (from the SelectorTable) to a proper Symbol value
+	// (from the SymbolTable) so the Message's selector is a real Symbol.
+	selectorName := vm.Selectors.Name(selectorID)
+	selectorSym := vm.Symbols.SymbolValue(selectorName)
+	msg := vm.createMessage(selectorSym, args)
+
+	// Invoke doesNotUnderstand: directly (not via send, to avoid recursion)
+	if cm, ok := dnuMethod.(*CompiledMethod); ok {
+		return i.Execute(cm, receiver, []Value{msg})
+	}
+	return dnuMethod.Invoke(vm, receiver, []Value{msg})
 }
 
 // sendSuper performs a super send.
@@ -1060,7 +1096,66 @@ func (i *Interpreter) sendSuper(selector int, argc int, callingMethod *CompiledM
 
 // vtableFor returns the vtable for a value.
 func (i *Interpreter) vtableFor(v Value) *VTable {
-	// Handle special values
+	// Fast path: when the interpreter has a VM back-reference, use the
+	// central dispatch table for symbol-encoded types.
+	if vm, ok := i.vm.(*VM); ok && vm != nil {
+		return i.vtableForVM(v, vm)
+	}
+
+	// Legacy path: standalone interpreter without a VM (used by some tests).
+	return i.vtableForLegacy(v)
+}
+
+// vtableForVM uses the VM's direct class pointers and central symbol dispatch table.
+func (i *Interpreter) vtableForVM(v Value, vm *VM) *VTable {
+	switch {
+	case v == Nil:
+		return vm.UndefinedObjectClass.VTable
+	case v == True:
+		return vm.TrueClass.VTable
+	case v == False:
+		return vm.FalseClass.VTable
+	case v.IsSmallInt():
+		return vm.SmallIntegerClass.VTable
+	case v.IsFloat():
+		return vm.FloatClass.VTable
+	case v.IsBlock():
+		return vm.BlockClass.VTable
+	case v.IsContext():
+		return vm.ContextClass.VTable
+	case v.IsSymbol():
+		cls, isClassSide := vm.symbolDispatch.ClassForSymbolVM(v, vm)
+		if cls != nil {
+			if isClassSide {
+				if cls.ClassVTable != nil {
+					return cls.ClassVTable
+				}
+				return cls.VTable
+			}
+			return cls.VTable
+		}
+		// Not a registered type — check if it's a class name (for class-side messages)
+		if i.Symbols != nil {
+			symName := i.Symbols.Name(v.SymbolID())
+			if cls := i.Classes.Lookup(symName); cls != nil {
+				if cls.ClassVTable != nil {
+					return cls.ClassVTable
+				}
+				return cls.VTable
+			}
+		}
+		return vm.SymbolClass.VTable
+	case v.IsObject():
+		obj := ObjectFromValue(v)
+		if obj != nil {
+			return obj.VTablePtr()
+		}
+	}
+	return nil
+}
+
+// vtableForLegacy is the fallback for interpreters without a VM (legacy tests).
+func (i *Interpreter) vtableForLegacy(v Value) *VTable {
 	switch {
 	case v == Nil:
 		if c := i.Classes.Lookup("UndefinedObject"); c != nil {
@@ -1091,14 +1186,12 @@ func (i *Interpreter) vtableFor(v Value) *VTable {
 			return c.VTable
 		}
 	case v.IsSymbol():
-		// Check for special symbol-encoded values first
 		if IsStringValue(v) {
 			if c := i.Classes.Lookup("String"); c != nil {
 				return c.VTable
 			}
 		}
 		if v.IsException() {
-			// Get the specific exception class from the exception object
 			exObj := GetExceptionObject(v)
 			if exObj != nil && exObj.ExceptionClass != nil {
 				return exObj.ExceptionClass.VTable
@@ -1112,14 +1205,12 @@ func (i *Interpreter) vtableFor(v Value) *VTable {
 				return c.VTable
 			}
 		}
-		// Check for class values (first-class class objects)
 		if isClassValue(v) {
 			cls := getClassFromValue(v)
 			if cls != nil && cls.ClassVTable != nil {
 				return cls.ClassVTable
 			}
 		}
-		// Check for Channel and Process values
 		if isChannelValue(v) {
 			if c := i.Classes.Lookup("Channel"); c != nil {
 				return c.VTable
@@ -1130,7 +1221,6 @@ func (i *Interpreter) vtableFor(v Value) *VTable {
 				return c.VTable
 			}
 		}
-		// Check for gRPC client/stream values
 		if isGrpcClientValue(v) {
 			if c := i.Classes.Lookup("GrpcClient"); c != nil {
 				return c.VTable
@@ -1141,7 +1231,6 @@ func (i *Interpreter) vtableFor(v Value) *VTable {
 				return c.VTable
 			}
 		}
-		// Check for Result values
 		if isResultValue(v) {
 			r := getResult(v)
 			if r != nil {
@@ -1156,18 +1245,15 @@ func (i *Interpreter) vtableFor(v Value) *VTable {
 				}
 			}
 		}
-		// Check if this symbol represents a class name (for class-side messages)
 		if i.Symbols != nil {
 			symName := i.Symbols.Name(v.SymbolID())
 			if cls := i.Classes.Lookup(symName); cls != nil {
-				// Use ClassVTable for class-side dispatch (metaclass methods)
 				if cls.ClassVTable != nil {
 					return cls.ClassVTable
 				}
-				return cls.VTable // Fallback if ClassVTable not initialized
+				return cls.VTable
 			}
 		}
-		// Fall back to Symbol class for regular symbols
 		if c := i.Classes.Lookup("Symbol"); c != nil {
 			return c.VTable
 		}
