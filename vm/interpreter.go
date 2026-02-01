@@ -1339,17 +1339,18 @@ func init() {
 	nextBlockID.Store(1)
 }
 
-// releaseBlocksForFrame removes all blocks whose home frame is being popped
-// TODO: This is disabled because blocks stored in data structures (like handlers)
-// need to outlive their home frame. Need proper reference counting.
+// releaseBlocksForFrame removes all blocks whose home frame is being popped.
+// Blocks that need to outlive their home frame (e.g. forked processes) use
+// HomeFrame = -1 via ExecuteBlockDetached, so they are unaffected by this cleanup.
 func releaseBlocksForFrame(frameIndex int) {
-	// Disabled for now - blocks need to be kept alive when stored in data structures
-	// if blockIDs, ok := blocksByHomeFrame[frameIndex]; ok {
-	// 	for _, id := range blockIDs {
-	// 		delete(blockRegistry, id)
-	// 	}
-	// 	delete(blocksByHomeFrame, frameIndex)
-	// }
+	blockRegistryMu.Lock()
+	if blockIDs, ok := blocksByHomeFrame[frameIndex]; ok {
+		for _, id := range blockIDs {
+			delete(blockRegistry, id)
+		}
+		delete(blocksByHomeFrame, frameIndex)
+	}
+	blockRegistryMu.Unlock()
 }
 
 func (i *Interpreter) createBlockValue(block *BlockMethod, captures []Value) Value {

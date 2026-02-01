@@ -749,10 +749,13 @@ func TestMutexCritical(t *testing.T) {
 
 	interp.pushFrame(m, Nil, nil)
 	blockVal := interp.createBlockValue(blockMethod, nil)
-	interp.popFrame()
 
 	// Execute critical: directly using the VM's primitive
 	result := vm.Send(mu, "critical:", []Value{blockVal})
+
+	// Pop frame after block is consumed (mirrors real execution where
+	// the caller's frame stays on the stack during the send)
+	interp.popFrame()
 
 	if !result.IsSmallInt() || result.SmallInt() != 42 {
 		t.Errorf("critical: result = %v, want 42", result)
@@ -1273,10 +1276,12 @@ func TestSemaphoreCritical(t *testing.T) {
 
 	interp.pushFrame(m, Nil, nil)
 	blockVal := interp.createBlockValue(blockMethod, nil)
-	interp.popFrame()
 
 	// Execute critical:
 	result := vm.Send(sem, "critical:", []Value{blockVal})
+
+	// Pop frame after block is consumed
+	interp.popFrame()
 
 	if !result.IsSmallInt() || result.SmallInt() != 99 {
 		t.Errorf("critical: result = %v, want 99", result)
@@ -1415,13 +1420,14 @@ func TestSweepTerminatedProcesses(t *testing.T) {
 		processes[i] = vm.Send(blockVal, "fork", nil)
 	}
 
-	interp.popFrame()
-	vm.unregisterInterpreter()
-
-	// Wait for all processes to complete
+	// Wait for all processes to complete before popping the frame,
+	// since forked goroutines may not have looked up the block yet
 	for i := 0; i < numProcesses; i++ {
 		vm.Send(processes[i], "wait", nil)
 	}
+
+	interp.popFrame()
+	vm.unregisterInterpreter()
 
 	// Verify all processes are done
 	for i := 0; i < numProcesses; i++ {
