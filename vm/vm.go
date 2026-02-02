@@ -99,6 +99,9 @@ type VM struct {
 	// JIT compiler for adaptive compilation of hot methods
 	jit *JITCompiler
 
+	// registryGC periodically sweeps concurrency and exception registries.
+	registryGC *RegistryGC
+
 	// fileInFunc compiles source text into the VM.
 	// Set by cmd/mag after compiler initialization to avoid circular imports.
 	fileInFunc FileInFunc
@@ -126,6 +129,10 @@ func NewVM() *VM {
 
 	// Create debug server
 	vm.Debugger = NewDebugServer(vm)
+
+	// Start registry GC for automatic cleanup of stale concurrency objects
+	vm.registryGC = NewRegistryGC(vm, DefaultGCInterval)
+	vm.registryGC.Start()
 
 	return vm
 }
@@ -687,6 +694,70 @@ func (vm *VM) LookupClass(name string) *Class {
 // AOT (Ahead-of-Time) Compilation Support
 // ---------------------------------------------------------------------------
 
+// SendSuper performs a super send for AOT-compiled methods.
+// definingClassName is the name of the class where the calling method is defined.
+// The method lookup starts from definingClassName's superclass, following
+// correct Smalltalk super semantics.
+func (vm *VM) SendSuper(receiver Value, selector string, args []Value, definingClassName string) Value {
+	definingClass := vm.Classes.Lookup(definingClassName)
+	if definingClass == nil || definingClass.Superclass == nil {
+		return Nil
+	}
+
+	selectorID := vm.Selectors.Intern(selector)
+
+	// Look up the method in the superclass's VTable
+	superVT := definingClass.Superclass.VTable
+	if superVT == nil {
+		return Nil
+	}
+
+	method := superVT.Lookup(selectorID)
+	if method == nil {
+		return Nil
+	}
+
+	// Execute the method with the original receiver (not the superclass)
+	if cm, ok := method.(*CompiledMethod); ok {
+		// Check for AOT-compiled version first
+		if vm.aotMethods != nil {
+			if aotMethod := vm.aotMethods[AOTDispatchKey{definingClass.Superclass.Name, selector}]; aotMethod != nil {
+				return aotMethod(vm, receiver, args)
+			}
+		}
+		return vm.interpreter.Execute(cm, receiver, args)
+	}
+
+	// Primitive method
+	return method.Invoke(vm, receiver, args)
+}
+
+// CreateBlock creates a block value from a BlockMethod and captures for use in AOT-compiled code.
+// methodIdx is the index of the block in the parent method's Blocks slice.
+// The method parameter is the parent CompiledMethod that contains the block definition.
+func (vm *VM) CreateBlock(block *BlockMethod, captures []Value, homeSelf Value) Value {
+	id := int(nextBlockID.Add(1) - 1)
+
+	bv := &BlockValue{
+		Block:      block,
+		Captures:   captures,
+		HomeFrame:  -1, // AOT blocks are detached (no interpreter frame)
+		HomeSelf:   homeSelf,
+		HomeMethod: nil,
+	}
+
+	// If the block has an outer method, set it as HomeMethod
+	if block.Outer != nil {
+		bv.HomeMethod = block.Outer
+	}
+
+	blockRegistryMu.Lock()
+	blockRegistry[id] = bv
+	blockRegistryMu.Unlock()
+
+	return FromBlockID(uint32(id))
+}
+
 // RegisterAOTMethods registers a dispatch table of AOT-compiled methods.
 // When a method is found in this table, the AOT-compiled version is used
 // instead of interpreting bytecode.
@@ -888,4 +959,22 @@ func (vm *VM) currentInterpreter() *Interpreter {
 	}
 	// Fallback to main interpreter
 	return vm.interpreter
+}
+
+// ---------------------------------------------------------------------------
+// VM Lifecycle
+// ---------------------------------------------------------------------------
+
+// Shutdown stops background goroutines (registry GC, etc.) and releases
+// resources. Call this when the VM is no longer needed.
+func (vm *VM) Shutdown() {
+	if vm.registryGC != nil {
+		vm.registryGC.Stop()
+	}
+}
+
+// RegistryGC returns the registry garbage collector for configuration
+// and monitoring. Returns nil if the VM has not been initialized.
+func (vm *VM) RegistryGC() *RegistryGC {
+	return vm.registryGC
 }

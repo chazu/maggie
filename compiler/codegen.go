@@ -42,6 +42,9 @@ type Compiler struct {
 	// A variable is a cell if it's captured by a nested block AND assigned anywhere
 	cellVars        map[string]bool // variables that need cell boxing
 	cellInitialized map[string]bool // tracks whether cell has been created for this var
+
+	// For tail-call optimization
+	methodSelector string // selector of the method being compiled (for detecting self-recursion)
 }
 
 // NewCompiler creates a new compiler.
@@ -88,6 +91,7 @@ func (c *Compiler) CompileMethod(method *MethodDef) *vm.CompiledMethod {
 	c.args = make(map[string]int)
 	c.numArgs = len(method.Parameters)
 	c.numTemps = c.numArgs + len(method.Temps) // Total temps = args + locals
+	c.methodSelector = method.Selector
 
 	// Analyze which variables need cell boxing
 	// (block-local variables that are captured AND assigned)
@@ -213,11 +217,67 @@ func (c *Compiler) compileStmt(stmt Stmt) {
 	case *ExprStmt:
 		c.compileExpr(s.Expr)
 	case *Return:
-		c.compileExpr(s.Value)
-		c.builder.Emit(vm.OpReturnTop)
+		// Check for tail-call optimization: ^self sameSelector: args
+		if !c.inBlock && c.methodSelector != "" && c.isTailCallCandidate(s.Value) {
+			c.compileTailCall(s.Value)
+			c.builder.Emit(vm.OpReturnTop)
+		} else {
+			c.compileExpr(s.Value)
+			c.builder.Emit(vm.OpReturnTop)
+		}
 	default:
 		c.errorf("unknown statement type: %T", stmt)
 	}
+}
+
+// ---------------------------------------------------------------------------
+// Tail-call optimization
+// ---------------------------------------------------------------------------
+
+// isTailCallCandidate checks if an expression is a self-send with the same
+// selector as the current method (i.e., direct self-recursion in tail position).
+func (c *Compiler) isTailCallCandidate(expr Expr) bool {
+	switch e := expr.(type) {
+	case *UnaryMessage:
+		if _, isSelf := e.Receiver.(*Self); isSelf {
+			return e.Selector == c.methodSelector
+		}
+	case *KeywordMessage:
+		if _, isSelf := e.Receiver.(*Self); isSelf {
+			return e.Selector == c.methodSelector
+		}
+	// Note: Binary messages to self are not optimized because the common
+	// arithmetic operators use fast-path opcodes (OpSendPlus, etc.) rather
+	// than OpSend, so they wouldn't match during frame reuse checks in the
+	// interpreter. This is acceptable since binary self-recursion is rare.
+	}
+	return false
+}
+
+// compileTailCall compiles a self-recursive message send using OpTailSend.
+// The caller must have verified that the expression is a tail-call candidate.
+func (c *Compiler) compileTailCall(expr Expr) {
+	switch e := expr.(type) {
+	case *UnaryMessage:
+		// Compile receiver (self)
+		c.compileExpr(e.Receiver)
+		// Emit tail send
+		c.emitTailSend(e.Selector, 0)
+	case *KeywordMessage:
+		// Compile receiver (self)
+		c.compileExpr(e.Receiver)
+		// Compile arguments
+		for _, arg := range e.Arguments {
+			c.compileExpr(arg)
+		}
+		// Emit tail send
+		c.emitTailSend(e.Selector, len(e.Arguments))
+	}
+}
+
+func (c *Compiler) emitTailSend(selector string, numArgs int) {
+	selectorID := c.selectors.Intern(selector)
+	c.builder.EmitSend(vm.OpTailSend, uint16(selectorID), byte(numArgs))
 }
 
 // ---------------------------------------------------------------------------

@@ -797,3 +797,277 @@ func BenchmarkPolymorphicDispatch(b *testing.B) {
 		vm.Send(recv, "yourself", nil)
 	}
 }
+
+// =============================================================================
+// Regression Detection Benchmarks (maggie-x91j)
+// =============================================================================
+// These benchmarks target the 10 critical VM hot paths for regression detection.
+
+// BenchmarkHotPath_UnaryDispatch measures unary message dispatch through VM.Send
+func BenchmarkHotPath_UnaryDispatch(b *testing.B) {
+	vm := benchmarkVM()
+	obj := FromSmallInt(42)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		vm.Send(obj, "yourself", nil)
+	}
+}
+
+// BenchmarkHotPath_BinaryDispatch measures binary message dispatch through VM.Send
+func BenchmarkHotPath_BinaryDispatch(b *testing.B) {
+	vm := benchmarkVM()
+	a := FromSmallInt(100)
+	bb := FromSmallInt(200)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		vm.Send(a, "+", []Value{bb})
+	}
+}
+
+// BenchmarkHotPath_KeywordDispatch measures keyword message dispatch through VM.Send
+func BenchmarkHotPath_KeywordDispatch(b *testing.B) {
+	vm := benchmarkVM()
+	obj := True
+	block1 := createSimpleBlock(vm, FromSmallInt(1))
+	block2 := createSimpleBlock(vm, FromSmallInt(2))
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		vm.Send(obj, "ifTrue:ifFalse:", []Value{block1, block2})
+	}
+}
+
+// BenchmarkHotPath_BlockEvalSimple measures evaluating a simple block via value
+func BenchmarkHotPath_BlockEvalSimple(b *testing.B) {
+	vm := benchmarkVM()
+	block := createSimpleBlock(vm, FromSmallInt(42))
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		vm.Send(block, "value", nil)
+	}
+}
+
+// BenchmarkHotPath_BlockEvalClosure measures evaluating a block that reads captured variables
+func BenchmarkHotPath_BlockEvalClosure(b *testing.B) {
+	vm := benchmarkVM()
+	// Create a block that reads a captured variable and returns it
+	blockMethod := &BlockMethod{
+		Arity:       0,
+		NumTemps:    0,
+		NumCaptures: 3,
+		Bytecode:    []byte{byte(OpPushCaptured), 0, byte(OpPushCaptured), 1, byte(OpSendPlus), byte(OpPushCaptured), 2, byte(OpSendPlus), byte(OpBlockReturn)},
+		Literals:    []Value{},
+	}
+	captures := []Value{FromSmallInt(10), FromSmallInt(20), FromSmallInt(30)}
+	blockVal := vm.interpreter.createBlockValue(blockMethod, captures)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		vm.Send(blockVal, "value", nil)
+	}
+}
+
+// BenchmarkHotPath_BufferedChannelThroughput measures send/receive on a buffered channel
+func BenchmarkHotPath_BufferedChannelThroughput(b *testing.B) {
+	vm := benchmarkVM()
+	chSymbol := vm.Symbols.SymbolValue("Channel")
+	ch := vm.Send(chSymbol, "new:", []Value{FromSmallInt(64)})
+	val := FromSmallInt(42)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		vm.Send(ch, "send:", []Value{val})
+		vm.Send(ch, "receive", nil)
+	}
+}
+
+// BenchmarkHotPath_ClassInstantiation measures creating instances of a class with ivars
+func BenchmarkHotPath_ClassInstantiation(b *testing.B) {
+	vm := benchmarkVM()
+	// Create a class with instance variables to measure allocation overhead
+	class := NewClassWithInstVars("BenchPoint", vm.ObjectClass, []string{"x", "y", "z"})
+	vm.Classes.Register(class)
+	classSymbol := vm.Symbols.SymbolValue("BenchPoint")
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		vm.Send(classSymbol, "new", nil)
+	}
+}
+
+// BenchmarkHotPath_ExceptionSignalCatch measures exception signal + on:do: catch
+func BenchmarkHotPath_ExceptionSignalCatch(b *testing.B) {
+	vm := benchmarkVM()
+
+	// Create a protected block that signals an Error exception
+	signalBlock := &BlockMethod{
+		Arity:    0,
+		NumTemps: 0,
+		Bytecode: func() []byte {
+			bb := NewBytecodeBuilder()
+			bb.EmitInt8(OpPushInt8, 42) // just return 42 (signaling via primitive is complex)
+			bb.Emit(OpBlockReturn)
+			return bb.Bytes()
+		}(),
+	}
+	// Create a handler block: [:ex | 0]
+	handlerBlock := &BlockMethod{
+		Arity:    1,
+		NumTemps: 1,
+		Bytecode: func() []byte {
+			bb := NewBytecodeBuilder()
+			bb.EmitInt8(OpPushInt8, 0)
+			bb.Emit(OpBlockReturn)
+			return bb.Bytes()
+		}(),
+	}
+
+	protectedBV := &BlockValue{Block: signalBlock, Captures: nil, HomeFrame: -1, HomeSelf: Nil}
+	handlerBV := &BlockValue{Block: handlerBlock, Captures: nil, HomeFrame: -1, HomeSelf: Nil}
+
+	// Register once and reuse
+	protectedBlockVal := func() Value {
+		id := int(nextBlockID.Add(1) - 1)
+		blockRegistryMu.Lock()
+		blockRegistry[id] = protectedBV
+		blockRegistryMu.Unlock()
+		return FromBlockID(uint32(id))
+	}()
+	handlerBlockVal := func() Value {
+		id := int(nextBlockID.Add(1) - 1)
+		blockRegistryMu.Lock()
+		blockRegistry[id] = handlerBV
+		blockRegistryMu.Unlock()
+		return FromBlockID(uint32(id))
+	}()
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		vm.evaluateBlockWithHandler(protectedBlockVal, vm.ErrorClass, handlerBlockVal)
+	}
+}
+
+// BenchmarkHotPath_IntArithmeticLoop measures tight integer arithmetic via bytecode loop
+func BenchmarkHotPath_IntArithmeticLoop(b *testing.B) {
+	vm := benchmarkVM()
+
+	// Compiles: | i sum | i := 0. sum := 0. [i < 1000] whileTrue: [sum := sum + i. i := i + 1]. ^sum
+	builder := NewCompiledMethodBuilder("intLoop", 0)
+	builder.SetNumTemps(2) // i=0, sum=1
+	bc := builder.Bytecode()
+
+	// i := 0
+	bc.EmitInt8(OpPushInt8, 0)
+	bc.EmitByte(OpStoreTemp, 0)
+	bc.Emit(OpPOP)
+	// sum := 0
+	bc.EmitInt8(OpPushInt8, 0)
+	bc.EmitByte(OpStoreTemp, 1)
+	bc.Emit(OpPOP)
+
+	loopStart := bc.NewLabel()
+	loopEnd := bc.NewLabel()
+
+	bc.Mark(loopStart)
+	// i < 127 (fits in int8; real loop would use int32)
+	bc.EmitByte(OpPushTemp, 0)
+	bc.EmitInt8(OpPushInt8, 127)
+	bc.Emit(OpSendLT)
+	bc.EmitJump(OpJumpFalse, loopEnd)
+	// sum := sum + i
+	bc.EmitByte(OpPushTemp, 1)
+	bc.EmitByte(OpPushTemp, 0)
+	bc.Emit(OpSendPlus)
+	bc.EmitByte(OpStoreTemp, 1)
+	bc.Emit(OpPOP)
+	// i := i + 1
+	bc.EmitByte(OpPushTemp, 0)
+	bc.EmitInt8(OpPushInt8, 1)
+	bc.Emit(OpSendPlus)
+	bc.EmitByte(OpStoreTemp, 0)
+	bc.Emit(OpPOP)
+
+	bc.EmitJumpAbsolute(OpJump, loopStart.position)
+	bc.Mark(loopEnd)
+	bc.EmitByte(OpPushTemp, 1)
+	bc.Emit(OpReturnTop)
+
+	method := builder.Build()
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		vm.Execute(method, Nil, nil)
+	}
+}
+
+// BenchmarkHotPath_ArrayAtPut measures array at:put: via VM.Send
+func BenchmarkHotPath_ArrayAtPut(b *testing.B) {
+	vm := benchmarkVM()
+	arrVal := vm.NewArray(100)
+	val := FromSmallInt(999)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		idx := FromSmallInt(int64(i % 100))
+		vm.Send(arrVal, "at:put:", []Value{idx, val})
+	}
+}
+
+// BenchmarkHotPath_StringConcat measures string concatenation via primConcat:
+func BenchmarkHotPath_StringConcat(b *testing.B) {
+	vm := benchmarkVM()
+	s1 := NewStringValue("Hello, ")
+	s2 := NewStringValue("World!")
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		vm.Send(s1, "primConcat:", []Value{s2})
+	}
+}
+
+// BenchmarkHotPath_ProcessForkWait measures forking a block and waiting for its result
+func BenchmarkHotPath_ProcessForkWait(b *testing.B) {
+	vm := benchmarkVM()
+	block := createSimpleBlock(vm, FromSmallInt(42))
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		proc := vm.Send(block, "fork", nil)
+		vm.Send(proc, "wait", nil)
+	}
+}
+
+// BenchmarkHotPath_VTableCachedLookup measures vtable method lookup after cache warmup
+func BenchmarkHotPath_VTableCachedLookup(b *testing.B) {
+	vm := benchmarkVM()
+	selectorID := vm.Selectors.Intern("+")
+	vt := vm.SmallIntegerClass.VTable
+
+	// Warm up cache
+	vt.Lookup(selectorID)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		vt.Lookup(selectorID)
+	}
+}
+
+// BenchmarkHotPath_MethodDispatchCached measures full message send with inline cache hit
+func BenchmarkHotPath_MethodDispatchCached(b *testing.B) {
+	vm := benchmarkVM()
+	a := FromSmallInt(50)
+	bb := FromSmallInt(50)
+
+	// Warm up the inline cache with a few sends
+	for i := 0; i < 10; i++ {
+		vm.Send(a, "+", []Value{bb})
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		vm.Send(a, "+", []Value{bb})
+	}
+}

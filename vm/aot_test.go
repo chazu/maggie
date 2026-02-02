@@ -454,3 +454,326 @@ func TestAOTCompilerBlockReturnInMethod(t *testing.T) {
 		t.Error("Should return normally in method context")
 	}
 }
+
+// ---------------------------------------------------------------------------
+// Super Send Tests
+// ---------------------------------------------------------------------------
+
+func TestAOTCompilerSuperSendCodeGen(t *testing.T) {
+	// Test that OpSendSuper generates correct code with vm.SendSuper
+	selectors := NewSelectorTable()
+	symbols := NewSymbolTable()
+
+	fooSelID := selectors.Intern("foo")
+
+	// Create a class hierarchy: Animal -> Dog
+	animalClass := &Class{Name: "Animal"}
+	animalClass.VTable = NewVTable(animalClass, nil)
+
+	dogClass := &Class{Name: "Dog", Superclass: animalClass}
+	dogClass.VTable = NewVTable(dogClass, animalClass.VTable)
+
+	// Create Dog>>foo that does: ^super foo
+	b := NewCompiledMethodBuilder("foo", 0)
+	b.Bytecode().Emit(OpPushSelf)
+	b.Bytecode().EmitSend(OpSendSuper, uint16(fooSelID), 0)
+	b.Bytecode().Emit(OpReturnTop)
+	method := b.Build()
+	method.SetClass(dogClass) // Set defining class so AOT knows it
+
+	aot := NewAOTCompiler(selectors, symbols)
+	code := aot.CompileMethod(method, "Dog", "foo")
+
+	t.Logf("Generated super send code:\n%s", code)
+
+	// Verify it uses vm.SendSuper with the defining class name
+	if !strings.Contains(code, "vm.SendSuper") {
+		t.Error("Missing vm.SendSuper call")
+	}
+	if !strings.Contains(code, `"Dog"`) {
+		t.Error("Missing defining class name 'Dog'")
+	}
+	if !strings.Contains(code, "SEND_SUPER") {
+		t.Error("Missing SEND_SUPER comment")
+	}
+	// Should NOT use vm.Send for super sends
+	if strings.Contains(code, "vm.Send(self") {
+		t.Error("Should not use vm.Send for super send, should use vm.SendSuper")
+	}
+}
+
+func TestAOTSuperSendDispatchIntegration(t *testing.T) {
+	// Integration test: verify super send dispatches to parent class method
+	vmInst := NewVM()
+
+	// Create class hierarchy: Animal -> Dog
+	animalClass := vmInst.createClass("AnimalAOT", vmInst.ObjectClass)
+	dogClass := vmInst.createClass("DogAOT", animalClass)
+
+	selectors := vmInst.Selectors
+
+	// Animal>>speak returns 10
+	ab := NewCompiledMethodBuilder("speak", 0)
+	ab.Bytecode().EmitInt8(OpPushInt8, 10)
+	ab.Bytecode().Emit(OpReturnTop)
+	animalSpeak := ab.Build()
+	animalSpeak.SetClass(animalClass)
+	speakSelID := selectors.Intern("speak")
+	animalClass.VTable.AddMethod(speakSelID, animalSpeak)
+
+	// Dog>>speak returns 20
+	db := NewCompiledMethodBuilder("speak", 0)
+	db.Bytecode().EmitInt8(OpPushInt8, 20)
+	db.Bytecode().Emit(OpReturnTop)
+	dogSpeak := db.Build()
+	dogSpeak.SetClass(dogClass)
+	dogClass.VTable.AddMethod(speakSelID, dogSpeak)
+
+	// Dog>>speakSuper uses super send to call Animal>>speak
+	dsb := NewCompiledMethodBuilder("speakSuper", 0)
+	dsb.Bytecode().Emit(OpPushSelf)
+	dsb.Bytecode().EmitSend(OpSendSuper, uint16(speakSelID), 0)
+	dsb.Bytecode().Emit(OpReturnTop)
+	dogSpeakSuper := dsb.Build()
+	dogSpeakSuper.SetClass(dogClass)
+	speakSuperSelID := selectors.Intern("speakSuper")
+	dogClass.VTable.AddMethod(speakSuperSelID, dogSpeakSuper)
+
+	// Create a Dog instance
+	obj := NewObject(dogClass.VTable, 0)
+	objVal := obj.ToValue()
+
+	// Register AOT method for Dog>>speakSuper using vm.SendSuper
+	vmInst.RegisterAOTMethods(AOTDispatchTable{
+		AOTDispatchKey{"DogAOT", "speakSuper"}: func(vm *VM, self Value, args []Value) Value {
+			return vm.SendSuper(self, "speak", nil, "DogAOT")
+		},
+	})
+
+	// Dog>>speak (normal) should return 20
+	result := vmInst.Send(objVal, "speak", nil)
+	if !result.IsSmallInt() || result.SmallInt() != 20 {
+		t.Errorf("Dog>>speak: got %v, want 20", result)
+	}
+
+	// Dog>>speakSuper (via AOT with super send) should return 10 (from Animal)
+	result = vmInst.Send(objVal, "speakSuper", nil)
+	if !result.IsSmallInt() || result.SmallInt() != 10 {
+		t.Errorf("Dog>>speakSuper via AOT: got %v, want 10 (from Animal)", result)
+	}
+}
+
+func TestAOTSuperSendThreeLevelHierarchy(t *testing.T) {
+	// Test A -> B -> C, B calls super, should get A's method
+	vmInst := NewVM()
+	selectors := vmInst.Selectors
+
+	// Create: A -> B -> C
+	classA := vmInst.createClass("AClassAOT", vmInst.ObjectClass)
+	classB := vmInst.createClass("BClassAOT", classA)
+	classC := vmInst.createClass("CClassAOT", classB)
+
+	// A>>greet returns 1
+	ab := NewCompiledMethodBuilder("greet", 0)
+	ab.Bytecode().EmitInt8(OpPushInt8, 1)
+	ab.Bytecode().Emit(OpReturnTop)
+	aGreet := ab.Build()
+	aGreet.SetClass(classA)
+	greetSelID := selectors.Intern("greet")
+	classA.VTable.AddMethod(greetSelID, aGreet)
+
+	// B>>greet calls super greet (should reach A>>greet, returning 1)
+	bb := NewCompiledMethodBuilder("greet", 0)
+	bb.Bytecode().Emit(OpPushSelf)
+	bb.Bytecode().EmitSend(OpSendSuper, uint16(greetSelID), 0)
+	bb.Bytecode().Emit(OpReturnTop)
+	bGreet := bb.Build()
+	bGreet.SetClass(classB)
+	classB.VTable.AddMethod(greetSelID, bGreet)
+
+	// C does NOT override greet, so it inherits B>>greet
+
+	// Create a C instance
+	obj := NewObject(classC.VTable, 0)
+	objVal := obj.ToValue()
+
+	// Register AOT method for B>>greet that uses vm.SendSuper
+	vmInst.RegisterAOTMethods(AOTDispatchTable{
+		AOTDispatchKey{"BClassAOT", "greet"}: func(vm *VM, self Value, args []Value) Value {
+			// B>>greet calls super greet -> should go to A>>greet
+			return vm.SendSuper(self, "greet", nil, "BClassAOT")
+		},
+	})
+
+	// C instance calling greet: should hit B>>greet (AOT), which super sends to A>>greet, returning 1
+	result := vmInst.Send(objVal, "greet", nil)
+	if !result.IsSmallInt() || result.SmallInt() != 1 {
+		t.Errorf("C>>greet (via B super -> A): got %v, want 1", result)
+	}
+}
+
+func TestAOTSelfSendUsesReceiverClass(t *testing.T) {
+	// Test that self sends (not super sends) still use the receiver's class
+	vmInst := NewVM()
+	selectors := vmInst.Selectors
+
+	// Create: Animal -> Dog
+	animalClass := vmInst.createClass("AnimalSelfAOT", vmInst.ObjectClass)
+	dogClass := vmInst.createClass("DogSelfAOT", animalClass)
+
+	// Animal>>info returns 50
+	ab := NewCompiledMethodBuilder("info", 0)
+	ab.Bytecode().EmitInt8(OpPushInt8, 50)
+	ab.Bytecode().Emit(OpReturnTop)
+	animalInfo := ab.Build()
+	animalInfo.SetClass(animalClass)
+	infoSelID := selectors.Intern("info")
+	animalClass.VTable.AddMethod(infoSelID, animalInfo)
+
+	// Dog>>info returns 99
+	db := NewCompiledMethodBuilder("info", 0)
+	db.Bytecode().EmitInt8(OpPushInt8, 99)
+	db.Bytecode().Emit(OpReturnTop)
+	dogInfo := db.Build()
+	dogInfo.SetClass(dogClass)
+	dogClass.VTable.AddMethod(infoSelID, dogInfo)
+
+	// Animal>>callInfo does self info (normal send, not super)
+	cb := NewCompiledMethodBuilder("callInfo", 0)
+	cb.Bytecode().Emit(OpPushSelf)
+	cb.Bytecode().EmitSend(OpSend, uint16(infoSelID), 0)
+	cb.Bytecode().Emit(OpReturnTop)
+	animalCallInfo := cb.Build()
+	animalCallInfo.SetClass(animalClass)
+	callInfoSelID := selectors.Intern("callInfo")
+	animalClass.VTable.AddMethod(callInfoSelID, animalCallInfo)
+
+	// Register AOT for Animal>>callInfo with self send (not super)
+	vmInst.RegisterAOTMethods(AOTDispatchTable{
+		AOTDispatchKey{"AnimalSelfAOT", "callInfo"}: func(vm *VM, self Value, args []Value) Value {
+			// Normal send on self - should dispatch based on receiver's class
+			return vm.Send(self, "info", nil)
+		},
+	})
+
+	// Dog instance calling callInfo (inherited from Animal) should get Dog>>info (99),
+	// because self send dispatches on receiver's class (Dog), not defining class (Animal)
+	obj := NewObject(dogClass.VTable, 0)
+	objVal := obj.ToValue()
+
+	result := vmInst.Send(objVal, "callInfo", nil)
+	if !result.IsSmallInt() || result.SmallInt() != 99 {
+		t.Errorf("Dog>>callInfo (self send): got %v, want 99 (Dog>>info)", result)
+	}
+}
+
+func TestAOTSuperSendMethodNotFound(t *testing.T) {
+	// Test that super send returns Nil when the method is not found in superclass
+	vmInst := NewVM()
+	selectors := vmInst.Selectors
+
+	classA := vmInst.createClass("SuperNotFoundA", vmInst.ObjectClass)
+	classB := vmInst.createClass("SuperNotFoundB", classA)
+
+	// B has "unique" method but A does not
+	ub := NewCompiledMethodBuilder("unique", 0)
+	ub.Bytecode().EmitInt8(OpPushInt8, 42)
+	ub.Bytecode().Emit(OpReturnTop)
+	bUnique := ub.Build()
+	bUnique.SetClass(classB)
+	uniqueSelID := selectors.Intern("unique")
+	classB.VTable.AddMethod(uniqueSelID, bUnique)
+
+	// B>>callSuperUnique does super unique (A doesn't have it)
+	csb := NewCompiledMethodBuilder("callSuperUnique", 0)
+	csb.Bytecode().Emit(OpPushSelf)
+	csb.Bytecode().EmitSend(OpSendSuper, uint16(uniqueSelID), 0)
+	csb.Bytecode().Emit(OpReturnTop)
+	bCallSuper := csb.Build()
+	bCallSuper.SetClass(classB)
+	callSuperSelID := selectors.Intern("callSuperUnique")
+	classB.VTable.AddMethod(callSuperSelID, bCallSuper)
+
+	// Use SendSuper directly (as AOT would generate)
+	result := vmInst.SendSuper(FromSmallInt(0), "unique", nil, "SuperNotFoundB")
+	if result != Nil {
+		t.Errorf("Super send to non-existent method: got %v, want Nil", result)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Block Creation in AOT Tests
+// ---------------------------------------------------------------------------
+
+func TestAOTCompilerBlockCreationCodeGen(t *testing.T) {
+	// Test that OpCreateBlock generates proper code instead of Nil placeholder
+	selectors := NewSelectorTable()
+	symbols := NewSymbolTable()
+
+	// Create a method with a block: ^[42] value
+	// First create the block
+	block := &BlockMethod{
+		Arity:       0,
+		NumTemps:    0,
+		NumCaptures: 0,
+		Bytecode:    []byte{byte(OpPushInt8), 42, byte(OpReturnTop)},
+		Literals:    nil,
+	}
+
+	// Create the method
+	b := NewCompiledMethodBuilder("testBlock", 0)
+	b.AddBlock(block) // Add block at index 0
+	b.Bytecode().EmitCreateBlock(0, 0) // CREATE_BLOCK method=0, captures=0
+	b.Bytecode().Emit(OpSendValue)     // value
+	b.Bytecode().Emit(OpReturnTop)
+	method := b.Build()
+
+	// Set the class so block creation code can reference it
+	testClass := &Class{Name: "TestBlockClass"}
+	testClass.VTable = NewVTable(testClass, nil)
+	method.SetClass(testClass)
+
+	aot := NewAOTCompiler(selectors, symbols)
+	code := aot.CompileMethod(method, "TestBlockClass", "testBlock")
+
+	t.Logf("Generated code with block creation:\n%s", code)
+
+	// Verify it generates block creation code, NOT the Nil placeholder
+	if strings.Contains(code, "stack[sp] = Nil // placeholder") {
+		t.Error("Should NOT have Nil placeholder for block creation")
+	}
+	if !strings.Contains(code, "CREATE_BLOCK") {
+		t.Error("Missing CREATE_BLOCK comment")
+	}
+	if !strings.Contains(code, "vm.CreateBlock") || !strings.Contains(code, "vm.LookupClass") {
+		t.Error("Should generate vm.CreateBlock or vm.LookupClass for block creation")
+	}
+}
+
+func TestAOTBlockCreationIntegration(t *testing.T) {
+	// Integration test: create a block via vm.CreateBlock and evaluate it
+	vmInst := NewVM()
+
+	// Create a simple block method
+	block := &BlockMethod{
+		Arity:       0,
+		NumTemps:    0,
+		NumCaptures: 0,
+		Bytecode:    []byte{byte(OpPushInt8), 77, byte(OpReturnTop)},
+		Literals:    nil,
+	}
+
+	// Create a block value using the VM's CreateBlock
+	blockVal := vmInst.CreateBlock(block, nil, Nil)
+
+	// Should not be Nil
+	if blockVal == Nil {
+		t.Fatal("CreateBlock returned Nil")
+	}
+
+	// Evaluate the block via vm.Send
+	result := vmInst.Send(blockVal, "value", nil)
+	if !result.IsSmallInt() || result.SmallInt() != 77 {
+		t.Errorf("Block value: got %v, want 77", result)
+	}
+}

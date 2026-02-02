@@ -702,6 +702,61 @@ func (i *Interpreter) runFrame() Value {
 			result := i.send(sel, argc)
 			i.push(result)
 
+		case OpTailSend:
+			sel := int(binary.LittleEndian.Uint16(bc[frame.IP:]))
+			frame.IP += 2
+			argc := int(bc[frame.IP])
+			frame.IP++
+
+			tailArgs := i.popN(argc)
+			tailRcvr := i.pop()
+
+			// Only optimize if:
+			// 1. We're in a method frame (not a block)
+			// 2. The receiver is self (same as current frame's receiver)
+			// 3. The target method is the same CompiledMethod as the current one
+			tailOptimized := false
+			if !isBlock && tailRcvr == frame.Receiver {
+				// Look up the method for the receiver
+				vt := i.vtableFor(tailRcvr)
+				if vt != nil {
+					tailMethod := vt.Lookup(sel)
+					if cm, ok := tailMethod.(*CompiledMethod); ok && cm == frame.Method {
+						// Self-recursive tail call: reuse the current frame
+						// Reset SP to just above the base pointer (discard old temps)
+						i.sp = frame.BP
+
+						// Write new arguments into the temp slots
+						for _, arg := range tailArgs {
+							i.push(arg)
+						}
+						// Fill remaining temp slots with nil
+						for j := len(tailArgs); j < cm.NumTemps; j++ {
+							i.push(Nil)
+						}
+
+						// Reset instruction pointer to beginning of method
+						frame.IP = 0
+
+						tailOptimized = true
+					}
+				}
+			}
+
+			if tailOptimized {
+				// Continue the dispatch loop (no new frame pushed)
+				continue
+			}
+
+			// Fallback: non-self-recursive or different method — do a normal send
+			// Re-push receiver and args onto the stack for i.send()
+			i.push(tailRcvr)
+			for _, arg := range tailArgs {
+				i.push(arg)
+			}
+			tailResult := i.send(sel, argc)
+			i.push(tailResult)
+
 		case OpSendSuper:
 			sel := int(binary.LittleEndian.Uint16(bc[frame.IP:]))
 			frame.IP += 2

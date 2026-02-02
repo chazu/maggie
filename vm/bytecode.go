@@ -56,6 +56,7 @@ const (
 const (
 	OpSend      Opcode = 0x30 // send message (16-bit selector, 8-bit argc)
 	OpSendSuper Opcode = 0x31 // send to super (16-bit selector, 8-bit argc)
+	OpTailSend  Opcode = 0x32 // tail-call send (16-bit selector, 8-bit argc) - reuses frame for self-recursion
 )
 
 // Optimized Sends (single-byte, no operands)
@@ -159,6 +160,7 @@ var opcodeTable = map[Opcode]OpcodeInfo{
 	// Sends
 	OpSend:      {"SEND", 3, -1}, // variable: pops receiver + args, pushes result
 	OpSendSuper: {"SEND_SUPER", 3, -1},
+	OpTailSend:  {"TAIL_SEND", 3, -1}, // tail-call send: reuses frame for self-recursion
 
 	// Optimized sends
 	OpSendPlus:   {"SEND_PLUS", 0, -1},   // pops 2, pushes 1
@@ -521,7 +523,7 @@ func DisassembleInstruction(r *BytecodeReader) string {
 		return fmt.Sprintf("%04d  %s %f", pos, info.Name, v)
 
 	// Complex operands
-	case OpSend, OpSendSuper:
+	case OpSend, OpSendSuper, OpTailSend:
 		selector := r.ReadUint16()
 		argc := r.ReadByte()
 		return fmt.Sprintf("%04d  %s selector=%d argc=%d", pos, info.Name, selector, argc)

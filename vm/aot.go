@@ -334,12 +334,16 @@ func (c *AOTCompiler) compileBytecode(bc []byte, isBlock bool) {
 			pos += 2
 			argc := int(bc[pos])
 			pos++
-			c.writeLine("{ // SEND_SUPER")
+			// Get the defining class name at compile time
+			definingClassName := ""
+			if c.method != nil && c.method.Class() != nil {
+				definingClassName = c.method.Class().Name
+			}
+			c.writeLine("{ // SEND_SUPER (defining class: %s)", definingClassName)
 			c.writeLine("  args := make([]Value, %d)", argc)
 			c.writeLine("  for i := %d - 1; i >= 0; i-- { sp--; args[i] = stack[sp] }", argc)
 			c.writeLine("  sp-- // pop self")
-			c.writeLine("  // TODO: implement super send properly")
-			c.writeLine("  stack[sp] = vm.Send(self, vm.Selectors.Name(%d), args)", selIdx)
+			c.writeLine("  stack[sp] = vm.SendSuper(self, vm.Selectors.Name(%d), args, %q)", selIdx, definingClassName)
 			c.writeLine("  sp++")
 			c.writeLine("}")
 
@@ -464,11 +468,28 @@ func (c *AOTCompiler) compileBytecode(bc []byte, isBlock bool) {
 			pos += 2
 			nCaptures := bc[pos]
 			pos++
-			c.writeLine("{ // CREATE_BLOCK")
-			c.writeLine("  captures := make([]Value, %d)", nCaptures)
-			c.writeLine("  for i := %d - 1; i >= 0; i-- { sp--; captures[i] = stack[sp] }", nCaptures)
-			c.writeLine("  // TODO: create block properly with method index %d", methodIdx)
-			c.writeLine("  stack[sp] = Nil // placeholder")
+			// Get defining class and method name at compile time for runtime lookup
+			defClassName := ""
+			defMethodName := ""
+			if c.method != nil {
+				defMethodName = c.method.Name()
+				if c.method.Class() != nil {
+					defClassName = c.method.Class().Name
+				}
+			}
+			c.writeLine("{ // CREATE_BLOCK (method index %d)", methodIdx)
+			c.writeLine("  blockCaptures := make([]Value, %d)", nCaptures)
+			c.writeLine("  for i := %d - 1; i >= 0; i-- { sp--; blockCaptures[i] = stack[sp] }", nCaptures)
+			c.writeLine("  // Look up the block from the defining method's bytecode method at runtime")
+			c.writeLine("  if defClass := vm.LookupClass(%q); defClass != nil {", defClassName)
+			c.writeLine("    if cm := defClass.MethodNamed(%q); cm != nil && %d < len(cm.Blocks) {", defMethodName, methodIdx)
+			c.writeLine("      stack[sp] = vm.CreateBlock(cm.Blocks[%d], blockCaptures, self)", methodIdx)
+			c.writeLine("    } else {")
+			c.writeLine("      stack[sp] = Nil")
+			c.writeLine("    }")
+			c.writeLine("  } else {")
+			c.writeLine("    stack[sp] = Nil")
+			c.writeLine("  }")
 			c.writeLine("  sp++")
 			c.writeLine("}")
 

@@ -304,10 +304,9 @@ func TestSelfCompileRealTokenMethods(t *testing.T) {
 // TestSelfCompileExecutionEquivalence verifies that compiled methods
 // produce the same results when executed.
 //
-// NOTE: Tests involving blocks that access outer scope variables (like whileTrue:
-// loops with variable updates) are skipped because the Maggie compiler doesn't
-// yet implement proper variable captures. See BytecodeGenerator.mag visitBlockNode:
-// which has a "TODO: Handle captures properly" comment.
+// Tests involving blocks that access outer scope variables (like whileTrue:
+// loops with variable updates) work correctly. The Maggie compiler implements
+// proper variable captures with cell boxing in BytecodeGenerator.mag.
 func TestSelfCompileExecutionEquivalence(t *testing.T) {
 	imagePath := "../../maggie.image"
 	if _, err := os.Stat(imagePath); os.IsNotExist(err) {

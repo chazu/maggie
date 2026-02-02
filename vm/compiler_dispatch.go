@@ -249,8 +249,16 @@ func (m *MaggieCompilerBackend) extractCompiledMethod(resultVal Value, class *Cl
 	paramsVal := m.vm.Send(resultVal, "at:", []Value{m.vm.Symbols.SymbolValue("parameters")})
 	arity := m.extractArraySize(paramsVal)
 
+	// Extract temps to determine total number of temporaries (args + locals)
+	tempsVal := m.vm.Send(resultVal, "at:", []Value{m.vm.Symbols.SymbolValue("temps")})
+	numTemps := m.extractArraySize(tempsVal)
+	if numTemps < arity {
+		numTemps = arity // Ensure numTemps >= arity
+	}
+
 	// Create the CompiledMethod using the builder
 	builder := NewCompiledMethodBuilder(selector, arity)
+	builder.SetNumTemps(numTemps)
 
 	// Add bytecode
 	for _, b := range bytecode {
@@ -378,23 +386,49 @@ func (m *MaggieCompilerBackend) translateSelectorIndices(bytecode []byte, select
 
 // extractBlockMethods extracts block methods from the blockMethods array.
 // Each element is a BytecodeGenerator object with bytecode, literals, etc.
+// This produces a flat list of blocks with correct indices for nested blocks.
 func (m *MaggieCompilerBackend) extractBlockMethods(builder *CompiledMethodBuilder, blockMethodsVal Value) {
 	if blockMethodsVal == Nil {
 		return
 	}
 
-	sizeVal := m.vm.Send(blockMethodsVal, "size", nil)
-	if !sizeVal.IsSmallInt() {
-		return
+	// Collect all block generators in a flat list using depth-first traversal.
+	// Each entry is a blockGen Value. We also track the parent's local index offset
+	// so we can remap CREATE_BLOCK instructions in nested block bytecodes.
+	type blockEntry struct {
+		genVal         Value
+		localBaseIndex int // flat index where this block's children start
 	}
 
-	size := int(sizeVal.SmallInt())
-	for i := 0; i < size; i++ {
-		blockGenVal := m.vm.Send(blockMethodsVal, "at:", []Value{FromSmallInt(int64(i))})
-		if blockGenVal == Nil {
-			continue
+	// First pass: collect all block generators in depth-first order
+	var allBlocks []Value
+	var collectBlocks func(parentBlockMethods Value)
+	collectBlocks = func(parentBlockMethods Value) {
+		if parentBlockMethods == Nil {
+			return
 		}
+		sizeVal := m.vm.Send(parentBlockMethods, "size", nil)
+		if !sizeVal.IsSmallInt() {
+			return
+		}
+		size := int(sizeVal.SmallInt())
+		for i := 0; i < size; i++ {
+			blockGenVal := m.vm.Send(parentBlockMethods, "at:", []Value{FromSmallInt(int64(i))})
+			if blockGenVal == Nil {
+				continue
+			}
+			allBlocks = append(allBlocks, blockGenVal)
 
+			// Recursively collect children
+			nestedBlockMethodsVal := m.vm.Send(blockGenVal, "blockMethods", nil)
+			collectBlocks(nestedBlockMethodsVal)
+		}
+	}
+	collectBlocks(blockMethodsVal)
+
+	// Second pass: for each block, compute the flat index offset for its children.
+	// Then remap CREATE_BLOCK instructions in bytecode and add to builder.
+	for _, blockGenVal := range allBlocks {
 		// Extract bytecode from the BytecodeGenerator
 		bytecodeVal := m.vm.Send(blockGenVal, "bytecode", nil)
 		bytecode := m.extractBytecodeArray(bytecodeVal)
@@ -403,13 +437,40 @@ func (m *MaggieCompilerBackend) extractBlockMethods(builder *CompiledMethodBuild
 		literalsVal := m.vm.Send(blockGenVal, "literals", nil)
 		literals := m.extractLiteralsArray(literalsVal)
 
-		// Create a BlockMethod
-		// For now, we don't have full info about arity/temps/captures,
-		// so use defaults. The BytecodeGenerator should track these.
+		// Extract selectors and translate indices in block bytecode
+		blockSelectorsVal := m.vm.Send(blockGenVal, "selectors", nil)
+		bytecode = m.translateSelectorIndices(bytecode, blockSelectorsVal)
+
+		// Extract arity from the BytecodeGenerator
+		arityVal := m.vm.Send(blockGenVal, "blockArity", nil)
+		arity := 0
+		if arityVal.IsSmallInt() {
+			arity = int(arityVal.SmallInt())
+		}
+
+		// Extract numTemps from the BytecodeGenerator
+		numTempsVal := m.vm.Send(blockGenVal, "blockNumTemps", nil)
+		numTemps := 0
+		if numTempsVal.IsSmallInt() {
+			numTemps = int(numTempsVal.SmallInt())
+		}
+
+		// Extract capture count from the capturedVars dictionary
+		// (capturedVars is a Dictionary of name->index set during block compilation)
+		capturedVarsVal := m.vm.Send(blockGenVal, "capturedVars", nil)
+		numCaptures := 0
+		if capturedVarsVal != Nil && IsDictionaryValue(capturedVarsVal) {
+			sizeVal := m.vm.Send(capturedVarsVal, "size", nil)
+			if sizeVal.IsSmallInt() {
+				numCaptures = int(sizeVal.SmallInt())
+			}
+		}
+
+		// Create a BlockMethod with proper metadata
 		block := &BlockMethod{
-			Arity:       0, // TODO: Extract from BytecodeGenerator
-			NumTemps:    0, // TODO: Extract from BytecodeGenerator
-			NumCaptures: 0, // TODO: Extract from BytecodeGenerator
+			Arity:       arity,
+			NumTemps:    numTemps,
+			NumCaptures: numCaptures,
 			Literals:    literals,
 			Bytecode:    bytecode,
 		}

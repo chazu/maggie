@@ -121,6 +121,26 @@ Object subclass: nil
       ^false
   ]
 
+  method: isAssignment [
+      ^false
+  ]
+
+  method: isMessageSend [
+      ^false
+  ]
+
+  method: isCascade [
+      ^false
+  ]
+
+  method: isBlock [
+      ^false
+  ]
+
+  method: isLiteral [
+      ^false
+  ]
+
   """
   Return the class of the receiver as a symbol.
 

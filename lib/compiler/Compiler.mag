@@ -147,6 +147,7 @@ Compiler subclass: Object
       ^Dictionary new
           at: #selector put: methodNode selector;
           at: #parameters put: methodNode parameters;
+          at: #temps put: generator temps;
           at: #bytecode put: generator bytecode;
           at: #literals put: generator literals;
           at: #selectors put: generator selectors;
@@ -159,6 +160,7 @@ Compiler subclass: Object
       ^Dictionary new
           at: #selector put: #doIt;
           at: #parameters put: Array new;
+          at: #temps put: generator temps;
           at: #bytecode put: generator bytecode;
           at: #literals put: generator literals;
           at: #selectors put: generator selectors;

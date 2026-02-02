@@ -2,7 +2,7 @@
 # Compiles AST nodes to bytecode.
 
 BytecodeGenerator subclass: Object
-  instanceVars: bytecode literals selectors temps ivars captures currentClass blockMethods jumpPatches outerTemps inBlock
+  instanceVars: bytecode literals selectors temps ivars captures currentClass blockMethods jumpPatches outerTemps inBlock cellVars cellInitialized capturedVars blockNestingDepth enclosingBlockVars blockArity blockNumTemps
 
   # Opcodes (matching vm/opcodes.go)
   classMethod: opNOP [^16r00]
@@ -95,6 +95,13 @@ BytecodeGenerator subclass: Object
       currentClass := nil.
       outerTemps := nil.
       inBlock := false.
+      cellVars := Dictionary new.
+      cellInitialized := Dictionary new.
+      capturedVars := nil.
+      blockNestingDepth := 0.
+      enclosingBlockVars := nil.
+      blockArity := 0.
+      blockNumTemps := 0.
       ^self
   ]
 
@@ -111,6 +118,11 @@ BytecodeGenerator subclass: Object
   method: selectors [^selectors]
   method: blockMethods [^blockMethods]
   method: temps [^temps]
+  method: captures [^captures]
+  method: capturedVars [^capturedVars]
+  method: cellVars [^cellVars]
+  method: blockArity [^blockArity]
+  method: blockNumTemps [^blockNumTemps]
 
   # ============================================
   # Literal table management
@@ -177,6 +189,47 @@ BytecodeGenerator subclass: Object
 
   method: isInBlock [
       ^inBlock
+  ]
+
+  method: setCellVars: aDict [
+      "Set cell variables dictionary (shared across method compilation)."
+      cellVars := aDict
+  ]
+
+  method: isCellVar: name [
+      "Check if a variable needs cell boxing."
+      ^cellVars includesKey: name
+  ]
+
+  method: isCellInitialized: name [
+      "Check if a cell has been initialized for a variable."
+      ^cellInitialized includesKey: name
+  ]
+
+  method: markCellInitialized: name [
+      "Mark a cell variable as initialized."
+      cellInitialized at: name put: true
+  ]
+
+  method: setCapturedVars: aDict [
+      "Set the captured variable map for this scope."
+      capturedVars := aDict
+  ]
+
+  method: setBlockNestingDepth: depth [
+      blockNestingDepth := depth
+  ]
+
+  method: setEnclosingBlockVars: aDict [
+      enclosingBlockVars := aDict
+  ]
+
+  method: setBlockArity: anInt [
+      blockArity := anInt
+  ]
+
+  method: setBlockNumTemps: anInt [
+      blockNumTemps := anInt
   ]
 
   # ============================================
@@ -474,6 +527,239 @@ BytecodeGenerator subclass: Object
   ]
 
   # ============================================
+  # Cell variable analysis
+  # ============================================
+
+  method: findCellVariables: methodNode [
+      "Analyze a method to find variables that need cell boxing.
+       A variable needs a cell if it is captured by a block AND assigned in a nested block.
+       Returns a Dictionary of variable name -> true.
+       Uses three dictionaries to track state."
+      | result varDepths capturedNames assignedNestedNames |
+      result := Dictionary new.
+      varDepths := Dictionary new.
+      capturedNames := Dictionary new.
+      assignedNestedNames := Dictionary new.
+
+      "Register method-level parameters at depth 0"
+      methodNode parameters do: [:p |
+          varDepths at: p put: 0
+      ].
+
+      "Register method-level temps at depth 0"
+      methodNode temporaries do: [:t |
+          varDepths at: t put: 0
+      ].
+
+      "Walk method statements at depth 0"
+      methodNode statements do: [:stmt |
+          self walkStmtForCaptures: stmt depth: 0 varDepths: varDepths capturedNames: capturedNames assignedNestedNames: assignedNestedNames
+      ].
+
+      "Collect variables that need cells: captured AND assigned in nested block"
+      capturedNames keysAndValuesDo: [:name :val |
+          (assignedNestedNames includesKey: name) ifTrue: [
+              result at: name put: true
+          ]
+      ].
+
+      ^result
+  ]
+
+  method: walkExprForCaptures: expr depth: currentDepth varDepths: varDepths capturedNames: capturedNames assignedNestedNames: assignedNestedNames [
+      "Walk an expression looking for variable captures and assignments."
+      expr isNil ifTrue: [^self].
+
+      expr isVariable ifTrue: [
+          | name |
+          name := expr name.
+          (varDepths includesKey: name) ifTrue: [
+              | defDepth |
+              defDepth := varDepths at: name.
+              defDepth < currentDepth ifTrue: [
+                  capturedNames at: name put: true
+              ]
+          ].
+          ^self
+      ].
+
+      expr isAssignment ifTrue: [
+          | name |
+          name := expr variable name.
+          (varDepths includesKey: name) ifTrue: [
+              | defDepth |
+              defDepth := varDepths at: name.
+              defDepth < currentDepth ifTrue: [
+                  capturedNames at: name put: true.
+                  assignedNestedNames at: name put: true
+              ]
+          ].
+          self walkExprForCaptures: expr value depth: currentDepth varDepths: varDepths capturedNames: capturedNames assignedNestedNames: assignedNestedNames.
+          ^self
+      ].
+
+      expr isMessageSend ifTrue: [
+          self walkExprForCaptures: expr receiver depth: currentDepth varDepths: varDepths capturedNames: capturedNames assignedNestedNames: assignedNestedNames.
+          expr arguments do: [:arg |
+              self walkExprForCaptures: arg depth: currentDepth varDepths: varDepths capturedNames: capturedNames assignedNestedNames: assignedNestedNames
+          ].
+          ^self
+      ].
+
+      expr isCascade ifTrue: [
+          self walkExprForCaptures: expr receiver depth: currentDepth varDepths: varDepths capturedNames: capturedNames assignedNestedNames: assignedNestedNames.
+          expr messages do: [:msg |
+              msg arguments do: [:arg |
+                  self walkExprForCaptures: arg depth: currentDepth varDepths: varDepths capturedNames: capturedNames assignedNestedNames: assignedNestedNames
+              ]
+          ].
+          ^self
+      ].
+
+      expr isBlock ifTrue: [
+          expr parameters do: [:p |
+              varDepths at: p put: currentDepth + 1
+          ].
+          expr temporaries do: [:t |
+              varDepths at: t put: currentDepth + 1
+          ].
+          expr statements do: [:stmt |
+              self walkStmtForCaptures: stmt depth: currentDepth + 1 varDepths: varDepths capturedNames: capturedNames assignedNestedNames: assignedNestedNames
+          ].
+          ^self
+      ].
+
+      expr isLiteral ifTrue: [^self].
+      expr isReturn ifTrue: [
+          self walkExprForCaptures: expr expression depth: currentDepth varDepths: varDepths capturedNames: capturedNames assignedNestedNames: assignedNestedNames.
+          ^self
+      ]
+  ]
+
+  method: walkStmtForCaptures: stmt depth: currentDepth varDepths: varDepths capturedNames: capturedNames assignedNestedNames: assignedNestedNames [
+      "Walk a statement for capture analysis."
+      stmt isNil ifTrue: [^self].
+      stmt isReturn ifTrue: [
+          self walkExprForCaptures: stmt expression depth: currentDepth varDepths: varDepths capturedNames: capturedNames assignedNestedNames: assignedNestedNames.
+          ^self
+      ].
+      self walkExprForCaptures: stmt depth: currentDepth varDepths: varDepths capturedNames: capturedNames assignedNestedNames: assignedNestedNames
+  ]
+
+  # ============================================
+  # Block capture analysis
+  # ============================================
+
+  method: findCapturedVariablesIn: blockNode withEnclosing: enclosingVars [
+      "Analyze a block's AST to find variables that need to be captured from
+       enclosing scopes. Returns an Array of variable names in encounter order.
+       Uses a Dictionary (seen) mapping name -> encounter index for dedup and ordering."
+      | seen result |
+      seen := Dictionary new.
+
+      self walkBlockForCaptures: blockNode enclosing: enclosingVars seen: seen blockParams: blockNode parameters blockTemps: blockNode temporaries.
+
+      "Convert seen dictionary to an ordered array by encounter index.
+       seen maps name -> index (insertion order). Build a result array
+       of the right size and place each name at its index."
+      result := Array new: seen size.
+      seen keysAndValuesDo: [:name :idx |
+          result at: idx put: name
+      ].
+      ^result
+  ]
+
+  method: walkBlockForCaptures: blockNode enclosing: enclosingVars seen: seen blockParams: params blockTemps: blockTemps [
+      "Walk a block node's statements to find references to enclosing scope variables."
+      blockNode statements do: [:stmt |
+          self walkStmtForBlockCaptures: stmt enclosing: enclosingVars seen: seen blockParams: params blockTemps: blockTemps
+      ]
+  ]
+
+  method: walkExprForBlockCaptures: node enclosing: enclosingVars seen: seen blockParams: params blockTemps: blockTemps [
+      "Walk the block body to find references to enclosing variables.
+       Adds found captures to the seen dictionary (mutable, shared)."
+      node isNil ifTrue: [^self].
+
+      node isBlock ifTrue: [
+          "Recurse into nested block statements - captures propagate upward"
+          node statements do: [:stmt |
+              self walkStmtForBlockCaptures: stmt enclosing: enclosingVars seen: seen blockParams: params blockTemps: blockTemps
+          ].
+          ^self
+      ].
+
+      node isVariable ifTrue: [
+          | name |
+          name := node name.
+          "Check if it is from enclosing scope and not a local of this block"
+          (enclosingVars includesKey: name) ifTrue: [
+              (self isLocalIn: name params: params temps: blockTemps) ifFalse: [
+                  (seen includesKey: name) ifFalse: [
+                      seen at: name put: seen size
+                  ]
+              ]
+          ].
+          ^self
+      ].
+
+      node isAssignment ifTrue: [
+          | name |
+          name := node variable name.
+          (enclosingVars includesKey: name) ifTrue: [
+              (self isLocalIn: name params: params temps: blockTemps) ifFalse: [
+                  (seen includesKey: name) ifFalse: [
+                      seen at: name put: seen size
+                  ]
+              ]
+          ].
+          self walkExprForBlockCaptures: node value enclosing: enclosingVars seen: seen blockParams: params blockTemps: blockTemps.
+          ^self
+      ].
+
+      node isMessageSend ifTrue: [
+          self walkExprForBlockCaptures: node receiver enclosing: enclosingVars seen: seen blockParams: params blockTemps: blockTemps.
+          node arguments do: [:arg |
+              self walkExprForBlockCaptures: arg enclosing: enclosingVars seen: seen blockParams: params blockTemps: blockTemps
+          ].
+          ^self
+      ].
+
+      node isCascade ifTrue: [
+          self walkExprForBlockCaptures: node receiver enclosing: enclosingVars seen: seen blockParams: params blockTemps: blockTemps.
+          node messages do: [:msg |
+              msg arguments do: [:arg |
+                  self walkExprForBlockCaptures: arg enclosing: enclosingVars seen: seen blockParams: params blockTemps: blockTemps
+              ]
+          ].
+          ^self
+      ].
+
+      node isReturn ifTrue: [
+          self walkExprForBlockCaptures: node expression enclosing: enclosingVars seen: seen blockParams: params blockTemps: blockTemps.
+          ^self
+      ].
+
+      node isLiteral ifTrue: [^self]
+  ]
+
+  method: walkStmtForBlockCaptures: stmt enclosing: enclosingVars seen: seen blockParams: params blockTemps: blockTemps [
+      stmt isNil ifTrue: [^self].
+      stmt isReturn ifTrue: [
+          self walkExprForBlockCaptures: stmt expression enclosing: enclosingVars seen: seen blockParams: params blockTemps: blockTemps.
+          ^self
+      ].
+      self walkExprForBlockCaptures: stmt enclosing: enclosingVars seen: seen blockParams: params blockTemps: blockTemps
+  ]
+
+  method: isLocalIn: name params: params temps: blockTemps [
+      "Check if a variable name is a local param or temp of this block."
+      params do: [:p | p = name ifTrue: [^true]].
+      blockTemps do: [:t | t = name ifTrue: [^true]].
+      ^false
+  ]
+
+  # ============================================
   # AST compilation
   # ============================================
 
@@ -504,11 +790,26 @@ BytecodeGenerator subclass: Object
       scope = #self ifTrue: [^self emitPushSelf].
       scope = #super ifTrue: [^self emitPushSelf].  "Super uses self as receiver"
 
-      "Try temp first"
+      "Check local temps first"
       index := self tempIndex: name.
-      index >= 0 ifTrue: [^self emitPushTemp: index].
+      index >= 0 ifTrue: [
+          self emitPushTemp: index.
+          "If this is a cell variable, dereference it"
+          (self isCellVar: name) ifTrue: [self emitCellGet].
+          ^self
+      ].
 
-      "Try outer scope temps (for blocks accessing method variables)"
+      "In a block: check captured variables (for variables from enclosing scopes)"
+      (inBlock and: [capturedVars notNil]) ifTrue: [
+          (capturedVars includesKey: name) ifTrue: [
+              self emitPushCaptured: (capturedVars at: name).
+              "If this is a cell variable, dereference it"
+              (self isCellVar: name) ifTrue: [self emitCellGet].
+              ^self
+          ]
+      ].
+
+      "In a block: try outer scope temps via home frame (for non-captured method vars)"
       inBlock ifTrue: [
           index := self outerTempIndex: name.
           index >= 0 ifTrue: [^self emitPushHomeTemp: index]
@@ -524,18 +825,60 @@ BytecodeGenerator subclass: Object
 
   method: visitAssignmentNode: node [
       | varNode name index |
+      varNode := node variable.
+      name := varNode name.
+
+      "Check if this is a cell variable assignment"
+      (self isCellVar: name) ifTrue: [
+          | localIdx |
+          "Check if it's a local temp in this scope"
+          localIdx := self tempIndex: name.
+          localIdx >= 0 ifTrue: [
+              (self isCellInitialized: name) ifFalse: [
+                  "First assignment: create the cell"
+                  self compile: node value.
+                  self emitMakeCell.
+                  self emitStoreTemp: localIdx.
+                  self emitPushTemp: localIdx.
+                  self emitCellGet.  "Leave the VALUE on stack"
+                  self markCellInitialized: name.
+                  ^self
+              ].
+              "Subsequent assignment: store into existing cell"
+              self emitPushTemp: localIdx.  "Get cell ref"
+              self compile: node value.      "Value to store"
+              self emitCellSet.              "Store and leave value on stack"
+              ^self
+          ].
+
+          "Check captured variables (cell variable from outer scope)"
+          (inBlock and: [capturedVars notNil]) ifTrue: [
+              (capturedVars includesKey: name) ifTrue: [
+                  self emitPushCaptured: (capturedVars at: name).  "Get cell ref"
+                  self compile: node value.                         "Value to store"
+                  self emitCellSet.                                 "Store and leave value on stack"
+                  ^self
+              ]
+          ].
+      ].
+
+      "Non-cell variable assignment (or cell not found in scope)"
       "Compile the value"
       self compile: node value.
       self emitDup.  "Assignment returns the value"
 
       "Store to variable"
-      varNode := node variable.
-      name := varNode name.
-
       index := self tempIndex: name.
       index >= 0 ifTrue: [^self emitStoreTemp: index].
 
-      "Try outer scope temps (for blocks assigning method variables)"
+      "In a block: check captured variables"
+      (inBlock and: [capturedVars notNil]) ifTrue: [
+          (capturedVars includesKey: name) ifTrue: [
+              ^self emitStoreCaptured: (capturedVars at: name)
+          ]
+      ].
+
+      "Try outer scope temps (for blocks assigning method variables without captures)"
       inBlock ifTrue: [
           index := self outerTempIndex: name.
           index >= 0 ifTrue: [^self emitStoreHomeTemp: index]
@@ -584,33 +927,74 @@ BytecodeGenerator subclass: Object
   ]
 
   method: visitBlockNode: node [
-      "Compile block as a nested method."
-      | blockGen blockIndex params statements blockOuterTemps |
+      "Compile block as a nested method with proper variable captures."
+      | blockGen blockIndex params statements newEnclosingVars varsToCapture numCaptures newCapturedVars newNestingDepth |
       blockGen := BytecodeGenerator new.
 
-      "Build outer temps dictionary for block to access method variables.
-       If we're already in a block, pass along the existing outerTemps.
-       Otherwise, build from current temps."
-      blockOuterTemps := Dictionary new.
-      inBlock ifTrue: [
-          "Nested block: pass along outer method temps"
-          outerTemps notNil ifTrue: [
-              outerTemps keysAndValuesDo: [:k :v | blockOuterTemps at: k put: v]
+      "Share cellVars across the entire method compilation"
+      blockGen setCellVars: cellVars.
+
+      "Increment nesting depth: 0=method, 1=first block, 2+=nested blocks"
+      newNestingDepth := blockNestingDepth + 1.
+      blockGen setBlockNestingDepth: newNestingDepth.
+
+      "Build enclosing variables map for this block.
+       For depth-1 blocks: method temps are enclosing.
+       For deeper blocks: merge current scope vars into enclosing."
+      newEnclosingVars := Dictionary new.
+      enclosingBlockVars notNil ifTrue: [
+          enclosingBlockVars keysAndValuesDo: [:k :v | newEnclosingVars at: k put: v]
+      ].
+      newNestingDepth = 1 ifTrue: [
+          "First-level block: method-level temps are enclosing scope"
+          0 to: temps size - 1 do: [:i |
+              newEnclosingVars at: (temps at: i) put: i
           ]
       ] ifFalse: [
-          "First-level block: current temps are the outer temps"
-          0 to: temps size - 1 do: [:i |
-              blockOuterTemps at: (temps at: i) put: i
+          "Nested block: current block's temps become enclosing"
+          inBlock ifTrue: [
+              0 to: temps size - 1 do: [:i |
+                  newEnclosingVars at: (temps at: i) put: i
+              ]
           ]
       ].
-      blockGen setOuterTemps: blockOuterTemps.
+      blockGen setEnclosingBlockVars: newEnclosingVars.
+
+      "Analyze which variables this block captures from enclosing scopes"
+      varsToCapture := self findCapturedVariablesIn: node withEnclosing: newEnclosingVars.
+      numCaptures := varsToCapture size.
+
+      "Build captured vars map for the block"
+      newCapturedVars := Dictionary new.
+      0 to: varsToCapture size - 1 do: [:i |
+          newCapturedVars at: (varsToCapture at: i) put: i
+      ].
+      blockGen setCapturedVars: newCapturedVars.
+
+      "Set up outer temps (empty - we use captures instead of HomeTemp for captured vars)"
+      blockGen setOuterTemps: Dictionary new.
 
       "Add parameters as temps"
       params := node parameters.
       params do: [:p | blockGen addTemp: p].
+      blockGen setBlockArity: params size.
 
       "Add temporaries"
       node temporaries do: [:t | blockGen addTemp: t].
+      blockGen setBlockNumTemps: params size + node temporaries size.
+
+      "Pre-initialize cell variables in block scope"
+      0 to: blockGen temps size - 1 do: [:idx |
+          | tName |
+          tName := blockGen temps at: idx.
+          (blockGen isCellVar: tName) ifTrue: [
+              blockGen emitPushNil.
+              blockGen emitMakeCell.
+              blockGen emitStoreTemp: idx.
+              blockGen emitPop.
+              blockGen markCellInitialized: tName
+          ]
+      ].
 
       "Compile statements"
       statements := node statements.
@@ -632,8 +1016,39 @@ BytecodeGenerator subclass: Object
       "Add block to our list"
       blockIndex := self addBlockMethod: blockGen.
 
-      "Create block (captures not yet implemented for deeply nested blocks)"
-      self emitCreateBlock: blockIndex captures: 0
+      "Emit capture instructions: push each captured variable onto the stack
+       before the CREATE_BLOCK instruction."
+      varsToCapture do: [:varName |
+          | emitted |
+          emitted := false.
+          "Check if it was already captured in our scope"
+          (inBlock and: [capturedVars notNil]) ifTrue: [
+              (capturedVars includesKey: varName) ifTrue: [
+                  self emitPushCaptured: (capturedVars at: varName).
+                  emitted := true
+              ]
+          ].
+          emitted ifFalse: [
+              "It's a local temp or arg in current scope"
+              | localIdx |
+              localIdx := self tempIndex: varName.
+              localIdx >= 0 ifTrue: [
+                  self emitPushTemp: localIdx.
+                  emitted := true
+              ]
+          ].
+          emitted ifFalse: [
+              "Try outer method temps via home frame"
+              | outerIdx |
+              outerIdx := self outerTempIndex: varName.
+              outerIdx >= 0 ifTrue: [
+                  self emitPushHomeTemp: outerIdx
+              ]
+          ]
+      ].
+
+      "Emit CREATE_BLOCK with capture count"
+      self emitCreateBlock: blockIndex captures: numCaptures
   ]
 
   method: visitReturnNode: node [
@@ -655,6 +1070,35 @@ BytecodeGenerator subclass: Object
 
       "Add temporaries"
       methodNode temporaries do: [:t | self addTemp: t].
+
+      "Analyze which variables need cell boxing"
+      cellVars := self findCellVariables: methodNode.
+
+      "Pre-initialize cell variables for method-level args"
+      params do: [:p |
+          (self isCellVar: p) ifTrue: [
+              | idx |
+              idx := self tempIndex: p.
+              self emitPushTemp: idx.   "Push current arg value"
+              self emitMakeCell.         "Wrap in cell"
+              self emitStoreTemp: idx.   "Store cell back"
+              self emitPop.              "Clean up stack"
+              self markCellInitialized: p
+          ]
+      ].
+
+      "Pre-initialize cell variables for method-level temps"
+      methodNode temporaries do: [:t |
+          (self isCellVar: t) ifTrue: [
+              | idx |
+              idx := self tempIndex: t.
+              self emitPushNil.
+              self emitMakeCell.
+              self emitStoreTemp: idx.
+              self emitPop.
+              self markCellInitialized: t
+          ]
+      ].
 
       "Compile statements"
       statements := methodNode statements.

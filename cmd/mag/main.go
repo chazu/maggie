@@ -37,6 +37,7 @@ func main() {
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Usage: mag [options] [paths...]\n")
 		fmt.Fprintf(os.Stderr, "       mag deps [resolve|update|list]\n")
+		fmt.Fprintf(os.Stderr, "       mag fmt [--check] [files or dirs...]\n")
 		fmt.Fprintf(os.Stderr, "       mag doc [--output dir] [--title title]\n")
 		fmt.Fprintf(os.Stderr, "       mag doctest [--verbose] [--class name]\n\n")
 		fmt.Fprintf(os.Stderr, "Starts Maggie with the default image and compiles .mag files from the given paths.\n")
@@ -58,6 +59,10 @@ func main() {
 		fmt.Fprintf(os.Stderr, "  mag deps               # Resolve and fetch dependencies\n")
 		fmt.Fprintf(os.Stderr, "  mag deps update         # Re-resolve ignoring lock file\n")
 		fmt.Fprintf(os.Stderr, "  mag deps list           # Show dependency tree\n")
+		fmt.Fprintf(os.Stderr, "\nFormatting:\n")
+		fmt.Fprintf(os.Stderr, "  mag fmt                        # Format all .mag files in current dir\n")
+		fmt.Fprintf(os.Stderr, "  mag fmt lib/Array.mag          # Format a specific file\n")
+		fmt.Fprintf(os.Stderr, "  mag fmt --check lib/           # Check formatting (non-zero exit if changes needed)\n")
 		fmt.Fprintf(os.Stderr, "\nDocumentation:\n")
 		fmt.Fprintf(os.Stderr, "  mag doc                        # Generate HTML docs from image\n")
 		fmt.Fprintf(os.Stderr, "  mag doc --output ./site        # Generate to specific directory\n")
@@ -85,6 +90,9 @@ func main() {
 			*lspMode = true
 		case "deps":
 			handleDepsCommand(args[1:], *verbose)
+			return
+		case "fmt":
+			handleFmtCommand(args[1:])
 			return
 		case "doc":
 			docMode = "doc"
@@ -830,6 +838,22 @@ func compileSourceFile(vmInst *vm.VM, source string, sourcePath string, nsOverri
 		// Need to include inherited instance variables for proper slot indexing
 		allIvars := class.AllInstVarNames()
 		for _, methodDef := range classDef.Methods {
+			// Handle <primitive> stubs: attach docstring to existing primitive, skip compilation
+			if methodDef.IsPrimitiveStub {
+				if methodDef.DocString != "" {
+					selectorID := vmInst.Selectors.Lookup(methodDef.Selector)
+					if selectorID >= 0 {
+						existing := class.VTable.Lookup(selectorID)
+						if existing != nil {
+							if ds, ok := existing.(vm.DocStringable); ok {
+								ds.SetDocString(methodDef.DocString)
+							}
+						}
+					}
+				}
+				continue
+			}
+
 			method, err := compiler.CompileMethodDefWithIvars(methodDef, vmInst.Selectors, vmInst.Symbols, allIvars)
 			if err != nil {
 				return compiled, fmt.Errorf("error compiling %s>>%s: %v", classDef.Name, methodDef.Selector, err)
@@ -853,6 +877,22 @@ func compileSourceFile(vmInst *vm.VM, source string, sourcePath string, nsOverri
 
 		// Compile class methods
 		for _, methodDef := range classDef.ClassMethods {
+			// Handle <primitive> stubs: attach docstring to existing primitive, skip compilation
+			if methodDef.IsPrimitiveStub {
+				if methodDef.DocString != "" {
+					selectorID := vmInst.Selectors.Lookup(methodDef.Selector)
+					if selectorID >= 0 {
+						existing := class.ClassVTable.Lookup(selectorID)
+						if existing != nil {
+							if ds, ok := existing.(vm.DocStringable); ok {
+								ds.SetDocString(methodDef.DocString)
+							}
+						}
+					}
+				}
+				continue
+			}
+
 			method, err := compiler.CompileMethodDef(methodDef, vmInst.Selectors, vmInst.Symbols)
 			if err != nil {
 				return compiled, fmt.Errorf("error compiling %s class>>%s: %v", classDef.Name, methodDef.Selector, err)

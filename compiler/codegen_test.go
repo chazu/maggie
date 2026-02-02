@@ -486,3 +486,184 @@ func TestMutableCaptureIteration(t *testing.T) {
 		t.Errorf("result = %v, want 6", result)
 	}
 }
+
+// ---------------------------------------------------------------------------
+// Tail-call optimization codegen tests
+// ---------------------------------------------------------------------------
+
+// TestCompileTailCallEmitsTailSend verifies that the compiler emits
+// OpTailSend for a self-recursive keyword send in tail position.
+func TestCompileTailCallEmitsTailSend(t *testing.T) {
+	selectors := vm.NewSelectorTable()
+	symbols := vm.NewSymbolTable()
+
+	// A self-recursive method: factorial: n acc: acc
+	//   n = 0 ifTrue: [^acc].
+	//   ^self factorial: n - 1 acc: acc * n
+	method := &MethodDef{
+		Selector:   "factorial:acc:",
+		Parameters: []string{"n", "acc"},
+		Statements: []Stmt{
+			// n = 0 ifTrue: [^acc]
+			&ExprStmt{Expr: &KeywordMessage{
+				Receiver: &BinaryMessage{
+					Receiver: &Variable{Name: "n"},
+					Selector: "=",
+					Argument: &IntLiteral{Value: 0},
+				},
+				Selector: "ifTrue:",
+				Keywords: []string{"ifTrue:"},
+				Arguments: []Expr{
+					&Block{
+						Statements: []Stmt{
+							&Return{Value: &Variable{Name: "acc"}},
+						},
+					},
+				},
+			}},
+			// ^self factorial: n - 1 acc: acc * n
+			&Return{Value: &KeywordMessage{
+				Receiver:  &Self{},
+				Selector:  "factorial:acc:",
+				Keywords:  []string{"factorial:", "acc:"},
+				Arguments: []Expr{
+					&BinaryMessage{
+						Receiver: &Variable{Name: "n"},
+						Selector: "-",
+						Argument: &IntLiteral{Value: 1},
+					},
+					&BinaryMessage{
+						Receiver: &Variable{Name: "acc"},
+						Selector: "*",
+						Argument: &Variable{Name: "n"},
+					},
+				},
+			}},
+		},
+	}
+
+	compiled, err := CompileMethodDef(method, selectors, symbols)
+	if err != nil {
+		t.Fatalf("compile error: %v", err)
+	}
+
+	// Scan bytecode for OpTailSend
+	found := false
+	for idx := 0; idx < len(compiled.Bytecode); idx++ {
+		if vm.Opcode(compiled.Bytecode[idx]) == vm.OpTailSend {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Error("expected OpTailSend in bytecode for self-recursive tail call, but not found")
+		t.Logf("bytecode: %v", vm.Disassemble(compiled.Bytecode))
+	}
+}
+
+// TestCompileNonSelfSendNoTailSend verifies that the compiler does NOT
+// emit OpTailSend for a send to a non-self receiver, even if it's in
+// tail position with the same selector.
+func TestCompileNonSelfSendNoTailSend(t *testing.T) {
+	selectors := vm.NewSelectorTable()
+	symbols := vm.NewSymbolTable()
+
+	// A method that sends to a variable, not self:
+	// forward: other [ ^other forward: other ]
+	method := &MethodDef{
+		Selector:   "forward:",
+		Parameters: []string{"other"},
+		Statements: []Stmt{
+			&Return{Value: &KeywordMessage{
+				Receiver:  &Variable{Name: "other"},
+				Selector:  "forward:",
+				Keywords:  []string{"forward:"},
+				Arguments: []Expr{&Variable{Name: "other"}},
+			}},
+		},
+	}
+
+	compiled, err := CompileMethodDef(method, selectors, symbols)
+	if err != nil {
+		t.Fatalf("compile error: %v", err)
+	}
+
+	// Should NOT contain OpTailSend (receiver is not self)
+	for idx := 0; idx < len(compiled.Bytecode); idx++ {
+		if vm.Opcode(compiled.Bytecode[idx]) == vm.OpTailSend {
+			t.Error("expected NO OpTailSend for non-self receiver, but found one")
+			t.Logf("bytecode: %v", vm.Disassemble(compiled.Bytecode))
+			break
+		}
+	}
+}
+
+// TestCompileDifferentSelectorNoTailSend verifies that the compiler does NOT
+// emit OpTailSend for a self send with a different selector than the method.
+func TestCompileDifferentSelectorNoTailSend(t *testing.T) {
+	selectors := vm.NewSelectorTable()
+	symbols := vm.NewSymbolTable()
+
+	// A method that calls a DIFFERENT method on self:
+	// doWork [ ^self cleanup ]
+	method := &MethodDef{
+		Selector:   "doWork",
+		Parameters: nil,
+		Statements: []Stmt{
+			&Return{Value: &UnaryMessage{
+				Receiver: &Self{},
+				Selector: "cleanup",
+			}},
+		},
+	}
+
+	compiled, err := CompileMethodDef(method, selectors, symbols)
+	if err != nil {
+		t.Fatalf("compile error: %v", err)
+	}
+
+	// Should NOT contain OpTailSend (different selector)
+	for idx := 0; idx < len(compiled.Bytecode); idx++ {
+		if vm.Opcode(compiled.Bytecode[idx]) == vm.OpTailSend {
+			t.Error("expected NO OpTailSend for different selector, but found one")
+			t.Logf("bytecode: %v", vm.Disassemble(compiled.Bytecode))
+			break
+		}
+	}
+}
+
+// TestCompileUnaryTailCall verifies OpTailSend is emitted for a unary
+// self-recursive method in tail position.
+func TestCompileUnaryTailCall(t *testing.T) {
+	selectors := vm.NewSelectorTable()
+	symbols := vm.NewSymbolTable()
+
+	// loop [ ^self loop ]
+	method := &MethodDef{
+		Selector:   "loop",
+		Parameters: nil,
+		Statements: []Stmt{
+			&Return{Value: &UnaryMessage{
+				Receiver: &Self{},
+				Selector: "loop",
+			}},
+		},
+	}
+
+	compiled, err := CompileMethodDef(method, selectors, symbols)
+	if err != nil {
+		t.Fatalf("compile error: %v", err)
+	}
+
+	found := false
+	for idx := 0; idx < len(compiled.Bytecode); idx++ {
+		if vm.Opcode(compiled.Bytecode[idx]) == vm.OpTailSend {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Error("expected OpTailSend for unary self-recursive tail call, but not found")
+		t.Logf("bytecode: %v", vm.Disassemble(compiled.Bytecode))
+	}
+}
