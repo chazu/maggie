@@ -61,6 +61,8 @@ func main() {
 		fmt.Fprintf(os.Stderr, "\nDocumentation:\n")
 		fmt.Fprintf(os.Stderr, "  mag doc                        # Generate HTML docs from image\n")
 		fmt.Fprintf(os.Stderr, "  mag doc --output ./site        # Generate to specific directory\n")
+		fmt.Fprintf(os.Stderr, "  mag doc --serve                # Generate docs and serve on :8080\n")
+		fmt.Fprintf(os.Stderr, "  mag doc --serve --port 3000    # Generate docs and serve on :3000\n")
 		fmt.Fprintf(os.Stderr, "  mag doctest                    # Run docstring tests\n")
 		fmt.Fprintf(os.Stderr, "  mag doctest --verbose          # Run with detailed output\n")
 		fmt.Fprintf(os.Stderr, "\nLanguage Server:\n")
@@ -204,6 +206,12 @@ func main() {
 	// Handle doc/doctest subcommands (after sources are compiled)
 	if docMode == "doc" {
 		handleDocCommand(vmInst, docArgs)
+		// Check if --serve was requested
+		if docArgsContain(docArgs, "--serve") {
+			port := docArgPort(docArgs)
+			outputDir := docArgOutput(docArgs)
+			handleDocServe(vmInst, outputDir, port)
+		}
 		return
 	}
 	if docMode == "doctest" {

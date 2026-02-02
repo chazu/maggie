@@ -470,10 +470,10 @@ A Maggie program that:
 - [x] Test failures produce clear error messages with file/method context
 
 ### Phase 4: Web Server + Interactive
-- [ ] `HttpServer` class can serve static files and handle routes
-- [ ] Doc server starts and serves generated HTML
-- [ ] "Run" buttons execute examples and display results
-- [ ] Eval endpoint has timeout protection (5 seconds)
+- [x] `HttpServer` class can serve static files and handle routes
+- [x] Doc server starts and serves generated HTML
+- [x] "Run" buttons execute examples and display results
+- [x] Eval endpoint has timeout protection (5 seconds)
 
 ---
 

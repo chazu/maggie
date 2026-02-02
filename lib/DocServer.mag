@@ -1,0 +1,41 @@
+"""
+A simple documentation server for Maggie.
+
+Serves generated HTML documentation and provides a /api/eval endpoint
+for running interactive examples from the browser.
+
+Usage:
+  DocServer start: './docs/api'.
+  DocServer start: './docs/api' port: 3000.
+"""
+DocServer subclass: Object
+
+  """
+  Start the documentation server on the default port (8080).
+  Serves static files from the given directory.
+  """
+  classMethod: start: docDir [
+    ^self start: docDir port: 8080
+  ]
+
+  """
+  Start the documentation server on the given port.
+  Serves static files from docDir and provides /api/eval endpoint.
+
+  ```example
+  DocServer start: './docs/api' port: 3000
+  ```
+  """
+  classMethod: start: docDir port: port [
+    | server |
+    server := HttpServer new: port.
+    server serveStatic: '/' from: docDir.
+    server route: '/api/eval' method: 'POST' handler: [:req |
+      | expr result |
+      expr := req body.
+      result := Compiler evaluate: expr.
+      HttpResponse new: 200 body: result printString
+    ].
+    ('Documentation server running at http://localhost:', port printString) print.
+    server start
+  ]

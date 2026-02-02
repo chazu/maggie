@@ -152,7 +152,7 @@ func handleDocCommand(vmInst *vm.VM, args []string) {
 	outputDir := "docs/api"
 	title := "Maggie API Reference"
 
-	// Parse flags from args
+	// Parse flags from args (skip flags handled by docserve: --serve, --port)
 	for i := 0; i < len(args); i++ {
 		switch args[i] {
 		case "--output":
@@ -171,11 +171,19 @@ func handleDocCommand(vmInst *vm.VM, args []string) {
 				fmt.Fprintf(os.Stderr, "Error: --title requires a string argument\n")
 				os.Exit(1)
 			}
+		case "--serve":
+			// handled by docserve.go
+		case "--port":
+			i++ // skip the port value
 		default:
 			if strings.HasPrefix(args[i], "--output=") {
 				outputDir = strings.TrimPrefix(args[i], "--output=")
 			} else if strings.HasPrefix(args[i], "--title=") {
 				title = strings.TrimPrefix(args[i], "--title=")
+			} else if strings.HasPrefix(args[i], "--port=") {
+				// handled by docserve.go
+			} else if strings.HasPrefix(args[i], "--serve=") {
+				// handled by docserve.go
 			} else {
 				fmt.Fprintf(os.Stderr, "Warning: unknown doc flag %q\n", args[i])
 			}
@@ -210,10 +218,20 @@ func handleDocCommand(vmInst *vm.VM, args []string) {
 		fmt.Fprintf(os.Stderr, "Error creating css directory: %v\n", err)
 		os.Exit(1)
 	}
+	if err := os.MkdirAll(filepath.Join(outputDir, "js"), 0755); err != nil {
+		fmt.Fprintf(os.Stderr, "Error creating js directory: %v\n", err)
+		os.Exit(1)
+	}
 
 	// Write CSS
 	if err := writeCSS(outputDir); err != nil {
 		fmt.Fprintf(os.Stderr, "Error writing CSS: %v\n", err)
+		os.Exit(1)
+	}
+
+	// Write playground JS
+	if err := writePlaygroundJS(outputDir); err != nil {
+		fmt.Fprintf(os.Stderr, "Error writing playground JS: %v\n", err)
 		os.Exit(1)
 	}
 
@@ -415,6 +433,12 @@ func extractBrief(doc string) string {
 func writeCSS(outputDir string) error {
 	cssPath := filepath.Join(outputDir, "css", "style.css")
 	return os.WriteFile(cssPath, []byte(cssContent), 0644)
+}
+
+// writePlaygroundJS writes the playground JavaScript to the output directory.
+func writePlaygroundJS(outputDir string) error {
+	jsPath := filepath.Join(outputDir, "js", "playground.js")
+	return os.WriteFile(jsPath, []byte(playgroundJSContent), 0644)
 }
 
 // writeIndexPage generates the index.html class listing.
@@ -815,6 +839,118 @@ pre code {
     font-size: 0.8125rem;
     color: #6a737d;
 }
+
+/* Playground */
+.playground-run {
+    display: inline-block;
+    padding: 4px 12px;
+    margin-bottom: 4px;
+    background: #1565c0;
+    color: #fff;
+    border: none;
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 13px;
+}
+.playground-run:hover {
+    background: #0d47a1;
+}
+.playground-run:disabled {
+    background: #90a4ae;
+    cursor: wait;
+}
+.playground-output {
+    padding: 8px 12px;
+    margin-top: 4px;
+    border-radius: 0 0 4px 4px;
+    font-family: 'SF Mono', 'Monaco', 'Menlo', monospace;
+    font-size: 14px;
+    white-space: pre-wrap;
+}
+.playground-loading {
+    color: #78909c;
+    background: #f5f5f5;
+}
+.playground-success {
+    color: #1b5e20;
+    background: #e8f5e9;
+    border: 1px solid #a5d6a7;
+}
+.playground-error {
+    color: #b71c1c;
+    background: #ffebee;
+    border: 1px solid #ef9a9a;
+}
+`
+
+// ---------------------------------------------------------------------------
+// Playground JavaScript
+// ---------------------------------------------------------------------------
+
+const playgroundJSContent = `// Maggie Documentation Playground
+// Sends example code to /api/eval and displays results inline
+(function() {
+    'use strict';
+
+    document.addEventListener('DOMContentLoaded', function() {
+        // Find all example blocks and add Run buttons
+        var examples = document.querySelectorAll('.doc-example');
+        examples.forEach(function(block) {
+            var pre = block.querySelector('pre');
+            var code = block.querySelector('code');
+            if (!code) return;
+
+            // Create Run button
+            var btn = document.createElement('button');
+            btn.className = 'playground-run';
+            btn.textContent = 'Run';
+            btn.addEventListener('click', function() {
+                runExample(btn, code.textContent);
+            });
+
+            // Create output area
+            var output = document.createElement('div');
+            output.className = 'playground-output';
+            output.style.display = 'none';
+
+            // Insert button before pre, output after pre
+            block.insertBefore(btn, pre);
+            block.appendChild(output);
+        });
+    });
+
+    function runExample(btn, code) {
+        var output = btn.parentElement.querySelector('.playground-output');
+        btn.disabled = true;
+        btn.textContent = 'Running...';
+        output.style.display = 'block';
+        output.className = 'playground-output playground-loading';
+        output.textContent = 'Evaluating...';
+
+        fetch('/api/eval', {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain' },
+            body: code
+        })
+        .then(function(resp) {
+            return resp.text().then(function(text) {
+                return { ok: resp.ok, status: resp.status, text: text };
+            });
+        })
+        .then(function(result) {
+            btn.disabled = false;
+            btn.textContent = 'Run';
+            output.className = 'playground-output ' + (result.ok ? 'playground-success' : 'playground-error');
+            output.textContent = result.text;
+        })
+        .catch(function(err) {
+            btn.disabled = false;
+            btn.textContent = 'Run';
+            output.className = 'playground-output playground-error';
+            output.textContent = 'Error: ' + err.message;
+        });
+    }
+})();
 `
 
 // ---------------------------------------------------------------------------
@@ -947,6 +1083,8 @@ const classTemplate = `<!DOCTYPE html>
     <div class="footer">
         Generated by Maggie doc generator.
     </div>
+
+    <script src="{{depthCSS .Class.RelPath}}/js/playground.js"></script>
 </body>
 </html>
 `
