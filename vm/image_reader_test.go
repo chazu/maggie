@@ -399,6 +399,7 @@ func TestImageReaderClasses(t *testing.T) {
 	builder.writeUint32(2)          // instvar 1: "y"
 	builder.writeUint32(0)          // 0 instance methods
 	builder.writeUint32(0)          // 0 class methods
+	builder.writeBytes([]byte{0})   // no class docstring (v2+)
 
 	// Class 1: ChildClass extends TestClass (index 0)
 	builder.writeUint32(3)          // name: "ChildClass"
@@ -408,6 +409,7 @@ func TestImageReaderClasses(t *testing.T) {
 	builder.writeUint32(0)          // 0 instance variables
 	builder.writeUint32(0)          // 0 instance methods
 	builder.writeUint32(0)          // 0 class methods
+	builder.writeBytes([]byte{0})   // no class docstring (v2+)
 
 	ir, err := NewImageReaderFromBytes(builder.bytes())
 	if err != nil {
@@ -472,6 +474,7 @@ func TestImageReaderClassesUsesExistingVMClass(t *testing.T) {
 	builder.writeUint32(0)          // 0 instance variables
 	builder.writeUint32(0)          // 0 instance methods
 	builder.writeUint32(0)          // 0 class methods
+	builder.writeBytes([]byte{0})   // no class docstring (v2+)
 
 	ir, err := NewImageReaderFromBytes(builder.bytes())
 	if err != nil {
@@ -522,6 +525,7 @@ func TestImageReaderMethods(t *testing.T) {
 	builder.writeUint32(0)          // 0 instance variables
 	builder.writeUint32(0)          // 0 instance methods
 	builder.writeUint32(0)          // 0 class methods
+	builder.writeBytes([]byte{0})   // no class docstring (v2+)
 
 	// Methods (format: selector, class, name, isClassMethod, arity, numTemps, literals, bytecode, blocks, source, sourceMap)
 	builder.writeUint32(1) // 1 method
@@ -547,6 +551,9 @@ func TestImageReaderMethods(t *testing.T) {
 
 	// Source (1 byte flag, then optional string index)
 	builder.writeBytes([]byte{0}) // no source
+
+	// DocString (1 byte flag, then optional string index, v2+)
+	builder.writeBytes([]byte{0}) // no docstring
 
 	// Source map
 	builder.writeUint32(1)  // 1 entry
@@ -626,6 +633,7 @@ func TestImageReaderMethodsWithBlocks(t *testing.T) {
 	builder.writeUint32(0)          // instVarCount
 	builder.writeUint32(0)          // instance methods
 	builder.writeUint32(0)          // class methods
+	builder.writeBytes([]byte{0})   // no class docstring (v2+)
 
 	// Methods (format: selector, class, name, isClassMethod, arity, numTemps, literals, bytecode, blocks, source, sourceMap)
 	builder.writeUint32(1)
@@ -653,6 +661,7 @@ func TestImageReaderMethodsWithBlocks(t *testing.T) {
 	builder.writeUint32(0) // source map
 
 	builder.writeBytes([]byte{0}) // no source (1 byte flag)
+	builder.writeBytes([]byte{0}) // no docstring (1 byte flag, v2+)
 	builder.writeUint32(0) // method source map count
 
 	ir, err := NewImageReaderFromBytes(builder.bytes())
@@ -721,6 +730,7 @@ func TestImageReaderObjects(t *testing.T) {
 	builder.writeUint32(2)          // "y"
 	builder.writeUint32(0)          // 0 instance methods
 	builder.writeUint32(0)          // 0 class methods
+	builder.writeBytes([]byte{0})   // no class docstring (v2+)
 
 	// Methods (empty)
 	builder.writeUint32(0)
@@ -871,6 +881,7 @@ func TestImageReaderReadAll(t *testing.T) {
 	builder.writeUint32(1)          // instvar "value"
 	builder.writeUint32(0)          // 0 instance methods
 	builder.writeUint32(0)          // 0 class methods
+	builder.writeBytes([]byte{0})   // no class docstring (v2+)
 
 	// Methods
 	builder.writeUint32(0)
@@ -1159,6 +1170,7 @@ func TestImageReaderDecoderIntegration(t *testing.T) {
 	builder.writeUint32(0)          // instVarCount
 	builder.writeUint32(0)          // instance methods
 	builder.writeUint32(0)          // class methods
+	builder.writeBytes([]byte{0})   // no class docstring (v2+)
 
 	builder.writeUint32(0) // methods
 	builder.writeUint32(0) // objects

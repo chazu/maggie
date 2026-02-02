@@ -16,7 +16,9 @@ import (
 var ImageMagic = [4]byte{'M', 'A', 'G', 'I'}
 
 // Image format version
-const ImageVersion uint32 = 1
+// v1: initial format
+// v2: added docstring support on methods and classes
+const ImageVersion uint32 = 2
 
 // Image header size in bytes
 // magic(4) + version(4) + flags(4) + objectCount(4) + stringTableOffset(8) + classTableOffset(8) + entryPoint(4) = 36
@@ -132,6 +134,11 @@ func (w *ImageWriter) collectClass(c *Class) {
 		w.registerString(ivar)
 	}
 
+	// Register docstring
+	if c.DocString != "" {
+		w.registerString(c.DocString)
+	}
+
 	// Register the class
 	w.encoder.RegisterClass(c)
 	w.classes = append(w.classes, c)
@@ -168,6 +175,11 @@ func (w *ImageWriter) collectMethod(m *CompiledMethod) {
 	// Register source
 	if m.Source != "" {
 		w.registerString(m.Source)
+	}
+
+	// Register docstring
+	if m.docString != "" {
+		w.registerString(m.docString)
 	}
 
 	// Register the method
@@ -510,6 +522,16 @@ func (w *ImageWriter) writeClass(c *Class) {
 			}
 		}
 	}
+
+	// DocString (optional, v2+)
+	if c.DocString != "" {
+		w.buf.WriteByte(1)
+		docIdx, _ := w.encoder.LookupString(c.DocString)
+		WriteUint32(buf, docIdx)
+		w.buf.Write(buf)
+	} else {
+		w.buf.WriteByte(0)
+	}
 }
 
 // ---------------------------------------------------------------------------
@@ -604,6 +626,17 @@ func (w *ImageWriter) writeMethod(m *CompiledMethod) {
 		w.buf.WriteByte(1)
 		srcIdx, _ := w.encoder.LookupString(m.Source)
 		WriteUint32(buf, srcIdx)
+		w.buf.Write(buf)
+	} else {
+		w.buf.WriteByte(0)
+	}
+
+	// DocString (optional, v2+)
+	hasDocString := m.docString != ""
+	if hasDocString {
+		w.buf.WriteByte(1)
+		docIdx, _ := w.encoder.LookupString(m.docString)
+		WriteUint32(buf, docIdx)
 		w.buf.Write(buf)
 	} else {
 		w.buf.WriteByte(0)

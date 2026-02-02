@@ -136,8 +136,8 @@ func (ir *ImageReader) ReadHeader() (*ImageHeader, error) {
 	version := ReadUint32(ir.data[ir.offset:])
 	ir.offset += imageVersionSize
 
-	if version != ImageVersion {
-		return nil, fmt.Errorf("%w: expected %d, got %d", ErrVersionMismatch, ImageVersion, version)
+	if version != ImageVersion && version != 1 {
+		return nil, fmt.Errorf("%w: expected %d or 1, got %d", ErrVersionMismatch, ImageVersion, version)
 	}
 
 	// Read flags
@@ -433,10 +433,34 @@ func (ir *ImageReader) ReadClasses(vm *VM) ([]*Class, error) {
 			}
 		}
 
+		// Read class docstring (optional, v2+)
+		classDocString := ""
+		if ir.header.Version >= 2 {
+			if ir.offset >= len(ir.data) {
+				return nil, ErrUnexpectedEOF
+			}
+			hasDocString := ir.data[ir.offset]
+			ir.offset++
+
+			if hasDocString != 0 {
+				docIdx, err := ir.readUint32()
+				if err != nil {
+					return nil, fmt.Errorf("failed to read class %d docstring index: %w", i, err)
+				}
+				classDocString, err = ir.GetString(docIdx)
+				if err != nil {
+					return nil, fmt.Errorf("failed to get class %d docstring: %w", i, err)
+				}
+			}
+		}
+
 		// Check if class already exists in VM (core classes)
 		existingClass := vm.Classes.Lookup(name)
 		if existingClass != nil {
 			// Use existing class, but update instance variables if needed
+			if classDocString != "" {
+				existingClass.DocString = classDocString
+			}
 			ir.classes[i] = existingClass
 			ir.classNameToIndex[name] = i
 			ir.decoder.AddClass(existingClass)
@@ -452,6 +476,7 @@ func (ir *ImageReader) ReadClasses(vm *VM) ([]*Class, error) {
 		}
 		c.Namespace = namespace
 		c.NumSlots = int(numSlots)
+		c.DocString = classDocString
 
 		ir.classes[i] = c
 		ir.classNameToIndex[name] = i
@@ -654,6 +679,27 @@ func (ir *ImageReader) readMethod(vm *VM) (*CompiledMethod, error) {
 		}
 	}
 
+	// Read docstring (optional, v2+)
+	docString := ""
+	if ir.header.Version >= 2 {
+		if ir.offset >= len(ir.data) {
+			return nil, ErrUnexpectedEOF
+		}
+		hasDocString := ir.data[ir.offset]
+		ir.offset++
+
+		if hasDocString != 0 {
+			docIdx, err := ir.readUint32()
+			if err != nil {
+				return nil, fmt.Errorf("failed to read docstring index: %w", err)
+			}
+			docString, err = ir.GetString(docIdx)
+			if err != nil {
+				return nil, fmt.Errorf("failed to get docstring: %w", err)
+			}
+		}
+	}
+
 	// Read source map entry count
 	sourceMapCount, err := ir.readUint32()
 	if err != nil {
@@ -705,6 +751,7 @@ func (ir *ImageReader) readMethod(vm *VM) (*CompiledMethod, error) {
 		Bytecode:      bytecode,
 		Blocks:        blocks,
 		Source:        source,
+		docString:     docString,
 		SourceMap:     sourceMap,
 	}
 
