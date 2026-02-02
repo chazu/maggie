@@ -58,6 +58,7 @@ type Class struct {
 	InstVars    []string // Instance variable names
 	NumSlots    int      // Total number of slots needed
 	ClassVars   []string // Class variable names (shared across all instances)
+	DocString   string   // documentation from """ ... """ (empty if none)
 
 	classValueID int // Registry ID for class value encoding (0 = not yet registered)
 }

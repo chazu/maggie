@@ -818,7 +818,15 @@ func (p *Parser) ParseSourceFile() *SourceFile {
 		break
 	}
 
+	var pendingDocString string
 	for !p.curTokenIs(TokenEOF) {
+		// Capture docstrings for the next class/trait definition
+		if p.curTokenIs(TokenDocstring) {
+			pendingDocString = p.curToken.Literal
+			p.nextToken()
+			continue
+		}
+
 		// Look for class or trait definitions
 		if p.curTokenIs(TokenIdentifier) {
 			name := p.curToken.Literal
@@ -829,19 +837,24 @@ func (p *Parser) ParseSourceFile() *SourceFile {
 				// Class definition: Name subclass: Superclass
 				classDef := p.parseClassDefBody(name, startPos)
 				if classDef != nil {
+					classDef.DocString = pendingDocString
 					sf.Classes = append(sf.Classes, classDef)
 				}
+				pendingDocString = ""
 
 			case p.curTokenIs(TokenIdentifier) && p.curToken.Literal == "trait":
 				// Trait definition: Name trait
 				traitDef := p.parseTraitDefBody(name, startPos)
 				if traitDef != nil {
+					traitDef.DocString = pendingDocString
 					sf.Traits = append(sf.Traits, traitDef)
 				}
+				pendingDocString = ""
 
 			default:
 				p.errorf("expected 'subclass:' or 'trait' after class/trait name %s", name)
 				p.nextToken()
+				pendingDocString = ""
 			}
 		} else {
 			// Skip unexpected tokens
@@ -930,6 +943,7 @@ func (p *Parser) parseClassDefBody(className string, startPos Position) *ClassDe
 	}
 
 	// Parse class body elements: instanceVars, include, method, classMethod
+	var pendingDocString string
 	for !p.curTokenIs(TokenEOF) {
 		// Check if we've reached another top-level definition
 		if p.curTokenIs(TokenIdentifier) && (p.peekTokenIs(TokenKeyword) || p.peekTokenIs(TokenIdentifier)) {
@@ -940,12 +954,20 @@ func (p *Parser) parseClassDefBody(className string, startPos Position) *ClassDe
 			}
 		}
 
+		// Capture docstrings for the next method definition
+		if p.curTokenIs(TokenDocstring) {
+			pendingDocString = p.curToken.Literal
+			p.nextToken()
+			continue
+		}
+
 		if p.curTokenIs(TokenKeyword) {
 			keyword := p.curToken.Literal
 			switch keyword {
 			case "instanceVars:", "instanceVariables:":
 				vars := p.parseInstanceVars()
 				classDef.InstanceVariables = append(classDef.InstanceVariables, vars...)
+				pendingDocString = ""
 
 			case "include:":
 				p.nextToken() // consume "include:"
@@ -955,22 +977,28 @@ func (p *Parser) parseClassDefBody(className string, startPos Position) *ClassDe
 				} else {
 					p.errorf("expected trait name after 'include:'")
 				}
+				pendingDocString = ""
 
 			case "method:":
 				method := p.parseMethodInBrackets(false)
 				if method != nil {
+					method.DocString = pendingDocString
 					classDef.Methods = append(classDef.Methods, method)
 				}
+				pendingDocString = ""
 
 			case "classMethod:":
 				method := p.parseMethodInBrackets(true)
 				if method != nil {
+					method.DocString = pendingDocString
 					classDef.ClassMethods = append(classDef.ClassMethods, method)
 				}
+				pendingDocString = ""
 
 			default:
 				// Unknown keyword, skip
 				p.nextToken()
+				pendingDocString = ""
 			}
 		} else {
 			// Skip non-keyword tokens (whitespace handled by lexer)
@@ -993,6 +1021,7 @@ func (p *Parser) parseTraitDefBody(traitName string, startPos Position) *TraitDe
 	}
 
 	// Parse trait body: method definitions
+	var pendingDocString string
 	for !p.curTokenIs(TokenEOF) {
 		// Check if we've reached another top-level definition
 		if p.curTokenIs(TokenIdentifier) && (p.peekTokenIs(TokenKeyword) || p.peekTokenIs(TokenIdentifier)) {
@@ -1001,14 +1030,23 @@ func (p *Parser) parseTraitDefBody(traitName string, startPos Position) *TraitDe
 			}
 		}
 
+		// Capture docstrings for the next method definition
+		if p.curTokenIs(TokenDocstring) {
+			pendingDocString = p.curToken.Literal
+			p.nextToken()
+			continue
+		}
+
 		if p.curTokenIs(TokenKeyword) {
 			keyword := p.curToken.Literal
 			switch keyword {
 			case "method:":
 				method := p.parseMethodInBrackets(false)
 				if method != nil {
+					method.DocString = pendingDocString
 					traitDef.Methods = append(traitDef.Methods, method)
 				}
+				pendingDocString = ""
 
 			case "requires:":
 				// Parse required method selectors
@@ -1017,9 +1055,11 @@ func (p *Parser) parseTraitDefBody(traitName string, startPos Position) *TraitDe
 					traitDef.Requires = append(traitDef.Requires, p.curToken.Literal)
 					p.nextToken()
 				}
+				pendingDocString = ""
 
 			default:
 				p.nextToken()
+				pendingDocString = ""
 			}
 		} else {
 			p.nextToken()

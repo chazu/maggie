@@ -703,6 +703,11 @@ func compileSourceFile(vmInst *vm.VM, source string, sourcePath string, nsOverri
 				class.Namespace = namespace
 			}
 
+			// Preserve docstring on class
+			if classDef.DocString != "" {
+				class.DocString = classDef.DocString
+			}
+
 			vmInst.Classes.Register(class)
 
 			// Register as first-class class value in Globals
@@ -738,6 +743,11 @@ func compileSourceFile(vmInst *vm.VM, source string, sourcePath string, nsOverri
 				method.Source = methodDef.SourceText
 			}
 
+			// Preserve docstring on compiled method
+			if methodDef.DocString != "" {
+				method.SetDocString(methodDef.DocString)
+			}
+
 			method.SetClass(class)
 			selectorID := vmInst.Selectors.Intern(method.Name())
 			class.VTable.AddMethod(selectorID, method)
@@ -754,6 +764,11 @@ func compileSourceFile(vmInst *vm.VM, source string, sourcePath string, nsOverri
 			// Preserve source text on compiled method
 			if methodDef.SourceText != "" {
 				method.Source = methodDef.SourceText
+			}
+
+			// Preserve docstring on compiled method
+			if methodDef.DocString != "" {
+				method.SetDocString(methodDef.DocString)
 			}
 
 			method.SetClass(class)

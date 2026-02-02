@@ -10,9 +10,10 @@ import "sync"
 // Unlike classes, traits have no inheritance hierarchy and no instance variables.
 // Traits are purely about method composition.
 type Trait struct {
-	Name     string                    // Trait name
-	Methods  map[int]*CompiledMethod   // Methods indexed by selector ID
-	Requires []int                     // Required method selector IDs (must be provided by class)
+	Name      string                    // Trait name
+	Methods   map[int]*CompiledMethod   // Methods indexed by selector ID
+	Requires  []int                     // Required method selector IDs (must be provided by class)
+	DocString string                    // documentation from """ ... """ (empty if none)
 }
 
 // NewTrait creates a new empty trait.

@@ -982,3 +982,197 @@ func TestMethodSourceText(t *testing.T) {
 		t.Error("class method SourceText is empty")
 	}
 }
+
+func TestParserDocstringOnClass(t *testing.T) {
+	input := `"""
+Array is an ordered collection.
+"""
+Array subclass: Object
+  method: size [
+    ^0
+  ]
+`
+	p := NewParser(input)
+	sf := p.ParseSourceFile()
+	if len(p.Errors()) > 0 {
+		t.Fatalf("parse errors: %v", p.Errors())
+	}
+
+	if len(sf.Classes) != 1 {
+		t.Fatalf("expected 1 class, got %d", len(sf.Classes))
+	}
+
+	cls := sf.Classes[0]
+	if cls.DocString != "Array is an ordered collection." {
+		t.Errorf("class DocString = %q, want %q", cls.DocString, "Array is an ordered collection.")
+	}
+	if cls.Name != "Array" {
+		t.Errorf("class name = %q, want Array", cls.Name)
+	}
+}
+
+func TestParserDocstringOnMethod(t *testing.T) {
+	input := `MyClass subclass: Object
+
+  """
+  Returns the size of the collection.
+  """
+  method: size [
+    ^0
+  ]
+
+  method: isEmpty [
+    ^self size = 0
+  ]
+`
+	p := NewParser(input)
+	sf := p.ParseSourceFile()
+	if len(p.Errors()) > 0 {
+		t.Fatalf("parse errors: %v", p.Errors())
+	}
+
+	if len(sf.Classes) != 1 {
+		t.Fatalf("expected 1 class, got %d", len(sf.Classes))
+	}
+
+	cls := sf.Classes[0]
+	if len(cls.Methods) != 2 {
+		t.Fatalf("expected 2 methods, got %d", len(cls.Methods))
+	}
+
+	if cls.Methods[0].DocString != "Returns the size of the collection." {
+		t.Errorf("method[0] DocString = %q, want %q", cls.Methods[0].DocString, "Returns the size of the collection.")
+	}
+	if cls.Methods[0].Selector != "size" {
+		t.Errorf("method[0] selector = %q, want size", cls.Methods[0].Selector)
+	}
+
+	// Second method should have no docstring
+	if cls.Methods[1].DocString != "" {
+		t.Errorf("method[1] DocString = %q, want empty", cls.Methods[1].DocString)
+	}
+}
+
+func TestParserDocstringOnClassAndMethods(t *testing.T) {
+	input := `"""
+A simple counter.
+"""
+Counter subclass: Object
+  instanceVars: value
+
+  """
+  Returns the current value.
+  """
+  method: value [
+    ^value
+  ]
+
+  """
+  Increments the counter.
+  """
+  method: increment [
+    value := value + 1
+  ]
+`
+	p := NewParser(input)
+	sf := p.ParseSourceFile()
+	if len(p.Errors()) > 0 {
+		t.Fatalf("parse errors: %v", p.Errors())
+	}
+
+	cls := sf.Classes[0]
+	if cls.DocString != "A simple counter." {
+		t.Errorf("class DocString = %q, want %q", cls.DocString, "A simple counter.")
+	}
+
+	if len(cls.Methods) != 2 {
+		t.Fatalf("expected 2 methods, got %d", len(cls.Methods))
+	}
+	if cls.Methods[0].DocString != "Returns the current value." {
+		t.Errorf("method[0] DocString = %q", cls.Methods[0].DocString)
+	}
+	if cls.Methods[1].DocString != "Increments the counter." {
+		t.Errorf("method[1] DocString = %q", cls.Methods[1].DocString)
+	}
+}
+
+func TestParserDocstringOnClassMethod(t *testing.T) {
+	input := `MyClass subclass: Object
+
+  """
+  Creates a new instance.
+  """
+  classMethod: new [
+    ^super new
+  ]
+`
+	p := NewParser(input)
+	sf := p.ParseSourceFile()
+	if len(p.Errors()) > 0 {
+		t.Fatalf("parse errors: %v", p.Errors())
+	}
+
+	cls := sf.Classes[0]
+	if len(cls.ClassMethods) != 1 {
+		t.Fatalf("expected 1 class method, got %d", len(cls.ClassMethods))
+	}
+	if cls.ClassMethods[0].DocString != "Creates a new instance." {
+		t.Errorf("classMethod DocString = %q", cls.ClassMethods[0].DocString)
+	}
+}
+
+func TestParserDocstringOnTrait(t *testing.T) {
+	input := `"""
+Provides comparison methods.
+"""
+Comparable trait
+
+  """
+  Returns true if receiver is less than other.
+  """
+  method: < other [
+    ^(self compareTo: other) < 0
+  ]
+`
+	p := NewParser(input)
+	sf := p.ParseSourceFile()
+	if len(p.Errors()) > 0 {
+		t.Fatalf("parse errors: %v", p.Errors())
+	}
+
+	if len(sf.Traits) != 1 {
+		t.Fatalf("expected 1 trait, got %d", len(sf.Traits))
+	}
+
+	tr := sf.Traits[0]
+	if tr.DocString != "Provides comparison methods." {
+		t.Errorf("trait DocString = %q", tr.DocString)
+	}
+	if len(tr.Methods) != 1 {
+		t.Fatalf("expected 1 method, got %d", len(tr.Methods))
+	}
+	if tr.Methods[0].DocString != "Returns true if receiver is less than other." {
+		t.Errorf("trait method DocString = %q", tr.Methods[0].DocString)
+	}
+}
+
+func TestParserNoDocstringWhenAbsent(t *testing.T) {
+	input := `MyClass subclass: Object
+  method: foo [
+    ^42
+  ]
+`
+	p := NewParser(input)
+	sf := p.ParseSourceFile()
+	if len(p.Errors()) > 0 {
+		t.Fatalf("parse errors: %v", p.Errors())
+	}
+
+	cls := sf.Classes[0]
+	if cls.DocString != "" {
+		t.Errorf("class DocString = %q, want empty", cls.DocString)
+	}
+	if cls.Methods[0].DocString != "" {
+		t.Errorf("method DocString = %q, want empty", cls.Methods[0].DocString)
+	}
+}

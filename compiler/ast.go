@@ -297,6 +297,7 @@ type MethodDef struct {
 	Statements []Stmt
 	Primitive  int    // primitive number, 0 if not primitive
 	SourceText string // original source text (for fileOut)
+	DocString  string // docstring from """ ... """ (empty if none)
 }
 
 func (n *MethodDef) Span() Span { return n.SpanVal }
@@ -314,6 +315,7 @@ type ClassDef struct {
 	Traits            []string // Names of included traits
 	Methods           []*MethodDef
 	ClassMethods      []*MethodDef
+	DocString         string // docstring from """ ... """ (empty if none)
 }
 
 func (n *ClassDef) Span() Span { return n.SpanVal }
@@ -321,10 +323,11 @@ func (n *ClassDef) node()      {}
 
 // TraitDef represents a trait definition.
 type TraitDef struct {
-	SpanVal  Span
-	Name     string
-	Methods  []*MethodDef
-	Requires []string // Required method selectors
+	SpanVal   Span
+	Name      string
+	Methods   []*MethodDef
+	Requires  []string // Required method selectors
+	DocString string   // docstring from """ ... """ (empty if none)
 }
 
 func (n *TraitDef) Span() Span { return n.SpanVal }

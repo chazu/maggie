@@ -13,6 +13,7 @@ type CompiledMethod struct {
 	name          string // method name (for debugging)
 	IsClassMethod bool   // true if this is a class-side method
 	category      string // method category/protocol (e.g., "accessing", "testing", "private")
+	docString     string // documentation from """ ... """ (empty if none)
 
 	// Method signature
 	Arity    int // number of arguments (not including self)
@@ -110,6 +111,16 @@ func (m *CompiledMethod) Category() string {
 // SetCategory sets the method category/protocol.
 func (m *CompiledMethod) SetCategory(cat string) {
 	m.category = cat
+}
+
+// DocString returns the method's docstring.
+func (m *CompiledMethod) DocString() string {
+	return m.docString
+}
+
+// SetDocString sets the method's docstring.
+func (m *CompiledMethod) SetDocString(doc string) {
+	m.docString = doc
 }
 
 // GetInlineCaches returns the inline cache table, creating it if needed.
@@ -275,6 +286,12 @@ func (b *CompiledMethodBuilder) SetSource(source string) *CompiledMethodBuilder 
 // SetCategory sets the method category/protocol.
 func (b *CompiledMethodBuilder) SetCategory(cat string) *CompiledMethodBuilder {
 	b.method.category = cat
+	return b
+}
+
+// SetDocString sets the method's docstring.
+func (b *CompiledMethodBuilder) SetDocString(doc string) *CompiledMethodBuilder {
+	b.method.docString = doc
 	return b
 }
 

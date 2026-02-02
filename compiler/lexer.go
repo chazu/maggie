@@ -131,6 +131,10 @@ func (l *Lexer) NextToken() Token {
 		l.readChar()
 		return Token{Type: TokenBar, Literal: "|", Pos: pos}
 
+	case l.ch == '"' && l.readPos < len(l.input) && l.input[l.readPos] == '"' &&
+		l.readPos+1 < len(l.input) && l.input[l.readPos+1] == '"':
+		return l.readDocstring(pos)
+
 	case l.ch == '#':
 		return l.readHashToken(pos)
 
@@ -168,7 +172,14 @@ func (l *Lexer) skipWhitespaceAndComments() {
 		}
 
 		// Skip Smalltalk-style comments: "..."
+		// But NOT triple-quote docstrings: """..."""
 		if l.ch == '"' {
+			// Peek ahead to check for triple-quote docstring
+			if l.readPos < len(l.input) && l.input[l.readPos] == '"' &&
+				l.readPos+1 < len(l.input) && l.input[l.readPos+1] == '"' {
+				// This is """, break out and let NextToken handle it
+				break
+			}
 			l.readChar()
 			for l.ch != '"' && l.ch != 0 {
 				l.readChar()
@@ -279,6 +290,67 @@ func (l *Lexer) readQuotedSymbol(pos Position) Token {
 	}
 
 	return Token{Type: TokenSymbol, Literal: sb.String(), Pos: pos}
+}
+
+// readDocstring reads a triple-quoted docstring literal: """..."""
+func (l *Lexer) readDocstring(pos Position) Token {
+	// Consume opening """
+	l.readChar() // first "
+	l.readChar() // second "
+	l.readChar() // third "
+
+	var sb strings.Builder
+	for l.ch != 0 {
+		// Check for closing """
+		if l.ch == '"' && l.readPos < len(l.input) && l.input[l.readPos] == '"' &&
+			l.readPos+1 < len(l.input) && l.input[l.readPos+1] == '"' {
+			// Found closing """
+			l.readChar() // first "
+			l.readChar() // second "
+			l.readChar() // third "
+			return Token{Type: TokenDocstring, Literal: dedentDocstring(sb.String()), Pos: pos}
+		}
+		sb.WriteRune(l.ch)
+		l.readChar()
+	}
+
+	return Token{Type: TokenError, Literal: "unterminated docstring", Pos: pos}
+}
+
+// dedentDocstring strips common leading whitespace from a docstring.
+func dedentDocstring(s string) string {
+	lines := strings.Split(s, "\n")
+
+	// Find minimum indentation across non-empty lines (skip first line which is on same line as """)
+	minIndent := -1
+	for i, line := range lines {
+		if i == 0 {
+			continue
+		}
+		trimmed := strings.TrimLeft(line, " \t")
+		if trimmed == "" {
+			continue
+		}
+		indent := len(line) - len(trimmed)
+		if minIndent == -1 || indent < minIndent {
+			minIndent = indent
+		}
+	}
+
+	if minIndent <= 0 {
+		// Strip leading/trailing newlines
+		return strings.TrimSpace(s)
+	}
+
+	// Strip common indent from all lines except first
+	for i := 1; i < len(lines); i++ {
+		if len(lines[i]) >= minIndent {
+			lines[i] = lines[i][minIndent:]
+		}
+	}
+
+	result := strings.Join(lines, "\n")
+	return strings.TrimSpace(result)
 }
 
 // readString reads a string literal.

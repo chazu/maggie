@@ -125,11 +125,21 @@ func compileAllFiles(files []string, vmInst *vm.VM, verbose bool) (int, error) {
 		for _, traitDef := range pf.sf.Traits {
 			trait := vm.NewTrait(traitDef.Name)
 
+			// Preserve docstring on trait
+			if traitDef.DocString != "" {
+				trait.DocString = traitDef.DocString
+			}
+
 			// Compile trait methods
 			for _, methodDef := range traitDef.Methods {
 				method, err := compiler.CompileMethodDef(methodDef, vmInst.Selectors, vmInst.Symbols)
 				if err != nil {
 					return compiled, fmt.Errorf("error compiling trait %s>>%s in %s: %v", traitDef.Name, methodDef.Selector, pf.path, err)
+				}
+
+				// Preserve docstring on compiled method
+				if methodDef.DocString != "" {
+					method.SetDocString(methodDef.DocString)
 				}
 
 				selectorID := vmInst.Selectors.Intern(method.Name())
@@ -198,11 +208,21 @@ func compileAllFiles(files []string, vmInst *vm.VM, verbose bool) (int, error) {
 				}
 			}
 
+			// Preserve docstring on class
+			if classDef.DocString != "" {
+				class.DocString = classDef.DocString
+			}
+
 			// Compile instance methods (with instance variable context)
 			for _, methodDef := range classDef.Methods {
 				method, err := compiler.CompileMethodDefWithIvars(methodDef, vmInst.Selectors, vmInst.Symbols, classDef.InstanceVariables)
 				if err != nil {
 					return compiled, fmt.Errorf("error compiling %s>>%s in %s: %v", classDef.Name, methodDef.Selector, pf.path, err)
+				}
+
+				// Preserve docstring on compiled method
+				if methodDef.DocString != "" {
+					method.SetDocString(methodDef.DocString)
 				}
 
 				method.SetClass(class)
@@ -215,6 +235,11 @@ func compileAllFiles(files []string, vmInst *vm.VM, verbose bool) (int, error) {
 				method, err := compiler.CompileMethodDef(methodDef, vmInst.Selectors, vmInst.Symbols)
 				if err != nil {
 					return compiled, fmt.Errorf("error compiling %s class>>%s in %s: %v", classDef.Name, methodDef.Selector, pf.path, err)
+				}
+
+				// Preserve docstring on compiled method
+				if methodDef.DocString != "" {
+					method.SetDocString(methodDef.DocString)
 				}
 
 				method.SetClass(class)

@@ -527,3 +527,110 @@ func TestTokenize(t *testing.T) {
 		t.Errorf("token[3] should be EOF")
 	}
 }
+
+func TestLexerDocstrings(t *testing.T) {
+	tests := []struct {
+		name    string
+		input   string
+		wantTyp TokenType
+		wantLit string
+	}{
+		{
+			name:    "basic docstring",
+			input:   `"""Hello world"""`,
+			wantTyp: TokenDocstring,
+			wantLit: "Hello world",
+		},
+		{
+			name:    "empty docstring",
+			input:   `""""""`,
+			wantTyp: TokenDocstring,
+			wantLit: "",
+		},
+		{
+			name: "multiline docstring",
+			input: `"""
+This is a docstring.
+It has multiple lines.
+"""`,
+			wantTyp: TokenDocstring,
+			wantLit: "This is a docstring.\nIt has multiple lines.",
+		},
+		{
+			name: "docstring with embedded single quote",
+			input: `"""Contains a " quote"""`,
+			wantTyp: TokenDocstring,
+			wantLit: `Contains a " quote`,
+		},
+		{
+			name: "docstring with embedded double quote",
+			input: `"""Contains "" two quotes"""`,
+			wantTyp: TokenDocstring,
+			wantLit: `Contains "" two quotes`,
+		},
+		{
+			name: "docstring with fenced blocks",
+			input: "\"\"\"Docs here.\n\n```test\n3 + 4 >>> 7\n```\n\"\"\"",
+			wantTyp: TokenDocstring,
+			wantLit: "Docs here.\n\n```test\n3 + 4 >>> 7\n```",
+		},
+		{
+			name:    "unterminated docstring",
+			input:   `"""no closing`,
+			wantTyp: TokenError,
+			wantLit: "unterminated docstring",
+		},
+		{
+			name: "docstring strips common indent",
+			input: "  \"\"\"\n  Hello\n  World\n  \"\"\"",
+			wantTyp: TokenDocstring,
+			wantLit: "Hello\nWorld",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			l := NewLexer(tc.input)
+			tok := l.NextToken()
+			if tok.Type != tc.wantTyp {
+				t.Errorf("type = %v, want %v", tok.Type, tc.wantTyp)
+			}
+			if tok.Literal != tc.wantLit {
+				t.Errorf("literal = %q, want %q", tok.Literal, tc.wantLit)
+			}
+		})
+	}
+}
+
+func TestLexerDocstringDoesNotBreakComments(t *testing.T) {
+	// Regular comments should still work
+	input := `"this is a comment" foo`
+	l := NewLexer(input)
+	tok := l.NextToken()
+	if tok.Type != TokenIdentifier || tok.Literal != "foo" {
+		t.Errorf("expected identifier 'foo' after comment, got %s(%q)", tok.Type, tok.Literal)
+	}
+
+	// Empty comment
+	input2 := `"" foo`
+	l2 := NewLexer(input2)
+	tok2 := l2.NextToken()
+	if tok2.Type != TokenIdentifier || tok2.Literal != "foo" {
+		t.Errorf("expected identifier 'foo' after empty comment, got %s(%q)", tok2.Type, tok2.Literal)
+	}
+}
+
+func TestLexerDocstringFollowedByIdentifier(t *testing.T) {
+	input := `"""A docstring""" MyClass`
+	l := NewLexer(input)
+
+	tok1 := l.NextToken()
+	if tok1.Type != TokenDocstring || tok1.Literal != "A docstring" {
+		t.Errorf("token[0] = %s(%q), want DOCSTRING(\"A docstring\")", tok1.Type, tok1.Literal)
+	}
+
+	tok2 := l.NextToken()
+	if tok2.Type != TokenIdentifier || tok2.Literal != "MyClass" {
+		t.Errorf("token[1] = %s(%q), want IDENTIFIER(\"MyClass\")", tok2.Type, tok2.Literal)
+	}
+}

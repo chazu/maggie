@@ -18,6 +18,7 @@ const (
 	TokenInteger    // 42, 16rFF, 2r1010
 	TokenFloat      // 3.14, 1.5e10
 	TokenString     // 'hello'
+	TokenDocstring  // """docstring"""
 	TokenSymbol     // #foo, #'hello world', #+
 	TokenCharacter  // $a, $\n
 	TokenIdentifier // foo, Bar
@@ -57,6 +58,7 @@ var tokenNames = map[TokenType]string{
 	TokenInteger:       "INTEGER",
 	TokenFloat:         "FLOAT",
 	TokenString:        "STRING",
+	TokenDocstring:     "DOCSTRING",
 	TokenSymbol:        "SYMBOL",
 	TokenCharacter:     "CHARACTER",
 	TokenIdentifier:    "IDENTIFIER",
