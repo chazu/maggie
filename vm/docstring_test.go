@@ -143,6 +143,97 @@ func TestFormatMethodHelpNoDocString(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
+// Primitive method DocStringable tests
+// ---------------------------------------------------------------------------
+
+func TestPrimitiveMethodDocString(t *testing.T) {
+	m := NewPrimitiveMethod("test", func(v interface{}, recv Value, args []Value) Value {
+		return Nil
+	})
+	ds := m.(DocStringable)
+	if ds.DocString() != "" {
+		t.Errorf("initial DocString() = %q, want empty", ds.DocString())
+	}
+	ds.SetDocString("A test primitive.")
+	if ds.DocString() != "A test primitive." {
+		t.Errorf("DocString() = %q, want %q", ds.DocString(), "A test primitive.")
+	}
+}
+
+func TestMethod0DocString(t *testing.T) {
+	m := NewMethod0("size", func(v interface{}, recv Value) Value { return Nil })
+	ds := m.(DocStringable)
+	ds.SetDocString("Returns the size.")
+	if ds.DocString() != "Returns the size." {
+		t.Errorf("DocString() = %q, want %q", ds.DocString(), "Returns the size.")
+	}
+}
+
+func TestMethod1DocString(t *testing.T) {
+	m := NewMethod1("at:", func(v interface{}, recv, arg Value) Value { return Nil })
+	ds := m.(DocStringable)
+	ds.SetDocString("Returns element at index.")
+	if ds.DocString() != "Returns element at index." {
+		t.Errorf("DocString() = %q, want %q", ds.DocString(), "Returns element at index.")
+	}
+}
+
+func TestMethod2DocString(t *testing.T) {
+	m := NewMethod2("at:put:", func(v interface{}, recv, a, b Value) Value { return Nil })
+	ds := m.(DocStringable)
+	ds.SetDocString("Stores value at key.")
+	if ds.DocString() != "Stores value at key." {
+		t.Errorf("DocString() = %q, want %q", ds.DocString(), "Stores value at key.")
+	}
+}
+
+func TestMethodDocStringHelper(t *testing.T) {
+	// Test with a primitive method
+	prim := NewMethod0("foo", func(v interface{}, recv Value) Value { return Nil })
+	prim.(DocStringable).SetDocString("Foo doc.")
+	if got := MethodDocString(prim); got != "Foo doc." {
+		t.Errorf("MethodDocString(primitive) = %q, want %q", got, "Foo doc.")
+	}
+
+	// Test with a compiled method
+	b := NewCompiledMethodBuilder("bar", 0)
+	b.SetDocString("Bar doc.")
+	b.Bytecode().Emit(OpReturnTop)
+	cm := b.Build()
+	if got := MethodDocString(cm); got != "Bar doc." {
+		t.Errorf("MethodDocString(compiled) = %q, want %q", got, "Bar doc.")
+	}
+}
+
+func TestMethodByName(t *testing.T) {
+	selectors := NewSelectorTable()
+	cls := NewClass("TestClass", nil)
+
+	// Add a primitive method
+	prim := NewMethod0("primMethod", func(v interface{}, recv Value) Value { return Nil })
+	primSelID := selectors.Intern("primMethod")
+	cls.VTable.AddMethod(primSelID, prim)
+
+	// Add a compiled method
+	bld := NewCompiledMethodBuilder("compMethod", 0)
+	bld.Bytecode().Emit(OpReturnTop)
+	cm := bld.Build()
+	compSelID := selectors.Intern("compMethod")
+	cls.VTable.AddMethod(compSelID, cm)
+
+	// MethodByName should find both
+	if m := cls.MethodByName("primMethod"); m == nil {
+		t.Error("MethodByName('primMethod') returned nil")
+	}
+	if m := cls.MethodByName("compMethod"); m == nil {
+		t.Error("MethodByName('compMethod') returned nil")
+	}
+	if m := cls.MethodByName("nonexistent"); m != nil {
+		t.Error("MethodByName('nonexistent') should return nil")
+	}
+}
+
+// ---------------------------------------------------------------------------
 // FileOut docstring tests
 // ---------------------------------------------------------------------------
 
