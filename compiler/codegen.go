@@ -280,8 +280,12 @@ func (c *Compiler) compileInt(value int64) {
 	if value >= -128 && value <= 127 {
 		c.builder.EmitInt8(vm.OpPushInt8, int8(value))
 	} else {
-		// Use literal table
-		idx := c.addLiteral(vm.FromSmallInt(value))
+		// Use literal table; fall back to float if integer is too large for SmallInt encoding
+		v, ok := vm.TryFromSmallInt(value)
+		if !ok {
+			v = vm.FromFloat64(float64(value))
+		}
+		idx := c.addLiteral(v)
 		c.builder.EmitUint16(vm.OpPushLiteral, uint16(idx))
 	}
 }

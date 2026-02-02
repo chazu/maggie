@@ -490,7 +490,11 @@ func (p *Parser) parsePrimary() Expr {
 	case TokenLParen:
 		return p.parseParenExpr()
 	case TokenLBracket:
-		return p.parseBlock()
+		b := p.parseBlock()
+		if b == nil {
+			return nil
+		}
+		return b
 	case TokenLBrace:
 		return p.parseDynamicArray()
 	case TokenIdentifier:
@@ -1143,6 +1147,34 @@ func (p *Parser) parseMethodInBrackets(isClassMethod bool) *MethodDef {
 		return nil
 	}
 	p.nextToken() // consume [
+
+	// Check for <primitive> annotation (docstring-only stub)
+	if p.curTokenIs(TokenBinarySelector) && p.curToken.Literal == "<" &&
+		p.peekTokenIs(TokenIdentifier) && p.peekToken.Literal == "primitive" {
+		p.nextToken() // consume <
+		p.nextToken() // consume primitive
+		if !p.curTokenIs(TokenBinarySelector) || p.curToken.Literal != ">" {
+			p.errorf("expected '>' after 'primitive'")
+			return nil
+		}
+		p.nextToken() // consume >
+		if !p.expect(TokenRBracket) {
+			return nil
+		}
+		// Capture source text
+		sourceEnd := p.curToken.Pos.Offset
+		var sourceText string
+		if sourceEnd > sourceStart && sourceEnd <= len(p.input) {
+			sourceText = p.input[sourceStart:sourceEnd]
+		}
+		return &MethodDef{
+			SpanVal:         MakeSpan(startPos, p.curToken.Pos),
+			Selector:        selector,
+			Parameters:      params,
+			IsPrimitiveStub: true,
+			SourceText:      sourceText,
+		}
+	}
 
 	// Parse temporaries (| temp1 temp2 |)
 	var temps []string

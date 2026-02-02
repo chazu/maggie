@@ -61,6 +61,7 @@ type VM struct {
 	MessageNotUnderstoodClass  *Class
 	ZeroDivideClass            *Class
 	SubscriptOutOfBoundsClass  *Class
+	StackOverflowClass         *Class
 	WarningClass               *Class
 	HaltClass                  *Class
 	NotificationClass          *Class

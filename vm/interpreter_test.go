@@ -1,6 +1,7 @@
 package vm
 
 import (
+	"strings"
 	"testing"
 )
 
@@ -1223,5 +1224,401 @@ func TestCellOpcodes(t *testing.T) {
 	result := interp.Execute(method, Nil, nil)
 	if !result.IsSmallInt() || result.SmallInt() != 100 {
 		t.Errorf("cell test result = %v, want 100", result)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Stack overflow protection tests
+// ---------------------------------------------------------------------------
+
+// TestStackOverflowRaisesException verifies that deep recursion triggers a
+// StackOverflow exception (a SignaledException panic) instead of a Go panic.
+func TestStackOverflowRaisesException(t *testing.T) {
+	vm := NewVM()
+
+	// Set a low frame depth limit so the test completes quickly
+	vm.interpreter.MaxFrameDepth = 50
+
+	// Create a class with a recursive method: recurse [ ^self recurse ]
+	class := NewClass("Recurser", nil)
+	vm.Classes.Register(class)
+
+	recurseSelID := vm.Selectors.Intern("recurse")
+
+	b := NewCompiledMethodBuilder("recurse", 0)
+	bc := b.Bytecode()
+	bc.Emit(OpPushSelf)
+	bc.EmitSend(OpSend, uint16(recurseSelID), 0)
+	bc.Emit(OpReturnTop)
+	m := b.Build()
+	m.SetClass(class)
+
+	class.VTable.AddMethod(recurseSelID, m)
+
+	obj := class.NewInstance()
+
+	// Executing should trigger a StackOverflow exception
+	var caught *SignaledException
+	func() {
+		defer func() {
+			if r := recover(); r != nil {
+				if sigEx, ok := r.(SignaledException); ok {
+					caught = &sigEx
+				} else {
+					t.Errorf("expected SignaledException, got %T: %v", r, r)
+				}
+			}
+		}()
+		vm.interpreter.Execute(m, obj.ToValue(), nil)
+	}()
+
+	if caught == nil {
+		t.Fatal("expected StackOverflow exception, but no panic occurred")
+	}
+
+	if caught.Object == nil {
+		t.Fatal("SignaledException.Object is nil")
+	}
+
+	if caught.Object.ExceptionClass != vm.StackOverflowClass {
+		t.Errorf("exception class = %v, want StackOverflow", caught.Object.ExceptionClass.Name)
+	}
+
+	if !IsStringValue(caught.Object.MessageText) {
+		t.Fatal("exception messageText should be a string")
+	}
+
+	msgText := GetStringContent(caught.Object.MessageText)
+	if !strings.Contains(msgText, "Stack overflow") {
+		t.Errorf("exception message = %q, want it to contain 'Stack overflow'", msgText)
+	}
+}
+
+// TestStackOverflowCatchableWithOnDo verifies that a StackOverflow exception
+// can be caught using on:do: (the evaluateBlockWithHandler mechanism).
+func TestStackOverflowCatchableWithOnDo(t *testing.T) {
+	vm := NewVM()
+
+	// Set a low frame depth limit
+	vm.interpreter.MaxFrameDepth = 50
+
+	// Create a class with a recursive method
+	class := NewClass("Recurser", nil)
+	vm.Classes.Register(class)
+
+	recurseSelID := vm.Selectors.Intern("recurse")
+
+	b := NewCompiledMethodBuilder("recurse", 0)
+	bc := b.Bytecode()
+	bc.Emit(OpPushSelf)
+	bc.EmitSend(OpSend, uint16(recurseSelID), 0)
+	bc.Emit(OpReturnTop)
+	m := b.Build()
+	m.SetClass(class)
+	class.VTable.AddMethod(recurseSelID, m)
+
+	obj := class.NewInstance()
+
+	// Create a block that calls the recursive method:
+	//   [obj recurse]
+	protectedBlock := &BlockMethod{
+		Arity:       0,
+		NumTemps:    0,
+		NumCaptures: 1,
+		Bytecode: func() []byte {
+			bb := NewBytecodeBuilder()
+			bb.EmitByte(OpPushCaptured, 0) // push captured obj
+			bb.EmitSend(OpSend, uint16(recurseSelID), 0)
+			bb.Emit(OpBlockReturn)
+			return bb.Bytes()
+		}(),
+	}
+
+	// Create a handler block that receives the exception and returns a marker value:
+	//   [:ex | 42]
+	handlerBlock := &BlockMethod{
+		Arity:    1, // receives the exception
+		NumTemps: 1,
+		Bytecode: func() []byte {
+			bb := NewBytecodeBuilder()
+			bb.EmitInt8(OpPushInt8, 42)
+			bb.Emit(OpBlockReturn)
+			return bb.Bytes()
+		}(),
+	}
+
+	// Register blocks in the block registry manually
+	protectedBV := &BlockValue{
+		Block:      protectedBlock,
+		Captures:   []Value{obj.ToValue()},
+		HomeFrame:  -1,
+		HomeSelf:   Nil,
+		HomeMethod: nil,
+	}
+	handlerBV := &BlockValue{
+		Block:      handlerBlock,
+		Captures:   nil,
+		HomeFrame:  -1,
+		HomeSelf:   Nil,
+		HomeMethod: nil,
+	}
+
+	protectedBlockVal := func() Value {
+		id := int(nextBlockID.Add(1) - 1)
+		blockRegistryMu.Lock()
+		blockRegistry[id] = protectedBV
+		blockRegistryMu.Unlock()
+		return FromBlockID(uint32(id))
+	}()
+
+	handlerBlockVal := func() Value {
+		id := int(nextBlockID.Add(1) - 1)
+		blockRegistryMu.Lock()
+		blockRegistry[id] = handlerBV
+		blockRegistryMu.Unlock()
+		return FromBlockID(uint32(id))
+	}()
+
+	// Use evaluateBlockWithHandler (the mechanism behind on:do:) to catch the exception.
+	// Catch StackOverflow (which is a subclass of Error).
+	result := vm.evaluateBlockWithHandler(protectedBlockVal, vm.StackOverflowClass, handlerBlockVal)
+
+	if !result.IsSmallInt() || result.SmallInt() != 42 {
+		t.Errorf("result = %v, want 42 (handler should have caught StackOverflow)", result)
+	}
+}
+
+// TestStackOverflowCatchableWithErrorOnDo verifies that StackOverflow can be
+// caught by a handler for Error (its superclass).
+func TestStackOverflowCatchableWithErrorOnDo(t *testing.T) {
+	vm := NewVM()
+
+	vm.interpreter.MaxFrameDepth = 50
+
+	class := NewClass("Recurser", nil)
+	vm.Classes.Register(class)
+
+	recurseSelID := vm.Selectors.Intern("recurse")
+
+	b := NewCompiledMethodBuilder("recurse", 0)
+	bc := b.Bytecode()
+	bc.Emit(OpPushSelf)
+	bc.EmitSend(OpSend, uint16(recurseSelID), 0)
+	bc.Emit(OpReturnTop)
+	m := b.Build()
+	m.SetClass(class)
+	class.VTable.AddMethod(recurseSelID, m)
+
+	obj := class.NewInstance()
+
+	protectedBlock := &BlockMethod{
+		Arity:       0,
+		NumTemps:    0,
+		NumCaptures: 1,
+		Bytecode: func() []byte {
+			bb := NewBytecodeBuilder()
+			bb.EmitByte(OpPushCaptured, 0) // push captured obj
+			bb.EmitSend(OpSend, uint16(recurseSelID), 0)
+			bb.Emit(OpBlockReturn)
+			return bb.Bytes()
+		}(),
+	}
+
+	handlerBlock := &BlockMethod{
+		Arity:       1,
+		NumTemps:    1,
+		NumCaptures: 0,
+		Bytecode: func() []byte {
+			bb := NewBytecodeBuilder()
+			bb.EmitInt8(OpPushInt8, 99)
+			bb.Emit(OpBlockReturn)
+			return bb.Bytes()
+		}(),
+	}
+
+	protectedBV := &BlockValue{
+		Block:     protectedBlock,
+		Captures:  []Value{obj.ToValue()},
+		HomeFrame: -1,
+		HomeSelf:  Nil,
+	}
+	handlerBV := &BlockValue{
+		Block:     handlerBlock,
+		Captures:  nil,
+		HomeFrame: -1,
+		HomeSelf:  Nil,
+	}
+
+	protectedBlockVal := func() Value {
+		id := int(nextBlockID.Add(1) - 1)
+		blockRegistryMu.Lock()
+		blockRegistry[id] = protectedBV
+		blockRegistryMu.Unlock()
+		return FromBlockID(uint32(id))
+	}()
+	handlerBlockVal := func() Value {
+		id := int(nextBlockID.Add(1) - 1)
+		blockRegistryMu.Lock()
+		blockRegistry[id] = handlerBV
+		blockRegistryMu.Unlock()
+		return FromBlockID(uint32(id))
+	}()
+
+	// Catch with Error (superclass of StackOverflow) -- should also work
+	result := vm.evaluateBlockWithHandler(protectedBlockVal, vm.ErrorClass, handlerBlockVal)
+
+	if !result.IsSmallInt() || result.SmallInt() != 99 {
+		t.Errorf("result = %v, want 99 (Error handler should catch StackOverflow)", result)
+	}
+}
+
+// TestStackOverflowNormalRecursionWorks verifies that recursion within the
+// frame limit works correctly (no false positives).
+func TestStackOverflowNormalRecursionWorks(t *testing.T) {
+	vm := NewVM()
+
+	// Set a generous limit
+	vm.interpreter.MaxFrameDepth = 200
+
+	// Create a class with a countdown method:
+	//   countdown: n [ n = 0 ifTrue: [^0]. ^self countdown: n - 1 ]
+	class := NewClass("Counter", nil)
+	vm.Classes.Register(class)
+
+	countdownSelID := vm.Selectors.Intern("countdown:")
+
+	b := NewCompiledMethodBuilder("countdown:", 1)
+	b.SetNumTemps(1)
+	bc := b.Bytecode()
+
+	// Push n (temp 0), push 0, compare
+	endLabel := bc.NewLabel()
+	bc.EmitByte(OpPushTemp, 0)
+	bc.EmitInt8(OpPushInt8, 0)
+	bc.Emit(OpSendEQ)
+	bc.EmitJump(OpJumpFalse, endLabel)
+
+	// n = 0: return 0
+	bc.EmitInt8(OpPushInt8, 0)
+	bc.Emit(OpReturnTop)
+
+	// else: return self countdown: n - 1
+	bc.Mark(endLabel)
+	bc.Emit(OpPushSelf)
+	bc.EmitByte(OpPushTemp, 0) // n
+	bc.EmitInt8(OpPushInt8, 1)
+	bc.Emit(OpSendMinus) // n - 1
+	bc.EmitSend(OpSend, uint16(countdownSelID), 1)
+	bc.Emit(OpReturnTop)
+
+	m := b.Build()
+	m.SetClass(class)
+	class.VTable.AddMethod(countdownSelID, m)
+
+	obj := class.NewInstance()
+
+	// Recurse 100 levels deep (well within the 200 limit)
+	result := vm.interpreter.Execute(m, obj.ToValue(), []Value{FromSmallInt(100)})
+	if !result.IsSmallInt() || result.SmallInt() != 0 {
+		t.Errorf("result = %v, want 0", result)
+	}
+}
+
+// TestStackOverflowConfigurable verifies that MaxFrameDepth is respected.
+func TestStackOverflowConfigurable(t *testing.T) {
+	vm := NewVM()
+
+	// Create a class with a recursive method
+	class := NewClass("Recurser", nil)
+	vm.Classes.Register(class)
+	recurseSelID := vm.Selectors.Intern("recurse")
+
+	b := NewCompiledMethodBuilder("recurse", 0)
+	bc := b.Bytecode()
+	bc.Emit(OpPushSelf)
+	bc.EmitSend(OpSend, uint16(recurseSelID), 0)
+	bc.Emit(OpReturnTop)
+	m := b.Build()
+	m.SetClass(class)
+	class.VTable.AddMethod(recurseSelID, m)
+	obj := class.NewInstance()
+
+	// With limit 20, should overflow
+	vm.interpreter.MaxFrameDepth = 20
+	var overflowed20 bool
+	func() {
+		defer func() {
+			if r := recover(); r != nil {
+				if sigEx, ok := r.(SignaledException); ok {
+					if sigEx.Object.ExceptionClass == vm.StackOverflowClass {
+						overflowed20 = true
+					}
+				}
+			}
+		}()
+		vm.interpreter.Execute(m, obj.ToValue(), nil)
+	}()
+
+	if !overflowed20 {
+		t.Error("expected overflow with MaxFrameDepth=20")
+	}
+
+	// With limit 10, should also overflow (at fewer frames)
+	vm.interpreter.MaxFrameDepth = 10
+	var overflowed10 bool
+	func() {
+		defer func() {
+			if r := recover(); r != nil {
+				if sigEx, ok := r.(SignaledException); ok {
+					if sigEx.Object.ExceptionClass == vm.StackOverflowClass {
+						overflowed10 = true
+					}
+				}
+			}
+		}()
+		vm.interpreter.Execute(m, obj.ToValue(), nil)
+	}()
+
+	if !overflowed10 {
+		t.Error("expected overflow with MaxFrameDepth=10")
+	}
+}
+
+// TestStackOverflowStandaloneInterpreter verifies that the standalone
+// interpreter (without a VM) also handles overflow gracefully with a
+// descriptive string panic instead of an index-out-of-range crash.
+func TestStackOverflowStandaloneInterpreter(t *testing.T) {
+	interp := NewInterpreter()
+	interp.MaxFrameDepth = 30
+
+	// Create a simple method
+	b := NewCompiledMethodBuilder("test", 0)
+	b.Bytecode().Emit(OpPushNil)
+	b.Bytecode().Emit(OpReturnTop)
+	m := b.Build()
+
+	// Manually push frames past the limit
+	var caught bool
+	var panicMsg string
+	func() {
+		defer func() {
+			if r := recover(); r != nil {
+				caught = true
+				if msg, ok := r.(string); ok {
+					panicMsg = msg
+				}
+			}
+		}()
+		for i := 0; i < 50; i++ {
+			interp.pushFrame(m, Nil, nil)
+		}
+	}()
+
+	if !caught {
+		t.Fatal("expected overflow panic from standalone interpreter")
+	}
+
+	if !strings.Contains(panicMsg, "Stack overflow") {
+		t.Errorf("panic message = %q, want it to contain 'Stack overflow'", panicMsg)
 	}
 }

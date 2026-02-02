@@ -173,6 +173,9 @@ func (vm *VM) bootstrapExceptionClasses() {
 	// SubscriptOutOfBounds - array index out of bounds
 	vm.SubscriptOutOfBoundsClass = vm.createClass("SubscriptOutOfBounds", vm.ErrorClass)
 
+	// StackOverflow - call stack depth exceeded
+	vm.StackOverflowClass = vm.createClass("StackOverflow", vm.ErrorClass)
+
 	// Warning is for non-fatal conditions
 	vm.WarningClass = vm.createClass("Warning", vm.ExceptionClass)
 
@@ -188,6 +191,7 @@ func (vm *VM) bootstrapExceptionClasses() {
 	vm.Globals["MessageNotUnderstood"] = vm.classValue(vm.MessageNotUnderstoodClass)
 	vm.Globals["ZeroDivide"] = vm.classValue(vm.ZeroDivideClass)
 	vm.Globals["SubscriptOutOfBounds"] = vm.classValue(vm.SubscriptOutOfBoundsClass)
+	vm.Globals["StackOverflow"] = vm.classValue(vm.StackOverflowClass)
 	vm.Globals["Warning"] = vm.classValue(vm.WarningClass)
 	vm.Globals["Halt"] = vm.classValue(vm.HaltClass)
 	vm.Globals["Notification"] = vm.classValue(vm.NotificationClass)
@@ -473,7 +477,12 @@ func (vm *VM) evaluateBlockWithHandler(blockVal Value, exceptionClass *Class, ha
 				if sigEx, ok := r.(SignaledException); ok {
 					// Exception was signaled - check if our handler handles it
 					if vm.interpreter.isKindOf(sigEx.Object.ExceptionClass, exceptionClass) {
-						// Our handler handles this exception
+						// Our handler handles this exception.
+						// Unwind the frame stack back to where the handler was
+						// installed so the handler block can execute cleanly.
+						for vm.interpreter.fp > handler.FrameIndex {
+							vm.interpreter.popFrame()
+						}
 						// Evaluate the handler block
 						result = vm.interpreter.ExecuteBlock(
 							hbv.Block,

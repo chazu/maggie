@@ -1,0 +1,106 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.24"
+
+      - name: Download dependencies
+        run: go mod download
+
+      - name: Run tests with race detector and coverage
+        run: go test -race -coverprofile=coverage.out ./...
+
+      - name: Display coverage summary
+        run: go tool cover -func=coverage.out
+
+      - name: Check coverage threshold
+        run: |
+          TOTAL=$(go tool cover -func=coverage.out | grep '^total:' | awk '{print $NF}' | tr -d '%')
+          echo "Total coverage: ${TOTAL}%"
+          if [ -z "$TOTAL" ]; then
+            echo "ERROR: Could not parse coverage percentage"
+            exit 1
+          fi
+          THRESHOLD=40
+          if echo "$TOTAL $THRESHOLD" | awk '{exit !($1 < $2)}'; then
+            echo "FAIL: Coverage ${TOTAL}% is below the ${THRESHOLD}% threshold"
+            exit 1
+          fi
+          echo "OK: Coverage ${TOTAL}% meets the ${THRESHOLD}% threshold"
+
+  vet:
+    name: Vet
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.24"
+
+      - name: Run go vet
+        run: go vet ./...
+
+  staticcheck:
+    name: Staticcheck
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.24"
+
+      - name: Run staticcheck
+        uses: dominikh/staticcheck-action@v1
+        with:
+          version: "latest"
+
+  fuzz:
+    name: Fuzz
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.24"
+
+      - name: Run fuzz tests on compiler package
+        run: |
+          # Find all fuzz targets in the compiler package
+          FUZZ_TARGETS=$(grep -r '^func Fuzz' ./compiler/*_test.go 2>/dev/null | sed 's/.*func \(Fuzz[a-zA-Z0-9_]*\).*/\1/' || true)
+          if [ -z "$FUZZ_TARGETS" ]; then
+            echo "No fuzz targets found in ./compiler/ -- skipping"
+            exit 0
+          fi
+          echo "Found fuzz targets: $FUZZ_TARGETS"
+          for TARGET in $FUZZ_TARGETS; do
+            echo "--- Fuzzing $TARGET for 5 minutes ---"
+            go test -fuzz="^${TARGET}$" -fuzztime=5m ./compiler/
+          done

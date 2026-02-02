@@ -60,6 +60,7 @@ func TestExceptionClassesRegistered(t *testing.T) {
 		{"MessageNotUnderstood", vm.MessageNotUnderstoodClass},
 		{"ZeroDivide", vm.ZeroDivideClass},
 		{"SubscriptOutOfBounds", vm.SubscriptOutOfBoundsClass},
+		{"StackOverflow", vm.StackOverflowClass},
 		{"Warning", vm.WarningClass},
 		{"Halt", vm.HaltClass},
 		{"Notification", vm.NotificationClass},

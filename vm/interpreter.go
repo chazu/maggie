@@ -60,6 +60,12 @@ func (f *CallFrame) Self() Value {
 // Interpreter: Bytecode execution engine
 // ---------------------------------------------------------------------------
 
+// Default limits for the interpreter stack and frame depth.
+const (
+	DefaultMaxStackDepth = 65536 // Maximum operand stack depth
+	DefaultMaxFrameDepth = 4096  // Maximum call frame depth
+)
+
 // Interpreter executes Maggie bytecode.
 type Interpreter struct {
 	// Global state (would be part of VM in full implementation)
@@ -76,6 +82,10 @@ type Interpreter struct {
 	sp     int          // stack pointer (points to next free slot)
 	frames []*CallFrame // call stack
 	fp     int          // frame pointer (current frame index)
+
+	// Configurable limits (0 means use defaults)
+	MaxStackDepth int // Maximum operand stack depth before overflow
+	MaxFrameDepth int // Maximum call frame depth before overflow
 
 	// Profiling (for JIT hot code detection)
 	Profiler *Profiler
@@ -108,14 +118,16 @@ type Interpreter struct {
 // NewInterpreter creates a new interpreter.
 func NewInterpreter() *Interpreter {
 	interp := &Interpreter{
-		Selectors: NewSelectorTable(),
-		Classes:   NewClassTable(),
-		Globals:   make(map[string]Value),
-		stack:     make([]Value, 1024), // Fixed-size stack
-		sp:        0,
-		frames:    make([]*CallFrame, 256), // Fixed-size frame stack
-		fp:        -1,
-		Profiler:  NewProfiler(),
+		Selectors:     NewSelectorTable(),
+		Classes:       NewClassTable(),
+		Globals:       make(map[string]Value),
+		stack:         make([]Value, 1024), // Fixed-size stack
+		sp:            0,
+		frames:        make([]*CallFrame, 256), // Fixed-size frame stack
+		fp:            -1,
+		MaxStackDepth: DefaultMaxStackDepth,
+		MaxFrameDepth: DefaultMaxFrameDepth,
+		Profiler:      NewProfiler(),
 	}
 
 	interp.internWellKnownSelectors()
@@ -236,7 +248,48 @@ func (i *Interpreter) setTemp(index int, v Value) {
 // Frame management
 // ---------------------------------------------------------------------------
 
+// checkFrameOverflow checks whether pushing a new frame would exceed the
+// configured MaxFrameDepth. If so, it signals a StackOverflow exception
+// (catchable via on:do:) or panics with a SignaledException if there is
+// no handler installed and no VM to create the exception class from.
+// Returns true if execution should NOT proceed (overflow detected).
+func (i *Interpreter) checkFrameOverflow() {
+	maxFrames := i.MaxFrameDepth
+	if maxFrames <= 0 {
+		maxFrames = DefaultMaxFrameDepth
+	}
+	// fp is -1-based, so fp+1 is the next frame index (0-based count).
+	// We check >= because we are about to push one more frame.
+	if i.fp+1 < maxFrames {
+		return // no overflow
+	}
+
+	// Build a useful error message
+	msg := fmt.Sprintf("Stack overflow: frame depth exceeded limit of %d", maxFrames)
+
+	if vm, ok := i.vm.(*VM); ok && vm != nil && vm.StackOverflowClass != nil {
+		// Signal a Maggie-level StackOverflow exception (catchable with on:do:)
+		exObj := &ExceptionObject{
+			ExceptionClass: vm.StackOverflowClass,
+			MessageText:    NewStringValue(msg),
+			Resumable:      false,
+		}
+		exVal := RegisterException(exObj)
+		panic(SignaledException{
+			Exception: exVal,
+			Object:    exObj,
+		})
+	}
+
+	// No VM or no StackOverflow class available (e.g. standalone interpreter
+	// in tests): panic with a descriptive string so it doesn't become an
+	// opaque Go index-out-of-range.
+	panic(msg)
+}
+
 func (i *Interpreter) pushFrame(method *CompiledMethod, receiver Value, args []Value) {
+	i.checkFrameOverflow()
+
 	i.fp++
 	if i.fp >= len(i.frames) {
 		// Grow the frame stack dynamically instead of panicking
@@ -270,6 +323,8 @@ func (i *Interpreter) pushFrame(method *CompiledMethod, receiver Value, args []V
 }
 
 func (i *Interpreter) pushBlockFrame(block *BlockMethod, captures []Value, args []Value, homeFrame int, homeBP int, homeSelf Value, homeMethod *CompiledMethod) {
+	i.checkFrameOverflow()
+
 	i.fp++
 	if i.fp >= len(i.frames) {
 		// Grow the frame stack dynamically instead of panicking
