@@ -16,6 +16,7 @@ type Parser struct {
 	curToken  Token
 	peekToken Token
 	errors    []string
+	warnings  []string
 	input     string // original source text (for source preservation)
 }
 
@@ -66,6 +67,17 @@ func (p *Parser) errorf(format string, args ...interface{}) {
 // Errors returns accumulated parse errors.
 func (p *Parser) Errors() []string {
 	return p.errors
+}
+
+// warnf records a parse warning.
+func (p *Parser) warnf(format string, args ...interface{}) {
+	msg := fmt.Sprintf("line %d: %s", p.curToken.Pos.Line, fmt.Sprintf(format, args...))
+	p.warnings = append(p.warnings, msg)
+}
+
+// Warnings returns accumulated parse warnings.
+func (p *Parser) Warnings() []string {
+	return p.warnings
 }
 
 // ---------------------------------------------------------------------------
@@ -864,6 +876,10 @@ func (p *Parser) ParseSourceFile() *SourceFile {
 		startPos = p.curToken.Pos
 	}
 
+	if pendingDocString != "" {
+		p.warnf("orphan docstring: not followed by a class or trait definition")
+	}
+
 	sf.SpanVal = MakeSpan(startPos, p.curToken.Pos)
 	return sf
 }
@@ -1006,6 +1022,10 @@ func (p *Parser) parseClassDefBody(className string, startPos Position) *ClassDe
 		}
 	}
 
+	if pendingDocString != "" {
+		p.warnf("orphan docstring: not followed by a method definition")
+	}
+
 	classDef.SpanVal = MakeSpan(startPos, p.curToken.Pos)
 	return classDef
 }
@@ -1064,6 +1084,10 @@ func (p *Parser) parseTraitDefBody(traitName string, startPos Position) *TraitDe
 		} else {
 			p.nextToken()
 		}
+	}
+
+	if pendingDocString != "" {
+		p.warnf("orphan docstring: not followed by a method definition")
 	}
 
 	traitDef.SpanVal = MakeSpan(startPos, p.curToken.Pos)

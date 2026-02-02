@@ -1,6 +1,7 @@
 package compiler
 
 import (
+	"strings"
 	"testing"
 )
 
@@ -1175,4 +1176,91 @@ func TestParserNoDocstringWhenAbsent(t *testing.T) {
 	if cls.Methods[0].DocString != "" {
 		t.Errorf("method DocString = %q, want empty", cls.Methods[0].DocString)
 	}
+}
+
+func TestParserOrphanDocstringAtFileLevel(t *testing.T) {
+	input := `"""This docstring has no class or trait after it."""
+`
+	p := NewParser(input)
+	_ = p.ParseSourceFile()
+	if len(p.Errors()) > 0 {
+		t.Fatalf("unexpected parse errors: %v", p.Errors())
+	}
+	warnings := p.Warnings()
+	if len(warnings) == 0 {
+		t.Fatal("expected a warning about orphan docstring at file level, got none")
+	}
+	found := false
+	for _, w := range warnings {
+		if contains(w, "orphan docstring") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("expected warning containing 'orphan docstring', got %v", warnings)
+	}
+}
+
+func TestParserOrphanDocstringInClassBody(t *testing.T) {
+	input := `MyClass subclass: Object
+  method: foo [
+    ^42
+  ]
+  """This docstring is orphaned inside the class body."""
+`
+	p := NewParser(input)
+	_ = p.ParseSourceFile()
+	if len(p.Errors()) > 0 {
+		t.Fatalf("unexpected parse errors: %v", p.Errors())
+	}
+	warnings := p.Warnings()
+	if len(warnings) == 0 {
+		t.Fatal("expected a warning about orphan docstring in class body, got none")
+	}
+	found := false
+	for _, w := range warnings {
+		if contains(w, "orphan docstring") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("expected warning containing 'orphan docstring', got %v", warnings)
+	}
+}
+
+func TestParserNoWarningWhenDocstringAttached(t *testing.T) {
+	input := `"""A well-documented class."""
+MyClass subclass: Object
+  """A well-documented method."""
+  method: foo [
+    ^42
+  ]
+`
+	p := NewParser(input)
+	sf := p.ParseSourceFile()
+	if len(p.Errors()) > 0 {
+		t.Fatalf("unexpected parse errors: %v", p.Errors())
+	}
+	if len(p.Warnings()) > 0 {
+		t.Errorf("expected no warnings for properly attached docstrings, got %v", p.Warnings())
+	}
+	if len(sf.Classes) != 1 {
+		t.Fatalf("expected 1 class, got %d", len(sf.Classes))
+	}
+	if sf.Classes[0].DocString != "A well-documented class." {
+		t.Errorf("class DocString = %q, want %q", sf.Classes[0].DocString, "A well-documented class.")
+	}
+	if len(sf.Classes[0].Methods) != 1 {
+		t.Fatalf("expected 1 method, got %d", len(sf.Classes[0].Methods))
+	}
+	if sf.Classes[0].Methods[0].DocString != "A well-documented method." {
+		t.Errorf("method DocString = %q, want %q", sf.Classes[0].Methods[0].DocString, "A well-documented method.")
+	}
+}
+
+// contains checks if s contains substr (helper for warning tests).
+func contains(s, substr string) bool {
+	return len(s) >= len(substr) && strings.Contains(s, substr)
 }

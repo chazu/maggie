@@ -349,6 +349,12 @@ func (s *LspServer) hover(v *vm.VM, word string) *protocol.Hover {
 		}
 		b.WriteString("\n\n")
 
+		if cls.DocString != "" {
+			b.WriteString("---\n\n")
+			b.WriteString(cls.DocString)
+			b.WriteString("\n\n")
+		}
+
 		if len(cls.InstVars) > 0 {
 			fmt.Fprintf(&b, "Instance variables: `%s`\n\n", strings.Join(cls.InstVars, " "))
 		}
@@ -409,6 +415,21 @@ func (s *LspServer) hover(v *vm.VM, word string) *protocol.Hover {
 	fmt.Fprintf(&b, "Implemented by %d classes:\n", len(implementors))
 	for _, name := range implementors {
 		fmt.Fprintf(&b, "- %s\n", name)
+	}
+
+	// Show docstring from first implementor that has one
+	for _, cls := range v.Classes.All() {
+		method := cls.VTable.LookupLocal(selID)
+		if method == nil && cls.ClassVTable != nil {
+			method = cls.ClassVTable.LookupLocal(selID)
+		}
+		if method == nil {
+			continue
+		}
+		if cm, ok := method.(*vm.CompiledMethod); ok && cm.DocString() != "" {
+			fmt.Fprintf(&b, "\n---\n\n%s\n", cm.DocString())
+			break
+		}
 	}
 
 	return &protocol.Hover{

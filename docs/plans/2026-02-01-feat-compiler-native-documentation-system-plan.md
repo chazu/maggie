@@ -445,7 +445,7 @@ A Maggie program that:
 - [x] Unterminated docstrings produce lexer error
 - [x] Existing `"comments"` and `#` comments are unaffected
 - [x] Parser attaches docstrings to ClassDef, MethodDef, TraitDef
-- [ ] Orphan docstrings produce a compiler warning
+- [x] Orphan docstrings produce a compiler warning
 - [x] `CompiledMethod.DocString()` returns the docstring after compilation
 - [x] `Class.DocString` is populated after compilation
 - [x] Image version 2 round-trips docstrings correctly
@@ -460,7 +460,7 @@ A Maggie program that:
 - [x] `:help NonexistentClass` prints "No documentation available"
 - [x] Browsing API `GetClass` returns class docstring in `comment` field
 - [x] Browsing API `GetMethod` returns method docstring in new `docstring` field
-- [ ] LSP hover shows docstrings
+- [x] LSP hover shows docstrings
 
 ### Phase 3: Doc Generator
 - [ ] `mag doc --output ./site` generates HTML reference
