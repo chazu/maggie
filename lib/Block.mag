@@ -1,34 +1,100 @@
-# Block.mag
+"""
+A closure capturing its enclosing scope. Blocks are the fundamental
+unit of deferred evaluation: control flow, iteration, exception handling,
+and concurrency are all built on block evaluation.
 
+Blocks are created with square-bracket syntax and evaluated with `value`,
+`value:`, `value:value:`, or `value:value:value:` depending on how many
+arguments the block expects. Zero-argument blocks are also used by the
+primitive loop forms `whileTrue:`, `whileFalse:`, `whileTrue`, and
+`whileFalse` (implemented as VM primitives, not Maggie methods).
+
+```test
+[3 + 4] value >>> 7
+[:x | x * 2] value: 5 >>> 10
+[:x :y | x + y] value: 3 value: 4 >>> 7
+```
+
+```example
+"Blocks close over their environment"
+| factor |
+factor := 10.
+[:x | x * factor] value: 5
+```
+"""
 Block subclass: Object
 
-  # Evaluation (primitives)
+  """
+  Evaluate a zero-argument block and return its result.
+
+  ```test
+  [42] value >>> 42
+  [3 + 4] value >>> 7
+  ['hello'] value >>> 'hello'
+  ```
+  """
   method: value [
       ^self primValue
   ]
 
+  """
+  Evaluate a one-argument block, passing arg to its parameter.
+
+  ```test
+  [:x | x * 2] value: 5 >>> 10
+  [:x | x + 1] value: 99 >>> 100
+  [:s | s, ' world'] value: 'hello' >>> 'hello world'
+  ```
+  """
   method: value: arg [
       ^self primValue: arg
   ]
 
+  """
+  Evaluate a two-argument block, passing arg1 and arg2 to its parameters.
+
+  ```test
+  [:x :y | x + y] value: 3 value: 4 >>> 7
+  [:a :b | a * b] value: 6 value: 7 >>> 42
+  ```
+  """
   method: value: arg1 value: arg2 [
       ^self primValue: arg1 value: arg2
   ]
 
+  """
+  Evaluate a three-argument block, passing arg1, arg2, and arg3.
+
+  ```test
+  [:a :b :c | a + b + c] value: 1 value: 2 value: 3 >>> 6
+  ```
+  """
   method: value: arg1 value: arg2 value: arg3 [
       ^self primValue: arg1 value: arg2 value: arg3
   ]
 
-  # Control flow - rely on primitives
-  # Note: whileTrue:, whileFalse:, whileTrue, whileFalse are implemented as primitives
-  # Do NOT define them here as compiled methods - they would override the primitives
-  # and cause infinite recursion by creating new blocks on each iteration
+  """
+  Evaluate the block inside an exception handler. If an exception matching
+  the given exception class is signaled during evaluation, the handler
+  block is invoked with the exception object.
 
-  # Exception handling
+  ```example
+  [1 / 0] on: ZeroDivide do: [:e | 'caught']
+  ```
+  """
   method: on: exception do: handler [
       ^self primOn: exception do: handler
   ]
 
+  """
+  Evaluate the block, then unconditionally evaluate finallyBlock before
+  returning. Returns the result of the receiver block.
+
+  ```test
+  [1 + 2] ensure: [nil] >>> 3
+  [42] ensure: [99] >>> 42
+  ```
+  """
   method: ensure: finallyBlock [
       | result |
       result := self value.
@@ -36,21 +102,55 @@ Block subclass: Object
       ^result
   ]
 
+  """
+  Evaluate the block. If evaluation terminates abnormally (via exception
+  or non-local return), evaluate curtailBlock for cleanup.
+
+  ```example
+  [self doRiskyWork] ifCurtailed: [self cleanUp]
+  ```
+  """
   method: ifCurtailed: curtailBlock [
       ^self primIfCurtailed: curtailBlock
   ]
 
-  # Repeating
+  """
+  Evaluate the block repeatedly, forever. The block must arrange its
+  own exit (typically via a non-local return).
+
+  ```example
+  | i |
+  i := 0.
+  [i := i + 1. i > 10 ifTrue: [^i]] repeat
+  ```
+  """
   method: repeat [
       self value.
       self repeat
   ]
 
-  # Forking (concurrency)
+  """
+  Fork the block as a lightweight Process (goroutine). Returns the
+  new Process immediately; the block runs concurrently. Non-local
+  returns (^) inside the forked block are treated as local returns
+  and will not escape the process boundary.
+
+  ```example
+  proc := [self computeResult] fork.
+  proc wait
+  ```
+  """
   method: fork [
       ^Process fork: self
   ]
 
+  """
+  Fork the block at the given priority level. Returns the new Process.
+
+  ```example
+  [self backgroundTask] forkAt: 1
+  ```
+  """
   method: forkAt: priority [
       ^Process fork: self at: priority
   ]

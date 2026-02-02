@@ -1,26 +1,81 @@
-# Failure.mag
+"""
+A Result representing a failed outcome wrapping an error reason.
 
+Create with `Failure with: reason` or `Result failure: reason`. The error
+is accessible via `error`; `value` always returns nil. Chaining methods
+(`then:`, `map:`, `flatMap:`) propagate the failure without evaluating the
+block; branching methods (`ifSuccess:`, `ifFailure:`,
+`onSuccess:onFailure:`) evaluate only the failure path.
+
+```test
+(Failure with: 'oops') error >>> 'oops'
+(Failure with: 'oops') isFailure >>> true
+(Failure with: 'oops') isSuccess >>> false
+(Failure with: 'oops') value >>> nil
+```
+
+```example
+"Failures propagate through chains untouched"
+(Failure with: 'bad input')
+    map: [:v | v * 2]
+    then: [:v | Success with: v + 1]
+```
+"""
 Failure subclass: Result
 
-  # Testing
+  """
+  Answer false -- the receiver is not a success.
+
+  ```test
+  (Failure with: 'err') isSuccess >>> false
+  ```
+  """
   method: isSuccess [
       ^false
   ]
 
+  """
+  Answer true -- the receiver represents a failed outcome.
+
+  ```test
+  (Failure with: 'err') isFailure >>> true
+  ```
+  """
   method: isFailure [
       ^true
   ]
 
-  # Accessing
+  """
+  Return nil -- a Failure carries no success value.
+
+  ```test
+  (Failure with: 'err') value >>> nil
+  ```
+  """
   method: value [
       ^nil
   ]
 
+  """
+  Return the wrapped error reason.
+
+  ```test
+  (Failure with: 'oops') error >>> 'oops'
+  (Failure with: 404) error >>> 404
+  ```
+  """
   method: error [
       ^self primError
   ]
 
-  # Printing
+  """
+  Return a human-readable representation including the error reason.
+
+  ```test
+  (Failure with: 'oops') printString >>> 'Failure(''oops'')'
+  (Failure with: 404) printString >>> 'Failure(404)'
+  ```
+  """
   method: printString [
       ^'Failure(', self error printString, ')'
   ]

@@ -1,44 +1,135 @@
-# Process.mag
+"""
+A lightweight concurrent process backed by a Go goroutine.
 
+Processes are created by sending `fork` to a block, which evaluates
+the block in a new goroutine and returns a Process handle. Use `wait`
+to block until the process completes and retrieve its result.
+
+```example
+[42] fork wait          "=> 42"
+[3 + 4] fork wait      "=> 7"
+
+p := [100] fork.
+p wait.
+p isDone               "=> true"
+```
+
+```example
+"Fan-out with channels"
+ch := Channel new: 10.
+1 to: 5 do: [:i |
+    [ch send: i * 10] fork
+].
+5 timesRepeat: [ch receive]
+```
+"""
 Process subclass: Object
 
-  # Process control
+  """
+  Yield the current process's time slice to allow other
+  goroutines to run. Returns the receiver.
+
+  ```example
+  100 timesRepeat: [Process yield]
+  ```
+  """
   method: yield [
       ^self primYield
   ]
 
+  """
+  Terminate the process. The process will stop executing and
+  its result will be nil.
+
+  ```example
+  p := [Process sleep: 10000] fork.
+  p terminate
+  ```
+  """
   method: terminate [
       ^self primTerminate
   ]
 
+  """
+  Block the caller until this process finishes, then return
+  the process's result value.
+
+  ```example
+  [42] fork wait  "=> 42"
+  ```
+  """
   method: wait [
       ^self primWait
   ]
 
-  # Status
+  """
+  Return `true` if the process is still running.
+
+  ```example
+  p := [1] fork.
+  p wait.
+  p isAlive  "=> false"
+  ```
+  """
   method: isAlive [
       ^self primIsAlive
   ]
 
+  """
+  Return `true` if the process has finished executing.
+  Opposite of `isAlive`.
+
+  ```example
+  p := [1] fork.
+  p wait.
+  p isTerminated  "=> true"
+  ```
+  """
   method: isTerminated [
       ^self isAlive not
   ]
 
-  # Result
+  """
+  Return the result of the process, or `nil` if it has not
+  yet completed.
+
+  ```example
+  p := ['hello'] fork.
+  p wait.
+  p result  "=> 'hello'"
+  ```
+  """
   method: result [
       ^self primResult
   ]
 
-  # Priority
+  """
+  Return the scheduling priority of this process.
+
+  ```example
+  p := [1] fork.
+  p priority
+  ```
+  """
   method: priority [
       ^self primPriority
   ]
 
+  """
+  Set the scheduling priority of this process.
+
+  ```example
+  p := [Process sleep: 100] fork.
+  p priority: 2
+  ```
+  """
   method: priority: level [
       ^self primPriority: level
   ]
 
-  # Printing
+  """
+  Return a string representation of the process.
+  """
   method: printString [
       ^'a Process'
   ]

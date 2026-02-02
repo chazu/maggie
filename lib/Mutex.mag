@@ -1,49 +1,144 @@
-# Mutex.mag
-# A mutual exclusion lock for coordinating access to shared resources.
-# Wraps Go's sync.Mutex.
+"""
+A mutual exclusion lock for coordinating access to shared resources.
 
+Only one process can hold a Mutex at a time. The preferred usage is
+`critical:`, which acquires the lock, evaluates a block, and
+guarantees the lock is released afterward.
+
+```example
+Mutex new isLocked            "=> false"
+Mutex new tryLock             "=> true"
+
+m := Mutex new.
+m lock.
+m unlock.
+m isLocked                    "=> false"
+
+Mutex new critical: [42]      "=> 42"
+```
+
+```example
+"Protecting a shared counter across processes"
+count := 0.
+mutex := Mutex new.
+wg := WaitGroup new.
+1 to: 10 do: [:i |
+    wg wrap: [mutex critical: [count := count + 1]]
+].
+wg wait.
+count
+```
+"""
 Mutex subclass: Object
 
-  # Create a new mutex (class method, calls primitive)
+  """
+  Create a new, unlocked Mutex.
+
+  ```example
+  Mutex new isLocked  "=> false"
+  ```
+  """
   class method: new [
       ^self primNew
   ]
 
-  # Acquire the lock (blocks if already held)
+  """
+  Acquire the lock. Blocks the caller if the mutex is already
+  held by another process.
+
+  ```example
+  m := Mutex new.
+  m lock.
+  m isLocked  "=> true"
+  ```
+  """
   method: lock [
       ^self primLock
   ]
 
-  # Release the lock
+  """
+  Release the lock, allowing other processes to acquire it.
+
+  ```example
+  m := Mutex new.
+  m lock.
+  m unlock.
+  m isLocked  "=> false"
+  ```
+  """
   method: unlock [
       ^self primUnlock
   ]
 
-  # Try to acquire the lock without blocking
-  # Returns true if acquired, false if already held
+  """
+  Try to acquire the lock without blocking. Returns `true` if
+  the lock was acquired, `false` if it was already held.
+
+  ```example
+  Mutex new tryLock             "=> true"
+
+  m := Mutex new.
+  m lock.
+  m tryLock                     "=> false"
+  ```
+  """
   method: tryLock [
       ^self primTryLock
   ]
 
-  # Check if the mutex is currently locked
+  """
+  Return `true` if the mutex is currently locked.
+
+  ```example
+  Mutex new isLocked  "=> false"
+  ```
+  """
   method: isLocked [
       ^self primIsLocked
   ]
 
-  # Execute block while holding the lock.
-  # Automatically releases the lock when done, even if an exception occurs.
-  # This is the preferred way to use a mutex.
+  """
+  Evaluate `aBlock` while holding the lock. The lock is
+  automatically released when the block finishes, even if an
+  error occurs. This is the preferred way to use a Mutex.
+
+  ```example
+  Mutex new critical: [42]       "=> 42"
+  Mutex new critical: [3 + 4]    "=> 7"
+
+  m := Mutex new.
+  m critical: ['done'].
+  m isLocked                     "=> false"
+  ```
+  """
   method: critical: aBlock [
       ^self primCritical: aBlock
   ]
 
-  # Alias for critical: - more Smalltalk-y name
+  """
+  Alias for `critical:`. Evaluate `aBlock` while holding the lock.
+
+  ```example
+  Mutex new withLock: [42]  "=> 42"
+  ```
+  """
   method: withLock: aBlock [
       ^self critical: aBlock
   ]
 
-  # Execute block if lock can be acquired immediately.
-  # Returns the block result if executed, nil if lock was busy.
+  """
+  Execute `aBlock` only if the lock can be acquired immediately.
+  Returns the block's result if executed, or `nil` if the lock
+  was already held.
+
+  ```example
+  Mutex new ifAvailable: [42]    "=> 42"
+
+  m := Mutex new.
+  m lock.
+  m ifAvailable: [42]            "=> nil"
+  ```
+  """
   method: ifAvailable: aBlock [
       self tryLock ifTrue: [
           ^[aBlock value] ensure: [self unlock]
@@ -51,7 +146,13 @@ Mutex subclass: Object
       ^nil
   ]
 
-  # Printing
+  """
+  Return a string describing the mutex and its state.
+
+  ```example
+  Mutex new printString  "=> 'a Mutex (unlocked)'"
+  ```
+  """
   method: printString [
       self isLocked
           ifTrue: [^'a Mutex (locked)']

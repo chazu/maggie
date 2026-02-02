@@ -1,10 +1,36 @@
-# Result.mag
-# Abstract base class for Success/Failure result types.
-# Most methods are implemented as Go primitives.
+"""
+Abstract base class for the Result pattern (Success/Failure).
 
+Result encapsulates the outcome of an operation that may succeed or fail,
+replacing ad-hoc nil checks and error flags with a composable, type-safe
+protocol. Use the factory methods `Result success:` and `Result failure:`
+to create instances. Pattern-match on the result with `ifSuccess:`,
+`ifFailure:`, or `onSuccess:onFailure:`, and chain computations with
+`then:`, `map:`, and `flatMap:`.
+
+```test
+(Result success: 42) isSuccess >>> true
+(Result success: 42) value >>> 42
+(Result failure: 'oops') isFailure >>> true
+(Result failure: 'oops') error >>> 'oops'
+```
+
+```example
+"Chain a sequence of fallible operations"
+(Result success: 5)
+    map: [:v | v * 2]
+    then: [:v | Result success: v + 1]
+```
+"""
 Result subclass: Object
 
-  # Printing
+  """
+  Return a generic printable representation.
+
+  ```test
+  Result new printString >>> 'a Result'
+  ```
+  """
   method: printString [
       ^'a Result'
   ]

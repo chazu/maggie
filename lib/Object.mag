@@ -1,70 +1,198 @@
-# Object.mag
+"""
+The root of the class hierarchy. Every class in Maggie ultimately
+inherits from Object. Provides identity comparison, nil testing,
+class access, copying, error handling, and a default printString.
 
+```test
+3 yourself >>> 3
+nil isNil >>> true
+3 isNil >>> false
+3 notNil >>> true
+```
+"""
 Object subclass: nil
 
-  # Identity and comparison
+  """
+  Return the receiver. Useful at the end of a cascade to yield
+  the original object rather than the last message result.
+
+  ```test
+  3 yourself >>> 3
+  'hello' yourself >>> 'hello'
+  ```
+  """
   method: yourself [
       ^self
   ]
 
+  """
+  Return true if the receiver and other are the exact same object
+  (identity comparison). Two objects that are `==` always have the
+  same identity; value equality uses `=` instead.
+
+  ```test
+  3 == 3 >>> true
+  3 == 4 >>> false
+  nil == nil >>> true
+  ```
+  """
   method: == other [
       ^self primIdentical: other
   ]
 
+  """
+  Return true if the receiver and other are NOT the same object.
+  This is the negation of `==`.
+
+  ```test
+  3 ~~ 4 >>> true
+  3 ~~ 3 >>> false
+  ```
+  """
   method: ~~ other [
       ^(self == other) not
   ]
 
+  """
+  Return true if the receiver and other are equal. The default
+  implementation delegates to identity (`==`). Subclasses may
+  override this to provide value equality.
+
+  ```test
+  3 = 3 >>> true
+  3 = 4 >>> false
+  'hello' = 'hello' >>> true
+  ```
+  """
   method: = other [
       ^self == other
   ]
 
+  """
+  Return true if the receiver and other are NOT equal.
+  This is the negation of `=`.
+
+  ```test
+  3 ~= 4 >>> true
+  3 ~= 3 >>> false
+  ```
+  """
   method: ~= other [
       ^(self = other) not
   ]
 
-  # Nil testing
+  """
+  Return false. Object is not nil; only UndefinedObject (the class
+  of nil) overrides this to return true.
+
+  ```test
+  3 isNil >>> false
+  'hello' isNil >>> false
+  nil isNil >>> true
+  ```
+  """
   method: isNil [
       ^false
   ]
 
+  """
+  Return true if the receiver is not nil.
+
+  ```test
+  3 notNil >>> true
+  nil notNil >>> false
+  ```
+  """
   method: notNil [
       ^self isNil not
   ]
 
-  # AST node type testing (for compiler use)
+  """
+  Return false. Used internally by the compiler to test AST node types.
+  """
   method: isReturn [
       ^false
   ]
 
+  """
+  Return false. Used internally by the compiler to test AST node types.
+  """
   method: isVariable [
       ^false
   ]
 
-  # Class access
+  """
+  Return the class of the receiver as a symbol.
+
+  ```test
+  3 class >>> #SmallInteger
+  true class >>> #True
+  nil class >>> #UndefinedObject
+  ```
+  """
   method: class [
       ^self primClass
   ]
 
+  """
+  Return true if the receiver's class matches aClass.
+
+  ```example
+  3 isKindOf: SmallInteger
+  ```
+  """
   method: isKindOf: aClass [
       ^self class == aClass
   ]
 
-  # Copying
+  """
+  Return a shallow copy of the receiver. Instance variables are
+  shared (not deeply copied) between the original and the copy.
+
+  ```example
+  original := Array new: 3.
+  copy := original shallowCopy.
+  copy == original   "false -- different object"
+  ```
+  """
   method: shallowCopy [
       ^self primShallowCopy
   ]
 
-  # Error handling
+  """
+  Signal an error with the given message string.
+
+  ```example
+  self error: 'something went wrong'
+  ```
+  """
   method: error: message [
       ^self primError: message
   ]
 
+  """
+  Called by the VM when a message is sent to an object that does not
+  understand it. Signals an error with the unrecognized selector name.
+
+  ```example
+  "Typically not called directly -- triggered by the VM"
+  3 frobnicate   "=> error: Message not understood: frobnicate"
+  ```
+  """
   method: doesNotUnderstand: aMessage [
       ^self error: 'Message not understood: ', aMessage selector
   ]
 
-  # Printing (basic - returns class name)
+  """
+  Return a string representation of the receiver. The default
+  implementation returns the class name. Subclasses typically
+  override this to provide more useful output.
+
+  ```test
+  true printString >>> 'true'
+  nil printString >>> 'nil'
+  ```
+  """
   method: printString [
       ^self class name
   ]

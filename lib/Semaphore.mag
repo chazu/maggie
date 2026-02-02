@@ -1,58 +1,190 @@
-# Semaphore.mag
-# A counting semaphore for limiting concurrent access to resources.
-# Implemented using a buffered channel pattern.
+"""
+A counting semaphore for limiting concurrent access to a resource pool.
 
+A semaphore manages a fixed number of permits. `acquire` blocks until
+a permit is available; `release` returns one. Use `critical:` to
+automatically acquire before and release after evaluating a block.
+
+`Semaphore new` creates a binary semaphore (1 permit).
+`Semaphore new: n` creates a semaphore with `n` permits.
+
+```example
+Semaphore new capacity           "=> 1"
+(Semaphore new: 3) capacity     "=> 3"
+(Semaphore new: 3) available    "=> 3"
+Semaphore new hasAvailablePermits  "=> true"
+(Semaphore new: 2) isFull       "=> false"
+
+s := Semaphore new: 3.
+s tryAcquire.
+s available                      "=> 2"
+
+s := Semaphore new.
+s tryAcquire                     "=> true"
+
+s := Semaphore new.
+s tryAcquire.
+s tryAcquire                     "=> false"
+
+s := Semaphore new.
+s tryAcquire.
+s isFull                         "=> true"
+
+s := Semaphore new: 2.
+s critical: [42]                 "=> 42"
+```
+
+```example
+"Rate-limiting concurrent work to 3 at a time"
+sem := Semaphore new: 3.
+wg := WaitGroup new.
+1 to: 10 do: [:i |
+    wg wrap: [sem critical: [Process sleep: 100]]
+].
+wg wait
+```
+"""
 Semaphore subclass: Object
 
-  # Create a semaphore with given capacity (class method)
+  """
+  Create a semaphore with the given number of permits.
+
+  ```example
+  (Semaphore new: 5) capacity   "=> 5"
+  (Semaphore new: 5) available  "=> 5"
+  ```
+  """
   class method: new: capacity [
       ^self primNew: capacity
   ]
 
-  # Create a binary semaphore (capacity 1)
+  """
+  Create a binary semaphore with a single permit.
+
+  ```example
+  Semaphore new capacity   "=> 1"
+  Semaphore new available  "=> 1"
+  ```
+  """
   class method: new [
       ^self primNew: 1
   ]
 
-  # Acquire a permit (blocks if none available)
+  """
+  Acquire a permit, blocking if none are available. Use
+  `tryAcquire` for a non-blocking alternative.
+
+  ```example
+  sem := Semaphore new: 2.
+  sem acquire.
+  sem release
+  ```
+  """
   method: acquire [
       ^self primAcquire
   ]
 
-  # Release a permit
+  """
+  Release a permit back to the semaphore, potentially unblocking
+  a waiting process.
+
+  ```example
+  s := Semaphore new: 1.
+  s tryAcquire.
+  s available     "=> 0"
+  s release.
+  s available     "=> 1"
+  ```
+  """
   method: release [
       ^self primRelease
   ]
 
-  # Try to acquire a permit without blocking.
-  # Returns true if acquired, false otherwise.
+  """
+  Try to acquire a permit without blocking. Returns `true` if a
+  permit was acquired, `false` if none were available.
+
+  ```example
+  Semaphore new tryAcquire       "=> true"
+
+  s := Semaphore new.
+  s tryAcquire.
+  s tryAcquire                   "=> false"
+  ```
+  """
   method: tryAcquire [
       ^self primTryAcquire
   ]
 
-  # Number of available permits
+  """
+  Return the number of currently available permits.
+
+  ```example
+  (Semaphore new: 3) available  "=> 3"
+
+  s := Semaphore new: 3.
+  s tryAcquire.
+  s tryAcquire.
+  s available                    "=> 1"
+  ```
+  """
   method: available [
       ^self primAvailable
   ]
 
-  # Total capacity of the semaphore
+  """
+  Return the total permit capacity of the semaphore.
+
+  ```example
+  Semaphore new capacity         "=> 1"
+  (Semaphore new: 10) capacity  "=> 10"
+  ```
+  """
   method: capacity [
       ^self primCapacity
   ]
 
-  # Execute block while holding a permit.
-  # Automatically releases permit when done.
+  """
+  Evaluate `aBlock` while holding a permit. The permit is
+  automatically released when the block finishes, even if an
+  error occurs.
+
+  ```example
+  (Semaphore new: 2) critical: [42]  "=> 42"
+
+  s := Semaphore new: 1.
+  s critical: ['done'].
+  s available                         "=> 1"
+  ```
+  """
   method: critical: aBlock [
       ^self primCritical: aBlock
   ]
 
-  # Alias for critical: - more descriptive name
+  """
+  Alias for `critical:`. Evaluate `aBlock` while holding a permit.
+
+  ```example
+  Semaphore new withPermit: [42]  "=> 42"
+  ```
+  """
   method: withPermit: aBlock [
       ^self critical: aBlock
   ]
 
-  # Execute block if a permit is immediately available.
-  # Returns block result if executed, nil if no permit available.
+  """
+  Execute `aBlock` only if a permit is immediately available.
+  Returns the block's result if executed, or `nil` if no permit
+  was available.
+
+  ```example
+  Semaphore new ifAvailable: [42]     "=> 42"
+
+  s := Semaphore new.
+  s tryAcquire.
+  s ifAvailable: [42]                 "=> nil"
+  ```
+  """
   method: ifAvailable: aBlock [
       self tryAcquire ifTrue: [
           ^[aBlock value] ensure: [self release]
@@ -60,18 +192,47 @@ Semaphore subclass: Object
       ^nil
   ]
 
-  # Check if the semaphore has any available permits
+  """
+  Return `true` if the semaphore has at least one available permit.
+
+  ```example
+  Semaphore new hasAvailablePermits   "=> true"
+
+  s := Semaphore new.
+  s tryAcquire.
+  s hasAvailablePermits               "=> false"
+  ```
+  """
   method: hasAvailablePermits [
       ^self available > 0
   ]
 
-  # Check if all permits are in use
+  """
+  Return `true` if all permits are currently in use.
+
+  ```example
+  (Semaphore new: 2) isFull          "=> false"
+
+  s := Semaphore new.
+  s tryAcquire.
+  s isFull                            "=> true"
+  ```
+  """
   method: isFull [
       ^self available = 0
   ]
 
-  # Printing
+  """
+  Return a string describing the semaphore and its permit state.
+
+  ```example
+  Semaphore new printString
+  "=> 'a Semaphore (1/1 available)'"
+
+  (Semaphore new: 3) printString
+  "=> 'a Semaphore (3/3 available)'"
+  ```
+  """
   method: printString [
       ^'a Semaphore (', self available printString, '/', self capacity printString, ' available)'
   ]
-

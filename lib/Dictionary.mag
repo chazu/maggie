@@ -1,28 +1,95 @@
-# Dictionary.mag
-# Additional methods for Dictionary class.
-# Core functionality is provided by primitives in dictionary_primitives.go.
+"""
+A mutable collection of key-value pairs with hashed lookup. Keys can be
+any object that responds to `hash` and `=`; symbols and strings are the
+most common key types.
 
+Core operations (`at:`, `at:put:`, `includesKey:`, `size`, `keys`,
+`values`, `do:`, `keysAndValuesDo:`, `removeKey:`) are implemented as
+VM primitives. This file adds convenience methods on top.
+
+```test
+Dictionary new size >>> 0
+Dictionary new isEmpty >>> true
+```
+
+```example
+"Build a dictionary with cascaded puts"
+d := Dictionary new.
+d at: #name put: 'Alice'.
+d at: #age put: 30.
+d size
+```
+"""
 Dictionary subclass: Object
 
-  # Cascade support
+  """
+  Return the receiver. Useful at the end of a cascade to return the
+  dictionary itself rather than the last message result.
+
+  ```test
+  Dictionary new yourself class >>> #Dictionary
+  ```
+  """
   method: yourself [
       ^self
   ]
 
+  """
+  Return true if the dictionary contains at least one entry.
+
+  ```test
+  d := Dictionary new.
+  d notEmpty >>> false
+  d at: #x put: 1.
+  d notEmpty >>> true
+  ```
+  """
   method: notEmpty [
       ^self isEmpty not
   ]
 
+  """
+  Return the value at key. If the key is absent, evaluate block,
+  store the result under key, and return it.
+
+  ```test
+  d := Dictionary new.
+  d at: #x ifAbsentPut: [42] >>> 42
+  d at: #x >>> 42
+  d at: #x ifAbsentPut: [99] >>> 42
+  ```
+  """
   method: at: key ifAbsentPut: block [
       (self includesKey: key)
           ifTrue: [^self at: key]
           ifFalse: [^self at: key put: block value]
   ]
 
+  """
+  Evaluate block once for each key in the dictionary.
+
+  ```test
+  d := Dictionary new.
+  d at: #a put: 1.
+  d keys size >>> 1
+  ```
+  """
   method: keysDo: block [
       self keys do: block
   ]
 
+  """
+  Return a shallow copy of the dictionary. The new dictionary has the
+  same keys and values but is a distinct object.
+
+  ```test
+  d := Dictionary new.
+  d at: #x put: 1.
+  c := d copy.
+  c at: #x >>> 1
+  c size >>> 1
+  ```
+  """
   method: copy [
       | newDict |
       newDict := Dictionary new.
@@ -30,7 +97,13 @@ Dictionary subclass: Object
       ^newDict
   ]
 
-  # Printing
+  """
+  Return a human-readable string representation of the dictionary.
+
+  ```test
+  Dictionary new printString >>> 'Dictionary()'
+  ```
+  """
   method: printString [
       | s |
       s := 'Dictionary('.

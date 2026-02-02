@@ -1,44 +1,169 @@
-# Channel.mag
+"""
+A Go-style channel for communicating between concurrent processes.
 
+Channels are the primary mechanism for passing values between forked
+processes. An unbuffered channel (`Channel new`) blocks the sender
+until a receiver is ready, and vice versa. A buffered channel
+(`Channel new: n`) allows up to `n` values to be queued before the
+sender blocks.
+
+```test
+Channel new isClosed >>> false
+(Channel new: 5) capacity >>> 5
+(Channel new: 3) isEmpty >>> true
+(Channel new: 3) size >>> 0
+```
+
+```test
+ch := Channel new: 5.
+ch trySend: 42.
+ch tryReceive >>> 42
+```
+
+```test
+ch := Channel new: 1.
+ch trySend: 'hello' >>> true
+```
+
+```test
+ch := Channel new: 1.
+ch close.
+ch isClosed >>> true
+```
+
+```example
+"Producer-consumer with a buffered channel"
+ch := Channel new: 10.
+[1 to: 10 do: [:i | ch send: i]. ch close] fork.
+[ch isClosed not] whileTrue: [ch receive]
+```
+"""
 Channel subclass: Object
 
-  # Sending and receiving (primitives)
+  """
+  Send a value on the channel. Blocks until a receiver is ready
+  (unbuffered) or until buffer space is available (buffered).
+
+  ```example
+  ch := Channel new: 1.
+  ch send: 'hello'.
+  ch receive
+  ```
+  """
   method: send: value [
       ^self primSend: value
   ]
 
+  """
+  Receive a value from the channel. Blocks until a value is
+  available or the channel is closed.
+
+  ```example
+  ch := Channel new: 1.
+  ch send: 42.
+  ch receive
+  ```
+  """
   method: receive [
       ^self primReceive
   ]
 
-  # Non-blocking operations
+  """
+  Attempt to send a value without blocking. Returns `true` if
+  the value was sent, `false` if the channel was full or closed.
+
+  ```test
+  ch := Channel new: 2.
+  ch trySend: 'a' >>> true
+  ```
+
+  ```test
+  ch := Channel new: 1.
+  ch trySend: 'a'.
+  ch trySend: 'b' >>> false
+  ```
+  """
   method: trySend: value [
       ^self primTrySend: value
   ]
 
+  """
+  Attempt to receive a value without blocking. Returns the value
+  if one was available, or `nil` if the channel was empty.
+
+  ```test
+  ch := Channel new: 1.
+  ch trySend: 99.
+  ch tryReceive >>> 99
+  ```
+
+  ```test
+  (Channel new: 1) tryReceive >>> nil
+  ```
+  """
   method: tryReceive [
       ^self primTryReceive
   ]
 
-  # Closing
+  """
+  Close the channel. After closing, sends will fail and receives
+  will drain any remaining buffered values, then return `nil`.
+
+  ```test
+  ch := Channel new: 1.
+  ch close.
+  ch isClosed >>> true
+  ```
+  """
   method: close [
       ^self primClose
   ]
 
+  """
+  Return `true` if the channel has been closed.
+
+  ```test
+  Channel new isClosed >>> false
+  ```
+  """
   method: isClosed [
       ^self primIsClosed
   ]
 
-  # Stream-like interface
+  """
+  Stream-compatible alias for `send:`. Sends a value on the channel.
+
+  ```example
+  ch := Channel new: 1.
+  ch nextPut: 'hello'.
+  ch next
+  ```
+  """
   method: nextPut: value [
       ^self send: value
   ]
 
+  """
+  Stream-compatible alias for `receive`. Receives a value from
+  the channel.
+
+  ```example
+  ch := Channel new: 1.
+  ch nextPut: 42.
+  ch next
+  ```
+  """
   method: next [
       ^self receive
   ]
 
-  # Printing
+  """
+  Return a string representation of the channel.
+
+  ```test
+  Channel new printString >>> 'a Channel'
+  ```
+  """
   method: printString [
       ^'a Channel'
   ]

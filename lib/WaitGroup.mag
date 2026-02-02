@@ -1,54 +1,161 @@
-# WaitGroup.mag
-# A synchronization primitive for waiting on a collection of concurrent operations.
-# Wraps Go's sync.WaitGroup.
+"""
+A synchronization barrier for waiting on a group of concurrent operations.
 
+Add a count with `add:`, decrement it with `done`, and block on `wait`
+until the count reaches zero. The convenience method `wrap:` combines
+add, fork, and done into a single call.
+
+```example
+WaitGroup new count              "=> 0"
+
+wg := WaitGroup new.
+wg add: 3.
+wg count                         "=> 3"
+
+wg := WaitGroup new.
+wg add: 1.
+wg done.
+wg count                         "=> 0"
+
+wg := WaitGroup new.
+wg wrap: [42].
+wg wait.
+wg count                         "=> 0"
+```
+
+```example
+"Fan-out / fan-in pattern"
+results := Channel new: 5.
+wg := WaitGroup new.
+1 to: 5 do: [:i |
+    wg wrap: [results send: i * 10]
+].
+wg wait.
+results close
+```
+"""
 WaitGroup subclass: Object
 
-  # Create a new wait group (class method, calls primitive)
+  """
+  Create a new WaitGroup with a counter of zero.
+
+  ```example
+  WaitGroup new count  "=> 0"
+  ```
+  """
   class method: new [
       ^self primNew
   ]
 
-  # Add count to the wait group counter
+  """
+  Add `count` to the WaitGroup counter. Must be called before
+  forking the corresponding work.
+
+  ```example
+  wg := WaitGroup new.
+  wg add: 5.
+  wg count  "=> 5"
+  ```
+  """
   method: add: count [
       ^self primAdd: count
   ]
 
-  # Convenience: add 1 to the counter
+  """
+  Convenience method to add 1 to the counter.
+
+  ```example
+  wg := WaitGroup new.
+  wg add.
+  wg count  "=> 1"
+  ```
+  """
   method: add [
       ^self add: 1
   ]
 
-  # Decrement the counter by 1 (call when work is done)
+  """
+  Decrement the counter by 1. Call this when a unit of work
+  has finished. Panics if the counter goes below zero.
+
+  ```example
+  wg := WaitGroup new.
+  wg add: 2.
+  wg done.
+  wg count  "=> 1"
+  ```
+  """
   method: done [
       ^self primDone
   ]
 
-  # Block until the counter reaches zero
+  """
+  Block the caller until the counter reaches zero. If the counter
+  is already zero, returns immediately.
+
+  WARNING: Calling `wait` when the counter will never reach zero
+  will deadlock.
+
+  ```example
+  wg := WaitGroup new.
+  wg wrap: [Process sleep: 100].
+  wg wait
+  ```
+  """
   method: wait [
       ^self primWait
   ]
 
-  # Get the current counter value (for debugging)
+  """
+  Return the current value of the counter.
+
+  ```example
+  WaitGroup new count  "=> 0"
+  ```
+  """
   method: count [
       ^self primCount
   ]
 
-  # Fork a block and automatically manage the counter.
-  # Adds 1 before forking, calls done when block completes.
-  # Returns the forked process.
+  """
+  Fork `aBlock` in a new process with automatic counter management.
+  Increments the counter by 1 before forking and calls `done` when
+  the block completes. Returns the forked Process.
+
+  ```example
+  wg := WaitGroup new.
+  wg wrap: [42].
+  wg wait.
+  wg count  "=> 0"
+  ```
+  """
   method: wrap: aBlock [
       ^self primWrap: aBlock
   ]
 
-  # Fork multiple blocks and wait for all to complete.
-  # Takes an array of blocks.
+  """
+  Fork every block in `blocks` using `wrap:`, then wait for all
+  to complete.
+
+  ```example
+  wg := WaitGroup new.
+  wg forkAll: {[Process sleep: 50]. [Process sleep: 100]}
+  ```
+  """
   method: forkAll: blocks [
       blocks do: [:block | self wrap: block].
       ^self wait
   ]
 
-  # Fork multiple blocks and wait, returning array of results.
+  """
+  Fork every block in `blocks`, wait for all to complete, and
+  return an Array of their results in the original order.
+
+  ```example
+  wg := WaitGroup new.
+  wg forkAllCollect: {[1 + 1]. [2 + 2]. [3 + 3]}
+  ```
+  """
   method: forkAllCollect: blocks [
       | results channel |
       results := Array new: blocks size.
@@ -64,7 +171,6 @@ WaitGroup subclass: Object
 
       self wait.
 
-      # Collect results from channel
       blocks size timesRepeat: [
           | pair |
           pair := channel receive.
@@ -74,8 +180,13 @@ WaitGroup subclass: Object
       ^results
   ]
 
-  # Printing
+  """
+  Return a string describing the WaitGroup and its counter.
+
+  ```example
+  WaitGroup new printString  "=> 'a WaitGroup (count: 0)'"
+  ```
+  """
   method: printString [
       ^'a WaitGroup (count: ', self count printString, ')'
   ]
-

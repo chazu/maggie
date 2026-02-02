@@ -1,26 +1,82 @@
-# Success.mag
+"""
+A Result representing a successful outcome wrapping a value.
 
+Create with `Success with: value` or `Result success: value`. The wrapped
+value is accessible via `value`. Chaining methods (`then:`, `map:`,
+`flatMap:`) pass the value through the block; branching methods
+(`ifSuccess:`, `ifFailure:`, `onSuccess:onFailure:`) evaluate only the
+success path.
+
+```test
+(Success with: 42) value >>> 42
+(Success with: 42) isSuccess >>> true
+(Success with: 42) isFailure >>> false
+(Success with: 42) error >>> nil
+(Success with: 'hello') value >>> 'hello'
+```
+
+```example
+"Transform and branch on a successful result"
+(Success with: 10)
+    map: [:v | v * 2]
+    ifSuccess: [:v | 'Result is: ', v printString]
+```
+"""
 Success subclass: Result
 
-  # Testing
+  """
+  Answer true -- the receiver represents a successful outcome.
+
+  ```test
+  (Success with: 1) isSuccess >>> true
+  ```
+  """
   method: isSuccess [
       ^true
   ]
 
+  """
+  Answer false -- the receiver is not a failure.
+
+  ```test
+  (Success with: 1) isFailure >>> false
+  ```
+  """
   method: isFailure [
       ^false
   ]
 
-  # Accessing
+  """
+  Return the wrapped success value.
+
+  ```test
+  (Success with: 42) value >>> 42
+  (Success with: 'ok') value >>> 'ok'
+  ```
+  """
   method: value [
       ^self primValue
   ]
 
+  """
+  Return nil -- a Success carries no error.
+
+  ```test
+  (Success with: 42) error >>> nil
+  ```
+  """
   method: error [
       ^nil
   ]
 
-  # Printing
+  """
+  Return a human-readable representation including the wrapped value.
+
+  ```test
+  (Success with: 42) printString >>> 'Success(42)'
+  (Success with: 'hi') printString >>> 'Success(''hi'')'
+  ```
+  """
   method: printString [
       ^'Success(', self value printString, ')'
   ]
