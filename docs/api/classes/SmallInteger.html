@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>SmallInteger &mdash; Maggie API Reference</title>
+    <link rel="stylesheet" href="../../css/style.css">
+</head>
+<body>
+    <div class="breadcrumb">
+        <a href="../../index.html">Maggie API Reference</a>
+
+        &rsaquo; SmallInteger
+    </div>
+
+    <div class="class-header">
+        <h1>SmallInteger</h1>
+
+        <div class="superclass-chain">
+            Inherits from: Object
+        </div>
+
+
+    </div>
+
+
+    <div class="class-doc">
+        <p>Integer values represented as tagged pointers for efficient arithmetic.</p>
+<p>SmallInteger is the primary numeric type in Maggie. Arithmetic operators
+(+, -, *, /, \\, //), comparisons (&lt;, &gt;, &lt;=, &gt;=, =), and iteration
+(timesRepeat:, to:do:, to:by:do:) are implemented as primitives for
+performance. The methods below provide higher-level numeric operations
+built on those primitives.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>3 + 4 &gt;&gt;&gt; 7
+10 - 3 &gt;&gt;&gt; 7
+6 * 7 &gt;&gt;&gt; 42
+10 / 3 &gt;&gt;&gt; 3
+10 \\ 3 &gt;&gt;&gt; 1</code></pre>
+</div>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>&#34;Smalltalk-style iteration&#34;
+| sum |
+sum := 0.
+1 to: 100 do: [:i | sum := sum + i].
+sum</code></pre>
+</div>
+
+    </div>
+
+
+
+
+
+    <h2>Instance Methods</h2>
+
+    <div class="method-category">
+        <h3>primitives</h3>
+
+        <div class="method">
+            <div class="method-selector">*</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">&#43;</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">-</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">/</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">//</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">&lt;</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">&lt;=</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">=</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">&gt;</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">&gt;=</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">\\</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">bitAnd:</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">bitOr:</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">bitShift:</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">bitXor:</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">primPrintString</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">timesRepeat:</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">to:by:do:</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">to:do:</div>
+
+
+        </div>
+
+    </div>
+
+    <div class="method-category">
+        <h3>uncategorized</h3>
+
+        <div class="method">
+            <div class="method-selector">abs</div>
+
+            <div class="method-doc">
+                <p>Return the absolute value of the receiver.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>-5 abs &gt;&gt;&gt; 5
+5 abs &gt;&gt;&gt; 5
+0 abs &gt;&gt;&gt; 0</code></pre>
+</div>
+
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">between:and:</div>
+
+            <div class="method-doc">
+                <p>Return true if the receiver is between min and max, inclusive.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>5 between: 1 and: 10 &gt;&gt;&gt; true
+1 between: 1 and: 10 &gt;&gt;&gt; true
+10 between: 1 and: 10 &gt;&gt;&gt; true
+0 between: 1 and: 10 &gt;&gt;&gt; false</code></pre>
+</div>
+
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">even</div>
+
+            <div class="method-doc">
+                <p>Return true if the receiver is divisible by 2.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>4 even &gt;&gt;&gt; true
+7 even &gt;&gt;&gt; false
+0 even &gt;&gt;&gt; true</code></pre>
+</div>
+
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">factorial</div>
+
+            <div class="method-doc">
+                <p>Return the factorial of the receiver (n!).
+The receiver must be non-negative.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>0 factorial &gt;&gt;&gt; 1
+1 factorial &gt;&gt;&gt; 1
+5 factorial &gt;&gt;&gt; 120
+10 factorial &gt;&gt;&gt; 3628800</code></pre>
+</div>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>&#34;Build a table of factorials&#34;
+1 to: 8 do: [:n |
+    (n printString, &#39;! = &#39;, n factorial printString) print
+]</code></pre>
+</div>
+
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">gcd:</div>
+
+            <div class="method-doc">
+                <p>Return the greatest common divisor of the receiver and the argument
+using Euclid&#39;s algorithm.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>12 gcd: 8 &gt;&gt;&gt; 4
+7 gcd: 5 &gt;&gt;&gt; 1
+100 gcd: 75 &gt;&gt;&gt; 25
+0 gcd: 5 &gt;&gt;&gt; 5
+-12 gcd: 8 &gt;&gt;&gt; 4</code></pre>
+</div>
+
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">isZero</div>
+
+            <div class="method-doc">
+                <p>Return true if the receiver is zero.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>0 isZero &gt;&gt;&gt; true
+1 isZero &gt;&gt;&gt; false
+-1 isZero &gt;&gt;&gt; false</code></pre>
+</div>
+
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">lcm:</div>
+
+            <div class="method-doc">
+                <p>Return the least common multiple of the receiver and the argument.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>4 lcm: 6 &gt;&gt;&gt; 12
+3 lcm: 5 &gt;&gt;&gt; 15
+7 lcm: 7 &gt;&gt;&gt; 7</code></pre>
+</div>
+
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">max:</div>
+
+            <div class="method-doc">
+                <p>Return the larger of the receiver and the argument.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>3 max: 5 &gt;&gt;&gt; 5
+7 max: 2 &gt;&gt;&gt; 7
+4 max: 4 &gt;&gt;&gt; 4</code></pre>
+</div>
+
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">min:</div>
+
+            <div class="method-doc">
+                <p>Return the smaller of the receiver and the argument.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>3 min: 5 &gt;&gt;&gt; 3
+7 min: 2 &gt;&gt;&gt; 2
+4 min: 4 &gt;&gt;&gt; 4</code></pre>
+</div>
+
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">negated</div>
+
+            <div class="method-doc">
+                <p>Return the negation of the receiver.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>5 negated &gt;&gt;&gt; -5
+-3 negated &gt;&gt;&gt; 3
+0 negated &gt;&gt;&gt; 0</code></pre>
+</div>
+
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">negative</div>
+
+            <div class="method-doc">
+                <p>Return true if the receiver is less than zero.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>-3 negative &gt;&gt;&gt; true
+5 negative &gt;&gt;&gt; false
+0 negative &gt;&gt;&gt; false</code></pre>
+</div>
+
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">odd</div>
+
+            <div class="method-doc">
+                <p>Return true if the receiver is not divisible by 2.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>7 odd &gt;&gt;&gt; true
+4 odd &gt;&gt;&gt; false
+0 odd &gt;&gt;&gt; false</code></pre>
+</div>
+
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">positive</div>
+
+            <div class="method-doc">
+                <p>Return true if the receiver is greater than zero.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>5 positive &gt;&gt;&gt; true
+-3 positive &gt;&gt;&gt; false
+0 positive &gt;&gt;&gt; false</code></pre>
+</div>
+
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">printString</div>
+
+            <div class="method-doc">
+                <p>Return the decimal string representation of the receiver.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>42 printString &gt;&gt;&gt; &#39;42&#39;
+-7 printString &gt;&gt;&gt; &#39;-7&#39;
+0 printString &gt;&gt;&gt; &#39;0&#39;</code></pre>
+</div>
+
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">sign</div>
+
+            <div class="method-doc">
+                <p>Return -1, 0, or 1 indicating the sign of the receiver.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>-42 sign &gt;&gt;&gt; -1
+0 sign &gt;&gt;&gt; 0
+17 sign &gt;&gt;&gt; 1</code></pre>
+</div>
+
+            </div>
+
+
+        </div>
+
+    </div>
+
+
+
+    <div class="footer">
+        Generated by Maggie doc generator.
+    </div>
+
+    <script src="../../js/playground.js"></script>
+</body>
+</html>

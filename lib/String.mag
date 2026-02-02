@@ -1,111 +1,276 @@
-# String.mag
+"""
+An immutable sequence of characters.
 
+Strings are created with single-quote literals: 'hello'. Concatenate
+with the comma operator. Compare with =, <, >, <=, >=. Indices are
+0-based.
+
+```test
+'hello' size >>> 5
+'hello', ' world' >>> 'hello world'
+'hello' at: 0 >>> $h
+```
+
+```example
+"Build a greeting"
+name := 'Maggie'.
+'Hello, ', name, '!'
+```
+"""
 String subclass: Object
 
-  # Accessing
+  """
+  Return the number of characters in the string.
+
+  ```test
+  'hello' size >>> 5
+  '' size >>> 0
+  ```
+  """
   method: size [
       ^self primSize
   ]
 
+  """
+  Return the Character at a 0-based index.
+
+  ```test
+  'hello' at: 0 >>> $h
+  'hello' at: 4 >>> $o
+  ```
+  """
   method: at: index [
-      "Return character at 0-based index."
       ^self primAt: index
   ]
 
+  """
+  Return true if the string has no characters.
+
+  ```test
+  '' isEmpty >>> true
+  'a' isEmpty >>> false
+  ```
+  """
   method: isEmpty [
       ^self size = 0
   ]
 
+  """
+  Return true if the string has at least one character.
+
+  ```test
+  'hello' notEmpty >>> true
+  '' notEmpty >>> false
+  ```
+  """
   method: notEmpty [
       ^self isEmpty not
   ]
 
-  # Concatenation
+  """
+  Return a new string that is the concatenation of the receiver and other.
+
+  ```test
+  'hello', ' world' >>> 'hello world'
+  '', 'abc' >>> 'abc'
+  'x', '' >>> 'x'
+  ```
+  """
   method: , other [
       ^self primConcat: other
   ]
 
-  # Comparison
+  """
+  Return true if the receiver and other contain the same characters.
+
+  ```test
+  'abc' = 'abc' >>> true
+  'abc' = 'xyz' >>> false
+  ```
+  """
   method: = other [
       ^self primEquals: other
   ]
 
+  """
+  Return true if the receiver sorts before other lexicographically.
+  """
   method: < other [
       ^self primLessThan: other
   ]
 
+  """
+  Return true if the receiver sorts after other lexicographically.
+  """
   method: > other [
       ^other < self
   ]
 
+  """
+  Return true if the receiver sorts before or equal to other.
+  """
   method: <= other [
       ^(self > other) not
   ]
 
+  """
+  Return true if the receiver sorts after or equal to other.
+  """
   method: >= other [
       ^(self < other) not
   ]
 
-  # Searching
+  """
+  Return true if the string contains the given substring or character.
+
+  ```test
+  'hello' includes: 'ell' >>> true
+  'hello' includes: 'xyz' >>> false
+  ```
+  """
   method: includes: char [
       ^self primIncludes: char
   ]
 
+  """
+  Return the 0-based index of the first occurrence, or -1 if not found.
+
+  ```test
+  'hello' indexOf: 'l' >>> 2
+  'hello' indexOf: 'z' >>> -1
+  ```
+  """
   method: indexOf: char [
       ^self primIndexOf: char
   ]
 
-  # Conversion
+  """
+  Return the string as a symbol (interned string).
+
+  ```test
+  'hello' asSymbol >>> #hello
+  ```
+  """
   method: asSymbol [
       ^self primAsSymbol
   ]
 
+  """
+  Return a new string with all characters converted to uppercase.
+
+  ```test
+  'hello' asUppercase >>> 'HELLO'
+  'Hello World' asUppercase >>> 'HELLO WORLD'
+  ```
+  """
   method: asUppercase [
       ^self primAsUppercase
   ]
 
+  """
+  Return a new string with all characters converted to lowercase.
+
+  ```test
+  'HELLO' asLowercase >>> 'hello'
+  'Hello World' asLowercase >>> 'hello world'
+  ```
+  """
   method: asLowercase [
       ^self primAsLowercase
   ]
 
-  # Copying
+  """
+  Return a substring from start (inclusive) to end (exclusive), 0-based.
+
+  ```test
+  'hello' copyFrom: 1 to: 4 >>> 'ell'
+  'hello' copyFrom: 0 to: 5 >>> 'hello'
+  ```
+  """
   method: copyFrom: start to: end [
       ^self primCopyFrom: start to: end
   ]
 
-  # Iteration
+  """
+  Evaluate aBlock with each character (as a single-character string).
+
+  ```test
+  result := ''.
+  'abc' do: [:ch | result := result, ch, '-'].
+  result >>> 'a-b-c-'
+  ```
+  """
   method: do: aBlock [
-      "Evaluate aBlock with each Character in the string."
       ^self primDo: aBlock
   ]
 
-  # Character inspection (for single-character strings)
+  """
+  Return true if this single-character string is a digit (0-9).
+
+  ```test
+  '5' isDigit >>> true
+  'a' isDigit >>> false
+  ```
+  """
   method: isDigit [
-      "Return true if this is a single digit character."
       ^self primIsDigit
   ]
 
+  """
+  Return true if this single-character string is a letter (a-z, A-Z).
+
+  ```test
+  'a' isLetter >>> true
+  '5' isLetter >>> false
+  ```
+  """
   method: isLetter [
-      "Return true if this is a single letter character."
       ^self primIsLetter
   ]
 
+  """
+  Return true if this single-character string is a letter or digit.
+
+  ```test
+  'a' isAlphanumeric >>> true
+  '5' isAlphanumeric >>> true
+  ' ' isAlphanumeric >>> false
+  ```
+  """
   method: isAlphanumeric [
-      "Return true if this is a letter or digit."
       ^self isLetter or: [self isDigit]
   ]
 
+  """
+  Return true if this single-character string is whitespace.
+
+  ```test
+  ' ' isWhitespace >>> true
+  'a' isWhitespace >>> false
+  ```
+  """
   method: isWhitespace [
-      "Return true if this is whitespace."
       ^self primIsWhitespace
   ]
 
+  """
+  Return the receiver (strings are already strings).
+
+  ```test
+  'hello' asString >>> 'hello'
+  ```
+  """
   method: asString [
-      "Strings are already strings."
       ^self
   ]
 
-  # Printing
+  """
+  Return a quoted string representation suitable for display.
+
+  ```test
+  'hello' printString >>> '''hello'''
+  ```
+  """
   method: printString [
       ^'''', self, ''''
   ]

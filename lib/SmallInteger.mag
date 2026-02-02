@@ -1,84 +1,246 @@
-# SmallInteger.mag
+"""
+Integer values represented as tagged pointers for efficient arithmetic.
 
+SmallInteger is the primary numeric type in Maggie. Arithmetic operators
+(+, -, *, /, \\, //), comparisons (<, >, <=, >=, =), and iteration
+(timesRepeat:, to:do:, to:by:do:) are implemented as primitives for
+performance. The methods below provide higher-level numeric operations
+built on those primitives.
+
+```test
+3 + 4 >>> 7
+10 - 3 >>> 7
+6 * 7 >>> 42
+10 / 3 >>> 3
+10 \\ 3 >>> 1
+```
+
+```example
+"Smalltalk-style iteration"
+| sum |
+sum := 0.
+1 to: 100 do: [:i | sum := sum + i].
+sum
+```
+"""
 SmallInteger subclass: Object
 
-  # Arithmetic (most are primitives, these are derived)
+  """
+  Return the negation of the receiver.
+
+  ```test
+  5 negated >>> -5
+  -3 negated >>> 3
+  0 negated >>> 0
+  ```
+  """
   method: negated [
       ^0 - self
   ]
 
+  """
+  Return the absolute value of the receiver.
+
+  ```test
+  -5 abs >>> 5
+  5 abs >>> 5
+  0 abs >>> 0
+  ```
+  """
   method: abs [
       self < 0 ifTrue: [^self negated].
       ^self
   ]
 
+  """
+  Return -1, 0, or 1 indicating the sign of the receiver.
+
+  ```test
+  -42 sign >>> -1
+  0 sign >>> 0
+  17 sign >>> 1
+  ```
+  """
   method: sign [
       self < 0 ifTrue: [^-1].
       self > 0 ifTrue: [^1].
       ^0
   ]
 
-  # Comparison
+  """
+  Return the larger of the receiver and the argument.
+
+  ```test
+  3 max: 5 >>> 5
+  7 max: 2 >>> 7
+  4 max: 4 >>> 4
+  ```
+  """
   method: max: other [
       self > other ifTrue: [^self].
       ^other
   ]
 
+  """
+  Return the smaller of the receiver and the argument.
+
+  ```test
+  3 min: 5 >>> 3
+  7 min: 2 >>> 2
+  4 min: 4 >>> 4
+  ```
+  """
   method: min: other [
       self < other ifTrue: [^self].
       ^other
   ]
 
+  """
+  Return true if the receiver is between min and max, inclusive.
+
+  ```test
+  5 between: 1 and: 10 >>> true
+  1 between: 1 and: 10 >>> true
+  10 between: 1 and: 10 >>> true
+  0 between: 1 and: 10 >>> false
+  ```
+  """
   method: between: min and: max [
       ^self >= min & (self <= max)
   ]
 
-  # Testing
+  """
+  Return true if the receiver is divisible by 2.
+
+  ```test
+  4 even >>> true
+  7 even >>> false
+  0 even >>> true
+  ```
+  """
   method: even [
       ^(self \\ 2) = 0
   ]
 
+  """
+  Return true if the receiver is not divisible by 2.
+
+  ```test
+  7 odd >>> true
+  4 odd >>> false
+  0 odd >>> false
+  ```
+  """
   method: odd [
       ^self even not
   ]
 
+  """
+  Return true if the receiver is greater than zero.
+
+  ```test
+  5 positive >>> true
+  -3 positive >>> false
+  0 positive >>> false
+  ```
+  """
   method: positive [
       ^self > 0
   ]
 
+  """
+  Return true if the receiver is less than zero.
+
+  ```test
+  -3 negative >>> true
+  5 negative >>> false
+  0 negative >>> false
+  ```
+  """
   method: negative [
       ^self < 0
   ]
 
+  """
+  Return true if the receiver is zero.
+
+  ```test
+  0 isZero >>> true
+  1 isZero >>> false
+  -1 isZero >>> false
+  ```
+  """
   method: isZero [
       ^self = 0
   ]
 
   # Iteration
-  # Note: timesRepeat: and to:do: are implemented as primitives
-  # Do NOT define them here as compiled methods - they would override the primitives
-  # and cause performance issues by creating new blocks on each iteration
+  # Note: timesRepeat:, to:do:, and to:by:do: are implemented as primitives.
+  # Do NOT define them here — compiled methods would override the primitives
+  # and cause performance issues by creating new blocks on each iteration.
 
-  # Note: to:do: and to:by:do: are implemented as primitives
-  # Do NOT define them here as compiled methods - they would override the primitives
-  # and cause performance issues by creating new blocks on each iteration
+  """
+  Return the factorial of the receiver (n!).
+  The receiver must be non-negative.
 
-  # Mathematical
+  ```test
+  0 factorial >>> 1
+  1 factorial >>> 1
+  5 factorial >>> 120
+  10 factorial >>> 3628800
+  ```
+
+  ```example
+  "Build a table of factorials"
+  1 to: 8 do: [:n |
+      (n printString, '! = ', n factorial printString) print
+  ]
+  ```
+  """
   method: factorial [
       self = 0 ifTrue: [^1].
       ^self * (self - 1) factorial
   ]
 
+  """
+  Return the greatest common divisor of the receiver and the argument
+  using Euclid's algorithm.
+
+  ```test
+  12 gcd: 8 >>> 4
+  7 gcd: 5 >>> 1
+  100 gcd: 75 >>> 25
+  0 gcd: 5 >>> 5
+  -12 gcd: 8 >>> 4
+  ```
+  """
   method: gcd: other [
       other = 0 ifTrue: [^self abs].
       ^other gcd: (self \\ other)
   ]
 
+  """
+  Return the least common multiple of the receiver and the argument.
+
+  ```test
+  4 lcm: 6 >>> 12
+  3 lcm: 5 >>> 15
+  7 lcm: 7 >>> 7
+  ```
+  """
   method: lcm: other [
       ^(self * other) abs // (self gcd: other)
   ]
 
-  # Printing
+  """
+  Return the decimal string representation of the receiver.
+
+  ```test
+  42 printString >>> '42'
+  -7 printString >>> '-7'
+  0 printString >>> '0'
+  ```
+  """
   method: printString [
       ^self primPrintString
   ]

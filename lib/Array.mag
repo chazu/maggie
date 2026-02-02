@@ -1,44 +1,136 @@
-# Array.mag
+"""
+An ordered, fixed-size collection of elements accessed by 0-based index.
 
+Arrays are created with `Array new: size` (all elements nil) or with the
+literal syntax `#(1 2 3)`. Elements can be any object. Use collect:,
+select:, reject:, and inject:into: for functional-style transformations.
+
+```test
+(Array new: 3) size >>> 3
+#(10 20 30) first >>> 10
+#(10 20 30) last >>> 30
+```
+
+```example
+"Filter and transform a collection"
+#(1 2 3 4 5 6 7 8 9 10)
+    select: [:n | n odd]
+    collect: [:n | n * n]
+```
+"""
 Array subclass: Object
   include: Printable
 
-  # Accessing
+  """
+  Return the number of elements in the array.
+
+  ```test
+  #(1 2 3) size >>> 3
+  (Array new: 0) size >>> 0
+  ```
+  """
   method: size [
       ^self primSize
   ]
 
+  """
+  Return the element at a 0-based index.
+
+  ```test
+  #(10 20 30) at: 0 >>> 10
+  #(10 20 30) at: 2 >>> 30
+  ```
+  """
   method: at: index [
-      "Return element at 0-based index."
       ^self primAt: index
   ]
 
+  """
+  Set the element at a 0-based index. Returns the value stored.
+
+  ```test
+  a := Array new: 3.
+  a at: 1 put: 42.
+  a at: 1 >>> 42
+  ```
+  """
   method: at: index put: value [
-      "Set element at 0-based index."
       ^self primAt: index put: value
   ]
 
+  """
+  Return the first element of the array.
+
+  ```test
+  #(10 20 30) first >>> 10
+  ```
+  """
   method: first [
       ^self at: 0
   ]
 
+  """
+  Return the last element of the array.
+
+  ```test
+  #(10 20 30) last >>> 30
+  #(42) last >>> 42
+  ```
+  """
   method: last [
       ^self at: self size - 1
   ]
 
+  """
+  Return true if the array has no elements.
+
+  ```test
+  (Array new: 0) isEmpty >>> true
+  #(1) isEmpty >>> false
+  ```
+  """
   method: isEmpty [
       ^self size = 0
   ]
 
+  """
+  Return true if the array has at least one element.
+
+  ```test
+  #(1 2) notEmpty >>> true
+  (Array new: 0) notEmpty >>> false
+  ```
+  """
   method: notEmpty [
       ^self isEmpty not
   ]
 
-  # Iteration
+  """
+  Evaluate block once for each element in the array.
+
+  ```test
+  sum := 0.
+  #(1 2 3) do: [:each | sum := sum + each].
+  sum >>> 6
+  ```
+  """
   method: do: block [
       0 to: self size - 1 do: [:i | block value: (self at: i)]
   ]
 
+  """
+  Return a new array with block applied to each element.
+
+  ```test
+  #(1 2 3) collect: [:x | x * 2] >>> #(2 4 6 )
+  #(1 4 9) collect: [:x | x + 1] >>> #(2 5 10 )
+  ```
+
+  ```example
+  "Convert numbers to strings"
+  #(1 2 3) collect: [:n | n printString]
+  ```
+  """
   method: collect: block [
       | result |
       result := Array new: self size.
@@ -46,6 +138,14 @@ Array subclass: Object
       ^result
   ]
 
+  """
+  Return a new array containing only elements for which block returns true.
+
+  ```test
+  #(1 2 3 4 5) select: [:x | x > 3] >>> #(4 5 )
+  #(1 2 3 4) select: [:x | x even] >>> #(2 4 )
+  ```
+  """
   method: select: block [
       | result |
       result := Array new: 0.
@@ -53,21 +153,61 @@ Array subclass: Object
       ^result
   ]
 
+  """
+  Return a new array excluding elements for which block returns true.
+
+  ```test
+  #(1 2 3 4 5) reject: [:x | x > 3] >>> #(1 2 3 )
+  #(1 2 3 4) reject: [:x | x even] >>> #(1 3 )
+  ```
+  """
   method: reject: block [
       ^self select: [:each | (block value: each) not]
   ]
 
+  """
+  Return the first element for which block returns true, or nil if none.
+
+  ```test
+  #(1 2 3 4 5) detect: [:x | x > 3] >>> 4
+  #(1 2 3) detect: [:x | x > 10] >>> nil
+  ```
+  """
   method: detect: block [
       self do: [:each | (block value: each) ifTrue: [^each]].
       ^nil
   ]
 
+  """
+  Return the first element for which block returns true.
+  If none found, evaluate noneBlock and return its result.
+
+  ```test
+  #(1 2 3) detect: [:x | x > 10] ifNone: [0] >>> 0
+  #(1 2 3) detect: [:x | x > 1] ifNone: [0] >>> 2
+  ```
+  """
   method: detect: block ifNone: noneBlock [
       self do: [:each | (block value: each) ifTrue: [^each]].
       ^noneBlock value
   ]
 
-  # Aggregation
+  """
+  Accumulate a value by applying block to each element in turn.
+  Block receives the accumulator and the current element.
+
+  ```test
+  #(1 2 3 4) inject: 0 into: [:sum :x | sum + x] >>> 10
+  #(1 2 3 4) inject: 1 into: [:prod :x | prod * x] >>> 24
+  ```
+
+  ```example
+  "Find the longest string"
+  #('cat' 'elephant' 'dog') inject: '' into: [:longest :s |
+      s size > longest size ifTrue: [s] ifFalse: [longest]
+  ]
+  ```
+  """
   method: inject: initial into: block [
       | result |
       result := initial.
@@ -75,19 +215,40 @@ Array subclass: Object
       ^result
   ]
 
-  # Testing
+  """
+  Return true if the array contains an element equal to anObject.
+
+  ```test
+  #(1 2 3) includes: 2 >>> true
+  #(1 2 3) includes: 5 >>> false
+  ```
+  """
   method: includes: anObject [
       self do: [:each | each = anObject ifTrue: [^true]].
       ^false
   ]
 
+  """
+  Return the 0-based index of anObject, or -1 if not found.
+
+  ```test
+  #(10 20 30) indexOf: 20 >>> 1
+  #(10 20 30) indexOf: 99 >>> -1
+  ```
+  """
   method: indexOf: anObject [
-      "Return the 0-based index of anObject, or -1 if not found."
       0 to: self size - 1 do: [:i | (self at: i) = anObject ifTrue: [^i]].
       ^-1
   ]
 
-  # Concatenation
+  """
+  Return a new array that is the concatenation of the receiver and other.
+
+  ```test
+  #(1 2), #(3 4) >>> #(1 2 3 4 )
+  #(), #(1 2) >>> #(1 2 )
+  ```
+  """
   method: , other [
       | result |
       result := Array new: self size + other size.
@@ -96,21 +257,42 @@ Array subclass: Object
       ^result
   ]
 
-  # Copying
+  """
+  Return a new array with elements from start (inclusive) to end (exclusive).
+  Indices are 0-based.
+
+  ```test
+  #(10 20 30 40 50) copyFrom: 1 to: 4 >>> #(20 30 40 )
+  #(10 20 30) copyFrom: 0 to: 2 >>> #(10 20 )
+  ```
+  """
   method: copyFrom: start to: end [
-      "Return elements from start (inclusive) to end (exclusive), 0-based."
       | result |
       result := Array new: end - start.
       start to: end - 1 do: [:i | result at: i - start put: (self at: i)].
       ^result
   ]
 
+  """
+  Return a new array with element appended at the end.
+
+  ```test
+  #(1 2) copyWith: 3 >>> #(1 2 3 )
+  #() copyWith: 42 >>> #(42 )
+  ```
+  """
   method: copyWith: element [
-      "Return a new array with element appended."
       ^self, (Array with: element)
   ]
 
-  # Printing
+  """
+  Return a string representation of the array.
+
+  ```test
+  #(1 2 3) printString >>> '#(1 2 3 )'
+  #() printString >>> '#()'
+  ```
+  """
   method: printString [
       | s |
       s := '#('.

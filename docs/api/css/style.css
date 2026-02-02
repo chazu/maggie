@@ -1,0 +1,319 @@
+/* Maggie API Documentation */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    line-height: 1.6;
+    color: #24292e;
+    background: #ffffff;
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 2rem 1.5rem;
+}
+
+a {
+    color: #0366d6;
+    text-decoration: none;
+}
+a:hover {
+    text-decoration: underline;
+}
+
+h1 {
+    font-size: 2rem;
+    border-bottom: 1px solid #e1e4e8;
+    padding-bottom: 0.5rem;
+    margin-bottom: 1.5rem;
+}
+
+h2 {
+    font-size: 1.5rem;
+    margin-top: 2rem;
+    margin-bottom: 0.75rem;
+    border-bottom: 1px solid #eaecef;
+    padding-bottom: 0.3rem;
+}
+
+h3 {
+    font-size: 1.25rem;
+    margin-top: 1.5rem;
+    margin-bottom: 0.5rem;
+}
+
+h4 {
+    font-size: 1rem;
+    margin-top: 1rem;
+    margin-bottom: 0.25rem;
+    color: #586069;
+}
+
+p {
+    margin-bottom: 0.75rem;
+}
+
+code, pre {
+    font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+    font-size: 0.875rem;
+}
+
+code {
+    background: #f6f8fa;
+    padding: 0.15rem 0.3rem;
+    border-radius: 3px;
+}
+
+pre {
+    background: #f6f8fa;
+    padding: 1rem;
+    border-radius: 6px;
+    overflow-x: auto;
+    margin-bottom: 1rem;
+}
+
+pre code {
+    background: none;
+    padding: 0;
+}
+
+/* Namespace grouping on index page */
+.namespace-group {
+    margin-bottom: 2rem;
+}
+
+.namespace-group h2 {
+    font-size: 1.25rem;
+    color: #6a737d;
+    font-weight: 600;
+}
+
+.class-list {
+    list-style: none;
+    padding-left: 0;
+}
+
+.class-list li {
+    padding: 0.4rem 0;
+    border-bottom: 1px solid #f0f0f0;
+}
+
+.class-list li:last-child {
+    border-bottom: none;
+}
+
+.class-list .class-name {
+    font-weight: 600;
+}
+
+.class-list .class-brief {
+    color: #586069;
+    font-size: 0.875rem;
+    margin-left: 0.5rem;
+}
+
+/* Breadcrumb navigation */
+.breadcrumb {
+    font-size: 0.875rem;
+    color: #586069;
+    margin-bottom: 1rem;
+}
+
+.breadcrumb a {
+    color: #586069;
+}
+
+/* Class page sections */
+.class-header {
+    margin-bottom: 1.5rem;
+}
+
+.superclass-chain {
+    font-size: 0.875rem;
+    color: #586069;
+    margin-top: 0.25rem;
+}
+
+.inst-vars {
+    font-size: 0.875rem;
+    color: #586069;
+    margin-top: 0.5rem;
+}
+
+.inst-vars code {
+    font-size: 0.8125rem;
+}
+
+.class-doc {
+    margin-bottom: 2rem;
+    padding: 1rem;
+    background: #f8f9fa;
+    border-radius: 6px;
+    border-left: 3px solid #0366d6;
+}
+
+.class-doc p {
+    margin-bottom: 0.5rem;
+}
+
+.class-doc p:last-child {
+    margin-bottom: 0;
+}
+
+/* Method sections */
+.method-category {
+    margin-top: 1.5rem;
+    margin-bottom: 1rem;
+}
+
+.method-category h3 {
+    font-size: 1.1rem;
+    color: #24292e;
+    text-transform: capitalize;
+    border-bottom: 1px solid #eaecef;
+    padding-bottom: 0.25rem;
+}
+
+.method {
+    margin-bottom: 1.5rem;
+    padding: 0.75rem 1rem;
+    border: 1px solid #e1e4e8;
+    border-radius: 6px;
+}
+
+.method-selector {
+    font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+    font-size: 1rem;
+    font-weight: 600;
+    color: #22863a;
+}
+
+.method-selector .class-side-label {
+    color: #6a737d;
+    font-weight: normal;
+    font-size: 0.8125rem;
+}
+
+.method-doc {
+    margin-top: 0.5rem;
+}
+
+.method-doc p {
+    margin-bottom: 0.5rem;
+}
+
+.method-source {
+    margin-top: 0.75rem;
+}
+
+.method-source summary {
+    cursor: pointer;
+    font-size: 0.8125rem;
+    color: #586069;
+    user-select: none;
+}
+
+.method-source summary:hover {
+    color: #0366d6;
+}
+
+.method-source pre {
+    margin-top: 0.5rem;
+}
+
+/* Docstring test/example blocks */
+.doc-block {
+    margin: 0.75rem 0;
+    border-radius: 6px;
+    overflow: hidden;
+}
+
+.doc-block-label {
+    display: block;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 0.25rem 1rem;
+}
+
+.doc-test {
+    border: 1px solid #d1d5da;
+}
+
+.doc-test .doc-block-label {
+    background: #e8f5e9;
+    color: #2e7d32;
+}
+
+.doc-test pre {
+    margin: 0;
+    border-radius: 0;
+}
+
+.doc-example {
+    border: 1px solid #d1d5da;
+}
+
+.doc-example .doc-block-label {
+    background: #e3f2fd;
+    color: #1565c0;
+}
+
+.doc-example pre {
+    margin: 0;
+    border-radius: 0;
+}
+
+/* Footer */
+.footer {
+    margin-top: 3rem;
+    padding-top: 1rem;
+    border-top: 1px solid #e1e4e8;
+    font-size: 0.8125rem;
+    color: #6a737d;
+}
+
+/* Playground */
+.playground-run {
+    display: inline-block;
+    padding: 4px 12px;
+    margin-bottom: 4px;
+    background: #1565c0;
+    color: #fff;
+    border: none;
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 13px;
+}
+.playground-run:hover {
+    background: #0d47a1;
+}
+.playground-run:disabled {
+    background: #90a4ae;
+    cursor: wait;
+}
+.playground-output {
+    padding: 8px 12px;
+    margin-top: 4px;
+    border-radius: 0 0 4px 4px;
+    font-family: 'SF Mono', 'Monaco', 'Menlo', monospace;
+    font-size: 14px;
+    white-space: pre-wrap;
+}
+.playground-loading {
+    color: #78909c;
+    background: #f5f5f5;
+}
+.playground-success {
+    color: #1b5e20;
+    background: #e8f5e9;
+    border: 1px solid #a5d6a7;
+}
+.playground-error {
+    color: #b71c1c;
+    background: #ffebee;
+    border: 1px solid #ef9a9a;
+}

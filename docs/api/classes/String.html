@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>String &mdash; Maggie API Reference</title>
+    <link rel="stylesheet" href="../../css/style.css">
+</head>
+<body>
+    <div class="breadcrumb">
+        <a href="../../index.html">Maggie API Reference</a>
+
+        &rsaquo; String
+    </div>
+
+    <div class="class-header">
+        <h1>String</h1>
+
+        <div class="superclass-chain">
+            Inherits from: Object
+        </div>
+
+
+    </div>
+
+
+    <div class="class-doc">
+        <p>An immutable sequence of characters.</p>
+<p>Strings are created with single-quote literals: &#39;hello&#39;. Concatenate
+with the comma operator. Compare with =, &lt;, &gt;, &lt;=, &gt;=. Indices are
+0-based.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>&#39;hello&#39; size &gt;&gt;&gt; 5
+&#39;hello&#39;, &#39; world&#39; &gt;&gt;&gt; &#39;hello world&#39;
+&#39;hello&#39; at: 0 &gt;&gt;&gt; $h</code></pre>
+</div>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>&#34;Build a greeting&#34;
+name := &#39;Maggie&#39;.
+&#39;Hello, &#39;, name, &#39;!&#39;</code></pre>
+</div>
+
+    </div>
+
+
+
+
+
+    <h2>Instance Methods</h2>
+
+    <div class="method-category">
+        <h3>primitives</h3>
+
+        <div class="method">
+            <div class="method-selector">asFloat</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">asInteger</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">primAsLowercase</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">primAsSymbol</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">primAsUppercase</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">primAt:</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">primConcat:</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">primCopyFrom:to:</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">primDo:</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">primEquals:</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">primIncludes:</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">primIndexOf:</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">primIsDigit</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">primIsLetter</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">primIsWhitespace</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">primLessThan:</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">primSize</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">print</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">println</div>
+
+
+        </div>
+
+    </div>
+
+    <div class="method-category">
+        <h3>uncategorized</h3>
+
+        <div class="method">
+            <div class="method-selector">,</div>
+
+            <div class="method-doc">
+                <p>Return a new string that is the concatenation of the receiver and other.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>&#39;hello&#39;, &#39; world&#39; &gt;&gt;&gt; &#39;hello world&#39;
+&#39;&#39;, &#39;abc&#39; &gt;&gt;&gt; &#39;abc&#39;
+&#39;x&#39;, &#39;&#39; &gt;&gt;&gt; &#39;x&#39;</code></pre>
+</div>
+
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">&lt;</div>
+
+            <div class="method-doc">
+                <p>Return true if the receiver sorts before other lexicographically.</p>
+
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">&lt;=</div>
+
+            <div class="method-doc">
+                <p>Return true if the receiver sorts before or equal to other.</p>
+
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">=</div>
+
+            <div class="method-doc">
+                <p>Return true if the receiver and other contain the same characters.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>&#39;abc&#39; = &#39;abc&#39; &gt;&gt;&gt; true
+&#39;abc&#39; = &#39;xyz&#39; &gt;&gt;&gt; false</code></pre>
+</div>
+
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">&gt;</div>
+
+            <div class="method-doc">
+                <p>Return true if the receiver sorts after other lexicographically.</p>
+
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">&gt;=</div>
+
+            <div class="method-doc">
+                <p>Return true if the receiver sorts after or equal to other.</p>
+
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">asLowercase</div>
+
+            <div class="method-doc">
+                <p>Return a new string with all characters converted to lowercase.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>&#39;HELLO&#39; asLowercase &gt;&gt;&gt; &#39;hello&#39;
+&#39;Hello World&#39; asLowercase &gt;&gt;&gt; &#39;hello world&#39;</code></pre>
+</div>
+
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">asString</div>
+
+            <div class="method-doc">
+                <p>Return the receiver (strings are already strings).</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>&#39;hello&#39; asString &gt;&gt;&gt; &#39;hello&#39;</code></pre>
+</div>
+
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">asSymbol</div>
+
+            <div class="method-doc">
+                <p>Return the string as a symbol (interned string).</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>&#39;hello&#39; asSymbol &gt;&gt;&gt; #hello</code></pre>
+</div>
+
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">asUppercase</div>
+
+            <div class="method-doc">
+                <p>Return a new string with all characters converted to uppercase.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>&#39;hello&#39; asUppercase &gt;&gt;&gt; &#39;HELLO&#39;
+&#39;Hello World&#39; asUppercase &gt;&gt;&gt; &#39;HELLO WORLD&#39;</code></pre>
+</div>
+
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">at:</div>
+
+            <div class="method-doc">
+                <p>Return the Character at a 0-based index.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>&#39;hello&#39; at: 0 &gt;&gt;&gt; $h
+&#39;hello&#39; at: 4 &gt;&gt;&gt; $o</code></pre>
+</div>
+
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">copyFrom:to:</div>
+
+            <div class="method-doc">
+                <p>Return a substring from start (inclusive) to end (exclusive), 0-based.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>&#39;hello&#39; copyFrom: 1 to: 4 &gt;&gt;&gt; &#39;ell&#39;
+&#39;hello&#39; copyFrom: 0 to: 5 &gt;&gt;&gt; &#39;hello&#39;</code></pre>
+</div>
+
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">do:</div>
+
+            <div class="method-doc">
+                <p>Evaluate aBlock with each character (as a single-character string).</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>result := &#39;&#39;.
+&#39;abc&#39; do: [:ch | result := result, ch, &#39;-&#39;].
+result &gt;&gt;&gt; &#39;a-b-c-&#39;</code></pre>
+</div>
+
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">includes:</div>
+
+            <div class="method-doc">
+                <p>Return true if the string contains the given substring or character.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>&#39;hello&#39; includes: &#39;ell&#39; &gt;&gt;&gt; true
+&#39;hello&#39; includes: &#39;xyz&#39; &gt;&gt;&gt; false</code></pre>
+</div>
+
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">indexOf:</div>
+
+            <div class="method-doc">
+                <p>Return the 0-based index of the first occurrence, or -1 if not found.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>&#39;hello&#39; indexOf: &#39;l&#39; &gt;&gt;&gt; 2
+&#39;hello&#39; indexOf: &#39;z&#39; &gt;&gt;&gt; -1</code></pre>
+</div>
+
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">isAlphanumeric</div>
+
+            <div class="method-doc">
+                <p>Return true if this single-character string is a letter or digit.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>&#39;a&#39; isAlphanumeric &gt;&gt;&gt; true
+&#39;5&#39; isAlphanumeric &gt;&gt;&gt; true
+&#39; &#39; isAlphanumeric &gt;&gt;&gt; false</code></pre>
+</div>
+
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">isDigit</div>
+
+            <div class="method-doc">
+                <p>Return true if this single-character string is a digit (0-9).</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>&#39;5&#39; isDigit &gt;&gt;&gt; true
+&#39;a&#39; isDigit &gt;&gt;&gt; false</code></pre>
+</div>
+
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">isEmpty</div>
+
+            <div class="method-doc">
+                <p>Return true if the string has no characters.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>&#39;&#39; isEmpty &gt;&gt;&gt; true
+&#39;a&#39; isEmpty &gt;&gt;&gt; false</code></pre>
+</div>
+
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">isLetter</div>
+
+            <div class="method-doc">
+                <p>Return true if this single-character string is a letter (a-z, A-Z).</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>&#39;a&#39; isLetter &gt;&gt;&gt; true
+&#39;5&#39; isLetter &gt;&gt;&gt; false</code></pre>
+</div>
+
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">isWhitespace</div>
+
+            <div class="method-doc">
+                <p>Return true if this single-character string is whitespace.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>&#39; &#39; isWhitespace &gt;&gt;&gt; true
+&#39;a&#39; isWhitespace &gt;&gt;&gt; false</code></pre>
+</div>
+
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">notEmpty</div>
+
+            <div class="method-doc">
+                <p>Return true if the string has at least one character.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>&#39;hello&#39; notEmpty &gt;&gt;&gt; true
+&#39;&#39; notEmpty &gt;&gt;&gt; false</code></pre>
+</div>
+
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">printString</div>
+
+            <div class="method-doc">
+                <p>Return a quoted string representation suitable for display.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>&#39;hello&#39; printString &gt;&gt;&gt; &#39;&#39;&#39;hello&#39;&#39;&#39;</code></pre>
+</div>
+
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">size</div>
+
+            <div class="method-doc">
+                <p>Return the number of characters in the string.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>&#39;hello&#39; size &gt;&gt;&gt; 5
+&#39;&#39; size &gt;&gt;&gt; 0</code></pre>
+</div>
+
+            </div>
+
+
+        </div>
+
+    </div>
+
+
+
+    <div class="footer">
+        Generated by Maggie doc generator.
+    </div>
+
+    <script src="../../js/playground.js"></script>
+</body>
+</html>
