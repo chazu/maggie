@@ -118,7 +118,15 @@ func NewInterpreter() *Interpreter {
 		Profiler:  NewProfiler(),
 	}
 
-	// Pre-intern common selectors
+	interp.internWellKnownSelectors()
+
+	return interp
+}
+
+// internWellKnownSelectors populates the cached selector IDs from the current
+// SelectorTable. Must be called whenever the Selectors table is replaced
+// (e.g., when the VM shares its table with the interpreter).
+func (interp *Interpreter) internWellKnownSelectors() {
 	interp.selectorPlus = interp.Selectors.Intern("+")
 	interp.selectorMinus = interp.Selectors.Intern("-")
 	interp.selectorTimes = interp.Selectors.Intern("*")
@@ -138,8 +146,6 @@ func NewInterpreter() *Interpreter {
 	interp.selectorValue2 = interp.Selectors.Intern("value:value:")
 	interp.selectorNew = interp.Selectors.Intern("new")
 	interp.selectorClass = interp.Selectors.Intern("class")
-
-	return interp
 }
 
 // StackTrace returns a formatted stack trace of the current call stack.
@@ -1538,6 +1544,27 @@ func blocksByHomeFrameHas(homeFrame int) bool {
 // Primitive operations (fast paths)
 // ---------------------------------------------------------------------------
 
+// sendBinaryFallback performs a VTable lookup for a binary operator when the
+// primitive fast path doesn't handle the receiver type. This allows methods
+// loaded from .mag files (e.g., String comparison operators) to be dispatched
+// correctly by the optimized binary opcodes (OpSendLT, OpSendGT, etc.).
+func (i *Interpreter) sendBinaryFallback(rcvr, arg Value, selectorID int) Value {
+	vt := i.vtableFor(rcvr)
+	if vt == nil {
+		return Nil
+	}
+	method := vt.Lookup(selectorID)
+	if method == nil {
+		return Nil
+	}
+	args := []Value{arg}
+	if cm, ok := method.(*CompiledMethod); ok {
+		i.pushFrame(cm, rcvr, args)
+		return i.runFrame()
+	}
+	return method.Invoke(i.vm, rcvr, args)
+}
+
 func (i *Interpreter) primitivePlus(a, b Value) Value {
 	if a.IsSmallInt() && b.IsSmallInt() {
 		return FromSmallInt(a.SmallInt() + b.SmallInt())
@@ -1551,8 +1578,7 @@ func (i *Interpreter) primitivePlus(a, b Value) Value {
 	if a.IsFloat() && b.IsSmallInt() {
 		return FromFloat64(a.Float64() + float64(b.SmallInt()))
 	}
-	// Would do full send for other types
-	return Nil
+	return i.sendBinaryFallback(a, b, i.selectorPlus)
 }
 
 func (i *Interpreter) primitiveMinus(a, b Value) Value {
@@ -1568,7 +1594,7 @@ func (i *Interpreter) primitiveMinus(a, b Value) Value {
 	if a.IsFloat() && b.IsSmallInt() {
 		return FromFloat64(a.Float64() - float64(b.SmallInt()))
 	}
-	return Nil
+	return i.sendBinaryFallback(a, b, i.selectorMinus)
 }
 
 func (i *Interpreter) primitiveTimes(a, b Value) Value {
@@ -1584,7 +1610,7 @@ func (i *Interpreter) primitiveTimes(a, b Value) Value {
 	if a.IsFloat() && b.IsSmallInt() {
 		return FromFloat64(a.Float64() * float64(b.SmallInt()))
 	}
-	return Nil
+	return i.sendBinaryFallback(a, b, i.selectorTimes)
 }
 
 func (i *Interpreter) primitiveDiv(a, b Value) Value {
@@ -1603,7 +1629,7 @@ func (i *Interpreter) primitiveDiv(a, b Value) Value {
 	if a.IsFloat() && b.IsSmallInt() {
 		return FromFloat64(a.Float64() / float64(b.SmallInt()))
 	}
-	return Nil
+	return i.sendBinaryFallback(a, b, i.selectorDiv)
 }
 
 func (i *Interpreter) primitiveMod(a, b Value) Value {
@@ -1613,7 +1639,7 @@ func (i *Interpreter) primitiveMod(a, b Value) Value {
 		}
 		return FromSmallInt(a.SmallInt() % b.SmallInt())
 	}
-	return Nil
+	return i.sendBinaryFallback(a, b, i.selectorMod)
 }
 
 func (i *Interpreter) primitiveLT(a, b Value) Value {
@@ -1629,7 +1655,7 @@ func (i *Interpreter) primitiveLT(a, b Value) Value {
 		}
 		return False
 	}
-	return Nil
+	return i.sendBinaryFallback(a, b, i.selectorLT)
 }
 
 func (i *Interpreter) primitiveGT(a, b Value) Value {
@@ -1645,7 +1671,7 @@ func (i *Interpreter) primitiveGT(a, b Value) Value {
 		}
 		return False
 	}
-	return Nil
+	return i.sendBinaryFallback(a, b, i.selectorGT)
 }
 
 func (i *Interpreter) primitiveLE(a, b Value) Value {
@@ -1655,7 +1681,7 @@ func (i *Interpreter) primitiveLE(a, b Value) Value {
 		}
 		return False
 	}
-	return Nil
+	return i.sendBinaryFallback(a, b, i.selectorLE)
 }
 
 func (i *Interpreter) primitiveGE(a, b Value) Value {
@@ -1665,7 +1691,7 @@ func (i *Interpreter) primitiveGE(a, b Value) Value {
 		}
 		return False
 	}
-	return Nil
+	return i.sendBinaryFallback(a, b, i.selectorGE)
 }
 
 func (i *Interpreter) primitiveEQ(a, b Value) Value {

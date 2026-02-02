@@ -214,3 +214,91 @@ func TestCompilerEvaluatePersistentGlobals(t *testing.T) {
 		t.Errorf("Fourth evaluation: expected 84, got: %d", result4.SmallInt())
 	}
 }
+
+// TestBinaryOperatorFallbackToVTable verifies that optimized binary opcodes
+// (OpSendLT, OpSendGT, etc.) fall back to VTable lookup for non-primitive types.
+// This was a bug where 'abc' < 'abd' returned nil because OpSendLT only
+// handled SmallInt and Float, ignoring methods loaded from .mag files.
+func TestBinaryOperatorFallbackToVTable(t *testing.T) {
+	vmInst := vm.NewVM()
+	vmInst.UseGoCompiler(compiler.Compile)
+
+	// Add comparison methods to String class (simulating what String.mag does)
+	strClass := vmInst.StringClass
+	strClass.AddMethod1(vmInst.Selectors, "<", func(_ interface{}, recv vm.Value, other vm.Value) vm.Value {
+		s1 := vm.GetStringContent(recv)
+		s2 := vm.GetStringContent(other)
+		if s1 < s2 {
+			return vm.True
+		}
+		return vm.False
+	})
+	strClass.AddMethod1(vmInst.Selectors, ">", func(_ interface{}, recv vm.Value, other vm.Value) vm.Value {
+		s1 := vm.GetStringContent(recv)
+		s2 := vm.GetStringContent(other)
+		if s1 > s2 {
+			return vm.True
+		}
+		return vm.False
+	})
+	strClass.AddMethod1(vmInst.Selectors, "<=", func(_ interface{}, recv vm.Value, other vm.Value) vm.Value {
+		s1 := vm.GetStringContent(recv)
+		s2 := vm.GetStringContent(other)
+		if s1 <= s2 {
+			return vm.True
+		}
+		return vm.False
+	})
+	strClass.AddMethod1(vmInst.Selectors, ">=", func(_ interface{}, recv vm.Value, other vm.Value) vm.Value {
+		s1 := vm.GetStringContent(recv)
+		s2 := vm.GetStringContent(other)
+		if s1 >= s2 {
+			return vm.True
+		}
+		return vm.False
+	})
+
+	compilerClass := vmInst.Globals["Compiler"]
+
+	tests := []struct {
+		expr     string
+		expected vm.Value
+	}{
+		{"'abc' < 'abd'", vm.True},
+		{"'abd' < 'abc'", vm.False},
+		{"'abc' < 'abc'", vm.False},
+		{"'xyz' > 'abc'", vm.True},
+		{"'abc' > 'xyz'", vm.False},
+		{"'abc' <= 'abd'", vm.True},
+		{"'abc' <= 'abc'", vm.True},
+		{"'abd' <= 'abc'", vm.False},
+		{"'abd' >= 'abc'", vm.True},
+		{"'abc' >= 'abc'", vm.True},
+		{"'abc' >= 'abd'", vm.False},
+	}
+
+	for _, tt := range tests {
+		result := vmInst.Send(compilerClass, "evaluate:", []vm.Value{vm.NewStringValue(tt.expr)})
+		if result != tt.expected {
+			t.Errorf("%s: got %v, want %v", tt.expr, result, tt.expected)
+		}
+	}
+
+	// Also verify numeric operators still work (fast path preserved)
+	numTests := []struct {
+		expr     string
+		expected vm.Value
+	}{
+		{"3 < 5", vm.True},
+		{"5 < 3", vm.False},
+		{"5 > 3", vm.True},
+		{"3 > 5", vm.False},
+	}
+
+	for _, tt := range numTests {
+		result := vmInst.Send(compilerClass, "evaluate:", []vm.Value{vm.NewStringValue(tt.expr)})
+		if result != tt.expected {
+			t.Errorf("%s: got %v, want %v", tt.expr, result, tt.expected)
+		}
+	}
+}

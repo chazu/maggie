@@ -138,6 +138,9 @@ func (vm *VM) newInterpreter() *Interpreter {
 	interp.Classes = vm.Classes
 	interp.Globals = vm.Globals
 	interp.vm = vm // Back-reference for primitives
+	// Re-intern well-known selectors against the VM's table so cached IDs
+	// match the IDs used by methods registered on the VM's classes.
+	interp.internWellKnownSelectors()
 	return interp
 }
 
