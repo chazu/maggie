@@ -352,7 +352,8 @@ type MethodInfo struct {
 	ClassName     string                 `protobuf:"bytes,2,opt,name=class_name,json=className,proto3" json:"class_name,omitempty"`
 	IsClassSide   bool                   `protobuf:"varint,3,opt,name=is_class_side,json=isClassSide,proto3" json:"is_class_side,omitempty"`
 	IsPrimitive   bool                   `protobuf:"varint,4,opt,name=is_primitive,json=isPrimitive,proto3" json:"is_primitive,omitempty"`
-	Source        string                 `protobuf:"bytes,5,opt,name=source,proto3" json:"source,omitempty"` // source code if available
+	Source        string                 `protobuf:"bytes,5,opt,name=source,proto3" json:"source,omitempty"`                        // source code if available
+	DocString     string                 `protobuf:"bytes,6,opt,name=doc_string,json=docString,proto3" json:"doc_string,omitempty"` // docstring if available
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -422,6 +423,13 @@ func (x *MethodInfo) GetSource() string {
 	return ""
 }
 
+func (x *MethodInfo) GetDocString() string {
+	if x != nil {
+		return x.DocString
+	}
+	return ""
+}
+
 var File_maggie_v1_common_proto protoreflect.FileDescriptor
 
 const file_maggie_v1_common_proto_rawDesc = "" +
@@ -453,7 +461,7 @@ const file_maggie_v1_common_proto_rawDesc = "" +
 	"\x17instance_variable_names\x18\x03 \x03(\tR\x15instanceVariableNames\x120\n" +
 	"\x14class_variable_names\x18\x04 \x03(\tR\x12classVariableNames\x122\n" +
 	"\x15instance_method_count\x18\x05 \x01(\x05R\x13instanceMethodCount\x12,\n" +
-	"\x12class_method_count\x18\x06 \x01(\x05R\x10classMethodCount\"\xa6\x01\n" +
+	"\x12class_method_count\x18\x06 \x01(\x05R\x10classMethodCount\"\xc5\x01\n" +
 	"\n" +
 	"MethodInfo\x12\x1a\n" +
 	"\bselector\x18\x01 \x01(\tR\bselector\x12\x1d\n" +
@@ -461,7 +469,9 @@ const file_maggie_v1_common_proto_rawDesc = "" +
 	"class_name\x18\x02 \x01(\tR\tclassName\x12\"\n" +
 	"\ris_class_side\x18\x03 \x01(\bR\visClassSide\x12!\n" +
 	"\fis_primitive\x18\x04 \x01(\bR\visPrimitive\x12\x16\n" +
-	"\x06source\x18\x05 \x01(\tR\x06sourceB0Z.github.com/chazu/maggie/gen/maggie/v1;maggiev1b\x06proto3"
+	"\x06source\x18\x05 \x01(\tR\x06source\x12\x1d\n" +
+	"\n" +
+	"doc_string\x18\x06 \x01(\tR\tdocStringB0Z.github.com/chazu/maggie/gen/maggie/v1;maggiev1b\x06proto3"
 
 var (
 	file_maggie_v1_common_proto_rawDescOnce sync.Once

@@ -440,26 +440,26 @@ A Maggie program that:
 ## Acceptance Criteria
 
 ### Phase 1: Core Pipeline
-- [ ] `"""Hello"""` lexes as `TokenDocstring` with literal `"Hello"`
-- [ ] Multi-line docstrings preserve content and strip common indent
-- [ ] Unterminated docstrings produce lexer error
-- [ ] Existing `"comments"` and `#` comments are unaffected
-- [ ] Parser attaches docstrings to ClassDef, MethodDef, TraitDef
+- [x] `"""Hello"""` lexes as `TokenDocstring` with literal `"Hello"`
+- [x] Multi-line docstrings preserve content and strip common indent
+- [x] Unterminated docstrings produce lexer error
+- [x] Existing `"comments"` and `#` comments are unaffected
+- [x] Parser attaches docstrings to ClassDef, MethodDef, TraitDef
 - [ ] Orphan docstrings produce a compiler warning
-- [ ] `CompiledMethod.DocString()` returns the docstring after compilation
-- [ ] `Class.DocString` is populated after compilation
-- [ ] Image version 2 round-trips docstrings correctly
-- [ ] Image version 1 loads in version 2 reader with empty docstrings
-- [ ] `fileOut` preserves docstrings
+- [x] `CompiledMethod.DocString()` returns the docstring after compilation
+- [x] `Class.DocString` is populated after compilation
+- [x] Image version 2 round-trips docstrings correctly
+- [x] Image version 1 loads in version 2 reader with empty docstrings
+- [x] `fileOut` preserves docstrings
 
 ### Phase 2: Runtime Access
-- [ ] `Array help` prints the Array class docstring in the REPL
-- [ ] `Array help: #at:` prints the at: method docstring
-- [ ] `:help Array` works as a REPL command
-- [ ] `:help Array>>at:` works for method lookup
-- [ ] `:help NonexistentClass` prints "No documentation available"
-- [ ] Browsing API `GetClass` returns class docstring in `comment` field
-- [ ] Browsing API `GetMethod` returns method docstring in new `docstring` field
+- [x] `Array help` prints the Array class docstring in the REPL
+- [x] `Array help: #at:` prints the at: method docstring
+- [x] `:help Array` works as a REPL command
+- [x] `:help Array>>at:` works for method lookup
+- [x] `:help NonexistentClass` prints "No documentation available"
+- [x] Browsing API `GetClass` returns class docstring in `comment` field
+- [x] Browsing API `GetMethod` returns method docstring in new `docstring` field
 - [ ] LSP hover shows docstrings
 
 ### Phase 3: Doc Generator

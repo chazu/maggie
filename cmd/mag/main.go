@@ -371,14 +371,25 @@ func runREPL(vmInst *vm.VM) {
 
 // handleREPLCommand handles REPL meta-commands
 func handleREPLCommand(vmInst *vm.VM, cmd string) {
-	switch cmd {
+	// Parse command and arguments
+	parts := strings.Fields(cmd)
+	baseCmd := parts[0]
+
+	switch baseCmd {
 	case ":help", ":h", ":?":
+		if len(parts) > 1 {
+			// :help ClassName or :help ClassName>>methodName
+			handleHelpLookup(vmInst, parts[1])
+			return
+		}
 		fmt.Println("REPL Commands:")
-		fmt.Println("  :help, :h, :?     Show this help")
-		fmt.Println("  :compiler         Show current compiler")
-		fmt.Println("  :use-go           Switch to Go compiler (default)")
-		fmt.Println("  :use-maggie       Switch to Maggie compiler (experimental)")
-		fmt.Println("  exit, quit        Exit REPL")
+		fmt.Println("  :help, :h, :?           Show this help")
+		fmt.Println("  :help ClassName          Show class documentation")
+		fmt.Println("  :help Class>>method      Show method documentation")
+		fmt.Println("  :compiler                Show current compiler")
+		fmt.Println("  :use-go                  Switch to Go compiler (default)")
+		fmt.Println("  :use-maggie              Switch to Maggie compiler (experimental)")
+		fmt.Println("  exit, quit               Exit REPL")
 	case ":compiler":
 		fmt.Printf("Current compiler: %s\n", vmInst.CompilerName())
 	case ":use-go":
@@ -391,6 +402,44 @@ func handleREPLCommand(vmInst *vm.VM, cmd string) {
 	default:
 		fmt.Printf("Unknown command: %s (type :help for commands)\n", cmd)
 	}
+}
+
+// handleHelpLookup handles :help ClassName and :help ClassName>>methodName
+func handleHelpLookup(vmInst *vm.VM, query string) {
+	// Check for >> separator: ClassName>>methodName
+	if idx := strings.Index(query, ">>"); idx != -1 {
+		className := query[:idx]
+		methodName := query[idx+2:]
+
+		cls := vmInst.Classes.Lookup(className)
+		if cls == nil {
+			fmt.Printf("Unknown class: %s\n", className)
+			return
+		}
+
+		cm := cls.MethodNamed(methodName)
+		if cm == nil {
+			fmt.Printf("%s does not define #%s\n", className, methodName)
+			return
+		}
+
+		fmt.Printf("%s>>%s\n", className, methodName)
+		if cm.DocString() != "" {
+			fmt.Printf("\n%s\n", cm.DocString())
+		} else {
+			fmt.Println("\n(no documentation)")
+		}
+		return
+	}
+
+	// Just a class name
+	cls := vmInst.Classes.Lookup(query)
+	if cls == nil {
+		fmt.Printf("Unknown class: %s\n", query)
+		return
+	}
+
+	fmt.Printf("%s", vm.FormatClassHelp(cls, vmInst.Selectors))
 }
 
 // evalAndPrint compiles and executes an expression, printing the result

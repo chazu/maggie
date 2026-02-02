@@ -235,6 +235,7 @@ func (vm *VM) bootstrap() {
 	vm.registerCharacterPrimitives()
 	vm.registerMessagePrimitives()
 	vm.registerClassReflectionPrimitives()
+	vm.registerDocstringPrimitives()
 	vm.registerCompilerPrimitives()
 	vm.registerFilePrimitives()
 	vm.registerDebuggerPrimitives()

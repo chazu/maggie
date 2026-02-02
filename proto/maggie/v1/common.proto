@@ -51,4 +51,5 @@ message MethodInfo {
   bool is_class_side = 3;
   bool is_primitive = 4;
   string source = 5;  // source code if available
+  string doc_string = 6;  // docstring if available
 }

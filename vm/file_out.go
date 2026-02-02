@@ -15,6 +15,11 @@ func FileOutClass(class *Class, selectors *SelectorTable) string {
 		fmt.Fprintf(&sb, "namespace: '%s'\n\n", class.Namespace)
 	}
 
+	// Write class docstring
+	if class.DocString != "" {
+		fmt.Fprintf(&sb, "\"\"\"\n%s\n\"\"\"\n", class.DocString)
+	}
+
 	// Write class header
 	superName := "Object"
 	if class.Superclass != nil {
@@ -40,6 +45,9 @@ func FileOutClass(class *Class, selectors *SelectorTable) string {
 			continue
 		}
 
+		if cm.DocString() != "" {
+			fmt.Fprintf(&sb, "  \"\"\"\n  %s\n  \"\"\"\n", cm.DocString())
+		}
 		if cm.Source != "" {
 			// Use preserved source text
 			fmt.Fprintf(&sb, "  %s\n", cm.Source)
@@ -62,6 +70,9 @@ func FileOutClass(class *Class, selectors *SelectorTable) string {
 			continue
 		}
 
+		if cm.DocString() != "" {
+			fmt.Fprintf(&sb, "  \"\"\"\n  %s\n  \"\"\"\n", cm.DocString())
+		}
 		if cm.Source != "" {
 			// Use preserved source text (should already include "classMethod:" prefix)
 			fmt.Fprintf(&sb, "  %s\n", cm.Source)

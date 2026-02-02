@@ -63,6 +63,7 @@ func (s *BrowseService) GetClass(
 		}
 		return &maggiev1.GetClassResponse{
 			Class:      classToInfo(v, cls),
+			Comment:    cls.DocString,
 			Categories: cls.MethodCategories(),
 		}
 	})
@@ -436,6 +437,7 @@ func methodToInfo(v *vm.VM, cls *vm.Class, method vm.Method, selID int, classSid
 	if cm, ok := method.(*vm.CompiledMethod); ok {
 		info.IsPrimitive = false
 		info.Source = cm.Source
+		info.DocString = cm.DocString()
 	} else {
 		info.IsPrimitive = true
 	}
