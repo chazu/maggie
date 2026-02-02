@@ -36,7 +36,9 @@ func main() {
 
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Usage: mag [options] [paths...]\n")
-		fmt.Fprintf(os.Stderr, "       mag deps [resolve|update|list]\n\n")
+		fmt.Fprintf(os.Stderr, "       mag deps [resolve|update|list]\n")
+		fmt.Fprintf(os.Stderr, "       mag doc [--output dir] [--title title]\n")
+		fmt.Fprintf(os.Stderr, "       mag doctest [--verbose] [--class name]\n\n")
 		fmt.Fprintf(os.Stderr, "Starts Maggie with the default image and compiles .mag files from the given paths.\n")
 		fmt.Fprintf(os.Stderr, "If no paths are given and a maggie.toml exists, loads the project from it.\n\n")
 		fmt.Fprintf(os.Stderr, "Options:\n")
@@ -56,6 +58,11 @@ func main() {
 		fmt.Fprintf(os.Stderr, "  mag deps               # Resolve and fetch dependencies\n")
 		fmt.Fprintf(os.Stderr, "  mag deps update         # Re-resolve ignoring lock file\n")
 		fmt.Fprintf(os.Stderr, "  mag deps list           # Show dependency tree\n")
+		fmt.Fprintf(os.Stderr, "\nDocumentation:\n")
+		fmt.Fprintf(os.Stderr, "  mag doc                        # Generate HTML docs from image\n")
+		fmt.Fprintf(os.Stderr, "  mag doc --output ./site        # Generate to specific directory\n")
+		fmt.Fprintf(os.Stderr, "  mag doctest                    # Run docstring tests\n")
+		fmt.Fprintf(os.Stderr, "  mag doctest --verbose          # Run with detailed output\n")
 		fmt.Fprintf(os.Stderr, "\nLanguage Server:\n")
 		fmt.Fprintf(os.Stderr, "  mag --serve                    # Start language server on :4567\n")
 		fmt.Fprintf(os.Stderr, "  mag ./lib/... --serve --port 8080  # Load libs, serve on :8080\n")
@@ -68,6 +75,8 @@ func main() {
 
 	// Handle subcommands
 	args := flag.Args()
+	var docMode string  // "doc" or "doctest"
+	var docArgs []string
 	if len(args) > 0 {
 		switch args[0] {
 		case "lsp":
@@ -75,6 +84,23 @@ func main() {
 		case "deps":
 			handleDepsCommand(args[1:], *verbose)
 			return
+		case "doc":
+			docMode = "doc"
+			docArgs = args[1:]
+		case "doctest":
+			docMode = "doctest"
+			docArgs = args[1:]
+		}
+		// Also look for doc/doctest after source paths (e.g., "mag ./src doc --output dir")
+		if docMode == "" {
+			for i, arg := range args {
+				if arg == "doc" || arg == "doctest" {
+					docMode = arg
+					docArgs = args[i+1:]
+					args = args[:i] // keep only source paths before the subcommand
+					break
+				}
+			}
 		}
 	}
 
@@ -124,9 +150,13 @@ func main() {
 	}
 
 	// Compile paths from command line or project manifest
-	paths := flag.Args()
+	// Use trimmed args if doc/doctest was found mid-args, otherwise flag.Args()
+	paths := args
 	if *lspMode && len(paths) > 0 && paths[0] == "lsp" {
 		paths = paths[1:] // strip "lsp" subcommand from paths
+	}
+	if docMode != "" && len(paths) > 0 && (paths[0] == "doc" || paths[0] == "doctest") {
+		paths = nil // doc/doctest at start: no source paths
 	}
 
 	if len(paths) > 0 {
@@ -142,8 +172,8 @@ func main() {
 		if *verbose && totalMethods > 0 {
 			fmt.Printf("Compiled %d methods\n", totalMethods)
 		}
-	} else if *mainEntry != "" || *saveImagePath != "" {
-		// No paths but main/save-image requested: try loading from maggie.toml
+	} else if docMode != "" || *mainEntry != "" || *saveImagePath != "" {
+		// No paths but doc/doctest/main/save-image requested: try loading from maggie.toml
 		if m, _ := manifest.FindAndLoad("."); m != nil {
 			methods, err := loadProject(vmInst, m, *verbose)
 			if err != nil {
@@ -169,6 +199,16 @@ func main() {
 		if *verbose {
 			fmt.Printf("Image saved to %s\n", *saveImagePath)
 		}
+	}
+
+	// Handle doc/doctest subcommands (after sources are compiled)
+	if docMode == "doc" {
+		handleDocCommand(vmInst, docArgs)
+		return
+	}
+	if docMode == "doctest" {
+		handleDoctestCommand(vmInst, docArgs)
+		return
 	}
 
 	// Run main entry point if specified

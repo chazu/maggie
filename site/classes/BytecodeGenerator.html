@@ -1,0 +1,976 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>BytecodeGenerator &mdash; Maggie API Reference</title>
+    <link rel="stylesheet" href="../../css/style.css">
+</head>
+<body>
+    <div class="breadcrumb">
+        <a href="../../index.html">Maggie API Reference</a>
+
+        &rsaquo; BytecodeGenerator
+    </div>
+
+    <div class="class-header">
+        <h1>BytecodeGenerator</h1>
+
+        <div class="superclass-chain">
+            Inherits from: Object
+        </div>
+
+
+        <div class="inst-vars">
+            Instance variables: <code>bytecode</code>, <code>literals</code>, <code>selectors</code>, <code>temps</code>, <code>ivars</code>, <code>captures</code>, <code>currentClass</code>, <code>blockMethods</code>, <code>jumpPatches</code>, <code>outerTemps</code>, <code>inBlock</code>
+        </div>
+
+    </div>
+
+
+
+
+    <h2>Class Methods</h2>
+
+    <div class="method-category">
+        <h3>uncategorized</h3>
+
+        <div class="method">
+            <div class="method-selector">
+                <span class="class-side-label">class </span>forClass:
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">
+                <span class="class-side-label">class </span>new
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">
+                <span class="class-side-label">class </span>opBLOCK_RETURN
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">
+                <span class="class-side-label">class </span>opCAPTURE_IVAR
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">
+                <span class="class-side-label">class </span>opCAPTURE_TEMP
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">
+                <span class="class-side-label">class </span>opCELL_GET
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">
+                <span class="class-side-label">class </span>opCELL_SET
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">
+                <span class="class-side-label">class </span>opCREATE_ARRAY
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">
+                <span class="class-side-label">class </span>opCREATE_BLOCK
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">
+                <span class="class-side-label">class </span>opCREATE_OBJECT
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">
+                <span class="class-side-label">class </span>opDUP
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">
+                <span class="class-side-label">class </span>opJUMP
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">
+                <span class="class-side-label">class </span>opJUMP_FALSE
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">
+                <span class="class-side-label">class </span>opJUMP_NIL
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">
+                <span class="class-side-label">class </span>opJUMP_NOT_NIL
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">
+                <span class="class-side-label">class </span>opJUMP_TRUE
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">
+                <span class="class-side-label">class </span>opMAKE_CELL
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">
+                <span class="class-side-label">class </span>opNOP
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">
+                <span class="class-side-label">class </span>opPOP
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">
+                <span class="class-side-label">class </span>opPUSH_CAPTURED
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">
+                <span class="class-side-label">class </span>opPUSH_FALSE
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">
+                <span class="class-side-label">class </span>opPUSH_FLOAT
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">
+                <span class="class-side-label">class </span>opPUSH_GLOBAL
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">
+                <span class="class-side-label">class </span>opPUSH_HOME_TEMP
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">
+                <span class="class-side-label">class </span>opPUSH_INT32
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">
+                <span class="class-side-label">class </span>opPUSH_INT8
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">
+                <span class="class-side-label">class </span>opPUSH_IVAR
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">
+                <span class="class-side-label">class </span>opPUSH_LITERAL
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">
+                <span class="class-side-label">class </span>opPUSH_NIL
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">
+                <span class="class-side-label">class </span>opPUSH_SELF
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">
+                <span class="class-side-label">class </span>opPUSH_TEMP
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">
+                <span class="class-side-label">class </span>opPUSH_TRUE
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">
+                <span class="class-side-label">class </span>opRETURN_NIL
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">
+                <span class="class-side-label">class </span>opRETURN_SELF
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">
+                <span class="class-side-label">class </span>opRETURN_TOP
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">
+                <span class="class-side-label">class </span>opSEND
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">
+                <span class="class-side-label">class </span>opSEND_AT
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">
+                <span class="class-side-label">class </span>opSEND_AT_PUT
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">
+                <span class="class-side-label">class </span>opSEND_CLASS
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">
+                <span class="class-side-label">class </span>opSEND_DIV
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">
+                <span class="class-side-label">class </span>opSEND_EQ
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">
+                <span class="class-side-label">class </span>opSEND_GE
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">
+                <span class="class-side-label">class </span>opSEND_GT
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">
+                <span class="class-side-label">class </span>opSEND_LE
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">
+                <span class="class-side-label">class </span>opSEND_LT
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">
+                <span class="class-side-label">class </span>opSEND_MINUS
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">
+                <span class="class-side-label">class </span>opSEND_MOD
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">
+                <span class="class-side-label">class </span>opSEND_NE
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">
+                <span class="class-side-label">class </span>opSEND_NEW
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">
+                <span class="class-side-label">class </span>opSEND_PLUS
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">
+                <span class="class-side-label">class </span>opSEND_SIZE
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">
+                <span class="class-side-label">class </span>opSEND_SUPER
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">
+                <span class="class-side-label">class </span>opSEND_TIMES
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">
+                <span class="class-side-label">class </span>opSEND_VALUE
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">
+                <span class="class-side-label">class </span>opSEND_VALUE1
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">
+                <span class="class-side-label">class </span>opSEND_VALUE2
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">
+                <span class="class-side-label">class </span>opSTORE_CAPTURED
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">
+                <span class="class-side-label">class </span>opSTORE_GLOBAL
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">
+                <span class="class-side-label">class </span>opSTORE_HOME_TEMP
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">
+                <span class="class-side-label">class </span>opSTORE_IVAR
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">
+                <span class="class-side-label">class </span>opSTORE_TEMP
+            </div>
+
+
+        </div>
+
+    </div>
+
+
+
+
+    <h2>Instance Methods</h2>
+
+    <div class="method-category">
+        <h3>uncategorized</h3>
+
+        <div class="method">
+            <div class="method-selector">addBlockMethod:</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">addLiteral:</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">addSelector:</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">addTemp:</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">blockMethods</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">bytecode</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">captureIndex:</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">compile:</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">compileMethod:</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">currentOffset</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">emit:</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">emit:byte:</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">emit:short:</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">emitBlockReturn</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">emitCaptureIvar:</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">emitCaptureTemp:</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">emitCellGet</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">emitCellSet</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">emitCreateBlock:captures:</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">emitDup</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">emitJump:</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">emitJumpFalse:</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">emitJumpFalseForward</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">emitJumpForward</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">emitJumpNil:</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">emitJumpTrue:</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">emitJumpTrueForward</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">emitMakeCell</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">emitPop</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">emitPushCaptured:</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">emitPushFalse</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">emitPushFloat:</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">emitPushGlobal:</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">emitPushHomeTemp:</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">emitPushInteger:</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">emitPushIvar:</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">emitPushLiteral:</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">emitPushNil</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">emitPushSelf</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">emitPushTemp:</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">emitPushTrue</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">emitReturnNil</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">emitReturnSelf</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">emitReturnTop</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">emitSend:argc:</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">emitSendSuper:argc:</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">emitShort:</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">emitStoreCaptured:</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">emitStoreGlobal:</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">emitStoreHomeTemp:</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">emitStoreIvar:</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">emitStoreTemp:</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">initialize</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">initializeForClass:</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">isInBlock</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">ivarIndex:</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">literals</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">optimizedSendFor:argc:</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">outerTempIndex:</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">patchJumpAt:</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">printString</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">selectors</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">setOuterTemps:</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">tempIndex:</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">temps</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">visitAssignmentNode:</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">visitBlockNode:</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">visitCascadeNode:</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">visitLiteralNode:</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">visitMessageSendNode:</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">visitReturnNode:</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">visitVariableNode:</div>
+
+
+        </div>
+
+    </div>
+
+
+
+    <div class="footer">
+        Generated by Maggie doc generator.
+    </div>
+</body>
+</html>

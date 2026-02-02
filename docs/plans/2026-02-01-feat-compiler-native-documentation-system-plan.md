@@ -463,11 +463,11 @@ A Maggie program that:
 - [x] LSP hover shows docstrings
 
 ### Phase 3: Doc Generator
-- [ ] `mag doc --output ./site` generates HTML reference
-- [ ] Each class has its own page with docstring, methods, examples
-- [ ] Index page lists all classes grouped by namespace
-- [ ] `mag doctest` runs all `>>>` assertions and reports results
-- [ ] Test failures produce clear error messages with file/method context
+- [x] `mag doc --output ./site` generates HTML reference
+- [x] Each class has its own page with docstring, methods, examples
+- [x] Index page lists all classes grouped by namespace
+- [x] `mag doctest` runs all `>>>` assertions and reports results
+- [x] Test failures produce clear error messages with file/method context
 
 ### Phase 4: Web Server + Interactive
 - [ ] `HttpServer` class can serve static files and handle routes
