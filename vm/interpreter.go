@@ -74,8 +74,9 @@ type Interpreter struct {
 	Classes   *ClassTable
 	Globals   map[string]Value
 
-	// Back-reference to VM for primitives
-	vm interface{}
+	// Back-reference to owning VM for registry access.
+	// nil for standalone interpreters in tests.
+	vm *VM
 
 	// Execution state
 	stack  []Value      // operand stack
@@ -267,10 +268,10 @@ func (i *Interpreter) checkFrameOverflow() {
 	// Build a useful error message
 	msg := fmt.Sprintf("Stack overflow: frame depth exceeded limit of %d", maxFrames)
 
-	if vm, ok := i.vm.(*VM); ok && vm != nil && vm.StackOverflowClass != nil {
+	if i.vm != nil && i.vm.StackOverflowClass != nil {
 		// Signal a Maggie-level StackOverflow exception (catchable with on:do:)
 		exObj := &ExceptionObject{
-			ExceptionClass: vm.StackOverflowClass,
+			ExceptionClass: i.vm.StackOverflowClass,
 			MessageText:    NewStringValue(msg),
 			Resumable:      false,
 		}
@@ -1003,7 +1004,7 @@ func (i *Interpreter) runFrame() Value {
 			frame.IP++
 			elements := i.popN(size)
 			// Create array with the elements
-			arr := i.vm.(*VM).NewArrayWithElements(elements)
+			arr := i.vm.NewArrayWithElements(elements)
 			i.push(arr)
 
 		case OpCreateObject:
@@ -1117,13 +1118,12 @@ func (i *Interpreter) send(selector int, argc int) (result Value) {
 // If doesNotUnderstand: is not defined (e.g. before .mag libraries are loaded),
 // falls back to returning Nil for backward compatibility.
 func (i *Interpreter) sendDoesNotUnderstand(receiver Value, selectorID int, args []Value) Value {
-	vm, ok := i.vm.(*VM)
-	if !ok || vm == nil {
+	if i.vm == nil {
 		return Nil
 	}
 
 	// Look up doesNotUnderstand: on the receiver
-	dnuSelectorID := vm.Selectors.Intern("doesNotUnderstand:")
+	dnuSelectorID := i.vm.Selectors.Intern("doesNotUnderstand:")
 	vt := i.vtableFor(receiver)
 	if vt == nil {
 		return Nil
@@ -1138,15 +1138,15 @@ func (i *Interpreter) sendDoesNotUnderstand(receiver Value, selectorID int, args
 	// Create a Message object with the original selector and arguments.
 	// Convert selector ID (from the SelectorTable) to a proper Symbol value
 	// (from the SymbolTable) so the Message's selector is a real Symbol.
-	selectorName := vm.Selectors.Name(selectorID)
-	selectorSym := vm.Symbols.SymbolValue(selectorName)
-	msg := vm.createMessage(selectorSym, args)
+	selectorName := i.vm.Selectors.Name(selectorID)
+	selectorSym := i.vm.Symbols.SymbolValue(selectorName)
+	msg := i.vm.createMessage(selectorSym, args)
 
 	// Invoke doesNotUnderstand: directly (not via send, to avoid recursion)
 	if cm, ok := dnuMethod.(*CompiledMethod); ok {
 		return i.Execute(cm, receiver, []Value{msg})
 	}
-	return dnuMethod.Invoke(vm, receiver, []Value{msg})
+	return dnuMethod.Invoke(i.vm, receiver, []Value{msg})
 }
 
 // sendSuper performs a super send.
@@ -1214,8 +1214,8 @@ func (i *Interpreter) sendSuper(selector int, argc int, callingMethod *CompiledM
 func (i *Interpreter) vtableFor(v Value) *VTable {
 	// Fast path: when the interpreter has a VM back-reference, use the
 	// central dispatch table for symbol-encoded types.
-	if vm, ok := i.vm.(*VM); ok && vm != nil {
-		return i.vtableForVM(v, vm)
+	if i.vm != nil {
+		return i.vtableForVM(v, i.vm)
 	}
 
 	// Legacy path: standalone interpreter without a VM (used by some tests).

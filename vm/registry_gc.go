@@ -158,10 +158,10 @@ func (gc *RegistryGC) sweep() *RegistryGCStats {
 	}
 
 	// 1. Sweep VM-local concurrency registries
-	if gc.vm.concurrency != nil {
-		stats.Channels = gc.vm.concurrency.SweepChannels()
-		stats.Processes = gc.vm.concurrency.SweepProcesses()
-		stats.CancellationContexts = gc.vm.concurrency.SweepCancellationContexts()
+	if gc.vm.registry != nil {
+		stats.Channels = gc.vm.registry.SweepChannels()
+		stats.Processes = gc.vm.registry.SweepProcesses()
+		stats.CancellationContexts = gc.vm.registry.SweepCancellationContexts()
 	}
 
 	// 2. Sweep global channel registry (legacy)

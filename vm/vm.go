@@ -86,8 +86,9 @@ type VM struct {
 	// weakRefs tracks weak references for the GC to process.
 	weakRefs *WeakRegistry
 
-	// concurrency holds registries for channels, processes, mutexes, etc.
-	concurrency *ConcurrencyRegistry
+	// registry holds all VM-local object registries (concurrency, exceptions,
+	// results, contexts, dictionaries, strings, gRPC, HTTP, cells, class vars, etc.).
+	registry *ObjectRegistry
 
 	// symbolDispatch centralises marker-based class resolution for symbol-encoded types.
 	symbolDispatch *SymbolDispatch
@@ -117,7 +118,7 @@ func NewVM() *VM {
 		Globals:        make(map[string]Value),
 		keepAlive:      make(map[*Object]struct{}),
 		weakRefs:       NewWeakRegistry(),
-		concurrency:    NewConcurrencyRegistry(),
+		registry:       NewObjectRegistry(),
 		symbolDispatch: NewSymbolDispatch(),
 	}
 
@@ -388,23 +389,23 @@ func (vm *VM) ClassValue(c *Class) Value {
 
 // Concurrency returns the concurrency registry for this VM.
 func (vm *VM) Concurrency() *ConcurrencyRegistry {
-	return vm.concurrency
+	return vm.registry.ConcurrencyRegistry
 }
 
 // SweepConcurrency runs garbage collection on concurrency objects.
 // Removes closed channels and terminated processes.
 // Returns the number of objects swept.
 func (vm *VM) SweepConcurrency() (channels, processes, blocks int) {
-	if vm.concurrency != nil {
-		return vm.concurrency.Sweep()
+	if vm.registry != nil {
+		return vm.registry.Sweep()
 	}
 	return 0, 0, 0
 }
 
 // ConcurrencyStats returns statistics about concurrency objects.
 func (vm *VM) ConcurrencyStats() map[string]int {
-	if vm.concurrency != nil {
-		return vm.concurrency.Stats()
+	if vm.registry != nil {
+		return vm.registry.Stats()
 	}
 	return nil
 }
@@ -412,63 +413,63 @@ func (vm *VM) ConcurrencyStats() map[string]int {
 // --- Channel helpers ---
 
 func (vm *VM) registerChannel(ch *ChannelObject) Value {
-	return vm.concurrency.RegisterChannel(ch)
+	return vm.registry.RegisterChannel(ch)
 }
 
 func (vm *VM) getChannel(v Value) *ChannelObject {
-	return vm.concurrency.GetChannel(v)
+	return vm.registry.GetChannel(v)
 }
 
 // --- Process helpers ---
 
 func (vm *VM) createProcess() *ProcessObject {
-	return vm.concurrency.CreateProcess()
+	return vm.registry.CreateProcess()
 }
 
 func (vm *VM) registerProcess(proc *ProcessObject) Value {
-	return vm.concurrency.RegisterProcess(proc)
+	return vm.registry.RegisterProcess(proc)
 }
 
 func (vm *VM) getProcess(v Value) *ProcessObject {
-	return vm.concurrency.GetProcess(v)
+	return vm.registry.GetProcess(v)
 }
 
 // --- Mutex helpers ---
 
 func (vm *VM) registerMutex(mu *MutexObject) Value {
-	return vm.concurrency.RegisterMutex(mu)
+	return vm.registry.RegisterMutex(mu)
 }
 
 func (vm *VM) getMutex(v Value) *MutexObject {
-	return vm.concurrency.GetMutex(v)
+	return vm.registry.GetMutex(v)
 }
 
 // --- WaitGroup helpers ---
 
 func (vm *VM) registerWaitGroup(wg *WaitGroupObject) Value {
-	return vm.concurrency.RegisterWaitGroup(wg)
+	return vm.registry.RegisterWaitGroup(wg)
 }
 
 func (vm *VM) getWaitGroup(v Value) *WaitGroupObject {
-	return vm.concurrency.GetWaitGroup(v)
+	return vm.registry.GetWaitGroup(v)
 }
 
 // --- Semaphore helpers ---
 
 func (vm *VM) registerSemaphore(sem *SemaphoreObject) Value {
-	return vm.concurrency.RegisterSemaphore(sem)
+	return vm.registry.RegisterSemaphore(sem)
 }
 
 func (vm *VM) getSemaphore(v Value) *SemaphoreObject {
-	return vm.concurrency.GetSemaphore(v)
+	return vm.registry.GetSemaphore(v)
 }
 
 func (vm *VM) registerCancellationContext(ctx *CancellationContextObject) Value {
-	return vm.concurrency.RegisterCancellationContext(ctx)
+	return vm.registry.RegisterCancellationContext(ctx)
 }
 
 func (vm *VM) getCancellationContext(v Value) *CancellationContextObject {
-	return vm.concurrency.GetCancellationContext(v)
+	return vm.registry.GetCancellationContext(v)
 }
 
 // registerStringPrimitives delegates to the extended string primitives.
