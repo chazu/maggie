@@ -313,6 +313,11 @@ func collectMethods(vt *vm.VTable, selectors *vm.SelectorTable, isClassSide bool
 				IsClass:  isClassSide,
 				Category: "primitives",
 			}
+			doc := vm.MethodDocString(method)
+			if doc != "" {
+				md.DocString = doc
+				md.DocSections = ParseDocString(doc)
+			}
 			byCategory["primitives"] = append(byCategory["primitives"], md)
 			continue
 		}

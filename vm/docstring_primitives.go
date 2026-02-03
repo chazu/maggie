@@ -78,13 +78,13 @@ func (vm *VM) registerDocstringPrimitives() {
 			return Nil
 		}
 
-		cm := cls.MethodNamed(selName)
-		if cm == nil {
+		m := cls.MethodByName(selName)
+		if m == nil {
 			fmt.Printf("%s does not understand #%s\n", cls.Name, selName)
 			return Nil
 		}
 
-		fmt.Println(formatMethodHelp(cls.Name, cm))
+		fmt.Println(formatMethodHelpAny(cls.Name, m))
 		return recv
 	})
 
@@ -101,15 +101,16 @@ func (vm *VM) registerDocstringPrimitives() {
 			return Nil
 		}
 
-		cm := cls.MethodNamed(selName)
-		if cm == nil {
+		m := cls.MethodByName(selName)
+		if m == nil {
 			return Nil
 		}
 
-		if cm.DocString() == "" {
+		doc := MethodDocString(m)
+		if doc == "" {
 			return Nil
 		}
-		return NewStringValue(cm.DocString())
+		return NewStringValue(doc)
 	})
 }
 
@@ -154,14 +155,20 @@ func FormatClassHelp(cls *Class, selectors *SelectorTable) string {
 	return s
 }
 
-// formatMethodHelp formats a method for display in help output.
+// formatMethodHelp formats a compiled method for display in help output.
 func formatMethodHelp(className string, cm *CompiledMethod) string {
+	return formatMethodHelpAny(className, cm)
+}
+
+// formatMethodHelpAny formats any method (compiled or primitive) for display in help output.
+func formatMethodHelpAny(className string, m Method) string {
 	var s string
 
-	s += className + ">>" + cm.Name() + "\n"
+	s += className + ">>" + MethodName(m) + "\n"
 
-	if cm.DocString() != "" {
-		s += "\n" + cm.DocString() + "\n"
+	doc := MethodDocString(m)
+	if doc != "" {
+		s += "\n" + doc + "\n"
 	} else {
 		s += "\n(no documentation)\n"
 	}

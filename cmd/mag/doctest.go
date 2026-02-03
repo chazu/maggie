@@ -156,12 +156,8 @@ func runDoctestMethods(vmInst *vm.VM, cls *vm.Class, methods map[int]vm.Method, 
 
 	for _, selID := range selectorIDs {
 		method := methods[selID]
-		cm, ok := method.(*vm.CompiledMethod)
-		if !ok {
-			continue
-		}
 
-		docStr := cm.DocString()
+		docStr := vm.MethodDocString(method)
 		if docStr == "" {
 			continue
 		}
@@ -173,7 +169,7 @@ func runDoctestMethods(vmInst *vm.VM, cls *vm.Class, methods map[int]vm.Method, 
 
 		selectorName := vmInst.Selectors.Name(selID)
 		if selectorName == "" {
-			selectorName = cm.Name()
+			selectorName = vm.MethodName(method)
 		}
 
 		var methodResults []doctestResult

@@ -440,6 +440,7 @@ func methodToInfo(v *vm.VM, cls *vm.Class, method vm.Method, selID int, classSid
 		info.DocString = cm.DocString()
 	} else {
 		info.IsPrimitive = true
+		info.DocString = vm.MethodDocString(method)
 	}
 	return info
 }

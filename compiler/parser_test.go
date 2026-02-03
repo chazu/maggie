@@ -1260,6 +1260,150 @@ MyClass subclass: Object
 	}
 }
 
+// ---------------------------------------------------------------------------
+// <primitive> stub tests
+// ---------------------------------------------------------------------------
+
+func TestParserPrimitiveStubUnary(t *testing.T) {
+	input := `MyClass subclass: Object
+  method: foo [ <primitive> ]
+`
+	p := NewParser(input)
+	sf := p.ParseSourceFile()
+	if len(p.Errors()) > 0 {
+		t.Fatalf("parse errors: %v", p.Errors())
+	}
+	if len(sf.Classes) != 1 {
+		t.Fatalf("expected 1 class, got %d", len(sf.Classes))
+	}
+	methods := sf.Classes[0].Methods
+	if len(methods) != 1 {
+		t.Fatalf("expected 1 method, got %d", len(methods))
+	}
+	if methods[0].Selector != "foo" {
+		t.Errorf("selector = %q, want %q", methods[0].Selector, "foo")
+	}
+	if !methods[0].IsPrimitiveStub {
+		t.Error("IsPrimitiveStub should be true")
+	}
+	if len(methods[0].Statements) != 0 {
+		t.Errorf("expected no statements, got %d", len(methods[0].Statements))
+	}
+}
+
+func TestParserPrimitiveStubKeyword(t *testing.T) {
+	input := `MyClass subclass: Object
+  method: at: key put: value [ <primitive> ]
+`
+	p := NewParser(input)
+	sf := p.ParseSourceFile()
+	if len(p.Errors()) > 0 {
+		t.Fatalf("parse errors: %v", p.Errors())
+	}
+	methods := sf.Classes[0].Methods
+	if len(methods) != 1 {
+		t.Fatalf("expected 1 method, got %d", len(methods))
+	}
+	if methods[0].Selector != "at:put:" {
+		t.Errorf("selector = %q, want %q", methods[0].Selector, "at:put:")
+	}
+	if !methods[0].IsPrimitiveStub {
+		t.Error("IsPrimitiveStub should be true")
+	}
+}
+
+func TestParserPrimitiveStubWithDocstring(t *testing.T) {
+	input := `MyClass subclass: Object
+  """Store value under key. Returns the value."""
+  method: at: key put: value [ <primitive> ]
+`
+	p := NewParser(input)
+	sf := p.ParseSourceFile()
+	if len(p.Errors()) > 0 {
+		t.Fatalf("parse errors: %v", p.Errors())
+	}
+	methods := sf.Classes[0].Methods
+	if len(methods) != 1 {
+		t.Fatalf("expected 1 method, got %d", len(methods))
+	}
+	if !methods[0].IsPrimitiveStub {
+		t.Error("IsPrimitiveStub should be true")
+	}
+	if methods[0].DocString != "Store value under key. Returns the value." {
+		t.Errorf("DocString = %q, want %q", methods[0].DocString, "Store value under key. Returns the value.")
+	}
+}
+
+func TestParserPrimitiveStubClassMethod(t *testing.T) {
+	input := `MyClass subclass: Object
+  """Create a new instance."""
+  classMethod: new [ <primitive> ]
+`
+	p := NewParser(input)
+	sf := p.ParseSourceFile()
+	if len(p.Errors()) > 0 {
+		t.Fatalf("parse errors: %v", p.Errors())
+	}
+	classMethods := sf.Classes[0].ClassMethods
+	if len(classMethods) != 1 {
+		t.Fatalf("expected 1 class method, got %d", len(classMethods))
+	}
+	if !classMethods[0].IsPrimitiveStub {
+		t.Error("IsPrimitiveStub should be true")
+	}
+	if classMethods[0].DocString != "Create a new instance." {
+		t.Errorf("DocString = %q, want %q", classMethods[0].DocString, "Create a new instance.")
+	}
+}
+
+func TestParserPrimitiveStubMultilineDocstring(t *testing.T) {
+	input := `MyClass subclass: Object
+  """
+  Store value under key.
+  ` + "```test" + `
+  d := Dictionary new. d at: 'x' put: 42. d at: 'x' >>> 42
+  ` + "```" + `
+  """
+  method: at: key put: value [ <primitive> ]
+`
+	p := NewParser(input)
+	sf := p.ParseSourceFile()
+	if len(p.Errors()) > 0 {
+		t.Fatalf("parse errors: %v", p.Errors())
+	}
+	methods := sf.Classes[0].Methods
+	if len(methods) != 1 {
+		t.Fatalf("expected 1 method, got %d", len(methods))
+	}
+	if !methods[0].IsPrimitiveStub {
+		t.Error("IsPrimitiveStub should be true")
+	}
+	if methods[0].DocString == "" {
+		t.Error("DocString should not be empty")
+	}
+	if !strings.Contains(methods[0].DocString, "Store value under key.") {
+		t.Errorf("DocString should contain 'Store value under key.', got %q", methods[0].DocString)
+	}
+}
+
+func TestParserNormalMethodNotPrimitiveStub(t *testing.T) {
+	input := `MyClass subclass: Object
+  method: foo [ ^42 ]
+`
+	p := NewParser(input)
+	sf := p.ParseSourceFile()
+	if len(p.Errors()) > 0 {
+		t.Fatalf("parse errors: %v", p.Errors())
+	}
+	methods := sf.Classes[0].Methods
+	if len(methods) != 1 {
+		t.Fatalf("expected 1 method, got %d", len(methods))
+	}
+	if methods[0].IsPrimitiveStub {
+		t.Error("IsPrimitiveStub should be false for normal methods")
+	}
+}
+
 // contains checks if s contains substr (helper for warning tests).
 func contains(s, substr string) bool {
 	return len(s) >= len(substr) && strings.Contains(s, substr)

@@ -426,8 +426,9 @@ func (s *LspServer) hover(v *vm.VM, word string) *protocol.Hover {
 		if method == nil {
 			continue
 		}
-		if cm, ok := method.(*vm.CompiledMethod); ok && cm.DocString() != "" {
-			fmt.Fprintf(&b, "\n---\n\n%s\n", cm.DocString())
+		doc := vm.MethodDocString(method)
+		if doc != "" {
+			fmt.Fprintf(&b, "\n---\n\n%s\n", doc)
 			break
 		}
 	}

@@ -290,14 +290,15 @@ func (n *Return) stmt()      {}
 
 // MethodDef represents a method definition.
 type MethodDef struct {
-	SpanVal    Span
-	Selector   string   // full selector
-	Parameters []string // argument names
-	Temps      []string // temporary variables
-	Statements []Stmt
-	Primitive  int    // primitive number, 0 if not primitive
-	SourceText string // original source text (for fileOut)
-	DocString  string // docstring from """ ... """ (empty if none)
+	SpanVal         Span
+	Selector        string   // full selector
+	Parameters      []string // argument names
+	Temps           []string // temporary variables
+	Statements      []Stmt
+	Primitive       int    // primitive number, 0 if not primitive
+	IsPrimitiveStub bool   // true if body is [ <primitive> ] (docstring-only stub)
+	SourceText      string // original source text (for fileOut)
+	DocString       string // docstring from """ ... """ (empty if none)
 }
 
 func (n *MethodDef) Span() Span { return n.SpanVal }
