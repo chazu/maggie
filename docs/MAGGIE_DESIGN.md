@@ -582,6 +582,19 @@ AssertionError signal: 'Invariant violated'.
     ensure: [self cleanup].
 ```
 
+### Exception Hierarchy
+
+```
+Exception
+  Error
+    MessageNotUnderstood
+    ZeroDivide
+    SubscriptOutOfBounds
+    StackOverflow
+```
+
+`StackOverflow` is raised when call frame depth exceeds `DefaultMaxFrameDepth` (4096). It is catchable via `on:do:` like any other exception.
+
 ### When to Use Which
 
 | Situation | Use |
@@ -897,6 +910,7 @@ Dynamic select is ~10-20x slower than native but allows runtime-determined cases
 === Message Sends ===
 30  SEND            <selector:16> <argc:8>
 31  SEND_SUPER      <selector:16> <argc:8>
+32  TAIL_SEND       <selector:16> <argc:8>   # reuse frame for self-recursion
 
 === Optimized Sends ===
 40  SEND_PLUS                        # +
@@ -1212,6 +1226,23 @@ func (vm *VM) doesNotUnderstand(receiver Value, selector int, args []Value) Valu
 }
 ```
 
+### Registry Garbage Collection
+
+The VM includes a `RegistryGC` that periodically sweeps concurrency registries (channels, processes, cancellation contexts, exceptions) to reclaim entries for completed or closed objects. This prevents memory leaks in long-running programs.
+
+- **Default interval**: 30 seconds (`DefaultGCInterval`)
+- **Swept registries**: channels (closed), processes (terminated), cancellation contexts (cancelled), handled exceptions
+- **Lifecycle**: Starts automatically with the VM; stopped by `VM.Shutdown()`
+- **Manual sweep**: `registryGC.SweepNow()` for immediate collection
+
+### Tail-Call Optimization
+
+The compiler detects self-recursive tail calls — methods ending with `^self selector: args` where the selector matches the current method — and emits `OpTailSend` (0x32) instead of `OpSend`.
+
+At runtime, `OpTailSend` checks if the send target is `self` and the selector matches the current method. If so, it reuses the current call frame (updating arguments in place and resetting the instruction pointer) rather than pushing a new frame. This allows unbounded self-recursion without stack overflow.
+
+For non-self sends or different selectors, `OpTailSend` falls back to a normal send.
+
 ---
 
 ## Image Format
@@ -1455,6 +1486,14 @@ func Counter_increment(vm *VM, receiver Value, args []Value) Value {
     return t1
 }
 ```
+
+### AOT Coverage
+
+The AOT compiler handles the full bytecode instruction set, including:
+
+- `OpSendSuper` — generates `vm.SendSuper()` calls for super sends
+- `OpCreateBlock` — generates block closure creation with captured variables
+- `OpTailSend` — generates tail-call optimized dispatch
 
 ---
 
@@ -1825,5 +1864,5 @@ The design prioritizes pragmatism over purity: simple core, room for optimizatio
 ---
 
 *Document created: 2026-01-18*
-*Updated: 2026-01-31 - Module system (:: namespaces, imports, directory convention, maggie.toml, dependency resolution, fileIn/fileOut)*
+*Updated: 2026-02-02 - Tier 1-3: stack overflow protection, TCO, registry GC, AOT super/block, benchmarks, formatter*
 *Based on design discussions for Maggie (forked from Procyon)*

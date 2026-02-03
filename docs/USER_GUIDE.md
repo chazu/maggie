@@ -53,6 +53,10 @@ mag [options] [paths...]
 | `mag deps` | Resolve and fetch project dependencies |
 | `mag deps update` | Re-resolve dependencies, ignoring lock file |
 | `mag deps list` | Show the resolved dependency tree |
+| `mag fmt` | Format `.mag` source files to canonical style |
+| `mag doc` | Generate HTML API documentation from docstrings |
+| `mag doctest` | Run doctest assertions from docstrings |
+| `mag lsp` | Start the Language Server Protocol server |
 
 ### Examples
 
@@ -134,6 +138,77 @@ You can define methods in the REPL:
 ### Exiting
 
 Type `exit` or `quit` to leave the REPL.
+
+## Formatting Code
+
+The `mag fmt` subcommand formats Maggie source files to a canonical style:
+
+```bash
+# Format all .mag files in the current directory
+mag fmt
+
+# Format specific files or directories
+mag fmt src/ lib/MyClass.mag
+
+# Check formatting without modifying files
+# Exits with code 1 if any files need formatting (useful in CI)
+mag fmt --check
+```
+
+If no files or directories are given, `mag fmt` formats all `.mag` files in the current directory.
+
+## Documentation and Doctests
+
+### Docstrings
+
+Methods and classes can include documentation using triple-quote (`"""`) syntax:
+
+```smalltalk
+method: factorial [
+    """
+    Return the factorial of self.
+    self printString >>> self factorial printString
+    """
+    self = 0 ifTrue: [^1].
+    ^self * (self - 1) factorial
+]
+```
+
+### Generating Documentation
+
+```bash
+# Generate HTML docs for all loaded classes
+mag ./src doc
+
+# Specify output directory
+mag ./src doc --output docs/api
+```
+
+### Running Doctests
+
+Doctest assertions use `>>>` to compare the left-hand expression with the right-hand expression:
+
+```bash
+# Run all doctests
+mag ./src doctest
+
+# Verbose output (show each test)
+mag ./src doctest --verbose
+
+# Run tests for a specific class only
+mag ./src doctest --class Array
+```
+
+## Language Server
+
+Maggie includes an LSP (Language Server Protocol) server for editor integration:
+
+```bash
+mag lsp          # Start LSP server on stdio
+mag --lsp        # Alternative flag form
+```
+
+See [lsp.md](lsp.md) for supported features and editor configuration.
 
 ## Maggie Syntax
 
@@ -843,6 +918,16 @@ ifNotNil: block
 ifNil: nilBlock ifNotNil: notNilBlock
 ```
 
+### StackOverflow
+
+A `StackOverflow` exception (subclass of `Error`) is raised when the call stack exceeds the configured depth limit (default: 4096 frames). It is catchable like any other exception:
+
+```smalltalk
+[self deeplyRecursiveMethod]
+    on: StackOverflow
+    do: [:ex | 'Caught stack overflow'].
+```
+
 ## Configuration
 
 ### ~/.maggierc
@@ -1107,3 +1192,5 @@ Dependencies are cloned/fetched into `.maggie/deps/` and their resolved versions
 3. **Everything is an object**: Including numbers, booleans, and nil
 4. **No operator precedence**: Binary messages evaluate left-to-right; use parentheses
 5. **1-based indexing**: Arrays and strings start at index 1, not 0
+6. **Tail-call optimization**: Self-recursive methods in tail position (ending with `^self selector: args`) are automatically optimized — no stack overflow for tail-recursive patterns
+7. **Stack overflow protection**: Non-tail-recursive deep recursion raises a catchable `StackOverflow` exception (subclass of `Error`) at 4096 frames by default

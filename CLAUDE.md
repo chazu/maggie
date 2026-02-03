@@ -193,6 +193,41 @@ mag ./src/... --save-image my-app.image
 mag --image my-app.image -m Main.start
 ```
 
+### Stack Overflow Protection
+
+The VM enforces a configurable maximum call frame depth (default: 4096). When exceeded, a `StackOverflow` exception is raised. This exception is a subclass of `Error` and is catchable with `on:do:`:
+
+```smalltalk
+[self deeplyRecursiveMethod]
+    on: StackOverflow
+    do: [:ex | 'Stack overflow caught' printString].
+```
+
+The limit is configurable via the interpreter's `MaxFrameDepth` field (Go-level). The constant `DefaultMaxFrameDepth` (4096) applies when no custom value is set.
+
+### Tail-Call Optimization
+
+Self-recursive methods in tail position are automatically optimized by the compiler. The compiler detects `^self selector: args` patterns at the end of a method and emits `OpTailSend` instead of `OpSend`. At runtime, `OpTailSend` reuses the current call frame rather than pushing a new one, allowing unbounded self-recursion without stack overflow.
+
+No code changes are needed — TCO is transparent. It works alongside stack overflow protection (non-tail-recursive methods still hit the depth limit).
+
+### Source Formatting
+
+Format Maggie source files to a canonical style:
+
+```bash
+# Format all .mag files in the current directory
+mag fmt
+
+# Format specific files or directories
+mag fmt src/ lib/MyClass.mag
+
+# Check formatting without modifying files (exit code 1 if changes needed)
+mag fmt --check
+```
+
+The `Format()` Go function in `cmd/mag/format.go` can also be used as a library.
+
 ---
 
 ## Module System
@@ -351,6 +386,25 @@ This gives an ASCII representation with widget overlay that LLMs can reason abou
 ### Full Documentation
 
 See `~/dev/go/yutani/DEBUG_GUIDE.md` for complete debugging documentation.
+
+---
+
+## Benchmarking
+
+Run benchmarks and compare against a stored baseline using `scripts/bench-compare.sh`:
+
+```bash
+# Compare current performance against baseline
+./scripts/bench-compare.sh
+
+# Compare against a custom baseline file
+./scripts/bench-compare.sh path/to/baseline.txt
+
+# Generate a new baseline
+go test -bench=BenchmarkHotPath -run='^$' -count=10 -benchmem ./vm/ > benchmarks/baseline.txt
+```
+
+Requires `benchstat` (`go install golang.org/x/perf/cmd/benchstat@latest`). The script runs `BenchmarkHotPath` benchmarks with `-count=10 -benchtime=100ms` and reports statistically significant regressions via `benchstat`.
 
 ---
 

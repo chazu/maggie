@@ -9,6 +9,7 @@ A Smalltalk dialect implemented in Go.
 **Documentation:**
 - [User Guide](docs/USER_GUIDE.md) - Getting started, syntax, core classes
 - [Design Document](docs/MAGGIE_DESIGN.md) - Architecture and implementation details
+- [Language Server](docs/lsp.md) - LSP features and editor integration
 
 
 ## Quick Start
@@ -186,3 +187,50 @@ fmt.Printf("Monomorphic: %d (%.1f%%)\n", icStats.Monomorphic,
     float64(icStats.Monomorphic)/float64(icStats.Total)*100)
 fmt.Printf("Cache hit rate: %.2f%%\n", icStats.HitRate*100)
 ```
+
+## Formatting
+
+Maggie includes a built-in source formatter:
+
+```bash
+mag fmt                    # Format all .mag files in current directory
+mag fmt src/ lib/          # Format specific directories
+mag fmt --check            # Check without modifying (exit 1 if unformatted)
+```
+
+## Documentation Generation
+
+Generate HTML API documentation from docstrings, and run inline doctests:
+
+```bash
+mag ./src doc              # Generate docs for loaded classes
+mag ./src doc --output docs/api  # Specify output directory
+mag ./src doctest          # Run doctest assertions from docstrings
+mag ./src doctest --verbose      # Show each test as it runs
+mag ./src doctest --class Array  # Run tests for a specific class
+```
+
+Docstrings use triple-quote syntax (`"""`), and doctest assertions use `>>>` to compare expressions.
+
+## Benchmarking
+
+```bash
+# Compare against stored baseline
+./scripts/bench-compare.sh
+
+# Generate a new baseline
+go test -bench=BenchmarkHotPath -run='^$' -count=10 -benchmem ./vm/ > benchmarks/baseline.txt
+```
+
+Requires [benchstat](https://pkg.go.dev/golang.org/x/perf/cmd/benchstat).
+
+## Language Server
+
+Maggie provides an LSP server for editor integration:
+
+```bash
+mag lsp          # Start LSP server on stdio
+mag --lsp        # Alternative flag form
+```
+
+See [docs/lsp.md](docs/lsp.md) for supported features and editor configuration.
