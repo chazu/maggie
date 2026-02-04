@@ -6,6 +6,11 @@ import (
 	"time"
 )
 
+// NOTE: Global channel/process registries have been removed.
+// All channel and process registration now goes through VM-local registries
+// via vm.registerChannel(), vm.getChannel(), vm.createProcess(),
+// vm.registerProcess(), and vm.getProcess() methods defined in vm.go.
+
 // ---------------------------------------------------------------------------
 // Channel: Wraps Go channels for Smalltalk
 // ---------------------------------------------------------------------------
@@ -18,11 +23,6 @@ type ChannelObject struct {
 	mu     sync.Mutex // protects close operation
 }
 
-// channelRegistry stores active channels (temporary solution until proper object system)
-var channelRegistry = make(map[int]*ChannelObject)
-var channelRegistryMu sync.Mutex
-var nextChannelID = 1
-
 func createChannel(buffered int) *ChannelObject {
 	ch := &ChannelObject{}
 	if buffered > 0 {
@@ -31,19 +31,6 @@ func createChannel(buffered int) *ChannelObject {
 		ch.ch = make(chan Value)
 	}
 	return ch
-}
-
-func registerChannel(ch *ChannelObject) Value {
-	channelRegistryMu.Lock()
-	defer channelRegistryMu.Unlock()
-
-	id := nextChannelID
-	nextChannelID++
-	channelRegistry[id] = ch
-
-	// Use a special tag to identify channels
-	// We'll use a symbol-like encoding with a high bit pattern
-	return channelToValue(id)
 }
 
 const channelMarker uint32 = 1 << 24
@@ -60,17 +47,6 @@ func isChannelValue(v Value) bool {
 	}
 	id := v.SymbolID()
 	return (id & (0xFF << 24)) == channelMarker
-}
-
-func getChannel(v Value) *ChannelObject {
-	if !isChannelValue(v) {
-		return nil
-	}
-	id := int(v.SymbolID() & ^uint32(0xFF<<24))
-
-	channelRegistryMu.Lock()
-	defer channelRegistryMu.Unlock()
-	return channelRegistry[id]
 }
 
 // ---------------------------------------------------------------------------
@@ -98,35 +74,6 @@ type ProcessObject struct {
 	waitGroup sync.WaitGroup
 }
 
-// processRegistry stores active processes
-var processRegistry = make(map[uint64]*ProcessObject)
-var processRegistryMu sync.RWMutex
-var nextProcessID uint64 = 1
-
-// currentProcess stores the current process for each goroutine
-var currentProcessKey = struct{}{}
-
-func createProcess() *ProcessObject {
-	id := atomic.AddUint64(&nextProcessID, 1) - 1
-	proc := &ProcessObject{
-		id:   id,
-		done: make(chan struct{}),
-	}
-	proc.state.Store(int32(ProcessRunning))
-	proc.waitGroup.Add(1)
-
-	processRegistryMu.Lock()
-	processRegistry[id] = proc
-	processRegistryMu.Unlock()
-
-	return proc
-}
-
-func registerProcess(proc *ProcessObject) Value {
-	// Encode process ID similar to channels
-	return processToValue(proc.id)
-}
-
 const processMarker uint32 = 2 << 24
 
 func processToValue(id uint64) Value {
@@ -140,17 +87,6 @@ func isProcessValue(v Value) bool {
 	}
 	id := v.SymbolID()
 	return (id & (0xFF << 24)) == processMarker
-}
-
-func getProcess(v Value) *ProcessObject {
-	if !isProcessValue(v) {
-		return nil
-	}
-	id := uint64(v.SymbolID() & ^uint32(0xFF<<24))
-
-	processRegistryMu.RLock()
-	defer processRegistryMu.RUnlock()
-	return processRegistry[id]
 }
 
 func (p *ProcessObject) markDone(result Value, err error) {

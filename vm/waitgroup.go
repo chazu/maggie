@@ -16,30 +16,11 @@ type WaitGroupObject struct {
 	counter atomic.Int32 // Track count for inspection
 }
 
-// waitGroupRegistry stores active wait groups
-var waitGroupRegistry = make(map[int]*WaitGroupObject)
-var waitGroupRegistryMu sync.RWMutex
-var nextWaitGroupID atomic.Int32
-
 // WaitGroup marker for symbol encoding
 const waitGroupMarker uint32 = 33 << 24
 
-func init() {
-	nextWaitGroupID.Store(1)
-}
-
 func createWaitGroup() *WaitGroupObject {
 	return &WaitGroupObject{}
-}
-
-func registerWaitGroup(wg *WaitGroupObject) Value {
-	id := int(nextWaitGroupID.Add(1) - 1)
-
-	waitGroupRegistryMu.Lock()
-	waitGroupRegistry[id] = wg
-	waitGroupRegistryMu.Unlock()
-
-	return waitGroupToValue(id)
 }
 
 func waitGroupToValue(id int) Value {
@@ -52,17 +33,6 @@ func isWaitGroupValue(v Value) bool {
 	}
 	id := v.SymbolID()
 	return (id & (0xFF << 24)) == waitGroupMarker
-}
-
-func getWaitGroup(v Value) *WaitGroupObject {
-	if !isWaitGroupValue(v) {
-		return nil
-	}
-	id := int(v.SymbolID() & ^uint32(0xFF<<24))
-
-	waitGroupRegistryMu.RLock()
-	defer waitGroupRegistryMu.RUnlock()
-	return waitGroupRegistry[id]
 }
 
 // ---------------------------------------------------------------------------

@@ -16,14 +16,12 @@ type RegistryGCStats struct {
 	Processes            int
 	CancellationContexts int
 	Exceptions           int
-	GlobalChannels       int
-	GlobalProcesses      int
 	TotalSwept           int
 	SweepDuration        time.Duration
 	Timestamp            time.Time
 }
 
-// RegistryGC periodically sweeps global and VM-local registries to reclaim
+// RegistryGC periodically sweeps VM-local registries to reclaim
 // entries for completed/closed objects. This prevents memory leaks in
 // long-running programs (servers, REPLs, IDE sessions).
 type RegistryGC struct {
@@ -164,13 +162,7 @@ func (gc *RegistryGC) sweep() *RegistryGCStats {
 		stats.CancellationContexts = gc.vm.registry.SweepCancellationContexts()
 	}
 
-	// 2. Sweep global channel registry (legacy)
-	stats.GlobalChannels = sweepGlobalChannels()
-
-	// 3. Sweep global process registry (legacy)
-	stats.GlobalProcesses = sweepGlobalProcesses()
-
-	// 4. Sweep VM-local exception registry
+	// 2. Sweep VM-local exception registry
 	if gc.vm.registry != nil {
 		stats.Exceptions = gc.vm.registry.SweepExceptions()
 	}
@@ -182,8 +174,7 @@ func (gc *RegistryGC) sweep() *RegistryGCStats {
 	// state that is not safely accessible from a background goroutine.
 
 	stats.TotalSwept = stats.Channels + stats.Processes +
-		stats.CancellationContexts + stats.Exceptions +
-		stats.GlobalChannels + stats.GlobalProcesses
+		stats.CancellationContexts + stats.Exceptions
 	stats.SweepDuration = time.Since(start)
 
 	gc.sweepCount.Add(1)
@@ -191,38 +182,3 @@ func (gc *RegistryGC) sweep() *RegistryGCStats {
 
 	return stats
 }
-
-// ---------------------------------------------------------------------------
-// Global registry sweep functions
-// ---------------------------------------------------------------------------
-
-// sweepGlobalChannels removes closed channels from the global channelRegistry.
-func sweepGlobalChannels() int {
-	channelRegistryMu.Lock()
-	defer channelRegistryMu.Unlock()
-
-	swept := 0
-	for id, ch := range channelRegistry {
-		if ch.closed.Load() {
-			delete(channelRegistry, id)
-			swept++
-		}
-	}
-	return swept
-}
-
-// sweepGlobalProcesses removes terminated processes from the global processRegistry.
-func sweepGlobalProcesses() int {
-	processRegistryMu.Lock()
-	defer processRegistryMu.Unlock()
-
-	swept := 0
-	for id, proc := range processRegistry {
-		if proc.isDone() {
-			delete(processRegistry, id)
-			swept++
-		}
-	}
-	return swept
-}
-

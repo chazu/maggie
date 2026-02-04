@@ -188,7 +188,7 @@ func (i *Inspector) inspectChannel(v Value, depth int) *InspectionResult {
 		ClassName: "Channel",
 	}
 
-	ch := getChannel(v)
+	ch := i.vm.getChannel(v)
 	if ch == nil {
 		result.Value = "<invalid channel>"
 		return result
@@ -219,7 +219,7 @@ func (i *Inspector) inspectProcess(v Value, depth int) *InspectionResult {
 		ClassName: "Process",
 	}
 
-	proc := getProcess(v)
+	proc := i.vm.getProcess(v)
 	if proc == nil {
 		result.Value = "<invalid process>"
 		return result

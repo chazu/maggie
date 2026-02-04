@@ -253,7 +253,7 @@ func TestInspector_Channel(t *testing.T) {
 
 	// Create a buffered channel
 	ch := createChannel(5)
-	chVal := registerChannel(ch)
+	chVal := vm.registerChannel(ch)
 
 	result := inspector.Inspect(chVal)
 
@@ -277,7 +277,7 @@ func TestInspector_UnbufferedChannel(t *testing.T) {
 
 	// Create an unbuffered channel
 	ch := createChannel(0)
-	chVal := registerChannel(ch)
+	chVal := vm.registerChannel(ch)
 
 	result := inspector.Inspect(chVal)
 
@@ -297,7 +297,7 @@ func TestInspector_ClosedChannel(t *testing.T) {
 	ch := createChannel(3)
 	ch.closed.Store(true)
 	close(ch.ch)
-	chVal := registerChannel(ch)
+	chVal := vm.registerChannel(ch)
 
 	result := inspector.Inspect(chVal)
 
@@ -314,8 +314,8 @@ func TestInspector_Process(t *testing.T) {
 	inspector := NewInspector(vm)
 
 	// Create a process
-	proc := createProcess()
-	procVal := registerProcess(proc)
+	proc := vm.createProcess()
+	procVal := vm.registerProcess(proc)
 
 	result := inspector.Inspect(procVal)
 

@@ -16,30 +16,11 @@ type MutexObject struct {
 	locked atomic.Bool // Track if locked (for tryLock and debugging)
 }
 
-// mutexRegistry stores active mutexes
-var mutexRegistry = make(map[int]*MutexObject)
-var mutexRegistryMu sync.RWMutex
-var nextMutexID atomic.Int32
-
 // Mutex marker for symbol encoding (uses a different bit pattern from channels/processes)
 const mutexMarker uint32 = 32 << 24
 
-func init() {
-	nextMutexID.Store(1)
-}
-
 func createMutex() *MutexObject {
 	return &MutexObject{}
-}
-
-func registerMutex(m *MutexObject) Value {
-	id := int(nextMutexID.Add(1) - 1)
-
-	mutexRegistryMu.Lock()
-	mutexRegistry[id] = m
-	mutexRegistryMu.Unlock()
-
-	return mutexToValue(id)
 }
 
 func mutexToValue(id int) Value {
@@ -52,17 +33,6 @@ func isMutexValue(v Value) bool {
 	}
 	id := v.SymbolID()
 	return (id & (0xFF << 24)) == mutexMarker
-}
-
-func getMutex(v Value) *MutexObject {
-	if !isMutexValue(v) {
-		return nil
-	}
-	id := int(v.SymbolID() & ^uint32(0xFF<<24))
-
-	mutexRegistryMu.RLock()
-	defer mutexRegistryMu.RUnlock()
-	return mutexRegistry[id]
 }
 
 // ---------------------------------------------------------------------------

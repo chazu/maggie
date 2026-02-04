@@ -1,10 +1,5 @@
 package vm
 
-import (
-	"sync"
-	"sync/atomic"
-)
-
 // ---------------------------------------------------------------------------
 // Semaphore: Counting semaphore using buffered channel pattern
 // ---------------------------------------------------------------------------
@@ -17,17 +12,8 @@ type SemaphoreObject struct {
 	capacity int
 }
 
-// semaphoreRegistry stores active semaphores
-var semaphoreRegistry = make(map[int]*SemaphoreObject)
-var semaphoreRegistryMu sync.RWMutex
-var nextSemaphoreID atomic.Int32
-
 // Semaphore marker for symbol encoding
 const semaphoreMarker uint32 = 34 << 24
-
-func init() {
-	nextSemaphoreID.Store(1)
-}
 
 func createSemaphore(capacity int) *SemaphoreObject {
 	if capacity < 1 {
@@ -44,16 +30,6 @@ func createSemaphore(capacity int) *SemaphoreObject {
 	return sem
 }
 
-func registerSemaphore(sem *SemaphoreObject) Value {
-	id := int(nextSemaphoreID.Add(1) - 1)
-
-	semaphoreRegistryMu.Lock()
-	semaphoreRegistry[id] = sem
-	semaphoreRegistryMu.Unlock()
-
-	return semaphoreToValue(id)
-}
-
 func semaphoreToValue(id int) Value {
 	return FromSymbolID(uint32(id) | semaphoreMarker)
 }
@@ -64,17 +40,6 @@ func isSemaphoreValue(v Value) bool {
 	}
 	id := v.SymbolID()
 	return (id & (0xFF << 24)) == semaphoreMarker
-}
-
-func getSemaphore(v Value) *SemaphoreObject {
-	if !isSemaphoreValue(v) {
-		return nil
-	}
-	id := int(v.SymbolID() & ^uint32(0xFF<<24))
-
-	semaphoreRegistryMu.RLock()
-	defer semaphoreRegistryMu.RUnlock()
-	return semaphoreRegistry[id]
 }
 
 // ---------------------------------------------------------------------------

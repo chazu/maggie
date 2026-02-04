@@ -247,57 +247,6 @@ func TestRegistryGCSweepHandledExceptions(t *testing.T) {
 	}
 }
 
-// TestRegistryGCSweepGlobalChannels verifies that the global (legacy)
-// channel registry is also swept.
-func TestRegistryGCSweepGlobalChannels(t *testing.T) {
-	// Create channels in the global registry directly
-	ch1 := createChannel(1)
-	ch2 := createChannel(1)
-	ch3 := createChannel(1)
-
-	registerChannel(ch1)
-	registerChannel(ch2)
-	registerChannel(ch3)
-
-	// Close two of them
-	ch1.closed.Store(true)
-	close(ch1.ch)
-	ch3.closed.Store(true)
-	close(ch3.ch)
-
-	vm := NewVM()
-	defer vm.Shutdown()
-
-	stats := vm.registryGC.SweepNow()
-
-	if stats.GlobalChannels < 2 {
-		t.Errorf("Expected at least 2 global channels swept, got %d", stats.GlobalChannels)
-	}
-}
-
-// TestRegistryGCSweepGlobalProcesses verifies that the global (legacy)
-// process registry is also swept.
-func TestRegistryGCSweepGlobalProcesses(t *testing.T) {
-	// Create processes in the global registry directly
-	proc1 := createProcess()
-	proc2 := createProcess()
-
-	// Complete one of them
-	proc1.markDone(FromSmallInt(1), nil)
-
-	vm := NewVM()
-	defer vm.Shutdown()
-
-	stats := vm.registryGC.SweepNow()
-
-	if stats.GlobalProcesses < 1 {
-		t.Errorf("Expected at least 1 global process swept, got %d", stats.GlobalProcesses)
-	}
-
-	// The running process should still be in the registry
-	_ = proc2 // keep reference
-}
-
 // TestRegistryGCConfigurableInterval verifies that the sweep interval
 // can be configured.
 func TestRegistryGCConfigurableInterval(t *testing.T) {
@@ -590,8 +539,7 @@ func TestRegistryGCTotalSwept(t *testing.T) {
 	stats := vm.registryGC.SweepNow()
 
 	expectedTotal := stats.Channels + stats.Processes +
-		stats.CancellationContexts + stats.Exceptions +
-		stats.GlobalChannels + stats.GlobalProcesses
+		stats.CancellationContexts + stats.Exceptions
 
 	if stats.TotalSwept != expectedTotal {
 		t.Errorf("TotalSwept=%d, expected sum of components=%d", stats.TotalSwept, expectedTotal)
