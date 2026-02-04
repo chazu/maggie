@@ -471,7 +471,7 @@ func BenchmarkArraySize(b *testing.B) {
 // BenchmarkStringAt measures string character access
 func BenchmarkStringAt(b *testing.B) {
 	vm := benchmarkVM()
-	str := NewStringValue("Hello, World! This is a test string for benchmarking.")
+	str := vm.registry.NewStringValue("Hello, World! This is a test string for benchmarking.")
 	idx := FromSmallInt(10)
 
 	b.ResetTimer()
@@ -483,7 +483,7 @@ func BenchmarkStringAt(b *testing.B) {
 // BenchmarkStringSize measures string length query
 func BenchmarkStringSize(b *testing.B) {
 	vm := benchmarkVM()
-	str := NewStringValue("Hello, World! This is a test string for benchmarking.")
+	str := vm.registry.NewStringValue("Hello, World! This is a test string for benchmarking.")
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -494,7 +494,7 @@ func BenchmarkStringSize(b *testing.B) {
 // BenchmarkDictionaryAtPut measures dictionary insertion
 func BenchmarkDictionaryAtPut(b *testing.B) {
 	vm := benchmarkVM()
-	dictVal := NewDictionaryValue()
+	dictVal := vm.registry.NewDictionaryValue()
 
 	key := vm.Symbols.SymbolValue("testKey")
 	val := FromSmallInt(42)
@@ -508,7 +508,7 @@ func BenchmarkDictionaryAtPut(b *testing.B) {
 // BenchmarkDictionaryAt measures dictionary lookup
 func BenchmarkDictionaryAt(b *testing.B) {
 	vm := benchmarkVM()
-	dictVal := NewDictionaryValue()
+	dictVal := vm.registry.NewDictionaryValue()
 
 	// Pre-populate
 	key := vm.Symbols.SymbolValue("testKey")
@@ -930,17 +930,11 @@ func BenchmarkHotPath_ExceptionSignalCatch(b *testing.B) {
 
 	// Register once and reuse
 	protectedBlockVal := func() Value {
-		id := int(nextBlockID.Add(1) - 1)
-		blockRegistryMu.Lock()
-		blockRegistry[id] = protectedBV
-		blockRegistryMu.Unlock()
+		id := vm.registry.RegisterBlock(protectedBV)
 		return FromBlockID(uint32(id))
 	}()
 	handlerBlockVal := func() Value {
-		id := int(nextBlockID.Add(1) - 1)
-		blockRegistryMu.Lock()
-		blockRegistry[id] = handlerBV
-		blockRegistryMu.Unlock()
+		id := vm.registry.RegisterBlock(handlerBV)
 		return FromBlockID(uint32(id))
 	}()
 
@@ -1019,8 +1013,8 @@ func BenchmarkHotPath_ArrayAtPut(b *testing.B) {
 // BenchmarkHotPath_StringConcat measures string concatenation via primConcat:
 func BenchmarkHotPath_StringConcat(b *testing.B) {
 	vm := benchmarkVM()
-	s1 := NewStringValue("Hello, ")
-	s2 := NewStringValue("World!")
+	s1 := vm.registry.NewStringValue("Hello, ")
+	s2 := vm.registry.NewStringValue("World!")
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {

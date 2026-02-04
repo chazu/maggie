@@ -260,7 +260,7 @@ func (i *Inspector) inspectResult(v Value, depth int) *InspectionResult {
 		Type: "Result",
 	}
 
-	r := getResult(v)
+	r := i.vm.registry.GetResultFromValue(v)
 	if r == nil {
 		result.Value = "<invalid result>"
 		return result

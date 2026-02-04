@@ -207,7 +207,7 @@ func formatValue(v *vm.VM, val vm.Value) string {
 	case val.IsFloat():
 		return fmt.Sprintf("%g", val.Float64())
 	case vm.IsStringValue(val):
-		return "'" + vm.GetStringContent(val) + "'"
+		return "'" + v.Registry().GetStringContent(val) + "'"
 	case vm.IsClassValue(val):
 		cls := vm.GetClassFromValue(val)
 		if cls != nil {
@@ -221,7 +221,7 @@ func formatValue(v *vm.VM, val vm.Value) string {
 		// Try calling printString on the object
 		result := v.Send(val, "printString", nil)
 		if vm.IsStringValue(result) {
-			return vm.GetStringContent(result)
+			return v.Registry().GetStringContent(result)
 		}
 		obj := vm.ObjectFromValue(val)
 		if obj != nil && obj.VTablePtr() != nil && obj.VTablePtr().Class() != nil {

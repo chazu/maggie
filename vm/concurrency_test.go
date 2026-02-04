@@ -229,10 +229,14 @@ func TestConcurrentBlockCreation(t *testing.T) {
 	const numGoroutines = 10
 	const blocksPerGoroutine = 100
 
-	// Create multiple interpreters to simulate concurrent execution
+	testVM := NewVM()
+	defer testVM.Shutdown()
+	reg := testVM.registry
+
+	// Create multiple interpreters connected to the VM
 	interpreters := make([]*Interpreter, numGoroutines)
 	for i := 0; i < numGoroutines; i++ {
-		interpreters[i] = NewInterpreter()
+		interpreters[i] = testVM.newInterpreter()
 	}
 
 	// Create a simple block method
@@ -254,7 +258,7 @@ func TestConcurrentBlockCreation(t *testing.T) {
 	blockIDs := make([][]int, numGoroutines)
 
 	// Record initial registry size
-	initialSize := blockRegistrySize()
+	initialSize := reg.BlockCount()
 
 	// Concurrently create blocks from multiple goroutines
 	for g := 0; g < numGoroutines; g++ {
@@ -278,7 +282,7 @@ func TestConcurrentBlockCreation(t *testing.T) {
 
 	// Verify all blocks were created and have unique IDs
 	expectedTotal := numGoroutines * blocksPerGoroutine
-	actualSize := blockRegistrySize() - initialSize
+	actualSize := reg.BlockCount() - initialSize
 
 	// Note: actualSize may be less than expectedTotal if cleanup is enabled
 	// For now, just verify no crash and reasonable number of blocks
@@ -308,7 +312,7 @@ func TestConcurrentCellAccess(t *testing.T) {
 	const opsPerGoroutine = 1000
 
 	// Create a shared cell
-	cell := NewCell(FromSmallInt(0))
+	cell := NewCell(nil, FromSmallInt(0))
 
 	var wg sync.WaitGroup
 
@@ -353,7 +357,7 @@ func TestConcurrentCellCreation(t *testing.T) {
 			defer wg.Done()
 			cells[goroutineID] = make([]Value, cellsPerGoroutine)
 			for i := 0; i < cellsPerGoroutine; i++ {
-				cells[goroutineID][i] = NewCell(FromSmallInt(int64(i)))
+				cells[goroutineID][i] = NewCell(nil, FromSmallInt(int64(i)))
 			}
 		}(g)
 	}
@@ -386,6 +390,10 @@ func TestConcurrentBlockRegistryReadWrite(t *testing.T) {
 	const numReaders = 5
 	const opsPerGoroutine = 100
 
+	testVM := NewVM()
+	defer testVM.Shutdown()
+	reg := testVM.registry
+
 	// Create a simple block method
 	blockMethod := &BlockMethod{
 		Arity:       0,
@@ -409,7 +417,7 @@ func TestConcurrentBlockRegistryReadWrite(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			interp := NewInterpreter()
+			interp := testVM.newInterpreter()
 			interp.pushFrame(m, Nil, nil)
 			for i := 0; i < opsPerGoroutine; i++ {
 				blockVal := interp.createBlockValue(blockMethod, nil)
@@ -425,11 +433,11 @@ func TestConcurrentBlockRegistryReadWrite(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			interp := NewInterpreter()
+			interp := testVM.newInterpreter()
 			for i := 0; i < opsPerGoroutine*2; i++ {
 				// Try to read a block (may or may not exist yet)
 				id := i % (numWriters * opsPerGoroutine)
-				if blockRegistryHas(id) {
+				if reg.HasBlock(id) {
 					// Just verify we can read it without crash
 					_ = interp.getBlockValue(FromBlockID(uint32(id)))
 				}
@@ -512,7 +520,9 @@ func TestDetachedBlockNonLocalReturn(t *testing.T) {
 // TestAttachedBlockNonLocalReturn tests that attached blocks still do proper
 // non-local returns (to verify we didn't break normal behavior).
 func TestAttachedBlockNonLocalReturn(t *testing.T) {
-	interp := NewInterpreter()
+	testVM := NewVM()
+	defer testVM.Shutdown()
+	interp := testVM.interpreter
 
 	// Create a method frame first (this will be the home frame)
 	b := NewCompiledMethodBuilder("test", 0)

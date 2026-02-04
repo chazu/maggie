@@ -82,6 +82,9 @@ func NewImageWriter() *ImageWriter {
 
 // collectFromVM collects all data from the VM for serialization.
 func (w *ImageWriter) collectFromVM(vm *VM) {
+	// Set registry on encoder for string value access
+	w.encoder.registry = vm.registry
+
 	// Collect strings from symbols
 	allSymbols := vm.Symbols.All()
 	for _, name := range allSymbols {
@@ -190,7 +193,7 @@ func (w *ImageWriter) collectMethod(m *CompiledMethod) {
 	for _, lit := range m.Literals {
 		if IsStringValue(lit) {
 			// String literals - must check before IsSymbol since both use symbol tag
-			w.registerString(GetStringContent(lit))
+			w.registerString(w.encoder.registry.GetStringContent(lit))
 		} else if lit.IsSymbol() {
 			w.registerSymbol(lit.SymbolID())
 		}
@@ -212,7 +215,7 @@ func (w *ImageWriter) collectBlock(b *BlockMethod) {
 	for _, lit := range b.Literals {
 		if IsStringValue(lit) {
 			// String literals - must check before IsSymbol since both use symbol tag
-			w.registerString(GetStringContent(lit))
+			w.registerString(w.encoder.registry.GetStringContent(lit))
 		} else if lit.IsSymbol() {
 			w.registerSymbol(lit.SymbolID())
 		}

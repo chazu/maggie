@@ -173,27 +173,27 @@ func (vm *VM) NewArrayWithElements(elements []Value) Value {
 
 // NewDictionary creates a new empty Dictionary.
 func (vm *VM) NewDictionary() Value {
-	return NewDictionaryValue()
+	return vm.registry.NewDictionaryValue()
 }
 
 // DictionaryAtPut sets a key-value pair in a dictionary.
 func (vm *VM) DictionaryAtPut(dict Value, key Value, value Value) {
-	d := GetDictionaryObject(dict)
+	d := vm.registry.GetDictionaryObject(dict)
 	if d == nil {
 		return
 	}
-	h := hashValue(key)
+	h := hashValue(vm.registry, key)
 	d.Data[h] = value
 	d.Keys[h] = key
 }
 
 // DictionaryAt gets a value from a dictionary by key.
 func (vm *VM) DictionaryAt(dict Value, key Value) Value {
-	d := GetDictionaryObject(dict)
+	d := vm.registry.GetDictionaryObject(dict)
 	if d == nil {
 		return Nil
 	}
-	h := hashValue(key)
+	h := hashValue(vm.registry, key)
 	if val, ok := d.Data[h]; ok {
 		return val
 	}

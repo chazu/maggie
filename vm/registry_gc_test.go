@@ -225,19 +225,19 @@ func TestRegistryGCSweepCancellationContexts(t *testing.T) {
 }
 
 // TestRegistryGCSweepHandledExceptions verifies that handled exceptions
-// are cleaned up from the global exception registry.
+// are cleaned up from the VM-local exception registry.
 func TestRegistryGCSweepHandledExceptions(t *testing.T) {
-	// Create some exceptions directly
+	vm := NewVM()
+	defer vm.Shutdown()
+
+	// Create some exceptions in the VM-local registry
 	ex1 := &ExceptionObject{Handled: true}
 	ex2 := &ExceptionObject{Handled: false}
 	ex3 := &ExceptionObject{Handled: true}
 
-	RegisterException(ex1)
-	RegisterException(ex2)
-	RegisterException(ex3)
-
-	vm := NewVM()
-	defer vm.Shutdown()
+	vm.registry.RegisterException(ex1)
+	vm.registry.RegisterException(ex2)
+	vm.registry.RegisterException(ex3)
 
 	stats := vm.registryGC.SweepNow()
 

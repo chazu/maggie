@@ -16,7 +16,7 @@ func TestIntegrationFactorial(t *testing.T) {
 	self = 0 ifTrue: [^1].
 	^self * (self - 1) factorial`
 
-	method, err := Compile(source, vmInst.Selectors, vmInst.Symbols)
+	method, err := Compile(source, vmInst.Selectors, vmInst.Symbols, vmInst.Registry())
 	if err != nil {
 		t.Fatalf("compile error: %v", err)
 	}
@@ -45,7 +45,7 @@ func TestIntegrationFibonacci(t *testing.T) {
 	self < 2 ifTrue: [^self].
 	^(self - 1) fib + (self - 2) fib`
 
-	method, err := Compile(source, vmInst.Selectors, vmInst.Symbols)
+	method, err := Compile(source, vmInst.Selectors, vmInst.Symbols, vmInst.Registry())
 	if err != nil {
 		t.Fatalf("compile error: %v", err)
 	}
@@ -67,7 +67,7 @@ func TestIntegrationMax(t *testing.T) {
 	self > other ifTrue: [^self].
 	^other`
 
-	method, err := Compile(source, vmInst.Selectors, vmInst.Symbols)
+	method, err := Compile(source, vmInst.Selectors, vmInst.Symbols, vmInst.Registry())
 	if err != nil {
 		t.Fatalf("compile error: %v", err)
 	}
@@ -94,7 +94,7 @@ func TestIntegrationBetweenAnd(t *testing.T) {
 	source := `between: min and: max
 	^self >= min & (self <= max)`
 
-	method, err := Compile(source, vmInst.Selectors, vmInst.Symbols)
+	method, err := Compile(source, vmInst.Selectors, vmInst.Symbols, vmInst.Registry())
 	if err != nil {
 		t.Fatalf("compile error: %v", err)
 	}
@@ -125,7 +125,7 @@ func TestIntegrationMethodCellVarBasic(t *testing.T) {
 	self > 0 ifTrue: [r := self].
 	^r`
 
-	method, err := Compile(source, vmInst.Selectors, vmInst.Symbols)
+	method, err := Compile(source, vmInst.Selectors, vmInst.Symbols, vmInst.Registry())
 	if err != nil {
 		t.Fatalf("compile error: %v", err)
 	}
@@ -155,7 +155,7 @@ func TestIntegrationMethodCellVarSimple(t *testing.T) {
 	[i < 3] whileTrue: [i := i + 1].
 	^i`
 
-	method, err := Compile(source, vmInst.Selectors, vmInst.Symbols)
+	method, err := Compile(source, vmInst.Selectors, vmInst.Symbols, vmInst.Registry())
 	if err != nil {
 		t.Fatalf("compile error: %v", err)
 	}
@@ -181,7 +181,7 @@ func TestIntegrationTimesRepeat(t *testing.T) {
 	].
 	^sum`
 
-	method, err := Compile(source, vmInst.Selectors, vmInst.Symbols)
+	method, err := Compile(source, vmInst.Selectors, vmInst.Symbols, vmInst.Registry())
 	if err != nil {
 		t.Fatalf("compile error: %v", err)
 	}
@@ -202,7 +202,7 @@ func TestIntegrationEven(t *testing.T) {
 	source := `even
 	^(self \\ 2) = 0`
 
-	method, err := Compile(source, vmInst.Selectors, vmInst.Symbols)
+	method, err := Compile(source, vmInst.Selectors, vmInst.Symbols, vmInst.Registry())
 	if err != nil {
 		t.Fatalf("compile error: %v", err)
 	}
@@ -232,12 +232,12 @@ func TestIntegrationOdd(t *testing.T) {
 	oddSource := `odd
 	^self even not`
 
-	evenMethod, err := Compile(evenSource, vmInst.Selectors, vmInst.Symbols)
+	evenMethod, err := Compile(evenSource, vmInst.Selectors, vmInst.Symbols, vmInst.Registry())
 	if err != nil {
 		t.Fatalf("compile even error: %v", err)
 	}
 
-	oddMethod, err := Compile(oddSource, vmInst.Selectors, vmInst.Symbols)
+	oddMethod, err := Compile(oddSource, vmInst.Selectors, vmInst.Symbols, vmInst.Registry())
 	if err != nil {
 		t.Fatalf("compile odd error: %v", err)
 	}
@@ -273,7 +273,7 @@ func TestIntegrationClosureMutation(t *testing.T) {
 		r
 	] value`
 
-	method, err := Compile(source, vmInst.Selectors, vmInst.Symbols)
+	method, err := Compile(source, vmInst.Selectors, vmInst.Symbols, vmInst.Registry())
 	if err != nil {
 		t.Fatalf("compile error: %v", err)
 	}
@@ -305,7 +305,7 @@ func TestIntegrationClosureMutationWithLocalAssign(t *testing.T) {
 		r
 	] value`
 
-	method, err := Compile(source, vmInst.Selectors, vmInst.Symbols)
+	method, err := Compile(source, vmInst.Selectors, vmInst.Symbols, vmInst.Registry())
 	if err != nil {
 		t.Fatalf("compile error: %v", err)
 	}
@@ -335,7 +335,7 @@ func TestIntegrationBlockPassedAsArg(t *testing.T) {
 	callBlockSource := `callBlock: aBlock
 	^aBlock value`
 
-	callBlockMethod, err := Compile(callBlockSource, vmInst.Selectors, vmInst.Symbols)
+	callBlockMethod, err := Compile(callBlockSource, vmInst.Selectors, vmInst.Symbols, vmInst.Registry())
 	if err != nil {
 		t.Fatalf("compile callBlock: error: %v", err)
 	}
@@ -348,7 +348,7 @@ func TestIntegrationBlockPassedAsArg(t *testing.T) {
 	self callBlock: [r := self].
 	^r`
 
-	method, err := Compile(source, vmInst.Selectors, vmInst.Symbols)
+	method, err := Compile(source, vmInst.Selectors, vmInst.Symbols, vmInst.Registry())
 	if err != nil {
 		t.Fatalf("compile error: %v", err)
 	}
@@ -375,7 +375,7 @@ func TestIntegrationAbs(t *testing.T) {
 	self < 0 ifTrue: [^self negated].
 	^self`
 
-	method, err := Compile(source, vmInst.Selectors, vmInst.Symbols)
+	method, err := Compile(source, vmInst.Selectors, vmInst.Symbols, vmInst.Registry())
 	if err != nil {
 		t.Fatalf("compile error: %v", err)
 	}

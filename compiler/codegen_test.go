@@ -6,11 +6,17 @@ import (
 	"github.com/chazu/maggie/vm"
 )
 
+// newTestRegistry creates a fresh ObjectRegistry for compiler tests.
+func newTestRegistry() *vm.ObjectRegistry {
+	return vm.NewObjectRegistry()
+}
+
 func TestCompileInteger(t *testing.T) {
 	selectors := vm.NewSelectorTable()
 	symbols := vm.NewSymbolTable()
+	registry := newTestRegistry()
 
-	method, err := CompileExpr("42", selectors, symbols)
+	method, err := CompileExpr("42", selectors, symbols, registry)
 	if err != nil {
 		t.Fatalf("compile error: %v", err)
 	}
@@ -28,8 +34,9 @@ func TestCompileInteger(t *testing.T) {
 func TestCompileNegativeInteger(t *testing.T) {
 	selectors := vm.NewSelectorTable()
 	symbols := vm.NewSymbolTable()
+	registry := newTestRegistry()
 
-	method, err := CompileExpr("-5", selectors, symbols)
+	method, err := CompileExpr("-5", selectors, symbols, registry)
 	if err != nil {
 		t.Fatalf("compile error: %v", err)
 	}
@@ -46,8 +53,9 @@ func TestCompileNegativeInteger(t *testing.T) {
 func TestCompileFloat(t *testing.T) {
 	selectors := vm.NewSelectorTable()
 	symbols := vm.NewSymbolTable()
+	registry := newTestRegistry()
 
-	method, err := CompileExpr("3.14", selectors, symbols)
+	method, err := CompileExpr("3.14", selectors, symbols, registry)
 	if err != nil {
 		t.Fatalf("compile error: %v", err)
 	}
@@ -64,8 +72,9 @@ func TestCompileFloat(t *testing.T) {
 func TestCompileNil(t *testing.T) {
 	selectors := vm.NewSelectorTable()
 	symbols := vm.NewSymbolTable()
+	registry := newTestRegistry()
 
-	method, err := CompileExpr("nil", selectors, symbols)
+	method, err := CompileExpr("nil", selectors, symbols, registry)
 	if err != nil {
 		t.Fatalf("compile error: %v", err)
 	}
@@ -82,8 +91,9 @@ func TestCompileNil(t *testing.T) {
 func TestCompileTrue(t *testing.T) {
 	selectors := vm.NewSelectorTable()
 	symbols := vm.NewSymbolTable()
+	registry := newTestRegistry()
 
-	method, err := CompileExpr("true", selectors, symbols)
+	method, err := CompileExpr("true", selectors, symbols, registry)
 	if err != nil {
 		t.Fatalf("compile error: %v", err)
 	}
@@ -100,8 +110,9 @@ func TestCompileTrue(t *testing.T) {
 func TestCompileFalse(t *testing.T) {
 	selectors := vm.NewSelectorTable()
 	symbols := vm.NewSymbolTable()
+	registry := newTestRegistry()
 
-	method, err := CompileExpr("false", selectors, symbols)
+	method, err := CompileExpr("false", selectors, symbols, registry)
 	if err != nil {
 		t.Fatalf("compile error: %v", err)
 	}
@@ -118,8 +129,9 @@ func TestCompileFalse(t *testing.T) {
 func TestCompileBinaryAdd(t *testing.T) {
 	selectors := vm.NewSelectorTable()
 	symbols := vm.NewSymbolTable()
+	registry := newTestRegistry()
 
-	method, err := CompileExpr("1 + 2", selectors, symbols)
+	method, err := CompileExpr("1 + 2", selectors, symbols, registry)
 	if err != nil {
 		t.Fatalf("compile error: %v", err)
 	}
@@ -136,8 +148,9 @@ func TestCompileBinaryAdd(t *testing.T) {
 func TestCompileBinarySubtract(t *testing.T) {
 	selectors := vm.NewSelectorTable()
 	symbols := vm.NewSymbolTable()
+	registry := newTestRegistry()
 
-	method, err := CompileExpr("10 - 3", selectors, symbols)
+	method, err := CompileExpr("10 - 3", selectors, symbols, registry)
 	if err != nil {
 		t.Fatalf("compile error: %v", err)
 	}
@@ -153,8 +166,9 @@ func TestCompileBinarySubtract(t *testing.T) {
 func TestCompileBinaryMultiply(t *testing.T) {
 	selectors := vm.NewSelectorTable()
 	symbols := vm.NewSymbolTable()
+	registry := newTestRegistry()
 
-	method, err := CompileExpr("6 * 7", selectors, symbols)
+	method, err := CompileExpr("6 * 7", selectors, symbols, registry)
 	if err != nil {
 		t.Fatalf("compile error: %v", err)
 	}
@@ -170,8 +184,9 @@ func TestCompileBinaryMultiply(t *testing.T) {
 func TestCompileBinaryCompare(t *testing.T) {
 	selectors := vm.NewSelectorTable()
 	symbols := vm.NewSymbolTable()
+	registry := newTestRegistry()
 
-	method, err := CompileExpr("5 < 10", selectors, symbols)
+	method, err := CompileExpr("5 < 10", selectors, symbols, registry)
 	if err != nil {
 		t.Fatalf("compile error: %v", err)
 	}
@@ -187,9 +202,10 @@ func TestCompileBinaryCompare(t *testing.T) {
 func TestCompileBinaryChain(t *testing.T) {
 	selectors := vm.NewSelectorTable()
 	symbols := vm.NewSymbolTable()
+	registry := newTestRegistry()
 
 	// Smalltalk: 1 + 2 * 3 = (1 + 2) * 3 = 9
-	method, err := CompileExpr("1 + 2 * 3", selectors, symbols)
+	method, err := CompileExpr("1 + 2 * 3", selectors, symbols, registry)
 	if err != nil {
 		t.Fatalf("compile error: %v", err)
 	}
@@ -205,9 +221,10 @@ func TestCompileBinaryChain(t *testing.T) {
 func TestCompileParenExpr(t *testing.T) {
 	selectors := vm.NewSelectorTable()
 	symbols := vm.NewSymbolTable()
+	registry := newTestRegistry()
 
 	// (1 + 2) * 3 = 9
-	method, err := CompileExpr("(1 + 2) * 3", selectors, symbols)
+	method, err := CompileExpr("(1 + 2) * 3", selectors, symbols, registry)
 	if err != nil {
 		t.Fatalf("compile error: %v", err)
 	}
@@ -223,8 +240,9 @@ func TestCompileParenExpr(t *testing.T) {
 func TestCompileMethod(t *testing.T) {
 	selectors := vm.NewSelectorTable()
 	symbols := vm.NewSymbolTable()
+	registry := newTestRegistry()
 
-	method, err := Compile("double ^self * 2", selectors, symbols)
+	method, err := Compile("double ^self * 2", selectors, symbols, registry)
 	if err != nil {
 		t.Fatalf("compile error: %v", err)
 	}
@@ -240,8 +258,9 @@ func TestCompileMethod(t *testing.T) {
 func TestCompileMethodWithArgs(t *testing.T) {
 	selectors := vm.NewSelectorTable()
 	symbols := vm.NewSymbolTable()
+	registry := newTestRegistry()
 
-	method, err := Compile("add: x ^self + x", selectors, symbols)
+	method, err := Compile("add: x ^self + x", selectors, symbols, registry)
 	if err != nil {
 		t.Fatalf("compile error: %v", err)
 	}
@@ -257,9 +276,10 @@ func TestCompileMethodWithArgs(t *testing.T) {
 func TestCompileMethodWithTemps(t *testing.T) {
 	selectors := vm.NewSelectorTable()
 	symbols := vm.NewSymbolTable()
+	registry := newTestRegistry()
 
 	source := "compute | result | result := 42. ^result"
-	method, err := Compile(source, selectors, symbols)
+	method, err := Compile(source, selectors, symbols, registry)
 	if err != nil {
 		t.Fatalf("compile error: %v", err)
 	}
@@ -272,8 +292,9 @@ func TestCompileMethodWithTemps(t *testing.T) {
 func TestCompileKeywordMethod(t *testing.T) {
 	selectors := vm.NewSelectorTable()
 	symbols := vm.NewSymbolTable()
+	registry := newTestRegistry()
 
-	method, err := Compile("at: index put: value ^self", selectors, symbols)
+	method, err := Compile("at: index put: value ^self", selectors, symbols, registry)
 	if err != nil {
 		t.Fatalf("compile error: %v", err)
 	}
@@ -289,8 +310,9 @@ func TestCompileKeywordMethod(t *testing.T) {
 func TestCompileSymbol(t *testing.T) {
 	selectors := vm.NewSelectorTable()
 	symbols := vm.NewSymbolTable()
+	registry := newTestRegistry()
 
-	method, err := CompileExpr("#foo", selectors, symbols)
+	method, err := CompileExpr("#foo", selectors, symbols, registry)
 	if err != nil {
 		t.Fatalf("compile error: %v", err)
 	}
@@ -310,9 +332,10 @@ func TestCompileSymbol(t *testing.T) {
 func TestCompileBlock(t *testing.T) {
 	selectors := vm.NewSelectorTable()
 	symbols := vm.NewSymbolTable()
+	registry := newTestRegistry()
 
 	// Compile a method that creates and returns a block
-	method, err := CompileExpr("[42]", selectors, symbols)
+	method, err := CompileExpr("[42]", selectors, symbols, registry)
 	if err != nil {
 		t.Fatalf("compile error: %v", err)
 	}
@@ -326,9 +349,10 @@ func TestCompileBlock(t *testing.T) {
 func TestCompileComplexExpression(t *testing.T) {
 	selectors := vm.NewSelectorTable()
 	symbols := vm.NewSymbolTable()
+	registry := newTestRegistry()
 
 	// 2 + 3 * 4 = (2 + 3) * 4 = 20 (Smalltalk left-to-right)
-	method, err := CompileExpr("2 + 3 * 4", selectors, symbols)
+	method, err := CompileExpr("2 + 3 * 4", selectors, symbols, registry)
 	if err != nil {
 		t.Fatalf("compile error: %v", err)
 	}
@@ -344,10 +368,11 @@ func TestCompileComplexExpression(t *testing.T) {
 func TestCompileAssignment(t *testing.T) {
 	selectors := vm.NewSelectorTable()
 	symbols := vm.NewSymbolTable()
+	registry := newTestRegistry()
 
 	// Method with temp and assignment
 	source := "test | x | x := 42. ^x"
-	method, err := Compile(source, selectors, symbols)
+	method, err := Compile(source, selectors, symbols, registry)
 	if err != nil {
 		t.Fatalf("compile error: %v", err)
 	}
@@ -363,10 +388,11 @@ func TestCompileAssignment(t *testing.T) {
 func TestCompileUseArg(t *testing.T) {
 	selectors := vm.NewSelectorTable()
 	symbols := vm.NewSymbolTable()
+	registry := newTestRegistry()
 
 	// Method that uses its argument
 	source := "square: n ^n * n"
-	method, err := Compile(source, selectors, symbols)
+	method, err := Compile(source, selectors, symbols, registry)
 	if err != nil {
 		t.Fatalf("compile error: %v", err)
 	}
@@ -496,6 +522,7 @@ func TestMutableCaptureIteration(t *testing.T) {
 func TestCompileTailCallEmitsTailSend(t *testing.T) {
 	selectors := vm.NewSelectorTable()
 	symbols := vm.NewSymbolTable()
+	registry := newTestRegistry()
 
 	// A self-recursive method: factorial: n acc: acc
 	//   n = 0 ifTrue: [^acc].
@@ -542,7 +569,7 @@ func TestCompileTailCallEmitsTailSend(t *testing.T) {
 		},
 	}
 
-	compiled, err := CompileMethodDef(method, selectors, symbols)
+	compiled, err := CompileMethodDef(method, selectors, symbols, registry)
 	if err != nil {
 		t.Fatalf("compile error: %v", err)
 	}
@@ -567,6 +594,7 @@ func TestCompileTailCallEmitsTailSend(t *testing.T) {
 func TestCompileNonSelfSendNoTailSend(t *testing.T) {
 	selectors := vm.NewSelectorTable()
 	symbols := vm.NewSymbolTable()
+	registry := newTestRegistry()
 
 	// A method that sends to a variable, not self:
 	// forward: other [ ^other forward: other ]
@@ -583,7 +611,7 @@ func TestCompileNonSelfSendNoTailSend(t *testing.T) {
 		},
 	}
 
-	compiled, err := CompileMethodDef(method, selectors, symbols)
+	compiled, err := CompileMethodDef(method, selectors, symbols, registry)
 	if err != nil {
 		t.Fatalf("compile error: %v", err)
 	}
@@ -603,6 +631,7 @@ func TestCompileNonSelfSendNoTailSend(t *testing.T) {
 func TestCompileDifferentSelectorNoTailSend(t *testing.T) {
 	selectors := vm.NewSelectorTable()
 	symbols := vm.NewSymbolTable()
+	registry := newTestRegistry()
 
 	// A method that calls a DIFFERENT method on self:
 	// doWork [ ^self cleanup ]
@@ -617,7 +646,7 @@ func TestCompileDifferentSelectorNoTailSend(t *testing.T) {
 		},
 	}
 
-	compiled, err := CompileMethodDef(method, selectors, symbols)
+	compiled, err := CompileMethodDef(method, selectors, symbols, registry)
 	if err != nil {
 		t.Fatalf("compile error: %v", err)
 	}
@@ -637,6 +666,7 @@ func TestCompileDifferentSelectorNoTailSend(t *testing.T) {
 func TestCompileUnaryTailCall(t *testing.T) {
 	selectors := vm.NewSelectorTable()
 	symbols := vm.NewSymbolTable()
+	registry := newTestRegistry()
 
 	// loop [ ^self loop ]
 	method := &MethodDef{
@@ -650,7 +680,7 @@ func TestCompileUnaryTailCall(t *testing.T) {
 		},
 	}
 
-	compiled, err := CompileMethodDef(method, selectors, symbols)
+	compiled, err := CompileMethodDef(method, selectors, symbols, registry)
 	if err != nil {
 		t.Fatalf("compile error: %v", err)
 	}

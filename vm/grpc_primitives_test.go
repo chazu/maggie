@@ -9,41 +9,46 @@ import (
 // ---------------------------------------------------------------------------
 
 func TestGrpcClientRegistration(t *testing.T) {
+	vm := NewVM()
+
 	clientObj := &GrpcClientObject{
 		target: "localhost:50051",
 	}
 
-	val := registerGrpcClient(clientObj)
+	val := vm.vmRegisterGrpcClient(clientObj)
 
 	if !isGrpcClientValue(val) {
-		t.Fatal("registerGrpcClient should produce a GrpcClient value")
+		t.Fatal("vmRegisterGrpcClient should produce a GrpcClient value")
 	}
 
-	got := getGrpcClient(val)
+	got := vm.vmGetGrpcClient(val)
 	if got == nil {
-		t.Fatal("getGrpcClient returned nil for registered client")
+		t.Fatal("vmGetGrpcClient returned nil for registered client")
 	}
 	if got.target != "localhost:50051" {
 		t.Errorf("target = %q, want %q", got.target, "localhost:50051")
 	}
 
 	// Unregister
-	unregisterGrpcClient(val)
+	vm.vmUnregisterGrpcClient(val)
 
-	got = getGrpcClient(val)
+	got = vm.vmGetGrpcClient(val)
 	if got != nil {
-		t.Error("getGrpcClient should return nil after unregister")
+		t.Error("vmGetGrpcClient should return nil after unregister")
 	}
 }
 
 func TestIsGrpcClientValueFalse(t *testing.T) {
+	vm := NewVM()
+	_ = vm // used for string creation below
+
 	if isGrpcClientValue(Nil) {
 		t.Error("Nil should not be a GrpcClient value")
 	}
 	if isGrpcClientValue(FromSmallInt(42)) {
 		t.Error("SmallInt should not be a GrpcClient value")
 	}
-	if isGrpcClientValue(NewStringValue("test")) {
+	if isGrpcClientValue(vm.registry.NewStringValue("test")) {
 		t.Error("String should not be a GrpcClient value")
 	}
 	if isGrpcClientValue(True) {
@@ -55,13 +60,15 @@ func TestIsGrpcClientValueFalse(t *testing.T) {
 }
 
 func TestGrpcClientMultipleRegistrations(t *testing.T) {
+	vm := NewVM()
+
 	client1 := &GrpcClientObject{target: "host1:50051"}
 	client2 := &GrpcClientObject{target: "host2:50051"}
 	client3 := &GrpcClientObject{target: "host3:50051"}
 
-	val1 := registerGrpcClient(client1)
-	val2 := registerGrpcClient(client2)
-	val3 := registerGrpcClient(client3)
+	val1 := vm.vmRegisterGrpcClient(client1)
+	val2 := vm.vmRegisterGrpcClient(client2)
+	val3 := vm.vmRegisterGrpcClient(client3)
 
 	// All should be distinct values
 	if val1 == val2 || val2 == val3 || val1 == val3 {
@@ -69,38 +76,40 @@ func TestGrpcClientMultipleRegistrations(t *testing.T) {
 	}
 
 	// Each should resolve to the correct client
-	if getGrpcClient(val1).target != "host1:50051" {
+	if vm.vmGetGrpcClient(val1).target != "host1:50051" {
 		t.Error("val1 should resolve to client1")
 	}
-	if getGrpcClient(val2).target != "host2:50051" {
+	if vm.vmGetGrpcClient(val2).target != "host2:50051" {
 		t.Error("val2 should resolve to client2")
 	}
-	if getGrpcClient(val3).target != "host3:50051" {
+	if vm.vmGetGrpcClient(val3).target != "host3:50051" {
 		t.Error("val3 should resolve to client3")
 	}
 
 	// Unregister one and check others still work
-	unregisterGrpcClient(val2)
-	if getGrpcClient(val2) != nil {
+	vm.vmUnregisterGrpcClient(val2)
+	if vm.vmGetGrpcClient(val2) != nil {
 		t.Error("val2 should be nil after unregister")
 	}
-	if getGrpcClient(val1) == nil {
+	if vm.vmGetGrpcClient(val1) == nil {
 		t.Error("val1 should still be valid after unregistering val2")
 	}
-	if getGrpcClient(val3) == nil {
+	if vm.vmGetGrpcClient(val3) == nil {
 		t.Error("val3 should still be valid after unregistering val2")
 	}
 
 	// Cleanup
-	unregisterGrpcClient(val1)
-	unregisterGrpcClient(val3)
+	vm.vmUnregisterGrpcClient(val1)
+	vm.vmUnregisterGrpcClient(val3)
 }
 
 func TestUnregisterGrpcClientInvalidValue(t *testing.T) {
+	vm := NewVM()
+
 	// Unregistering non-GrpcClient values should not panic
-	unregisterGrpcClient(Nil)
-	unregisterGrpcClient(FromSmallInt(42))
-	unregisterGrpcClient(NewStringValue("test"))
+	vm.vmUnregisterGrpcClient(Nil)
+	vm.vmUnregisterGrpcClient(FromSmallInt(42))
+	vm.vmUnregisterGrpcClient(vm.registry.NewStringValue("test"))
 }
 
 // ---------------------------------------------------------------------------
@@ -108,46 +117,53 @@ func TestUnregisterGrpcClientInvalidValue(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestGrpcStreamRegistration(t *testing.T) {
+	vm := NewVM()
+
 	streamObj := &GrpcStreamObject{
 		streamType: GrpcStreamServerStreaming,
 	}
 
-	val := registerGrpcStream(streamObj)
+	val := vm.vmRegisterGrpcStream(streamObj)
 
 	if !isGrpcStreamValue(val) {
-		t.Fatal("registerGrpcStream should produce a GrpcStream value")
+		t.Fatal("vmRegisterGrpcStream should produce a GrpcStream value")
 	}
 
-	got := getGrpcStream(val)
+	got := vm.vmGetGrpcStream(val)
 	if got == nil {
-		t.Fatal("getGrpcStream returned nil for registered stream")
+		t.Fatal("vmGetGrpcStream returned nil for registered stream")
 	}
 	if got.streamType != GrpcStreamServerStreaming {
 		t.Errorf("streamType = %v, want GrpcStreamServerStreaming", got.streamType)
 	}
 
 	// Unregister
-	unregisterGrpcStream(val)
+	vm.vmUnregisterGrpcStream(val)
 
-	got = getGrpcStream(val)
+	got = vm.vmGetGrpcStream(val)
 	if got != nil {
-		t.Error("getGrpcStream should return nil after unregister")
+		t.Error("vmGetGrpcStream should return nil after unregister")
 	}
 }
 
 func TestIsGrpcStreamValueFalse(t *testing.T) {
+	vm := NewVM()
+	_ = vm // used for string creation below
+
 	if isGrpcStreamValue(Nil) {
 		t.Error("Nil should not be a GrpcStream value")
 	}
 	if isGrpcStreamValue(FromSmallInt(42)) {
 		t.Error("SmallInt should not be a GrpcStream value")
 	}
-	if isGrpcStreamValue(NewStringValue("test")) {
+	if isGrpcStreamValue(vm.registry.NewStringValue("test")) {
 		t.Error("String should not be a GrpcStream value")
 	}
 }
 
 func TestGrpcStreamTypes(t *testing.T) {
+	vm := NewVM()
+
 	types := []GrpcStreamType{
 		GrpcStreamServerStreaming,
 		GrpcStreamClientStreaming,
@@ -156,26 +172,28 @@ func TestGrpcStreamTypes(t *testing.T) {
 
 	for _, st := range types {
 		streamObj := &GrpcStreamObject{streamType: st}
-		val := registerGrpcStream(streamObj)
+		val := vm.vmRegisterGrpcStream(streamObj)
 
-		got := getGrpcStream(val)
+		got := vm.vmGetGrpcStream(val)
 		if got.streamType != st {
 			t.Errorf("streamType = %v, want %v", got.streamType, st)
 		}
 
-		unregisterGrpcStream(val)
+		vm.vmUnregisterGrpcStream(val)
 	}
 }
 
 func TestGrpcStreamSendClosedFlag(t *testing.T) {
+	vm := NewVM()
+
 	streamObj := &GrpcStreamObject{
 		streamType: GrpcStreamServerStreaming,
 	}
 
-	val := registerGrpcStream(streamObj)
-	defer unregisterGrpcStream(val)
+	val := vm.vmRegisterGrpcStream(streamObj)
+	defer vm.vmUnregisterGrpcStream(val)
 
-	got := getGrpcStream(val)
+	got := vm.vmGetGrpcStream(val)
 	if got.sendClosed.Load() {
 		t.Error("sendClosed should be false initially")
 	}
@@ -187,14 +205,16 @@ func TestGrpcStreamSendClosedFlag(t *testing.T) {
 }
 
 func TestGrpcStreamRecvClosedFlag(t *testing.T) {
+	vm := NewVM()
+
 	streamObj := &GrpcStreamObject{
 		streamType: GrpcStreamBidirectional,
 	}
 
-	val := registerGrpcStream(streamObj)
-	defer unregisterGrpcStream(val)
+	val := vm.vmRegisterGrpcStream(streamObj)
+	defer vm.vmUnregisterGrpcStream(val)
 
-	got := getGrpcStream(val)
+	got := vm.vmGetGrpcStream(val)
 	if got.recvClosed.Load() {
 		t.Error("recvClosed should be false initially")
 	}
@@ -206,10 +226,12 @@ func TestGrpcStreamRecvClosedFlag(t *testing.T) {
 }
 
 func TestUnregisterGrpcStreamInvalidValue(t *testing.T) {
+	vm := NewVM()
+
 	// Should not panic
-	unregisterGrpcStream(Nil)
-	unregisterGrpcStream(FromSmallInt(42))
-	unregisterGrpcStream(NewStringValue("test"))
+	vm.vmUnregisterGrpcStream(Nil)
+	vm.vmUnregisterGrpcStream(FromSmallInt(42))
+	vm.vmUnregisterGrpcStream(vm.registry.NewStringValue("test"))
 }
 
 // ---------------------------------------------------------------------------
@@ -217,6 +239,8 @@ func TestUnregisterGrpcStreamInvalidValue(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestGrpcMarkersDistinct(t *testing.T) {
+	vm := NewVM()
+
 	// grpcClientMarker and grpcStreamMarker should be different
 	if grpcClientMarker == grpcStreamMarker {
 		t.Error("client and stream markers should be distinct")
@@ -224,8 +248,8 @@ func TestGrpcMarkersDistinct(t *testing.T) {
 
 	// A GrpcClient value should not be recognized as a GrpcStream value
 	clientObj := &GrpcClientObject{target: "test"}
-	clientVal := registerGrpcClient(clientObj)
-	defer unregisterGrpcClient(clientVal)
+	clientVal := vm.vmRegisterGrpcClient(clientObj)
+	defer vm.vmUnregisterGrpcClient(clientVal)
 
 	if isGrpcStreamValue(clientVal) {
 		t.Error("GrpcClient value should not be identified as GrpcStream")
@@ -233,8 +257,8 @@ func TestGrpcMarkersDistinct(t *testing.T) {
 
 	// A GrpcStream value should not be recognized as a GrpcClient value
 	streamObj := &GrpcStreamObject{streamType: GrpcStreamBidirectional}
-	streamVal := registerGrpcStream(streamObj)
-	defer unregisterGrpcStream(streamVal)
+	streamVal := vm.vmRegisterGrpcStream(streamObj)
+	defer vm.vmUnregisterGrpcStream(streamVal)
 
 	if isGrpcClientValue(streamVal) {
 		t.Error("GrpcStream value should not be identified as GrpcClient")
@@ -249,7 +273,7 @@ func TestGrpcSuccess(t *testing.T) {
 	vm := NewVM()
 
 	inner := FromSmallInt(42)
-	result := grpcSuccess(inner)
+	result := vm.grpcSuccess(inner)
 
 	if !isResultValue(result) {
 		t.Fatal("grpcSuccess should return a Result value")
@@ -271,8 +295,8 @@ func TestGrpcSuccess(t *testing.T) {
 func TestGrpcSuccessWithStringValue(t *testing.T) {
 	vm := NewVM()
 
-	inner := NewStringValue("connected")
-	result := grpcSuccess(inner)
+	inner := vm.registry.NewStringValue("connected")
+	result := vm.grpcSuccess(inner)
 
 	isSuccess := vm.Send(result, "isSuccess", nil)
 	if isSuccess != True {
@@ -280,15 +304,15 @@ func TestGrpcSuccessWithStringValue(t *testing.T) {
 	}
 
 	val := vm.Send(result, "value", nil)
-	if !IsStringValue(val) || GetStringContent(val) != "connected" {
-		t.Errorf("value = %q, want %q", GetStringContent(val), "connected")
+	if !IsStringValue(val) || vm.registry.GetStringContent(val) != "connected" {
+		t.Errorf("value = %q, want %q", vm.registry.GetStringContent(val), "connected")
 	}
 }
 
 func TestGrpcFailure(t *testing.T) {
 	vm := NewVM()
 
-	result := grpcFailure("connection refused")
+	result := vm.grpcFailure("connection refused")
 
 	if !isResultValue(result) {
 		t.Fatal("grpcFailure should return a Result value")
@@ -305,8 +329,8 @@ func TestGrpcFailure(t *testing.T) {
 	if !IsStringValue(errVal) {
 		t.Fatal("grpcFailure error should be a string")
 	}
-	if GetStringContent(errVal) != "connection refused" {
-		t.Errorf("error = %q, want %q", GetStringContent(errVal), "connection refused")
+	if vm.registry.GetStringContent(errVal) != "connection refused" {
+		t.Errorf("error = %q, want %q", vm.registry.GetStringContent(errVal), "connection refused")
 	}
 
 	// value should be nil on failure
@@ -330,14 +354,14 @@ func TestGrpcFailureVariousMessages(t *testing.T) {
 	}
 
 	for _, msg := range messages {
-		result := grpcFailure(msg)
+		result := vm.grpcFailure(msg)
 		isFailure := vm.Send(result, "isFailure", nil)
 		if isFailure != True {
-			t.Errorf("grpcFailure(%q) should be Failure", msg)
+			t.Errorf("vm.grpcFailure(%q) should be Failure", msg)
 		}
 		errVal := vm.Send(result, "error", nil)
-		if GetStringContent(errVal) != msg {
-			t.Errorf("error = %q, want %q", GetStringContent(errVal), msg)
+		if vm.registry.GetStringContent(errVal) != msg {
+			t.Errorf("error = %q, want %q", vm.registry.GetStringContent(errVal), msg)
 		}
 	}
 }
@@ -360,8 +384,8 @@ func TestGrpcClientClassAssignment(t *testing.T) {
 	vm := NewVM()
 
 	clientObj := &GrpcClientObject{target: "test:50051"}
-	clientVal := registerGrpcClient(clientObj)
-	defer unregisterGrpcClient(clientVal)
+	clientVal := vm.vmRegisterGrpcClient(clientObj)
+	defer vm.vmUnregisterGrpcClient(clientVal)
 
 	class := vm.ClassFor(clientVal)
 	if class == nil {
@@ -376,8 +400,8 @@ func TestGrpcStreamClassAssignment(t *testing.T) {
 	vm := NewVM()
 
 	streamObj := &GrpcStreamObject{streamType: GrpcStreamBidirectional}
-	streamVal := registerGrpcStream(streamObj)
-	defer unregisterGrpcStream(streamVal)
+	streamVal := vm.vmRegisterGrpcStream(streamObj)
+	defer vm.vmUnregisterGrpcStream(streamVal)
 
 	class := vm.ClassFor(streamVal)
 	if class == nil {
@@ -409,7 +433,7 @@ func TestGrpcClientConnectToNonString(t *testing.T) {
 	if !IsStringValue(errVal) {
 		t.Fatal("error should be a string")
 	}
-	errMsg := GetStringContent(errVal)
+	errMsg := vm.registry.GetStringContent(errVal)
 	if errMsg != "target must be a string" {
 		t.Errorf("error = %q, want %q", errMsg, "target must be a string")
 	}
@@ -422,7 +446,7 @@ func TestGrpcClientConnectToEmptyTarget(t *testing.T) {
 
 	// connectTo: with an empty string - gRPC dial is lazy so it may still succeed
 	// creating the client object. The actual connection failure would happen later.
-	result := vm.Send(grpcClientClassVal, "connectTo:", []Value{NewStringValue("")})
+	result := vm.Send(grpcClientClassVal, "connectTo:", []Value{vm.registry.NewStringValue("")})
 
 	// Should be a Result (either success or failure depending on gRPC behavior)
 	if !isResultValue(result) {
@@ -436,7 +460,7 @@ func TestGrpcClientConnectToTarget(t *testing.T) {
 	grpcClientClassVal := vm.Globals["GrpcClient"]
 
 	// Connect to a target - gRPC dial is lazy so this should succeed
-	result := vm.Send(grpcClientClassVal, "connectTo:", []Value{NewStringValue("localhost:50051")})
+	result := vm.Send(grpcClientClassVal, "connectTo:", []Value{vm.registry.NewStringValue("localhost:50051")})
 
 	if !isResultValue(result) {
 		t.Fatal("connectTo: should return a Result")
@@ -446,7 +470,7 @@ func TestGrpcClientConnectToTarget(t *testing.T) {
 	isSuccess := vm.Send(result, "isSuccess", nil)
 	if isSuccess != True {
 		errVal := vm.Send(result, "error", nil)
-		t.Fatalf("connectTo: failed unexpectedly: %q", GetStringContent(errVal))
+		t.Fatalf("connectTo: failed unexpectedly: %q", vm.registry.GetStringContent(errVal))
 	}
 
 	// Unwrap the client value
@@ -476,7 +500,7 @@ func TestGrpcClientCloseIdempotent(t *testing.T) {
 
 	grpcClientClassVal := vm.Globals["GrpcClient"]
 
-	result := vm.Send(grpcClientClassVal, "connectTo:", []Value{NewStringValue("localhost:50051")})
+	result := vm.Send(grpcClientClassVal, "connectTo:", []Value{vm.registry.NewStringValue("localhost:50051")})
 	clientVal := vm.Send(result, "value", nil)
 
 	// Close once
@@ -497,8 +521,8 @@ func TestGrpcClientIsConnectedOnNilClient(t *testing.T) {
 
 	// Create and unregister to simulate a dead reference
 	clientObj := &GrpcClientObject{target: "test"}
-	clientVal := registerGrpcClient(clientObj)
-	unregisterGrpcClient(clientVal)
+	clientVal := vm.vmRegisterGrpcClient(clientObj)
+	vm.vmUnregisterGrpcClient(clientVal)
 
 	isConnected := vm.Send(clientVal, "isConnected", nil)
 	if isConnected != False {
@@ -511,8 +535,8 @@ func TestGrpcClientCloseOnNilClient(t *testing.T) {
 
 	// Create and unregister
 	clientObj := &GrpcClientObject{target: "test"}
-	clientVal := registerGrpcClient(clientObj)
-	unregisterGrpcClient(clientVal)
+	clientVal := vm.vmRegisterGrpcClient(clientObj)
+	vm.vmUnregisterGrpcClient(clientVal)
 
 	// close on unregistered client should not panic
 	result := vm.Send(clientVal, "close", nil)
@@ -528,8 +552,8 @@ func TestGrpcClientListServicesNoConnection(t *testing.T) {
 	// This simulates calling listServices on a closed/invalid client
 	clientObj := &GrpcClientObject{target: "test"}
 	clientObj.closed.Store(true)
-	clientVal := registerGrpcClient(clientObj)
-	defer unregisterGrpcClient(clientVal)
+	clientVal := vm.vmRegisterGrpcClient(clientObj)
+	defer vm.vmUnregisterGrpcClient(clientVal)
 
 	// listServices on a closed client should return an empty array
 	result := vm.Send(clientVal, "listServices", nil)
@@ -548,10 +572,10 @@ func TestGrpcClientMethodsForServiceNilClient(t *testing.T) {
 
 	// Unregistered client
 	clientObj := &GrpcClientObject{target: "test"}
-	clientVal := registerGrpcClient(clientObj)
-	unregisterGrpcClient(clientVal)
+	clientVal := vm.vmRegisterGrpcClient(clientObj)
+	vm.vmUnregisterGrpcClient(clientVal)
 
-	result := vm.Send(clientVal, "methodsForService:", []Value{NewStringValue("test.Service")})
+	result := vm.Send(clientVal, "methodsForService:", []Value{vm.registry.NewStringValue("test.Service")})
 	if !result.IsObject() {
 		t.Fatal("methodsForService: should return an array")
 	}
@@ -566,8 +590,8 @@ func TestGrpcClientMethodsForServiceNonString(t *testing.T) {
 	vm := NewVM()
 
 	clientObj := &GrpcClientObject{target: "test"}
-	clientVal := registerGrpcClient(clientObj)
-	defer unregisterGrpcClient(clientVal)
+	clientVal := vm.vmRegisterGrpcClient(clientObj)
+	defer vm.vmUnregisterGrpcClient(clientVal)
 
 	// Non-string argument should return empty array
 	result := vm.Send(clientVal, "methodsForService:", []Value{FromSmallInt(42)})
@@ -585,10 +609,10 @@ func TestGrpcClientMethodDescriptorNilClient(t *testing.T) {
 	vm := NewVM()
 
 	clientObj := &GrpcClientObject{target: "test"}
-	clientVal := registerGrpcClient(clientObj)
-	unregisterGrpcClient(clientVal)
+	clientVal := vm.vmRegisterGrpcClient(clientObj)
+	vm.vmUnregisterGrpcClient(clientVal)
 
-	result := vm.Send(clientVal, "methodDescriptor:", []Value{NewStringValue("test.Service/Method")})
+	result := vm.Send(clientVal, "methodDescriptor:", []Value{vm.registry.NewStringValue("test.Service/Method")})
 	if result != Nil {
 		t.Errorf("methodDescriptor: on nil client should return Nil, got %v", result)
 	}
@@ -598,8 +622,8 @@ func TestGrpcClientMethodDescriptorNonString(t *testing.T) {
 	vm := NewVM()
 
 	clientObj := &GrpcClientObject{target: "test"}
-	clientVal := registerGrpcClient(clientObj)
-	defer unregisterGrpcClient(clientVal)
+	clientVal := vm.vmRegisterGrpcClient(clientObj)
+	defer vm.vmUnregisterGrpcClient(clientVal)
 
 	result := vm.Send(clientVal, "methodDescriptor:", []Value{FromSmallInt(42)})
 	if result != Nil {
@@ -612,11 +636,11 @@ func TestGrpcClientCallWithInvalidClient(t *testing.T) {
 
 	// Unregistered client
 	clientObj := &GrpcClientObject{target: "test"}
-	clientVal := registerGrpcClient(clientObj)
-	unregisterGrpcClient(clientVal)
+	clientVal := vm.vmRegisterGrpcClient(clientObj)
+	vm.vmUnregisterGrpcClient(clientVal)
 
-	dict := NewDictionaryValue()
-	result := vm.Send(clientVal, "call:with:", []Value{NewStringValue("test/Method"), dict})
+	dict := vm.registry.NewDictionaryValue()
+	result := vm.Send(clientVal, "call:with:", []Value{vm.registry.NewStringValue("test/Method"), dict})
 
 	if !isResultValue(result) {
 		t.Fatal("call:with: should return a Result")
@@ -631,10 +655,10 @@ func TestGrpcClientCallWithNonStringMethod(t *testing.T) {
 	vm := NewVM()
 
 	clientObj := &GrpcClientObject{target: "test"}
-	clientVal := registerGrpcClient(clientObj)
-	defer unregisterGrpcClient(clientVal)
+	clientVal := vm.vmRegisterGrpcClient(clientObj)
+	defer vm.vmUnregisterGrpcClient(clientVal)
 
-	dict := NewDictionaryValue()
+	dict := vm.registry.NewDictionaryValue()
 	result := vm.Send(clientVal, "call:with:", []Value{FromSmallInt(42), dict})
 
 	isFailure := vm.Send(result, "isFailure", nil)
@@ -643,8 +667,8 @@ func TestGrpcClientCallWithNonStringMethod(t *testing.T) {
 	}
 
 	errVal := vm.Send(result, "error", nil)
-	if GetStringContent(errVal) != "method name must be a string" {
-		t.Errorf("error = %q, want %q", GetStringContent(errVal), "method name must be a string")
+	if vm.registry.GetStringContent(errVal) != "method name must be a string" {
+		t.Errorf("error = %q, want %q", vm.registry.GetStringContent(errVal), "method name must be a string")
 	}
 }
 
@@ -652,10 +676,10 @@ func TestGrpcClientCallWithNonDictionaryRequest(t *testing.T) {
 	vm := NewVM()
 
 	clientObj := &GrpcClientObject{target: "test"}
-	clientVal := registerGrpcClient(clientObj)
-	defer unregisterGrpcClient(clientVal)
+	clientVal := vm.vmRegisterGrpcClient(clientObj)
+	defer vm.vmUnregisterGrpcClient(clientVal)
 
-	result := vm.Send(clientVal, "call:with:", []Value{NewStringValue("test/Method"), FromSmallInt(42)})
+	result := vm.Send(clientVal, "call:with:", []Value{vm.registry.NewStringValue("test/Method"), FromSmallInt(42)})
 
 	isFailure := vm.Send(result, "isFailure", nil)
 	if isFailure != True {
@@ -663,8 +687,8 @@ func TestGrpcClientCallWithNonDictionaryRequest(t *testing.T) {
 	}
 
 	errVal := vm.Send(result, "error", nil)
-	if GetStringContent(errVal) != "request must be a dictionary" {
-		t.Errorf("error = %q, want %q", GetStringContent(errVal), "request must be a dictionary")
+	if vm.registry.GetStringContent(errVal) != "request must be a dictionary" {
+		t.Errorf("error = %q, want %q", vm.registry.GetStringContent(errVal), "request must be a dictionary")
 	}
 }
 
@@ -672,11 +696,11 @@ func TestGrpcClientServerStreamInvalidClient(t *testing.T) {
 	vm := NewVM()
 
 	clientObj := &GrpcClientObject{target: "test"}
-	clientVal := registerGrpcClient(clientObj)
-	unregisterGrpcClient(clientVal)
+	clientVal := vm.vmRegisterGrpcClient(clientObj)
+	vm.vmUnregisterGrpcClient(clientVal)
 
-	dict := NewDictionaryValue()
-	result := vm.Send(clientVal, "serverStream:with:", []Value{NewStringValue("test/Method"), dict})
+	dict := vm.registry.NewDictionaryValue()
+	result := vm.Send(clientVal, "serverStream:with:", []Value{vm.registry.NewStringValue("test/Method"), dict})
 
 	isFailure := vm.Send(result, "isFailure", nil)
 	if isFailure != True {
@@ -688,10 +712,10 @@ func TestGrpcClientServerStreamNonStringMethod(t *testing.T) {
 	vm := NewVM()
 
 	clientObj := &GrpcClientObject{target: "test"}
-	clientVal := registerGrpcClient(clientObj)
-	defer unregisterGrpcClient(clientVal)
+	clientVal := vm.vmRegisterGrpcClient(clientObj)
+	defer vm.vmUnregisterGrpcClient(clientVal)
 
-	dict := NewDictionaryValue()
+	dict := vm.registry.NewDictionaryValue()
 	result := vm.Send(clientVal, "serverStream:with:", []Value{FromSmallInt(42), dict})
 
 	isFailure := vm.Send(result, "isFailure", nil)
@@ -704,10 +728,10 @@ func TestGrpcClientServerStreamNonDictRequest(t *testing.T) {
 	vm := NewVM()
 
 	clientObj := &GrpcClientObject{target: "test"}
-	clientVal := registerGrpcClient(clientObj)
-	defer unregisterGrpcClient(clientVal)
+	clientVal := vm.vmRegisterGrpcClient(clientObj)
+	defer vm.vmUnregisterGrpcClient(clientVal)
 
-	result := vm.Send(clientVal, "serverStream:with:", []Value{NewStringValue("test/Method"), FromSmallInt(42)})
+	result := vm.Send(clientVal, "serverStream:with:", []Value{vm.registry.NewStringValue("test/Method"), FromSmallInt(42)})
 
 	isFailure := vm.Send(result, "isFailure", nil)
 	if isFailure != True {
@@ -719,10 +743,10 @@ func TestGrpcClientClientStreamInvalidClient(t *testing.T) {
 	vm := NewVM()
 
 	clientObj := &GrpcClientObject{target: "test"}
-	clientVal := registerGrpcClient(clientObj)
-	unregisterGrpcClient(clientVal)
+	clientVal := vm.vmRegisterGrpcClient(clientObj)
+	vm.vmUnregisterGrpcClient(clientVal)
 
-	result := vm.Send(clientVal, "clientStream:", []Value{NewStringValue("test/Method")})
+	result := vm.Send(clientVal, "clientStream:", []Value{vm.registry.NewStringValue("test/Method")})
 
 	isFailure := vm.Send(result, "isFailure", nil)
 	if isFailure != True {
@@ -734,8 +758,8 @@ func TestGrpcClientClientStreamNonString(t *testing.T) {
 	vm := NewVM()
 
 	clientObj := &GrpcClientObject{target: "test"}
-	clientVal := registerGrpcClient(clientObj)
-	defer unregisterGrpcClient(clientVal)
+	clientVal := vm.vmRegisterGrpcClient(clientObj)
+	defer vm.vmUnregisterGrpcClient(clientVal)
 
 	result := vm.Send(clientVal, "clientStream:", []Value{FromSmallInt(42)})
 
@@ -749,10 +773,10 @@ func TestGrpcClientBidiStreamInvalidClient(t *testing.T) {
 	vm := NewVM()
 
 	clientObj := &GrpcClientObject{target: "test"}
-	clientVal := registerGrpcClient(clientObj)
-	unregisterGrpcClient(clientVal)
+	clientVal := vm.vmRegisterGrpcClient(clientObj)
+	vm.vmUnregisterGrpcClient(clientVal)
 
-	result := vm.Send(clientVal, "bidiStream:", []Value{NewStringValue("test/Method")})
+	result := vm.Send(clientVal, "bidiStream:", []Value{vm.registry.NewStringValue("test/Method")})
 
 	isFailure := vm.Send(result, "isFailure", nil)
 	if isFailure != True {
@@ -764,8 +788,8 @@ func TestGrpcClientBidiStreamNonString(t *testing.T) {
 	vm := NewVM()
 
 	clientObj := &GrpcClientObject{target: "test"}
-	clientVal := registerGrpcClient(clientObj)
-	defer unregisterGrpcClient(clientVal)
+	clientVal := vm.vmRegisterGrpcClient(clientObj)
+	defer vm.vmUnregisterGrpcClient(clientVal)
 
 	result := vm.Send(clientVal, "bidiStream:", []Value{FromSmallInt(42)})
 
@@ -783,8 +807,8 @@ func TestGrpcStreamHasNextOnNilStream(t *testing.T) {
 	vm := NewVM()
 
 	streamObj := &GrpcStreamObject{streamType: GrpcStreamServerStreaming}
-	streamVal := registerGrpcStream(streamObj)
-	unregisterGrpcStream(streamVal)
+	streamVal := vm.vmRegisterGrpcStream(streamObj)
+	vm.vmUnregisterGrpcStream(streamVal)
 
 	// hasNext on unregistered stream should return False
 	result := vm.Send(streamVal, "hasNext", nil)
@@ -798,8 +822,8 @@ func TestGrpcStreamHasNextRecvClosed(t *testing.T) {
 
 	streamObj := &GrpcStreamObject{streamType: GrpcStreamServerStreaming}
 	streamObj.recvClosed.Store(true)
-	streamVal := registerGrpcStream(streamObj)
-	defer unregisterGrpcStream(streamVal)
+	streamVal := vm.vmRegisterGrpcStream(streamObj)
+	defer vm.vmUnregisterGrpcStream(streamVal)
 
 	result := vm.Send(streamVal, "hasNext", nil)
 	if result != False {
@@ -811,8 +835,8 @@ func TestGrpcStreamHasNextOpen(t *testing.T) {
 	vm := NewVM()
 
 	streamObj := &GrpcStreamObject{streamType: GrpcStreamServerStreaming}
-	streamVal := registerGrpcStream(streamObj)
-	defer unregisterGrpcStream(streamVal)
+	streamVal := vm.vmRegisterGrpcStream(streamObj)
+	defer vm.vmUnregisterGrpcStream(streamVal)
 
 	result := vm.Send(streamVal, "hasNext", nil)
 	if result != True {
@@ -824,8 +848,8 @@ func TestGrpcStreamCloseOnNilStream(t *testing.T) {
 	vm := NewVM()
 
 	streamObj := &GrpcStreamObject{streamType: GrpcStreamClientStreaming}
-	streamVal := registerGrpcStream(streamObj)
-	unregisterGrpcStream(streamVal)
+	streamVal := vm.vmRegisterGrpcStream(streamObj)
+	vm.vmUnregisterGrpcStream(streamVal)
 
 	// close on nil stream should not panic and should return receiver
 	result := vm.Send(streamVal, "close", nil)
@@ -838,10 +862,10 @@ func TestGrpcStreamSendOnNilStream(t *testing.T) {
 	vm := NewVM()
 
 	streamObj := &GrpcStreamObject{streamType: GrpcStreamClientStreaming}
-	streamVal := registerGrpcStream(streamObj)
-	unregisterGrpcStream(streamVal)
+	streamVal := vm.vmRegisterGrpcStream(streamObj)
+	vm.vmUnregisterGrpcStream(streamVal)
 
-	dict := NewDictionaryValue()
+	dict := vm.registry.NewDictionaryValue()
 	result := vm.Send(streamVal, "send:", []Value{dict})
 
 	isFailure := vm.Send(result, "isFailure", nil)
@@ -854,8 +878,8 @@ func TestGrpcStreamSendNonDictionary(t *testing.T) {
 	vm := NewVM()
 
 	streamObj := &GrpcStreamObject{streamType: GrpcStreamClientStreaming}
-	streamVal := registerGrpcStream(streamObj)
-	defer unregisterGrpcStream(streamVal)
+	streamVal := vm.vmRegisterGrpcStream(streamObj)
+	defer vm.vmUnregisterGrpcStream(streamVal)
 
 	result := vm.Send(streamVal, "send:", []Value{FromSmallInt(42)})
 
@@ -865,8 +889,8 @@ func TestGrpcStreamSendNonDictionary(t *testing.T) {
 	}
 
 	errVal := vm.Send(result, "error", nil)
-	if GetStringContent(errVal) != "message must be a dictionary" {
-		t.Errorf("error = %q, want %q", GetStringContent(errVal), "message must be a dictionary")
+	if vm.registry.GetStringContent(errVal) != "message must be a dictionary" {
+		t.Errorf("error = %q, want %q", vm.registry.GetStringContent(errVal), "message must be a dictionary")
 	}
 }
 
@@ -875,10 +899,10 @@ func TestGrpcStreamSendOnClosedSend(t *testing.T) {
 
 	streamObj := &GrpcStreamObject{streamType: GrpcStreamClientStreaming}
 	streamObj.sendClosed.Store(true)
-	streamVal := registerGrpcStream(streamObj)
-	defer unregisterGrpcStream(streamVal)
+	streamVal := vm.vmRegisterGrpcStream(streamObj)
+	defer vm.vmUnregisterGrpcStream(streamVal)
 
-	dict := NewDictionaryValue()
+	dict := vm.registry.NewDictionaryValue()
 	result := vm.Send(streamVal, "send:", []Value{dict})
 
 	isFailure := vm.Send(result, "isFailure", nil)
@@ -887,8 +911,8 @@ func TestGrpcStreamSendOnClosedSend(t *testing.T) {
 	}
 
 	errVal := vm.Send(result, "error", nil)
-	if GetStringContent(errVal) != "stream send closed" {
-		t.Errorf("error = %q, want %q", GetStringContent(errVal), "stream send closed")
+	if vm.registry.GetStringContent(errVal) != "stream send closed" {
+		t.Errorf("error = %q, want %q", vm.registry.GetStringContent(errVal), "stream send closed")
 	}
 }
 
@@ -896,8 +920,8 @@ func TestGrpcStreamReceiveOnNilStream(t *testing.T) {
 	vm := NewVM()
 
 	streamObj := &GrpcStreamObject{streamType: GrpcStreamServerStreaming}
-	streamVal := registerGrpcStream(streamObj)
-	unregisterGrpcStream(streamVal)
+	streamVal := vm.vmRegisterGrpcStream(streamObj)
+	vm.vmUnregisterGrpcStream(streamVal)
 
 	result := vm.Send(streamVal, "receive", nil)
 
@@ -912,8 +936,8 @@ func TestGrpcStreamReceiveOnRecvClosed(t *testing.T) {
 
 	streamObj := &GrpcStreamObject{streamType: GrpcStreamServerStreaming}
 	streamObj.recvClosed.Store(true)
-	streamVal := registerGrpcStream(streamObj)
-	defer unregisterGrpcStream(streamVal)
+	streamVal := vm.vmRegisterGrpcStream(streamObj)
+	defer vm.vmUnregisterGrpcStream(streamVal)
 
 	result := vm.Send(streamVal, "receive", nil)
 
@@ -923,8 +947,8 @@ func TestGrpcStreamReceiveOnRecvClosed(t *testing.T) {
 	}
 
 	errVal := vm.Send(result, "error", nil)
-	if GetStringContent(errVal) != "end of stream" {
-		t.Errorf("error = %q, want %q", GetStringContent(errVal), "end of stream")
+	if vm.registry.GetStringContent(errVal) != "end of stream" {
+		t.Errorf("error = %q, want %q", vm.registry.GetStringContent(errVal), "end of stream")
 	}
 }
 
@@ -932,8 +956,8 @@ func TestGrpcStreamCloseAndReceiveOnNilStream(t *testing.T) {
 	vm := NewVM()
 
 	streamObj := &GrpcStreamObject{streamType: GrpcStreamClientStreaming}
-	streamVal := registerGrpcStream(streamObj)
-	unregisterGrpcStream(streamVal)
+	streamVal := vm.vmRegisterGrpcStream(streamObj)
+	vm.vmUnregisterGrpcStream(streamVal)
 
 	result := vm.Send(streamVal, "closeAndReceive", nil)
 
@@ -947,8 +971,8 @@ func TestGrpcStreamStreamTypeOnNilStream(t *testing.T) {
 	vm := NewVM()
 
 	streamObj := &GrpcStreamObject{streamType: GrpcStreamServerStreaming}
-	streamVal := registerGrpcStream(streamObj)
-	unregisterGrpcStream(streamVal)
+	streamVal := vm.vmRegisterGrpcStream(streamObj)
+	vm.vmUnregisterGrpcStream(streamVal)
 
 	result := vm.Send(streamVal, "streamType", nil)
 	if result != Nil {
@@ -970,7 +994,7 @@ func TestGrpcStreamStreamTypeValues(t *testing.T) {
 
 	for _, tc := range tests {
 		streamObj := &GrpcStreamObject{streamType: tc.stype}
-		streamVal := registerGrpcStream(streamObj)
+		streamVal := vm.vmRegisterGrpcStream(streamObj)
 
 		result := vm.Send(streamVal, "streamType", nil)
 		if !result.IsSymbol() {
@@ -982,7 +1006,7 @@ func TestGrpcStreamStreamTypeValues(t *testing.T) {
 			t.Errorf("streamType = %q, want %q", name, tc.want)
 		}
 
-		unregisterGrpcStream(streamVal)
+		vm.vmUnregisterGrpcStream(streamVal)
 	}
 }
 

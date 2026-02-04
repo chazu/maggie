@@ -34,7 +34,7 @@ func (vm *VM) registerDocstringPrimitives() {
 		if cls.DocString == "" {
 			return Nil
 		}
-		return NewStringValue(cls.DocString)
+		return v.registry.NewStringValue(cls.DocString)
 	})
 
 	// ---------------------------------------------------------------------------
@@ -62,7 +62,7 @@ func (vm *VM) registerDocstringPrimitives() {
 		if cls.DocString == "" {
 			return Nil
 		}
-		return NewStringValue(cls.DocString)
+		return v.registry.NewStringValue(cls.DocString)
 	})
 
 	// help: aSymbol - prints the docstring for a specific method
@@ -110,7 +110,7 @@ func (vm *VM) registerDocstringPrimitives() {
 		if doc == "" {
 			return Nil
 		}
-		return NewStringValue(doc)
+		return v.registry.NewStringValue(doc)
 	})
 }
 

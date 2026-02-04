@@ -1,9 +1,5 @@
 package vm
 
-import (
-	"sync"
-)
-
 // ---------------------------------------------------------------------------
 // Dictionary Storage: Native Go maps wrapped for the VM
 // ---------------------------------------------------------------------------
@@ -15,33 +11,8 @@ type DictionaryObject struct {
 	Keys map[uint64]Value // Key hash -> Key (for iteration)
 }
 
-// dictionaryRegistry stores active dictionaries.
-// Dictionary IDs are encoded using the symbol tag with a special prefix range.
-var dictionaryRegistry = struct {
-	sync.RWMutex
-	dicts  map[uint32]*DictionaryObject
-	nextID uint32
-}{
-	dicts:  make(map[uint32]*DictionaryObject),
-	nextID: 0xC0000000, // Use high IDs to distinguish from strings and symbols
-}
-
 // dictionaryIDOffset is the starting offset for dictionary IDs.
 const dictionaryIDOffset uint32 = 0xC0000000
-
-// NewDictionaryValue creates a new empty dictionary Value.
-func NewDictionaryValue() Value {
-	dictionaryRegistry.Lock()
-	defer dictionaryRegistry.Unlock()
-
-	id := dictionaryRegistry.nextID
-	dictionaryRegistry.nextID++
-	dictionaryRegistry.dicts[id] = &DictionaryObject{
-		Data: make(map[uint64]Value),
-		Keys: make(map[uint64]Value),
-	}
-	return FromSymbolID(id)
-}
 
 // IsDictionaryValue returns true if the value is a dictionary object.
 func IsDictionaryValue(v Value) bool {
@@ -52,38 +23,18 @@ func IsDictionaryValue(v Value) bool {
 	return id >= dictionaryIDOffset
 }
 
-// GetDictionaryObject returns the DictionaryObject for a Value.
-// Returns nil if v is not a dictionary.
-func GetDictionaryObject(v Value) *DictionaryObject {
-	if !v.IsSymbol() {
-		return nil
-	}
-	id := v.SymbolID()
-	if id < dictionaryIDOffset {
-		return nil
-	}
-
-	dictionaryRegistry.RLock()
-	defer dictionaryRegistry.RUnlock()
-
-	if obj, ok := dictionaryRegistry.dicts[id]; ok {
-		return obj
-	}
-	return nil
-}
-
 // HashValue computes a hash for a Maggie Value (exported for testing).
-func HashValue(v Value) uint64 {
-	return hashValue(v)
+func HashValue(or *ObjectRegistry, v Value) uint64 {
+	return hashValue(or, v)
 }
 
 // hashValue computes a hash for a Maggie Value.
 // This is used as the key in the underlying Go map.
-func hashValue(v Value) uint64 {
+func hashValue(or *ObjectRegistry, v Value) uint64 {
 	// For strings, hash the content since different string objects
 	// with the same content should hash to the same key.
 	if IsStringValue(v) {
-		content := GetStringContent(v)
+		content := or.GetStringContent(v)
 		// FNV-1a hash for strings
 		var h uint64 = 14695981039346656037 // FNV offset basis
 		for i := 0; i < len(content); i++ {
@@ -103,16 +54,18 @@ func (vm *VM) registerDictionaryPrimitives() {
 
 	// Class-side new - create new empty dictionary (class method)
 	c.AddClassMethod0(vm.Selectors, "new", func(vmPtr interface{}, recv Value) Value {
-		return NewDictionaryValue()
+		v := vmPtr.(*VM)
+		return v.registry.NewDictionaryValue()
 	})
 
 	// at: - get value for key, returns nil if not found
-	c.AddMethod1(vm.Selectors, "at:", func(_ interface{}, recv Value, key Value) Value {
-		dict := GetDictionaryObject(recv)
+	c.AddMethod1(vm.Selectors, "at:", func(vmPtr interface{}, recv Value, key Value) Value {
+		v := vmPtr.(*VM)
+		dict := v.registry.GetDictionaryObject(recv)
 		if dict == nil {
 			return Nil
 		}
-		h := hashValue(key)
+		h := hashValue(v.registry, key)
 		if val, ok := dict.Data[h]; ok {
 			return val
 		}
@@ -120,12 +73,13 @@ func (vm *VM) registerDictionaryPrimitives() {
 	})
 
 	// at:put: - set value for key, returns the value
-	c.AddMethod2(vm.Selectors, "at:put:", func(_ interface{}, recv Value, key, value Value) Value {
-		dict := GetDictionaryObject(recv)
+	c.AddMethod2(vm.Selectors, "at:put:", func(vmPtr interface{}, recv Value, key, value Value) Value {
+		v := vmPtr.(*VM)
+		dict := v.registry.GetDictionaryObject(recv)
 		if dict == nil {
 			return value
 		}
-		h := hashValue(key)
+		h := hashValue(v.registry, key)
 		dict.Data[h] = value
 		dict.Keys[h] = key
 		return value
@@ -134,11 +88,11 @@ func (vm *VM) registerDictionaryPrimitives() {
 	// at:ifAbsent: - get value or evaluate block if absent
 	c.AddMethod2(vm.Selectors, "at:ifAbsent:", func(vmPtr interface{}, recv Value, key, block Value) Value {
 		v := vmPtr.(*VM)
-		dict := GetDictionaryObject(recv)
+		dict := v.registry.GetDictionaryObject(recv)
 		if dict == nil {
 			return Nil
 		}
-		h := hashValue(key)
+		h := hashValue(v.registry, key)
 		if val, ok := dict.Data[h]; ok {
 			return val
 		}
@@ -149,11 +103,11 @@ func (vm *VM) registerDictionaryPrimitives() {
 	// at:ifPresent: - evaluate block with value if key exists
 	c.AddMethod2(vm.Selectors, "at:ifPresent:", func(vmPtr interface{}, recv Value, key, block Value) Value {
 		v := vmPtr.(*VM)
-		dict := GetDictionaryObject(recv)
+		dict := v.registry.GetDictionaryObject(recv)
 		if dict == nil {
 			return Nil
 		}
-		h := hashValue(key)
+		h := hashValue(v.registry, key)
 		if val, ok := dict.Data[h]; ok {
 			// Evaluate the block with the value
 			return v.Send(block, "value:", []Value{val})
@@ -162,12 +116,13 @@ func (vm *VM) registerDictionaryPrimitives() {
 	})
 
 	// includesKey: - check if key exists
-	c.AddMethod1(vm.Selectors, "includesKey:", func(_ interface{}, recv Value, key Value) Value {
-		dict := GetDictionaryObject(recv)
+	c.AddMethod1(vm.Selectors, "includesKey:", func(vmPtr interface{}, recv Value, key Value) Value {
+		v := vmPtr.(*VM)
+		dict := v.registry.GetDictionaryObject(recv)
 		if dict == nil {
 			return False
 		}
-		h := hashValue(key)
+		h := hashValue(v.registry, key)
 		if _, ok := dict.Data[h]; ok {
 			return True
 		}
@@ -175,8 +130,9 @@ func (vm *VM) registerDictionaryPrimitives() {
 	})
 
 	// size - number of key-value pairs
-	c.AddMethod0(vm.Selectors, "size", func(_ interface{}, recv Value) Value {
-		dict := GetDictionaryObject(recv)
+	c.AddMethod0(vm.Selectors, "size", func(vmPtr interface{}, recv Value) Value {
+		v := vmPtr.(*VM)
+		dict := v.registry.GetDictionaryObject(recv)
 		if dict == nil {
 			return FromSmallInt(0)
 		}
@@ -184,8 +140,9 @@ func (vm *VM) registerDictionaryPrimitives() {
 	})
 
 	// isEmpty - true if dictionary has no entries
-	c.AddMethod0(vm.Selectors, "isEmpty", func(_ interface{}, recv Value) Value {
-		dict := GetDictionaryObject(recv)
+	c.AddMethod0(vm.Selectors, "isEmpty", func(vmPtr interface{}, recv Value) Value {
+		v := vmPtr.(*VM)
+		dict := v.registry.GetDictionaryObject(recv)
 		if dict == nil {
 			return True
 		}
@@ -198,7 +155,7 @@ func (vm *VM) registerDictionaryPrimitives() {
 	// keys - return an array of all keys
 	c.AddMethod0(vm.Selectors, "keys", func(vmPtr interface{}, recv Value) Value {
 		v := vmPtr.(*VM)
-		dict := GetDictionaryObject(recv)
+		dict := v.registry.GetDictionaryObject(recv)
 		if dict == nil {
 			return v.NewArray(0)
 		}
@@ -212,7 +169,7 @@ func (vm *VM) registerDictionaryPrimitives() {
 	// values - return an array of all values
 	c.AddMethod0(vm.Selectors, "values", func(vmPtr interface{}, recv Value) Value {
 		v := vmPtr.(*VM)
-		dict := GetDictionaryObject(recv)
+		dict := v.registry.GetDictionaryObject(recv)
 		if dict == nil {
 			return v.NewArray(0)
 		}
@@ -226,7 +183,7 @@ func (vm *VM) registerDictionaryPrimitives() {
 	// do: - iterate over values with a block
 	c.AddMethod1(vm.Selectors, "do:", func(vmPtr interface{}, recv Value, block Value) Value {
 		v := vmPtr.(*VM)
-		dict := GetDictionaryObject(recv)
+		dict := v.registry.GetDictionaryObject(recv)
 		if dict == nil {
 			return recv
 		}
@@ -239,7 +196,7 @@ func (vm *VM) registerDictionaryPrimitives() {
 	// keysAndValuesDo: - iterate over key-value pairs with a block
 	c.AddMethod1(vm.Selectors, "keysAndValuesDo:", func(vmPtr interface{}, recv Value, block Value) Value {
 		v := vmPtr.(*VM)
-		dict := GetDictionaryObject(recv)
+		dict := v.registry.GetDictionaryObject(recv)
 		if dict == nil {
 			return recv
 		}
@@ -251,12 +208,13 @@ func (vm *VM) registerDictionaryPrimitives() {
 	})
 
 	// removeKey: - remove key and return its value, or nil if not found
-	c.AddMethod1(vm.Selectors, "removeKey:", func(_ interface{}, recv Value, key Value) Value {
-		dict := GetDictionaryObject(recv)
+	c.AddMethod1(vm.Selectors, "removeKey:", func(vmPtr interface{}, recv Value, key Value) Value {
+		v := vmPtr.(*VM)
+		dict := v.registry.GetDictionaryObject(recv)
 		if dict == nil {
 			return Nil
 		}
-		h := hashValue(key)
+		h := hashValue(v.registry, key)
 		if val, ok := dict.Data[h]; ok {
 			delete(dict.Data, h)
 			delete(dict.Keys, h)
@@ -268,11 +226,11 @@ func (vm *VM) registerDictionaryPrimitives() {
 	// removeKey:ifAbsent: - remove key and return value, or evaluate block if absent
 	c.AddMethod2(vm.Selectors, "removeKey:ifAbsent:", func(vmPtr interface{}, recv Value, key, block Value) Value {
 		v := vmPtr.(*VM)
-		dict := GetDictionaryObject(recv)
+		dict := v.registry.GetDictionaryObject(recv)
 		if dict == nil {
 			return v.Send(block, "value", nil)
 		}
-		h := hashValue(key)
+		h := hashValue(v.registry, key)
 		if val, ok := dict.Data[h]; ok {
 			delete(dict.Data, h)
 			delete(dict.Keys, h)

@@ -54,6 +54,9 @@ type ImageEncoder struct {
 	// Method mappings: method pointer -> image index
 	methodIndex map[*CompiledMethod]uint32
 	nextMethod  uint32
+
+	// Registry for string value access (set from VM context)
+	registry *ObjectRegistry
 }
 
 // NewImageEncoder creates a new encoder for image serialization.
@@ -219,7 +222,7 @@ func (e *ImageEncoder) EncodeValueTo(v Value, buf []byte) {
 	case IsStringValue(v):
 		// String values must be checked BEFORE symbols since they use the same tag
 		buf[0] = imageTagString
-		content := GetStringContent(v)
+		content := e.registry.GetStringContent(v)
 		idx := e.RegisterString(content)
 		binary.LittleEndian.PutUint32(buf[1:], idx)
 
@@ -278,6 +281,9 @@ type ImageDecoder struct {
 
 	// Method mappings: image index -> CompiledMethod
 	methods []*CompiledMethod
+
+	// Registry for string value creation (set from VM context)
+	registry *ObjectRegistry
 }
 
 // NewImageDecoder creates a new decoder for image deserialization.
@@ -487,7 +493,7 @@ func (d *ImageDecoder) DecodeValue(data []byte) Value {
 		// String values: get string content from table and create a new string value
 		idx := binary.LittleEndian.Uint32(data[1:])
 		content := d.GetString(idx)
-		return NewStringValue(content)
+		return d.registry.NewStringValue(content)
 
 	case imageTagClass:
 		idx := binary.LittleEndian.Uint32(data[1:])

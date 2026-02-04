@@ -66,7 +66,7 @@ func (vm *VM) registerClassReflectionPrimitives() {
 		if category.IsSymbol() {
 			catName = v.Symbols.Name(category.SymbolID())
 		} else if IsStringValue(category) {
-			catName = GetStringContent(category)
+			catName = v.registry.GetStringContent(category)
 		} else {
 			return v.NewArrayWithElements(nil)
 		}
@@ -104,7 +104,7 @@ func (vm *VM) registerClassReflectionPrimitives() {
 		if selector.IsSymbol() {
 			selName = v.Symbols.Name(selector.SymbolID())
 		} else if IsStringValue(selector) {
-			selName = GetStringContent(selector)
+			selName = v.registry.GetStringContent(selector)
 		} else {
 			return Nil
 		}
@@ -230,9 +230,9 @@ func (vm *VM) registerClassReflectionPrimitives() {
 		v := vmPtr.(*VM)
 		cls := v.classFromValue(recv)
 		if cls == nil {
-			return NewStringValue("a Class")
+			return v.registry.NewStringValue("a Class")
 		}
-		return NewStringValue(cls.Name)
+		return v.registry.NewStringValue(cls.Name)
 	})
 
 	// ---------------------------------------------------------------------------
@@ -251,7 +251,7 @@ func (vm *VM) registerClassReflectionPrimitives() {
 		if selector.IsSymbol() {
 			selName = v.Symbols.Name(selector.SymbolID())
 		} else if IsStringValue(selector) {
-			selName = GetStringContent(selector)
+			selName = v.registry.GetStringContent(selector)
 		} else {
 			return Nil
 		}
@@ -261,7 +261,7 @@ func (vm *VM) registerClassReflectionPrimitives() {
 		}
 		// MethodNamed returns *CompiledMethod directly
 		if method.Source != "" {
-			return NewStringValue(method.Source)
+			return v.registry.NewStringValue(method.Source)
 		}
 		return Nil
 	})
@@ -277,7 +277,7 @@ func (vm *VM) registerClassReflectionPrimitives() {
 		if selector.IsSymbol() {
 			selName = v.Symbols.Name(selector.SymbolID())
 		} else if IsStringValue(selector) {
-			selName = GetStringContent(selector)
+			selName = v.registry.GetStringContent(selector)
 		} else {
 			return Nil
 		}
@@ -288,7 +288,7 @@ func (vm *VM) registerClassReflectionPrimitives() {
 		// Try to get source from CompiledMethod
 		if cm, ok := method.(*CompiledMethod); ok {
 			if cm.Source != "" {
-				return NewStringValue(cm.Source)
+				return v.registry.NewStringValue(cm.Source)
 			}
 		}
 		return Nil

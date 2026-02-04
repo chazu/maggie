@@ -574,23 +574,24 @@ func TestClassVarBasic(t *testing.T) {
 	// Create a class with class variables
 	counter := NewClass("Counter", nil)
 	counter.ClassVars = []string{"count"}
+	reg := NewObjectRegistry()
 
 	// Initially nil
-	val := counter.GetClassVar("count")
+	val := counter.GetClassVar(reg, "count")
 	if val != Nil {
 		t.Errorf("initial class var should be Nil, got %v", val)
 	}
 
 	// Set and get
-	counter.SetClassVar("count", FromSmallInt(42))
-	val = counter.GetClassVar("count")
+	counter.SetClassVar(reg, "count", FromSmallInt(42))
+	val = counter.GetClassVar(reg, "count")
 	if val.SmallInt() != 42 {
 		t.Errorf("class var should be 42, got %d", val.SmallInt())
 	}
 
 	// Update
-	counter.SetClassVar("count", FromSmallInt(100))
-	val = counter.GetClassVar("count")
+	counter.SetClassVar(reg, "count", FromSmallInt(100))
+	val = counter.GetClassVar(reg, "count")
 	if val.SmallInt() != 100 {
 		t.Errorf("class var should be 100, got %d", val.SmallInt())
 	}
@@ -602,19 +603,20 @@ func TestClassVarInheritance(t *testing.T) {
 	animal := NewClass("Animal", object)
 	animal.ClassVars = []string{"population"}
 	dog := NewClass("Dog", animal)
+	reg := NewObjectRegistry()
 
 	// Set via parent class
-	animal.SetClassVar("population", FromSmallInt(1000))
+	animal.SetClassVar(reg, "population", FromSmallInt(1000))
 
 	// Subclass should see the same value
-	val := dog.GetClassVar("population")
+	val := dog.GetClassVar(reg, "population")
 	if val.SmallInt() != 1000 {
 		t.Errorf("subclass should see parent's class var, got %d", val.SmallInt())
 	}
 
 	// Setting via subclass should update the same storage
-	dog.SetClassVar("population", FromSmallInt(2000))
-	val = animal.GetClassVar("population")
+	dog.SetClassVar(reg, "population", FromSmallInt(2000))
+	val = animal.GetClassVar(reg, "population")
 	if val.SmallInt() != 2000 {
 		t.Errorf("parent should see updated class var, got %d", val.SmallInt())
 	}
@@ -674,9 +676,11 @@ func TestAllClassVarNames(t *testing.T) {
 }
 
 func TestClassVarOpcode(t *testing.T) {
-	// Create interpreter with symbol table
+	// Create interpreter with symbol table and VM registry
 	interp := NewInterpreter()
 	interp.Symbols = NewSymbolTable()
+	reg := NewObjectRegistry()
+	interp.vm = &VM{registry: reg}
 
 	// Create class with class variables
 	counter := NewClass("Counter", nil)
@@ -699,8 +703,8 @@ func TestClassVarOpcode(t *testing.T) {
 	method := b.Build()
 	method.SetClass(counter)
 
-	// Set the class variable
-	counter.SetClassVar("count", FromSmallInt(42))
+	// Set the class variable via the VM's registry
+	counter.SetClassVar(reg, "count", FromSmallInt(42))
 
 	// Execute
 	result := interp.Execute(method, Nil, nil)
@@ -711,9 +715,11 @@ func TestClassVarOpcode(t *testing.T) {
 }
 
 func TestClassVarStoreOpcode(t *testing.T) {
-	// Create interpreter with symbol table
+	// Create interpreter with symbol table and VM registry
 	interp := NewInterpreter()
 	interp.Symbols = NewSymbolTable()
+	reg := NewObjectRegistry()
+	interp.vm = &VM{registry: reg}
 
 	// Create class with class variables
 	counter := NewClass("Counter", nil)
@@ -746,7 +752,7 @@ func TestClassVarStoreOpcode(t *testing.T) {
 	}
 
 	// Class variable should be updated
-	val := counter.GetClassVar("count")
+	val := counter.GetClassVar(reg, "count")
 	if val.SmallInt() != 99 {
 		t.Errorf("class var should be 99, got %d", val.SmallInt())
 	}

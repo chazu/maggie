@@ -170,14 +170,16 @@ func (gc *RegistryGC) sweep() *RegistryGCStats {
 	// 3. Sweep global process registry (legacy)
 	stats.GlobalProcesses = sweepGlobalProcesses()
 
-	// 4. Sweep global exception registry
-	stats.Exceptions = sweepExceptions()
+	// 4. Sweep VM-local exception registry
+	if gc.vm.registry != nil {
+		stats.Exceptions = gc.vm.registry.SweepExceptions()
+	}
 
-	// Note: We do NOT sweep the global block registry here.
-	// Blocks are cleaned up by releaseBlocksForFrame when frames are popped.
-	// Detached blocks (HomeFrame == -1) are intentionally long-lived.
-	// Sweeping blocks based on home frame validity requires interpreter state
-	// that is not safely accessible from a background goroutine.
+	// Note: We do NOT sweep the block registry here.
+	// Blocks are cleaned up by ReleaseBlocksForFrame on the VM-local registry
+	// when frames are popped. Detached blocks (HomeFrame == -1) are intentionally
+	// long-lived. Sweeping blocks based on home frame validity requires interpreter
+	// state that is not safely accessible from a background goroutine.
 
 	stats.TotalSwept = stats.Channels + stats.Processes +
 		stats.CancellationContexts + stats.Exceptions +
@@ -224,17 +226,3 @@ func sweepGlobalProcesses() int {
 	return swept
 }
 
-// sweepExceptions removes handled exceptions from the global exceptionRegistry.
-func sweepExceptions() int {
-	exceptionRegistryMu.Lock()
-	defer exceptionRegistryMu.Unlock()
-
-	swept := 0
-	for id, ex := range exceptionRegistry {
-		if ex.Handled {
-			delete(exceptionRegistry, id)
-			swept++
-		}
-	}
-	return swept
-}

@@ -12,7 +12,7 @@ func (vm *VM) registerSymbolPrimitives() {
 		v := vmPtr.(*VM)
 		if recv.IsSymbol() {
 			name := v.Symbols.Name(recv.SymbolID())
-			return NewStringValue(name)
+			return v.registry.NewStringValue(name)
 		}
 		return Nil
 	})
@@ -22,7 +22,7 @@ func (vm *VM) registerSymbolPrimitives() {
 		v := vmPtr.(*VM)
 		if recv.IsSymbol() {
 			name := v.Symbols.Name(recv.SymbolID())
-			return NewStringValue(name)
+			return v.registry.NewStringValue(name)
 		}
 		return Nil
 	})

@@ -224,7 +224,7 @@ func TestMaggieParserInstantiation(t *testing.T) {
 	}
 
 	// Create a parser: Parser on: '42'
-	sourceStr := vm.NewStringValue("42")
+	sourceStr := vmInst.Registry().NewStringValue("42")
 	parser := vmInst.Send(parserClass, "on:", []vm.Value{sourceStr})
 	if parser == vm.Nil {
 		t.Fatal("Parser on: returned nil")
@@ -250,7 +250,7 @@ func TestMaggieLexerTokenization(t *testing.T) {
 	}
 
 	// Create a lexer: Lexer on: '42 + 3'
-	sourceStr := vm.NewStringValue("42 + 3")
+	sourceStr := vmInst.Registry().NewStringValue("42 + 3")
 	lexer := vmInst.Send(lexerClass, "on:", []vm.Value{sourceStr})
 	if lexer == vm.Nil {
 		t.Fatal("Lexer on: returned nil")
@@ -310,7 +310,7 @@ func TestArrayIndexOf(t *testing.T) {
 	arrayClass, _ := vmInst.Globals["Array"]
 	arr := vmInst.Send(arrayClass, "new", nil)
 
-	xStr := vm.NewStringValue("x")
+	xStr := vmInst.Registry().NewStringValue("x")
 	arr = vmInst.Send(arr, "copyWith:", []vm.Value{xStr})
 
 	// Check size
@@ -321,11 +321,11 @@ func TestArrayIndexOf(t *testing.T) {
 	first := vmInst.Send(arr, "at:", []vm.Value{vm.FromSmallInt(0)})
 	t.Logf("Array at: 0 = %v", first)
 	if vm.IsStringValue(first) {
-		t.Logf("  content: %q", vm.GetStringContent(first))
+		t.Logf("  content: %q", vmInst.Registry().GetStringContent(first))
 	}
 
 	// Test indexOf:
-	xStr2 := vm.NewStringValue("x")
+	xStr2 := vmInst.Registry().NewStringValue("x")
 	idx := vmInst.Send(arr, "indexOf:", []vm.Value{xStr2})
 	t.Logf("indexOf: 'x' = %v", idx)
 	t.Logf("  IsSmallInt: %v, IsStringValue: %v, isSymbol: %v", idx.IsSmallInt(), vm.IsStringValue(idx), idx.IsSymbol())
@@ -333,7 +333,7 @@ func TestArrayIndexOf(t *testing.T) {
 		t.Logf("  index value: %d", idx.SmallInt())
 	}
 	if vm.IsStringValue(idx) {
-		t.Logf("  string content: %q", vm.GetStringContent(idx))
+		t.Logf("  string content: %q", vmInst.Registry().GetStringContent(idx))
 	}
 
 	// Test with the exact same string object
@@ -368,7 +368,7 @@ func TestBytecodeGeneratorTemps(t *testing.T) {
 	}
 
 	// Add a temp "x"
-	xStr := vm.NewStringValue("x")
+	xStr := vmInst.Registry().NewStringValue("x")
 	idx := vmInst.Send(bcgen, "addTemp:", []vm.Value{xStr})
 	t.Logf("addTemp: 'x' returned index: %v", idx)
 
@@ -384,7 +384,7 @@ func TestBytecodeGeneratorTemps(t *testing.T) {
 		firstTemp := vmInst.Send(temps, "at:", []vm.Value{vm.FromSmallInt(0)})
 		t.Logf("temps at: 0 = %v", firstTemp)
 		if vm.IsStringValue(firstTemp) {
-			t.Logf("first temp content: %q", vm.GetStringContent(firstTemp))
+			t.Logf("first temp content: %q", vmInst.Registry().GetStringContent(firstTemp))
 		}
 
 		// Compare directly
@@ -397,7 +397,7 @@ func TestBytecodeGeneratorTemps(t *testing.T) {
 	t.Logf("tempIndex: 'x' returned: %v", foundIdx)
 
 	// Create a different string "x" and check again
-	xStr2 := vm.NewStringValue("x")
+	xStr2 := vmInst.Registry().NewStringValue("x")
 	foundIdx2 := vmInst.Send(bcgen, "tempIndex:", []vm.Value{xStr2})
 	t.Logf("tempIndex: (new string 'x') returned: %v", foundIdx2)
 
@@ -425,7 +425,7 @@ func TestParserTemporaries(t *testing.T) {
 
 	// Parse a method with temporaries (using the converted format with newlines)
 	source := "method: doIt [\n    | x |\n    x := 10.\n    ^x\n]"
-	sourceStr := vm.NewStringValue(source)
+	sourceStr := vmInst.Registry().NewStringValue(source)
 	parser := vmInst.Send(parserClass, "on:", []vm.Value{sourceStr})
 
 	// Call parseMethodDef
@@ -447,7 +447,7 @@ func TestParserTemporaries(t *testing.T) {
 		firstTemp := vmInst.Send(temps, "at:", []vm.Value{vm.FromSmallInt(0)})
 		t.Logf("first temp: %v", firstTemp)
 		if vm.IsStringValue(firstTemp) {
-			t.Logf("first temp content: %q", vm.GetStringContent(firstTemp))
+			t.Logf("first temp content: %q", vmInst.Registry().GetStringContent(firstTemp))
 		}
 	}
 }
@@ -470,7 +470,7 @@ func TestLexerPipeToken(t *testing.T) {
 	}
 
 	// Tokenize "[ | x |" - should produce [, |, x, |
-	sourceStr := vm.NewStringValue("[ | x |")
+	sourceStr := vmInst.Registry().NewStringValue("[ | x |")
 	lexer := vmInst.Send(lexerClass, "on:", []vm.Value{sourceStr})
 
 	// Token 1: [

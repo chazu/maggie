@@ -10,26 +10,30 @@ import (
 // ---------------------------------------------------------------------------
 
 func TestExceptionValueCreation(t *testing.T) {
+	vm := NewVM()
 	ex := &ExceptionObject{
-		MessageText: NewStringValue("test error"),
+		MessageText: vm.registry.NewStringValue("test error"),
 		Resumable:   true,
 	}
 
-	val := RegisterException(ex)
+	id := vm.registry.RegisterException(ex)
+	val := FromExceptionID(id)
 
 	if !val.IsException() {
 		t.Error("RegisterException should return an exception value")
 	}
 
-	retrieved := GetExceptionObject(val)
+	retrieved := vm.registry.GetException(val.ExceptionID())
 	if retrieved != ex {
-		t.Error("GetExceptionObject should return the original exception")
+		t.Error("GetException should return the original exception")
 	}
 }
 
 func TestExceptionValueIsException(t *testing.T) {
+	vm := NewVM()
 	ex := &ExceptionObject{MessageText: Nil}
-	val := RegisterException(ex)
+	id := vm.registry.RegisterException(ex)
+	val := FromExceptionID(id)
 
 	if !val.IsException() {
 		t.Error("Exception value should be an exception")
@@ -188,9 +192,10 @@ func TestExceptionMessageText(t *testing.T) {
 	// Create an exception with a message
 	ex := &ExceptionObject{
 		ExceptionClass: vm.ErrorClass,
-		MessageText:    NewStringValue("Something went wrong"),
+		MessageText:    vm.registry.NewStringValue("Something went wrong"),
 	}
-	exVal := RegisterException(ex)
+	id := vm.registry.RegisterException(ex)
+	exVal := FromExceptionID(id)
 
 	// Get messageText
 	result := vm.Send(exVal, "messageText", nil)
@@ -198,7 +203,7 @@ func TestExceptionMessageText(t *testing.T) {
 		t.Fatal("messageText should return a string")
 	}
 
-	msg := GetStringContent(result)
+	msg := vm.registry.GetStringContent(result)
 	if msg != "Something went wrong" {
 		t.Errorf("Expected 'Something went wrong', got '%s'", msg)
 	}
@@ -210,16 +215,17 @@ func TestExceptionDescription(t *testing.T) {
 	// Create an exception with a message
 	ex := &ExceptionObject{
 		ExceptionClass: vm.ErrorClass,
-		MessageText:    NewStringValue("test error"),
+		MessageText:    vm.registry.NewStringValue("test error"),
 	}
-	exVal := RegisterException(ex)
+	id := vm.registry.RegisterException(ex)
+	exVal := FromExceptionID(id)
 
 	result := vm.Send(exVal, "description", nil)
 	if !IsStringValue(result) {
 		t.Fatal("description should return a string")
 	}
 
-	desc := GetStringContent(result)
+	desc := vm.registry.GetStringContent(result)
 	if !strings.Contains(desc, "Error") {
 		t.Errorf("description should contain 'Error', got '%s'", desc)
 	}
@@ -236,7 +242,8 @@ func TestExceptionIsResumable(t *testing.T) {
 		ExceptionClass: vm.ExceptionClass,
 		Resumable:      true,
 	}
-	exVal1 := RegisterException(ex1)
+	id1 := vm.registry.RegisterException(ex1)
+	exVal1 := FromExceptionID(id1)
 
 	result := vm.Send(exVal1, "isResumable", nil)
 	if result != True {
@@ -248,7 +255,8 @@ func TestExceptionIsResumable(t *testing.T) {
 		ExceptionClass: vm.ExceptionClass,
 		Resumable:      false,
 	}
-	exVal2 := RegisterException(ex2)
+	id2 := vm.registry.RegisterException(ex2)
+	exVal2 := FromExceptionID(id2)
 
 	result = vm.Send(exVal2, "isResumable", nil)
 	if result != False {
@@ -389,7 +397,8 @@ func TestClassForException(t *testing.T) {
 	ex := &ExceptionObject{
 		ExceptionClass: vm.ErrorClass,
 	}
-	exVal := RegisterException(ex)
+	id := vm.registry.RegisterException(ex)
+	exVal := FromExceptionID(id)
 
 	class := vm.ClassFor(exVal)
 	if class != vm.ErrorClass {
@@ -402,14 +411,15 @@ func TestClassForException(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func BenchmarkExceptionCreation(b *testing.B) {
+	vm := NewVM()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		ex := &ExceptionObject{
-			MessageText: NewStringValue("test"),
+			MessageText: vm.registry.NewStringValue("test"),
 			Resumable:   true,
 		}
-		val := RegisterException(ex)
-		UnregisterException(val)
+		id := vm.registry.RegisterException(ex)
+		vm.registry.UnregisterException(id)
 	}
 }
 

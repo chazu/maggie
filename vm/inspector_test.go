@@ -351,7 +351,7 @@ func TestInspector_ResultSuccess(t *testing.T) {
 
 	// Create a Success result
 	r := createResult(ResultSuccess, FromSmallInt(100))
-	rVal := registerResult(r)
+	rVal := vm.registry.RegisterResultValue(r)
 
 	result := inspector.Inspect(rVal)
 
@@ -384,7 +384,7 @@ func TestInspector_ResultFailure(t *testing.T) {
 	// Create a Failure result with a symbol as error
 	errorSym := vm.Symbols.SymbolValue("notFound")
 	r := createResult(ResultFailure, errorSym)
-	rVal := registerResult(r)
+	rVal := vm.registry.RegisterResultValue(r)
 
 	result := inspector.Inspect(rVal)
 

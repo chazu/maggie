@@ -2,8 +2,6 @@ package vm
 
 import (
 	"fmt"
-	"sync"
-	"sync/atomic"
 )
 
 // ---------------------------------------------------------------------------
@@ -32,11 +30,6 @@ type ExceptionObject struct {
 	Handled        bool   // Whether the exception has been handled
 }
 
-// exceptionRegistry stores active exception instances
-var exceptionRegistry = make(map[uint32]*ExceptionObject)
-var exceptionRegistryMu sync.Mutex
-var nextExceptionID uint32 = 1
-
 // Exception values are encoded using the Symbol tag with marker 8 << 24
 // (channels use 1<<24, processes use 2<<24, results use 4<<24)
 const exceptionMarker uint32 = 8 << 24
@@ -61,36 +54,6 @@ func (v Value) ExceptionID() uint32 {
 // FromExceptionID creates an exception value from an ID.
 func FromExceptionID(id uint32) Value {
 	return FromSymbolID(id | exceptionMarker)
-}
-
-// RegisterException registers an exception and returns its Value representation.
-func RegisterException(ex *ExceptionObject) Value {
-	exceptionRegistryMu.Lock()
-	defer exceptionRegistryMu.Unlock()
-
-	id := atomic.AddUint32(&nextExceptionID, 1)
-	exceptionRegistry[id] = ex
-	return FromExceptionID(id)
-}
-
-// GetExceptionObject retrieves an exception by its value.
-func GetExceptionObject(v Value) *ExceptionObject {
-	if !v.IsException() {
-		return nil
-	}
-	exceptionRegistryMu.Lock()
-	defer exceptionRegistryMu.Unlock()
-	return exceptionRegistry[v.ExceptionID()]
-}
-
-// UnregisterException removes an exception from the registry.
-func UnregisterException(v Value) {
-	if !v.IsException() {
-		return
-	}
-	exceptionRegistryMu.Lock()
-	defer exceptionRegistryMu.Unlock()
-	delete(exceptionRegistry, v.ExceptionID())
 }
 
 // ---------------------------------------------------------------------------
@@ -228,7 +191,7 @@ func (vm *VM) registerExceptionPrimitives() {
 	// Exception>>signal - signal this exception instance
 	ex.AddMethod0(vm.Selectors, "signal", func(vmPtr interface{}, recv Value) Value {
 		v := vmPtr.(*VM)
-		exObj := GetExceptionObject(recv)
+		exObj := v.registry.GetException(recv.ExceptionID())
 		if exObj == nil {
 			// Not a registered exception, create one
 			return v.signalException(v.ExceptionClass, Nil)
@@ -237,8 +200,9 @@ func (vm *VM) registerExceptionPrimitives() {
 	})
 
 	// Exception>>messageText - return the exception message
-	ex.AddMethod0(vm.Selectors, "messageText", func(_ interface{}, recv Value) Value {
-		exObj := GetExceptionObject(recv)
+	ex.AddMethod0(vm.Selectors, "messageText", func(vmPtr interface{}, recv Value) Value {
+		v := vmPtr.(*VM)
+		exObj := v.registry.GetException(recv.ExceptionID())
 		if exObj == nil {
 			return Nil
 		}
@@ -246,8 +210,9 @@ func (vm *VM) registerExceptionPrimitives() {
 	})
 
 	// Exception>>messageText: - set the exception message
-	ex.AddMethod1(vm.Selectors, "messageText:", func(_ interface{}, recv Value, msg Value) Value {
-		exObj := GetExceptionObject(recv)
+	ex.AddMethod1(vm.Selectors, "messageText:", func(vmPtr interface{}, recv Value, msg Value) Value {
+		v := vmPtr.(*VM)
+		exObj := v.registry.GetException(recv.ExceptionID())
 		if exObj != nil {
 			exObj.MessageText = msg
 		}
@@ -255,8 +220,9 @@ func (vm *VM) registerExceptionPrimitives() {
 	})
 
 	// Exception>>tag - return the exception tag
-	ex.AddMethod0(vm.Selectors, "tag", func(_ interface{}, recv Value) Value {
-		exObj := GetExceptionObject(recv)
+	ex.AddMethod0(vm.Selectors, "tag", func(vmPtr interface{}, recv Value) Value {
+		v := vmPtr.(*VM)
+		exObj := v.registry.GetException(recv.ExceptionID())
 		if exObj == nil {
 			return Nil
 		}
@@ -264,8 +230,9 @@ func (vm *VM) registerExceptionPrimitives() {
 	})
 
 	// Exception>>tag: - set the exception tag
-	ex.AddMethod1(vm.Selectors, "tag:", func(_ interface{}, recv Value, tag Value) Value {
-		exObj := GetExceptionObject(recv)
+	ex.AddMethod1(vm.Selectors, "tag:", func(vmPtr interface{}, recv Value, tag Value) Value {
+		v := vmPtr.(*VM)
+		exObj := v.registry.GetException(recv.ExceptionID())
 		if exObj != nil {
 			exObj.Tag = tag
 		}
@@ -273,8 +240,9 @@ func (vm *VM) registerExceptionPrimitives() {
 	})
 
 	// Exception>>resume - resume execution after the signal point
-	ex.AddMethod0(vm.Selectors, "resume", func(_ interface{}, recv Value) Value {
-		exObj := GetExceptionObject(recv)
+	ex.AddMethod0(vm.Selectors, "resume", func(vmPtr interface{}, recv Value) Value {
+		v := vmPtr.(*VM)
+		exObj := v.registry.GetException(recv.ExceptionID())
 		if exObj == nil || !exObj.Resumable {
 			return Nil
 		}
@@ -284,8 +252,9 @@ func (vm *VM) registerExceptionPrimitives() {
 	})
 
 	// Exception>>resume: value - resume with a specific value
-	ex.AddMethod1(vm.Selectors, "resume:", func(_ interface{}, recv Value, val Value) Value {
-		exObj := GetExceptionObject(recv)
+	ex.AddMethod1(vm.Selectors, "resume:", func(vmPtr interface{}, recv Value, val Value) Value {
+		v := vmPtr.(*VM)
+		exObj := v.registry.GetException(recv.ExceptionID())
 		if exObj == nil || !exObj.Resumable {
 			return Nil
 		}
@@ -296,7 +265,7 @@ func (vm *VM) registerExceptionPrimitives() {
 	// Exception>>pass - pass the exception to the next handler
 	ex.AddMethod0(vm.Selectors, "pass", func(vmPtr interface{}, recv Value) Value {
 		v := vmPtr.(*VM)
-		exObj := GetExceptionObject(recv)
+		exObj := v.registry.GetException(recv.ExceptionID())
 		if exObj == nil {
 			return Nil
 		}
@@ -312,8 +281,9 @@ func (vm *VM) registerExceptionPrimitives() {
 	})
 
 	// Exception>>return - return nil from the protected block
-	ex.AddMethod0(vm.Selectors, "return", func(_ interface{}, recv Value) Value {
-		exObj := GetExceptionObject(recv)
+	ex.AddMethod0(vm.Selectors, "return", func(vmPtr interface{}, recv Value) Value {
+		v := vmPtr.(*VM)
+		exObj := v.registry.GetException(recv.ExceptionID())
 		if exObj != nil {
 			exObj.Handled = true
 		}
@@ -321,8 +291,9 @@ func (vm *VM) registerExceptionPrimitives() {
 	})
 
 	// Exception>>return: value - return a specific value from the protected block
-	ex.AddMethod1(vm.Selectors, "return:", func(_ interface{}, recv Value, val Value) Value {
-		exObj := GetExceptionObject(recv)
+	ex.AddMethod1(vm.Selectors, "return:", func(vmPtr interface{}, recv Value, val Value) Value {
+		v := vmPtr.(*VM)
+		exObj := v.registry.GetException(recv.ExceptionID())
 		if exObj != nil {
 			exObj.Handled = true
 		}
@@ -330,8 +301,9 @@ func (vm *VM) registerExceptionPrimitives() {
 	})
 
 	// Exception>>isResumable
-	ex.AddMethod0(vm.Selectors, "isResumable", func(_ interface{}, recv Value) Value {
-		exObj := GetExceptionObject(recv)
+	ex.AddMethod0(vm.Selectors, "isResumable", func(vmPtr interface{}, recv Value) Value {
+		v := vmPtr.(*VM)
+		exObj := v.registry.GetException(recv.ExceptionID())
 		if exObj == nil {
 			return False
 		}
@@ -339,20 +311,21 @@ func (vm *VM) registerExceptionPrimitives() {
 	})
 
 	// Exception>>description - return a description string
-	ex.AddMethod0(vm.Selectors, "description", func(_ interface{}, recv Value) Value {
-		exObj := GetExceptionObject(recv)
+	ex.AddMethod0(vm.Selectors, "description", func(vmPtr interface{}, recv Value) Value {
+		v := vmPtr.(*VM)
+		exObj := v.registry.GetException(recv.ExceptionID())
 		if exObj == nil {
-			return NewStringValue("an Exception")
+			return v.registry.NewStringValue("an Exception")
 		}
 		className := "Exception"
 		if exObj.ExceptionClass != nil {
 			className = exObj.ExceptionClass.Name
 		}
 		if exObj.MessageText != Nil && IsStringValue(exObj.MessageText) {
-			msg := GetStringContent(exObj.MessageText)
-			return NewStringValue(fmt.Sprintf("%s: %s", className, msg))
+			msg := v.registry.GetStringContent(exObj.MessageText)
+			return v.registry.NewStringValue(fmt.Sprintf("%s: %s", className, msg))
 		}
-		return NewStringValue(fmt.Sprintf("a %s", className))
+		return v.registry.NewStringValue(fmt.Sprintf("a %s", className))
 	})
 
 	// Exception>>printString
@@ -408,7 +381,8 @@ func (vm *VM) signalException(exClass *Class, messageText Value) Value {
 		MessageText:    messageText,
 		Resumable:      true, // Most exceptions are resumable by default
 	}
-	exVal := RegisterException(ex)
+	id := vm.registry.RegisterException(ex)
+	exVal := FromExceptionID(id)
 	return vm.signalExceptionObject(exVal, ex)
 }
 

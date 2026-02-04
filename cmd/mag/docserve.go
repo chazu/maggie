@@ -151,12 +151,12 @@ func formatEvalResult(vmInst *vm.VM, v vm.Value) string {
 	case v.IsFloat():
 		return fmt.Sprintf("%g", v.Float64())
 	case vm.IsStringValue(v):
-		return vm.GetStringContent(v)
+		return vmInst.Registry().GetStringContent(v)
 	default:
 		// Try sending printString
 		result, ok := safeSend(vmInst, v, "printString")
 		if ok && vm.IsStringValue(result) {
-			return vm.GetStringContent(result)
+			return vmInst.Registry().GetStringContent(result)
 		}
 		return fmt.Sprintf("%v", v)
 	}

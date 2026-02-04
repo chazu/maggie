@@ -1098,6 +1098,9 @@ func (ir *ImageReader) ReadGlobals(vm *VM) error {
 
 // ReadAll reads the entire image and populates the VM.
 func (ir *ImageReader) ReadAll(vm *VM) error {
+	// Set registry on decoder for string value creation
+	ir.decoder.registry = vm.registry
+
 	// Read header
 	_, err := ir.ReadHeader()
 	if err != nil {

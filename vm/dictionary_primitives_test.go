@@ -5,12 +5,13 @@ import (
 )
 
 func TestNewDictionaryValue(t *testing.T) {
-	d := NewDictionaryValue()
+	vm := NewVM()
+	d := vm.registry.NewDictionaryValue()
 	if !IsDictionaryValue(d) {
 		t.Error("NewDictionaryValue did not create a dictionary value")
 	}
 
-	obj := GetDictionaryObject(d)
+	obj := vm.registry.GetDictionaryObject(d)
 	if obj == nil {
 		t.Fatal("GetDictionaryObject returned nil")
 	}
@@ -20,6 +21,9 @@ func TestNewDictionaryValue(t *testing.T) {
 }
 
 func TestIsDictionaryValueFalse(t *testing.T) {
+	vm := NewVM()
+	_ = vm // used for string creation below
+
 	// Regular symbol should not be a dictionary
 	sym := FromSymbolID(42)
 	if IsDictionaryValue(sym) {
@@ -37,7 +41,7 @@ func TestIsDictionaryValueFalse(t *testing.T) {
 	}
 
 	// String should not be a dictionary
-	if IsDictionaryValue(NewStringValue("hello")) {
+	if IsDictionaryValue(vm.registry.NewStringValue("hello")) {
 		t.Error("String should not be identified as a dictionary")
 	}
 }
@@ -56,10 +60,10 @@ func TestDictionaryNew(t *testing.T) {
 
 func TestDictionaryAtPut(t *testing.T) {
 	vm := NewVM()
-	d := NewDictionaryValue()
+	d := vm.registry.NewDictionaryValue()
 
 	// Put a value
-	key := NewStringValue("foo")
+	key := vm.registry.NewStringValue("foo")
 	value := FromSmallInt(42)
 	result := vm.Send(d, "at:put:", []Value{key, value})
 
@@ -76,10 +80,10 @@ func TestDictionaryAtPut(t *testing.T) {
 
 func TestDictionaryAtMissing(t *testing.T) {
 	vm := NewVM()
-	d := NewDictionaryValue()
+	d := vm.registry.NewDictionaryValue()
 
 	// Get non-existent key
-	result := vm.Send(d, "at:", []Value{NewStringValue("missing")})
+	result := vm.Send(d, "at:", []Value{vm.registry.NewStringValue("missing")})
 	if result != Nil {
 		t.Errorf("at: missing key returned %v, want Nil", result)
 	}
@@ -87,10 +91,10 @@ func TestDictionaryAtMissing(t *testing.T) {
 
 func TestDictionaryAtIfAbsent(t *testing.T) {
 	vm := NewVM()
-	d := NewDictionaryValue()
+	d := vm.registry.NewDictionaryValue()
 
 	// Put a value
-	vm.Send(d, "at:put:", []Value{NewStringValue("key"), FromSmallInt(100)})
+	vm.Send(d, "at:put:", []Value{vm.registry.NewStringValue("key"), FromSmallInt(100)})
 
 	// Create a block that returns 99 (using small number to fit in int8)
 	// OpPushInt8(99), OpBlockReturn
@@ -103,13 +107,13 @@ func TestDictionaryAtIfAbsent(t *testing.T) {
 	block := vm.interpreter.createBlockValue(blockMethod, nil)
 
 	// Get existing key - block should not be evaluated
-	result := vm.Send(d, "at:ifAbsent:", []Value{NewStringValue("key"), block})
+	result := vm.Send(d, "at:ifAbsent:", []Value{vm.registry.NewStringValue("key"), block})
 	if !result.IsSmallInt() || result.SmallInt() != 100 {
 		t.Errorf("at:ifAbsent: with existing key returned %v, want 100", result)
 	}
 
 	// Get missing key - block should be evaluated
-	result = vm.Send(d, "at:ifAbsent:", []Value{NewStringValue("missing"), block})
+	result = vm.Send(d, "at:ifAbsent:", []Value{vm.registry.NewStringValue("missing"), block})
 	if !result.IsSmallInt() || result.SmallInt() != 99 {
 		t.Errorf("at:ifAbsent: with missing key returned %v, want 99", result)
 	}
@@ -117,9 +121,9 @@ func TestDictionaryAtIfAbsent(t *testing.T) {
 
 func TestDictionaryIncludesKey(t *testing.T) {
 	vm := NewVM()
-	d := NewDictionaryValue()
+	d := vm.registry.NewDictionaryValue()
 
-	key := NewStringValue("myKey")
+	key := vm.registry.NewStringValue("myKey")
 	vm.Send(d, "at:put:", []Value{key, FromSmallInt(42)})
 
 	// Key exists
@@ -129,7 +133,7 @@ func TestDictionaryIncludesKey(t *testing.T) {
 	}
 
 	// Key does not exist
-	result = vm.Send(d, "includesKey:", []Value{NewStringValue("other")})
+	result = vm.Send(d, "includesKey:", []Value{vm.registry.NewStringValue("other")})
 	if result != False {
 		t.Errorf("includesKey: for missing key returned %v, want False", result)
 	}
@@ -137,7 +141,7 @@ func TestDictionaryIncludesKey(t *testing.T) {
 
 func TestDictionarySize(t *testing.T) {
 	vm := NewVM()
-	d := NewDictionaryValue()
+	d := vm.registry.NewDictionaryValue()
 
 	// Empty dictionary
 	result := vm.Send(d, "size", nil)
@@ -146,9 +150,9 @@ func TestDictionarySize(t *testing.T) {
 	}
 
 	// Add some entries
-	vm.Send(d, "at:put:", []Value{NewStringValue("a"), FromSmallInt(1)})
-	vm.Send(d, "at:put:", []Value{NewStringValue("b"), FromSmallInt(2)})
-	vm.Send(d, "at:put:", []Value{NewStringValue("c"), FromSmallInt(3)})
+	vm.Send(d, "at:put:", []Value{vm.registry.NewStringValue("a"), FromSmallInt(1)})
+	vm.Send(d, "at:put:", []Value{vm.registry.NewStringValue("b"), FromSmallInt(2)})
+	vm.Send(d, "at:put:", []Value{vm.registry.NewStringValue("c"), FromSmallInt(3)})
 
 	result = vm.Send(d, "size", nil)
 	if !result.IsSmallInt() || result.SmallInt() != 3 {
@@ -158,7 +162,7 @@ func TestDictionarySize(t *testing.T) {
 
 func TestDictionaryIsEmpty(t *testing.T) {
 	vm := NewVM()
-	d := NewDictionaryValue()
+	d := vm.registry.NewDictionaryValue()
 
 	// Empty dictionary
 	result := vm.Send(d, "isEmpty", nil)
@@ -167,7 +171,7 @@ func TestDictionaryIsEmpty(t *testing.T) {
 	}
 
 	// Add an entry
-	vm.Send(d, "at:put:", []Value{NewStringValue("key"), FromSmallInt(42)})
+	vm.Send(d, "at:put:", []Value{vm.registry.NewStringValue("key"), FromSmallInt(42)})
 
 	result = vm.Send(d, "isEmpty", nil)
 	if result != False {
@@ -177,11 +181,11 @@ func TestDictionaryIsEmpty(t *testing.T) {
 
 func TestDictionaryKeys(t *testing.T) {
 	vm := NewVM()
-	d := NewDictionaryValue()
+	d := vm.registry.NewDictionaryValue()
 
 	// Add entries
-	vm.Send(d, "at:put:", []Value{NewStringValue("a"), FromSmallInt(1)})
-	vm.Send(d, "at:put:", []Value{NewStringValue("b"), FromSmallInt(2)})
+	vm.Send(d, "at:put:", []Value{vm.registry.NewStringValue("a"), FromSmallInt(1)})
+	vm.Send(d, "at:put:", []Value{vm.registry.NewStringValue("b"), FromSmallInt(2)})
 
 	result := vm.Send(d, "keys", nil)
 	if !result.IsObject() {
@@ -199,11 +203,11 @@ func TestDictionaryKeys(t *testing.T) {
 
 func TestDictionaryValues(t *testing.T) {
 	vm := NewVM()
-	d := NewDictionaryValue()
+	d := vm.registry.NewDictionaryValue()
 
 	// Add entries
-	vm.Send(d, "at:put:", []Value{NewStringValue("a"), FromSmallInt(10)})
-	vm.Send(d, "at:put:", []Value{NewStringValue("b"), FromSmallInt(20)})
+	vm.Send(d, "at:put:", []Value{vm.registry.NewStringValue("a"), FromSmallInt(10)})
+	vm.Send(d, "at:put:", []Value{vm.registry.NewStringValue("b"), FromSmallInt(20)})
 
 	result := vm.Send(d, "values", nil)
 	if !result.IsObject() {
@@ -233,9 +237,9 @@ func TestDictionaryValues(t *testing.T) {
 
 func TestDictionaryRemoveKey(t *testing.T) {
 	vm := NewVM()
-	d := NewDictionaryValue()
+	d := vm.registry.NewDictionaryValue()
 
-	key := NewStringValue("toRemove")
+	key := vm.registry.NewStringValue("toRemove")
 	vm.Send(d, "at:put:", []Value{key, FromSmallInt(42)})
 
 	// Verify it exists
@@ -265,10 +269,10 @@ func TestDictionaryRemoveKey(t *testing.T) {
 
 func TestDictionaryRemoveKeyMissing(t *testing.T) {
 	vm := NewVM()
-	d := NewDictionaryValue()
+	d := vm.registry.NewDictionaryValue()
 
 	// Remove non-existent key
-	result := vm.Send(d, "removeKey:", []Value{NewStringValue("missing")})
+	result := vm.Send(d, "removeKey:", []Value{vm.registry.NewStringValue("missing")})
 	if result != Nil {
 		t.Errorf("removeKey: of missing key returned %v, want Nil", result)
 	}
@@ -276,9 +280,9 @@ func TestDictionaryRemoveKeyMissing(t *testing.T) {
 
 func TestDictionaryRemoveKeyIfAbsent(t *testing.T) {
 	vm := NewVM()
-	d := NewDictionaryValue()
+	d := vm.registry.NewDictionaryValue()
 
-	key := NewStringValue("key")
+	key := vm.registry.NewStringValue("key")
 	vm.Send(d, "at:put:", []Value{key, FromSmallInt(100)})
 
 	// Create a block that returns 77
@@ -297,7 +301,7 @@ func TestDictionaryRemoveKeyIfAbsent(t *testing.T) {
 	}
 
 	// Remove missing key - block should be evaluated
-	result = vm.Send(d, "removeKey:ifAbsent:", []Value{NewStringValue("missing"), block})
+	result = vm.Send(d, "removeKey:ifAbsent:", []Value{vm.registry.NewStringValue("missing"), block})
 	if !result.IsSmallInt() || result.SmallInt() != 77 {
 		t.Errorf("removeKey:ifAbsent: with missing key returned %v, want 77", result)
 	}
@@ -305,12 +309,12 @@ func TestDictionaryRemoveKeyIfAbsent(t *testing.T) {
 
 func TestDictionaryDo(t *testing.T) {
 	vm := NewVM()
-	d := NewDictionaryValue()
+	d := vm.registry.NewDictionaryValue()
 
 	// Add entries
-	vm.Send(d, "at:put:", []Value{NewStringValue("a"), FromSmallInt(10)})
-	vm.Send(d, "at:put:", []Value{NewStringValue("b"), FromSmallInt(20)})
-	vm.Send(d, "at:put:", []Value{NewStringValue("c"), FromSmallInt(30)})
+	vm.Send(d, "at:put:", []Value{vm.registry.NewStringValue("a"), FromSmallInt(10)})
+	vm.Send(d, "at:put:", []Value{vm.registry.NewStringValue("b"), FromSmallInt(20)})
+	vm.Send(d, "at:put:", []Value{vm.registry.NewStringValue("c"), FromSmallInt(30)})
 
 	// Create a block that returns nil: [:x | nil]
 	// OpPushNil, OpBlockReturn
@@ -331,11 +335,11 @@ func TestDictionaryDo(t *testing.T) {
 
 func TestDictionaryKeysAndValuesDo(t *testing.T) {
 	vm := NewVM()
-	d := NewDictionaryValue()
+	d := vm.registry.NewDictionaryValue()
 
 	// Add entries
-	vm.Send(d, "at:put:", []Value{NewStringValue("x"), FromSmallInt(1)})
-	vm.Send(d, "at:put:", []Value{NewStringValue("y"), FromSmallInt(2)})
+	vm.Send(d, "at:put:", []Value{vm.registry.NewStringValue("x"), FromSmallInt(1)})
+	vm.Send(d, "at:put:", []Value{vm.registry.NewStringValue("y"), FromSmallInt(2)})
 
 	// Create a block that takes 2 args and returns nil: [:k :v | nil]
 	// OpPushNil, OpBlockReturn
@@ -356,16 +360,16 @@ func TestDictionaryKeysAndValuesDo(t *testing.T) {
 
 func TestDictionaryWithIntegerKeys(t *testing.T) {
 	vm := NewVM()
-	d := NewDictionaryValue()
+	d := vm.registry.NewDictionaryValue()
 
 	// Use integers as keys
-	vm.Send(d, "at:put:", []Value{FromSmallInt(1), NewStringValue("one")})
-	vm.Send(d, "at:put:", []Value{FromSmallInt(2), NewStringValue("two")})
-	vm.Send(d, "at:put:", []Value{FromSmallInt(3), NewStringValue("three")})
+	vm.Send(d, "at:put:", []Value{FromSmallInt(1), vm.registry.NewStringValue("one")})
+	vm.Send(d, "at:put:", []Value{FromSmallInt(2), vm.registry.NewStringValue("two")})
+	vm.Send(d, "at:put:", []Value{FromSmallInt(3), vm.registry.NewStringValue("three")})
 
 	result := vm.Send(d, "at:", []Value{FromSmallInt(2)})
-	if GetStringContent(result) != "two" {
-		t.Errorf("at: 2 returned %q, want %q", GetStringContent(result), "two")
+	if vm.registry.GetStringContent(result) != "two" {
+		t.Errorf("at: 2 returned %q, want %q", vm.registry.GetStringContent(result), "two")
 	}
 
 	result = vm.Send(d, "size", nil)
@@ -376,7 +380,7 @@ func TestDictionaryWithIntegerKeys(t *testing.T) {
 
 func TestDictionaryWithSymbolKeys(t *testing.T) {
 	vm := NewVM()
-	d := NewDictionaryValue()
+	d := vm.registry.NewDictionaryValue()
 
 	// Use symbols as keys
 	sym1 := vm.Symbols.SymbolValue("key1")
@@ -398,9 +402,9 @@ func TestDictionaryWithSymbolKeys(t *testing.T) {
 
 func TestDictionaryOverwriteValue(t *testing.T) {
 	vm := NewVM()
-	d := NewDictionaryValue()
+	d := vm.registry.NewDictionaryValue()
 
-	key := NewStringValue("key")
+	key := vm.registry.NewStringValue("key")
 
 	// Set initial value
 	vm.Send(d, "at:put:", []Value{key, FromSmallInt(1)})
@@ -427,9 +431,9 @@ func TestDictionaryNestedProtoStyle(t *testing.T) {
 	vm := NewVM()
 
 	// Simulate what protoToDictionary does for widget_id: {id: "some-uuid"}
-	innerDict := NewDictionaryValue()
+	innerDict := vm.registry.NewDictionaryValue()
 	idKey := vm.Symbols.SymbolValue("id")
-	idVal := NewStringValue("test-uuid-1234")
+	idVal := vm.registry.NewStringValue("test-uuid-1234")
 	vm.DictionaryAtPut(innerDict, idKey, idVal)
 
 	// Verify the inner dict is a proper dictionary
@@ -468,8 +472,8 @@ func TestDictionaryNestedProtoStyle(t *testing.T) {
 	if !IsStringValue(result) {
 		t.Fatalf("at: #id returned non-string, IsSymbol=%v IsSmallInt=%v", result.IsSymbol(), result.IsSmallInt())
 	}
-	if GetStringContent(result) != "test-uuid-1234" {
-		t.Errorf("at: #id returned %q, want %q", GetStringContent(result), "test-uuid-1234")
+	if vm.registry.GetStringContent(result) != "test-uuid-1234" {
+		t.Errorf("at: #id returned %q, want %q", vm.registry.GetStringContent(result), "test-uuid-1234")
 	}
 
 	// Test size
@@ -479,7 +483,7 @@ func TestDictionaryNestedProtoStyle(t *testing.T) {
 	}
 
 	// Now simulate full proto structure: outer dict with nested dict as value
-	outerDict := NewDictionaryValue()
+	outerDict := vm.registry.NewDictionaryValue()
 	vm.DictionaryAtPut(outerDict, vm.Symbols.SymbolValue("widget_id"), innerDict)
 	vm.DictionaryAtPut(outerDict, vm.Symbols.SymbolValue("type"), vm.Symbols.SymbolValue("WIDGET_DONE"))
 
@@ -498,15 +502,15 @@ func TestDictionaryNestedProtoStyle(t *testing.T) {
 	if idResult == Nil {
 		t.Fatal("at: #id on retrieved nested dict returned Nil")
 	}
-	if GetStringContent(idResult) != "test-uuid-1234" {
-		t.Errorf("at: #id on nested dict = %q, want %q", GetStringContent(idResult), "test-uuid-1234")
+	if vm.registry.GetStringContent(idResult) != "test-uuid-1234" {
+		t.Errorf("at: #id on nested dict = %q, want %q", vm.registry.GetStringContent(idResult), "test-uuid-1234")
 	}
 }
 
 func TestDictionaryClassAssignment(t *testing.T) {
 	vm := NewVM()
 
-	d := NewDictionaryValue()
+	d := vm.registry.NewDictionaryValue()
 	class := vm.ClassFor(d)
 
 	// Dictionary values should be classified as DictionaryClass

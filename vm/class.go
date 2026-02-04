@@ -65,11 +65,6 @@ func (c *Class) IsSuperclassOf(other *Class) bool {
 // Class Variables
 // ---------------------------------------------------------------------------
 
-// classVarStorage holds the actual values for class variables.
-// Each class that declares class variables has an entry in this map.
-var classVarStorage = make(map[*Class]map[string]Value)
-var classVarMu sync.RWMutex
-
 // HasClassVar returns true if this class or any superclass declares the named class variable.
 func (c *Class) HasClassVar(name string) bool {
 	return c.findClassVarOwner(name) != nil
@@ -88,41 +83,25 @@ func (c *Class) findClassVarOwner(name string) *Class {
 	return nil
 }
 
-// GetClassVar returns the value of a class variable.
+// GetClassVar returns the value of a class variable from the given registry.
 // Walks up the class hierarchy to find the declaring class.
-func (c *Class) GetClassVar(name string) Value {
+func (c *Class) GetClassVar(reg *ObjectRegistry, name string) Value {
 	owner := c.findClassVarOwner(name)
 	if owner == nil {
 		return Nil
 	}
-
-	classVarMu.RLock()
-	defer classVarMu.RUnlock()
-
-	if values, ok := classVarStorage[owner]; ok {
-		if val, ok := values[name]; ok {
-			return val
-		}
-	}
-	return Nil
+	return reg.GetClassVar(owner, name)
 }
 
-// SetClassVar sets the value of a class variable.
+// SetClassVar sets the value of a class variable in the given registry.
 // Walks up the class hierarchy to find the declaring class.
-func (c *Class) SetClassVar(name string, value Value) {
+func (c *Class) SetClassVar(reg *ObjectRegistry, name string, value Value) {
 	owner := c.findClassVarOwner(name)
 	if owner == nil {
 		// Variable not declared - could error, but for now just store on this class
 		owner = c
 	}
-
-	classVarMu.Lock()
-	defer classVarMu.Unlock()
-
-	if classVarStorage[owner] == nil {
-		classVarStorage[owner] = make(map[string]Value)
-	}
-	classVarStorage[owner][name] = value
+	reg.SetClassVar(owner, name, value)
 }
 
 // ClassVarIndex returns the index of a class variable by name.

@@ -3,8 +3,6 @@ package vm
 import (
 	"encoding/binary"
 	"fmt"
-	"sync"
-	"sync/atomic"
 )
 
 // ---------------------------------------------------------------------------
@@ -272,10 +270,11 @@ func (i *Interpreter) checkFrameOverflow() {
 		// Signal a Maggie-level StackOverflow exception (catchable with on:do:)
 		exObj := &ExceptionObject{
 			ExceptionClass: i.vm.StackOverflowClass,
-			MessageText:    NewStringValue(msg),
+			MessageText:    i.vm.registry.NewStringValue(msg),
 			Resumable:      false,
 		}
-		exVal := RegisterException(exObj)
+		id := i.vm.registry.RegisterException(exObj)
+		exVal := FromExceptionID(id)
 		panic(SignaledException{
 			Exception: exVal,
 			Object:    exObj,
@@ -385,7 +384,9 @@ func (i *Interpreter) popFrame() {
 	i.frames[frameIndex] = nil
 	i.fp--
 	// Clean up any blocks whose home frame is being popped
-	releaseBlocksForFrame(frameIndex)
+	if i.vm != nil {
+		i.vm.registry.ReleaseBlocksForFrame(frameIndex)
+	}
 }
 
 // ---------------------------------------------------------------------------
@@ -520,7 +521,7 @@ func (i *Interpreter) runFrame() Value {
 		case OpPushContext:
 			// Create a reified context (thisContext) representing the current execution state
 			ctx := i.createContext(frame)
-			i.push(RegisterContext(ctx))
+			i.push(i.vm.registry.RegisterContextValue(ctx))
 
 		// --- Variables ---
 		case OpPushTemp:
@@ -573,7 +574,7 @@ func (i *Interpreter) runFrame() Value {
 				if lit.IsSymbol() && i.Symbols != nil {
 					globalName = i.Symbols.Name(lit.SymbolID())
 				} else if IsStringValue(lit) {
-					globalName = GetStringContent(lit)
+					globalName = i.vm.registry.GetStringContent(lit)
 				}
 				if globalName != "" {
 					if val, ok := i.Globals[globalName]; ok {
@@ -598,7 +599,7 @@ func (i *Interpreter) runFrame() Value {
 				if lit.IsSymbol() && i.Symbols != nil {
 					globalName = i.Symbols.Name(lit.SymbolID())
 				} else if IsStringValue(lit) {
-					globalName = GetStringContent(lit)
+					globalName = i.vm.registry.GetStringContent(lit)
 				}
 				if globalName != "" {
 					// Store the value (top of stack) to the global
@@ -626,7 +627,11 @@ func (i *Interpreter) runFrame() Value {
 		case OpMakeCell:
 			// Pop value from stack, create a cell containing it, push cell reference
 			val := i.pop()
-			cell := NewCell(val)
+			var reg *ObjectRegistry
+			if i.vm != nil {
+				reg = i.vm.registry
+			}
+			cell := NewCell(reg, val)
 			i.push(cell)
 
 		case OpCellGet:
@@ -664,7 +669,7 @@ func (i *Interpreter) runFrame() Value {
 					// Get class from the method's defining class
 					class := frame.Method.Class()
 					if class != nil {
-						i.push(class.GetClassVar(varName))
+						i.push(class.GetClassVar(i.vm.registry, varName))
 					} else {
 						i.push(Nil)
 					}
@@ -689,7 +694,7 @@ func (i *Interpreter) runFrame() Value {
 					// Get class from the method's defining class
 					class := frame.Method.Class()
 					if class != nil {
-						class.SetClassVar(varName, i.top())
+						class.SetClassVar(i.vm.registry, varName, i.top())
 					}
 				}
 			}
@@ -1308,7 +1313,7 @@ func (i *Interpreter) vtableForLegacy(v Value) *VTable {
 			}
 		}
 		if v.IsException() {
-			exObj := GetExceptionObject(v)
+			exObj := i.vm.registry.GetException(v.ExceptionID())
 			if exObj != nil && exObj.ExceptionClass != nil {
 				return exObj.ExceptionClass.VTable
 			}
@@ -1348,7 +1353,7 @@ func (i *Interpreter) vtableForLegacy(v Value) *VTable {
 			}
 		}
 		if isResultValue(v) {
-			r := getResult(v)
+			r := i.vm.registry.GetResultFromValue(v)
 			if r != nil {
 				if r.resultType == ResultSuccess {
 					if c := i.Classes.Lookup("Success"); c != nil {
@@ -1438,13 +1443,13 @@ func (i *Interpreter) createContext(frame *CallFrame) *ContextValue {
 	if i.fp > 0 {
 		// Create context for sender frame
 		senderCtx := i.createContextForFrame(i.fp - 1)
-		ctx.SenderID = int32(globalContextRegistry.Register(senderCtx))
+		ctx.SenderID = int32(i.vm.registry.RegisterContext(senderCtx))
 	}
 
 	// Set home context for blocks
 	if frame.Block != nil && frame.HomeFrame >= 0 {
 		homeCtx := i.createContextForFrame(frame.HomeFrame)
-		ctx.HomeID = int32(globalContextRegistry.Register(homeCtx))
+		ctx.HomeID = int32(i.vm.registry.RegisterContext(homeCtx))
 	}
 
 	return ctx
@@ -1528,38 +1533,7 @@ type NonLocalReturn struct {
 	HomeFrame int // target frame to return to
 }
 
-// blockRegistry stores active blocks (temporary solution until proper Block class)
-var blockRegistry = make(map[int]*BlockValue)
-var blockRegistryMu sync.RWMutex
-var nextBlockID atomic.Int32
-
-// blocksByHomeFrame tracks which block IDs belong to each home frame
-// This allows cleanup when frames are popped to prevent memory leaks
-var blocksByHomeFrame = make(map[int][]int)
-
-func init() {
-	nextBlockID.Store(1)
-}
-
-// releaseBlocksForFrame removes all blocks whose home frame is being popped.
-// Blocks that need to outlive their home frame (e.g. forked processes) use
-// HomeFrame = -1 via ExecuteBlockDetached, so they are unaffected by this cleanup.
-func releaseBlocksForFrame(frameIndex int) {
-	blockRegistryMu.Lock()
-	if blockIDs, ok := blocksByHomeFrame[frameIndex]; ok {
-		for _, id := range blockIDs {
-			delete(blockRegistry, id)
-		}
-		delete(blocksByHomeFrame, frameIndex)
-	}
-	blockRegistryMu.Unlock()
-}
-
 func (i *Interpreter) createBlockValue(block *BlockMethod, captures []Value) Value {
-	// Store in registry and return an ID encoded as a symbol
-	// A full implementation would create a proper Block object
-	id := int(nextBlockID.Add(1) - 1)
-
 	// Determine the home frame (the enclosing method's frame)
 	// If we're in a block, propagate its HomeFrame; otherwise use current frame
 	homeFrame := i.fp
@@ -1600,11 +1574,11 @@ func (i *Interpreter) createBlockValue(block *BlockMethod, captures []Value) Val
 		HomeMethod: homeMethod, // capture the method containing nested blocks
 	}
 
-	blockRegistryMu.Lock()
-	blockRegistry[id] = bv
-	// Track this block by its home frame for cleanup when frame is popped
-	blocksByHomeFrame[homeFrame] = append(blocksByHomeFrame[homeFrame], id)
-	blockRegistryMu.Unlock()
+	// Register in VM-local registry
+	if i.vm == nil {
+		panic("createBlockValue: interpreter has no VM (use vm.newInterpreter())")
+	}
+	id := i.vm.registry.RegisterBlock(bv)
 
 	return FromBlockID(uint32(id))
 }
@@ -1612,42 +1586,12 @@ func (i *Interpreter) createBlockValue(block *BlockMethod, captures []Value) Val
 func (i *Interpreter) getBlockValue(v Value) *BlockValue {
 	if v.IsBlock() {
 		id := int(v.BlockID())
-		blockRegistryMu.RLock()
-		bv := blockRegistry[id]
-		blockRegistryMu.RUnlock()
-		return bv
+		if i.vm == nil {
+			return nil
+		}
+		return i.vm.registry.GetBlock(id)
 	}
 	return nil
-}
-
-// blockRegistrySize returns the current size of the block registry (for testing)
-func blockRegistrySize() int {
-	blockRegistryMu.RLock()
-	defer blockRegistryMu.RUnlock()
-	return len(blockRegistry)
-}
-
-// blockRegistryHas checks if a block ID exists in the registry (for testing)
-func blockRegistryHas(id int) bool {
-	blockRegistryMu.RLock()
-	defer blockRegistryMu.RUnlock()
-	_, exists := blockRegistry[id]
-	return exists
-}
-
-// blocksByHomeFrameCount returns the count of blocks for a home frame (for testing)
-func blocksByHomeFrameCount(homeFrame int) int {
-	blockRegistryMu.RLock()
-	defer blockRegistryMu.RUnlock()
-	return len(blocksByHomeFrame[homeFrame])
-}
-
-// blocksByHomeFrameHas checks if a home frame is tracked (for testing)
-func blocksByHomeFrameHas(homeFrame int) bool {
-	blockRegistryMu.RLock()
-	defer blockRegistryMu.RUnlock()
-	_, exists := blocksByHomeFrame[homeFrame]
-	return exists
 }
 
 // ---------------------------------------------------------------------------
@@ -1816,7 +1760,7 @@ func (i *Interpreter) primitiveEQ(a, b Value) Value {
 	}
 	// For strings, compare content
 	if IsStringValue(a) && IsStringValue(b) {
-		if GetStringContent(a) == GetStringContent(b) {
+		if i.vm.registry.GetStringContent(a) == i.vm.registry.GetStringContent(b) {
 			return True
 		}
 	}
@@ -1849,7 +1793,7 @@ func (i *Interpreter) primitiveAt(rcvr, idx Value) Value {
 
 	// Handle strings
 	if IsStringValue(rcvr) {
-		str := GetStringContent(rcvr)
+		str := i.vm.registry.GetStringContent(rcvr)
 		if index < 0 || index >= int64(len(str)) {
 			return Nil // Bounds error
 		}
@@ -1892,7 +1836,7 @@ func (i *Interpreter) primitiveSize(rcvr Value) Value {
 
 	// Handle strings
 	if IsStringValue(rcvr) {
-		str := GetStringContent(rcvr)
+		str := i.vm.registry.GetStringContent(rcvr)
 		return FromSmallInt(int64(len(str)))
 	}
 

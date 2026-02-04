@@ -400,8 +400,8 @@ func TestVMSendSymbol(t *testing.T) {
 	if !IsStringValue(result) {
 		t.Errorf("asString should return a string, got %T", result)
 	}
-	if GetStringContent(result) != "testSymbol" {
-		t.Errorf("asString returned wrong content: %q, want %q", GetStringContent(result), "testSymbol")
+	if vm.registry.GetStringContent(result) != "testSymbol" {
+		t.Errorf("asString returned wrong content: %q, want %q", vm.registry.GetStringContent(result), "testSymbol")
 	}
 
 	// Symbol equality

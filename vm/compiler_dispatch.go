@@ -30,7 +30,7 @@ type CompilerBackend interface {
 
 // CompileFunc is the signature for compilation functions.
 // This is used to inject the Go compiler without creating import cycles.
-type CompileFunc func(source string, selectors *SelectorTable, symbols *SymbolTable) (*CompiledMethod, error)
+type CompileFunc func(source string, selectors *SelectorTable, symbols *SymbolTable, registry *ObjectRegistry) (*CompiledMethod, error)
 
 // GoCompilerBackend wraps the compiler/ package written in Go.
 // This is used for bootstrapping, AOT compilation, and as a fallback.
@@ -47,7 +47,7 @@ func NewGoCompilerBackend(vm *VM, compileFunc CompileFunc) *GoCompilerBackend {
 
 // Compile compiles a method source string using the Go compiler.
 func (g *GoCompilerBackend) Compile(source string, class *Class) (*CompiledMethod, error) {
-	method, err := g.compileFunc(source, g.vm.Selectors, g.vm.Symbols)
+	method, err := g.compileFunc(source, g.vm.Selectors, g.vm.Symbols, g.vm.registry)
 	if err != nil {
 		return nil, err
 	}
@@ -150,14 +150,14 @@ func (m *MaggieCompilerBackend) Compile(source string, class *Class) (*CompiledM
 
 	// Call compile: on the compiler
 	// Compiler new compile: sourceString
-	sourceVal := NewStringValue(source)
+	sourceVal := m.vm.registry.NewStringValue(source)
 	resultVal := m.vm.Send(compilerInstance, "compile:", []Value{sourceVal})
 
 	// Debug: what did compile: return?
 	// fmt.Printf("DEBUG compile: resultVal = %v (IsNil: %v, IsDictionary: %v)\n",
 	// 	resultVal, resultVal == Nil, IsDictionaryValue(resultVal))
 	if IsDictionaryValue(resultVal) {
-		dict := GetDictionaryObject(resultVal)
+		dict := m.vm.registry.GetDictionaryObject(resultVal)
 		if dict != nil {
 // 			fmt.Printf("DEBUG compile: dictionary entries: %d\n", len(dict.Data))
 		}
@@ -190,7 +190,7 @@ func (m *MaggieCompilerBackend) CompileExpression(source string) (*CompiledMetho
 	}
 
 	// Call compileExpression: on the compiler
-	sourceVal := NewStringValue(source)
+	sourceVal := m.vm.registry.NewStringValue(source)
 	resultVal := m.vm.Send(compilerInstance, "compileExpression:", []Value{sourceVal})
 
 	return m.extractCompiledMethod(resultVal, nil)

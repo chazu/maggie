@@ -8,7 +8,8 @@ func (vm *VM) registerContextPrimitives() {
 
 	// sender - returns the Context that called this one, or nil
 	c.AddMethod0(vm.Selectors, "sender", func(vmPtr interface{}, recv Value) Value {
-		ctx := GetContextValue(recv)
+		v := vmPtr.(*VM)
+		ctx := v.registry.GetContextFromValue(recv)
 		if ctx == nil || ctx.SenderID < 0 {
 			return Nil
 		}
@@ -17,7 +18,8 @@ func (vm *VM) registerContextPrimitives() {
 
 	// receiver - returns self in this context
 	c.AddMethod0(vm.Selectors, "receiver", func(vmPtr interface{}, recv Value) Value {
-		ctx := GetContextValue(recv)
+		v := vmPtr.(*VM)
+		ctx := v.registry.GetContextFromValue(recv)
 		if ctx == nil {
 			return Nil
 		}
@@ -26,7 +28,8 @@ func (vm *VM) registerContextPrimitives() {
 
 	// method - returns the CompiledMethod for this context (nil for blocks)
 	c.AddMethod0(vm.Selectors, "method", func(vmPtr interface{}, recv Value) Value {
-		ctx := GetContextValue(recv)
+		v := vmPtr.(*VM)
+		ctx := v.registry.GetContextFromValue(recv)
 		if ctx == nil || ctx.Method == nil {
 			return Nil
 		}
@@ -39,7 +42,7 @@ func (vm *VM) registerContextPrimitives() {
 	// selector - returns the selector (method name) as a Symbol
 	c.AddMethod0(vm.Selectors, "selector", func(vmPtr interface{}, recv Value) Value {
 		v := vmPtr.(*VM)
-		ctx := GetContextValue(recv)
+		ctx := v.registry.GetContextFromValue(recv)
 		if ctx == nil {
 			return Nil
 		}
@@ -53,7 +56,8 @@ func (vm *VM) registerContextPrimitives() {
 
 	// isBlockContext - returns true if this is a block context
 	c.AddMethod0(vm.Selectors, "isBlockContext", func(vmPtr interface{}, recv Value) Value {
-		ctx := GetContextValue(recv)
+		v := vmPtr.(*VM)
+		ctx := v.registry.GetContextFromValue(recv)
 		if ctx == nil {
 			return False
 		}
@@ -63,7 +67,7 @@ func (vm *VM) registerContextPrimitives() {
 	// arguments - returns an Array of arguments
 	c.AddMethod0(vm.Selectors, "arguments", func(vmPtr interface{}, recv Value) Value {
 		v := vmPtr.(*VM)
-		ctx := GetContextValue(recv)
+		ctx := v.registry.GetContextFromValue(recv)
 		if ctx == nil || ctx.Args == nil {
 			return v.NewArray(0)
 		}
@@ -72,7 +76,8 @@ func (vm *VM) registerContextPrimitives() {
 
 	// tempAt: - returns the temporary at the given index
 	c.AddMethod1(vm.Selectors, "tempAt:", func(vmPtr interface{}, recv Value, idx Value) Value {
-		ctx := GetContextValue(recv)
+		v := vmPtr.(*VM)
+		ctx := v.registry.GetContextFromValue(recv)
 		if ctx == nil || !idx.IsSmallInt() {
 			return Nil
 		}
@@ -86,7 +91,8 @@ func (vm *VM) registerContextPrimitives() {
 	// tempAt:put: - stores a value in the temporary at the given index
 	// Note: This modifies the captured snapshot, not the live execution
 	c.AddMethod2(vm.Selectors, "tempAt:put:", func(vmPtr interface{}, recv Value, idx Value, val Value) Value {
-		ctx := GetContextValue(recv)
+		v := vmPtr.(*VM)
+		ctx := v.registry.GetContextFromValue(recv)
 		if ctx == nil || !idx.IsSmallInt() {
 			return Nil
 		}
@@ -100,7 +106,8 @@ func (vm *VM) registerContextPrimitives() {
 
 	// numTemps - returns the number of temporaries
 	c.AddMethod0(vm.Selectors, "numTemps", func(vmPtr interface{}, recv Value) Value {
-		ctx := GetContextValue(recv)
+		v := vmPtr.(*VM)
+		ctx := v.registry.GetContextFromValue(recv)
 		if ctx == nil {
 			return FromSmallInt(0)
 		}
@@ -109,7 +116,8 @@ func (vm *VM) registerContextPrimitives() {
 
 	// numArgs - returns the number of arguments
 	c.AddMethod0(vm.Selectors, "numArgs", func(vmPtr interface{}, recv Value) Value {
-		ctx := GetContextValue(recv)
+		v := vmPtr.(*VM)
+		ctx := v.registry.GetContextFromValue(recv)
 		if ctx == nil {
 			return FromSmallInt(0)
 		}
@@ -118,7 +126,8 @@ func (vm *VM) registerContextPrimitives() {
 
 	// pc (program counter) - returns the instruction pointer at capture time
 	c.AddMethod0(vm.Selectors, "pc", func(vmPtr interface{}, recv Value) Value {
-		ctx := GetContextValue(recv)
+		v := vmPtr.(*VM)
+		ctx := v.registry.GetContextFromValue(recv)
 		if ctx == nil {
 			return FromSmallInt(0)
 		}
@@ -127,7 +136,8 @@ func (vm *VM) registerContextPrimitives() {
 
 	// home - for block contexts, returns the home method context
 	c.AddMethod0(vm.Selectors, "home", func(vmPtr interface{}, recv Value) Value {
-		ctx := GetContextValue(recv)
+		v := vmPtr.(*VM)
+		ctx := v.registry.GetContextFromValue(recv)
 		if ctx == nil || ctx.HomeID < 0 {
 			return Nil
 		}
@@ -136,20 +146,21 @@ func (vm *VM) registerContextPrimitives() {
 
 	// printString - return a string representation
 	c.AddMethod0(vm.Selectors, "printString", func(vmPtr interface{}, recv Value) Value {
-		ctx := GetContextValue(recv)
+		v := vmPtr.(*VM)
+		ctx := v.registry.GetContextFromValue(recv)
 		if ctx == nil {
-			return NewStringValue("a Context (invalid)")
+			return v.registry.NewStringValue("a Context (invalid)")
 		}
 		if ctx.IsBlockContext() {
-			return NewStringValue("a BlockContext")
+			return v.registry.NewStringValue("a BlockContext")
 		}
 		if ctx.Method != nil {
 			className := "UnknownClass"
 			if ctx.Method.Class() != nil {
 				className = ctx.Method.Class().Name
 			}
-			return NewStringValue("a MethodContext(" + className + ">>" + ctx.Method.Name() + ")")
+			return v.registry.NewStringValue("a MethodContext(" + className + ">>" + ctx.Method.Name() + ")")
 		}
-		return NewStringValue("a Context")
+		return v.registry.NewStringValue("a Context")
 	})
 }

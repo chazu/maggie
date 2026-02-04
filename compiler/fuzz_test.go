@@ -275,7 +275,8 @@ func FuzzCompileAndRun(f *testing.F) {
 
 				selectors := vm.NewSelectorTable()
 				symbols := vm.NewSymbolTable()
-				_, _ = CompileMethodDef(method, selectors, symbols)
+				registry := vm.NewObjectRegistry()
+				_, _ = CompileMethodDef(method, selectors, symbols, registry)
 			}()
 		}()
 
@@ -289,7 +290,8 @@ func FuzzCompileAndRun(f *testing.F) {
 
 			selectors := vm.NewSelectorTable()
 			symbols := vm.NewSymbolTable()
-			_, _ = CompileExpr(data, selectors, symbols)
+			registry := vm.NewObjectRegistry()
+			_, _ = CompileExpr(data, selectors, symbols, registry)
 		}()
 	})
 }

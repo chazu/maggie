@@ -15,18 +15,19 @@ import (
 // ---------------------------------------------------------------------------
 
 func TestHttpServerRegistration(t *testing.T) {
+	vm := NewVM()
 	srv := &HttpServerObject{
 		mux:  http.NewServeMux(),
 		port: 9999,
 	}
 
-	val := registerHttpServer(srv)
+	val := vm.vmRegisterHttpServer(srv)
 
 	if !isHttpServerValue(val) {
 		t.Fatal("registerHttpServer should produce an HttpServer value")
 	}
 
-	got := getHttpServer(val)
+	got := vm.vmGetHttpServer(val)
 	if got == nil {
 		t.Fatal("getHttpServer returned nil for registered server")
 	}
@@ -35,22 +36,25 @@ func TestHttpServerRegistration(t *testing.T) {
 	}
 
 	// Unregister
-	unregisterHttpServer(val)
+	vm.vmUnregisterHttpServer(val)
 
-	got = getHttpServer(val)
+	got = vm.vmGetHttpServer(val)
 	if got != nil {
 		t.Error("getHttpServer should return nil after unregister")
 	}
 }
 
 func TestIsHttpServerValueFalse(t *testing.T) {
+	vm := NewVM()
+	_ = vm // used for string creation below
+
 	if isHttpServerValue(Nil) {
 		t.Error("Nil should not be an HttpServer value")
 	}
 	if isHttpServerValue(FromSmallInt(42)) {
 		t.Error("SmallInt should not be an HttpServer value")
 	}
-	if isHttpServerValue(NewStringValue("hi")) {
+	if isHttpServerValue(vm.registry.NewStringValue("hi")) {
 		t.Error("String should not be an HttpServer value")
 	}
 }
@@ -60,15 +64,16 @@ func TestIsHttpServerValueFalse(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestHttpRequestRegistration(t *testing.T) {
+	vm := NewVM()
 	goReq := httptest.NewRequest("GET", "/test", nil)
 	reqObj := &HttpRequestObject{request: goReq}
-	val := registerHttpRequest(reqObj)
+	val := vm.vmRegisterHttpRequest(reqObj)
 
 	if !isHttpRequestValue(val) {
 		t.Fatal("registerHttpRequest should produce an HttpRequest value")
 	}
 
-	got := getHttpRequest(val)
+	got := vm.vmGetHttpRequest(val)
 	if got == nil {
 		t.Fatal("getHttpRequest returned nil for registered request")
 	}
@@ -77,9 +82,9 @@ func TestHttpRequestRegistration(t *testing.T) {
 	}
 
 	// Unregister
-	unregisterHttpRequest(val)
+	vm.vmUnregisterHttpRequest(val)
 
-	got = getHttpRequest(val)
+	got = vm.vmGetHttpRequest(val)
 	if got != nil {
 		t.Error("getHttpRequest should return nil after unregister")
 	}
@@ -99,18 +104,19 @@ func TestIsHttpRequestValueFalse(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestHttpResponseRegistration(t *testing.T) {
+	vm := NewVM()
 	resp := &HttpResponseObject{
 		status:  200,
 		body:    "OK",
 		headers: map[string]string{"X-Test": "val"},
 	}
-	val := registerHttpResponse(resp)
+	val := vm.vmRegisterHttpResponse(resp)
 
 	if !isHttpResponseValue(val) {
 		t.Fatal("registerHttpResponse should produce an HttpResponse value")
 	}
 
-	got := getHttpResponse(val)
+	got := vm.vmGetHttpResponse(val)
 	if got == nil {
 		t.Fatal("getHttpResponse returned nil for registered response")
 	}
@@ -165,7 +171,7 @@ func TestHttpServerNewInvalidPort(t *testing.T) {
 	httpServerClassVal := vm.Globals["HttpServer"]
 
 	// Non-integer argument should return Nil
-	result := vm.Send(httpServerClassVal, "new:", []Value{NewStringValue("abc")})
+	result := vm.Send(httpServerClassVal, "new:", []Value{vm.registry.NewStringValue("abc")})
 	if result != Nil {
 		t.Errorf("HttpServer new: with non-integer should return Nil, got %v", result)
 	}
@@ -228,8 +234,8 @@ func TestHttpServerPortOnNilServer(t *testing.T) {
 	// Calling port on a non-server value - use a fake value that
 	// passes isHttpServerValue but whose registry entry was removed
 	srv := &HttpServerObject{mux: http.NewServeMux(), port: 1234}
-	val := registerHttpServer(srv)
-	unregisterHttpServer(val) // remove from registry
+	val := vm.vmRegisterHttpServer(srv)
+	vm.vmUnregisterHttpServer(val) // remove from registry
 
 	result := vm.Send(val, "port", nil)
 	if result != Nil {
@@ -242,8 +248,8 @@ func TestHttpServerIsRunningOnNilServer(t *testing.T) {
 
 	// Create and immediately unregister
 	srv := &HttpServerObject{mux: http.NewServeMux(), port: 1234}
-	val := registerHttpServer(srv)
-	unregisterHttpServer(val)
+	val := vm.vmRegisterHttpServer(srv)
+	vm.vmUnregisterHttpServer(val)
 
 	result := vm.Send(val, "isRunning", nil)
 	if result != False {
@@ -263,7 +269,7 @@ func TestHttpResponseNewBodyStatus(t *testing.T) {
 	// HttpResponse new: 200 body: 'Hello'
 	respVal := vm.Send(httpResponseClassVal, "new:body:", []Value{
 		FromSmallInt(200),
-		NewStringValue("Hello"),
+		vm.registry.NewStringValue("Hello"),
 	})
 
 	if respVal == Nil {
@@ -281,8 +287,8 @@ func TestHttpResponseNewBodyStatus(t *testing.T) {
 
 	// Check body
 	body := vm.Send(respVal, "body", nil)
-	if !IsStringValue(body) || GetStringContent(body) != "Hello" {
-		t.Errorf("body = %q, want %q", GetStringContent(body), "Hello")
+	if !IsStringValue(body) || vm.registry.GetStringContent(body) != "Hello" {
+		t.Errorf("body = %q, want %q", vm.registry.GetStringContent(body), "Hello")
 	}
 }
 
@@ -295,7 +301,7 @@ func TestHttpResponseStatusCodes(t *testing.T) {
 	for _, code := range codes {
 		respVal := vm.Send(httpResponseClassVal, "new:body:", []Value{
 			FromSmallInt(code),
-			NewStringValue("test"),
+			vm.registry.NewStringValue("test"),
 		})
 		status := vm.Send(respVal, "status", nil)
 		if !status.IsSmallInt() || status.SmallInt() != code {
@@ -311,17 +317,17 @@ func TestHttpResponseContentType(t *testing.T) {
 
 	respVal := vm.Send(httpResponseClassVal, "new:body:", []Value{
 		FromSmallInt(200),
-		NewStringValue("{}"),
+		vm.registry.NewStringValue("{}"),
 	})
 
 	// contentType: sets Content-Type header and returns self
-	result := vm.Send(respVal, "contentType:", []Value{NewStringValue("application/json")})
+	result := vm.Send(respVal, "contentType:", []Value{vm.registry.NewStringValue("application/json")})
 	if result != respVal {
 		t.Error("contentType: should return self")
 	}
 
 	// Verify the header was set on the underlying object
-	resp := getHttpResponse(respVal)
+	resp := vm.vmGetHttpResponse(respVal)
 	if resp == nil {
 		t.Fatal("getHttpResponse returned nil")
 	}
@@ -337,19 +343,19 @@ func TestHttpResponseHeaderValue(t *testing.T) {
 
 	respVal := vm.Send(httpResponseClassVal, "new:body:", []Value{
 		FromSmallInt(200),
-		NewStringValue("body"),
+		vm.registry.NewStringValue("body"),
 	})
 
 	// header:value: sets an arbitrary header
 	result := vm.Send(respVal, "header:value:", []Value{
-		NewStringValue("X-Custom"),
-		NewStringValue("my-value"),
+		vm.registry.NewStringValue("X-Custom"),
+		vm.registry.NewStringValue("my-value"),
 	})
 	if result != respVal {
 		t.Error("header:value: should return self")
 	}
 
-	resp := getHttpResponse(respVal)
+	resp := vm.vmGetHttpResponse(respVal)
 	if resp.headers["X-Custom"] != "my-value" {
 		t.Errorf("X-Custom = %q, want %q", resp.headers["X-Custom"], "my-value")
 	}
@@ -362,15 +368,15 @@ func TestHttpResponseMultipleHeaders(t *testing.T) {
 
 	respVal := vm.Send(httpResponseClassVal, "new:body:", []Value{
 		FromSmallInt(200),
-		NewStringValue("body"),
+		vm.registry.NewStringValue("body"),
 	})
 
 	// Set multiple headers via chaining (each returns self)
-	vm.Send(respVal, "header:value:", []Value{NewStringValue("X-A"), NewStringValue("1")})
-	vm.Send(respVal, "header:value:", []Value{NewStringValue("X-B"), NewStringValue("2")})
-	vm.Send(respVal, "contentType:", []Value{NewStringValue("text/plain")})
+	vm.Send(respVal, "header:value:", []Value{vm.registry.NewStringValue("X-A"), vm.registry.NewStringValue("1")})
+	vm.Send(respVal, "header:value:", []Value{vm.registry.NewStringValue("X-B"), vm.registry.NewStringValue("2")})
+	vm.Send(respVal, "contentType:", []Value{vm.registry.NewStringValue("text/plain")})
 
-	resp := getHttpResponse(respVal)
+	resp := vm.vmGetHttpResponse(respVal)
 	if resp.headers["X-A"] != "1" {
 		t.Errorf("X-A = %q, want %q", resp.headers["X-A"], "1")
 	}
@@ -389,8 +395,8 @@ func TestHttpResponseDefaultStatus(t *testing.T) {
 
 	// Non-integer status should default to 200
 	respVal := vm.Send(httpResponseClassVal, "new:body:", []Value{
-		NewStringValue("not-a-number"),
-		NewStringValue("body"),
+		vm.registry.NewStringValue("not-a-number"),
+		vm.registry.NewStringValue("body"),
 	})
 
 	status := vm.Send(respVal, "status", nil)
@@ -404,7 +410,7 @@ func TestHttpResponseStatusOnNil(t *testing.T) {
 
 	// Create and unregister
 	resp := &HttpResponseObject{status: 200, body: "x", headers: map[string]string{}}
-	val := registerHttpResponse(resp)
+	val := vm.vmRegisterHttpResponse(resp)
 
 	// We can't easily unregister responses (no unregisterHttpResponse exported),
 	// but we can test that status/body work on a fresh response
@@ -414,8 +420,8 @@ func TestHttpResponseStatusOnNil(t *testing.T) {
 	}
 
 	body := vm.Send(val, "body", nil)
-	if !IsStringValue(body) || GetStringContent(body) != "x" {
-		t.Errorf("body = %q, want %q", GetStringContent(body), "x")
+	if !IsStringValue(body) || vm.registry.GetStringContent(body) != "x" {
+		t.Errorf("body = %q, want %q", vm.registry.GetStringContent(body), "x")
 	}
 }
 
@@ -426,12 +432,12 @@ func TestHttpResponseEmptyBody(t *testing.T) {
 
 	respVal := vm.Send(httpResponseClassVal, "new:body:", []Value{
 		FromSmallInt(204),
-		NewStringValue(""),
+		vm.registry.NewStringValue(""),
 	})
 
 	body := vm.Send(respVal, "body", nil)
-	if !IsStringValue(body) || GetStringContent(body) != "" {
-		t.Errorf("body = %q, want empty string", GetStringContent(body))
+	if !IsStringValue(body) || vm.registry.GetStringContent(body) != "" {
+		t.Errorf("body = %q, want empty string", vm.registry.GetStringContent(body))
 	}
 
 	status := vm.Send(respVal, "status", nil)
@@ -451,14 +457,14 @@ func TestHttpRequestMethod(t *testing.T) {
 	for _, method := range methods {
 		goReq := httptest.NewRequest(method, "/test", nil)
 		reqObj := &HttpRequestObject{request: goReq}
-		reqVal := registerHttpRequest(reqObj)
+		reqVal := vm.vmRegisterHttpRequest(reqObj)
 
 		result := vm.Send(reqVal, "method", nil)
-		if !IsStringValue(result) || GetStringContent(result) != method {
-			t.Errorf("method = %q, want %q", GetStringContent(result), method)
+		if !IsStringValue(result) || vm.registry.GetStringContent(result) != method {
+			t.Errorf("method = %q, want %q", vm.registry.GetStringContent(result), method)
 		}
 
-		unregisterHttpRequest(reqVal)
+		vm.vmUnregisterHttpRequest(reqVal)
 	}
 }
 
@@ -469,16 +475,16 @@ func TestHttpRequestPath(t *testing.T) {
 	for _, path := range paths {
 		goReq := httptest.NewRequest("GET", path, nil)
 		reqObj := &HttpRequestObject{request: goReq}
-		reqVal := registerHttpRequest(reqObj)
+		reqVal := vm.vmRegisterHttpRequest(reqObj)
 
 		result := vm.Send(reqVal, "path", nil)
 		// URL.Path does not include query string
 		expectedPath := strings.Split(path, "?")[0]
-		if !IsStringValue(result) || GetStringContent(result) != expectedPath {
-			t.Errorf("path = %q, want %q", GetStringContent(result), expectedPath)
+		if !IsStringValue(result) || vm.registry.GetStringContent(result) != expectedPath {
+			t.Errorf("path = %q, want %q", vm.registry.GetStringContent(result), expectedPath)
 		}
 
-		unregisterHttpRequest(reqVal)
+		vm.vmUnregisterHttpRequest(reqVal)
 	}
 }
 
@@ -489,15 +495,15 @@ func TestHttpRequestBody(t *testing.T) {
 	goReq := httptest.NewRequest("POST", "/api/data", strings.NewReader(bodyContent))
 	goReq.Header.Set("Content-Type", "application/json")
 	reqObj := &HttpRequestObject{request: goReq}
-	reqVal := registerHttpRequest(reqObj)
-	defer unregisterHttpRequest(reqVal)
+	reqVal := vm.vmRegisterHttpRequest(reqObj)
+	defer vm.vmUnregisterHttpRequest(reqVal)
 
 	result := vm.Send(reqVal, "body", nil)
 	if !IsStringValue(result) {
 		t.Fatal("body did not return a string")
 	}
-	if GetStringContent(result) != bodyContent {
-		t.Errorf("body = %q, want %q", GetStringContent(result), bodyContent)
+	if vm.registry.GetStringContent(result) != bodyContent {
+		t.Errorf("body = %q, want %q", vm.registry.GetStringContent(result), bodyContent)
 	}
 }
 
@@ -506,12 +512,12 @@ func TestHttpRequestBodyEmpty(t *testing.T) {
 
 	goReq := httptest.NewRequest("GET", "/test", nil)
 	reqObj := &HttpRequestObject{request: goReq}
-	reqVal := registerHttpRequest(reqObj)
-	defer unregisterHttpRequest(reqVal)
+	reqVal := vm.vmRegisterHttpRequest(reqObj)
+	defer vm.vmUnregisterHttpRequest(reqVal)
 
 	result := vm.Send(reqVal, "body", nil)
-	if !IsStringValue(result) || GetStringContent(result) != "" {
-		t.Errorf("body = %q, want empty string", GetStringContent(result))
+	if !IsStringValue(result) || vm.registry.GetStringContent(result) != "" {
+		t.Errorf("body = %q, want empty string", vm.registry.GetStringContent(result))
 	}
 }
 
@@ -520,19 +526,19 @@ func TestHttpRequestBodyReadCaching(t *testing.T) {
 
 	goReq := httptest.NewRequest("POST", "/data", strings.NewReader("first-read"))
 	reqObj := &HttpRequestObject{request: goReq}
-	reqVal := registerHttpRequest(reqObj)
-	defer unregisterHttpRequest(reqVal)
+	reqVal := vm.vmRegisterHttpRequest(reqObj)
+	defer vm.vmUnregisterHttpRequest(reqVal)
 
 	// First read
 	result1 := vm.Send(reqVal, "body", nil)
-	if GetStringContent(result1) != "first-read" {
-		t.Errorf("first body read = %q, want %q", GetStringContent(result1), "first-read")
+	if vm.registry.GetStringContent(result1) != "first-read" {
+		t.Errorf("first body read = %q, want %q", vm.registry.GetStringContent(result1), "first-read")
 	}
 
 	// Second read should return the cached value (body was already consumed)
 	result2 := vm.Send(reqVal, "body", nil)
-	if GetStringContent(result2) != "first-read" {
-		t.Errorf("second body read = %q, want %q (should be cached)", GetStringContent(result2), "first-read")
+	if vm.registry.GetStringContent(result2) != "first-read" {
+		t.Errorf("second body read = %q, want %q (should be cached)", vm.registry.GetStringContent(result2), "first-read")
 	}
 }
 
@@ -545,8 +551,8 @@ func TestHttpRequestHeader(t *testing.T) {
 	goReq.Header.Set("X-Custom-Header", "custom-value")
 
 	reqObj := &HttpRequestObject{request: goReq}
-	reqVal := registerHttpRequest(reqObj)
-	defer unregisterHttpRequest(reqVal)
+	reqVal := vm.vmRegisterHttpRequest(reqObj)
+	defer vm.vmUnregisterHttpRequest(reqVal)
 
 	tests := []struct {
 		header string
@@ -559,9 +565,9 @@ func TestHttpRequestHeader(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		result := vm.Send(reqVal, "header:", []Value{NewStringValue(tc.header)})
-		if !IsStringValue(result) || GetStringContent(result) != tc.want {
-			t.Errorf("header: %q = %q, want %q", tc.header, GetStringContent(result), tc.want)
+		result := vm.Send(reqVal, "header:", []Value{vm.registry.NewStringValue(tc.header)})
+		if !IsStringValue(result) || vm.registry.GetStringContent(result) != tc.want {
+			t.Errorf("header: %q = %q, want %q", tc.header, vm.registry.GetStringContent(result), tc.want)
 		}
 	}
 }
@@ -571,8 +577,8 @@ func TestHttpRequestQueryParam(t *testing.T) {
 
 	goReq := httptest.NewRequest("GET", "/search?q=hello&page=2&limit=10", nil)
 	reqObj := &HttpRequestObject{request: goReq}
-	reqVal := registerHttpRequest(reqObj)
-	defer unregisterHttpRequest(reqVal)
+	reqVal := vm.vmRegisterHttpRequest(reqObj)
+	defer vm.vmUnregisterHttpRequest(reqVal)
 
 	tests := []struct {
 		param string
@@ -585,9 +591,9 @@ func TestHttpRequestQueryParam(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		result := vm.Send(reqVal, "queryParam:", []Value{NewStringValue(tc.param)})
-		if !IsStringValue(result) || GetStringContent(result) != tc.want {
-			t.Errorf("queryParam: %q = %q, want %q", tc.param, GetStringContent(result), tc.want)
+		result := vm.Send(reqVal, "queryParam:", []Value{vm.registry.NewStringValue(tc.param)})
+		if !IsStringValue(result) || vm.registry.GetStringContent(result) != tc.want {
+			t.Errorf("queryParam: %q = %q, want %q", tc.param, vm.registry.GetStringContent(result), tc.want)
 		}
 	}
 }
@@ -598,23 +604,23 @@ func TestHttpRequestMethodOnNil(t *testing.T) {
 	// Create and unregister a request to get a dead reference
 	goReq := httptest.NewRequest("GET", "/test", nil)
 	reqObj := &HttpRequestObject{request: goReq}
-	reqVal := registerHttpRequest(reqObj)
-	unregisterHttpRequest(reqVal)
+	reqVal := vm.vmRegisterHttpRequest(reqObj)
+	vm.vmUnregisterHttpRequest(reqVal)
 
 	// Sending to unregistered request should return empty string
 	result := vm.Send(reqVal, "method", nil)
-	if !IsStringValue(result) || GetStringContent(result) != "" {
-		t.Errorf("method on unregistered request = %q, want empty string", GetStringContent(result))
+	if !IsStringValue(result) || vm.registry.GetStringContent(result) != "" {
+		t.Errorf("method on unregistered request = %q, want empty string", vm.registry.GetStringContent(result))
 	}
 
 	result = vm.Send(reqVal, "path", nil)
-	if !IsStringValue(result) || GetStringContent(result) != "" {
-		t.Errorf("path on unregistered request = %q, want empty string", GetStringContent(result))
+	if !IsStringValue(result) || vm.registry.GetStringContent(result) != "" {
+		t.Errorf("path on unregistered request = %q, want empty string", vm.registry.GetStringContent(result))
 	}
 
 	result = vm.Send(reqVal, "body", nil)
-	if !IsStringValue(result) || GetStringContent(result) != "" {
-		t.Errorf("body on unregistered request = %q, want empty string", GetStringContent(result))
+	if !IsStringValue(result) || vm.registry.GetStringContent(result) != "" {
+		t.Errorf("body on unregistered request = %q, want empty string", vm.registry.GetStringContent(result))
 	}
 }
 
@@ -647,7 +653,7 @@ func TestHttpResponseClassAssignment(t *testing.T) {
 	httpResponseClassVal := vm.Globals["HttpResponse"]
 	respVal := vm.Send(httpResponseClassVal, "new:body:", []Value{
 		FromSmallInt(200),
-		NewStringValue("test"),
+		vm.registry.NewStringValue("test"),
 	})
 
 	class := vm.ClassFor(respVal)
@@ -664,8 +670,8 @@ func TestHttpRequestClassAssignment(t *testing.T) {
 
 	goReq := httptest.NewRequest("GET", "/", nil)
 	reqObj := &HttpRequestObject{request: goReq}
-	reqVal := registerHttpRequest(reqObj)
-	defer unregisterHttpRequest(reqVal)
+	reqVal := vm.vmRegisterHttpRequest(reqObj)
+	defer vm.vmUnregisterHttpRequest(reqVal)
 
 	class := vm.ClassFor(reqVal)
 	if class == nil {
@@ -728,7 +734,7 @@ func TestHttpServerDoubleStart(t *testing.T) {
 	time.Sleep(50 * time.Millisecond)
 
 	// Second start should return immediately (already running)
-	srv := getHttpServer(serverVal)
+	srv := vm.vmGetHttpServer(serverVal)
 	if srv != nil {
 		srv.running.Store(true)
 		result := vm.Send(serverVal, "start", nil)
@@ -755,7 +761,7 @@ func TestHttpServerMuxDirectRoundtrip(t *testing.T) {
 	httpServerClassVal := vm.Globals["HttpServer"]
 	serverVal := vm.Send(httpServerClassVal, "new:", []Value{FromSmallInt(0)})
 
-	srv := getHttpServer(serverVal)
+	srv := vm.vmGetHttpServer(serverVal)
 	if srv == nil {
 		t.Fatal("could not get HttpServer object")
 	}
@@ -797,7 +803,7 @@ func TestHttpServerMuxMethodFiltering(t *testing.T) {
 	httpServerClassVal := vm.Globals["HttpServer"]
 	serverVal := vm.Send(httpServerClassVal, "new:", []Value{FromSmallInt(0)})
 
-	srv := getHttpServer(serverVal)
+	srv := vm.vmGetHttpServer(serverVal)
 	if srv == nil {
 		t.Fatal("could not get HttpServer object")
 	}
@@ -848,7 +854,7 @@ func TestHttpServerMuxJSONResponse(t *testing.T) {
 	httpServerClassVal := vm.Globals["HttpServer"]
 	serverVal := vm.Send(httpServerClassVal, "new:", []Value{FromSmallInt(0)})
 
-	srv := getHttpServer(serverVal)
+	srv := vm.vmGetHttpServer(serverVal)
 	if srv == nil {
 		t.Fatal("could not get HttpServer object")
 	}
@@ -885,7 +891,7 @@ func TestHttpServerMuxMultipleRoutes(t *testing.T) {
 	httpServerClassVal := vm.Globals["HttpServer"]
 	serverVal := vm.Send(httpServerClassVal, "new:", []Value{FromSmallInt(0)})
 
-	srv := getHttpServer(serverVal)
+	srv := vm.vmGetHttpServer(serverVal)
 	if srv == nil {
 		t.Fatal("could not get HttpServer object")
 	}
@@ -925,7 +931,7 @@ func TestHttpServerMuxRequestQueryParams(t *testing.T) {
 	httpServerClassVal := vm.Globals["HttpServer"]
 	serverVal := vm.Send(httpServerClassVal, "new:", []Value{FromSmallInt(0)})
 
-	srv := getHttpServer(serverVal)
+	srv := vm.vmGetHttpServer(serverVal)
 	if srv == nil {
 		t.Fatal("could not get HttpServer object")
 	}
@@ -958,7 +964,7 @@ func TestHttpServerMuxRequestHeaders(t *testing.T) {
 	httpServerClassVal := vm.Globals["HttpServer"]
 	serverVal := vm.Send(httpServerClassVal, "new:", []Value{FromSmallInt(0)})
 
-	srv := getHttpServer(serverVal)
+	srv := vm.vmGetHttpServer(serverVal)
 	if srv == nil {
 		t.Fatal("could not get HttpServer object")
 	}

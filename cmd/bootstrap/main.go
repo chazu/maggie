@@ -132,7 +132,7 @@ func compileAllFiles(files []string, vmInst *vm.VM, verbose bool) (int, error) {
 
 			// Compile trait methods
 			for _, methodDef := range traitDef.Methods {
-				method, err := compiler.CompileMethodDef(methodDef, vmInst.Selectors, vmInst.Symbols)
+				method, err := compiler.CompileMethodDef(methodDef, vmInst.Selectors, vmInst.Symbols, vmInst.Registry())
 				if err != nil {
 					return compiled, fmt.Errorf("error compiling trait %s>>%s in %s: %v", traitDef.Name, methodDef.Selector, pf.path, err)
 				}
@@ -215,7 +215,7 @@ func compileAllFiles(files []string, vmInst *vm.VM, verbose bool) (int, error) {
 
 			// Compile instance methods (with instance variable context)
 			for _, methodDef := range classDef.Methods {
-				method, err := compiler.CompileMethodDefWithIvars(methodDef, vmInst.Selectors, vmInst.Symbols, classDef.InstanceVariables)
+				method, err := compiler.CompileMethodDefWithIvars(methodDef, vmInst.Selectors, vmInst.Symbols, vmInst.Registry(), classDef.InstanceVariables)
 				if err != nil {
 					return compiled, fmt.Errorf("error compiling %s>>%s in %s: %v", classDef.Name, methodDef.Selector, pf.path, err)
 				}
@@ -232,7 +232,7 @@ func compileAllFiles(files []string, vmInst *vm.VM, verbose bool) (int, error) {
 
 			// Compile class methods (add to ClassVTable for class-side dispatch)
 			for _, methodDef := range classDef.ClassMethods {
-				method, err := compiler.CompileMethodDef(methodDef, vmInst.Selectors, vmInst.Symbols)
+				method, err := compiler.CompileMethodDef(methodDef, vmInst.Selectors, vmInst.Symbols, vmInst.Registry())
 				if err != nil {
 					return compiled, fmt.Errorf("error compiling %s class>>%s in %s: %v", classDef.Name, methodDef.Selector, pf.path, err)
 				}

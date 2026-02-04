@@ -110,8 +110,8 @@ func (vm *VM) registerDebuggerPrimitives() {
 		for i, bp := range breakpoints {
 			dict := v.NewDictionary()
 			v.DictionaryAtPut(dict, v.Symbols.SymbolValue("id"), FromSmallInt(int64(bp.ID)))
-			v.DictionaryAtPut(dict, v.Symbols.SymbolValue("class"), NewStringValue(bp.Class))
-			v.DictionaryAtPut(dict, v.Symbols.SymbolValue("method"), NewStringValue(bp.Method))
+			v.DictionaryAtPut(dict, v.Symbols.SymbolValue("class"), v.registry.NewStringValue(bp.Class))
+			v.DictionaryAtPut(dict, v.Symbols.SymbolValue("method"), v.registry.NewStringValue(bp.Method))
 			v.DictionaryAtPut(dict, v.Symbols.SymbolValue("line"), FromSmallInt(int64(bp.Line)))
 			if bp.Active {
 				v.DictionaryAtPut(dict, v.Symbols.SymbolValue("active"), True)
@@ -249,8 +249,8 @@ func (vm *VM) registerDebuggerPrimitives() {
 		for i, frame := range frames {
 			dict := v.NewDictionary()
 			v.DictionaryAtPut(dict, v.Symbols.SymbolValue("id"), FromSmallInt(int64(frame.ID)))
-			v.DictionaryAtPut(dict, v.Symbols.SymbolValue("class"), NewStringValue(frame.Class))
-			v.DictionaryAtPut(dict, v.Symbols.SymbolValue("method"), NewStringValue(frame.Method))
+			v.DictionaryAtPut(dict, v.Symbols.SymbolValue("class"), v.registry.NewStringValue(frame.Class))
+			v.DictionaryAtPut(dict, v.Symbols.SymbolValue("method"), v.registry.NewStringValue(frame.Method))
 			v.DictionaryAtPut(dict, v.Symbols.SymbolValue("line"), FromSmallInt(int64(frame.Line)))
 			v.DictionaryAtPut(dict, v.Symbols.SymbolValue("column"), FromSmallInt(int64(frame.Column)))
 			if frame.IsBlock {
@@ -281,9 +281,9 @@ func (vm *VM) registerDebuggerPrimitives() {
 
 		for i, variable := range variables {
 			dict := v.NewDictionary()
-			v.DictionaryAtPut(dict, v.Symbols.SymbolValue("name"), NewStringValue(variable.Name))
-			v.DictionaryAtPut(dict, v.Symbols.SymbolValue("value"), NewStringValue(variable.Value))
-			v.DictionaryAtPut(dict, v.Symbols.SymbolValue("type"), NewStringValue(variable.Type))
+			v.DictionaryAtPut(dict, v.Symbols.SymbolValue("name"), v.registry.NewStringValue(variable.Name))
+			v.DictionaryAtPut(dict, v.Symbols.SymbolValue("value"), v.registry.NewStringValue(variable.Value))
+			v.DictionaryAtPut(dict, v.Symbols.SymbolValue("type"), v.registry.NewStringValue(variable.Type))
 			values[i] = dict
 		}
 

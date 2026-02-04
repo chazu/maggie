@@ -17,14 +17,16 @@ func (vm *VM) registerCharacterPrimitives() {
 	})
 
 	// asString - single-character string
-	c.AddMethod0(vm.Selectors, "asString", func(_ interface{}, recv Value) Value {
-		return NewStringValue(string(GetCharacterCodePoint(recv)))
+	c.AddMethod0(vm.Selectors, "asString", func(vmPtr interface{}, recv Value) Value {
+		v := vmPtr.(*VM)
+		return v.registry.NewStringValue(string(GetCharacterCodePoint(recv)))
 	})
 
 	// printString - $X format
-	c.AddMethod0(vm.Selectors, "printString", func(_ interface{}, recv Value) Value {
+	c.AddMethod0(vm.Selectors, "printString", func(vmPtr interface{}, recv Value) Value {
+		v := vmPtr.(*VM)
 		cp := GetCharacterCodePoint(recv)
-		return NewStringValue(fmt.Sprintf("$%c", cp))
+		return v.registry.NewStringValue(fmt.Sprintf("$%c", cp))
 	})
 
 	// isLetter

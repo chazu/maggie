@@ -16,13 +16,13 @@ func eval(t *testing.T, vmInst *vm.VM, source string) vm.Value {
 	t.Helper()
 	vmInst.UseGoCompiler(compiler.Compile)
 	compilerClass := vmInst.Globals["Compiler"]
-	return vmInst.Send(compilerClass, "evaluate:", []vm.Value{vm.NewStringValue(source)})
+	return vmInst.Send(compilerClass, "evaluate:", []vm.Value{vmInst.Registry().NewStringValue(source)})
 }
 
 // compileMethod compiles a method definition and installs it on the given class.
 func compileMethod(t *testing.T, vmInst *vm.VM, class *vm.Class, source string) {
 	t.Helper()
-	method, err := compiler.Compile(source, vmInst.Selectors, vmInst.Symbols)
+	method, err := compiler.Compile(source, vmInst.Selectors, vmInst.Symbols, vmInst.Registry())
 	if err != nil {
 		t.Fatalf("compile error for method: %v\nsource: %s", err, source)
 	}
@@ -41,7 +41,7 @@ func compileMethodWithIvars(t *testing.T, vmInst *vm.VM, class *vm.Class, source
 	}
 
 	allIvars := class.AllInstVarNames()
-	method, err := compiler.CompileMethodDefWithIvars(methodDef, vmInst.Selectors, vmInst.Symbols, allIvars)
+	method, err := compiler.CompileMethodDefWithIvars(methodDef, vmInst.Selectors, vmInst.Symbols, vmInst.Registry(), allIvars)
 	if err != nil {
 		t.Fatalf("compile error: %v\nsource: %s", err, source)
 	}
@@ -53,7 +53,7 @@ func compileMethodWithIvars(t *testing.T, vmInst *vm.VM, class *vm.Class, source
 // compileClassMethod compiles a class-side method and installs it.
 func compileClassMethod(t *testing.T, vmInst *vm.VM, class *vm.Class, source string) {
 	t.Helper()
-	method, err := compiler.Compile(source, vmInst.Selectors, vmInst.Symbols)
+	method, err := compiler.Compile(source, vmInst.Selectors, vmInst.Symbols, vmInst.Registry())
 	if err != nil {
 		t.Fatalf("compile error for class method: %v\nsource: %s", err, source)
 	}
@@ -97,7 +97,7 @@ func compileSourceFile(t *testing.T, vmInst *vm.VM, source string) {
 		allIvars := class.AllInstVarNames()
 
 		for _, methodDef := range classDef.Methods {
-			method, err := compiler.CompileMethodDefWithIvars(methodDef, vmInst.Selectors, vmInst.Symbols, allIvars)
+			method, err := compiler.CompileMethodDefWithIvars(methodDef, vmInst.Selectors, vmInst.Symbols, vmInst.Registry(), allIvars)
 			if err != nil {
 				t.Fatalf("compile error %s>>%s: %v", classDef.Name, methodDef.Selector, err)
 			}
@@ -107,7 +107,7 @@ func compileSourceFile(t *testing.T, vmInst *vm.VM, source string) {
 		}
 
 		for _, methodDef := range classDef.ClassMethods {
-			method, err := compiler.CompileMethodDef(methodDef, vmInst.Selectors, vmInst.Symbols)
+			method, err := compiler.CompileMethodDef(methodDef, vmInst.Selectors, vmInst.Symbols, vmInst.Registry())
 			if err != nil {
 				t.Fatalf("compile error %s class>>%s: %v", classDef.Name, methodDef.Selector, err)
 			}
@@ -248,15 +248,15 @@ func TestIntegrationE2E_Inheritance(t *testing.T) {
 	// Dog inherits name from Animal and overrides speak
 	dogClassVal := vmInst.Globals["Dog"]
 	dog := vmInst.Send(dogClassVal, "new", nil)
-	vmInst.Send(dog, "name:", []vm.Value{vm.NewStringValue("Rex")})
+	vmInst.Send(dog, "name:", []vm.Value{vmInst.Registry().NewStringValue("Rex")})
 
 	dogName := vmInst.Send(dog, "name", nil)
-	if !vm.IsStringValue(dogName) || vm.GetStringContent(dogName) != "Rex" {
+	if !vm.IsStringValue(dogName) || vmInst.Registry().GetStringContent(dogName) != "Rex" {
 		t.Errorf("dog name = %v, want 'Rex'", dogName)
 	}
 
 	dogSpeak := vmInst.Send(dog, "speak", nil)
-	if !vm.IsStringValue(dogSpeak) || vm.GetStringContent(dogSpeak) != "Woof!" {
+	if !vm.IsStringValue(dogSpeak) || vmInst.Registry().GetStringContent(dogSpeak) != "Woof!" {
 		t.Errorf("dog speak = %v, want 'Woof!'", dogSpeak)
 	}
 
@@ -264,7 +264,7 @@ func TestIntegrationE2E_Inheritance(t *testing.T) {
 	catClassVal := vmInst.Globals["Cat"]
 	cat := vmInst.Send(catClassVal, "new", nil)
 	catSpeak := vmInst.Send(cat, "speak", nil)
-	if !vm.IsStringValue(catSpeak) || vm.GetStringContent(catSpeak) != "Meow!" {
+	if !vm.IsStringValue(catSpeak) || vmInst.Registry().GetStringContent(catSpeak) != "Meow!" {
 		t.Errorf("cat speak = %v, want 'Meow!'", catSpeak)
 	}
 
@@ -272,7 +272,7 @@ func TestIntegrationE2E_Inheritance(t *testing.T) {
 	animalClassVal := vmInst.Globals["Animal"]
 	animal := vmInst.Send(animalClassVal, "new", nil)
 	animalSpeak := vmInst.Send(animal, "speak", nil)
-	if !vm.IsStringValue(animalSpeak) || vm.GetStringContent(animalSpeak) != "..." {
+	if !vm.IsStringValue(animalSpeak) || vmInst.Registry().GetStringContent(animalSpeak) != "..." {
 		t.Errorf("animal speak = %v, want '...'", animalSpeak)
 	}
 }
@@ -351,7 +351,7 @@ func TestIntegrationE2E_IfTrueIfFalse(t *testing.T) {
 
 	for _, tc := range tests {
 		result := vmInst.Send(vm.FromSmallInt(tc.input), "sign", nil)
-		if !vm.IsStringValue(result) || vm.GetStringContent(result) != tc.expected {
+		if !vm.IsStringValue(result) || vmInst.Registry().GetStringContent(result) != tc.expected {
 			t.Errorf("%d sign = %v, want '%s'", tc.input, result, tc.expected)
 		}
 	}
@@ -443,19 +443,19 @@ func TestIntegrationE2E_StringOps(t *testing.T) {
 	compilerClass := vmInst.Globals["Compiler"]
 
 	// Concatenation via primConcat: (the , method requires loading .mag library)
-	result := vmInst.Send(compilerClass, "evaluate:", []vm.Value{vm.NewStringValue("('Hello' primConcat: ' ') primConcat: 'World'")})
-	if !vm.IsStringValue(result) || vm.GetStringContent(result) != "Hello World" {
+	result := vmInst.Send(compilerClass, "evaluate:", []vm.Value{vmInst.Registry().NewStringValue("('Hello' primConcat: ' ') primConcat: 'World'")})
+	if !vm.IsStringValue(result) || vmInst.Registry().GetStringContent(result) != "Hello World" {
 		t.Errorf("string primConcat: = %v, want 'Hello World'", result)
 	}
 
 	// primSize
-	result = vmInst.Send(compilerClass, "evaluate:", []vm.Value{vm.NewStringValue("'Hello' primSize")})
+	result = vmInst.Send(compilerClass, "evaluate:", []vm.Value{vmInst.Registry().NewStringValue("'Hello' primSize")})
 	if !result.IsSmallInt() || result.SmallInt() != 5 {
 		t.Errorf("'Hello' primSize = %v, want 5", result)
 	}
 
 	// primAt:
-	result = vmInst.Send(compilerClass, "evaluate:", []vm.Value{vm.NewStringValue("'Hello' primAt: 0")})
+	result = vmInst.Send(compilerClass, "evaluate:", []vm.Value{vmInst.Registry().NewStringValue("'Hello' primAt: 0")})
 	if result == vm.Nil {
 		t.Errorf("'Hello' primAt: 0 should not be nil")
 	}
@@ -471,21 +471,21 @@ func TestIntegrationE2E_Dictionary(t *testing.T) {
 
 	compilerClass := vmInst.Globals["Compiler"]
 
-	vmInst.Send(compilerClass, "evaluate:", []vm.Value{vm.NewStringValue("d := Dictionary new")})
-	vmInst.Send(compilerClass, "evaluate:", []vm.Value{vm.NewStringValue("d at: #name put: 'Alice'")})
-	vmInst.Send(compilerClass, "evaluate:", []vm.Value{vm.NewStringValue("d at: #age put: 30")})
+	vmInst.Send(compilerClass, "evaluate:", []vm.Value{vmInst.Registry().NewStringValue("d := Dictionary new")})
+	vmInst.Send(compilerClass, "evaluate:", []vm.Value{vmInst.Registry().NewStringValue("d at: #name put: 'Alice'")})
+	vmInst.Send(compilerClass, "evaluate:", []vm.Value{vmInst.Registry().NewStringValue("d at: #age put: 30")})
 
-	result := vmInst.Send(compilerClass, "evaluate:", []vm.Value{vm.NewStringValue("d at: #name")})
-	if !vm.IsStringValue(result) || vm.GetStringContent(result) != "Alice" {
+	result := vmInst.Send(compilerClass, "evaluate:", []vm.Value{vmInst.Registry().NewStringValue("d at: #name")})
+	if !vm.IsStringValue(result) || vmInst.Registry().GetStringContent(result) != "Alice" {
 		t.Errorf("d at: #name = %v, want 'Alice'", result)
 	}
 
-	result = vmInst.Send(compilerClass, "evaluate:", []vm.Value{vm.NewStringValue("d at: #age")})
+	result = vmInst.Send(compilerClass, "evaluate:", []vm.Value{vmInst.Registry().NewStringValue("d at: #age")})
 	if !result.IsSmallInt() || result.SmallInt() != 30 {
 		t.Errorf("d at: #age = %v, want 30", result)
 	}
 
-	result = vmInst.Send(compilerClass, "evaluate:", []vm.Value{vm.NewStringValue("d size")})
+	result = vmInst.Send(compilerClass, "evaluate:", []vm.Value{vmInst.Registry().NewStringValue("d size")})
 	if !result.IsSmallInt() || result.SmallInt() != 2 {
 		t.Errorf("d size = %v, want 2", result)
 	}
@@ -643,22 +643,22 @@ func TestIntegrationE2E_EvalGlobalPersistence(t *testing.T) {
 	vmInst.UseGoCompiler(compiler.Compile)
 	compilerClass := vmInst.Globals["Compiler"]
 
-	result := vmInst.Send(compilerClass, "evaluate:", []vm.Value{vm.NewStringValue("x := 42")})
+	result := vmInst.Send(compilerClass, "evaluate:", []vm.Value{vmInst.Registry().NewStringValue("x := 42")})
 	if !result.IsSmallInt() || result.SmallInt() != 42 {
 		t.Errorf("x := 42 = %v, want 42", result)
 	}
 
-	result = vmInst.Send(compilerClass, "evaluate:", []vm.Value{vm.NewStringValue("x + 8")})
+	result = vmInst.Send(compilerClass, "evaluate:", []vm.Value{vmInst.Registry().NewStringValue("x + 8")})
 	if !result.IsSmallInt() || result.SmallInt() != 50 {
 		t.Errorf("x + 8 = %v, want 50", result)
 	}
 
-	result = vmInst.Send(compilerClass, "evaluate:", []vm.Value{vm.NewStringValue("x := x * 2")})
+	result = vmInst.Send(compilerClass, "evaluate:", []vm.Value{vmInst.Registry().NewStringValue("x := x * 2")})
 	if !result.IsSmallInt() || result.SmallInt() != 84 {
 		t.Errorf("x := x * 2 = %v, want 84", result)
 	}
 
-	result = vmInst.Send(compilerClass, "evaluate:", []vm.Value{vm.NewStringValue("x")})
+	result = vmInst.Send(compilerClass, "evaluate:", []vm.Value{vmInst.Registry().NewStringValue("x")})
 	if !result.IsSmallInt() || result.SmallInt() != 84 {
 		t.Errorf("x = %v, want 84 (persisted)", result)
 	}
@@ -686,7 +686,7 @@ func TestIntegrationE2E_EvalExpressions(t *testing.T) {
 	}
 
 	for _, tc := range intTests {
-		result := vmInst.Send(compilerClass, "evaluate:", []vm.Value{vm.NewStringValue(tc.expr)})
+		result := vmInst.Send(compilerClass, "evaluate:", []vm.Value{vmInst.Registry().NewStringValue(tc.expr)})
 		if !result.IsSmallInt() || result.SmallInt() != tc.expected {
 			t.Errorf("evaluate: '%s' = %v, want %d", tc.expr, result, tc.expected)
 		}
@@ -706,7 +706,7 @@ func TestIntegrationE2E_EvalExpressions(t *testing.T) {
 	}
 
 	for _, tc := range boolTests {
-		result := vmInst.Send(compilerClass, "evaluate:", []vm.Value{vm.NewStringValue(tc.expr)})
+		result := vmInst.Send(compilerClass, "evaluate:", []vm.Value{vmInst.Registry().NewStringValue(tc.expr)})
 		if result != tc.expected {
 			t.Errorf("evaluate: '%s' = %v, want %v", tc.expr, result, tc.expected)
 		}
@@ -1001,17 +1001,17 @@ func TestIntegrationE2E_FloatArithmetic(t *testing.T) {
 	vmInst.UseGoCompiler(compiler.Compile)
 	compilerClass := vmInst.Globals["Compiler"]
 
-	result := vmInst.Send(compilerClass, "evaluate:", []vm.Value{vm.NewStringValue("1.5 + 2.5")})
+	result := vmInst.Send(compilerClass, "evaluate:", []vm.Value{vmInst.Registry().NewStringValue("1.5 + 2.5")})
 	if !result.IsFloat() || result.Float64() != 4.0 {
 		t.Errorf("1.5 + 2.5 = %v, want 4.0", result)
 	}
 
-	result = vmInst.Send(compilerClass, "evaluate:", []vm.Value{vm.NewStringValue("3.0 * 2.0")})
+	result = vmInst.Send(compilerClass, "evaluate:", []vm.Value{vmInst.Registry().NewStringValue("3.0 * 2.0")})
 	if !result.IsFloat() || result.Float64() != 6.0 {
 		t.Errorf("3.0 * 2.0 = %v, want 6.0", result)
 	}
 
-	result = vmInst.Send(compilerClass, "evaluate:", []vm.Value{vm.NewStringValue("3.7 truncated")})
+	result = vmInst.Send(compilerClass, "evaluate:", []vm.Value{vmInst.Registry().NewStringValue("3.7 truncated")})
 	if !result.IsSmallInt() || result.SmallInt() != 3 {
 		t.Errorf("3.7 truncated = %v, want 3", result)
 	}
@@ -1094,12 +1094,12 @@ func TestIntegrationE2E_EvalInContext(t *testing.T) {
 
 	arr := vmInst.NewArrayWithElements([]vm.Value{vm.FromSmallInt(100), vm.FromSmallInt(200), vm.FromSmallInt(300)})
 
-	result := vmInst.Send(compilerClass, "evaluate:in:", []vm.Value{vm.NewStringValue("self size"), arr})
+	result := vmInst.Send(compilerClass, "evaluate:in:", []vm.Value{vmInst.Registry().NewStringValue("self size"), arr})
 	if !result.IsSmallInt() || result.SmallInt() != 3 {
 		t.Errorf("evaluate: 'self size' in array = %v, want 3", result)
 	}
 
-	result = vmInst.Send(compilerClass, "evaluate:in:", []vm.Value{vm.NewStringValue("self at: 1"), arr})
+	result = vmInst.Send(compilerClass, "evaluate:in:", []vm.Value{vmInst.Registry().NewStringValue("self at: 1"), arr})
 	if !result.IsSmallInt() || result.SmallInt() != 200 {
 		t.Errorf("evaluate: 'self at: 1' in array = %v, want 200", result)
 	}

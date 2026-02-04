@@ -162,7 +162,7 @@ func (vm *VM) registerObjectPrimitives() {
 			}
 		} else if IsStringValue(message) {
 			// Backward compat: if a bare string is passed (old-style)
-			selectorName = GetStringContent(message)
+			selectorName = v.registry.GetStringContent(message)
 		} else if message.IsSymbol() {
 			selectorName = v.Symbols.Name(message.SymbolID())
 		}
@@ -200,7 +200,7 @@ func (vm *VM) registerObjectPrimitives() {
 		v := vmPtr.(*VM)
 		var msgStr string
 		if IsStringValue(message) {
-			msgStr = GetStringContent(message)
+			msgStr = v.registry.GetStringContent(message)
 		} else if message.IsSymbol() {
 			msgStr = v.Symbols.Name(message.SymbolID())
 		} else {

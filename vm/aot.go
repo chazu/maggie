@@ -285,7 +285,7 @@ func (c *AOTCompiler) compileBytecode(bc []byte, isBlock bool) {
 			c.writeLine("homeTemps[%d] = stack[sp-1]", idx)
 
 		case OpMakeCell:
-			c.writeLine("stack[sp-1] = NewCell(stack[sp-1])")
+			c.writeLine("stack[sp-1] = NewCell(vm.registry, stack[sp-1])")
 
 		case OpCellGet:
 			c.writeLine("if stack[sp-1].IsCell() { stack[sp-1] = stack[sp-1].CellGet() }")
@@ -303,7 +303,7 @@ func (c *AOTCompiler) compileBytecode(bc []byte, isBlock bool) {
 			if c.method != nil && c.method.Class() != nil {
 				className = c.method.Class().Name
 			}
-			c.writeLine("stack[sp] = vm.Classes.Lookup(%q).GetClassVar(vm.Symbols.Name(literals[%d].SymbolID()))", className, idx)
+			c.writeLine("stack[sp] = vm.Classes.Lookup(%q).GetClassVar(vm.registry, vm.Symbols.Name(literals[%d].SymbolID()))", className, idx)
 			c.writeLine("sp++")
 
 		case OpStoreClassVar:
@@ -314,7 +314,7 @@ func (c *AOTCompiler) compileBytecode(bc []byte, isBlock bool) {
 			if c.method != nil && c.method.Class() != nil {
 				className = c.method.Class().Name
 			}
-			c.writeLine("vm.Classes.Lookup(%q).SetClassVar(vm.Symbols.Name(literals[%d].SymbolID()), stack[sp-1])", className, idx)
+			c.writeLine("vm.Classes.Lookup(%q).SetClassVar(vm.registry, vm.Symbols.Name(literals[%d].SymbolID()), stack[sp-1])", className, idx)
 
 		case OpSend:
 			selIdx := binary.LittleEndian.Uint16(bc[pos:])

@@ -375,7 +375,7 @@ func doctestPrintString(vmInst *vm.VM, v vm.Value) string {
 	// Try sending printString via a safe wrapper to catch panics.
 	result, ok := doctestSafeSend(vmInst, v, "printString")
 	if ok && vm.IsStringValue(result) {
-		return vm.GetStringContent(result)
+		return vmInst.Registry().GetStringContent(result)
 	}
 
 	// Fallback for floats.
@@ -385,7 +385,7 @@ func doctestPrintString(vmInst *vm.VM, v vm.Value) string {
 
 	// Fallback for strings (they are encoded as symbols).
 	if vm.IsStringValue(v) {
-		return "'" + vm.GetStringContent(v) + "'"
+		return "'" + vmInst.Registry().GetStringContent(v) + "'"
 	}
 
 	// Last resort: hex representation.

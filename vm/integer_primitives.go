@@ -178,8 +178,9 @@ func (vm *VM) registerSmallIntegerPrimitives() {
 	})
 
 	// Printing
-	c.AddMethod0(vm.Selectors, "primPrintString", func(_ interface{}, recv Value) Value {
-		return NewStringValue(strconv.FormatInt(recv.SmallInt(), 10))
+	c.AddMethod0(vm.Selectors, "primPrintString", func(vmPtr interface{}, recv Value) Value {
+		v := vmPtr.(*VM)
+		return v.registry.NewStringValue(strconv.FormatInt(recv.SmallInt(), 10))
 	})
 
 	// Iteration

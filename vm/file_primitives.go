@@ -33,7 +33,7 @@ func (vm *VM) registerFilePrimitives() {
 			return v.newFailureResult("Cannot read file: " + err.Error())
 		}
 
-		return NewStringValue(string(content))
+		return v.registry.NewStringValue(string(content))
 	})
 
 	// ---------------------------------------------------------------------------
@@ -166,7 +166,7 @@ func (vm *VM) registerFilePrimitives() {
 
 		values := make([]Value, len(entries))
 		for i, entry := range entries {
-			values[i] = NewStringValue(entry.Name())
+			values[i] = v.registry.NewStringValue(entry.Name())
 		}
 		return v.NewArrayWithElements(values)
 	})
@@ -258,21 +258,21 @@ func (vm *VM) registerFilePrimitives() {
 	fileClass.AddClassMethod1(vm.Selectors, "basename:", func(vmPtr interface{}, recv Value, pathVal Value) Value {
 		v := vmPtr.(*VM)
 		path := v.valueToString(pathVal)
-		return NewStringValue(filepath.Base(path))
+		return v.registry.NewStringValue(filepath.Base(path))
 	})
 
 	// dirname: path - Get the directory portion of a path
 	fileClass.AddClassMethod1(vm.Selectors, "dirname:", func(vmPtr interface{}, recv Value, pathVal Value) Value {
 		v := vmPtr.(*VM)
 		path := v.valueToString(pathVal)
-		return NewStringValue(filepath.Dir(path))
+		return v.registry.NewStringValue(filepath.Dir(path))
 	})
 
 	// extension: path - Get the file extension (including dot)
 	fileClass.AddClassMethod1(vm.Selectors, "extension:", func(vmPtr interface{}, recv Value, pathVal Value) Value {
 		v := vmPtr.(*VM)
 		path := v.valueToString(pathVal)
-		return NewStringValue(filepath.Ext(path))
+		return v.registry.NewStringValue(filepath.Ext(path))
 	})
 
 	// join:with: - Join path components
@@ -280,7 +280,7 @@ func (vm *VM) registerFilePrimitives() {
 		v := vmPtr.(*VM)
 		path1 := v.valueToString(path1Val)
 		path2 := v.valueToString(path2Val)
-		return NewStringValue(filepath.Join(path1, path2))
+		return v.registry.NewStringValue(filepath.Join(path1, path2))
 	})
 
 	// absolutePath: path - Convert to absolute path
@@ -291,7 +291,7 @@ func (vm *VM) registerFilePrimitives() {
 		if err != nil {
 			return pathVal // Return original on error
 		}
-		return NewStringValue(abs)
+		return v.registry.NewStringValue(abs)
 	})
 
 	// workingDirectory - Get current working directory
@@ -301,7 +301,7 @@ func (vm *VM) registerFilePrimitives() {
 		if err != nil {
 			return v.newFailureResult("Cannot get working directory: " + err.Error())
 		}
-		return NewStringValue(wd)
+		return v.registry.NewStringValue(wd)
 	})
 
 	// homeDirectory - Get user's home directory
@@ -311,7 +311,7 @@ func (vm *VM) registerFilePrimitives() {
 		if err != nil {
 			return v.newFailureResult("Cannot get home directory: " + err.Error())
 		}
-		return NewStringValue(home)
+		return v.registry.NewStringValue(home)
 	})
 }
 
@@ -319,7 +319,7 @@ func (vm *VM) registerFilePrimitives() {
 // Works with String values and Symbol values.
 func (vm *VM) valueToString(v Value) string {
 	if IsStringValue(v) {
-		return GetStringContent(v)
+		return vm.registry.GetStringContent(v)
 	}
 	if v.IsSymbol() {
 		return vm.Symbols.Name(v.SymbolID())
@@ -330,5 +330,5 @@ func (vm *VM) valueToString(v Value) string {
 // newSuccessResult creates a Success result wrapping a value.
 func (vm *VM) newSuccessResult(val Value) Value {
 	r := createResult(ResultSuccess, val)
-	return registerResult(r)
+	return vm.registry.RegisterResultValue(r)
 }

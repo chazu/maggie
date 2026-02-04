@@ -567,13 +567,13 @@ func printValue(vmInst *vm.VM, v vm.Value) {
 		fmt.Println(v.Float64())
 	case vm.IsStringValue(v):
 		// String values (must check before IsSymbol since both use symbol tag)
-		fmt.Printf("'%s'\n", vm.GetStringContent(v))
+		fmt.Printf("'%s'\n", vmInst.Registry().GetStringContent(v))
 	case vm.IsDictionaryValue(v):
 		// Dictionary values (must check before IsSymbol since both use symbol tag)
 		// Call printString to display
 		result := vmInst.Send(v, "printString", nil)
 		if vm.IsStringValue(result) {
-			fmt.Printf("'%s'\n", vm.GetStringContent(result))
+			fmt.Printf("'%s'\n", vmInst.Registry().GetStringContent(result))
 		} else {
 			fmt.Println("a Dictionary")
 		}
@@ -854,7 +854,7 @@ func compileSourceFile(vmInst *vm.VM, source string, sourcePath string, nsOverri
 				continue
 			}
 
-			method, err := compiler.CompileMethodDefWithIvars(methodDef, vmInst.Selectors, vmInst.Symbols, allIvars)
+			method, err := compiler.CompileMethodDefWithIvars(methodDef, vmInst.Selectors, vmInst.Symbols, vmInst.Registry(), allIvars)
 			if err != nil {
 				return compiled, fmt.Errorf("error compiling %s>>%s: %v", classDef.Name, methodDef.Selector, err)
 			}
@@ -893,7 +893,7 @@ func compileSourceFile(vmInst *vm.VM, source string, sourcePath string, nsOverri
 				continue
 			}
 
-			method, err := compiler.CompileMethodDef(methodDef, vmInst.Selectors, vmInst.Symbols)
+			method, err := compiler.CompileMethodDef(methodDef, vmInst.Selectors, vmInst.Symbols, vmInst.Registry())
 			if err != nil {
 				return compiled, fmt.Errorf("error compiling %s class>>%s: %v", classDef.Name, methodDef.Selector, err)
 			}
@@ -965,7 +965,7 @@ func runYutaniIDE(vmInst *vm.VM, addr string, tool string, verbose bool) error {
 	if verbose {
 		fmt.Printf("Compiling: %s\n", startupCode)
 	}
-	method, err := compiler.Compile(source, vmInst.Selectors, vmInst.Symbols)
+	method, err := compiler.Compile(source, vmInst.Selectors, vmInst.Symbols, vmInst.Registry())
 	if err != nil {
 		return fmt.Errorf("compiling startup code: %w", err)
 	}

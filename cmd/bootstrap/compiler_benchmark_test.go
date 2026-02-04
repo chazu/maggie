@@ -272,7 +272,7 @@ func BenchmarkMaggieLexer(b *testing.B) {
 		b.Fatal("Lexer class not found")
 	}
 
-	source := vm.NewStringValue("factorial: n | result i | result := 1. i := 1. [i <= n] whileTrue: [result := result * i. i := i + 1]. ^result")
+	source := vmInst.Registry().NewStringValue("factorial: n | result i | result := 1. i := 1. [i <= n] whileTrue: [result := result * i. i := i + 1]. ^result")
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -320,7 +320,7 @@ func BenchmarkMaggieParser(b *testing.B) {
 		b.Fatal("Parser class not found")
 	}
 
-	source := vm.NewStringValue(`factorial: n
+	source := vmInst.Registry().NewStringValue(`factorial: n
     | result i |
     result := 1.
     i := 1.

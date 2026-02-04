@@ -22,7 +22,7 @@ func TestCompilerEvaluateSimpleInteger(t *testing.T) {
 	}
 
 	// Call Compiler evaluate: '42'
-	source := vm.NewStringValue("42")
+	source := vmInst.Registry().NewStringValue("42")
 	result := vmInst.Send(compilerClass, "evaluate:", []vm.Value{source})
 
 	if !result.IsSmallInt() {
@@ -38,7 +38,7 @@ func TestCompilerEvaluateArithmetic(t *testing.T) {
 	vmInst.UseGoCompiler(compiler.Compile)
 
 	compilerClass := vmInst.Globals["Compiler"]
-	source := vm.NewStringValue("3 + 4")
+	source := vmInst.Registry().NewStringValue("3 + 4")
 	result := vmInst.Send(compilerClass, "evaluate:", []vm.Value{source})
 
 	if !result.IsSmallInt() {
@@ -56,19 +56,19 @@ func TestCompilerEvaluateBoolean(t *testing.T) {
 	compilerClass := vmInst.Globals["Compiler"]
 
 	// Test true
-	result := vmInst.Send(compilerClass, "evaluate:", []vm.Value{vm.NewStringValue("true")})
+	result := vmInst.Send(compilerClass, "evaluate:", []vm.Value{vmInst.Registry().NewStringValue("true")})
 	if result != vm.True {
 		t.Errorf("Expected True, got: %v", result)
 	}
 
 	// Test false
-	result = vmInst.Send(compilerClass, "evaluate:", []vm.Value{vm.NewStringValue("false")})
+	result = vmInst.Send(compilerClass, "evaluate:", []vm.Value{vmInst.Registry().NewStringValue("false")})
 	if result != vm.False {
 		t.Errorf("Expected False, got: %v", result)
 	}
 
 	// Test nil
-	result = vmInst.Send(compilerClass, "evaluate:", []vm.Value{vm.NewStringValue("nil")})
+	result = vmInst.Send(compilerClass, "evaluate:", []vm.Value{vmInst.Registry().NewStringValue("nil")})
 	if result != vm.Nil {
 		t.Errorf("Expected Nil, got: %v", result)
 	}
@@ -81,13 +81,13 @@ func TestCompilerEvaluateComparison(t *testing.T) {
 	compilerClass := vmInst.Globals["Compiler"]
 
 	// Test 5 > 3
-	result := vmInst.Send(compilerClass, "evaluate:", []vm.Value{vm.NewStringValue("5 > 3")})
+	result := vmInst.Send(compilerClass, "evaluate:", []vm.Value{vmInst.Registry().NewStringValue("5 > 3")})
 	if result != vm.True {
 		t.Errorf("Expected True for 5 > 3, got: %v", result)
 	}
 
 	// Test 2 > 3
-	result = vmInst.Send(compilerClass, "evaluate:", []vm.Value{vm.NewStringValue("2 > 3")})
+	result = vmInst.Send(compilerClass, "evaluate:", []vm.Value{vmInst.Registry().NewStringValue("2 > 3")})
 	if result != vm.False {
 		t.Errorf("Expected False for 2 > 3, got: %v", result)
 	}
@@ -100,7 +100,7 @@ func TestCompilerEvaluateMessageSend(t *testing.T) {
 	compilerClass := vmInst.Globals["Compiler"]
 
 	// Test negative
-	result := vmInst.Send(compilerClass, "evaluate:", []vm.Value{vm.NewStringValue("5 negated")})
+	result := vmInst.Send(compilerClass, "evaluate:", []vm.Value{vmInst.Registry().NewStringValue("5 negated")})
 	if !result.IsSmallInt() {
 		t.Fatalf("Expected SmallInt, got: %v", result)
 	}
@@ -116,7 +116,7 @@ func TestCompilerEvaluateArray(t *testing.T) {
 	compilerClass := vmInst.Globals["Compiler"]
 
 	// Create an array and get its size
-	result := vmInst.Send(compilerClass, "evaluate:", []vm.Value{vm.NewStringValue("(Array new: 3) size")})
+	result := vmInst.Send(compilerClass, "evaluate:", []vm.Value{vmInst.Registry().NewStringValue("(Array new: 3) size")})
 	if !result.IsSmallInt() {
 		t.Fatalf("Expected SmallInt, got: %v", result)
 	}
@@ -135,7 +135,7 @@ func TestCompilerEvaluateInContext(t *testing.T) {
 	arr := vmInst.NewArrayWithElements([]vm.Value{vm.FromSmallInt(10), vm.FromSmallInt(20), vm.FromSmallInt(30)})
 
 	// Evaluate 'self size' in the context of the array
-	result := vmInst.Send(compilerClass, "evaluate:in:", []vm.Value{vm.NewStringValue("self size"), arr})
+	result := vmInst.Send(compilerClass, "evaluate:in:", []vm.Value{vmInst.Registry().NewStringValue("self size"), arr})
 	if !result.IsSmallInt() {
 		t.Fatalf("Expected SmallInt, got: %v", result)
 	}
@@ -166,7 +166,7 @@ func TestCompilerSetGetGlobal(t *testing.T) {
 	}
 
 	// Verify it's accessible via evaluate:
-	result = vmInst.Send(compilerClass, "evaluate:", []vm.Value{vm.NewStringValue("testVar + 1")})
+	result = vmInst.Send(compilerClass, "evaluate:", []vm.Value{vmInst.Registry().NewStringValue("testVar + 1")})
 	if !result.IsSmallInt() || result.SmallInt() != 100 {
 		t.Errorf("evaluate: testVar + 1 expected 100, got: %v", result)
 	}
@@ -179,7 +179,7 @@ func TestCompilerEvaluatePersistentGlobals(t *testing.T) {
 	compilerClass := vmInst.Globals["Compiler"]
 
 	// First evaluation: assign x := 42
-	result1 := vmInst.Send(compilerClass, "evaluate:", []vm.Value{vm.NewStringValue("x := 42")})
+	result1 := vmInst.Send(compilerClass, "evaluate:", []vm.Value{vmInst.Registry().NewStringValue("x := 42")})
 	if !result1.IsSmallInt() {
 		t.Fatalf("First evaluation: expected SmallInt, got: %v", result1)
 	}
@@ -188,7 +188,7 @@ func TestCompilerEvaluatePersistentGlobals(t *testing.T) {
 	}
 
 	// Second evaluation: use x (should persist from first evaluation)
-	result2 := vmInst.Send(compilerClass, "evaluate:", []vm.Value{vm.NewStringValue("x + 1")})
+	result2 := vmInst.Send(compilerClass, "evaluate:", []vm.Value{vmInst.Registry().NewStringValue("x + 1")})
 	if !result2.IsSmallInt() {
 		t.Fatalf("Second evaluation: expected SmallInt, got: %v", result2)
 	}
@@ -197,7 +197,7 @@ func TestCompilerEvaluatePersistentGlobals(t *testing.T) {
 	}
 
 	// Third evaluation: modify x (x is still 42, so 42 * 2 = 84)
-	result3 := vmInst.Send(compilerClass, "evaluate:", []vm.Value{vm.NewStringValue("x := x * 2")})
+	result3 := vmInst.Send(compilerClass, "evaluate:", []vm.Value{vmInst.Registry().NewStringValue("x := x * 2")})
 	if !result3.IsSmallInt() {
 		t.Fatalf("Third evaluation: expected SmallInt, got: %v", result3)
 	}
@@ -206,7 +206,7 @@ func TestCompilerEvaluatePersistentGlobals(t *testing.T) {
 	}
 
 	// Fourth evaluation: verify x was updated
-	result4 := vmInst.Send(compilerClass, "evaluate:", []vm.Value{vm.NewStringValue("x")})
+	result4 := vmInst.Send(compilerClass, "evaluate:", []vm.Value{vmInst.Registry().NewStringValue("x")})
 	if !result4.IsSmallInt() {
 		t.Fatalf("Fourth evaluation: expected SmallInt, got: %v", result4)
 	}
@@ -226,32 +226,32 @@ func TestBinaryOperatorFallbackToVTable(t *testing.T) {
 	// Add comparison methods to String class (simulating what String.mag does)
 	strClass := vmInst.StringClass
 	strClass.AddMethod1(vmInst.Selectors, "<", func(_ interface{}, recv vm.Value, other vm.Value) vm.Value {
-		s1 := vm.GetStringContent(recv)
-		s2 := vm.GetStringContent(other)
+		s1 := vmInst.Registry().GetStringContent(recv)
+		s2 := vmInst.Registry().GetStringContent(other)
 		if s1 < s2 {
 			return vm.True
 		}
 		return vm.False
 	})
 	strClass.AddMethod1(vmInst.Selectors, ">", func(_ interface{}, recv vm.Value, other vm.Value) vm.Value {
-		s1 := vm.GetStringContent(recv)
-		s2 := vm.GetStringContent(other)
+		s1 := vmInst.Registry().GetStringContent(recv)
+		s2 := vmInst.Registry().GetStringContent(other)
 		if s1 > s2 {
 			return vm.True
 		}
 		return vm.False
 	})
 	strClass.AddMethod1(vmInst.Selectors, "<=", func(_ interface{}, recv vm.Value, other vm.Value) vm.Value {
-		s1 := vm.GetStringContent(recv)
-		s2 := vm.GetStringContent(other)
+		s1 := vmInst.Registry().GetStringContent(recv)
+		s2 := vmInst.Registry().GetStringContent(other)
 		if s1 <= s2 {
 			return vm.True
 		}
 		return vm.False
 	})
 	strClass.AddMethod1(vmInst.Selectors, ">=", func(_ interface{}, recv vm.Value, other vm.Value) vm.Value {
-		s1 := vm.GetStringContent(recv)
-		s2 := vm.GetStringContent(other)
+		s1 := vmInst.Registry().GetStringContent(recv)
+		s2 := vmInst.Registry().GetStringContent(other)
 		if s1 >= s2 {
 			return vm.True
 		}
@@ -278,7 +278,7 @@ func TestBinaryOperatorFallbackToVTable(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		result := vmInst.Send(compilerClass, "evaluate:", []vm.Value{vm.NewStringValue(tt.expr)})
+		result := vmInst.Send(compilerClass, "evaluate:", []vm.Value{vmInst.Registry().NewStringValue(tt.expr)})
 		if result != tt.expected {
 			t.Errorf("%s: got %v, want %v", tt.expr, result, tt.expected)
 		}
@@ -296,7 +296,7 @@ func TestBinaryOperatorFallbackToVTable(t *testing.T) {
 	}
 
 	for _, tt := range numTests {
-		result := vmInst.Send(compilerClass, "evaluate:", []vm.Value{vm.NewStringValue(tt.expr)})
+		result := vmInst.Send(compilerClass, "evaluate:", []vm.Value{vmInst.Registry().NewStringValue(tt.expr)})
 		if result != tt.expected {
 			t.Errorf("%s: got %v, want %v", tt.expr, result, tt.expected)
 		}

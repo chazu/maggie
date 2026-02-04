@@ -98,18 +98,18 @@ func (vm *VM) registerWeakReferencePrimitives() {
 	c.AddMethod0(vm.Selectors, "printString", func(vmPtr interface{}, recv Value) Value {
 		v := vmPtr.(*VM)
 		if !recv.IsWeakRef() {
-			return NewStringValue("a WeakReference (invalid)")
+			return v.registry.NewStringValue("a WeakReference (invalid)")
 		}
 		wr := v.LookupWeakRef(recv.WeakRefID())
 		if wr == nil {
-			return NewStringValue("a WeakReference (unregistered)")
+			return v.registry.NewStringValue("a WeakReference (unregistered)")
 		}
 		if wr.IsAlive() {
 			target := wr.Get()
 			if target != nil {
-				return NewStringValue("a WeakReference to " + target.ClassName())
+				return v.registry.NewStringValue("a WeakReference to " + target.ClassName())
 			}
 		}
-		return NewStringValue("a WeakReference (collected)")
+		return v.registry.NewStringValue("a WeakReference (collected)")
 	})
 }

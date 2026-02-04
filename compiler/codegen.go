@@ -14,6 +14,7 @@ import (
 type Compiler struct {
 	selectors *vm.SelectorTable
 	symbols   *vm.SymbolTable
+	registry  *vm.ObjectRegistry
 
 	// Current compilation context
 	builder     *vm.BytecodeBuilder
@@ -48,10 +49,11 @@ type Compiler struct {
 }
 
 // NewCompiler creates a new compiler.
-func NewCompiler(selectors *vm.SelectorTable, symbols *vm.SymbolTable) *Compiler {
+func NewCompiler(selectors *vm.SelectorTable, symbols *vm.SymbolTable, registry *vm.ObjectRegistry) *Compiler {
 	return &Compiler{
 		selectors: selectors,
 		symbols:   symbols,
+		registry:  registry,
 	}
 }
 
@@ -358,7 +360,7 @@ func (c *Compiler) compileFloat(value float64) {
 
 func (c *Compiler) compileString(value string) {
 	// Create an actual string value in the VM's string registry
-	idx := c.addLiteral(vm.NewStringValue(value))
+	idx := c.addLiteral(c.registry.NewStringValue(value))
 	c.builder.EmitUint16(vm.OpPushLiteral, uint16(idx))
 }
 
@@ -1122,7 +1124,7 @@ func (c *Compiler) findCellVariables(method *MethodDef) map[string]bool {
 // ---------------------------------------------------------------------------
 
 // Compile parses and compiles source code to a method.
-func Compile(source string, selectors *vm.SelectorTable, symbols *vm.SymbolTable) (*vm.CompiledMethod, error) {
+func Compile(source string, selectors *vm.SelectorTable, symbols *vm.SymbolTable, registry *vm.ObjectRegistry) (*vm.CompiledMethod, error) {
 	parser := NewParser(source)
 	method := parser.ParseMethod()
 	if len(parser.Errors()) > 0 {
@@ -1133,7 +1135,7 @@ func Compile(source string, selectors *vm.SelectorTable, symbols *vm.SymbolTable
 	warnings := Analyze(method, nil)
 	_ = warnings // In the future, could log these or return them
 
-	compiler := NewCompiler(selectors, symbols)
+	compiler := NewCompiler(selectors, symbols, registry)
 	compiled := compiler.CompileMethod(method)
 	if len(compiler.Errors()) > 0 {
 		return nil, fmt.Errorf("compile errors: %v", compiler.Errors())
@@ -1143,14 +1145,14 @@ func Compile(source string, selectors *vm.SelectorTable, symbols *vm.SymbolTable
 }
 
 // CompileExpr parses and compiles an expression.
-func CompileExpr(source string, selectors *vm.SelectorTable, symbols *vm.SymbolTable) (*vm.CompiledMethod, error) {
+func CompileExpr(source string, selectors *vm.SelectorTable, symbols *vm.SymbolTable, registry *vm.ObjectRegistry) (*vm.CompiledMethod, error) {
 	parser := NewParser(source)
 	expr := parser.ParseExpression()
 	if len(parser.Errors()) > 0 {
 		return nil, fmt.Errorf("parse errors: %v", parser.Errors())
 	}
 
-	compiler := NewCompiler(selectors, symbols)
+	compiler := NewCompiler(selectors, symbols, registry)
 	compiled := compiler.CompileExpression(expr)
 	if len(compiler.Errors()) > 0 {
 		return nil, fmt.Errorf("compile errors: %v", compiler.Errors())
@@ -1170,18 +1172,18 @@ func ParseSourceFileFromString(source string) (*SourceFile, error) {
 }
 
 // CompileMethodDef compiles a single method definition to a CompiledMethod.
-func CompileMethodDef(method *MethodDef, selectors *vm.SelectorTable, symbols *vm.SymbolTable) (*vm.CompiledMethod, error) {
-	return CompileMethodDefWithIvars(method, selectors, symbols, nil)
+func CompileMethodDef(method *MethodDef, selectors *vm.SelectorTable, symbols *vm.SymbolTable, registry *vm.ObjectRegistry) (*vm.CompiledMethod, error) {
+	return CompileMethodDefWithIvars(method, selectors, symbols, registry, nil)
 }
 
 // CompileMethodDefWithIvars compiles a method with instance variable context.
 // The instVars slice contains the instance variable names in order.
-func CompileMethodDefWithIvars(method *MethodDef, selectors *vm.SelectorTable, symbols *vm.SymbolTable, instVars []string) (*vm.CompiledMethod, error) {
+func CompileMethodDefWithIvars(method *MethodDef, selectors *vm.SelectorTable, symbols *vm.SymbolTable, registry *vm.ObjectRegistry, instVars []string) (*vm.CompiledMethod, error) {
 	// Run semantic analysis (warnings only, don't fail)
 	warnings := Analyze(method, instVars)
 	_ = warnings // In the future, could log these or return them
 
-	compiler := NewCompiler(selectors, symbols)
+	compiler := NewCompiler(selectors, symbols, registry)
 	if len(instVars) > 0 {
 		compiler.SetInstanceVars(instVars)
 	}

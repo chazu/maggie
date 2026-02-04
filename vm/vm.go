@@ -350,19 +350,19 @@ func (vm *VM) registerSymbolDispatch() {
 
 	// Exceptions — resolve to the specific exception subclass
 	sd.Register(exceptionMarker, &SymbolTypeEntry{
-		Resolve: func(v Value, _ *VM) (*Class, bool) {
-			exObj := GetExceptionObject(v)
+		Resolve: func(v Value, resolveVM *VM) (*Class, bool) {
+			exObj := resolveVM.registry.GetException(v.ExceptionID())
 			if exObj != nil && exObj.ExceptionClass != nil {
 				return exObj.ExceptionClass, true
 			}
-			return vm.ExceptionClass, true
+			return resolveVM.ExceptionClass, true
 		},
 	})
 
 	// Results — resolve to Success or Failure
 	sd.Register(resultMarker, &SymbolTypeEntry{
-		Resolve: func(v Value, _ *VM) (*Class, bool) {
-			r := getResult(v)
+		Resolve: func(v Value, vmRef *VM) (*Class, bool) {
+			r := vmRef.registry.GetResultFromValue(v)
 			if r != nil && r.resultType == ResultSuccess {
 				return vm.SuccessClass, true
 			}
@@ -390,6 +390,11 @@ func (vm *VM) ClassValue(c *Class) Value {
 // Concurrency returns the concurrency registry for this VM.
 func (vm *VM) Concurrency() *ConcurrencyRegistry {
 	return vm.registry.ConcurrencyRegistry
+}
+
+// Registry returns the VM's object registry for external package access.
+func (vm *VM) Registry() *ObjectRegistry {
+	return vm.registry
 }
 
 // SweepConcurrency runs garbage collection on concurrency objects.
@@ -737,8 +742,6 @@ func (vm *VM) SendSuper(receiver Value, selector string, args []Value, definingC
 // methodIdx is the index of the block in the parent method's Blocks slice.
 // The method parameter is the parent CompiledMethod that contains the block definition.
 func (vm *VM) CreateBlock(block *BlockMethod, captures []Value, homeSelf Value) Value {
-	id := int(nextBlockID.Add(1) - 1)
-
 	bv := &BlockValue{
 		Block:      block,
 		Captures:   captures,
@@ -752,9 +755,7 @@ func (vm *VM) CreateBlock(block *BlockMethod, captures []Value, homeSelf Value) 
 		bv.HomeMethod = block.Outer
 	}
 
-	blockRegistryMu.Lock()
-	blockRegistry[id] = bv
-	blockRegistryMu.Unlock()
+	id := vm.registry.RegisterBlock(bv)
 
 	return FromBlockID(uint32(id))
 }
@@ -810,9 +811,9 @@ func (vm *VM) CollectGarbage() int {
 		vm.markValue(v, marked)
 	}
 
-	// Mark objects reachable from block captures
-	blockRegistryMu.RLock()
-	for _, bv := range blockRegistry {
+	// Mark objects reachable from block captures (VM-local registry)
+	vm.registry.blocksMu.RLock()
+	for _, bv := range vm.registry.blocks {
 		if bv != nil {
 			for _, capture := range bv.Captures {
 				vm.markValue(capture, marked)
@@ -820,7 +821,7 @@ func (vm *VM) CollectGarbage() int {
 			vm.markValue(bv.HomeSelf, marked)
 		}
 	}
-	blockRegistryMu.RUnlock()
+	vm.registry.blocksMu.RUnlock()
 
 	// Mark objects reachable from frames (temps on stack are already covered,
 	// but Receiver values need marking)
@@ -902,7 +903,7 @@ func (vm *VM) KeepAliveCount() int {
 // NewWeakRef creates a new weak reference to the given object.
 // The weak reference is registered with the VM's weak reference registry.
 func (vm *VM) NewWeakRef(target *Object) *WeakReference {
-	wr := NewWeakReference(target)
+	wr := NewWeakReference(vm.registry, target)
 	vm.weakRefs.Register(wr)
 	return wr
 }

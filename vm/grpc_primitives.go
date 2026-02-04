@@ -32,16 +32,6 @@ type GrpcClientObject struct {
 	mu        sync.Mutex
 }
 
-// grpcClientRegistry stores active gRPC clients
-var grpcClientRegistry = struct {
-	sync.RWMutex
-	clients map[int]*GrpcClientObject
-	nextID  int
-}{
-	clients: make(map[int]*GrpcClientObject),
-	nextID:  1,
-}
-
 const grpcClientMarker = 7 << 24 // 0x07000000
 
 func grpcClientToValue(id int) Value {
@@ -56,37 +46,30 @@ func isGrpcClientValue(v Value) bool {
 	return (id & (0xFF << 24)) == grpcClientMarker
 }
 
-func getGrpcClient(v Value) *GrpcClientObject {
+func grpcClientIDFromValue(v Value) int {
+	return int(v.SymbolID() & ^uint32(0xFF<<24))
+}
+
+// vmGetGrpcClient retrieves a gRPC client from the VM-local registry.
+func (vm *VM) vmGetGrpcClient(v Value) *GrpcClientObject {
 	if !isGrpcClientValue(v) {
 		return nil
 	}
-	id := int(v.SymbolID() & ^uint32(0xFF<<24))
-
-	grpcClientRegistry.RLock()
-	defer grpcClientRegistry.RUnlock()
-	return grpcClientRegistry.clients[id]
+	return vm.registry.GetGrpcClient(grpcClientIDFromValue(v))
 }
 
-func registerGrpcClient(c *GrpcClientObject) Value {
-	grpcClientRegistry.Lock()
-	defer grpcClientRegistry.Unlock()
-
-	id := grpcClientRegistry.nextID
-	grpcClientRegistry.nextID++
-	grpcClientRegistry.clients[id] = c
-
+// vmRegisterGrpcClient registers a gRPC client in the VM-local registry and returns a Value.
+func (vm *VM) vmRegisterGrpcClient(c *GrpcClientObject) Value {
+	id := vm.registry.RegisterGrpcClient(c)
 	return grpcClientToValue(id)
 }
 
-func unregisterGrpcClient(v Value) {
+// vmUnregisterGrpcClient removes a gRPC client from the VM-local registry.
+func (vm *VM) vmUnregisterGrpcClient(v Value) {
 	if !isGrpcClientValue(v) {
 		return
 	}
-	id := int(v.SymbolID() & ^uint32(0xFF<<24))
-
-	grpcClientRegistry.Lock()
-	defer grpcClientRegistry.Unlock()
-	delete(grpcClientRegistry.clients, id)
+	vm.registry.UnregisterGrpcClient(grpcClientIDFromValue(v))
 }
 
 // ---------------------------------------------------------------------------
@@ -113,16 +96,6 @@ type GrpcStreamObject struct {
 	mu         sync.Mutex
 }
 
-// grpcStreamRegistry stores active gRPC streams
-var grpcStreamRegistry = struct {
-	sync.RWMutex
-	streams map[int]*GrpcStreamObject
-	nextID  int
-}{
-	streams: make(map[int]*GrpcStreamObject),
-	nextID:  1,
-}
-
 const grpcStreamMarker = 9 << 24 // 0x09000000 (8 << 24 is used by exceptions)
 
 func grpcStreamToValue(id int) Value {
@@ -137,51 +110,44 @@ func isGrpcStreamValue(v Value) bool {
 	return (id & (0xFF << 24)) == grpcStreamMarker
 }
 
-func getGrpcStream(v Value) *GrpcStreamObject {
+func grpcStreamIDFromValue(v Value) int {
+	return int(v.SymbolID() & ^uint32(0xFF<<24))
+}
+
+// vmGetGrpcStream retrieves a gRPC stream from the VM-local registry.
+func (vm *VM) vmGetGrpcStream(v Value) *GrpcStreamObject {
 	if !isGrpcStreamValue(v) {
 		return nil
 	}
-	id := int(v.SymbolID() & ^uint32(0xFF<<24))
-
-	grpcStreamRegistry.RLock()
-	defer grpcStreamRegistry.RUnlock()
-	return grpcStreamRegistry.streams[id]
+	return vm.registry.GetGrpcStream(grpcStreamIDFromValue(v))
 }
 
-func registerGrpcStream(s *GrpcStreamObject) Value {
-	grpcStreamRegistry.Lock()
-	defer grpcStreamRegistry.Unlock()
-
-	id := grpcStreamRegistry.nextID
-	grpcStreamRegistry.nextID++
-	grpcStreamRegistry.streams[id] = s
-
+// vmRegisterGrpcStream registers a gRPC stream in the VM-local registry and returns a Value.
+func (vm *VM) vmRegisterGrpcStream(s *GrpcStreamObject) Value {
+	id := vm.registry.RegisterGrpcStream(s)
 	return grpcStreamToValue(id)
 }
 
-func unregisterGrpcStream(v Value) {
+// vmUnregisterGrpcStream removes a gRPC stream from the VM-local registry.
+func (vm *VM) vmUnregisterGrpcStream(v Value) {
 	if !isGrpcStreamValue(v) {
 		return
 	}
-	id := int(v.SymbolID() & ^uint32(0xFF<<24))
-
-	grpcStreamRegistry.Lock()
-	defer grpcStreamRegistry.Unlock()
-	delete(grpcStreamRegistry.streams, id)
+	vm.registry.UnregisterGrpcStream(grpcStreamIDFromValue(v))
 }
 
 // ---------------------------------------------------------------------------
 // Helper functions for Result creation
 // ---------------------------------------------------------------------------
 
-func grpcSuccess(val Value) Value {
+func (vm *VM) grpcSuccess(val Value) Value {
 	r := createResult(ResultSuccess, val)
-	return registerResult(r)
+	return vm.registry.RegisterResultValue(r)
 }
 
-func grpcFailure(reason string) Value {
-	r := createResult(ResultFailure, NewStringValue(reason))
-	return registerResult(r)
+func (vm *VM) grpcFailure(reason string) Value {
+	r := createResult(ResultFailure, vm.registry.NewStringValue(reason))
+	return vm.registry.RegisterResultValue(r)
 }
 
 // ---------------------------------------------------------------------------
@@ -218,7 +184,7 @@ func resolveMethod(client *GrpcClientObject, fullMethod string) (*desc.MethodDes
 
 // dictionaryToProto converts a Maggie Dictionary to a protobuf dynamic message
 func dictionaryToProto(vm *VM, dictVal Value, msgDesc *desc.MessageDescriptor) (*dynamic.Message, error) {
-	dict := GetDictionaryObject(dictVal)
+	dict := vm.registry.GetDictionaryObject(dictVal)
 	if dict == nil {
 		return nil, fmt.Errorf("not a dictionary")
 	}
@@ -233,7 +199,7 @@ func dictionaryToProto(vm *VM, dictVal Value, msgDesc *desc.MessageDescriptor) (
 		if key.IsSymbol() {
 			fieldName = vm.Symbols.Name(key.SymbolID())
 		} else if IsStringValue(key) {
-			fieldName = GetStringContent(key)
+			fieldName = vm.registry.GetStringContent(key)
 		} else {
 			continue // Skip non-string/symbol keys
 		}
@@ -303,14 +269,14 @@ func valueToProtoField(vm *VM, val Value, field *desc.FieldDescriptor) (interfac
 		return val == True, nil
 	case descriptorpb.FieldDescriptorProto_TYPE_STRING:
 		if IsStringValue(val) {
-			return GetStringContent(val), nil
+			return vm.registry.GetStringContent(val), nil
 		}
 		if val.IsSymbol() {
 			return vm.Symbols.Name(val.SymbolID()), nil
 		}
 	case descriptorpb.FieldDescriptorProto_TYPE_BYTES:
 		if IsStringValue(val) {
-			return []byte(GetStringContent(val)), nil
+			return []byte(vm.registry.GetStringContent(val)), nil
 		}
 	case descriptorpb.FieldDescriptorProto_TYPE_MESSAGE:
 		if IsDictionaryValue(val) {
@@ -323,7 +289,7 @@ func valueToProtoField(vm *VM, val Value, field *desc.FieldDescriptor) (interfac
 		if IsStringValue(val) || val.IsSymbol() {
 			name := ""
 			if IsStringValue(val) {
-				name = GetStringContent(val)
+				name = vm.registry.GetStringContent(val)
 			} else {
 				name = vm.Symbols.Name(val.SymbolID())
 			}
@@ -367,7 +333,7 @@ func valueToRepeatedField(vm *VM, val Value, field *desc.FieldDescriptor) (inter
 
 // protoToDictionary converts a protobuf dynamic message to a Maggie Dictionary
 func protoToDictionary(vm *VM, msg *dynamic.Message) (Value, error) {
-	dict := NewDictionaryValue()
+	dict := vm.registry.NewDictionaryValue()
 
 	for _, field := range msg.GetKnownFields() {
 		hasField := msg.HasField(field)
@@ -434,9 +400,9 @@ func protoFieldToValue(vm *VM, val interface{}, field *desc.FieldDescriptor) (Va
 		}
 		return False, nil
 	case descriptorpb.FieldDescriptorProto_TYPE_STRING:
-		return NewStringValue(val.(string)), nil
+		return vm.registry.NewStringValue(val.(string)), nil
 	case descriptorpb.FieldDescriptorProto_TYPE_BYTES:
-		return NewStringValue(string(val.([]byte))), nil
+		return vm.registry.NewStringValue(string(val.([]byte))), nil
 	case descriptorpb.FieldDescriptorProto_TYPE_MESSAGE:
 		return protoToDictionary(vm, val.(*dynamic.Message))
 	case descriptorpb.FieldDescriptorProto_TYPE_ENUM:
@@ -504,9 +470,9 @@ func protoElementToValue(vm *VM, val interface{}, field *desc.FieldDescriptor) (
 		}
 		return False, nil
 	case descriptorpb.FieldDescriptorProto_TYPE_STRING:
-		return NewStringValue(val.(string)), nil
+		return vm.registry.NewStringValue(val.(string)), nil
 	case descriptorpb.FieldDescriptorProto_TYPE_BYTES:
-		return NewStringValue(string(val.([]byte))), nil
+		return vm.registry.NewStringValue(string(val.([]byte))), nil
 	case descriptorpb.FieldDescriptorProto_TYPE_MESSAGE:
 		return protoToDictionary(vm, val.(*dynamic.Message))
 	case descriptorpb.FieldDescriptorProto_TYPE_ENUM:
@@ -529,7 +495,7 @@ func mapFieldToValue(vm *VM, val interface{}, field *desc.FieldDescriptor) (Valu
 		return Nil, fmt.Errorf("expected map, got %T", val)
 	}
 
-	dict := NewDictionaryValue()
+	dict := vm.registry.NewDictionaryValue()
 	mapEntry := field.GetMapKeyType()
 	valueField := field.GetMapValueType()
 
@@ -556,7 +522,7 @@ func mapFieldToValue(vm *VM, val interface{}, field *desc.FieldDescriptor) (Valu
 					return Nil, fmt.Errorf("map key conversion: %w", err)
 				}
 			} else {
-				keyVal = NewStringValue(fmt.Sprintf("%v", k))
+				keyVal = vm.registry.NewStringValue(fmt.Sprintf("%v", k))
 			}
 		}
 
@@ -572,7 +538,7 @@ func mapFieldToValue(vm *VM, val interface{}, field *desc.FieldDescriptor) (Valu
 			// Fallback for unknown value types
 			switch vTyped := v.(type) {
 			case string:
-				valueVal = NewStringValue(vTyped)
+				valueVal = vm.registry.NewStringValue(vTyped)
 			case int32:
 				valueVal = FromSmallInt(int64(vTyped))
 			case int64:
@@ -588,7 +554,7 @@ func mapFieldToValue(vm *VM, val interface{}, field *desc.FieldDescriptor) (Valu
 					valueVal = False
 				}
 			default:
-				valueVal = NewStringValue(fmt.Sprintf("%v", v))
+				valueVal = vm.registry.NewStringValue(fmt.Sprintf("%v", v))
 			}
 		}
 
@@ -606,15 +572,16 @@ func (vm *VM) registerGrpcPrimitives() {
 	c := vm.GrpcClientClass
 
 	// GrpcClient class>>connectTo: target - connect to gRPC server
-	c.AddClassMethod1(vm.Selectors, "connectTo:", func(_ interface{}, recv Value, target Value) Value {
+	c.AddClassMethod1(vm.Selectors, "connectTo:", func(vmPtr interface{}, recv Value, target Value) Value {
+		v := vmPtr.(*VM)
 		if !IsStringValue(target) {
-			return grpcFailure("target must be a string")
+			return v.grpcFailure("target must be a string")
 		}
-		targetStr := GetStringContent(target)
+		targetStr := v.registry.GetStringContent(target)
 
 		conn, err := grpc.Dial(targetStr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 		if err != nil {
-			return grpcFailure(fmt.Sprintf("connection failed: %v", err))
+			return v.grpcFailure(fmt.Sprintf("connection failed: %v", err))
 		}
 
 		// Create reflection client
@@ -626,12 +593,13 @@ func (vm *VM) registerGrpcPrimitives() {
 			target:    targetStr,
 		}
 
-		return grpcSuccess(registerGrpcClient(clientObj))
+		return v.grpcSuccess(v.vmRegisterGrpcClient(clientObj))
 	})
 
 	// GrpcClient>>close - close connection
-	c.AddMethod0(vm.Selectors, "close", func(_ interface{}, recv Value) Value {
-		client := getGrpcClient(recv)
+	c.AddMethod0(vm.Selectors, "close", func(vmPtr interface{}, recv Value) Value {
+		v := vmPtr.(*VM)
+		client := v.vmGetGrpcClient(recv)
 		if client == nil {
 			return recv
 		}
@@ -641,14 +609,15 @@ func (vm *VM) registerGrpcPrimitives() {
 			client.closed.Store(true)
 			client.refClient.Reset()
 			client.conn.Close()
-			unregisterGrpcClient(recv)
+			v.vmUnregisterGrpcClient(recv)
 		}
 		return recv
 	})
 
 	// GrpcClient>>isConnected - check if connected
-	c.AddMethod0(vm.Selectors, "isConnected", func(_ interface{}, recv Value) Value {
-		client := getGrpcClient(recv)
+	c.AddMethod0(vm.Selectors, "isConnected", func(vmPtr interface{}, recv Value) Value {
+		v := vmPtr.(*VM)
+		client := v.vmGetGrpcClient(recv)
 		if client == nil || client.closed.Load() {
 			return False
 		}
@@ -658,7 +627,7 @@ func (vm *VM) registerGrpcPrimitives() {
 	// GrpcClient>>listServices - list available services via reflection
 	c.AddMethod0(vm.Selectors, "listServices", func(vmPtr interface{}, recv Value) Value {
 		v := vmPtr.(*VM)
-		client := getGrpcClient(recv)
+		client := v.vmGetGrpcClient(recv)
 		if client == nil || client.closed.Load() {
 			return v.NewArray(0)
 		}
@@ -674,7 +643,7 @@ func (vm *VM) registerGrpcPrimitives() {
 			if strings.HasPrefix(svc, "grpc.reflection") {
 				continue
 			}
-			elements = append(elements, NewStringValue(svc))
+			elements = append(elements, v.registry.NewStringValue(svc))
 		}
 		return v.NewArrayWithElements(elements)
 	})
@@ -682,12 +651,12 @@ func (vm *VM) registerGrpcPrimitives() {
 	// GrpcClient>>methodsForService: serviceName - list methods for a service
 	c.AddMethod1(vm.Selectors, "methodsForService:", func(vmPtr interface{}, recv Value, serviceName Value) Value {
 		v := vmPtr.(*VM)
-		client := getGrpcClient(recv)
+		client := v.vmGetGrpcClient(recv)
 		if client == nil || !IsStringValue(serviceName) {
 			return v.NewArray(0)
 		}
 
-		svcName := GetStringContent(serviceName)
+		svcName := v.registry.GetStringContent(serviceName)
 		svcDesc, err := client.refClient.ResolveService(svcName)
 		if err != nil {
 			return v.NewArray(0)
@@ -696,7 +665,7 @@ func (vm *VM) registerGrpcPrimitives() {
 		methods := svcDesc.GetMethods()
 		elements := make([]Value, len(methods))
 		for i, m := range methods {
-			elements[i] = NewStringValue(m.GetName())
+			elements[i] = v.registry.NewStringValue(m.GetName())
 		}
 		return v.NewArrayWithElements(elements)
 	})
@@ -704,21 +673,21 @@ func (vm *VM) registerGrpcPrimitives() {
 	// GrpcClient>>methodDescriptor: methodName - get method metadata
 	c.AddMethod1(vm.Selectors, "methodDescriptor:", func(vmPtr interface{}, recv Value, methodName Value) Value {
 		v := vmPtr.(*VM)
-		client := getGrpcClient(recv)
+		client := v.vmGetGrpcClient(recv)
 		if client == nil || !IsStringValue(methodName) {
 			return Nil
 		}
 
-		methodDesc, err := resolveMethod(client, GetStringContent(methodName))
+		methodDesc, err := resolveMethod(client, v.registry.GetStringContent(methodName))
 		if err != nil {
 			return Nil
 		}
 
-		dict := NewDictionaryValue()
-		v.DictionaryAtPut(dict, v.Symbols.SymbolValue("name"), NewStringValue(methodDesc.GetName()))
-		v.DictionaryAtPut(dict, v.Symbols.SymbolValue("fullName"), NewStringValue(methodDesc.GetFullyQualifiedName()))
-		v.DictionaryAtPut(dict, v.Symbols.SymbolValue("inputType"), NewStringValue(methodDesc.GetInputType().GetFullyQualifiedName()))
-		v.DictionaryAtPut(dict, v.Symbols.SymbolValue("outputType"), NewStringValue(methodDesc.GetOutputType().GetFullyQualifiedName()))
+		dict := v.registry.NewDictionaryValue()
+		v.DictionaryAtPut(dict, v.Symbols.SymbolValue("name"), v.registry.NewStringValue(methodDesc.GetName()))
+		v.DictionaryAtPut(dict, v.Symbols.SymbolValue("fullName"), v.registry.NewStringValue(methodDesc.GetFullyQualifiedName()))
+		v.DictionaryAtPut(dict, v.Symbols.SymbolValue("inputType"), v.registry.NewStringValue(methodDesc.GetInputType().GetFullyQualifiedName()))
+		v.DictionaryAtPut(dict, v.Symbols.SymbolValue("outputType"), v.registry.NewStringValue(methodDesc.GetOutputType().GetFullyQualifiedName()))
 		if methodDesc.IsClientStreaming() {
 			v.DictionaryAtPut(dict, v.Symbols.SymbolValue("isClientStreaming"), True)
 		} else {
@@ -736,27 +705,27 @@ func (vm *VM) registerGrpcPrimitives() {
 	// GrpcClient>>call:with: - make a unary RPC call
 	c.AddMethod2(vm.Selectors, "call:with:", func(vmPtr interface{}, recv Value, methodName Value, requestDict Value) Value {
 		v := vmPtr.(*VM)
-		client := getGrpcClient(recv)
+		client := v.vmGetGrpcClient(recv)
 		if client == nil {
-			return grpcFailure("invalid client")
+			return v.grpcFailure("invalid client")
 		}
 		if !IsStringValue(methodName) {
-			return grpcFailure("method name must be a string")
+			return v.grpcFailure("method name must be a string")
 		}
 		if !IsDictionaryValue(requestDict) {
-			return grpcFailure("request must be a dictionary")
+			return v.grpcFailure("request must be a dictionary")
 		}
 
-		method := GetStringContent(methodName)
+		method := v.registry.GetStringContent(methodName)
 		methodDesc, err := resolveMethod(client, method)
 		if err != nil {
-			return grpcFailure(err.Error())
+			return v.grpcFailure(err.Error())
 		}
 
 		// Convert Maggie Dictionary to protobuf
 		reqMsg, err := dictionaryToProto(v, requestDict, methodDesc.GetInputType())
 		if err != nil {
-			return grpcFailure(fmt.Sprintf("request conversion: %v", err))
+			return v.grpcFailure(fmt.Sprintf("request conversion: %v", err))
 		}
 
 		// Create response message
@@ -765,42 +734,42 @@ func (vm *VM) registerGrpcPrimitives() {
 		// Invoke the method
 		err = client.conn.Invoke(context.Background(), "/"+method, reqMsg, respMsg)
 		if err != nil {
-			return grpcFailure(fmt.Sprintf("call failed: %v", err))
+			return v.grpcFailure(fmt.Sprintf("call failed: %v", err))
 		}
 
 		// Convert response back to Maggie Dictionary
 		respDict, err := protoToDictionary(v, respMsg)
 		if err != nil {
-			return grpcFailure(fmt.Sprintf("response conversion: %v", err))
+			return v.grpcFailure(fmt.Sprintf("response conversion: %v", err))
 		}
 
-		return grpcSuccess(respDict)
+		return v.grpcSuccess(respDict)
 	})
 
 	// GrpcClient>>serverStream:with: - create a server streaming call
 	c.AddMethod2(vm.Selectors, "serverStream:with:", func(vmPtr interface{}, recv Value, methodName Value, requestDict Value) Value {
 		v := vmPtr.(*VM)
-		client := getGrpcClient(recv)
+		client := v.vmGetGrpcClient(recv)
 		if client == nil {
-			return grpcFailure("invalid client")
+			return v.grpcFailure("invalid client")
 		}
 		if !IsStringValue(methodName) {
-			return grpcFailure("method name must be a string")
+			return v.grpcFailure("method name must be a string")
 		}
 		if !IsDictionaryValue(requestDict) {
-			return grpcFailure("request must be a dictionary")
+			return v.grpcFailure("request must be a dictionary")
 		}
 
-		method := GetStringContent(methodName)
+		method := v.registry.GetStringContent(methodName)
 		methodDesc, err := resolveMethod(client, method)
 		if err != nil {
-			return grpcFailure(err.Error())
+			return v.grpcFailure(err.Error())
 		}
 
 		// Convert request
 		reqMsg, err := dictionaryToProto(v, requestDict, methodDesc.GetInputType())
 		if err != nil {
-			return grpcFailure(fmt.Sprintf("request conversion: %v", err))
+			return v.grpcFailure(fmt.Sprintf("request conversion: %v", err))
 		}
 
 		// Create stream
@@ -810,15 +779,15 @@ func (vm *VM) registerGrpcPrimitives() {
 		}
 		stream, err := client.conn.NewStream(context.Background(), streamDesc, "/"+method)
 		if err != nil {
-			return grpcFailure(fmt.Sprintf("stream creation: %v", err))
+			return v.grpcFailure(fmt.Sprintf("stream creation: %v", err))
 		}
 
 		// Send the single request
 		if err := stream.SendMsg(reqMsg); err != nil {
-			return grpcFailure(fmt.Sprintf("send request: %v", err))
+			return v.grpcFailure(fmt.Sprintf("send request: %v", err))
 		}
 		if err := stream.CloseSend(); err != nil {
-			return grpcFailure(fmt.Sprintf("close send: %v", err))
+			return v.grpcFailure(fmt.Sprintf("close send: %v", err))
 		}
 
 		streamObj := &GrpcStreamObject{
@@ -829,23 +798,24 @@ func (vm *VM) registerGrpcPrimitives() {
 		}
 		streamObj.sendClosed.Store(true)
 
-		return grpcSuccess(registerGrpcStream(streamObj))
+		return v.grpcSuccess(v.vmRegisterGrpcStream(streamObj))
 	})
 
 	// GrpcClient>>clientStream: - create a client streaming call
-	c.AddMethod1(vm.Selectors, "clientStream:", func(_ interface{}, recv Value, methodName Value) Value {
-		client := getGrpcClient(recv)
+	c.AddMethod1(vm.Selectors, "clientStream:", func(vmPtr interface{}, recv Value, methodName Value) Value {
+		v := vmPtr.(*VM)
+		client := v.vmGetGrpcClient(recv)
 		if client == nil {
-			return grpcFailure("invalid client")
+			return v.grpcFailure("invalid client")
 		}
 		if !IsStringValue(methodName) {
-			return grpcFailure("method name must be a string")
+			return v.grpcFailure("method name must be a string")
 		}
 
-		method := GetStringContent(methodName)
+		method := v.registry.GetStringContent(methodName)
 		methodDesc, err := resolveMethod(client, method)
 		if err != nil {
-			return grpcFailure(err.Error())
+			return v.grpcFailure(err.Error())
 		}
 
 		// Create stream
@@ -855,7 +825,7 @@ func (vm *VM) registerGrpcPrimitives() {
 		}
 		stream, err := client.conn.NewStream(context.Background(), streamDesc, "/"+method)
 		if err != nil {
-			return grpcFailure(fmt.Sprintf("stream creation: %v", err))
+			return v.grpcFailure(fmt.Sprintf("stream creation: %v", err))
 		}
 
 		streamObj := &GrpcStreamObject{
@@ -865,23 +835,24 @@ func (vm *VM) registerGrpcPrimitives() {
 			streamType: GrpcStreamClientStreaming,
 		}
 
-		return grpcSuccess(registerGrpcStream(streamObj))
+		return v.grpcSuccess(v.vmRegisterGrpcStream(streamObj))
 	})
 
 	// GrpcClient>>bidiStream: - create a bidirectional streaming call
-	c.AddMethod1(vm.Selectors, "bidiStream:", func(_ interface{}, recv Value, methodName Value) Value {
-		client := getGrpcClient(recv)
+	c.AddMethod1(vm.Selectors, "bidiStream:", func(vmPtr interface{}, recv Value, methodName Value) Value {
+		v := vmPtr.(*VM)
+		client := v.vmGetGrpcClient(recv)
 		if client == nil {
-			return grpcFailure("invalid client")
+			return v.grpcFailure("invalid client")
 		}
 		if !IsStringValue(methodName) {
-			return grpcFailure("method name must be a string")
+			return v.grpcFailure("method name must be a string")
 		}
 
-		method := GetStringContent(methodName)
+		method := v.registry.GetStringContent(methodName)
 		methodDesc, err := resolveMethod(client, method)
 		if err != nil {
-			return grpcFailure(err.Error())
+			return v.grpcFailure(err.Error())
 		}
 
 		// Create stream
@@ -892,7 +863,7 @@ func (vm *VM) registerGrpcPrimitives() {
 		}
 		stream, err := client.conn.NewStream(context.Background(), streamDesc, "/"+method)
 		if err != nil {
-			return grpcFailure(fmt.Sprintf("stream creation: %v", err))
+			return v.grpcFailure(fmt.Sprintf("stream creation: %v", err))
 		}
 
 		streamObj := &GrpcStreamObject{
@@ -902,7 +873,7 @@ func (vm *VM) registerGrpcPrimitives() {
 			streamType: GrpcStreamBidirectional,
 		}
 
-		return grpcSuccess(registerGrpcStream(streamObj))
+		return v.grpcSuccess(v.vmRegisterGrpcStream(streamObj))
 	})
 
 	// ---------------------------------------------------------------------------
@@ -914,47 +885,47 @@ func (vm *VM) registerGrpcPrimitives() {
 	// GrpcStream>>send: messageDict - send a message on the stream
 	s.AddMethod1(vm.Selectors, "send:", func(vmPtr interface{}, recv Value, messageDict Value) Value {
 		v := vmPtr.(*VM)
-		stream := getGrpcStream(recv)
+		stream := v.vmGetGrpcStream(recv)
 		if stream == nil {
-			return grpcFailure("invalid stream")
+			return v.grpcFailure("invalid stream")
 		}
 		if !IsDictionaryValue(messageDict) {
-			return grpcFailure("message must be a dictionary")
+			return v.grpcFailure("message must be a dictionary")
 		}
 		if stream.sendClosed.Load() {
-			return grpcFailure("stream send closed")
+			return v.grpcFailure("stream send closed")
 		}
 
 		msg, err := dictionaryToProto(v, messageDict, stream.methodDesc.GetInputType())
 		if err != nil {
-			return grpcFailure(fmt.Sprintf("message conversion: %v", err))
+			return v.grpcFailure(fmt.Sprintf("message conversion: %v", err))
 		}
 
 		if err := stream.stream.SendMsg(msg); err != nil {
-			return grpcFailure(fmt.Sprintf("send failed: %v", err))
+			return v.grpcFailure(fmt.Sprintf("send failed: %v", err))
 		}
 
-		return grpcSuccess(recv)
+		return v.grpcSuccess(recv)
 	})
 
 	// GrpcStream>>receive - receive a message from the stream
 	s.AddMethod0(vm.Selectors, "receive", func(vmPtr interface{}, recv Value) Value {
 		v := vmPtr.(*VM)
-		stream := getGrpcStream(recv)
+		stream := v.vmGetGrpcStream(recv)
 		if stream == nil {
-			return grpcFailure("invalid stream")
+			return v.grpcFailure("invalid stream")
 		}
 		if stream.recvClosed.Load() {
-			return grpcFailure("end of stream")
+			return v.grpcFailure("end of stream")
 		}
 
 		msg := dynamic.NewMessage(stream.methodDesc.GetOutputType())
 		if err := stream.stream.RecvMsg(msg); err != nil {
 			if err == io.EOF {
 				stream.recvClosed.Store(true)
-				return grpcFailure("end of stream")
+				return v.grpcFailure("end of stream")
 			}
-			return grpcFailure(fmt.Sprintf("receive failed: %v", err))
+			return v.grpcFailure(fmt.Sprintf("receive failed: %v", err))
 		}
 
 		// Catch any panics during conversion
@@ -970,15 +941,16 @@ func (vm *VM) registerGrpcPrimitives() {
 		}()
 
 		if convErr != nil {
-			return grpcFailure(fmt.Sprintf("response conversion: %v", convErr))
+			return v.grpcFailure(fmt.Sprintf("response conversion: %v", convErr))
 		}
 
-		return grpcSuccess(respDict)
+		return v.grpcSuccess(respDict)
 	})
 
 	// GrpcStream>>hasNext - check if more messages are available
-	s.AddMethod0(vm.Selectors, "hasNext", func(_ interface{}, recv Value) Value {
-		stream := getGrpcStream(recv)
+	s.AddMethod0(vm.Selectors, "hasNext", func(vmPtr interface{}, recv Value) Value {
+		v := vmPtr.(*VM)
+		stream := v.vmGetGrpcStream(recv)
 		if stream == nil || stream.recvClosed.Load() {
 			return False
 		}
@@ -986,8 +958,9 @@ func (vm *VM) registerGrpcPrimitives() {
 	})
 
 	// GrpcStream>>close - close the send side of the stream
-	s.AddMethod0(vm.Selectors, "close", func(_ interface{}, recv Value) Value {
-		stream := getGrpcStream(recv)
+	s.AddMethod0(vm.Selectors, "close", func(vmPtr interface{}, recv Value) Value {
+		v := vmPtr.(*VM)
+		stream := v.vmGetGrpcStream(recv)
 		if stream == nil {
 			return recv
 		}
@@ -1003,9 +976,9 @@ func (vm *VM) registerGrpcPrimitives() {
 	// GrpcStream>>closeAndReceive - close send and receive final response (for client streaming)
 	s.AddMethod0(vm.Selectors, "closeAndReceive", func(vmPtr interface{}, recv Value) Value {
 		v := vmPtr.(*VM)
-		stream := getGrpcStream(recv)
+		stream := v.vmGetGrpcStream(recv)
 		if stream == nil {
-			return grpcFailure("invalid stream")
+			return v.grpcFailure("invalid stream")
 		}
 
 		// Close send side
@@ -1019,24 +992,24 @@ func (vm *VM) registerGrpcPrimitives() {
 		// Receive final response
 		msg := dynamic.NewMessage(stream.methodDesc.GetOutputType())
 		if err := stream.stream.RecvMsg(msg); err != nil {
-			return grpcFailure(fmt.Sprintf("receive failed: %v", err))
+			return v.grpcFailure(fmt.Sprintf("receive failed: %v", err))
 		}
 
 		respDict, err := protoToDictionary(v, msg)
 		if err != nil {
-			return grpcFailure(fmt.Sprintf("response conversion: %v", err))
+			return v.grpcFailure(fmt.Sprintf("response conversion: %v", err))
 		}
 
 		stream.recvClosed.Store(true)
-		unregisterGrpcStream(recv)
+		v.vmUnregisterGrpcStream(recv)
 
-		return grpcSuccess(respDict)
+		return v.grpcSuccess(respDict)
 	})
 
 	// GrpcStream>>streamType - return the stream type as a symbol
 	s.AddMethod0(vm.Selectors, "streamType", func(vmPtr interface{}, recv Value) Value {
 		v := vmPtr.(*VM)
-		stream := getGrpcStream(recv)
+		stream := v.vmGetGrpcStream(recv)
 		if stream == nil {
 			return Nil
 		}

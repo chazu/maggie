@@ -25,7 +25,7 @@ func assertSuccess(t *testing.T, vm *VM, result Value, context string) Value {
 		errVal := vm.Send(result, "error", nil)
 		errMsg := ""
 		if IsStringValue(errVal) {
-			errMsg = GetStringContent(errVal)
+			errMsg = vm.registry.GetStringContent(errVal)
 		}
 		t.Fatalf("%s: expected Success result, got Failure: %s", context, errMsg)
 	}
@@ -60,11 +60,11 @@ func TestFileReadFileContents(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	result := vm.Send(fc, "readFileContents:", []Value{NewStringValue(testFile)})
+	result := vm.Send(fc, "readFileContents:", []Value{vm.registry.NewStringValue(testFile)})
 	if !IsStringValue(result) {
 		t.Fatalf("readFileContents: did not return a string, got result-like value")
 	}
-	content := GetStringContent(result)
+	content := vm.registry.GetStringContent(result)
 	if content != "Hello, Maggie!" {
 		t.Errorf("readFileContents: returned %q, want %q", content, "Hello, Maggie!")
 	}
@@ -81,11 +81,11 @@ func TestFileReadFileContentsEmpty(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	result := vm.Send(fc, "readFileContents:", []Value{NewStringValue(testFile)})
+	result := vm.Send(fc, "readFileContents:", []Value{vm.registry.NewStringValue(testFile)})
 	if !IsStringValue(result) {
 		t.Fatalf("readFileContents: of empty file did not return a string")
 	}
-	content := GetStringContent(result)
+	content := vm.registry.GetStringContent(result)
 	if content != "" {
 		t.Errorf("readFileContents: of empty file returned %q, want empty string", content)
 	}
@@ -102,11 +102,11 @@ func TestFileReadFileContentsUnicode(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	result := vm.Send(fc, "readFileContents:", []Value{NewStringValue(testFile)})
+	result := vm.Send(fc, "readFileContents:", []Value{vm.registry.NewStringValue(testFile)})
 	if !IsStringValue(result) {
 		t.Fatalf("readFileContents: of unicode file did not return a string")
 	}
-	content := GetStringContent(result)
+	content := vm.registry.GetStringContent(result)
 	if content != unicodeContent {
 		t.Errorf("readFileContents: returned %q, want %q", content, unicodeContent)
 	}
@@ -123,11 +123,11 @@ func TestFileReadFileContentsMultiline(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	result := vm.Send(fc, "readFileContents:", []Value{NewStringValue(testFile)})
+	result := vm.Send(fc, "readFileContents:", []Value{vm.registry.NewStringValue(testFile)})
 	if !IsStringValue(result) {
 		t.Fatalf("readFileContents: of multiline file did not return a string")
 	}
-	content := GetStringContent(result)
+	content := vm.registry.GetStringContent(result)
 	if content != multiline {
 		t.Errorf("readFileContents: returned %q, want %q", content, multiline)
 	}
@@ -137,7 +137,7 @@ func TestFileReadFileContentsNonexistent(t *testing.T) {
 	vm := NewVM()
 	fc := fileClass(vm)
 
-	result := vm.Send(fc, "readFileContents:", []Value{NewStringValue("/nonexistent/path/file.txt")})
+	result := vm.Send(fc, "readFileContents:", []Value{vm.registry.NewStringValue("/nonexistent/path/file.txt")})
 	assertFailure(t, vm, result, "readFileContents: nonexistent file")
 }
 
@@ -145,7 +145,7 @@ func TestFileReadFileContentsEmptyPath(t *testing.T) {
 	vm := NewVM()
 	fc := fileClass(vm)
 
-	result := vm.Send(fc, "readFileContents:", []Value{NewStringValue("")})
+	result := vm.Send(fc, "readFileContents:", []Value{vm.registry.NewStringValue("")})
 	assertFailure(t, vm, result, "readFileContents: empty path")
 }
 
@@ -160,8 +160,8 @@ func TestFileWriteFileContents(t *testing.T) {
 
 	testFile := filepath.Join(tmpDir, "output.txt")
 	result := vm.Send(fc, "writeFileContents:contents:", []Value{
-		NewStringValue(testFile),
-		NewStringValue("Written by Maggie"),
+		vm.registry.NewStringValue(testFile),
+		vm.registry.NewStringValue("Written by Maggie"),
 	})
 
 	assertSuccess(t, vm, result, "writeFileContents:contents:")
@@ -185,14 +185,14 @@ func TestFileWriteFileContentsOverwrite(t *testing.T) {
 
 	// Write initial content
 	vm.Send(fc, "writeFileContents:contents:", []Value{
-		NewStringValue(testFile),
-		NewStringValue("initial content"),
+		vm.registry.NewStringValue(testFile),
+		vm.registry.NewStringValue("initial content"),
 	})
 
 	// Overwrite
 	result := vm.Send(fc, "writeFileContents:contents:", []Value{
-		NewStringValue(testFile),
-		NewStringValue("new content"),
+		vm.registry.NewStringValue(testFile),
+		vm.registry.NewStringValue("new content"),
 	})
 	assertSuccess(t, vm, result, "writeFileContents:contents: overwrite")
 
@@ -212,8 +212,8 @@ func TestFileWriteFileContentsEmptyContent(t *testing.T) {
 
 	testFile := filepath.Join(tmpDir, "empty_write.txt")
 	result := vm.Send(fc, "writeFileContents:contents:", []Value{
-		NewStringValue(testFile),
-		NewStringValue(""),
+		vm.registry.NewStringValue(testFile),
+		vm.registry.NewStringValue(""),
 	})
 	assertSuccess(t, vm, result, "writeFileContents:contents: empty")
 
@@ -234,8 +234,8 @@ func TestFileWriteFileContentsUnicode(t *testing.T) {
 	unicodeContent := "\u00e9\u00e8\u00ea \U0001f600 \u4e16\u754c"
 	testFile := filepath.Join(tmpDir, "unicode_write.txt")
 	result := vm.Send(fc, "writeFileContents:contents:", []Value{
-		NewStringValue(testFile),
-		NewStringValue(unicodeContent),
+		vm.registry.NewStringValue(testFile),
+		vm.registry.NewStringValue(unicodeContent),
 	})
 	assertSuccess(t, vm, result, "writeFileContents:contents: unicode")
 
@@ -253,8 +253,8 @@ func TestFileWriteFileContentsInvalidPath(t *testing.T) {
 	fc := fileClass(vm)
 
 	result := vm.Send(fc, "writeFileContents:contents:", []Value{
-		NewStringValue("/nonexistent/dir/file.txt"),
-		NewStringValue("data"),
+		vm.registry.NewStringValue("/nonexistent/dir/file.txt"),
+		vm.registry.NewStringValue("data"),
 	})
 	assertFailure(t, vm, result, "writeFileContents:contents: invalid path")
 }
@@ -264,8 +264,8 @@ func TestFileWriteFileContentsEmptyPath(t *testing.T) {
 	fc := fileClass(vm)
 
 	result := vm.Send(fc, "writeFileContents:contents:", []Value{
-		NewStringValue(""),
-		NewStringValue("data"),
+		vm.registry.NewStringValue(""),
+		vm.registry.NewStringValue("data"),
 	})
 	assertFailure(t, vm, result, "writeFileContents:contents: empty path")
 }
@@ -283,14 +283,14 @@ func TestFileAppendToFile(t *testing.T) {
 
 	// Write initial content
 	vm.Send(fc, "writeFileContents:contents:", []Value{
-		NewStringValue(testFile),
-		NewStringValue("Hello"),
+		vm.registry.NewStringValue(testFile),
+		vm.registry.NewStringValue("Hello"),
 	})
 
 	// Append
 	result := vm.Send(fc, "appendToFile:contents:", []Value{
-		NewStringValue(testFile),
-		NewStringValue(", World!"),
+		vm.registry.NewStringValue(testFile),
+		vm.registry.NewStringValue(", World!"),
 	})
 	assertSuccess(t, vm, result, "appendToFile:contents:")
 
@@ -312,8 +312,8 @@ func TestFileAppendToFileCreatesNew(t *testing.T) {
 
 	// Append to non-existent file should create it
 	result := vm.Send(fc, "appendToFile:contents:", []Value{
-		NewStringValue(testFile),
-		NewStringValue("created by append"),
+		vm.registry.NewStringValue(testFile),
+		vm.registry.NewStringValue("created by append"),
 	})
 	assertSuccess(t, vm, result, "appendToFile:contents: creates new file")
 
@@ -335,16 +335,16 @@ func TestFileAppendToFileMultiple(t *testing.T) {
 
 	// Multiple appends
 	vm.Send(fc, "appendToFile:contents:", []Value{
-		NewStringValue(testFile),
-		NewStringValue("one"),
+		vm.registry.NewStringValue(testFile),
+		vm.registry.NewStringValue("one"),
 	})
 	vm.Send(fc, "appendToFile:contents:", []Value{
-		NewStringValue(testFile),
-		NewStringValue("two"),
+		vm.registry.NewStringValue(testFile),
+		vm.registry.NewStringValue("two"),
 	})
 	vm.Send(fc, "appendToFile:contents:", []Value{
-		NewStringValue(testFile),
-		NewStringValue("three"),
+		vm.registry.NewStringValue(testFile),
+		vm.registry.NewStringValue("three"),
 	})
 
 	data, err := os.ReadFile(testFile)
@@ -361,8 +361,8 @@ func TestFileAppendToFileEmptyPath(t *testing.T) {
 	fc := fileClass(vm)
 
 	result := vm.Send(fc, "appendToFile:contents:", []Value{
-		NewStringValue(""),
-		NewStringValue("data"),
+		vm.registry.NewStringValue(""),
+		vm.registry.NewStringValue("data"),
 	})
 	assertFailure(t, vm, result, "appendToFile:contents: empty path")
 }
@@ -372,8 +372,8 @@ func TestFileAppendToFileInvalidPath(t *testing.T) {
 	fc := fileClass(vm)
 
 	result := vm.Send(fc, "appendToFile:contents:", []Value{
-		NewStringValue("/nonexistent/dir/file.txt"),
-		NewStringValue("data"),
+		vm.registry.NewStringValue("/nonexistent/dir/file.txt"),
+		vm.registry.NewStringValue("data"),
 	})
 	assertFailure(t, vm, result, "appendToFile:contents: invalid path")
 }
@@ -393,7 +393,7 @@ func TestFileExists(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	result := vm.Send(fc, "exists:", []Value{NewStringValue(testFile)})
+	result := vm.Send(fc, "exists:", []Value{vm.registry.NewStringValue(testFile)})
 	if result != True {
 		t.Errorf("exists: for existing file returned %v, want True", result)
 	}
@@ -404,7 +404,7 @@ func TestFileExistsDirectory(t *testing.T) {
 	fc := fileClass(vm)
 	tmpDir := t.TempDir()
 
-	result := vm.Send(fc, "exists:", []Value{NewStringValue(tmpDir)})
+	result := vm.Send(fc, "exists:", []Value{vm.registry.NewStringValue(tmpDir)})
 	if result != True {
 		t.Errorf("exists: for existing directory returned %v, want True", result)
 	}
@@ -414,7 +414,7 @@ func TestFileExistsNonexistent(t *testing.T) {
 	vm := NewVM()
 	fc := fileClass(vm)
 
-	result := vm.Send(fc, "exists:", []Value{NewStringValue("/nonexistent/path/xyz")})
+	result := vm.Send(fc, "exists:", []Value{vm.registry.NewStringValue("/nonexistent/path/xyz")})
 	if result != False {
 		t.Errorf("exists: for nonexistent path returned %v, want False", result)
 	}
@@ -424,7 +424,7 @@ func TestFileExistsEmptyPath(t *testing.T) {
 	vm := NewVM()
 	fc := fileClass(vm)
 
-	result := vm.Send(fc, "exists:", []Value{NewStringValue("")})
+	result := vm.Send(fc, "exists:", []Value{vm.registry.NewStringValue("")})
 	if result != False {
 		t.Errorf("exists: for empty path returned %v, want False", result)
 	}
@@ -439,7 +439,7 @@ func TestFileIsDirectory(t *testing.T) {
 	fc := fileClass(vm)
 	tmpDir := t.TempDir()
 
-	result := vm.Send(fc, "isDirectory:", []Value{NewStringValue(tmpDir)})
+	result := vm.Send(fc, "isDirectory:", []Value{vm.registry.NewStringValue(tmpDir)})
 	if result != True {
 		t.Errorf("isDirectory: for directory returned %v, want True", result)
 	}
@@ -455,7 +455,7 @@ func TestFileIsDirectoryOnFile(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	result := vm.Send(fc, "isDirectory:", []Value{NewStringValue(testFile)})
+	result := vm.Send(fc, "isDirectory:", []Value{vm.registry.NewStringValue(testFile)})
 	if result != False {
 		t.Errorf("isDirectory: for regular file returned %v, want False", result)
 	}
@@ -465,7 +465,7 @@ func TestFileIsDirectoryNonexistent(t *testing.T) {
 	vm := NewVM()
 	fc := fileClass(vm)
 
-	result := vm.Send(fc, "isDirectory:", []Value{NewStringValue("/nonexistent/dir")})
+	result := vm.Send(fc, "isDirectory:", []Value{vm.registry.NewStringValue("/nonexistent/dir")})
 	if result != False {
 		t.Errorf("isDirectory: for nonexistent path returned %v, want False", result)
 	}
@@ -475,7 +475,7 @@ func TestFileIsDirectoryEmptyPath(t *testing.T) {
 	vm := NewVM()
 	fc := fileClass(vm)
 
-	result := vm.Send(fc, "isDirectory:", []Value{NewStringValue("")})
+	result := vm.Send(fc, "isDirectory:", []Value{vm.registry.NewStringValue("")})
 	if result != False {
 		t.Errorf("isDirectory: for empty path returned %v, want False", result)
 	}
@@ -495,7 +495,7 @@ func TestFileIsFile(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	result := vm.Send(fc, "isFile:", []Value{NewStringValue(testFile)})
+	result := vm.Send(fc, "isFile:", []Value{vm.registry.NewStringValue(testFile)})
 	if result != True {
 		t.Errorf("isFile: for regular file returned %v, want True", result)
 	}
@@ -506,7 +506,7 @@ func TestFileIsFileOnDirectory(t *testing.T) {
 	fc := fileClass(vm)
 	tmpDir := t.TempDir()
 
-	result := vm.Send(fc, "isFile:", []Value{NewStringValue(tmpDir)})
+	result := vm.Send(fc, "isFile:", []Value{vm.registry.NewStringValue(tmpDir)})
 	if result != False {
 		t.Errorf("isFile: for directory returned %v, want False", result)
 	}
@@ -516,7 +516,7 @@ func TestFileIsFileNonexistent(t *testing.T) {
 	vm := NewVM()
 	fc := fileClass(vm)
 
-	result := vm.Send(fc, "isFile:", []Value{NewStringValue("/nonexistent/file")})
+	result := vm.Send(fc, "isFile:", []Value{vm.registry.NewStringValue("/nonexistent/file")})
 	if result != False {
 		t.Errorf("isFile: for nonexistent path returned %v, want False", result)
 	}
@@ -526,7 +526,7 @@ func TestFileIsFileEmptyPath(t *testing.T) {
 	vm := NewVM()
 	fc := fileClass(vm)
 
-	result := vm.Send(fc, "isFile:", []Value{NewStringValue("")})
+	result := vm.Send(fc, "isFile:", []Value{vm.registry.NewStringValue("")})
 	if result != False {
 		t.Errorf("isFile: for empty path returned %v, want False", result)
 	}
@@ -546,7 +546,7 @@ func TestFileListDirectory(t *testing.T) {
 	os.WriteFile(filepath.Join(tmpDir, "beta.txt"), []byte("b"), 0644)
 	os.Mkdir(filepath.Join(tmpDir, "subdir"), 0755)
 
-	result := vm.Send(fc, "listDirectory:", []Value{NewStringValue(tmpDir)})
+	result := vm.Send(fc, "listDirectory:", []Value{vm.registry.NewStringValue(tmpDir)})
 
 	if !result.IsObject() {
 		t.Fatalf("listDirectory: did not return an object (array)")
@@ -567,7 +567,7 @@ func TestFileListDirectory(t *testing.T) {
 		if !IsStringValue(v) {
 			t.Fatalf("listDirectory: entry %d is not a string", i)
 		}
-		names[i] = GetStringContent(v)
+		names[i] = vm.registry.GetStringContent(v)
 	}
 	sort.Strings(names)
 
@@ -584,7 +584,7 @@ func TestFileListDirectoryEmpty(t *testing.T) {
 	fc := fileClass(vm)
 	tmpDir := t.TempDir()
 
-	result := vm.Send(fc, "listDirectory:", []Value{NewStringValue(tmpDir)})
+	result := vm.Send(fc, "listDirectory:", []Value{vm.registry.NewStringValue(tmpDir)})
 
 	if !result.IsObject() {
 		t.Fatalf("listDirectory: of empty dir did not return an object")
@@ -603,7 +603,7 @@ func TestFileListDirectoryNonexistent(t *testing.T) {
 	vm := NewVM()
 	fc := fileClass(vm)
 
-	result := vm.Send(fc, "listDirectory:", []Value{NewStringValue("/nonexistent/dir")})
+	result := vm.Send(fc, "listDirectory:", []Value{vm.registry.NewStringValue("/nonexistent/dir")})
 	assertFailure(t, vm, result, "listDirectory: nonexistent")
 }
 
@@ -611,7 +611,7 @@ func TestFileListDirectoryEmptyPath(t *testing.T) {
 	vm := NewVM()
 	fc := fileClass(vm)
 
-	result := vm.Send(fc, "listDirectory:", []Value{NewStringValue("")})
+	result := vm.Send(fc, "listDirectory:", []Value{vm.registry.NewStringValue("")})
 	assertFailure(t, vm, result, "listDirectory: empty path")
 }
 
@@ -623,7 +623,7 @@ func TestFileListDirectoryOnFile(t *testing.T) {
 	testFile := filepath.Join(tmpDir, "notadir.txt")
 	os.WriteFile(testFile, []byte("data"), 0644)
 
-	result := vm.Send(fc, "listDirectory:", []Value{NewStringValue(testFile)})
+	result := vm.Send(fc, "listDirectory:", []Value{vm.registry.NewStringValue(testFile)})
 	assertFailure(t, vm, result, "listDirectory: on a file")
 }
 
@@ -637,7 +637,7 @@ func TestFileCreateDirectory(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	newDir := filepath.Join(tmpDir, "newdir")
-	result := vm.Send(fc, "createDirectory:", []Value{NewStringValue(newDir)})
+	result := vm.Send(fc, "createDirectory:", []Value{vm.registry.NewStringValue(newDir)})
 	assertSuccess(t, vm, result, "createDirectory:")
 
 	info, err := os.Stat(newDir)
@@ -656,7 +656,7 @@ func TestFileCreateDirectoryNested(t *testing.T) {
 
 	// MkdirAll should create intermediate directories
 	nestedDir := filepath.Join(tmpDir, "a", "b", "c")
-	result := vm.Send(fc, "createDirectory:", []Value{NewStringValue(nestedDir)})
+	result := vm.Send(fc, "createDirectory:", []Value{vm.registry.NewStringValue(nestedDir)})
 	assertSuccess(t, vm, result, "createDirectory: nested")
 
 	info, err := os.Stat(nestedDir)
@@ -674,7 +674,7 @@ func TestFileCreateDirectoryAlreadyExists(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	// Creating an existing directory with MkdirAll should succeed
-	result := vm.Send(fc, "createDirectory:", []Value{NewStringValue(tmpDir)})
+	result := vm.Send(fc, "createDirectory:", []Value{vm.registry.NewStringValue(tmpDir)})
 	assertSuccess(t, vm, result, "createDirectory: already exists")
 }
 
@@ -682,7 +682,7 @@ func TestFileCreateDirectoryEmptyPath(t *testing.T) {
 	vm := NewVM()
 	fc := fileClass(vm)
 
-	result := vm.Send(fc, "createDirectory:", []Value{NewStringValue("")})
+	result := vm.Send(fc, "createDirectory:", []Value{vm.registry.NewStringValue("")})
 	assertFailure(t, vm, result, "createDirectory: empty path")
 }
 
@@ -698,7 +698,7 @@ func TestFileDelete(t *testing.T) {
 	testFile := filepath.Join(tmpDir, "todelete.txt")
 	os.WriteFile(testFile, []byte("bye"), 0644)
 
-	result := vm.Send(fc, "delete:", []Value{NewStringValue(testFile)})
+	result := vm.Send(fc, "delete:", []Value{vm.registry.NewStringValue(testFile)})
 	assertSuccess(t, vm, result, "delete:")
 
 	if _, err := os.Stat(testFile); !os.IsNotExist(err) {
@@ -714,7 +714,7 @@ func TestFileDeleteEmptyDirectory(t *testing.T) {
 	emptyDir := filepath.Join(tmpDir, "emptydir")
 	os.Mkdir(emptyDir, 0755)
 
-	result := vm.Send(fc, "delete:", []Value{NewStringValue(emptyDir)})
+	result := vm.Send(fc, "delete:", []Value{vm.registry.NewStringValue(emptyDir)})
 	assertSuccess(t, vm, result, "delete: empty directory")
 
 	if _, err := os.Stat(emptyDir); !os.IsNotExist(err) {
@@ -732,7 +732,7 @@ func TestFileDeleteNonEmptyDirectory(t *testing.T) {
 	os.WriteFile(filepath.Join(nonEmptyDir, "child.txt"), []byte("x"), 0644)
 
 	// os.Remove only removes empty directories, so this should fail
-	result := vm.Send(fc, "delete:", []Value{NewStringValue(nonEmptyDir)})
+	result := vm.Send(fc, "delete:", []Value{vm.registry.NewStringValue(nonEmptyDir)})
 	assertFailure(t, vm, result, "delete: non-empty directory")
 }
 
@@ -740,7 +740,7 @@ func TestFileDeleteNonexistent(t *testing.T) {
 	vm := NewVM()
 	fc := fileClass(vm)
 
-	result := vm.Send(fc, "delete:", []Value{NewStringValue("/nonexistent/file.txt")})
+	result := vm.Send(fc, "delete:", []Value{vm.registry.NewStringValue("/nonexistent/file.txt")})
 	assertFailure(t, vm, result, "delete: nonexistent")
 }
 
@@ -748,7 +748,7 @@ func TestFileDeleteEmptyPath(t *testing.T) {
 	vm := NewVM()
 	fc := fileClass(vm)
 
-	result := vm.Send(fc, "delete:", []Value{NewStringValue("")})
+	result := vm.Send(fc, "delete:", []Value{vm.registry.NewStringValue("")})
 	assertFailure(t, vm, result, "delete: empty path")
 }
 
@@ -766,8 +766,8 @@ func TestFileRename(t *testing.T) {
 	os.WriteFile(oldPath, []byte("content"), 0644)
 
 	result := vm.Send(fc, "rename:to:", []Value{
-		NewStringValue(oldPath),
-		NewStringValue(newPath),
+		vm.registry.NewStringValue(oldPath),
+		vm.registry.NewStringValue(newPath),
 	})
 	assertSuccess(t, vm, result, "rename:to:")
 
@@ -797,8 +797,8 @@ func TestFileRenameDirectory(t *testing.T) {
 	os.WriteFile(filepath.Join(oldDir, "file.txt"), []byte("inside"), 0644)
 
 	result := vm.Send(fc, "rename:to:", []Value{
-		NewStringValue(oldDir),
-		NewStringValue(newDir),
+		vm.registry.NewStringValue(oldDir),
+		vm.registry.NewStringValue(newDir),
 	})
 	assertSuccess(t, vm, result, "rename:to: directory")
 
@@ -818,8 +818,8 @@ func TestFileRenameNonexistent(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	result := vm.Send(fc, "rename:to:", []Value{
-		NewStringValue(filepath.Join(tmpDir, "nope.txt")),
-		NewStringValue(filepath.Join(tmpDir, "dest.txt")),
+		vm.registry.NewStringValue(filepath.Join(tmpDir, "nope.txt")),
+		vm.registry.NewStringValue(filepath.Join(tmpDir, "dest.txt")),
 	})
 	assertFailure(t, vm, result, "rename:to: nonexistent source")
 }
@@ -829,14 +829,14 @@ func TestFileRenameEmptyPath(t *testing.T) {
 	fc := fileClass(vm)
 
 	result := vm.Send(fc, "rename:to:", []Value{
-		NewStringValue(""),
-		NewStringValue("/tmp/dest.txt"),
+		vm.registry.NewStringValue(""),
+		vm.registry.NewStringValue("/tmp/dest.txt"),
 	})
 	assertFailure(t, vm, result, "rename:to: empty old path")
 
 	result = vm.Send(fc, "rename:to:", []Value{
-		NewStringValue("/tmp/src.txt"),
-		NewStringValue(""),
+		vm.registry.NewStringValue("/tmp/src.txt"),
+		vm.registry.NewStringValue(""),
 	})
 	assertFailure(t, vm, result, "rename:to: empty new path")
 }
@@ -855,8 +855,8 @@ func TestFileCopy(t *testing.T) {
 	os.WriteFile(srcFile, []byte("copy me"), 0644)
 
 	result := vm.Send(fc, "copy:to:", []Value{
-		NewStringValue(srcFile),
-		NewStringValue(dstFile),
+		vm.registry.NewStringValue(srcFile),
+		vm.registry.NewStringValue(dstFile),
 	})
 	assertSuccess(t, vm, result, "copy:to:")
 
@@ -890,8 +890,8 @@ func TestFileCopyOverwrite(t *testing.T) {
 	os.WriteFile(dstFile, []byte("old"), 0644)
 
 	result := vm.Send(fc, "copy:to:", []Value{
-		NewStringValue(srcFile),
-		NewStringValue(dstFile),
+		vm.registry.NewStringValue(srcFile),
+		vm.registry.NewStringValue(dstFile),
 	})
 	assertSuccess(t, vm, result, "copy:to: overwrite")
 
@@ -910,8 +910,8 @@ func TestFileCopyNonexistentSource(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	result := vm.Send(fc, "copy:to:", []Value{
-		NewStringValue(filepath.Join(tmpDir, "nope.txt")),
-		NewStringValue(filepath.Join(tmpDir, "dest.txt")),
+		vm.registry.NewStringValue(filepath.Join(tmpDir, "nope.txt")),
+		vm.registry.NewStringValue(filepath.Join(tmpDir, "dest.txt")),
 	})
 	assertFailure(t, vm, result, "copy:to: nonexistent source")
 }
@@ -925,8 +925,8 @@ func TestFileCopyInvalidDest(t *testing.T) {
 	os.WriteFile(srcFile, []byte("data"), 0644)
 
 	result := vm.Send(fc, "copy:to:", []Value{
-		NewStringValue(srcFile),
-		NewStringValue("/nonexistent/dir/dest.txt"),
+		vm.registry.NewStringValue(srcFile),
+		vm.registry.NewStringValue("/nonexistent/dir/dest.txt"),
 	})
 	assertFailure(t, vm, result, "copy:to: invalid destination path")
 }
@@ -936,14 +936,14 @@ func TestFileCopyEmptyPath(t *testing.T) {
 	fc := fileClass(vm)
 
 	result := vm.Send(fc, "copy:to:", []Value{
-		NewStringValue(""),
-		NewStringValue("/tmp/dest.txt"),
+		vm.registry.NewStringValue(""),
+		vm.registry.NewStringValue("/tmp/dest.txt"),
 	})
 	assertFailure(t, vm, result, "copy:to: empty source path")
 
 	result = vm.Send(fc, "copy:to:", []Value{
-		NewStringValue("/tmp/src.txt"),
-		NewStringValue(""),
+		vm.registry.NewStringValue("/tmp/src.txt"),
+		vm.registry.NewStringValue(""),
 	})
 	assertFailure(t, vm, result, "copy:to: empty dest path")
 }
@@ -968,8 +968,8 @@ func TestFileBasename(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		result := vm.Send(fc, "basename:", []Value{NewStringValue(tc.path)})
-		got := GetStringContent(result)
+		result := vm.Send(fc, "basename:", []Value{vm.registry.NewStringValue(tc.path)})
+		got := vm.registry.GetStringContent(result)
 		if got != tc.want {
 			t.Errorf("basename: %q = %q, want %q", tc.path, got, tc.want)
 		}
@@ -995,8 +995,8 @@ func TestFileDirname(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		result := vm.Send(fc, "dirname:", []Value{NewStringValue(tc.path)})
-		got := GetStringContent(result)
+		result := vm.Send(fc, "dirname:", []Value{vm.registry.NewStringValue(tc.path)})
+		got := vm.registry.GetStringContent(result)
 		if got != tc.want {
 			t.Errorf("dirname: %q = %q, want %q", tc.path, got, tc.want)
 		}
@@ -1023,8 +1023,8 @@ func TestFileExtension(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		result := vm.Send(fc, "extension:", []Value{NewStringValue(tc.path)})
-		got := GetStringContent(result)
+		result := vm.Send(fc, "extension:", []Value{vm.registry.NewStringValue(tc.path)})
+		got := vm.registry.GetStringContent(result)
 		if got != tc.want {
 			t.Errorf("extension: %q = %q, want %q", tc.path, got, tc.want)
 		}
@@ -1040,10 +1040,10 @@ func TestFileJoinWith(t *testing.T) {
 	fc := fileClass(vm)
 
 	result := vm.Send(fc, "join:with:", []Value{
-		NewStringValue("/foo/bar"),
-		NewStringValue("baz.txt"),
+		vm.registry.NewStringValue("/foo/bar"),
+		vm.registry.NewStringValue("baz.txt"),
 	})
-	got := GetStringContent(result)
+	got := vm.registry.GetStringContent(result)
 	want := filepath.Join("/foo/bar", "baz.txt")
 	if got != want {
 		t.Errorf("join:with: = %q, want %q", got, want)
@@ -1056,10 +1056,10 @@ func TestFileJoinWithCleanup(t *testing.T) {
 
 	// filepath.Join cleans paths
 	result := vm.Send(fc, "join:with:", []Value{
-		NewStringValue("/foo/bar/"),
-		NewStringValue("../baz.txt"),
+		vm.registry.NewStringValue("/foo/bar/"),
+		vm.registry.NewStringValue("../baz.txt"),
 	})
-	got := GetStringContent(result)
+	got := vm.registry.GetStringContent(result)
 	want := filepath.Join("/foo/bar/", "../baz.txt")
 	if got != want {
 		t.Errorf("join:with: with .. = %q, want %q", got, want)
@@ -1074,8 +1074,8 @@ func TestFileAbsolutePath(t *testing.T) {
 	vm := NewVM()
 	fc := fileClass(vm)
 
-	result := vm.Send(fc, "absolutePath:", []Value{NewStringValue("relative/path")})
-	got := GetStringContent(result)
+	result := vm.Send(fc, "absolutePath:", []Value{vm.registry.NewStringValue("relative/path")})
+	got := vm.registry.GetStringContent(result)
 
 	// The result should be absolute
 	if !filepath.IsAbs(got) {
@@ -1092,8 +1092,8 @@ func TestFileAbsolutePathAlreadyAbsolute(t *testing.T) {
 		absPath = "C:\\already\\absolute"
 	}
 
-	result := vm.Send(fc, "absolutePath:", []Value{NewStringValue(absPath)})
-	got := GetStringContent(result)
+	result := vm.Send(fc, "absolutePath:", []Value{vm.registry.NewStringValue(absPath)})
+	got := vm.registry.GetStringContent(result)
 
 	expected, _ := filepath.Abs(absPath)
 	if got != expected {
@@ -1114,7 +1114,7 @@ func TestFileWorkingDirectory(t *testing.T) {
 		t.Fatalf("workingDirectory did not return a string")
 	}
 
-	got := GetStringContent(result)
+	got := vm.registry.GetStringContent(result)
 	expected, err := os.Getwd()
 	if err != nil {
 		t.Fatalf("os.Getwd failed: %v", err)
@@ -1138,7 +1138,7 @@ func TestFileHomeDirectory(t *testing.T) {
 		t.Fatalf("homeDirectory did not return a string")
 	}
 
-	got := GetStringContent(result)
+	got := vm.registry.GetStringContent(result)
 	expected, err := os.UserHomeDir()
 	if err != nil {
 		t.Fatalf("os.UserHomeDir failed: %v", err)
@@ -1163,18 +1163,18 @@ func TestFileWriteThenRead(t *testing.T) {
 
 	// Write via Maggie
 	writeResult := vm.Send(fc, "writeFileContents:contents:", []Value{
-		NewStringValue(testFile),
-		NewStringValue(content),
+		vm.registry.NewStringValue(testFile),
+		vm.registry.NewStringValue(content),
 	})
 	assertSuccess(t, vm, writeResult, "write in roundtrip")
 
 	// Read via Maggie
-	readResult := vm.Send(fc, "readFileContents:", []Value{NewStringValue(testFile)})
+	readResult := vm.Send(fc, "readFileContents:", []Value{vm.registry.NewStringValue(testFile)})
 	if !IsStringValue(readResult) {
 		t.Fatalf("readFileContents: did not return a string in roundtrip")
 	}
 
-	got := GetStringContent(readResult)
+	got := vm.registry.GetStringContent(readResult)
 	if got != content {
 		t.Errorf("Round-trip content mismatch: got %q, want %q", got, content)
 	}
@@ -1189,28 +1189,28 @@ func TestFileWriteDeleteVerify(t *testing.T) {
 
 	// Write
 	vm.Send(fc, "writeFileContents:contents:", []Value{
-		NewStringValue(testFile),
-		NewStringValue("temporary"),
+		vm.registry.NewStringValue(testFile),
+		vm.registry.NewStringValue("temporary"),
 	})
 
 	// Verify exists
-	existsResult := vm.Send(fc, "exists:", []Value{NewStringValue(testFile)})
+	existsResult := vm.Send(fc, "exists:", []Value{vm.registry.NewStringValue(testFile)})
 	if existsResult != True {
 		t.Fatal("File should exist after write")
 	}
 
 	// Delete
-	delResult := vm.Send(fc, "delete:", []Value{NewStringValue(testFile)})
+	delResult := vm.Send(fc, "delete:", []Value{vm.registry.NewStringValue(testFile)})
 	assertSuccess(t, vm, delResult, "delete in write-delete-verify")
 
 	// Verify no longer exists
-	existsResult = vm.Send(fc, "exists:", []Value{NewStringValue(testFile)})
+	existsResult = vm.Send(fc, "exists:", []Value{vm.registry.NewStringValue(testFile)})
 	if existsResult != False {
 		t.Error("File should not exist after delete")
 	}
 
 	// Reading deleted file should fail
-	readResult := vm.Send(fc, "readFileContents:", []Value{NewStringValue(testFile)})
+	readResult := vm.Send(fc, "readFileContents:", []Value{vm.registry.NewStringValue(testFile)})
 	assertFailure(t, vm, readResult, "read deleted file")
 }
 
@@ -1221,20 +1221,20 @@ func TestFileCreateDirectoryListAndDelete(t *testing.T) {
 
 	// Create directory structure
 	subDir := filepath.Join(tmpDir, "mydir")
-	vm.Send(fc, "createDirectory:", []Value{NewStringValue(subDir)})
+	vm.Send(fc, "createDirectory:", []Value{vm.registry.NewStringValue(subDir)})
 
 	// Write files inside
 	vm.Send(fc, "writeFileContents:contents:", []Value{
-		NewStringValue(filepath.Join(subDir, "a.txt")),
-		NewStringValue("aaa"),
+		vm.registry.NewStringValue(filepath.Join(subDir, "a.txt")),
+		vm.registry.NewStringValue("aaa"),
 	})
 	vm.Send(fc, "writeFileContents:contents:", []Value{
-		NewStringValue(filepath.Join(subDir, "b.txt")),
-		NewStringValue("bbb"),
+		vm.registry.NewStringValue(filepath.Join(subDir, "b.txt")),
+		vm.registry.NewStringValue("bbb"),
 	})
 
 	// List the directory
-	listResult := vm.Send(fc, "listDirectory:", []Value{NewStringValue(subDir)})
+	listResult := vm.Send(fc, "listDirectory:", []Value{vm.registry.NewStringValue(subDir)})
 	arr := ObjectFromValue(listResult)
 	if arr == nil {
 		t.Fatal("listDirectory: returned nil")
@@ -1244,13 +1244,13 @@ func TestFileCreateDirectoryListAndDelete(t *testing.T) {
 	}
 
 	// Verify isDirectory and isFile
-	isDirResult := vm.Send(fc, "isDirectory:", []Value{NewStringValue(subDir)})
+	isDirResult := vm.Send(fc, "isDirectory:", []Value{vm.registry.NewStringValue(subDir)})
 	if isDirResult != True {
 		t.Error("isDirectory: on created dir should be True")
 	}
 
 	isFileResult := vm.Send(fc, "isFile:", []Value{
-		NewStringValue(filepath.Join(subDir, "a.txt")),
+		vm.registry.NewStringValue(filepath.Join(subDir, "a.txt")),
 	})
 	if isFileResult != True {
 		t.Error("isFile: on created file should be True")
@@ -1267,23 +1267,23 @@ func TestFileCopyThenVerifyContents(t *testing.T) {
 
 	// Write original
 	vm.Send(fc, "writeFileContents:contents:", []Value{
-		NewStringValue(srcFile),
-		NewStringValue("original content"),
+		vm.registry.NewStringValue(srcFile),
+		vm.registry.NewStringValue("original content"),
 	})
 
 	// Copy
 	vm.Send(fc, "copy:to:", []Value{
-		NewStringValue(srcFile),
-		NewStringValue(dstFile),
+		vm.registry.NewStringValue(srcFile),
+		vm.registry.NewStringValue(dstFile),
 	})
 
 	// Read copy via Maggie
-	readResult := vm.Send(fc, "readFileContents:", []Value{NewStringValue(dstFile)})
+	readResult := vm.Send(fc, "readFileContents:", []Value{vm.registry.NewStringValue(dstFile)})
 	if !IsStringValue(readResult) {
 		t.Fatalf("readFileContents: did not return string")
 	}
-	if GetStringContent(readResult) != "original content" {
-		t.Errorf("Copied file content = %q, want %q", GetStringContent(readResult), "original content")
+	if vm.registry.GetStringContent(readResult) != "original content" {
+		t.Errorf("Copied file content = %q, want %q", vm.registry.GetStringContent(readResult), "original content")
 	}
 }
 
@@ -1296,28 +1296,28 @@ func TestFileRenameThenVerify(t *testing.T) {
 	newFile := filepath.Join(tmpDir, "after.txt")
 
 	vm.Send(fc, "writeFileContents:contents:", []Value{
-		NewStringValue(oldFile),
-		NewStringValue("rename me"),
+		vm.registry.NewStringValue(oldFile),
+		vm.registry.NewStringValue("rename me"),
 	})
 
 	vm.Send(fc, "rename:to:", []Value{
-		NewStringValue(oldFile),
-		NewStringValue(newFile),
+		vm.registry.NewStringValue(oldFile),
+		vm.registry.NewStringValue(newFile),
 	})
 
 	// Old should not exist
-	existsOld := vm.Send(fc, "exists:", []Value{NewStringValue(oldFile)})
+	existsOld := vm.Send(fc, "exists:", []Value{vm.registry.NewStringValue(oldFile)})
 	if existsOld != False {
 		t.Error("Old file should not exist after rename")
 	}
 
 	// New should exist with correct content
-	readResult := vm.Send(fc, "readFileContents:", []Value{NewStringValue(newFile)})
+	readResult := vm.Send(fc, "readFileContents:", []Value{vm.registry.NewStringValue(newFile)})
 	if !IsStringValue(readResult) {
 		t.Fatalf("Cannot read renamed file")
 	}
-	if GetStringContent(readResult) != "rename me" {
-		t.Errorf("Renamed file content = %q, want %q", GetStringContent(readResult), "rename me")
+	if vm.registry.GetStringContent(readResult) != "rename me" {
+		t.Errorf("Renamed file content = %q, want %q", vm.registry.GetStringContent(readResult), "rename me")
 	}
 }
 
@@ -1334,11 +1334,11 @@ func TestFileBinaryData(t *testing.T) {
 	os.WriteFile(testFile, []byte(binaryLike), 0644)
 
 	// Read via Maggie -- Go strings can hold arbitrary bytes
-	result := vm.Send(fc, "readFileContents:", []Value{NewStringValue(testFile)})
+	result := vm.Send(fc, "readFileContents:", []Value{vm.registry.NewStringValue(testFile)})
 	if !IsStringValue(result) {
 		t.Fatalf("readFileContents: of binary data did not return a string")
 	}
-	got := GetStringContent(result)
+	got := vm.registry.GetStringContent(result)
 	if got != binaryLike {
 		t.Errorf("Binary data round-trip failed: got %q, want %q", got, binaryLike)
 	}
@@ -1353,10 +1353,10 @@ func TestFileJoinWithEmpty(t *testing.T) {
 	fc := fileClass(vm)
 
 	result := vm.Send(fc, "join:with:", []Value{
-		NewStringValue(""),
-		NewStringValue("file.txt"),
+		vm.registry.NewStringValue(""),
+		vm.registry.NewStringValue("file.txt"),
 	})
-	got := GetStringContent(result)
+	got := vm.registry.GetStringContent(result)
 	want := filepath.Join("", "file.txt")
 	if got != want {
 		t.Errorf("join:with: empty first = %q, want %q", got, want)
@@ -1367,9 +1367,9 @@ func TestFileBasenameNoDir(t *testing.T) {
 	vm := NewVM()
 	fc := fileClass(vm)
 
-	result := vm.Send(fc, "basename:", []Value{NewStringValue("justfile")})
-	if GetStringContent(result) != "justfile" {
-		t.Errorf("basename: of bare filename = %q, want %q", GetStringContent(result), "justfile")
+	result := vm.Send(fc, "basename:", []Value{vm.registry.NewStringValue("justfile")})
+	if vm.registry.GetStringContent(result) != "justfile" {
+		t.Errorf("basename: of bare filename = %q, want %q", vm.registry.GetStringContent(result), "justfile")
 	}
 }
 
@@ -1377,9 +1377,9 @@ func TestFileExtensionNone(t *testing.T) {
 	vm := NewVM()
 	fc := fileClass(vm)
 
-	result := vm.Send(fc, "extension:", []Value{NewStringValue("noextension")})
-	if GetStringContent(result) != "" {
-		t.Errorf("extension: of file with no ext = %q, want empty", GetStringContent(result))
+	result := vm.Send(fc, "extension:", []Value{vm.registry.NewStringValue("noextension")})
+	if vm.registry.GetStringContent(result) != "" {
+		t.Errorf("extension: of file with no ext = %q, want empty", vm.registry.GetStringContent(result))
 	}
 }
 
@@ -1390,8 +1390,8 @@ func TestFileSuccessResultContainsPath(t *testing.T) {
 
 	testFile := filepath.Join(tmpDir, "success_path.txt")
 	result := vm.Send(fc, "writeFileContents:contents:", []Value{
-		NewStringValue(testFile),
-		NewStringValue("test"),
+		vm.registry.NewStringValue(testFile),
+		vm.registry.NewStringValue("test"),
 	})
 
 	// The Success result should wrap the path value
@@ -1399,7 +1399,7 @@ func TestFileSuccessResultContainsPath(t *testing.T) {
 	if !IsStringValue(val) {
 		t.Fatalf("Success value is not a string")
 	}
-	if GetStringContent(val) != testFile {
-		t.Errorf("Success value = %q, want path %q", GetStringContent(val), testFile)
+	if vm.registry.GetStringContent(val) != testFile {
+		t.Errorf("Success value = %q, want path %q", vm.registry.GetStringContent(val), testFile)
 	}
 }

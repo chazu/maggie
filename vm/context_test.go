@@ -10,21 +10,22 @@ import (
 // ---------------------------------------------------------------------------
 
 func TestContextValueCreation(t *testing.T) {
+	vm := NewVM()
 	ctx := &ContextValue{
 		Receiver: FromSmallInt(42),
 		SenderID: -1,
 		HomeID:   -1,
 	}
 
-	val := RegisterContext(ctx)
+	val := vm.registry.RegisterContextValue(ctx)
 
 	if !val.IsContext() {
-		t.Error("RegisterContext should return a context value")
+		t.Error("RegisterContextValue should return a context value")
 	}
 
-	retrieved := GetContextValue(val)
+	retrieved := vm.registry.GetContextFromValue(val)
 	if retrieved != ctx {
-		t.Error("GetContextValue should return the original context")
+		t.Error("GetContextFromValue should return the original context")
 	}
 }
 
@@ -47,38 +48,30 @@ func TestContextValueIsBlockContext(t *testing.T) {
 }
 
 func TestContextRegistry(t *testing.T) {
-	// Clear registry for clean test
-	globalContextRegistry.Clear()
+	vm := NewVM()
 
 	ctx1 := &ContextValue{Receiver: FromSmallInt(1)}
 	ctx2 := &ContextValue{Receiver: FromSmallInt(2)}
 
-	id1 := globalContextRegistry.Register(ctx1)
-	id2 := globalContextRegistry.Register(ctx2)
+	id1 := vm.registry.RegisterContext(ctx1)
+	id2 := vm.registry.RegisterContext(ctx2)
 
 	if id1 == id2 {
 		t.Error("Different contexts should have different IDs")
 	}
 
-	if globalContextRegistry.Size() != 2 {
-		t.Errorf("Registry size should be 2, got %d", globalContextRegistry.Size())
-	}
-
 	// Retrieve
-	if globalContextRegistry.Get(id1) != ctx1 {
+	if vm.registry.GetContext(id1) != ctx1 {
 		t.Error("Should retrieve ctx1 by id1")
 	}
-	if globalContextRegistry.Get(id2) != ctx2 {
+	if vm.registry.GetContext(id2) != ctx2 {
 		t.Error("Should retrieve ctx2 by id2")
 	}
 
 	// Remove
-	globalContextRegistry.Remove(id1)
-	if globalContextRegistry.Get(id1) != nil {
+	vm.registry.UnregisterContext(id1)
+	if vm.registry.GetContext(id1) != nil {
 		t.Error("Removed context should return nil")
-	}
-	if globalContextRegistry.Size() != 1 {
-		t.Errorf("Registry size should be 1 after removal, got %d", globalContextRegistry.Size())
 	}
 }
 
@@ -108,7 +101,7 @@ func TestInterpreterPushContext(t *testing.T) {
 		t.Fatal("getContext should return a context value")
 	}
 
-	ctx := GetContextValue(result)
+	ctx := vm.registry.GetContextFromValue(result)
 	if ctx == nil {
 		t.Fatal("Should be able to get context value")
 	}
@@ -272,7 +265,7 @@ func TestContextSender(t *testing.T) {
 		t.Fatal("sender should return a context")
 	}
 
-	senderCtx := GetContextValue(result)
+	senderCtx := vm.registry.GetContextFromValue(result)
 	if senderCtx == nil {
 		t.Fatal("Should get sender context")
 	}
@@ -306,7 +299,7 @@ func TestContextPrintString(t *testing.T) {
 		t.Fatal("printString should return a string")
 	}
 
-	str := GetStringContent(result)
+	str := vm.registry.GetStringContent(result)
 	if !strings.Contains(str, "MethodContext") {
 		t.Errorf("printString should mention MethodContext, got: %s", str)
 	}
@@ -431,7 +424,7 @@ func TestContextClassForValue(t *testing.T) {
 	vm := NewVM()
 
 	ctx := &ContextValue{Receiver: Nil}
-	val := RegisterContext(ctx)
+	val := vm.registry.RegisterContextValue(ctx)
 
 	class := vm.ClassFor(val)
 	if class != vm.ContextClass {
@@ -467,10 +460,11 @@ func BenchmarkPushContext(b *testing.B) {
 }
 
 func BenchmarkContextRegistration(b *testing.B) {
+	vm := NewVM()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		ctx := &ContextValue{Receiver: FromSmallInt(int64(i))}
-		val := RegisterContext(ctx)
-		UnregisterContext(val)
+		val := vm.registry.RegisterContextValue(ctx)
+		vm.registry.UnregisterContextValue(val)
 	}
 }

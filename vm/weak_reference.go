@@ -2,7 +2,6 @@ package vm
 
 import (
 	"sync"
-	"sync/atomic"
 )
 
 // ---------------------------------------------------------------------------
@@ -19,12 +18,14 @@ type WeakReference struct {
 	mu       sync.RWMutex // Protects target and finalizer
 }
 
-// weakRefCounter generates unique IDs for weak references
-var weakRefCounter uint32
-
 // NewWeakReference creates a new weak reference to the given object.
-func NewWeakReference(target *Object) *WeakReference {
-	id := atomic.AddUint32(&weakRefCounter, 1)
+// The registry is used to generate a unique ID; if nil, a zero ID is assigned
+// (suitable only for tests that don't need globally unique IDs).
+func NewWeakReference(registry *ObjectRegistry, target *Object) *WeakReference {
+	var id uint32
+	if registry != nil {
+		id = registry.NextWeakRefID()
+	}
 	return &WeakReference{
 		id:     id,
 		target: target,

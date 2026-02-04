@@ -27,7 +27,7 @@ func TestInspector_EvaluateInArray(t *testing.T) {
 
 	// self size
 	result := vmInst.Send(compilerClass, "evaluate:in:", []vm.Value{
-		vm.NewStringValue("self size"), arr,
+		vmInst.Registry().NewStringValue("self size"), arr,
 	})
 	if !result.IsSmallInt() || result.SmallInt() != 3 {
 		t.Errorf("Array 'self size' expected 3, got: %v", result)
@@ -35,7 +35,7 @@ func TestInspector_EvaluateInArray(t *testing.T) {
 
 	// self at: 0 (0-based indexing — Go primitives, no library loaded)
 	result = vmInst.Send(compilerClass, "evaluate:in:", []vm.Value{
-		vm.NewStringValue("self at: 0"), arr,
+		vmInst.Registry().NewStringValue("self at: 0"), arr,
 	})
 	if !result.IsSmallInt() || result.SmallInt() != 10 {
 		t.Errorf("Array 'self at: 0' expected 10, got: %v", result)
@@ -43,7 +43,7 @@ func TestInspector_EvaluateInArray(t *testing.T) {
 
 	// self at: 2
 	result = vmInst.Send(compilerClass, "evaluate:in:", []vm.Value{
-		vm.NewStringValue("self at: 2"), arr,
+		vmInst.Registry().NewStringValue("self at: 2"), arr,
 	})
 	if !result.IsSmallInt() || result.SmallInt() != 30 {
 		t.Errorf("Array 'self at: 2' expected 30, got: %v", result)
@@ -58,22 +58,22 @@ func TestInspector_EvaluateInDictionary(t *testing.T) {
 	compilerClass := vmInst.Globals["Compiler"]
 
 	// Create a dictionary
-	dict := vm.NewDictionaryValue()
-	dictObj := vm.GetDictionaryObject(dict)
+	dict := vmInst.Registry().NewDictionaryValue()
+	dictObj := vmInst.Registry().GetDictionaryObject(dict)
 
 	nameKey := vmInst.Symbols.SymbolValue("name")
-	h := vm.HashValue(nameKey)
-	dictObj.Data[h] = vm.NewStringValue("Alice")
+	h := vm.HashValue(vmInst.Registry(),nameKey)
+	dictObj.Data[h] = vmInst.Registry().NewStringValue("Alice")
 	dictObj.Keys[h] = nameKey
 
 	ageKey := vmInst.Symbols.SymbolValue("age")
-	h2 := vm.HashValue(ageKey)
+	h2 := vm.HashValue(vmInst.Registry(),ageKey)
 	dictObj.Data[h2] = vm.FromSmallInt(30)
 	dictObj.Keys[h2] = ageKey
 
 	// self size
 	result := vmInst.Send(compilerClass, "evaluate:in:", []vm.Value{
-		vm.NewStringValue("self size"), dict,
+		vmInst.Registry().NewStringValue("self size"), dict,
 	})
 	if !result.IsSmallInt() || result.SmallInt() != 2 {
 		t.Errorf("Dictionary 'self size' expected 2, got: %v", result)
@@ -81,7 +81,7 @@ func TestInspector_EvaluateInDictionary(t *testing.T) {
 
 	// self at: #age
 	result = vmInst.Send(compilerClass, "evaluate:in:", []vm.Value{
-		vm.NewStringValue("self at: #age"), dict,
+		vmInst.Registry().NewStringValue("self at: #age"), dict,
 	})
 	if !result.IsSmallInt() || result.SmallInt() != 30 {
 		t.Errorf("Dictionary 'self at: #age' expected 30, got: %v", result)
@@ -97,7 +97,7 @@ func TestInspector_EvaluateInSmallInteger(t *testing.T) {
 
 	// Evaluate 'self + 1' with 42 as receiver
 	result := vmInst.Send(compilerClass, "evaluate:in:", []vm.Value{
-		vm.NewStringValue("self + 1"), vm.FromSmallInt(42),
+		vmInst.Registry().NewStringValue("self + 1"), vm.FromSmallInt(42),
 	})
 	if !result.IsSmallInt() || result.SmallInt() != 43 {
 		t.Errorf("SmallInteger 'self + 1' expected 43, got: %v", result)
@@ -112,7 +112,7 @@ func TestInspector_EvaluateInNil(t *testing.T) {
 	compilerClass := vmInst.Globals["Compiler"]
 
 	result := vmInst.Send(compilerClass, "evaluate:in:", []vm.Value{
-		vm.NewStringValue("self isNil"), vm.Nil,
+		vmInst.Registry().NewStringValue("self isNil"), vm.Nil,
 	})
 	if result != vm.True {
 		t.Errorf("Nil 'self isNil' expected true, got: %v", result)
@@ -159,7 +159,7 @@ func TestInspector_MiniEvaluator_ArithmeticOnSelf(t *testing.T) {
 
 	// More complex expression: self size * 2
 	result := vmInst.Send(compilerClass, "evaluate:in:", []vm.Value{
-		vm.NewStringValue("self size * 2"), arr,
+		vmInst.Registry().NewStringValue("self size * 2"), arr,
 	})
 	if !result.IsSmallInt() || result.SmallInt() != 6 {
 		t.Errorf("'self size * 2' expected 6, got: %v", result)
@@ -175,7 +175,7 @@ func TestInspector_EvaluateInContext_ClassName(t *testing.T) {
 
 	// Evaluate 'self className' on a SmallInteger
 	result := vmInst.Send(compilerClass, "evaluate:in:", []vm.Value{
-		vm.NewStringValue("self className"), vm.FromSmallInt(42),
+		vmInst.Registry().NewStringValue("self className"), vm.FromSmallInt(42),
 	})
 
 	if !result.IsSymbol() {
@@ -196,7 +196,7 @@ func TestInspector_EvaluateInContext_Error(t *testing.T) {
 
 	// Evaluate a syntax error
 	result := vmInst.Send(compilerClass, "evaluate:in:", []vm.Value{
-		vm.NewStringValue("self +++"), vm.FromSmallInt(42),
+		vmInst.Registry().NewStringValue("self +++"), vm.FromSmallInt(42),
 	})
 
 	// Should get a Failure (Result value), not crash

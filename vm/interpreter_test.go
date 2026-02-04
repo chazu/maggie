@@ -785,7 +785,10 @@ func TestInterpreterFrameStackGrowth(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestBlockRegistryCleanup(t *testing.T) {
-	interp := NewInterpreter()
+	vm := NewVM()
+	defer vm.Shutdown()
+	interp := vm.interpreter
+	reg := vm.registry
 
 	// Create a simple block method
 	blockMethod := &BlockMethod{
@@ -797,7 +800,7 @@ func TestBlockRegistryCleanup(t *testing.T) {
 	}
 
 	// Record initial registry size
-	initialSize := blockRegistrySize()
+	initialSize := reg.BlockCount()
 
 	// Create a method frame (this will be the home frame for blocks)
 	b := NewCompiledMethodBuilder("test", 0)
@@ -817,13 +820,13 @@ func TestBlockRegistryCleanup(t *testing.T) {
 	}
 
 	// Verify blocks were registered
-	if blockRegistrySize() != initialSize+numBlocks {
-		t.Errorf("block registry size after creation = %d, want %d", blockRegistrySize(), initialSize+numBlocks)
+	if reg.BlockCount() != initialSize+numBlocks {
+		t.Errorf("block registry size after creation = %d, want %d", reg.BlockCount(), initialSize+numBlocks)
 	}
 
 	// Verify blocks are tracked by home frame
-	if blocksByHomeFrameCount(homeFrame) != numBlocks {
-		t.Errorf("blocks tracked for home frame = %d, want %d", blocksByHomeFrameCount(homeFrame), numBlocks)
+	if reg.BlocksByHomeFrameCount(homeFrame) != numBlocks {
+		t.Errorf("blocks tracked for home frame = %d, want %d", reg.BlocksByHomeFrameCount(homeFrame), numBlocks)
 	}
 
 	// Pop the home frame - this should clean up all blocks
@@ -831,19 +834,22 @@ func TestBlockRegistryCleanup(t *testing.T) {
 
 	// Verify blocks were cleaned up
 	for _, id := range blockIDs {
-		if blockRegistryHas(id) {
+		if reg.HasBlock(id) {
 			t.Errorf("block %d still in registry after home frame popped", id)
 		}
 	}
 
 	// Verify home frame tracking was cleaned up
-	if blocksByHomeFrameHas(homeFrame) {
+	if reg.BlocksByHomeFrameHas(homeFrame) {
 		t.Errorf("home frame %d still tracked after being popped", homeFrame)
 	}
 }
 
 func TestBlockRegistryMultipleFrames(t *testing.T) {
-	interp := NewInterpreter()
+	vm := NewVM()
+	defer vm.Shutdown()
+	interp := vm.interpreter
+	reg := vm.registry
 
 	// Create a simple block method
 	blockMethod := &BlockMethod{
@@ -873,10 +879,10 @@ func TestBlockRegistryMultipleFrames(t *testing.T) {
 	block2ID := int(block2.BlockID())
 
 	// Verify both blocks exist
-	if !blockRegistryHas(block1ID) {
+	if !reg.HasBlock(block1ID) {
 		t.Error("block1 not in registry")
 	}
-	if !blockRegistryHas(block2ID) {
+	if !reg.HasBlock(block2ID) {
 		t.Error("block2 not in registry")
 	}
 
@@ -884,25 +890,25 @@ func TestBlockRegistryMultipleFrames(t *testing.T) {
 	interp.popFrame()
 
 	// block1 should still exist, block2 should be gone
-	if !blockRegistryHas(block1ID) {
+	if !reg.HasBlock(block1ID) {
 		t.Error("block1 was incorrectly cleaned up")
 	}
-	if blockRegistryHas(block2ID) {
+	if reg.HasBlock(block2ID) {
 		t.Error("block2 was not cleaned up")
 	}
 
 	// Pop frame1 - should clean up block1
 	interp.popFrame()
 
-	if blockRegistryHas(block1ID) {
+	if reg.HasBlock(block1ID) {
 		t.Error("block1 was not cleaned up after frame1 popped")
 	}
 
 	// Verify both home frames are no longer tracked
-	if blocksByHomeFrameHas(frame1) {
+	if reg.BlocksByHomeFrameHas(frame1) {
 		t.Errorf("frame1 still tracked")
 	}
-	if blocksByHomeFrameHas(frame2) {
+	if reg.BlocksByHomeFrameHas(frame2) {
 		t.Errorf("frame2 still tracked")
 	}
 }
@@ -1116,7 +1122,7 @@ func TestPrimitiveSize(t *testing.T) {
 	}
 
 	// Test string size
-	str := NewStringValue("hello")
+	str := vm.registry.NewStringValue("hello")
 	result = vm.interpreter.primitiveSize(str)
 	if !result.IsSmallInt() || result.SmallInt() != 5 {
 		t.Errorf("string size = %v, want 5", result)
@@ -1134,7 +1140,7 @@ func TestPrimitiveSize(t *testing.T) {
 func TestPrimitiveAtString(t *testing.T) {
 	vm := NewVM()
 
-	str := NewStringValue("ABC")
+	str := vm.registry.NewStringValue("ABC")
 
 	// Test valid access (returns ASCII code)
 	result := vm.interpreter.primitiveAt(str, FromSmallInt(0))
@@ -1157,7 +1163,7 @@ func TestPrimitiveAtString(t *testing.T) {
 // TestCellOperations verifies the basic Cell type operations.
 func TestCellOperations(t *testing.T) {
 	// Test NewCell creates a cell with the given value
-	cell := NewCell(FromSmallInt(42))
+	cell := NewCell(nil, FromSmallInt(42))
 	if !cell.IsCell() {
 		t.Error("NewCell should return a cell value")
 	}
@@ -1176,8 +1182,8 @@ func TestCellOperations(t *testing.T) {
 	}
 
 	// Test multiple cells are independent
-	cell1 := NewCell(FromSmallInt(1))
-	cell2 := NewCell(FromSmallInt(2))
+	cell1 := NewCell(nil, FromSmallInt(1))
+	cell2 := NewCell(nil, FromSmallInt(2))
 
 	if cell1.CellGet().SmallInt() != 1 || cell2.CellGet().SmallInt() != 2 {
 		t.Error("cells should be independent")
@@ -1288,7 +1294,7 @@ func TestStackOverflowRaisesException(t *testing.T) {
 		t.Fatal("exception messageText should be a string")
 	}
 
-	msgText := GetStringContent(caught.Object.MessageText)
+	msgText := vm.registry.GetStringContent(caught.Object.MessageText)
 	if !strings.Contains(msgText, "Stack overflow") {
 		t.Errorf("exception message = %q, want it to contain 'Stack overflow'", msgText)
 	}
@@ -1363,21 +1369,8 @@ func TestStackOverflowCatchableWithOnDo(t *testing.T) {
 		HomeMethod: nil,
 	}
 
-	protectedBlockVal := func() Value {
-		id := int(nextBlockID.Add(1) - 1)
-		blockRegistryMu.Lock()
-		blockRegistry[id] = protectedBV
-		blockRegistryMu.Unlock()
-		return FromBlockID(uint32(id))
-	}()
-
-	handlerBlockVal := func() Value {
-		id := int(nextBlockID.Add(1) - 1)
-		blockRegistryMu.Lock()
-		blockRegistry[id] = handlerBV
-		blockRegistryMu.Unlock()
-		return FromBlockID(uint32(id))
-	}()
+	protectedBlockVal := FromBlockID(uint32(vm.registry.RegisterBlock(protectedBV)))
+	handlerBlockVal := FromBlockID(uint32(vm.registry.RegisterBlock(handlerBV)))
 
 	// Use evaluateBlockWithHandler (the mechanism behind on:do:) to catch the exception.
 	// Catch StackOverflow (which is a subclass of Error).
@@ -1449,20 +1442,8 @@ func TestStackOverflowCatchableWithErrorOnDo(t *testing.T) {
 		HomeSelf:  Nil,
 	}
 
-	protectedBlockVal := func() Value {
-		id := int(nextBlockID.Add(1) - 1)
-		blockRegistryMu.Lock()
-		blockRegistry[id] = protectedBV
-		blockRegistryMu.Unlock()
-		return FromBlockID(uint32(id))
-	}()
-	handlerBlockVal := func() Value {
-		id := int(nextBlockID.Add(1) - 1)
-		blockRegistryMu.Lock()
-		blockRegistry[id] = handlerBV
-		blockRegistryMu.Unlock()
-		return FromBlockID(uint32(id))
-	}()
+	protectedBlockVal := FromBlockID(uint32(vm.registry.RegisterBlock(protectedBV)))
+	handlerBlockVal := FromBlockID(uint32(vm.registry.RegisterBlock(handlerBV)))
 
 	// Catch with Error (superclass of StackOverflow) -- should also work
 	result := vm.evaluateBlockWithHandler(protectedBlockVal, vm.ErrorClass, handlerBlockVal)

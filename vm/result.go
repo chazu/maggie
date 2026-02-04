@@ -2,8 +2,6 @@ package vm
 
 import (
 	"fmt"
-	"sync"
-	"sync/atomic"
 )
 
 // ---------------------------------------------------------------------------
@@ -26,26 +24,11 @@ type ResultObject struct {
 	value      Value // The success value or failure reason
 }
 
-// resultRegistry stores active results
-var resultRegistry = make(map[int]*ResultObject)
-var resultRegistryMu sync.Mutex
-var nextResultID int32 = 1
-
 func createResult(rtype ResultType, val Value) *ResultObject {
 	return &ResultObject{
 		resultType: rtype,
 		value:      val,
 	}
-}
-
-func registerResult(r *ResultObject) Value {
-	resultRegistryMu.Lock()
-	defer resultRegistryMu.Unlock()
-
-	id := int(atomic.AddInt32(&nextResultID, 1) - 1)
-	resultRegistry[id] = r
-
-	return resultToValue(id)
 }
 
 const resultMarker uint32 = 4 << 24
@@ -63,17 +46,6 @@ func isResultValue(v Value) bool {
 	return (id & (0xFF << 24)) == resultMarker
 }
 
-func getResult(v Value) *ResultObject {
-	if !isResultValue(v) {
-		return nil
-	}
-	id := int(v.SymbolID() & ^uint32(4<<24))
-
-	resultRegistryMu.Lock()
-	defer resultRegistryMu.Unlock()
-	return resultRegistry[id]
-}
-
 // ---------------------------------------------------------------------------
 // Result primitives registration
 // ---------------------------------------------------------------------------
@@ -83,14 +55,16 @@ func (vm *VM) registerResultPrimitives() {
 	s := vm.SuccessClass
 
 	// Success class>>with: value - create a Success wrapping value (class method)
-	s.AddClassMethod1(vm.Selectors, "with:", func(_ interface{}, recv Value, val Value) Value {
+	s.AddClassMethod1(vm.Selectors, "with:", func(vmPtr interface{}, recv Value, val Value) Value {
+		v := vmPtr.(*VM)
 		r := createResult(ResultSuccess, val)
-		return registerResult(r)
+		return v.registry.RegisterResultValue(r)
 	})
 
 	// Success>>value - return the wrapped value
-	s.AddMethod0(vm.Selectors, "value", func(_ interface{}, recv Value) Value {
-		r := getResult(recv)
+	s.AddMethod0(vm.Selectors, "value", func(vmPtr interface{}, recv Value) Value {
+		v := vmPtr.(*VM)
+		r := v.registry.GetResultFromValue(recv)
 		if r == nil || r.resultType != ResultSuccess {
 			return Nil
 		}
@@ -98,8 +72,9 @@ func (vm *VM) registerResultPrimitives() {
 	})
 
 	// Success>>primValue - primitive for value (same as value)
-	s.AddMethod0(vm.Selectors, "primValue", func(_ interface{}, recv Value) Value {
-		r := getResult(recv)
+	s.AddMethod0(vm.Selectors, "primValue", func(vmPtr interface{}, recv Value) Value {
+		v := vmPtr.(*VM)
+		r := v.registry.GetResultFromValue(recv)
 		if r == nil || r.resultType != ResultSuccess {
 			return Nil
 		}
@@ -112,9 +87,10 @@ func (vm *VM) registerResultPrimitives() {
 	})
 
 	// Success>>isSuccess - return true
-	s.AddMethod0(vm.Selectors, "isSuccess", func(_ interface{}, recv Value) Value {
+	s.AddMethod0(vm.Selectors, "isSuccess", func(vmPtr interface{}, recv Value) Value {
+		v := vmPtr.(*VM)
 		fmt.Println("[Result] isSuccess called on Success")
-		r := getResult(recv)
+		r := v.registry.GetResultFromValue(recv)
 		if r == nil {
 			fmt.Println("[Result] isSuccess: r is nil!")
 			return False
@@ -128,8 +104,9 @@ func (vm *VM) registerResultPrimitives() {
 	})
 
 	// Success>>isFailure - return false
-	s.AddMethod0(vm.Selectors, "isFailure", func(_ interface{}, recv Value) Value {
-		r := getResult(recv)
+	s.AddMethod0(vm.Selectors, "isFailure", func(vmPtr interface{}, recv Value) Value {
+		v := vmPtr.(*VM)
+		r := v.registry.GetResultFromValue(recv)
 		if r == nil {
 			return True
 		}
@@ -142,7 +119,7 @@ func (vm *VM) registerResultPrimitives() {
 	// Success>>ifSuccess: block - evaluate block with value
 	s.AddMethod1(vm.Selectors, "ifSuccess:", func(vmPtr interface{}, recv Value, block Value) Value {
 		v := vmPtr.(*VM)
-		r := getResult(recv)
+		r := v.registry.GetResultFromValue(recv)
 		if r == nil || r.resultType != ResultSuccess {
 			return Nil
 		}
@@ -157,7 +134,7 @@ func (vm *VM) registerResultPrimitives() {
 	// Success>>onSuccess:onFailure: - evaluate success block
 	s.AddMethod2(vm.Selectors, "onSuccess:onFailure:", func(vmPtr interface{}, recv Value, successBlock, failureBlock Value) Value {
 		v := vmPtr.(*VM)
-		r := getResult(recv)
+		r := v.registry.GetResultFromValue(recv)
 		if r == nil || r.resultType != ResultSuccess {
 			return Nil
 		}
@@ -167,7 +144,7 @@ func (vm *VM) registerResultPrimitives() {
 	// Success>>then: block - chain operations, evaluate block with value, return new Result
 	s.AddMethod1(vm.Selectors, "then:", func(vmPtr interface{}, recv Value, block Value) Value {
 		v := vmPtr.(*VM)
-		r := getResult(recv)
+		r := v.registry.GetResultFromValue(recv)
 		if r == nil || r.resultType != ResultSuccess {
 			return recv
 		}
@@ -177,25 +154,25 @@ func (vm *VM) registerResultPrimitives() {
 			return result
 		}
 		newR := createResult(ResultSuccess, result)
-		return registerResult(newR)
+		return v.registry.RegisterResultValue(newR)
 	})
 
 	// Success>>map: block - transform value, return new Success
 	s.AddMethod1(vm.Selectors, "map:", func(vmPtr interface{}, recv Value, block Value) Value {
 		v := vmPtr.(*VM)
-		r := getResult(recv)
+		r := v.registry.GetResultFromValue(recv)
 		if r == nil || r.resultType != ResultSuccess {
 			return recv
 		}
 		newVal := v.evaluateBlock(block, []Value{r.value})
 		newR := createResult(ResultSuccess, newVal)
-		return registerResult(newR)
+		return v.registry.RegisterResultValue(newR)
 	})
 
 	// Success>>flatMap: block - transform value, block must return Result
 	s.AddMethod1(vm.Selectors, "flatMap:", func(vmPtr interface{}, recv Value, block Value) Value {
 		v := vmPtr.(*VM)
-		r := getResult(recv)
+		r := v.registry.GetResultFromValue(recv)
 		if r == nil || r.resultType != ResultSuccess {
 			return recv
 		}
@@ -206,9 +183,10 @@ func (vm *VM) registerResultPrimitives() {
 	f := vm.FailureClass
 
 	// Failure class>>with: reason - create a Failure wrapping reason (class method)
-	f.AddClassMethod1(vm.Selectors, "with:", func(_ interface{}, recv Value, reason Value) Value {
+	f.AddClassMethod1(vm.Selectors, "with:", func(vmPtr interface{}, recv Value, reason Value) Value {
+		v := vmPtr.(*VM)
 		r := createResult(ResultFailure, reason)
-		return registerResult(r)
+		return v.registry.RegisterResultValue(r)
 	})
 
 	// Failure>>value - return nil (Failure has no value)
@@ -217,8 +195,9 @@ func (vm *VM) registerResultPrimitives() {
 	})
 
 	// Failure>>error - return the error/reason
-	f.AddMethod0(vm.Selectors, "error", func(_ interface{}, recv Value) Value {
-		r := getResult(recv)
+	f.AddMethod0(vm.Selectors, "error", func(vmPtr interface{}, recv Value) Value {
+		v := vmPtr.(*VM)
+		r := v.registry.GetResultFromValue(recv)
 		if r == nil || r.resultType != ResultFailure {
 			return Nil
 		}
@@ -226,8 +205,9 @@ func (vm *VM) registerResultPrimitives() {
 	})
 
 	// Failure>>primError - primitive for error (same as error)
-	f.AddMethod0(vm.Selectors, "primError", func(_ interface{}, recv Value) Value {
-		r := getResult(recv)
+	f.AddMethod0(vm.Selectors, "primError", func(vmPtr interface{}, recv Value) Value {
+		v := vmPtr.(*VM)
+		r := v.registry.GetResultFromValue(recv)
 		if r == nil || r.resultType != ResultFailure {
 			return Nil
 		}
@@ -235,8 +215,9 @@ func (vm *VM) registerResultPrimitives() {
 	})
 
 	// Failure>>isSuccess - return false
-	f.AddMethod0(vm.Selectors, "isSuccess", func(_ interface{}, recv Value) Value {
-		r := getResult(recv)
+	f.AddMethod0(vm.Selectors, "isSuccess", func(vmPtr interface{}, recv Value) Value {
+		v := vmPtr.(*VM)
+		r := v.registry.GetResultFromValue(recv)
 		if r == nil {
 			return False
 		}
@@ -247,8 +228,9 @@ func (vm *VM) registerResultPrimitives() {
 	})
 
 	// Failure>>isFailure - return true
-	f.AddMethod0(vm.Selectors, "isFailure", func(_ interface{}, recv Value) Value {
-		r := getResult(recv)
+	f.AddMethod0(vm.Selectors, "isFailure", func(vmPtr interface{}, recv Value) Value {
+		v := vmPtr.(*VM)
+		r := v.registry.GetResultFromValue(recv)
 		if r == nil {
 			return True
 		}
@@ -266,7 +248,7 @@ func (vm *VM) registerResultPrimitives() {
 	// Failure>>ifFailure: block - evaluate block with error
 	f.AddMethod1(vm.Selectors, "ifFailure:", func(vmPtr interface{}, recv Value, block Value) Value {
 		v := vmPtr.(*VM)
-		r := getResult(recv)
+		r := v.registry.GetResultFromValue(recv)
 		if r == nil || r.resultType != ResultFailure {
 			return recv
 		}
@@ -276,7 +258,7 @@ func (vm *VM) registerResultPrimitives() {
 	// Failure>>onSuccess:onFailure: - evaluate failure block
 	f.AddMethod2(vm.Selectors, "onSuccess:onFailure:", func(vmPtr interface{}, recv Value, successBlock, failureBlock Value) Value {
 		v := vmPtr.(*VM)
-		r := getResult(recv)
+		r := v.registry.GetResultFromValue(recv)
 		if r == nil || r.resultType != ResultFailure {
 			return Nil
 		}
@@ -302,14 +284,16 @@ func (vm *VM) registerResultPrimitives() {
 	r := vm.ResultClass
 
 	// Result class>>success: value - create a Success (class method)
-	r.AddClassMethod1(vm.Selectors, "success:", func(_ interface{}, recv Value, val Value) Value {
+	r.AddClassMethod1(vm.Selectors, "success:", func(vmPtr interface{}, recv Value, val Value) Value {
+		v := vmPtr.(*VM)
 		result := createResult(ResultSuccess, val)
-		return registerResult(result)
+		return v.registry.RegisterResultValue(result)
 	})
 
 	// Result class>>failure: reason - create a Failure (class method)
-	r.AddClassMethod1(vm.Selectors, "failure:", func(_ interface{}, recv Value, reason Value) Value {
+	r.AddClassMethod1(vm.Selectors, "failure:", func(vmPtr interface{}, recv Value, reason Value) Value {
+		v := vmPtr.(*VM)
 		result := createResult(ResultFailure, reason)
-		return registerResult(result)
+		return v.registry.RegisterResultValue(result)
 	})
 }

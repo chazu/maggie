@@ -27,7 +27,7 @@ func (vm *VM) registerCompilerPrimitives() {
 		// Get the source string
 		var source string
 		if IsStringValue(sourceVal) {
-			source = GetStringContent(sourceVal)
+			source = v.registry.GetStringContent(sourceVal)
 		} else if sourceVal.IsSymbol() {
 			source = v.Symbols.Name(sourceVal.SymbolID())
 		} else {
@@ -58,7 +58,7 @@ func (vm *VM) registerCompilerPrimitives() {
 		// Get the source string
 		var source string
 		if IsStringValue(sourceVal) {
-			source = GetStringContent(sourceVal)
+			source = v.registry.GetStringContent(sourceVal)
 		} else if sourceVal.IsSymbol() {
 			source = v.Symbols.Name(sourceVal.SymbolID())
 		} else {
@@ -90,7 +90,7 @@ func (vm *VM) registerCompilerPrimitives() {
 		if nameVal.IsSymbol() {
 			name = v.Symbols.Name(nameVal.SymbolID())
 		} else if IsStringValue(nameVal) {
-			name = GetStringContent(nameVal)
+			name = v.registry.GetStringContent(nameVal)
 		} else {
 			return v.newFailureResult("setGlobal:to: requires a Symbol or String name")
 		}
@@ -111,7 +111,7 @@ func (vm *VM) registerCompilerPrimitives() {
 		if nameVal.IsSymbol() {
 			name = v.Symbols.Name(nameVal.SymbolID())
 		} else if IsStringValue(nameVal) {
-			name = GetStringContent(nameVal)
+			name = v.registry.GetStringContent(nameVal)
 		} else {
 			return v.newFailureResult("getGlobal: requires a Symbol or String name")
 		}
@@ -134,7 +134,7 @@ func (vm *VM) registerCompilerPrimitives() {
 		// Get the source string
 		var source string
 		if IsStringValue(sourceVal) {
-			source = GetStringContent(sourceVal)
+			source = v.registry.GetStringContent(sourceVal)
 		} else if sourceVal.IsSymbol() {
 			source = v.Symbols.Name(sourceVal.SymbolID())
 		} else {
@@ -142,7 +142,7 @@ func (vm *VM) registerCompilerPrimitives() {
 		}
 
 		// Get the locals dictionary
-		dict := GetDictionaryObject(localsVal)
+		dict := v.registry.GetDictionaryObject(localsVal)
 		if dict == nil {
 			return v.newFailureResult("evaluate:withLocals: requires a Dictionary for locals")
 		}
@@ -156,7 +156,7 @@ func (vm *VM) registerCompilerPrimitives() {
 			if keyVal.IsSymbol() {
 				name = v.Symbols.Name(keyVal.SymbolID())
 			} else if IsStringValue(keyVal) {
-				name = GetStringContent(keyVal)
+				name = v.registry.GetStringContent(keyVal)
 			} else {
 				continue
 			}
@@ -199,7 +199,7 @@ func (vm *VM) registerCompilerPrimitives() {
 			if val, ok := v.interpreter.Globals[name]; ok {
 				// Write current value back to locals dict
 				symKey := v.Symbols.SymbolValue(name)
-				h := hashValue(symKey)
+				h := hashValue(v.registry, symKey)
 				dict.Data[h] = val
 				dict.Keys[h] = symKey
 			}
@@ -212,7 +212,7 @@ func (vm *VM) registerCompilerPrimitives() {
 				// This is a new variable created during evaluation
 				// Write it to the locals dictionary
 				symKey := v.Symbols.SymbolValue(name)
-				h := hashValue(symKey)
+				h := hashValue(v.registry, symKey)
 				dict.Data[h] = val
 				dict.Keys[h] = symKey
 				localNames[name] = true
@@ -237,7 +237,7 @@ func (vm *VM) registerCompilerPrimitives() {
 
 		var source string
 		if IsStringValue(sourceVal) {
-			source = GetStringContent(sourceVal)
+			source = v.registry.GetStringContent(sourceVal)
 		} else {
 			return v.newFailureResult("compileMethod: requires a String argument")
 		}
@@ -261,7 +261,7 @@ func (vm *VM) registerCompilerPrimitives() {
 
 		var path string
 		if IsStringValue(pathVal) {
-			path = GetStringContent(pathVal)
+			path = v.registry.GetStringContent(pathVal)
 		} else {
 			return v.newFailureResult("fileIn: requires a String path")
 		}
@@ -281,7 +281,7 @@ func (vm *VM) registerCompilerPrimitives() {
 
 		var path string
 		if IsStringValue(pathVal) {
-			path = GetStringContent(pathVal)
+			path = v.registry.GetStringContent(pathVal)
 		} else {
 			return v.newFailureResult("fileInAll: requires a String path")
 		}
@@ -301,7 +301,7 @@ func (vm *VM) registerCompilerPrimitives() {
 
 		var className, path string
 		if IsStringValue(classNameVal) {
-			className = GetStringContent(classNameVal)
+			className = v.registry.GetStringContent(classNameVal)
 		} else if classNameVal.IsSymbol() {
 			className = v.Symbols.Name(classNameVal.SymbolID())
 		} else {
@@ -309,7 +309,7 @@ func (vm *VM) registerCompilerPrimitives() {
 		}
 
 		if IsStringValue(pathVal) {
-			path = GetStringContent(pathVal)
+			path = v.registry.GetStringContent(pathVal)
 		} else {
 			return v.newFailureResult("fileOut:to: requires a String path")
 		}
@@ -324,7 +324,7 @@ func (vm *VM) registerCompilerPrimitives() {
 			return v.newFailureResult("fileOut:to: cannot write: " + err.Error())
 		}
 
-		return NewStringValue(path)
+		return v.registry.NewStringValue(path)
 	})
 
 	// fileOutNamespace:to: - Write all classes in a namespace to a directory
@@ -334,7 +334,7 @@ func (vm *VM) registerCompilerPrimitives() {
 
 		var namespace, dir string
 		if IsStringValue(nsVal) {
-			namespace = GetStringContent(nsVal)
+			namespace = v.registry.GetStringContent(nsVal)
 		} else if nsVal.IsSymbol() {
 			namespace = v.Symbols.Name(nsVal.SymbolID())
 		} else {
@@ -342,7 +342,7 @@ func (vm *VM) registerCompilerPrimitives() {
 		}
 
 		if IsStringValue(dirVal) {
-			dir = GetStringContent(dirVal)
+			dir = v.registry.GetStringContent(dirVal)
 		} else {
 			return v.newFailureResult("fileOutNamespace:to: requires a String directory path")
 		}
@@ -373,7 +373,7 @@ func (vm *VM) registerCompilerPrimitives() {
 
 		var path string
 		if IsStringValue(pathVal) {
-			path = GetStringContent(pathVal)
+			path = v.registry.GetStringContent(pathVal)
 		} else {
 			return v.newFailureResult("saveImage: requires a String path")
 		}
@@ -382,7 +382,7 @@ func (vm *VM) registerCompilerPrimitives() {
 			return v.newFailureResult("saveImage: " + err.Error())
 		}
 
-		return NewStringValue(path)
+		return v.registry.NewStringValue(path)
 	})
 }
 
@@ -400,18 +400,18 @@ func (vm *VM) restoreGlobals(localNames map[string]bool, savedGlobals map[string
 
 // newFailureResult creates a Failure result with the given reason string.
 func (vm *VM) newFailureResult(reason string) Value {
-	r := createResult(ResultFailure, NewStringValue(reason))
-	return registerResult(r)
+	r := createResult(ResultFailure, vm.registry.NewStringValue(reason))
+	return vm.registry.RegisterResultValue(r)
 }
 
 // methodInfoDict creates a Dictionary with info about a compiled method.
 func (vm *VM) methodInfoDict(method *CompiledMethod) Value {
-	dictVal := NewDictionaryValue()
-	dict := GetDictionaryObject(dictVal)
+	dictVal := vm.registry.NewDictionaryValue()
+	dict := vm.registry.GetDictionaryObject(dictVal)
 
 	// Helper to add key-value pair
 	put := func(key, value Value) {
-		h := hashValue(key)
+		h := hashValue(vm.registry, key)
 		dict.Data[h] = value
 		dict.Keys[h] = key
 	}

@@ -43,9 +43,10 @@ type ConcurrencyRegistry struct {
 	cancellationContextID  atomic.Int32
 
 	// Block registry
-	blocks   map[int]*BlockValue
-	blocksMu sync.RWMutex
-	blockID  atomic.Int32
+	blocks           map[int]*BlockValue
+	blocksByHomeFrame map[int][]int // maps frameIndex → list of blockIDs
+	blocksMu         sync.RWMutex
+	blockID          atomic.Int32
 }
 
 // NewConcurrencyRegistry creates a new concurrency registry.
@@ -58,6 +59,7 @@ func NewConcurrencyRegistry() *ConcurrencyRegistry {
 		semaphores:           make(map[int]*SemaphoreObject),
 		cancellationContexts: make(map[int]*CancellationContextObject),
 		blocks:               make(map[int]*BlockValue),
+		blocksByHomeFrame:    make(map[int][]int),
 	}
 	// Start IDs at 1 (0 could be confused with nil/uninitialized)
 	cr.channelID.Store(1)
@@ -336,12 +338,14 @@ func (cr *ConcurrencyRegistry) CancellationContextCount() int {
 // Block Registry Methods
 // ---------------------------------------------------------------------------
 
-// RegisterBlock adds a block to the registry and returns its ID.
+// RegisterBlock adds a block to the registry, records it in blocksByHomeFrame,
+// and returns its ID.
 func (cr *ConcurrencyRegistry) RegisterBlock(bv *BlockValue) int {
 	id := int(cr.blockID.Add(1) - 1)
 
 	cr.blocksMu.Lock()
 	cr.blocks[id] = bv
+	cr.blocksByHomeFrame[bv.HomeFrame] = append(cr.blocksByHomeFrame[bv.HomeFrame], id)
 	cr.blocksMu.Unlock()
 
 	return id
@@ -362,15 +366,31 @@ func (cr *ConcurrencyRegistry) HasBlock(id int) bool {
 	return exists
 }
 
-// ReleaseBlock removes a block from the registry.
+// ReleaseBlock removes a single block from the registry.
+// Note: this does NOT clean up the blocksByHomeFrame entry for efficiency;
+// use ReleaseBlocksForFrame for bulk cleanup when a frame is popped.
 func (cr *ConcurrencyRegistry) ReleaseBlock(id int) {
 	cr.blocksMu.Lock()
 	defer cr.blocksMu.Unlock()
 	delete(cr.blocks, id)
 }
 
+// ReleaseBlocksForFrame removes all blocks whose home frame matches frameIndex.
+// Blocks that need to outlive their home frame (e.g. forked processes) use
+// HomeFrame = -1 via ExecuteBlockDetached, so they are unaffected by this cleanup.
+func (cr *ConcurrencyRegistry) ReleaseBlocksForFrame(frameIndex int) {
+	cr.blocksMu.Lock()
+	if blockIDs, ok := cr.blocksByHomeFrame[frameIndex]; ok {
+		for _, id := range blockIDs {
+			delete(cr.blocks, id)
+		}
+		delete(cr.blocksByHomeFrame, frameIndex)
+	}
+	cr.blocksMu.Unlock()
+}
+
 // SweepBlocks removes blocks whose home frame is no longer valid.
-// This is a placeholder - actual implementation depends on frame tracking.
+// Also cleans up the corresponding blocksByHomeFrame entries.
 // Returns the number of blocks swept.
 func (cr *ConcurrencyRegistry) SweepBlocks(validFrames map[int]bool) int {
 	cr.blocksMu.Lock()
@@ -388,6 +408,17 @@ func (cr *ConcurrencyRegistry) SweepBlocks(validFrames map[int]bool) int {
 			swept++
 		}
 	}
+
+	// Clean up blocksByHomeFrame for invalid frames
+	for frame := range cr.blocksByHomeFrame {
+		if frame == -1 {
+			continue
+		}
+		if !validFrames[frame] {
+			delete(cr.blocksByHomeFrame, frame)
+		}
+	}
+
 	return swept
 }
 
@@ -396,6 +427,21 @@ func (cr *ConcurrencyRegistry) BlockCount() int {
 	cr.blocksMu.RLock()
 	defer cr.blocksMu.RUnlock()
 	return len(cr.blocks)
+}
+
+// BlocksByHomeFrameCount returns the number of blocks tracked for a given home frame.
+func (cr *ConcurrencyRegistry) BlocksByHomeFrameCount(homeFrame int) int {
+	cr.blocksMu.RLock()
+	defer cr.blocksMu.RUnlock()
+	return len(cr.blocksByHomeFrame[homeFrame])
+}
+
+// BlocksByHomeFrameHas checks if a home frame is tracked in blocksByHomeFrame.
+func (cr *ConcurrencyRegistry) BlocksByHomeFrameHas(homeFrame int) bool {
+	cr.blocksMu.RLock()
+	defer cr.blocksMu.RUnlock()
+	_, exists := cr.blocksByHomeFrame[homeFrame]
+	return exists
 }
 
 // ---------------------------------------------------------------------------

@@ -298,12 +298,6 @@ type Cell struct {
 	value Value
 }
 
-// cellRegistry keeps cells alive to prevent Go's GC from collecting them.
-// When we convert a Cell pointer to an integer (for NaN-boxing), Go can't
-// track the reference anymore. This registry maintains a Go-visible reference.
-var cellRegistry = make(map[*Cell]struct{})
-var cellRegistryMu sync.Mutex
-
 // IsCell returns true if v represents a mutable cell.
 func (v Value) IsCell() bool {
 	bits := uint64(v)
@@ -327,12 +321,14 @@ func FromCellPtr(cell *Cell) Value {
 }
 
 // NewCell creates a new Cell containing the given value and returns it as a Value.
-// The cell is registered in cellRegistry to prevent garbage collection.
-func NewCell(v Value) Value {
+// If registry is non-nil the cell is registered to prevent garbage collection
+// (Go can't track the pointer once it's NaN-boxed into a uint64).
+// Passing nil is safe for tests that don't need GC protection.
+func NewCell(registry *ObjectRegistry, v Value) Value {
 	cell := &Cell{value: v}
-	cellRegistryMu.Lock()
-	cellRegistry[cell] = struct{}{} // Keep alive
-	cellRegistryMu.Unlock()
+	if registry != nil {
+		registry.RegisterCell(cell)
+	}
 	return FromCellPtr(cell)
 }
 

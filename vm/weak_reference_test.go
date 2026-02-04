@@ -9,10 +9,11 @@ import (
 // ---------------------------------------------------------------------------
 
 func TestNewWeakReference(t *testing.T) {
+	reg := NewObjectRegistry()
 	obj := NewObject(nil, 2)
 	obj.SetSlot(0, FromSmallInt(42))
 
-	wr := NewWeakReference(obj)
+	wr := NewWeakReference(reg, obj)
 	if wr == nil {
 		t.Fatal("NewWeakReference returned nil")
 	}
@@ -25,7 +26,7 @@ func TestWeakReferenceGet(t *testing.T) {
 	obj := NewObject(nil, 2)
 	obj.SetSlot(0, FromSmallInt(42))
 
-	wr := NewWeakReference(obj)
+	wr := NewWeakReference(nil, obj)
 
 	target := wr.Get()
 	if target != obj {
@@ -38,7 +39,7 @@ func TestWeakReferenceGet(t *testing.T) {
 
 func TestWeakReferenceIsAlive(t *testing.T) {
 	obj := NewObject(nil, 2)
-	wr := NewWeakReference(obj)
+	wr := NewWeakReference(nil, obj)
 
 	if !wr.IsAlive() {
 		t.Error("WeakReference should be alive initially")
@@ -53,7 +54,7 @@ func TestWeakReferenceIsAlive(t *testing.T) {
 
 func TestWeakReferenceClear(t *testing.T) {
 	obj := NewObject(nil, 2)
-	wr := NewWeakReference(obj)
+	wr := NewWeakReference(nil, obj)
 
 	old := wr.Clear()
 	if old != obj {
@@ -67,7 +68,7 @@ func TestWeakReferenceClear(t *testing.T) {
 
 func TestWeakReferenceFinalizer(t *testing.T) {
 	obj := NewObject(nil, 2)
-	wr := NewWeakReference(obj)
+	wr := NewWeakReference(nil, obj)
 
 	finalizerCalled := false
 	wr.SetFinalizer(func(v Value) {
@@ -91,9 +92,10 @@ func TestWeakReferenceFinalizer(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestWeakRegistryRegister(t *testing.T) {
+	objReg := NewObjectRegistry()
 	registry := NewWeakRegistry()
 	obj := NewObject(nil, 2)
-	wr := NewWeakReference(obj)
+	wr := NewWeakReference(objReg, obj)
 
 	registry.Register(wr)
 
@@ -108,9 +110,10 @@ func TestWeakRegistryRegister(t *testing.T) {
 }
 
 func TestWeakRegistryUnregister(t *testing.T) {
+	objReg := NewObjectRegistry()
 	registry := NewWeakRegistry()
 	obj := NewObject(nil, 2)
-	wr := NewWeakReference(obj)
+	wr := NewWeakReference(objReg, obj)
 
 	registry.Register(wr)
 	registry.Unregister(wr)
@@ -126,14 +129,15 @@ func TestWeakRegistryUnregister(t *testing.T) {
 }
 
 func TestWeakRegistryProcessGC(t *testing.T) {
+	objReg := NewObjectRegistry()
 	registry := NewWeakRegistry()
 
 	// Create objects - one will be "collected" (unmarked), one will survive
 	obj1 := NewObject(nil, 2)
 	obj2 := NewObject(nil, 2)
 
-	wr1 := NewWeakReference(obj1)
-	wr2 := NewWeakReference(obj2)
+	wr1 := NewWeakReference(objReg, obj1)
+	wr2 := NewWeakReference(objReg, obj2)
 
 	registry.Register(wr1)
 	registry.Register(wr2)
@@ -159,7 +163,7 @@ func TestWeakRegistryProcessGC(t *testing.T) {
 func TestWeakRegistryFinalizerCalledOnGC(t *testing.T) {
 	registry := NewWeakRegistry()
 	obj := NewObject(nil, 2)
-	wr := NewWeakReference(obj)
+	wr := NewWeakReference(nil, obj)
 	registry.Register(wr)
 
 	finalizerCalled := false
@@ -182,7 +186,7 @@ func TestWeakRegistryFinalizerCalledOnGC(t *testing.T) {
 
 func TestFromWeakRef(t *testing.T) {
 	obj := NewObject(nil, 2)
-	wr := NewWeakReference(obj)
+	wr := NewWeakReference(nil, obj)
 
 	v := FromWeakRef(wr)
 	if !v.IsWeakRef() {
@@ -199,7 +203,7 @@ func TestFromWeakRefNil(t *testing.T) {
 
 func TestWeakRefID(t *testing.T) {
 	obj := NewObject(nil, 2)
-	wr := NewWeakReference(obj)
+	wr := NewWeakReference(nil, obj)
 
 	v := FromWeakRef(wr)
 	id := v.WeakRefID()
@@ -330,7 +334,7 @@ func TestWeakReferencePrintString(t *testing.T) {
 		t.Error("printString should return a string")
 	}
 
-	str := GetStringContent(result)
+	str := vm.registry.GetStringContent(result)
 	if str != "a WeakReference to Object" {
 		t.Errorf("printString = %q, want 'a WeakReference to Object'", str)
 	}
@@ -341,16 +345,17 @@ func TestWeakReferencePrintString(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func BenchmarkNewWeakReference(b *testing.B) {
+	reg := NewObjectRegistry()
 	obj := NewObject(nil, 2)
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_ = NewWeakReference(obj)
+		_ = NewWeakReference(reg, obj)
 	}
 }
 
 func BenchmarkWeakReferenceGet(b *testing.B) {
 	obj := NewObject(nil, 2)
-	wr := NewWeakReference(obj)
+	wr := NewWeakReference(nil, obj)
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		_ = wr.Get()
@@ -358,9 +363,10 @@ func BenchmarkWeakReferenceGet(b *testing.B) {
 }
 
 func BenchmarkWeakRegistryLookup(b *testing.B) {
+	reg := NewObjectRegistry()
 	registry := NewWeakRegistry()
 	obj := NewObject(nil, 2)
-	wr := NewWeakReference(obj)
+	wr := NewWeakReference(reg, obj)
 	registry.Register(wr)
 	id := wr.ID()
 	b.ResetTimer()

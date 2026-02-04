@@ -202,6 +202,22 @@ func (or *ObjectRegistry) ResultCount() int {
 	return len(or.results)
 }
 
+// RegisterResultValue creates a Result, registers it, and returns a Value.
+func (or *ObjectRegistry) RegisterResultValue(r *ResultObject) Value {
+	id := or.RegisterResult(r)
+	return FromSymbolID(uint32(id) | resultMarker)
+}
+
+// GetResultFromValue retrieves a ResultObject from a Value.
+// Returns nil if the Value is not a result.
+func (or *ObjectRegistry) GetResultFromValue(v Value) *ResultObject {
+	if !isResultValue(v) {
+		return nil
+	}
+	id := int(v.SymbolID() & ^uint32(4<<24))
+	return or.GetResult(id)
+}
+
 // ---------------------------------------------------------------------------
 // Context Registry Methods
 // ---------------------------------------------------------------------------
@@ -245,6 +261,28 @@ func (or *ObjectRegistry) ContextCount() int {
 	return len(or.contexts)
 }
 
+// RegisterContextValue registers a ContextValue and returns a Value representing it.
+func (or *ObjectRegistry) RegisterContextValue(ctx *ContextValue) Value {
+	id := or.RegisterContext(ctx)
+	return FromContextID(id)
+}
+
+// GetContextFromValue retrieves the ContextValue for a context Value.
+// Returns nil if the Value is not a context.
+func (or *ObjectRegistry) GetContextFromValue(v Value) *ContextValue {
+	if !v.IsContext() {
+		return nil
+	}
+	return or.GetContext(v.ContextID())
+}
+
+// UnregisterContextValue removes a context from the registry by its Value.
+func (or *ObjectRegistry) UnregisterContextValue(v Value) {
+	if v.IsContext() {
+		or.UnregisterContext(v.ContextID())
+	}
+}
+
 // ---------------------------------------------------------------------------
 // Dictionary Registry Methods
 // ---------------------------------------------------------------------------
@@ -281,6 +319,29 @@ func (or *ObjectRegistry) DictionaryCount() int {
 	return len(or.dictionaries)
 }
 
+// NewDictionaryValue creates a new empty dictionary Value, registered in the registry.
+func (or *ObjectRegistry) NewDictionaryValue() Value {
+	obj := &DictionaryObject{
+		Data: make(map[uint64]Value),
+		Keys: make(map[uint64]Value),
+	}
+	id := or.RegisterDictionary(obj)
+	return FromSymbolID(id)
+}
+
+// GetDictionaryObject returns the DictionaryObject for a Value.
+// Returns nil if v is not a dictionary.
+func (or *ObjectRegistry) GetDictionaryObject(v Value) *DictionaryObject {
+	if !v.IsSymbol() {
+		return nil
+	}
+	id := v.SymbolID()
+	if id < dictionaryIDOffset {
+		return nil
+	}
+	return or.GetDictionary(id)
+}
+
 // ---------------------------------------------------------------------------
 // String Registry Methods
 // ---------------------------------------------------------------------------
@@ -315,6 +376,44 @@ func (or *ObjectRegistry) StringCount() int {
 	or.stringsMu.RLock()
 	defer or.stringsMu.RUnlock()
 	return len(or.strings)
+}
+
+// NewStringValue creates a Value from a Go string, registering it in the registry.
+func (or *ObjectRegistry) NewStringValue(s string) Value {
+	obj := &StringObject{Content: s}
+	id := or.RegisterString(obj)
+	return FromSymbolID(id)
+}
+
+// GetStringContent returns the Go string content of a string Value.
+// Returns empty string if v is not a string.
+func (or *ObjectRegistry) GetStringContent(v Value) string {
+	if !v.IsSymbol() {
+		return ""
+	}
+	id := v.SymbolID()
+	if id < stringIDOffset {
+		return "" // It's a regular symbol, not a string
+	}
+
+	obj := or.GetString(id)
+	if obj != nil {
+		return obj.Content
+	}
+	return ""
+}
+
+// GetStringObject returns the StringObject for a Value.
+// Returns nil if v is not a string.
+func (or *ObjectRegistry) GetStringObject(v Value) *StringObject {
+	if !v.IsSymbol() {
+		return nil
+	}
+	id := v.SymbolID()
+	if id < stringIDOffset {
+		return nil
+	}
+	return or.GetString(id)
 }
 
 // ---------------------------------------------------------------------------

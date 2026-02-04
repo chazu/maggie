@@ -62,13 +62,13 @@ func (vm *VM) registerMessagePrimitives() {
 		v := vmPtr.(*VM)
 		obj := ObjectFromValue(recv)
 		if obj == nil {
-			return NewStringValue("a Message")
+			return v.registry.NewStringValue("a Message")
 		}
 		selectorSym := obj.GetSlot(0)
 		var selectorName string
 		if selectorSym.IsSymbol() {
 			selectorName = v.Symbols.Name(selectorSym.SymbolID())
 		}
-		return NewStringValue(fmt.Sprintf("a Message(%s)", selectorName))
+		return v.registry.NewStringValue(fmt.Sprintf("a Message(%s)", selectorName))
 	})
 }
