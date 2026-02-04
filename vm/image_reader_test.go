@@ -1784,12 +1784,7 @@ func TestImageReaderGlobalsOutOfBoundsStringIndex(t *testing.T) {
 }
 
 // TestImageReaderHugeSlotCount tests an object that claims a very large number
-// of slots. This should cause an error (ErrUnexpectedEOF), not a panic.
-//
-// NOTE: Using 0xFFFFFFFF would cause an OOM kill because the reader allocates
-// slotData before validating. We use a large-but-not-catastrophic value (10000)
-// that exceeds the remaining data. A future improvement should validate slot
-// counts against remaining data before allocating. That is tracked separately.
+// of slots. The allocation validator rejects the request before allocating.
 func TestImageReaderHugeSlotCount(t *testing.T) {
 	builder := newTestImageBuilder()
 	builder.writeHeader(1, 0)
@@ -1835,23 +1830,18 @@ func TestImageReaderHugeSlotCount(t *testing.T) {
 	ir.ReadClasses(vm)
 	ir.ReadMethods(vm)
 
-	// This should return an error (not enough data for slots), not panic
+	// This should return an error (allocation too large), not panic
 	_, err = ir.ReadObjectsWithSlots(vm)
 	if err == nil {
 		t.Error("Expected error for object with 10000 slots (no data), got nil")
 	}
-	if !errors.Is(err, ErrUnexpectedEOF) {
-		t.Errorf("Expected ErrUnexpectedEOF, got: %v", err)
+	if !errors.Is(err, ErrAllocationTooLarge) {
+		t.Errorf("Expected ErrAllocationTooLarge, got: %v", err)
 	}
 }
 
 // TestImageReaderHugeInstVarCount tests a class that claims a very large
-// number of instance variables. Should error, not panic.
-//
-// NOTE: Using 0xFFFFFFFF could cause OOM because the reader allocates
-// a slice before validating against remaining data. We use a large-but-safe
-// value (10000) that exceeds available data. The underlying issue (no
-// pre-allocation bounds check) is tracked separately.
+// number of instance variables. The allocation validator rejects the request.
 func TestImageReaderHugeInstVarCount(t *testing.T) {
 	builder := newTestImageBuilder()
 	builder.writeHeader(0, 0)
@@ -1890,11 +1880,7 @@ func TestImageReaderHugeInstVarCount(t *testing.T) {
 }
 
 // TestImageReaderHugeMethodCount tests a class that claims a very large
-// number of instance methods. Should error, not panic.
-//
-// NOTE: This uses a moderate value (5000) rather than 0xFFFFFFFF to avoid
-// OOM from pre-allocation. The reader does not bound-check counts against
-// remaining data before allocating. That is tracked separately.
+// number of instance methods. The allocation validator rejects the request.
 func TestImageReaderHugeMethodCount(t *testing.T) {
 	builder := newTestImageBuilder()
 	builder.writeHeader(0, 0)
@@ -1954,8 +1940,8 @@ func TestImageReaderValidHeaderWrongStringCount(t *testing.T) {
 	if err == nil {
 		t.Error("Expected error for 100 claimed strings with 0 provided, got nil")
 	}
-	if !errors.Is(err, ErrUnexpectedEOF) {
-		t.Errorf("Expected ErrUnexpectedEOF, got: %v", err)
+	if !errors.Is(err, ErrAllocationTooLarge) {
+		t.Errorf("Expected ErrAllocationTooLarge, got: %v", err)
 	}
 }
 
@@ -1984,8 +1970,8 @@ func TestImageReaderValidHeaderWrongSymbolCount(t *testing.T) {
 	if err == nil {
 		t.Error("Expected error for 50 claimed symbols with 0 provided, got nil")
 	}
-	if !errors.Is(err, ErrUnexpectedEOF) {
-		t.Errorf("Expected ErrUnexpectedEOF, got: %v", err)
+	if !errors.Is(err, ErrAllocationTooLarge) {
+		t.Errorf("Expected ErrAllocationTooLarge, got: %v", err)
 	}
 }
 
@@ -2471,8 +2457,8 @@ func TestImageReaderObjectTruncatedSlotData(t *testing.T) {
 	if err == nil {
 		t.Error("Expected error for object with truncated slot data, got nil")
 	}
-	if !errors.Is(err, ErrUnexpectedEOF) {
-		t.Errorf("Expected ErrUnexpectedEOF, got: %v", err)
+	if !errors.Is(err, ErrAllocationTooLarge) {
+		t.Errorf("Expected ErrAllocationTooLarge, got: %v", err)
 	}
 }
 
@@ -2546,11 +2532,20 @@ func TestImageReaderMethodNameOutOfBoundsStringIndex(t *testing.T) {
 	builder.writeUint32(0)          // class methods
 	builder.writeBytes([]byte{0})   // no docstring
 
-	// 1 method with invalid name string index
-	builder.writeUint32(1) // 1 method
-	builder.writeUint32(0) // selector
-	builder.writeUint32(0) // class index
+	// 1 method with invalid name string index.
+	// Must include enough bytes to pass the allocation validation (38 bytes min per method).
+	builder.writeUint32(1)   // 1 method
+	builder.writeUint32(0)   // selector
+	builder.writeUint32(0)   // class index
 	builder.writeUint32(500) // name string index 500 -- out of bounds!
+	builder.writeBytes([]byte{0}) // isClassMethod
+	builder.writeUint32(0)   // arity
+	builder.writeUint32(0)   // numTemps
+	builder.writeUint32(0)   // literal count
+	builder.writeUint32(0)   // bytecode length
+	builder.writeUint32(0)   // block count
+	builder.writeBytes([]byte{0}) // has source
+	builder.writeUint32(0)   // source map count
 
 	ir, err := NewImageReaderFromBytes(builder.bytes())
 	if err != nil {
@@ -2575,12 +2570,7 @@ func TestImageReaderMethodNameOutOfBoundsStringIndex(t *testing.T) {
 }
 
 // TestImageReaderHugeLiteralCount tests a method that claims a very large
-// number of literals. Should error, not panic.
-//
-// NOTE: Using 0xFFFFFFFF would cause OOM from pre-allocation. We use a
-// moderate value (5000) that exceeds available data. The reader does not
-// bound-check literal counts against remaining data before allocating.
-// That is tracked separately.
+// number of literals. The allocation validator rejects the request.
 func TestImageReaderHugeLiteralCount(t *testing.T) {
 	builder := newTestImageBuilder()
 	builder.writeHeader(0, 0)
@@ -2656,16 +2646,20 @@ func TestImageReaderHugeBytecodeLength(t *testing.T) {
 	builder.writeUint32(0)
 	builder.writeBytes([]byte{0})
 
-	// 1 method with huge bytecode length
+	// 1 method with huge bytecode length.
+	// Must include enough bytes to pass the allocation validation (38 bytes min per method).
 	builder.writeUint32(1)
-	builder.writeUint32(0)        // selector
-	builder.writeUint32(0)        // class
-	builder.writeUint32(0)        // name: "myMethod"
-	builder.writeBytes([]byte{0}) // isClassMethod
-	builder.writeUint32(0)        // arity
-	builder.writeUint32(0)        // numTemps
-	builder.writeUint32(0)        // 0 literals
+	builder.writeUint32(0)          // selector
+	builder.writeUint32(0)          // class
+	builder.writeUint32(0)          // name: "myMethod"
+	builder.writeBytes([]byte{0})   // isClassMethod
+	builder.writeUint32(0)          // arity
+	builder.writeUint32(0)          // numTemps
+	builder.writeUint32(0)          // 0 literals
 	builder.writeUint32(0xFFFFFFFF) // bytecode length = 4GB!
+	builder.writeUint32(0)          // block count (padding)
+	builder.writeBytes([]byte{0})   // has source (padding)
+	builder.writeUint32(0)          // source map count (padding)
 
 	ir, err := NewImageReaderFromBytes(builder.bytes())
 	if err != nil {
@@ -2910,5 +2904,146 @@ func BenchmarkImageReaderFullLoad(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		vm := NewVM()
 		vm.LoadImageFromBytes(data)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Allocation validation tests — prove 0xFFFFFFFF counts are rejected fast
+// without OOM.
+// ---------------------------------------------------------------------------
+
+// TestImageReaderMaxUint32StringCount tests that claiming 0xFFFFFFFF strings
+// is rejected by allocation validation, not by OOM.
+func TestImageReaderMaxUint32StringCount(t *testing.T) {
+	builder := newTestImageBuilder()
+	builder.writeHeader(0, 0)
+	builder.writeUint32(0xFFFFFFFF) // 4 billion strings
+
+	ir, err := NewImageReaderFromBytes(builder.bytes())
+	if err != nil {
+		t.Fatalf("NewImageReaderFromBytes failed: %v", err)
+	}
+
+	ir.ReadHeader()
+
+	_, err = ir.ReadStringTable()
+	if err == nil {
+		t.Fatal("Expected error, got nil")
+	}
+	if !errors.Is(err, ErrAllocationTooLarge) {
+		t.Errorf("Expected ErrAllocationTooLarge, got: %v", err)
+	}
+}
+
+// TestImageReaderMaxUint32ObjectSlots tests that an object claiming
+// 0xFFFFFFFF slots is rejected by allocation validation.
+func TestImageReaderMaxUint32ObjectSlots(t *testing.T) {
+	builder := newTestImageBuilder()
+	builder.writeHeader(1, 0)
+
+	builder.writeUint32(1)
+	builder.writeString("Cls")
+
+	builder.writeUint32(0) // symbols
+	builder.writeUint32(0) // selectors
+
+	// 1 class
+	builder.writeUint32(1)
+	builder.writeUint32(0)          // name
+	builder.writeUint32(0xFFFFFFFF) // namespace
+	builder.writeUint32(0xFFFFFFFF) // superclass
+	builder.writeUint32(0)
+	builder.writeUint32(0)
+	builder.writeUint32(0)
+	builder.writeUint32(0)
+	builder.writeBytes([]byte{0})
+
+	builder.writeUint32(0) // methods
+
+	// 1 object with 0xFFFFFFFF slots
+	builder.writeUint32(1)
+	builder.writeUint32(0)
+	builder.writeUint32(0xFFFFFFFF) // 4 billion slots
+
+	ir, err := NewImageReaderFromBytes(builder.bytes())
+	if err != nil {
+		t.Fatalf("NewImageReaderFromBytes failed: %v", err)
+	}
+
+	vm := NewVM()
+
+	ir.ReadHeader()
+	ir.ReadStringTable()
+	ir.ReadSymbolTable()
+	ir.ReadSelectorTable()
+	ir.ReadClasses(vm)
+	ir.ReadMethods(vm)
+
+	_, err = ir.ReadObjectsWithSlots(vm)
+	if err == nil {
+		t.Fatal("Expected error, got nil")
+	}
+	if !errors.Is(err, ErrAllocationTooLarge) {
+		t.Errorf("Expected ErrAllocationTooLarge, got: %v", err)
+	}
+}
+
+// TestImageReaderMaxUint32MethodLiterals tests that a method claiming
+// 0xFFFFFFFF literals is rejected by allocation validation.
+func TestImageReaderMaxUint32MethodLiterals(t *testing.T) {
+	builder := newTestImageBuilder()
+	builder.writeHeader(0, 0)
+
+	builder.writeUint32(2)
+	builder.writeString("m")
+	builder.writeString("C")
+
+	builder.writeUint32(0) // symbols
+	builder.writeUint32(0) // selectors
+
+	builder.writeUint32(1)
+	builder.writeUint32(1)
+	builder.writeUint32(0xFFFFFFFF)
+	builder.writeUint32(0xFFFFFFFF)
+	builder.writeUint32(0)
+	builder.writeUint32(0)
+	builder.writeUint32(0)
+	builder.writeUint32(0)
+	builder.writeBytes([]byte{0})
+
+	// 1 method with 0xFFFFFFFF literals
+	builder.writeUint32(1)
+	builder.writeUint32(0)          // selector
+	builder.writeUint32(0)          // class
+	builder.writeUint32(0)          // name
+	builder.writeBytes([]byte{0})   // isClassMethod
+	builder.writeUint32(0)          // arity
+	builder.writeUint32(0)          // numTemps
+	builder.writeUint32(0xFFFFFFFF) // 4 billion literals!
+	// padding to pass method table allocation check
+	builder.writeUint32(0) // bytecodeLen
+	builder.writeUint32(0) // blockCount
+	builder.writeBytes([]byte{0}) // hasSource
+	builder.writeUint32(0) // sourceMapCount
+
+	ir, err := NewImageReaderFromBytes(builder.bytes())
+	if err != nil {
+		t.Fatalf("NewImageReaderFromBytes failed: %v", err)
+	}
+
+	vm := NewVM()
+
+	ir.ReadHeader()
+	ir.ReadStringTable()
+	ir.ReadSymbolTable()
+	ir.ReadSelectorTable()
+	ir.ReadClasses(vm)
+
+	_, err = ir.ReadMethods(vm)
+	if err == nil {
+		t.Fatal("Expected error, got nil")
+	}
+	if !errors.Is(err, ErrAllocationTooLarge) {
+		t.Errorf("Expected ErrAllocationTooLarge, got: %v", err)
 	}
 }

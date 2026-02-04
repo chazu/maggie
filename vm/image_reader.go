@@ -32,7 +32,8 @@ var (
 	ErrInvalidStringIndex = errors.New("invalid string index")
 	ErrInvalidSymbolIndex = errors.New("invalid symbol index")
 	ErrInvalidMethodIndex = errors.New("invalid method index")
-	ErrInvalidObjectIndex = errors.New("invalid object index")
+	ErrInvalidObjectIndex  = errors.New("invalid object index")
+	ErrAllocationTooLarge  = errors.New("allocation size exceeds remaining image data")
 )
 
 // ---------------------------------------------------------------------------
@@ -231,12 +232,37 @@ func (ir *ImageReader) readString() (string, error) {
 	return s, nil
 }
 
+// remaining returns the number of unread bytes in the image data.
+func (ir *ImageReader) remaining() int {
+	return len(ir.data) - ir.offset
+}
+
+// validateAllocation checks that the image data contains enough bytes to
+// support an allocation of count elements, each requiring at least
+// minBytesPerElement bytes of input. This prevents a corrupt/malicious count
+// field from triggering a multi-gigabyte make() that causes an OOM.
+func (ir *ImageReader) validateAllocation(count uint32, minBytesPerElement int, context string) error {
+	if count == 0 {
+		return nil
+	}
+	required := int64(count) * int64(minBytesPerElement)
+	if required > int64(ir.remaining()) {
+		return fmt.Errorf("%w: %s requests %d items (%d bytes minimum) but only %d bytes remain",
+			ErrAllocationTooLarge, context, count, required, ir.remaining())
+	}
+	return nil
+}
+
 // ReadStringTable reads the string table from the image.
 func (ir *ImageReader) ReadStringTable() ([]string, error) {
 	// Read count
 	count, err := ir.readUint32()
 	if err != nil {
 		return nil, fmt.Errorf("failed to read string table count: %w", err)
+	}
+
+	if err := ir.validateAllocation(count, 4, "string table"); err != nil {
+		return nil, err
 	}
 
 	ir.strings = make([]string, count)
@@ -259,6 +285,10 @@ func (ir *ImageReader) ReadSymbolTable() (map[uint32]string, error) {
 	count, err := ir.readUint32()
 	if err != nil {
 		return nil, fmt.Errorf("failed to read symbol table count: %w", err)
+	}
+
+	if err := ir.validateAllocation(count, 4, "symbol table"); err != nil {
+		return nil, err
 	}
 
 	result := make(map[uint32]string, count)
@@ -288,6 +318,10 @@ func (ir *ImageReader) ReadSelectorTable() (map[uint32]uint32, error) {
 	count, err := ir.readUint32()
 	if err != nil {
 		return nil, fmt.Errorf("failed to read selector table count: %w", err)
+	}
+
+	if err := ir.validateAllocation(count, 4, "selector table"); err != nil {
+		return nil, err
 	}
 
 	result := make(map[uint32]uint32, count)
@@ -339,6 +373,11 @@ func (ir *ImageReader) ReadClasses(vm *VM) ([]*Class, error) {
 	count, err := ir.readUint32()
 	if err != nil {
 		return nil, fmt.Errorf("failed to read class count: %w", err)
+	}
+
+	// Each class needs at least 28 bytes: name(4)+namespace(4)+superclass(4)+numSlots(4)+instVarCount(4)+methodCount(4)+classMethodCount(4)
+	if err := ir.validateAllocation(count, 28, "class table"); err != nil {
+		return nil, err
 	}
 
 	ir.classes = make([]*Class, count)
@@ -393,6 +432,9 @@ func (ir *ImageReader) ReadClasses(vm *VM) ([]*Class, error) {
 		}
 
 		// Read instance variable names
+		if err := ir.validateAllocation(instVarCount, 4, "class instance variables"); err != nil {
+			return nil, err
+		}
 		instVars := make([]string, instVarCount)
 		for j := uint32(0); j < instVarCount; j++ {
 			varNameIdx, err := ir.readUint32()
@@ -412,6 +454,9 @@ func (ir *ImageReader) ReadClasses(vm *VM) ([]*Class, error) {
 		}
 
 		// Read instance method indices (skip them, they'll be linked when methods are loaded)
+		if err := ir.validateAllocation(methodCount, 4, "class method indices"); err != nil {
+			return nil, err
+		}
 		for j := uint32(0); j < methodCount; j++ {
 			_, err := ir.readUint32()
 			if err != nil {
@@ -426,6 +471,9 @@ func (ir *ImageReader) ReadClasses(vm *VM) ([]*Class, error) {
 		}
 
 		// Read class method indices (skip them, they'll be linked when methods are loaded)
+		if err := ir.validateAllocation(classMethodCount, 4, "class method indices"); err != nil {
+			return nil, err
+		}
 		for j := uint32(0); j < classMethodCount; j++ {
 			_, err := ir.readUint32()
 			if err != nil {
@@ -555,6 +603,11 @@ func (ir *ImageReader) ReadMethods(vm *VM) ([]*CompiledMethod, error) {
 		return nil, fmt.Errorf("failed to read method count: %w", err)
 	}
 
+	// Each method needs at least 38 bytes of header fields
+	if err := ir.validateAllocation(count, 38, "method table"); err != nil {
+		return nil, err
+	}
+
 	ir.methods = make([]*CompiledMethod, count)
 
 	for i := uint32(0); i < count; i++ {
@@ -622,6 +675,9 @@ func (ir *ImageReader) readMethod(vm *VM) (*CompiledMethod, error) {
 	}
 
 	// Read literals
+	if err := ir.validateAllocation(literalCount, EncodedValueSize, "method literals"); err != nil {
+		return nil, err
+	}
 	literals := make([]Value, literalCount)
 	for j := uint32(0); j < literalCount; j++ {
 		litData, err := ir.readBytes(EncodedValueSize)
@@ -649,7 +705,10 @@ func (ir *ImageReader) readMethod(vm *VM) (*CompiledMethod, error) {
 		return nil, fmt.Errorf("failed to read block count: %w", err)
 	}
 
-	// Read blocks
+	// Read blocks — each block needs at least arity(4)+numTemps(4)+numCaptures(4)+literalCount(4)+bytecodeLen(4)+sourceMapCount(4) = 24 bytes
+	if err := ir.validateAllocation(blockCount, 24, "method blocks"); err != nil {
+		return nil, err
+	}
 	blocks := make([]*BlockMethod, blockCount)
 	for j := uint32(0); j < blockCount; j++ {
 		block, err := ir.readBlock()
@@ -706,7 +765,10 @@ func (ir *ImageReader) readMethod(vm *VM) (*CompiledMethod, error) {
 		return nil, fmt.Errorf("failed to read source map count: %w", err)
 	}
 
-	// Read source map entries
+	// Read source map entries — each entry is 3 uint32s = 12 bytes
+	if err := ir.validateAllocation(sourceMapCount, 12, "method source map"); err != nil {
+		return nil, err
+	}
 	sourceMap := make([]SourceLoc, sourceMapCount)
 	for j := uint32(0); j < sourceMapCount; j++ {
 		offset, err := ir.readUint32()
@@ -813,6 +875,9 @@ func (ir *ImageReader) readBlock() (*BlockMethod, error) {
 	}
 
 	// Read literals
+	if err := ir.validateAllocation(literalCount, EncodedValueSize, "block literals"); err != nil {
+		return nil, err
+	}
 	literals := make([]Value, literalCount)
 	for j := uint32(0); j < literalCount; j++ {
 		litData, err := ir.readBytes(EncodedValueSize)
@@ -840,7 +905,10 @@ func (ir *ImageReader) readBlock() (*BlockMethod, error) {
 		return nil, fmt.Errorf("failed to read block source map count: %w", err)
 	}
 
-	// Read source map entries
+	// Read source map entries — each entry is 3 uint32s = 12 bytes
+	if err := ir.validateAllocation(sourceMapCount, 12, "block source map"); err != nil {
+		return nil, err
+	}
 	sourceMap := make([]SourceLoc, sourceMapCount)
 	for j := uint32(0); j < sourceMapCount; j++ {
 		offset, err := ir.readUint32()
@@ -929,6 +997,11 @@ func (ir *ImageReader) ReadObjects(vm *VM) ([]*Object, error) {
 		return nil, fmt.Errorf("failed to read object count: %w", err)
 	}
 
+	// Each object needs at least classIdx(4)+slotCount(4) = 8 bytes
+	if err := ir.validateAllocation(count, 8, "object table"); err != nil {
+		return nil, err
+	}
+
 	ir.objects = make([]*Object, count)
 
 	// First pass: create all objects with nil slots
@@ -975,6 +1048,11 @@ func (ir *ImageReader) ReadObjectsWithSlots(vm *VM) ([]*Object, error) {
 		return nil, fmt.Errorf("failed to read object count: %w", err)
 	}
 
+	// Each object needs at least classIdx(4)+slotCount(4) = 8 bytes
+	if err := ir.validateAllocation(count, 8, "object table"); err != nil {
+		return nil, err
+	}
+
 	ir.objects = make([]*Object, count)
 
 	// First pass: create all objects (no slots yet)
@@ -1000,6 +1078,9 @@ func (ir *ImageReader) ReadObjectsWithSlots(vm *VM) ([]*Object, error) {
 		}
 
 		// Read slot data
+		if err := ir.validateAllocation(slotCount, EncodedValueSize, "object slots"); err != nil {
+			return nil, err
+		}
 		slotData := make([][]byte, slotCount)
 		for j := uint32(0); j < slotCount; j++ {
 			data, err := ir.readBytes(EncodedValueSize)

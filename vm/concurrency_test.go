@@ -1,6 +1,7 @@
 package vm
 
 import (
+	"fmt"
 	"reflect"
 	"sync"
 	"sync/atomic"
@@ -2084,5 +2085,557 @@ func TestForkWithContext(t *testing.T) {
 	// wait returns the result
 	if !result.IsSmallInt() || result.SmallInt() != 100 {
 		t.Errorf("forked process returned %v, want 100", result)
+	}
+}
+
+// ===========================================================================
+// Edge Case Tests for Concurrency Primitives
+// ===========================================================================
+
+// ---------------------------------------------------------------------------
+// Channel Edge Cases
+// ---------------------------------------------------------------------------
+
+// TestChannelSendOnClosed verifies that sending on a closed channel does not
+// panic. The implementation checks ch.closed before attempting the Go channel
+// send, so it returns Nil gracefully.
+func TestChannelSendOnClosed(t *testing.T) {
+	vm := NewVM()
+
+	ch := vm.Send(vm.classValue(vm.ChannelClass), "new:", []Value{FromSmallInt(5)})
+
+	// Close the channel first
+	vm.Send(ch, "close", nil)
+
+	// Verify it's closed
+	if vm.Send(ch, "isClosed", nil) != True {
+		t.Fatal("Channel should be closed")
+	}
+
+	// Send on closed channel should return Nil (not panic)
+	result := vm.Send(ch, "send:", []Value{FromSmallInt(42)})
+	if result != Nil {
+		t.Errorf("send: on closed channel returned %v, want Nil", result)
+	}
+}
+
+// TestChannelDoubleClose verifies that closing an already-closed channel does
+// not panic. The implementation guards close(ch.ch) with a mutex and
+// ch.closed.Load() check, so double-close is a no-op.
+func TestChannelDoubleClose(t *testing.T) {
+	vm := NewVM()
+
+	ch := vm.Send(vm.classValue(vm.ChannelClass), "new:", []Value{FromSmallInt(1)})
+
+	// Close once
+	vm.Send(ch, "close", nil)
+	if vm.Send(ch, "isClosed", nil) != True {
+		t.Fatal("Channel should be closed after first close")
+	}
+
+	// Close again -- should not panic
+	result := vm.Send(ch, "close", nil)
+	// close returns recv (the channel value itself)
+	if result == Nil {
+		t.Error("Double close should not return Nil; it returns recv")
+	}
+
+	// Still closed
+	if vm.Send(ch, "isClosed", nil) != True {
+		t.Error("Channel should still be closed after double close")
+	}
+}
+
+// TestChannelReceiveOnClosedEmpty verifies that receiving from a closed,
+// empty channel returns Nil immediately (does not block).
+func TestChannelReceiveOnClosedEmpty(t *testing.T) {
+	vm := NewVM()
+
+	ch := vm.Send(vm.classValue(vm.ChannelClass), "new:", []Value{FromSmallInt(5)})
+
+	// Close the empty channel
+	vm.Send(ch, "close", nil)
+
+	// Receive on closed empty channel should return Nil (Go returns zero value, ok=false)
+	val := vm.Send(ch, "receive", nil)
+	if val != Nil {
+		t.Errorf("receive on closed empty channel returned %v, want Nil", val)
+	}
+}
+
+// TestChannelReceiveOnClosedWithData verifies that receiving from a closed
+// channel that still has buffered data returns the data first, then Nil
+// once drained.
+func TestChannelReceiveOnClosedWithData(t *testing.T) {
+	vm := NewVM()
+
+	ch := vm.Send(vm.classValue(vm.ChannelClass), "new:", []Value{FromSmallInt(5)})
+
+	// Buffer some values before closing
+	vm.Send(ch, "send:", []Value{FromSmallInt(10)})
+	vm.Send(ch, "send:", []Value{FromSmallInt(20)})
+
+	// Close the channel (buffered data remains readable)
+	vm.Send(ch, "close", nil)
+
+	// First receive should get 10
+	val := vm.Send(ch, "receive", nil)
+	if !val.IsSmallInt() || val.SmallInt() != 10 {
+		t.Errorf("First receive on closed channel = %v, want 10", val)
+	}
+
+	// Second receive should get 20
+	val = vm.Send(ch, "receive", nil)
+	if !val.IsSmallInt() || val.SmallInt() != 20 {
+		t.Errorf("Second receive on closed channel = %v, want 20", val)
+	}
+
+	// Third receive should return Nil (drained)
+	val = vm.Send(ch, "receive", nil)
+	if val != Nil {
+		t.Errorf("Third receive on drained closed channel = %v, want Nil", val)
+	}
+}
+
+// TestChannelTryReceiveOnClosed verifies that tryReceive on a closed, empty
+// channel returns Nil.
+func TestChannelTryReceiveOnClosed(t *testing.T) {
+	vm := NewVM()
+
+	ch := vm.Send(vm.classValue(vm.ChannelClass), "new:", []Value{FromSmallInt(5)})
+
+	// Close immediately (nothing buffered)
+	vm.Send(ch, "close", nil)
+
+	// tryReceive on closed empty channel should return Nil
+	val := vm.Send(ch, "tryReceive", nil)
+	if val != Nil {
+		t.Errorf("tryReceive on closed empty channel = %v, want Nil", val)
+	}
+}
+
+// TestChannelTryReceiveOnClosedWithData verifies that tryReceive on a closed
+// channel with buffered data returns the data.
+func TestChannelTryReceiveOnClosedWithData(t *testing.T) {
+	vm := NewVM()
+
+	ch := vm.Send(vm.classValue(vm.ChannelClass), "new:", []Value{FromSmallInt(5)})
+
+	vm.Send(ch, "send:", []Value{FromSmallInt(77)})
+	vm.Send(ch, "close", nil)
+
+	// tryReceive should get buffered value even though channel is closed
+	val := vm.Send(ch, "tryReceive", nil)
+	if !val.IsSmallInt() || val.SmallInt() != 77 {
+		t.Errorf("tryReceive on closed channel with data = %v, want 77", val)
+	}
+
+	// Next tryReceive should return Nil (drained)
+	val = vm.Send(ch, "tryReceive", nil)
+	if val != Nil {
+		t.Errorf("tryReceive on drained closed channel = %v, want Nil", val)
+	}
+}
+
+// TestChannelTrySendOnClosed verifies that trySend: on a closed channel
+// returns False (not a panic).
+func TestChannelTrySendOnClosed(t *testing.T) {
+	vm := NewVM()
+
+	ch := vm.Send(vm.classValue(vm.ChannelClass), "new:", []Value{FromSmallInt(5)})
+
+	vm.Send(ch, "close", nil)
+
+	// trySend: on closed channel should return False
+	result := vm.Send(ch, "trySend:", []Value{FromSmallInt(42)})
+	if result != False {
+		t.Errorf("trySend: on closed channel = %v, want False", result)
+	}
+}
+
+// TestChannelSizeAfterClose verifies that size returns 0 for a closed,
+// empty channel and correctly reflects buffered items for a closed channel
+// with remaining data.
+func TestChannelSizeAfterClose(t *testing.T) {
+	vm := NewVM()
+
+	ch := vm.Send(vm.classValue(vm.ChannelClass), "new:", []Value{FromSmallInt(5)})
+
+	vm.Send(ch, "send:", []Value{FromSmallInt(1)})
+	vm.Send(ch, "send:", []Value{FromSmallInt(2)})
+
+	// Close with 2 items buffered
+	vm.Send(ch, "close", nil)
+
+	size := vm.Send(ch, "size", nil)
+	if !size.IsSmallInt() || size.SmallInt() != 2 {
+		t.Errorf("size of closed channel with 2 items = %v, want 2", size)
+	}
+
+	// Drain one
+	vm.Send(ch, "receive", nil)
+
+	size = vm.Send(ch, "size", nil)
+	if !size.IsSmallInt() || size.SmallInt() != 1 {
+		t.Errorf("size of closed channel after draining one = %v, want 1", size)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// WaitGroup Edge Cases
+// ---------------------------------------------------------------------------
+
+// TestWaitGroupDoneMoreThanAdd verifies that calling done() more times
+// than add() panics (matching Go's sync.WaitGroup behavior). The underlying
+// sync.WaitGroup panics with "sync: negative WaitGroup counter".
+func TestWaitGroupDoneMoreThanAdd(t *testing.T) {
+	vm := NewVM()
+
+	wg := vm.Send(vm.classValue(vm.WaitGroupClass), "new", nil)
+
+	// Add 1, then done twice -- the second done should cause panic
+	vm.Send(wg, "add:", []Value{FromSmallInt(1)})
+	vm.Send(wg, "done", nil)
+
+	// The second done should panic because the counter goes negative.
+	// We catch it with recover to verify.
+	panicked := false
+	panicMsg := ""
+	func() {
+		defer func() {
+			if r := recover(); r != nil {
+				panicked = true
+				panicMsg = fmt.Sprintf("%v", r)
+			}
+		}()
+		vm.Send(wg, "done", nil)
+	}()
+
+	if !panicked {
+		t.Error("WaitGroup done() with counter already at 0 should panic (like Go's sync.WaitGroup)")
+	} else {
+		t.Logf("WaitGroup over-done correctly panicked: %s", panicMsg)
+	}
+}
+
+// TestWaitGroupAddZero verifies that add: 0 is a no-op (the counter
+// does not change). This matches Go's sync.WaitGroup behavior where
+// Add(0) is legal.
+func TestWaitGroupAddZero(t *testing.T) {
+	vm := NewVM()
+
+	wg := vm.Send(vm.classValue(vm.WaitGroupClass), "new", nil)
+
+	// add: 0 should be harmless
+	vm.Send(wg, "add:", []Value{FromSmallInt(0)})
+
+	count := vm.Send(wg, "count", nil)
+	if !count.IsSmallInt() || count.SmallInt() != 0 {
+		t.Errorf("count after add: 0 = %v, want 0", count)
+	}
+
+	// Wait should return immediately since counter is 0
+	result := vm.Send(wg, "wait", nil)
+	if result == Nil {
+		t.Error("wait on WaitGroup with 0 counter returned Nil (should return recv)")
+	}
+}
+
+// TestWaitGroupAddThenWaitImmediately verifies that wait returns immediately
+// when the counter is already zero (add followed by matching done before wait).
+func TestWaitGroupAddThenWaitImmediately(t *testing.T) {
+	vm := NewVM()
+
+	wg := vm.Send(vm.classValue(vm.WaitGroupClass), "new", nil)
+
+	vm.Send(wg, "add:", []Value{FromSmallInt(2)})
+	vm.Send(wg, "done", nil)
+	vm.Send(wg, "done", nil)
+
+	// Counter should be 0
+	count := vm.Send(wg, "count", nil)
+	if !count.IsSmallInt() || count.SmallInt() != 0 {
+		t.Errorf("count = %v, want 0", count)
+	}
+
+	// Wait should return immediately
+	done := make(chan struct{})
+	go func() {
+		vm.Send(wg, "wait", nil)
+		close(done)
+	}()
+
+	select {
+	case <-done:
+		// Good, returned immediately
+	case <-time.After(1 * time.Second):
+		t.Error("wait blocked even though counter is 0")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Semaphore Edge Cases
+// ---------------------------------------------------------------------------
+
+// TestSemaphoreOverRelease verifies that releasing more permits than were
+// acquired does not panic or deadlock. The implementation uses a
+// select/default pattern, so extra releases beyond capacity are silently
+// ignored (the buffer is already full).
+func TestSemaphoreOverRelease(t *testing.T) {
+	vm := NewVM()
+
+	sem := vm.Send(vm.classValue(vm.SemaphoreClass), "new:", []Value{FromSmallInt(2)})
+
+	// Initially 2 available (full capacity)
+	avail := vm.Send(sem, "available", nil)
+	if avail.SmallInt() != 2 {
+		t.Fatalf("Initial available = %v, want 2", avail)
+	}
+
+	// Release without acquiring -- should be silently ignored (already at capacity)
+	vm.Send(sem, "release", nil)
+
+	// Available should still be 2 (capped at capacity)
+	avail = vm.Send(sem, "available", nil)
+	if avail.SmallInt() != 2 {
+		t.Errorf("Available after over-release = %v, want 2 (should be capped at capacity)", avail)
+	}
+
+	// Acquire one to make room
+	vm.Send(sem, "acquire", nil)
+	avail = vm.Send(sem, "available", nil)
+	if avail.SmallInt() != 1 {
+		t.Errorf("Available after acquire = %v, want 1", avail)
+	}
+
+	// Release once (legitimate)
+	vm.Send(sem, "release", nil)
+	avail = vm.Send(sem, "available", nil)
+	if avail.SmallInt() != 2 {
+		t.Errorf("Available after legitimate release = %v, want 2", avail)
+	}
+
+	// Over-release again -- should be ignored
+	vm.Send(sem, "release", nil)
+	avail = vm.Send(sem, "available", nil)
+	if avail.SmallInt() != 2 {
+		t.Errorf("Available after second over-release = %v, want 2", avail)
+	}
+}
+
+// TestSemaphoreZeroCapacity verifies that creating a semaphore with capacity 0
+// is clamped to 1. The createSemaphore function enforces a minimum of 1.
+func TestSemaphoreZeroCapacity(t *testing.T) {
+	vm := NewVM()
+
+	sem := vm.Send(vm.classValue(vm.SemaphoreClass), "new:", []Value{FromSmallInt(0)})
+	if sem == Nil {
+		t.Fatal("Semaphore new: 0 returned nil")
+	}
+
+	// Capacity should be clamped to 1
+	cap := vm.Send(sem, "capacity", nil)
+	if !cap.IsSmallInt() || cap.SmallInt() != 1 {
+		t.Errorf("Semaphore capacity for new: 0 = %v, want 1 (clamped minimum)", cap)
+	}
+
+	// Should have 1 available permit
+	avail := vm.Send(sem, "available", nil)
+	if !avail.IsSmallInt() || avail.SmallInt() != 1 {
+		t.Errorf("Semaphore available for new: 0 = %v, want 1", avail)
+	}
+}
+
+// TestSemaphoreNegativeCapacity verifies that creating a semaphore with
+// negative capacity is clamped to 1.
+func TestSemaphoreNegativeCapacity(t *testing.T) {
+	vm := NewVM()
+
+	sem := vm.Send(vm.classValue(vm.SemaphoreClass), "new:", []Value{FromSmallInt(-5)})
+	if sem == Nil {
+		t.Fatal("Semaphore new: -5 returned nil")
+	}
+
+	cap := vm.Send(sem, "capacity", nil)
+	if !cap.IsSmallInt() || cap.SmallInt() != 1 {
+		t.Errorf("Semaphore capacity for new: -5 = %v, want 1 (clamped minimum)", cap)
+	}
+}
+
+// TestSemaphoreTryAcquireWhenNoneAvailable verifies that tryAcquire returns
+// False when all permits are held.
+func TestSemaphoreTryAcquireWhenNoneAvailable(t *testing.T) {
+	vm := NewVM()
+
+	sem := vm.Send(vm.classValue(vm.SemaphoreClass), "new:", []Value{FromSmallInt(2)})
+
+	// Acquire both permits
+	vm.Send(sem, "acquire", nil)
+	vm.Send(sem, "acquire", nil)
+
+	avail := vm.Send(sem, "available", nil)
+	if avail.SmallInt() != 0 {
+		t.Fatalf("Available should be 0 after acquiring all, got %v", avail)
+	}
+
+	// tryAcquire should return False
+	result := vm.Send(sem, "tryAcquire", nil)
+	if result != False {
+		t.Errorf("tryAcquire with no permits available = %v, want False", result)
+	}
+
+	// Release one and try again
+	vm.Send(sem, "release", nil)
+
+	result = vm.Send(sem, "tryAcquire", nil)
+	if result != True {
+		t.Errorf("tryAcquire after release = %v, want True", result)
+	}
+
+	// Release remaining permits for cleanup
+	vm.Send(sem, "release", nil)
+}
+
+// TestSemaphoreAcquireReleaseSequence verifies that acquire/release can be
+// interleaved correctly up to and beyond the capacity boundary.
+func TestSemaphoreAcquireReleaseSequence(t *testing.T) {
+	vm := NewVM()
+
+	sem := vm.Send(vm.classValue(vm.SemaphoreClass), "new:", []Value{FromSmallInt(3)})
+
+	// Acquire all 3
+	for i := 0; i < 3; i++ {
+		vm.Send(sem, "acquire", nil)
+	}
+
+	avail := vm.Send(sem, "available", nil)
+	if avail.SmallInt() != 0 {
+		t.Errorf("Available after acquiring all = %v, want 0", avail)
+	}
+
+	// Release all 3
+	for i := 0; i < 3; i++ {
+		vm.Send(sem, "release", nil)
+	}
+
+	avail = vm.Send(sem, "available", nil)
+	if avail.SmallInt() != 3 {
+		t.Errorf("Available after releasing all = %v, want 3", avail)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Mutex Edge Cases
+// ---------------------------------------------------------------------------
+
+// TestMutexUnlockWithoutLock documents the behavior of unlocking an unlocked
+// mutex. Go's sync.Mutex calls runtime.fatal (not panic) for this case,
+// which means it CANNOT be caught with recover() -- it terminates the process.
+//
+// Therefore we cannot directly test this in a unit test without crashing the
+// test process. Instead, we verify the related invariant: that isLocked
+// correctly reports false for an unlocked mutex, confirming that calling
+// unlock without lock would be a programming error.
+//
+// BEHAVIOR: Unlocking an unlocked Maggie mutex calls sync.Mutex.Unlock()
+// which triggers a fatal error "sync: unlock of unlocked mutex" and crashes
+// the process. This is NOT recoverable with recover().
+func TestMutexUnlockWithoutLock(t *testing.T) {
+	vm := NewVM()
+
+	mu := vm.Send(vm.classValue(vm.MutexClass), "new", nil)
+
+	// Verify isLocked returns false for a new mutex
+	locked := vm.Send(mu, "isLocked", nil)
+	if locked != False {
+		t.Error("New mutex should report isLocked = false")
+	}
+
+	// We intentionally do NOT call unlock here because Go's sync.Mutex.Unlock()
+	// on an unlocked mutex calls runtime.fatal(), which cannot be recovered
+	// and would crash the entire test process.
+	t.Log("DOCUMENTED: Mutex unlock without prior lock causes unrecoverable fatal error (Go sync.Mutex behavior)")
+}
+
+// TestMutexTryLockWhenAlreadyLocked verifies that tryLock returns False when
+// the mutex is already held (from the same goroutine perspective, via a
+// second tryLock call in a different goroutine).
+func TestMutexTryLockWhenAlreadyLocked(t *testing.T) {
+	vm := NewVM()
+
+	mu := vm.Send(vm.classValue(vm.MutexClass), "new", nil)
+
+	// Lock the mutex
+	vm.Send(mu, "lock", nil)
+
+	locked := vm.Send(mu, "isLocked", nil)
+	if locked != True {
+		t.Fatal("Mutex should be locked")
+	}
+
+	// From another goroutine, tryLock should fail
+	muObj := vm.getMutex(mu)
+	result := make(chan bool, 1)
+	go func() {
+		result <- muObj.mu.TryLock()
+	}()
+
+	gotLock := <-result
+	if gotLock {
+		t.Error("tryLock from another goroutine should return false when mutex is held")
+		muObj.mu.Unlock() // clean up if we got it unexpectedly
+	}
+
+	// Unlock and verify tryLock succeeds
+	vm.Send(mu, "unlock", nil)
+
+	// Now tryLock should succeed
+	tryResult := vm.Send(mu, "tryLock", nil)
+	if tryResult != True {
+		t.Error("tryLock should succeed after unlock")
+	}
+
+	// Clean up
+	vm.Send(mu, "unlock", nil)
+}
+
+// TestMutexLockUnlockMultipleCycles verifies that a mutex can be locked and
+// unlocked repeatedly without issues.
+func TestMutexLockUnlockMultipleCycles(t *testing.T) {
+	vm := NewVM()
+
+	mu := vm.Send(vm.classValue(vm.MutexClass), "new", nil)
+
+	for i := 0; i < 100; i++ {
+		vm.Send(mu, "lock", nil)
+
+		locked := vm.Send(mu, "isLocked", nil)
+		if locked != True {
+			t.Errorf("Iteration %d: mutex should be locked after lock", i)
+		}
+
+		vm.Send(mu, "unlock", nil)
+
+		locked = vm.Send(mu, "isLocked", nil)
+		if locked != False {
+			t.Errorf("Iteration %d: mutex should be unlocked after unlock", i)
+		}
+	}
+}
+
+// TestMutexTryLockUnlockCycle verifies that tryLock followed by unlock works
+// correctly in a cycle.
+func TestMutexTryLockUnlockCycle(t *testing.T) {
+	vm := NewVM()
+
+	mu := vm.Send(vm.classValue(vm.MutexClass), "new", nil)
+
+	for i := 0; i < 50; i++ {
+		result := vm.Send(mu, "tryLock", nil)
+		if result != True {
+			t.Errorf("Iteration %d: tryLock should succeed on unlocked mutex", i)
+		}
+
+		vm.Send(mu, "unlock", nil)
 	}
 }
