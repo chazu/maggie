@@ -1209,6 +1209,169 @@ func TestImageReaderDecoderIntegration(t *testing.T) {
 // Corrupt / Malformed Image Error Handling Tests
 // ---------------------------------------------------------------------------
 
+// TestImageReaderBackwardCompatV1 verifies that a v1 image (no docstrings,
+// no class vars) loads correctly on the current reader.
+func TestImageReaderBackwardCompatV1(t *testing.T) {
+	builder := newTestImageBuilder()
+	// Write header manually with version 1
+	builder.buf.Write(ImageMagic[:])
+	builder.writeUint32(1) // version 1
+	builder.writeUint32(ImageFlagNone)
+	builder.writeUint32(1) // 1 object
+	builder.writeUint64(0)
+	builder.writeUint64(0)
+	builder.writeUint32(0)
+
+	// String table
+	builder.writeUint32(2)
+	builder.writeString("V1Class")
+	builder.writeString("myVar")
+
+	// Symbol table
+	builder.writeUint32(0)
+
+	// Selector table
+	builder.writeUint32(0)
+
+	// 1 class — v1 has NO docstring byte
+	builder.writeUint32(1)
+	builder.writeUint32(0)          // name: "V1Class"
+	builder.writeUint32(0xFFFFFFFF) // namespace
+	builder.writeUint32(0xFFFFFFFF) // superclass
+	builder.writeUint32(1)          // numSlots
+	builder.writeUint32(0)          // 0 instvars
+	builder.writeUint32(0)          // 0 instance methods
+	builder.writeUint32(0)          // 0 class methods
+	// NO docstring byte for v1
+
+	// Methods
+	builder.writeUint32(0)
+
+	// Objects
+	builder.writeUint32(1)
+	builder.writeUint32(0) // class index 0
+	builder.writeUint32(1) // 1 slot
+	builder.writeValue(FromSmallInt(42))
+
+	// Globals
+	builder.writeUint32(1)
+	builder.writeUint32(1) // "myVar"
+	builder.writeValue(FromSmallInt(100))
+
+	// NO class vars section for v1
+
+	ir, err := NewImageReaderFromBytes(builder.bytes())
+	if err != nil {
+		t.Fatalf("NewImageReaderFromBytes failed: %v", err)
+	}
+
+	vm := NewVM()
+	err = ir.ReadAll(vm)
+	if err != nil {
+		t.Fatalf("ReadAll on v1 image failed: %v", err)
+	}
+
+	cls := vm.LookupClass("V1Class")
+	if cls == nil {
+		t.Fatal("V1Class not found in VM")
+	}
+
+	val, ok := vm.LookupGlobal("myVar")
+	if !ok {
+		t.Fatal("myVar not found")
+	}
+	if val.SmallInt() != 100 {
+		t.Errorf("myVar = %v, want 100", val)
+	}
+}
+
+// TestImageReaderBackwardCompatV2 verifies that a v2 image (has docstrings,
+// no class vars) loads correctly on the current reader.
+func TestImageReaderBackwardCompatV2(t *testing.T) {
+	builder := newTestImageBuilder()
+	// Write header manually with version 2
+	builder.buf.Write(ImageMagic[:])
+	builder.writeUint32(2) // version 2
+	builder.writeUint32(ImageFlagNone)
+	builder.writeUint32(1) // 1 object
+	builder.writeUint64(0)
+	builder.writeUint64(0)
+	builder.writeUint32(0)
+
+	// String table
+	builder.writeUint32(3)
+	builder.writeString("V2Class")
+	builder.writeString("greeting")
+	builder.writeString("A v2 docstring")
+
+	// Symbol table
+	builder.writeUint32(0)
+
+	// Selector table
+	builder.writeUint32(0)
+
+	// 1 class — v2 HAS docstring byte
+	builder.writeUint32(1)
+	builder.writeUint32(0)          // name: "V2Class"
+	builder.writeUint32(0xFFFFFFFF) // namespace
+	builder.writeUint32(0xFFFFFFFF) // superclass
+	builder.writeUint32(1)          // numSlots
+	builder.writeUint32(0)          // 0 instvars
+	builder.writeUint32(0)          // 0 instance methods
+	builder.writeUint32(0)          // 0 class methods
+	builder.writeBytes([]byte{1})   // has docstring
+	builder.writeUint32(2)          // docstring index -> "A v2 docstring"
+
+	// Methods
+	builder.writeUint32(0)
+
+	// Objects
+	builder.writeUint32(1)
+	builder.writeUint32(0) // class index 0
+	builder.writeUint32(1) // 1 slot
+	builder.writeValue(FromSmallInt(77))
+
+	// Globals
+	builder.writeUint32(1)
+	builder.writeUint32(1) // "greeting"
+	builder.writeValue(FromSmallInt(200))
+
+	// NO class vars section for v2
+
+	ir, err := NewImageReaderFromBytes(builder.bytes())
+	if err != nil {
+		t.Fatalf("NewImageReaderFromBytes failed: %v", err)
+	}
+
+	vm := NewVM()
+	err = ir.ReadAll(vm)
+	if err != nil {
+		t.Fatalf("ReadAll on v2 image failed: %v", err)
+	}
+
+	cls := vm.LookupClass("V2Class")
+	if cls == nil {
+		t.Fatal("V2Class not found in VM")
+	}
+	if cls.DocString != "A v2 docstring" {
+		t.Errorf("V2Class docstring = %q, want %q", cls.DocString, "A v2 docstring")
+	}
+
+	val, ok := vm.LookupGlobal("greeting")
+	if !ok {
+		t.Fatal("greeting not found")
+	}
+	if val.SmallInt() != 200 {
+		t.Errorf("greeting = %v, want 200", val)
+	}
+
+	// Class vars should be empty (v2 has no class vars section)
+	storage := vm.registry.GetClassVarStorage(cls)
+	if len(storage) != 0 {
+		t.Errorf("Expected 0 class vars for v2 image, got %d", len(storage))
+	}
+}
+
 // TestImageReaderBadVersionNumber tests that a very high version number
 // (999) is rejected with ErrVersionMismatch.
 func TestImageReaderBadVersionNumber(t *testing.T) {
