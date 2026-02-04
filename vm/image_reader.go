@@ -136,8 +136,8 @@ func (ir *ImageReader) ReadHeader() (*ImageHeader, error) {
 	version := ReadUint32(ir.data[ir.offset:])
 	ir.offset += imageVersionSize
 
-	if version != ImageVersion && version != 1 {
-		return nil, fmt.Errorf("%w: expected %d or 1, got %d", ErrVersionMismatch, ImageVersion, version)
+	if version > ImageVersion {
+		return nil, fmt.Errorf("%w: expected <= %d, got %d", ErrVersionMismatch, ImageVersion, version)
 	}
 
 	// Read flags
@@ -1093,6 +1093,63 @@ func (ir *ImageReader) ReadGlobals(vm *VM) error {
 }
 
 // ---------------------------------------------------------------------------
+// Class Variable Reading (v3+)
+// ---------------------------------------------------------------------------
+
+// ReadClassVars reads class variable data from the image.
+func (ir *ImageReader) ReadClassVars(vm *VM) error {
+	// Read count of classes with variables
+	count, err := ir.readUint32()
+	if err != nil {
+		return fmt.Errorf("failed to read class vars count: %w", err)
+	}
+
+	for i := uint32(0); i < count; i++ {
+		// Read class index
+		classIdx, err := ir.readUint32()
+		if err != nil {
+			return fmt.Errorf("failed to read class var entry %d class index: %w", i, err)
+		}
+
+		if int(classIdx) >= len(ir.classes) {
+			return fmt.Errorf("%w: class var entry %d references class %d", ErrInvalidClassIndex, i, classIdx)
+		}
+
+		class := ir.classes[classIdx]
+
+		// Read number of variables
+		varCount, err := ir.readUint32()
+		if err != nil {
+			return fmt.Errorf("failed to read class var count for class %d: %w", classIdx, err)
+		}
+
+		for j := uint32(0); j < varCount; j++ {
+			// Read variable name
+			nameIdx, err := ir.readUint32()
+			if err != nil {
+				return fmt.Errorf("failed to read class var %d name for class %d: %w", j, classIdx, err)
+			}
+
+			name, err := ir.GetString(nameIdx)
+			if err != nil {
+				return fmt.Errorf("failed to get class var %d name for class %d: %w", j, classIdx, err)
+			}
+
+			// Read value
+			valueData, err := ir.readBytes(EncodedValueSize)
+			if err != nil {
+				return fmt.Errorf("failed to read class var %d value for class %d: %w", j, classIdx, err)
+			}
+
+			value := ir.decoder.DecodeValue(valueData)
+			vm.registry.SetClassVar(class, name, value)
+		}
+	}
+
+	return nil
+}
+
+// ---------------------------------------------------------------------------
 // Full Image Loading
 // ---------------------------------------------------------------------------
 
@@ -1167,6 +1224,14 @@ func (ir *ImageReader) ReadAll(vm *VM) error {
 	err = ir.ReadGlobals(vm)
 	if err != nil {
 		return fmt.Errorf("failed to read globals: %w", err)
+	}
+
+	// Read class variables (v3+)
+	if ir.header.Version >= 3 {
+		err = ir.ReadClassVars(vm)
+		if err != nil {
+			return fmt.Errorf("failed to read class vars: %w", err)
+		}
 	}
 
 	return nil

@@ -2,6 +2,7 @@ package vm
 
 import (
 	"bytes"
+	"errors"
 	"testing"
 )
 
@@ -897,6 +898,9 @@ func TestImageReaderReadAll(t *testing.T) {
 	builder.writeUint32(2) // "myGlobal"
 	builder.writeValue(FromSmallInt(123))
 
+	// Class variables (v3+)
+	builder.writeUint32(0) // no class vars
+
 	ir, err := NewImageReaderFromBytes(builder.bytes())
 	if err != nil {
 		t.Fatalf("NewImageReaderFromBytes failed: %v", err)
@@ -944,6 +948,7 @@ func TestVMLoadImageFromBytes(t *testing.T) {
 	builder.writeUint32(0) // methods
 	builder.writeUint32(0) // objects
 	builder.writeUint32(0) // globals
+	builder.writeUint32(0) // class vars (v3+)
 
 	vm := NewVM()
 	err := vm.LoadImageFromBytes(builder.bytes())
@@ -965,6 +970,7 @@ func TestVMLoadImageFrom(t *testing.T) {
 	builder.writeUint32(0)
 	builder.writeUint32(0)
 	builder.writeUint32(0)
+	builder.writeUint32(0) // class vars (v3+)
 
 	reader := bytes.NewReader(builder.bytes())
 	vm := NewVM()
@@ -1109,6 +1115,7 @@ func TestImageReaderEmptyImage(t *testing.T) {
 	builder.writeUint32(0) // methods
 	builder.writeUint32(0) // objects
 	builder.writeUint32(0) // globals
+	builder.writeUint32(0) // class vars (v3+)
 
 	vm := NewVM()
 	err := vm.LoadImageFromBytes(builder.bytes())
@@ -1175,6 +1182,7 @@ func TestImageReaderDecoderIntegration(t *testing.T) {
 	builder.writeUint32(0) // methods
 	builder.writeUint32(0) // objects
 	builder.writeUint32(0) // globals
+	builder.writeUint32(0) // class vars (v3+)
 
 	ir, err := NewImageReaderFromBytes(builder.bytes())
 	if err != nil {
@@ -1194,6 +1202,1495 @@ func TestImageReaderDecoderIntegration(t *testing.T) {
 	}
 	if decoder.ClassCount() != 1 {
 		t.Errorf("Decoder class count = %d, want 1", decoder.ClassCount())
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Corrupt / Malformed Image Error Handling Tests
+// ---------------------------------------------------------------------------
+
+// TestImageReaderBadVersionNumber tests that a very high version number
+// (999) is rejected with ErrVersionMismatch.
+func TestImageReaderBadVersionNumber(t *testing.T) {
+	builder := newTestImageBuilder()
+	builder.buf.Write(ImageMagic[:])
+	builder.writeUint32(999) // Version far too high
+	builder.writeUint32(ImageFlagNone)
+	builder.writeUint32(0)
+	builder.writeUint64(0)
+	builder.writeUint64(0)
+	builder.writeUint32(0)
+
+	ir, err := NewImageReaderFromBytes(builder.bytes())
+	if err != nil {
+		t.Fatalf("NewImageReaderFromBytes failed: %v", err)
+	}
+
+	_, err = ir.ReadHeader()
+	if err == nil {
+		t.Fatal("Expected error for version 999, got nil")
+	}
+	if !errors.Is(err, ErrVersionMismatch) {
+		t.Errorf("Expected ErrVersionMismatch, got: %v", err)
+	}
+}
+
+// TestImageReaderZeroLengthImage tests an image that has only the magic bytes
+// but nothing else (too short for a full header).
+func TestImageReaderZeroLengthImage(t *testing.T) {
+	// Just the magic bytes, no header fields
+	data := []byte("MAGI")
+
+	_, err := NewImageReaderFromBytes(data)
+	if err != ErrCorruptHeader {
+		t.Errorf("Expected ErrCorruptHeader for magic-only image, got: %v", err)
+	}
+}
+
+// TestImageReaderEmptyBytes tests a completely empty byte slice.
+func TestImageReaderEmptyBytes(t *testing.T) {
+	_, err := NewImageReaderFromBytes([]byte{})
+	if err != ErrCorruptHeader {
+		t.Errorf("Expected ErrCorruptHeader for empty bytes, got: %v", err)
+	}
+}
+
+// TestImageReaderRandomGarbageWithValidMagic tests random garbage data that
+// starts with a valid magic number. The header fields will be nonsensical.
+func TestImageReaderRandomGarbageWithValidMagic(t *testing.T) {
+	// Valid magic + random garbage
+	data := make([]byte, ImageHeaderSize+50)
+	copy(data[0:4], ImageMagic[:])
+	// Fill the rest with garbage
+	for i := 4; i < len(data); i++ {
+		data[i] = byte(i * 37)
+	}
+	// Force version to be 0 (valid) to pass header check and exercise later parsing
+	WriteUint32(data[4:], 0)
+
+	ir, err := NewImageReaderFromBytes(data)
+	if err != nil {
+		// ErrCorruptHeader is acceptable
+		return
+	}
+
+	// ReadHeader might succeed since magic and version are valid
+	_, err = ir.ReadHeader()
+	if err != nil {
+		// Any error is acceptable, as long as no panic
+		return
+	}
+
+	// Try reading string table from garbage data -- should error, not panic
+	_, err = ir.ReadStringTable()
+	// We don't care which specific error, just that it doesn't panic
+	_ = err
+}
+
+// TestImageReaderTruncatedDataMidClassSection tests an image with a valid
+// header, valid string table, but truncated in the middle of the class section.
+func TestImageReaderTruncatedDataMidClassSection(t *testing.T) {
+	builder := newTestImageBuilder()
+	builder.writeHeader(0, 0)
+
+	// Write a valid string table
+	builder.writeUint32(2) // 2 strings
+	builder.writeString("TestClass")
+	builder.writeString("x")
+
+	// Write valid symbol and selector tables
+	builder.writeUint32(0) // 0 symbols
+	builder.writeUint32(0) // 0 selectors
+
+	// Start writing class table but truncate mid-way
+	builder.writeUint32(2) // Claim 2 classes
+	// Write partial first class (name index only, missing the rest)
+	builder.writeUint32(0) // name: "TestClass"
+	// Truncate here - missing namespace, superclass, numSlots, etc.
+
+	ir, err := NewImageReaderFromBytes(builder.bytes())
+	if err != nil {
+		t.Fatalf("NewImageReaderFromBytes failed: %v", err)
+	}
+
+	vm := NewVM()
+
+	ir.ReadHeader()
+	ir.ReadStringTable()
+	ir.ReadSymbolTable()
+	ir.ReadSelectorTable()
+
+	_, err = ir.ReadClasses(vm)
+	if err == nil {
+		t.Error("Expected error for truncated class section, got nil")
+	}
+}
+
+// TestImageReaderTruncatedDataMidMethodSection tests truncation in the middle
+// of the method section.
+func TestImageReaderTruncatedDataMidMethodSection(t *testing.T) {
+	builder := newTestImageBuilder()
+	builder.writeHeader(0, 0)
+
+	// String table
+	builder.writeUint32(2)
+	builder.writeString("testMethod")
+	builder.writeString("TestClass")
+
+	builder.writeUint32(0) // symbols
+	builder.writeUint32(0) // selectors
+
+	// Classes
+	builder.writeUint32(1)
+	builder.writeUint32(1)          // name: "TestClass"
+	builder.writeUint32(0xFFFFFFFF) // namespace
+	builder.writeUint32(0xFFFFFFFF) // superclass
+	builder.writeUint32(0)          // numSlots
+	builder.writeUint32(0)          // instVarCount
+	builder.writeUint32(0)          // instance methods
+	builder.writeUint32(0)          // class methods
+	builder.writeBytes([]byte{0})   // no docstring
+
+	// Start method section but truncate mid-way
+	builder.writeUint32(1)    // Claim 1 method
+	builder.writeUint32(42)   // selector
+	builder.writeUint32(0)    // class index
+	// Truncate here - missing name, arity, bytecode, etc.
+
+	ir, err := NewImageReaderFromBytes(builder.bytes())
+	if err != nil {
+		t.Fatalf("NewImageReaderFromBytes failed: %v", err)
+	}
+
+	vm := NewVM()
+
+	ir.ReadHeader()
+	ir.ReadStringTable()
+	ir.ReadSymbolTable()
+	ir.ReadSelectorTable()
+	ir.ReadClasses(vm)
+
+	_, err = ir.ReadMethods(vm)
+	if err == nil {
+		t.Error("Expected error for truncated method section, got nil")
+	}
+}
+
+// TestImageReaderObjectOutOfBoundsClassIndex tests an object that references
+// a class index exceeding the class count.
+func TestImageReaderObjectOutOfBoundsClassIndex(t *testing.T) {
+	builder := newTestImageBuilder()
+	builder.writeHeader(1, 0)
+
+	// String table
+	builder.writeUint32(1)
+	builder.writeString("TestClass")
+
+	builder.writeUint32(0) // symbols
+	builder.writeUint32(0) // selectors
+
+	// 1 class
+	builder.writeUint32(1)
+	builder.writeUint32(0)          // name: "TestClass"
+	builder.writeUint32(0xFFFFFFFF) // namespace
+	builder.writeUint32(0xFFFFFFFF) // superclass
+	builder.writeUint32(0)          // numSlots
+	builder.writeUint32(0)          // instVarCount
+	builder.writeUint32(0)          // instance methods
+	builder.writeUint32(0)          // class methods
+	builder.writeBytes([]byte{0})   // no docstring
+
+	// 0 methods
+	builder.writeUint32(0)
+
+	// Object with out-of-bounds class index
+	builder.writeUint32(1)  // 1 object
+	builder.writeUint32(50) // class index 50, but only 1 class exists
+	builder.writeUint32(0)  // 0 slots
+
+	ir, err := NewImageReaderFromBytes(builder.bytes())
+	if err != nil {
+		t.Fatalf("NewImageReaderFromBytes failed: %v", err)
+	}
+
+	vm := NewVM()
+
+	ir.ReadHeader()
+	ir.ReadStringTable()
+	ir.ReadSymbolTable()
+	ir.ReadSelectorTable()
+	ir.ReadClasses(vm)
+	ir.ReadMethods(vm)
+
+	_, err = ir.ReadObjectsWithSlots(vm)
+	if err == nil {
+		t.Error("Expected error for object with out-of-bounds class index, got nil")
+	}
+	if !errors.Is(err, ErrInvalidClassIndex) {
+		t.Errorf("Expected ErrInvalidClassIndex, got: %v", err)
+	}
+}
+
+// TestImageReaderMethodOutOfBoundsClassIndex tests a method that references
+// a class index exceeding the class count. Note: The current reader silently
+// ignores out-of-bounds class indices in methods (it just skips VTable
+// registration), so this test verifies no panic occurs.
+func TestImageReaderMethodOutOfBoundsClassIndex(t *testing.T) {
+	builder := newTestImageBuilder()
+	builder.writeHeader(0, 0)
+
+	// String table
+	builder.writeUint32(2)
+	builder.writeString("badMethod")
+	builder.writeString("TestClass")
+
+	builder.writeUint32(0) // symbols
+	builder.writeUint32(0) // selectors
+
+	// 1 class
+	builder.writeUint32(1)
+	builder.writeUint32(1)          // name: "TestClass"
+	builder.writeUint32(0xFFFFFFFF) // namespace
+	builder.writeUint32(0xFFFFFFFF) // superclass
+	builder.writeUint32(0)          // numSlots
+	builder.writeUint32(0)          // instVarCount
+	builder.writeUint32(0)          // instance methods
+	builder.writeUint32(0)          // class methods
+	builder.writeBytes([]byte{0})   // no docstring
+
+	// 1 method referencing class index 99 (only 1 class exists)
+	builder.writeUint32(1) // 1 method
+
+	builder.writeUint32(1)        // selector ID
+	builder.writeUint32(99)       // class index -- out of bounds!
+	builder.writeUint32(0)        // name: "badMethod"
+	builder.writeBytes([]byte{0}) // isClassMethod: false
+	builder.writeUint32(0)        // arity
+	builder.writeUint32(0)        // numTemps
+	builder.writeUint32(0)        // literal count
+	builder.writeUint32(1)        // bytecode length
+	builder.writeBytes([]byte{0x00})
+	builder.writeUint32(0)        // block count
+	builder.writeBytes([]byte{0}) // no source
+	builder.writeBytes([]byte{0}) // no docstring
+	builder.writeUint32(0)        // source map count
+
+	ir, err := NewImageReaderFromBytes(builder.bytes())
+	if err != nil {
+		t.Fatalf("NewImageReaderFromBytes failed: %v", err)
+	}
+
+	vm := NewVM()
+
+	ir.ReadHeader()
+	ir.ReadStringTable()
+	ir.ReadSymbolTable()
+	ir.ReadSelectorTable()
+	ir.ReadClasses(vm)
+
+	// NOTE: The current reader does NOT return an error for out-of-bounds class
+	// index in methods -- it silently skips VTable registration. This test
+	// verifies that at least no panic occurs. A future improvement could make
+	// this return ErrInvalidClassIndex.
+	methods, err := ir.ReadMethods(vm)
+	if err != nil {
+		// If the reader does return an error, that is also acceptable behavior
+		return
+	}
+
+	// Method should still be created, just not linked to any class
+	if len(methods) != 1 {
+		t.Errorf("Expected 1 method, got %d", len(methods))
+	}
+	if methods[0].class != nil {
+		t.Error("Expected method.class to be nil for out-of-bounds class index")
+	}
+}
+
+// TestImageReaderSymbolTableOutOfBoundsStringIndex tests a symbol entry that
+// references a string index beyond the string table.
+func TestImageReaderSymbolTableOutOfBoundsStringIndex(t *testing.T) {
+	builder := newTestImageBuilder()
+	builder.writeHeader(0, 0)
+
+	// String table with only 2 strings
+	builder.writeUint32(2)
+	builder.writeString("hello")
+	builder.writeString("world")
+
+	// Symbol table: one valid, one out of bounds
+	builder.writeUint32(2)
+	builder.writeUint32(0)    // Valid: string 0 "hello"
+	builder.writeUint32(999)  // Invalid: string index 999
+
+	ir, err := NewImageReaderFromBytes(builder.bytes())
+	if err != nil {
+		t.Fatalf("NewImageReaderFromBytes failed: %v", err)
+	}
+
+	ir.ReadHeader()
+	ir.ReadStringTable()
+
+	_, err = ir.ReadSymbolTable()
+	if err == nil {
+		t.Error("Expected error for symbol with out-of-bounds string index, got nil")
+	}
+	if !errors.Is(err, ErrInvalidStringIndex) {
+		t.Errorf("Expected ErrInvalidStringIndex, got: %v", err)
+	}
+}
+
+// TestImageReaderSelectorTableOutOfBoundsStringIndex tests a selector entry
+// that references a string index beyond the string table.
+func TestImageReaderSelectorTableOutOfBoundsStringIndex(t *testing.T) {
+	builder := newTestImageBuilder()
+	builder.writeHeader(0, 0)
+
+	// String table with only 1 string
+	builder.writeUint32(1)
+	builder.writeString("at:")
+
+	// Symbol table (empty)
+	builder.writeUint32(0)
+
+	// Selector table referencing non-existent string
+	builder.writeUint32(1)
+	builder.writeUint32(100) // Invalid string index
+
+	ir, err := NewImageReaderFromBytes(builder.bytes())
+	if err != nil {
+		t.Fatalf("NewImageReaderFromBytes failed: %v", err)
+	}
+
+	ir.ReadHeader()
+	ir.ReadStringTable()
+	ir.ReadSymbolTable()
+
+	_, err = ir.ReadSelectorTable()
+	if err == nil {
+		t.Error("Expected error for selector with out-of-bounds string index, got nil")
+	}
+	if !errors.Is(err, ErrInvalidStringIndex) {
+		t.Errorf("Expected ErrInvalidStringIndex, got: %v", err)
+	}
+}
+
+// TestImageReaderGlobalsOutOfBoundsStringIndex tests a global that references
+// a non-existent string index for its name.
+func TestImageReaderGlobalsOutOfBoundsStringIndex(t *testing.T) {
+	builder := newTestImageBuilder()
+	builder.writeHeader(0, 0)
+
+	// String table with 1 string
+	builder.writeUint32(1)
+	builder.writeString("onlyString")
+
+	builder.writeUint32(0) // symbols
+	builder.writeUint32(0) // selectors
+	builder.writeUint32(0) // classes
+	builder.writeUint32(0) // methods
+	builder.writeUint32(0) // objects
+
+	// Globals: 1 global with invalid string index for name
+	builder.writeUint32(1)
+	builder.writeUint32(500) // Invalid string index for name
+	builder.writeValue(FromSmallInt(42))
+
+	ir, err := NewImageReaderFromBytes(builder.bytes())
+	if err != nil {
+		t.Fatalf("NewImageReaderFromBytes failed: %v", err)
+	}
+
+	vm := NewVM()
+
+	ir.ReadHeader()
+	ir.ReadStringTable()
+	ir.ReadSymbolTable()
+	ir.ReadSelectorTable()
+	ir.ReadClasses(vm)
+	ir.ReadMethods(vm)
+	ir.ReadObjectsWithSlots(vm)
+
+	err = ir.ReadGlobals(vm)
+	if err == nil {
+		t.Error("Expected error for global with out-of-bounds string index, got nil")
+	}
+	if !errors.Is(err, ErrInvalidStringIndex) {
+		t.Errorf("Expected ErrInvalidStringIndex, got: %v", err)
+	}
+}
+
+// TestImageReaderHugeSlotCount tests an object that claims a very large number
+// of slots. This should cause an error (ErrUnexpectedEOF), not a panic.
+//
+// NOTE: Using 0xFFFFFFFF would cause an OOM kill because the reader allocates
+// slotData before validating. We use a large-but-not-catastrophic value (10000)
+// that exceeds the remaining data. A future improvement should validate slot
+// counts against remaining data before allocating. That is tracked separately.
+func TestImageReaderHugeSlotCount(t *testing.T) {
+	builder := newTestImageBuilder()
+	builder.writeHeader(1, 0)
+
+	// String table
+	builder.writeUint32(1)
+	builder.writeString("TestClass")
+
+	builder.writeUint32(0) // symbols
+	builder.writeUint32(0) // selectors
+
+	// 1 class
+	builder.writeUint32(1)
+	builder.writeUint32(0)          // name: "TestClass"
+	builder.writeUint32(0xFFFFFFFF) // namespace
+	builder.writeUint32(0xFFFFFFFF) // superclass
+	builder.writeUint32(0)          // numSlots
+	builder.writeUint32(0)          // instVarCount
+	builder.writeUint32(0)          // instance methods
+	builder.writeUint32(0)          // class methods
+	builder.writeBytes([]byte{0})   // no docstring
+
+	// 0 methods
+	builder.writeUint32(0)
+
+	// 1 object with excessive slot count (exceeds remaining data)
+	builder.writeUint32(1)     // 1 object
+	builder.writeUint32(0)     // class index 0
+	builder.writeUint32(10000) // 10000 slots -- far more than data available
+	// No actual slot data
+
+	ir, err := NewImageReaderFromBytes(builder.bytes())
+	if err != nil {
+		t.Fatalf("NewImageReaderFromBytes failed: %v", err)
+	}
+
+	vm := NewVM()
+
+	ir.ReadHeader()
+	ir.ReadStringTable()
+	ir.ReadSymbolTable()
+	ir.ReadSelectorTable()
+	ir.ReadClasses(vm)
+	ir.ReadMethods(vm)
+
+	// This should return an error (not enough data for slots), not panic
+	_, err = ir.ReadObjectsWithSlots(vm)
+	if err == nil {
+		t.Error("Expected error for object with 10000 slots (no data), got nil")
+	}
+	if !errors.Is(err, ErrUnexpectedEOF) {
+		t.Errorf("Expected ErrUnexpectedEOF, got: %v", err)
+	}
+}
+
+// TestImageReaderHugeInstVarCount tests a class that claims a very large
+// number of instance variables. Should error, not panic.
+//
+// NOTE: Using 0xFFFFFFFF could cause OOM because the reader allocates
+// a slice before validating against remaining data. We use a large-but-safe
+// value (10000) that exceeds available data. The underlying issue (no
+// pre-allocation bounds check) is tracked separately.
+func TestImageReaderHugeInstVarCount(t *testing.T) {
+	builder := newTestImageBuilder()
+	builder.writeHeader(0, 0)
+
+	// String table
+	builder.writeUint32(1)
+	builder.writeString("BadClass")
+
+	builder.writeUint32(0) // symbols
+	builder.writeUint32(0) // selectors
+
+	// 1 class with excessive instance variable count
+	builder.writeUint32(1)
+	builder.writeUint32(0)          // name: "BadClass"
+	builder.writeUint32(0xFFFFFFFF) // namespace
+	builder.writeUint32(0xFFFFFFFF) // superclass
+	builder.writeUint32(0)          // numSlots
+	builder.writeUint32(10000)      // instVarCount = 10000, but no data!
+
+	ir, err := NewImageReaderFromBytes(builder.bytes())
+	if err != nil {
+		t.Fatalf("NewImageReaderFromBytes failed: %v", err)
+	}
+
+	vm := NewVM()
+
+	ir.ReadHeader()
+	ir.ReadStringTable()
+	ir.ReadSymbolTable()
+	ir.ReadSelectorTable()
+
+	_, err = ir.ReadClasses(vm)
+	if err == nil {
+		t.Error("Expected error for class with 10000 instvars (no data), got nil")
+	}
+}
+
+// TestImageReaderHugeMethodCount tests a class that claims a very large
+// number of instance methods. Should error, not panic.
+//
+// NOTE: This uses a moderate value (5000) rather than 0xFFFFFFFF to avoid
+// OOM from pre-allocation. The reader does not bound-check counts against
+// remaining data before allocating. That is tracked separately.
+func TestImageReaderHugeMethodCount(t *testing.T) {
+	builder := newTestImageBuilder()
+	builder.writeHeader(0, 0)
+
+	// String table
+	builder.writeUint32(1)
+	builder.writeString("BadClass")
+
+	builder.writeUint32(0) // symbols
+	builder.writeUint32(0) // selectors
+
+	// 1 class with excessive method count
+	builder.writeUint32(1)
+	builder.writeUint32(0)          // name: "BadClass"
+	builder.writeUint32(0xFFFFFFFF) // namespace
+	builder.writeUint32(0xFFFFFFFF) // superclass
+	builder.writeUint32(0)          // numSlots
+	builder.writeUint32(0)          // instVarCount
+	builder.writeUint32(5000)       // method count = 5000, but no data!
+	// No actual method index data
+
+	ir, err := NewImageReaderFromBytes(builder.bytes())
+	if err != nil {
+		t.Fatalf("NewImageReaderFromBytes failed: %v", err)
+	}
+
+	vm := NewVM()
+
+	ir.ReadHeader()
+	ir.ReadStringTable()
+	ir.ReadSymbolTable()
+	ir.ReadSelectorTable()
+
+	_, err = ir.ReadClasses(vm)
+	if err == nil {
+		t.Error("Expected error for class with 5000 methods (no data), got nil")
+	}
+}
+
+// TestImageReaderValidHeaderWrongStringCount tests an image that claims 100
+// strings but provides none.
+func TestImageReaderValidHeaderWrongStringCount(t *testing.T) {
+	builder := newTestImageBuilder()
+	builder.writeHeader(0, 0)
+
+	// Claim 100 strings but provide 0
+	builder.writeUint32(100)
+
+	ir, err := NewImageReaderFromBytes(builder.bytes())
+	if err != nil {
+		t.Fatalf("NewImageReaderFromBytes failed: %v", err)
+	}
+
+	ir.ReadHeader()
+
+	_, err = ir.ReadStringTable()
+	if err == nil {
+		t.Error("Expected error for 100 claimed strings with 0 provided, got nil")
+	}
+	if !errors.Is(err, ErrUnexpectedEOF) {
+		t.Errorf("Expected ErrUnexpectedEOF, got: %v", err)
+	}
+}
+
+// TestImageReaderValidHeaderWrongSymbolCount tests an image that claims many
+// symbols but provides none.
+func TestImageReaderValidHeaderWrongSymbolCount(t *testing.T) {
+	builder := newTestImageBuilder()
+	builder.writeHeader(0, 0)
+
+	// Valid string table
+	builder.writeUint32(1)
+	builder.writeString("test")
+
+	// Claim 50 symbols but provide none
+	builder.writeUint32(50)
+
+	ir, err := NewImageReaderFromBytes(builder.bytes())
+	if err != nil {
+		t.Fatalf("NewImageReaderFromBytes failed: %v", err)
+	}
+
+	ir.ReadHeader()
+	ir.ReadStringTable()
+
+	_, err = ir.ReadSymbolTable()
+	if err == nil {
+		t.Error("Expected error for 50 claimed symbols with 0 provided, got nil")
+	}
+	if !errors.Is(err, ErrUnexpectedEOF) {
+		t.Errorf("Expected ErrUnexpectedEOF, got: %v", err)
+	}
+}
+
+// TestImageReaderValidHeaderWrongClassCount tests an image that claims many
+// classes but provides none.
+func TestImageReaderValidHeaderWrongClassCount(t *testing.T) {
+	builder := newTestImageBuilder()
+	builder.writeHeader(0, 0)
+
+	builder.writeUint32(1)
+	builder.writeString("test")
+	builder.writeUint32(0) // symbols
+	builder.writeUint32(0) // selectors
+
+	// Claim 200 classes but provide none
+	builder.writeUint32(200)
+
+	ir, err := NewImageReaderFromBytes(builder.bytes())
+	if err != nil {
+		t.Fatalf("NewImageReaderFromBytes failed: %v", err)
+	}
+
+	vm := NewVM()
+
+	ir.ReadHeader()
+	ir.ReadStringTable()
+	ir.ReadSymbolTable()
+	ir.ReadSelectorTable()
+
+	_, err = ir.ReadClasses(vm)
+	if err == nil {
+		t.Error("Expected error for 200 claimed classes with 0 provided, got nil")
+	}
+}
+
+// TestImageReaderValidHeaderWrongObjectCount tests an image that claims many
+// objects but provides none.
+func TestImageReaderValidHeaderWrongObjectCount(t *testing.T) {
+	builder := newTestImageBuilder()
+	builder.writeHeader(0, 0)
+
+	builder.writeUint32(1)
+	builder.writeString("TestClass")
+	builder.writeUint32(0) // symbols
+	builder.writeUint32(0) // selectors
+
+	// 1 class
+	builder.writeUint32(1)
+	builder.writeUint32(0)          // name
+	builder.writeUint32(0xFFFFFFFF) // namespace
+	builder.writeUint32(0xFFFFFFFF) // superclass
+	builder.writeUint32(0)          // numSlots
+	builder.writeUint32(0)          // instVarCount
+	builder.writeUint32(0)          // instance methods
+	builder.writeUint32(0)          // class methods
+	builder.writeBytes([]byte{0})   // no docstring
+
+	builder.writeUint32(0) // methods
+
+	// Claim 500 objects but provide none
+	builder.writeUint32(500)
+
+	ir, err := NewImageReaderFromBytes(builder.bytes())
+	if err != nil {
+		t.Fatalf("NewImageReaderFromBytes failed: %v", err)
+	}
+
+	vm := NewVM()
+
+	ir.ReadHeader()
+	ir.ReadStringTable()
+	ir.ReadSymbolTable()
+	ir.ReadSelectorTable()
+	ir.ReadClasses(vm)
+	ir.ReadMethods(vm)
+
+	_, err = ir.ReadObjectsWithSlots(vm)
+	if err == nil {
+		t.Error("Expected error for 500 claimed objects with 0 provided, got nil")
+	}
+}
+
+// TestImageReaderClassVarsSectionCorruption tests a v3 image where everything
+// up through globals is valid, but the class vars section is corrupt.
+func TestImageReaderClassVarsSectionCorruption(t *testing.T) {
+	builder := newTestImageBuilder()
+	builder.writeHeader(0, 0)
+
+	// Valid string table
+	builder.writeUint32(2)
+	builder.writeString("TestClass")
+	builder.writeString("myGlobal")
+
+	builder.writeUint32(0) // symbols
+	builder.writeUint32(0) // selectors
+
+	// 1 class
+	builder.writeUint32(1)
+	builder.writeUint32(0)          // name: "TestClass"
+	builder.writeUint32(0xFFFFFFFF) // namespace
+	builder.writeUint32(0xFFFFFFFF) // superclass
+	builder.writeUint32(0)          // numSlots
+	builder.writeUint32(0)          // instVarCount
+	builder.writeUint32(0)          // instance methods
+	builder.writeUint32(0)          // class methods
+	builder.writeBytes([]byte{0})   // no docstring
+
+	builder.writeUint32(0) // methods
+	builder.writeUint32(0) // objects
+
+	// Valid globals
+	builder.writeUint32(1)
+	builder.writeUint32(1) // name: "myGlobal"
+	builder.writeValue(FromSmallInt(42))
+
+	// Class vars section: claim 5 entries but provide none
+	builder.writeUint32(5)
+
+	ir, err := NewImageReaderFromBytes(builder.bytes())
+	if err != nil {
+		t.Fatalf("NewImageReaderFromBytes failed: %v", err)
+	}
+
+	vm := NewVM()
+
+	err = ir.ReadAll(vm)
+	if err == nil {
+		t.Error("Expected error for corrupt class vars section, got nil")
+	}
+}
+
+// TestImageReaderClassVarsOutOfBoundsClassIndex tests a v3 image where
+// the class vars section references a class index beyond the class table.
+func TestImageReaderClassVarsOutOfBoundsClassIndex(t *testing.T) {
+	builder := newTestImageBuilder()
+	builder.writeHeader(0, 0)
+
+	// String table
+	builder.writeUint32(2)
+	builder.writeString("TestClass")
+	builder.writeString("myVar")
+
+	builder.writeUint32(0) // symbols
+	builder.writeUint32(0) // selectors
+
+	// 1 class
+	builder.writeUint32(1)
+	builder.writeUint32(0)          // name: "TestClass"
+	builder.writeUint32(0xFFFFFFFF) // namespace
+	builder.writeUint32(0xFFFFFFFF) // superclass
+	builder.writeUint32(0)          // numSlots
+	builder.writeUint32(0)          // instVarCount
+	builder.writeUint32(0)          // instance methods
+	builder.writeUint32(0)          // class methods
+	builder.writeBytes([]byte{0})   // no docstring
+
+	builder.writeUint32(0) // methods
+	builder.writeUint32(0) // objects
+	builder.writeUint32(0) // globals
+
+	// Class vars section: 1 entry referencing invalid class index
+	builder.writeUint32(1)
+	builder.writeUint32(99) // class index 99, only 1 class exists
+	builder.writeUint32(1)  // 1 variable
+	builder.writeUint32(1)  // name: "myVar"
+	builder.writeValue(FromSmallInt(1))
+
+	ir, err := NewImageReaderFromBytes(builder.bytes())
+	if err != nil {
+		t.Fatalf("NewImageReaderFromBytes failed: %v", err)
+	}
+
+	vm := NewVM()
+
+	err = ir.ReadAll(vm)
+	if err == nil {
+		t.Error("Expected error for class var with out-of-bounds class index, got nil")
+	}
+	if !errors.Is(err, ErrInvalidClassIndex) {
+		t.Errorf("Expected ErrInvalidClassIndex, got: %v", err)
+	}
+}
+
+// TestImageReaderClassVarsOutOfBoundsStringIndex tests a v3 image where
+// a class variable name references a non-existent string.
+func TestImageReaderClassVarsOutOfBoundsStringIndex(t *testing.T) {
+	builder := newTestImageBuilder()
+	builder.writeHeader(0, 0)
+
+	// String table with only 1 string
+	builder.writeUint32(1)
+	builder.writeString("TestClass")
+
+	builder.writeUint32(0) // symbols
+	builder.writeUint32(0) // selectors
+
+	// 1 class
+	builder.writeUint32(1)
+	builder.writeUint32(0)          // name: "TestClass"
+	builder.writeUint32(0xFFFFFFFF) // namespace
+	builder.writeUint32(0xFFFFFFFF) // superclass
+	builder.writeUint32(0)          // numSlots
+	builder.writeUint32(0)          // instVarCount
+	builder.writeUint32(0)          // instance methods
+	builder.writeUint32(0)          // class methods
+	builder.writeBytes([]byte{0})   // no docstring
+
+	builder.writeUint32(0) // methods
+	builder.writeUint32(0) // objects
+	builder.writeUint32(0) // globals
+
+	// Class vars section: 1 entry with valid class but invalid var name string
+	builder.writeUint32(1)
+	builder.writeUint32(0)   // class index 0 (valid)
+	builder.writeUint32(1)   // 1 variable
+	builder.writeUint32(999) // var name string index 999 (invalid!)
+	builder.writeValue(FromSmallInt(1))
+
+	ir, err := NewImageReaderFromBytes(builder.bytes())
+	if err != nil {
+		t.Fatalf("NewImageReaderFromBytes failed: %v", err)
+	}
+
+	vm := NewVM()
+
+	err = ir.ReadAll(vm)
+	if err == nil {
+		t.Error("Expected error for class var with out-of-bounds string index, got nil")
+	}
+	if !errors.Is(err, ErrInvalidStringIndex) {
+		t.Errorf("Expected ErrInvalidStringIndex, got: %v", err)
+	}
+}
+
+// TestImageReaderReadAllTruncatedAfterStringTable tests ReadAll on an image
+// that is truncated right after the string table (symbol table is missing).
+func TestImageReaderReadAllTruncatedAfterStringTable(t *testing.T) {
+	builder := newTestImageBuilder()
+	builder.writeHeader(0, 0)
+
+	// Valid string table
+	builder.writeUint32(2)
+	builder.writeString("hello")
+	builder.writeString("world")
+	// Truncated here -- no symbol table, selector table, etc.
+
+	vm := NewVM()
+	err := vm.LoadImageFromBytes(builder.bytes())
+	if err == nil {
+		t.Error("Expected error for image truncated after string table, got nil")
+	}
+}
+
+// TestImageReaderReadAllTruncatedAfterSymbolTable tests ReadAll on an image
+// truncated after the symbol table.
+func TestImageReaderReadAllTruncatedAfterSymbolTable(t *testing.T) {
+	builder := newTestImageBuilder()
+	builder.writeHeader(0, 0)
+
+	builder.writeUint32(1)
+	builder.writeString("test")
+
+	// Symbol table
+	builder.writeUint32(1)
+	builder.writeUint32(0) // symbol -> "test"
+	// Truncated here -- no selector table
+
+	vm := NewVM()
+	err := vm.LoadImageFromBytes(builder.bytes())
+	if err == nil {
+		t.Error("Expected error for image truncated after symbol table, got nil")
+	}
+}
+
+// TestImageReaderClassSuperclassOutOfBounds tests a class that references
+// a superclass index beyond the class count.
+func TestImageReaderClassSuperclassOutOfBounds(t *testing.T) {
+	builder := newTestImageBuilder()
+	builder.writeHeader(0, 0)
+
+	// String table
+	builder.writeUint32(1)
+	builder.writeString("ChildClass")
+
+	builder.writeUint32(0) // symbols
+	builder.writeUint32(0) // selectors
+
+	// 1 class referencing a superclass index that does not exist
+	builder.writeUint32(1)
+	builder.writeUint32(0)          // name: "ChildClass"
+	builder.writeUint32(0xFFFFFFFF) // namespace
+	builder.writeUint32(50)         // superclass index 50, but only 1 class
+	builder.writeUint32(0)          // numSlots
+	builder.writeUint32(0)          // instVarCount
+	builder.writeUint32(0)          // instance methods
+	builder.writeUint32(0)          // class methods
+	builder.writeBytes([]byte{0})   // no docstring
+
+	ir, err := NewImageReaderFromBytes(builder.bytes())
+	if err != nil {
+		t.Fatalf("NewImageReaderFromBytes failed: %v", err)
+	}
+
+	vm := NewVM()
+
+	ir.ReadHeader()
+	ir.ReadStringTable()
+	ir.ReadSymbolTable()
+	ir.ReadSelectorTable()
+
+	_, err = ir.ReadClasses(vm)
+	if err == nil {
+		t.Error("Expected error for superclass out of bounds, got nil")
+	}
+	if !errors.Is(err, ErrInvalidClassIndex) {
+		t.Errorf("Expected ErrInvalidClassIndex, got: %v", err)
+	}
+}
+
+// TestImageReaderClassNameOutOfBoundsStringIndex tests a class whose name
+// index exceeds the string table.
+func TestImageReaderClassNameOutOfBoundsStringIndex(t *testing.T) {
+	builder := newTestImageBuilder()
+	builder.writeHeader(0, 0)
+
+	// String table with only 1 string
+	builder.writeUint32(1)
+	builder.writeString("x")
+
+	builder.writeUint32(0) // symbols
+	builder.writeUint32(0) // selectors
+
+	// 1 class with name index beyond string table
+	builder.writeUint32(1)
+	builder.writeUint32(99)         // name index 99 -- out of bounds
+	builder.writeUint32(0xFFFFFFFF) // namespace
+	builder.writeUint32(0xFFFFFFFF) // superclass
+	builder.writeUint32(0)          // numSlots
+	builder.writeUint32(0)          // instVarCount
+	builder.writeUint32(0)          // instance methods
+	builder.writeUint32(0)          // class methods
+	builder.writeBytes([]byte{0})   // no docstring
+
+	ir, err := NewImageReaderFromBytes(builder.bytes())
+	if err != nil {
+		t.Fatalf("NewImageReaderFromBytes failed: %v", err)
+	}
+
+	vm := NewVM()
+
+	ir.ReadHeader()
+	ir.ReadStringTable()
+	ir.ReadSymbolTable()
+	ir.ReadSelectorTable()
+
+	_, err = ir.ReadClasses(vm)
+	if err == nil {
+		t.Error("Expected error for class name with out-of-bounds string index, got nil")
+	}
+	if !errors.Is(err, ErrInvalidStringIndex) {
+		t.Errorf("Expected ErrInvalidStringIndex, got: %v", err)
+	}
+}
+
+// TestImageReaderHugeStringLength tests a string entry with a huge length
+// value (0xFFFFFFFF), which should trigger ErrUnexpectedEOF.
+func TestImageReaderHugeStringLength(t *testing.T) {
+	builder := newTestImageBuilder()
+	builder.writeHeader(0, 0)
+
+	// Claim 1 string with absurdly large length
+	builder.writeUint32(1)
+	builder.writeUint32(0xFFFFFFFF) // string length = 4GB
+	// No actual string data
+
+	ir, err := NewImageReaderFromBytes(builder.bytes())
+	if err != nil {
+		t.Fatalf("NewImageReaderFromBytes failed: %v", err)
+	}
+
+	ir.ReadHeader()
+
+	_, err = ir.ReadStringTable()
+	if err == nil {
+		t.Error("Expected error for huge string length, got nil")
+	}
+	if !errors.Is(err, ErrUnexpectedEOF) {
+		t.Errorf("Expected ErrUnexpectedEOF, got: %v", err)
+	}
+}
+
+// TestImageReaderGlobalsTruncatedValue tests a globals section where the
+// value data is truncated.
+func TestImageReaderGlobalsTruncatedValue(t *testing.T) {
+	builder := newTestImageBuilder()
+	builder.writeHeader(0, 0)
+
+	builder.writeUint32(1)
+	builder.writeString("myGlobal")
+
+	builder.writeUint32(0) // symbols
+	builder.writeUint32(0) // selectors
+	builder.writeUint32(0) // classes
+	builder.writeUint32(0) // methods
+	builder.writeUint32(0) // objects
+
+	// Globals: claim 1 global, provide name but truncate value data
+	builder.writeUint32(1)
+	builder.writeUint32(0) // name: "myGlobal"
+	// Value data truncated -- EncodedValueSize bytes are expected but not provided
+
+	ir, err := NewImageReaderFromBytes(builder.bytes())
+	if err != nil {
+		t.Fatalf("NewImageReaderFromBytes failed: %v", err)
+	}
+
+	vm := NewVM()
+
+	ir.ReadHeader()
+	ir.ReadStringTable()
+	ir.ReadSymbolTable()
+	ir.ReadSelectorTable()
+	ir.ReadClasses(vm)
+	ir.ReadMethods(vm)
+	ir.ReadObjectsWithSlots(vm)
+
+	err = ir.ReadGlobals(vm)
+	if err == nil {
+		t.Error("Expected error for globals with truncated value, got nil")
+	}
+	if !errors.Is(err, ErrUnexpectedEOF) {
+		t.Errorf("Expected ErrUnexpectedEOF, got: %v", err)
+	}
+}
+
+// TestImageReaderObjectTruncatedSlotData tests an object whose slot data
+// is truncated mid-way.
+func TestImageReaderObjectTruncatedSlotData(t *testing.T) {
+	builder := newTestImageBuilder()
+	builder.writeHeader(1, 0)
+
+	builder.writeUint32(1)
+	builder.writeString("TestClass")
+
+	builder.writeUint32(0) // symbols
+	builder.writeUint32(0) // selectors
+
+	// 1 class
+	builder.writeUint32(1)
+	builder.writeUint32(0)          // name
+	builder.writeUint32(0xFFFFFFFF) // namespace
+	builder.writeUint32(0xFFFFFFFF) // superclass
+	builder.writeUint32(2)          // numSlots
+	builder.writeUint32(0)          // instVarCount
+	builder.writeUint32(0)          // instance methods
+	builder.writeUint32(0)          // class methods
+	builder.writeBytes([]byte{0})   // no docstring
+
+	builder.writeUint32(0) // methods
+
+	// 1 object with 3 slots, but only provide data for 1 slot
+	builder.writeUint32(1) // 1 object
+	builder.writeUint32(0) // class index 0
+	builder.writeUint32(3) // 3 slots
+	builder.writeValue(FromSmallInt(42))
+	// Missing slot 1 and slot 2 data
+
+	ir, err := NewImageReaderFromBytes(builder.bytes())
+	if err != nil {
+		t.Fatalf("NewImageReaderFromBytes failed: %v", err)
+	}
+
+	vm := NewVM()
+
+	ir.ReadHeader()
+	ir.ReadStringTable()
+	ir.ReadSymbolTable()
+	ir.ReadSelectorTable()
+	ir.ReadClasses(vm)
+	ir.ReadMethods(vm)
+
+	_, err = ir.ReadObjectsWithSlots(vm)
+	if err == nil {
+		t.Error("Expected error for object with truncated slot data, got nil")
+	}
+	if !errors.Is(err, ErrUnexpectedEOF) {
+		t.Errorf("Expected ErrUnexpectedEOF, got: %v", err)
+	}
+}
+
+// TestImageReaderClassInstVarOutOfBoundsStringIndex tests a class where an
+// instance variable name references a non-existent string.
+func TestImageReaderClassInstVarOutOfBoundsStringIndex(t *testing.T) {
+	builder := newTestImageBuilder()
+	builder.writeHeader(0, 0)
+
+	// String table with only 1 string
+	builder.writeUint32(1)
+	builder.writeString("MyClass")
+
+	builder.writeUint32(0) // symbols
+	builder.writeUint32(0) // selectors
+
+	// 1 class with 1 instvar referencing invalid string
+	builder.writeUint32(1)
+	builder.writeUint32(0)          // name: "MyClass"
+	builder.writeUint32(0xFFFFFFFF) // namespace
+	builder.writeUint32(0xFFFFFFFF) // superclass
+	builder.writeUint32(1)          // numSlots
+	builder.writeUint32(1)          // 1 instance variable
+	builder.writeUint32(200)        // instvar name string index 200 -- invalid
+	builder.writeUint32(0)          // 0 instance methods
+	builder.writeUint32(0)          // 0 class methods
+	builder.writeBytes([]byte{0})   // no docstring
+
+	ir, err := NewImageReaderFromBytes(builder.bytes())
+	if err != nil {
+		t.Fatalf("NewImageReaderFromBytes failed: %v", err)
+	}
+
+	vm := NewVM()
+
+	ir.ReadHeader()
+	ir.ReadStringTable()
+	ir.ReadSymbolTable()
+	ir.ReadSelectorTable()
+
+	_, err = ir.ReadClasses(vm)
+	if err == nil {
+		t.Error("Expected error for instvar with out-of-bounds string index, got nil")
+	}
+	if !errors.Is(err, ErrInvalidStringIndex) {
+		t.Errorf("Expected ErrInvalidStringIndex, got: %v", err)
+	}
+}
+
+// TestImageReaderMethodNameOutOfBoundsStringIndex tests a method whose name
+// index references a non-existent string.
+func TestImageReaderMethodNameOutOfBoundsStringIndex(t *testing.T) {
+	builder := newTestImageBuilder()
+	builder.writeHeader(0, 0)
+
+	// String table with only 1 string
+	builder.writeUint32(1)
+	builder.writeString("TestClass")
+
+	builder.writeUint32(0) // symbols
+	builder.writeUint32(0) // selectors
+
+	// 1 class
+	builder.writeUint32(1)
+	builder.writeUint32(0)          // name: "TestClass"
+	builder.writeUint32(0xFFFFFFFF) // namespace
+	builder.writeUint32(0xFFFFFFFF) // superclass
+	builder.writeUint32(0)          // numSlots
+	builder.writeUint32(0)          // instVarCount
+	builder.writeUint32(0)          // instance methods
+	builder.writeUint32(0)          // class methods
+	builder.writeBytes([]byte{0})   // no docstring
+
+	// 1 method with invalid name string index
+	builder.writeUint32(1) // 1 method
+	builder.writeUint32(0) // selector
+	builder.writeUint32(0) // class index
+	builder.writeUint32(500) // name string index 500 -- out of bounds!
+
+	ir, err := NewImageReaderFromBytes(builder.bytes())
+	if err != nil {
+		t.Fatalf("NewImageReaderFromBytes failed: %v", err)
+	}
+
+	vm := NewVM()
+
+	ir.ReadHeader()
+	ir.ReadStringTable()
+	ir.ReadSymbolTable()
+	ir.ReadSelectorTable()
+	ir.ReadClasses(vm)
+
+	_, err = ir.ReadMethods(vm)
+	if err == nil {
+		t.Error("Expected error for method with out-of-bounds name string index, got nil")
+	}
+	if !errors.Is(err, ErrInvalidStringIndex) {
+		t.Errorf("Expected ErrInvalidStringIndex, got: %v", err)
+	}
+}
+
+// TestImageReaderHugeLiteralCount tests a method that claims a very large
+// number of literals. Should error, not panic.
+//
+// NOTE: Using 0xFFFFFFFF would cause OOM from pre-allocation. We use a
+// moderate value (5000) that exceeds available data. The reader does not
+// bound-check literal counts against remaining data before allocating.
+// That is tracked separately.
+func TestImageReaderHugeLiteralCount(t *testing.T) {
+	builder := newTestImageBuilder()
+	builder.writeHeader(0, 0)
+
+	builder.writeUint32(2)
+	builder.writeString("myMethod")
+	builder.writeString("TestClass")
+
+	builder.writeUint32(0) // symbols
+	builder.writeUint32(0) // selectors
+
+	// 1 class
+	builder.writeUint32(1)
+	builder.writeUint32(1)          // name: "TestClass"
+	builder.writeUint32(0xFFFFFFFF) // namespace
+	builder.writeUint32(0xFFFFFFFF) // superclass
+	builder.writeUint32(0)
+	builder.writeUint32(0)
+	builder.writeUint32(0) // instance methods
+	builder.writeUint32(0) // class methods
+	builder.writeBytes([]byte{0})
+
+	// 1 method with excessive literal count
+	builder.writeUint32(1)
+	builder.writeUint32(0)        // selector
+	builder.writeUint32(0)        // class
+	builder.writeUint32(0)        // name
+	builder.writeBytes([]byte{0}) // isClassMethod
+	builder.writeUint32(0)        // arity
+	builder.writeUint32(0)        // numTemps
+	builder.writeUint32(5000)     // literal count = 5000, no data!
+
+	ir, err := NewImageReaderFromBytes(builder.bytes())
+	if err != nil {
+		t.Fatalf("NewImageReaderFromBytes failed: %v", err)
+	}
+
+	vm := NewVM()
+
+	ir.ReadHeader()
+	ir.ReadStringTable()
+	ir.ReadSymbolTable()
+	ir.ReadSelectorTable()
+	ir.ReadClasses(vm)
+
+	_, err = ir.ReadMethods(vm)
+	if err == nil {
+		t.Error("Expected error for method with 5000 literals (no data), got nil")
+	}
+}
+
+// TestImageReaderHugeBytecodeLength tests a method with a huge bytecode
+// length. Should error, not panic.
+func TestImageReaderHugeBytecodeLength(t *testing.T) {
+	builder := newTestImageBuilder()
+	builder.writeHeader(0, 0)
+
+	builder.writeUint32(2)
+	builder.writeString("myMethod")
+	builder.writeString("TestClass")
+
+	builder.writeUint32(0) // symbols
+	builder.writeUint32(0) // selectors
+
+	// 1 class
+	builder.writeUint32(1)
+	builder.writeUint32(1)          // name
+	builder.writeUint32(0xFFFFFFFF) // namespace
+	builder.writeUint32(0xFFFFFFFF) // superclass
+	builder.writeUint32(0)
+	builder.writeUint32(0)
+	builder.writeUint32(0)
+	builder.writeUint32(0)
+	builder.writeBytes([]byte{0})
+
+	// 1 method with huge bytecode length
+	builder.writeUint32(1)
+	builder.writeUint32(0)        // selector
+	builder.writeUint32(0)        // class
+	builder.writeUint32(0)        // name: "myMethod"
+	builder.writeBytes([]byte{0}) // isClassMethod
+	builder.writeUint32(0)        // arity
+	builder.writeUint32(0)        // numTemps
+	builder.writeUint32(0)        // 0 literals
+	builder.writeUint32(0xFFFFFFFF) // bytecode length = 4GB!
+
+	ir, err := NewImageReaderFromBytes(builder.bytes())
+	if err != nil {
+		t.Fatalf("NewImageReaderFromBytes failed: %v", err)
+	}
+
+	vm := NewVM()
+
+	ir.ReadHeader()
+	ir.ReadStringTable()
+	ir.ReadSymbolTable()
+	ir.ReadSelectorTable()
+	ir.ReadClasses(vm)
+
+	_, err = ir.ReadMethods(vm)
+	if err == nil {
+		t.Error("Expected error for method with 0xFFFFFFFF bytecode length, got nil")
+	}
+	if !errors.Is(err, ErrUnexpectedEOF) {
+		t.Errorf("Expected ErrUnexpectedEOF, got: %v", err)
+	}
+}
+
+// TestImageReaderClassDocstringOutOfBounds tests a v2+ class with a docstring
+// index beyond the string table.
+func TestImageReaderClassDocstringOutOfBounds(t *testing.T) {
+	builder := newTestImageBuilder()
+	builder.writeHeader(0, 0)
+
+	builder.writeUint32(1)
+	builder.writeString("TestClass")
+
+	builder.writeUint32(0) // symbols
+	builder.writeUint32(0) // selectors
+
+	// 1 class with docstring flag set but invalid string index
+	builder.writeUint32(1)
+	builder.writeUint32(0)          // name: "TestClass"
+	builder.writeUint32(0xFFFFFFFF) // namespace
+	builder.writeUint32(0xFFFFFFFF) // superclass
+	builder.writeUint32(0)          // numSlots
+	builder.writeUint32(0)          // instVarCount
+	builder.writeUint32(0)          // instance methods
+	builder.writeUint32(0)          // class methods
+	builder.writeBytes([]byte{1})   // has docstring = true
+	builder.writeUint32(999)        // docstring index 999 -- out of bounds!
+
+	ir, err := NewImageReaderFromBytes(builder.bytes())
+	if err != nil {
+		t.Fatalf("NewImageReaderFromBytes failed: %v", err)
+	}
+
+	vm := NewVM()
+
+	ir.ReadHeader()
+	ir.ReadStringTable()
+	ir.ReadSymbolTable()
+	ir.ReadSelectorTable()
+
+	_, err = ir.ReadClasses(vm)
+	if err == nil {
+		t.Error("Expected error for class docstring with out-of-bounds string index, got nil")
+	}
+	if !errors.Is(err, ErrInvalidStringIndex) {
+		t.Errorf("Expected ErrInvalidStringIndex, got: %v", err)
+	}
+}
+
+// TestImageReaderMethodDocstringOutOfBounds tests a v2+ method with a
+// docstring index beyond the string table.
+func TestImageReaderMethodDocstringOutOfBounds(t *testing.T) {
+	builder := newTestImageBuilder()
+	builder.writeHeader(0, 0)
+
+	builder.writeUint32(2)
+	builder.writeString("badDocMethod")
+	builder.writeString("TestClass")
+
+	builder.writeUint32(0) // symbols
+	builder.writeUint32(0) // selectors
+
+	// 1 class
+	builder.writeUint32(1)
+	builder.writeUint32(1)          // name: "TestClass"
+	builder.writeUint32(0xFFFFFFFF) // namespace
+	builder.writeUint32(0xFFFFFFFF) // superclass
+	builder.writeUint32(0)
+	builder.writeUint32(0)
+	builder.writeUint32(0)
+	builder.writeUint32(0)
+	builder.writeBytes([]byte{0}) // no class docstring
+
+	// 1 method with invalid docstring
+	builder.writeUint32(1)
+	builder.writeUint32(0)        // selector
+	builder.writeUint32(0)        // class
+	builder.writeUint32(0)        // name: "badDocMethod"
+	builder.writeBytes([]byte{0}) // isClassMethod
+	builder.writeUint32(0)        // arity
+	builder.writeUint32(0)        // numTemps
+	builder.writeUint32(0)        // 0 literals
+	builder.writeUint32(1)        // 1 byte bytecode
+	builder.writeBytes([]byte{0x00})
+	builder.writeUint32(0)        // 0 blocks
+	builder.writeBytes([]byte{0}) // no source
+	builder.writeBytes([]byte{1}) // has docstring = true
+	builder.writeUint32(777)      // docstring index 777 -- out of bounds!
+
+	ir, err := NewImageReaderFromBytes(builder.bytes())
+	if err != nil {
+		t.Fatalf("NewImageReaderFromBytes failed: %v", err)
+	}
+
+	vm := NewVM()
+
+	ir.ReadHeader()
+	ir.ReadStringTable()
+	ir.ReadSymbolTable()
+	ir.ReadSelectorTable()
+	ir.ReadClasses(vm)
+
+	_, err = ir.ReadMethods(vm)
+	if err == nil {
+		t.Error("Expected error for method docstring with out-of-bounds string index, got nil")
+	}
+	if !errors.Is(err, ErrInvalidStringIndex) {
+		t.Errorf("Expected ErrInvalidStringIndex, got: %v", err)
+	}
+}
+
+// TestImageReaderMethodSourceOutOfBounds tests a method with a source string
+// index beyond the string table.
+func TestImageReaderMethodSourceOutOfBounds(t *testing.T) {
+	builder := newTestImageBuilder()
+	builder.writeHeader(0, 0)
+
+	builder.writeUint32(2)
+	builder.writeString("myMethod")
+	builder.writeString("TestClass")
+
+	builder.writeUint32(0)
+	builder.writeUint32(0)
+
+	// 1 class
+	builder.writeUint32(1)
+	builder.writeUint32(1)          // name
+	builder.writeUint32(0xFFFFFFFF) // namespace
+	builder.writeUint32(0xFFFFFFFF) // superclass
+	builder.writeUint32(0)
+	builder.writeUint32(0)
+	builder.writeUint32(0)
+	builder.writeUint32(0)
+	builder.writeBytes([]byte{0})
+
+	// 1 method with invalid source string
+	builder.writeUint32(1)
+	builder.writeUint32(0)        // selector
+	builder.writeUint32(0)        // class
+	builder.writeUint32(0)        // name
+	builder.writeBytes([]byte{0}) // isClassMethod
+	builder.writeUint32(0)        // arity
+	builder.writeUint32(0)        // numTemps
+	builder.writeUint32(0)        // 0 literals
+	builder.writeUint32(1)        // 1 byte bytecode
+	builder.writeBytes([]byte{0x00})
+	builder.writeUint32(0)        // 0 blocks
+	builder.writeBytes([]byte{1}) // has source = true
+	builder.writeUint32(888)      // source index 888 -- out of bounds!
+
+	ir, err := NewImageReaderFromBytes(builder.bytes())
+	if err != nil {
+		t.Fatalf("NewImageReaderFromBytes failed: %v", err)
+	}
+
+	vm := NewVM()
+
+	ir.ReadHeader()
+	ir.ReadStringTable()
+	ir.ReadSymbolTable()
+	ir.ReadSelectorTable()
+	ir.ReadClasses(vm)
+
+	_, err = ir.ReadMethods(vm)
+	if err == nil {
+		t.Error("Expected error for method source with out-of-bounds string index, got nil")
+	}
+	if !errors.Is(err, ErrInvalidStringIndex) {
+		t.Errorf("Expected ErrInvalidStringIndex, got: %v", err)
 	}
 }
 
@@ -1243,6 +2740,7 @@ func BenchmarkImageReaderFullLoad(b *testing.B) {
 	builder.writeUint32(0)
 	builder.writeUint32(0)
 	builder.writeUint32(0)
+	builder.writeUint32(0) // class vars (v3+)
 	data := builder.bytes()
 
 	b.ResetTimer()

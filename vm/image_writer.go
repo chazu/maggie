@@ -18,7 +18,8 @@ var ImageMagic = [4]byte{'M', 'A', 'G', 'I'}
 // Image format version
 // v1: initial format
 // v2: added docstring support on methods and classes
-const ImageVersion uint32 = 2
+// v3: added class variable serialization
+const ImageVersion uint32 = 3
 
 // Image header size in bytes
 // magic(4) + version(4) + flags(4) + objectCount(4) + stringTableOffset(8) + classTableOffset(8) + entryPoint(4) = 36
@@ -60,6 +61,9 @@ type ImageWriter struct {
 	methods   []*CompiledMethod  // Methods in image order
 	objects   []*Object          // Objects in image order
 
+	// Class variable data (collected from ObjectRegistry)
+	classVarData map[*Class]map[string]Value
+
 	// Flags
 	flags uint32
 
@@ -97,8 +101,13 @@ func (w *ImageWriter) collectFromVM(vm *VM) {
 		w.registerString(name)
 	}
 
-	// Collect strings from global names (before writing string table!)
+	// Collect strings from global names (sorted for deterministic output)
+	globalNames := make([]string, 0, len(vm.Globals))
 	for name := range vm.Globals {
+		globalNames = append(globalNames, name)
+	}
+	sort.Strings(globalNames)
+	for _, name := range globalNames {
 		w.registerString(name)
 	}
 
@@ -112,12 +121,34 @@ func (w *ImageWriter) collectFromVM(vm *VM) {
 		w.registerSelector(i)
 	}
 
-	// Collect classes
-	for _, class := range vm.Classes.All() {
+	// Collect classes (sorted by full name for deterministic output)
+	allClasses := vm.Classes.All()
+	sort.Slice(allClasses, func(i, j int) bool {
+		return allClasses[i].FullName() < allClasses[j].FullName()
+	})
+	for _, class := range allClasses {
 		w.collectClass(class)
 	}
 
-	// Collect objects from globals and class instances
+	// Collect class variable names and cache the data
+	w.classVarData = make(map[*Class]map[string]Value)
+	for _, class := range w.classes {
+		vars := vm.registry.GetClassVarStorage(class)
+		if len(vars) > 0 {
+			w.classVarData[class] = vars
+			// Sort variable names for deterministic string registration
+			varNames := make([]string, 0, len(vars))
+			for name := range vars {
+				varNames = append(varNames, name)
+			}
+			sort.Strings(varNames)
+			for _, name := range varNames {
+				w.registerString(name)
+			}
+		}
+	}
+
+	// Collect objects from globals, class instances, and class variable values
 	w.objects = vm.CollectAllObjects()
 	for _, obj := range w.objects {
 		w.encoder.RegisterObject(uintptr(unsafe.Pointer(obj)))
@@ -421,14 +452,19 @@ func (w *ImageWriter) updateClassIndicesForSortedOrder(sortedClasses []*Class) {
 }
 
 // sortClassesByDependency sorts classes so superclasses come before subclasses.
+// Uses stable sort with name tiebreaker for deterministic output.
 func (w *ImageWriter) sortClassesByDependency() []*Class {
 	// Create a copy to sort
 	sorted := make([]*Class, len(w.classes))
 	copy(sorted, w.classes)
 
-	// Sort by depth (root classes first)
-	sort.Slice(sorted, func(i, j int) bool {
-		return sorted[i].Depth() < sorted[j].Depth()
+	// Sort by depth (root classes first), then by full name for stability
+	sort.SliceStable(sorted, func(i, j int) bool {
+		di, dj := sorted[i].Depth(), sorted[j].Depth()
+		if di != dj {
+			return di < dj
+		}
+		return sorted[i].FullName() < sorted[j].FullName()
 	})
 
 	return sorted
@@ -789,6 +825,63 @@ func (w *ImageWriter) writeGlobals(globals map[string]Value) {
 }
 
 // ---------------------------------------------------------------------------
+// Class variable writing (v3+)
+// ---------------------------------------------------------------------------
+
+// writeClassVars writes class variable data as a separate section.
+// This section is read after objects, so class var values can reference objects.
+func (w *ImageWriter) writeClassVars() {
+	buf := make([]byte, 4)
+
+	// Count classes with class variables
+	classesWithVars := make([]*Class, 0)
+	for _, c := range w.classes {
+		if vars := w.classVarData[c]; len(vars) > 0 {
+			classesWithVars = append(classesWithVars, c)
+		}
+	}
+
+	// Sort by class name for deterministic output
+	sort.Slice(classesWithVars, func(i, j int) bool {
+		return classesWithVars[i].Name < classesWithVars[j].Name
+	})
+
+	// Count of entries
+	WriteUint32(buf, uint32(len(classesWithVars)))
+	w.buf.Write(buf)
+
+	for _, c := range classesWithVars {
+		vars := w.classVarData[c]
+
+		// Class index
+		classIdx, _ := w.encoder.LookupClass(c)
+		WriteUint32(buf, classIdx)
+		w.buf.Write(buf)
+
+		// Number of variables for this class
+		WriteUint32(buf, uint32(len(vars)))
+		w.buf.Write(buf)
+
+		// Sort variable names for deterministic output
+		varNames := make([]string, 0, len(vars))
+		for name := range vars {
+			varNames = append(varNames, name)
+		}
+		sort.Strings(varNames)
+
+		for _, name := range varNames {
+			// Name string index
+			nameIdx, _ := w.encoder.LookupString(name)
+			WriteUint32(buf, nameIdx)
+			w.buf.Write(buf)
+
+			// Value
+			w.buf.Write(w.encoder.EncodeValue(vars[name]))
+		}
+	}
+}
+
+// ---------------------------------------------------------------------------
 // Main serialization API
 // ---------------------------------------------------------------------------
 
@@ -844,6 +937,7 @@ func (vm *VM) SaveImageTo(w io.Writer) error {
 	writer.writeMethods()
 	writer.writeObjects()
 	writer.writeGlobals(vm.Globals)
+	writer.writeClassVars()
 
 	// Patch header with final offsets
 	writer.patchHeader()
@@ -854,6 +948,8 @@ func (vm *VM) SaveImageTo(w io.Writer) error {
 }
 
 // CollectAllObjects traverses from roots and collects all reachable objects.
+// Iteration order is deterministic: globals are visited in sorted key order,
+// classes in sorted full-name order, and class variables in sorted name order.
 func (vm *VM) CollectAllObjects() []*Object {
 	visited := make(map[uintptr]bool)
 	var objects []*Object
@@ -883,12 +979,34 @@ func (vm *VM) CollectAllObjects() []*Object {
 		})
 	}
 
-	// Visit globals
-	for _, v := range vm.Globals {
-		visit(v)
+	// Visit globals in sorted key order for deterministic output
+	globalNames := make([]string, 0, len(vm.Globals))
+	for name := range vm.Globals {
+		globalNames = append(globalNames, name)
+	}
+	sort.Strings(globalNames)
+	for _, name := range globalNames {
+		visit(vm.Globals[name])
 	}
 
-	// Visit class instances (none for now, but classes are in globals)
+	// Visit class variable values in deterministic order
+	allClasses := vm.Classes.All()
+	sort.Slice(allClasses, func(i, j int) bool {
+		return allClasses[i].FullName() < allClasses[j].FullName()
+	})
+	for _, class := range allClasses {
+		vars := vm.registry.GetClassVarStorage(class)
+		if len(vars) > 0 {
+			varNames := make([]string, 0, len(vars))
+			for name := range vars {
+				varNames = append(varNames, name)
+			}
+			sort.Strings(varNames)
+			for _, name := range varNames {
+				visit(vars[name])
+			}
+		}
+	}
 
 	return objects
 }

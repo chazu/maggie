@@ -909,6 +909,7 @@ func compileSourceFile(vmInst *vm.VM, source string, sourcePath string, nsOverri
 			}
 
 			method.SetClass(class)
+			method.IsClassMethod = true
 			selectorID := vmInst.Selectors.Intern(method.Name())
 			class.ClassVTable.AddMethod(selectorID, method)
 			compiled++

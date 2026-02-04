@@ -112,6 +112,7 @@ func compileSourceFile(t *testing.T, vmInst *vm.VM, source string) {
 				t.Fatalf("compile error %s class>>%s: %v", classDef.Name, methodDef.Selector, err)
 			}
 			method.SetClass(class)
+			method.IsClassMethod = true
 			selectorID := vmInst.Selectors.Intern(method.Name())
 			class.ClassVTable.AddMethod(selectorID, method)
 		}
