@@ -1,516 +1,131 @@
-# JIT Compilation Implementation Plan for Maggie
+# Adaptive Compilation: Implementation Status
 
-## Executive Summary
-
-Based on traditional Smalltalk JIT implementations (Cog VM, VisualWorks), we'll implement a **tiered adaptive compilation** system:
-
-1. **Inline Caching** - Monomorphic → Polymorphic → Megamorphic (90%/9%/1% of call sites)
-2. **Method & Block Profiling** - Track invocations, compile after threshold
-3. **Adaptive AOT** - Compile hot methods AND blocks using existing AOT compiler
-4. **Deferred Loading** - Persist compiled code for next startup (like Sista snapshots)
-
-This follows proven Smalltalk VM architecture adapted for Go's constraints.
+This document tracks the implementation status of Maggie's adaptive compilation system. For architectural context, see the **Execution Architecture** section in [MAGGIE_DESIGN.md](MAGGIE_DESIGN.md).
 
 ## Architecture Overview
 
+Maggie uses a tiered adaptive compilation system inspired by Cog VM (Pharo Smalltalk), adapted for Go's constraints. The "JIT" is not a true JIT — it generates Go source code for hot methods, not machine code. The generated code must be compiled by `go build` to take effect.
+
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                    Maggie VM Execution                       │
-├─────────────────────────────────────────────────────────────┤
-│  Tier 0: Interpreter + Inline Cache                         │
-│    - All methods/blocks start here                           │
+┌──────────────────────────────────────────────────────────────┐
+│  Tier 0: Interpreter + Inline Cache                          │
+│    - All code starts here                                    │
 │    - Monomorphic IC on first call (cache class+method)       │
 │    - Upgrade to PIC after 2nd different class                │
 │    - Profiling counters increment                            │
-├─────────────────────────────────────────────────────────────┤
+├──────────────────────────────────────────────────────────────┤
 │  Tier 1: Polymorphic Inline Cache (PIC)                      │
 │    - Up to 6 cached (class, method) pairs per call site      │
 │    - Falls back to megamorphic (full lookup) if exceeded     │
-│    - ~10% speedup over monomorphic-only                      │
-├─────────────────────────────────────────────────────────────┤
+├──────────────────────────────────────────────────────────────┤
 │  Tier 2: AOT Compiled (hot methods & blocks)                 │
 │    - Methods/blocks exceeding invocation threshold           │
-│    - Generated Go code via existing AOT compiler             │
-│    - Written to file, loaded on next startup                 │
-└─────────────────────────────────────────────────────────────┘
+│    - Generated Go code via AOT compiler                      │
+│    - Written to file or image, loaded on next startup        │
+└──────────────────────────────────────────────────────────────┘
 ```
-
-## Phase 1: Inline Caching (2-3 days)
-
-### Goal
-Implement monomorphic and polymorphic inline caches following Cog VM's proven approach where ~90% of call sites are monomorphic.
-
-### Key Insight from Smalltalk
-- Monomorphic IC: Cache single (class, method) pair at call site
-- Polymorphic IC (PIC): Cache up to 6 pairs when site sees multiple types
-- Megamorphic: Fall back to full vtable lookup (rare, ~1% of sites)
-
-### Files to Create/Modify
-- `vm/inline_cache.go` (new) - IC data structures
-- `vm/interpreter.go` - Instrument send opcodes
-- `vm/inline_cache_test.go` (new) - Tests and benchmarks
-
-### Implementation
-
-```go
-// vm/inline_cache.go
-
-// CacheState represents the current state of an inline cache
-type CacheState uint8
-
-const (
-    CacheEmpty      CacheState = iota // No cached lookup yet
-    CacheMonomorphic                   // Single (class, method) cached
-    CachePolymorphic                   // 2-6 entries in PIC
-    CacheMegamorphic                   // Too many types, use full lookup
-)
-
-const MaxPICEntries = 6 // Cog uses 6
-
-// InlineCacheEntry holds a single cached method lookup
-type InlineCacheEntry struct {
-    Class  *Class
-    Method Method
-}
-
-// InlineCache represents the cache state for a single call site
-type InlineCache struct {
-    State   CacheState
-    Entries [MaxPICEntries]InlineCacheEntry
-    Count   int    // Number of valid entries (1 for mono, 2-6 for poly)
-    Hits    uint64 // Cache hits (for profiling)
-    Misses  uint64 // Cache misses
-}
-
-// Lookup checks the cache for a method, returns nil on miss
-func (ic *InlineCache) Lookup(class *Class) Method {
-    switch ic.State {
-    case CacheMonomorphic:
-        if ic.Entries[0].Class == class {
-            ic.Hits++
-            return ic.Entries[0].Method
-        }
-    case CachePolymorphic:
-        for i := 0; i < ic.Count; i++ {
-            if ic.Entries[i].Class == class {
-                ic.Hits++
-                return ic.Entries[i].Method
-            }
-        }
-    case CacheMegamorphic:
-        // Always miss, use full lookup
-    }
-    ic.Misses++
-    return nil
-}
-
-// Update records a new (class, method) pair, potentially upgrading state
-func (ic *InlineCache) Update(class *Class, method Method) {
-    switch ic.State {
-    case CacheEmpty:
-        ic.State = CacheMonomorphic
-        ic.Entries[0] = InlineCacheEntry{class, method}
-        ic.Count = 1
-
-    case CacheMonomorphic:
-        if ic.Entries[0].Class == class {
-            return // Already cached
-        }
-        // Upgrade to polymorphic
-        ic.State = CachePolymorphic
-        ic.Entries[1] = InlineCacheEntry{class, method}
-        ic.Count = 2
-
-    case CachePolymorphic:
-        // Check if already present
-        for i := 0; i < ic.Count; i++ {
-            if ic.Entries[i].Class == class {
-                return
-            }
-        }
-        if ic.Count < MaxPICEntries {
-            ic.Entries[ic.Count] = InlineCacheEntry{class, method}
-            ic.Count++
-        } else {
-            // Too many types, go megamorphic
-            ic.State = CacheMegamorphic
-        }
-    }
-}
-
-// InlineCacheTable manages caches for all call sites in a method
-type InlineCacheTable struct {
-    caches map[int]*InlineCache // bytecode PC -> cache
-}
-
-func NewInlineCacheTable() *InlineCacheTable {
-    return &InlineCacheTable{
-        caches: make(map[int]*InlineCache),
-    }
-}
-
-func (t *InlineCacheTable) GetOrCreate(pc int) *InlineCache {
-    if ic := t.caches[pc]; ic != nil {
-        return ic
-    }
-    ic := &InlineCache{State: CacheEmpty}
-    t.caches[pc] = ic
-    return ic
-}
-```
-
-### Interpreter Integration
-
-```go
-// In interpreter.go, modify send()
-
-func (i *Interpreter) send(selector int, argc int) Value {
-    frame := i.frames[i.fp]
-    pc := frame.IP - 4 // PC of the send instruction (before operands)
-
-    // Pop args and get receiver
-    args := i.popN(argc)
-    rcvr := i.pop()
-    class := i.classFor(rcvr)
-
-    // Check inline cache
-    var method Method
-    ic := frame.Method.InlineCaches.GetOrCreate(pc)
-
-    if cachedMethod := ic.Lookup(class); cachedMethod != nil {
-        method = cachedMethod // Cache hit!
-    } else {
-        // Cache miss - do full lookup
-        method = class.VTable.Lookup(selector)
-        if method != nil {
-            ic.Update(class, method)
-        }
-    }
-
-    // ... rest of dispatch logic ...
-}
-```
-
-### Verification
-- Measure cache hit rates on compiler self-compile (expect ~90% monomorphic)
-- Benchmark dispatch with/without IC
-- Test polymorphic sites (e.g., `printOn:` called on multiple types)
 
 ---
 
-## Phase 2: Method & Block Profiling (2 days)
+## Phase 1: Inline Caching — DONE
 
-### Goal
-Track invocation counts for methods AND blocks to identify hot code for compilation.
+**Files:** `vm/inline_cache.go` (265 lines), `vm/inline_cache_test.go`
 
-### Key Insight from Smalltalk
-- Cog compiles methods after just 2 invocations
-- Blocks are critical - they're loop bodies, conditionals, callbacks
-- Profile at method/block level, not call-site level
+Monomorphic, polymorphic (up to 6 entries), and megamorphic inline caches. Integrated into the interpreter's send dispatch path. Each `CompiledMethod` holds an `InlineCacheTable` keyed by bytecode PC.
 
-### Files to Create/Modify
-- `vm/profiler.go` (new) - Profiling infrastructure
-- `vm/interpreter.go` - Instrument execution
-- `vm/compiled_method.go` - Add invocation counter field
+Statistics collection via `CollectICStats()` reports per-state counts and aggregate hit rates.
 
-### Implementation
-
-```go
-// vm/profiler.go
-
-type MethodProfile struct {
-    InvocationCount uint64
-    IsHot           bool      // Exceeded threshold
-    CompiledAt      time.Time // When AOT was generated (if ever)
-}
-
-type BlockProfile struct {
-    InvocationCount uint64
-    IsHot           bool
-    OwningMethod    *CompiledMethod
-    BlockIndex      int
-}
-
-type Profiler struct {
-    methodProfiles sync.Map // *CompiledMethod -> *MethodProfile
-    blockProfiles  sync.Map // *BlockMethod -> *BlockProfile
-
-    // Configuration (following Cog's low threshold approach)
-    MethodHotThreshold uint64 // Default: 100 (Cog uses 2, but we have compilation overhead)
-    BlockHotThreshold  uint64 // Default: 500 (blocks often in tight loops)
-
-    // Callback when something becomes hot
-    OnHot func(code interface{}, profile interface{})
-}
-
-func (p *Profiler) RecordMethodInvocation(method *CompiledMethod) {
-    val, _ := p.methodProfiles.LoadOrStore(method, &MethodProfile{})
-    profile := val.(*MethodProfile)
-
-    count := atomic.AddUint64(&profile.InvocationCount, 1)
-
-    if !profile.IsHot && count >= p.MethodHotThreshold {
-        profile.IsHot = true
-        if p.OnHot != nil {
-            p.OnHot(method, profile)
-        }
-    }
-}
-
-func (p *Profiler) RecordBlockInvocation(block *BlockMethod, owner *CompiledMethod, idx int) {
-    val, _ := p.blockProfiles.LoadOrStore(block, &BlockProfile{
-        OwningMethod: owner,
-        BlockIndex:   idx,
-    })
-    profile := val.(*BlockProfile)
-
-    count := atomic.AddUint64(&profile.InvocationCount, 1)
-
-    if !profile.IsHot && count >= p.BlockHotThreshold {
-        profile.IsHot = true
-        if p.OnHot != nil {
-            p.OnHot(block, profile)
-        }
-    }
-}
-```
-
-### Verification
-- Profile compiler self-compile, verify hot methods detected
-- Check that loop blocks (whileTrue:) are marked hot
-- Measure profiling overhead (<5%)
+**Integrated into interpreter:** Yes — the interpreter checks IC before vtable lookup on every send.
 
 ---
 
-## Phase 3: Adaptive AOT Compilation (3-4 days)
+## Phase 2: Method & Block Profiling — DONE
 
-### Goal
-Automatically compile hot methods and blocks using existing AOT compiler.
+**Files:** `vm/profiler.go` (289 lines)
 
-### Key Insight from Smalltalk
-- Sista persists optimized code to snapshots (similar to our file-based approach)
-- Blocks need special handling for captures and non-local returns
-- Compilation happens in background, doesn't block execution
+Tracks invocation counts for methods (threshold: 100) and blocks (threshold: 500) using atomic counters. Fires `OnHot` callback when threshold exceeded. Thread-safe via `sync.Map`.
 
-### Files to Create/Modify
-- `vm/jit.go` (new) - JIT controller
-- `vm/aot.go` - Add block compilation support
-- `vm/vm.go` - Integration
+Provides `TopMethods(n)` / `TopBlocks(n)` for diagnostics and `Stats()` for aggregate profiling data.
 
-### Implementation
-
-```go
-// vm/jit.go
-
-type JITCompiler struct {
-    vm       *VM
-    aot      *AOTCompiler
-    profiler *Profiler
-
-    // Compilation queue
-    pending chan interface{} // *CompiledMethod or *BlockMethod
-
-    // Output - hot code registry
-    hotMethods map[string]string // "Class>>method" -> Go source
-    hotBlocks  map[string]string // "Class>>method[N]" -> Go source
-
-    // Configuration
-    OutputDir string // Where to write compiled code
-}
-
-func NewJITCompiler(vm *VM) *JITCompiler {
-    jit := &JITCompiler{
-        vm:         vm,
-        aot:        NewAOTCompiler(vm.Selectors, vm.Symbols),
-        pending:    make(chan interface{}, 100),
-        hotMethods: make(map[string]string),
-        hotBlocks:  make(map[string]string),
-        OutputDir:  "generated/aot",
-    }
-
-    // Start background compilation worker
-    go jit.compilationWorker()
-
-    return jit
-}
-
-func (jit *JITCompiler) compilationWorker() {
-    for code := range jit.pending {
-        switch c := code.(type) {
-        case *CompiledMethod:
-            jit.compileMethod(c)
-        case *BlockMethod:
-            jit.compileBlock(c)
-        }
-    }
-}
-
-func (jit *JITCompiler) compileMethod(method *CompiledMethod) {
-    className := method.Class().Name
-    methodName := method.Name()
-    key := fmt.Sprintf("%s>>%s", className, methodName)
-
-    goCode := jit.aot.CompileMethod(method, className, methodName)
-    jit.hotMethods[key] = goCode
-
-    log.Printf("JIT: Compiled hot method %s", key)
-}
-
-func (jit *JITCompiler) compileBlock(block *BlockMethod) {
-    // Block compilation - need to handle captures
-    // This extends the AOT compiler
-    // ...
-}
-
-func (jit *JITCompiler) OnHotCode(code interface{}, profile interface{}) {
-    select {
-    case jit.pending <- code:
-    default:
-        // Queue full, skip this one
-    }
-}
-
-// WriteCompiledCode writes all hot code to files for next startup
-func (jit *JITCompiler) WriteCompiledCode() error {
-    // Write Go source files that can be compiled into the binary
-    // Similar to Sista persisting to snapshots
-    // ...
-}
-```
-
-### Block Compilation
-
-Extend `vm/aot.go` to handle blocks:
-
-```go
-// CompileBlock generates Go code for a hot block
-func (c *AOTCompiler) CompileBlock(block *BlockMethod, className, methodName string, blockIndex int) string {
-    // Similar to CompileMethod but:
-    // 1. Takes captures as parameter
-    // 2. Handles OpPushCaptured/OpStoreCaptured
-    // 3. Handles non-local returns (OpBlockReturn)
-
-    funcName := fmt.Sprintf("aot_%s_%s_block%d",
-        c.sanitizeName(className),
-        c.sanitizeName(methodName),
-        blockIndex)
-
-    // Generate function with captures parameter
-    c.writeLine("func %s(vm *VM, self Value, args []Value, captures []Value) Value {", funcName)
-    // ... bytecode translation ...
-}
-```
-
-### Verification
-- Enable JIT, run compiler self-compile
-- Verify hot methods written to files
-- Test that block compilation handles captures correctly
+**Integrated into interpreter:** Yes — the profiler records invocations, and its `OnHot` callback connects to the JIT controller.
 
 ---
 
-## Phase 4: Compiled Code Loading (2 days)
+## Phase 3: Adaptive AOT Compilation — IMPLEMENTED, NOT DEPLOYED
 
-### Goal
-Load previously compiled code on startup (like Sista loading from snapshots).
+**Files:** `vm/jit.go` (496 lines), `vm/aot.go` (714 lines)
 
-### Implementation
+### JIT Controller (`vm/jit.go`)
+- Background compilation worker goroutine processes hot methods/blocks
+- Connected to profiler via `OnHot` callback
+- Deduplicates work via `compiledKeys` map
+- `GenerateAOTPackage()` produces a complete Go package with dispatch table registration
 
-```go
-// vm/jit_loader.go
+### AOT Compiler (`vm/aot.go`)
+- Translates bytecode → Go source for methods and blocks
+- Handles full instruction set (97 opcodes) including `OpSendSuper`, `OpCreateBlock`, `OpTailSend`
+- Generated code uses type-specialized fast paths (SmallInt, Float) with message-send fallback
 
-// LoadCompiledMethods loads AOT-compiled methods from generated files
-func (vm *VM) LoadCompiledMethods(dir string) error {
-    // Option A: Generated Go files compiled into binary
-    // - Requires rebuild, but zero runtime overhead
+### What works
+- `vm.EnableJIT()` creates the JIT compiler and starts the background worker
+- Hot method detection → Go code generation → file output works end-to-end
+- AOT dispatch table integrated into VM (`aotMethods` checked before interpreter on every send)
 
-    // Option B: Go plugin loading
-    // - No rebuild needed, but complex
-
-    // For MVP, use Option A with code generation
-    return nil
-}
-
-// GenerateAOTPackage creates a Go package with all hot methods
-func (jit *JITCompiler) GenerateAOTPackage(packagePath string) error {
-    var sb strings.Builder
-
-    sb.WriteString("// Code generated by Maggie JIT. DO NOT EDIT.\n")
-    sb.WriteString("package aot\n\n")
-    sb.WriteString("import . \"github.com/chazu/maggie/vm\"\n\n")
-
-    // Write all hot methods
-    for key, code := range jit.hotMethods {
-        sb.WriteString(fmt.Sprintf("// %s\n", key))
-        sb.WriteString(code)
-        sb.WriteString("\n")
-    }
-
-    // Write dispatch table
-    sb.WriteString("func RegisterAll(vm *VM) {\n")
-    sb.WriteString("\ttable := make(AOTDispatchTable)\n")
-    for key := range jit.hotMethods {
-        // Parse key to get class and method names
-        // ... generate table entries ...
-    }
-    sb.WriteString("\tvm.RegisterAOTMethods(table)\n")
-    sb.WriteString("}\n")
-
-    return os.WriteFile(packagePath, []byte(sb.String()), 0644)
-}
-```
-
-### Verification
-- Generate AOT package from hot methods
-- Rebuild with package, verify methods load
-- Benchmark with/without precompiled methods
+### What doesn't work yet
+- **Block compilation disabled by default** — `CompileBlocks: false` with comment "Blocks need more work for captures"
+- **No CLI flag** — `EnableJIT()` / `DisableJIT()` exist in Go API but aren't wired to `cmd/mag/main.go`
+- **Block registration TBD** — blocks have a different signature (captures, homeReturn) so need a separate dispatch table
+- **No transparent runtime speedup** — generated Go source requires `go build` to become executable
 
 ---
 
-## File Summary
+## Phase 4: Compiled Code Persistence — IMPLEMENTED, NOT DEPLOYED
 
-| File | Purpose | Phase |
-|------|---------|-------|
-| `vm/inline_cache.go` | Mono/Poly/Mega inline caches | 1 |
-| `vm/inline_cache_test.go` | IC tests and benchmarks | 1 |
-| `vm/profiler.go` | Method/block invocation tracking | 2 |
-| `vm/jit.go` | JIT controller, background compilation | 3 |
-| `vm/jit_loader.go` | Load compiled code on startup | 4 |
-| `vm/aot.go` | Extend for block compilation | 3 |
-| `vm/interpreter.go` | Instrument for IC and profiling | 1-2 |
-| `vm/compiled_method.go` | Add InlineCaches field | 1 |
+**Files:** `vm/jit_persistence.go` (560 lines), `vm/jit_persistence_test.go`
 
----
+Three persistence modes:
 
-## Expected Performance Gains
+| Mode | How it works | Pros | Cons |
+|------|-------------|------|------|
+| **Static** | Writes Go files for `go build` | Zero runtime overhead | Requires rebuild |
+| **Plugin** | Compiles to `.so`, loads via `plugin.Open` | No rebuild needed | Linux/macOS only, same Go version required |
+| **Image** | Appends AOT section to image file (gzip compressed) | Self-contained, portable | Stores Go source, not compiled code |
 
-| Phase | Technique | Expected Speedup | Based On |
-|-------|-----------|------------------|----------|
-| 1 | Inline Caching | 1.5-2x dispatch | Cog: 90% monomorphic |
-| 1 | Polymorphic IC | +10% over mono | Cog benchmarks |
-| 2 | Profiling | ~0% (overhead) | - |
-| 3 | Hot Method AOT | 5-10x on hot code | Our AOT benchmarks |
-| 3 | Hot Block AOT | 5-10x on loops | Critical for perf |
-| 4 | Preloaded AOT | Instant warm start | Like Sista snapshots |
+The image format uses an `AOT!` magic number appended after the regular `MAGI` image data. Entries are length-prefixed strings (class name, method name, Go source, checksum).
+
+### What doesn't work yet
+- **Bytecode checksum validation** — `Checksum` field exists but is always 0 (TODO in source)
+- **Image mode doesn't auto-compile** — loads Go source into memory but doesn't compile it to executable form at runtime
+- **No user-facing workflow** — all persistence requires Go API calls
 
 ---
 
-## Implementation Order
+## Performance Expectations
 
-1. **Phase 1a: Monomorphic IC** - Single entry cache, quick win
-2. **Phase 1b: Polymorphic IC** - Extend to 6 entries
-3. **Phase 2: Profiling** - Count invocations, detect hot code
-4. **Phase 3a: Method AOT** - Compile hot methods
-5. **Phase 3b: Block AOT** - Compile hot blocks (loops!)
-6. **Phase 4: Persistence** - Write/load compiled code
+These are estimates from the original design, not measured benchmarks.
+
+| Component | Expected Impact | Based On |
+|-----------|----------------|----------|
+| Inline caching | 1.5–2x faster dispatch | Cog VM: ~90% monomorphic sites |
+| Polymorphic IC | +10% over monomorphic only | Cog benchmarks |
+| Profiling | ~0% (small overhead) | — |
+| Hot method AOT | 5–10x on hot methods | Eliminates interpreter dispatch loop |
+| Hot block AOT | 5–10x on loops | Critical for real workloads |
+| Preloaded AOT | Instant warm start | Like Sista snapshots |
+
+Only inline caching and profiling are active in production. AOT performance gains require completing the deployment story.
 
 ---
 
-## Beads Issues to Create
+## What's Needed to Make This User-Facing
 
-1. `Implement monomorphic inline cache` - Phase 1a
-2. `Implement polymorphic inline cache (PIC)` - Phase 1b
-3. `Add method/block profiling` - Phase 2
-4. `Create JIT controller for hot method compilation` - Phase 3a
-5. `Add block compilation to AOT` - Phase 3b
-6. `Implement compiled code persistence` - Phase 4
-7. `Epic: JIT compilation system` - Parent issue
+1. **CLI flag** — Add `--jit` flag to `cmd/mag/main.go` that calls `vm.EnableJIT()`
+2. **Block compilation** — Fix capture handling so `CompileBlocks` can be enabled
+3. **Block dispatch table** — Separate table for block functions (different signature)
+4. **Bytecode checksums** — Validate that AOT code matches current bytecode before dispatch
+5. **Image auto-load** — When loading an image with an AOT section, register methods in the dispatch table automatically
+6. **Benchmark validation** — Measure actual speedup on real workloads before advertising performance claims
+
+---
+
+*Originally created as a pre-implementation plan. Updated 2026-02-04 to reflect implementation status.*

@@ -390,37 +390,18 @@ func (m Method1) invoke(vm *VM, receiver Value, args []Value) Value {
 
 ### Inline Caching
 
-Call sites cache the last vtable lookup to accelerate repeated sends:
+Call sites cache method lookups to accelerate repeated sends. Following Cog VM's proven approach, caches progress through four states:
 
-```go
-type CallSite struct {
-    selector     int
-    cachedVT     *VTable
-    cachedMethod Method
-}
+| State | Entries | Behavior | Frequency |
+|-------|---------|----------|-----------|
+| Empty | 0 | Full vtable lookup | Initial |
+| Monomorphic | 1 | Single (class, method) pair — pointer compare + direct call | ~90% of call sites |
+| Polymorphic (PIC) | 2–6 | Linear scan of cached pairs | ~9% of call sites |
+| Megamorphic | 0 | Always falls back to full vtable lookup | ~1% of call sites |
 
-func (cs *CallSite) send(vm *VM, receiver Value, args []Value) Value {
-    vt := vm.getVTable(receiver)
+Each `CompiledMethod` holds an `InlineCacheTable` mapping bytecode PC → `InlineCache`. On a send, the interpreter checks the cache before doing a vtable lookup, and updates the cache on miss.
 
-    if vt == cs.cachedVT {
-        // Fast path: cache hit
-        return cs.cachedMethod.invoke(vm, receiver, args)
-    }
-
-    // Slow path: lookup and cache
-    method := vt.lookup(cs.selector)
-    if method == nil {
-        return vm.doesNotUnderstand(receiver, cs.selector, args)
-    }
-    cs.cachedVT = vt
-    cs.cachedMethod = method
-    return method.invoke(vm, receiver, args)
-}
-```
-
-This turns repeated monomorphic sends into: one pointer comparison + direct call.
-
-**Future optimization**: Polymorphic inline caches (PICs) for call sites that see multiple types.
+**Implementation:** `vm/inline_cache.go` (265 lines). The `InlineCache` struct holds a fixed array of 6 `InlineCacheEntry` slots (class + method pairs). `ICStats` collects aggregate hit rates across all methods via `CollectICStats()`.
 
 ---
 
@@ -1403,82 +1384,78 @@ func (vm *VM) loadImage(path string) error {
 
 ---
 
-## AOT Compilation
+## Execution Architecture
 
-For deployment, bytecode can be compiled to Go source, then built as a standalone binary.
+Maggie has a layered execution architecture. The bytecode interpreter is the only production execution path. All other layers are implemented but not yet user-facing.
 
-### AOT Compiler Structure
+### Execution Layers
 
-```go
-type AOTCompiler struct {
-    vm       *VM
-    output   *bytes.Buffer
-    methods  map[*CompiledMethod]string  // method → Go function name
-}
-
-func (c *AOTCompiler) compile(image *Image) string {
-    c.emitPrelude()
-    c.emitValueTypes()
-    c.emitVTables()
-    c.emitPrimitives()
-
-    for _, method := range image.methods {
-        c.compileMethod(method)
-    }
-
-    c.emitInitialization()
-    c.emitMain()
-
-    return c.output.String()
-}
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                     Maggie Source (.mag)                         │
+├──────────────────────┬──────────────────────────────────────────┤
+│  Go Compiler         │  Maggie Compiler (experimental)          │
+│  compiler/           │  lib/compiler/                           │
+│  (default, always    │  (live REPL, hot reload)                 │
+│   available)         │  -experimental-maggie-compiler flag      │
+├──────────────────────┴──────────────────────────────────────────┤
+│                     Bytecode                                     │
+├─────────────────────────────────────────────────────────────────┤
+│  Interpreter (vm/interpreter.go)     ← primary execution path   │
+│    + Inline caching (vm/inline_cache.go)   ← integrated         │
+│    + Profiler (vm/profiler.go)             ← integrated         │
+├─────────────────────────────────────────────────────────────────┤
+│  AOT Compiler (vm/aot.go)            ← bytecode → Go source    │
+│    + JIT Controller (vm/jit.go)      ← hot method detection     │
+│    + Persistence (vm/jit_persistence.go)                        │
+│    NOT integrated into CLI — Go API only                        │
+├─────────────────────────────────────────────────────────────────┤
+│  Image (vm/image_reader.go, vm/image_writer.go)                 │
+│    Binary snapshots of VM state                                  │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
-### Method Compilation
+### Implementation Status
 
-Bytecode is translated to Go:
+| Component | Files | Status | Notes |
+|-----------|-------|--------|-------|
+| **Go compiler** | `compiler/` | Production | Default backend. Always available. |
+| **Maggie compiler** | `lib/compiler/` | Experimental | Self-hosting compiler written in Maggie. Produces bytecode for the same Go VM. Selectable via `-experimental-maggie-compiler` flag or `:use-maggie`/`:use-go` REPL commands. |
+| **Bytecode interpreter** | `vm/interpreter.go` | Production | Stack-based interpreter. Executes all bytecode. |
+| **Inline caching** | `vm/inline_cache.go` | Production | Mono/poly/mega caches integrated into interpreter dispatch. |
+| **Profiler** | `vm/profiler.go` | Integrated | Tracks method/block invocation counts. Fires callback at threshold (100 for methods, 500 for blocks). |
+| **AOT compiler** | `vm/aot.go` | Implemented, not deployed | Translates bytecode → Go source. Handles full instruction set including super sends, blocks, tail calls. |
+| **JIT controller** | `vm/jit.go` | Implemented, not deployed | Connects profiler to AOT compiler. Background compilation worker. `vm.EnableJIT()` / `vm.DisableJIT()` exist but no CLI flag. |
+| **JIT persistence** | `vm/jit_persistence.go` | Implemented, not deployed | Three modes: static (rebuild required), plugin (.so, Linux/macOS), image (appended AOT section). Block compilation disabled by default ("blocks need more work for captures"). |
+| **Image format** | `vm/image_reader.go`, `vm/image_writer.go` | Production | Binary snapshots with "MAGI" magic. Embedded image bootstraps the VM. |
+
+### Dual-Compiler Architecture
+
+The `CompilerBackend` interface (`vm/compiler_dispatch.go`) allows runtime switching:
+
+| Use Case | Compiler | Rationale |
+|----------|----------|-----------|
+| Bootstrap | Go | No Maggie compiler available yet |
+| AOT compilation | Go | Produces standalone output |
+| REPL / hot reload | Maggie | Live, interactive development |
+| Fallback | Go | If Maggie compiler has bugs |
+
+Both compilers produce the same bytecode format for the same interpreter. The Go compiler is permanent — it's the bootstrap and safety net, not a temporary scaffolding.
+
+### AOT Compilation
+
+`vm/aot.go` translates Maggie bytecode to Go source code. The generated Go can then be compiled with `go build` for near-native performance. This is **not** a Maggie-to-native compiler — it's Maggie → bytecode → Go source → native binary.
+
+Generated code example:
 
 ```go
-func (c *AOTCompiler) compileMethod(m *CompiledMethod) {
-    funcName := c.methodName(m)
-
-    c.emit("func %s(vm *VM, receiver Value, args []Value) Value {\n", funcName)
-
-    // Declare temps
-    for i := 0; i < m.NumTemps; i++ {
-        c.emit("    var temp%d Value\n", i)
-    }
-
-    // Copy args to temps
-    for i := 0; i < m.Arity; i++ {
-        c.emit("    temp%d = args[%d]\n", i, i)
-    }
-
-    // Compile bytecode to Go
-    c.compileBytecode(m)
-
-    c.emit("}\n\n")
-}
-```
-
-### Generated Code Example
-
-Smalltalk:
-```smalltalk
-increment
-    value := value + 1.
-    ^value
-```
-
-Generated Go:
-```go
+// Maggie: increment  value := value + 1. ^value
 func Counter_increment(vm *VM, receiver Value, args []Value) Value {
     obj := toObject(receiver)
     t0 := obj.getSlot(0)  // value
     var t1 Value
     if isSmallInt(t0) {
         t1 = fromSmallInt(toSmallInt(t0) + 1)
-    } else if isFloat(t0) {
-        t1 = fromFloat(toFloat(t0) + 1.0)
     } else {
         t1 = vm.send(t0, selectorPlus, []Value{fromSmallInt(1)})
     }
@@ -1487,13 +1464,14 @@ func Counter_increment(vm *VM, receiver Value, args []Value) Value {
 }
 ```
 
-### AOT Coverage
+The AOT compiler handles the full instruction set: `OpSendSuper`, `OpCreateBlock`, `OpTailSend`, etc. At runtime, the VM checks `aotMethods` dispatch table before interpreting — if an AOT-compiled version exists, it calls the Go function directly.
 
-The AOT compiler handles the full bytecode instruction set, including:
+### What Does Not Exist
 
-- `OpSendSuper` — generates `vm.SendSuper()` calls for super sends
-- `OpCreateBlock` — generates block closure creation with captured variables
-- `OpTailSend` — generates tail-call optimized dispatch
+- **Native binary CLI** — No `mag build` command. AOT is Go-API only.
+- **True JIT** — No runtime machine code generation. The "JIT" generates Go source, which requires `go build` to become executable.
+- **Metacircular VM** — The Maggie compiler is self-hosted, but the VM/interpreter is Go only.
+- **Transparent runtime speedup** — The JIT persistence modes all have friction (rebuild, platform-specific plugins, or compilation on load).
 
 ---
 
@@ -1735,71 +1713,6 @@ func goWrapperDoesNotUnderstand(vm *VM, receiver Value, args []Value) Value {
 
 ---
 
-## Dual-Compiler Architecture
-
-Maggie employs a dual-compiler architecture: a Go compiler for bootstrapping and AOT compilation, and a self-hosting Maggie compiler for live development.
-
-### Compiler Implementations
-
-| Location | Language | Purpose |
-|----------|----------|---------|
-| `compiler/` | Go | Bootstrap, AOT compilation, fallback |
-| `lib/compiler/` | Maggie | Live development, hot reload, REPL |
-
-### CompilerBackend Interface
-
-The `CompilerBackend` interface (defined in `vm/compiler_dispatch.go`) allows runtime switching between compilers:
-
-```go
-type CompilerBackend interface {
-    // Compile compiles a method source string for the given class.
-    Compile(source string, class *Class) (*CompiledMethod, error)
-
-    // CompileExpression compiles a single expression.
-    CompileExpression(source string) (*CompiledMethod, error)
-
-    // Name returns the name of this compiler backend.
-    Name() string
-}
-```
-
-Two implementations are provided:
-- **GoCompilerBackend**: Wraps the Go compiler in `compiler/`
-- **MaggieCompilerBackend**: Invokes the Maggie `Compiler` class, with Go fallback
-
-### Use Cases
-
-| Use Case | Recommended Compiler | Rationale |
-|----------|---------------------|-----------|
-| Bootstrap | Go | No Maggie compiler available yet |
-| AOT compilation | Go | Produces standalone binaries |
-| Image loading | Go | Parse class definitions at startup |
-| REPL | Maggie | Live, interactive development |
-| Hot reload | Maggie | Modify running code |
-| Method recompilation | Maggie | IDE-driven development |
-
-### Switching Compilers
-
-```go
-// At startup (bootstrap)
-vm.UseGoCompiler(compiler.Compile)
-
-// After loading Maggie compiler classes
-vm.UseMaggieCompiler()
-
-// Check current compiler
-fmt.Println(vm.CompilerName())  // "Go" or "Maggie"
-```
-
-### Rationale
-
-Keeping the Go compiler permanently (rather than removing it after self-hosting) provides:
-
-1. **Fast bootstrap**: Go compiler is always available, no chicken-and-egg problem
-2. **AOT compilation**: Generate optimized standalone binaries for deployment
-3. **Fallback safety**: If Maggie compiler has bugs, Go compiler still works
-4. **Testing**: Compare outputs between compilers for correctness validation
-
 ---
 
 ## Bootstrap Path
@@ -1855,8 +1768,10 @@ Maggie is a Smalltalk dialect that combines:
 - **Exceptions**: For unexpected failures (bugs, invariant violations)
 - **Rich numeric tower**: SmallInteger, LargeInteger, Float, Fraction, Decimal
 - **Go runtime**: Goroutines and channels as primitives
-- **Bytecode VM**: For live development experience
-- **AOT compilation**: For deployable binaries
+- **Bytecode VM with inline caching**: Primary execution path with adaptive dispatch optimization
+- **Dual-compiler architecture**: Go compiler (production) + Maggie self-hosting compiler (experimental)
+- **AOT compilation infrastructure**: Bytecode → Go source generation (implemented, not yet user-facing)
+- **Image persistence**: Binary snapshots for fast startup and VM state distribution
 - **Remote debugging**: For IDE integration (Yutani, Emacs)
 
 The design prioritizes pragmatism over purity: simple core, room for optimization, tight Go integration. It's a Smalltalk for building real systems, not a museum piece.
