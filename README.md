@@ -4,7 +4,7 @@
 
 # Maggie
 
-A Smalltalk dialect implemented in Go.
+A Smalltalk dialect implemented in Go. Named for [Margaret Hamilton](https://en.wikipedia.org/wiki/Margaret_Hamilton_\(software_engineer\))
 
 **Documentation:**
 - [User Guide](docs/USER_GUIDE.md) - Getting started, syntax, core classes
