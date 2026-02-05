@@ -369,36 +369,6 @@ func TestAOTCompilerBlockPushContext(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// JIT thisContext Tests
-// ---------------------------------------------------------------------------
-
-func TestJITCompiledMethodWithContext(t *testing.T) {
-	vm := NewVM()
-	jit := vm.EnableJIT()
-	jit.LogCompilation = false
-
-	class := vm.createClass("JITContextTest", vm.ObjectClass)
-
-	builder := NewCompiledMethodBuilder("jitContext", 0)
-	builder.Bytecode().Emit(OpPushContext)
-	builder.Bytecode().Emit(OpReturnTop)
-	method := builder.Build()
-	method.SetClass(class)
-
-	// Compile with JIT
-	jit.compileMethod(method)
-
-	code := jit.GetCompiledMethod("JITContextTest", "jitContext")
-	if code == "" {
-		t.Fatal("Method should be compiled")
-	}
-
-	if !strings.Contains(code, "ContextValue") {
-		t.Error("JIT code should include ContextValue creation")
-	}
-}
-
-// ---------------------------------------------------------------------------
 // Context Class Tests
 // ---------------------------------------------------------------------------
 

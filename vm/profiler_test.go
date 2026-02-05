@@ -85,28 +85,6 @@ func TestProfilerBlockInvocation(t *testing.T) {
 	}
 }
 
-func TestProfilerHotCallback(t *testing.T) {
-	p := NewProfiler()
-	p.MethodHotThreshold = 2
-
-	var hotCode interface{}
-	p.OnHot = func(code interface{}, profile interface{}) {
-		hotCode = code
-	}
-
-	method := &CompiledMethod{name: "test"}
-
-	p.RecordMethodInvocation(method)
-	if hotCode != nil {
-		t.Error("Callback should not fire before threshold")
-	}
-
-	p.RecordMethodInvocation(method)
-	if hotCode != method {
-		t.Error("Callback should fire with correct method")
-	}
-}
-
 func TestProfilerStats(t *testing.T) {
 	p := NewProfiler()
 	p.MethodHotThreshold = 5

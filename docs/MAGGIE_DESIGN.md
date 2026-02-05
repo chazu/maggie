@@ -1406,8 +1406,6 @@ Maggie has a layered execution architecture. The bytecode interpreter is the onl
 │    + Profiler (vm/profiler.go)             ← integrated         │
 ├─────────────────────────────────────────────────────────────────┤
 │  AOT Compiler (vm/aot.go)            ← bytecode → Go source    │
-│    + JIT Controller (vm/jit.go)      ← hot method detection     │
-│    + Persistence (vm/jit_persistence.go)                        │
 │    NOT integrated into CLI — Go API only                        │
 ├─────────────────────────────────────────────────────────────────┤
 │  Image (vm/image_reader.go, vm/image_writer.go)                 │
@@ -1423,10 +1421,8 @@ Maggie has a layered execution architecture. The bytecode interpreter is the onl
 | **Maggie compiler** | `lib/compiler/` | Experimental | Self-hosting compiler written in Maggie. Produces bytecode for the same Go VM. Selectable via `-experimental-maggie-compiler` flag or `:use-maggie`/`:use-go` REPL commands. |
 | **Bytecode interpreter** | `vm/interpreter.go` | Production | Stack-based interpreter. Executes all bytecode. |
 | **Inline caching** | `vm/inline_cache.go` | Production | Mono/poly/mega caches integrated into interpreter dispatch. |
-| **Profiler** | `vm/profiler.go` | Integrated | Tracks method/block invocation counts. Fires callback at threshold (100 for methods, 500 for blocks). |
+| **Profiler** | `vm/profiler.go` | Integrated | Tracks method/block invocation counts. Identifies hot methods (threshold: 100) and blocks (threshold: 500). |
 | **AOT compiler** | `vm/aot.go` | Implemented, not deployed | Translates bytecode → Go source. Handles full instruction set including super sends, blocks, tail calls. |
-| **JIT controller** | `vm/jit.go` | Implemented, not deployed | Connects profiler to AOT compiler. Background compilation worker. `vm.EnableJIT()` / `vm.DisableJIT()` exist but no CLI flag. |
-| **JIT persistence** | `vm/jit_persistence.go` | Implemented, not deployed | Three modes: static (rebuild required), plugin (.so, Linux/macOS), image (appended AOT section). Block compilation disabled by default ("blocks need more work for captures"). |
 | **Image format** | `vm/image_reader.go`, `vm/image_writer.go` | Production | Binary snapshots with "MAGI" magic. Embedded image bootstraps the VM. |
 
 ### Dual-Compiler Architecture
@@ -1469,9 +1465,8 @@ The AOT compiler handles the full instruction set: `OpSendSuper`, `OpCreateBlock
 ### What Does Not Exist
 
 - **Native binary CLI** — No `mag build` command. AOT is Go-API only.
-- **True JIT** — No runtime machine code generation. The "JIT" generates Go source, which requires `go build` to become executable.
+- **JIT compilation** — Intentionally removed. The JIT controller and persistence layer generated Go source that required `go build` at runtime, providing no transparent speedup. The AOT compiler remains for a future `mag build` deployment story.
 - **Metacircular VM** — The Maggie compiler is self-hosted, but the VM/interpreter is Go only.
-- **Transparent runtime speedup** — The JIT persistence modes all have friction (rebuild, platform-specific plugins, or compilation on load).
 
 ---
 

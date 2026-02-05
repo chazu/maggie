@@ -5,8 +5,8 @@ import (
 	"sync/atomic"
 )
 
-// Profiler tracks method and block invocation counts to identify hot code
-// for JIT compilation. Based on Cog VM's approach where:
+// Profiler tracks method and block invocation counts to identify hot code.
+// Based on Cog VM's approach where:
 // - Methods are compiled after a low threshold (Cog uses 2, we use 100)
 // - Blocks are critical for loops and callbacks
 // - Profile at method/block level, not call-site level
@@ -35,10 +35,6 @@ type Profiler struct {
 	// Cog uses 2 for methods, but we have more compilation overhead
 	MethodHotThreshold uint64 // Default: 100
 	BlockHotThreshold  uint64 // Default: 500 (blocks often in tight loops)
-
-	// Callback when code becomes hot
-	// Called with either *CompiledMethod or *BlockMethod
-	OnHot func(code interface{}, profile interface{})
 
 	// Statistics
 	hotMethodCount uint64
@@ -71,10 +67,6 @@ func (p *Profiler) RecordMethodInvocation(method *CompiledMethod) bool {
 	if !profile.IsHot && count >= p.MethodHotThreshold {
 		profile.IsHot = true
 		atomic.AddUint64(&p.hotMethodCount, 1)
-
-		if p.OnHot != nil {
-			p.OnHot(method, profile)
-		}
 		return true
 	}
 
@@ -108,10 +100,6 @@ func (p *Profiler) RecordBlockInvocation(block *BlockMethod, owner *CompiledMeth
 	if !profile.IsHot && count >= p.BlockHotThreshold {
 		profile.IsHot = true
 		atomic.AddUint64(&p.hotBlockCount, 1)
-
-		if p.OnHot != nil {
-			p.OnHot(block, profile)
-		}
 		return true
 	}
 

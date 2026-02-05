@@ -127,9 +127,9 @@ Compiler saveImage: 'my-app.image'.
 
 The interpreter uses **inline caching** (monomorphic → polymorphic → megamorphic) on all call sites for faster method dispatch, and a **profiler** that tracks method/block invocation counts to identify hot code.
 
-An **AOT compiler** (`vm/aot.go`) can translate hot bytecode methods to Go source code, and a **JIT controller** (`vm/jit.go`) connects the profiler to the AOT compiler with background compilation. This infrastructure is implemented but **not yet user-facing** — there is no CLI flag, and the generated Go source requires `go build` to become executable.
+An **AOT compiler** (`vm/aot.go`) can translate bytecode methods to Go source code. This infrastructure is implemented but **not yet user-facing** — there is no CLI flag, and the generated Go source requires `go build` to become executable.
 
-See [docs/MAGGIE_DESIGN.md](docs/MAGGIE_DESIGN.md) (Execution Architecture) and [docs/JIT_IMPLEMENTATION_PLAN.md](docs/JIT_IMPLEMENTATION_PLAN.md) for details.
+See [docs/MAGGIE_DESIGN.md](docs/MAGGIE_DESIGN.md) (Execution Architecture) for details.
 
 ## Formatting
 
