@@ -40,6 +40,8 @@ func main() {
 		fmt.Fprintf(os.Stderr, "Usage: mag [options] [paths...]\n")
 		fmt.Fprintf(os.Stderr, "       mag deps [resolve|update|list]\n")
 		fmt.Fprintf(os.Stderr, "       mag fmt [--check] [files or dirs...]\n")
+		fmt.Fprintf(os.Stderr, "       mag wrap [packages...]                 (generate Go bindings)\n")
+		fmt.Fprintf(os.Stderr, "       mag build [-o output]                   (compile custom binary)\n")
 		fmt.Fprintf(os.Stderr, "       mag doc [--output dir] [--title title]\n")
 		fmt.Fprintf(os.Stderr, "       mag doctest [--verbose] [--class name]\n\n")
 		fmt.Fprintf(os.Stderr, "Starts Maggie with the default image and compiles .mag files from the given paths.\n")
@@ -95,6 +97,12 @@ func main() {
 			return
 		case "fmt":
 			handleFmtCommand(args[1:])
+			return
+		case "wrap":
+			handleWrapCommand(args[1:], *verbose)
+			return
+		case "build":
+			handleBuildCommand(args[1:], *verbose)
 			return
 		case "doc":
 			docMode = "doc"

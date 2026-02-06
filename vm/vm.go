@@ -107,6 +107,9 @@ type VM struct {
 	// fileInBatchFunc batch-compiles a directory using two-pass.
 	// Set by cmd/mag. When set, FileInAll uses this instead of per-file FileIn.
 	fileInBatchFunc FileInBatchFunc
+
+	// goTypeRegistry maps Go reflect.Types to Maggie classes for GoObject dispatch.
+	goTypeRegistry *GoTypeRegistry
 }
 
 // NewVM creates and bootstraps a new VM.
@@ -374,6 +377,20 @@ func (vm *VM) registerSymbolDispatch() {
 				return exObj.ExceptionClass, true
 			}
 			return resolveVM.ExceptionClass, true
+		},
+	})
+
+	// GoObjects — resolve to the specific wrapped Go type's class
+	sd.Register(goObjectMarker, &SymbolTypeEntry{
+		Resolve: func(v Value, vmRef *VM) (*Class, bool) {
+			if vmRef == nil {
+				return nil, false
+			}
+			cls := vmRef.GoObjectClass(v)
+			if cls != nil {
+				return cls, false
+			}
+			return nil, false
 		},
 	})
 
@@ -780,6 +797,14 @@ func (vm *VM) LookupAOT(className, selector string) AOTMethod {
 // HasAOT returns true if AOT methods are registered.
 func (vm *VM) HasAOT() bool {
 	return vm.aotMethods != nil && len(vm.aotMethods) > 0
+}
+
+// GoTypeRegistry returns the VM's Go type registry, creating it if needed.
+func (vm *VM) GoTypeRegistry() *GoTypeRegistry {
+	if vm.goTypeRegistry == nil {
+		vm.goTypeRegistry = NewGoTypeRegistry()
+	}
+	return vm.goTypeRegistry
 }
 
 // ---------------------------------------------------------------------------

@@ -15,6 +15,7 @@ type Manifest struct {
 	Source       Source                 `toml:"source"`
 	Dependencies map[string]Dependency  `toml:"dependencies"`
 	Image        ImageConfig            `toml:"image"`
+	GoWrap       GoWrapConfig           `toml:"go-wrap"`
 
 	// Dir is the directory containing the maggie.toml file (set at load time).
 	Dir string `toml:"-"`
@@ -46,6 +47,19 @@ type ImageConfig struct {
 	Output        string `toml:"output"`
 	IncludeSource bool   `toml:"include-source"`
 }
+
+// GoWrapConfig configures Go package wrapping.
+type GoWrapConfig struct {
+	Output   string         `toml:"output"`
+	Packages []GoWrapPackage `toml:"packages"`
+}
+
+// GoWrapPackage describes a single Go package to wrap.
+type GoWrapPackage struct {
+	Import  string   `toml:"import"`
+	Include []string `toml:"include"`
+}
+
 
 // Load parses a maggie.toml file from the given directory.
 func Load(dir string) (*Manifest, error) {
@@ -113,4 +127,12 @@ func (m *Manifest) DepsDir() string {
 // LockFilePath returns the path to .maggie/lock.toml.
 func (m *Manifest) LockFilePath() string {
 	return filepath.Join(m.Dir, ".maggie", "lock.toml")
+}
+
+// WrapOutputDir returns the absolute path for generated wrapper output.
+func (m *Manifest) WrapOutputDir() string {
+	if m.GoWrap.Output != "" {
+		return filepath.Join(m.Dir, m.GoWrap.Output)
+	}
+	return filepath.Join(m.Dir, ".maggie", "wrap")
 }

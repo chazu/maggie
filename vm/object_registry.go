@@ -77,6 +77,11 @@ type ObjectRegistry struct {
 	// Class variable storage
 	classVars   map[*Class]map[string]Value
 	classVarsMu sync.RWMutex
+
+	// GoObject registry
+	goObjects   map[uint32]*GoObjectWrapper
+	goObjectsMu sync.RWMutex
+	goObjectID  atomic.Uint32
 }
 
 // NewObjectRegistry creates a new ObjectRegistry with all maps initialized.
@@ -96,6 +101,7 @@ func NewObjectRegistry() *ObjectRegistry {
 		httpResponses: make(map[int]*HttpResponseObject),
 		cells:         make(map[*Cell]struct{}),
 		classVars:     make(map[*Class]map[string]Value),
+		goObjects:     make(map[uint32]*GoObjectWrapper),
 	}
 
 	// Start IDs at 1 (0 could be confused with nil/uninitialized)
@@ -110,6 +116,7 @@ func NewObjectRegistry() *ObjectRegistry {
 	or.httpRequestID.Store(1)
 	or.httpResponseID.Store(1)
 	or.weakRefCounter.Store(0)
+	or.goObjectID.Store(0)
 
 	return or
 }
@@ -737,5 +744,6 @@ func (or *ObjectRegistry) FullStats() map[string]int {
 	stats["httpResponses"] = or.HttpResponseCount()
 	stats["cells"] = or.CellCount()
 	stats["classVarClasses"] = or.ClassVarCount()
+	stats["goObjects"] = or.GoObjectCount()
 	return stats
 }
