@@ -35,9 +35,10 @@ type Source struct {
 
 // Dependency represents a single project dependency.
 type Dependency struct {
-	Git  string `toml:"git"`
-	Tag  string `toml:"tag"`
-	Path string `toml:"path"`
+	Git       string `toml:"git"`
+	Tag       string `toml:"tag"`
+	Path      string `toml:"path"`
+	Namespace string `toml:"namespace"`
 }
 
 // ImageConfig configures image output.

@@ -92,6 +92,29 @@ func (r *Resolver) resolveAll(deps map[string]Dependency, resolved map[string]*R
 	return order, nil
 }
 
+// resolveNamespace determines the effective namespace for a dependency using
+// the three-level resolution order:
+//  1. Consumer override (dep.Namespace from TOML)
+//  2. Producer manifest (depManifest.Project.Namespace)
+//  3. PascalCase fallback (ToPascalCase(name))
+func resolveNamespace(name string, dep Dependency, depManifest *Manifest) (string, error) {
+	var ns string
+	switch {
+	case dep.Namespace != "":
+		ns = dep.Namespace
+	case depManifest != nil && depManifest.Project.Namespace != "":
+		ns = depManifest.Project.Namespace
+	default:
+		ns = ToPascalCase(name)
+	}
+
+	if IsReservedNamespace(ns) {
+		return "", fmt.Errorf("dependency %q resolves to reserved namespace %q (used by a core VM class); add namespace = \"...\" override in [dependencies]", name, ns)
+	}
+
+	return ns, nil
+}
+
 // resolveOne resolves a single dependency.
 func (r *Resolver) resolveOne(name string, dep Dependency) (*ResolvedDep, error) {
 	depsDir := r.manifest.DepsDir()
@@ -116,9 +139,9 @@ func (r *Resolver) resolveOne(name string, dep Dependency) (*ResolvedDep, error)
 		// Try to load its manifest
 		depManifest, _ := Load(localPath)
 
-		ns := name
-		if depManifest != nil && depManifest.Project.Namespace != "" {
-			ns = depManifest.Project.Namespace
+		ns, err := resolveNamespace(name, dep, depManifest)
+		if err != nil {
+			return nil, err
 		}
 
 		return &ResolvedDep{
@@ -166,9 +189,9 @@ func (r *Resolver) resolveOne(name string, dep Dependency) (*ResolvedDep, error)
 		// Try to load its manifest
 		depManifest, _ := Load(depDir)
 
-		ns := name
-		if depManifest != nil && depManifest.Project.Namespace != "" {
-			ns = depManifest.Project.Namespace
+		ns, err := resolveNamespace(name, dep, depManifest)
+		if err != nil {
+			return nil, err
 		}
 
 		return &ResolvedDep{

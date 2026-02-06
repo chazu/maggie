@@ -341,6 +341,31 @@ Dependencies are loaded in topological order (transitive deps before direct deps
 
 The lock file (`.maggie/lock.toml`) records exact commit hashes for reproducible builds. It is auto-generated — do not edit by hand.
 
+### Dependency Namespace Mapping
+
+Each dependency maps to an importable namespace. The namespace is resolved in this order:
+
+1. **Consumer override** — explicit `namespace` in `[dependencies]`
+2. **Producer manifest** — the dependency's own `maggie.toml` `[project].namespace`
+3. **PascalCase fallback** — the dep name converted to PascalCase (e.g., `my-lib` → `MyLib`)
+
+```toml
+[dependencies]
+yutani = { git = "https://github.com/chazu/yutani-mag", tag = "v0.5.0" }
+# Uses Yutani's own maggie.toml namespace (e.g., "Yutani")
+
+ui-toolkit = { path = "../ui-toolkit", namespace = "CustomUI" }
+# Consumer override: maps to "CustomUI" regardless of producer manifest
+```
+
+**Namespace prefixing:** All classes from a dependency are prefixed with its resolved namespace. A dep with namespace `Yutani` containing `src/widgets/Button.mag` registers `Button` under `Yutani::Widgets::Button` in Globals.
+
+**Import remapping:** When a consumer overrides a dependency's namespace, internal imports within that dependency are automatically remapped. For example, if Yutani internally imports `Yutani::Events` and the consumer overrides to `ThirdParty::Yutani`, that import becomes `ThirdParty::Yutani::Events`.
+
+**Collision detection:** Two dependencies mapping to the same namespace cause a hard error before loading. The error lists all collisions and suggests adding `namespace` overrides.
+
+**Reserved namespaces:** Core VM class names (Object, Array, String, Channel, Process, etc.) cannot be used as the root segment of a dependency namespace. `namespace = "MyLib::Array"` is fine; `namespace = "Array"` is rejected.
+
 ---
 
 ## Debugging Yutani TUI Applications

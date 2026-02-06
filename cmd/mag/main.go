@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/chazu/maggie/compiler"
@@ -1038,7 +1039,7 @@ func deriveNamespace(filePath, basePath string) string {
 		if seg == "" || seg == "." {
 			continue
 		}
-		nsSegments = append(nsSegments, toPascalCase(seg))
+		nsSegments = append(nsSegments, manifest.ToPascalCase(seg))
 	}
 
 	if len(nsSegments) == 0 {
@@ -1046,43 +1047,6 @@ func deriveNamespace(filePath, basePath string) string {
 	}
 
 	return strings.Join(nsSegments, "::")
-}
-
-// toPascalCase converts a string to PascalCase.
-// "my-app" -> "MyApp", "models" -> "Models", "myApp" -> "MyApp"
-func toPascalCase(s string) string {
-	// Split on hyphens, underscores, and case transitions
-	var words []string
-	current := ""
-	for i, r := range s {
-		if r == '-' || r == '_' {
-			if current != "" {
-				words = append(words, current)
-				current = ""
-			}
-			continue
-		}
-		if i > 0 && r >= 'A' && r <= 'Z' {
-			prev := rune(s[i-1])
-			if prev >= 'a' && prev <= 'z' {
-				words = append(words, current)
-				current = ""
-			}
-		}
-		current += string(r)
-	}
-	if current != "" {
-		words = append(words, current)
-	}
-
-	var result string
-	for _, w := range words {
-		if w == "" {
-			continue
-		}
-		result += strings.ToUpper(w[:1]) + strings.ToLower(w[1:])
-	}
-	return result
 }
 
 // compileFile compiles a single .mag file into the VM using Trashtalk syntax.
@@ -1230,6 +1194,87 @@ func findYutaniLib() (string, error) {
 	return "", fmt.Errorf("Yutani library not found. Set MAGGIE_HOME or run from project root")
 }
 
+// checkNamespaceCollisions checks that no two dependencies resolve to the same namespace.
+// Reports all collisions at once with a suggested fix.
+func checkNamespaceCollisions(deps []manifest.ResolvedDep) error {
+	// Map namespace -> list of dep names
+	nsMap := make(map[string][]string)
+	for _, dep := range deps {
+		nsMap[dep.Namespace] = append(nsMap[dep.Namespace], dep.Name)
+	}
+
+	// Collect collisions (sorted for deterministic output)
+	var collisions []string
+	for ns, names := range nsMap {
+		if len(names) > 1 {
+			sort.Strings(names)
+			collisions = append(collisions, fmt.Sprintf("  namespace %q: [%s]", ns, strings.Join(names, ", ")))
+		}
+	}
+
+	if len(collisions) == 0 {
+		return nil
+	}
+
+	sort.Strings(collisions)
+	return fmt.Errorf("dependency namespace collision(s):\n%s\n\nFix by adding explicit namespace overrides in [dependencies]",
+		strings.Join(collisions, "\n"))
+}
+
+// prefixDepNamespaces prefixes all file namespaces with the dependency's resolved namespace.
+// Root-level files (no directory-derived namespace) get dep.Namespace only.
+// Subdir files get dep.Namespace + "::" + existing namespace.
+func prefixDepNamespaces(files []parsedFile, dep manifest.ResolvedDep, verbose bool) {
+	if dep.Namespace == "" {
+		return
+	}
+
+	// Determine the dep's "original" namespace (from its own manifest).
+	// This is used for import remapping when consumer overrides differ.
+	var originalNS string
+	if dep.Manifest != nil && dep.Manifest.Project.Namespace != "" {
+		originalNS = dep.Manifest.Project.Namespace
+	}
+
+	// Check if import remapping is needed
+	needsRemap := originalNS != "" && originalNS != dep.Namespace
+
+	for i := range files {
+		if files[i].namespace == "" {
+			files[i].namespace = dep.Namespace
+		} else {
+			files[i].namespace = dep.Namespace + "::" + files[i].namespace
+		}
+
+		// Remap imports if consumer override differs from original namespace
+		if needsRemap {
+			for j, imp := range files[i].imports {
+				remapped := remapImport(imp, originalNS, dep.Namespace)
+				if remapped != imp {
+					if verbose {
+						fmt.Printf("  Remapped import %q -> %q in %s\n", imp, remapped, files[i].path)
+					}
+					files[i].imports[j] = remapped
+				}
+			}
+		}
+	}
+}
+
+// remapImport replaces an import's oldPrefix with newPrefix.
+// "Yutani" with old="Yutani" new="ThirdParty::Yutani" -> "ThirdParty::Yutani"
+// "Yutani::Events" with old="Yutani" new="ThirdParty::Yutani" -> "ThirdParty::Yutani::Events"
+// "OtherDep" (no match) -> "OtherDep" (unchanged)
+func remapImport(imp, oldPrefix, newPrefix string) string {
+	if imp == oldPrefix {
+		return newPrefix
+	}
+	if strings.HasPrefix(imp, oldPrefix+"::") {
+		return newPrefix + imp[len(oldPrefix):]
+	}
+	return imp
+}
+
 // loadProject resolves dependencies and loads source directories from a project manifest.
 // Collects all files from all deps + project sources, then compiles in one two-pass batch.
 // Returns total method count.
@@ -1244,7 +1289,12 @@ func loadProject(vmInst *vm.VM, m *manifest.Manifest, verbose bool) (int, error)
 			return 0, fmt.Errorf("dependency resolution failed: %w", err)
 		}
 
+		if err := checkNamespaceCollisions(deps); err != nil {
+			return 0, err
+		}
+
 		for _, dep := range deps {
+			var depFiles []parsedFile
 			if dep.Manifest != nil {
 				for _, srcDir := range dep.Manifest.SourceDirPaths() {
 					if _, err := os.Stat(srcDir); err != nil {
@@ -1254,7 +1304,7 @@ func loadProject(vmInst *vm.VM, m *manifest.Manifest, verbose bool) (int, error)
 					if err != nil {
 						return 0, fmt.Errorf("collecting dependency %s: %w", dep.Name, err)
 					}
-					allFiles = append(allFiles, files...)
+					depFiles = append(depFiles, files...)
 				}
 			} else {
 				depPath := dep.LocalPath + "/..."
@@ -1262,8 +1312,13 @@ func loadProject(vmInst *vm.VM, m *manifest.Manifest, verbose bool) (int, error)
 				if err != nil {
 					return 0, fmt.Errorf("collecting dependency %s: %w", dep.Name, err)
 				}
-				allFiles = append(allFiles, files...)
+				depFiles = append(depFiles, files...)
 			}
+
+			// Prefix dep file namespaces with the dep's resolved namespace
+			prefixDepNamespaces(depFiles, dep, verbose)
+
+			allFiles = append(allFiles, depFiles...)
 		}
 	}
 
