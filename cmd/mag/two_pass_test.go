@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/chazu/maggie/vm"
 )
 
 // ---------------------------------------------------------------------------
@@ -323,6 +325,178 @@ func TestTwoPass_SingleFileCompilePath(t *testing.T) {
 	solo := vmInst.LookupClass("Solo")
 	if solo == nil {
 		t.Fatal("Solo class not found")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// FQN resolution: cross-namespace class reference in method body
+// ---------------------------------------------------------------------------
+
+func TestFQN_CrossNamespaceClassReference(t *testing.T) {
+	vmInst := newTestVM(t)
+	tmpDir := t.TempDir()
+
+	nsWidgets := filepath.Join(tmpDir, "widgets")
+	nsApp := filepath.Join(tmpDir, "app")
+	os.Mkdir(nsWidgets, 0755)
+	os.Mkdir(nsApp, 0755)
+
+	writeMagFile(t, nsWidgets, "Button.mag", `Button subclass: Object
+  method: label [ ^'OK' ]
+`)
+
+	writeMagFile(t, nsApp, "Factory.mag", `namespace: 'App'
+import: 'Widgets'
+
+Factory subclass: Object
+  classMethod: makeButton [
+    ^Button new
+  ]
+`)
+
+	_, err := compilePath(tmpDir+"/...", vmInst, false)
+	if err != nil {
+		t.Fatalf("compilePath failed: %v", err)
+	}
+
+	// Execute App::Factory makeButton — should return a Widgets::Button instance
+	factoryClass := vmInst.Classes.LookupInNamespace("App", "Factory")
+	if factoryClass == nil {
+		t.Fatal("App::Factory not found")
+	}
+
+	result := vmInst.Send(vmInst.Symbols.SymbolValue("App::Factory"), "makeButton", nil)
+	// Send label to the result
+	labelResult := vmInst.Send(result, "label", nil)
+	if !vm.IsStringValue(labelResult) {
+		t.Fatalf("expected string result from label, got %v", labelResult)
+	}
+	got := vmInst.Registry().GetStringContent(labelResult)
+	if got != "OK" {
+		t.Errorf("label = %q, want %q", got, "OK")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// FQN resolution: same-namespace class reference (no import needed)
+// ---------------------------------------------------------------------------
+
+func TestFQN_SameNamespaceClassReference(t *testing.T) {
+	vmInst := newTestVM(t)
+	tmpDir := t.TempDir()
+
+	nsModels := filepath.Join(tmpDir, "models")
+	os.Mkdir(nsModels, 0755)
+
+	writeMagFile(t, nsModels, "Base.mag", `Base subclass: Object
+  method: kind [ ^'base' ]
+`)
+
+	writeMagFile(t, nsModels, "Derived.mag", `Derived subclass: Object
+  classMethod: create [
+    ^Base new
+  ]
+`)
+
+	_, err := compilePath(tmpDir+"/...", vmInst, false)
+	if err != nil {
+		t.Fatalf("compilePath failed: %v", err)
+	}
+
+	// Derived create should return a Models::Base instance
+	result := vmInst.Send(vmInst.Symbols.SymbolValue("Models::Derived"), "create", nil)
+	kindResult := vmInst.Send(result, "kind", nil)
+	if !vm.IsStringValue(kindResult) {
+		t.Fatalf("expected string result from kind, got %v", kindResult)
+	}
+	got := vmInst.Registry().GetStringContent(kindResult)
+	if got != "base" {
+		t.Errorf("kind = %q, want %q", got, "base")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// FQN resolution: bare name still works for root namespace classes
+// ---------------------------------------------------------------------------
+
+func TestFQN_BareNameRootNamespace(t *testing.T) {
+	vmInst := newTestVM(t)
+	tmpDir := t.TempDir()
+
+	nsApp := filepath.Join(tmpDir, "app")
+	os.Mkdir(nsApp, 0755)
+
+	// Root-level class (no namespace)
+	writeMagFile(t, tmpDir, "Helper.mag", `Helper subclass: Object
+  method: help [ ^'helping' ]
+`)
+
+	// Namespaced class references the root-level Helper
+	writeMagFile(t, nsApp, "Worker.mag", `namespace: 'App'
+
+Worker subclass: Object
+  classMethod: getHelper [
+    ^Helper new
+  ]
+`)
+
+	_, err := compilePath(tmpDir+"/...", vmInst, false)
+	if err != nil {
+		t.Fatalf("compilePath failed: %v", err)
+	}
+
+	result := vmInst.Send(vmInst.Symbols.SymbolValue("App::Worker"), "getHelper", nil)
+	helpResult := vmInst.Send(result, "help", nil)
+	if !vm.IsStringValue(helpResult) {
+		t.Fatalf("expected string result from help, got %v", helpResult)
+	}
+	got := vmInst.Registry().GetStringContent(helpResult)
+	if got != "helping" {
+		t.Errorf("help = %q, want %q", got, "helping")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// FQN resolution: assignment to namespaced global
+// ---------------------------------------------------------------------------
+
+func TestFQN_AssignmentResolvesNamespace(t *testing.T) {
+	vmInst := newTestVM(t)
+	tmpDir := t.TempDir()
+
+	nsWidgets := filepath.Join(tmpDir, "widgets")
+	nsApp := filepath.Join(tmpDir, "app")
+	os.Mkdir(nsWidgets, 0755)
+	os.Mkdir(nsApp, 0755)
+
+	writeMagFile(t, nsWidgets, "Config.mag", `Config subclass: Object
+  method: name [ ^'default' ]
+`)
+
+	writeMagFile(t, nsApp, "Setup.mag", `namespace: 'App'
+import: 'Widgets'
+
+Setup subclass: Object
+  classMethod: createConfig [
+    | cfg |
+    cfg := Config new.
+    ^cfg
+  ]
+`)
+
+	_, err := compilePath(tmpDir+"/...", vmInst, false)
+	if err != nil {
+		t.Fatalf("compilePath failed: %v", err)
+	}
+
+	result := vmInst.Send(vmInst.Symbols.SymbolValue("App::Setup"), "createConfig", nil)
+	nameResult := vmInst.Send(result, "name", nil)
+	if !vm.IsStringValue(nameResult) {
+		t.Fatalf("expected string from name, got %v", nameResult)
+	}
+	got := vmInst.Registry().GetStringContent(nameResult)
+	if got != "default" {
+		t.Errorf("name = %q, want %q", got, "default")
 	}
 }
 

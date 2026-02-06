@@ -843,7 +843,7 @@ func compileAll(files []parsedFile, vmInst *vm.VM, verbose bool) (int, error) {
 			}
 
 			for _, methodDef := range traitDef.Methods {
-				method, err := compiler.CompileMethodDef(methodDef, vmInst.Selectors, vmInst.Symbols, vmInst.Registry())
+				method, err := compiler.CompileMethodDefWithContext(methodDef, vmInst.Selectors, vmInst.Symbols, vmInst.Registry(), nil, pf.namespace, pf.imports, vmInst.Classes)
 				if err != nil {
 					return compiled, fmt.Errorf("error compiling trait %s>>%s in %s: %v", traitDef.Name, methodDef.Selector, pf.path, err)
 				}
@@ -897,7 +897,7 @@ func compileAll(files []parsedFile, vmInst *vm.VM, verbose bool) (int, error) {
 				continue
 			}
 
-			method, err := compiler.CompileMethodDefWithIvars(methodDef, vmInst.Selectors, vmInst.Symbols, vmInst.Registry(), allIvars)
+			method, err := compiler.CompileMethodDefWithContext(methodDef, vmInst.Selectors, vmInst.Symbols, vmInst.Registry(), allIvars, pf.namespace, pf.imports, vmInst.Classes)
 			if err != nil {
 				return compiled, fmt.Errorf("error compiling %s>>%s: %v", classDef.Name, methodDef.Selector, err)
 			}
@@ -932,7 +932,7 @@ func compileAll(files []parsedFile, vmInst *vm.VM, verbose bool) (int, error) {
 				continue
 			}
 
-			method, err := compiler.CompileMethodDef(methodDef, vmInst.Selectors, vmInst.Symbols, vmInst.Registry())
+			method, err := compiler.CompileMethodDefWithContext(methodDef, vmInst.Selectors, vmInst.Symbols, vmInst.Registry(), nil, pf.namespace, pf.imports, vmInst.Classes)
 			if err != nil {
 				return compiled, fmt.Errorf("error compiling %s class>>%s: %v", classDef.Name, methodDef.Selector, err)
 			}

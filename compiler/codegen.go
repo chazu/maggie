@@ -46,6 +46,11 @@ type Compiler struct {
 
 	// For tail-call optimization
 	methodSelector string // selector of the method being compiled (for detecting self-recursion)
+
+	// For FQN resolution in method bodies
+	namespace  string         // file's effective namespace (empty = root)
+	imports    []string       // file's import paths
+	classTable *vm.ClassTable // for FQN resolution (nil = no resolution)
 }
 
 // NewCompiler creates a new compiler.
@@ -69,6 +74,28 @@ func (c *Compiler) SetInstanceVars(names []string) {
 	for i, name := range names {
 		c.instVars[name] = i
 	}
+}
+
+// SetNamespaceContext sets the namespace, imports, and class table for FQN resolution.
+// When set, global variable references in method bodies will be resolved to FQN
+// using the class table's LookupWithImports.
+func (c *Compiler) SetNamespaceContext(namespace string, imports []string, classTable *vm.ClassTable) {
+	c.namespace = namespace
+	c.imports = imports
+	c.classTable = classTable
+}
+
+// resolveGlobalName resolves a bare class name to its FQN using namespace context.
+// If no classTable is set or the name doesn't match a known class, returns the name unchanged.
+func (c *Compiler) resolveGlobalName(name string) string {
+	if c.classTable == nil {
+		return name
+	}
+	cls := c.classTable.LookupWithImports(name, c.namespace, c.imports)
+	if cls != nil && cls.Namespace != "" {
+		return cls.Namespace + "::" + cls.Name
+	}
+	return name
 }
 
 // errorf records a compilation error without position information.
@@ -455,8 +482,9 @@ func (c *Compiler) compileVariable(name string) {
 			return
 		}
 	}
-	// Must be a global
-	idx := c.addLiteral(c.symbols.SymbolValue(name))
+	// Must be a global — resolve to FQN if namespace context is available
+	resolved := c.resolveGlobalName(name)
+	idx := c.addLiteral(c.symbols.SymbolValue(resolved))
 	c.builder.EmitUint16(vm.OpPushGlobal, uint16(idx))
 }
 
@@ -545,8 +573,9 @@ func (c *Compiler) compileAssignment(assign *Assignment) {
 		// Note: we don't allow assigning to outer args, treat as global
 	}
 
-	// Global assignment
-	idx := c.addLiteral(c.symbols.SymbolValue(name))
+	// Global assignment — resolve to FQN if namespace context is available
+	resolved := c.resolveGlobalName(name)
+	idx := c.addLiteral(c.symbols.SymbolValue(resolved))
 	c.builder.EmitUint16(vm.OpStoreGlobal, uint16(idx))
 	c.builder.EmitUint16(vm.OpPushGlobal, uint16(idx))
 }
@@ -1190,6 +1219,25 @@ func CompileMethodDefWithIvars(method *MethodDef, selectors *vm.SelectorTable, s
 	compiled := compiler.CompileMethod(method)
 	if len(compiler.Errors()) > 0 {
 		return nil, fmt.Errorf("compile errors: %v", compiler.Errors())
+	}
+	return compiled, nil
+}
+
+// CompileMethodDefWithContext compiles a method with instance variables and namespace context.
+// When namespace/imports/classTable are provided, bare class names in global lookups
+// are resolved to FQN at compile time.
+func CompileMethodDefWithContext(method *MethodDef, selectors *vm.SelectorTable, symbols *vm.SymbolTable, registry *vm.ObjectRegistry, instVars []string, namespace string, imports []string, classTable *vm.ClassTable) (*vm.CompiledMethod, error) {
+	warnings := Analyze(method, instVars)
+	_ = warnings
+
+	comp := NewCompiler(selectors, symbols, registry)
+	if len(instVars) > 0 {
+		comp.SetInstanceVars(instVars)
+	}
+	comp.SetNamespaceContext(namespace, imports, classTable)
+	compiled := comp.CompileMethod(method)
+	if len(comp.Errors()) > 0 {
+		return nil, fmt.Errorf("compile errors: %v", comp.Errors())
 	}
 	return compiled, nil
 }
