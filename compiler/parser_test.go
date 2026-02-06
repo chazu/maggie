@@ -1404,6 +1404,251 @@ func TestParserNormalMethodNotPrimitiveStub(t *testing.T) {
 	}
 }
 
+// ---------------------------------------------------------------------------
+// FQN (fully-qualified name) expression parsing tests
+// ---------------------------------------------------------------------------
+
+func TestParserFQN_VariableReference(t *testing.T) {
+	input := "Widgets::Button"
+	p := NewParser(input)
+	expr := p.ParseExpression()
+	if len(p.Errors()) > 0 {
+		t.Fatalf("parse errors: %v", p.Errors())
+	}
+
+	v, ok := expr.(*Variable)
+	if !ok {
+		t.Fatalf("expected Variable, got %T", expr)
+	}
+	if v.Name != "Widgets::Button" {
+		t.Errorf("name = %q, want %q", v.Name, "Widgets::Button")
+	}
+}
+
+func TestParserFQN_MultiLevel(t *testing.T) {
+	input := "A::B::C"
+	p := NewParser(input)
+	expr := p.ParseExpression()
+	if len(p.Errors()) > 0 {
+		t.Fatalf("parse errors: %v", p.Errors())
+	}
+
+	v, ok := expr.(*Variable)
+	if !ok {
+		t.Fatalf("expected Variable, got %T", expr)
+	}
+	if v.Name != "A::B::C" {
+		t.Errorf("name = %q, want %q", v.Name, "A::B::C")
+	}
+}
+
+func TestParserFQN_UnaryMessageSend(t *testing.T) {
+	input := "Widgets::Button new"
+	p := NewParser(input)
+	expr := p.ParseExpression()
+	if len(p.Errors()) > 0 {
+		t.Fatalf("parse errors: %v", p.Errors())
+	}
+
+	msg, ok := expr.(*UnaryMessage)
+	if !ok {
+		t.Fatalf("expected UnaryMessage, got %T", expr)
+	}
+	if msg.Selector != "new" {
+		t.Errorf("selector = %q, want %q", msg.Selector, "new")
+	}
+
+	recv, ok := msg.Receiver.(*Variable)
+	if !ok {
+		t.Fatalf("receiver: expected Variable, got %T", msg.Receiver)
+	}
+	if recv.Name != "Widgets::Button" {
+		t.Errorf("receiver name = %q, want %q", recv.Name, "Widgets::Button")
+	}
+}
+
+func TestParserFQN_Assignment(t *testing.T) {
+	input := "x := Widgets::Button new"
+	p := NewParser(input)
+	expr := p.ParseExpression()
+	if len(p.Errors()) > 0 {
+		t.Fatalf("parse errors: %v", p.Errors())
+	}
+
+	assign, ok := expr.(*Assignment)
+	if !ok {
+		t.Fatalf("expected Assignment, got %T", expr)
+	}
+	if assign.Variable != "x" {
+		t.Errorf("variable = %q, want %q", assign.Variable, "x")
+	}
+
+	msg, ok := assign.Value.(*UnaryMessage)
+	if !ok {
+		t.Fatalf("value: expected UnaryMessage, got %T", assign.Value)
+	}
+	if msg.Selector != "new" {
+		t.Errorf("selector = %q, want %q", msg.Selector, "new")
+	}
+
+	recv, ok := msg.Receiver.(*Variable)
+	if !ok {
+		t.Fatalf("value receiver: expected Variable, got %T", msg.Receiver)
+	}
+	if recv.Name != "Widgets::Button" {
+		t.Errorf("receiver name = %q, want %q", recv.Name, "Widgets::Button")
+	}
+}
+
+func TestParserFQN_KeywordMessageArg(t *testing.T) {
+	// FQN as argument to a keyword message
+	input := "factory make: Widgets::Button"
+	p := NewParser(input)
+	expr := p.ParseExpression()
+	if len(p.Errors()) > 0 {
+		t.Fatalf("parse errors: %v", p.Errors())
+	}
+
+	msg, ok := expr.(*KeywordMessage)
+	if !ok {
+		t.Fatalf("expected KeywordMessage, got %T", expr)
+	}
+	if msg.Selector != "make:" {
+		t.Errorf("selector = %q, want %q", msg.Selector, "make:")
+	}
+	if len(msg.Arguments) != 1 {
+		t.Fatalf("arguments count = %d, want 1", len(msg.Arguments))
+	}
+
+	arg, ok := msg.Arguments[0].(*Variable)
+	if !ok {
+		t.Fatalf("argument: expected Variable, got %T", msg.Arguments[0])
+	}
+	if arg.Name != "Widgets::Button" {
+		t.Errorf("argument name = %q, want %q", arg.Name, "Widgets::Button")
+	}
+}
+
+func TestParserFQN_ReturnStatement(t *testing.T) {
+	input := "^Widgets::Button new"
+	p := NewParser(input)
+	stmt := p.ParseStatement()
+	if len(p.Errors()) > 0 {
+		t.Fatalf("parse errors: %v", p.Errors())
+	}
+
+	ret, ok := stmt.(*Return)
+	if !ok {
+		t.Fatalf("expected Return, got %T", stmt)
+	}
+
+	msg, ok := ret.Value.(*UnaryMessage)
+	if !ok {
+		t.Fatalf("return value: expected UnaryMessage, got %T", ret.Value)
+	}
+	if msg.Selector != "new" {
+		t.Errorf("selector = %q, want %q", msg.Selector, "new")
+	}
+
+	recv, ok := msg.Receiver.(*Variable)
+	if !ok {
+		t.Fatalf("receiver: expected Variable, got %T", msg.Receiver)
+	}
+	if recv.Name != "Widgets::Button" {
+		t.Errorf("receiver name = %q, want %q", recv.Name, "Widgets::Button")
+	}
+}
+
+func TestParserFQN_RegularKeywordsStillWork(t *testing.T) {
+	// Ensure regular keyword messages are not broken
+	input := "arr at: 1 put: 42"
+	p := NewParser(input)
+	expr := p.ParseExpression()
+	if len(p.Errors()) > 0 {
+		t.Fatalf("parse errors: %v", p.Errors())
+	}
+
+	msg, ok := expr.(*KeywordMessage)
+	if !ok {
+		t.Fatalf("expected KeywordMessage, got %T", expr)
+	}
+	if msg.Selector != "at:put:" {
+		t.Errorf("selector = %q, want %q", msg.Selector, "at:put:")
+	}
+}
+
+func TestParserFQN_InSourceFileMethodBody(t *testing.T) {
+	input := `Factory subclass: Object
+  classMethod: make [
+    ^Widgets::Button new
+  ]
+`
+	p := NewParser(input)
+	sf := p.ParseSourceFile()
+	if len(p.Errors()) > 0 {
+		t.Fatalf("parse errors: %v", p.Errors())
+	}
+
+	if len(sf.Classes) != 1 {
+		t.Fatalf("expected 1 class, got %d", len(sf.Classes))
+	}
+
+	cls := sf.Classes[0]
+	if len(cls.ClassMethods) != 1 {
+		t.Fatalf("expected 1 class method, got %d", len(cls.ClassMethods))
+	}
+
+	method := cls.ClassMethods[0]
+	if method.Selector != "make" {
+		t.Errorf("selector = %q, want %q", method.Selector, "make")
+	}
+	if len(method.Statements) != 1 {
+		t.Fatalf("expected 1 statement, got %d", len(method.Statements))
+	}
+
+	// The statement should be: ^Widgets::Button new
+	ret, ok := method.Statements[0].(*Return)
+	if !ok {
+		t.Fatalf("statement: expected Return, got %T", method.Statements[0])
+	}
+
+	msg, ok := ret.Value.(*UnaryMessage)
+	if !ok {
+		t.Fatalf("return value: expected UnaryMessage, got %T", ret.Value)
+	}
+	if msg.Selector != "new" {
+		t.Errorf("selector = %q, want %q", msg.Selector, "new")
+	}
+
+	recv, ok := msg.Receiver.(*Variable)
+	if !ok {
+		t.Fatalf("receiver: expected Variable, got %T", msg.Receiver)
+	}
+	if recv.Name != "Widgets::Button" {
+		t.Errorf("receiver name = %q, want %q", recv.Name, "Widgets::Button")
+	}
+}
+
+func TestParserFQN_SuperclassIsFQN(t *testing.T) {
+	input := `Button subclass: Widgets::Component
+  method: label [ ^label ]
+`
+	p := NewParser(input)
+	sf := p.ParseSourceFile()
+	if len(p.Errors()) > 0 {
+		t.Fatalf("parse errors: %v", p.Errors())
+	}
+
+	if len(sf.Classes) != 1 {
+		t.Fatalf("expected 1 class, got %d", len(sf.Classes))
+	}
+
+	cls := sf.Classes[0]
+	if cls.Superclass != "Widgets::Component" {
+		t.Errorf("superclass = %q, want %q", cls.Superclass, "Widgets::Component")
+	}
+}
+
 // contains checks if s contains substr (helper for warning tests).
 func contains(s, substr string) bool {
 	return len(s) >= len(substr) && strings.Contains(s, substr)

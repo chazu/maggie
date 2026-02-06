@@ -12,7 +12,11 @@ func FileOutClass(class *Class, selectors *SelectorTable) string {
 
 	// Write namespace declaration if present
 	if class.Namespace != "" {
-		fmt.Fprintf(&sb, "namespace: '%s'\n\n", class.Namespace)
+		fmt.Fprintf(&sb, "namespace: '%s'\n", class.Namespace)
+		// Note: import declarations are not preserved in fileOut.
+		// Classes store their namespace but not per-file import lists.
+		// After fileOut, you may need to re-add import: declarations manually.
+		fmt.Fprintf(&sb, "\"import declarations are not preserved by fileOut\"\n\n")
 	}
 
 	// Write class docstring

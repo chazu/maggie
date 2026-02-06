@@ -771,12 +771,17 @@ func compileAll(files []parsedFile, vmInst *vm.VM, verbose bool) (int, error) {
 
 				vmInst.Classes.Register(class)
 
-				// Register as first-class class value in Globals
+				// Register as first-class class value in Globals.
+				// Namespaced classes are registered ONLY under the FQN to avoid
+				// silent last-loaded-wins collisions when two namespaces define the
+				// same bare class name.  Root-namespace classes (no namespace) are
+				// registered under the bare name, which IS their FQN.
 				classVal := vmInst.ClassValue(class)
-				vmInst.Globals[classDef.Name] = classVal
 				if pf.namespace != "" {
 					fullName := pf.namespace + "::" + classDef.Name
 					vmInst.Globals[fullName] = classVal
+				} else {
+					vmInst.Globals[classDef.Name] = classVal
 				}
 
 				if verbose {

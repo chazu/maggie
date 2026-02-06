@@ -634,3 +634,137 @@ func TestLexerDocstringFollowedByIdentifier(t *testing.T) {
 		t.Errorf("token[1] = %s(%q), want IDENTIFIER(\"MyClass\")", tok2.Type, tok2.Literal)
 	}
 }
+
+// ---------------------------------------------------------------------------
+// FQN (fully-qualified name) lexer tests
+// ---------------------------------------------------------------------------
+
+func TestLexerFQN_SimpleNamespace(t *testing.T) {
+	input := "Widgets::Button"
+	l := NewLexer(input)
+	tok := l.NextToken()
+	if tok.Type != TokenIdentifier {
+		t.Errorf("type = %v, want IDENTIFIER", tok.Type)
+	}
+	if tok.Literal != "Widgets::Button" {
+		t.Errorf("literal = %q, want %q", tok.Literal, "Widgets::Button")
+	}
+	tok2 := l.NextToken()
+	if tok2.Type != TokenEOF {
+		t.Errorf("expected EOF after FQN, got %v(%q)", tok2.Type, tok2.Literal)
+	}
+}
+
+func TestLexerFQN_MultiLevel(t *testing.T) {
+	input := "A::B::C"
+	l := NewLexer(input)
+	tok := l.NextToken()
+	if tok.Type != TokenIdentifier {
+		t.Errorf("type = %v, want IDENTIFIER", tok.Type)
+	}
+	if tok.Literal != "A::B::C" {
+		t.Errorf("literal = %q, want %q", tok.Literal, "A::B::C")
+	}
+}
+
+func TestLexerFQN_FollowedByUnaryMessage(t *testing.T) {
+	input := "Widgets::Button new"
+	l := NewLexer(input)
+
+	tok1 := l.NextToken()
+	if tok1.Type != TokenIdentifier || tok1.Literal != "Widgets::Button" {
+		t.Errorf("token[0] = %s(%q), want IDENTIFIER(\"Widgets::Button\")", tok1.Type, tok1.Literal)
+	}
+
+	tok2 := l.NextToken()
+	if tok2.Type != TokenIdentifier || tok2.Literal != "new" {
+		t.Errorf("token[1] = %s(%q), want IDENTIFIER(\"new\")", tok2.Type, tok2.Literal)
+	}
+}
+
+func TestLexerFQN_FollowedByKeywordMessage(t *testing.T) {
+	input := "Widgets::Button label: 'OK'"
+	l := NewLexer(input)
+
+	tok1 := l.NextToken()
+	if tok1.Type != TokenIdentifier || tok1.Literal != "Widgets::Button" {
+		t.Errorf("token[0] = %s(%q), want IDENTIFIER(\"Widgets::Button\")", tok1.Type, tok1.Literal)
+	}
+
+	tok2 := l.NextToken()
+	if tok2.Type != TokenKeyword || tok2.Literal != "label:" {
+		t.Errorf("token[1] = %s(%q), want KEYWORD(\"label:\")", tok2.Type, tok2.Literal)
+	}
+
+	tok3 := l.NextToken()
+	if tok3.Type != TokenString || tok3.Literal != "OK" {
+		t.Errorf("token[2] = %s(%q), want STRING(\"OK\")", tok3.Type, tok3.Literal)
+	}
+}
+
+func TestLexerFQN_NotConfusedWithKeyword(t *testing.T) {
+	// A regular keyword like "foo:" should NOT be affected
+	input := "foo: bar"
+	l := NewLexer(input)
+
+	tok1 := l.NextToken()
+	if tok1.Type != TokenKeyword || tok1.Literal != "foo:" {
+		t.Errorf("token[0] = %s(%q), want KEYWORD(\"foo:\")", tok1.Type, tok1.Literal)
+	}
+
+	tok2 := l.NextToken()
+	if tok2.Type != TokenIdentifier || tok2.Literal != "bar" {
+		t.Errorf("token[1] = %s(%q), want IDENTIFIER(\"bar\")", tok2.Type, tok2.Literal)
+	}
+}
+
+func TestLexerFQN_AssignContext(t *testing.T) {
+	// x := Widgets::Button new
+	input := "x := Widgets::Button new"
+	expected := []struct {
+		typ TokenType
+		lit string
+	}{
+		{TokenIdentifier, "x"},
+		{TokenAssign, ":="},
+		{TokenIdentifier, "Widgets::Button"},
+		{TokenIdentifier, "new"},
+		{TokenEOF, ""},
+	}
+
+	l := NewLexer(input)
+	for i, exp := range expected {
+		tok := l.NextToken()
+		if tok.Type != exp.typ {
+			t.Errorf("token[%d] type = %v, want %v", i, tok.Type, exp.typ)
+		}
+		if tok.Literal != exp.lit {
+			t.Errorf("token[%d] literal = %q, want %q", i, tok.Literal, exp.lit)
+		}
+	}
+}
+
+func TestLexerFQN_InMethodBody(t *testing.T) {
+	// ^Widgets::Button new
+	input := "^Widgets::Button new"
+	expected := []struct {
+		typ TokenType
+		lit string
+	}{
+		{TokenCaret, "^"},
+		{TokenIdentifier, "Widgets::Button"},
+		{TokenIdentifier, "new"},
+		{TokenEOF, ""},
+	}
+
+	l := NewLexer(input)
+	for i, exp := range expected {
+		tok := l.NextToken()
+		if tok.Type != exp.typ {
+			t.Errorf("token[%d] type = %v, want %v", i, tok.Type, exp.typ)
+		}
+		if tok.Literal != exp.lit {
+			t.Errorf("token[%d] literal = %q, want %q", i, tok.Literal, exp.lit)
+		}
+	}
+}

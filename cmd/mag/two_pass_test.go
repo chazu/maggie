@@ -528,3 +528,220 @@ func TestTwoPass_TraitNamespace(t *testing.T) {
 		t.Errorf("trait.Namespace = %q, want %q", trait.Namespace, "Mylib")
 	}
 }
+
+// ---------------------------------------------------------------------------
+// No short-name Globals: namespaced classes register ONLY under FQN
+// ---------------------------------------------------------------------------
+
+func TestNoShortNameGlobals_NamespacedClassOnlyFQN(t *testing.T) {
+	vmInst := newTestVM(t)
+	tmpDir := t.TempDir()
+
+	nsA := filepath.Join(tmpDir, "alpha")
+	nsB := filepath.Join(tmpDir, "beta")
+	os.Mkdir(nsA, 0755)
+	os.Mkdir(nsB, 0755)
+
+	// Both namespaces define a class named "Widget"
+	writeMagFile(t, nsA, "Widget.mag", `Widget subclass: Object
+  method: source [ ^'alpha' ]
+`)
+
+	writeMagFile(t, nsB, "Widget.mag", `Widget subclass: Object
+  method: source [ ^'beta' ]
+`)
+
+	_, err := compilePath(tmpDir+"/...", vmInst, false)
+	if err != nil {
+		t.Fatalf("compilePath failed: %v", err)
+	}
+
+	// Both FQN entries should exist in Globals
+	alphaFQN := "Alpha::Widget"
+	betaFQN := "Beta::Widget"
+
+	alphaVal, alphaOK := vmInst.Globals[alphaFQN]
+	if !alphaOK {
+		t.Errorf("Globals[%q] not found", alphaFQN)
+	}
+	betaVal, betaOK := vmInst.Globals[betaFQN]
+	if !betaOK {
+		t.Errorf("Globals[%q] not found", betaFQN)
+	}
+
+	// The two class values must be distinct
+	if alphaOK && betaOK && alphaVal == betaVal {
+		t.Error("Alpha::Widget and Beta::Widget should be different class values in Globals")
+	}
+
+	// Bare name "Widget" must NOT be in Globals (no short-name registration)
+	if _, bareOK := vmInst.Globals["Widget"]; bareOK {
+		t.Error("Globals[\"Widget\"] should not exist — namespaced classes must only register under FQN")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Root-namespace classes still register under bare name in Globals
+// ---------------------------------------------------------------------------
+
+func TestNoShortNameGlobals_RootClassBareNameInGlobals(t *testing.T) {
+	vmInst := newTestVM(t)
+	tmpDir := t.TempDir()
+
+	// Root-level class (no namespace derived because it's directly in tmpDir)
+	writeMagFile(t, tmpDir, "Helper.mag", `Helper subclass: Object
+  method: help [ ^'helping' ]
+`)
+
+	_, err := compilePath(tmpDir, vmInst, false)
+	if err != nil {
+		t.Fatalf("compilePath failed: %v", err)
+	}
+
+	// Bare name should be in Globals (root namespace class)
+	if _, ok := vmInst.Globals["Helper"]; !ok {
+		t.Error("Globals[\"Helper\"] should exist for root-namespace class")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Cross-namespace method body reference works via import + FQN Globals
+// ---------------------------------------------------------------------------
+
+func TestNoShortNameGlobals_CrossNamespaceMethodRef(t *testing.T) {
+	vmInst := newTestVM(t)
+	tmpDir := t.TempDir()
+
+	nsLib := filepath.Join(tmpDir, "lib")
+	nsApp := filepath.Join(tmpDir, "app")
+	os.Mkdir(nsLib, 0755)
+	os.Mkdir(nsApp, 0755)
+
+	writeMagFile(t, nsLib, "Greeter.mag", `Greeter subclass: Object
+  method: greet [ ^'hello' ]
+`)
+
+	// App::Factory imports Lib so "Greeter" resolves to "Lib::Greeter" at compile time
+	writeMagFile(t, nsApp, "Factory.mag", `namespace: 'App'
+import: 'Lib'
+
+Factory subclass: Object
+  classMethod: makeGreeter [
+    ^Greeter new
+  ]
+`)
+
+	_, err := compilePath(tmpDir+"/...", vmInst, false)
+	if err != nil {
+		t.Fatalf("compilePath failed: %v", err)
+	}
+
+	// Execute App::Factory makeGreeter and verify it returns a Lib::Greeter
+	result := vmInst.Send(vmInst.Symbols.SymbolValue("App::Factory"), "makeGreeter", nil)
+	greetResult := vmInst.Send(result, "greet", nil)
+	if !vm.IsStringValue(greetResult) {
+		t.Fatalf("expected string result from greet, got %v", greetResult)
+	}
+	got := vmInst.Registry().GetStringContent(greetResult)
+	if got != "hello" {
+		t.Errorf("greet = %q, want %q", got, "hello")
+	}
+
+	// Bare "Greeter" should NOT be in Globals
+	if _, ok := vmInst.Globals["Greeter"]; ok {
+		t.Error("Globals[\"Greeter\"] should not exist — Greeter has namespace Lib")
+	}
+	// FQN should be in Globals
+	if _, ok := vmInst.Globals["Lib::Greeter"]; !ok {
+		t.Error("Globals[\"Lib::Greeter\"] should exist")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Explicit FQN syntax in method body: Widgets::Button new
+// ---------------------------------------------------------------------------
+
+func TestFQN_ExplicitFQNInMethodBody(t *testing.T) {
+	vmInst := newTestVM(t)
+	tmpDir := t.TempDir()
+
+	nsWidgets := filepath.Join(tmpDir, "widgets")
+	nsApp := filepath.Join(tmpDir, "app")
+	os.Mkdir(nsWidgets, 0755)
+	os.Mkdir(nsApp, 0755)
+
+	writeMagFile(t, nsWidgets, "Button.mag", `Button subclass: Object
+  method: label [ ^'OK' ]
+`)
+
+	// App::Factory uses explicit FQN syntax Widgets::Button in method body
+	// (no import needed when using explicit FQN)
+	writeMagFile(t, nsApp, "Factory.mag", `namespace: 'App'
+
+Factory subclass: Object
+  classMethod: makeButton [
+    ^Widgets::Button new
+  ]
+`)
+
+	_, err := compilePath(tmpDir+"/...", vmInst, false)
+	if err != nil {
+		t.Fatalf("compilePath failed: %v", err)
+	}
+
+	// Execute App::Factory makeButton — should return a Widgets::Button instance
+	result := vmInst.Send(vmInst.Symbols.SymbolValue("App::Factory"), "makeButton", nil)
+	labelResult := vmInst.Send(result, "label", nil)
+	if !vm.IsStringValue(labelResult) {
+		t.Fatalf("expected string result from label, got %v", labelResult)
+	}
+	got := vmInst.Registry().GetStringContent(labelResult)
+	if got != "OK" {
+		t.Errorf("label = %q, want %q", got, "OK")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Explicit FQN syntax with multi-level namespace: A::B::C
+// ---------------------------------------------------------------------------
+
+func TestFQN_ExplicitMultiLevelFQN(t *testing.T) {
+	vmInst := newTestVM(t)
+	tmpDir := t.TempDir()
+
+	// Create nested namespace: ui/widgets/
+	nsUI := filepath.Join(tmpDir, "ui")
+	nsWidgets := filepath.Join(nsUI, "widgets")
+	nsApp := filepath.Join(tmpDir, "app")
+	os.Mkdir(nsUI, 0755)
+	os.Mkdir(nsWidgets, 0755)
+	os.Mkdir(nsApp, 0755)
+
+	writeMagFile(t, nsWidgets, "Slider.mag", `Slider subclass: Object
+  method: kind [ ^'slider' ]
+`)
+
+	// App::Factory uses explicit multi-level FQN: Ui::Widgets::Slider
+	writeMagFile(t, nsApp, "Factory.mag", `namespace: 'App'
+
+Factory subclass: Object
+  classMethod: makeSlider [
+    ^Ui::Widgets::Slider new
+  ]
+`)
+
+	_, err := compilePath(tmpDir+"/...", vmInst, false)
+	if err != nil {
+		t.Fatalf("compilePath failed: %v", err)
+	}
+
+	result := vmInst.Send(vmInst.Symbols.SymbolValue("App::Factory"), "makeSlider", nil)
+	kindResult := vmInst.Send(result, "kind", nil)
+	if !vm.IsStringValue(kindResult) {
+		t.Fatalf("expected string result from kind, got %v", kindResult)
+	}
+	got := vmInst.Registry().GetStringContent(kindResult)
+	if got != "slider" {
+		t.Errorf("kind = %q, want %q", got, "slider")
+	}
+}

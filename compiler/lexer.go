@@ -449,6 +449,7 @@ func (l *Lexer) readNumber(pos Position) Token {
 }
 
 // readIdentifierOrKeyword reads an identifier or keyword.
+// Also handles FQN syntax: Identifier::Identifier (e.g., Widgets::Button, A::B::C).
 func (l *Lexer) readIdentifierOrKeyword(pos Position) Token {
 	start := l.pos
 
@@ -456,17 +457,37 @@ func (l *Lexer) readIdentifierOrKeyword(pos Position) Token {
 		l.readChar()
 	}
 
+	// Check for namespace separator :: (FQN syntax)
+	// If we see :: after an identifier, consume it and the next identifier segment.
+	// Repeat for chained namespaces (A::B::C).
+	for l.ch == ':' && l.peekChar() == ':' {
+		l.readChar() // consume first :
+		l.readChar() // consume second :
+		// Read next identifier segment
+		if !(isLetter(l.ch) || l.ch == '_') {
+			// :: not followed by identifier — leave the consumed :: in the literal
+			// and let the parser deal with the error
+			break
+		}
+		for isLetter(l.ch) || isDigit(l.ch) || l.ch == '_' {
+			l.readChar()
+		}
+	}
+
 	literal := l.input[start:l.pos]
 
 	// Check for keyword (ends with :)
-	if l.ch == ':' && l.peekChar() != '=' {
+	// Only if the literal does NOT contain :: (FQN names are never keywords)
+	if l.ch == ':' && l.peekChar() != '=' && !strings.Contains(literal, "::") {
 		l.readChar() // consume :
 		return Token{Type: TokenKeyword, Literal: literal + ":", Pos: pos}
 	}
 
-	// Check for reserved word
-	if tokType, ok := reservedWords[literal]; ok {
-		return Token{Type: tokType, Literal: literal, Pos: pos}
+	// Check for reserved word (only for non-FQN identifiers)
+	if !strings.Contains(literal, "::") {
+		if tokType, ok := reservedWords[literal]; ok {
+			return Token{Type: tokType, Literal: literal, Pos: pos}
+		}
 	}
 
 	return Token{Type: TokenIdentifier, Literal: literal, Pos: pos}
