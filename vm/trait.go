@@ -11,6 +11,7 @@ import "sync"
 // Traits are purely about method composition.
 type Trait struct {
 	Name      string                    // Trait name
+	Namespace string                    // Namespace (empty for default)
 	Methods   map[int]*CompiledMethod   // Methods indexed by selector ID
 	Requires  []int                     // Required method selector IDs (must be provided by class)
 	DocString string                    // documentation from """ ... """ (empty if none)

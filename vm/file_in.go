@@ -13,9 +13,20 @@ import (
 // Returns: method count, error.
 type FileInFunc func(v *VM, source string, sourcePath string, nsOverride string, verbose bool) (int, error)
 
+// FileInBatchFunc is the type for batch-compiling a directory into the VM using two-pass.
+// It is set by the CLI layer. When set, FileInAll uses it instead of per-file FileIn.
+// Parameters: vm, directory path, verbose.
+// Returns: method count, error.
+type FileInBatchFunc func(v *VM, dirPath string, verbose bool) (int, error)
+
 // SetFileInFunc sets the function used by FileIn to compile source text.
 func (vm *VM) SetFileInFunc(fn FileInFunc) {
 	vm.fileInFunc = fn
+}
+
+// SetFileInBatchFunc sets the function used by FileInAll for batch two-pass compilation.
+func (vm *VM) SetFileInBatchFunc(fn FileInBatchFunc) {
+	vm.fileInBatchFunc = fn
 }
 
 // FileIn reads a .mag file and compiles it into the VM.
@@ -44,8 +55,14 @@ func (vm *VM) FileInSource(source string, sourcePath string) (int, error) {
 }
 
 // FileInAll recursively loads all .mag files from a directory.
+// If a batch function is set (two-pass), uses that; otherwise falls back to per-file FileIn.
 // Returns the total number of methods compiled.
 func (vm *VM) FileInAll(dirPath string) (int, error) {
+	// Use batch two-pass if available
+	if vm.fileInBatchFunc != nil {
+		return vm.fileInBatchFunc(vm, dirPath, false)
+	}
+
 	if vm.fileInFunc == nil {
 		return 0, fmt.Errorf("fileInAll: compiler not available (fileInFunc not set)")
 	}

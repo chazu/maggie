@@ -103,6 +103,10 @@ type VM struct {
 	// fileInFunc compiles source text into the VM.
 	// Set by cmd/mag after compiler initialization to avoid circular imports.
 	fileInFunc FileInFunc
+
+	// fileInBatchFunc batch-compiles a directory using two-pass.
+	// Set by cmd/mag. When set, FileInAll uses this instead of per-file FileIn.
+	fileInBatchFunc FileInBatchFunc
 }
 
 // NewVM creates and bootstraps a new VM.
