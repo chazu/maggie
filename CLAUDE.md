@@ -174,7 +174,9 @@ Compiler fileOut: 'ClassName' to: '/tmp/ClassName.mag'.
 Compiler fileOutNamespace: 'MyApp::Models' to: '/tmp/models/'.
 ```
 
-fileOut reconstructs source from stored method text. Methods compiled from `.mag` files preserve their original source text; methods defined via `evaluate:` or primitives produce a stub comment instead.
+fileOut reconstructs source from stored method text. Methods compiled from `.mag` files preserve their original source text; methods defined via `evaluate:` or primitives produce a stub comment instead. For namespaced classes, fileOut emits a `namespace:` declaration at the top of the file. Import declarations are not preserved by fileOut (classes store their namespace but not per-file import lists).
+
+**Loading pipeline:** Files are loaded in a two-pass batch pipeline. Pass 1a registers class/trait skeletons, pass 1b resolves superclass pointers via `LookupWithImports`, and pass 2 compiles method bodies with FQN resolution context. `fileInAll:` uses this two-pass pipeline; `fileIn:` uses single-pass (acceptable since it operates on an already-populated ClassTable).
 
 ### Image Persistence
 
@@ -254,10 +256,14 @@ YutaniButton subclass: YutaniWidget
 - `::` is the namespace separator (e.g., `Yutani::Widgets::Button`)
 - Files without `namespace:`/`import:` work exactly as before (backward compatible)
 
-**Class resolution order** (when looking up a class name):
+**Class resolution order** (when looking up a class name at compile time):
 1. Current namespace (`MyNS::ClassName`)
 2. Each imported namespace in order (`Import1::ClassName`, `Import2::ClassName`, ...)
 3. Bare name (`ClassName` — the root/default namespace)
+
+**FQN resolution in method bodies:** The compiler resolves bare class names to fully-qualified names at compile time. When a method body references `Button` and the file imports `Widgets`, the compiler emits `OpPushGlobal("Widgets::Button")`. This is transparent — no runtime cost, no new opcodes. Explicit FQN syntax also works in expressions: `Widgets::Button new`.
+
+**Globals registration:** Namespaced classes are registered in Globals only under their FQN (e.g., `Globals["Widgets::Button"]`). Root-namespace classes use the bare name. Two namespaces defining the same class name coexist without collision.
 
 ### Directory-as-Namespace Convention
 
