@@ -29,6 +29,9 @@ type CompiledMethod struct {
 	// Nested blocks
 	Blocks []*BlockMethod // block methods referenced by CREATE_BLOCK
 
+	// Content addressing
+	ContentHash [32]byte // SHA-256 of normalized AST (zero = not computed)
+
 	// Debugging support
 	Source    string      // original source text
 	SourceMap []SourceLoc // bytecode offset → source position
@@ -121,6 +124,16 @@ func (m *CompiledMethod) DocString() string {
 // SetDocString sets the method's docstring.
 func (m *CompiledMethod) SetDocString(doc string) {
 	m.docString = doc
+}
+
+// GetContentHash returns the method's content hash.
+func (m *CompiledMethod) GetContentHash() [32]byte {
+	return m.ContentHash
+}
+
+// SetContentHash sets the method's content hash.
+func (m *CompiledMethod) SetContentHash(h [32]byte) {
+	m.ContentHash = h
 }
 
 // GetInlineCaches returns the inline cache table, creating it if needed.

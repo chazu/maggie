@@ -19,7 +19,8 @@ var ImageMagic = [4]byte{'M', 'A', 'G', 'I'}
 // v1: initial format
 // v2: added docstring support on methods and classes
 // v3: added class variable serialization
-const ImageVersion uint32 = 3
+// v4: added content hash (SHA-256) on compiled methods
+const ImageVersion uint32 = 4
 
 // Image header size in bytes
 // magic(4) + version(4) + flags(4) + objectCount(4) + stringTableOffset(8) + classTableOffset(8) + entryPoint(4) = 36
@@ -694,6 +695,9 @@ func (w *ImageWriter) writeMethod(m *CompiledMethod) {
 		WriteUint32(buf, uint32(loc.Column))
 		w.buf.Write(buf)
 	}
+
+	// Content hash (v4+): 32 bytes unconditional
+	w.buf.Write(m.ContentHash[:])
 
 	// Pad to 8-byte alignment (for future extensibility)
 	_ = buf8 // suppress unused warning

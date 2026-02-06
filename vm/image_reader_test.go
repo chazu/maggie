@@ -562,6 +562,9 @@ func TestImageReaderMethods(t *testing.T) {
 	builder.writeUint32(1)  // line
 	builder.writeUint32(10) // column
 
+	// Content hash (v4+): 32 zero bytes
+	builder.writeBytes(make([]byte, 32))
+
 	ir, err := NewImageReaderFromBytes(builder.bytes())
 	if err != nil {
 		t.Fatalf("NewImageReaderFromBytes failed: %v", err)
@@ -664,6 +667,9 @@ func TestImageReaderMethodsWithBlocks(t *testing.T) {
 	builder.writeBytes([]byte{0}) // no source (1 byte flag)
 	builder.writeBytes([]byte{0}) // no docstring (1 byte flag, v2+)
 	builder.writeUint32(0) // method source map count
+
+	// Content hash (v4+): 32 zero bytes
+	builder.writeBytes(make([]byte, 32))
 
 	ir, err := NewImageReaderFromBytes(builder.bytes())
 	if err != nil {

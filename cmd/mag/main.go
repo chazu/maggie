@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/chazu/maggie/compiler"
+	"github.com/chazu/maggie/compiler/hash"
 	"github.com/chazu/maggie/manifest"
 	"github.com/chazu/maggie/server"
 	"github.com/chazu/maggie/vm"
@@ -860,6 +861,8 @@ func compileAll(files []parsedFile, vmInst *vm.VM, verbose bool) (int, error) {
 					method.SetDocString(methodDef.DocString)
 				}
 
+				hashAndSetMethod(methodDef, method, nil, pf, vmInst)
+
 				selectorID := vmInst.Selectors.Intern(method.Name())
 				trait.AddMethod(selectorID, method)
 				compiled++
@@ -914,6 +917,13 @@ func compileAll(files []parsedFile, vmInst *vm.VM, verbose bool) (int, error) {
 				method.SetDocString(methodDef.DocString)
 			}
 
+			// Compute content hash with instance variable context
+			instVarMap := make(map[string]int, len(allIvars))
+			for idx, name := range allIvars {
+				instVarMap[name] = idx
+			}
+			hashAndSetMethod(methodDef, method, instVarMap, pf, vmInst)
+
 			method.SetClass(class)
 			selectorID := vmInst.Selectors.Intern(method.Name())
 			class.VTable.AddMethod(selectorID, method)
@@ -949,6 +959,8 @@ func compileAll(files []parsedFile, vmInst *vm.VM, verbose bool) (int, error) {
 				method.SetDocString(methodDef.DocString)
 			}
 
+			hashAndSetMethod(methodDef, method, nil, pf, vmInst)
+
 			method.SetClass(class)
 			method.IsClassMethod = true
 			selectorID := vmInst.Selectors.Intern(method.Name())
@@ -976,6 +988,27 @@ func compileAll(files []parsedFile, vmInst *vm.VM, verbose bool) (int, error) {
 	}
 
 	return compiled, nil
+}
+
+// resolveGlobalForHash resolves a bare name to its FQN for content hashing.
+// This mirrors the compiler's resolveGlobalName logic.
+func resolveGlobalForHash(name, namespace string, imports []string, classes *vm.ClassTable) string {
+	if classes == nil {
+		return name
+	}
+	cls := classes.LookupWithImports(name, namespace, imports)
+	if cls != nil && cls.Namespace != "" {
+		return cls.Namespace + "::" + cls.Name
+	}
+	return name
+}
+
+// hashAndSetMethod computes and sets the content hash on a compiled method.
+func hashAndSetMethod(methodDef *compiler.MethodDef, method *vm.CompiledMethod, instVars map[string]int, pf *parsedFile, vmInst *vm.VM) {
+	h := hash.HashMethod(methodDef, instVars, func(name string) string {
+		return resolveGlobalForHash(name, pf.namespace, pf.imports, vmInst.Classes)
+	})
+	method.SetContentHash(h)
 }
 
 // compilePath compiles .mag files from a path into the VM.

@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 
 	"github.com/chazu/maggie/compiler"
+	"github.com/chazu/maggie/compiler/hash"
 	"github.com/chazu/maggie/vm"
 )
 
@@ -142,6 +143,10 @@ func compileAllFiles(files []string, vmInst *vm.VM, verbose bool) (int, error) {
 					method.SetDocString(methodDef.DocString)
 				}
 
+				// Compute content hash
+				h := hash.HashMethod(methodDef, nil, nil)
+				method.SetContentHash(h)
+
 				selectorID := vmInst.Selectors.Intern(method.Name())
 				trait.AddMethod(selectorID, method)
 				compiled++
@@ -214,6 +219,7 @@ func compileAllFiles(files []string, vmInst *vm.VM, verbose bool) (int, error) {
 			}
 
 			// Compile instance methods (with instance variable context)
+			allIvars := class.AllInstVarNames()
 			for _, methodDef := range classDef.Methods {
 				method, err := compiler.CompileMethodDefWithIvars(methodDef, vmInst.Selectors, vmInst.Symbols, vmInst.Registry(), classDef.InstanceVariables)
 				if err != nil {
@@ -224,6 +230,14 @@ func compileAllFiles(files []string, vmInst *vm.VM, verbose bool) (int, error) {
 				if methodDef.DocString != "" {
 					method.SetDocString(methodDef.DocString)
 				}
+
+				// Compute content hash with instance variable context
+				instVarMap := make(map[string]int, len(allIvars))
+				for idx, name := range allIvars {
+					instVarMap[name] = idx
+				}
+				h := hash.HashMethod(methodDef, instVarMap, nil)
+				method.SetContentHash(h)
 
 				method.SetClass(class)
 				class.VTable.AddMethod(vmInst.Selectors.Intern(method.Name()), method)
@@ -241,6 +255,10 @@ func compileAllFiles(files []string, vmInst *vm.VM, verbose bool) (int, error) {
 				if methodDef.DocString != "" {
 					method.SetDocString(methodDef.DocString)
 				}
+
+				// Compute content hash
+				ch := hash.HashMethod(methodDef, nil, nil)
+				method.SetContentHash(ch)
 
 				method.SetClass(class)
 				method.IsClassMethod = true
