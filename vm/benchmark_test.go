@@ -1049,6 +1049,28 @@ func BenchmarkHotPath_VTableCachedLookup(b *testing.B) {
 	}
 }
 
+// BenchmarkHotPath_GlobalLookup measures OpPushGlobal performance (the hot path for global/class access)
+func BenchmarkHotPath_GlobalLookup(b *testing.B) {
+	vm := benchmarkVM()
+
+	// Build a method that does 100 OpPushGlobal + OpPOP, then returns last one
+	builder := NewCompiledMethodBuilder("globalLookup", 0)
+	bc := builder.Bytecode()
+	lit := uint16(builder.AddLiteral(vm.Symbols.SymbolValue("Array")))
+	for i := 0; i < 100; i++ {
+		bc.EmitUint16(OpPushGlobal, lit)
+		bc.Emit(OpPOP)
+	}
+	bc.EmitUint16(OpPushGlobal, lit)
+	bc.Emit(OpReturnTop)
+	method := builder.Build()
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		vm.Execute(method, Nil, nil)
+	}
+}
+
 // BenchmarkHotPath_MethodDispatchCached measures full message send with inline cache hit
 func BenchmarkHotPath_MethodDispatchCached(b *testing.B) {
 	vm := benchmarkVM()

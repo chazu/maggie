@@ -72,6 +72,11 @@ type Interpreter struct {
 	Classes   *ClassTable
 	Globals   map[string]Value
 
+	// Process-level restriction fields (Phase 4: process isolation)
+	localWrites map[string]Value // process-local global writes (nil until first write)
+	hidden      map[string]bool  // restricted global names (nil if unrestricted)
+	forked      bool             // true for forked interpreters (writes go to localWrites)
+
 	// Back-reference to owning VM for registry access.
 	// nil for standalone interpreters in tests.
 	vm *VM
@@ -114,7 +119,8 @@ type Interpreter struct {
 	selectorClass   int
 }
 
-// NewInterpreter creates a new interpreter.
+// NewInterpreter creates a new standalone interpreter with its own tables.
+// Used by tests that need independent interpreters.
 func NewInterpreter() *Interpreter {
 	interp := &Interpreter{
 		Selectors:     NewSelectorTable(),
@@ -132,6 +138,21 @@ func NewInterpreter() *Interpreter {
 	interp.internWellKnownSelectors()
 
 	return interp
+}
+
+// newBareInterpreter allocates only per-goroutine execution state (stack, frames,
+// profiler). It does NOT allocate Selectors, Classes, or Globals — those must be
+// assigned by the caller (typically VM.newInterpreter or VM.newForkedInterpreter).
+func newBareInterpreter() *Interpreter {
+	return &Interpreter{
+		stack:         make([]Value, 1024),
+		sp:            0,
+		frames:        make([]*CallFrame, 256),
+		fp:            -1,
+		MaxStackDepth: DefaultMaxStackDepth,
+		MaxFrameDepth: DefaultMaxFrameDepth,
+		Profiler:      NewProfiler(),
+	}
 }
 
 // internWellKnownSelectors populates the cached selector IDs from the current
@@ -157,6 +178,40 @@ func (interp *Interpreter) internWellKnownSelectors() {
 	interp.selectorValue2 = interp.Selectors.Intern("value:value:")
 	interp.selectorNew = interp.Selectors.Intern("new")
 	interp.selectorClass = interp.Selectors.Intern("class")
+}
+
+// LookupGlobal returns the value of a global, respecting process restrictions.
+func (i *Interpreter) LookupGlobal(name string) (Value, bool) {
+	if i.hidden != nil && i.hidden[name] {
+		return Nil, false
+	}
+	if i.localWrites != nil {
+		if val, ok := i.localWrites[name]; ok {
+			return val, true
+		}
+	}
+	val, ok := i.Globals[name]
+	return val, ok
+}
+
+// SetGlobal sets a global, respecting process restrictions and fork isolation.
+func (i *Interpreter) SetGlobal(name string, val Value) {
+	if i.hidden != nil && i.hidden[name] {
+		return // silently deny
+	}
+	if i.forked {
+		if i.localWrites == nil {
+			i.localWrites = make(map[string]Value)
+		}
+		i.localWrites[name] = val
+	} else {
+		i.Globals[name] = val
+	}
+}
+
+// IsGlobalHidden reports whether a global name is hidden in this process.
+func (i *Interpreter) IsGlobalHidden(name string) bool {
+	return i.hidden != nil && i.hidden[name]
 }
 
 // StackTrace returns a formatted stack trace of the current call stack.
@@ -577,7 +632,17 @@ func (i *Interpreter) runFrame() Value {
 					globalName = i.vm.registry.GetStringContent(lit)
 				}
 				if globalName != "" {
-					if val, ok := i.Globals[globalName]; ok {
+					if i.hidden != nil && i.hidden[globalName] {
+						i.push(Nil)
+					} else if i.localWrites != nil {
+						if val, ok := i.localWrites[globalName]; ok {
+							i.push(val)
+						} else if val, ok := i.Globals[globalName]; ok {
+							i.push(val)
+						} else {
+							i.push(Nil)
+						}
+					} else if val, ok := i.Globals[globalName]; ok {
 						i.push(val)
 					} else {
 						i.push(Nil)
@@ -602,9 +667,18 @@ func (i *Interpreter) runFrame() Value {
 					globalName = i.vm.registry.GetStringContent(lit)
 				}
 				if globalName != "" {
-					// Store the value (top of stack) to the global
-					// Value remains on stack (like other store operations)
-					i.Globals[globalName] = i.top()
+					if i.hidden != nil && i.hidden[globalName] {
+						// silently deny write to restricted name
+					} else if i.forked {
+						// Forked process: write to process-local overlay
+						if i.localWrites == nil {
+							i.localWrites = make(map[string]Value)
+						}
+						i.localWrites[globalName] = i.top()
+					} else {
+						// Main interpreter: write directly to shared Globals
+						i.Globals[globalName] = i.top()
+					}
 				}
 			}
 

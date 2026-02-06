@@ -393,8 +393,8 @@ func (vm *VM) registerProcessPrimitives() {
 				v.unregisterInterpreter()
 			}()
 
-			// Create a new interpreter for this goroutine
-			interp := v.newInterpreter()
+			// Create a forked interpreter for this goroutine
+			interp := v.newForkedInterpreter(nil)
 			// Register this interpreter for the current goroutine
 			v.registerInterpreter(interp)
 			// Use ExecuteBlockDetached so ^ becomes local return
@@ -429,7 +429,7 @@ func (vm *VM) registerProcessPrimitives() {
 				v.unregisterInterpreter()
 			}()
 
-			interp := v.newInterpreter()
+			interp := v.newForkedInterpreter(nil)
 			v.registerInterpreter(interp)
 			result := interp.ExecuteBlockDetached(bv.Block, bv.Captures, []Value{arg}, bv.HomeSelf, bv.HomeMethod)
 			proc.markDone(result, nil)
@@ -468,7 +468,7 @@ func (vm *VM) registerProcessPrimitives() {
 				v.unregisterInterpreter()
 			}()
 
-			interp := v.newInterpreter()
+			interp := v.newForkedInterpreter(nil)
 			v.registerInterpreter(interp)
 
 			// Monitor context cancellation
@@ -518,7 +518,7 @@ func (vm *VM) registerProcessPrimitives() {
 				v.unregisterInterpreter()
 			}()
 
-			interp := v.newInterpreter()
+			interp := v.newForkedInterpreter(nil)
 			v.registerInterpreter(interp)
 			result := interp.ExecuteBlockDetached(bv.Block, bv.Captures, nil, bv.HomeSelf, bv.HomeMethod)
 			proc.markDone(result, nil)
@@ -587,4 +587,124 @@ func (vm *VM) registerProcessPrimitives() {
 		time.Sleep(duration)
 		return recv
 	})
+
+	// Block>>forkRestricted: restrictions - fork with restricted globals
+	// restrictions is an Array of class name strings/symbols to hide
+	vm.BlockClass.AddMethod1(vm.Selectors, "forkRestricted:", func(vmPtr interface{}, recv Value, restrictionsVal Value) Value {
+		v := vmPtr.(*VM)
+		bv := v.currentInterpreter().getBlockValue(recv)
+		if bv == nil {
+			return Nil
+		}
+
+		hidden := v.extractHiddenMap(restrictionsVal)
+		if hidden == nil {
+			return Nil
+		}
+
+		// Inherit any existing restrictions from the calling interpreter
+		callerInterp := v.currentInterpreter()
+		if callerInterp.hidden != nil {
+			for name := range callerInterp.hidden {
+				hidden[name] = true
+			}
+		}
+
+		proc := v.createProcess()
+		procValue := v.registerProcess(proc)
+
+		go func() {
+			defer func() {
+				if r := recover(); r != nil {
+					if nlr, ok := r.(NonLocalReturn); ok {
+						proc.markDone(nlr.Value, nil)
+					} else {
+						proc.markDone(Nil, nil)
+					}
+				}
+				v.unregisterInterpreter()
+			}()
+
+			interp := v.newForkedInterpreter(hidden)
+			v.registerInterpreter(interp)
+			result := interp.ExecuteBlockDetached(bv.Block, bv.Captures, nil, bv.HomeSelf, bv.HomeMethod)
+			proc.markDone(result, nil)
+		}()
+
+		return procValue
+	})
+
+	// Process class>>forkWithout:do: - fork a block with restrictions (class method)
+	// restrictions is an Array of class name strings/symbols to hide
+	c.AddClassMethod2(vm.Selectors, "forkWithout:do:", func(vmPtr interface{}, recv Value, restrictionsVal, blockVal Value) Value {
+		v := vmPtr.(*VM)
+		bv := v.currentInterpreter().getBlockValue(blockVal)
+		if bv == nil {
+			return Nil
+		}
+
+		hidden := v.extractHiddenMap(restrictionsVal)
+		if hidden == nil {
+			return Nil
+		}
+
+		// Inherit any existing restrictions from the calling interpreter
+		callerInterp := v.currentInterpreter()
+		if callerInterp.hidden != nil {
+			for name := range callerInterp.hidden {
+				hidden[name] = true
+			}
+		}
+
+		proc := v.createProcess()
+		procValue := v.registerProcess(proc)
+
+		go func() {
+			defer func() {
+				if r := recover(); r != nil {
+					if nlr, ok := r.(NonLocalReturn); ok {
+						proc.markDone(nlr.Value, nil)
+					} else {
+						proc.markDone(Nil, nil)
+					}
+				}
+				v.unregisterInterpreter()
+			}()
+
+			interp := v.newForkedInterpreter(hidden)
+			v.registerInterpreter(interp)
+			result := interp.ExecuteBlockDetached(bv.Block, bv.Captures, nil, bv.HomeSelf, bv.HomeMethod)
+			proc.markDone(result, nil)
+		}()
+
+		return procValue
+	})
+}
+
+// extractHiddenMap converts a Maggie Array of name strings/symbols into a hidden map.
+// Returns nil if the input is not a valid array.
+func (vm *VM) extractHiddenMap(restrictionsVal Value) map[string]bool {
+	if !restrictionsVal.IsObject() {
+		return nil
+	}
+	obj := ObjectFromValue(restrictionsVal)
+	if obj == nil {
+		return nil
+	}
+	hidden := make(map[string]bool, obj.NumSlots())
+	for i := 0; i < obj.NumSlots(); i++ {
+		elem := obj.GetSlot(i)
+		var name string
+		if elem.IsSymbol() {
+			if IsStringValue(elem) {
+				name = vm.registry.GetStringContent(elem)
+			} else {
+				name = vm.Symbols.Name(elem.SymbolID())
+			}
+		}
+		if name != "" {
+			hidden[name] = true
+		}
+	}
+	return hidden
 }

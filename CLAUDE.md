@@ -42,6 +42,7 @@ result := Channel select: {
 proc := [expression] fork.         "Fork block, returns Process"
 proc := [expr] forkWith: arg.      "Fork with argument"
 proc := [:ctx | ...] forkWithContext: ctx.  "Fork with cancellation context"
+proc := [expr] forkRestricted: #('File' 'HTTP').  "Fork with restricted globals"
 
 proc wait.                         "Block until complete, returns result"
 proc isDone.                       "Check if finished"
@@ -50,9 +51,12 @@ proc result.                       "Get result (nil if not done)"
 Process current.                   "Current process"
 Process yield.                     "Yield to other goroutines"
 Process sleep: milliseconds.       "Sleep"
+Process forkWithout: #('File' 'HTTP') do: [dangerous code].  "Fork with restrictions"
 ```
 
 **fork vs forkWithResult**: `fork` treats non-local returns (^) as local returns within the forked process—they don't escape. This prevents crashes from NLRs crossing goroutine boundaries.
+
+**Process-level restriction**: Forked processes can be restricted from seeing certain globals (classes, modules). Restricted names simply resolve to `nil` — there is no permission error. Restrictions are inherited by child forks. `Compiler evaluate:` and `Object allClasses` respect process restrictions. Forked process writes to globals go to a process-local overlay and don't affect the shared VM state.
 
 ### Mutex (mutual exclusion)
 

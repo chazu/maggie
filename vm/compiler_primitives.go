@@ -43,9 +43,9 @@ func (vm *VM) registerCompilerPrimitives() {
 			return v.newFailureResult("Compilation returned nil")
 		}
 
-		// Execute the compiled method with nil as receiver
-		// (expressions don't have a specific receiver context)
-		result := v.Execute(method, Nil, nil)
+		// Execute using the calling process's interpreter (respects restrictions)
+		interp := v.currentInterpreter()
+		result := interp.Execute(method, Nil, nil)
 
 		return result
 	})
@@ -74,8 +74,9 @@ func (vm *VM) registerCompilerPrimitives() {
 			return v.newFailureResult("Compilation returned nil")
 		}
 
-		// Execute with the provided context as receiver
-		result := v.Execute(method, contextVal, nil)
+		// Execute using the calling process's interpreter (respects restrictions)
+		interp := v.currentInterpreter()
+		result := interp.Execute(method, contextVal, nil)
 
 		return result
 	})
@@ -95,8 +96,9 @@ func (vm *VM) registerCompilerPrimitives() {
 			return v.newFailureResult("setGlobal:to: requires a Symbol or String name")
 		}
 
-		// Set the global
-		v.interpreter.Globals[name] = valueVal
+		// Set the global using the calling process's interpreter (respects restrictions)
+		interp := v.currentInterpreter()
+		interp.SetGlobal(name, valueVal)
 
 		return valueVal
 	})
@@ -116,8 +118,9 @@ func (vm *VM) registerCompilerPrimitives() {
 			return v.newFailureResult("getGlobal: requires a Symbol or String name")
 		}
 
-		// Get the global
-		if val, ok := v.interpreter.Globals[name]; ok {
+		// Get the global using the calling process's interpreter (respects restrictions)
+		interp := v.currentInterpreter()
+		if val, ok := interp.LookupGlobal(name); ok {
 			return val
 		}
 
@@ -147,6 +150,10 @@ func (vm *VM) registerCompilerPrimitives() {
 			return v.newFailureResult("evaluate:withLocals: requires a Dictionary for locals")
 		}
 
+		// Get the calling process's interpreter (respects restrictions)
+		interp := v.currentInterpreter()
+		globals := interp.Globals
+
 		// Extract local variable names and values from the dictionary
 		localNames := make(map[string]bool)
 		savedGlobals := make(map[string]Value)
@@ -164,18 +171,18 @@ func (vm *VM) registerCompilerPrimitives() {
 			localNames[name] = true
 
 			// Save existing global value (if any) for restoration
-			if existing, ok := v.interpreter.Globals[name]; ok {
+			if existing, ok := globals[name]; ok {
 				savedGlobals[name] = existing
 			}
 
 			// Inject local value into globals
-			v.interpreter.Globals[name] = dict.Data[h]
+			globals[name] = dict.Data[h]
 		}
 
 		// Take a snapshot of all global keys before execution
 		// so we can detect new assignments
 		preExecGlobals := make(map[string]bool)
-		for k := range v.interpreter.Globals {
+		for k := range globals {
 			preExecGlobals[k] = true
 		}
 
@@ -183,20 +190,20 @@ func (vm *VM) registerCompilerPrimitives() {
 		method, err := v.CompileExpression(source)
 		if err != nil {
 			// Restore globals before returning error
-			v.restoreGlobals(localNames, savedGlobals)
+			v.restoreGlobalsMap(globals, localNames, savedGlobals)
 			return v.newFailureResult("Compilation error: " + err.Error())
 		}
 		if method == nil {
-			v.restoreGlobals(localNames, savedGlobals)
+			v.restoreGlobalsMap(globals, localNames, savedGlobals)
 			return v.newFailureResult("Compilation returned nil")
 		}
 
-		// Execute the compiled method
-		result := v.Execute(method, Nil, nil)
+		// Execute the compiled method using the calling interpreter
+		result := interp.Execute(method, Nil, nil)
 
 		// Write back modified/new locals to the dictionary
 		for name := range localNames {
-			if val, ok := v.interpreter.Globals[name]; ok {
+			if val, ok := globals[name]; ok {
 				// Write current value back to locals dict
 				symKey := v.Symbols.SymbolValue(name)
 				h := hashValue(v.registry, symKey)
@@ -207,7 +214,7 @@ func (vm *VM) registerCompilerPrimitives() {
 
 		// Also capture any NEW variables assigned during execution
 		// (variables that didn't exist in globals before and aren't class names)
-		for name, val := range v.interpreter.Globals {
+		for name, val := range globals {
 			if !preExecGlobals[name] && !localNames[name] {
 				// This is a new variable created during evaluation
 				// Write it to the locals dictionary
@@ -216,15 +223,11 @@ func (vm *VM) registerCompilerPrimitives() {
 				dict.Data[h] = val
 				dict.Keys[h] = symKey
 				localNames[name] = true
-
-				// Save for cleanup (it wasn't in globals before)
-				// savedGlobals won't have it, which means restoreGlobals
-				// will delete it from globals
 			}
 		}
 
 		// Restore globals to their pre-evaluation state
-		v.restoreGlobals(localNames, savedGlobals)
+		v.restoreGlobalsMap(globals, localNames, savedGlobals)
 
 		return result
 	})
@@ -386,14 +389,14 @@ func (vm *VM) registerCompilerPrimitives() {
 	})
 }
 
-// restoreGlobals restores the interpreter's Globals map after evaluate:withLocals: execution.
+// restoreGlobalsMap restores a Globals map after evaluate:withLocals: execution.
 // For each local name: if it had a saved value, restore it; otherwise delete it from globals.
-func (vm *VM) restoreGlobals(localNames map[string]bool, savedGlobals map[string]Value) {
+func (vm *VM) restoreGlobalsMap(globals map[string]Value, localNames map[string]bool, savedGlobals map[string]Value) {
 	for name := range localNames {
 		if saved, ok := savedGlobals[name]; ok {
-			vm.interpreter.Globals[name] = saved
+			globals[name] = saved
 		} else {
-			delete(vm.interpreter.Globals, name)
+			delete(globals, name)
 		}
 	}
 }

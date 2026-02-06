@@ -1603,3 +1603,121 @@ func TestStackOverflowStandaloneInterpreter(t *testing.T) {
 		t.Errorf("panic message = %q, want it to contain 'Stack overflow'", panicMsg)
 	}
 }
+
+// ---------------------------------------------------------------------------
+// Process-level restriction tests (Phase 4c)
+// ---------------------------------------------------------------------------
+
+func TestProcessLocalWrites(t *testing.T) {
+	vm := NewVM()
+	// Set up a global on the VM
+	vm.Globals["x"] = FromSmallInt(42)
+
+	// Create a forked interpreter
+	interp := newBareInterpreter()
+	interp.Selectors = vm.Selectors
+	interp.Symbols = vm.Symbols
+	interp.Classes = vm.Classes
+	interp.Globals = vm.Globals
+	interp.vm = vm
+	interp.forked = true
+	interp.internWellKnownSelectors()
+
+	// Write to a global from the forked interpreter
+	interp.SetGlobal("x", FromSmallInt(99))
+	interp.SetGlobal("y", FromSmallInt(7))
+
+	// The forked interpreter should see the local write
+	val, ok := interp.LookupGlobal("x")
+	if !ok || val.SmallInt() != 99 {
+		t.Errorf("forked interp LookupGlobal(x) = %v, %v; want 99, true", val, ok)
+	}
+	val, ok = interp.LookupGlobal("y")
+	if !ok || val.SmallInt() != 7 {
+		t.Errorf("forked interp LookupGlobal(y) = %v, %v; want 7, true", val, ok)
+	}
+
+	// The shared VM.Globals should NOT be affected
+	if vm.Globals["x"].SmallInt() != 42 {
+		t.Errorf("VM.Globals[x] = %v, want 42", vm.Globals["x"])
+	}
+	if _, exists := vm.Globals["y"]; exists {
+		t.Error("VM.Globals[y] should not exist, but it does")
+	}
+}
+
+func TestHiddenGlobals(t *testing.T) {
+	vm := NewVM()
+	// File and HTTP are classes that we want to hide
+	vm.Globals["File"] = FromSmallInt(1)
+	vm.Globals["HTTP"] = FromSmallInt(2)
+	vm.Globals["Array"] = FromSmallInt(3)
+
+	interp := newBareInterpreter()
+	interp.Selectors = vm.Selectors
+	interp.Symbols = vm.Symbols
+	interp.Classes = vm.Classes
+	interp.Globals = vm.Globals
+	interp.vm = vm
+	interp.forked = true
+	interp.hidden = map[string]bool{"File": true, "HTTP": true}
+	interp.internWellKnownSelectors()
+
+	// Hidden globals should return Nil, false
+	val, ok := interp.LookupGlobal("File")
+	if ok || val != Nil {
+		t.Errorf("LookupGlobal(File) = %v, %v; want Nil, false", val, ok)
+	}
+
+	// Non-hidden globals should work normally
+	val, ok = interp.LookupGlobal("Array")
+	if !ok || val.SmallInt() != 3 {
+		t.Errorf("LookupGlobal(Array) = %v, %v; want 3, true", val, ok)
+	}
+
+	// IsGlobalHidden
+	if !interp.IsGlobalHidden("File") {
+		t.Error("IsGlobalHidden(File) = false, want true")
+	}
+	if interp.IsGlobalHidden("Array") {
+		t.Error("IsGlobalHidden(Array) = true, want false")
+	}
+
+	// SetGlobal on hidden name should be silently denied
+	interp.SetGlobal("File", FromSmallInt(999))
+	val, ok = interp.LookupGlobal("File")
+	if ok || val != Nil {
+		t.Errorf("after SetGlobal, LookupGlobal(File) = %v, %v; want Nil, false", val, ok)
+	}
+}
+
+func TestUnrestrictedFastPath(t *testing.T) {
+	vm := NewVM()
+	vm.Globals["x"] = FromSmallInt(42)
+
+	// Main interpreter (not forked, no hidden, no localWrites)
+	interp := vm.newInterpreter()
+
+	// Should behave identically to direct map access
+	val, ok := interp.LookupGlobal("x")
+	if !ok || val.SmallInt() != 42 {
+		t.Errorf("LookupGlobal(x) = %v, %v; want 42, true", val, ok)
+	}
+
+	// SetGlobal on main interpreter should write to shared Globals
+	interp.SetGlobal("z", FromSmallInt(100))
+	if vm.Globals["z"].SmallInt() != 100 {
+		t.Errorf("VM.Globals[z] = %v, want 100", vm.Globals["z"])
+	}
+
+	// Verify fast path fields are nil
+	if interp.hidden != nil {
+		t.Error("unrestricted interp.hidden should be nil")
+	}
+	if interp.localWrites != nil {
+		t.Error("unrestricted interp.localWrites should be nil")
+	}
+	if interp.forked {
+		t.Error("main interp.forked should be false")
+	}
+}

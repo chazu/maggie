@@ -163,27 +163,34 @@ func (vm *VM) registerClassReflectionPrimitives() {
 	// ---------------------------------------------------------------------------
 
 	// allClasses - returns an array of all class objects in the system
-	// This is a class method on Object that returns all registered classes
+	// Respects process-level restrictions: hidden classes are filtered out.
 	c.AddClassMethod0(vm.Selectors, "allClasses", func(vmPtr interface{}, recv Value) Value {
 		v := vmPtr.(*VM)
+		interp := v.currentInterpreter()
 		classes := v.Classes.All()
-		values := make([]Value, len(classes))
-		for i, cls := range classes {
-			values[i] = registerClassValue(cls)
+		var values []Value
+		for _, cls := range classes {
+			if !interp.IsGlobalHidden(cls.FullName()) && !interp.IsGlobalHidden(cls.Name) {
+				values = append(values, registerClassValue(cls))
+			}
 		}
 		return v.NewArrayWithElements(values)
 	})
 
 	// allClassesSorted - returns an array of all class objects, sorted alphabetically by name
+	// Respects process-level restrictions: hidden classes are filtered out.
 	c.AddClassMethod0(vm.Selectors, "allClassesSorted", func(vmPtr interface{}, recv Value) Value {
 		v := vmPtr.(*VM)
+		interp := v.currentInterpreter()
 		classes := v.Classes.All()
-		// Sort by name
-		names := make([]string, len(classes))
-		classMap := make(map[string]*Class, len(classes))
-		for i, cls := range classes {
-			names[i] = cls.Name
-			classMap[cls.Name] = cls
+		// Filter and collect names
+		var names []string
+		classMap := make(map[string]*Class)
+		for _, cls := range classes {
+			if !interp.IsGlobalHidden(cls.FullName()) && !interp.IsGlobalHidden(cls.Name) {
+				names = append(names, cls.Name)
+				classMap[cls.Name] = cls
+			}
 		}
 		// Simple bubble sort (classes list is small)
 		for i := 0; i < len(names)-1; i++ {

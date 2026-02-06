@@ -140,16 +140,33 @@ func NewVM() *VM {
 }
 
 // newInterpreter creates an interpreter connected to this VM.
+// Uses newBareInterpreter to avoid allocating tables that are immediately replaced.
 func (vm *VM) newInterpreter() *Interpreter {
-	interp := NewInterpreter()
+	interp := newBareInterpreter()
 	// Share tables with VM
 	interp.Selectors = vm.Selectors
 	interp.Symbols = vm.Symbols
 	interp.Classes = vm.Classes
 	interp.Globals = vm.Globals
 	interp.vm = vm // Back-reference for primitives
-	// Re-intern well-known selectors against the VM's table so cached IDs
+	// Intern well-known selectors against the VM's table so cached IDs
 	// match the IDs used by methods registered on the VM's classes.
+	interp.internWellKnownSelectors()
+	return interp
+}
+
+// newForkedInterpreter creates a forked interpreter with optional restrictions.
+// It shares VM tables but writes go to a process-local overlay.
+// Pass nil for hidden to create an unrestricted forked interpreter.
+func (vm *VM) newForkedInterpreter(hidden map[string]bool) *Interpreter {
+	interp := newBareInterpreter()
+	interp.Selectors = vm.Selectors
+	interp.Symbols = vm.Symbols
+	interp.Classes = vm.Classes
+	interp.Globals = vm.Globals
+	interp.vm = vm
+	interp.forked = true
+	interp.hidden = hidden
 	interp.internWellKnownSelectors()
 	return interp
 }

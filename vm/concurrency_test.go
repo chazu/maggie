@@ -2639,3 +2639,128 @@ func TestMutexTryLockUnlockCycle(t *testing.T) {
 		vm.Send(mu, "unlock", nil)
 	}
 }
+
+// ---------------------------------------------------------------------------
+// Process-level restriction tests (Phase 4d)
+// ---------------------------------------------------------------------------
+
+func TestForkRestricted_HidesClasses(t *testing.T) {
+	vm := NewVM()
+
+	// Ensure File global exists
+	vm.Globals["File"] = FromSmallInt(999)
+
+	// Create a block that pushes the "File" global and returns it
+	fileSym := vm.Symbols.SymbolValue("File")
+	block := &BlockMethod{
+		Arity:    0,
+		NumTemps: 0,
+		Bytecode: func() []byte {
+			bb := NewBytecodeBuilder()
+			bb.EmitUint16(OpPushGlobal, 0) // literal 0 = "File"
+			bb.Emit(OpBlockReturn)
+			return bb.Bytes()
+		}(),
+		Literals: []Value{fileSym},
+	}
+	blockVal := vm.interpreter.createBlockValue(block, nil)
+
+	// Fork with restriction on "File"
+	restrictions := vm.NewArrayWithElements([]Value{vm.registry.NewStringValue("File")})
+	proc := vm.Send(blockVal, "forkRestricted:", []Value{restrictions})
+	result := vm.Send(proc, "wait", nil)
+
+	// Should get Nil (File is hidden)
+	if result != Nil {
+		t.Errorf("forkRestricted: saw File = %v, want Nil", result)
+	}
+}
+
+func TestForkRestricted_InheritsUnrestricted(t *testing.T) {
+	vm := NewVM()
+
+	// Create a block that accesses "Array" global
+	arraySym := vm.Symbols.SymbolValue("Array")
+	block := &BlockMethod{
+		Arity:    0,
+		NumTemps: 0,
+		Bytecode: func() []byte {
+			bb := NewBytecodeBuilder()
+			bb.EmitUint16(OpPushGlobal, 0)
+			bb.Emit(OpBlockReturn)
+			return bb.Bytes()
+		}(),
+		Literals: []Value{arraySym},
+	}
+	blockVal := vm.interpreter.createBlockValue(block, nil)
+
+	// Fork with restriction on "File" only — Array should still be visible
+	restrictions := vm.NewArrayWithElements([]Value{vm.registry.NewStringValue("File")})
+	proc := vm.Send(blockVal, "forkRestricted:", []Value{restrictions})
+	result := vm.Send(proc, "wait", nil)
+
+	// Should get the Array class value (not Nil)
+	if result == Nil {
+		t.Error("forkRestricted: Array should be visible but got Nil")
+	}
+}
+
+func TestForkRestricted_WritesAreLocal(t *testing.T) {
+	vm := NewVM()
+
+	// Create a block that writes 42 to global "testVar" via OpStoreGlobal
+	varSym := vm.Symbols.SymbolValue("testVar")
+	block := &BlockMethod{
+		Arity:    0,
+		NumTemps: 0,
+		Bytecode: func() []byte {
+			bb := NewBytecodeBuilder()
+			bb.EmitInt8(OpPushInt8, 42)
+			bb.EmitUint16(OpStoreGlobal, 0) // literal 0 = "testVar"
+			bb.Emit(OpBlockReturn)
+			return bb.Bytes()
+		}(),
+		Literals: []Value{varSym},
+	}
+	blockVal := vm.interpreter.createBlockValue(block, nil)
+
+	// Fork (even without restrictions, forked writes go to localWrites)
+	proc := vm.Send(blockVal, "fork", nil)
+	vm.Send(proc, "wait", nil)
+
+	// testVar should NOT be in VM.Globals
+	if _, ok := vm.Globals["testVar"]; ok {
+		t.Error("forked process write leaked to VM.Globals")
+	}
+}
+
+func TestForkWithoutDo_HidesClasses(t *testing.T) {
+	vm := NewVM()
+
+	// Ensure HTTP global exists
+	vm.Globals["HTTP"] = FromSmallInt(888)
+
+	// Create a block that tries to access "HTTP" global
+	httpSym := vm.Symbols.SymbolValue("HTTP")
+	block := &BlockMethod{
+		Arity:    0,
+		NumTemps: 0,
+		Bytecode: func() []byte {
+			bb := NewBytecodeBuilder()
+			bb.EmitUint16(OpPushGlobal, 0)
+			bb.Emit(OpBlockReturn)
+			return bb.Bytes()
+		}(),
+		Literals: []Value{httpSym},
+	}
+	blockVal := vm.interpreter.createBlockValue(block, nil)
+
+	// Fork using Process forkWithout:do:
+	restrictions := vm.NewArrayWithElements([]Value{vm.registry.NewStringValue("HTTP")})
+	proc := vm.Send(vm.classValue(vm.ProcessClass), "forkWithout:do:", []Value{restrictions, blockVal})
+	result := vm.Send(proc, "wait", nil)
+
+	if result != Nil {
+		t.Errorf("forkWithout:do: saw HTTP = %v, want Nil", result)
+	}
+}
