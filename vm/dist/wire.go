@@ -3,6 +3,7 @@ package dist
 import (
 	"fmt"
 
+	"github.com/chazu/maggie/vm"
 	"github.com/fxamacker/cbor/v2"
 )
 
@@ -118,6 +119,35 @@ func VerifyChunkMethod(c *Chunk, compile func(source string) ([32]byte, error)) 
 	}
 	if computed != c.Hash {
 		return fmt.Errorf("dist: hash mismatch: declared %x, computed %x", c.Hash, computed)
+	}
+	return nil
+}
+
+// VerifyChunkClass verifies that a class chunk's declared dependency hashes
+// (method hashes) all exist in the content store. This ensures we have all
+// methods before accepting the class digest.
+func VerifyChunkClass(c *Chunk, store *vm.ContentStore) error {
+	if c.Type != ChunkClass {
+		return fmt.Errorf("dist: cannot verify non-class chunk (type=%d)", c.Type)
+	}
+	for _, dep := range c.Dependencies {
+		if !store.HasHash(dep) {
+			return fmt.Errorf("dist: class chunk missing dependency %x", dep)
+		}
+	}
+	return nil
+}
+
+// VerifyChunkModule verifies that a module chunk's declared dependency hashes
+// (class hashes) all exist in the content store.
+func VerifyChunkModule(c *Chunk, store *vm.ContentStore) error {
+	if c.Type != ChunkModule {
+		return fmt.Errorf("dist: cannot verify non-module chunk (type=%d)", c.Type)
+	}
+	for _, dep := range c.Dependencies {
+		if !store.HasHash(dep) {
+			return fmt.Errorf("dist: module chunk missing dependency %x", dep)
+		}
 	}
 	return nil
 }

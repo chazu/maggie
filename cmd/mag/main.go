@@ -16,6 +16,7 @@ import (
 	"github.com/chazu/maggie/manifest"
 	"github.com/chazu/maggie/server"
 	"github.com/chazu/maggie/vm"
+	"github.com/chazu/maggie/vm/dist"
 )
 
 //go:embed maggie.image
@@ -191,6 +192,7 @@ func main() {
 		paths = nil // sync at start: no source paths
 	}
 
+	var loadedManifest *manifest.Manifest
 	if len(paths) > 0 {
 		totalMethods := 0
 		for _, path := range paths {
@@ -207,6 +209,7 @@ func main() {
 	} else if docMode != "" || syncArgs != nil || *mainEntry != "" || *saveImagePath != "" {
 		// No paths but doc/doctest/main/save-image requested: try loading from maggie.toml
 		if m, _ := manifest.FindAndLoad("."); m != nil {
+			loadedManifest = m
 			methods, err := loadProject(vmInst, m, *verbose)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "Error loading project: %v\n", err)
@@ -233,6 +236,27 @@ func main() {
 		}
 	}
 
+	// Start sync server if configured via manifest
+	if loadedManifest != nil && loadedManifest.Sync.Listen != "" {
+		syncAddr := loadedManifest.Sync.Listen
+		var syncOpts []server.ServerOption
+		syncOpts = append(syncOpts, server.WithCompileFunc(buildCompileFunc(vmInst)))
+		if len(loadedManifest.Sync.Capabilities) > 0 {
+			syncOpts = append(syncOpts, server.WithSyncPolicy(
+				dist.NewRestrictedPolicy(loadedManifest.Sync.Capabilities),
+			))
+		}
+		srv := server.New(vmInst, syncOpts...)
+		go func() {
+			if err := srv.ListenAndServe(syncAddr); err != nil {
+				fmt.Fprintf(os.Stderr, "Sync server error: %v\n", err)
+			}
+		}()
+		if *verbose {
+			fmt.Printf("Sync server listening on %s\n", syncAddr)
+		}
+	}
+
 	// Handle doc/doctest subcommands (after sources are compiled)
 	if docMode == "doc" {
 		handleDocCommand(vmInst, docArgs)
@@ -251,7 +275,7 @@ func main() {
 
 	// Handle sync subcommand (after sources are compiled)
 	if syncArgs != nil {
-		handleSyncCommand(syncArgs, vmInst, *verbose)
+		handleSyncCommand(syncArgs, vmInst, loadedManifest, *verbose)
 		return
 	}
 
@@ -282,7 +306,7 @@ func main() {
 	// Start language server if requested
 	if *serveMode {
 		addr := fmt.Sprintf(":%d", *servePort)
-		srv := server.New(vmInst)
+		srv := server.New(vmInst, server.WithCompileFunc(buildCompileFunc(vmInst)))
 		defer srv.Stop()
 		if err := srv.ListenAndServe(addr); err != nil {
 			fmt.Fprintf(os.Stderr, "Server error: %v\n", err)
@@ -1009,7 +1033,45 @@ func compileAll(files []parsedFile, vmInst *vm.VM, verbose bool) (int, error) {
 		}
 	}
 
+	// ---------------------------------------------------------------
+	// Populate ContentStore — index all compiled methods & class digests
+	// ---------------------------------------------------------------
+	store := vmInst.ContentStore()
+	for _, ce := range classEntries {
+		if ce.class.VTable != nil {
+			for _, m := range ce.class.VTable.LocalMethods() {
+				if cm, ok := m.(*vm.CompiledMethod); ok {
+					store.IndexMethod(cm)
+				}
+			}
+		}
+		if ce.class.ClassVTable != nil {
+			for _, m := range ce.class.ClassVTable.LocalMethods() {
+				if cm, ok := m.(*vm.CompiledMethod); ok {
+					store.IndexMethod(cm)
+				}
+			}
+		}
+		digest := vm.DigestClass(ce.class)
+		store.IndexClass(digest)
+	}
+
 	return compiled, nil
+}
+
+// buildCompileFunc creates a compile function suitable for the sync service's
+// method chunk verification. It parses source text into an AST, compiles it
+// to verify validity, and returns the content hash.
+func buildCompileFunc(vmInst *vm.VM) func(string) ([32]byte, error) {
+	return func(source string) ([32]byte, error) {
+		parser := compiler.NewParser(source)
+		methodDef := parser.ParseMethod()
+		if errs := parser.Errors(); len(errs) > 0 {
+			return [32]byte{}, fmt.Errorf("parse errors: %v", errs)
+		}
+		h := hash.HashMethod(methodDef, nil, nil)
+		return h, nil
+	}
 }
 
 // resolveGlobalForHash resolves a bare name to its FQN for content hashing.

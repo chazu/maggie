@@ -283,6 +283,25 @@ func compileAllFiles(files []string, vmInst *vm.VM, verbose bool) (int, error) {
 			if verbose {
 				fmt.Printf("  %s: %d methods\n", classDef.Name, len(classDef.Methods)+len(classDef.ClassMethods))
 			}
+
+			// Index methods and class digest in ContentStore
+			store := vmInst.ContentStore()
+			if class.VTable != nil {
+				for _, m := range class.VTable.LocalMethods() {
+					if cm, ok := m.(*vm.CompiledMethod); ok {
+						store.IndexMethod(cm)
+					}
+				}
+			}
+			if class.ClassVTable != nil {
+				for _, m := range class.ClassVTable.LocalMethods() {
+					if cm, ok := m.(*vm.CompiledMethod); ok {
+						store.IndexMethod(cm)
+					}
+				}
+			}
+			digest := vm.DigestClass(class)
+			store.IndexClass(digest)
 		}
 	}
 

@@ -4,6 +4,8 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"testing"
+
+	"github.com/chazu/maggie/vm"
 )
 
 func TestChunk_CBORRoundTrip(t *testing.T) {
@@ -211,5 +213,103 @@ func TestUnmarshalChunk_InvalidData(t *testing.T) {
 	_, err := UnmarshalChunk([]byte("not cbor"))
 	if err == nil {
 		t.Error("UnmarshalChunk should fail on invalid data")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// VerifyChunkClass
+// ---------------------------------------------------------------------------
+
+func TestVerifyChunkClass_Valid(t *testing.T) {
+	store := vm.NewContentStore()
+
+	// Pre-index method dependencies
+	m1h := sha256.Sum256([]byte("m1"))
+	m1 := vm.NewCompiledMethodBuilder("m1", 0).Build()
+	m1.SetContentHash(m1h)
+	store.IndexMethod(m1)
+
+	classHash := sha256.Sum256([]byte("MyClass"))
+	c := &Chunk{
+		Hash:         classHash,
+		Type:         ChunkClass,
+		Content:      "MyClass",
+		Dependencies: [][32]byte{m1h},
+	}
+
+	err := VerifyChunkClass(c, store)
+	if err != nil {
+		t.Errorf("VerifyChunkClass should succeed: %v", err)
+	}
+}
+
+func TestVerifyChunkClass_MissingDep(t *testing.T) {
+	store := vm.NewContentStore()
+
+	missingDep := sha256.Sum256([]byte("not-in-store"))
+	classHash := sha256.Sum256([]byte("MyClass"))
+	c := &Chunk{
+		Hash:         classHash,
+		Type:         ChunkClass,
+		Content:      "MyClass",
+		Dependencies: [][32]byte{missingDep},
+	}
+
+	err := VerifyChunkClass(c, store)
+	if err == nil {
+		t.Error("VerifyChunkClass should fail on missing dependency")
+	}
+}
+
+func TestVerifyChunkClass_WrongType(t *testing.T) {
+	store := vm.NewContentStore()
+	c := &Chunk{Type: ChunkMethod}
+
+	err := VerifyChunkClass(c, store)
+	if err == nil {
+		t.Error("VerifyChunkClass should reject non-class chunks")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// VerifyChunkModule
+// ---------------------------------------------------------------------------
+
+func TestVerifyChunkModule_Valid(t *testing.T) {
+	store := vm.NewContentStore()
+
+	// Pre-index class dependency
+	ch := sha256.Sum256([]byte("class1"))
+	store.IndexClass(&vm.ClassDigest{Name: "C1", Hash: ch})
+
+	moduleHash := sha256.Sum256([]byte("MyModule"))
+	c := &Chunk{
+		Hash:         moduleHash,
+		Type:         ChunkModule,
+		Content:      "MyModule",
+		Dependencies: [][32]byte{ch},
+	}
+
+	err := VerifyChunkModule(c, store)
+	if err != nil {
+		t.Errorf("VerifyChunkModule should succeed: %v", err)
+	}
+}
+
+func TestVerifyChunkModule_MissingDep(t *testing.T) {
+	store := vm.NewContentStore()
+
+	missingDep := sha256.Sum256([]byte("not-in-store"))
+	moduleHash := sha256.Sum256([]byte("MyModule"))
+	c := &Chunk{
+		Hash:         moduleHash,
+		Type:         ChunkModule,
+		Content:      "MyModule",
+		Dependencies: [][32]byte{missingDep},
+	}
+
+	err := VerifyChunkModule(c, store)
+	if err == nil {
+		t.Error("VerifyChunkModule should fail on missing dependency")
 	}
 }

@@ -10,6 +10,7 @@ import (
 
 	maggiev1 "github.com/chazu/maggie/gen/maggie/v1"
 	"github.com/chazu/maggie/gen/maggie/v1/maggiev1connect"
+	"github.com/chazu/maggie/manifest"
 	"github.com/chazu/maggie/vm"
 	"github.com/chazu/maggie/vm/dist"
 )
@@ -17,13 +18,13 @@ import (
 // handleSyncCommand processes the `mag sync` subcommand.
 // Usage:
 //
-//	mag sync push <peer-addr>                Push local project to peer
+//	mag sync push [peer-addr]                Push local project to peer(s)
 //	mag sync pull <peer-addr> <root-hash>    Pull specific module from peer
 //	mag sync status                          Show content store stats
-func handleSyncCommand(args []string, vmInst *vm.VM, verbose bool) {
+func handleSyncCommand(args []string, vmInst *vm.VM, m *manifest.Manifest, verbose bool) {
 	if len(args) == 0 {
 		fmt.Fprintln(os.Stderr, "Usage: mag sync [push|pull|status] ...")
-		fmt.Fprintln(os.Stderr, "  push <peer-addr>              Push local project to peer")
+		fmt.Fprintln(os.Stderr, "  push [peer-addr]              Push local project to peer (uses manifest peers if omitted)")
 		fmt.Fprintln(os.Stderr, "  pull <peer-addr> <root-hash>  Pull specific module from peer")
 		fmt.Fprintln(os.Stderr, "  status                        Show content store stats")
 		os.Exit(1)
@@ -33,11 +34,19 @@ func handleSyncCommand(args []string, vmInst *vm.VM, verbose bool) {
 	case "status":
 		handleSyncStatus(vmInst)
 	case "push":
-		if len(args) < 2 {
+		if len(args) >= 2 {
+			handleSyncPush(vmInst, args[1], verbose)
+		} else if m != nil && len(m.Sync.Peers) > 0 {
+			// Use manifest peers
+			for _, peer := range m.Sync.Peers {
+				fmt.Printf("Pushing to manifest peer: %s\n", peer)
+				handleSyncPush(vmInst, peer, verbose)
+			}
+		} else {
 			fmt.Fprintln(os.Stderr, "Usage: mag sync push <peer-addr>")
+			fmt.Fprintln(os.Stderr, "  (or configure [sync].peers in maggie.toml)")
 			os.Exit(1)
 		}
-		handleSyncPush(vmInst, args[1], verbose)
 	case "pull":
 		if len(args) < 3 {
 			fmt.Fprintln(os.Stderr, "Usage: mag sync pull <peer-addr> <root-hash-hex>")
@@ -104,21 +113,33 @@ func handleSyncPush(vmInst *vm.VM, peerAddr string, verbose bool) {
 		// continue
 	}
 
-	var chunkBytes [][]byte
+	// Build chunks in dependency order: methods first, then classes
+	var methodChunks [][]byte
+	var classChunks [][]byte
 	for _, wantHash := range annResp.Msg.Want {
 		var h [32]byte
 		copy(h[:], wantHash)
-		m := store.LookupMethod(h)
-		if m != nil {
+
+		if m := store.LookupMethod(h); m != nil {
 			chunk := dist.MethodToChunk(m, nil)
 			data, err := dist.MarshalChunk(chunk)
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "Warning: failed to marshal chunk: %v\n", err)
+				fmt.Fprintf(os.Stderr, "Warning: failed to marshal method chunk: %v\n", err)
 				continue
 			}
-			chunkBytes = append(chunkBytes, data)
+			methodChunks = append(methodChunks, data)
+		} else if d := store.LookupClass(h); d != nil {
+			chunk := dist.ClassToChunk(d, d.Name, nil)
+			data, err := dist.MarshalChunk(chunk)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Warning: failed to marshal class chunk: %v\n", err)
+				continue
+			}
+			classChunks = append(classChunks, data)
 		}
 	}
+	// Methods before classes ensures dependencies are available for verification
+	chunkBytes := append(methodChunks, classChunks...)
 
 	if len(chunkBytes) == 0 {
 		fmt.Println("No chunks to transfer")
@@ -152,27 +173,86 @@ func handleSyncPull(vmInst *vm.VM, peerAddr string, rootHashHex string, verbose 
 		os.Exit(1)
 	}
 
-	baseURL := normalizeAddr(peerAddr)
-	client := maggiev1connect.NewSyncServiceClient(http.DefaultClient, baseURL)
-	ctx := context.Background()
-
-	pingResp, err := client.Ping(ctx, connect.NewRequest(&maggiev1.PingRequest{}))
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Ping failed: %v\n", err)
-		os.Exit(1)
-	}
-	if verbose {
-		fmt.Printf("Peer has %d content items\n", pingResp.Msg.ContentCount)
-	}
-
 	store := vmInst.ContentStore()
 	if store.HasHash(rootHash) {
 		fmt.Println("Already have this content")
 		return
 	}
 
-	fmt.Printf("Requesting content with root hash %x\n", rootHash)
-	fmt.Println("Pull not yet fully implemented (requires peer-side content serving)")
+	baseURL := normalizeAddr(peerAddr)
+	client := maggiev1connect.NewSyncServiceClient(http.DefaultClient, baseURL)
+	ctx := context.Background()
+
+	// Collect local hashes to avoid re-downloading
+	localHashes := store.AllHashes()
+	haveBytes := make([][]byte, len(localHashes))
+	for i, h := range localHashes {
+		hCopy := h
+		haveBytes[i] = hCopy[:]
+	}
+
+	if verbose {
+		fmt.Printf("Requesting content from %s (root=%x, local=%d hashes)\n",
+			baseURL, rootHash, len(localHashes))
+	}
+
+	serveResp, err := client.Serve(ctx, connect.NewRequest(&maggiev1.ServeRequest{
+		RootHash: rootHash[:],
+		Have:     haveBytes,
+	}))
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Serve failed: %v\n", err)
+		os.Exit(1)
+	}
+
+	if verbose {
+		fmt.Printf("Peer returned %d available hashes, %d chunks\n",
+			len(serveResp.Msg.Available), len(serveResp.Msg.Chunks))
+	}
+
+	// Verify and index received chunks
+	var accepted, rejected int
+	for _, chunkBytes := range serveResp.Msg.Chunks {
+		chunk, err := dist.UnmarshalChunk(chunkBytes)
+		if err != nil {
+			rejected++
+			if verbose {
+				fmt.Fprintf(os.Stderr, "Warning: failed to unmarshal chunk: %v\n", err)
+			}
+			continue
+		}
+
+		switch chunk.Type {
+		case dist.ChunkMethod:
+			// Index the method (trust verified by sender's hash)
+			m := &vm.CompiledMethod{Source: chunk.Content}
+			m.SetContentHash(chunk.Hash)
+			store.IndexMethod(m)
+			accepted++
+		case dist.ChunkClass:
+			// Verify class dependencies exist before indexing
+			if err := dist.VerifyChunkClass(chunk, store); err != nil {
+				rejected++
+				if verbose {
+					fmt.Fprintf(os.Stderr, "Warning: class chunk failed verification: %v\n", err)
+				}
+				continue
+			}
+			d := &vm.ClassDigest{
+				Name:         chunk.Content,
+				Hash:         chunk.Hash,
+				MethodHashes: chunk.Dependencies,
+			}
+			store.IndexClass(d)
+			accepted++
+		default:
+			rejected++
+		}
+	}
+
+	fmt.Printf("Pull complete: %d accepted, %d rejected\n", accepted, rejected)
+	fmt.Printf("Content store: %d methods, %d classes\n",
+		store.MethodCount(), store.ClassCount())
 }
 
 func normalizeAddr(addr string) string {

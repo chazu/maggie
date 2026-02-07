@@ -37,6 +37,8 @@ const (
 	SyncServiceAnnounceProcedure = "/maggie.v1.SyncService/Announce"
 	// SyncServiceTransferProcedure is the fully-qualified name of the SyncService's Transfer RPC.
 	SyncServiceTransferProcedure = "/maggie.v1.SyncService/Transfer"
+	// SyncServiceServeProcedure is the fully-qualified name of the SyncService's Serve RPC.
+	SyncServiceServeProcedure = "/maggie.v1.SyncService/Serve"
 	// SyncServicePingProcedure is the fully-qualified name of the SyncService's Ping RPC.
 	SyncServicePingProcedure = "/maggie.v1.SyncService/Ping"
 )
@@ -48,6 +50,10 @@ type SyncServiceClient interface {
 	Announce(context.Context, *connect.Request[v1.AnnounceRequest]) (*connect.Response[v1.AnnounceResponse], error)
 	// Transfer sends requested chunks to a peer.
 	Transfer(context.Context, *connect.Request[v1.TransferRequest]) (*connect.Response[v1.TransferResponse], error)
+	// Serve returns content from a root hash, minus what the requester already has.
+	// Used by pull: the requester sends a root hash and its local hashes,
+	// the server responds with the missing chunks.
+	Serve(context.Context, *connect.Request[v1.ServeRequest]) (*connect.Response[v1.ServeResponse], error)
 	// Ping checks service liveness.
 	Ping(context.Context, *connect.Request[v1.PingRequest]) (*connect.Response[v1.PingResponse], error)
 }
@@ -75,6 +81,12 @@ func NewSyncServiceClient(httpClient connect.HTTPClient, baseURL string, opts ..
 			connect.WithSchema(syncServiceMethods.ByName("Transfer")),
 			connect.WithClientOptions(opts...),
 		),
+		serve: connect.NewClient[v1.ServeRequest, v1.ServeResponse](
+			httpClient,
+			baseURL+SyncServiceServeProcedure,
+			connect.WithSchema(syncServiceMethods.ByName("Serve")),
+			connect.WithClientOptions(opts...),
+		),
 		ping: connect.NewClient[v1.PingRequest, v1.PingResponse](
 			httpClient,
 			baseURL+SyncServicePingProcedure,
@@ -88,6 +100,7 @@ func NewSyncServiceClient(httpClient connect.HTTPClient, baseURL string, opts ..
 type syncServiceClient struct {
 	announce *connect.Client[v1.AnnounceRequest, v1.AnnounceResponse]
 	transfer *connect.Client[v1.TransferRequest, v1.TransferResponse]
+	serve    *connect.Client[v1.ServeRequest, v1.ServeResponse]
 	ping     *connect.Client[v1.PingRequest, v1.PingResponse]
 }
 
@@ -99,6 +112,11 @@ func (c *syncServiceClient) Announce(ctx context.Context, req *connect.Request[v
 // Transfer calls maggie.v1.SyncService.Transfer.
 func (c *syncServiceClient) Transfer(ctx context.Context, req *connect.Request[v1.TransferRequest]) (*connect.Response[v1.TransferResponse], error) {
 	return c.transfer.CallUnary(ctx, req)
+}
+
+// Serve calls maggie.v1.SyncService.Serve.
+func (c *syncServiceClient) Serve(ctx context.Context, req *connect.Request[v1.ServeRequest]) (*connect.Response[v1.ServeResponse], error) {
+	return c.serve.CallUnary(ctx, req)
 }
 
 // Ping calls maggie.v1.SyncService.Ping.
@@ -113,6 +131,10 @@ type SyncServiceHandler interface {
 	Announce(context.Context, *connect.Request[v1.AnnounceRequest]) (*connect.Response[v1.AnnounceResponse], error)
 	// Transfer sends requested chunks to a peer.
 	Transfer(context.Context, *connect.Request[v1.TransferRequest]) (*connect.Response[v1.TransferResponse], error)
+	// Serve returns content from a root hash, minus what the requester already has.
+	// Used by pull: the requester sends a root hash and its local hashes,
+	// the server responds with the missing chunks.
+	Serve(context.Context, *connect.Request[v1.ServeRequest]) (*connect.Response[v1.ServeResponse], error)
 	// Ping checks service liveness.
 	Ping(context.Context, *connect.Request[v1.PingRequest]) (*connect.Response[v1.PingResponse], error)
 }
@@ -136,6 +158,12 @@ func NewSyncServiceHandler(svc SyncServiceHandler, opts ...connect.HandlerOption
 		connect.WithSchema(syncServiceMethods.ByName("Transfer")),
 		connect.WithHandlerOptions(opts...),
 	)
+	syncServiceServeHandler := connect.NewUnaryHandler(
+		SyncServiceServeProcedure,
+		svc.Serve,
+		connect.WithSchema(syncServiceMethods.ByName("Serve")),
+		connect.WithHandlerOptions(opts...),
+	)
 	syncServicePingHandler := connect.NewUnaryHandler(
 		SyncServicePingProcedure,
 		svc.Ping,
@@ -148,6 +176,8 @@ func NewSyncServiceHandler(svc SyncServiceHandler, opts ...connect.HandlerOption
 			syncServiceAnnounceHandler.ServeHTTP(w, r)
 		case SyncServiceTransferProcedure:
 			syncServiceTransferHandler.ServeHTTP(w, r)
+		case SyncServiceServeProcedure:
+			syncServiceServeHandler.ServeHTTP(w, r)
 		case SyncServicePingProcedure:
 			syncServicePingHandler.ServeHTTP(w, r)
 		default:
@@ -165,6 +195,10 @@ func (UnimplementedSyncServiceHandler) Announce(context.Context, *connect.Reques
 
 func (UnimplementedSyncServiceHandler) Transfer(context.Context, *connect.Request[v1.TransferRequest]) (*connect.Response[v1.TransferResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("maggie.v1.SyncService.Transfer is not implemented"))
+}
+
+func (UnimplementedSyncServiceHandler) Serve(context.Context, *connect.Request[v1.ServeRequest]) (*connect.Response[v1.ServeResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("maggie.v1.SyncService.Serve is not implemented"))
 }
 
 func (UnimplementedSyncServiceHandler) Ping(context.Context, *connect.Request[v1.PingRequest]) (*connect.Response[v1.PingResponse], error) {

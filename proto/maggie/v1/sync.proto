@@ -12,6 +12,11 @@ service SyncService {
   // Transfer sends requested chunks to a peer.
   rpc Transfer(TransferRequest) returns (TransferResponse);
 
+  // Serve returns content from a root hash, minus what the requester already has.
+  // Used by pull: the requester sends a root hash and its local hashes,
+  // the server responds with the missing chunks.
+  rpc Serve(ServeRequest) returns (ServeResponse);
+
   // Ping checks service liveness.
   rpc Ping(PingRequest) returns (PingResponse);
 }
@@ -44,6 +49,16 @@ message TransferResponse {
   int32 accepted = 1;
   int32 rejected = 2;
   repeated bytes failed_hashes = 3; // hashes that failed verification
+}
+
+message ServeRequest {
+  bytes root_hash = 1;          // 32-byte root hash to serve from
+  repeated bytes have = 2;      // hashes the requester already has
+}
+
+message ServeResponse {
+  repeated bytes available = 1; // all hashes in the transitive closure
+  repeated bytes chunks = 2;    // CBOR-encoded chunks (minus what requester has)
 }
 
 message PingRequest {}

@@ -305,6 +305,110 @@ func (x *TransferResponse) GetFailedHashes() [][]byte {
 	return nil
 }
 
+type ServeRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	RootHash      []byte                 `protobuf:"bytes,1,opt,name=root_hash,json=rootHash,proto3" json:"root_hash,omitempty"` // 32-byte root hash to serve from
+	Have          [][]byte               `protobuf:"bytes,2,rep,name=have,proto3" json:"have,omitempty"`                         // hashes the requester already has
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ServeRequest) Reset() {
+	*x = ServeRequest{}
+	mi := &file_maggie_v1_sync_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ServeRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ServeRequest) ProtoMessage() {}
+
+func (x *ServeRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_maggie_v1_sync_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ServeRequest.ProtoReflect.Descriptor instead.
+func (*ServeRequest) Descriptor() ([]byte, []int) {
+	return file_maggie_v1_sync_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *ServeRequest) GetRootHash() []byte {
+	if x != nil {
+		return x.RootHash
+	}
+	return nil
+}
+
+func (x *ServeRequest) GetHave() [][]byte {
+	if x != nil {
+		return x.Have
+	}
+	return nil
+}
+
+type ServeResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Available     [][]byte               `protobuf:"bytes,1,rep,name=available,proto3" json:"available,omitempty"` // all hashes in the transitive closure
+	Chunks        [][]byte               `protobuf:"bytes,2,rep,name=chunks,proto3" json:"chunks,omitempty"`       // CBOR-encoded chunks (minus what requester has)
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ServeResponse) Reset() {
+	*x = ServeResponse{}
+	mi := &file_maggie_v1_sync_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ServeResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ServeResponse) ProtoMessage() {}
+
+func (x *ServeResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_maggie_v1_sync_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ServeResponse.ProtoReflect.Descriptor instead.
+func (*ServeResponse) Descriptor() ([]byte, []int) {
+	return file_maggie_v1_sync_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *ServeResponse) GetAvailable() [][]byte {
+	if x != nil {
+		return x.Available
+	}
+	return nil
+}
+
+func (x *ServeResponse) GetChunks() [][]byte {
+	if x != nil {
+		return x.Chunks
+	}
+	return nil
+}
+
 type PingRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
@@ -313,7 +417,7 @@ type PingRequest struct {
 
 func (x *PingRequest) Reset() {
 	*x = PingRequest{}
-	mi := &file_maggie_v1_sync_proto_msgTypes[4]
+	mi := &file_maggie_v1_sync_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -325,7 +429,7 @@ func (x *PingRequest) String() string {
 func (*PingRequest) ProtoMessage() {}
 
 func (x *PingRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_maggie_v1_sync_proto_msgTypes[4]
+	mi := &file_maggie_v1_sync_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -338,7 +442,7 @@ func (x *PingRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PingRequest.ProtoReflect.Descriptor instead.
 func (*PingRequest) Descriptor() ([]byte, []int) {
-	return file_maggie_v1_sync_proto_rawDescGZIP(), []int{4}
+	return file_maggie_v1_sync_proto_rawDescGZIP(), []int{6}
 }
 
 type PingResponse struct {
@@ -350,7 +454,7 @@ type PingResponse struct {
 
 func (x *PingResponse) Reset() {
 	*x = PingResponse{}
-	mi := &file_maggie_v1_sync_proto_msgTypes[5]
+	mi := &file_maggie_v1_sync_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -362,7 +466,7 @@ func (x *PingResponse) String() string {
 func (*PingResponse) ProtoMessage() {}
 
 func (x *PingResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_maggie_v1_sync_proto_msgTypes[5]
+	mi := &file_maggie_v1_sync_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -375,7 +479,7 @@ func (x *PingResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PingResponse.ProtoReflect.Descriptor instead.
 func (*PingResponse) Descriptor() ([]byte, []int) {
-	return file_maggie_v1_sync_proto_rawDescGZIP(), []int{5}
+	return file_maggie_v1_sync_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *PingResponse) GetContentCount() int64 {
@@ -405,7 +509,13 @@ const file_maggie_v1_sync_proto_rawDesc = "" +
 	"\x10TransferResponse\x12\x1a\n" +
 	"\baccepted\x18\x01 \x01(\x05R\baccepted\x12\x1a\n" +
 	"\brejected\x18\x02 \x01(\x05R\brejected\x12#\n" +
-	"\rfailed_hashes\x18\x03 \x03(\fR\ffailedHashes\"\r\n" +
+	"\rfailed_hashes\x18\x03 \x03(\fR\ffailedHashes\"?\n" +
+	"\fServeRequest\x12\x1b\n" +
+	"\troot_hash\x18\x01 \x01(\fR\brootHash\x12\x12\n" +
+	"\x04have\x18\x02 \x03(\fR\x04have\"E\n" +
+	"\rServeResponse\x12\x1c\n" +
+	"\tavailable\x18\x01 \x03(\fR\tavailable\x12\x16\n" +
+	"\x06chunks\x18\x02 \x03(\fR\x06chunks\"\r\n" +
 	"\vPingRequest\"3\n" +
 	"\fPingResponse\x12#\n" +
 	"\rcontent_count\x18\x01 \x01(\x03R\fcontentCount*z\n" +
@@ -413,10 +523,11 @@ const file_maggie_v1_sync_proto_rawDesc = "" +
 	"\x1bANNOUNCE_STATUS_UNSPECIFIED\x10\x00\x12\x15\n" +
 	"\x11ANNOUNCE_ACCEPTED\x10\x01\x12\x15\n" +
 	"\x11ANNOUNCE_REJECTED\x10\x02\x12\x19\n" +
-	"\x15ANNOUNCE_ALREADY_HAVE\x10\x032\xd0\x01\n" +
+	"\x15ANNOUNCE_ALREADY_HAVE\x10\x032\x8c\x02\n" +
 	"\vSyncService\x12C\n" +
 	"\bAnnounce\x12\x1a.maggie.v1.AnnounceRequest\x1a\x1b.maggie.v1.AnnounceResponse\x12C\n" +
-	"\bTransfer\x12\x1a.maggie.v1.TransferRequest\x1a\x1b.maggie.v1.TransferResponse\x127\n" +
+	"\bTransfer\x12\x1a.maggie.v1.TransferRequest\x1a\x1b.maggie.v1.TransferResponse\x12:\n" +
+	"\x05Serve\x12\x17.maggie.v1.ServeRequest\x1a\x18.maggie.v1.ServeResponse\x127\n" +
 	"\x04Ping\x12\x16.maggie.v1.PingRequest\x1a\x17.maggie.v1.PingResponseB0Z.github.com/chazu/maggie/gen/maggie/v1;maggiev1b\x06proto3"
 
 var (
@@ -432,26 +543,30 @@ func file_maggie_v1_sync_proto_rawDescGZIP() []byte {
 }
 
 var file_maggie_v1_sync_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_maggie_v1_sync_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
+var file_maggie_v1_sync_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
 var file_maggie_v1_sync_proto_goTypes = []any{
 	(AnnounceStatus)(0),      // 0: maggie.v1.AnnounceStatus
 	(*AnnounceRequest)(nil),  // 1: maggie.v1.AnnounceRequest
 	(*AnnounceResponse)(nil), // 2: maggie.v1.AnnounceResponse
 	(*TransferRequest)(nil),  // 3: maggie.v1.TransferRequest
 	(*TransferResponse)(nil), // 4: maggie.v1.TransferResponse
-	(*PingRequest)(nil),      // 5: maggie.v1.PingRequest
-	(*PingResponse)(nil),     // 6: maggie.v1.PingResponse
+	(*ServeRequest)(nil),     // 5: maggie.v1.ServeRequest
+	(*ServeResponse)(nil),    // 6: maggie.v1.ServeResponse
+	(*PingRequest)(nil),      // 7: maggie.v1.PingRequest
+	(*PingResponse)(nil),     // 8: maggie.v1.PingResponse
 }
 var file_maggie_v1_sync_proto_depIdxs = []int32{
 	0, // 0: maggie.v1.AnnounceResponse.status:type_name -> maggie.v1.AnnounceStatus
 	1, // 1: maggie.v1.SyncService.Announce:input_type -> maggie.v1.AnnounceRequest
 	3, // 2: maggie.v1.SyncService.Transfer:input_type -> maggie.v1.TransferRequest
-	5, // 3: maggie.v1.SyncService.Ping:input_type -> maggie.v1.PingRequest
-	2, // 4: maggie.v1.SyncService.Announce:output_type -> maggie.v1.AnnounceResponse
-	4, // 5: maggie.v1.SyncService.Transfer:output_type -> maggie.v1.TransferResponse
-	6, // 6: maggie.v1.SyncService.Ping:output_type -> maggie.v1.PingResponse
-	4, // [4:7] is the sub-list for method output_type
-	1, // [1:4] is the sub-list for method input_type
+	5, // 3: maggie.v1.SyncService.Serve:input_type -> maggie.v1.ServeRequest
+	7, // 4: maggie.v1.SyncService.Ping:input_type -> maggie.v1.PingRequest
+	2, // 5: maggie.v1.SyncService.Announce:output_type -> maggie.v1.AnnounceResponse
+	4, // 6: maggie.v1.SyncService.Transfer:output_type -> maggie.v1.TransferResponse
+	6, // 7: maggie.v1.SyncService.Serve:output_type -> maggie.v1.ServeResponse
+	8, // 8: maggie.v1.SyncService.Ping:output_type -> maggie.v1.PingResponse
+	5, // [5:9] is the sub-list for method output_type
+	1, // [1:5] is the sub-list for method input_type
 	1, // [1:1] is the sub-list for extension type_name
 	1, // [1:1] is the sub-list for extension extendee
 	0, // [0:1] is the sub-list for field type_name
@@ -468,7 +583,7 @@ func file_maggie_v1_sync_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_maggie_v1_sync_proto_rawDesc), len(file_maggie_v1_sync_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   6,
+			NumMessages:   8,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
