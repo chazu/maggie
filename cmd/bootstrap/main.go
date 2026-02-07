@@ -185,7 +185,7 @@ func compileAllFiles(files []string, vmInst *vm.VM, verbose bool) (int, error) {
 						superclass = superGetter(vmInst)
 					} else if superVal, ok := vmInst.Globals[classDef.Superclass]; ok {
 						if vm.IsClassValue(superVal) {
-							superclass = vm.GetClassFromValue(superVal)
+							superclass = vmInst.GetClassFromValue(superVal)
 						} else if superVal.IsObject() {
 							superclass = (*vm.Class)(superVal.ObjectPtr())
 						}

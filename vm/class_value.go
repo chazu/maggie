@@ -1,10 +1,5 @@
 package vm
 
-import (
-	"sync"
-	"sync/atomic"
-)
-
 // ---------------------------------------------------------------------------
 // Class Values: First-class NaN-boxed representation of Class objects
 // ---------------------------------------------------------------------------
@@ -14,20 +9,7 @@ import (
 // (channels, processes, etc.).
 //
 // The lower 24 bits store the class's registration ID, which maps to a
-// *Class pointer in the global class value registry.
-
-const classValueMarker uint32 = 36 << 24
-
-// Global class value registry
-var (
-	classValueRegistry   = make(map[int]*Class)
-	classValueRegistryMu sync.RWMutex
-	nextClassValueID     atomic.Int32
-)
-
-func init() {
-	nextClassValueID.Store(1)
-}
+// *Class pointer in the VM-local class value registry (ObjectRegistry).
 
 // classToValue creates a Value from a class registry ID.
 func classToValue(id int) Value {
@@ -40,56 +22,20 @@ func isClassValue(v Value) bool {
 		return false
 	}
 	id := v.SymbolID()
-	return (id & (0xFF << 24)) == classValueMarker
+	return (id & markerMask) == classValueMarker
 }
 
-// getClassFromValue extracts the Class from a class value.
-// Returns nil if the value is not a class value or the class is not found.
-func getClassFromValue(v Value) *Class {
-	if !isClassValue(v) {
-		return nil
-	}
-	id := int(v.SymbolID() & ^uint32(0xFF<<24))
-
-	classValueRegistryMu.RLock()
-	defer classValueRegistryMu.RUnlock()
-	return classValueRegistry[id]
-}
-
-// registerClassValue registers a class in the class value registry and returns
-// its Value representation. This is idempotent — if the class already has a
-// registered ID (classValueID != 0), the existing value is returned.
-func registerClassValue(c *Class) Value {
-	if c == nil {
-		return Nil
-	}
-
-	// Fast path: already registered
-	if c.classValueID != 0 {
-		return classToValue(c.classValueID)
-	}
-
-	// Slow path: register new
-	id := int(nextClassValueID.Add(1) - 1)
-
-	classValueRegistryMu.Lock()
-	classValueRegistry[id] = c
-	classValueRegistryMu.Unlock()
-
-	c.classValueID = id
-	return classToValue(id)
+// classValueIDFromValue extracts the registry ID from a class value.
+func classValueIDFromValue(v Value) int {
+	return int(v.SymbolID() & ^markerMask)
 }
 
 // ---------------------------------------------------------------------------
-// Exported accessors for use in server/ package
+// Exported accessors
 // ---------------------------------------------------------------------------
 
 // IsClassValue returns true if v is a class value.
+// This is a pure bit-check and does not require a VM reference.
 func IsClassValue(v Value) bool {
 	return isClassValue(v)
-}
-
-// GetClassFromValue extracts the *Class from a class value.
-func GetClassFromValue(v Value) *Class {
-	return getClassFromValue(v)
 }

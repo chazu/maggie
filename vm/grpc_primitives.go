@@ -32,7 +32,6 @@ type GrpcClientObject struct {
 	mu        sync.Mutex
 }
 
-const grpcClientMarker = 7 << 24 // 0x07000000
 
 func grpcClientToValue(id int) Value {
 	return FromSymbolID(uint32(id) | grpcClientMarker)
@@ -96,7 +95,6 @@ type GrpcStreamObject struct {
 	mu         sync.Mutex
 }
 
-const grpcStreamMarker = 9 << 24 // 0x09000000 (8 << 24 is used by exceptions)
 
 func grpcStreamToValue(id int) Value {
 	return FromSymbolID(uint32(id) | grpcStreamMarker)

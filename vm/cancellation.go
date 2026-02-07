@@ -24,8 +24,6 @@ type CancellationContextObject struct {
 	doneValue Value                      // cached done channel value
 }
 
-// CancellationContext marker for symbol encoding
-const cancellationContextMarker uint32 = 35 << 24
 
 // ---------------------------------------------------------------------------
 // CancellationContext creation helpers

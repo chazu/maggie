@@ -16,8 +16,6 @@ type MutexObject struct {
 	locked atomic.Bool // Track if locked (for tryLock and debugging)
 }
 
-// Mutex marker for symbol encoding (uses a different bit pattern from channels/processes)
-const mutexMarker uint32 = 32 << 24
 
 func createMutex() *MutexObject {
 	return &MutexObject{}

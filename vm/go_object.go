@@ -10,9 +10,6 @@ import (
 // GoObject: Unified wrapper for arbitrary Go values in the VM
 // ---------------------------------------------------------------------------
 
-// goObjectMarker is the symbol tag for all wrapped Go objects.
-// Uses marker 41 (next available after httpResponseMarker = 40).
-const goObjectMarker uint32 = 41 << 24
 
 // GoObjectWrapper holds an opaque Go value along with its type registry ID.
 type GoObjectWrapper struct {

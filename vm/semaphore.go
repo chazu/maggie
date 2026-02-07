@@ -12,8 +12,6 @@ type SemaphoreObject struct {
 	capacity int
 }
 
-// Semaphore marker for symbol encoding
-const semaphoreMarker uint32 = 34 << 24
 
 func createSemaphore(capacity int) *SemaphoreObject {
 	if capacity < 1 {

@@ -42,6 +42,7 @@ func main() {
 		fmt.Fprintf(os.Stderr, "       mag fmt [--check] [files or dirs...]\n")
 		fmt.Fprintf(os.Stderr, "       mag wrap [packages...]                 (generate Go bindings)\n")
 		fmt.Fprintf(os.Stderr, "       mag build [-o output]                   (compile custom binary)\n")
+		fmt.Fprintf(os.Stderr, "       mag sync [push|pull|status]             (content distribution)\n")
 		fmt.Fprintf(os.Stderr, "       mag doc [--output dir] [--title title]\n")
 		fmt.Fprintf(os.Stderr, "       mag doctest [--verbose] [--class name]\n\n")
 		fmt.Fprintf(os.Stderr, "Starts Maggie with the default image and compiles .mag files from the given paths.\n")
@@ -88,6 +89,7 @@ func main() {
 	args := flag.Args()
 	var docMode string  // "doc" or "doctest"
 	var docArgs []string
+	var syncArgs []string
 	if len(args) > 0 {
 		switch args[0] {
 		case "lsp":
@@ -104,6 +106,8 @@ func main() {
 		case "build":
 			handleBuildCommand(args[1:], *verbose)
 			return
+		case "sync":
+			syncArgs = args[1:]
 		case "doc":
 			docMode = "doc"
 			docArgs = args[1:]
@@ -183,6 +187,9 @@ func main() {
 	if docMode != "" && len(paths) > 0 && (paths[0] == "doc" || paths[0] == "doctest") {
 		paths = nil // doc/doctest at start: no source paths
 	}
+	if syncArgs != nil && len(paths) > 0 && paths[0] == "sync" {
+		paths = nil // sync at start: no source paths
+	}
 
 	if len(paths) > 0 {
 		totalMethods := 0
@@ -197,7 +204,7 @@ func main() {
 		if *verbose && totalMethods > 0 {
 			fmt.Printf("Compiled %d methods\n", totalMethods)
 		}
-	} else if docMode != "" || *mainEntry != "" || *saveImagePath != "" {
+	} else if docMode != "" || syncArgs != nil || *mainEntry != "" || *saveImagePath != "" {
 		// No paths but doc/doctest/main/save-image requested: try loading from maggie.toml
 		if m, _ := manifest.FindAndLoad("."); m != nil {
 			methods, err := loadProject(vmInst, m, *verbose)
@@ -239,6 +246,12 @@ func main() {
 	}
 	if docMode == "doctest" {
 		handleDoctestCommand(vmInst, docArgs)
+		return
+	}
+
+	// Handle sync subcommand (after sources are compiled)
+	if syncArgs != nil {
+		handleSyncCommand(syncArgs, vmInst, *verbose)
 		return
 	}
 

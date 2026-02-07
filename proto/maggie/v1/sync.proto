@@ -1,0 +1,53 @@
+syntax = "proto3";
+
+package maggie.v1;
+
+option go_package = "github.com/chazu/maggie/gen/maggie/v1;maggiev1";
+
+service SyncService {
+  // Announce advertises a set of content hashes to a peer.
+  // The peer responds with which hashes it wants.
+  rpc Announce(AnnounceRequest) returns (AnnounceResponse);
+
+  // Transfer sends requested chunks to a peer.
+  rpc Transfer(TransferRequest) returns (TransferResponse);
+
+  // Ping checks service liveness.
+  rpc Ping(PingRequest) returns (PingResponse);
+}
+
+message AnnounceRequest {
+  bytes root_hash = 1;          // 32-byte root content hash
+  repeated bytes all_hashes = 2; // all hashes in the transitive closure
+  bytes capability_manifest = 3; // CBOR-encoded CapabilityManifest (optional)
+  uint32 hash_version = 4;      // compiler/hash version for compatibility
+}
+
+enum AnnounceStatus {
+  ANNOUNCE_STATUS_UNSPECIFIED = 0;
+  ANNOUNCE_ACCEPTED = 1;
+  ANNOUNCE_REJECTED = 2;
+  ANNOUNCE_ALREADY_HAVE = 3;
+}
+
+message AnnounceResponse {
+  AnnounceStatus status = 1;
+  repeated bytes want = 2;       // hashes the receiver wants
+  string reject_reason = 3;      // set when status = REJECTED
+}
+
+message TransferRequest {
+  repeated bytes chunks = 1;     // each element is a CBOR-encoded Chunk
+}
+
+message TransferResponse {
+  int32 accepted = 1;
+  int32 rejected = 2;
+  repeated bytes failed_hashes = 3; // hashes that failed verification
+}
+
+message PingRequest {}
+
+message PingResponse {
+  int64 content_count = 1;  // number of hashes in local content store
+}

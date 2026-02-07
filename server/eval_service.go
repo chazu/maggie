@@ -209,7 +209,7 @@ func formatValue(v *vm.VM, val vm.Value) string {
 	case vm.IsStringValue(val):
 		return "'" + v.Registry().GetStringContent(val) + "'"
 	case vm.IsClassValue(val):
-		cls := vm.GetClassFromValue(val)
+		cls := v.GetClassFromValue(val)
 		if cls != nil {
 			return cls.Name
 		}

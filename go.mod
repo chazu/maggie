@@ -5,6 +5,7 @@ go 1.24.5
 require (
 	connectrpc.com/connect v1.19.1
 	github.com/BurntSushi/toml v1.6.0
+	github.com/fxamacker/cbor/v2 v2.5.0
 	github.com/jhump/protoreflect v1.15.4
 	github.com/tliron/commonlog v0.2.8
 	github.com/tliron/glsp v0.2.2
@@ -29,6 +30,7 @@ require (
 	github.com/sasha-s/go-deadlock v0.3.1 // indirect
 	github.com/sourcegraph/jsonrpc2 v0.2.0 // indirect
 	github.com/tliron/kutil v0.3.11 // indirect
+	github.com/x448/float16 v0.8.4 // indirect
 	golang.org/x/crypto v0.47.0 // indirect
 	golang.org/x/mod v0.32.0 // indirect
 	golang.org/x/net v0.49.0 // indirect

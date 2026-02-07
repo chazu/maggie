@@ -15,7 +15,7 @@ func (vm *VM) registerObjectPrimitives() {
 		v := vmPtr.(*VM)
 		// Handle first-class class values
 		if IsClassValue(recv) {
-			cls := GetClassFromValue(recv)
+			cls := v.GetClassFromValue(recv)
 			if cls != nil {
 				instance := cls.NewInstance()
 				v.keepAlive[instance] = struct{}{}
@@ -39,7 +39,7 @@ func (vm *VM) registerObjectPrimitives() {
 	c.AddClassMethod0(vm.Selectors, "basicNew", func(vmPtr interface{}, recv Value) Value {
 		v := vmPtr.(*VM)
 		if IsClassValue(recv) {
-			cls := GetClassFromValue(recv)
+			cls := v.GetClassFromValue(recv)
 			if cls != nil {
 				instance := cls.NewInstance()
 				v.keepAlive[instance] = struct{}{}

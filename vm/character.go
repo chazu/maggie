@@ -8,7 +8,6 @@ package vm
 // The lower 24 bits hold the Unicode code point (max 0x10FFFF fits in 21 bits).
 // No registry is needed — the code point IS the payload (like SmallInteger).
 
-const characterMarker uint32 = 37 << 24
 
 // FromCharacter creates a Character value from a Unicode code point.
 func FromCharacter(codePoint rune) Value {

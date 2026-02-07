@@ -234,7 +234,7 @@ func (e *ImageEncoder) EncodeValueTo(v Value, buf []byte) {
 
 	case isClassValue(v):
 		buf[0] = imageTagClass
-		cls := getClassFromValue(v)
+		cls := e.registry.GetClassFromValue(v)
 		if cls != nil {
 			idx := e.RegisterClass(cls)
 			binary.LittleEndian.PutUint32(buf[1:], idx)
@@ -501,7 +501,7 @@ func (d *ImageDecoder) DecodeValue(data []byte) Value {
 		if c == nil {
 			return Nil
 		}
-		return registerClassValue(c)
+		return d.registry.RegisterClassValue(c)
 
 	case imageTagMethod:
 		idx := binary.LittleEndian.Uint32(data[1:])

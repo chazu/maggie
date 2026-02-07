@@ -82,6 +82,11 @@ type ObjectRegistry struct {
 	goObjects   map[uint32]*GoObjectWrapper
 	goObjectsMu sync.RWMutex
 	goObjectID  atomic.Uint32
+
+	// Class value registry (VM-local, previously a package-level global)
+	classValues   map[int]*Class
+	classValuesMu sync.RWMutex
+	classValueID  atomic.Int32
 }
 
 // NewObjectRegistry creates a new ObjectRegistry with all maps initialized.
@@ -102,6 +107,7 @@ func NewObjectRegistry() *ObjectRegistry {
 		cells:         make(map[*Cell]struct{}),
 		classVars:     make(map[*Class]map[string]Value),
 		goObjects:     make(map[uint32]*GoObjectWrapper),
+		classValues:   make(map[int]*Class),
 	}
 
 	// Start IDs at 1 (0 could be confused with nil/uninitialized)
@@ -117,6 +123,7 @@ func NewObjectRegistry() *ObjectRegistry {
 	or.httpResponseID.Store(1)
 	or.weakRefCounter.Store(0)
 	or.goObjectID.Store(0)
+	or.classValueID.Store(1)
 
 	return or
 }
@@ -726,6 +733,54 @@ func (or *ObjectRegistry) ClassVarCount() int {
 }
 
 // ---------------------------------------------------------------------------
+// Class Value Registry Methods
+// ---------------------------------------------------------------------------
+
+// RegisterClassValue registers a class and returns its NaN-boxed Value.
+// Idempotent — if the class already has a registered ID, the existing value
+// is returned without re-registering.
+func (or *ObjectRegistry) RegisterClassValue(c *Class) Value {
+	if c == nil {
+		return Nil
+	}
+
+	// Fast path: already registered
+	if c.classValueID != 0 {
+		return classToValue(c.classValueID)
+	}
+
+	// Slow path: register new
+	id := int(or.classValueID.Add(1) - 1)
+
+	or.classValuesMu.Lock()
+	or.classValues[id] = c
+	or.classValuesMu.Unlock()
+
+	c.classValueID = id
+	return classToValue(id)
+}
+
+// GetClassFromValue extracts the *Class from a class value.
+// Returns nil if v is not a class value or the class is not found.
+func (or *ObjectRegistry) GetClassFromValue(v Value) *Class {
+	if !isClassValue(v) {
+		return nil
+	}
+	id := classValueIDFromValue(v)
+
+	or.classValuesMu.RLock()
+	defer or.classValuesMu.RUnlock()
+	return or.classValues[id]
+}
+
+// ClassValueCount returns the number of registered class values.
+func (or *ObjectRegistry) ClassValueCount() int {
+	or.classValuesMu.RLock()
+	defer or.classValuesMu.RUnlock()
+	return len(or.classValues)
+}
+
+// ---------------------------------------------------------------------------
 // Extended Stats
 // ---------------------------------------------------------------------------
 
@@ -745,5 +800,6 @@ func (or *ObjectRegistry) FullStats() map[string]int {
 	stats["cells"] = or.CellCount()
 	stats["classVarClasses"] = or.ClassVarCount()
 	stats["goObjects"] = or.GoObjectCount()
+	stats["classValues"] = or.ClassValueCount()
 	return stats
 }

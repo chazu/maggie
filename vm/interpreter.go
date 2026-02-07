@@ -1401,7 +1401,7 @@ func (i *Interpreter) vtableForLegacy(v Value) *VTable {
 			}
 		}
 		if isClassValue(v) {
-			cls := getClassFromValue(v)
+			cls := i.vm.registry.GetClassFromValue(v)
 			if cls != nil && cls.ClassVTable != nil {
 				return cls.ClassVTable
 			}

@@ -171,7 +171,7 @@ func (vm *VM) registerClassReflectionPrimitives() {
 		var values []Value
 		for _, cls := range classes {
 			if !interp.IsGlobalHidden(cls.FullName()) && !interp.IsGlobalHidden(cls.Name) {
-				values = append(values, registerClassValue(cls))
+				values = append(values, v.registry.RegisterClassValue(cls))
 			}
 		}
 		return v.NewArrayWithElements(values)
@@ -202,7 +202,7 @@ func (vm *VM) registerClassReflectionPrimitives() {
 		}
 		values := make([]Value, len(names))
 		for i, name := range names {
-			values[i] = registerClassValue(classMap[name])
+			values[i] = v.registry.RegisterClassValue(classMap[name])
 		}
 		return v.NewArrayWithElements(values)
 	})
@@ -229,7 +229,7 @@ func (vm *VM) registerClassReflectionPrimitives() {
 		if cls == nil || cls.Superclass == nil {
 			return Nil
 		}
-		return registerClassValue(cls.Superclass)
+		return v.registry.RegisterClassValue(cls.Superclass)
 	})
 
 	// printString - returns the class name as a string

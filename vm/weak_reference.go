@@ -180,7 +180,6 @@ func (r *WeakRegistry) Count() int {
 
 // WeakReference values are encoded using the symbol tag with a special marker.
 // Format: symbol tag | (weakRefMarker << 24) | weakRefID
-const weakRefMarker uint32 = 16 << 24 // Marker bits for weak references
 
 // FromWeakRef creates a Value from a WeakReference.
 func FromWeakRef(wr *WeakReference) Value {

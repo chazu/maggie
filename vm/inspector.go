@@ -306,7 +306,7 @@ func (i *Inspector) inspectClass(v Value, depth int) *InspectionResult {
 		ClassName: "Class",
 	}
 
-	cls := getClassFromValue(v)
+	cls := i.vm.registry.GetClassFromValue(v)
 	if cls == nil {
 		result.Value = "<invalid class>"
 		return result
@@ -320,7 +320,7 @@ func (i *Inspector) inspectClass(v Value, depth int) *InspectionResult {
 
 	// superclass
 	if cls.Superclass != nil {
-		superVal := registerClassValue(cls.Superclass)
+		superVal := i.vm.registry.RegisterClassValue(cls.Superclass)
 		result.InstVars = append(result.InstVars, InstVarInfo{
 			Name:  "superclass",
 			Value: i.InspectDepth(superVal, depth-1),

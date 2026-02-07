@@ -7,6 +7,7 @@ import (
 
 	"github.com/chazu/maggie/gen/maggie/v1/maggiev1connect"
 	"github.com/chazu/maggie/vm"
+	"github.com/chazu/maggie/vm/dist"
 )
 
 // MaggieServer is the language server wrapping a running VM.
@@ -40,18 +41,21 @@ func New(v *vm.VM) *MaggieServer {
 	browseSvc := NewBrowseService(worker)
 	modifySvc := NewModifyService(worker, handles, sessions)
 	inspectSvc := NewInspectService(worker, handles)
+	syncSvc := NewSyncService(worker, v.ContentStore(), dist.NewPeerStore(), dist.NewPermissivePolicy(), nil)
 
 	evalPath, evalHandler := maggiev1connect.NewEvaluationServiceHandler(evalSvc)
 	sessionPath, sessionHandler := maggiev1connect.NewSessionServiceHandler(sessionSvc)
 	browsePath, browseHandler := maggiev1connect.NewBrowsingServiceHandler(browseSvc)
 	modifyPath, modifyHandler := maggiev1connect.NewModificationServiceHandler(modifySvc)
 	inspectPath, inspectHandler := maggiev1connect.NewInspectionServiceHandler(inspectSvc)
+	syncPath, syncHandler := maggiev1connect.NewSyncServiceHandler(syncSvc)
 
 	s.mux.Handle(evalPath, evalHandler)
 	s.mux.Handle(sessionPath, sessionHandler)
 	s.mux.Handle(browsePath, browseHandler)
 	s.mux.Handle(modifyPath, modifyHandler)
 	s.mux.Handle(inspectPath, inspectHandler)
+	s.mux.Handle(syncPath, syncHandler)
 
 	// Start handle TTL sweeper (sweep every 5 minutes, 30-minute TTL)
 	s.stopSweeper = handles.StartSweeper(5*time.Minute, 30*time.Minute)

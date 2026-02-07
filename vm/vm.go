@@ -110,6 +110,10 @@ type VM struct {
 
 	// goTypeRegistry maps Go reflect.Types to Maggie classes for GoObject dispatch.
 	goTypeRegistry *GoTypeRegistry
+
+	// contentStore indexes compiled methods and class digests by content hash
+	// for the distribution protocol.
+	contentStore *ContentStore
 }
 
 // NewVM creates and bootstraps a new VM.
@@ -360,10 +364,12 @@ func (vm *VM) registerSymbolDispatch() {
 	// Class values — dispatch via ClassVTable
 	sd.Register(classValueMarker, &SymbolTypeEntry{
 		ClassSide: true,
-		Resolve: func(v Value, _ *VM) (*Class, bool) {
-			cls := getClassFromValue(v)
-			if cls != nil {
-				return cls, true
+		Resolve: func(v Value, resolveVM *VM) (*Class, bool) {
+			if resolveVM != nil {
+				cls := resolveVM.registry.GetClassFromValue(v)
+				if cls != nil {
+					return cls, true
+				}
 			}
 			return nil, false
 		},
@@ -407,15 +413,21 @@ func (vm *VM) registerSymbolDispatch() {
 }
 
 // classValue returns a Value representing a class.
-// Uses the class value registry to produce a first-class class value.
+// Uses the VM-local class value registry to produce a first-class class value.
 func (vm *VM) classValue(c *Class) Value {
-	return registerClassValue(c)
+	return vm.registry.RegisterClassValue(c)
 }
 
 // ClassValue returns a first-class Value representing the given class.
 // This is the exported version for use by cmd/mag and other packages.
 func (vm *VM) ClassValue(c *Class) Value {
-	return registerClassValue(c)
+	return vm.registry.RegisterClassValue(c)
+}
+
+// GetClassFromValue extracts the *Class from a class value using the
+// VM-local registry. Returns nil if v is not a class value or not found.
+func (vm *VM) GetClassFromValue(v Value) *Class {
+	return vm.registry.GetClassFromValue(v)
 }
 
 // ---------------------------------------------------------------------------
@@ -797,6 +809,14 @@ func (vm *VM) LookupAOT(className, selector string) AOTMethod {
 // HasAOT returns true if AOT methods are registered.
 func (vm *VM) HasAOT() bool {
 	return vm.aotMethods != nil && len(vm.aotMethods) > 0
+}
+
+// ContentStore returns the VM's content store, creating it lazily if needed.
+func (vm *VM) ContentStore() *ContentStore {
+	if vm.contentStore == nil {
+		vm.contentStore = NewContentStore()
+	}
+	return vm.contentStore
 }
 
 // GoTypeRegistry returns the VM's Go type registry, creating it if needed.

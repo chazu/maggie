@@ -258,7 +258,7 @@ func (s *InspectService) inspectValue(v *vm.VM, val vm.Value, handleID string) *
 
 	// Check for class values first
 	if vm.IsClassValue(val) {
-		cls := vm.GetClassFromValue(val)
+		cls := v.GetClassFromValue(val)
 		if cls != nil {
 			// superclass slot (drillable)
 			if cls.Superclass != nil {

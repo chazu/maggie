@@ -30,9 +30,6 @@ type ExceptionObject struct {
 	Handled        bool   // Whether the exception has been handled
 }
 
-// Exception values are encoded using the Symbol tag with marker 8 << 24
-// (channels use 1<<24, processes use 2<<24, results use 4<<24)
-const exceptionMarker uint32 = 8 << 24
 
 // IsException returns true if this value is an exception.
 func (v Value) IsException() bool {
@@ -558,7 +555,7 @@ func (vm *VM) evaluateBlockIfCurtailed(blockVal Value, curtailBlock Value) Value
 func (vm *VM) classFromValue(v Value) *Class {
 	// Check for first-class class values first
 	if isClassValue(v) {
-		return getClassFromValue(v)
+		return vm.registry.GetClassFromValue(v)
 	}
 	// If it's a symbol, look up the class by name (backward compatibility)
 	if v.IsSymbol() {

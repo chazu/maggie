@@ -33,7 +33,6 @@ func createChannel(buffered int) *ChannelObject {
 	return ch
 }
 
-const channelMarker uint32 = 1 << 24
 
 func channelToValue(id int) Value {
 	// Encode channel ID in a way we can distinguish from symbols
@@ -74,7 +73,6 @@ type ProcessObject struct {
 	waitGroup sync.WaitGroup
 }
 
-const processMarker uint32 = 2 << 24
 
 func processToValue(id uint64) Value {
 	// Use symbol encoding with a different marker

@@ -16,6 +16,7 @@ type Manifest struct {
 	Dependencies map[string]Dependency  `toml:"dependencies"`
 	Image        ImageConfig            `toml:"image"`
 	GoWrap       GoWrapConfig           `toml:"go-wrap"`
+	Sync         SyncConfig             `toml:"sync"`
 
 	// Dir is the directory containing the maggie.toml file (set at load time).
 	Dir string `toml:"-"`
@@ -58,6 +59,13 @@ type GoWrapConfig struct {
 type GoWrapPackage struct {
 	Import  string   `toml:"import"`
 	Include []string `toml:"include"`
+}
+
+// SyncConfig configures the content distribution protocol.
+type SyncConfig struct {
+	Capabilities []string `toml:"capabilities"` // e.g., ["File", "HTTP"]
+	Listen       string   `toml:"listen"`       // e.g., ":8081"
+	Peers        []string `toml:"peers"`        // e.g., ["localhost:8082"]
 }
 
 

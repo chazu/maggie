@@ -16,8 +16,6 @@ type WaitGroupObject struct {
 	counter atomic.Int32 // Track count for inspection
 }
 
-// WaitGroup marker for symbol encoding
-const waitGroupMarker uint32 = 33 << 24
 
 func createWaitGroup() *WaitGroupObject {
 	return &WaitGroupObject{}

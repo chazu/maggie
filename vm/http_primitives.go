@@ -24,7 +24,6 @@ type HttpServerObject struct {
 	mu      sync.Mutex
 }
 
-const httpServerMarker uint32 = 38 << 24
 
 func httpServerToValue(id int) Value {
 	return FromSymbolID(uint32(id) | httpServerMarker)
@@ -71,7 +70,6 @@ type HttpRequestObject struct {
 	bodyRead bool
 }
 
-const httpRequestMarker uint32 = 39 << 24
 
 func httpRequestToValue(id int) Value {
 	return FromSymbolID(uint32(id) | httpRequestMarker)
@@ -118,7 +116,6 @@ type HttpResponseObject struct {
 	headers map[string]string
 }
 
-const httpResponseMarker uint32 = 40 << 24
 
 func httpResponseToValue(id int) Value {
 	return FromSymbolID(uint32(id) | httpResponseMarker)

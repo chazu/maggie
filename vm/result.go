@@ -31,7 +31,6 @@ func createResult(rtype ResultType, val Value) *ResultObject {
 	}
 }
 
-const resultMarker uint32 = 4 << 24
 
 func resultToValue(id int) Value {
 	// Use symbol encoding with marker 4 << 24 (channels use 1, processes use 2)
