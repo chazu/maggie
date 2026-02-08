@@ -1,0 +1,145 @@
+"""
+# Getting Started
+
+Maggie is a modern language in the Smalltalk family, built on a Go runtime.
+It combines Smalltalk's elegant message-passing syntax with Go-style
+concurrency, a module system, and a distributed runtime for code exchange.
+
+If you know Go, JavaScript, or Python, Maggie will feel different at first --
+everything is an object, and all computation happens by sending messages to
+objects. This guide walks you through the language from first expression to
+distributed deployment.
+
+```test
+3 + 4 >>> 7
+'hello' , ' world' >>> 'hello world'
+```
+"""
+Guide01GettingStarted subclass: Object
+
+  """
+  ## Running Maggie
+
+  The `mag` command is the main entry point. Start an interactive REPL
+  session with `mag -i`, or load and run source files directly.
+
+  Common invocations:
+
+  - `mag -i` -- start the REPL
+  - `mag file.mag` -- load and execute a file
+  - `mag ./src/...` -- recursively load a directory
+  - `mag -m Main.start` -- load project and call an entry point
+
+  When a `maggie.toml` manifest exists in the current directory, `mag`
+  automatically detects it and loads the project with its dependencies.
+  """
+  method: s01_running [
+      "This section is prose-only. No runnable example needed."
+      ^nil
+  ]
+
+  """
+  ## Expressions and Messages
+
+  Everything in Maggie is an expression that returns a value. There are
+  no statements -- even assignments return the assigned value.
+
+  Computation works by sending messages to objects. There are three
+  kinds of messages:
+
+  - Unary: no arguments, like `size` or `factorial`
+  - Binary: one argument with an operator, like `+ 4` or `= other`
+  - Keyword: named arguments, like `at: 0` or `from: 1 to: 5`
+
+  ```test
+  'hello' size >>> 5
+  3 + 4 >>> 7
+  #(10 20 30) at: 0 >>> 10
+  ```
+  """
+  method: s02_expressions [
+      'hello' size.
+      3 + 4.
+      #(10 20 30) at: 0
+  ]
+
+  """
+  ## Variables and Assignment
+
+  Use `:=` to assign a value to a variable. Variables do not need to be
+  declared before use. Inside methods, variables are local to the method
+  scope.
+
+  ```test
+  x := 42.
+  x >>> 42
+  x := x + 1.
+  x >>> 43
+  ```
+  """
+  method: s03_variables [
+      | x |
+      x := 42.
+      x := x + 1.
+      ^x
+  ]
+
+  """
+  ## Literals
+
+  Maggie supports numbers, strings, symbols, characters, arrays, and
+  the special values `nil`, `true`, and `false`.
+
+  ```test
+  42 class name >>> #SmallInteger
+  3.14 class name >>> #Float
+  'hello' class name >>> #String
+  #hello class name >>> #Symbol
+  true class name >>> #True
+  nil isNil >>> true
+  #(1 2 3) size >>> 3
+  ```
+  """
+  method: s04_literals [
+      42.
+      3.14.
+      'hello'.
+      #hello.
+      true.
+      nil.
+      #(1 2 3)
+  ]
+
+  """
+  ## Comments
+
+  Single-line comments start with `#` at the beginning of a line or
+  after whitespace. Traditional Smalltalk double-quote comments (`"..."`)
+  are also supported inside method bodies.
+
+  Triple-quoted strings (`"""..."""`) are docstrings, not comments --
+  they attach documentation to classes, traits, and methods.
+  """
+  method: s05_comments [
+      "This is a comment inside a method body."
+      ^nil
+  ]
+
+  """
+  ## What Next
+
+  The following chapters cover the language in depth:
+
+  - **Basics** -- message passing, cascades, identity vs equality
+  - **Numbers** -- arithmetic, iteration, math methods
+  - **Strings** -- manipulation, searching, symbols
+  - **Collections** -- arrays and dictionaries
+  - **Blocks** -- closures and control flow
+  - **Classes** -- defining your own types and traits
+  - **Concurrency** -- channels, processes, synchronization
+  - **Modules** -- namespaces and project structure
+  - **Distribution** -- content-addressed code exchange
+  """
+  method: s06_whatNext [
+      ^nil
+  ]
