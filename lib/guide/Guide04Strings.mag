@@ -1,0 +1,524 @@
+"""
+Strings and symbols are the two text types in Maggie. A String is an
+immutable sequence of characters created with single quotes. A Symbol is
+an interned string created with a hash prefix. Both support message
+passing like every other object, but they differ in identity semantics
+and typical use.
+
+This chapter covers creating strings, querying their contents, searching
+and slicing, case conversion, character literals, and the relationship
+between strings and symbols.
+
+```test
+'hello' class name >>> #String
+#hello class name >>> #Symbol
+'hello' size >>> 5
+'hello', ' world' >>> 'hello world'
+```
+"""
+Guide04Strings subclass: Object
+
+  """
+  Strings are written between single quotes. The comma operator (,)
+  concatenates two strings and returns a new string. Strings are
+  immutable -- concatenation never modifies the receiver; it always
+  produces a fresh string.
+
+  You can concatenate any number of strings by chaining commas.
+  The empty string '' is the identity element for concatenation --
+  appending or prepending it changes nothing.
+
+  ```test
+  'hello' >>> 'hello'
+  'hello', ' world' >>> 'hello world'
+  'a', 'b', 'c' >>> 'abc'
+  '', 'hi' >>> 'hi'
+  'hi', '' >>> 'hi'
+  ```
+  """
+  method: s01_creationAndConcatenation [
+      | greeting name |
+      greeting := 'Hello'.
+      name := 'Maggie'.
+      ^greeting, ', ', name, '!'
+  ]
+
+  """
+  The size message returns the number of characters in a string.
+  Use at: with a 0-based index to retrieve a single character.
+  Indexing returns a Character value (like $h), not a one-character
+  string. Out-of-bounds access returns nil rather than raising an
+  error.
+
+  ```test
+  'hello' size >>> 5
+  '' size >>> 0
+  'Maggie' size >>> 6
+  'hello' at: 0 >>> $h
+  'hello' at: 4 >>> $o
+  ```
+  """
+  method: s02_sizeAndIndexing [
+      | s |
+      s := 'hello'.
+      s size.
+      s at: 0.
+      ^s at: 4
+  ]
+
+  """
+  The copyFrom:to: message extracts a substring. The start index is
+  inclusive and the end index is exclusive, following the same
+  convention as Go slices. Both indices are 0-based.
+
+  If you want a prefix, start from 0. If you want a suffix, end at
+  the string's size. The returned value is always a new string.
+
+  ```test
+  'hello' copyFrom: 1 to: 4 >>> 'ell'
+  'hello' copyFrom: 0 to: 5 >>> 'hello'
+  'abcdef' copyFrom: 2 to: 4 >>> 'cd'
+  'abcdef' copyFrom: 0 to: 3 >>> 'abc'
+  'abcdef' copyFrom: 4 to: 6 >>> 'ef'
+  ```
+  """
+  method: s03_slicing [
+      'hello' copyFrom: 1 to: 4.
+      'hello' copyFrom: 0 to: 5.
+      ^'abcdef' copyFrom: 2 to: 4
+  ]
+
+  """
+  The isEmpty and notEmpty messages test whether a string has zero
+  length. These read more naturally than comparing size to 0
+  directly.
+
+  ```test
+  '' isEmpty >>> true
+  'a' isEmpty >>> false
+  'hello' notEmpty >>> true
+  '' notEmpty >>> false
+  ```
+  """
+  method: s04_emptyTests [
+      '' isEmpty.
+      ^'hello' notEmpty
+  ]
+
+  """
+  Use includes: to test whether a string contains a given substring.
+  It returns true or false. The argument can be a string of any
+  length -- single character or multi-character.
+
+  ```test
+  'hello world' includes: 'world' >>> true
+  'hello world' includes: 'xyz' >>> false
+  'hello' includes: 'ell' >>> true
+  'hello' includes: 'hello' >>> true
+  'hello' includes: 'Hello' >>> false
+  ```
+
+  Note that includes: is case-sensitive. The last example above
+  returns false because 'H' does not match 'h'.
+  """
+  method: s05_includesSearch [
+      | s |
+      s := 'hello world'.
+      s includes: 'world'.
+      s includes: 'xyz'.
+      ^'hello' includes: 'ell'
+  ]
+
+  """
+  The indexOf: message returns the 0-based position of the first
+  occurrence of a substring, or -1 if not found. Like includes:, it
+  accepts a string argument of any length.
+
+  Combine indexOf: with copyFrom:to: to extract text around a known
+  marker.
+
+  ```test
+  'hello' indexOf: 'l' >>> 2
+  'hello' indexOf: 'lo' >>> 3
+  'hello' indexOf: 'z' >>> -1
+  'hello world' indexOf: 'world' >>> 6
+  'abcabc' indexOf: 'bc' >>> 1
+  ```
+  """
+  method: s06_indexOfSearch [
+      'hello' indexOf: 'l'.
+      'hello' indexOf: 'lo'.
+      ^'hello' indexOf: 'z'
+  ]
+
+  """
+  The asUppercase and asLowercase messages return new strings with
+  all characters converted to the respective case. The original
+  string is not modified.
+
+  These are useful for case-insensitive comparisons: convert both
+  sides to the same case before comparing with =.
+
+  ```test
+  'hello' asUppercase >>> 'HELLO'
+  'HELLO' asLowercase >>> 'hello'
+  'Hello World' asUppercase >>> 'HELLO WORLD'
+  'Hello World' asLowercase >>> 'hello world'
+  'already' asLowercase >>> 'already'
+  ```
+  """
+  method: s07_caseConversion [
+      'hello' asUppercase.
+      'HELLO' asLowercase.
+      ^'Hello World' asLowercase
+  ]
+
+  """
+  Strings compare by content using = (equality). Two strings with the
+  same characters are equal regardless of how they were created.
+
+  The < and > operators compare strings lexicographically -- the same
+  ordering a dictionary would use. The <= and >= operators combine
+  ordering with equality.
+
+  ```test
+  'abc' = 'abc' >>> true
+  'abc' = 'xyz' >>> false
+  'apple' < 'banana' >>> true
+  'banana' > 'apple' >>> true
+  'cat' <= 'cat' >>> true
+  'cat' <= 'dog' >>> true
+  'dog' >= 'cat' >>> true
+  'abc' < 'abd' >>> true
+  ```
+  """
+  method: s08_comparison [
+      'abc' = 'abc'.
+      'apple' < 'banana'.
+      ^'banana' > 'apple'
+  ]
+
+  """
+  Two distinct string objects with the same content are equal (=) but
+  may not be identical (==). Identity checks with == test whether two
+  values are the exact same object in memory. For strings, you almost
+  always want = rather than ==.
+
+  ```test
+  'abc' = 'abc' >>> true
+  ```
+  """
+  method: s09_equalityVsIdentity [
+      ^'abc' = 'abc'
+  ]
+
+  """
+  The do: message iterates over each character of a string, yielding
+  a Character value to the block on each step. The Character values
+  can be concatenated directly with strings using the comma operator,
+  because concatenation accepts both strings and characters.
+
+  ```test
+  result := ''.
+  'abc' do: [:ch | result := result, ch, '-'].
+  result >>> 'a-b-c-'
+  ```
+
+  You can also use do: to count or test characters individually.
+
+  ```test
+  count := 0.
+  'hello' do: [:ch | (ch = $l) ifTrue: [count := count + 1]].
+  count >>> 2
+  ```
+  """
+  method: s10_iteration [
+      | result |
+      result := ''.
+      'abc' do: [:ch | result := result, ch, '-'].
+      ^result
+  ]
+
+  """
+  Strings can be converted to numbers with asInteger and asFloat.
+  If the string does not represent a valid number, nil is returned
+  rather than raising an error. This makes it safe to attempt
+  conversion without error handling.
+
+  The asSymbol message interns the string and returns a Symbol.
+  The asString message on a string simply returns itself.
+
+  ```test
+  '42' asInteger >>> 42
+  '-7' asInteger >>> -7
+  '3.14' asFloat >>> 3.14
+  'oops' asInteger >>> nil
+  'hello' asSymbol >>> #hello
+  'hello' asString >>> 'hello'
+  ```
+  """
+  method: s11_conversion [
+      '42' asInteger.
+      '3.14' asFloat.
+      'oops' asInteger.
+      ^'hello' asSymbol
+  ]
+
+  """
+  The printString message returns a quoted representation of the
+  string, suitable for debugging output. It wraps the content in
+  single quotes.
+
+  ```test
+  'hello' printString >>> '''hello'''
+  ```
+  """
+  method: s12_printString [
+      ^'hello' printString
+  ]
+
+  """
+  Character literals use the dollar-sign prefix: $a, $Z, $0, $!.
+  Each literal produces a Character object -- a first-class value
+  representing a single Unicode code point. Characters are not
+  strings; they are a separate type.
+
+  Characters respond to testing messages: isLetter, isDigit,
+  isUppercase, isLowercase, and isWhitespace. These return true
+  or false.
+
+  ```test
+  $a class name >>> #Character
+  $a isLetter >>> true
+  $5 isDigit >>> true
+  $A isUppercase >>> true
+  $a isLowercase >>> true
+  $5 isLetter >>> false
+  $a isDigit >>> false
+  ```
+  """
+  method: s13_characterLiterals [
+      $a isLetter.
+      $5 isDigit.
+      $A isUppercase.
+      ^$a isLowercase
+  ]
+
+  """
+  Characters support case conversion with asUppercase and asLowercase.
+  These return new Character values, not strings.
+
+  Characters also support equality (=) and ordering (<, >) based on
+  their Unicode code point values. The value message returns the
+  code point as an integer.
+
+  ```test
+  $a asUppercase >>> $A
+  $Z asLowercase >>> $z
+  $a = $a >>> true
+  $a = $b >>> false
+  $a < $b >>> true
+  $b > $a >>> true
+  $a value >>> 97
+  $A value >>> 65
+  ```
+  """
+  method: s14_characterCaseAndComparison [
+      $a asUppercase.
+      $Z asLowercase.
+      $a = $a.
+      $a < $b.
+      ^$a value
+  ]
+
+  """
+  You can create a Character from its Unicode code point using the
+  class method Character value:. The asString message converts a
+  Character to a single-character string.
+
+  Character also provides named constants for common whitespace
+  characters that have no convenient literal form.
+
+  ```test
+  Character value: 65 >>> $A
+  Character value: 97 >>> $a
+  $h asString >>> 'h'
+  $h asString class name >>> #String
+  Character space value >>> 32
+  Character space isWhitespace >>> true
+  ```
+  """
+  method: s15_characterCreation [
+      Character value: 65.
+      $h asString.
+      ^Character space value
+  ]
+
+  """
+  The Character class in lib/Character.mag adds a few convenience
+  methods on top of the VM primitives. The isAlphaNumeric method
+  returns true if a character is a letter or a digit. The isVowel
+  method checks for vowels (a, e, i, o, u in either case).
+
+  ```test
+  $a isAlphaNumeric >>> true
+  $5 isAlphaNumeric >>> true
+  $a isVowel >>> true
+  $b isVowel >>> false
+  $E isVowel >>> true
+  ```
+  """
+  method: s16_characterConvenience [
+      $a isAlphaNumeric.
+      $5 isAlphaNumeric.
+      ^$a isVowel
+  ]
+
+  """
+  String also has single-character testing methods -- isDigit,
+  isLetter, isAlphanumeric, and isWhitespace -- that work when the
+  receiver is a one-character string. These are implemented in
+  lib/String.mag and complement the Character methods.
+
+  The difference is the receiver type: Character methods work on
+  Character values ($a), while these String methods work on
+  one-character strings ('a'). Multi-character strings return false
+  for all of these tests.
+
+  ```test
+  '5' isDigit >>> true
+  'a' isLetter >>> true
+  'a' isAlphanumeric >>> true
+  '5' isAlphanumeric >>> true
+  ' ' isWhitespace >>> true
+  ' ' isAlphanumeric >>> false
+  'ab' isDigit >>> false
+  ```
+  """
+  method: s17_stringCharacterTests [
+      '5' isDigit.
+      'a' isLetter.
+      'a' isAlphanumeric.
+      ^' ' isWhitespace
+  ]
+
+  """
+  Symbols are interned strings created with the hash prefix: #hello,
+  #size, #firstName. The VM guarantees that two symbols with the same
+  characters are the exact same object in memory. This makes identity
+  comparison (==) reliable and fast.
+
+  Symbols are commonly used as method selectors, dictionary keys, and
+  enumeration values -- anywhere you need fast identity checks rather
+  than character-by-character comparison.
+
+  ```test
+  #hello class name >>> #Symbol
+  #hello asString >>> 'hello'
+  #hello = #hello >>> true
+  #hello == #hello >>> true
+  #hello printString >>> '#hello'
+  ```
+  """
+  method: s18_symbolCreation [
+      #hello class name.
+      #hello asString.
+      ^#hello == #hello
+  ]
+
+  """
+  Symbol equality (=) is defined as identity (==). This is the
+  fundamental difference from String: for symbols, = and == always
+  give the same answer. For strings, = compares content while ==
+  compares object identity.
+
+  ```test
+  #hello = #hello >>> true
+  #hello == #hello >>> true
+  #hello = #world >>> false
+  ```
+  """
+  method: s19_symbolEquality [
+      #hello = #hello.
+      #hello == #hello.
+      ^#hello = #world
+  ]
+
+  """
+  You can convert freely between strings and symbols. The asSymbol
+  message on a String interns it and returns the corresponding Symbol.
+  The asString message on a Symbol returns a plain String with the
+  same characters.
+
+  Calling asSymbol on a Symbol returns itself. Calling asString on a
+  String also returns itself. These are safe to call without checking
+  the type first.
+
+  ```test
+  'hello' asSymbol >>> #hello
+  #hello asString >>> 'hello'
+  'hello' asSymbol class name >>> #Symbol
+  #hello asString class name >>> #String
+  'hello' asSymbol == #hello >>> true
+  #hello asSymbol >>> #hello
+  'hello' asString >>> 'hello'
+  ```
+  """
+  method: s20_convertingBetween [
+      'hello' asSymbol.
+      #hello asString.
+      ^'hello' asSymbol == #hello
+  ]
+
+  """
+  When choosing between strings and symbols, follow this rule of
+  thumb: use strings for text data that comes from outside your
+  program (user input, file contents, network responses) and symbols
+  for names that exist inside your program (method selectors, option
+  keys, type tags).
+
+  Symbols are fast to compare because the VM only needs to check if
+  two references are the same pointer. Strings require comparing each
+  character. But symbols are never garbage collected -- every unique
+  symbol lives forever -- so creating large numbers of dynamic symbols
+  from user input would waste memory.
+
+  ```test
+  'user input' class name >>> #String
+  #methodName class name >>> #Symbol
+  ```
+  """
+  method: s21_whenToUseWhich [
+      ^nil
+  ]
+
+  """
+  Here is a small example that combines several string operations:
+  extracting a file extension from a path by finding the last dot and
+  slicing the string.
+
+  ```test
+  path := 'archive.tar.gz'.
+  dotPos := path indexOf: '.'.
+  ext := path copyFrom: dotPos to: path size.
+  ext >>> '.tar.gz'
+  ```
+
+  And another that builds a greeting with case conversion:
+
+  ```test
+  name := 'maggie'.
+  greeting := 'Hello, ', (name copyFrom: 0 to: 1) asUppercase, (name copyFrom: 1 to: name size), '!'.
+  greeting >>> 'Hello, Maggie!'
+  ```
+  """
+  method: s22_puttingItTogether [
+      | path dotPos ext name greeting |
+      path := 'archive.tar.gz'.
+      dotPos := path indexOf: '.'.
+      ext := path copyFrom: dotPos to: path size.
+
+      name := 'maggie'.
+      greeting := 'Hello, ', (name copyFrom: 0 to: 1) asUppercase, (name copyFrom: 1 to: name size), '!'.
+      ^greeting
+  ]

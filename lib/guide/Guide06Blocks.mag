@@ -1,0 +1,473 @@
+"""
+Blocks are the heart of Maggie. A block is a closure -- a chunk of deferred
+code that captures its surrounding scope and can be evaluated later. Blocks
+drive all control flow in the language: conditionals, loops, error handling,
+and concurrency are all built on sending messages to blocks and booleans.
+
+If you have used Ruby blocks, JavaScript arrow functions, or Smalltalk
+closures, Maggie blocks will feel familiar. The key difference is that
+blocks are real objects -- you can store them in variables, pass them as
+arguments, return them from methods, and send them messages.
+
+```test
+[3 + 4] value >>> 7
+[:x | x * 2] value: 5 >>> 10
+[:x :y | x + y] value: 3 value: 4 >>> 7
+```
+"""
+Guide06Blocks subclass: Object
+
+  """
+  A block is written with square brackets. The simplest block contains a
+  single expression. Multiple expressions are separated by periods, and
+  the block returns the value of the last expression.
+
+  To run a block, send it the message `value`. Until you send `value`,
+  the code inside the block does not execute -- it is deferred. This is
+  fundamental to how Maggie works: blocks let you pass around code as
+  data, then decide when (and whether) to run it.
+
+  ```test
+  [42] value >>> 42
+  [3 + 4] value >>> 7
+  ['hello'] value >>> 'hello'
+  ```
+
+  A block with multiple expressions evaluates them in order and returns
+  the last result. Earlier expressions are evaluated for their side
+  effects only.
+
+  ```test
+  [1. 2. 3] value >>> 3
+  ['first'. 'second'. 'third'] value >>> 'third'
+  ```
+
+  Blocks are objects. You can store them in variables and evaluate
+  them as many times as you like. Each call to `value` re-executes
+  the block from the beginning.
+
+  ```test
+  [3 + 4] value >>> 7
+  ```
+  """
+  method: s01_blockSyntax [
+      [42] value.
+      [3 + 4] value.
+      [1. 2. 3] value
+  ]
+
+  """
+  Blocks can take arguments. Each argument is declared with a colon
+  before its name, followed by a vertical bar that separates the
+  arguments from the body.
+
+  One argument -- send `value:` with the argument.
+  Two arguments -- send `value:value:` with both arguments.
+  Three arguments -- send `value:value:value:` with all three.
+
+  The number of arguments you pass must match the number the block
+  expects.
+
+  ```test
+  [:x | x + 1] value: 99 >>> 100
+  [:x | x * 2] value: 5 >>> 10
+  [:s | s , ' world'] value: 'hello' >>> 'hello world'
+  [:x :y | x + y] value: 3 value: 4 >>> 7
+  [:a :b | a * b] value: 6 value: 7 >>> 42
+  [:a :b :c | a + b + c] value: 1 value: 2 value: 3 >>> 6
+  ```
+  """
+  method: s02_blockArguments [
+      [:x | x + 1] value: 99.
+      [:x :y | x + y] value: 3 value: 4.
+      [:a :b :c | a + b + c] value: 1 value: 2 value: 3
+  ]
+
+  """
+  Blocks capture variables from their enclosing scope. This is what
+  makes them closures -- they "close over" the environment where they
+  were created. If the captured variable changes later, the block sees
+  the new value. And if the block assigns to a captured variable, the
+  change is visible outside the block.
+
+  This is the foundation for many patterns: factory functions, callbacks,
+  accumulators, and more.
+
+  ```test
+  factor := 10.
+  [:x | x * factor] value: 5 >>> 50
+  ```
+
+  A classic closure example is a function that builds other functions.
+  Here, `makeAdder` returns a new block that remembers the value of `n`.
+  Each call to `makeAdder` creates a fresh closure with its own copy
+  of the captured variable:
+
+  ```test
+  ([:n | [:x | x + n]] value: 5) value: 10 >>> 15
+  ```
+
+  ```test
+  ([:n | [:x | x + n]] value: 100) value: 10 >>> 110
+  ```
+
+  Captured variables are shared, not copied. Assigning inside the block
+  changes the original variable. This means two blocks that close over
+  the same variable will see each other's changes:
+
+  ```test
+  count := 0.
+  [count := count + 1] value.
+  [count := count + 1] value.
+  count >>> 2
+  ```
+
+  ```test
+  total := 100.
+  [:n | total := total + n] value: 30.
+  [:n | total := total - n] value: 10.
+  total >>> 120
+  ```
+  """
+  method: s03_closures [
+      | factor makeAdder add5 |
+      factor := 10.
+      [:x | x * factor] value: 5.
+      makeAdder := [:n | [:x | x + n]].
+      add5 := makeAdder value: 5.
+      add5 value: 10
+  ]
+
+  """
+  Maggie has no if/else keywords. Instead, conditionals work by sending
+  messages to boolean values. The comparison operators (<, >, =, >=, <=)
+  return either `true` or `false`, and those boolean objects understand
+  the messages `ifTrue:`, `ifFalse:`, and `ifTrue:ifFalse:`.
+
+  The argument to these messages is always a block -- the code to run
+  if the condition holds. Because blocks are deferred, only the
+  appropriate branch executes.
+
+  `ifTrue:` evaluates the block when the receiver is true, otherwise
+  returns nil. `ifFalse:` is the opposite. `ifTrue:ifFalse:` evaluates
+  one branch or the other.
+
+  ```test
+  (3 > 2) ifTrue: ['yes'] >>> 'yes'
+  (3 > 2) ifFalse: ['no'] >>> nil
+  (1 > 2) ifTrue: ['yes'] >>> nil
+  (1 > 2) ifFalse: ['no'] >>> 'no'
+  ```
+
+  ```test
+  x := 10.
+  x > 5 ifTrue: [#big] ifFalse: [#small] >>> #big
+  ```
+
+  ```test
+  x := 2.
+  x > 5 ifTrue: [#big] ifFalse: [#small] >>> #small
+  ```
+
+  There is also `ifFalse:ifTrue:` which reverses the argument order:
+
+  ```test
+  (1 > 2) ifFalse: ['nope'] ifTrue: ['yep'] >>> 'nope'
+  ```
+  """
+  method: s04_conditionals [
+      | x |
+      x := 10.
+      x > 5 ifTrue: [#big] ifFalse: [#small]
+  ]
+
+  """
+  Boolean objects support logical operations. The `not` message negates
+  a boolean. The `and:` and `or:` messages take a block argument and
+  use short-circuit evaluation -- `and:` skips the block if the receiver
+  is false, and `or:` skips the block if the receiver is true.
+
+  The `&` and `|` operators are eager (non-short-circuit) -- they take
+  a value, not a block. Use `and:`/`or:` when the second operand is
+  expensive or has side effects.
+
+  ```test
+  true not >>> false
+  false not >>> true
+  ```
+
+  ```test
+  true and: [#evaluated] >>> #evaluated
+  false and: [#skipped] >>> false
+  false or: [#evaluated] >>> #evaluated
+  true or: [#skipped] >>> true
+  ```
+
+  ```test
+  true & true >>> true
+  true & false >>> false
+  false & true >>> false
+  false | true >>> true
+  false | false >>> false
+  true | false >>> true
+  ```
+
+  Boolean also has `xor:` (exclusive or) and `eqv:` (equivalence):
+
+  ```test
+  true xor: false >>> true
+  true xor: true >>> false
+  true eqv: true >>> true
+  true eqv: false >>> false
+  ```
+  """
+  method: s05_booleanOperations [
+      true not.
+      true and: [#yes].
+      false or: [#fallback].
+      true & false.
+      false | true
+  ]
+
+  """
+  Maggie has no while keyword. Instead, loops are messages sent to
+  blocks. The receiver block is the condition, and the argument block
+  is the body.
+
+  `whileTrue:` repeatedly evaluates the condition block. As long as it
+  returns true, the body block executes. When the condition returns
+  false, the loop stops and returns nil.
+
+  `whileFalse:` is the opposite -- it keeps looping as long as the
+  condition returns false.
+
+  There are also zero-argument forms: `whileTrue` and `whileFalse`
+  that just loop on the condition without a separate body. These are
+  useful when the condition block itself performs the work and you
+  just need to repeat it until the boolean result changes.
+
+  Important: `whileTrue:` and `whileFalse:` are sent to blocks, not
+  to boolean values. The receiver must be a block (in square brackets)
+  that the VM can evaluate repeatedly. Writing `condition whileTrue:`
+  where condition is a boolean, not a block, will not work -- you need
+  `[condition] whileTrue:` so the VM can re-evaluate the condition on
+  each iteration.
+
+  ```test
+  i := 1.
+  sum := 0.
+  [i <= 10] whileTrue: [sum := sum + i. i := i + 1].
+  sum >>> 55
+  ```
+
+  ```test
+  n := 5.
+  [n > 0] whileTrue: [n := n - 1].
+  n >>> 0
+  ```
+
+  ```test
+  found := false.
+  [found] whileFalse: [found := true].
+  found >>> true
+  ```
+
+  The loop primitives always return nil. If you need a result from a
+  loop, accumulate it in a variable declared outside the loop:
+
+  ```test
+  i := 1.
+  product := 1.
+  [i <= 5] whileTrue: [product := product * i. i := i + 1].
+  product >>> 120
+  ```
+  """
+  method: s06_whileLoops [
+      | i sum |
+      i := 1.
+      sum := 0.
+      [i <= 10] whileTrue: [
+          sum := sum + i.
+          i := i + 1
+      ].
+      ^sum
+  ]
+
+  """
+  SmallInteger provides `timesRepeat:` for running a block a fixed
+  number of times, and `to:do:` for iterating over a range with an
+  index variable.
+
+  `timesRepeat:` evaluates a zero-argument block N times and returns
+  the receiver.
+
+  `to:do:` iterates from the receiver up to the stop value (inclusive),
+  passing each index to a one-argument block. `to:by:do:` adds a custom
+  step value.
+
+  ```test
+  count := 0.
+  5 timesRepeat: [count := count + 1].
+  count >>> 5
+  ```
+
+  ```test
+  sum := 0.
+  1 to: 10 do: [:i | sum := sum + i].
+  sum >>> 55
+  ```
+
+  ```test
+  result := 0.
+  1 to: 10 by: 2 do: [:i | result := result + i].
+  result >>> 25
+  ```
+  """
+  method: s07_iteration [
+      | sum |
+      sum := 0.
+      1 to: 10 do: [:i | sum := sum + i].
+      ^sum
+  ]
+
+  """
+  Inside a method, the caret (^) means "return from this method." When
+  a ^ appears inside a block that is nested inside a method, it does
+  not just exit the block -- it exits the entire enclosing method. This
+  is called a non-local return.
+
+  Non-local returns are what make blocks powerful for control flow.
+  When you write `x > 5 ifTrue: [^#big]`, the `^#big` returns from
+  the enclosing method, not just from the ifTrue: block. Without
+  non-local return, you would need to store results in temporary
+  variables and thread them through every conditional.
+
+  This is how methods like `detect:` and `do:` work -- the block can
+  return from the calling method when it finds what it needs.
+
+  A method without an explicit ^ at the end implicitly returns the
+  value of its last expression. A ^ at the top level of a method
+  returns that value immediately.
+
+  Consider this search pattern: the block inside `to:do:` uses ^ to
+  exit the enclosing method as soon as a match is found, rather than
+  continuing to iterate.
+
+  Note: In forked processes (blocks sent `fork`), non-local returns
+  are caught at the process boundary and treated as local returns.
+  This prevents a ^ from escaping one goroutine into another.
+  """
+  method: s08_nonLocalReturn [
+      "Non-local return example: ^ exits the enclosing method"
+      | x |
+      x := 10.
+      x > 5 ifTrue: [^#big].
+      ^#small
+  ]
+
+  """
+  Maggie provides exception handling through messages on blocks.
+  The `on:do:` message installs an exception handler: if the block
+  signals an exception matching the given class, the handler block
+  runs with the exception object as its argument.
+
+  The exception hierarchy has Exception at the root, with Error and
+  Warning as subclasses. Specific errors like ZeroDivide and
+  MessageNotUnderstood are subclasses of Error. Catching Error will
+  also catch its subclasses, so you can write a broad handler that
+  catches any error.
+
+  The general form is:
+
+      [risky code] on: SomeExceptionClass do: [:ex | recovery code]
+
+  If no exception is raised, `on:do:` returns the result of the
+  receiver block. If an exception matching the class is raised, the
+  handler block runs and its result becomes the result of `on:do:`.
+
+  The `ensure:` message guarantees that a cleanup block runs after
+  the receiver block finishes, whether it completed normally or was
+  interrupted by an exception or non-local return. The result of
+  `ensure:` is the result of the receiver block, not the cleanup block.
+  This is Maggie's equivalent of try/finally in other languages.
+
+  The `ifCurtailed:` message is related but only runs the cleanup
+  block if the receiver block terminates abnormally (via exception
+  or non-local return). If the block completes normally, the
+  curtailment block is skipped.
+
+  ```test
+  [1 + 2] ensure: [nil] >>> 3
+  [42] ensure: [99] >>> 42
+  ```
+  """
+  method: s09_errorHandling [
+      "ensure: always runs the cleanup block, returns receiver result"
+      [1 + 2] ensure: [nil]
+  ]
+
+  """
+  Blocks are used everywhere in Maggie, not just for control flow.
+  Here are some common patterns that show how blocks compose with
+  the rest of the language.
+
+  Storing blocks in variables for later use (callbacks):
+
+  ```test
+  [:x | x * x] value: 5 >>> 25
+  ```
+
+  Building a collection with a block:
+
+  ```test
+  result := Array new: 5.
+  0 to: 4 do: [:i | result at: i put: i * i].
+  result at: 3 >>> 9
+  ```
+
+  Using ensure: for resource cleanup:
+
+  ```test
+  log := 'start'.
+  [log := log , '-work'] ensure: [log := log , '-done'].
+  log >>> 'start-work-done'
+  ```
+
+  Conditional assignment -- the result of ifTrue:ifFalse: is the
+  value of whichever branch was taken:
+
+  ```test
+  x := 42.
+  label := x even ifTrue: ['even'] ifFalse: ['odd'].
+  label >>> 'even'
+  ```
+
+  Accumulator pattern -- a block that maintains private state
+  through a captured variable:
+
+  ```test
+  counter := 0.
+  [counter := counter + 1. counter] value.
+  [counter := counter + 1. counter] value.
+  [counter := counter + 1. counter] value >>> 3
+  ```
+
+  Composing blocks -- passing one block to another:
+
+  ```test
+  [:f :x | f value: x] value: [:n | n * 10] value: 7 >>> 70
+  ```
+
+  Using whileTrue: to find a value:
+
+  ```test
+  n := 1.
+  [n * n < 100] whileTrue: [n := n + 1].
+  n >>> 10
+  ```
+  """
+  method: s10_commonPatterns [
+      | action |
+      action := [:x | x * x].
+      action value: 5
+  ]

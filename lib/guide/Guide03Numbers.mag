@@ -1,0 +1,395 @@
+"""
+Maggie has two numeric types: SmallInteger for exact whole numbers and Float
+for IEEE 754 double-precision decimals. Both support the standard arithmetic
+operators and comparisons. SmallIntegers are stored as tagged pointers inside
+the NaN-boxed value representation, so integer arithmetic never allocates
+heap memory. Floats are used whenever a literal contains a decimal point or
+when an integer operation involves a Float operand.
+
+All arithmetic and comparison operators are messages sent to the receiver.
+There is no special syntax for math -- 3 + 4 sends the message + with
+argument 4 to the SmallInteger 3. Binary messages like + and * are left-
+associative and have equal precedence, so use parentheses to control
+evaluation order when mixing operators.
+
+Beyond basic arithmetic, SmallInteger provides iteration primitives
+(timesRepeat:, to:do:, to:by:do:), mathematical methods (factorial, gcd:,
+lcm:), property tests (even, odd, isZero), and bitwise operations. Float
+adds rounding methods (truncated, rounded, floor, ceiling) for converting
+back to integer values.
+
+```test
+42 class name >>> #SmallInteger
+2.5 class name >>> #Float
+3 + 4 >>> 7
+1.5 + 2.5 >>> 4
+```
+"""
+Guide03Numbers subclass: Object
+
+  """
+  SmallInteger supports the standard arithmetic operators. Division with /
+  performs truncating integer division (the result is always a SmallInteger).
+  The \\ operator returns the remainder (modulo), and // performs floor
+  division that rounds toward negative infinity.
+
+  ```test
+  3 + 4 >>> 7
+  10 - 3 >>> 7
+  6 * 7 >>> 42
+  10 / 3 >>> 3
+  10 \\ 3 >>> 1
+  17 // 5 >>> 3
+  -7 // 2 >>> -4
+  ```
+
+  When a SmallInteger operation involves a Float argument, the result is
+  promoted to Float automatically.
+
+  ```test
+  3 + 2.0 >>> 5
+  5 * 1.5 >>> 7.5
+  ```
+  """
+  method: s01_integerArithmetic [
+      3 + 4.
+      10 - 3.
+      6 * 7.
+      10 / 3.
+      10 \\ 3.
+      17 // 5
+  ]
+
+  """
+  Comparison operators work between SmallIntegers and return true or false.
+  The = operator tests numeric equality, not identity.
+
+  ```test
+  3 < 5 >>> true
+  5 > 3 >>> true
+  3 = 3 >>> true
+  4 >= 4 >>> true
+  4 <= 5 >>> true
+  3 = 4 >>> false
+  ```
+  """
+  method: s02_integerComparisons [
+      3 < 5.
+      5 > 3.
+      3 = 3.
+      4 >= 4.
+      4 <= 5
+  ]
+
+  """
+  Float literals contain a decimal point. Float arithmetic uses IEEE 754
+  double-precision and the standard +, -, *, / operators. Floats can be
+  mixed freely with SmallIntegers in arithmetic -- the result is always
+  a Float.
+
+  ```test
+  1.5 + 2.5 >>> 4
+  5.0 - 2.0 >>> 3
+  2.5 * 4.0 >>> 10
+  10.0 / 4.0 >>> 2.5
+  ```
+
+  Float comparisons also work with SmallInteger arguments.
+
+  ```test
+  2.5 > 2 >>> true
+  1.5 < 3 >>> true
+  ```
+  """
+  method: s03_floatArithmetic [
+      1.5 + 2.5.
+      5.0 - 2.0.
+      2.5 * 4.0.
+      10.0 / 4.0
+  ]
+
+  """
+  SmallInteger provides three iteration methods implemented as VM
+  primitives for performance: timesRepeat:, to:do:, and to:by:do:.
+  These are the primary looping constructs in Maggie.
+
+  timesRepeat: evaluates a block N times. The block receives no arguments.
+
+  ```test
+  count := 0.
+  5 timesRepeat: [count := count + 1].
+  count >>> 5
+  ```
+
+  to:do: iterates from the receiver up to a limit, passing each value
+  to a one-argument block.
+
+  ```test
+  sum := 0.
+  1 to: 10 do: [:i | sum := sum + i].
+  sum >>> 55
+  ```
+
+  to:by:do: adds a step parameter. The step can be negative to count
+  downward.
+
+  ```test
+  result := 0.
+  1 to: 10 by: 2 do: [:i | result := result + i].
+  result >>> 25
+  ```
+
+  ```test
+  result := 0.
+  10 to: 1 by: -2 do: [:i | result := result + i].
+  result >>> 30
+  ```
+  """
+  method: s04_iteration [
+      | sum |
+      sum := 0.
+      1 to: 10 do: [:i | sum := sum + i].
+      ^sum
+  ]
+
+  """
+  The factorial method computes n! recursively. It is defined in
+  SmallInteger.mag and works for non-negative integers.
+
+  ```test
+  0 factorial >>> 1
+  1 factorial >>> 1
+  5 factorial >>> 120
+  10 factorial >>> 3628800
+  ```
+
+  gcd: computes the greatest common divisor using Euclid's algorithm.
+  lcm: computes the least common multiple, built on top of gcd:.
+
+  ```test
+  12 gcd: 8 >>> 4
+  7 gcd: 5 >>> 1
+  100 gcd: 75 >>> 25
+  4 lcm: 6 >>> 12
+  3 lcm: 5 >>> 15
+  ```
+  """
+  method: s05_factorialAndGcd [
+      5 factorial.
+      12 gcd: 8.
+      4 lcm: 6
+  ]
+
+  """
+  Several methods test numeric properties without requiring explicit
+  comparisons.
+
+  isZero returns true when the receiver equals zero.
+  positive and negative test sign without comparing to zero yourself.
+  even and odd check divisibility by two.
+
+  ```test
+  0 isZero >>> true
+  5 isZero >>> false
+  7 positive >>> true
+  -3 positive >>> false
+  -3 negative >>> true
+  5 negative >>> false
+  4 even >>> true
+  7 even >>> false
+  7 odd >>> true
+  4 odd >>> false
+  0 even >>> true
+  0 odd >>> false
+  ```
+  """
+  method: s06_typeTesting [
+      0 isZero.
+      7 positive.
+      4 even.
+      7 odd
+  ]
+
+  """
+  abs returns the absolute value, negated returns the arithmetic
+  negation, and sign returns -1, 0, or 1 indicating the sign.
+
+  ```test
+  -5 abs >>> 5
+  5 abs >>> 5
+  0 abs >>> 0
+  5 negated >>> -5
+  -3 negated >>> 3
+  -42 sign >>> -1
+  0 sign >>> 0
+  17 sign >>> 1
+  ```
+
+  max: and min: return the larger or smaller of two values.
+  between:and: tests whether a value falls within an inclusive range.
+
+  ```test
+  3 max: 7 >>> 7
+  3 min: 7 >>> 3
+  5 between: 1 and: 10 >>> true
+  0 between: 1 and: 10 >>> false
+  ```
+  """
+  method: s07_absNegatedSignMinMax [
+      -5 abs.
+      5 negated.
+      3 max: 7.
+      3 min: 7.
+      5 between: 1 and: 10
+  ]
+
+  """
+  Float provides the same sign-testing and comparison methods as
+  SmallInteger: abs, negated, sign, max:, min:, isZero, positive,
+  and negative.
+
+  ```test
+  (0.0 - 5.5) abs >>> 5.5
+  2.5 negated >>> -2.5
+  3.0 sign >>> 1
+  (0.0 - 3.0) sign >>> -1
+  0.0 sign >>> 0
+  3.0 max: 5.0 >>> 5
+  5.0 min: 3.0 >>> 3
+  0.0 isZero >>> true
+  3.0 positive >>> true
+  (0.0 - 1.0) negative >>> true
+  ```
+  """
+  method: s08_floatSignAndComparison [
+      (0.0 - 5.5) abs.
+      2.5 negated.
+      3.0 max: 5.0.
+      5.0 min: 3.0.
+      0.0 isZero
+  ]
+
+  """
+  Float provides methods to convert to SmallInteger by rounding.
+  truncated chops toward zero, and rounded rounds half away from zero.
+  Both return SmallInteger values.
+
+  ```example
+  3.9 truncated       "=> 3"
+  (0.0 - 3.9) truncated  "=> -3"
+  3.5 rounded         "=> 4"
+  2.4 rounded         "=> 2"
+  (0.0 - 2.5) rounded    "=> -3"
+  ```
+
+  floor and ceiling are also available -- floor returns the largest
+  integer less than or equal to the receiver, and ceiling returns the
+  smallest integer greater than or equal to it. They delegate to VM
+  primitives.
+
+  ```example
+  3.7 floor       "=> 3"
+  3.2 ceiling     "=> 4"
+  ```
+  """
+  method: s09_floatRounding [
+      3.9 truncated.
+      3.5 rounded
+  ]
+
+  """
+  When SmallInteger arithmetic involves a Float operand, the result is
+  automatically promoted to Float. Going the other direction, use
+  truncated or rounded on a Float to obtain a SmallInteger.
+
+  ```test
+  3 + 2.0 >>> 5
+  5 * 0.5 >>> 2.5
+  ```
+
+  ```example
+  7.5 truncated   "=> 7"
+  7.5 rounded     "=> 8"
+  ```
+
+  You can also convert from a string representation using asInteger
+  and asFloat, which are defined on the String class.
+
+  ```test
+  '42' asInteger >>> 42
+  '3.5' asFloat >>> 3.5
+  ```
+
+  To convert a number to its string representation, use printString.
+  For Floats, trailing zeroes are omitted (Go %g format).
+
+  ```test
+  42 printString >>> '42'
+  -7 printString >>> '-7'
+  ```
+  """
+  method: s10_typeConversion [
+      3 + 2.0.
+      7.5 truncated.
+      '42' asInteger.
+      42 printString
+  ]
+
+  """
+  SmallInteger provides bitwise operations for low-level integer
+  manipulation. bitAnd:, bitOr:, and bitXor: perform the standard
+  bitwise AND, OR, and XOR. bitShift: shifts left for positive
+  arguments and right for negative arguments.
+
+  ```test
+  255 bitAnd: 15 >>> 15
+  10 bitOr: 5 >>> 15
+  15 bitXor: 9 >>> 6
+  1 bitShift: 4 >>> 16
+  16 bitShift: -2 >>> 4
+  ```
+  """
+  method: s11_bitOperations [
+      255 bitAnd: 15.
+      10 bitOr: 5.
+      15 bitXor: 9.
+      1 bitShift: 4.
+      16 bitShift: -2
+  ]
+
+  """
+  Here is a small example that combines several numeric features:
+  summing the squares of odd numbers from 1 to 10.
+
+  ```test
+  sum := 0.
+  1 to: 10 do: [:i | i odd ifTrue: [sum := sum + (i * i)]].
+  sum >>> 165
+  ```
+
+  Computing the GCD of all elements in a collection using
+  iteration and the gcd: method.
+
+  ```test
+  result := 0.
+  #(12 18 24 36) do: [:each | result := result gcd: each].
+  result >>> 6
+  ```
+
+  Building a factorial table with to:do: and string conversion.
+
+  ```test
+  table := Array new: 6.
+  1 to: 6 do: [:n | table at: n - 1 put: n factorial].
+  table at: 0 >>> 1
+  table at: 5 >>> 720
+  ```
+  """
+  method: s12_puttingItTogether [
+      | sum |
+      sum := 0.
+      1 to: 10 do: [:i |
+          i odd ifTrue: [sum := sum + (i * i)]
+      ].
+      ^sum
+  ]
