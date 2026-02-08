@@ -1,0 +1,588 @@
+"""
+As projects grow beyond a handful of files, you need a way to organize code
+into separate units that can coexist without name collisions. Maggie's module
+system is built on namespaces, file conventions, and a project manifest. It
+keeps small scripts simple -- a single file with no declarations works as it
+always has -- while giving larger projects the structure they need.
+
+This chapter covers namespace declarations, imports, fully-qualified names,
+the directory-as-namespace convention, file loading and serialization, and
+when to use (or skip) namespaces entirely.
+
+```test
+Object name >>> #Object
+Array name >>> #Array
+```
+"""
+Guide10Modules subclass: Object
+
+  """
+  ## Namespace Declarations
+
+  A namespace groups related classes under a shared prefix. Declare a
+  namespace at the top of a source file with the `namespace:` directive.
+  It must appear before any class or trait definitions. Every class
+  defined in that file is registered under the namespace prefix.
+
+  ```example
+  namespace: 'Widgets'
+
+  Button subclass: Object
+    instanceVars: label
+    method: label [ ^label ]
+  ```
+
+  In the example above, the class is registered in Globals as
+  `Widgets::Button`, not as bare `Button`. This means another file
+  can define its own `Button` in a different namespace without conflict.
+
+  Rules for `namespace:`:
+  - At most one per file.
+  - Must appear before any class, trait, or method definitions.
+  - The value is a string with `::` separating segments.
+  - Files without `namespace:` define classes in the root namespace.
+
+  Namespaces can be nested to any depth. Each `::` segment represents
+  a level of nesting.
+
+  ```example
+  namespace: 'Yutani::Widgets::Forms'
+
+  FormField subclass: Object
+    instanceVars: name value
+    method: name [ ^name ]
+  ```
+
+  This registers the class as `Yutani::Widgets::Forms::FormField`.
+  """
+  method: s01_namespaceDeclaration [
+      "namespace: is a file-level directive, not an expression."
+      "It cannot be demonstrated in a doctest."
+      ^nil
+  ]
+
+  """
+  ## Import Directive
+
+  The `import:` directive lets you reference classes from another namespace
+  without writing the full path every time. Place imports after the
+  `namespace:` declaration (if any) and before class definitions.
+
+  ```example
+  namespace: 'Yutani::Widgets'
+
+  import: 'Yutani'
+  import: 'Yutani::Events'
+
+  YutaniButton subclass: YutaniWidget
+    instanceVars: label onClick
+    method: label [ ^label ]
+  ```
+
+  In the file above, `YutaniWidget` is resolved by searching:
+  1. The current namespace (`Yutani::Widgets::YutaniWidget`)
+  2. Each import in order (`Yutani::YutaniWidget`, then `Yutani::Events::YutaniWidget`)
+  3. The root namespace (`YutaniWidget`)
+
+  The first match wins. If no match is found, the compiler reports an error.
+
+  You can have zero or more `import:` declarations per file. Import order
+  matters when two imported namespaces define a class with the same short
+  name -- the first import in file order takes priority.
+
+  ```example
+  import: 'Collections'
+  import: 'UI'
+
+  # If both Collections and UI define "List", Collections::List wins
+  # because its import appears first.
+  ```
+  """
+  method: s02_importDirective [
+      "import: is a file-level directive, not an expression."
+      "It cannot be demonstrated in a doctest."
+      ^nil
+  ]
+
+  """
+  ## Fully-Qualified Names
+
+  The `::` separator creates fully-qualified names (FQNs). You can always
+  reference a class by its full path, whether or not you have imported its
+  namespace. This is useful for disambiguation or one-off references.
+
+  ```example
+  # Explicit FQN -- no import needed
+  btn := Widgets::Button new.
+  evt := Yutani::Events::ClickEvent new.
+
+  # Inside a method body, the compiler resolves FQNs at compile time.
+  # There is no runtime cost compared to a bare class name.
+  ```
+
+  FQN syntax works everywhere a class name is valid: superclass references,
+  `subclass:` declarations, message sends, and `Compiler evaluate:` strings.
+
+  The `::` token is handled by the lexer as a single unit. `Widgets::Button`
+  is one token, not three. This means you cannot have spaces around `::`.
+
+  ```example
+  'Widgets::Button' includes: '::'   "=> true"
+  ```
+
+  When you use an FQN in a method body inside a file that has a namespace
+  context, the compiler still resolves it correctly. FQN references take
+  priority over the import resolution chain -- they are absolute paths.
+  """
+  method: s03_fullyQualifiedNames [
+      "FQN syntax (Namespace::Class) is resolved at compile time."
+      "'::' is the namespace separator."
+      ^nil
+  ]
+
+  """
+  ## Resolution Order
+
+  When the compiler encounters a bare class name in a method body, it
+  resolves it using a three-step search:
+
+  1. **Current namespace** -- If the file declares `namespace: 'MyApp'`,
+     the compiler first looks for `MyApp::ClassName`.
+
+  2. **Imports in order** -- Each `import:` namespace is searched next,
+     in the order they appear in the file. The compiler looks for
+     `Import1::ClassName`, then `Import2::ClassName`, and so on.
+
+  3. **Root namespace** -- Finally, the compiler looks for the bare name
+     in the root (global) namespace. Core classes like Object, Array,
+     String, and Channel live here.
+
+  The first match wins and the compiler emits the resolved FQN directly
+  in the bytecode. This means resolution happens once at compile time,
+  not on every method call.
+
+  ```example
+  namespace: 'MyApp::Views'
+
+  import: 'MyApp::Models'
+  import: 'Widgets'
+
+  # When this method references "User":
+  #   1. Checks MyApp::Views::User  (current namespace)
+  #   2. Checks MyApp::Models::User (first import)
+  #   3. Checks Widgets::User       (second import)
+  #   4. Checks User                (root namespace)
+  #
+  # If MyApp::Models::User exists, that is what the compiler uses.
+
+  Dashboard subclass: Object
+    method: loadUser [
+      ^User find: 1   "Resolves to MyApp::Models::User"
+    ]
+  ```
+
+  Because core classes (Object, Array, String, etc.) live in the root
+  namespace, they are always available as a fallback. You never need to
+  import them.
+
+  ```test
+  Object name >>> #Object
+  Array name >>> #Array
+  String name >>> #String
+  ```
+  """
+  method: s04_resolutionOrder [
+      "Resolution: current namespace -> imports -> root namespace."
+      "Core classes are always reachable from the root."
+      Object name.
+      Array name.
+      ^String name
+  ]
+
+  """
+  ## Directory-as-Namespace Convention
+
+  When loading files from a directory tree, Maggie derives namespaces
+  automatically from the directory structure. Path segments relative to
+  the base directory become PascalCase namespace segments joined by `::`.
+
+  ```example
+  src/
+    Helper.mag                -> (root namespace, no prefix)
+    myapp/
+      Main.mag                -> MyApp
+      models/
+        User.mag              -> MyApp::Models
+        Account.mag           -> MyApp::Models
+      views/
+        Dashboard.mag         -> MyApp::Views
+        widgets/
+          Chart.mag           -> MyApp::Views::Widgets
+  ```
+
+  Rules:
+  - Directory names are converted to PascalCase (`my_app` -> `MyApp`,
+    `http-client` -> `HttpClient`).
+  - Files directly in the base directory have no namespace (root).
+  - An explicit `namespace:` declaration in a file always overrides
+    the directory-derived namespace.
+
+  This convention means that well-organized directory structures
+  automatically produce well-organized namespaces with no extra
+  declarations needed.
+
+  ```example
+  # Given the layout above, loading the project:
+  mag ./src/...
+
+  # Registers:
+  #   Helper           (root)
+  #   MyApp::Main
+  #   MyApp::Models::User
+  #   MyApp::Models::Account
+  #   MyApp::Views::Dashboard
+  #   MyApp::Views::Widgets::Chart
+  ```
+
+  The two-pass loading pipeline ensures that all class skeletons are
+  registered before any method bodies are compiled. This means classes
+  can reference each other freely, regardless of file ordering on disk.
+  Pass 1a registers skeletons, pass 1b resolves superclass pointers,
+  and pass 2 compiles method bodies with full FQN resolution context.
+  """
+  method: s05_directoryConvention [
+      "Directory structure maps to namespaces automatically."
+      "No code example -- this is a file-system convention."
+      ^nil
+  ]
+
+  """
+  ## File Loading and Serialization
+
+  Maggie provides primitives for loading source files into a running
+  VM and writing classes back out to files.
+
+  `Compiler fileIn:` loads a single `.mag` file (single-pass).
+  `Compiler fileInAll:` loads all `.mag` files from a directory using
+  the two-pass batch pipeline, so cross-file references just work.
+
+  ```example
+  Compiler fileIn: 'lib/helpers/StringUtils.mag'.
+  Compiler fileInAll: 'src/'.
+  ```
+
+  `Compiler fileOut:to:` reconstructs a class's source and writes it
+  to a file. For namespaced classes, a `namespace:` declaration is
+  included. `Compiler fileOutNamespace:to:` writes all classes in a
+  namespace to a directory, one file per class.
+
+  ```example
+  Compiler fileOut: 'MyApp::Models::User' to: '/tmp/User.mag'.
+  Compiler fileOutNamespace: 'MyApp::Models' to: '/tmp/models/'.
+  ```
+
+  Note: `fileOut` reconstructs from stored method text. Methods from
+  `.mag` files preserve their source; methods from `evaluate:` produce
+  a stub. Import declarations are not preserved.
+
+  For faster startup, save the entire VM state to an image file:
+
+  ```example
+  Compiler saveImage: 'my-app.image'.
+
+  # CLI equivalents:
+  #   mag ./src/... --save-image my-app.image
+  #   mag --image my-app.image -m Main.start
+  ```
+  """
+  method: s06_fileLoadingAndSerialization [
+      "fileIn/fileOut/saveImage are side-effecting operations."
+      "They cannot be demonstrated safely in a doctest."
+      ^nil
+  ]
+
+  """
+  ## Project Manifest
+
+  A `maggie.toml` file in the project root configures the project name,
+  namespace, source directories, entry point, dependencies, and image
+  settings. When `mag` is invoked without explicit paths and a
+  `maggie.toml` exists, the project is loaded automatically.
+
+  ```example
+  # maggie.toml
+  [project]
+  name = "my-app"
+  namespace = "MyApp"
+  version = "0.1.0"
+
+  [source]
+  dirs = ["src"]
+  entry = "Main.start"
+
+  [dependencies]
+  yutani = { git = "https://github.com/chazu/yutani-mag", tag = "v0.5.0" }
+  local-lib = { path = "../shared-lib" }
+
+  [image]
+  output = "my-app.image"
+  include-source = true
+  ```
+
+  Key sections:
+
+  - **[project]** -- name, namespace (root namespace for all classes in
+    this project), and version.
+  - **[source]** -- which directories to compile, and the entry point
+    method (resolved relative to the project namespace).
+  - **[dependencies]** -- external libraries, either from git repos or
+    local paths.
+  - **[image]** -- output image file name and whether to preserve
+    method source text in the image.
+
+  Running the project:
+
+  ```example
+  # Detects maggie.toml, resolves deps, loads src/, runs entry point
+  mag -m Main.start
+
+  # Same, but also saves an image for faster future startup
+  mag --save-image app.image
+  ```
+  """
+  method: s07_projectManifest [
+      "maggie.toml is a TOML configuration file, not Maggie code."
+      ^nil
+  ]
+
+  """
+  ## Dependencies
+
+  Dependencies are declared in `maggie.toml` and managed with the
+  `mag deps` subcommand. Two types are supported: `git` (cloned to
+  `.maggie/deps/<name>/`) and `path` (local filesystem reference).
+
+  ```example
+  [dependencies]
+  yutani = { git = "https://github.com/chazu/yutani-mag", tag = "v0.5.0" }
+  local-lib = { path = "../shared-lib" }
+  ui-toolkit = { path = "../ui-toolkit", namespace = "CustomUI" }
+  ```
+
+  Each dependency maps to a namespace, resolved in order:
+  1. Consumer override -- explicit `namespace` in the dependency entry.
+  2. Producer manifest -- the dep's own `maggie.toml` namespace.
+  3. PascalCase fallback -- dep name as PascalCase (`my-lib` -> `MyLib`).
+
+  All classes from a dependency are prefixed with its namespace. A dep
+  with namespace `Yutani` containing `src/widgets/Button.mag` registers
+  as `Yutani::Widgets::Button`.
+
+  ```example
+  mag deps           # Resolve and fetch all dependencies
+  mag deps update    # Re-resolve, ignoring the lock file
+  mag deps list      # Show the dependency tree
+  ```
+
+  Dependencies load in topological order (transitive first). The lock
+  file (`.maggie/lock.toml`) records exact commit hashes for reproducible
+  builds. Two deps mapping to the same namespace cause a hard error.
+  Core VM names (Object, Array, String, etc.) are reserved and cannot
+  be used as a dependency's root namespace segment.
+  """
+  method: s08_dependencies [
+      "Dependencies are managed via maggie.toml and the mag CLI."
+      ^nil
+  ]
+
+  """
+  ## Globals Registration
+
+  A class in a namespace is registered only under its FQN. A class
+  `Button` in namespace `Widgets` is stored as `Globals["Widgets::Button"]`
+  -- there is no entry for bare `Button`. A root-namespace class is
+  stored under its bare name.
+
+  This means two namespaces can each define `Button` without conflict:
+
+  ```example
+  # File: src/widgets/Button.mag
+  namespace: 'Widgets'
+  Button subclass: Object
+    method: render [ 'I am a UI button' ]
+
+  # File: src/controls/Button.mag
+  namespace: 'Controls'
+  Button subclass: Object
+    method: render [ 'I am a form control' ]
+
+  # Globals["Widgets::Button"] and Globals["Controls::Button"] coexist.
+  ```
+
+  Core classes (Object, Array, String, etc.) live in the root namespace.
+
+  ```test
+  Object name >>> #Object
+  SmallInteger name >>> #SmallInteger
+  ```
+  """
+  method: s09_globalsRegistration [
+      "Namespaced classes are stored under FQN only."
+      Object name.
+      ^SmallInteger name
+  ]
+
+  """
+  ## When to Use Namespaces
+
+  Not every project needs namespaces. Here are guidelines for when
+  they help and when they add unnecessary ceremony.
+
+  **Skip namespaces when:**
+
+  - Your project is a single file or a small collection of files.
+  - You are writing a quick script or experiment.
+  - All your class names are unique and unlikely to collide with
+    anything else.
+  - You are working in the REPL.
+
+  A file with no `namespace:` or `import:` declarations works exactly
+  as it always has. The module system is fully backward compatible.
+
+  ```example
+  # simple-script.mag -- no namespace needed
+  Counter subclass: Object
+    instanceVars: count
+    method: init [ count := 0 ]
+    method: increment [ count := count + 1 ]
+    method: count [ ^count ]
+  ```
+
+  **Use namespaces when:**
+
+  - Your project has multiple subsystems (models, views, controllers).
+  - You are publishing a library that others will depend on.
+  - You want to avoid collisions with other libraries.
+  - Your project has grown beyond one directory level.
+  - You are working on a team and want clear code ownership boundaries.
+
+  ```example
+  # A well-structured library
+  namespace: 'HttpClient'
+
+  import: 'HttpClient::Parsers'
+
+  Client subclass: Object
+    instanceVars: baseUrl headers
+    method: get: path [
+      req := Request new: baseUrl , path.
+      req headers: headers.
+      ^req execute
+    ]
+  ```
+
+  **Naming conventions:**
+
+  - Namespace segments use PascalCase: `MyApp`, `HttpClient`, `Yutani`.
+  - Keep namespace depth reasonable -- two or three levels is typical.
+  - The top-level namespace usually matches the project name.
+  - Choose names that are unlikely to collide: `Yutani` is better
+    than `Utils`.
+
+  **The directory convention reduces ceremony.** If you organize your
+  source tree into directories that match your desired namespace
+  structure, you often do not need explicit `namespace:` declarations
+  at all. The loading pipeline derives them automatically.
+  """
+  method: s10_whenToUseNamespaces [
+      "This section is guidance, not runnable code."
+      ^nil
+  ]
+
+  """
+  ## Putting It Together
+
+  Here is a small multi-namespace project showing how the pieces fit.
+
+  ```example
+  # todo-app/
+  #   maggie.toml          (namespace = "TodoApp", entry = "Main.start")
+  #   src/
+  #     Main.mag            -> TodoApp
+  #     models/
+  #       Task.mag          -> TodoApp::Models
+  #     views/
+  #       TaskView.mag      -> TodoApp::Views
+
+  # --- src/Main.mag ---
+  import: 'TodoApp::Models'
+  import: 'TodoApp::Views'
+
+  Main subclass: Object
+    classMethod: start [
+      task := Task new: 'Write guide chapter'.
+      TaskView render: task.
+    ]
+
+  # --- src/models/Task.mag ---
+  Task subclass: Object
+    instanceVars: title done
+    method: init: aTitle [ title := aTitle. done := false. ]
+    method: title [ ^title ]
+    method: complete [ done := true ]
+
+  # --- src/views/TaskView.mag ---
+  import: 'TodoApp::Models'
+
+  TaskView subclass: Object
+    classMethod: render: task [ task title printString ]
+  ```
+
+  Key observations:
+  - No explicit `namespace:` needed -- directory structure handles it.
+  - `Main` uses `Task` and `TaskView` by short name via imports.
+  - `TaskView` imports `TodoApp::Models` to reference `Task`.
+  - `mag -m Main.start` auto-detects the manifest and calls
+    `TodoApp::Main.start`.
+
+  ```example
+  'TodoApp::Models::Task' includes: 'Models'   "=> true"
+  'TodoApp::Views' includes: '::'              "=> true"
+  ```
+  """
+  method: s11_puttingItTogether [
+      "Full project example -- see docstring above."
+      ^nil
+  ]
+
+  """
+  ## Summary
+
+  Maggie's module system provides namespaces and imports without
+  breaking backward compatibility. Files without declarations work
+  as they always have. For larger projects, a few conventions and
+  directives keep code organized.
+
+  Key points:
+
+  - `namespace:` sets the namespace for all classes in a file.
+  - `import:` allows unqualified references to classes in other
+    namespaces.
+  - FQN syntax (`Widgets::Button`) works anywhere a class name is
+    valid.
+  - Resolution order: current namespace, imports (in order), root.
+  - Directory names automatically map to PascalCase namespaces.
+  - `fileIn:` / `fileInAll:` load source; `fileOut:to:` serializes.
+  - `maggie.toml` configures projects, dependencies, and images.
+  - Dependencies map to importable namespaces with collision detection.
+  - Use namespaces when publishing libraries or working on larger
+    projects. Skip them for scripts and experiments.
+
+  ```test
+  Object name >>> #Object
+  SmallInteger name >>> #SmallInteger
+  ```
+  """
+  method: s12_summary [
+      ^nil
+  ]

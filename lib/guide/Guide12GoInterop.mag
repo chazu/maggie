@@ -1,0 +1,631 @@
+"""
+Maggie runs on a Go runtime, and Go interop lets you reach into the Go
+ecosystem directly from Maggie code. You can wrap any Go package --
+standard library or third-party -- to expose its types and functions as
+Maggie classes and methods. The toolchain handles introspection, code
+generation, and binary compilation automatically.
+
+Go interop is useful when you need performance-critical operations,
+access to operating system APIs, network protocols, or any of the
+thousands of packages in the Go ecosystem. The generated bindings
+are type-safe, and the marshaling layer converts between Go and Maggie
+types transparently.
+
+This chapter explains how Go interop works, from running `mag wrap` to
+using wrapped types in your Maggie code.
+"""
+Guide12GoInterop subclass: Object
+
+  """
+  ## When and Why to Use Go Interop
+
+  Maggie is a self-contained language -- you can build entire applications
+  without ever touching Go. But there are situations where reaching into
+  Go makes sense:
+
+  - **Performance**: Go code runs as compiled native code. For CPU-bound
+    algorithms, cryptographic operations, or data compression, calling
+    into Go avoids interpreter overhead entirely.
+
+  - **Ecosystem access**: The Go standard library and third-party packages
+    cover networking, file formats, databases, image processing, and much
+    more. Wrapping an existing Go package is faster than reimplementing
+    it in Maggie.
+
+  - **System APIs**: Low-level OS operations (sockets, file descriptors,
+    process management) are best handled through Go's `os`, `net`, and
+    `syscall` packages.
+
+  - **Existing Go code**: If your organization has Go libraries, you can
+    wrap them and call them from Maggie without rewriting anything.
+
+  The tradeoff is that Go interop requires a custom binary build step.
+  The standard `mag` binary does not include your wrapped packages --
+  you use `mag build` to produce a custom binary that bakes in whatever
+  Go packages you need. Once built, the custom binary works exactly like
+  the standard `mag` command, with your Go types available as Maggie
+  classes.
+
+  A good rule of thumb: start in pure Maggie. When you find a bottleneck
+  or need a capability that only Go provides, wrap that specific package.
+  Keep the boundary narrow -- a thin Go layer with a rich Maggie layer
+  on top.
+  """
+  method: s01_whenAndWhy [
+      "This section is prose-only. No runnable example needed."
+      ^nil
+  ]
+
+  """
+  ## The GoObject Wrapper Concept
+
+  When a Go value crosses into Maggie, the VM wraps it in a GoObject.
+  A GoObject is an opaque handle -- Maggie code cannot inspect the raw
+  Go memory, but it can send messages to the object, and those messages
+  dispatch to the generated Go glue code.
+
+  Each Go type that you wrap gets a corresponding Maggie class. For
+  example, wrapping `net/http` creates classes like `Go::Http::Server`
+  and `Go::Http::Request`. Instances of these classes are GoObjects
+  that hold a pointer to the underlying Go struct.
+
+  The key pieces of the GoObject system:
+
+  - **GoObjectWrapper**: Holds the Go value and a type ID that links
+    it to its registered Maggie class.
+
+  - **GoTypeRegistry**: A thread-safe registry that maps Go
+    `reflect.Type` values to Maggie classes. Each Go type gets a unique
+    16-bit type ID.
+
+  - **ObjectRegistry**: Stores live GoObjects and assigns each one a
+    NaN-boxed Value that Maggie code can pass around, store in
+    variables, and send messages to.
+
+  When you call a method on a GoObject in Maggie, the VM looks up the
+  primitive method on the class, extracts the Go value from the wrapper,
+  and calls the generated Go function with the unwrapped value as the
+  receiver. The return value is marshaled back into a Maggie Value.
+
+  You never interact with GoObjectWrapper or GoTypeRegistry directly
+  from Maggie code. They are internal VM machinery. From Maggie's
+  perspective, a wrapped Go type is just another class with methods.
+
+  ```example
+  "After wrapping encoding/json, you get a Go::Json class."
+  "Package-level functions become class methods:"
+  result := Go::Json marshal: myObject.
+
+  "Struct types become classes with instance methods:"
+  decoder := Go::Json::Decoder new: inputStream.
+  value := decoder decode.
+  ```
+  """
+  method: s02_goObjectConcept [
+      "This section is prose-only. No runnable example needed."
+      ^nil
+  ]
+
+  """
+  ## Type Marshaling: Go Types to Maggie Values
+
+  The marshaling layer converts between Go types and Maggie values
+  automatically. When a Go function returns a value, it is converted
+  to a Maggie Value. When Maggie passes an argument to a Go function,
+  it is converted to the expected Go type.
+
+  **Go to Maggie (GoToValue):**
+
+  | Go Type           | Maggie Type     |
+  |-------------------|-----------------|
+  | `nil`             | `nil`           |
+  | `bool`            | `True` / `False`|
+  | `int`, `int64`... | `SmallInteger`  |
+  | `uint`, `uint64`  | `SmallInteger`  |
+  | `float32/64`      | `Float`         |
+  | `string`          | `String`        |
+  | `[]byte`          | `String`        |
+  | `[]T`             | `Array`         |
+  | `map[string]T`    | `Dictionary`    |
+  | `*SomeStruct`     | `GoObject`      |
+
+  **Maggie to Go (ValueToGo):**
+
+  | Maggie Value      | Go Type         |
+  |-------------------|-----------------|
+  | `nil`             | `nil`           |
+  | `True` / `False`  | `bool`          |
+  | `SmallInteger`    | `int64`         |
+  | `Float`           | `float64`       |
+  | `String`          | `string`        |
+  | `GoObject`        | original Go ptr |
+
+  For function parameters, the generated glue code uses more specific
+  conversions based on the Go function signature. If a Go function
+  expects an `int32`, the glue code calls `int32(args[0].SmallInt())`
+  rather than going through the generic `ValueToGo` path. This means
+  you do not need to worry about type widths -- the generated code
+  handles the conversion.
+
+  **Error handling**: When a Go function returns an `error` as its last
+  result, the generated glue checks the error. If non-nil, it raises a
+  Maggie exception with the message `GoError: <error text>`. You can
+  catch these with `on:do:` in Maggie:
+
+  ```example
+  [Go::Json marshal: badValue]
+      on: Error
+      do: [:ex | 'JSON encoding failed: ', ex message].
+  ```
+
+  **Multiple return values**: Go functions that return multiple values
+  (other than the error convention) produce a Maggie Array. A Go
+  function returning `(string, int)` yields a two-element Array in
+  Maggie:
+
+  ```example
+  result := Go::SomePkg doWork.
+  name := result at: 0.
+  count := result at: 1.
+  ```
+  """
+  method: s03_typeMarshaling [
+      "This section is prose-only. No runnable example needed."
+      ^nil
+  ]
+
+  """
+  ## The mag wrap Command
+
+  The `mag wrap` command introspects a Go package and generates two
+  files: a Go glue file (`wrap.go`) and a Maggie stub file
+  (`stubs.mag`). These are the bridge between Go and Maggie.
+
+  **Basic usage -- wrap a single Go package:**
+
+  ```example
+  mag wrap encoding/json
+  mag wrap strings
+  mag wrap net/http
+  ```
+
+  This introspects the package using Go's `go/packages` API, discovers
+  all exported types, functions, and constants, and writes output to
+  `.maggie/wrap/<package>/`.
+
+  **Custom output directory:**
+
+  ```example
+  mag wrap encoding/json --output ./wrappers
+  ```
+
+  **Wrap all packages from the manifest:**
+
+  ```example
+  mag wrap
+  ```
+
+  When run without arguments, `mag wrap` reads the `[go-wrap]` section
+  from `maggie.toml` and wraps all configured packages.
+
+  **What mag wrap generates:**
+
+  For each wrapped package, two files are created:
+
+  1. `wrap.go` -- Go source code that registers primitives with the VM.
+     Contains a `RegisterPrimitives(v *vm.VM)` function that creates
+     Maggie classes for each Go type and wires up method dispatch.
+
+  2. `stubs.mag` -- Maggie class definitions with `<primitive>` method
+     bodies. These are loaded at startup so the Maggie compiler knows
+     the classes and selectors exist.
+
+  **Naming conventions:**
+
+  Go import paths map to Maggie namespaces under the `Go::` prefix:
+
+  | Go Package       | Maggie Namespace |
+  |------------------|------------------|
+  | `strings`        | `Go::Strings`    |
+  | `encoding/json`  | `Go::Json`       |
+  | `net/http`       | `Go::Http`       |
+  | `crypto/sha256`  | `Go::Sha256`     |
+
+  Go function names become camelCase selectors. Go type names keep
+  their PascalCase and are namespaced under the package:
+
+  | Go Name              | Maggie Name              |
+  |----------------------|--------------------------|
+  | `json.Marshal(v)`    | `Go::Json marshal: v`    |
+  | `strings.Contains()` | `Go::Strings contains:`  |
+  | `http.Server`        | `Go::Http::Server`       |
+  | `http.ListenAndServe`| `Go::Http listenAndServe:`|
+
+  **Parameter limit**: Functions with more than four parameters are
+  skipped with a comment in the generated code. This is a practical
+  limit -- Maggie keyword messages become unwieldy beyond four parts.
+  If you need to call such a function, write a thin Go wrapper that
+  accepts a struct or fewer arguments.
+  """
+  method: s04_magWrap [
+      "This section is prose-only. No runnable example needed."
+      ^nil
+  ]
+
+  """
+  ## The mag build Command
+
+  After wrapping, `mag build` compiles a custom Maggie binary that
+  includes the wrapped Go packages. The resulting binary works exactly
+  like the standard `mag` command but has your Go types baked in.
+
+  **Basic usage:**
+
+  ```example
+  mag build
+  ```
+
+  This reads `maggie.toml`, runs `mag wrap` for all configured
+  packages (if not already generated), then creates a custom binary
+  at `./mag-custom`.
+
+  **Custom output path:**
+
+  ```example
+  mag build -o myapp
+  ```
+
+  **What happens under the hood:**
+
+  1. `mag wrap` runs for each package in `[go-wrap.packages]`,
+     generating `wrap.go` and `stubs.mag` files.
+
+  2. A temporary Go module is created with a `main.go` that imports
+     the Maggie VM and all wrapper packages.
+
+  3. The generated `main.go` calls `RegisterPrimitives(v)` for each
+     wrapper package during VM initialization.
+
+  4. `go build` compiles everything into a single binary.
+
+  5. The temporary module is cleaned up.
+
+  The custom binary embeds all the standard Maggie library code plus
+  the generated stubs. When you run it, the wrapped Go types are
+  available immediately -- no additional loading step needed.
+
+  **Requirements:**
+
+  - A Go toolchain must be installed (the `go` command must be in PATH)
+  - A `maggie.toml` with `[go-wrap]` configuration
+  - A `go.mod` in the project directory (for module resolution)
+  """
+  method: s05_magBuild [
+      "This section is prose-only. No runnable example needed."
+      ^nil
+  ]
+
+  """
+  ## Generated Glue Code Walkthrough
+
+  Understanding the generated code helps when debugging or extending
+  bindings. Here is what `mag wrap strings` produces (simplified).
+
+  **The Go glue file (wrap.go):**
+
+  ```example
+  " -- Go side (wrap.go) -- simplified --"
+
+  "The RegisterPrimitives function creates Maggie classes and methods:"
+
+  func RegisterPrimitives(v *vm.VM) {
+      "Register the namespace class for package-level functions:"
+      nsClass := v.RegisterGoType("Go::Strings", reflect.TypeOf((*struct{})(nil)))
+
+      "Register a package function as a class method:"
+      nsClass.AddClassMethod(v.Selectors, "contains:substr:", ...)
+
+      "The method body extracts Go args, calls the real function, and"
+      "marshals the result back to a Maggie Value:"
+      func(vmPtr interface{}, receiver vm.Value, args []vm.Value) vm.Value {
+          v := vmPtr.(*vm.VM)
+          arg0 := v.ValueToGo(args[0]).(string)
+          arg1 := v.ValueToGo(args[1]).(string)
+          result := pkg.Contains(arg0, arg1)
+          return v.GoToValue(result)
+      }
+  }
+  ```
+
+  **The Maggie stub file (stubs.mag):**
+
+  ```example
+  " -- Maggie side (stubs.mag) --"
+
+  namespace: 'Go'
+
+  Strings subclass: Object
+    classMethod: contains: s substr: t [ <primitive> ]
+    classMethod: hasPrefix: s prefix: t [ <primitive> ]
+    classMethod: hasSuffix: s suffix: t [ <primitive> ]
+    classMethod: join: elems sep: s [ <primitive> ]
+    classMethod: repeat: s count: c [ <primitive> ]
+    classMethod: replace: s old: o new: n [ <primitive> ]
+    classMethod: split: s sep: t [ <primitive> ]
+    classMethod: toLower: s [ <primitive> ]
+    classMethod: toUpper: s [ <primitive> ]
+    classMethod: trimSpace: s [ <primitive> ]
+  ```
+
+  The stubs declare `<primitive>` methods -- the compiler sees these as
+  method definitions but the bodies are implemented in Go. At runtime,
+  when Maggie sends `Go::Strings contains: 'hello world' substr: 'world'`,
+  the VM dispatches to the registered Go function which calls
+  `strings.Contains("hello world", "world")` and returns `true`.
+
+  **Struct type bindings** work similarly but register instance methods
+  instead of class methods. The generated code extracts the Go receiver
+  from the GoObject wrapper:
+
+  ```example
+  " -- Go side for a struct method --"
+
+  "For a type like http.Server with a method ListenAndServe():"
+  serverClass.AddPrimitiveMethod(v.Selectors, "listenAndServe", ...)
+
+  func(vmPtr interface{}, receiver vm.Value, args []vm.Value) vm.Value {
+      v := vmPtr.(*vm.VM)
+      goVal, ok := v.GetGoObject(receiver)
+      if !ok { return vm.Nil }
+      self := goVal.(*pkg.Server)
+      err := self.ListenAndServe()
+      if err != nil {
+          panic(fmt.Sprintf("Maggie error: GoError: %v", err))
+      }
+      return vm.Nil
+  }
+  ```
+
+  The pattern is consistent: unwrap the receiver, convert arguments,
+  call the Go function, convert the result. Errors from Go become
+  Maggie exceptions via `panic` with the `Maggie error:` prefix, which
+  the VM catches and converts to a proper exception object.
+  """
+  method: s06_glueCodeWalkthrough [
+      "This section is prose-only. No runnable example needed."
+      ^nil
+  ]
+
+  """
+  ## Manifest Configuration: [go-wrap]
+
+  The `[go-wrap]` section in `maggie.toml` configures which Go packages
+  to wrap and where to put the generated code.
+
+  **Minimal configuration:**
+
+  ```example
+  [go-wrap]
+  [[go-wrap.packages]]
+  import = "encoding/json"
+
+  [[go-wrap.packages]]
+  import = "strings"
+  ```
+
+  **With include filters:**
+
+  Most Go packages export more than you need. The `include` list lets
+  you wrap only specific functions and types, keeping the generated code
+  small and the API surface focused.
+
+  ```example
+  [[go-wrap.packages]]
+  import = "net/http"
+  include = ["Get", "Post", "Server", "ListenAndServe"]
+
+  [[go-wrap.packages]]
+  import = "encoding/json"
+  include = ["Marshal", "Unmarshal", "Decoder", "Encoder"]
+  ```
+
+  Without `include`, all exported functions, types, and constants are
+  wrapped.
+
+  **Custom output directory:**
+
+  ```example
+  [go-wrap]
+  output = "generated/wrappers"
+
+  [[go-wrap.packages]]
+  import = "strings"
+  ```
+
+  The default output is `.maggie/wrap/`. The output directory structure
+  is:
+
+  ```example
+  .maggie/wrap/
+    json/
+      wrap.go        " Go glue code"
+      stubs.mag      " Maggie class stubs"
+    strings/
+      wrap.go
+      stubs.mag
+    http/
+      wrap.go
+      stubs.mag
+  ```
+
+  **Full project example:**
+
+  ```example
+  [project]
+  name = "web-app"
+  namespace = "WebApp"
+  version = "0.1.0"
+
+  [source]
+  dirs = ["src"]
+  entry = "Main.start"
+
+  [go-wrap]
+  output = ".maggie/wrap"
+
+  [[go-wrap.packages]]
+  import = "net/http"
+  include = ["Get", "Post", "Server", "ListenAndServe", "HandleFunc"]
+
+  [[go-wrap.packages]]
+  import = "encoding/json"
+  include = ["Marshal", "Unmarshal"]
+
+  [[go-wrap.packages]]
+  import = "strings"
+  ```
+
+  With this manifest, running `mag build -o web-app` produces a custom
+  binary with HTTP server, JSON encoding, and string utilities all
+  available as Maggie classes.
+  """
+  method: s07_manifestConfig [
+      "This section is prose-only. No runnable example needed."
+      ^nil
+  ]
+
+  """
+  ## Putting It All Together
+
+  Here is a complete walkthrough of adding Go interop to a project,
+  from manifest configuration to Maggie code.
+
+  **Step 1: Configure maggie.toml**
+
+  ```example
+  [project]
+  name = "my-app"
+  namespace = "MyApp"
+
+  [source]
+  dirs = ["src"]
+  entry = "Main.start"
+
+  [[go-wrap.packages]]
+  import = "strings"
+
+  [[go-wrap.packages]]
+  import = "encoding/json"
+  include = ["Marshal", "Unmarshal"]
+  ```
+
+  **Step 2: Generate bindings**
+
+  ```example
+  mag wrap
+  ```
+
+  This creates `.maggie/wrap/strings/` and `.maggie/wrap/json/` with
+  the generated `wrap.go` and `stubs.mag` files.
+
+  **Step 3: Build the custom binary**
+
+  ```example
+  mag build -o my-app
+  ```
+
+  **Step 4: Write Maggie code that uses the wrapped packages**
+
+  ```example
+  " src/Main.mag "
+  namespace: 'MyApp'
+  import: 'Go'
+
+  Main subclass: Object
+    classMethod: start [
+        "Use Go strings library"
+        result := Go::Strings toUpper: 'hello maggie'.
+        result printString.
+
+        "Use Go JSON encoding"
+        data := Go::Json marshal: #(1 2 3).
+        data printString.
+    ]
+  ```
+
+  **Step 5: Run with the custom binary**
+
+  ```example
+  ./my-app -m Main.start
+  ```
+
+  The wrapped Go functions are called through the generated glue code.
+  From the Maggie side, they look and feel like any other class methods.
+
+  **Ad-hoc wrapping** (without a manifest) is also supported. You can
+  wrap a single package on the fly:
+
+  ```example
+  mag wrap crypto/sha256 --output ./wrappers
+  ```
+
+  This is handy for exploration -- see what a package looks like as
+  Maggie classes before committing to a manifest entry.
+  """
+  method: s08_puttingItTogether [
+      "This section is prose-only. No runnable example needed."
+      ^nil
+  ]
+
+  """
+  ## Limitations and Tips
+
+  Go interop is powerful but has constraints worth knowing about:
+
+  **Functions with more than four parameters are skipped.** Maggie
+  keyword messages with many parts are hard to read. If you need a
+  Go function with five or more parameters, write a thin Go wrapper
+  function that accepts a struct or fewer arguments, and wrap that
+  instead.
+
+  **Only exported Go names are wrapped.** Unexported functions, types,
+  and fields (those starting with a lowercase letter in Go) are not
+  visible to the introspection layer and cannot be wrapped.
+
+  **Pointer receivers only.** For struct methods, only pointer-receiver
+  methods are wrapped. Value-receiver methods on large structs would
+  require copying the entire struct on each call, so they are excluded.
+
+  **No callback support yet.** You cannot currently pass a Maggie block
+  as a Go callback (e.g., `http.HandleFunc`). Go functions that expect
+  function-typed parameters are skipped or require manual glue code.
+
+  **Custom binary required.** Unlike reflection-based FFI in some
+  languages, Go interop works by generating and compiling Go code. You
+  must run `mag build` to produce a binary that includes your wrapped
+  packages. This is a one-time step per build -- the resulting binary
+  is self-contained.
+
+  **Debugging tips:**
+
+  - Run `mag wrap` with `-v` (verbose) to see what was discovered:
+    number of functions, types, and constants found.
+
+  - Read the generated `stubs.mag` to see what selectors are available.
+    This is the authoritative list of what you can call from Maggie.
+
+  - If a wrapped method returns nil unexpectedly, check the Go glue
+    code -- the `GetGoObject` extraction may be failing because the
+    receiver is not a valid GoObject.
+
+  - Go errors become `GoError` exceptions. Use `on:do:` to catch and
+    inspect them rather than letting them crash your program.
+
+  - Use `include` filters in the manifest to keep the generated code
+    focused. Wrapping an entire large package like `net/http` produces
+    a lot of bindings, most of which you probably do not need.
+  """
+  method: s09_limitationsAndTips [
+      "This section is prose-only. No runnable example needed."
+      ^nil
+  ]

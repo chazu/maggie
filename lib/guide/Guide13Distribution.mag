@@ -1,0 +1,513 @@
+"""
+Maggie includes a distributed runtime for exchanging code between VMs. Code
+is content-addressed -- every method and class is identified by a SHA-256 hash
+of its normalized AST. Two VMs can push and pull code over HTTP/2, and the
+receiver independently verifies every chunk before accepting it. No trust in
+the sender is required; the content hash is the proof.
+
+This chapter explains how content addressing works, how the sync protocol
+exchanges code, and how to configure your project for distribution.
+"""
+Guide13Distribution subclass: Object
+
+  """
+  ## Content Addressing
+
+  Every compiled method in Maggie has a content hash -- a 32-byte SHA-256
+  digest computed from a normalized representation of the method's AST.
+  The normalization process strips away surface differences that do not
+  affect semantics:
+
+  - Variable names are replaced with de Bruijn indices. A local variable
+    is identified by its scope depth and slot index, not its textual name.
+    Two methods that do the same thing with differently named variables
+    produce the same hash.
+
+  - Position information (line numbers, column offsets) is stripped.
+
+  - Global references are resolved to their fully-qualified names before
+    hashing, so `Button` and `Widgets::Button` hash identically when
+    they refer to the same class.
+
+  The hashing pipeline has three stages:
+
+  1. **Normalize** -- the compiler AST is converted into a parallel
+     "hashing AST" with de Bruijn indices and no position data.
+
+  2. **Serialize** -- the hashing AST is written to a deterministic byte
+     stream using frozen tag bytes. Each node type has a fixed tag, and
+     compound nodes write their children in a defined order.
+
+  3. **Hash** -- the serialized bytes are fed to SHA-256, producing a
+     32-byte content hash stored on `CompiledMethod.ContentHash`.
+
+  The hash format includes a version prefix byte so that future changes
+  to the normalization rules can invalidate old hashes without silent
+  mismatches. Because the hash depends only on semantics, two developers
+  who write the same method independently will get the same hash.
+
+  ```example
+  # Hashing pipeline (Go-level):
+  #   hash.NormalizeMethod(ast, instVars, resolveGlobal)
+  #     -> hash.Serialize(hMethodDef)
+  #       -> sha256.Sum256(bytes)
+  #         -> method.ContentHash = [32]byte{...}
+  ```
+  """
+  method: s01_contentAddressing [
+      "Content addressing is handled by the compiler automatically."
+      ^nil
+  ]
+
+  """
+  ## Class Digests
+
+  Methods are hashed individually, but classes also need a stable identity.
+  A class digest captures the structural metadata of a class -- its name,
+  namespace, superclass, instance variables, class variables, docstring --
+  plus the sorted content hashes of all its methods.
+
+  The class hash is computed by sorting method hashes lexicographically,
+  sorting variable names, concatenating all fields into a length-prefixed
+  byte buffer with a tag byte, then running SHA-256. This means a class
+  hash changes if any method changes, or if the class structure changes.
+  But reordering methods or variables does not affect the hash.
+
+  ```example
+  # ClassDigest fields:
+  #   Name           -- "Button"
+  #   Namespace      -- "Widgets"
+  #   SuperclassName -- "View"
+  #   InstVars       -- ["label", "onClick"]
+  #   MethodHashes   -- [<sha256>, <sha256>, ...]
+  #   Hash           -- <sha256 of the entire digest>
+  ```
+  """
+  method: s02_classDigests [
+      "Class digests are computed automatically after compilation."
+      ^nil
+  ]
+
+  """
+  ## The ContentStore
+
+  The ContentStore is the VM-local index that maps content hashes to
+  compiled methods and class digests. It is the backing store for the
+  distribution protocol -- when a peer asks "do you have hash X?",
+  the ContentStore answers the question.
+
+  Key operations:
+
+  - `IndexMethod(method)` -- adds a compiled method, keyed by its
+    ContentHash. Methods with a zero hash are silently ignored.
+  - `IndexClass(digest)` -- adds a class digest, keyed by its hash.
+  - `LookupMethod(hash)` / `LookupClass(hash)` -- returns the item
+    for a given hash, or nil.
+  - `HasHash(hash)` -- true if either a method or class with that
+    hash exists.
+  - `AllHashes()` -- returns every hash in the store.
+
+  The ContentStore is thread-safe and populated automatically after
+  compilation. You can inspect it from the CLI:
+
+  ```example
+  $ mag sync status
+  Content store:
+    Methods: 347
+    Classes: 42
+    Total:   389
+  ```
+  """
+  method: s03_contentStore [
+      "The ContentStore is managed internally by the VM."
+      ^nil
+  ]
+
+  """
+  ## Chunks
+
+  A chunk is the atomic unit of code distribution. Each chunk carries:
+
+  - **Hash** -- the 32-byte content hash identifying this piece of code.
+  - **Type** -- one of three kinds:
+    - `ChunkMethod` (1) -- a single method with its source text.
+    - `ChunkClass` (2) -- a class digest with its name as content
+      and method hashes as dependencies.
+    - `ChunkModule` (3) -- a namespace grouping class hashes.
+  - **Content** -- the source text (for methods) or the name (for
+    classes and modules).
+  - **Dependencies** -- hashes this chunk depends on. A class chunk
+    lists its method hashes; a module chunk lists its class hashes.
+  - **Capabilities** -- optional list of required capabilities
+    (e.g., "File", "HTTP", "Network").
+
+  Chunks are serialized with CBOR (Concise Binary Object Representation)
+  in canonical mode for deterministic encoding. The dependency structure
+  forms a DAG: modules depend on classes, classes depend on methods.
+  During transfer, methods are always sent before classes so the
+  receiver can verify dependencies before accepting.
+
+  ```example
+  # A method chunk carries source text:
+  #   Hash:    abc123...
+  #   Type:    ChunkMethod (1)
+  #   Content: "method: factorial [^self <= 1 ifTrue: [1] ifFalse: [self * (self - 1) factorial]]"
+  #   Deps:    (none)
+
+  # A class chunk references its methods:
+  #   Hash:    def456...
+  #   Type:    ChunkClass (2)
+  #   Content: "MathUtils"
+  #   Deps:    [abc123..., fff789...]
+  ```
+  """
+  method: s04_chunks [
+      "Chunks are an internal wire format, not directly exposed to Maggie code."
+      ^nil
+  ]
+
+  """
+  ## Sync Protocol
+
+  The sync protocol has two directions: push (sender-initiated) and
+  pull (requester-initiated). Both use the same Connect/gRPC service
+  running over HTTP/2.
+
+  **Push flow (Announce + Transfer):**
+
+  1. The pusher sends an `Announce` RPC with the root hash, all
+     available hashes, and an optional capability manifest.
+  2. The receiver checks capabilities against its policy, then
+     computes a "want list" -- hashes it does not already have.
+  3. The receiver replies: `ACCEPTED` (with want list), `ALREADY_HAVE`,
+     or `REJECTED` (with reason).
+  4. The pusher sends wanted chunks via `Transfer`. Methods first,
+     then classes, ensuring dependency order.
+  5. The receiver verifies each chunk (compile and hash-check for
+     methods; dependency existence check for classes and modules).
+  6. The receiver responds with accepted/rejected counts.
+
+  **Pull flow (Serve):**
+
+  1. The requester sends a `Serve` RPC with the root hash and all
+     hashes it already has (the "have" set).
+  2. The server computes a transitive closure from the root hash,
+     following dependency links through the ContentStore.
+  3. The server filters out hashes the requester already has and
+     returns the remaining chunks in dependency order.
+
+  Both push and pull are idempotent -- repeating a sync is harmless
+  because content is identified by hash, not by timestamp or sequence.
+  """
+  method: s05_syncProtocol [
+      "The sync protocol is not invoked from Maggie code directly."
+      ^nil
+  ]
+
+  """
+  ## CLI: mag sync
+
+  The `mag sync` command has three subcommands: `push`, `pull`, and
+  `status`.
+
+  **push** sends your compiled project to a remote peer:
+
+  ```example
+  # Push to a specific peer
+  $ mag sync push localhost:8081
+
+  # Push to all peers configured in maggie.toml
+  $ mag sync push
+
+  # Verbose output
+  $ mag -v sync push localhost:8081
+  Announcing 389 hashes to http://localhost:8081
+  Transferring 47 chunks
+  Transfer complete: 47 accepted, 0 rejected
+  ```
+
+  Without an explicit address, push reads `[sync].peers` from
+  `maggie.toml` and pushes to each peer in sequence.
+
+  **pull** fetches content from a remote peer by root hash:
+
+  ```example
+  $ mag sync pull localhost:8081 a1b2c3d4e5f6...  (64 hex chars)
+  Pull complete: 86 accepted, 0 rejected
+  Content store: 433 methods, 56 classes
+  ```
+
+  The root hash must be a 64-character hex string (32 bytes).
+  If the root hash already exists locally, pull exits immediately.
+
+  **status** prints a summary of the local ContentStore:
+
+  ```example
+  $ mag sync status
+  Content store:
+    Methods: 347
+    Classes: 42
+    Total:   389
+  ```
+  """
+  method: s06_syncCli [
+      "Sync commands are CLI operations."
+      ^nil
+  ]
+
+  """
+  ## Reputation and Peer Tracking
+
+  The sync service tracks the reputation of every peer it interacts
+  with. Reputation is based on verification outcomes:
+
+  - **Successful syncs** -- incremented each time a chunk passes
+    verification.
+  - **Failed syncs** -- incremented when a transfer fails.
+  - **Hash mismatches** -- incremented when a chunk's declared hash
+    does not match the hash computed by recompiling its source.
+
+  When a peer accumulates too many hash mismatches (default: 3), it
+  is automatically **banned**. A banned peer's Announce, Transfer,
+  and Serve requests are rejected. This prevents a malicious peer
+  from flooding the network with invalid content.
+
+  ```example
+  # PeerReputation fields:
+  #   PeerID          -- "192.168.1.42" (from X-Forwarded-For or X-Real-Ip)
+  #   SuccessfulSyncs -- 47
+  #   FailedSyncs     -- 0
+  #   HashMismatches  -- 0
+  #   LastSeen        -- 2026-02-07T15:30:00Z
+  #   Banned          -- false
+  ```
+
+  Peer identity is currently derived from HTTP headers
+  (`X-Forwarded-For` or `X-Real-Ip`). If neither is present, the
+  peer is identified as "unknown".
+  """
+  method: s07_reputation [
+      "Reputation tracking is handled by the sync service internally."
+      ^nil
+  ]
+
+  """
+  ## Capabilities
+
+  Capabilities are a lightweight permission system for distributed
+  code. Each chunk can declare capabilities it requires (e.g., "File",
+  "HTTP", "Network"). When a peer announces content for push, it
+  includes a CapabilityManifest listing all required capabilities.
+
+  The receiving VM checks the manifest against its `CapabilityPolicy`:
+
+  - **AllowedCapabilities** -- if set, only these capabilities are
+    permitted. A nil list means "allow all" (permissive mode).
+  - **DeniedCapabilities** -- these capabilities are explicitly
+    blocked, regardless of the allow list.
+
+  If any required capability is denied or not allowed, the Announce
+  RPC returns `REJECTED` with a reason string.
+
+  ```example
+  # A locked-down receiver might deny specific capabilities:
+  #   policy.Deny("File")
+  #   policy.Deny("Network")
+  # Then any push containing File or Network chunks is rejected.
+  ```
+
+  Capabilities integrate with process-level restriction. A VM that
+  receives code requiring "File" access can fork a restricted process
+  that hides the File class, limiting what the received code can do
+  even if the capability was accepted at the sync level.
+  """
+  method: s08_capabilities [
+      "Capabilities are configured in maggie.toml and enforced by the server."
+      ^nil
+  ]
+
+  """
+  ## Manifest Configuration: [sync]
+
+  The `[sync]` section in `maggie.toml` configures distribution:
+
+  ```example
+  [sync]
+  capabilities = ["File", "HTTP"]   # Capabilities this project requires
+  listen = ":8081"                  # Start a sync server on this address
+  peers = ["localhost:8082", "staging.example.com:8081"]  # Default push targets
+  ```
+
+  **Fields:**
+
+  - `capabilities` -- capability strings declared in the manifest
+    when pushing. If a receiver does not allow a listed capability,
+    the push is rejected.
+
+  - `listen` -- address for the sync server to bind to. When set,
+    `mag` automatically starts a sync server alongside the main
+    application. If omitted, no sync server is started.
+
+  - `peers` -- default push targets. Used when `mag sync push` is
+    invoked without an explicit address.
+
+  ```example
+  # Minimal config for a library that only serves content:
+  [sync]
+  listen = ":9000"
+
+  # Config for an app that pushes to staging and production:
+  [sync]
+  capabilities = ["File", "HTTP", "Network"]
+  peers = ["staging.internal:8081", "prod.internal:8081"]
+  ```
+  """
+  method: s09_manifestConfig [
+      "Sync configuration goes in maggie.toml under [sync]."
+      ^nil
+  ]
+
+  """
+  ## Peer Networking
+
+  The sync service runs as part of the Maggie language server, which
+  serves both Connect (HTTP/JSON) and gRPC (binary protobuf) on the
+  same port. The `SyncService` exposes four RPCs:
+
+  - `Announce` -- receive a push announcement and return a want list.
+  - `Transfer` -- receive and verify chunks from a pusher.
+  - `Serve` -- respond to a pull request with available chunks.
+  - `Ping` -- return the hash count in the local store (health check).
+
+  When `[sync].listen` is set in `maggie.toml`, the sync server starts
+  automatically. The server is configured with:
+
+  - A `CompileFunc` for verifying incoming method chunks.
+  - A `CapabilityPolicy` derived from the manifest.
+  - A `PeerStore` for tracking reputation.
+  - The VM's `ContentStore` for looking up and indexing content.
+
+  All communication uses standard HTTP/2. There is no custom binary
+  protocol, no UDP, and no peer discovery. Peers are configured
+  explicitly in the manifest or specified on the command line.
+
+  ```example
+  # Server startup output:
+  Maggie language server listening on :8081
+    Connect (HTTP/JSON): http://localhost:8081/maggie.v1.SyncService/Announce
+    gRPC (binary):       grpc://localhost:8081
+  ```
+  """
+  method: s10_peerNetworking [
+      "Peer networking is managed by the Maggie server infrastructure."
+      ^nil
+  ]
+
+  """
+  ## Security Model
+
+  The security model is built on one principle: **never trust content,
+  always verify**.
+
+  When a method chunk arrives from a peer, the receiver:
+
+  1. Extracts the source text from the chunk.
+  2. Compiles the source using its own compiler.
+  3. Computes the content hash of the compiled AST.
+  4. Compares the computed hash against the declared hash.
+  5. Rejects the chunk if the hashes do not match.
+
+  A malicious peer cannot send arbitrary bytecode disguised as a known
+  hash -- the receiver's compiler is the final arbiter. For class and
+  module chunks, verification checks that all declared dependency
+  hashes exist in the local ContentStore.
+
+  **Security layers:**
+
+  - **Capability filtering** -- reject content requiring unwanted
+    capabilities (e.g., File or Network access).
+  - **Peer banning** -- auto-ban peers after repeated hash mismatches.
+  - **Process restriction** -- sandbox received code in restricted
+    processes that hide sensitive globals.
+  - **No remote code execution** -- the protocol transfers source
+    text, not bytecode. The receiver compiles everything itself.
+  - **Deterministic serialization** -- CBOR canonical encoding ensures
+    identical messages produce identical bytes.
+
+  **Not yet provided:**
+
+  - Cryptographic peer identity (planned)
+  - Encrypted transport (use a TLS reverse proxy)
+  - Signed content (hashes verify integrity, not provenance)
+  - Peer discovery (peers are configured manually)
+
+  ```example
+  # Verification flow for a method chunk:
+  #
+  #   Peer sends:  { hash: abc123, type: Method, content: "method: foo [...]" }
+  #   Receiver:    compile("method: foo [...]") -> hash = abc123  (match!)
+  #                -> accept and index
+  #
+  #   Peer sends:  { hash: abc123, type: Method, content: "method: evil [...]" }
+  #   Receiver:    compile("method: evil [...]") -> hash = fff999  (MISMATCH)
+  #                -> reject, record hash mismatch for peer
+  #                -> if mismatches >= 3, ban peer
+  ```
+  """
+  method: s11_securityModel [
+      "Verification is performed automatically by the sync service."
+      ^nil
+  ]
+
+  """
+  ## Putting It Together
+
+  A typical workflow for distributing a Maggie project:
+
+  ```example
+  # 1. Configure maggie.toml
+  [project]
+  name = "my-app"
+  namespace = "MyApp"
+
+  [source]
+  dirs = ["src"]
+
+  [sync]
+  capabilities = ["HTTP"]
+  listen = ":8081"
+  peers = ["staging.example.com:8081"]
+
+  # 2. Compile and check the content store
+  $ mag ./src/...
+  $ mag sync status
+  Content store:
+    Methods: 127
+    Classes: 18
+    Total:   145
+
+  # 3. Push to staging
+  $ mag sync push
+  Pushing to manifest peer: staging.example.com:8081
+  Transfer complete: 145 accepted, 0 rejected
+
+  # 4. On staging, pull from production
+  $ mag sync pull prod.example.com:8081 a1b2c3d4...
+  Pull complete: 89 accepted, 0 rejected
+
+  # 5. Start a server that accepts pushes from CI
+  $ mag -m Main.start
+  # (sync server auto-starts on :8081 because listen is set)
+  ```
+
+  The content-addressed design means that:
+
+  - Pushes are incremental -- only new or changed methods transfer.
+  - Pulls are idempotent -- requesting the same root hash twice is a no-op.
+  - Verification is automatic -- every chunk is checked before acceptance.
+  - Rollback is trivial -- old content still has valid hashes in the store.
+  """
+  method: s12_puttingItTogether [
+      "This section is prose-only."
+      ^nil
+  ]
