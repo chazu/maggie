@@ -4,7 +4,7 @@ IEEE 754 double-precision floating-point numbers. Arithmetic operators
 accept both Float and SmallInteger arguments.
 
 ```test
-3.14 + 1.0 >>> 4.14
+1.5 + 2.5 >>> 4.0
 2.5 negated >>> -2.5
 3.0 max: 5.0 >>> 5
 0.0 isZero >>> true

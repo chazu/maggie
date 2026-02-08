@@ -129,6 +129,29 @@ func collectAndRunDoctests(vmInst *vm.VM, classFilter string, verbose bool) []do
 			continue
 		}
 
+		// Class-level docstring.
+		if cls.DocString != "" {
+			sections := ParseDocString(cls.DocString)
+			var classResults []doctestResult
+			for _, sec := range sections {
+				if sec.Type != DocTest {
+					continue
+				}
+				assertions := parseDoctestAssertions(sec.Content)
+				for _, asrt := range assertions {
+					classResults = append(classResults, runDoctestAssertion(vmInst, asrt, verbose))
+				}
+			}
+			if len(classResults) > 0 {
+				allResults = append(allResults, doctestMethodResult{
+					ClassName:   cls.FullName(),
+					Selector:    "(class docstring)",
+					IsClassSide: false,
+					Results:     classResults,
+				})
+			}
+		}
+
 		// Instance methods.
 		instanceMethods := cls.VTable.LocalMethods()
 		allResults = append(allResults,
