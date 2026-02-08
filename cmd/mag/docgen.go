@@ -5,8 +5,11 @@ import (
 	"html/template"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
+	"strconv"
 	"strings"
+	"unicode"
 
 	"github.com/chazu/maggie/vm"
 )
@@ -144,6 +147,104 @@ type namespaceGroup struct {
 }
 
 // ---------------------------------------------------------------------------
+// Guide data structures and detection
+// ---------------------------------------------------------------------------
+
+// guideDoc holds documentation data for a guide chapter.
+type guideDoc struct {
+	Number  int      // extracted from class name (e.g., 1 from Guide01)
+	Title   string   // from first # heading in class docstring
+	Slug    string   // kebab-case for filename (e.g., "01-getting-started")
+	Class   classDoc // reuse existing classDoc
+	RelPath string   // "guide/01-getting-started.html"
+}
+
+// sidebarData holds navigation data shared across all page templates.
+type sidebarData struct {
+	GuideEntries []sidebarGuideEntry
+	APIGroups    []namespaceGroup
+}
+
+// sidebarGuideEntry is one guide chapter in the sidebar.
+type sidebarGuideEntry struct {
+	Number  int
+	Title   string
+	RelPath string
+}
+
+var guideClassRe = regexp.MustCompile(`^Guide(\d{2})`)
+
+// isGuideClass returns true if the class name matches the Guide\d{2} pattern.
+func isGuideClass(name string) bool {
+	return guideClassRe.MatchString(name)
+}
+
+// extractGuideNumber parses the two-digit chapter number from a guide class name.
+func extractGuideNumber(name string) int {
+	m := guideClassRe.FindStringSubmatch(name)
+	if len(m) < 2 {
+		return 0
+	}
+	n, _ := strconv.Atoi(m[1])
+	return n
+}
+
+// extractGuideTitle extracts the title from the first # heading in a docstring.
+// Falls back to deriving a title from the class name.
+func extractGuideTitle(name, docString string) string {
+	for _, line := range strings.Split(docString, "\n") {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "# ") {
+			return strings.TrimSpace(strings.TrimPrefix(trimmed, "# "))
+		}
+	}
+	// Fallback: strip Guide\d+ prefix, insert spaces before uppercase
+	stripped := guideClassRe.ReplaceAllString(name, "")
+	var buf strings.Builder
+	for i, r := range stripped {
+		if i > 0 && unicode.IsUpper(r) {
+			buf.WriteByte(' ')
+		}
+		buf.WriteRune(r)
+	}
+	return buf.String()
+}
+
+// guideSlug creates a kebab-case slug like "01-getting-started".
+func guideSlug(number int, title string) string {
+	slug := strings.ToLower(title)
+	slug = strings.Map(func(r rune) rune {
+		if r >= 'a' && r <= 'z' || r >= '0' && r <= '9' {
+			return r
+		}
+		if r == ' ' || r == '-' {
+			return '-'
+		}
+		return -1
+	}, slug)
+	// Collapse multiple dashes
+	for strings.Contains(slug, "--") {
+		slug = strings.ReplaceAll(slug, "--", "-")
+	}
+	slug = strings.Trim(slug, "-")
+	return fmt.Sprintf("%02d-%s", number, slug)
+}
+
+// buildGuideDoc creates a guideDoc from a classDoc.
+func buildGuideDoc(cd classDoc) guideDoc {
+	num := extractGuideNumber(cd.Name)
+	title := extractGuideTitle(cd.Name, cd.DocString)
+	slug := guideSlug(num, title)
+	return guideDoc{
+		Number:  num,
+		Title:   title,
+		Slug:    slug,
+		Class:   cd,
+		RelPath: "guide/" + slug + ".html",
+	}
+}
+
+// ---------------------------------------------------------------------------
 // handleDocCommand: Entry point for the doc subcommand
 // ---------------------------------------------------------------------------
 
@@ -194,33 +295,47 @@ func handleDocCommand(vmInst *vm.VM, args []string) {
 	allClasses := vmInst.Classes.All()
 	fmt.Printf("Generating docs for %d classes...\n", len(allClasses))
 
-	// Build class documentation structures
-	var classDocs []classDoc
+	// Build class documentation structures and partition guide vs API
+	var apiDocs []classDoc
+	var guideDocs []guideDoc
 	for _, cls := range allClasses {
 		doc := buildClassDoc(cls, vmInst)
-		classDocs = append(classDocs, doc)
+		if isGuideClass(cls.Name) {
+			guideDocs = append(guideDocs, buildGuideDoc(doc))
+		} else {
+			apiDocs = append(apiDocs, doc)
+		}
 	}
 
-	// Sort classes alphabetically by full name
-	sort.Slice(classDocs, func(i, j int) bool {
-		return classDocs[i].FullName < classDocs[j].FullName
+	// Sort API classes alphabetically, guide chapters by number
+	sort.Slice(apiDocs, func(i, j int) bool {
+		return apiDocs[i].FullName < apiDocs[j].FullName
+	})
+	sort.Slice(guideDocs, func(i, j int) bool {
+		return guideDocs[i].Number < guideDocs[j].Number
 	})
 
-	// Group by namespace
-	nsGroups := groupByNamespace(classDocs)
+	// Group API classes by namespace
+	nsGroups := groupByNamespace(apiDocs)
+
+	// Build sidebar data
+	sidebar := sidebarData{APIGroups: nsGroups}
+	for _, g := range guideDocs {
+		sidebar.GuideEntries = append(sidebar.GuideEntries, sidebarGuideEntry{
+			Number:  g.Number,
+			Title:   g.Title,
+			RelPath: g.RelPath,
+		})
+	}
+
+	fmt.Printf("  %d API classes, %d guide chapters\n", len(apiDocs), len(guideDocs))
 
 	// Create output directories
-	if err := os.MkdirAll(filepath.Join(outputDir, "classes"), 0755); err != nil {
-		fmt.Fprintf(os.Stderr, "Error creating output directory: %v\n", err)
-		os.Exit(1)
-	}
-	if err := os.MkdirAll(filepath.Join(outputDir, "css"), 0755); err != nil {
-		fmt.Fprintf(os.Stderr, "Error creating css directory: %v\n", err)
-		os.Exit(1)
-	}
-	if err := os.MkdirAll(filepath.Join(outputDir, "js"), 0755); err != nil {
-		fmt.Fprintf(os.Stderr, "Error creating js directory: %v\n", err)
-		os.Exit(1)
+	for _, dir := range []string{"classes", "css", "js", "guide"} {
+		if err := os.MkdirAll(filepath.Join(outputDir, dir), 0755); err != nil {
+			fmt.Fprintf(os.Stderr, "Error creating %s directory: %v\n", dir, err)
+			os.Exit(1)
+		}
 	}
 
 	// Write CSS
@@ -236,15 +351,23 @@ func handleDocCommand(vmInst *vm.VM, args []string) {
 	}
 
 	// Write index page
-	if err := writeIndexPage(outputDir, title, nsGroups); err != nil {
+	if err := writeIndexPage(outputDir, title, nsGroups, sidebar); err != nil {
 		fmt.Fprintf(os.Stderr, "Error writing index page: %v\n", err)
 		os.Exit(1)
 	}
 
 	// Write individual class pages
-	for _, doc := range classDocs {
-		if err := writeClassPage(outputDir, title, doc); err != nil {
+	for _, doc := range apiDocs {
+		if err := writeClassPage(outputDir, title, doc, sidebar); err != nil {
 			fmt.Fprintf(os.Stderr, "Error writing class page for %s: %v\n", doc.FullName, err)
+			os.Exit(1)
+		}
+	}
+
+	// Write guide pages
+	for _, g := range guideDocs {
+		if err := writeGuidePage(outputDir, title, g, sidebar); err != nil {
+			fmt.Fprintf(os.Stderr, "Error writing guide page for %s: %v\n", g.Title, err)
 			os.Exit(1)
 		}
 	}
@@ -447,8 +570,11 @@ func writePlaygroundJS(outputDir string) error {
 }
 
 // writeIndexPage generates the index.html class listing.
-func writeIndexPage(outputDir, title string, groups []namespaceGroup) error {
-	tmpl, err := template.New("index").Parse(indexTemplate)
+func writeIndexPage(outputDir, title string, groups []namespaceGroup, sidebar sidebarData) error {
+	funcMap := template.FuncMap{
+		"renderDocSections": renderDocSectionsHTML,
+	}
+	tmpl, err := template.New("index").Funcs(funcMap).Parse(indexTemplate)
 	if err != nil {
 		return fmt.Errorf("parsing index template: %w", err)
 	}
@@ -461,18 +587,39 @@ func writeIndexPage(outputDir, title string, groups []namespaceGroup) error {
 	defer f.Close()
 
 	data := struct {
-		Title  string
-		Groups []namespaceGroup
+		Title      string
+		Groups     []namespaceGroup
+		Sidebar    sidebarData
+		ActivePath string
+		Root       string
 	}{
-		Title:  title,
-		Groups: groups,
+		Title:      title,
+		Groups:     groups,
+		Sidebar:    sidebar,
+		ActivePath: "index.html",
+		Root:       ".",
 	}
 
 	return tmpl.Execute(f, data)
 }
 
+// depthPrefix computes the relative path back to the doc root from a page.
+// For "classes/Array.html" (1 separator), returns "..".
+// For "classes/Ns/Foo.html" (2 separators), returns "../..".
+func depthPrefix(relPath string) string {
+	depth := strings.Count(relPath, string(filepath.Separator))
+	if depth == 0 {
+		return "."
+	}
+	parts := make([]string, depth)
+	for i := range parts {
+		parts[i] = ".."
+	}
+	return strings.Join(parts, "/")
+}
+
 // writeClassPage generates an individual class HTML page.
-func writeClassPage(outputDir, siteTitle string, doc classDoc) error {
+func writeClassPage(outputDir, siteTitle string, doc classDoc, sidebar sidebarData) error {
 	funcMap := template.FuncMap{
 		"renderDocSections": renderDocSectionsHTML,
 		"hasDocString":      func(s string) bool { return s != "" },
@@ -482,16 +629,8 @@ func writeClassPage(outputDir, siteTitle string, doc classDoc) error {
 			}
 			return ""
 		},
-		"join": strings.Join,
-		"depthCSS": func(relPath string) string {
-			// Compute relative path back to root from the class page
-			depth := strings.Count(relPath, string(filepath.Separator))
-			parts := make([]string, depth+1)
-			for i := range parts {
-				parts[i] = ".."
-			}
-			return strings.Join(parts, "/")
-		},
+		"join":     strings.Join,
+		"depthCSS": func(relPath string) string { return depthPrefix(relPath) },
 	}
 
 	tmpl, err := template.New("class").Funcs(funcMap).Parse(classTemplate)
@@ -512,15 +651,89 @@ func writeClassPage(outputDir, siteTitle string, doc classDoc) error {
 	}
 	defer f.Close()
 
+	root := depthPrefix(doc.RelPath)
 	data := struct {
-		SiteTitle string
-		Class     classDoc
+		SiteTitle  string
+		Class      classDoc
+		Sidebar    sidebarData
+		ActivePath string
+		Root       string
 	}{
-		SiteTitle: siteTitle,
-		Class:     doc,
+		SiteTitle:  siteTitle,
+		Class:      doc,
+		Sidebar:    sidebar,
+		ActivePath: doc.RelPath,
+		Root:       root,
 	}
 
 	return tmpl.Execute(f, data)
+}
+
+// writeGuidePage generates a guide chapter HTML page.
+func writeGuidePage(outputDir, siteTitle string, guide guideDoc, sidebar sidebarData) error {
+	funcMap := template.FuncMap{
+		"renderDocSections": renderDocSectionsHTML,
+		"hasDocString":      func(s string) bool { return s != "" },
+		"depthCSS":          func(relPath string) string { return depthPrefix(relPath) },
+	}
+
+	tmpl, err := template.New("guide").Funcs(funcMap).Parse(guidePageTemplate)
+	if err != nil {
+		return fmt.Errorf("parsing guide template: %w", err)
+	}
+
+	outPath := filepath.Join(outputDir, guide.RelPath)
+	outDir := filepath.Dir(outPath)
+	if err := os.MkdirAll(outDir, 0755); err != nil {
+		return fmt.Errorf("creating directory %s: %w", outDir, err)
+	}
+
+	f, err := os.Create(outPath)
+	if err != nil {
+		return fmt.Errorf("creating %s: %w", outPath, err)
+	}
+	defer f.Close()
+
+	// Collect methods sorted by selector name (s01_, s02_, etc.)
+	var sections []guideSection
+	for _, cat := range guide.Class.Categories {
+		for _, m := range cat.Methods {
+			sections = append(sections, guideSection{
+				Selector:    m.Selector,
+				DocSections: m.DocSections,
+				Source:      m.Source,
+			})
+		}
+	}
+	sort.Slice(sections, func(i, j int) bool {
+		return sections[i].Selector < sections[j].Selector
+	})
+
+	root := depthPrefix(guide.RelPath)
+	data := struct {
+		SiteTitle  string
+		Guide      guideDoc
+		Sections   []guideSection
+		Sidebar    sidebarData
+		ActivePath string
+		Root       string
+	}{
+		SiteTitle:  siteTitle,
+		Guide:      guide,
+		Sections:   sections,
+		Sidebar:    sidebar,
+		ActivePath: guide.RelPath,
+		Root:       root,
+	}
+
+	return tmpl.Execute(f, data)
+}
+
+// guideSection holds one method's documentation for the guide template.
+type guideSection struct {
+	Selector    string
+	DocSections []DocSection
+	Source      string
 }
 
 // renderDocSectionsHTML renders parsed docstring sections as HTML.
@@ -567,324 +780,163 @@ func renderDocSectionsHTML(sections []DocSection) template.HTML {
 // CSS
 // ---------------------------------------------------------------------------
 
-const cssContent = `/* Maggie API Documentation */
-* {
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
-}
+const cssContent = `/* Maggie Documentation */
+* { margin: 0; padding: 0; box-sizing: border-box; }
 
 body {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
     line-height: 1.6;
     color: #24292e;
     background: #ffffff;
-    max-width: 960px;
-    margin: 0 auto;
-    padding: 2rem 1.5rem;
+    display: flex;
+    min-height: 100vh;
 }
 
-a {
-    color: #0366d6;
-    text-decoration: none;
-}
-a:hover {
-    text-decoration: underline;
-}
+a { color: #0366d6; text-decoration: none; }
+a:hover { text-decoration: underline; }
 
-h1 {
-    font-size: 2rem;
-    border-bottom: 1px solid #e1e4e8;
-    padding-bottom: 0.5rem;
-    margin-bottom: 1.5rem;
-}
-
-h2 {
-    font-size: 1.5rem;
-    margin-top: 2rem;
-    margin-bottom: 0.75rem;
-    border-bottom: 1px solid #eaecef;
-    padding-bottom: 0.3rem;
-}
-
-h3 {
-    font-size: 1.25rem;
-    margin-top: 1.5rem;
-    margin-bottom: 0.5rem;
-}
-
-h4 {
-    font-size: 1rem;
-    margin-top: 1rem;
-    margin-bottom: 0.25rem;
-    color: #586069;
-}
-
-p {
-    margin-bottom: 0.75rem;
-}
-
-code, pre {
-    font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
-    font-size: 0.875rem;
-}
-
-code {
+/* Sidebar */
+.sidebar {
+    width: 260px;
+    min-width: 260px;
     background: #f6f8fa;
-    padding: 0.15rem 0.3rem;
-    border-radius: 3px;
+    border-right: 1px solid #e1e4e8;
+    padding: 1.5rem 0;
+    overflow-y: auto;
+    position: sticky;
+    top: 0;
+    height: 100vh;
 }
-
-pre {
-    background: #f6f8fa;
-    padding: 1rem;
-    border-radius: 6px;
-    overflow-x: auto;
-    margin-bottom: 1rem;
-}
-
-pre code {
-    background: none;
-    padding: 0;
-}
-
-/* Namespace grouping on index page */
-.namespace-group {
-    margin-bottom: 2rem;
-}
-
-.namespace-group h2 {
-    font-size: 1.25rem;
-    color: #6a737d;
-    font-weight: 600;
-}
-
-.class-list {
-    list-style: none;
-    padding-left: 0;
-}
-
-.class-list li {
-    padding: 0.4rem 0;
-    border-bottom: 1px solid #f0f0f0;
-}
-
-.class-list li:last-child {
-    border-bottom: none;
-}
-
-.class-list .class-name {
-    font-weight: 600;
-}
-
-.class-list .class-brief {
-    color: #586069;
-    font-size: 0.875rem;
-    margin-left: 0.5rem;
-}
-
-/* Breadcrumb navigation */
-.breadcrumb {
-    font-size: 0.875rem;
-    color: #586069;
-    margin-bottom: 1rem;
-}
-
-.breadcrumb a {
-    color: #586069;
-}
-
-/* Class page sections */
-.class-header {
-    margin-bottom: 1.5rem;
-}
-
-.superclass-chain {
-    font-size: 0.875rem;
-    color: #586069;
-    margin-top: 0.25rem;
-}
-
-.inst-vars {
-    font-size: 0.875rem;
-    color: #586069;
-    margin-top: 0.5rem;
-}
-
-.inst-vars code {
-    font-size: 0.8125rem;
-}
-
-.class-doc {
-    margin-bottom: 2rem;
-    padding: 1rem;
-    background: #f8f9fa;
-    border-radius: 6px;
-    border-left: 3px solid #0366d6;
-}
-
-.class-doc p {
-    margin-bottom: 0.5rem;
-}
-
-.class-doc p:last-child {
-    margin-bottom: 0;
-}
-
-/* Method sections */
-.method-category {
-    margin-top: 1.5rem;
-    margin-bottom: 1rem;
-}
-
-.method-category h3 {
+.sidebar-title {
     font-size: 1.1rem;
-    color: #24292e;
-    text-transform: capitalize;
-    border-bottom: 1px solid #eaecef;
-    padding-bottom: 0.25rem;
-}
-
-.method {
-    margin-bottom: 1.5rem;
-    padding: 0.75rem 1rem;
-    border: 1px solid #e1e4e8;
-    border-radius: 6px;
-}
-
-.method-selector {
-    font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
-    font-size: 1rem;
-    font-weight: 600;
-    color: #22863a;
-}
-
-.method-selector .class-side-label {
-    color: #6a737d;
-    font-weight: normal;
-    font-size: 0.8125rem;
-}
-
-.method-doc {
-    margin-top: 0.5rem;
-}
-
-.method-doc p {
+    font-weight: 700;
+    padding: 0 1rem 0.75rem;
+    border-bottom: 1px solid #e1e4e8;
     margin-bottom: 0.5rem;
 }
-
-.method-source {
-    margin-top: 0.75rem;
+.sidebar-title a { color: #24292e; }
+.sidebar-section {
+    padding: 0.5rem 1rem 0;
 }
-
-.method-source summary {
-    cursor: pointer;
-    font-size: 0.8125rem;
-    color: #586069;
-    user-select: none;
-}
-
-.method-source summary:hover {
-    color: #0366d6;
-}
-
-.method-source pre {
-    margin-top: 0.5rem;
-}
-
-/* Docstring test/example blocks */
-.doc-block {
-    margin: 0.75rem 0;
-    border-radius: 6px;
-    overflow: hidden;
-}
-
-.doc-block-label {
-    display: block;
+.sidebar-section-title {
     font-size: 0.75rem;
-    font-weight: 600;
+    font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.05em;
-    padding: 0.25rem 1rem;
+    color: #6a737d;
+    margin-bottom: 0.25rem;
+}
+.sidebar-list {
+    list-style: none;
+    padding: 0;
+    margin-bottom: 0.75rem;
+}
+.sidebar-list li { padding: 0.15rem 0; }
+.sidebar-list a {
+    display: block;
+    font-size: 0.875rem;
+    color: #24292e;
+    padding: 0.15rem 0.5rem;
+    border-radius: 3px;
+}
+.sidebar-list a:hover { background: #e1e4e8; text-decoration: none; }
+.sidebar-list a.active { background: #0366d6; color: #fff; }
+.sidebar-ns-group summary {
+    cursor: pointer;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #586069;
+    padding: 0.15rem 0;
+    user-select: none;
+}
+.sidebar-ns-group summary:hover { color: #0366d6; }
+.sidebar-ns-group .sidebar-list { padding-left: 0.75rem; }
+
+/* Content area */
+.content {
+    flex: 1;
+    max-width: 800px;
+    padding: 2rem 2.5rem;
 }
 
-.doc-test {
-    border: 1px solid #d1d5da;
-}
+h1 { font-size: 2rem; border-bottom: 1px solid #e1e4e8; padding-bottom: 0.5rem; margin-bottom: 1.5rem; }
+h2 { font-size: 1.5rem; margin-top: 2rem; margin-bottom: 0.75rem; border-bottom: 1px solid #eaecef; padding-bottom: 0.3rem; }
+h3 { font-size: 1.25rem; margin-top: 1.5rem; margin-bottom: 0.5rem; }
+h4 { font-size: 1rem; margin-top: 1rem; margin-bottom: 0.25rem; color: #586069; }
+p { margin-bottom: 0.75rem; }
 
-.doc-test .doc-block-label {
-    background: #e8f5e9;
-    color: #2e7d32;
-}
+code, pre { font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace; font-size: 0.875rem; }
+code { background: #f6f8fa; padding: 0.15rem 0.3rem; border-radius: 3px; }
+pre { background: #f6f8fa; padding: 1rem; border-radius: 6px; overflow-x: auto; margin-bottom: 1rem; }
+pre code { background: none; padding: 0; }
 
-.doc-test pre {
-    margin: 0;
-    border-radius: 0;
-}
+/* Namespace grouping on index page */
+.namespace-group { margin-bottom: 2rem; }
+.namespace-group h2 { font-size: 1.25rem; color: #6a737d; font-weight: 600; }
+.class-list { list-style: none; padding-left: 0; }
+.class-list li { padding: 0.4rem 0; border-bottom: 1px solid #f0f0f0; }
+.class-list li:last-child { border-bottom: none; }
+.class-list .class-name { font-weight: 600; }
+.class-list .class-brief { color: #586069; font-size: 0.875rem; margin-left: 0.5rem; }
 
-.doc-example {
-    border: 1px solid #d1d5da;
-}
+/* Breadcrumb navigation */
+.breadcrumb { font-size: 0.875rem; color: #586069; margin-bottom: 1rem; }
+.breadcrumb a { color: #586069; }
 
-.doc-example .doc-block-label {
-    background: #e3f2fd;
-    color: #1565c0;
-}
+/* Class page sections */
+.class-header { margin-bottom: 1.5rem; }
+.superclass-chain { font-size: 0.875rem; color: #586069; margin-top: 0.25rem; }
+.inst-vars { font-size: 0.875rem; color: #586069; margin-top: 0.5rem; }
+.inst-vars code { font-size: 0.8125rem; }
+.class-doc { margin-bottom: 2rem; padding: 1rem; background: #f8f9fa; border-radius: 6px; border-left: 3px solid #0366d6; }
+.class-doc p { margin-bottom: 0.5rem; }
+.class-doc p:last-child { margin-bottom: 0; }
 
-.doc-example pre {
-    margin: 0;
-    border-radius: 0;
-}
+/* Method sections */
+.method-category { margin-top: 1.5rem; margin-bottom: 1rem; }
+.method-category h3 { font-size: 1.1rem; color: #24292e; text-transform: capitalize; border-bottom: 1px solid #eaecef; padding-bottom: 0.25rem; }
+.method { margin-bottom: 1.5rem; padding: 0.75rem 1rem; border: 1px solid #e1e4e8; border-radius: 6px; }
+.method-selector { font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace; font-size: 1rem; font-weight: 600; color: #22863a; }
+.method-selector .class-side-label { color: #6a737d; font-weight: normal; font-size: 0.8125rem; }
+.method-doc { margin-top: 0.5rem; }
+.method-doc p { margin-bottom: 0.5rem; }
+.method-source { margin-top: 0.75rem; }
+.method-source summary { cursor: pointer; font-size: 0.8125rem; color: #586069; user-select: none; }
+.method-source summary:hover { color: #0366d6; }
+.method-source pre { margin-top: 0.5rem; }
+
+/* Docstring test/example blocks */
+.doc-block { margin: 0.75rem 0; border-radius: 6px; overflow: hidden; }
+.doc-block-label { display: block; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; padding: 0.25rem 1rem; }
+.doc-test { border: 1px solid #d1d5da; }
+.doc-test .doc-block-label { background: #e8f5e9; color: #2e7d32; }
+.doc-test pre { margin: 0; border-radius: 0; }
+.doc-example { border: 1px solid #d1d5da; }
+.doc-example .doc-block-label { background: #e3f2fd; color: #1565c0; }
+.doc-example pre { margin: 0; border-radius: 0; }
+
+/* Guide pages */
+.guide-section { margin-bottom: 2.5rem; }
+.guide-code { margin: 1rem 0; }
+.guide-code-label { font-size: 0.75rem; color: #6a737d; font-weight: 600; margin-bottom: 0.25rem; }
 
 /* Footer */
-.footer {
-    margin-top: 3rem;
-    padding-top: 1rem;
-    border-top: 1px solid #e1e4e8;
-    font-size: 0.8125rem;
-    color: #6a737d;
-}
+.footer { margin-top: 3rem; padding-top: 1rem; border-top: 1px solid #e1e4e8; font-size: 0.8125rem; color: #6a737d; }
 
 /* Playground */
-.playground-run {
-    display: inline-block;
-    padding: 4px 12px;
-    margin-bottom: 4px;
-    background: #1565c0;
-    color: #fff;
-    border: none;
-    border-radius: 3px;
-    cursor: pointer;
-    font-size: 13px;
-}
-.playground-run:hover {
-    background: #0d47a1;
-}
-.playground-run:disabled {
-    background: #90a4ae;
-    cursor: wait;
-}
-.playground-output {
-    padding: 8px 12px;
-    margin-top: 4px;
-    border-radius: 0 0 4px 4px;
-    font-family: 'SF Mono', 'Monaco', 'Menlo', monospace;
-    font-size: 14px;
-    white-space: pre-wrap;
-}
-.playground-loading {
-    color: #78909c;
-    background: #f5f5f5;
-}
-.playground-success {
-    color: #1b5e20;
-    background: #e8f5e9;
-    border: 1px solid #a5d6a7;
-}
-.playground-error {
-    color: #b71c1c;
-    background: #ffebee;
-    border: 1px solid #ef9a9a;
+.playground-run { display: inline-block; padding: 4px 12px; margin-bottom: 4px; background: #1565c0; color: #fff; border: none; border-radius: 3px; cursor: pointer; font-size: 13px; }
+.playground-run:hover { background: #0d47a1; }
+.playground-run:disabled { background: #90a4ae; cursor: wait; }
+.playground-output { padding: 8px 12px; margin-top: 4px; border-radius: 0 0 4px 4px; font-family: "SF Mono", "Monaco", "Menlo", monospace; font-size: 14px; white-space: pre-wrap; }
+.playground-loading { color: #78909c; background: #f5f5f5; }
+.playground-success { color: #1b5e20; background: #e8f5e9; border: 1px solid #a5d6a7; }
+.playground-error { color: #b71c1c; background: #ffebee; border: 1px solid #ef9a9a; }
+
+/* Responsive */
+@media (max-width: 768px) {
+    body { flex-direction: column; }
+    .sidebar { width: 100%; min-width: 100%; height: auto; position: static; border-right: none; border-bottom: 1px solid #e1e4e8; }
+    .content { padding: 1.5rem 1rem; }
 }
 `
 
@@ -962,6 +1014,33 @@ const playgroundJSContent = `// Maggie Documentation Playground
 // HTML Templates
 // ---------------------------------------------------------------------------
 
+const sidebarFragment = `<nav class="sidebar">
+    <div class="sidebar-title"><a href="{{.Root}}/index.html">Maggie Docs</a></div>
+{{if .Sidebar.GuideEntries}}
+    <div class="sidebar-section">
+        <div class="sidebar-section-title">Guide</div>
+        <ul class="sidebar-list">
+{{range .Sidebar.GuideEntries}}
+            <li><a href="{{$.Root}}/{{.RelPath}}"{{if eq $.ActivePath .RelPath}} class="active"{{end}}>{{.Title}}</a></li>
+{{end}}
+        </ul>
+    </div>
+{{end}}
+    <div class="sidebar-section">
+        <div class="sidebar-section-title">API Reference</div>
+{{range .Sidebar.APIGroups}}
+        <details class="sidebar-ns-group"{{if eq .Namespace "(root)"}} open{{end}}>
+            <summary>{{.Namespace}}</summary>
+            <ul class="sidebar-list">
+{{range .Classes}}
+                <li><a href="{{$.Root}}/{{.RelPath}}"{{if eq $.ActivePath .RelPath}} class="active"{{end}}>{{.Name}}</a></li>
+{{end}}
+            </ul>
+        </details>
+{{end}}
+    </div>
+</nav>`
+
 const indexTemplate = `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -971,6 +1050,8 @@ const indexTemplate = `<!DOCTYPE html>
     <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
+` + sidebarFragment + `
+<main class="content">
     <h1>{{.Title}}</h1>
 
 {{range .Groups}}
@@ -992,6 +1073,7 @@ const indexTemplate = `<!DOCTYPE html>
     <div class="footer">
         Generated by Maggie doc generator.
     </div>
+</main>
 </body>
 </html>
 `
@@ -1002,11 +1084,13 @@ const classTemplate = `<!DOCTYPE html>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{{.Class.FullName}} &mdash; {{.SiteTitle}}</title>
-    <link rel="stylesheet" href="{{depthCSS .Class.RelPath}}/css/style.css">
+    <link rel="stylesheet" href="{{.Root}}/css/style.css">
 </head>
 <body>
+` + sidebarFragment + `
+<main class="content">
     <div class="breadcrumb">
-        <a href="{{depthCSS .Class.RelPath}}/index.html">{{.SiteTitle}}</a>
+        <a href="{{.Root}}/index.html">{{.SiteTitle}}</a>
 {{if .Class.Namespace}}
         &rsaquo; {{.Class.Namespace}}
 {{end}}
@@ -1088,8 +1172,58 @@ const classTemplate = `<!DOCTYPE html>
     <div class="footer">
         Generated by Maggie doc generator.
     </div>
+</main>
+    <script src="{{.Root}}/js/playground.js"></script>
+</body>
+</html>
+`
 
-    <script src="{{depthCSS .Class.RelPath}}/js/playground.js"></script>
+const guidePageTemplate = `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{.Guide.Title}} &mdash; {{.SiteTitle}}</title>
+    <link rel="stylesheet" href="{{.Root}}/css/style.css">
+</head>
+<body>
+` + sidebarFragment + `
+<main class="content">
+    <div class="breadcrumb">
+        <a href="{{.Root}}/index.html">{{.SiteTitle}}</a>
+        &rsaquo; Guide
+        &rsaquo; {{.Guide.Title}}
+    </div>
+
+    <h1>{{.Guide.Title}}</h1>
+
+{{if .Guide.Class.DocSections}}
+    <div class="guide-intro">
+        {{renderDocSections .Guide.Class.DocSections}}
+    </div>
+{{end}}
+
+{{range .Sections}}
+    <div class="guide-section">
+{{if .DocSections}}
+        {{renderDocSections .DocSections}}
+{{end}}
+{{if hasDocString .Source}}
+        <div class="guide-code">
+            <div class="doc-block doc-example">
+                <span class="doc-block-label">Code</span>
+                <pre><code>{{.Source}}</code></pre>
+            </div>
+        </div>
+{{end}}
+    </div>
+{{end}}
+
+    <div class="footer">
+        Generated by Maggie doc generator.
+    </div>
+</main>
+    <script src="{{.Root}}/js/playground.js"></script>
 </body>
 </html>
 `

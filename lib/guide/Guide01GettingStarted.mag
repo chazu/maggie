@@ -1,6 +1,4 @@
 """
-# Getting Started
-
 Maggie is a modern language in the Smalltalk family, built on a Go runtime.
 It combines Smalltalk's elegant message-passing syntax with Go-style
 concurrency, a module system, and a distributed runtime for code exchange.
@@ -113,12 +111,13 @@ Guide01GettingStarted subclass: Object
   """
   ## Comments
 
-  Single-line comments start with `#` at the beginning of a line or
-  after whitespace. Traditional Smalltalk double-quote comments (`"..."`)
-  are also supported inside method bodies.
+  Single-line comments start with # at the beginning of a line or
+  after whitespace. Traditional Smalltalk double-quote comments are
+  also supported inside method bodies.
 
-  Triple-quoted strings (`"""..."""`) are docstrings, not comments --
-  they attach documentation to classes, traits, and methods.
+  Docstrings (triple-quoted strings) attach documentation to classes,
+  traits, and methods. They are not comments -- they are preserved
+  in the compiled image and accessible at runtime.
   """
   method: s05_comments [
       "This is a comment inside a method body."
