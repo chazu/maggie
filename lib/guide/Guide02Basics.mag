@@ -1,0 +1,411 @@
+"""
+Maggie is a message-passing language: all computation happens by sending
+messages to objects. Understanding how messages work is the key to reading
+and writing Maggie code. This chapter covers the three message types,
+evaluation order, cascades, variables, comments, the special objects
+`nil`, `true`, and `false`, and the difference between identity and
+equality.
+
+```test
+3 + 4 >>> 7
+'hello' size >>> 5
+true not >>> false
+nil isNil >>> true
+```
+"""
+Guide02Basics subclass: Object
+
+  """
+  Every piece of Maggie code is an expression that produces a value.
+  Expressions are separated by periods. The last expression in a
+  sequence is the result.
+
+  There are no statements in Maggie. Even assignment returns the
+  assigned value, and control flow is done by sending messages to
+  booleans and blocks.
+
+  ```test
+  3 + 4 >>> 7
+  'hello' , ' world' >>> 'hello world'
+  42 even >>> true
+  ```
+  """
+  method: s01_expressionsAndValues [
+      3 + 4.
+      'hello' , ' world'.
+      ^42 even
+  ]
+
+  """
+  Messages are the fundamental operation in Maggie. When you write
+  `3 + 4`, you are sending the message `+` with argument `4` to
+  the object `3`. There are three kinds of messages, distinguished
+  by their syntax.
+
+  Unary messages take no arguments. They are a single word after the
+  receiver. Examples include `size`, `not`, `abs`, `negated`, `even`,
+  and `factorial`.
+
+  ```test
+  'hello' size >>> 5
+  true not >>> false
+  -5 abs >>> 5
+  7 odd >>> true
+  5 factorial >>> 120
+  ```
+  """
+  method: s02_unaryMessages [
+      'hello' size.
+      true not.
+      -5 abs.
+      7 odd.
+      ^5 factorial
+  ]
+
+  """
+  Binary messages take exactly one argument and use an operator symbol
+  as the selector. Common binary messages include arithmetic (`+`, `-`,
+  `*`, `/`, `\\`), comparison (`<`, `>`, `<=`, `>=`, `=`, `~=`),
+  string concatenation (`,`), and logical operators (`&`, `|`).
+
+  ```test
+  3 + 4 >>> 7
+  10 - 3 >>> 7
+  6 * 7 >>> 42
+  10 / 3 >>> 3
+  10 \\ 3 >>> 1
+  5 < 10 >>> true
+  'hello' , ' world' >>> 'hello world'
+  true & false >>> false
+  true | false >>> true
+  ```
+  """
+  method: s03_binaryMessages [
+      3 + 4.
+      10 - 3.
+      6 * 7.
+      5 < 10.
+      'hello' , ' world'.
+      ^true | false
+  ]
+
+  """
+  Keyword messages have one or more colon-terminated keywords, each
+  followed by an argument. The full selector is formed by joining
+  all the keywords. For example, `at: 0` has the selector `at:`,
+  and `at: 1 put: 42` has the selector `at:put:`.
+
+  ```test
+  #(10 20 30) at: 0 >>> 10
+  3 max: 5 >>> 5
+  5 between: 1 and: 10 >>> true
+  'hello' copyFrom: 1 to: 4 >>> 'ell'
+  ```
+  """
+  method: s04_keywordMessages [
+      #(10 20 30) at: 0.
+      3 max: 5.
+      5 between: 1 and: 10.
+      ^'hello' copyFrom: 1 to: 4
+  ]
+
+  """
+  Message precedence determines evaluation order when multiple messages
+  appear in a single expression. The rule is simple:
+
+  1. Unary messages are sent first (highest precedence).
+  2. Binary messages are sent next.
+  3. Keyword messages are sent last (lowest precedence).
+
+  Within the same precedence level, messages are evaluated left to right.
+  This means arithmetic does NOT follow standard math precedence --
+  `2 + 3 * 4` evaluates as `(2 + 3) * 4`, not `2 + (3 * 4)`.
+
+  Use parentheses to override the default order.
+
+  ```test
+  2 + 3 * 4 >>> 20
+  2 + (3 * 4) >>> 14
+  -5 abs + 3 >>> 8
+  1 + 2 max: 0 >>> 3
+  (1 + 2) max: 0 >>> 3
+  ```
+  """
+  method: s05_messagePrecedence [
+      "Unary first: -5 abs => 5, then 5 + 3 => 8"
+      -5 abs + 3.
+      "Left-to-right binary: 2 + 3 => 5, then 5 * 4 => 20"
+      2 + 3 * 4.
+      "Parens override: 3 * 4 => 12, then 2 + 12 => 14"
+      ^2 + (3 * 4)
+  ]
+
+  """
+  Unary messages chain naturally because each one returns a new value
+  that becomes the receiver of the next message. They evaluate left
+  to right.
+
+  ```test
+  -5 abs >>> 5
+  -5 abs negated >>> -5
+  -5 abs negated abs >>> 5
+  7 factorial even >>> true
+  ```
+  """
+  method: s06_chainingUnary [
+      -5 abs.
+      -5 abs negated.
+      -5 abs negated abs.
+      ^7 factorial even
+  ]
+
+  """
+  Cascades let you send multiple messages to the same receiver without
+  repeating it. Use a semicolon (`;`) to separate cascaded messages.
+  The result of a cascade is the result of the last message sent.
+
+  To get the receiver itself back from a cascade, end with `yourself`
+  -- a method defined on Object that simply returns `self`.
+
+  ```test
+  a := Array new: 3.
+  a at: 0 put: 10; at: 1 put: 20; at: 2 put: 30.
+  a at: 0 >>> 10
+  a at: 1 >>> 20
+  a at: 2 >>> 30
+  ```
+  """
+  method: s07_cascades [
+      | a |
+      a := Array new: 3.
+      a at: 0 put: 10; at: 1 put: 20; at: 2 put: 30.
+      ^a
+  ]
+
+  """
+  Variables are created with the `:=` assignment operator. Inside
+  method bodies, local variables can be declared in a `| var1 var2 |`
+  block at the top, or simply assigned with `:=`. Assignment returns
+  the assigned value.
+
+  Variable names start with a lowercase letter and use camelCase by
+  convention.
+
+  ```test
+  x := 42.
+  x >>> 42
+  x := x + 1.
+  x >>> 43
+  name := 'Maggie'.
+  greeting := 'Hello, ' , name.
+  greeting >>> 'Hello, Maggie'
+  ```
+  """
+  method: s08_variablesAndAssignment [
+      | x name greeting |
+      x := 42.
+      x := x + 1.
+      name := 'Maggie'.
+      greeting := 'Hello, ' , name.
+      ^greeting
+  ]
+
+  """
+  Maggie has two comment styles. Line comments start with `#` and
+  extend to the end of the line. They can appear at the start of a
+  line or after code. Inside method bodies, traditional Smalltalk
+  comments enclosed in double quotes are also supported. These are
+  useful for inline annotations.
+
+  Docstrings are a separate feature -- triple-quoted strings that
+  attach documentation to classes, traits, and methods. They are
+  preserved in the compiled image for runtime access, not discarded
+  like comments.
+  """
+  method: s09_comments [
+      "This is a Smalltalk-style comment inside a method."
+      "Comments in double quotes are ignored by the compiler."
+      ^nil
+  ]
+
+  """
+  `nil` is the sole instance of UndefinedObject. It represents the
+  absence of a value. Uninitialized variables default to `nil`.
+  Test for nil with `isNil` and `notNil`.
+
+  `true` is the sole instance of True, and `false` is the sole
+  instance of False. Both inherit from Boolean. Booleans support
+  `not`, `&` (and), `|` (or), and conditional messages like
+  `ifTrue:`, `ifFalse:`, and `ifTrue:ifFalse:`.
+
+  ```test
+  nil isNil >>> true
+  nil notNil >>> false
+  42 isNil >>> false
+  42 notNil >>> true
+  nil class name >>> #UndefinedObject
+  true class name >>> #True
+  false class name >>> #False
+  true not >>> false
+  false not >>> true
+  true & false >>> false
+  true | false >>> true
+  ```
+  """
+  method: s10_nilTrueFalse [
+      nil isNil.
+      42 notNil.
+      true not.
+      ^true | false
+  ]
+
+  """
+  Booleans drive control flow through messages. `ifTrue:` evaluates
+  a block only when the receiver is true. `ifFalse:` evaluates its
+  block only when the receiver is false. `ifTrue:ifFalse:` chooses
+  between two blocks.
+
+  ```test
+  (3 > 2) ifTrue: ['yes'] ifFalse: ['no'] >>> 'yes'
+  (1 > 5) ifTrue: ['yes'] ifFalse: ['no'] >>> 'no'
+  true ifTrue: ['hello'] >>> 'hello'
+  false ifTrue: ['hello'] >>> nil
+  false ifFalse: ['nope'] >>> 'nope'
+  ```
+  """
+  method: s11_conditionals [
+      (3 > 2) ifTrue: ['yes'] ifFalse: ['no'].
+      true ifTrue: ['hello'].
+      ^false ifFalse: ['nope']
+  ]
+
+  """
+  Identity (`==`) tests whether two references point to the exact
+  same object. Equality (`=`) tests whether two objects have the
+  same value. The default implementation of `=` on Object delegates
+  to `==`, but subclasses like String override it to compare contents.
+
+  For small integers and symbols, identity and equality behave the
+  same way because these values are interned (each distinct value
+  exists only once in memory). For strings, two separately created
+  strings with the same characters are equal (`=`) but may not be
+  identical (`==`).
+
+  The negated forms are `~~` (not identical) and `~=` (not equal).
+
+  ```test
+  3 == 3 >>> true
+  3 = 3 >>> true
+  nil == nil >>> true
+  #hello == #hello >>> true
+  #hello = #hello >>> true
+  'abc' = 'abc' >>> true
+  3 ~= 4 >>> true
+  3 ~~ 4 >>> true
+  ```
+  """
+  method: s12_identityVsEquality [
+      3 == 3.
+      3 = 3.
+      nil == nil.
+      #hello == #hello.
+      'abc' = 'abc'.
+      3 ~= 4.
+      ^3 ~~ 4
+  ]
+
+  """
+  `self` refers to the current receiver -- the object that received
+  the message that invoked the current method. It is used to send
+  messages to the same object, access instance variables, and return
+  the receiver.
+
+  ```test
+  3 yourself >>> 3
+  'hello' yourself >>> 'hello'
+  -5 abs >>> 5
+  ```
+  """
+  method: s13_self [
+      "yourself is defined as: ^self"
+      3 yourself.
+      'hello' yourself.
+      ^-5 abs
+  ]
+
+  """
+  `super` also refers to the current receiver, but message lookups
+  start from the superclass of the class where the method is defined,
+  rather than from the receiver's actual class. This is how subclasses
+  can extend inherited behavior without replacing it entirely.
+
+  You will see `super` used most often in initialization methods and
+  in `printString` overrides, where a subclass wants to include the
+  superclass behavior and then add to it.
+
+  `super` cannot be demonstrated with simple literals because it
+  requires a class hierarchy. You will see it in action in the
+  Classes chapter. The key point is: `self` always means the current
+  receiver, `super` means the current receiver but dispatched through
+  the parent class.
+  """
+  method: s14_super [
+      "super requires a class hierarchy to demonstrate meaningfully."
+      "See Guide on Classes for worked examples."
+      ^nil
+  ]
+
+  """
+  Every object knows its class. Send `class` to get the class object,
+  and `name` to that to get a symbol identifying the class.
+
+  ```test
+  42 class name >>> #SmallInteger
+  3.14 class name >>> #Float
+  'hello' class name >>> #String
+  #hello class name >>> #Symbol
+  true class name >>> #True
+  false class name >>> #False
+  nil class name >>> #UndefinedObject
+  #(1 2 3) class name >>> #Array
+  ```
+  """
+  method: s15_classIntrospection [
+      42 class name.
+      3.14 class name.
+      'hello' class name.
+      #hello class name.
+      true class name.
+      false class name.
+      nil class name.
+      ^#(1 2 3) class name
+  ]
+
+  """
+  Here is a summary of the key points from this chapter.
+
+  Messages come in three types: unary (no arguments), binary (one
+  argument with an operator), and keyword (named arguments with
+  colons). Unary binds tightest, then binary, then keyword. Within
+  the same level, evaluation is left to right. Use parentheses to
+  override.
+
+  Cascades (`;`) send multiple messages to the same receiver.
+  Variables use `:=` for assignment. The special objects `nil`,
+  `true`, and `false` are singletons. Identity (`==`) checks
+  same-object; equality (`=`) checks same-value. `self` is the
+  current receiver; `super` dispatches through the parent class.
+
+  ```test
+  2 + 3 * 4 >>> 20
+  (2 + 3) * 4 >>> 20
+  2 + (3 * 4) >>> 14
+  nil isNil >>> true
+  3 == 3 >>> true
+  'abc' = 'abc' >>> true
+  3 yourself >>> 3
+  ```
+  """
+  method: s16_summary [
+      ^nil
+  ]

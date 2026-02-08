@@ -1,0 +1,532 @@
+"""
+# Tooling & IDE
+
+Maggie ships with a complete development toolchain built into the `mag`
+command. Source formatting, documentation generation, docstring testing,
+image persistence, an LSP server, an interactive REPL, and a graphical
+IDE are all available out of the box -- no external tools required.
+
+This chapter walks through each tool and shows how they fit into a
+typical development workflow.
+"""
+Guide14Tooling subclass: Object
+
+  """
+  ## Source Formatting
+
+  The `mag fmt` command formats Maggie source files to a canonical style.
+  It parses each `.mag` file, walks the AST, and emits consistently
+  formatted output -- canonical indentation, consistent spacing around
+  operators, and normalized block layout. This is similar to `gofmt` for
+  Go or `rustfmt` for Rust.
+
+  By default, `mag fmt` formats all `.mag` files in the current directory
+  recursively. You can also pass specific files or directories as arguments.
+
+  ```example
+  # Format all .mag files in the current directory
+  mag fmt
+
+  # Format specific files or directories
+  mag fmt src/ lib/MyClass.mag
+
+  # Format a single file
+  mag fmt lib/models/User.mag
+  ```
+
+  The `--check` flag verifies formatting without modifying any files.
+  It exits with code 1 if any file would be changed -- useful in CI
+  pipelines to enforce consistent style.
+
+  ```example
+  # Check formatting without modifying files
+  mag fmt --check
+
+  # Use in CI: fail the build if formatting is off
+  mag fmt --check src/ || echo "Run 'mag fmt' to fix formatting"
+  ```
+
+  The formatter normalizes several aspects of the source:
+
+  - Indentation: two spaces per level
+  - Method signatures: canonical keyword/parameter layout
+  - Block formatting: single-line for short blocks, multi-line for long ones
+  - Docstrings: consistent triple-quote placement
+  - Trailing whitespace: removed
+  - File ending: exactly one trailing newline
+
+  The formatter never changes the semantics of your code -- it only
+  adjusts whitespace and layout. If a file is already canonical, it is
+  left untouched (no spurious modification timestamps).
+  """
+  method: s01_formatting [
+      ^nil
+  ]
+
+  """
+  ## Documentation Generation
+
+  The `mag doc` command generates HTML documentation from your classes,
+  methods, and their docstrings. It reads all classes loaded in the VM
+  and produces a browsable website with an API reference and guide pages.
+
+  ```example
+  # Generate HTML docs to the default directory (docs/api/)
+  mag doc
+
+  # Generate to a specific directory
+  mag doc --output ./site
+
+  # Set a custom title
+  mag doc --title "My Project API"
+  ```
+
+  The generated site includes:
+
+  - An index page listing all classes grouped by namespace
+  - Individual pages for each class with method documentation
+  - Guide pages for any `Guide*` classes (like this one)
+  - Syntax-highlighted code blocks from docstrings
+  - A sidebar with navigation
+
+  Docstrings support two kinds of fenced code blocks. A `test` block
+  contains assertions (expressions with `>>>` expected values) that
+  can be verified by `mag doctest`. An `example` block contains
+  illustrative code that appears in the docs with a "Run" button when
+  served interactively.
+
+  The `--serve` flag generates the docs and then starts a local HTTP
+  server so you can browse them immediately. The server also provides
+  an `/api/eval` endpoint that lets you run example code interactively
+  from the browser.
+
+  ```example
+  # Generate docs and serve on the default port (8080)
+  mag doc --serve
+
+  # Serve on a custom port
+  mag doc --serve --port 3000
+  ```
+
+  The documentation generator detects guide chapters automatically.
+  Any class whose name matches the pattern `Guide\d{2}*` (for example,
+  `Guide01GettingStarted` or `Guide14Tooling`) is treated as a guide
+  chapter rather than an API class. Guide chapters are rendered with
+  their methods sorted by selector name (`s01_`, `s02_`, etc.) to
+  preserve reading order.
+  """
+  method: s02_documentation [
+      ^nil
+  ]
+
+  """
+  ## Docstring Testing
+
+  The `mag doctest` command extracts `test` blocks from docstrings and
+  runs them as assertions. This ensures that the examples in your
+  documentation actually work and stay in sync with the code.
+
+  ```example
+  # Run all docstring tests
+  mag doctest
+
+  # Run with verbose output (shows each assertion)
+  mag doctest --verbose
+
+  # Run tests for a single class only
+  mag doctest --class Array
+
+  # Run tests for a namespaced class
+  mag doctest --class "Widgets::Button"
+  ```
+
+  Inside a method docstring, a fenced test block contains lines with
+  `>>>` assertions. The expression before `>>>` is evaluated, the
+  expression after `>>>` is evaluated, and their `printString` results
+  are compared. Lines without `>>>` are setup lines -- they run for
+  side effects (like variable assignments) but do not count as assertions.
+
+  For example, a docstring might contain a test block where the first
+  line assigns a variable (setup) and the second line checks the result
+  (assertion). Setup lines that fail are reported as errors.
+
+  Important rules for doctest blocks:
+
+  - Use `:=` for variable assignment -- `| var |` temporary declarations
+    are not supported inside test blocks
+  - Each assertion is independent in terms of what counts as pass/fail,
+    but they share a global environment (earlier assignments persist)
+  - Setup lines that cause a runtime error are reported as failures
+  - The `--class` filter matches both short names and fully-qualified names
+
+  The output shows results grouped by class and method, with green
+  checkmarks for passing assertions and red crosses for failures.
+  A summary line at the end reports total passed, failed, and elapsed time.
+  """
+  method: s03_doctest [
+      ^nil
+  ]
+
+  """
+  ## Image Persistence
+
+  Maggie can save and restore the entire VM state -- all classes, methods,
+  globals, and docstrings -- as a binary image file. This is much faster
+  than recompiling from source on every startup.
+
+  From Maggie code, use `Compiler saveImage:` to write the current state.
+  The Compiler class is always available in the global namespace:
+
+  ```test
+  Compiler evaluate: '1 + 1' >>> 2
+  ```
+
+  From the command line, use the `--save-image` flag to compile sources
+  and then save the resulting state:
+
+  ```example
+  # Compile all source files and save an image
+  mag ./src/... --save-image my-app.image
+
+  # Load from a project manifest and save
+  mag --save-image my-app.image
+  ```
+
+  To run from a previously saved image instead of recompiling from
+  source, use the `--image` flag:
+
+  ```example
+  # Run from a custom image
+  mag --image my-app.image -m Main.start
+
+  # Start a REPL with a custom image
+  mag --image my-app.image -i
+  ```
+
+  The default image (`maggie.image`) is embedded in the `mag` binary
+  itself. It contains all the core library classes. When you run `mag`
+  without `--image`, this embedded image is loaded automatically.
+
+  Image files use a versioned binary format. The current format (v4)
+  includes content hashes for each method, enabling the distribution
+  protocol to verify code integrity. Images are forward-compatible:
+  a v4 reader can load v3 images (methods will have zero hashes).
+
+  Typical workflow:
+
+  1. Develop with source files (`mag ./src -m Main.start`)
+  2. When ready to deploy, save an image (`mag ./src --save-image app.image`)
+  3. Distribute the image file (much smaller than source + compiler)
+  4. Run in production from the image (`mag --image app.image -m Main.start`)
+  """
+  method: s04_imagePersistence [
+      ^nil
+  ]
+
+  """
+  ## LSP Server
+
+  Maggie includes a Language Server Protocol (LSP) server that provides
+  editor integration for any LSP-compatible editor -- VS Code, Neovim,
+  Emacs, Helix, Zed, and others.
+
+  ```example
+  # Start the LSP server on stdio
+  mag --lsp
+
+  # Subcommand form (equivalent)
+  mag lsp
+  ```
+
+  The LSP server provides:
+
+  - **Completion**: triggered by `.` and `:` characters, suggests method
+    names based on the classes loaded in the VM
+  - **Hover**: shows docstrings and method signatures when you hover
+    over a selector or class name
+  - **Go to Definition**: jumps to the source location of a class or method
+  - **Find References**: finds all uses of a selector across loaded classes
+
+  To configure your editor, point it at `mag --lsp` as the language
+  server command for `.mag` files. For example, in VS Code's
+  `settings.json`:
+
+  ```example
+  {
+    "maggie.server.command": "mag",
+    "maggie.server.args": ["--lsp"]
+  }
+  ```
+
+  The LSP server loads the default image on startup, so it knows about
+  all core library classes. If you pass source paths before `--lsp`,
+  those are compiled first, giving the server knowledge of your project
+  classes as well:
+
+  ```example
+  # Start LSP with project sources loaded
+  mag ./src/... --lsp
+  ```
+
+  There is also a `--serve` flag (distinct from LSP) that starts a
+  gRPC + Connect language server for programmatic access:
+
+  ```example
+  # Start language server on default port 4567
+  mag --serve
+
+  # Start on a custom port
+  mag --serve --port 8080
+  ```
+  """
+  method: s05_lspServer [
+      ^nil
+  ]
+
+  """
+  ## REPL
+
+  The Maggie REPL (Read-Eval-Print Loop) is an interactive environment
+  for exploring the language. Start it with `mag -i`, or just run `mag`
+  with no arguments and no `maggie.toml` present.
+
+  ```example
+  # Start the REPL
+  mag -i
+
+  # Start the REPL with source files preloaded
+  mag ./src -i
+  ```
+
+  Inside the REPL you can type any Maggie expression and see its result
+  immediately. Multi-line input is supported -- the REPL detects
+  incomplete expressions (unclosed brackets) and prompts for continuation
+  lines.
+
+  The REPL supports several meta-commands, all prefixed with `:`.
+
+  `:help` (also `:h` or `:?`) shows the list of available commands:
+
+  ```example
+  mag> :help
+  REPL Commands:
+    :help, :h, :?           Show this help
+    :help ClassName          Show class documentation
+    :help Class>>method      Show method documentation
+    :compiler                Show current compiler
+    :use-go                  Switch to Go compiler (default)
+    :use-maggie              Switch to Maggie compiler (experimental)
+    exit, quit               Exit REPL
+  ```
+
+  `:help ClassName` displays the docstring and method list for any
+  loaded class. `:help ClassName>>methodName` shows the docstring for
+  a specific method. This is the same information that `mag doc`
+  generates, but accessible interactively.
+
+  ```example
+  mag> :help Array
+  Array (subclass of Object)
+    Instance variables: none
+    ...methods listed...
+
+  mag> :help Array>>at:
+  Array>>at:
+    Returns the element at the given index (0-based).
+  ```
+
+  `:use-go` and `:use-maggie` switch between the Go-based compiler
+  (the default, production-quality backend) and the experimental
+  self-hosting Maggie compiler. The `:compiler` command shows which
+  backend is currently active.
+
+  The REPL also loads `~/.maggierc` on startup (unless `--no-rc` is
+  passed). This file can contain any Maggie expressions to customize
+  your REPL environment -- defining helper methods, loading libraries,
+  or setting up variables.
+
+  Variables assigned in the REPL persist across evaluations:
+
+  ```test
+  Compiler evaluate: 'x := 42'.
+  Compiler evaluate: 'x + 1' >>> 43
+  ```
+  """
+  method: s06_repl [
+      Compiler evaluate: 'x := 42'.
+      Compiler evaluate: 'x + 1'
+  ]
+
+  """
+  ## Yutani IDE
+
+  Yutani is Maggie's graphical IDE, built as a TUI (terminal user
+  interface) application. It connects to a Yutani server process and
+  provides a desktop-like environment inside your terminal.
+
+  ```example
+  # Start the Yutani IDE launcher (connects to localhost:7755)
+  mag --yutani
+
+  # Connect to a specific server address
+  mag --yutani --yutani-addr host:port
+
+  # Start a specific IDE tool directly
+  mag --yutani --ide-tool inspector
+  mag --yutani --ide-tool repl
+  ```
+
+  Before starting the IDE, make sure the Yutani server is running:
+
+  ```example
+  # Start the Yutani server (in a separate terminal)
+  yutani server
+  ```
+
+  The available IDE tools are:
+
+  - **launcher** (default) -- the MaggieDesktop, a desktop-like
+    environment with a taskbar and window management
+  - **inspector** -- an object inspector for exploring live objects,
+    their instance variables, and class hierarchies
+  - **repl** -- a graphical REPL with syntax highlighting and
+    output history
+
+  The Yutani IDE is written entirely in Maggie (the source is in
+  `lib/yutani/`). It uses Yutani's widget toolkit for layout and
+  event handling, communicating with the Yutani server over a
+  network session. This means you can connect to a remote Yutani
+  server and develop on a remote machine from your local terminal.
+
+  The `--ide-tool` flag selects which tool to launch. Some tools
+  (ClassBrowser, CodeEditor) are currently shelved and will return
+  an error with a message pointing to their shelved location.
+  """
+  method: s07_yutaniIDE [
+      ^nil
+  ]
+
+  """
+  ## Debugging Tools
+
+  Maggie provides several debugging facilities at different levels.
+
+  ### REPL-Based Debugging
+
+  The REPL itself is a powerful debugging tool. You can load your
+  project sources and then interactively evaluate expressions to
+  inspect state, call methods, and verify behavior:
+
+  ```example
+  # Load project and start REPL
+  mag ./src -i
+
+  # Then in the REPL:
+  mag> myObject inspect
+  mag> MyClass new doSomething
+  mag> :help MyClass>>suspiciousMethod
+  ```
+
+  ### Docstring Tests as Regression Guards
+
+  Writing `test` blocks in your docstrings serves double duty: they
+  document expected behavior and catch regressions. Run `mag doctest`
+  after changes to verify nothing is broken:
+
+  ```example
+  # Quick regression check
+  mag doctest --class MyClass
+  ```
+
+  ### Stack Overflow Protection
+
+  The VM enforces a maximum call frame depth (default 4096). When
+  exceeded, a `StackOverflow` exception is raised. This exception
+  is catchable via `on:do:`, so runaway recursion does not crash
+  the process. See the Blocks chapter for details on exception handling.
+
+  ### Yutani Debug Service
+
+  When debugging Yutani TUI applications, the Yutani server exposes
+  a debug service that can dump screen state, inspect widget properties,
+  and show event flow. This is especially useful when debugging layout
+  or event handling issues in graphical applications.
+
+  ```example
+  # See what is on screen (ASCII dump with widget markers)
+  yutani debug screen -s <session-id> --bounds --legend
+
+  # Inspect a specific widget
+  yutani debug widget -s <session-id> -w <widget-id>
+
+  # List all widgets with positions
+  yutani debug bounds -s <session-id>
+
+  # JSON output for programmatic analysis
+  yutani debug screen -s <session-id> --format json
+  ```
+
+  The session ID is printed when a Yutani application starts. Look
+  for a line like:
+
+  ```example
+  YutaniSession: session created with ID: f1e6eb39-...
+  ```
+
+  ### Process-Level Isolation
+
+  For sandboxing untrusted code, Maggie supports process-level
+  restriction. A forked process can be denied access to specific
+  globals (classes or modules), which simply resolve to `nil` in that
+  process. This is useful for safely evaluating user-provided code.
+
+  Restricted processes also get a copy-on-write overlay for globals,
+  so any assignments they make do not affect the parent process.
+  See the Concurrency chapter for full details on `forkRestricted:`
+  and `Process forkWithout:do:`.
+
+  ### Compiler Evaluate for Ad-Hoc Inspection
+
+  `Compiler evaluate:` can be used at any point to dynamically compile
+  and run expressions. Combined with `Compiler getGlobal:` and
+  `Compiler setGlobal:to:`, this gives you full programmatic access
+  to the VM's global state:
+
+  ```test
+  Compiler evaluate: '3 + 4' >>> 7
+  ```
+
+  ```test
+  Compiler setGlobal: #debugFlag to: true.
+  Compiler getGlobal: #debugFlag >>> true
+  ```
+  """
+  method: s08_debugging [
+      ^nil
+  ]
+
+  """
+  ## Workflow Summary
+
+  Here is a typical development workflow using Maggie's tooling:
+
+  1. **Write code** in `.mag` files organized by directory-as-namespace
+  2. **Format** with `mag fmt` (or `mag fmt --check` in CI)
+  3. **Add docstrings** with `test` and `example` blocks
+  4. **Run doctests** with `mag doctest` to verify examples
+  5. **Browse docs** with `mag doc --serve`
+  6. **Debug interactively** in the REPL with `mag -i`
+  7. **Use your editor** with LSP support via `mag --lsp`
+  8. **Save images** with `--save-image` for fast deployment
+  9. **Inspect graphically** with `mag --yutani` when needed
+
+  All of these tools work together. Docstrings drive both the
+  documentation site and the test suite. The REPL shares its
+  evaluation pipeline with doctest and the doc server's playground.
+  The LSP server uses the same VM introspection that powers `:help`
+  in the REPL. And images capture the full state so that any tool
+  can start from a pre-compiled baseline.
+  """
+  method: s09_workflow [
+      ^nil
+  ]

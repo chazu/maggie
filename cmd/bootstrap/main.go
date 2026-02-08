@@ -63,6 +63,14 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Also find guide files in lib/guide/
+	guideDir := filepath.Join(*libDir, "guide")
+	guideFiles, err := filepath.Glob(filepath.Join(guideDir, "*.mag"))
+	if err != nil && !os.IsNotExist(err) {
+		fmt.Fprintf(os.Stderr, "Error finding guide files: %v\n", err)
+		os.Exit(1)
+	}
+
 	if len(files) == 0 {
 		fmt.Fprintf(os.Stderr, "No .mag files found in %s\n", *libDir)
 		os.Exit(1)
@@ -73,10 +81,14 @@ func main() {
 		if len(compilerFiles) > 0 {
 			fmt.Printf("Found %d compiler files\n", len(compilerFiles))
 		}
+		if len(guideFiles) > 0 {
+			fmt.Printf("Found %d guide files\n", len(guideFiles))
+		}
 	}
 
-	// Combine core and compiler files (core first, then compiler)
+	// Combine core, compiler, and guide files
 	allFiles := append(files, compilerFiles...)
+	allFiles = append(allFiles, guideFiles...)
 
 	methods, err := compileAllFiles(allFiles, vmInst, *verbose)
 	if err != nil {

@@ -1,0 +1,615 @@
+"""
+Maggie projects are organized around a manifest file, `maggie.toml`, that
+declares metadata, source layout, dependencies, and build settings. The
+project system handles dependency resolution, namespace mapping, and image
+generation -- everything needed to go from a collection of `.mag` files to
+a reproducible, distributable application.
+
+This chapter covers the `maggie.toml` format, dependency management, project
+layout conventions, and the CLI commands that tie it all together. Most of
+the content here is configuration and tooling rather than Maggie expressions,
+so examples are shown as TOML snippets, directory trees, and shell commands.
+
+```test
+'maggie.toml' includes: 'toml' >>> true
+```
+"""
+Guide11Projects subclass: Object
+
+  """
+  ## The Project Manifest
+
+  Every Maggie project starts with a `maggie.toml` file in the project
+  root. This is the single source of truth for how the project is built,
+  what it depends on, and where its source lives.
+
+  The manifest has four main sections:
+
+  - `[project]` -- name, namespace, and version
+  - `[source]` -- where to find source files and the entry point
+  - `[dependencies]` -- external libraries the project uses
+  - `[image]` -- settings for image persistence
+
+  Here is a minimal manifest:
+
+  ```example
+  [project]
+  name = "my-app"
+  namespace = "MyApp"
+  version = "0.1.0"
+
+  [source]
+  dirs = ["src"]
+  entry = "Main.start"
+  ```
+
+  When `mag` is invoked without explicit file paths, it looks for a
+  `maggie.toml` in the current directory (or walks up the directory tree
+  to find one). If found, it automatically loads the project with all
+  its dependencies.
+
+  ```example
+  # These are equivalent when maggie.toml exists:
+  mag -m Main.start
+  mag ./src/... -m Main.start
+  ```
+  """
+  method: s01_manifest [
+      "This section is prose-only. No runnable example needed."
+      ^nil
+  ]
+
+  """
+  ## The [project] Section
+
+  The `[project]` section identifies the project and sets its root
+  namespace.
+
+  ```example
+  [project]
+  name = "weather-service"
+  namespace = "Weather"
+  version = "1.2.0"
+  ```
+
+  **name** -- a short identifier for the project. Used in dependency
+  resolution when other projects depend on this one. By convention,
+  use lowercase with hyphens (e.g., `my-app`, `ui-toolkit`).
+
+  **namespace** -- the root namespace for all classes defined in this
+  project. Classes in `src/models/User.mag` will be registered under
+  `Weather::Models::User` in the global class table. This namespace
+  is also what consumers see when they import this project as a
+  dependency.
+
+  **version** -- a semver-style version string. Currently informational
+  only but will be used for version constraint resolution in the future.
+
+  If `namespace` is omitted, it defaults to the PascalCase form of
+  the project name. A project named `weather-service` would get the
+  namespace `WeatherService`.
+  """
+  method: s02_projectSection [
+      "This section is prose-only. No runnable example needed."
+      ^nil
+  ]
+
+  """
+  ## The [source] Section
+
+  The `[source]` section tells the compiler where to find `.mag` files
+  and which method to call after loading.
+
+  ```example
+  [source]
+  dirs = ["src"]
+  entry = "Main.start"
+  ```
+
+  **dirs** -- a list of directories (relative to the project root) that
+  contain Maggie source files. All `.mag` files in these directories are
+  loaded recursively. Defaults to `["src"]` if omitted.
+
+  You can list multiple source directories:
+
+  ```example
+  [source]
+  dirs = ["src", "lib", "generated"]
+  entry = "Main.start"
+  ```
+
+  **entry** -- the method to call after all source files are loaded.
+  This is resolved relative to the project namespace. For a project
+  with namespace `MyApp`, an entry of `Main.start` calls the `start`
+  class method on `MyApp::Main`.
+
+  The entry point is invoked with the `-m` flag:
+
+  ```example
+  mag -m Main.start        # Calls MyApp::Main.start
+  mag -m App.run           # Calls MyApp::App.run
+  ```
+
+  You can also specify an entry point directly on the command line,
+  overriding whatever is in the manifest.
+  """
+  method: s03_sourceSection [
+      "This section is prose-only. No runnable example needed."
+      ^nil
+  ]
+
+  """
+  ## The [dependencies] Section
+
+  Dependencies are external libraries that your project uses. Each
+  dependency has a name (the TOML key) and a source specification.
+
+  Maggie supports two kinds of dependencies:
+
+  - **Git dependencies** -- cloned from a remote repository
+  - **Path dependencies** -- local filesystem paths
+
+  ```example
+  [dependencies]
+  yutani = { git = "https://github.com/chazu/yutani-mag", tag = "v0.5.0" }
+  shared-lib = { path = "../shared-lib" }
+  ```
+
+  Git dependencies require a `git` URL and a `tag` to pin the version.
+  The repository is cloned to `.maggie/deps/<name>/` and checked out
+  to the specified tag.
+
+  Path dependencies use a `path` relative to the project root (or an
+  absolute path). These are useful during development when you want to
+  work on a library and its consumer simultaneously.
+
+  Each dependency can also specify an explicit `namespace` override:
+
+  ```example
+  [dependencies]
+  ui-toolkit = { path = "../ui-toolkit", namespace = "CustomUI" }
+  ```
+
+  Without the override, the namespace is resolved automatically (see
+  the section on namespace mapping below).
+  """
+  method: s04_dependenciesSection [
+      "This section is prose-only. No runnable example needed."
+      ^nil
+  ]
+
+  """
+  ## The [image] Section
+
+  The `[image]` section controls how VM images are saved. An image is
+  a snapshot of the entire VM state -- all classes, methods, and globals
+  -- serialized to a file that can be loaded instantly on startup.
+
+  ```example
+  [image]
+  output = "my-app.image"
+  include-source = true
+  ```
+
+  **output** -- the filename for the saved image, relative to the
+  project root.
+
+  **include-source** -- when true, method source text is preserved in
+  the image. This enables `Compiler fileOut:to:` to reconstruct source
+  files from a running image. When false, source text is stripped to
+  reduce image size.
+
+  Saving an image from the command line:
+
+  ```example
+  # Build and save image from project
+  mag --save-image my-app.image
+
+  # Run from a saved image instead of compiling source
+  mag --image my-app.image -m Main.start
+  ```
+
+  Images are useful for deployment (skip compilation on startup) and
+  for development (save and restore VM state across sessions).
+  """
+  method: s05_imageSection [
+      "This section is prose-only. No runnable example needed."
+      ^nil
+  ]
+
+  """
+  ## Dependency Management with mag deps
+
+  The `mag deps` subcommand manages project dependencies. It reads
+  `maggie.toml`, resolves all dependencies (including transitive ones),
+  fetches any missing git repositories, and writes a lock file.
+
+  ```example
+  # Resolve and fetch all dependencies
+  mag deps
+
+  # Re-resolve, ignoring the lock file (fetch latest for each tag)
+  mag deps update
+
+  # Show the dependency tree
+  mag deps list
+  ```
+
+  **mag deps** -- the default action. For each git dependency, it
+  clones the repository if it does not exist locally, or skips the
+  fetch if the locked commit matches the requested tag. For path
+  dependencies, it verifies the path exists. Transitive dependencies
+  (dependencies of dependencies) are resolved recursively.
+
+  **mag deps update** -- re-resolves all dependencies from scratch,
+  ignoring the existing lock file. Use this after changing dependency
+  versions in `maggie.toml` or when you want to pick up upstream
+  changes for a tag that has been force-pushed.
+
+  **mag deps list** -- prints the resolved dependency tree, showing
+  each dependency's name, source, resolved namespace, and any
+  transitive dependencies.
+
+  Dependencies are loaded in topological order: transitive dependencies
+  before direct dependencies, and all dependencies before the project
+  itself. This ensures that when a class references a dependency class,
+  the dependency class is already registered.
+  """
+  method: s06_depsCli [
+      "This section is prose-only. No runnable example needed."
+      ^nil
+  ]
+
+  """
+  ## The Lock File
+
+  When `mag deps` resolves dependencies, it writes a lock file at
+  `.maggie/lock.toml`. This file records the exact commit hash for
+  each git dependency, ensuring reproducible builds across machines
+  and over time.
+
+  ```example
+  # .maggie/lock.toml (auto-generated, do not edit)
+
+  [[deps]]
+  name = "yutani"
+  git = "https://github.com/chazu/yutani-mag"
+  tag = "v0.5.0"
+  commit = "a1b2c3d4e5f6..."
+
+  [[deps]]
+  name = "shared-lib"
+  path = "../shared-lib"
+  ```
+
+  Key points about the lock file:
+
+  - It is auto-generated by `mag deps`. Do not edit it by hand.
+  - Commit it to version control for reproducible builds.
+  - `mag deps update` regenerates it from scratch.
+  - Path dependencies record only the path (no commit hash).
+  - If the lock file is missing, `mag deps` creates one fresh.
+
+  The lock file lives inside the `.maggie/` directory alongside
+  fetched dependencies:
+
+  ```example
+  my-app/
+    maggie.toml
+    .maggie/
+      lock.toml               # locked dependency versions
+      deps/
+        yutani/               # cloned git repository
+        shared-lib/           # resolved path (symlink or absolute)
+    src/
+      Main.mag
+  ```
+  """
+  method: s07_lockFile [
+      "This section is prose-only. No runnable example needed."
+      ^nil
+  ]
+
+  """
+  ## Dependency Namespace Mapping
+
+  Every dependency is mapped to a namespace that determines how its
+  classes appear in the global class table. The namespace is resolved
+  using a three-level priority order:
+
+  1. **Consumer override** -- an explicit `namespace` in the
+     dependency declaration in your `maggie.toml`
+  2. **Producer manifest** -- the `[project].namespace` in the
+     dependency's own `maggie.toml`
+  3. **PascalCase fallback** -- the dependency name converted to
+     PascalCase (e.g., `my-lib` becomes `MyLib`)
+
+  ```example
+  [dependencies]
+  # Uses yutani's own maggie.toml namespace (e.g., "Yutani")
+  yutani = { git = "https://github.com/chazu/yutani-mag", tag = "v0.5.0" }
+
+  # Consumer override: maps to "CustomUI" regardless of producer manifest
+  ui-toolkit = { path = "../ui-toolkit", namespace = "CustomUI" }
+
+  # No manifest, no override: PascalCase("my-lib") = "MyLib"
+  my-lib = { path = "../my-lib" }
+  ```
+
+  All classes from a dependency are prefixed with its resolved
+  namespace. A dependency with namespace `Yutani` containing
+  `src/widgets/Button.mag` registers its class as
+  `Yutani::Widgets::Button` in Globals.
+
+  When a consumer overrides a dependency's namespace, internal imports
+  within that dependency are automatically remapped. For example, if
+  Yutani internally imports `Yutani::Events` and the consumer overrides
+  to `ThirdParty::Yutani`, that import becomes
+  `ThirdParty::Yutani::Events`.
+
+  If two dependencies map to the same namespace, `mag` reports a hard
+  error before loading begins, listing all collisions and suggesting
+  that you add `namespace` overrides to resolve them.
+  """
+  method: s08_namespaceMappingSection [
+      "This section is prose-only. No runnable example needed."
+      ^nil
+  ]
+
+  """
+  ## Reserved Namespaces
+
+  Certain namespaces are reserved because they collide with core VM
+  class names. You cannot use any of these as the root segment of a
+  dependency namespace:
+
+  Object, Class, Boolean, True, False, UndefinedObject, SmallInteger,
+  Float, String, Symbol, Array, Block, Channel, Process, Mutex,
+  WaitGroup, Semaphore, CancellationContext, Result, Success, Failure,
+  Dictionary, Character, Compiler, File, Error, Exception, and others.
+
+  Only the root segment is checked. `namespace = "Array"` is rejected,
+  but `namespace = "MyLib::Array"` is fine because the root segment is
+  `MyLib`.
+
+  If a dependency name happens to match a reserved namespace via the
+  PascalCase fallback (e.g., a dependency named `array`), you must add
+  an explicit `namespace` override:
+
+  ```example
+  [dependencies]
+  # This would fail: PascalCase("array") = "Array" (reserved)
+  # array = { path = "../array-utils" }
+
+  # Fix: add a namespace override
+  array = { path = "../array-utils", namespace = "ArrayUtils" }
+  ```
+
+  ```test
+  'Object' = 'Object' >>> true
+  ```
+  """
+  method: s09_reservedNamespaces [
+      "This section is prose-only. No runnable example needed."
+      ^nil
+  ]
+
+  """
+  ## Project Layout Conventions
+
+  Maggie uses a directory-as-namespace convention. When loading files
+  from directories, namespaces are derived automatically from the
+  directory structure relative to the source root.
+
+  ```example
+  my-app/
+    maggie.toml                 # namespace = "MyApp"
+    src/
+      Main.mag                  # MyApp::Main (or just Main)
+      models/
+        User.mag                # MyApp::Models::User
+        Post.mag                # MyApp::Models::Post
+      views/
+        UserView.mag            # MyApp::Views::UserView
+      utils/
+        StringHelpers.mag       # MyApp::Utils::StringHelpers
+  ```
+
+  Path segments relative to the source directory become PascalCase
+  namespace segments joined by `::`. A file at `src/models/User.mag`
+  in a project with namespace `MyApp` gets the full namespace
+  `MyApp::Models`.
+
+  An explicit `namespace:` declaration at the top of a `.mag` file
+  overrides the directory-derived namespace. This is useful when the
+  desired namespace does not match the directory structure.
+
+  Root-level files (directly in the source directory) use only the
+  project namespace, with no additional segments.
+
+  A recommended project layout:
+
+  ```example
+  my-app/
+    maggie.toml                 # project manifest
+    .maggie/                    # managed directory (gitignore this)
+      deps/                     # fetched dependencies
+      lock.toml                 # locked versions
+    src/                        # main source directory
+      Main.mag                  # entry point class
+      models/                   # domain model classes
+      views/                    # UI or presentation classes
+      services/                 # business logic
+    test/                       # test files
+    lib/                        # shared library code
+  ```
+
+  The `.maggie/` directory is managed by the toolchain and should be
+  added to `.gitignore`. It contains fetched dependencies and the
+  lock file (the lock file itself should be committed, but the rest
+  of `.maggie/` should not).
+  """
+  method: s10_projectLayout [
+      "This section is prose-only. No runnable example needed."
+      ^nil
+  ]
+
+  """
+  ## Entry Points
+
+  The `-m` flag tells `mag` which method to call after loading all
+  source files. The argument is a class name and method selector
+  separated by a dot.
+
+  ```example
+  mag -m Main.start          # Call the 'start' class method on Main
+  mag -m App.run             # Call the 'run' class method on App
+  mag -m Tests.runAll        # Call 'runAll' on Tests
+  ```
+
+  The class name is resolved relative to the project namespace. If
+  your project has namespace `MyApp` and you pass `-m Main.start`,
+  it calls `MyApp::Main.start`. If no project manifest exists, the
+  bare class name is used.
+
+  The entry point method must be a class-side method (not an instance
+  method). A typical entry point looks like this:
+
+  ```example
+  # src/Main.mag
+  Main subclass: Object
+    classMethod: start [
+        'Application starting...' printString.
+        app := self new.
+        app run.
+    ]
+
+    method: run [
+        "Main application loop"
+    ]
+  ```
+
+  Without `-m`, `mag` loads all source files but does not call any
+  entry point. This is useful with `-i` for interactive exploration:
+
+  ```example
+  # Load project and drop into REPL
+  mag -i
+
+  # Load project, run entry point, then drop into REPL
+  mag -m Main.start -i
+  ```
+  """
+  method: s11_entryPoints [
+      "This section is prose-only. No runnable example needed."
+      ^nil
+  ]
+
+  """
+  ## A Complete Example
+
+  Here is a complete `maggie.toml` showing all sections together:
+
+  ```example
+  [project]
+  name = "todo-app"
+  namespace = "Todo"
+  version = "0.1.0"
+
+  [source]
+  dirs = ["src"]
+  entry = "Main.start"
+
+  [dependencies]
+  yutani = { git = "https://github.com/chazu/yutani-mag", tag = "v0.5.0" }
+  shared-models = { path = "../shared-models" }
+  http-client = { git = "https://github.com/example/http-client-mag", tag = "v1.0.0", namespace = "Http" }
+
+  [image]
+  output = "todo-app.image"
+  include-source = true
+  ```
+
+  And the corresponding project layout:
+
+  ```example
+  todo-app/
+    maggie.toml
+    .maggie/
+      lock.toml
+      deps/
+        yutani/
+        http-client/
+    src/
+      Main.mag                  # Todo::Main
+      models/
+        Task.mag                # Todo::Models::Task
+        TaskList.mag            # Todo::Models::TaskList
+      views/
+        TaskView.mag            # Todo::Views::TaskView
+  ```
+
+  Source files use `import:` to reference dependency classes:
+
+  ```example
+  # src/views/TaskView.mag
+  namespace: 'Todo::Views'
+
+  import: 'Yutani::Widgets'
+  import: 'Todo::Models'
+
+  TaskView subclass: YutaniWidget
+    instanceVars: task
+    method: task: aTask [ task := aTask ]
+    method: render [
+        self setText: task title.
+    ]
+  ```
+
+  Building and running:
+
+  ```example
+  # Fetch dependencies
+  mag deps
+
+  # Run the application
+  mag -m Main.start
+
+  # Save an image for fast startup
+  mag --save-image todo-app.image
+
+  # Run from the saved image
+  mag --image todo-app.image -m Main.start
+  ```
+  """
+  method: s12_completeExample [
+      "This section is prose-only. No runnable example needed."
+      ^nil
+  ]
+
+  """
+  ## Summary
+
+  The project system provides a structured way to organize Maggie code:
+
+  - **maggie.toml** -- declares project metadata, source layout,
+    dependencies, and image settings in a single file
+  - **mag deps** -- resolves and fetches dependencies (git and path),
+    writes a lock file for reproducibility
+  - **Directory-as-namespace** -- directory structure automatically
+    maps to namespaces, keeping the class table organized
+  - **Namespace mapping** -- three-level resolution (consumer override,
+    producer manifest, PascalCase fallback) with collision detection
+    and reserved namespace protection
+  - **Images** -- snapshot VM state for fast startup and deployment
+  - **Entry points** -- the `-m` flag calls a class method after
+    loading, connecting the project to its runtime behavior
+
+  For namespace and import syntax within source files, see the Modules
+  chapter. For content-addressed code distribution, see the Distribution
+  chapter.
+  """
+  method: s13_summary [
+      "This section is prose-only. No runnable example needed."
+      ^nil
+  ]

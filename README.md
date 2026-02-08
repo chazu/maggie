@@ -7,7 +7,7 @@
 A Smalltalk dialect implemented in Go. Named for [Margaret Hamilton](https://en.wikipedia.org/wiki/Margaret_Hamilton_\(software_engineer\))
 
 **Documentation:**
-- [User Guide](docs/USER_GUIDE.md) - Getting started, syntax, core classes
+- **Language Guide** — Run `mag doc --serve` and open the Guide tab, or browse `lib/guide/` source files directly. 14 chapters from Getting Started through Tooling, with runnable examples validated by `mag doctest`.
 - [Design Document](docs/MAGGIE_DESIGN.md) - Architecture and implementation details
 - [Language Server](docs/lsp.md) - LSP features and editor integration
 
@@ -143,17 +143,18 @@ mag fmt --check            # Check without modifying (exit 1 if unformatted)
 
 ## Documentation Generation
 
-Generate HTML API documentation from docstrings, and run inline doctests:
+Generate HTML documentation from docstrings, including the language guide and API reference:
 
 ```bash
-mag ./src doc              # Generate docs for loaded classes
-mag ./src doc --output docs/api  # Specify output directory
-mag ./src doctest          # Run doctest assertions from docstrings
-mag ./src doctest --verbose      # Show each test as it runs
-mag ./src doctest --class Array  # Run tests for a specific class
+mag doc                        # Generate docs (guide + API reference)
+mag doc --serve                # Generate and serve on :8080
+mag doc --output docs/site     # Specify output directory
+mag doctest                    # Run doctest assertions from docstrings
+mag doctest --verbose          # Show each test as it runs
+mag doctest --class Array      # Run tests for a specific class
 ```
 
-Docstrings use triple-quote syntax (`"""`), and doctest assertions use `>>>` to compare expressions.
+The guide lives in `lib/guide/` as `.mag` source files. Each chapter is a Maggie class with docstring prose and `>>>` test assertions validated by `mag doctest`. Docstrings use triple-quote syntax (`"""`).
 
 ## Benchmarking
 

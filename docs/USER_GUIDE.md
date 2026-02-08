@@ -1,5 +1,7 @@
 # Maggie User Guide
 
+> **Deprecated:** This static guide is no longer maintained. The canonical guide now lives in `lib/guide/` as runnable Maggie source files with validated examples. Run `mag doc --serve` to browse the guide with syntax highlighting and navigation, or read the `.mag` files directly. Run `mag doctest` to verify all examples.
+
 Maggie is a late-bound Smalltalk dialect implemented in Go. It features a simple, expressive syntax, first-class blocks, and Go-style concurrency with channels and lightweight processes.
 
 ## Installation

@@ -1,0 +1,781 @@
+"""
+Classes are the blueprints for objects in Maggie. Every object is an instance
+of a class, and every class (except Object) has a superclass it inherits from.
+Maggie classes define instance variables to hold per-object state, instance
+methods to act on that state, and class methods for factory operations and
+class-level behavior.
+
+Traits provide reusable method bundles that can be included into any class,
+giving you a form of multiple inheritance without the diamond problem.
+Docstrings attach documentation to classes, traits, and methods directly in
+the source, preserved at runtime.
+
+```test
+Object new class name >>> #Object
+3 class name >>> #SmallInteger
+'hello' class name >>> #String
+true class name >>> #True
+```
+"""
+Guide07Classes subclass: Object
+
+  """
+  ## Defining a Class
+
+  A class is defined with the `subclass:` keyword. The receiver is the new
+  class name, and the argument is the superclass. If you omit instance
+  variables and methods, you get an empty class that inherits everything
+  from its parent.
+
+  The basic form is:
+
+      MyClass subclass: ParentClass
+
+  This creates a new class called `MyClass` that inherits all methods and
+  behavior from `ParentClass`. Most classes inherit from `Object`, the root
+  of the hierarchy.
+
+  The class definition can contain instance variable declarations, method
+  definitions, class method definitions, trait inclusions, and docstrings.
+  Everything is indented inside the class body.
+
+  For example, the standard library defines `Boolean` as a subclass of
+  `Object`, and then `True` and `False` as subclasses of `Boolean`. Each
+  level adds or overrides methods specific to that type.
+
+  ```test
+  Object new isNil >>> false
+  Object new notNil >>> true
+  Object new class name >>> #Object
+  ```
+  """
+  method: s01_definingAClass [
+      Object new class name
+  ]
+
+  """
+  ## Instance Variables
+
+  Instance variables hold per-object state. Declare them with
+  `instanceVars:` followed by a space-separated list of names:
+
+      MyClass subclass: Object
+        instanceVars: name age
+
+  Each instance of the class gets its own copy of these variables. They
+  are initialized to `nil` and are only accessible from within the
+  instance methods of the class (and its subclasses). There is no direct
+  external access -- you must define accessor methods.
+
+  Instance variable names start with a lowercase letter and use camelCase
+  by convention. They are visible to all instance methods of the class
+  and its subclasses, just like fields in Go or Java.
+
+  Here is a complete class with instance variables and accessor methods.
+  The `Message` class in the standard library uses exactly this pattern:
+
+      Message subclass: Object
+        instanceVars: selector arguments
+
+  The `compiler/Token` class stores three instance variables:
+
+      Token subclass: Object
+        instanceVars: type value position
+
+  Instance variables default to `nil` until explicitly set:
+
+  ```test
+  nil isNil >>> true
+  ```
+  """
+  method: s02_instanceVariables [
+      "Instance variables are declared with instanceVars:"
+      "They default to nil until explicitly assigned."
+      ^nil isNil
+  ]
+
+  """
+  ## Instance Methods
+
+  Instance methods define the behavior of objects. They are declared with
+  the `method:` keyword inside a class body. The method name (selector)
+  follows the colon, and the method body is enclosed in square brackets.
+
+  There are three forms, matching the three message types:
+
+  Unary methods (no arguments):
+
+      method: name [
+          ^name
+      ]
+
+  Binary methods (one argument, operator selector):
+
+      method: + other [
+          ^self value + other value
+      ]
+
+  Keyword methods (one or more named arguments):
+
+      method: at: index put: value [
+          ^self primAtPut: index value: value
+      ]
+
+  Inside a method body, `self` refers to the receiver -- the object the
+  message was sent to. Instance variables are accessed directly by name.
+  The caret (`^`) returns a value from the method. Without an explicit
+  return, the method returns the value of its last expression.
+
+  ```test
+  'hello' size >>> 5
+  3 + 4 >>> 7
+  #(10 20 30) at: 1 >>> 20
+  ```
+
+  Methods can call other methods on `self` to build complex behavior
+  from simple pieces:
+
+  ```test
+  'Maggie' size >>> 6
+  'Maggie' asUppercase >>> 'MAGGIE'
+  ```
+  """
+  method: s03_instanceMethods [
+      'hello' size.
+      3 + 4.
+      #(10 20 30) at: 1
+  ]
+
+  """
+  ## Class Methods
+
+  Class methods are defined with `classMethod:` instead of `method:`. They
+  are sent to the class itself, not to instances. The most common use is
+  factory methods that create and initialize new instances.
+
+  The standard pattern is:
+
+      classMethod: with: aValue [
+          ^self new initialize: aValue
+      ]
+
+  Inside a class method, `self` refers to the class object, and `self new`
+  creates a new instance. This is how the standard library defines factory
+  methods like `Success with:` and `Failure with:`.
+
+  Another common pattern is `classMethod: new` that calls `super new`
+  and then sends an initialization message:
+
+      classMethod: new [
+          ^super new initialize
+      ]
+
+  Class methods are how you define the public API for creating instances.
+  Rather than exposing raw `new` and then requiring callers to set up
+  instance variables, you provide named constructors that guarantee the
+  object is properly initialized.
+
+  ```test
+  (Success with: 42) value >>> 42
+  (Success with: 42) isSuccess >>> true
+  (Failure with: 'oops') error >>> 'oops'
+  (Failure with: 'oops') isFailure >>> true
+  ```
+
+  Class methods can also be used for utility operations that don't need
+  an instance:
+
+  ```test
+  Array new: 3 >>> #(nil nil nil )
+  Channel new isClosed >>> false
+  ```
+  """
+  method: s04_classMethods [
+      (Success with: 42) value.
+      (Failure with: 'oops') error.
+      Array new: 3
+  ]
+
+  """
+  ## Accessor Methods
+
+  Maggie does not provide automatic getters or setters for instance
+  variables. You write them explicitly as methods. This is deliberate --
+  it keeps the protocol visible and lets you add validation or
+  transformation logic to accessors.
+
+  A getter simply returns the instance variable:
+
+      method: name [
+          ^name
+      ]
+
+  A setter typically uses a keyword message and returns `self` for
+  chaining:
+
+      method: name: aString [
+          name := aString.
+          ^self
+      ]
+
+  Some classes use a combined initialization method that sets several
+  variables at once. The `BlockNode` class in the compiler uses this
+  pattern:
+
+      method: parameters: params temporaries: temps statements: stmts [
+          parameters := params.
+          temporaries := temps.
+          statements := stmts.
+          ^self
+      ]
+
+  The convention is to name getters the same as the variable and setters
+  with a colon suffix. This makes usage read naturally:
+
+      person name.            "Get the name"
+      person name: 'Alice'.   "Set the name"
+
+  ```test
+  (Success with: 99) value >>> 99
+  (Failure with: 'bad') error >>> 'bad'
+  Result new printString >>> 'a Result'
+  ```
+  """
+  method: s05_accessorMethods [
+      (Success with: 99) value.
+      (Failure with: 'bad') error.
+      ^Result new printString
+  ]
+
+  """
+  ## The self Keyword
+
+  Inside any instance method, `self` refers to the object that received
+  the message. You use `self` to send other messages to the same object,
+  to pass the current object as an argument to other methods, and to
+  return the current object.
+
+  A common idiom is `^self` at the end of a method that modifies the
+  receiver -- this enables method chaining (also known as a fluent
+  interface).
+
+  The `yourself` method on Object simply returns `self`. It is useful at
+  the end of a cascade to ensure the result is the original object rather
+  than the return value of the last cascaded message:
+
+      a := Array new: 3.
+      a at: 0 put: 1; at: 1 put: 2; at: 2 put: 3; yourself.
+
+  ```test
+  3 yourself >>> 3
+  'hello' yourself >>> 'hello'
+  nil yourself >>> nil
+  ```
+
+  In class methods, `self` refers to the class object itself:
+
+  ```test
+  (Success with: 10) class name >>> #Success
+  ```
+  """
+  method: s06_self [
+      3 yourself.
+      'hello' yourself.
+      ^(Success with: 10) class name
+  ]
+
+  """
+  ## The super Keyword
+
+  `super` also refers to the current receiver, but when you send a
+  message to `super`, method lookup starts from the superclass of the
+  class where the method is defined. This lets a subclass extend or
+  wrap inherited behavior rather than completely replacing it.
+
+  The most common use of `super` is in initialization:
+
+      classMethod: new [
+          ^super new initialize
+      ]
+
+  Here, `super new` calls Object's `new` to allocate a fresh instance,
+  and then `initialize` is sent to set up instance variables. Without
+  `super`, sending `new` would call the same class method recursively.
+
+  Another common pattern is in `printString` where a subclass wants to
+  include the superclass representation:
+
+      method: printString [
+          ^'Success(', self value printString, ')'
+      ]
+
+  The key distinction:
+  - `self someMessage` -- lookup starts at the receiver's actual class
+  - `super someMessage` -- lookup starts at the superclass of the
+    defining class
+
+  This means `super` is resolved at compile time (based on where the
+  method is defined), while `self` is resolved at runtime (based on
+  the actual class of the receiver).
+
+  ```test
+  (Success with: 42) printString >>> 'Success(42)'
+  (Failure with: 'oops') printString >>> 'Failure(''oops'')'
+  ```
+  """
+  method: s07_super [
+      (Success with: 42) printString.
+      ^(Failure with: 'oops') printString
+  ]
+
+  """
+  ## Class Hierarchy
+
+  Every class has a superclass, forming a tree rooted at Object. When a
+  message is sent to an object, the VM first looks for the method in the
+  object's class. If not found, it checks the superclass, then the
+  superclass of the superclass, all the way up to Object. If the method
+  is still not found, `doesNotUnderstand:` is called.
+
+  This inheritance chain means that every object inherits Object's
+  methods: `yourself`, `==`, `=`, `isNil`, `notNil`, `printString`,
+  `class`, `error:`, `doesNotUnderstand:`, and more.
+
+  The standard library builds several useful hierarchies:
+
+  - `Object` > `Boolean` > `True` / `False`
+  - `Object` > `Result` > `Success` / `Failure`
+  - `Object` > `Number` > `SmallInteger` / `Float`
+
+  You can inspect the hierarchy at runtime by sending `class` and `name`:
+
+  ```test
+  42 class name >>> #SmallInteger
+  true class name >>> #True
+  false class name >>> #False
+  nil class name >>> #UndefinedObject
+  (Success with: 1) class name >>> #Success
+  (Failure with: 1) class name >>> #Failure
+  ```
+
+  Methods defined on a superclass are available to all its subclasses.
+  For example, `isNil` is defined on Object (returns false) and
+  overridden only in UndefinedObject (returns true). Every other class
+  inherits Object's version:
+
+  ```test
+  42 isNil >>> false
+  'hello' isNil >>> false
+  nil isNil >>> true
+  42 notNil >>> true
+  nil notNil >>> false
+  ```
+  """
+  method: s08_classHierarchy [
+      42 class name.
+      true class name.
+      nil class name.
+      42 isNil.
+      ^nil isNil
+  ]
+
+  """
+  ## Method Override
+
+  A subclass can override any method from its superclass by defining a
+  method with the same selector. The overriding method completely
+  replaces the inherited one for instances of that subclass.
+
+  A good example is `printString`. Object defines a default version
+  that returns the class name. Many subclasses override it for more
+  useful output:
+
+  - `SmallInteger` returns the number as a string: `42 printString` is `'42'`
+  - `String` returns the string wrapped in quotes: `'hello' printString` is `'''hello'''`
+  - `True` returns `'true'`, `False` returns `'false'`
+  - `UndefinedObject` returns `'nil'`
+  - `Success` returns `'Success(value)'`
+  - `Failure` returns `'Failure(reason)'`
+
+  Each class chooses the most informative representation for its type.
+  The override completely replaces the parent version -- to include the
+  parent behavior, you would use `super printString` and build on it.
+
+  ```test
+  42 printString >>> '42'
+  true printString >>> 'true'
+  false printString >>> 'false'
+  nil printString >>> 'nil'
+  (Success with: 7) printString >>> 'Success(7)'
+  (Failure with: 404) printString >>> 'Failure(404)'
+  ```
+
+  Abstract methods are a convention, not a language feature. A superclass
+  defines a method that calls `self subclassResponsibility`, signaling
+  that subclasses must override it. Boolean uses this pattern for `not`,
+  `and:`, `or:`, and the conditional methods, which True and False each
+  implement differently.
+  """
+  method: s09_methodOverride [
+      42 printString.
+      true printString.
+      nil printString.
+      ^(Success with: 7) printString
+  ]
+
+  """
+  ## Traits
+
+  A trait is a reusable bundle of methods that can be included in any
+  class. Traits are defined with the `trait` keyword instead of
+  `subclass:`:
+
+      Printable trait
+
+  The trait body contains method definitions, just like a class. But a
+  trait cannot be instantiated -- it exists only to be included in
+  classes. Include a trait in a class with the `include:` keyword:
+
+      Array subclass: Object
+        include: Printable
+
+  When a class includes a trait, all of the trait's methods become
+  available as if they were defined directly in the class. This is
+  Maggie's approach to code reuse across unrelated classes -- instead
+  of forcing them into a single inheritance chain, you factor shared
+  behavior into a trait.
+
+  The standard library's `Printable` trait provides `description`,
+  `bracketedDescription`, and `printOn:` methods. The `Array` class
+  includes it to gain these methods without duplicating code.
+
+  A trait definition looks like this:
+
+      MyTrait trait
+        method: greet [
+            ^'Hello from ', self class name
+        ]
+
+  And including it:
+
+      MyClass subclass: Object
+        include: MyTrait
+        method: doSomething [
+            ^self greet
+        ]
+
+  Traits are defined at the top level, just like classes. They appear
+  in source files with `.mag` extension and are loaded by the same
+  pipeline.
+
+  ```test
+  #(1 2 3) printString >>> '#(1 2 3 )'
+  ```
+  """
+  method: s10_traits [
+      ^#(1 2 3) printString
+  ]
+
+  """
+  ## Trait Method Resolution
+
+  When a class includes a trait, the trait's methods are copied into
+  the class's method table. If the class defines a method with the
+  same selector as a trait method, the class's version wins -- it
+  overrides the trait method. This means you can include a trait for
+  its default behavior and then selectively override specific methods.
+
+  The resolution order is:
+  1. Methods defined directly on the class
+  2. Methods from included traits
+  3. Methods inherited from the superclass
+
+  A class can include multiple traits by listing multiple `include:`
+  declarations:
+
+      MyClass subclass: Object
+        include: Printable
+        include: Comparable
+
+  If two traits define the same method, the last-included trait wins.
+  But the best practice is to override the conflicting method in the
+  class itself to make the intent explicit.
+
+  Since Array includes Printable, it gets `description` and related
+  methods. But Array also defines its own `printString`, which takes
+  precedence over any `printString` that Printable might provide:
+
+  ```test
+  #(10 20) printString >>> '#(10 20 )'
+  ```
+  """
+  method: s11_traitResolution [
+      ^#(10 20) printString
+  ]
+
+  """
+  ## Docstrings
+
+  Docstrings are triple-quoted strings that attach documentation directly
+  to classes, traits, and methods. They are preserved in the compiled
+  image and accessible at runtime for documentation tools, IDE
+  introspection, and automated testing.
+
+  A class docstring appears before the class declaration. A method
+  docstring appears before the `method:` or `classMethod:` keyword.
+
+  Docstrings support Markdown formatting. Code blocks fenced with
+  ` ```test ` are executable tests -- the `mag doctest` command extracts
+  and runs them automatically. Code blocks fenced with ` ```example `
+  are shown in documentation but not executed.
+
+  Inside a test block, each line is evaluated independently. Lines
+  containing `>>>` are assertions: the left side is evaluated, and its
+  `printString` output is compared to the `printString` of the right
+  side. Lines without `>>>` are setup lines executed for side effects.
+
+  ```test
+  (Result success: 42) isSuccess >>> true
+  (Result failure: 'oops') isFailure >>> true
+  ```
+  """
+  method: s12_docstrings [
+      (Result success: 42) isSuccess.
+      ^(Result failure: 'oops') isFailure
+  ]
+
+  """
+  ## Complete Class Example
+
+  Here is a walkthrough of how all the pieces fit together, using the
+  Result/Success/Failure hierarchy from the standard library as a
+  concrete example.
+
+  **Step 1: Define the base class with a docstring.**
+
+  Result is an abstract base that defines the protocol. It subclasses
+  Object and provides factory class methods:
+
+      Result subclass: Object
+        method: printString [
+            ^'a Result'
+        ]
+
+  **Step 2: Define subclasses with instance variables.**
+
+  Success and Failure each subclass Result. They store their payload
+  in an instance variable and override methods to provide type-specific
+  behavior:
+
+      Success subclass: Result
+        method: isSuccess [ ^true ]
+        method: isFailure [ ^false ]
+        method: value [ ^self primValue ]
+        method: error [ ^nil ]
+        method: printString [
+            ^'Success(', self value printString, ')'
+        ]
+
+  **Step 3: Use class methods as factories.**
+
+  The `with:` class method creates and initializes instances:
+
+      classMethod: with: aValue [
+          ^self new initialize: aValue
+      ]
+
+  **Step 4: Use the class hierarchy polymorphically.**
+
+  Client code creates Results via factory methods and branches on type:
+
+  ```test
+  (Result success: 42) value >>> 42
+  (Result success: 42) isSuccess >>> true
+  (Result failure: 'oops') error >>> 'oops'
+  (Result failure: 'oops') isFailure >>> true
+  (Success with: 42) printString >>> 'Success(42)'
+  (Failure with: 'oops') printString >>> 'Failure(''oops'')'
+  ```
+
+  The power of the class hierarchy is that you can treat all Results
+  uniformly through the shared protocol (`isSuccess`, `isFailure`,
+  `value`, `error`) while each subclass implements the behavior
+  differently.
+  """
+  method: s13_completeExample [
+      | r |
+      r := Result success: 42.
+      r isSuccess.
+      r value.
+      ^r printString
+  ]
+
+  """
+  ## Initialization Patterns
+
+  Maggie does not have constructors. Instead, initialization is done
+  by convention using class methods and instance methods.
+
+  **Pattern 1: `new` + `initialize`** -- Override the `new` class
+  method to call `initialize` on the freshly allocated object:
+
+      classMethod: new [
+          ^super new initialize
+      ]
+
+  **Pattern 2: Named factory method** -- Provide a class method that
+  takes arguments and initializes the object in one step:
+
+      classMethod: variable: aVar value: aVal [
+          ^self new variable: aVar value: aVal
+      ]
+
+  **Pattern 3: Builder-style with cascades** -- Return `self` from
+  setters and chain with cascades, ending with `yourself`:
+
+      obj := MyClass new name: 'Alice'; age: 30; yourself.
+
+  The standard library uses all three patterns. The Compiler class uses
+  Pattern 1, AST nodes use Pattern 2, and widget configuration often
+  uses Pattern 3.
+
+  ```test
+  Object new isNil >>> false
+  Object new class name >>> #Object
+  (Success with: 'hello') value >>> 'hello'
+  ```
+  """
+  method: s14_initializationPatterns [
+      Object new class name.
+      ^(Success with: 'hello') value
+  ]
+
+  """
+  ## Abstract Classes and Subclass Responsibility
+
+  Maggie does not have a keyword for abstract classes or abstract
+  methods. Instead, the convention is to define a method that calls
+  `self subclassResponsibility`. This signals that concrete subclasses
+  must override the method.
+
+  The Boolean class uses this pattern extensively. It defines the
+  protocol that True and False must implement:
+
+      Boolean subclass: Object
+        method: not [ ^self subclassResponsibility ]
+        method: and: block [ ^self subclassResponsibility ]
+        method: or: block [ ^self subclassResponsibility ]
+        method: ifTrue: block [ ^self subclassResponsibility ]
+        method: ifFalse: block [ ^self subclassResponsibility ]
+
+  Then True and False each provide concrete implementations:
+
+      True subclass: Boolean
+        method: not [ ^false ]
+        method: and: block [ ^block value ]
+        method: ifTrue: block [ ^block value ]
+
+      False subclass: Boolean
+        method: not [ ^true ]
+        method: and: block [ ^false ]
+        method: ifTrue: block [ ^nil ]
+
+  The Result class is another example -- it defines the protocol for
+  `isSuccess`, `isFailure`, `value`, and `error` that Success and
+  Failure each implement differently.
+
+  ```test
+  true not >>> false
+  false not >>> true
+  true and: [42] >>> 42
+  false and: [42] >>> false
+  true ifTrue: ['yes'] >>> 'yes'
+  false ifTrue: ['yes'] >>> nil
+  ```
+  """
+  method: s15_abstractClasses [
+      true not.
+      false not.
+      true and: [42].
+      false and: [42].
+      ^true ifTrue: ['yes']
+  ]
+
+  """
+  ## Class Introspection
+
+  Every object knows its class. Send `class` to get the class object
+  and `name` to get its name as a symbol. You can use this for
+  debugging, logging, and runtime type checks.
+
+  The `isKindOf:` method tests whether an object is an instance of a
+  given class. The `respondsTo:` message checks whether an object
+  understands a particular message.
+
+  ```test
+  42 class name >>> #SmallInteger
+  3.14 class name >>> #Float
+  'hello' class name >>> #String
+  #hello class name >>> #Symbol
+  true class name >>> #True
+  false class name >>> #False
+  nil class name >>> #UndefinedObject
+  #(1 2 3) class name >>> #Array
+  ```
+
+  The `allClasses` message on Object returns an array of all classes
+  currently loaded in the VM. This is useful for documentation tools
+  and IDE features that need to enumerate the class library.
+  """
+  method: s16_classIntrospection [
+      42 class name.
+      3.14 class name.
+      'hello' class name.
+      #hello class name.
+      true class name.
+      false class name.
+      nil class name.
+      ^#(1 2 3) class name
+  ]
+
+  """
+  ## Putting It All Together
+
+  Here is a summary of the class system concepts covered in this
+  chapter, with a final set of examples that demonstrate how they
+  interact.
+
+  - `subclass:` defines a new class inheriting from a parent
+  - `instanceVars:` declares per-object state
+  - `method:` defines instance behavior
+  - `classMethod:` defines class-level behavior and factories
+  - `include:` mixes in trait methods
+  - `self` is the current receiver; `super` dispatches via the parent
+  - Docstrings (triple-quoted) attach preserved documentation
+  - Override methods to specialize behavior in subclasses
+  - Use `subclassResponsibility` for abstract method stubs
+
+  The class system is simple but expressive. Combined with blocks for
+  control flow and traits for cross-cutting concerns, it provides all
+  the tools you need to structure programs of any size.
+
+  ```test
+  Object new class name >>> #Object
+  Object new isNil >>> false
+  42 class name >>> #SmallInteger
+  'hello' size >>> 5
+  true not >>> false
+  (Success with: 42) value >>> 42
+  (Failure with: 'err') error >>> 'err'
+  #(1 2 3) printString >>> '#(1 2 3 )'
+  ```
+  """
+  method: s17_summary [
+      Object new class name.
+      42 class name.
+      'hello' size.
+      true not.
+      (Success with: 42) value.
+      (Failure with: 'err') error.
+      ^#(1 2 3) printString
+  ]

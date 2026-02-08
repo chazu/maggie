@@ -1,0 +1,536 @@
+"""
+Error handling in Maggie takes two complementary forms. The first is
+exception handling, built on blocks: `on:do:` installs a handler, `ensure:`
+guarantees cleanup, and `ifCurtailed:` runs cleanup only when something goes
+wrong. The second is the Result pattern -- `Success` and `Failure` objects
+that represent outcomes as first-class values you can inspect, transform,
+and chain without ever raising an exception.
+
+Most Maggie code uses the Result pattern for expected failure modes (parsing,
+validation, network calls) and reserves exceptions for truly exceptional
+situations (division by zero, stack overflow, missing methods). This chapter
+covers both approaches and shows how to combine them.
+
+```test
+[1 + 2] ensure: [nil] >>> 3
+(Success with: 42) value >>> 42
+(Failure with: 'oops') error >>> 'oops'
+```
+"""
+Guide08ErrorHandling subclass: Object
+
+  """
+  ## Exception Handling with on:do:
+
+  The `on:do:` message installs an exception handler around a block. If the
+  block signals an exception whose class matches (or is a subclass of) the
+  given exception class, the handler block runs with the exception object as
+  its argument. The result of `on:do:` is either the result of the protected
+  block (if no exception) or the result of the handler block (if caught).
+
+  The general form is:
+
+      [risky code] on: ExceptionClass do: [:ex | recovery code]
+
+  The exception hierarchy has `Exception` at the root, with `Error` and
+  `Warning` as its main subclasses. Specific errors like `ZeroDivide`,
+  `MessageNotUnderstood`, and `StackOverflow` are subclasses of `Error`.
+  Catching `Error` will catch all of them.
+
+  If you catch a broad class like `Error`, you will also catch its
+  subclasses. Be as specific as possible to avoid masking unexpected
+  errors.
+
+  ```example
+  [42] on: Error do: [:e | 'caught']
+  ```
+
+  When no exception occurs, `on:do:` returns the result of the protected
+  block unchanged. The handler block is never evaluated.
+
+  ```example
+  [10 + 5] on: Error do: [:e | 0]
+  ['hello' , ' world'] on: Error do: [:e | 'error']
+  ```
+  """
+  method: s01_onDo [
+      [42] on: Error do: [:e | 'caught'].
+      [10 + 5] on: Error do: [:e | 0].
+      ^['hello' , ' world'] on: Error do: [:e | 'error']
+  ]
+
+  """
+  ## Guaranteed Cleanup with ensure:
+
+  The `ensure:` message guarantees that a cleanup block runs after the
+  receiver block finishes, whether it completed normally, raised an
+  exception, or exited via a non-local return. The result of `ensure:` is
+  the result of the receiver block -- the cleanup block's result is
+  discarded.
+
+  This is Maggie's equivalent of try/finally in other languages. Use it
+  for resource cleanup: closing files, releasing locks, restoring state.
+
+  ```test
+  [1 + 2] ensure: [nil] >>> 3
+  [42] ensure: [99] >>> 42
+  ```
+
+  The cleanup block always runs. Here we track the cleanup in a variable
+  to prove it executes:
+
+  ```test
+  log := 'start'.
+  [log := log , '-work'] ensure: [log := log , '-done'].
+  log >>> 'start-work-done'
+  ```
+
+  Even when the main block raises an exception, the ensure block still
+  runs. Combine `on:do:` with `ensure:` to handle the error and clean
+  up:
+
+  ```example
+  cleaned := false.
+  [[1 / 0] on: ZeroDivide do: [:e | 'caught']] ensure: [cleaned := true].
+  cleaned
+  ```
+  """
+  method: s02_ensure [
+      | log |
+      log := 'start'.
+      [log := log , '-work'] ensure: [log := log , '-done'].
+      ^log
+  ]
+
+  """
+  ## Error-Only Cleanup with ifCurtailed:
+
+  The `ifCurtailed:` message is like `ensure:` but only runs the cleanup
+  block if the receiver block terminates abnormally -- via an exception or
+  a non-local return. If the block completes normally, the curtailment
+  block is skipped entirely.
+
+  Use `ifCurtailed:` when cleanup is only needed on failure. For example,
+  rolling back a transaction that should only be undone if the operation
+  fails.
+
+  The form is:
+
+      [code] ifCurtailed: [error-only cleanup]
+
+  When the block succeeds, `ifCurtailed:` returns the block's result and
+  the cleanup block is never evaluated:
+
+  ```example
+  [42] ifCurtailed: [99]
+  [1 + 2] ifCurtailed: [0]
+  ```
+
+  The key difference from `ensure:`: the curtailment block does not run
+  on normal completion. With `ensure:`, the cleanup block always runs.
+  With `ifCurtailed:`, it only runs if something went wrong.
+  """
+  method: s03_ifCurtailed [
+      [42] ifCurtailed: [99].
+      ^[1 + 2] ifCurtailed: [0]
+  ]
+
+  """
+  ## Catching StackOverflow
+
+  The VM enforces a maximum call frame depth (default: 4096). When a
+  method recurses too deeply without tail-call optimization, the VM
+  raises a `StackOverflow` exception. This is a subclass of `Error`, so
+  it is catchable with `on:do:`.
+
+  Self-recursive methods in tail position are automatically optimized by
+  the compiler (tail-call optimization), so they will not hit the stack
+  limit. Only non-tail-recursive methods can overflow.
+
+  Because `StackOverflow` is a subclass of `Error`, you can catch it
+  either specifically or through the broader `Error` class:
+
+      [deeplyRecursiveMethod] on: StackOverflow do: [:ex | 'overflow caught']
+      [deeplyRecursiveMethod] on: Error do: [:ex | 'some error caught']
+
+  Catching `StackOverflow` lets you provide a graceful fallback instead
+  of crashing. This is useful for user-supplied code in REPLs or
+  sandboxed environments.
+
+  Note: the stack overflow limit is configurable at the Go level via the
+  interpreter's `MaxFrameDepth` field. The default of 4096 is generous
+  enough for normal code but will catch runaway recursion.
+  """
+  method: s04_stackOverflow [
+      "StackOverflow is catchable but requires deep recursion to trigger."
+      "See the CLAUDE.md section on Stack Overflow Protection for details."
+      ^nil
+  ]
+
+  """
+  ## The Result Pattern: Success and Failure
+
+  The Result pattern represents the outcome of an operation as a
+  first-class value. Instead of raising exceptions for expected failures,
+  you return a `Success` wrapping the result or a `Failure` wrapping an
+  error reason.
+
+  Create results with factory methods on the classes:
+
+  - `Success with: value` -- wrap a success value
+  - `Failure with: reason` -- wrap an error reason
+  - `Result success: value` -- same as `Success with:`
+  - `Result failure: reason` -- same as `Failure with:`
+
+  ```test
+  (Success with: 42) value >>> 42
+  (Success with: 42) isSuccess >>> true
+  (Success with: 42) isFailure >>> false
+  (Success with: 42) error >>> nil
+  ```
+
+  ```test
+  (Failure with: 'oops') error >>> 'oops'
+  (Failure with: 'oops') isFailure >>> true
+  (Failure with: 'oops') isSuccess >>> false
+  (Failure with: 'oops') value >>> nil
+  ```
+
+  The `printString` method gives a readable representation:
+
+  ```test
+  (Success with: 42) printString >>> 'Success(42)'
+  (Failure with: 'oops') printString >>> 'Failure(''oops'')'
+  ```
+
+  You can also use the `Result` base class factories:
+
+  ```test
+  (Result success: 10) value >>> 10
+  (Result failure: 'bad') error >>> 'bad'
+  ```
+  """
+  method: s05_resultPattern [
+      (Success with: 42) value.
+      (Failure with: 'oops') error.
+      ^(Result success: 10) value
+  ]
+
+  """
+  ## Branching on Results
+
+  Results support branching methods that let you run different code
+  depending on whether the result is a success or failure.
+
+  `ifSuccess:` evaluates its block with the wrapped value if the
+  receiver is a Success. On a Failure, it returns the receiver
+  unchanged.
+
+  `ifFailure:` evaluates its block with the error if the receiver is
+  a Failure. On a Success, it returns the receiver unchanged.
+
+  `onSuccess:onFailure:` takes two blocks and evaluates exactly one,
+  depending on the result type. This is the most explicit form and
+  makes both paths visible at the call site.
+
+  ```test
+  (Success with: 42) ifSuccess: [:v | v + 1] >>> 43
+  (Success with: 'ok') ifSuccess: [:v | v , '!'] >>> 'ok!'
+  ```
+
+  ```test
+  (Failure with: 'bad') ifFailure: [:e | 'Error: ' , e] >>> 'Error: bad'
+  ```
+
+  The `onSuccess:onFailure:` form is useful when you want to handle
+  both paths in one expression:
+
+  ```test
+  (Success with: 5) onSuccess: [:v | v * 10] onFailure: [:e | -1] >>> 50
+  (Failure with: 'x') onSuccess: [:v | v * 10] onFailure: [:e | -1] >>> -1
+  ```
+  """
+  method: s06_branchingOnResults [
+      (Success with: 42) ifSuccess: [:v | v + 1].
+      (Failure with: 'bad') ifFailure: [:e | 'Error: ' , e].
+      ^(Success with: 5) onSuccess: [:v | v * 10] onFailure: [:e | -1]
+  ]
+
+  """
+  ## Transforming Results with map:
+
+  The `map:` message transforms the value inside a Success by applying
+  a block, returning a new Success wrapping the transformed value. On
+  a Failure, `map:` does nothing -- it propagates the Failure unchanged
+  without evaluating the block.
+
+  This lets you build pipelines that only process the happy path. If
+  any step produces a Failure, the rest of the pipeline is skipped.
+
+  ```example
+  (Success with: 5) map: [:v | v * 2]
+  (Success with: 'hi') map: [:v | v , '!']
+  ```
+
+  Failures propagate untouched through `map:`:
+
+  ```example
+  (Failure with: 'err') map: [:v | v * 2]
+  ```
+
+  You can chain multiple `map:` calls to build a transformation
+  pipeline:
+
+  ```example
+  r := (Success with: 3) map: [:v | v + 1].
+  r map: [:v | v * 10]
+  ```
+  """
+  method: s07_map [
+      (Success with: 5) map: [:v | v * 2].
+      (Failure with: 'err') map: [:v | v * 2].
+      ^(Success with: 3) map: [:v | v + 1]
+  ]
+
+  """
+  ## Chaining with then:
+
+  The `then:` message is like `map:` but smarter about its return value.
+  If the block returns a Result, `then:` returns it directly. If the
+  block returns a plain value, `then:` wraps it in a new Success. On a
+  Failure, `then:` propagates the failure without evaluating the block.
+
+  Use `then:` when your transformation might itself fail and return a
+  new Result. This avoids nested Results (a Success wrapping a Success).
+
+  ```example
+  (Success with: 10) then: [:v | Success with: v * 2]
+  (Success with: 10) then: [:v | Failure with: 'nope']
+  ```
+
+  When the block returns a plain value, `then:` wraps it:
+
+  ```example
+  (Success with: 10) then: [:v | v + 5]
+  ```
+
+  Failures propagate through `then:` without running the block:
+
+  ```example
+  (Failure with: 'x') then: [:v | v + 1]
+  ```
+  """
+  method: s08_then [
+      (Success with: 10) then: [:v | Success with: v * 2].
+      (Success with: 10) then: [:v | Failure with: 'nope'].
+      ^(Failure with: 'x') then: [:v | v + 1]
+  ]
+
+  """
+  ## Chaining with flatMap:
+
+  The `flatMap:` message is for blocks that always return a Result. It
+  evaluates the block with the success value and returns whatever Result
+  the block produces. Unlike `then:`, `flatMap:` does not wrap plain
+  values -- the block is expected to return a Result.
+
+  On a Failure, `flatMap:` propagates the failure without evaluating
+  the block, just like `map:` and `then:`.
+
+  Use `flatMap:` when you have a sequence of operations that each
+  return a Result and you want to short-circuit on the first failure.
+
+  ```example
+  (Success with: 10) flatMap: [:v | Success with: v + 1]
+  (Success with: 10) flatMap: [:v | Failure with: 'fail']
+  (Failure with: 'x') flatMap: [:v | Success with: 99]
+  ```
+
+  The difference between `map:`, `then:`, and `flatMap:`:
+
+  - `map:` -- block returns a plain value, always wrapped in Success
+  - `then:` -- block returns either a Result or a plain value (auto-wrapped)
+  - `flatMap:` -- block must return a Result (not auto-wrapped)
+  """
+  method: s09_flatMap [
+      (Success with: 10) flatMap: [:v | Success with: v + 1].
+      (Success with: 10) flatMap: [:v | Failure with: 'fail'].
+      ^(Failure with: 'x') flatMap: [:v | Success with: 99]
+  ]
+
+  """
+  ## Safe Division Example
+
+  Here is a practical example: a safe division function that returns
+  a Result instead of raising ZeroDivide. This shows how the Result
+  pattern replaces exception-based error handling for expected failures.
+
+  The idea is simple: check for zero before dividing, and return a
+  Failure if the divisor is zero. Otherwise return a Success with the
+  quotient.
+
+  ```test
+  r := 1 = 0 ifTrue: [Failure with: 'division by zero'] ifFalse: [Success with: 10 / 1].
+  r value >>> 10
+  ```
+
+  ```test
+  r := 0 = 0 ifTrue: [Failure with: 'division by zero'] ifFalse: [Success with: 10 / 1].
+  r error >>> 'division by zero'
+  ```
+
+  You can chain safe division with further transformations. If the
+  division fails, the entire chain short-circuits:
+
+  ```example
+  r := 5 = 0 ifTrue: [Failure with: 'div/0'] ifFalse: [Success with: 10 / 5].
+  r map: [:v | v * 100]
+  ```
+
+  ```example
+  r := 0 = 0 ifTrue: [Failure with: 'div/0'] ifFalse: [Success with: 10 / 0].
+  r map: [:v | v * 100]
+  ```
+
+  Compare this to the exception approach:
+
+  ```example
+  [10 / 0] on: ZeroDivide do: [:e | -1]
+  ```
+
+  Both approaches work. Use exceptions when the failure is truly
+  unexpected. Use Results when failure is a normal part of the
+  operation (like user input validation or parsing).
+  """
+  method: s10_safeDivision [
+      | r |
+      r := 1 = 0 ifTrue: [Failure with: 'division by zero'] ifFalse: [Success with: 10 / 1].
+      ^r value
+  ]
+
+  """
+  ## Combining Exceptions and Results
+
+  Exceptions and Results serve different purposes and work well
+  together. A common pattern is to wrap exception-raising code in a
+  Result: use `on:do:` to catch the exception and return a Failure,
+  or return a Success if no exception occurs.
+
+  This "try" pattern converts exceptions into Results for further
+  processing:
+
+  ```example
+  r := [[Success with: 10 + 5] on: Error do: [:e | Failure with: 'error']] value.
+  r value
+  ```
+
+  ```example
+  r := [[Success with: 1 / 0] on: ZeroDivide do: [:e | Failure with: 'div by zero']] value.
+  r error
+  ```
+
+  You can then chain Result transformations on the output:
+
+  ```example
+  r := [[Success with: 10 + 5] on: Error do: [:e | Failure with: 'error']] value.
+  r map: [:v | v * 2]
+  ```
+
+  Another useful pattern is the `ensure:` + Result combination: perform
+  cleanup regardless of whether the operation succeeded or failed, while
+  still returning a typed Result:
+
+  ```test
+  cleaned := false.
+  r := [Success with: 42] ensure: [cleaned := true].
+  r value >>> 42
+  ```
+
+  ```test
+  cleaned := false.
+  r := [Success with: 42] ensure: [cleaned := true].
+  cleaned >>> true
+  ```
+
+  This gives you the best of both worlds: structured error values for
+  control flow, and guaranteed cleanup for resource management.
+  """
+  method: s11_combiningExceptionsAndResults [
+      | r |
+      r := [[Success with: 10 + 5] on: Error do: [:e | Failure with: 'error']] value.
+      ^r value
+  ]
+
+  """
+  ## The Exception Hierarchy
+
+  Maggie's exception classes form a hierarchy rooted at `Exception`:
+
+  - `Exception` -- root of all exceptions
+    - `Error` -- errors that should typically be caught
+      - `ZeroDivide` -- division by zero
+      - `MessageNotUnderstood` -- message sent to object that does not understand it
+      - `StackOverflow` -- call frame depth exceeded
+    - `Warning` -- non-fatal conditions
+
+  When you use `on:do:`, the handler catches the specified class and all
+  its subclasses. Catching `Error` will catch `ZeroDivide`,
+  `MessageNotUnderstood`, and `StackOverflow`. Catching `Exception`
+  will catch everything, including warnings.
+
+  Be specific in your handlers. Catching `Error` when you only expect
+  `ZeroDivide` can mask bugs in your code:
+
+  ```example
+  [1 / 0] on: ZeroDivide do: [:e | 'zero!']
+  ```
+
+  ```example
+  [1 / 0] on: Error do: [:e | 'some error']
+  ```
+
+  Both catch the same ZeroDivide, but the first handler makes it clear
+  what exception is expected.
+  """
+  method: s12_exceptionHierarchy [
+      [1 / 0] on: ZeroDivide do: [:e | 'zero!'].
+      ^[1 / 0] on: Error do: [:e | 'some error']
+  ]
+
+  """
+  ## Summary
+
+  Maggie provides two complementary approaches to error handling:
+
+  **Exceptions** -- for truly exceptional situations:
+  - `[code] on: ExClass do: [:e | handler]` -- catch exceptions
+  - `[code] ensure: [cleanup]` -- guaranteed cleanup (try/finally)
+  - `[code] ifCurtailed: [cleanup]` -- cleanup only on abnormal exit
+  - Exception hierarchy: Exception > Error > ZeroDivide, StackOverflow, etc.
+
+  **Results** -- for expected failure modes:
+  - `Success with: value` / `Failure with: reason` -- create results
+  - `isSuccess` / `isFailure` -- test the outcome
+  - `value` / `error` -- extract the wrapped value or reason
+  - `map:` -- transform the value (Failures pass through)
+  - `then:` -- chain with auto-wrapping (Failures pass through)
+  - `flatMap:` -- chain without wrapping (Failures pass through)
+  - `ifSuccess:` / `ifFailure:` -- branch on outcome
+  - `onSuccess:onFailure:` -- handle both branches
+
+  Use exceptions for things that should not normally happen (division
+  by zero, stack overflow). Use Results for operations where failure
+  is a normal possibility (parsing, validation, I/O). Combine both
+  by wrapping exception-raising code in `on:do:` and returning a
+  Result.
+
+  ```example
+  [42] on: Error do: [:e | 0]
+  [1 + 2] ensure: [nil]
+  (Success with: 5) map: [:v | v * 2]
+  (Failure with: 'x') map: [:v | v * 2]
+  ```
+  """
+  method: s13_summary [
+      ^nil
+  ]
