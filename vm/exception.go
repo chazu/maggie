@@ -341,7 +341,7 @@ func (vm *VM) registerExceptionBlockPrimitives() {
 	b := vm.BlockClass
 
 	// Block>>on:do: - evaluate block with exception handler
-	b.AddMethod2(vm.Selectors, "on:do:", func(vmPtr interface{}, recv Value, exceptionClassVal Value, handlerBlock Value) Value {
+	onDoFn := func(vmPtr interface{}, recv Value, exceptionClassVal Value, handlerBlock Value) Value {
 		v := vmPtr.(*VM)
 
 		// Get the exception class
@@ -352,7 +352,9 @@ func (vm *VM) registerExceptionBlockPrimitives() {
 
 		// Evaluate the protected block with the handler installed
 		return v.evaluateBlockWithHandler(recv, exceptionClass, handlerBlock)
-	})
+	}
+	b.AddMethod2(vm.Selectors, "on:do:", onDoFn)
+	b.AddMethod2(vm.Selectors, "primOn:do:", onDoFn)
 
 	// Block>>ensure: - evaluate block, then always evaluate ensureBlock
 	b.AddMethod1(vm.Selectors, "ensure:", func(vmPtr interface{}, recv Value, ensureBlock Value) Value {
@@ -361,10 +363,12 @@ func (vm *VM) registerExceptionBlockPrimitives() {
 	})
 
 	// Block>>ifCurtailed: - evaluate block, run curtailBlock only if exception occurs
-	b.AddMethod1(vm.Selectors, "ifCurtailed:", func(vmPtr interface{}, recv Value, curtailBlock Value) Value {
+	ifCurtailedFn := func(vmPtr interface{}, recv Value, curtailBlock Value) Value {
 		v := vmPtr.(*VM)
 		return v.evaluateBlockIfCurtailed(recv, curtailBlock)
-	})
+	}
+	b.AddMethod1(vm.Selectors, "ifCurtailed:", ifCurtailedFn)
+	b.AddMethod1(vm.Selectors, "primIfCurtailed:", ifCurtailedFn)
 }
 
 // ---------------------------------------------------------------------------

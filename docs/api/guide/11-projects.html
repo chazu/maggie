@@ -1,0 +1,746 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Projects &mdash; Maggie API Reference</title>
+    <link rel="stylesheet" href="../css/style.css">
+</head>
+<body>
+<nav class="sidebar">
+    <div class="sidebar-title"><a href="../index.html">Maggie Docs</a></div>
+
+    <div class="sidebar-section">
+        <div class="sidebar-section-title">Guide</div>
+        <ul class="sidebar-list">
+
+            <li><a href="../guide/01-getting-started.html">Getting Started</a></li>
+
+            <li><a href="../guide/02-basics.html">Basics</a></li>
+
+            <li><a href="../guide/03-numbers.html">Numbers</a></li>
+
+            <li><a href="../guide/04-strings.html">Strings</a></li>
+
+            <li><a href="../guide/05-collections.html">Collections</a></li>
+
+            <li><a href="../guide/06-blocks.html">Blocks</a></li>
+
+            <li><a href="../guide/07-classes.html">Classes</a></li>
+
+            <li><a href="../guide/08-error-handling.html">Error Handling</a></li>
+
+            <li><a href="../guide/09-concurrency.html">Concurrency</a></li>
+
+            <li><a href="../guide/10-modules.html">Modules</a></li>
+
+            <li><a href="../guide/11-projects.html" class="active">Projects</a></li>
+
+            <li><a href="../guide/12-go-interop.html">Go Interop</a></li>
+
+            <li><a href="../guide/13-distribution.html">Distribution</a></li>
+
+            <li><a href="../guide/14-tooling-ide.html">Tooling &amp; IDE</a></li>
+
+        </ul>
+    </div>
+
+    <div class="sidebar-section">
+        <div class="sidebar-section-title">API Reference</div>
+
+        <details class="sidebar-ns-group" open>
+            <summary>(root)</summary>
+            <ul class="sidebar-list">
+
+                <li><a href="../classes/Array.html">Array</a></li>
+
+                <li><a href="../classes/AssignmentNode.html">AssignmentNode</a></li>
+
+                <li><a href="../classes/Association.html">Association</a></li>
+
+                <li><a href="../classes/Block.html">Block</a></li>
+
+                <li><a href="../classes/BlockNode.html">BlockNode</a></li>
+
+                <li><a href="../classes/Boolean.html">Boolean</a></li>
+
+                <li><a href="../classes/ByteArray.html">ByteArray</a></li>
+
+                <li><a href="../classes/BytecodeGenerator.html">BytecodeGenerator</a></li>
+
+                <li><a href="../classes/CancellationContext.html">CancellationContext</a></li>
+
+                <li><a href="../classes/CascadeNode.html">CascadeNode</a></li>
+
+                <li><a href="../classes/Channel.html">Channel</a></li>
+
+                <li><a href="../classes/Character.html">Character</a></li>
+
+                <li><a href="../classes/CharacterStream.html">CharacterStream</a></li>
+
+                <li><a href="../classes/Class.html">Class</a></li>
+
+                <li><a href="../classes/ClassNode.html">ClassNode</a></li>
+
+                <li><a href="../classes/CompiledMethod.html">CompiledMethod</a></li>
+
+                <li><a href="../classes/Compiler.html">Compiler</a></li>
+
+                <li><a href="../classes/Context.html">Context</a></li>
+
+                <li><a href="../classes/Debugger.html">Debugger</a></li>
+
+                <li><a href="../classes/Dictionary.html">Dictionary</a></li>
+
+                <li><a href="../classes/DocServer.html">DocServer</a></li>
+
+                <li><a href="../classes/Error.html">Error</a></li>
+
+                <li><a href="../classes/Exception.html">Exception</a></li>
+
+                <li><a href="../classes/Failure.html">Failure</a></li>
+
+                <li><a href="../classes/False.html">False</a></li>
+
+                <li><a href="../classes/File.html">File</a></li>
+
+                <li><a href="../classes/Float.html">Float</a></li>
+
+                <li><a href="../classes/GrpcClient.html">GrpcClient</a></li>
+
+                <li><a href="../classes/GrpcStream.html">GrpcStream</a></li>
+
+                <li><a href="../classes/Halt.html">Halt</a></li>
+
+                <li><a href="../classes/HttpRequest.html">HttpRequest</a></li>
+
+                <li><a href="../classes/HttpResponse.html">HttpResponse</a></li>
+
+                <li><a href="../classes/HttpServer.html">HttpServer</a></li>
+
+                <li><a href="../classes/Lexer.html">Lexer</a></li>
+
+                <li><a href="../classes/LiteralNode.html">LiteralNode</a></li>
+
+                <li><a href="../classes/Message.html">Message</a></li>
+
+                <li><a href="../classes/MessageNotUnderstood.html">MessageNotUnderstood</a></li>
+
+                <li><a href="../classes/MessageSendNode.html">MessageSendNode</a></li>
+
+                <li><a href="../classes/MethodNode.html">MethodNode</a></li>
+
+                <li><a href="../classes/Mutex.html">Mutex</a></li>
+
+                <li><a href="../classes/Notification.html">Notification</a></li>
+
+                <li><a href="../classes/Object.html">Object</a></li>
+
+                <li><a href="../classes/Parser.html">Parser</a></li>
+
+                <li><a href="../classes/Process.html">Process</a></li>
+
+                <li><a href="../classes/Result.html">Result</a></li>
+
+                <li><a href="../classes/ReturnNode.html">ReturnNode</a></li>
+
+                <li><a href="../classes/Semaphore.html">Semaphore</a></li>
+
+                <li><a href="../classes/SmallInteger.html">SmallInteger</a></li>
+
+                <li><a href="../classes/StackOverflow.html">StackOverflow</a></li>
+
+                <li><a href="../classes/String.html">String</a></li>
+
+                <li><a href="../classes/SubscriptOutOfBounds.html">SubscriptOutOfBounds</a></li>
+
+                <li><a href="../classes/Success.html">Success</a></li>
+
+                <li><a href="../classes/Symbol.html">Symbol</a></li>
+
+                <li><a href="../classes/Token.html">Token</a></li>
+
+                <li><a href="../classes/True.html">True</a></li>
+
+                <li><a href="../classes/UndefinedObject.html">UndefinedObject</a></li>
+
+                <li><a href="../classes/VariableNode.html">VariableNode</a></li>
+
+                <li><a href="../classes/WaitGroup.html">WaitGroup</a></li>
+
+                <li><a href="../classes/Warning.html">Warning</a></li>
+
+                <li><a href="../classes/WeakReference.html">WeakReference</a></li>
+
+                <li><a href="../classes/ZeroDivide.html">ZeroDivide</a></li>
+
+            </ul>
+        </details>
+
+    </div>
+</nav>
+<main class="content">
+    <div class="breadcrumb">
+        <a href="../index.html">Maggie API Reference</a>
+        &rsaquo; Guide
+        &rsaquo; Projects
+    </div>
+
+    <h1>Projects</h1>
+
+
+    <div class="guide-intro">
+        <p>Maggie projects are organized around a manifest file, <code>maggie.toml</code>, that
+declares metadata, source layout, dependencies, and build settings. The
+project system handles dependency resolution, namespace mapping, and image
+generation -- everything needed to go from a collection of <code>.mag</code> files to
+a reproducible, distributable application.</p>
+<p>This chapter covers the <code>maggie.toml</code> format, dependency management, project
+layout conventions, and the CLI commands that tie it all together. Most of
+the content here is configuration and tooling rather than Maggie expressions,
+so examples are shown as TOML snippets, directory trees, and shell commands.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>&#39;maggie.toml&#39; includes: &#39;toml&#39; &gt;&gt;&gt; true</code></pre>
+</div>
+
+    </div>
+
+
+
+    <div class="guide-section">
+
+        <h2>The Project Manifest</h2>
+<p>Every Maggie project starts with a <code>maggie.toml</code> file in the project
+root. This is the single source of truth for how the project is built,
+what it depends on, and where its source lives.</p>
+<p>The manifest has four main sections:</p>
+<ul>
+<li><code>[project]</code> -- name, namespace, and version</li>
+<li><code>[source]</code> -- where to find source files and the entry point</li>
+<li><code>[dependencies]</code> -- external libraries the project uses</li>
+<li><code>[image]</code> -- settings for image persistence</li>
+</ul>
+<p>Here is a minimal manifest:</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>[project]
+name = &#34;my-app&#34;
+namespace = &#34;MyApp&#34;
+version = &#34;0.1.0&#34;
+
+[source]
+dirs = [&#34;src&#34;]
+entry = &#34;Main.start&#34;</code></pre>
+</div>
+<p>When <code>mag</code> is invoked without explicit file paths, it looks for a
+<code>maggie.toml</code> in the current directory (or walks up the directory tree
+to find one). If found, it automatically loads the project with all
+its dependencies.</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code># These are equivalent when maggie.toml exists:
+mag -m Main.start
+mag ./src/... -m Main.start</code></pre>
+</div>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <h2>The [project] Section</h2>
+<p>The <code>[project]</code> section identifies the project and sets its root
+namespace.</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>[project]
+name = &#34;weather-service&#34;
+namespace = &#34;Weather&#34;
+version = &#34;1.2.0&#34;</code></pre>
+</div>
+<p><strong>name</strong> -- a short identifier for the project. Used in dependency
+resolution when other projects depend on this one. By convention,
+use lowercase with hyphens (e.g., <code>my-app</code>, <code>ui-toolkit</code>).</p>
+<p><strong>namespace</strong> -- the root namespace for all classes defined in this
+project. Classes in <code>src/models/User.mag</code> will be registered under
+<code>Weather::Models::User</code> in the global class table. This namespace
+is also what consumers see when they import this project as a
+dependency.</p>
+<p><strong>version</strong> -- a semver-style version string. Currently informational
+only but will be used for version constraint resolution in the future.</p>
+<p>If <code>namespace</code> is omitted, it defaults to the PascalCase form of
+the project name. A project named <code>weather-service</code> would get the
+namespace <code>WeatherService</code>.</p>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <h2>The [source] Section</h2>
+<p>The <code>[source]</code> section tells the compiler where to find <code>.mag</code> files
+and which method to call after loading.</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>[source]
+dirs = [&#34;src&#34;]
+entry = &#34;Main.start&#34;</code></pre>
+</div>
+<p><strong>dirs</strong> -- a list of directories (relative to the project root) that
+contain Maggie source files. All <code>.mag</code> files in these directories are
+loaded recursively. Defaults to <code>[&#34;src&#34;]</code> if omitted.</p>
+<p>You can list multiple source directories:</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>[source]
+dirs = [&#34;src&#34;, &#34;lib&#34;, &#34;generated&#34;]
+entry = &#34;Main.start&#34;</code></pre>
+</div>
+<p><strong>entry</strong> -- the method to call after all source files are loaded.
+This is resolved relative to the project namespace. For a project
+with namespace <code>MyApp</code>, an entry of <code>Main.start</code> calls the <code>start</code>
+class method on <code>MyApp::Main</code>.</p>
+<p>The entry point is invoked with the <code>-m</code> flag:</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>mag -m Main.start        # Calls MyApp::Main.start
+mag -m App.run           # Calls MyApp::App.run</code></pre>
+</div>
+<p>You can also specify an entry point directly on the command line,
+overriding whatever is in the manifest.</p>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <h2>The [dependencies] Section</h2>
+<p>Dependencies are external libraries that your project uses. Each
+dependency has a name (the TOML key) and a source specification.</p>
+<p>Maggie supports two kinds of dependencies:</p>
+<ul>
+<li><strong>Git dependencies</strong> -- cloned from a remote repository</li>
+<li><strong>Path dependencies</strong> -- local filesystem paths</li>
+</ul>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>[dependencies]
+yutani = { git = &#34;https://github.com/chazu/yutani-mag&#34;, tag = &#34;v0.5.0&#34; }
+shared-lib = { path = &#34;../shared-lib&#34; }</code></pre>
+</div>
+<p>Git dependencies require a <code>git</code> URL and a <code>tag</code> to pin the version.
+The repository is cloned to <code>.maggie/deps/&lt;name&gt;/</code> and checked out
+to the specified tag.</p>
+<p>Path dependencies use a <code>path</code> relative to the project root (or an
+absolute path). These are useful during development when you want to
+work on a library and its consumer simultaneously.</p>
+<p>Each dependency can also specify an explicit <code>namespace</code> override:</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>[dependencies]
+ui-toolkit = { path = &#34;../ui-toolkit&#34;, namespace = &#34;CustomUI&#34; }</code></pre>
+</div>
+<p>Without the override, the namespace is resolved automatically (see
+the section on namespace mapping below).</p>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <h2>The [image] Section</h2>
+<p>The <code>[image]</code> section controls how VM images are saved. An image is
+a snapshot of the entire VM state -- all classes, methods, and globals
+-- serialized to a file that can be loaded instantly on startup.</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>[image]
+output = &#34;my-app.image&#34;
+include-source = true</code></pre>
+</div>
+<p><strong>output</strong> -- the filename for the saved image, relative to the
+project root.</p>
+<p><strong>include-source</strong> -- when true, method source text is preserved in
+the image. This enables <code>Compiler fileOut:to:</code> to reconstruct source
+files from a running image. When false, source text is stripped to
+reduce image size.</p>
+<p>Saving an image from the command line:</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code># Build and save image from project
+mag --save-image my-app.image
+
+# Run from a saved image instead of compiling source
+mag --image my-app.image -m Main.start</code></pre>
+</div>
+<p>Images are useful for deployment (skip compilation on startup) and
+for development (save and restore VM state across sessions).</p>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <h2>Dependency Management with mag deps</h2>
+<p>The <code>mag deps</code> subcommand manages project dependencies. It reads
+<code>maggie.toml</code>, resolves all dependencies (including transitive ones),
+fetches any missing git repositories, and writes a lock file.</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code># Resolve and fetch all dependencies
+mag deps
+
+# Re-resolve, ignoring the lock file (fetch latest for each tag)
+mag deps update
+
+# Show the dependency tree
+mag deps list</code></pre>
+</div>
+<p><strong>mag deps</strong> -- the default action. For each git dependency, it
+clones the repository if it does not exist locally, or skips the
+fetch if the locked commit matches the requested tag. For path
+dependencies, it verifies the path exists. Transitive dependencies
+(dependencies of dependencies) are resolved recursively.</p>
+<p><strong>mag deps update</strong> -- re-resolves all dependencies from scratch,
+ignoring the existing lock file. Use this after changing dependency
+versions in <code>maggie.toml</code> or when you want to pick up upstream
+changes for a tag that has been force-pushed.</p>
+<p><strong>mag deps list</strong> -- prints the resolved dependency tree, showing
+each dependency&#39;s name, source, resolved namespace, and any
+transitive dependencies.</p>
+<p>Dependencies are loaded in topological order: transitive dependencies
+before direct dependencies, and all dependencies before the project
+itself. This ensures that when a class references a dependency class,
+the dependency class is already registered.</p>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <h2>The Lock File</h2>
+<p>When <code>mag deps</code> resolves dependencies, it writes a lock file at
+<code>.maggie/lock.toml</code>. This file records the exact commit hash for
+each git dependency, ensuring reproducible builds across machines
+and over time.</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code># .maggie/lock.toml (auto-generated, do not edit)
+
+[[deps]]
+name = &#34;yutani&#34;
+git = &#34;https://github.com/chazu/yutani-mag&#34;
+tag = &#34;v0.5.0&#34;
+commit = &#34;a1b2c3d4e5f6...&#34;
+
+[[deps]]
+name = &#34;shared-lib&#34;
+path = &#34;../shared-lib&#34;</code></pre>
+</div>
+<p>Key points about the lock file:</p>
+<ul>
+<li>It is auto-generated by <code>mag deps</code>. Do not edit it by hand.</li>
+<li>Commit it to version control for reproducible builds.</li>
+<li><code>mag deps update</code> regenerates it from scratch.</li>
+<li>Path dependencies record only the path (no commit hash).</li>
+<li>If the lock file is missing, <code>mag deps</code> creates one fresh.</li>
+</ul>
+<p>The lock file lives inside the <code>.maggie/</code> directory alongside
+fetched dependencies:</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>my-app/
+  maggie.toml
+  .maggie/
+    lock.toml               # locked dependency versions
+    deps/
+      yutani/               # cloned git repository
+      shared-lib/           # resolved path (symlink or absolute)
+  src/
+    Main.mag</code></pre>
+</div>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <h2>Dependency Namespace Mapping</h2>
+<p>Every dependency is mapped to a namespace that determines how its
+classes appear in the global class table. The namespace is resolved
+using a three-level priority order:</p>
+<p>1. <strong>Consumer override</strong> -- an explicit <code>namespace</code> in the
+   dependency declaration in your <code>maggie.toml</code>
+2. <strong>Producer manifest</strong> -- the <code>[project].namespace</code> in the
+   dependency&#39;s own <code>maggie.toml</code>
+3. <strong>PascalCase fallback</strong> -- the dependency name converted to
+   PascalCase (e.g., <code>my-lib</code> becomes <code>MyLib</code>)</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>[dependencies]
+# Uses yutani&#39;s own maggie.toml namespace (e.g., &#34;Yutani&#34;)
+yutani = { git = &#34;https://github.com/chazu/yutani-mag&#34;, tag = &#34;v0.5.0&#34; }
+
+# Consumer override: maps to &#34;CustomUI&#34; regardless of producer manifest
+ui-toolkit = { path = &#34;../ui-toolkit&#34;, namespace = &#34;CustomUI&#34; }
+
+# No manifest, no override: PascalCase(&#34;my-lib&#34;) = &#34;MyLib&#34;
+my-lib = { path = &#34;../my-lib&#34; }</code></pre>
+</div>
+<p>All classes from a dependency are prefixed with its resolved
+namespace. A dependency with namespace <code>Yutani</code> containing
+<code>src/widgets/Button.mag</code> registers its class as
+<code>Yutani::Widgets::Button</code> in Globals.</p>
+<p>When a consumer overrides a dependency&#39;s namespace, internal imports
+within that dependency are automatically remapped. For example, if
+Yutani internally imports <code>Yutani::Events</code> and the consumer overrides
+to <code>ThirdParty::Yutani</code>, that import becomes
+<code>ThirdParty::Yutani::Events</code>.</p>
+<p>If two dependencies map to the same namespace, <code>mag</code> reports a hard
+error before loading begins, listing all collisions and suggesting
+that you add <code>namespace</code> overrides to resolve them.</p>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <h2>Reserved Namespaces</h2>
+<p>Certain namespaces are reserved because they collide with core VM
+class names. You cannot use any of these as the root segment of a
+dependency namespace:</p>
+<p>Object, Class, Boolean, True, False, UndefinedObject, SmallInteger,
+Float, String, Symbol, Array, Block, Channel, Process, Mutex,
+WaitGroup, Semaphore, CancellationContext, Result, Success, Failure,
+Dictionary, Character, Compiler, File, Error, Exception, and others.</p>
+<p>Only the root segment is checked. <code>namespace = &#34;Array&#34;</code> is rejected,
+but <code>namespace = &#34;MyLib::Array&#34;</code> is fine because the root segment is
+<code>MyLib</code>.</p>
+<p>If a dependency name happens to match a reserved namespace via the
+PascalCase fallback (e.g., a dependency named <code>array</code>), you must add
+an explicit <code>namespace</code> override:</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>[dependencies]
+# This would fail: PascalCase(&#34;array&#34;) = &#34;Array&#34; (reserved)
+# array = { path = &#34;../array-utils&#34; }
+
+# Fix: add a namespace override
+array = { path = &#34;../array-utils&#34;, namespace = &#34;ArrayUtils&#34; }</code></pre>
+</div>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>&#39;Object&#39; = &#39;Object&#39; &gt;&gt;&gt; true</code></pre>
+</div>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <h2>Project Layout Conventions</h2>
+<p>Maggie uses a directory-as-namespace convention. When loading files
+from directories, namespaces are derived automatically from the
+directory structure relative to the source root.</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>my-app/
+  maggie.toml                 # namespace = &#34;MyApp&#34;
+  src/
+    Main.mag                  # MyApp::Main (or just Main)
+    models/
+      User.mag                # MyApp::Models::User
+      Post.mag                # MyApp::Models::Post
+    views/
+      UserView.mag            # MyApp::Views::UserView
+    utils/
+      StringHelpers.mag       # MyApp::Utils::StringHelpers</code></pre>
+</div>
+<p>Path segments relative to the source directory become PascalCase
+namespace segments joined by <code>::</code>. A file at <code>src/models/User.mag</code>
+in a project with namespace <code>MyApp</code> gets the full namespace
+<code>MyApp::Models</code>.</p>
+<p>An explicit <code>namespace:</code> declaration at the top of a <code>.mag</code> file
+overrides the directory-derived namespace. This is useful when the
+desired namespace does not match the directory structure.</p>
+<p>Root-level files (directly in the source directory) use only the
+project namespace, with no additional segments.</p>
+<p>A recommended project layout:</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>my-app/
+  maggie.toml                 # project manifest
+  .maggie/                    # managed directory (gitignore this)
+    deps/                     # fetched dependencies
+    lock.toml                 # locked versions
+  src/                        # main source directory
+    Main.mag                  # entry point class
+    models/                   # domain model classes
+    views/                    # UI or presentation classes
+    services/                 # business logic
+  test/                       # test files
+  lib/                        # shared library code</code></pre>
+</div>
+<p>The <code>.maggie/</code> directory is managed by the toolchain and should be
+added to <code>.gitignore</code>. It contains fetched dependencies and the
+lock file (the lock file itself should be committed, but the rest
+of <code>.maggie/</code> should not).</p>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <h2>Entry Points</h2>
+<p>The <code>-m</code> flag tells <code>mag</code> which method to call after loading all
+source files. The argument is a class name and method selector
+separated by a dot.</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>mag -m Main.start          # Call the &#39;start&#39; class method on Main
+mag -m App.run             # Call the &#39;run&#39; class method on App
+mag -m Tests.runAll        # Call &#39;runAll&#39; on Tests</code></pre>
+</div>
+<p>The class name is resolved relative to the project namespace. If
+your project has namespace <code>MyApp</code> and you pass <code>-m Main.start</code>,
+it calls <code>MyApp::Main.start</code>. If no project manifest exists, the
+bare class name is used.</p>
+<p>The entry point method must be a class-side method (not an instance
+method). A typical entry point looks like this:</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code># src/Main.mag
+Main subclass: Object
+  classMethod: start [
+      &#39;Application starting...&#39; printString.
+      app := self new.
+      app run.
+  ]
+
+  method: run [
+      &#34;Main application loop&#34;
+  ]</code></pre>
+</div>
+<p>Without <code>-m</code>, <code>mag</code> loads all source files but does not call any
+entry point. This is useful with <code>-i</code> for interactive exploration:</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code># Load project and drop into REPL
+mag -i
+
+# Load project, run entry point, then drop into REPL
+mag -m Main.start -i</code></pre>
+</div>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <h2>A Complete Example</h2>
+<p>Here is a complete <code>maggie.toml</code> showing all sections together:</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>[project]
+name = &#34;todo-app&#34;
+namespace = &#34;Todo&#34;
+version = &#34;0.1.0&#34;
+
+[source]
+dirs = [&#34;src&#34;]
+entry = &#34;Main.start&#34;
+
+[dependencies]
+yutani = { git = &#34;https://github.com/chazu/yutani-mag&#34;, tag = &#34;v0.5.0&#34; }
+shared-models = { path = &#34;../shared-models&#34; }
+http-client = { git = &#34;https://github.com/example/http-client-mag&#34;, tag = &#34;v1.0.0&#34;, namespace = &#34;Http&#34; }
+
+[image]
+output = &#34;todo-app.image&#34;
+include-source = true</code></pre>
+</div>
+<p>And the corresponding project layout:</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>todo-app/
+  maggie.toml
+  .maggie/
+    lock.toml
+    deps/
+      yutani/
+      http-client/
+  src/
+    Main.mag                  # Todo::Main
+    models/
+      Task.mag                # Todo::Models::Task
+      TaskList.mag            # Todo::Models::TaskList
+    views/
+      TaskView.mag            # Todo::Views::TaskView</code></pre>
+</div>
+<p>Source files use <code>import:</code> to reference dependency classes:</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code># src/views/TaskView.mag
+namespace: &#39;Todo::Views&#39;
+
+import: &#39;Yutani::Widgets&#39;
+import: &#39;Todo::Models&#39;
+
+TaskView subclass: YutaniWidget
+  instanceVars: task
+  method: task: aTask [ task := aTask ]
+  method: render [
+      self setText: task title.
+  ]</code></pre>
+</div>
+<p>Building and running:</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code># Fetch dependencies
+mag deps
+
+# Run the application
+mag -m Main.start
+
+# Save an image for fast startup
+mag --save-image todo-app.image
+
+# Run from the saved image
+mag --image todo-app.image -m Main.start</code></pre>
+</div>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <h2>Summary</h2>
+<p>The project system provides a structured way to organize Maggie code:</p>
+<p>- <strong>maggie.toml</strong> -- declares project metadata, source layout,
+  dependencies, and image settings in a single file
+- <strong>mag deps</strong> -- resolves and fetches dependencies (git and path),
+  writes a lock file for reproducibility
+- <strong>Directory-as-namespace</strong> -- directory structure automatically
+  maps to namespaces, keeping the class table organized
+- <strong>Namespace mapping</strong> -- three-level resolution (consumer override,
+  producer manifest, PascalCase fallback) with collision detection
+  and reserved namespace protection
+- <strong>Images</strong> -- snapshot VM state for fast startup and deployment
+- <strong>Entry points</strong> -- the <code>-m</code> flag calls a class method after
+  loading, connecting the project to its runtime behavior</p>
+<p>For namespace and import syntax within source files, see the Modules
+chapter. For content-addressed code distribution, see the Distribution
+chapter.</p>
+
+
+    </div>
+
+
+    <div class="footer">
+        Generated by Maggie doc generator.
+    </div>
+</main>
+    <script src="../js/playground.js"></script>
+</body>
+</html>

@@ -4,11 +4,184 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Channel &mdash; Maggie API Reference</title>
-    <link rel="stylesheet" href="../../css/style.css">
+    <link rel="stylesheet" href="../css/style.css">
 </head>
 <body>
+<nav class="sidebar">
+    <div class="sidebar-title"><a href="../index.html">Maggie Docs</a></div>
+
+    <div class="sidebar-section">
+        <div class="sidebar-section-title">Guide</div>
+        <ul class="sidebar-list">
+
+            <li><a href="../guide/01-getting-started.html">Getting Started</a></li>
+
+            <li><a href="../guide/02-basics.html">Basics</a></li>
+
+            <li><a href="../guide/03-numbers.html">Numbers</a></li>
+
+            <li><a href="../guide/04-strings.html">Strings</a></li>
+
+            <li><a href="../guide/05-collections.html">Collections</a></li>
+
+            <li><a href="../guide/06-blocks.html">Blocks</a></li>
+
+            <li><a href="../guide/07-classes.html">Classes</a></li>
+
+            <li><a href="../guide/08-error-handling.html">Error Handling</a></li>
+
+            <li><a href="../guide/09-concurrency.html">Concurrency</a></li>
+
+            <li><a href="../guide/10-modules.html">Modules</a></li>
+
+            <li><a href="../guide/11-projects.html">Projects</a></li>
+
+            <li><a href="../guide/12-go-interop.html">Go Interop</a></li>
+
+            <li><a href="../guide/13-distribution.html">Distribution</a></li>
+
+            <li><a href="../guide/14-tooling-ide.html">Tooling &amp; IDE</a></li>
+
+        </ul>
+    </div>
+
+    <div class="sidebar-section">
+        <div class="sidebar-section-title">API Reference</div>
+
+        <details class="sidebar-ns-group" open>
+            <summary>(root)</summary>
+            <ul class="sidebar-list">
+
+                <li><a href="../classes/Array.html">Array</a></li>
+
+                <li><a href="../classes/AssignmentNode.html">AssignmentNode</a></li>
+
+                <li><a href="../classes/Association.html">Association</a></li>
+
+                <li><a href="../classes/Block.html">Block</a></li>
+
+                <li><a href="../classes/BlockNode.html">BlockNode</a></li>
+
+                <li><a href="../classes/Boolean.html">Boolean</a></li>
+
+                <li><a href="../classes/ByteArray.html">ByteArray</a></li>
+
+                <li><a href="../classes/BytecodeGenerator.html">BytecodeGenerator</a></li>
+
+                <li><a href="../classes/CancellationContext.html">CancellationContext</a></li>
+
+                <li><a href="../classes/CascadeNode.html">CascadeNode</a></li>
+
+                <li><a href="../classes/Channel.html" class="active">Channel</a></li>
+
+                <li><a href="../classes/Character.html">Character</a></li>
+
+                <li><a href="../classes/CharacterStream.html">CharacterStream</a></li>
+
+                <li><a href="../classes/Class.html">Class</a></li>
+
+                <li><a href="../classes/ClassNode.html">ClassNode</a></li>
+
+                <li><a href="../classes/CompiledMethod.html">CompiledMethod</a></li>
+
+                <li><a href="../classes/Compiler.html">Compiler</a></li>
+
+                <li><a href="../classes/Context.html">Context</a></li>
+
+                <li><a href="../classes/Debugger.html">Debugger</a></li>
+
+                <li><a href="../classes/Dictionary.html">Dictionary</a></li>
+
+                <li><a href="../classes/DocServer.html">DocServer</a></li>
+
+                <li><a href="../classes/Error.html">Error</a></li>
+
+                <li><a href="../classes/Exception.html">Exception</a></li>
+
+                <li><a href="../classes/Failure.html">Failure</a></li>
+
+                <li><a href="../classes/False.html">False</a></li>
+
+                <li><a href="../classes/File.html">File</a></li>
+
+                <li><a href="../classes/Float.html">Float</a></li>
+
+                <li><a href="../classes/GrpcClient.html">GrpcClient</a></li>
+
+                <li><a href="../classes/GrpcStream.html">GrpcStream</a></li>
+
+                <li><a href="../classes/Halt.html">Halt</a></li>
+
+                <li><a href="../classes/HttpRequest.html">HttpRequest</a></li>
+
+                <li><a href="../classes/HttpResponse.html">HttpResponse</a></li>
+
+                <li><a href="../classes/HttpServer.html">HttpServer</a></li>
+
+                <li><a href="../classes/Lexer.html">Lexer</a></li>
+
+                <li><a href="../classes/LiteralNode.html">LiteralNode</a></li>
+
+                <li><a href="../classes/Message.html">Message</a></li>
+
+                <li><a href="../classes/MessageNotUnderstood.html">MessageNotUnderstood</a></li>
+
+                <li><a href="../classes/MessageSendNode.html">MessageSendNode</a></li>
+
+                <li><a href="../classes/MethodNode.html">MethodNode</a></li>
+
+                <li><a href="../classes/Mutex.html">Mutex</a></li>
+
+                <li><a href="../classes/Notification.html">Notification</a></li>
+
+                <li><a href="../classes/Object.html">Object</a></li>
+
+                <li><a href="../classes/Parser.html">Parser</a></li>
+
+                <li><a href="../classes/Process.html">Process</a></li>
+
+                <li><a href="../classes/Result.html">Result</a></li>
+
+                <li><a href="../classes/ReturnNode.html">ReturnNode</a></li>
+
+                <li><a href="../classes/Semaphore.html">Semaphore</a></li>
+
+                <li><a href="../classes/SmallInteger.html">SmallInteger</a></li>
+
+                <li><a href="../classes/StackOverflow.html">StackOverflow</a></li>
+
+                <li><a href="../classes/String.html">String</a></li>
+
+                <li><a href="../classes/SubscriptOutOfBounds.html">SubscriptOutOfBounds</a></li>
+
+                <li><a href="../classes/Success.html">Success</a></li>
+
+                <li><a href="../classes/Symbol.html">Symbol</a></li>
+
+                <li><a href="../classes/Token.html">Token</a></li>
+
+                <li><a href="../classes/True.html">True</a></li>
+
+                <li><a href="../classes/UndefinedObject.html">UndefinedObject</a></li>
+
+                <li><a href="../classes/VariableNode.html">VariableNode</a></li>
+
+                <li><a href="../classes/WaitGroup.html">WaitGroup</a></li>
+
+                <li><a href="../classes/Warning.html">Warning</a></li>
+
+                <li><a href="../classes/WeakReference.html">WeakReference</a></li>
+
+                <li><a href="../classes/ZeroDivide.html">ZeroDivide</a></li>
+
+            </ul>
+        </details>
+
+    </div>
+</nav>
+<main class="content">
     <div class="breadcrumb">
-        <a href="../../index.html">Maggie API Reference</a>
+        <a href="../index.html">Maggie API Reference</a>
 
         &rsaquo; Channel
     </div>
@@ -23,6 +196,47 @@
 
     </div>
 
+
+    <div class="class-doc">
+        <p>A Go-style channel for communicating between concurrent processes.</p>
+<p>Channels are the primary mechanism for passing values between forked
+processes. An unbuffered channel (<code>Channel new</code>) blocks the sender
+until a receiver is ready, and vice versa. A buffered channel
+(<code>Channel new: n</code>) allows up to <code>n</code> values to be queued before the
+sender blocks.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>Channel new isClosed &gt;&gt;&gt; false
+(Channel new: 5) capacity &gt;&gt;&gt; 5
+(Channel new: 3) isEmpty &gt;&gt;&gt; true
+(Channel new: 3) size &gt;&gt;&gt; 0</code></pre>
+</div>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>ch := Channel new: 5.
+ch trySend: 42.
+ch tryReceive &gt;&gt;&gt; 42</code></pre>
+</div>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>ch := Channel new: 1.
+ch trySend: &#39;hello&#39; &gt;&gt;&gt; true</code></pre>
+</div>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>ch := Channel new: 1.
+ch close.
+ch isClosed &gt;&gt;&gt; true</code></pre>
+</div>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>&#34;Producer-consumer with a buffered channel&#34;
+ch := Channel new: 10.
+[1 to: 10 do: [:i | ch send: i]. ch close] fork.
+[ch isClosed not] whileTrue: [ch receive]</code></pre>
+</div>
+
+    </div>
 
 
 
@@ -147,11 +361,32 @@
         <div class="method">
             <div class="method-selector">close</div>
 
+            <div class="method-doc">
+                <p>Close the channel. After closing, sends will fail and receives
+will drain any remaining buffered values, then return <code>nil</code>.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>ch := Channel new: 1.
+ch close.
+ch isClosed &gt;&gt;&gt; true</code></pre>
+</div>
+
+            </div>
+
 
         </div>
 
         <div class="method">
             <div class="method-selector">isClosed</div>
+
+            <div class="method-doc">
+                <p>Return <code>true</code> if the channel has been closed.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>Channel new isClosed &gt;&gt;&gt; false</code></pre>
+</div>
+
+            </div>
 
 
         </div>
@@ -159,11 +394,34 @@
         <div class="method">
             <div class="method-selector">next</div>
 
+            <div class="method-doc">
+                <p>Stream-compatible alias for <code>receive</code>. Receives a value from
+the channel.</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>ch := Channel new: 1.
+ch nextPut: 42.
+ch next</code></pre>
+</div>
+
+            </div>
+
 
         </div>
 
         <div class="method">
             <div class="method-selector">nextPut:</div>
+
+            <div class="method-doc">
+                <p>Stream-compatible alias for <code>send:</code>. Sends a value on the channel.</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>ch := Channel new: 1.
+ch nextPut: &#39;hello&#39;.
+ch next</code></pre>
+</div>
+
+            </div>
 
 
         </div>
@@ -171,11 +429,32 @@
         <div class="method">
             <div class="method-selector">printString</div>
 
+            <div class="method-doc">
+                <p>Return a string representation of the channel.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>Channel new printString &gt;&gt;&gt; &#39;a Channel&#39;</code></pre>
+</div>
+
+            </div>
+
 
         </div>
 
         <div class="method">
             <div class="method-selector">receive</div>
+
+            <div class="method-doc">
+                <p>Receive a value from the channel. Blocks until a value is
+available or the channel is closed.</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>ch := Channel new: 1.
+ch send: 42.
+ch receive</code></pre>
+</div>
+
+            </div>
 
 
         </div>
@@ -183,17 +462,62 @@
         <div class="method">
             <div class="method-selector">send:</div>
 
+            <div class="method-doc">
+                <p>Send a value on the channel. Blocks until a receiver is ready
+(unbuffered) or until buffer space is available (buffered).</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>ch := Channel new: 1.
+ch send: &#39;hello&#39;.
+ch receive</code></pre>
+</div>
+
+            </div>
+
 
         </div>
 
         <div class="method">
             <div class="method-selector">tryReceive</div>
 
+            <div class="method-doc">
+                <p>Attempt to receive a value without blocking. Returns the value
+if one was available, or <code>nil</code> if the channel was empty.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>ch := Channel new: 1.
+ch trySend: 99.
+ch tryReceive &gt;&gt;&gt; 99</code></pre>
+</div>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>(Channel new: 1) tryReceive &gt;&gt;&gt; nil</code></pre>
+</div>
+
+            </div>
+
 
         </div>
 
         <div class="method">
             <div class="method-selector">trySend:</div>
+
+            <div class="method-doc">
+                <p>Attempt to send a value without blocking. Returns <code>true</code> if
+the value was sent, <code>false</code> if the channel was full or closed.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>ch := Channel new: 2.
+ch trySend: &#39;a&#39; &gt;&gt;&gt; true</code></pre>
+</div>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>ch := Channel new: 1.
+ch trySend: &#39;a&#39;.
+ch trySend: &#39;b&#39; &gt;&gt;&gt; false</code></pre>
+</div>
+
+            </div>
 
 
         </div>
@@ -205,7 +529,7 @@
     <div class="footer">
         Generated by Maggie doc generator.
     </div>
-
-    <script src="../../js/playground.js"></script>
+</main>
+    <script src="../js/playground.js"></script>
 </body>
 </html>

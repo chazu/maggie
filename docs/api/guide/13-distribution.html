@@ -1,0 +1,652 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Distribution &mdash; Maggie API Reference</title>
+    <link rel="stylesheet" href="../css/style.css">
+</head>
+<body>
+<nav class="sidebar">
+    <div class="sidebar-title"><a href="../index.html">Maggie Docs</a></div>
+
+    <div class="sidebar-section">
+        <div class="sidebar-section-title">Guide</div>
+        <ul class="sidebar-list">
+
+            <li><a href="../guide/01-getting-started.html">Getting Started</a></li>
+
+            <li><a href="../guide/02-basics.html">Basics</a></li>
+
+            <li><a href="../guide/03-numbers.html">Numbers</a></li>
+
+            <li><a href="../guide/04-strings.html">Strings</a></li>
+
+            <li><a href="../guide/05-collections.html">Collections</a></li>
+
+            <li><a href="../guide/06-blocks.html">Blocks</a></li>
+
+            <li><a href="../guide/07-classes.html">Classes</a></li>
+
+            <li><a href="../guide/08-error-handling.html">Error Handling</a></li>
+
+            <li><a href="../guide/09-concurrency.html">Concurrency</a></li>
+
+            <li><a href="../guide/10-modules.html">Modules</a></li>
+
+            <li><a href="../guide/11-projects.html">Projects</a></li>
+
+            <li><a href="../guide/12-go-interop.html">Go Interop</a></li>
+
+            <li><a href="../guide/13-distribution.html" class="active">Distribution</a></li>
+
+            <li><a href="../guide/14-tooling-ide.html">Tooling &amp; IDE</a></li>
+
+        </ul>
+    </div>
+
+    <div class="sidebar-section">
+        <div class="sidebar-section-title">API Reference</div>
+
+        <details class="sidebar-ns-group" open>
+            <summary>(root)</summary>
+            <ul class="sidebar-list">
+
+                <li><a href="../classes/Array.html">Array</a></li>
+
+                <li><a href="../classes/AssignmentNode.html">AssignmentNode</a></li>
+
+                <li><a href="../classes/Association.html">Association</a></li>
+
+                <li><a href="../classes/Block.html">Block</a></li>
+
+                <li><a href="../classes/BlockNode.html">BlockNode</a></li>
+
+                <li><a href="../classes/Boolean.html">Boolean</a></li>
+
+                <li><a href="../classes/ByteArray.html">ByteArray</a></li>
+
+                <li><a href="../classes/BytecodeGenerator.html">BytecodeGenerator</a></li>
+
+                <li><a href="../classes/CancellationContext.html">CancellationContext</a></li>
+
+                <li><a href="../classes/CascadeNode.html">CascadeNode</a></li>
+
+                <li><a href="../classes/Channel.html">Channel</a></li>
+
+                <li><a href="../classes/Character.html">Character</a></li>
+
+                <li><a href="../classes/CharacterStream.html">CharacterStream</a></li>
+
+                <li><a href="../classes/Class.html">Class</a></li>
+
+                <li><a href="../classes/ClassNode.html">ClassNode</a></li>
+
+                <li><a href="../classes/CompiledMethod.html">CompiledMethod</a></li>
+
+                <li><a href="../classes/Compiler.html">Compiler</a></li>
+
+                <li><a href="../classes/Context.html">Context</a></li>
+
+                <li><a href="../classes/Debugger.html">Debugger</a></li>
+
+                <li><a href="../classes/Dictionary.html">Dictionary</a></li>
+
+                <li><a href="../classes/DocServer.html">DocServer</a></li>
+
+                <li><a href="../classes/Error.html">Error</a></li>
+
+                <li><a href="../classes/Exception.html">Exception</a></li>
+
+                <li><a href="../classes/Failure.html">Failure</a></li>
+
+                <li><a href="../classes/False.html">False</a></li>
+
+                <li><a href="../classes/File.html">File</a></li>
+
+                <li><a href="../classes/Float.html">Float</a></li>
+
+                <li><a href="../classes/GrpcClient.html">GrpcClient</a></li>
+
+                <li><a href="../classes/GrpcStream.html">GrpcStream</a></li>
+
+                <li><a href="../classes/Halt.html">Halt</a></li>
+
+                <li><a href="../classes/HttpRequest.html">HttpRequest</a></li>
+
+                <li><a href="../classes/HttpResponse.html">HttpResponse</a></li>
+
+                <li><a href="../classes/HttpServer.html">HttpServer</a></li>
+
+                <li><a href="../classes/Lexer.html">Lexer</a></li>
+
+                <li><a href="../classes/LiteralNode.html">LiteralNode</a></li>
+
+                <li><a href="../classes/Message.html">Message</a></li>
+
+                <li><a href="../classes/MessageNotUnderstood.html">MessageNotUnderstood</a></li>
+
+                <li><a href="../classes/MessageSendNode.html">MessageSendNode</a></li>
+
+                <li><a href="../classes/MethodNode.html">MethodNode</a></li>
+
+                <li><a href="../classes/Mutex.html">Mutex</a></li>
+
+                <li><a href="../classes/Notification.html">Notification</a></li>
+
+                <li><a href="../classes/Object.html">Object</a></li>
+
+                <li><a href="../classes/Parser.html">Parser</a></li>
+
+                <li><a href="../classes/Process.html">Process</a></li>
+
+                <li><a href="../classes/Result.html">Result</a></li>
+
+                <li><a href="../classes/ReturnNode.html">ReturnNode</a></li>
+
+                <li><a href="../classes/Semaphore.html">Semaphore</a></li>
+
+                <li><a href="../classes/SmallInteger.html">SmallInteger</a></li>
+
+                <li><a href="../classes/StackOverflow.html">StackOverflow</a></li>
+
+                <li><a href="../classes/String.html">String</a></li>
+
+                <li><a href="../classes/SubscriptOutOfBounds.html">SubscriptOutOfBounds</a></li>
+
+                <li><a href="../classes/Success.html">Success</a></li>
+
+                <li><a href="../classes/Symbol.html">Symbol</a></li>
+
+                <li><a href="../classes/Token.html">Token</a></li>
+
+                <li><a href="../classes/True.html">True</a></li>
+
+                <li><a href="../classes/UndefinedObject.html">UndefinedObject</a></li>
+
+                <li><a href="../classes/VariableNode.html">VariableNode</a></li>
+
+                <li><a href="../classes/WaitGroup.html">WaitGroup</a></li>
+
+                <li><a href="../classes/Warning.html">Warning</a></li>
+
+                <li><a href="../classes/WeakReference.html">WeakReference</a></li>
+
+                <li><a href="../classes/ZeroDivide.html">ZeroDivide</a></li>
+
+            </ul>
+        </details>
+
+    </div>
+</nav>
+<main class="content">
+    <div class="breadcrumb">
+        <a href="../index.html">Maggie API Reference</a>
+        &rsaquo; Guide
+        &rsaquo; Distribution
+    </div>
+
+    <h1>Distribution</h1>
+
+
+    <div class="guide-intro">
+        <p>Maggie includes a distributed runtime for exchanging code between VMs. Code
+is content-addressed -- every method and class is identified by a SHA-256 hash
+of its normalized AST. Two VMs can push and pull code over HTTP/2, and the
+receiver independently verifies every chunk before accepting it. No trust in
+the sender is required; the content hash is the proof.</p>
+<p>This chapter explains how content addressing works, how the sync protocol
+exchanges code, and how to configure your project for distribution.</p>
+
+    </div>
+
+
+
+    <div class="guide-section">
+
+        <h2>Content Addressing</h2>
+<p>Every compiled method in Maggie has a content hash -- a 32-byte SHA-256
+digest computed from a normalized representation of the method&#39;s AST.
+The normalization process strips away surface differences that do not
+affect semantics:</p>
+<p>- Variable names are replaced with de Bruijn indices. A local variable
+  is identified by its scope depth and slot index, not its textual name.
+  Two methods that do the same thing with differently named variables
+  produce the same hash.</p>
+<ul>
+<li>Position information (line numbers, column offsets) is stripped.</li>
+</ul>
+<p>- Global references are resolved to their fully-qualified names before
+  hashing, so <code>Button</code> and <code>Widgets::Button</code> hash identically when
+  they refer to the same class.</p>
+<p>The hashing pipeline has three stages:</p>
+<p>1. <strong>Normalize</strong> -- the compiler AST is converted into a parallel
+   &#34;hashing AST&#34; with de Bruijn indices and no position data.</p>
+<p>2. <strong>Serialize</strong> -- the hashing AST is written to a deterministic byte
+   stream using frozen tag bytes. Each node type has a fixed tag, and
+   compound nodes write their children in a defined order.</p>
+<p>3. <strong>Hash</strong> -- the serialized bytes are fed to SHA-256, producing a
+   32-byte content hash stored on <code>CompiledMethod.ContentHash</code>.</p>
+<p>The hash format includes a version prefix byte so that future changes
+to the normalization rules can invalidate old hashes without silent
+mismatches. Because the hash depends only on semantics, two developers
+who write the same method independently will get the same hash.</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code># Hashing pipeline (Go-level):
+#   hash.NormalizeMethod(ast, instVars, resolveGlobal)
+#     -&gt; hash.Serialize(hMethodDef)
+#       -&gt; sha256.Sum256(bytes)
+#         -&gt; method.ContentHash = [32]byte{...}</code></pre>
+</div>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <h2>Class Digests</h2>
+<p>Methods are hashed individually, but classes also need a stable identity.
+A class digest captures the structural metadata of a class -- its name,
+namespace, superclass, instance variables, class variables, docstring --
+plus the sorted content hashes of all its methods.</p>
+<p>The class hash is computed by sorting method hashes lexicographically,
+sorting variable names, concatenating all fields into a length-prefixed
+byte buffer with a tag byte, then running SHA-256. This means a class
+hash changes if any method changes, or if the class structure changes.
+But reordering methods or variables does not affect the hash.</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code># ClassDigest fields:
+#   Name           -- &#34;Button&#34;
+#   Namespace      -- &#34;Widgets&#34;
+#   SuperclassName -- &#34;View&#34;
+#   InstVars       -- [&#34;label&#34;, &#34;onClick&#34;]
+#   MethodHashes   -- [&lt;sha256&gt;, &lt;sha256&gt;, ...]
+#   Hash           -- &lt;sha256 of the entire digest&gt;</code></pre>
+</div>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <h2>The ContentStore</h2>
+<p>The ContentStore is the VM-local index that maps content hashes to
+compiled methods and class digests. It is the backing store for the
+distribution protocol -- when a peer asks &#34;do you have hash X?&#34;,
+the ContentStore answers the question.</p>
+<p>Key operations:</p>
+<p>- <code>IndexMethod(method)</code> -- adds a compiled method, keyed by its
+  ContentHash. Methods with a zero hash are silently ignored.
+- <code>IndexClass(digest)</code> -- adds a class digest, keyed by its hash.
+- <code>LookupMethod(hash)</code> / <code>LookupClass(hash)</code> -- returns the item
+  for a given hash, or nil.
+- <code>HasHash(hash)</code> -- true if either a method or class with that
+  hash exists.
+- <code>AllHashes()</code> -- returns every hash in the store.</p>
+<p>The ContentStore is thread-safe and populated automatically after
+compilation. You can inspect it from the CLI:</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>$ mag sync status
+Content store:
+  Methods: 347
+  Classes: 42
+  Total:   389</code></pre>
+</div>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <h2>Chunks</h2>
+<p>A chunk is the atomic unit of code distribution. Each chunk carries:</p>
+<p>- <strong>Hash</strong> -- the 32-byte content hash identifying this piece of code.
+- <strong>Type</strong> -- one of three kinds:
+  - <code>ChunkMethod</code> (1) -- a single method with its source text.
+  - <code>ChunkClass</code> (2) -- a class digest with its name as content
+    and method hashes as dependencies.
+  - <code>ChunkModule</code> (3) -- a namespace grouping class hashes.
+- <strong>Content</strong> -- the source text (for methods) or the name (for
+  classes and modules).
+- <strong>Dependencies</strong> -- hashes this chunk depends on. A class chunk
+  lists its method hashes; a module chunk lists its class hashes.
+- <strong>Capabilities</strong> -- optional list of required capabilities
+  (e.g., &#34;File&#34;, &#34;HTTP&#34;, &#34;Network&#34;).</p>
+<p>Chunks are serialized with CBOR (Concise Binary Object Representation)
+in canonical mode for deterministic encoding. The dependency structure
+forms a DAG: modules depend on classes, classes depend on methods.
+During transfer, methods are always sent before classes so the
+receiver can verify dependencies before accepting.</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code># A method chunk carries source text:
+#   Hash:    abc123...
+#   Type:    ChunkMethod (1)
+#   Content: &#34;method: factorial [^self &lt;= 1 ifTrue: [1] ifFalse: [self * (self - 1) factorial]]&#34;
+#   Deps:    (none)
+
+# A class chunk references its methods:
+#   Hash:    def456...
+#   Type:    ChunkClass (2)
+#   Content: &#34;MathUtils&#34;
+#   Deps:    [abc123..., fff789...]</code></pre>
+</div>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <h2>Sync Protocol</h2>
+<p>The sync protocol has two directions: push (sender-initiated) and
+pull (requester-initiated). Both use the same Connect/gRPC service
+running over HTTP/2.</p>
+<p><strong>Push flow (Announce + Transfer):</strong></p>
+<p>1. The pusher sends an <code>Announce</code> RPC with the root hash, all
+   available hashes, and an optional capability manifest.
+2. The receiver checks capabilities against its policy, then
+   computes a &#34;want list&#34; -- hashes it does not already have.
+3. The receiver replies: <code>ACCEPTED</code> (with want list), <code>ALREADY_HAVE</code>,
+   or <code>REJECTED</code> (with reason).
+4. The pusher sends wanted chunks via <code>Transfer</code>. Methods first,
+   then classes, ensuring dependency order.
+5. The receiver verifies each chunk (compile and hash-check for
+   methods; dependency existence check for classes and modules).
+6. The receiver responds with accepted/rejected counts.</p>
+<p><strong>Pull flow (Serve):</strong></p>
+<p>1. The requester sends a <code>Serve</code> RPC with the root hash and all
+   hashes it already has (the &#34;have&#34; set).
+2. The server computes a transitive closure from the root hash,
+   following dependency links through the ContentStore.
+3. The server filters out hashes the requester already has and
+   returns the remaining chunks in dependency order.</p>
+<p>Both push and pull are idempotent -- repeating a sync is harmless
+because content is identified by hash, not by timestamp or sequence.</p>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <h2>CLI: mag sync</h2>
+<p>The <code>mag sync</code> command has three subcommands: <code>push</code>, <code>pull</code>, and
+<code>status</code>.</p>
+<p><strong>push</strong> sends your compiled project to a remote peer:</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code># Push to a specific peer
+$ mag sync push localhost:8081
+
+# Push to all peers configured in maggie.toml
+$ mag sync push
+
+# Verbose output
+$ mag -v sync push localhost:8081
+Announcing 389 hashes to http://localhost:8081
+Transferring 47 chunks
+Transfer complete: 47 accepted, 0 rejected</code></pre>
+</div>
+<p>Without an explicit address, push reads <code>[sync].peers</code> from
+<code>maggie.toml</code> and pushes to each peer in sequence.</p>
+<p><strong>pull</strong> fetches content from a remote peer by root hash:</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>$ mag sync pull localhost:8081 a1b2c3d4e5f6...  (64 hex chars)
+Pull complete: 86 accepted, 0 rejected
+Content store: 433 methods, 56 classes</code></pre>
+</div>
+<p>The root hash must be a 64-character hex string (32 bytes).
+If the root hash already exists locally, pull exits immediately.</p>
+<p><strong>status</strong> prints a summary of the local ContentStore:</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>$ mag sync status
+Content store:
+  Methods: 347
+  Classes: 42
+  Total:   389</code></pre>
+</div>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <h2>Reputation and Peer Tracking</h2>
+<p>The sync service tracks the reputation of every peer it interacts
+with. Reputation is based on verification outcomes:</p>
+<p>- <strong>Successful syncs</strong> -- incremented each time a chunk passes
+  verification.
+- <strong>Failed syncs</strong> -- incremented when a transfer fails.
+- <strong>Hash mismatches</strong> -- incremented when a chunk&#39;s declared hash
+  does not match the hash computed by recompiling its source.</p>
+<p>When a peer accumulates too many hash mismatches (default: 3), it
+is automatically <strong>banned</strong>. A banned peer&#39;s Announce, Transfer,
+and Serve requests are rejected. This prevents a malicious peer
+from flooding the network with invalid content.</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code># PeerReputation fields:
+#   PeerID          -- &#34;192.168.1.42&#34; (from X-Forwarded-For or X-Real-Ip)
+#   SuccessfulSyncs -- 47
+#   FailedSyncs     -- 0
+#   HashMismatches  -- 0
+#   LastSeen        -- 2026-02-07T15:30:00Z
+#   Banned          -- false</code></pre>
+</div>
+<p>Peer identity is currently derived from HTTP headers
+(<code>X-Forwarded-For</code> or <code>X-Real-Ip</code>). If neither is present, the
+peer is identified as &#34;unknown&#34;.</p>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <h2>Capabilities</h2>
+<p>Capabilities are a lightweight permission system for distributed
+code. Each chunk can declare capabilities it requires (e.g., &#34;File&#34;,
+&#34;HTTP&#34;, &#34;Network&#34;). When a peer announces content for push, it
+includes a CapabilityManifest listing all required capabilities.</p>
+<p>The receiving VM checks the manifest against its <code>CapabilityPolicy</code>:</p>
+<p>- <strong>AllowedCapabilities</strong> -- if set, only these capabilities are
+  permitted. A nil list means &#34;allow all&#34; (permissive mode).
+- <strong>DeniedCapabilities</strong> -- these capabilities are explicitly
+  blocked, regardless of the allow list.</p>
+<p>If any required capability is denied or not allowed, the Announce
+RPC returns <code>REJECTED</code> with a reason string.</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code># A locked-down receiver might deny specific capabilities:
+#   policy.Deny(&#34;File&#34;)
+#   policy.Deny(&#34;Network&#34;)
+# Then any push containing File or Network chunks is rejected.</code></pre>
+</div>
+<p>Capabilities integrate with process-level restriction. A VM that
+receives code requiring &#34;File&#34; access can fork a restricted process
+that hides the File class, limiting what the received code can do
+even if the capability was accepted at the sync level.</p>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <h2>Manifest Configuration: [sync]</h2>
+<p>The <code>[sync]</code> section in <code>maggie.toml</code> configures distribution:</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>[sync]
+capabilities = [&#34;File&#34;, &#34;HTTP&#34;]   # Capabilities this project requires
+listen = &#34;:8081&#34;                  # Start a sync server on this address
+peers = [&#34;localhost:8082&#34;, &#34;staging.example.com:8081&#34;]  # Default push targets</code></pre>
+</div>
+<p><strong>Fields:</strong></p>
+<p>- <code>capabilities</code> -- capability strings declared in the manifest
+  when pushing. If a receiver does not allow a listed capability,
+  the push is rejected.</p>
+<p>- <code>listen</code> -- address for the sync server to bind to. When set,
+  <code>mag</code> automatically starts a sync server alongside the main
+  application. If omitted, no sync server is started.</p>
+<p>- <code>peers</code> -- default push targets. Used when <code>mag sync push</code> is
+  invoked without an explicit address.</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code># Minimal config for a library that only serves content:
+[sync]
+listen = &#34;:9000&#34;
+
+# Config for an app that pushes to staging and production:
+[sync]
+capabilities = [&#34;File&#34;, &#34;HTTP&#34;, &#34;Network&#34;]
+peers = [&#34;staging.internal:8081&#34;, &#34;prod.internal:8081&#34;]</code></pre>
+</div>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <h2>Peer Networking</h2>
+<p>The sync service runs as part of the Maggie language server, which
+serves both Connect (HTTP/JSON) and gRPC (binary protobuf) on the
+same port. The <code>SyncService</code> exposes four RPCs:</p>
+<ul>
+<li><code>Announce</code> -- receive a push announcement and return a want list.</li>
+<li><code>Transfer</code> -- receive and verify chunks from a pusher.</li>
+<li><code>Serve</code> -- respond to a pull request with available chunks.</li>
+<li><code>Ping</code> -- return the hash count in the local store (health check).</li>
+</ul>
+<p>When <code>[sync].listen</code> is set in <code>maggie.toml</code>, the sync server starts
+automatically. The server is configured with:</p>
+<ul>
+<li>A <code>CompileFunc</code> for verifying incoming method chunks.</li>
+<li>A <code>CapabilityPolicy</code> derived from the manifest.</li>
+<li>A <code>PeerStore</code> for tracking reputation.</li>
+<li>The VM&#39;s <code>ContentStore</code> for looking up and indexing content.</li>
+</ul>
+<p>All communication uses standard HTTP/2. There is no custom binary
+protocol, no UDP, and no peer discovery. Peers are configured
+explicitly in the manifest or specified on the command line.</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code># Server startup output:
+Maggie language server listening on :8081
+  Connect (HTTP/JSON): http://localhost:8081/maggie.v1.SyncService/Announce
+  gRPC (binary):       grpc://localhost:8081</code></pre>
+</div>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <h2>Security Model</h2>
+<p>The security model is built on one principle: <strong>never trust content,
+always verify</strong>.</p>
+<p>When a method chunk arrives from a peer, the receiver:</p>
+<p>1. Extracts the source text from the chunk.
+2. Compiles the source using its own compiler.
+3. Computes the content hash of the compiled AST.
+4. Compares the computed hash against the declared hash.
+5. Rejects the chunk if the hashes do not match.</p>
+<p>A malicious peer cannot send arbitrary bytecode disguised as a known
+hash -- the receiver&#39;s compiler is the final arbiter. For class and
+module chunks, verification checks that all declared dependency
+hashes exist in the local ContentStore.</p>
+<p><strong>Security layers:</strong></p>
+<p>- <strong>Capability filtering</strong> -- reject content requiring unwanted
+  capabilities (e.g., File or Network access).
+- <strong>Peer banning</strong> -- auto-ban peers after repeated hash mismatches.
+- <strong>Process restriction</strong> -- sandbox received code in restricted
+  processes that hide sensitive globals.
+- <strong>No remote code execution</strong> -- the protocol transfers source
+  text, not bytecode. The receiver compiles everything itself.
+- <strong>Deterministic serialization</strong> -- CBOR canonical encoding ensures
+  identical messages produce identical bytes.</p>
+<p><strong>Not yet provided:</strong></p>
+<ul>
+<li>Cryptographic peer identity (planned)</li>
+<li>Encrypted transport (use a TLS reverse proxy)</li>
+<li>Signed content (hashes verify integrity, not provenance)</li>
+<li>Peer discovery (peers are configured manually)</li>
+</ul>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code># Verification flow for a method chunk:
+#
+#   Peer sends:  { hash: abc123, type: Method, content: &#34;method: foo [...]&#34; }
+#   Receiver:    compile(&#34;method: foo [...]&#34;) -&gt; hash = abc123  (match!)
+#                -&gt; accept and index
+#
+#   Peer sends:  { hash: abc123, type: Method, content: &#34;method: evil [...]&#34; }
+#   Receiver:    compile(&#34;method: evil [...]&#34;) -&gt; hash = fff999  (MISMATCH)
+#                -&gt; reject, record hash mismatch for peer
+#                -&gt; if mismatches &gt;= 3, ban peer</code></pre>
+</div>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <h2>Putting It Together</h2>
+<p>A typical workflow for distributing a Maggie project:</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code># 1. Configure maggie.toml
+[project]
+name = &#34;my-app&#34;
+namespace = &#34;MyApp&#34;
+
+[source]
+dirs = [&#34;src&#34;]
+
+[sync]
+capabilities = [&#34;HTTP&#34;]
+listen = &#34;:8081&#34;
+peers = [&#34;staging.example.com:8081&#34;]
+
+# 2. Compile and check the content store
+$ mag ./src/...
+$ mag sync status
+Content store:
+  Methods: 127
+  Classes: 18
+  Total:   145
+
+# 3. Push to staging
+$ mag sync push
+Pushing to manifest peer: staging.example.com:8081
+Transfer complete: 145 accepted, 0 rejected
+
+# 4. On staging, pull from production
+$ mag sync pull prod.example.com:8081 a1b2c3d4...
+Pull complete: 89 accepted, 0 rejected
+
+# 5. Start a server that accepts pushes from CI
+$ mag -m Main.start
+# (sync server auto-starts on :8081 because listen is set)</code></pre>
+</div>
+<p>The content-addressed design means that:</p>
+<ul>
+<li>Pushes are incremental -- only new or changed methods transfer.</li>
+<li>Pulls are idempotent -- requesting the same root hash twice is a no-op.</li>
+<li>Verification is automatic -- every chunk is checked before acceptance.</li>
+<li>Rollback is trivial -- old content still has valid hashes in the store.</li>
+</ul>
+
+
+    </div>
+
+
+    <div class="footer">
+        Generated by Maggie doc generator.
+    </div>
+</main>
+    <script src="../js/playground.js"></script>
+</body>
+</html>

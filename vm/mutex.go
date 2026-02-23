@@ -41,14 +41,16 @@ func (vm *VM) registerMutexPrimitives() {
 	m := vm.MutexClass
 
 	// Mutex class>>new - create a new mutex
-	m.AddClassMethod0(vm.Selectors, "new", func(vmPtr interface{}, recv Value) Value {
+	newMutexFn := func(vmPtr interface{}, recv Value) Value {
 		v := vmPtr.(*VM)
 		mutex := createMutex()
 		return v.registerMutex(mutex)
-	})
+	}
+	m.AddClassMethod0(vm.Selectors, "new", newMutexFn)
+	m.AddClassMethod0(vm.Selectors, "primNew", newMutexFn)
 
 	// Mutex>>lock - acquire the mutex (blocks if already held)
-	m.AddMethod0(vm.Selectors, "lock", func(vmPtr interface{}, recv Value) Value {
+	lockFn := func(vmPtr interface{}, recv Value) Value {
 		v := vmPtr.(*VM)
 		mu := v.getMutex(recv)
 		if mu == nil {
@@ -57,10 +59,12 @@ func (vm *VM) registerMutexPrimitives() {
 		mu.mu.Lock()
 		mu.locked.Store(true)
 		return recv
-	})
+	}
+	m.AddMethod0(vm.Selectors, "lock", lockFn)
+	m.AddMethod0(vm.Selectors, "primLock", lockFn)
 
 	// Mutex>>unlock - release the mutex
-	m.AddMethod0(vm.Selectors, "unlock", func(vmPtr interface{}, recv Value) Value {
+	unlockFn := func(vmPtr interface{}, recv Value) Value {
 		v := vmPtr.(*VM)
 		mu := v.getMutex(recv)
 		if mu == nil {
@@ -69,11 +73,13 @@ func (vm *VM) registerMutexPrimitives() {
 		mu.locked.Store(false)
 		mu.mu.Unlock()
 		return recv
-	})
+	}
+	m.AddMethod0(vm.Selectors, "unlock", unlockFn)
+	m.AddMethod0(vm.Selectors, "primUnlock", unlockFn)
 
 	// Mutex>>tryLock - try to acquire the mutex without blocking
 	// Returns true if acquired, false if already held
-	m.AddMethod0(vm.Selectors, "tryLock", func(vmPtr interface{}, recv Value) Value {
+	tryLockFn := func(vmPtr interface{}, recv Value) Value {
 		v := vmPtr.(*VM)
 		mu := v.getMutex(recv)
 		if mu == nil {
@@ -84,10 +90,12 @@ func (vm *VM) registerMutexPrimitives() {
 			return True
 		}
 		return False
-	})
+	}
+	m.AddMethod0(vm.Selectors, "tryLock", tryLockFn)
+	m.AddMethod0(vm.Selectors, "primTryLock", tryLockFn)
 
 	// Mutex>>isLocked - check if mutex is currently locked
-	m.AddMethod0(vm.Selectors, "isLocked", func(vmPtr interface{}, recv Value) Value {
+	isLockedFn := func(vmPtr interface{}, recv Value) Value {
 		v := vmPtr.(*VM)
 		mu := v.getMutex(recv)
 		if mu == nil {
@@ -97,11 +105,13 @@ func (vm *VM) registerMutexPrimitives() {
 			return True
 		}
 		return False
-	})
+	}
+	m.AddMethod0(vm.Selectors, "isLocked", isLockedFn)
+	m.AddMethod0(vm.Selectors, "primIsLocked", isLockedFn)
 
 	// Mutex>>critical: aBlock - execute block while holding the lock
 	// Automatically unlocks even if block raises exception
-	m.AddMethod1(vm.Selectors, "critical:", func(vmPtr interface{}, recv Value, block Value) Value {
+	criticalFn := func(vmPtr interface{}, recv Value, block Value) Value {
 		v := vmPtr.(*VM)
 		mu := v.getMutex(recv)
 		if mu == nil {
@@ -125,5 +135,7 @@ func (vm *VM) registerMutexPrimitives() {
 			bv.Block, bv.Captures, nil,
 			bv.HomeFrame, bv.HomeSelf, bv.HomeMethod,
 		)
-	})
+	}
+	m.AddMethod1(vm.Selectors, "critical:", criticalFn)
+	m.AddMethod1(vm.Selectors, "primCritical:", criticalFn)
 }

@@ -106,8 +106,9 @@ func evalWithTimeout(vmInst *vm.VM, expr string, timeout time.Duration) (string,
 			}
 		}()
 
-		// Wrap as doIt method (same pattern as REPL and doctest)
-		source := "doIt\n    ^" + strings.TrimSuffix(expr, ".")
+		// Wrap as doIt method — handles multi-line playground input.
+		// Each line becomes a statement; the last is returned with ^.
+		source := wrapAsDoIt(expr)
 
 		method, err := vmInst.Compile(source, nil)
 		if err != nil {
@@ -172,6 +173,91 @@ func safeSend(vmInst *vm.VM, receiver vm.Value, selector string) (result vm.Valu
 	}()
 	result = vmInst.Send(receiver, selector, nil)
 	return result, true
+}
+
+// wrapAsDoIt wraps Maggie expression(s) as a doIt method for evaluation.
+//
+// Groups input lines into statements using indentation: lines starting at
+// column 0 begin a new statement, indented lines continue the previous one.
+// This correctly handles both multi-line expressions (chained keyword messages)
+// and multi-statement examples (one expression per line). All statements except
+// the last are separated by periods; the last is returned with ^.
+func wrapAsDoIt(expr string) string {
+	expr = strings.TrimSpace(expr)
+	if expr == "" {
+		return "doIt\n    ^nil"
+	}
+
+	// Group lines into statements: a line at column 0 starts a new statement,
+	// an indented line continues the previous one.
+	lines := strings.Split(expr, "\n")
+	var stmts []string
+	var cur strings.Builder
+	for _, line := range lines {
+		if strings.TrimSpace(line) == "" {
+			continue
+		}
+		startsAtCol0 := len(line) > 0 && line[0] != ' ' && line[0] != '\t'
+		if startsAtCol0 && cur.Len() > 0 {
+			stmts = append(stmts, cur.String())
+			cur.Reset()
+		}
+		if cur.Len() > 0 {
+			cur.WriteByte('\n')
+		}
+		cur.WriteString(line)
+	}
+	if cur.Len() > 0 {
+		stmts = append(stmts, cur.String())
+	}
+
+	if len(stmts) == 0 {
+		return "doIt\n    ^nil"
+	}
+
+	// Single statement: just indent and return it.
+	if len(stmts) == 1 {
+		return "doIt\n    ^" + indentContinuation(strings.TrimSuffix(stmts[0], "."))
+	}
+
+	// Multiple statements: all but last get periods, last gets ^.
+	var buf strings.Builder
+	buf.WriteString("doIt\n")
+	for i, stmt := range stmts {
+		stmt = strings.TrimSpace(stmt)
+		if stmt == "" {
+			continue
+		}
+		if i < len(stmts)-1 {
+			if !strings.HasSuffix(stmt, ".") {
+				stmt += "."
+			}
+			buf.WriteString("    ")
+			buf.WriteString(indentContinuation(stmt))
+			buf.WriteByte('\n')
+		} else {
+			buf.WriteString("    ^")
+			buf.WriteString(indentContinuation(strings.TrimSuffix(stmt, ".")))
+			buf.WriteByte('\n')
+		}
+	}
+	return buf.String()
+}
+
+// indentContinuation adds 4-space indentation to continuation lines (lines 2+)
+// in a multi-line statement, so they sit inside the doIt method body.
+func indentContinuation(stmt string) string {
+	if !strings.Contains(stmt, "\n") {
+		return stmt
+	}
+	lines := strings.Split(stmt, "\n")
+	var buf strings.Builder
+	buf.WriteString(lines[0])
+	for _, line := range lines[1:] {
+		buf.WriteString("\n    ")
+		buf.WriteString(line)
+	}
+	return buf.String()
 }
 
 // ---------------------------------------------------------------------------

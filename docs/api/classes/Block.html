@@ -4,11 +4,184 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Block &mdash; Maggie API Reference</title>
-    <link rel="stylesheet" href="../../css/style.css">
+    <link rel="stylesheet" href="../css/style.css">
 </head>
 <body>
+<nav class="sidebar">
+    <div class="sidebar-title"><a href="../index.html">Maggie Docs</a></div>
+
+    <div class="sidebar-section">
+        <div class="sidebar-section-title">Guide</div>
+        <ul class="sidebar-list">
+
+            <li><a href="../guide/01-getting-started.html">Getting Started</a></li>
+
+            <li><a href="../guide/02-basics.html">Basics</a></li>
+
+            <li><a href="../guide/03-numbers.html">Numbers</a></li>
+
+            <li><a href="../guide/04-strings.html">Strings</a></li>
+
+            <li><a href="../guide/05-collections.html">Collections</a></li>
+
+            <li><a href="../guide/06-blocks.html">Blocks</a></li>
+
+            <li><a href="../guide/07-classes.html">Classes</a></li>
+
+            <li><a href="../guide/08-error-handling.html">Error Handling</a></li>
+
+            <li><a href="../guide/09-concurrency.html">Concurrency</a></li>
+
+            <li><a href="../guide/10-modules.html">Modules</a></li>
+
+            <li><a href="../guide/11-projects.html">Projects</a></li>
+
+            <li><a href="../guide/12-go-interop.html">Go Interop</a></li>
+
+            <li><a href="../guide/13-distribution.html">Distribution</a></li>
+
+            <li><a href="../guide/14-tooling-ide.html">Tooling &amp; IDE</a></li>
+
+        </ul>
+    </div>
+
+    <div class="sidebar-section">
+        <div class="sidebar-section-title">API Reference</div>
+
+        <details class="sidebar-ns-group" open>
+            <summary>(root)</summary>
+            <ul class="sidebar-list">
+
+                <li><a href="../classes/Array.html">Array</a></li>
+
+                <li><a href="../classes/AssignmentNode.html">AssignmentNode</a></li>
+
+                <li><a href="../classes/Association.html">Association</a></li>
+
+                <li><a href="../classes/Block.html" class="active">Block</a></li>
+
+                <li><a href="../classes/BlockNode.html">BlockNode</a></li>
+
+                <li><a href="../classes/Boolean.html">Boolean</a></li>
+
+                <li><a href="../classes/ByteArray.html">ByteArray</a></li>
+
+                <li><a href="../classes/BytecodeGenerator.html">BytecodeGenerator</a></li>
+
+                <li><a href="../classes/CancellationContext.html">CancellationContext</a></li>
+
+                <li><a href="../classes/CascadeNode.html">CascadeNode</a></li>
+
+                <li><a href="../classes/Channel.html">Channel</a></li>
+
+                <li><a href="../classes/Character.html">Character</a></li>
+
+                <li><a href="../classes/CharacterStream.html">CharacterStream</a></li>
+
+                <li><a href="../classes/Class.html">Class</a></li>
+
+                <li><a href="../classes/ClassNode.html">ClassNode</a></li>
+
+                <li><a href="../classes/CompiledMethod.html">CompiledMethod</a></li>
+
+                <li><a href="../classes/Compiler.html">Compiler</a></li>
+
+                <li><a href="../classes/Context.html">Context</a></li>
+
+                <li><a href="../classes/Debugger.html">Debugger</a></li>
+
+                <li><a href="../classes/Dictionary.html">Dictionary</a></li>
+
+                <li><a href="../classes/DocServer.html">DocServer</a></li>
+
+                <li><a href="../classes/Error.html">Error</a></li>
+
+                <li><a href="../classes/Exception.html">Exception</a></li>
+
+                <li><a href="../classes/Failure.html">Failure</a></li>
+
+                <li><a href="../classes/False.html">False</a></li>
+
+                <li><a href="../classes/File.html">File</a></li>
+
+                <li><a href="../classes/Float.html">Float</a></li>
+
+                <li><a href="../classes/GrpcClient.html">GrpcClient</a></li>
+
+                <li><a href="../classes/GrpcStream.html">GrpcStream</a></li>
+
+                <li><a href="../classes/Halt.html">Halt</a></li>
+
+                <li><a href="../classes/HttpRequest.html">HttpRequest</a></li>
+
+                <li><a href="../classes/HttpResponse.html">HttpResponse</a></li>
+
+                <li><a href="../classes/HttpServer.html">HttpServer</a></li>
+
+                <li><a href="../classes/Lexer.html">Lexer</a></li>
+
+                <li><a href="../classes/LiteralNode.html">LiteralNode</a></li>
+
+                <li><a href="../classes/Message.html">Message</a></li>
+
+                <li><a href="../classes/MessageNotUnderstood.html">MessageNotUnderstood</a></li>
+
+                <li><a href="../classes/MessageSendNode.html">MessageSendNode</a></li>
+
+                <li><a href="../classes/MethodNode.html">MethodNode</a></li>
+
+                <li><a href="../classes/Mutex.html">Mutex</a></li>
+
+                <li><a href="../classes/Notification.html">Notification</a></li>
+
+                <li><a href="../classes/Object.html">Object</a></li>
+
+                <li><a href="../classes/Parser.html">Parser</a></li>
+
+                <li><a href="../classes/Process.html">Process</a></li>
+
+                <li><a href="../classes/Result.html">Result</a></li>
+
+                <li><a href="../classes/ReturnNode.html">ReturnNode</a></li>
+
+                <li><a href="../classes/Semaphore.html">Semaphore</a></li>
+
+                <li><a href="../classes/SmallInteger.html">SmallInteger</a></li>
+
+                <li><a href="../classes/StackOverflow.html">StackOverflow</a></li>
+
+                <li><a href="../classes/String.html">String</a></li>
+
+                <li><a href="../classes/SubscriptOutOfBounds.html">SubscriptOutOfBounds</a></li>
+
+                <li><a href="../classes/Success.html">Success</a></li>
+
+                <li><a href="../classes/Symbol.html">Symbol</a></li>
+
+                <li><a href="../classes/Token.html">Token</a></li>
+
+                <li><a href="../classes/True.html">True</a></li>
+
+                <li><a href="../classes/UndefinedObject.html">UndefinedObject</a></li>
+
+                <li><a href="../classes/VariableNode.html">VariableNode</a></li>
+
+                <li><a href="../classes/WaitGroup.html">WaitGroup</a></li>
+
+                <li><a href="../classes/Warning.html">Warning</a></li>
+
+                <li><a href="../classes/WeakReference.html">WeakReference</a></li>
+
+                <li><a href="../classes/ZeroDivide.html">ZeroDivide</a></li>
+
+            </ul>
+        </details>
+
+    </div>
+</nav>
+<main class="content">
     <div class="breadcrumb">
-        <a href="../../index.html">Maggie API Reference</a>
+        <a href="../index.html">Maggie API Reference</a>
 
         &rsaquo; Block
     </div>
@@ -24,6 +197,31 @@
     </div>
 
 
+    <div class="class-doc">
+        <p>A closure capturing its enclosing scope. Blocks are the fundamental
+unit of deferred evaluation: control flow, iteration, exception handling,
+and concurrency are all built on block evaluation.</p>
+<p>Blocks are created with square-bracket syntax and evaluated with <code>value</code>,
+<code>value:</code>, <code>value:value:</code>, or <code>value:value:value:</code> depending on how many
+arguments the block expects. Zero-argument blocks are also used by the
+primitive loop forms <code>whileTrue:</code>, <code>whileFalse:</code>, <code>whileTrue</code>, and
+<code>whileFalse</code> (implemented as VM primitives, not Maggie methods).</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>[3 + 4] value &gt;&gt;&gt; 7
+[:x | x * 2] value: 5 &gt;&gt;&gt; 10
+[:x :y | x + y] value: 3 value: 4 &gt;&gt;&gt; 7</code></pre>
+</div>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>&#34;Blocks close over their environment&#34;
+| factor |
+factor := 10.
+[:x | x * factor] value: 5</code></pre>
+</div>
+
+    </div>
+
 
 
 
@@ -34,6 +232,12 @@
         <h3>primitives</h3>
 
         <div class="method">
+            <div class="method-selector">forkRestricted:</div>
+
+
+        </div>
+
+        <div class="method">
             <div class="method-selector">forkWith:</div>
 
 
@@ -41,6 +245,18 @@
 
         <div class="method">
             <div class="method-selector">forkWithContext:</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">primIfCurtailed:</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">primOn:do:</div>
 
 
         </div>
@@ -101,11 +317,35 @@
         <div class="method">
             <div class="method-selector">ensure:</div>
 
+            <div class="method-doc">
+                <p>Evaluate the block, then unconditionally evaluate finallyBlock before
+returning. Returns the result of the receiver block.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>[1 + 2] ensure: [nil] &gt;&gt;&gt; 3
+[42] ensure: [99] &gt;&gt;&gt; 42</code></pre>
+</div>
+
+            </div>
+
 
         </div>
 
         <div class="method">
             <div class="method-selector">fork</div>
+
+            <div class="method-doc">
+                <p>Fork the block as a lightweight Process (goroutine). Returns the
+new Process immediately; the block runs concurrently. Non-local
+returns (^) inside the forked block are treated as local returns
+and will not escape the process boundary.</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>proc := [self computeResult] fork.
+proc wait</code></pre>
+</div>
+
+            </div>
 
 
         </div>
@@ -113,11 +353,30 @@
         <div class="method">
             <div class="method-selector">forkAt:</div>
 
+            <div class="method-doc">
+                <p>Fork the block at the given priority level. Returns the new Process.</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>[self backgroundTask] forkAt: 1</code></pre>
+</div>
+
+            </div>
+
 
         </div>
 
         <div class="method">
             <div class="method-selector">ifCurtailed:</div>
+
+            <div class="method-doc">
+                <p>Evaluate the block. If evaluation terminates abnormally (via exception
+or non-local return), evaluate curtailBlock for cleanup.</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>[self doRiskyWork] ifCurtailed: [self cleanUp]</code></pre>
+</div>
+
+            </div>
 
 
         </div>
@@ -125,11 +384,34 @@
         <div class="method">
             <div class="method-selector">on:do:</div>
 
+            <div class="method-doc">
+                <p>Evaluate the block inside an exception handler. If an exception matching
+the given exception class is signaled during evaluation, the handler
+block is invoked with the exception object.</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>[1 / 0] on: ZeroDivide do: [:e | &#39;caught&#39;]</code></pre>
+</div>
+
+            </div>
+
 
         </div>
 
         <div class="method">
             <div class="method-selector">repeat</div>
+
+            <div class="method-doc">
+                <p>Evaluate the block repeatedly, forever. The block must arrange its
+own exit (typically via a non-local return).</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>| i |
+i := 0.
+[i := i + 1. i &gt; 10 ifTrue: [^i]] repeat</code></pre>
+</div>
+
+            </div>
 
 
         </div>
@@ -137,11 +419,33 @@
         <div class="method">
             <div class="method-selector">value</div>
 
+            <div class="method-doc">
+                <p>Evaluate a zero-argument block and return its result.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>[42] value &gt;&gt;&gt; 42
+[3 + 4] value &gt;&gt;&gt; 7
+[&#39;hello&#39;] value &gt;&gt;&gt; &#39;hello&#39;</code></pre>
+</div>
+
+            </div>
+
 
         </div>
 
         <div class="method">
             <div class="method-selector">value:</div>
+
+            <div class="method-doc">
+                <p>Evaluate a one-argument block, passing arg to its parameter.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>[:x | x * 2] value: 5 &gt;&gt;&gt; 10
+[:x | x + 1] value: 99 &gt;&gt;&gt; 100
+[:s | s, &#39; world&#39;] value: &#39;hello&#39; &gt;&gt;&gt; &#39;hello world&#39;</code></pre>
+</div>
+
+            </div>
 
 
         </div>
@@ -149,11 +453,30 @@
         <div class="method">
             <div class="method-selector">value:value:</div>
 
+            <div class="method-doc">
+                <p>Evaluate a two-argument block, passing arg1 and arg2 to its parameters.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>[:x :y | x + y] value: 3 value: 4 &gt;&gt;&gt; 7
+[:a :b | a * b] value: 6 value: 7 &gt;&gt;&gt; 42</code></pre>
+</div>
+
+            </div>
+
 
         </div>
 
         <div class="method">
             <div class="method-selector">value:value:value:</div>
+
+            <div class="method-doc">
+                <p>Evaluate a three-argument block, passing arg1, arg2, and arg3.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>[:a :b :c | a + b + c] value: 1 value: 2 value: 3 &gt;&gt;&gt; 6</code></pre>
+</div>
+
+            </div>
 
 
         </div>
@@ -165,7 +488,7 @@
     <div class="footer">
         Generated by Maggie doc generator.
     </div>
-
-    <script src="../../js/playground.js"></script>
+</main>
+    <script src="../js/playground.js"></script>
 </body>
 </html>

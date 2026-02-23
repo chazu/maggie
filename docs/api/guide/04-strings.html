@@ -1,0 +1,656 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Strings &mdash; Maggie API Reference</title>
+    <link rel="stylesheet" href="../css/style.css">
+</head>
+<body>
+<nav class="sidebar">
+    <div class="sidebar-title"><a href="../index.html">Maggie Docs</a></div>
+
+    <div class="sidebar-section">
+        <div class="sidebar-section-title">Guide</div>
+        <ul class="sidebar-list">
+
+            <li><a href="../guide/01-getting-started.html">Getting Started</a></li>
+
+            <li><a href="../guide/02-basics.html">Basics</a></li>
+
+            <li><a href="../guide/03-numbers.html">Numbers</a></li>
+
+            <li><a href="../guide/04-strings.html" class="active">Strings</a></li>
+
+            <li><a href="../guide/05-collections.html">Collections</a></li>
+
+            <li><a href="../guide/06-blocks.html">Blocks</a></li>
+
+            <li><a href="../guide/07-classes.html">Classes</a></li>
+
+            <li><a href="../guide/08-error-handling.html">Error Handling</a></li>
+
+            <li><a href="../guide/09-concurrency.html">Concurrency</a></li>
+
+            <li><a href="../guide/10-modules.html">Modules</a></li>
+
+            <li><a href="../guide/11-projects.html">Projects</a></li>
+
+            <li><a href="../guide/12-go-interop.html">Go Interop</a></li>
+
+            <li><a href="../guide/13-distribution.html">Distribution</a></li>
+
+            <li><a href="../guide/14-tooling-ide.html">Tooling &amp; IDE</a></li>
+
+        </ul>
+    </div>
+
+    <div class="sidebar-section">
+        <div class="sidebar-section-title">API Reference</div>
+
+        <details class="sidebar-ns-group" open>
+            <summary>(root)</summary>
+            <ul class="sidebar-list">
+
+                <li><a href="../classes/Array.html">Array</a></li>
+
+                <li><a href="../classes/AssignmentNode.html">AssignmentNode</a></li>
+
+                <li><a href="../classes/Association.html">Association</a></li>
+
+                <li><a href="../classes/Block.html">Block</a></li>
+
+                <li><a href="../classes/BlockNode.html">BlockNode</a></li>
+
+                <li><a href="../classes/Boolean.html">Boolean</a></li>
+
+                <li><a href="../classes/ByteArray.html">ByteArray</a></li>
+
+                <li><a href="../classes/BytecodeGenerator.html">BytecodeGenerator</a></li>
+
+                <li><a href="../classes/CancellationContext.html">CancellationContext</a></li>
+
+                <li><a href="../classes/CascadeNode.html">CascadeNode</a></li>
+
+                <li><a href="../classes/Channel.html">Channel</a></li>
+
+                <li><a href="../classes/Character.html">Character</a></li>
+
+                <li><a href="../classes/CharacterStream.html">CharacterStream</a></li>
+
+                <li><a href="../classes/Class.html">Class</a></li>
+
+                <li><a href="../classes/ClassNode.html">ClassNode</a></li>
+
+                <li><a href="../classes/CompiledMethod.html">CompiledMethod</a></li>
+
+                <li><a href="../classes/Compiler.html">Compiler</a></li>
+
+                <li><a href="../classes/Context.html">Context</a></li>
+
+                <li><a href="../classes/Debugger.html">Debugger</a></li>
+
+                <li><a href="../classes/Dictionary.html">Dictionary</a></li>
+
+                <li><a href="../classes/DocServer.html">DocServer</a></li>
+
+                <li><a href="../classes/Error.html">Error</a></li>
+
+                <li><a href="../classes/Exception.html">Exception</a></li>
+
+                <li><a href="../classes/Failure.html">Failure</a></li>
+
+                <li><a href="../classes/False.html">False</a></li>
+
+                <li><a href="../classes/File.html">File</a></li>
+
+                <li><a href="../classes/Float.html">Float</a></li>
+
+                <li><a href="../classes/GrpcClient.html">GrpcClient</a></li>
+
+                <li><a href="../classes/GrpcStream.html">GrpcStream</a></li>
+
+                <li><a href="../classes/Halt.html">Halt</a></li>
+
+                <li><a href="../classes/HttpRequest.html">HttpRequest</a></li>
+
+                <li><a href="../classes/HttpResponse.html">HttpResponse</a></li>
+
+                <li><a href="../classes/HttpServer.html">HttpServer</a></li>
+
+                <li><a href="../classes/Lexer.html">Lexer</a></li>
+
+                <li><a href="../classes/LiteralNode.html">LiteralNode</a></li>
+
+                <li><a href="../classes/Message.html">Message</a></li>
+
+                <li><a href="../classes/MessageNotUnderstood.html">MessageNotUnderstood</a></li>
+
+                <li><a href="../classes/MessageSendNode.html">MessageSendNode</a></li>
+
+                <li><a href="../classes/MethodNode.html">MethodNode</a></li>
+
+                <li><a href="../classes/Mutex.html">Mutex</a></li>
+
+                <li><a href="../classes/Notification.html">Notification</a></li>
+
+                <li><a href="../classes/Object.html">Object</a></li>
+
+                <li><a href="../classes/Parser.html">Parser</a></li>
+
+                <li><a href="../classes/Process.html">Process</a></li>
+
+                <li><a href="../classes/Result.html">Result</a></li>
+
+                <li><a href="../classes/ReturnNode.html">ReturnNode</a></li>
+
+                <li><a href="../classes/Semaphore.html">Semaphore</a></li>
+
+                <li><a href="../classes/SmallInteger.html">SmallInteger</a></li>
+
+                <li><a href="../classes/StackOverflow.html">StackOverflow</a></li>
+
+                <li><a href="../classes/String.html">String</a></li>
+
+                <li><a href="../classes/SubscriptOutOfBounds.html">SubscriptOutOfBounds</a></li>
+
+                <li><a href="../classes/Success.html">Success</a></li>
+
+                <li><a href="../classes/Symbol.html">Symbol</a></li>
+
+                <li><a href="../classes/Token.html">Token</a></li>
+
+                <li><a href="../classes/True.html">True</a></li>
+
+                <li><a href="../classes/UndefinedObject.html">UndefinedObject</a></li>
+
+                <li><a href="../classes/VariableNode.html">VariableNode</a></li>
+
+                <li><a href="../classes/WaitGroup.html">WaitGroup</a></li>
+
+                <li><a href="../classes/Warning.html">Warning</a></li>
+
+                <li><a href="../classes/WeakReference.html">WeakReference</a></li>
+
+                <li><a href="../classes/ZeroDivide.html">ZeroDivide</a></li>
+
+            </ul>
+        </details>
+
+    </div>
+</nav>
+<main class="content">
+    <div class="breadcrumb">
+        <a href="../index.html">Maggie API Reference</a>
+        &rsaquo; Guide
+        &rsaquo; Strings
+    </div>
+
+    <h1>Strings</h1>
+
+
+    <div class="guide-intro">
+        <p>Strings and symbols are the two text types in Maggie. A String is an
+immutable sequence of characters created with single quotes. A Symbol is
+an interned string created with a hash prefix. Both support message
+passing like every other object, but they differ in identity semantics
+and typical use.</p>
+<p>This chapter covers creating strings, querying their contents, searching
+and slicing, case conversion, character literals, and the relationship
+between strings and symbols.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>&#39;hello&#39; class name &gt;&gt;&gt; #String
+#hello class name &gt;&gt;&gt; #Symbol
+&#39;hello&#39; size &gt;&gt;&gt; 5
+&#39;hello&#39;, &#39; world&#39; &gt;&gt;&gt; &#39;hello world&#39;</code></pre>
+</div>
+
+    </div>
+
+
+
+    <div class="guide-section">
+
+        <p>Strings are written between single quotes. The comma operator (,)
+concatenates two strings and returns a new string. Strings are
+immutable -- concatenation never modifies the receiver; it always
+produces a fresh string.</p>
+<p>You can concatenate any number of strings by chaining commas.
+The empty string &#39;&#39; is the identity element for concatenation --
+appending or prepending it changes nothing.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>&#39;hello&#39; &gt;&gt;&gt; &#39;hello&#39;
+&#39;hello&#39;, &#39; world&#39; &gt;&gt;&gt; &#39;hello world&#39;
+&#39;a&#39;, &#39;b&#39;, &#39;c&#39; &gt;&gt;&gt; &#39;abc&#39;
+&#39;&#39;, &#39;hi&#39; &gt;&gt;&gt; &#39;hi&#39;
+&#39;hi&#39;, &#39;&#39; &gt;&gt;&gt; &#39;hi&#39;</code></pre>
+</div>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <p>The size message returns the number of characters in a string.
+Use at: with a 0-based index to retrieve a single character.
+Indexing returns a Character value (like $h), not a one-character
+string. Out-of-bounds access returns nil rather than raising an
+error.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>&#39;hello&#39; size &gt;&gt;&gt; 5
+&#39;&#39; size &gt;&gt;&gt; 0
+&#39;Maggie&#39; size &gt;&gt;&gt; 6
+&#39;hello&#39; at: 0 &gt;&gt;&gt; $h
+&#39;hello&#39; at: 4 &gt;&gt;&gt; $o</code></pre>
+</div>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <p>The copyFrom:to: message extracts a substring. The start index is
+inclusive and the end index is exclusive, following the same
+convention as Go slices. Both indices are 0-based.</p>
+<p>If you want a prefix, start from 0. If you want a suffix, end at
+the string&#39;s size. The returned value is always a new string.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>&#39;hello&#39; copyFrom: 1 to: 4 &gt;&gt;&gt; &#39;ell&#39;
+&#39;hello&#39; copyFrom: 0 to: 5 &gt;&gt;&gt; &#39;hello&#39;
+&#39;abcdef&#39; copyFrom: 2 to: 4 &gt;&gt;&gt; &#39;cd&#39;
+&#39;abcdef&#39; copyFrom: 0 to: 3 &gt;&gt;&gt; &#39;abc&#39;
+&#39;abcdef&#39; copyFrom: 4 to: 6 &gt;&gt;&gt; &#39;ef&#39;</code></pre>
+</div>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <p>The isEmpty and notEmpty messages test whether a string has zero
+length. These read more naturally than comparing size to 0
+directly.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>&#39;&#39; isEmpty &gt;&gt;&gt; true
+&#39;a&#39; isEmpty &gt;&gt;&gt; false
+&#39;hello&#39; notEmpty &gt;&gt;&gt; true
+&#39;&#39; notEmpty &gt;&gt;&gt; false</code></pre>
+</div>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <p>Use includes: to test whether a string contains a given substring.
+It returns true or false. The argument can be a string of any
+length -- single character or multi-character.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>&#39;hello world&#39; includes: &#39;world&#39; &gt;&gt;&gt; true
+&#39;hello world&#39; includes: &#39;xyz&#39; &gt;&gt;&gt; false
+&#39;hello&#39; includes: &#39;ell&#39; &gt;&gt;&gt; true
+&#39;hello&#39; includes: &#39;hello&#39; &gt;&gt;&gt; true
+&#39;hello&#39; includes: &#39;Hello&#39; &gt;&gt;&gt; false</code></pre>
+</div>
+<p>Note that includes: is case-sensitive. The last example above
+returns false because &#39;H&#39; does not match &#39;h&#39;.</p>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <p>The indexOf: message returns the 0-based position of the first
+occurrence of a substring, or -1 if not found. Like includes:, it
+accepts a string argument of any length.</p>
+<p>Combine indexOf: with copyFrom:to: to extract text around a known
+marker.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>&#39;hello&#39; indexOf: &#39;l&#39; &gt;&gt;&gt; 2
+&#39;hello&#39; indexOf: &#39;lo&#39; &gt;&gt;&gt; 3
+&#39;hello&#39; indexOf: &#39;z&#39; &gt;&gt;&gt; -1
+&#39;hello world&#39; indexOf: &#39;world&#39; &gt;&gt;&gt; 6
+&#39;abcabc&#39; indexOf: &#39;bc&#39; &gt;&gt;&gt; 1</code></pre>
+</div>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <p>The asUppercase and asLowercase messages return new strings with
+all characters converted to the respective case. The original
+string is not modified.</p>
+<p>These are useful for case-insensitive comparisons: convert both
+sides to the same case before comparing with =.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>&#39;hello&#39; asUppercase &gt;&gt;&gt; &#39;HELLO&#39;
+&#39;HELLO&#39; asLowercase &gt;&gt;&gt; &#39;hello&#39;
+&#39;Hello World&#39; asUppercase &gt;&gt;&gt; &#39;HELLO WORLD&#39;
+&#39;Hello World&#39; asLowercase &gt;&gt;&gt; &#39;hello world&#39;
+&#39;already&#39; asLowercase &gt;&gt;&gt; &#39;already&#39;</code></pre>
+</div>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <p>Strings compare by content using = (equality). Two strings with the
+same characters are equal regardless of how they were created.</p>
+<p>The &lt; and &gt; operators compare strings lexicographically -- the same
+ordering a dictionary would use. The &lt;= and &gt;= operators combine
+ordering with equality.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>&#39;abc&#39; = &#39;abc&#39; &gt;&gt;&gt; true
+&#39;abc&#39; = &#39;xyz&#39; &gt;&gt;&gt; false
+&#39;apple&#39; &lt; &#39;banana&#39; &gt;&gt;&gt; true
+&#39;banana&#39; &gt; &#39;apple&#39; &gt;&gt;&gt; true
+&#39;cat&#39; &lt;= &#39;cat&#39; &gt;&gt;&gt; true
+&#39;cat&#39; &lt;= &#39;dog&#39; &gt;&gt;&gt; true
+&#39;dog&#39; &gt;= &#39;cat&#39; &gt;&gt;&gt; true
+&#39;abc&#39; &lt; &#39;abd&#39; &gt;&gt;&gt; true</code></pre>
+</div>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <p>Two distinct string objects with the same content are equal (=) but
+may not be identical (==). Identity checks with == test whether two
+values are the exact same object in memory. For strings, you almost
+always want = rather than ==.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>&#39;abc&#39; = &#39;abc&#39; &gt;&gt;&gt; true</code></pre>
+</div>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <p>The do: message iterates over each character of a string, yielding
+a Character value to the block on each step. The Character values
+can be concatenated directly with strings using the comma operator,
+because concatenation accepts both strings and characters.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>result := &#39;&#39;.
+&#39;abc&#39; do: [:ch | result := result, ch, &#39;-&#39;].
+result &gt;&gt;&gt; &#39;a-b-c-&#39;</code></pre>
+</div>
+<p>You can also use do: to count or test characters individually.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>count := 0.
+&#39;hello&#39; do: [:ch | (ch = $l) ifTrue: [count := count + 1]].
+count &gt;&gt;&gt; 2</code></pre>
+</div>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <p>Strings can be converted to numbers with asInteger and asFloat.
+If the string does not represent a valid number, nil is returned
+rather than raising an error. This makes it safe to attempt
+conversion without error handling.</p>
+<p>The asSymbol message interns the string and returns a Symbol.
+The asString message on a string simply returns itself.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>&#39;42&#39; asInteger &gt;&gt;&gt; 42
+&#39;-7&#39; asInteger &gt;&gt;&gt; -7
+&#39;3.14&#39; asFloat &gt;&gt;&gt; 3.14
+&#39;oops&#39; asInteger &gt;&gt;&gt; nil
+&#39;hello&#39; asSymbol &gt;&gt;&gt; #hello
+&#39;hello&#39; asString &gt;&gt;&gt; &#39;hello&#39;</code></pre>
+</div>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <p>The printString message returns a quoted representation of the
+string, suitable for debugging output. It wraps the content in
+single quotes.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>&#39;hello&#39; printString &gt;&gt;&gt; &#39;&#39;&#39;hello&#39;&#39;&#39;</code></pre>
+</div>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <p>Character literals use the dollar-sign prefix: $a, $Z, $0, $!.
+Each literal produces a Character object -- a first-class value
+representing a single Unicode code point. Characters are not
+strings; they are a separate type.</p>
+<p>Characters respond to testing messages: isLetter, isDigit,
+isUppercase, isLowercase, and isWhitespace. These return true
+or false.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>$a class name &gt;&gt;&gt; #Character
+$a isLetter &gt;&gt;&gt; true
+$5 isDigit &gt;&gt;&gt; true
+$A isUppercase &gt;&gt;&gt; true
+$a isLowercase &gt;&gt;&gt; true
+$5 isLetter &gt;&gt;&gt; false
+$a isDigit &gt;&gt;&gt; false</code></pre>
+</div>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <p>Characters support case conversion with asUppercase and asLowercase.
+These return new Character values, not strings.</p>
+<p>Characters also support equality (=) and ordering (&lt;, &gt;) based on
+their Unicode code point values. The value message returns the
+code point as an integer.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>$a asUppercase &gt;&gt;&gt; $A
+$Z asLowercase &gt;&gt;&gt; $z
+$a = $a &gt;&gt;&gt; true
+$a = $b &gt;&gt;&gt; false
+$a &lt; $b &gt;&gt;&gt; true
+$b &gt; $a &gt;&gt;&gt; true
+$a value &gt;&gt;&gt; 97
+$A value &gt;&gt;&gt; 65</code></pre>
+</div>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <p>You can create a Character from its Unicode code point using the
+class method Character value:. The asString message converts a
+Character to a single-character string.</p>
+<p>Character also provides named constants for common whitespace
+characters that have no convenient literal form.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>Character value: 65 &gt;&gt;&gt; $A
+Character value: 97 &gt;&gt;&gt; $a
+$h asString &gt;&gt;&gt; &#39;h&#39;
+$h asString class name &gt;&gt;&gt; #String
+Character space value &gt;&gt;&gt; 32
+Character space isWhitespace &gt;&gt;&gt; true</code></pre>
+</div>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <p>The Character class in lib/Character.mag adds a few convenience
+methods on top of the VM primitives. The isAlphaNumeric method
+returns true if a character is a letter or a digit. The isVowel
+method checks for vowels (a, e, i, o, u in either case).</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>$a isAlphaNumeric &gt;&gt;&gt; true
+$5 isAlphaNumeric &gt;&gt;&gt; true
+$a isVowel &gt;&gt;&gt; true
+$b isVowel &gt;&gt;&gt; false
+$E isVowel &gt;&gt;&gt; true</code></pre>
+</div>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <p>String also has single-character testing methods -- isDigit,
+isLetter, isAlphanumeric, and isWhitespace -- that work when the
+receiver is a one-character string. These are implemented in
+lib/String.mag and complement the Character methods.</p>
+<p>The difference is the receiver type: Character methods work on
+Character values ($a), while these String methods work on
+one-character strings (&#39;a&#39;). Multi-character strings return false
+for all of these tests.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>&#39;5&#39; isDigit &gt;&gt;&gt; true
+&#39;a&#39; isLetter &gt;&gt;&gt; true
+&#39;a&#39; isAlphanumeric &gt;&gt;&gt; true
+&#39;5&#39; isAlphanumeric &gt;&gt;&gt; true
+&#39; &#39; isWhitespace &gt;&gt;&gt; true
+&#39; &#39; isAlphanumeric &gt;&gt;&gt; false
+&#39;ab&#39; isDigit &gt;&gt;&gt; false</code></pre>
+</div>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <p>Symbols are interned strings created with the hash prefix: #hello,
+#size, #firstName. The VM guarantees that two symbols with the same
+characters are the exact same object in memory. This makes identity
+comparison (==) reliable and fast.</p>
+<p>Symbols are commonly used as method selectors, dictionary keys, and
+enumeration values -- anywhere you need fast identity checks rather
+than character-by-character comparison.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>#hello class name &gt;&gt;&gt; #Symbol
+#hello asString &gt;&gt;&gt; &#39;hello&#39;
+#hello = #hello &gt;&gt;&gt; true
+#hello == #hello &gt;&gt;&gt; true
+#hello printString &gt;&gt;&gt; &#39;#hello&#39;</code></pre>
+</div>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <p>Symbol equality (=) is defined as identity (==). This is the
+fundamental difference from String: for symbols, = and == always
+give the same answer. For strings, = compares content while ==
+compares object identity.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>#hello = #hello &gt;&gt;&gt; true
+#hello == #hello &gt;&gt;&gt; true
+#hello = #world &gt;&gt;&gt; false</code></pre>
+</div>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <p>You can convert freely between strings and symbols. The asSymbol
+message on a String interns it and returns the corresponding Symbol.
+The asString message on a Symbol returns a plain String with the
+same characters.</p>
+<p>Calling asSymbol on a Symbol returns itself. Calling asString on a
+String also returns itself. These are safe to call without checking
+the type first.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>&#39;hello&#39; asSymbol &gt;&gt;&gt; #hello
+#hello asString &gt;&gt;&gt; &#39;hello&#39;
+&#39;hello&#39; asSymbol class name &gt;&gt;&gt; #Symbol
+#hello asString class name &gt;&gt;&gt; #String
+&#39;hello&#39; asSymbol == #hello &gt;&gt;&gt; true
+#hello asSymbol &gt;&gt;&gt; #hello
+&#39;hello&#39; asString &gt;&gt;&gt; &#39;hello&#39;</code></pre>
+</div>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <p>When choosing between strings and symbols, follow this rule of
+thumb: use strings for text data that comes from outside your
+program (user input, file contents, network responses) and symbols
+for names that exist inside your program (method selectors, option
+keys, type tags).</p>
+<p>Symbols are fast to compare because the VM only needs to check if
+two references are the same pointer. Strings require comparing each
+character. But symbols are never garbage collected -- every unique
+symbol lives forever -- so creating large numbers of dynamic symbols
+from user input would waste memory.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>&#39;user input&#39; class name &gt;&gt;&gt; #String
+#methodName class name &gt;&gt;&gt; #Symbol</code></pre>
+</div>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <p>Here is a small example that combines several string operations:
+extracting a file extension from a path by finding the last dot and
+slicing the string.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>path := &#39;archive.tar.gz&#39;.
+dotPos := path indexOf: &#39;.&#39;.
+ext := path copyFrom: dotPos to: path size.
+ext &gt;&gt;&gt; &#39;.tar.gz&#39;</code></pre>
+</div>
+<p>And another that builds a greeting with case conversion:</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>name := &#39;maggie&#39;.
+greeting := &#39;Hello, &#39;, (name copyFrom: 0 to: 1) asUppercase, (name copyFrom: 1 to: name size), &#39;!&#39;.
+greeting &gt;&gt;&gt; &#39;Hello, Maggie!&#39;</code></pre>
+</div>
+
+
+    </div>
+
+
+    <div class="footer">
+        Generated by Maggie doc generator.
+    </div>
+</main>
+    <script src="../js/playground.js"></script>
+</body>
+</html>

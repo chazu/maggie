@@ -235,6 +235,14 @@ func buildGuideDoc(cd classDoc) guideDoc {
 	num := extractGuideNumber(cd.Name)
 	title := extractGuideTitle(cd.Name, cd.DocString)
 	slug := guideSlug(num, title)
+
+	// Strip the first "# Title" line from the class docstring since it
+	// becomes the page <h1> and would otherwise render as a duplicate heading.
+	if cd.DocString != "" {
+		stripped := stripLeadingTitle(cd.DocString)
+		cd.DocSections = ParseDocString(stripped)
+	}
+
 	return guideDoc{
 		Number:  num,
 		Title:   title,
@@ -242,6 +250,25 @@ func buildGuideDoc(cd classDoc) guideDoc {
 		Class:   cd,
 		RelPath: "guide/" + slug + ".html",
 	}
+}
+
+// stripLeadingTitle removes a leading "# ..." line from a docstring.
+func stripLeadingTitle(doc string) string {
+	lines := strings.Split(doc, "\n")
+	for i, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" {
+			continue
+		}
+		if strings.HasPrefix(trimmed, "# ") && !strings.HasPrefix(trimmed, "## ") {
+			// Remove this line and any following blank line
+			rest := lines[i+1:]
+			return strings.Join(rest, "\n")
+		}
+		// First non-empty, non-heading line — no title to strip
+		break
+	}
+	return doc
 }
 
 // ---------------------------------------------------------------------------
@@ -736,6 +763,186 @@ type guideSection struct {
 	Source      string
 }
 
+// dedentBlock strips the common leading whitespace from all non-empty lines.
+func dedentBlock(block string) string {
+	lines := strings.Split(block, "\n")
+	// Find minimum indentation across non-empty lines
+	minIndent := -1
+	for _, line := range lines {
+		if strings.TrimSpace(line) == "" {
+			continue
+		}
+		indent := 0
+		for _, ch := range line {
+			if ch == ' ' {
+				indent++
+			} else if ch == '\t' {
+				indent += 4
+			} else {
+				break
+			}
+		}
+		if minIndent == -1 || indent < minIndent {
+			minIndent = indent
+		}
+	}
+	if minIndent <= 0 {
+		return block
+	}
+	var buf strings.Builder
+	for i, line := range lines {
+		if i > 0 {
+			buf.WriteByte('\n')
+		}
+		if strings.TrimSpace(line) == "" {
+			continue
+		}
+		// Strip minIndent characters
+		stripped := 0
+		j := 0
+		for j < len(line) && stripped < minIndent {
+			if line[j] == ' ' {
+				stripped++
+			} else if line[j] == '\t' {
+				stripped += 4
+			} else {
+				break
+			}
+			j++
+		}
+		buf.WriteString(line[j:])
+	}
+	return buf.String()
+}
+
+// renderProseBlockHTML converts a block of markdown-like prose into HTML.
+// Supports ## headings, - lists, indented code blocks, inline `code`, and **bold**.
+func renderProseBlockHTML(block string) string {
+	// Trim trailing whitespace and leading/trailing blank lines,
+	// but preserve leading spaces on lines (needed for indented code detection).
+	block = strings.TrimRight(block, " \t\n\r")
+	// Remove leading blank lines only
+	for strings.HasPrefix(block, "\n") {
+		block = block[1:]
+	}
+	if strings.TrimSpace(block) == "" {
+		return ""
+	}
+
+	// Heading (check longest prefix first)
+	if strings.HasPrefix(block, "### ") {
+		title := strings.TrimPrefix(block, "### ")
+		return "<h3>" + renderInlineMarkdown(template.HTMLEscapeString(title)) + "</h3>\n"
+	}
+	if strings.HasPrefix(block, "## ") {
+		title := strings.TrimPrefix(block, "## ")
+		return "<h2>" + renderInlineMarkdown(template.HTMLEscapeString(title)) + "</h2>\n"
+	}
+	if strings.HasPrefix(block, "# ") {
+		title := strings.TrimPrefix(block, "# ")
+		return "<h2>" + renderInlineMarkdown(template.HTMLEscapeString(title)) + "</h2>\n"
+	}
+
+	lines := strings.Split(block, "\n")
+
+	// Unordered list: every non-empty line starts with "- "
+	isList := true
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" {
+			continue
+		}
+		if !strings.HasPrefix(trimmed, "- ") {
+			isList = false
+			break
+		}
+	}
+	if isList {
+		var buf strings.Builder
+		buf.WriteString("<ul>\n")
+		for _, line := range lines {
+			trimmed := strings.TrimSpace(line)
+			if trimmed == "" {
+				continue
+			}
+			item := strings.TrimPrefix(trimmed, "- ")
+			buf.WriteString("<li>")
+			buf.WriteString(renderInlineMarkdown(template.HTMLEscapeString(item)))
+			buf.WriteString("</li>\n")
+		}
+		buf.WriteString("</ul>\n")
+		return buf.String()
+	}
+
+	// Indented code block: every non-empty line starts with 4+ spaces
+	isCode := true
+	for _, line := range lines {
+		if strings.TrimSpace(line) == "" {
+			continue
+		}
+		if !strings.HasPrefix(line, "    ") {
+			isCode = false
+			break
+		}
+	}
+	if isCode {
+		var buf strings.Builder
+		buf.WriteString("<pre><code>")
+		for i, line := range lines {
+			if i > 0 {
+				buf.WriteByte('\n')
+			}
+			// Remove 4-space indent
+			if len(line) >= 4 {
+				line = line[4:]
+			}
+			buf.WriteString(template.HTMLEscapeString(line))
+		}
+		buf.WriteString("</code></pre>\n")
+		return buf.String()
+	}
+
+	// Regular paragraph
+	text := strings.Join(lines, "\n")
+	return "<p>" + renderInlineMarkdown(template.HTMLEscapeString(text)) + "</p>\n"
+}
+
+// renderInlineMarkdown converts inline markdown (already HTML-escaped) to HTML.
+// Handles `code` and **bold**.
+func renderInlineMarkdown(s string) string {
+	// Convert backtick-wrapped spans to <code>
+	s = replaceInlinePattern(s, "`", "<code>", "</code>")
+	// Convert **bold** to <strong>
+	s = replaceInlinePattern(s, "**", "<strong>", "</strong>")
+	return s
+}
+
+// replaceInlinePattern replaces matched pairs of delimiters with open/close HTML tags.
+// The input string should already be HTML-escaped; the delimiter is matched literally.
+func replaceInlinePattern(s, delim, openTag, closeTag string) string {
+	escaped := template.HTMLEscapeString(delim)
+	var buf strings.Builder
+	rest := s
+	for {
+		start := strings.Index(rest, escaped)
+		if start == -1 {
+			buf.WriteString(rest)
+			break
+		}
+		end := strings.Index(rest[start+len(escaped):], escaped)
+		if end == -1 {
+			buf.WriteString(rest)
+			break
+		}
+		buf.WriteString(rest[:start])
+		buf.WriteString(openTag)
+		buf.WriteString(rest[start+len(escaped) : start+len(escaped)+end])
+		buf.WriteString(closeTag)
+		rest = rest[start+len(escaped)+end+len(escaped):]
+	}
+	return buf.String()
+}
+
 // renderDocSectionsHTML renders parsed docstring sections as HTML.
 func renderDocSectionsHTML(sections []DocSection) template.HTML {
 	var buf strings.Builder
@@ -743,16 +950,12 @@ func renderDocSectionsHTML(sections []DocSection) template.HTML {
 	for _, sec := range sections {
 		switch sec.Type {
 		case DocProse:
-			// Wrap prose in paragraphs, splitting on double newlines
-			paragraphs := strings.Split(sec.Content, "\n\n")
-			for _, p := range paragraphs {
-				p = strings.TrimSpace(p)
-				if p == "" {
-					continue
-				}
-				buf.WriteString("<p>")
-				buf.WriteString(template.HTMLEscapeString(p))
-				buf.WriteString("</p>\n")
+			// Dedent the entire section first to preserve relative indentation,
+			// then split on double newlines to get blocks.
+			dedented := dedentBlock(sec.Content)
+			blocks := strings.Split(dedented, "\n\n")
+			for _, block := range blocks {
+				buf.WriteString(renderProseBlockHTML(block))
 			}
 
 		case DocTest:
@@ -1207,14 +1410,6 @@ const guidePageTemplate = `<!DOCTYPE html>
     <div class="guide-section">
 {{if .DocSections}}
         {{renderDocSections .DocSections}}
-{{end}}
-{{if hasDocString .Source}}
-        <div class="guide-code">
-            <div class="doc-block doc-example">
-                <span class="doc-block-label">Code</span>
-                <pre><code>{{.Source}}</code></pre>
-            </div>
-        </div>
 {{end}}
     </div>
 {{end}}

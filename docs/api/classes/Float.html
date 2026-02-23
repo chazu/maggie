@@ -4,11 +4,184 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Float &mdash; Maggie API Reference</title>
-    <link rel="stylesheet" href="../../css/style.css">
+    <link rel="stylesheet" href="../css/style.css">
 </head>
 <body>
+<nav class="sidebar">
+    <div class="sidebar-title"><a href="../index.html">Maggie Docs</a></div>
+
+    <div class="sidebar-section">
+        <div class="sidebar-section-title">Guide</div>
+        <ul class="sidebar-list">
+
+            <li><a href="../guide/01-getting-started.html">Getting Started</a></li>
+
+            <li><a href="../guide/02-basics.html">Basics</a></li>
+
+            <li><a href="../guide/03-numbers.html">Numbers</a></li>
+
+            <li><a href="../guide/04-strings.html">Strings</a></li>
+
+            <li><a href="../guide/05-collections.html">Collections</a></li>
+
+            <li><a href="../guide/06-blocks.html">Blocks</a></li>
+
+            <li><a href="../guide/07-classes.html">Classes</a></li>
+
+            <li><a href="../guide/08-error-handling.html">Error Handling</a></li>
+
+            <li><a href="../guide/09-concurrency.html">Concurrency</a></li>
+
+            <li><a href="../guide/10-modules.html">Modules</a></li>
+
+            <li><a href="../guide/11-projects.html">Projects</a></li>
+
+            <li><a href="../guide/12-go-interop.html">Go Interop</a></li>
+
+            <li><a href="../guide/13-distribution.html">Distribution</a></li>
+
+            <li><a href="../guide/14-tooling-ide.html">Tooling &amp; IDE</a></li>
+
+        </ul>
+    </div>
+
+    <div class="sidebar-section">
+        <div class="sidebar-section-title">API Reference</div>
+
+        <details class="sidebar-ns-group" open>
+            <summary>(root)</summary>
+            <ul class="sidebar-list">
+
+                <li><a href="../classes/Array.html">Array</a></li>
+
+                <li><a href="../classes/AssignmentNode.html">AssignmentNode</a></li>
+
+                <li><a href="../classes/Association.html">Association</a></li>
+
+                <li><a href="../classes/Block.html">Block</a></li>
+
+                <li><a href="../classes/BlockNode.html">BlockNode</a></li>
+
+                <li><a href="../classes/Boolean.html">Boolean</a></li>
+
+                <li><a href="../classes/ByteArray.html">ByteArray</a></li>
+
+                <li><a href="../classes/BytecodeGenerator.html">BytecodeGenerator</a></li>
+
+                <li><a href="../classes/CancellationContext.html">CancellationContext</a></li>
+
+                <li><a href="../classes/CascadeNode.html">CascadeNode</a></li>
+
+                <li><a href="../classes/Channel.html">Channel</a></li>
+
+                <li><a href="../classes/Character.html">Character</a></li>
+
+                <li><a href="../classes/CharacterStream.html">CharacterStream</a></li>
+
+                <li><a href="../classes/Class.html">Class</a></li>
+
+                <li><a href="../classes/ClassNode.html">ClassNode</a></li>
+
+                <li><a href="../classes/CompiledMethod.html">CompiledMethod</a></li>
+
+                <li><a href="../classes/Compiler.html">Compiler</a></li>
+
+                <li><a href="../classes/Context.html">Context</a></li>
+
+                <li><a href="../classes/Debugger.html">Debugger</a></li>
+
+                <li><a href="../classes/Dictionary.html">Dictionary</a></li>
+
+                <li><a href="../classes/DocServer.html">DocServer</a></li>
+
+                <li><a href="../classes/Error.html">Error</a></li>
+
+                <li><a href="../classes/Exception.html">Exception</a></li>
+
+                <li><a href="../classes/Failure.html">Failure</a></li>
+
+                <li><a href="../classes/False.html">False</a></li>
+
+                <li><a href="../classes/File.html">File</a></li>
+
+                <li><a href="../classes/Float.html" class="active">Float</a></li>
+
+                <li><a href="../classes/GrpcClient.html">GrpcClient</a></li>
+
+                <li><a href="../classes/GrpcStream.html">GrpcStream</a></li>
+
+                <li><a href="../classes/Halt.html">Halt</a></li>
+
+                <li><a href="../classes/HttpRequest.html">HttpRequest</a></li>
+
+                <li><a href="../classes/HttpResponse.html">HttpResponse</a></li>
+
+                <li><a href="../classes/HttpServer.html">HttpServer</a></li>
+
+                <li><a href="../classes/Lexer.html">Lexer</a></li>
+
+                <li><a href="../classes/LiteralNode.html">LiteralNode</a></li>
+
+                <li><a href="../classes/Message.html">Message</a></li>
+
+                <li><a href="../classes/MessageNotUnderstood.html">MessageNotUnderstood</a></li>
+
+                <li><a href="../classes/MessageSendNode.html">MessageSendNode</a></li>
+
+                <li><a href="../classes/MethodNode.html">MethodNode</a></li>
+
+                <li><a href="../classes/Mutex.html">Mutex</a></li>
+
+                <li><a href="../classes/Notification.html">Notification</a></li>
+
+                <li><a href="../classes/Object.html">Object</a></li>
+
+                <li><a href="../classes/Parser.html">Parser</a></li>
+
+                <li><a href="../classes/Process.html">Process</a></li>
+
+                <li><a href="../classes/Result.html">Result</a></li>
+
+                <li><a href="../classes/ReturnNode.html">ReturnNode</a></li>
+
+                <li><a href="../classes/Semaphore.html">Semaphore</a></li>
+
+                <li><a href="../classes/SmallInteger.html">SmallInteger</a></li>
+
+                <li><a href="../classes/StackOverflow.html">StackOverflow</a></li>
+
+                <li><a href="../classes/String.html">String</a></li>
+
+                <li><a href="../classes/SubscriptOutOfBounds.html">SubscriptOutOfBounds</a></li>
+
+                <li><a href="../classes/Success.html">Success</a></li>
+
+                <li><a href="../classes/Symbol.html">Symbol</a></li>
+
+                <li><a href="../classes/Token.html">Token</a></li>
+
+                <li><a href="../classes/True.html">True</a></li>
+
+                <li><a href="../classes/UndefinedObject.html">UndefinedObject</a></li>
+
+                <li><a href="../classes/VariableNode.html">VariableNode</a></li>
+
+                <li><a href="../classes/WaitGroup.html">WaitGroup</a></li>
+
+                <li><a href="../classes/Warning.html">Warning</a></li>
+
+                <li><a href="../classes/WeakReference.html">WeakReference</a></li>
+
+                <li><a href="../classes/ZeroDivide.html">ZeroDivide</a></li>
+
+            </ul>
+        </details>
+
+    </div>
+</nav>
+<main class="content">
     <div class="breadcrumb">
-        <a href="../../index.html">Maggie API Reference</a>
+        <a href="../index.html">Maggie API Reference</a>
 
         &rsaquo; Float
     </div>
@@ -23,6 +196,25 @@
 
     </div>
 
+
+    <div class="class-doc">
+        <p>IEEE 754 double-precision floating-point numbers. Arithmetic operators
+(<code>+</code>, <code>-</code>, <code>*</code>, <code>/</code>) and comparisons (<code>&lt;</code>, <code>&gt;</code>) are VM primitives and
+accept both Float and SmallInteger arguments.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>1.5 + 2.5 &gt;&gt;&gt; 4.0
+2.5 negated &gt;&gt;&gt; -2.5
+3.0 max: 5.0 &gt;&gt;&gt; 5
+0.0 isZero &gt;&gt;&gt; true</code></pre>
+</div>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>&#34;Compute the hypotenuse of a 3-4-5 right triangle&#34;
+((3.0 * 3.0) + (4.0 * 4.0)) sqrt</code></pre>
+</div>
+
+    </div>
 
 
 
@@ -69,6 +261,42 @@
 
         </div>
 
+        <div class="method">
+            <div class="method-selector">primCeiling</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">primFloor</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">primPrintString</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">primRounded</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">primTruncated</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">sqrt</div>
+
+
+        </div>
+
     </div>
 
     <div class="method-category">
@@ -77,11 +305,32 @@
         <div class="method">
             <div class="method-selector">abs</div>
 
+            <div class="method-doc">
+                <p>Return the absolute value of the receiver.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>(0.0 - 5.5) abs &gt;&gt;&gt; 5.5
+3.14 abs &gt;&gt;&gt; 3.14
+0.0 abs &gt;&gt;&gt; 0</code></pre>
+</div>
+
+            </div>
+
 
         </div>
 
         <div class="method">
             <div class="method-selector">ceiling</div>
+
+            <div class="method-doc">
+                <p>Return the smallest integer greater than or equal to the receiver.
+Delegates to the <code>primCeiling</code> VM primitive.</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>3.2 ceiling   &#34;=&gt; 4&#34;</code></pre>
+</div>
+
+            </div>
 
 
         </div>
@@ -89,11 +338,31 @@
         <div class="method">
             <div class="method-selector">floor</div>
 
+            <div class="method-doc">
+                <p>Return the largest integer less than or equal to the receiver.
+Delegates to the <code>primFloor</code> VM primitive.</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>3.7 floor    &#34;=&gt; 3&#34;</code></pre>
+</div>
+
+            </div>
+
 
         </div>
 
         <div class="method">
             <div class="method-selector">isZero</div>
+
+            <div class="method-doc">
+                <p>Return true if the receiver is equal to zero.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>0.0 isZero &gt;&gt;&gt; true
+3.14 isZero &gt;&gt;&gt; false</code></pre>
+</div>
+
+            </div>
 
 
         </div>
@@ -101,11 +370,31 @@
         <div class="method">
             <div class="method-selector">max:</div>
 
+            <div class="method-doc">
+                <p>Return the larger of the receiver and other.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>3.0 max: 5.0 &gt;&gt;&gt; 5
+5.0 max: 3.0 &gt;&gt;&gt; 5</code></pre>
+</div>
+
+            </div>
+
 
         </div>
 
         <div class="method">
             <div class="method-selector">min:</div>
+
+            <div class="method-doc">
+                <p>Return the smaller of the receiver and other.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>3.0 min: 5.0 &gt;&gt;&gt; 3
+5.0 min: 3.0 &gt;&gt;&gt; 3</code></pre>
+</div>
+
+            </div>
 
 
         </div>
@@ -113,11 +402,33 @@
         <div class="method">
             <div class="method-selector">negated</div>
 
+            <div class="method-doc">
+                <p>Return the arithmetic negation of the receiver.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>2.5 negated &gt;&gt;&gt; -2.5
+0.0 negated &gt;&gt;&gt; -0
+(0.0 - 7.0) negated &gt;&gt;&gt; 7</code></pre>
+</div>
+
+            </div>
+
 
         </div>
 
         <div class="method">
             <div class="method-selector">negative</div>
+
+            <div class="method-doc">
+                <p>Return true if the receiver is less than zero.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>(0.0 - 1.0) negative &gt;&gt;&gt; true
+0.0 negative &gt;&gt;&gt; false
+3.0 negative &gt;&gt;&gt; false</code></pre>
+</div>
+
+            </div>
 
 
         </div>
@@ -125,11 +436,33 @@
         <div class="method">
             <div class="method-selector">positive</div>
 
+            <div class="method-doc">
+                <p>Return true if the receiver is greater than zero.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>3.0 positive &gt;&gt;&gt; true
+0.0 positive &gt;&gt;&gt; false
+(0.0 - 1.0) positive &gt;&gt;&gt; false</code></pre>
+</div>
+
+            </div>
+
 
         </div>
 
         <div class="method">
             <div class="method-selector">printString</div>
+
+            <div class="method-doc">
+                <p>Return a string representation of the receiver. Delegates to the
+<code>primPrintString</code> VM primitive, which uses Go&#39;s <code>%g</code> format
+(trailing zeroes are omitted, e.g. <code>5.0</code> prints as <code>5</code>).</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>3.14 printString   &#34;=&gt; &#39;3.14&#39;&#34;</code></pre>
+</div>
+
+            </div>
 
 
         </div>
@@ -137,17 +470,51 @@
         <div class="method">
             <div class="method-selector">rounded</div>
 
+            <div class="method-doc">
+                <p>Return the nearest integer to the receiver (rounding half away
+from zero). Returns a SmallInteger. Delegates to <code>primRounded</code>.</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>3.5 rounded    &#34;=&gt; 4&#34;
+3.4 rounded    &#34;=&gt; 3&#34;</code></pre>
+</div>
+
+            </div>
+
 
         </div>
 
         <div class="method">
             <div class="method-selector">sign</div>
 
+            <div class="method-doc">
+                <p>Return -1.0, 0.0, or 1.0 depending on whether the receiver is
+negative, zero, or positive.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>3.0 sign &gt;&gt;&gt; 1
+(0.0 - 3.0) sign &gt;&gt;&gt; -1
+0.0 sign &gt;&gt;&gt; 0</code></pre>
+</div>
+
+            </div>
+
 
         </div>
 
         <div class="method">
             <div class="method-selector">truncated</div>
+
+            <div class="method-doc">
+                <p>Truncate the receiver toward zero, returning a SmallInteger.
+Delegates to <code>primTruncated</code>.</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>3.9 truncated     &#34;=&gt; 3&#34;
+(0.0 - 3.9) truncated  &#34;=&gt; -3&#34;</code></pre>
+</div>
+
+            </div>
 
 
         </div>
@@ -159,7 +526,7 @@
     <div class="footer">
         Generated by Maggie doc generator.
     </div>
-
-    <script src="../../js/playground.js"></script>
+</main>
+    <script src="../js/playground.js"></script>
 </body>
 </html>

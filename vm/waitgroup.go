@@ -47,8 +47,29 @@ func (vm *VM) registerWaitGroupPrimitives() {
 		return v.registerWaitGroup(waitGroup)
 	})
 
+	wg.AddClassMethod0(vm.Selectors, "primNew", func(vmPtr interface{}, recv Value) Value {
+		v := vmPtr.(*VM)
+		waitGroup := createWaitGroup()
+		return v.registerWaitGroup(waitGroup)
+	})
+
 	// WaitGroup>>add: count - add to the wait group counter
 	wg.AddMethod1(vm.Selectors, "add:", func(vmPtr interface{}, recv Value, count Value) Value {
+		v := vmPtr.(*VM)
+		w := v.getWaitGroup(recv)
+		if w == nil {
+			return Nil
+		}
+		if !count.IsSmallInt() {
+			return Nil
+		}
+		n := int(count.SmallInt())
+		w.wg.Add(n)
+		w.counter.Add(int32(n))
+		return recv
+	})
+
+	wg.AddMethod1(vm.Selectors, "primAdd:", func(vmPtr interface{}, recv Value, count Value) Value {
 		v := vmPtr.(*VM)
 		w := v.getWaitGroup(recv)
 		if w == nil {
@@ -75,8 +96,29 @@ func (vm *VM) registerWaitGroupPrimitives() {
 		return recv
 	})
 
+	wg.AddMethod0(vm.Selectors, "primDone", func(vmPtr interface{}, recv Value) Value {
+		v := vmPtr.(*VM)
+		w := v.getWaitGroup(recv)
+		if w == nil {
+			return Nil
+		}
+		w.counter.Add(-1)
+		w.wg.Done()
+		return recv
+	})
+
 	// WaitGroup>>wait - block until the counter is zero
 	wg.AddMethod0(vm.Selectors, "wait", func(vmPtr interface{}, recv Value) Value {
+		v := vmPtr.(*VM)
+		w := v.getWaitGroup(recv)
+		if w == nil {
+			return Nil
+		}
+		w.wg.Wait()
+		return recv
+	})
+
+	wg.AddMethod0(vm.Selectors, "primWait", func(vmPtr interface{}, recv Value) Value {
 		v := vmPtr.(*VM)
 		w := v.getWaitGroup(recv)
 		if w == nil {
@@ -96,9 +138,18 @@ func (vm *VM) registerWaitGroupPrimitives() {
 		return FromSmallInt(int64(w.counter.Load()))
 	})
 
+	wg.AddMethod0(vm.Selectors, "primCount", func(vmPtr interface{}, recv Value) Value {
+		v := vmPtr.(*VM)
+		w := v.getWaitGroup(recv)
+		if w == nil {
+			return FromSmallInt(0)
+		}
+		return FromSmallInt(int64(w.counter.Load()))
+	})
+
 	// WaitGroup>>wrap: aBlock - convenience: add 1, fork block, done when block completes
 	// Returns the forked process
-	wg.AddMethod1(vm.Selectors, "wrap:", func(vmPtr interface{}, recv Value, block Value) Value {
+	wrapFn := func(vmPtr interface{}, recv Value, block Value) Value {
 		v := vmPtr.(*VM)
 		w := v.getWaitGroup(recv)
 		if w == nil {
@@ -141,5 +192,7 @@ func (vm *VM) registerWaitGroupPrimitives() {
 		}()
 
 		return procValue
-	})
+	}
+	wg.AddMethod1(vm.Selectors, "wrap:", wrapFn)
+	wg.AddMethod1(vm.Selectors, "primWrap:", wrapFn)
 }

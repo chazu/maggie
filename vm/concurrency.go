@@ -535,6 +535,15 @@ func (vm *VM) registerProcessPrimitives() {
 		return proc.wait()
 	})
 
+	c.AddMethod0(vm.Selectors, "primWait", func(vmPtr interface{}, recv Value) Value {
+		v := vmPtr.(*VM)
+		proc := v.getProcess(recv)
+		if proc == nil {
+			return Nil
+		}
+		return proc.wait()
+	})
+
 	// Process>>isDone - check if process has completed
 	c.AddMethod0(vm.Selectors, "isDone", func(vmPtr interface{}, recv Value) Value {
 		v := vmPtr.(*VM)
@@ -546,6 +555,19 @@ func (vm *VM) registerProcessPrimitives() {
 			return True
 		}
 		return False
+	})
+
+	// Process>>primIsAlive - check if process is still running (opposite of isDone)
+	c.AddMethod0(vm.Selectors, "primIsAlive", func(vmPtr interface{}, recv Value) Value {
+		v := vmPtr.(*VM)
+		proc := v.getProcess(recv)
+		if proc == nil {
+			return False
+		}
+		if proc.isDone() {
+			return False
+		}
+		return True
 	})
 
 	// Process>>result - get result (nil if not done)
@@ -561,6 +583,40 @@ func (vm *VM) registerProcessPrimitives() {
 		proc.mu.Lock()
 		defer proc.mu.Unlock()
 		return proc.result
+	})
+
+	c.AddMethod0(vm.Selectors, "primResult", func(vmPtr interface{}, recv Value) Value {
+		v := vmPtr.(*VM)
+		proc := v.getProcess(recv)
+		if proc == nil {
+			return Nil
+		}
+		if !proc.isDone() {
+			return Nil
+		}
+		proc.mu.Lock()
+		defer proc.mu.Unlock()
+		return proc.result
+	})
+
+	// Process>>primYield - instance-side yield (stub, returns self)
+	c.AddMethod0(vm.Selectors, "primYield", func(_ interface{}, recv Value) Value {
+		return recv
+	})
+
+	// Process>>primTerminate - terminate process (stub, returns self)
+	c.AddMethod0(vm.Selectors, "primTerminate", func(_ interface{}, recv Value) Value {
+		return recv
+	})
+
+	// Process>>primPriority - get priority (stub, returns 0)
+	c.AddMethod0(vm.Selectors, "primPriority", func(_ interface{}, recv Value) Value {
+		return FromSmallInt(0)
+	})
+
+	// Process>>primPriority: - set priority (stub, returns self)
+	c.AddMethod1(vm.Selectors, "primPriority:", func(_ interface{}, recv Value, level Value) Value {
+		return recv
 	})
 
 	// Process class>>current - get current process (placeholder for now) (class method)

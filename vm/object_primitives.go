@@ -218,6 +218,25 @@ func (vm *VM) registerObjectPrimitives() {
 	// become: primitives - object identity swapping
 	// ---------------------------------------------------------------------------
 
+	// primShallowCopy - return a shallow copy of the receiver
+	// For non-object values (ints, floats, symbols), returns self (immutable).
+	// For objects, creates a new object with the same vtable and slot values.
+	c.AddMethod0(vm.Selectors, "primShallowCopy", func(_ interface{}, recv Value) Value {
+		if !recv.IsObject() {
+			return recv
+		}
+		obj := ObjectFromValue(recv)
+		if obj == nil {
+			return recv
+		}
+		n := obj.NumSlots()
+		cp := NewObject(obj.VTablePtr(), n)
+		for i := 0; i < n; i++ {
+			cp.SetSlot(i, obj.GetSlot(i))
+		}
+		return cp.ToValue()
+	})
+
 	// become: - Two-way identity swap. All references to receiver see arg's
 	// contents and vice versa. Swaps vtable, size, and all slot contents.
 	c.AddMethod1(vm.Selectors, "become:", func(_ interface{}, recv Value, arg Value) Value {

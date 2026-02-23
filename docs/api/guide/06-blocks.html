@@ -1,0 +1,604 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Blocks &mdash; Maggie API Reference</title>
+    <link rel="stylesheet" href="../css/style.css">
+</head>
+<body>
+<nav class="sidebar">
+    <div class="sidebar-title"><a href="../index.html">Maggie Docs</a></div>
+
+    <div class="sidebar-section">
+        <div class="sidebar-section-title">Guide</div>
+        <ul class="sidebar-list">
+
+            <li><a href="../guide/01-getting-started.html">Getting Started</a></li>
+
+            <li><a href="../guide/02-basics.html">Basics</a></li>
+
+            <li><a href="../guide/03-numbers.html">Numbers</a></li>
+
+            <li><a href="../guide/04-strings.html">Strings</a></li>
+
+            <li><a href="../guide/05-collections.html">Collections</a></li>
+
+            <li><a href="../guide/06-blocks.html" class="active">Blocks</a></li>
+
+            <li><a href="../guide/07-classes.html">Classes</a></li>
+
+            <li><a href="../guide/08-error-handling.html">Error Handling</a></li>
+
+            <li><a href="../guide/09-concurrency.html">Concurrency</a></li>
+
+            <li><a href="../guide/10-modules.html">Modules</a></li>
+
+            <li><a href="../guide/11-projects.html">Projects</a></li>
+
+            <li><a href="../guide/12-go-interop.html">Go Interop</a></li>
+
+            <li><a href="../guide/13-distribution.html">Distribution</a></li>
+
+            <li><a href="../guide/14-tooling-ide.html">Tooling &amp; IDE</a></li>
+
+        </ul>
+    </div>
+
+    <div class="sidebar-section">
+        <div class="sidebar-section-title">API Reference</div>
+
+        <details class="sidebar-ns-group" open>
+            <summary>(root)</summary>
+            <ul class="sidebar-list">
+
+                <li><a href="../classes/Array.html">Array</a></li>
+
+                <li><a href="../classes/AssignmentNode.html">AssignmentNode</a></li>
+
+                <li><a href="../classes/Association.html">Association</a></li>
+
+                <li><a href="../classes/Block.html">Block</a></li>
+
+                <li><a href="../classes/BlockNode.html">BlockNode</a></li>
+
+                <li><a href="../classes/Boolean.html">Boolean</a></li>
+
+                <li><a href="../classes/ByteArray.html">ByteArray</a></li>
+
+                <li><a href="../classes/BytecodeGenerator.html">BytecodeGenerator</a></li>
+
+                <li><a href="../classes/CancellationContext.html">CancellationContext</a></li>
+
+                <li><a href="../classes/CascadeNode.html">CascadeNode</a></li>
+
+                <li><a href="../classes/Channel.html">Channel</a></li>
+
+                <li><a href="../classes/Character.html">Character</a></li>
+
+                <li><a href="../classes/CharacterStream.html">CharacterStream</a></li>
+
+                <li><a href="../classes/Class.html">Class</a></li>
+
+                <li><a href="../classes/ClassNode.html">ClassNode</a></li>
+
+                <li><a href="../classes/CompiledMethod.html">CompiledMethod</a></li>
+
+                <li><a href="../classes/Compiler.html">Compiler</a></li>
+
+                <li><a href="../classes/Context.html">Context</a></li>
+
+                <li><a href="../classes/Debugger.html">Debugger</a></li>
+
+                <li><a href="../classes/Dictionary.html">Dictionary</a></li>
+
+                <li><a href="../classes/DocServer.html">DocServer</a></li>
+
+                <li><a href="../classes/Error.html">Error</a></li>
+
+                <li><a href="../classes/Exception.html">Exception</a></li>
+
+                <li><a href="../classes/Failure.html">Failure</a></li>
+
+                <li><a href="../classes/False.html">False</a></li>
+
+                <li><a href="../classes/File.html">File</a></li>
+
+                <li><a href="../classes/Float.html">Float</a></li>
+
+                <li><a href="../classes/GrpcClient.html">GrpcClient</a></li>
+
+                <li><a href="../classes/GrpcStream.html">GrpcStream</a></li>
+
+                <li><a href="../classes/Halt.html">Halt</a></li>
+
+                <li><a href="../classes/HttpRequest.html">HttpRequest</a></li>
+
+                <li><a href="../classes/HttpResponse.html">HttpResponse</a></li>
+
+                <li><a href="../classes/HttpServer.html">HttpServer</a></li>
+
+                <li><a href="../classes/Lexer.html">Lexer</a></li>
+
+                <li><a href="../classes/LiteralNode.html">LiteralNode</a></li>
+
+                <li><a href="../classes/Message.html">Message</a></li>
+
+                <li><a href="../classes/MessageNotUnderstood.html">MessageNotUnderstood</a></li>
+
+                <li><a href="../classes/MessageSendNode.html">MessageSendNode</a></li>
+
+                <li><a href="../classes/MethodNode.html">MethodNode</a></li>
+
+                <li><a href="../classes/Mutex.html">Mutex</a></li>
+
+                <li><a href="../classes/Notification.html">Notification</a></li>
+
+                <li><a href="../classes/Object.html">Object</a></li>
+
+                <li><a href="../classes/Parser.html">Parser</a></li>
+
+                <li><a href="../classes/Process.html">Process</a></li>
+
+                <li><a href="../classes/Result.html">Result</a></li>
+
+                <li><a href="../classes/ReturnNode.html">ReturnNode</a></li>
+
+                <li><a href="../classes/Semaphore.html">Semaphore</a></li>
+
+                <li><a href="../classes/SmallInteger.html">SmallInteger</a></li>
+
+                <li><a href="../classes/StackOverflow.html">StackOverflow</a></li>
+
+                <li><a href="../classes/String.html">String</a></li>
+
+                <li><a href="../classes/SubscriptOutOfBounds.html">SubscriptOutOfBounds</a></li>
+
+                <li><a href="../classes/Success.html">Success</a></li>
+
+                <li><a href="../classes/Symbol.html">Symbol</a></li>
+
+                <li><a href="../classes/Token.html">Token</a></li>
+
+                <li><a href="../classes/True.html">True</a></li>
+
+                <li><a href="../classes/UndefinedObject.html">UndefinedObject</a></li>
+
+                <li><a href="../classes/VariableNode.html">VariableNode</a></li>
+
+                <li><a href="../classes/WaitGroup.html">WaitGroup</a></li>
+
+                <li><a href="../classes/Warning.html">Warning</a></li>
+
+                <li><a href="../classes/WeakReference.html">WeakReference</a></li>
+
+                <li><a href="../classes/ZeroDivide.html">ZeroDivide</a></li>
+
+            </ul>
+        </details>
+
+    </div>
+</nav>
+<main class="content">
+    <div class="breadcrumb">
+        <a href="../index.html">Maggie API Reference</a>
+        &rsaquo; Guide
+        &rsaquo; Blocks
+    </div>
+
+    <h1>Blocks</h1>
+
+
+    <div class="guide-intro">
+        <p>Blocks are the heart of Maggie. A block is a closure -- a chunk of deferred
+code that captures its surrounding scope and can be evaluated later. Blocks
+drive all control flow in the language: conditionals, loops, error handling,
+and concurrency are all built on sending messages to blocks and booleans.</p>
+<p>If you have used Ruby blocks, JavaScript arrow functions, or Smalltalk
+closures, Maggie blocks will feel familiar. The key difference is that
+blocks are real objects -- you can store them in variables, pass them as
+arguments, return them from methods, and send them messages.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>[3 + 4] value &gt;&gt;&gt; 7
+[:x | x * 2] value: 5 &gt;&gt;&gt; 10
+[:x :y | x + y] value: 3 value: 4 &gt;&gt;&gt; 7</code></pre>
+</div>
+
+    </div>
+
+
+
+    <div class="guide-section">
+
+        <p>A block is written with square brackets. The simplest block contains a
+single expression. Multiple expressions are separated by periods, and
+the block returns the value of the last expression.</p>
+<p>To run a block, send it the message <code>value</code>. Until you send <code>value</code>,
+the code inside the block does not execute -- it is deferred. This is
+fundamental to how Maggie works: blocks let you pass around code as
+data, then decide when (and whether) to run it.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>[42] value &gt;&gt;&gt; 42
+[3 + 4] value &gt;&gt;&gt; 7
+[&#39;hello&#39;] value &gt;&gt;&gt; &#39;hello&#39;</code></pre>
+</div>
+<p>A block with multiple expressions evaluates them in order and returns
+the last result. Earlier expressions are evaluated for their side
+effects only.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>[1. 2. 3] value &gt;&gt;&gt; 3
+[&#39;first&#39;. &#39;second&#39;. &#39;third&#39;] value &gt;&gt;&gt; &#39;third&#39;</code></pre>
+</div>
+<p>Blocks are objects. You can store them in variables and evaluate
+them as many times as you like. Each call to <code>value</code> re-executes
+the block from the beginning.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>[3 + 4] value &gt;&gt;&gt; 7</code></pre>
+</div>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <p>Blocks can take arguments. Each argument is declared with a colon
+before its name, followed by a vertical bar that separates the
+arguments from the body.</p>
+<p>One argument -- send <code>value:</code> with the argument.
+Two arguments -- send <code>value:value:</code> with both arguments.
+Three arguments -- send <code>value:value:value:</code> with all three.</p>
+<p>The number of arguments you pass must match the number the block
+expects.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>[:x | x + 1] value: 99 &gt;&gt;&gt; 100
+[:x | x * 2] value: 5 &gt;&gt;&gt; 10
+[:s | s , &#39; world&#39;] value: &#39;hello&#39; &gt;&gt;&gt; &#39;hello world&#39;
+[:x :y | x + y] value: 3 value: 4 &gt;&gt;&gt; 7
+[:a :b | a * b] value: 6 value: 7 &gt;&gt;&gt; 42
+[:a :b :c | a + b + c] value: 1 value: 2 value: 3 &gt;&gt;&gt; 6</code></pre>
+</div>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <p>Blocks capture variables from their enclosing scope. This is what
+makes them closures -- they &#34;close over&#34; the environment where they
+were created. If the captured variable changes later, the block sees
+the new value. And if the block assigns to a captured variable, the
+change is visible outside the block.</p>
+<p>This is the foundation for many patterns: factory functions, callbacks,
+accumulators, and more.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>factor := 10.
+[:x | x * factor] value: 5 &gt;&gt;&gt; 50</code></pre>
+</div>
+<p>A classic closure example is a function that builds other functions.
+Here, <code>makeAdder</code> returns a new block that remembers the value of <code>n</code>.
+Each call to <code>makeAdder</code> creates a fresh closure with its own copy
+of the captured variable:</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>([:n | [:x | x + n]] value: 5) value: 10 &gt;&gt;&gt; 15</code></pre>
+</div>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>([:n | [:x | x + n]] value: 100) value: 10 &gt;&gt;&gt; 110</code></pre>
+</div>
+<p>Captured variables are shared, not copied. Assigning inside the block
+changes the original variable. This means two blocks that close over
+the same variable will see each other&#39;s changes:</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>count := 0.
+[count := count + 1] value.
+[count := count + 1] value.
+count &gt;&gt;&gt; 2</code></pre>
+</div>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>total := 100.
+[:n | total := total + n] value: 30.
+[:n | total := total - n] value: 10.
+total &gt;&gt;&gt; 120</code></pre>
+</div>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <p>Maggie has no if/else keywords. Instead, conditionals work by sending
+messages to boolean values. The comparison operators (&lt;, &gt;, =, &gt;=, &lt;=)
+return either <code>true</code> or <code>false</code>, and those boolean objects understand
+the messages <code>ifTrue:</code>, <code>ifFalse:</code>, and <code>ifTrue:ifFalse:</code>.</p>
+<p>The argument to these messages is always a block -- the code to run
+if the condition holds. Because blocks are deferred, only the
+appropriate branch executes.</p>
+<p><code>ifTrue:</code> evaluates the block when the receiver is true, otherwise
+returns nil. <code>ifFalse:</code> is the opposite. <code>ifTrue:ifFalse:</code> evaluates
+one branch or the other.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>(3 &gt; 2) ifTrue: [&#39;yes&#39;] &gt;&gt;&gt; &#39;yes&#39;
+(3 &gt; 2) ifFalse: [&#39;no&#39;] &gt;&gt;&gt; nil
+(1 &gt; 2) ifTrue: [&#39;yes&#39;] &gt;&gt;&gt; nil
+(1 &gt; 2) ifFalse: [&#39;no&#39;] &gt;&gt;&gt; &#39;no&#39;</code></pre>
+</div>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>x := 10.
+x &gt; 5 ifTrue: [#big] ifFalse: [#small] &gt;&gt;&gt; #big</code></pre>
+</div>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>x := 2.
+x &gt; 5 ifTrue: [#big] ifFalse: [#small] &gt;&gt;&gt; #small</code></pre>
+</div>
+<p>There is also <code>ifFalse:ifTrue:</code> which reverses the argument order:</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>(1 &gt; 2) ifFalse: [&#39;nope&#39;] ifTrue: [&#39;yep&#39;] &gt;&gt;&gt; &#39;nope&#39;</code></pre>
+</div>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <p>Boolean objects support logical operations. The <code>not</code> message negates
+a boolean. The <code>and:</code> and <code>or:</code> messages take a block argument and
+use short-circuit evaluation -- <code>and:</code> skips the block if the receiver
+is false, and <code>or:</code> skips the block if the receiver is true.</p>
+<p>The <code>&amp;</code> and <code>|</code> operators are eager (non-short-circuit) -- they take
+a value, not a block. Use <code>and:</code>/<code>or:</code> when the second operand is
+expensive or has side effects.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>true not &gt;&gt;&gt; false
+false not &gt;&gt;&gt; true</code></pre>
+</div>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>true and: [#evaluated] &gt;&gt;&gt; #evaluated
+false and: [#skipped] &gt;&gt;&gt; false
+false or: [#evaluated] &gt;&gt;&gt; #evaluated
+true or: [#skipped] &gt;&gt;&gt; true</code></pre>
+</div>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>true &amp; true &gt;&gt;&gt; true
+true &amp; false &gt;&gt;&gt; false
+false &amp; true &gt;&gt;&gt; false
+false | true &gt;&gt;&gt; true
+false | false &gt;&gt;&gt; false
+true | false &gt;&gt;&gt; true</code></pre>
+</div>
+<p>Boolean also has <code>xor:</code> (exclusive or) and <code>eqv:</code> (equivalence):</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>true xor: false &gt;&gt;&gt; true
+true xor: true &gt;&gt;&gt; false
+true eqv: true &gt;&gt;&gt; true
+true eqv: false &gt;&gt;&gt; false</code></pre>
+</div>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <p>Maggie has no while keyword. Instead, loops are messages sent to
+blocks. The receiver block is the condition, and the argument block
+is the body.</p>
+<p><code>whileTrue:</code> repeatedly evaluates the condition block. As long as it
+returns true, the body block executes. When the condition returns
+false, the loop stops and returns nil.</p>
+<p><code>whileFalse:</code> is the opposite -- it keeps looping as long as the
+condition returns false.</p>
+<p>There are also zero-argument forms: <code>whileTrue</code> and <code>whileFalse</code>
+that just loop on the condition without a separate body. These are
+useful when the condition block itself performs the work and you
+just need to repeat it until the boolean result changes.</p>
+<p>Important: <code>whileTrue:</code> and <code>whileFalse:</code> are sent to blocks, not
+to boolean values. The receiver must be a block (in square brackets)
+that the VM can evaluate repeatedly. Writing <code>condition whileTrue:</code>
+where condition is a boolean, not a block, will not work -- you need
+<code>[condition] whileTrue:</code> so the VM can re-evaluate the condition on
+each iteration.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>i := 1.
+sum := 0.
+[i &lt;= 10] whileTrue: [sum := sum + i. i := i + 1].
+sum &gt;&gt;&gt; 55</code></pre>
+</div>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>n := 5.
+[n &gt; 0] whileTrue: [n := n - 1].
+n &gt;&gt;&gt; 0</code></pre>
+</div>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>found := false.
+[found] whileFalse: [found := true].
+found &gt;&gt;&gt; true</code></pre>
+</div>
+<p>The loop primitives always return nil. If you need a result from a
+loop, accumulate it in a variable declared outside the loop:</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>i := 1.
+product := 1.
+[i &lt;= 5] whileTrue: [product := product * i. i := i + 1].
+product &gt;&gt;&gt; 120</code></pre>
+</div>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <p>SmallInteger provides <code>timesRepeat:</code> for running a block a fixed
+number of times, and <code>to:do:</code> for iterating over a range with an
+index variable.</p>
+<p><code>timesRepeat:</code> evaluates a zero-argument block N times and returns
+the receiver.</p>
+<p><code>to:do:</code> iterates from the receiver up to the stop value (inclusive),
+passing each index to a one-argument block. <code>to:by:do:</code> adds a custom
+step value.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>count := 0.
+5 timesRepeat: [count := count + 1].
+count &gt;&gt;&gt; 5</code></pre>
+</div>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>sum := 0.
+1 to: 10 do: [:i | sum := sum + i].
+sum &gt;&gt;&gt; 55</code></pre>
+</div>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>result := 0.
+1 to: 10 by: 2 do: [:i | result := result + i].
+result &gt;&gt;&gt; 25</code></pre>
+</div>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <p>Inside a method, the caret (^) means &#34;return from this method.&#34; When
+a ^ appears inside a block that is nested inside a method, it does
+not just exit the block -- it exits the entire enclosing method. This
+is called a non-local return.</p>
+<p>Non-local returns are what make blocks powerful for control flow.
+When you write <code>x &gt; 5 ifTrue: [^#big]</code>, the <code>^#big</code> returns from
+the enclosing method, not just from the ifTrue: block. Without
+non-local return, you would need to store results in temporary
+variables and thread them through every conditional.</p>
+<p>This is how methods like <code>detect:</code> and <code>do:</code> work -- the block can
+return from the calling method when it finds what it needs.</p>
+<p>A method without an explicit ^ at the end implicitly returns the
+value of its last expression. A ^ at the top level of a method
+returns that value immediately.</p>
+<p>Consider this search pattern: the block inside <code>to:do:</code> uses ^ to
+exit the enclosing method as soon as a match is found, rather than
+continuing to iterate.</p>
+<p>Note: In forked processes (blocks sent <code>fork</code>), non-local returns
+are caught at the process boundary and treated as local returns.
+This prevents a ^ from escaping one goroutine into another.</p>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <p>Maggie provides exception handling through messages on blocks.
+The <code>on:do:</code> message installs an exception handler: if the block
+signals an exception matching the given class, the handler block
+runs with the exception object as its argument.</p>
+<p>The exception hierarchy has Exception at the root, with Error and
+Warning as subclasses. Specific errors like ZeroDivide and
+MessageNotUnderstood are subclasses of Error. Catching Error will
+also catch its subclasses, so you can write a broad handler that
+catches any error.</p>
+<p>The general form is:</p>
+<pre><code>[risky code] on: SomeExceptionClass do: [:ex | recovery code]</code></pre>
+<p>If no exception is raised, <code>on:do:</code> returns the result of the
+receiver block. If an exception matching the class is raised, the
+handler block runs and its result becomes the result of <code>on:do:</code>.</p>
+<p>The <code>ensure:</code> message guarantees that a cleanup block runs after
+the receiver block finishes, whether it completed normally or was
+interrupted by an exception or non-local return. The result of
+<code>ensure:</code> is the result of the receiver block, not the cleanup block.
+This is Maggie&#39;s equivalent of try/finally in other languages.</p>
+<p>The <code>ifCurtailed:</code> message is related but only runs the cleanup
+block if the receiver block terminates abnormally (via exception
+or non-local return). If the block completes normally, the
+curtailment block is skipped.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>[1 + 2] ensure: [nil] &gt;&gt;&gt; 3
+[42] ensure: [99] &gt;&gt;&gt; 42</code></pre>
+</div>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <p>Blocks are used everywhere in Maggie, not just for control flow.
+Here are some common patterns that show how blocks compose with
+the rest of the language.</p>
+<p>Storing blocks in variables for later use (callbacks):</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>[:x | x * x] value: 5 &gt;&gt;&gt; 25</code></pre>
+</div>
+<p>Building a collection with a block:</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>result := Array new: 5.
+0 to: 4 do: [:i | result at: i put: i * i].
+result at: 3 &gt;&gt;&gt; 9</code></pre>
+</div>
+<p>Using ensure: for resource cleanup:</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>log := &#39;start&#39;.
+[log := log , &#39;-work&#39;] ensure: [log := log , &#39;-done&#39;].
+log &gt;&gt;&gt; &#39;start-work-done&#39;</code></pre>
+</div>
+<p>Conditional assignment -- the result of ifTrue:ifFalse: is the
+value of whichever branch was taken:</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>x := 42.
+label := x even ifTrue: [&#39;even&#39;] ifFalse: [&#39;odd&#39;].
+label &gt;&gt;&gt; &#39;even&#39;</code></pre>
+</div>
+<p>Accumulator pattern -- a block that maintains private state
+through a captured variable:</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>counter := 0.
+[counter := counter + 1. counter] value.
+[counter := counter + 1. counter] value.
+[counter := counter + 1. counter] value &gt;&gt;&gt; 3</code></pre>
+</div>
+<p>Composing blocks -- passing one block to another:</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>[:f :x | f value: x] value: [:n | n * 10] value: 7 &gt;&gt;&gt; 70</code></pre>
+</div>
+<p>Using whileTrue: to find a value:</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>n := 1.
+[n * n &lt; 100] whileTrue: [n := n + 1].
+n &gt;&gt;&gt; 10</code></pre>
+</div>
+
+
+    </div>
+
+
+    <div class="footer">
+        Generated by Maggie doc generator.
+    </div>
+</main>
+    <script src="../js/playground.js"></script>
+</body>
+</html>

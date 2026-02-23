@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Basics &mdash; Maggie API Reference</title>
+    <link rel="stylesheet" href="../css/style.css">
+</head>
+<body>
+<nav class="sidebar">
+    <div class="sidebar-title"><a href="../index.html">Maggie Docs</a></div>
+
+    <div class="sidebar-section">
+        <div class="sidebar-section-title">Guide</div>
+        <ul class="sidebar-list">
+
+            <li><a href="../guide/01-getting-started.html">Getting Started</a></li>
+
+            <li><a href="../guide/02-basics.html" class="active">Basics</a></li>
+
+            <li><a href="../guide/03-numbers.html">Numbers</a></li>
+
+            <li><a href="../guide/04-strings.html">Strings</a></li>
+
+            <li><a href="../guide/05-collections.html">Collections</a></li>
+
+            <li><a href="../guide/06-blocks.html">Blocks</a></li>
+
+            <li><a href="../guide/07-classes.html">Classes</a></li>
+
+            <li><a href="../guide/08-error-handling.html">Error Handling</a></li>
+
+            <li><a href="../guide/09-concurrency.html">Concurrency</a></li>
+
+            <li><a href="../guide/10-modules.html">Modules</a></li>
+
+            <li><a href="../guide/11-projects.html">Projects</a></li>
+
+            <li><a href="../guide/12-go-interop.html">Go Interop</a></li>
+
+            <li><a href="../guide/13-distribution.html">Distribution</a></li>
+
+            <li><a href="../guide/14-tooling-ide.html">Tooling &amp; IDE</a></li>
+
+        </ul>
+    </div>
+
+    <div class="sidebar-section">
+        <div class="sidebar-section-title">API Reference</div>
+
+        <details class="sidebar-ns-group" open>
+            <summary>(root)</summary>
+            <ul class="sidebar-list">
+
+                <li><a href="../classes/Array.html">Array</a></li>
+
+                <li><a href="../classes/AssignmentNode.html">AssignmentNode</a></li>
+
+                <li><a href="../classes/Association.html">Association</a></li>
+
+                <li><a href="../classes/Block.html">Block</a></li>
+
+                <li><a href="../classes/BlockNode.html">BlockNode</a></li>
+
+                <li><a href="../classes/Boolean.html">Boolean</a></li>
+
+                <li><a href="../classes/ByteArray.html">ByteArray</a></li>
+
+                <li><a href="../classes/BytecodeGenerator.html">BytecodeGenerator</a></li>
+
+                <li><a href="../classes/CancellationContext.html">CancellationContext</a></li>
+
+                <li><a href="../classes/CascadeNode.html">CascadeNode</a></li>
+
+                <li><a href="../classes/Channel.html">Channel</a></li>
+
+                <li><a href="../classes/Character.html">Character</a></li>
+
+                <li><a href="../classes/CharacterStream.html">CharacterStream</a></li>
+
+                <li><a href="../classes/Class.html">Class</a></li>
+
+                <li><a href="../classes/ClassNode.html">ClassNode</a></li>
+
+                <li><a href="../classes/CompiledMethod.html">CompiledMethod</a></li>
+
+                <li><a href="../classes/Compiler.html">Compiler</a></li>
+
+                <li><a href="../classes/Context.html">Context</a></li>
+
+                <li><a href="../classes/Debugger.html">Debugger</a></li>
+
+                <li><a href="../classes/Dictionary.html">Dictionary</a></li>
+
+                <li><a href="../classes/DocServer.html">DocServer</a></li>
+
+                <li><a href="../classes/Error.html">Error</a></li>
+
+                <li><a href="../classes/Exception.html">Exception</a></li>
+
+                <li><a href="../classes/Failure.html">Failure</a></li>
+
+                <li><a href="../classes/False.html">False</a></li>
+
+                <li><a href="../classes/File.html">File</a></li>
+
+                <li><a href="../classes/Float.html">Float</a></li>
+
+                <li><a href="../classes/GrpcClient.html">GrpcClient</a></li>
+
+                <li><a href="../classes/GrpcStream.html">GrpcStream</a></li>
+
+                <li><a href="../classes/Halt.html">Halt</a></li>
+
+                <li><a href="../classes/HttpRequest.html">HttpRequest</a></li>
+
+                <li><a href="../classes/HttpResponse.html">HttpResponse</a></li>
+
+                <li><a href="../classes/HttpServer.html">HttpServer</a></li>
+
+                <li><a href="../classes/Lexer.html">Lexer</a></li>
+
+                <li><a href="../classes/LiteralNode.html">LiteralNode</a></li>
+
+                <li><a href="../classes/Message.html">Message</a></li>
+
+                <li><a href="../classes/MessageNotUnderstood.html">MessageNotUnderstood</a></li>
+
+                <li><a href="../classes/MessageSendNode.html">MessageSendNode</a></li>
+
+                <li><a href="../classes/MethodNode.html">MethodNode</a></li>
+
+                <li><a href="../classes/Mutex.html">Mutex</a></li>
+
+                <li><a href="../classes/Notification.html">Notification</a></li>
+
+                <li><a href="../classes/Object.html">Object</a></li>
+
+                <li><a href="../classes/Parser.html">Parser</a></li>
+
+                <li><a href="../classes/Process.html">Process</a></li>
+
+                <li><a href="../classes/Result.html">Result</a></li>
+
+                <li><a href="../classes/ReturnNode.html">ReturnNode</a></li>
+
+                <li><a href="../classes/Semaphore.html">Semaphore</a></li>
+
+                <li><a href="../classes/SmallInteger.html">SmallInteger</a></li>
+
+                <li><a href="../classes/StackOverflow.html">StackOverflow</a></li>
+
+                <li><a href="../classes/String.html">String</a></li>
+
+                <li><a href="../classes/SubscriptOutOfBounds.html">SubscriptOutOfBounds</a></li>
+
+                <li><a href="../classes/Success.html">Success</a></li>
+
+                <li><a href="../classes/Symbol.html">Symbol</a></li>
+
+                <li><a href="../classes/Token.html">Token</a></li>
+
+                <li><a href="../classes/True.html">True</a></li>
+
+                <li><a href="../classes/UndefinedObject.html">UndefinedObject</a></li>
+
+                <li><a href="../classes/VariableNode.html">VariableNode</a></li>
+
+                <li><a href="../classes/WaitGroup.html">WaitGroup</a></li>
+
+                <li><a href="../classes/Warning.html">Warning</a></li>
+
+                <li><a href="../classes/WeakReference.html">WeakReference</a></li>
+
+                <li><a href="../classes/ZeroDivide.html">ZeroDivide</a></li>
+
+            </ul>
+        </details>
+
+    </div>
+</nav>
+<main class="content">
+    <div class="breadcrumb">
+        <a href="../index.html">Maggie API Reference</a>
+        &rsaquo; Guide
+        &rsaquo; Basics
+    </div>
+
+    <h1>Basics</h1>
+
+
+    <div class="guide-intro">
+        <p>Maggie is a message-passing language: all computation happens by sending
+messages to objects. Understanding how messages work is the key to reading
+and writing Maggie code. This chapter covers the three message types,
+evaluation order, cascades, variables, comments, the special objects
+<code>nil</code>, <code>true</code>, and <code>false</code>, and the difference between identity and
+equality.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>3 + 4 &gt;&gt;&gt; 7
+&#39;hello&#39; size &gt;&gt;&gt; 5
+true not &gt;&gt;&gt; false
+nil isNil &gt;&gt;&gt; true</code></pre>
+</div>
+
+    </div>
+
+
+
+    <div class="guide-section">
+
+        <p>Every piece of Maggie code is an expression that produces a value.
+Expressions are separated by periods. The last expression in a
+sequence is the result.</p>
+<p>There are no statements in Maggie. Even assignment returns the
+assigned value, and control flow is done by sending messages to
+booleans and blocks.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>3 + 4 &gt;&gt;&gt; 7
+&#39;hello&#39; , &#39; world&#39; &gt;&gt;&gt; &#39;hello world&#39;
+42 even &gt;&gt;&gt; true</code></pre>
+</div>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <p>Messages are the fundamental operation in Maggie. When you write
+<code>3 + 4</code>, you are sending the message <code>+</code> with argument <code>4</code> to
+the object <code>3</code>. There are three kinds of messages, distinguished
+by their syntax.</p>
+<p>Unary messages take no arguments. They are a single word after the
+receiver. Examples include <code>size</code>, <code>not</code>, <code>abs</code>, <code>negated</code>, <code>even</code>,
+and <code>factorial</code>.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>&#39;hello&#39; size &gt;&gt;&gt; 5
+true not &gt;&gt;&gt; false
+-5 abs &gt;&gt;&gt; 5
+7 odd &gt;&gt;&gt; true
+5 factorial &gt;&gt;&gt; 120</code></pre>
+</div>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <p>Binary messages take exactly one argument and use an operator symbol
+as the selector. Common binary messages include arithmetic (<code>+</code>, <code>-</code>,
+<code>*</code>, <code>/</code>, <code>\\</code>), comparison (<code>&lt;</code>, <code>&gt;</code>, <code>&lt;=</code>, <code>&gt;=</code>, <code>=</code>, <code>~=</code>),
+string concatenation (<code>,</code>), and logical operators (<code>&amp;</code>, <code>|</code>).</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>3 + 4 &gt;&gt;&gt; 7
+10 - 3 &gt;&gt;&gt; 7
+6 * 7 &gt;&gt;&gt; 42
+10 / 3 &gt;&gt;&gt; 3
+10 \\ 3 &gt;&gt;&gt; 1
+5 &lt; 10 &gt;&gt;&gt; true
+&#39;hello&#39; , &#39; world&#39; &gt;&gt;&gt; &#39;hello world&#39;
+true &amp; false &gt;&gt;&gt; false
+true | false &gt;&gt;&gt; true</code></pre>
+</div>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <p>Keyword messages have one or more colon-terminated keywords, each
+followed by an argument. The full selector is formed by joining
+all the keywords. For example, <code>at: 0</code> has the selector <code>at:</code>,
+and <code>at: 1 put: 42</code> has the selector <code>at:put:</code>.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>#(10 20 30) at: 0 &gt;&gt;&gt; 10
+3 max: 5 &gt;&gt;&gt; 5
+5 between: 1 and: 10 &gt;&gt;&gt; true
+&#39;hello&#39; copyFrom: 1 to: 4 &gt;&gt;&gt; &#39;ell&#39;</code></pre>
+</div>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <p>Message precedence determines evaluation order when multiple messages
+appear in a single expression. The rule is simple:</p>
+<p>1. Unary messages are sent first (highest precedence).
+2. Binary messages are sent next.
+3. Keyword messages are sent last (lowest precedence).</p>
+<p>Within the same precedence level, messages are evaluated left to right.
+This means arithmetic does NOT follow standard math precedence --
+<code>2 + 3 * 4</code> evaluates as <code>(2 + 3) * 4</code>, not <code>2 + (3 * 4)</code>.</p>
+<p>Use parentheses to override the default order.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>2 + 3 * 4 &gt;&gt;&gt; 20
+2 + (3 * 4) &gt;&gt;&gt; 14
+-5 abs + 3 &gt;&gt;&gt; 8
+1 + 2 max: 0 &gt;&gt;&gt; 3
+(1 + 2) max: 0 &gt;&gt;&gt; 3</code></pre>
+</div>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <p>Unary messages chain naturally because each one returns a new value
+that becomes the receiver of the next message. They evaluate left
+to right.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>-5 abs &gt;&gt;&gt; 5
+-5 abs negated &gt;&gt;&gt; -5
+-5 abs negated abs &gt;&gt;&gt; 5
+7 factorial even &gt;&gt;&gt; true</code></pre>
+</div>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <p>Cascades let you send multiple messages to the same receiver without
+repeating it. Use a semicolon (<code>;</code>) to separate cascaded messages.
+The result of a cascade is the result of the last message sent.</p>
+<p>To get the receiver itself back from a cascade, end with <code>yourself</code>
+-- a method defined on Object that simply returns <code>self</code>.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>a := Array new: 3.
+a at: 0 put: 10; at: 1 put: 20; at: 2 put: 30.
+a at: 0 &gt;&gt;&gt; 10
+a at: 1 &gt;&gt;&gt; 20
+a at: 2 &gt;&gt;&gt; 30</code></pre>
+</div>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <p>Variables are created with the <code>:=</code> assignment operator. Inside
+method bodies, local variables can be declared in a <code>| var1 var2 |</code>
+block at the top, or simply assigned with <code>:=</code>. Assignment returns
+the assigned value.</p>
+<p>Variable names start with a lowercase letter and use camelCase by
+convention.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>x := 42.
+x &gt;&gt;&gt; 42
+x := x + 1.
+x &gt;&gt;&gt; 43
+name := &#39;Maggie&#39;.
+greeting := &#39;Hello, &#39; , name.
+greeting &gt;&gt;&gt; &#39;Hello, Maggie&#39;</code></pre>
+</div>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <p>Maggie has two comment styles. Line comments start with <code>#</code> and
+extend to the end of the line. They can appear at the start of a
+line or after code. Inside method bodies, traditional Smalltalk
+comments enclosed in double quotes are also supported. These are
+useful for inline annotations.</p>
+<p>Docstrings are a separate feature -- triple-quoted strings that
+attach documentation to classes, traits, and methods. They are
+preserved in the compiled image for runtime access, not discarded
+like comments.</p>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <p><code>nil</code> is the sole instance of UndefinedObject. It represents the
+absence of a value. Uninitialized variables default to <code>nil</code>.
+Test for nil with <code>isNil</code> and <code>notNil</code>.</p>
+<p><code>true</code> is the sole instance of True, and <code>false</code> is the sole
+instance of False. Both inherit from Boolean. Booleans support
+<code>not</code>, <code>&amp;</code> (and), <code>|</code> (or), and conditional messages like
+<code>ifTrue:</code>, <code>ifFalse:</code>, and <code>ifTrue:ifFalse:</code>.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>nil isNil &gt;&gt;&gt; true
+nil notNil &gt;&gt;&gt; false
+42 isNil &gt;&gt;&gt; false
+42 notNil &gt;&gt;&gt; true
+nil class name &gt;&gt;&gt; #UndefinedObject
+true class name &gt;&gt;&gt; #True
+false class name &gt;&gt;&gt; #False
+true not &gt;&gt;&gt; false
+false not &gt;&gt;&gt; true
+true &amp; false &gt;&gt;&gt; false
+true | false &gt;&gt;&gt; true</code></pre>
+</div>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <p>Booleans drive control flow through messages. <code>ifTrue:</code> evaluates
+a block only when the receiver is true. <code>ifFalse:</code> evaluates its
+block only when the receiver is false. <code>ifTrue:ifFalse:</code> chooses
+between two blocks.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>(3 &gt; 2) ifTrue: [&#39;yes&#39;] ifFalse: [&#39;no&#39;] &gt;&gt;&gt; &#39;yes&#39;
+(1 &gt; 5) ifTrue: [&#39;yes&#39;] ifFalse: [&#39;no&#39;] &gt;&gt;&gt; &#39;no&#39;
+true ifTrue: [&#39;hello&#39;] &gt;&gt;&gt; &#39;hello&#39;
+false ifTrue: [&#39;hello&#39;] &gt;&gt;&gt; nil
+false ifFalse: [&#39;nope&#39;] &gt;&gt;&gt; &#39;nope&#39;</code></pre>
+</div>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <p>Identity (<code>==</code>) tests whether two references point to the exact
+same object. Equality (<code>=</code>) tests whether two objects have the
+same value. The default implementation of <code>=</code> on Object delegates
+to <code>==</code>, but subclasses like String override it to compare contents.</p>
+<p>For small integers and symbols, identity and equality behave the
+same way because these values are interned (each distinct value
+exists only once in memory). For strings, two separately created
+strings with the same characters are equal (<code>=</code>) but may not be
+identical (<code>==</code>).</p>
+<p>The negated forms are <code>~~</code> (not identical) and <code>~=</code> (not equal).</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>3 == 3 &gt;&gt;&gt; true
+3 = 3 &gt;&gt;&gt; true
+nil == nil &gt;&gt;&gt; true
+#hello == #hello &gt;&gt;&gt; true
+#hello = #hello &gt;&gt;&gt; true
+&#39;abc&#39; = &#39;abc&#39; &gt;&gt;&gt; true
+3 ~= 4 &gt;&gt;&gt; true
+3 ~~ 4 &gt;&gt;&gt; true</code></pre>
+</div>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <p><code>self</code> refers to the current receiver -- the object that received
+the message that invoked the current method. It is used to send
+messages to the same object, access instance variables, and return
+the receiver.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>3 yourself &gt;&gt;&gt; 3
+&#39;hello&#39; yourself &gt;&gt;&gt; &#39;hello&#39;
+-5 abs &gt;&gt;&gt; 5</code></pre>
+</div>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <p><code>super</code> also refers to the current receiver, but message lookups
+start from the superclass of the class where the method is defined,
+rather than from the receiver&#39;s actual class. This is how subclasses
+can extend inherited behavior without replacing it entirely.</p>
+<p>You will see <code>super</code> used most often in initialization methods and
+in <code>printString</code> overrides, where a subclass wants to include the
+superclass behavior and then add to it.</p>
+<p><code>super</code> cannot be demonstrated with simple literals because it
+requires a class hierarchy. You will see it in action in the
+Classes chapter. The key point is: <code>self</code> always means the current
+receiver, <code>super</code> means the current receiver but dispatched through
+the parent class.</p>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <p>Every object knows its class. Send <code>class</code> to get the class object,
+and <code>name</code> to that to get a symbol identifying the class.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>42 class name &gt;&gt;&gt; #SmallInteger
+3.14 class name &gt;&gt;&gt; #Float
+&#39;hello&#39; class name &gt;&gt;&gt; #String
+#hello class name &gt;&gt;&gt; #Symbol
+true class name &gt;&gt;&gt; #True
+false class name &gt;&gt;&gt; #False
+nil class name &gt;&gt;&gt; #UndefinedObject
+#(1 2 3) class name &gt;&gt;&gt; #Array</code></pre>
+</div>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <p>Here is a summary of the key points from this chapter.</p>
+<p>Messages come in three types: unary (no arguments), binary (one
+argument with an operator), and keyword (named arguments with
+colons). Unary binds tightest, then binary, then keyword. Within
+the same level, evaluation is left to right. Use parentheses to
+override.</p>
+<p>Cascades (<code>;</code>) send multiple messages to the same receiver.
+Variables use <code>:=</code> for assignment. The special objects <code>nil</code>,
+<code>true</code>, and <code>false</code> are singletons. Identity (<code>==</code>) checks
+same-object; equality (<code>=</code>) checks same-value. <code>self</code> is the
+current receiver; <code>super</code> dispatches through the parent class.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>2 + 3 * 4 &gt;&gt;&gt; 20
+(2 + 3) * 4 &gt;&gt;&gt; 20
+2 + (3 * 4) &gt;&gt;&gt; 14
+nil isNil &gt;&gt;&gt; true
+3 == 3 &gt;&gt;&gt; true
+&#39;abc&#39; = &#39;abc&#39; &gt;&gt;&gt; true
+3 yourself &gt;&gt;&gt; 3</code></pre>
+</div>
+
+
+    </div>
+
+
+    <div class="footer">
+        Generated by Maggie doc generator.
+    </div>
+</main>
+    <script src="../js/playground.js"></script>
+</body>
+</html>

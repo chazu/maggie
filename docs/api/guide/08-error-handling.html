@@ -1,0 +1,656 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Error Handling &mdash; Maggie API Reference</title>
+    <link rel="stylesheet" href="../css/style.css">
+</head>
+<body>
+<nav class="sidebar">
+    <div class="sidebar-title"><a href="../index.html">Maggie Docs</a></div>
+
+    <div class="sidebar-section">
+        <div class="sidebar-section-title">Guide</div>
+        <ul class="sidebar-list">
+
+            <li><a href="../guide/01-getting-started.html">Getting Started</a></li>
+
+            <li><a href="../guide/02-basics.html">Basics</a></li>
+
+            <li><a href="../guide/03-numbers.html">Numbers</a></li>
+
+            <li><a href="../guide/04-strings.html">Strings</a></li>
+
+            <li><a href="../guide/05-collections.html">Collections</a></li>
+
+            <li><a href="../guide/06-blocks.html">Blocks</a></li>
+
+            <li><a href="../guide/07-classes.html">Classes</a></li>
+
+            <li><a href="../guide/08-error-handling.html" class="active">Error Handling</a></li>
+
+            <li><a href="../guide/09-concurrency.html">Concurrency</a></li>
+
+            <li><a href="../guide/10-modules.html">Modules</a></li>
+
+            <li><a href="../guide/11-projects.html">Projects</a></li>
+
+            <li><a href="../guide/12-go-interop.html">Go Interop</a></li>
+
+            <li><a href="../guide/13-distribution.html">Distribution</a></li>
+
+            <li><a href="../guide/14-tooling-ide.html">Tooling &amp; IDE</a></li>
+
+        </ul>
+    </div>
+
+    <div class="sidebar-section">
+        <div class="sidebar-section-title">API Reference</div>
+
+        <details class="sidebar-ns-group" open>
+            <summary>(root)</summary>
+            <ul class="sidebar-list">
+
+                <li><a href="../classes/Array.html">Array</a></li>
+
+                <li><a href="../classes/AssignmentNode.html">AssignmentNode</a></li>
+
+                <li><a href="../classes/Association.html">Association</a></li>
+
+                <li><a href="../classes/Block.html">Block</a></li>
+
+                <li><a href="../classes/BlockNode.html">BlockNode</a></li>
+
+                <li><a href="../classes/Boolean.html">Boolean</a></li>
+
+                <li><a href="../classes/ByteArray.html">ByteArray</a></li>
+
+                <li><a href="../classes/BytecodeGenerator.html">BytecodeGenerator</a></li>
+
+                <li><a href="../classes/CancellationContext.html">CancellationContext</a></li>
+
+                <li><a href="../classes/CascadeNode.html">CascadeNode</a></li>
+
+                <li><a href="../classes/Channel.html">Channel</a></li>
+
+                <li><a href="../classes/Character.html">Character</a></li>
+
+                <li><a href="../classes/CharacterStream.html">CharacterStream</a></li>
+
+                <li><a href="../classes/Class.html">Class</a></li>
+
+                <li><a href="../classes/ClassNode.html">ClassNode</a></li>
+
+                <li><a href="../classes/CompiledMethod.html">CompiledMethod</a></li>
+
+                <li><a href="../classes/Compiler.html">Compiler</a></li>
+
+                <li><a href="../classes/Context.html">Context</a></li>
+
+                <li><a href="../classes/Debugger.html">Debugger</a></li>
+
+                <li><a href="../classes/Dictionary.html">Dictionary</a></li>
+
+                <li><a href="../classes/DocServer.html">DocServer</a></li>
+
+                <li><a href="../classes/Error.html">Error</a></li>
+
+                <li><a href="../classes/Exception.html">Exception</a></li>
+
+                <li><a href="../classes/Failure.html">Failure</a></li>
+
+                <li><a href="../classes/False.html">False</a></li>
+
+                <li><a href="../classes/File.html">File</a></li>
+
+                <li><a href="../classes/Float.html">Float</a></li>
+
+                <li><a href="../classes/GrpcClient.html">GrpcClient</a></li>
+
+                <li><a href="../classes/GrpcStream.html">GrpcStream</a></li>
+
+                <li><a href="../classes/Halt.html">Halt</a></li>
+
+                <li><a href="../classes/HttpRequest.html">HttpRequest</a></li>
+
+                <li><a href="../classes/HttpResponse.html">HttpResponse</a></li>
+
+                <li><a href="../classes/HttpServer.html">HttpServer</a></li>
+
+                <li><a href="../classes/Lexer.html">Lexer</a></li>
+
+                <li><a href="../classes/LiteralNode.html">LiteralNode</a></li>
+
+                <li><a href="../classes/Message.html">Message</a></li>
+
+                <li><a href="../classes/MessageNotUnderstood.html">MessageNotUnderstood</a></li>
+
+                <li><a href="../classes/MessageSendNode.html">MessageSendNode</a></li>
+
+                <li><a href="../classes/MethodNode.html">MethodNode</a></li>
+
+                <li><a href="../classes/Mutex.html">Mutex</a></li>
+
+                <li><a href="../classes/Notification.html">Notification</a></li>
+
+                <li><a href="../classes/Object.html">Object</a></li>
+
+                <li><a href="../classes/Parser.html">Parser</a></li>
+
+                <li><a href="../classes/Process.html">Process</a></li>
+
+                <li><a href="../classes/Result.html">Result</a></li>
+
+                <li><a href="../classes/ReturnNode.html">ReturnNode</a></li>
+
+                <li><a href="../classes/Semaphore.html">Semaphore</a></li>
+
+                <li><a href="../classes/SmallInteger.html">SmallInteger</a></li>
+
+                <li><a href="../classes/StackOverflow.html">StackOverflow</a></li>
+
+                <li><a href="../classes/String.html">String</a></li>
+
+                <li><a href="../classes/SubscriptOutOfBounds.html">SubscriptOutOfBounds</a></li>
+
+                <li><a href="../classes/Success.html">Success</a></li>
+
+                <li><a href="../classes/Symbol.html">Symbol</a></li>
+
+                <li><a href="../classes/Token.html">Token</a></li>
+
+                <li><a href="../classes/True.html">True</a></li>
+
+                <li><a href="../classes/UndefinedObject.html">UndefinedObject</a></li>
+
+                <li><a href="../classes/VariableNode.html">VariableNode</a></li>
+
+                <li><a href="../classes/WaitGroup.html">WaitGroup</a></li>
+
+                <li><a href="../classes/Warning.html">Warning</a></li>
+
+                <li><a href="../classes/WeakReference.html">WeakReference</a></li>
+
+                <li><a href="../classes/ZeroDivide.html">ZeroDivide</a></li>
+
+            </ul>
+        </details>
+
+    </div>
+</nav>
+<main class="content">
+    <div class="breadcrumb">
+        <a href="../index.html">Maggie API Reference</a>
+        &rsaquo; Guide
+        &rsaquo; Error Handling
+    </div>
+
+    <h1>Error Handling</h1>
+
+
+    <div class="guide-intro">
+        <p>Error handling in Maggie takes two complementary forms. The first is
+exception handling, built on blocks: <code>on:do:</code> installs a handler, <code>ensure:</code>
+guarantees cleanup, and <code>ifCurtailed:</code> runs cleanup only when something goes
+wrong. The second is the Result pattern -- <code>Success</code> and <code>Failure</code> objects
+that represent outcomes as first-class values you can inspect, transform,
+and chain without ever raising an exception.</p>
+<p>Most Maggie code uses the Result pattern for expected failure modes (parsing,
+validation, network calls) and reserves exceptions for truly exceptional
+situations (division by zero, stack overflow, missing methods). This chapter
+covers both approaches and shows how to combine them.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>[1 + 2] ensure: [nil] &gt;&gt;&gt; 3
+(Success with: 42) value &gt;&gt;&gt; 42
+(Failure with: &#39;oops&#39;) error &gt;&gt;&gt; &#39;oops&#39;</code></pre>
+</div>
+
+    </div>
+
+
+
+    <div class="guide-section">
+
+        <h2>Exception Handling with on:do:</h2>
+<p>The <code>on:do:</code> message installs an exception handler around a block. If the
+block signals an exception whose class matches (or is a subclass of) the
+given exception class, the handler block runs with the exception object as
+its argument. The result of <code>on:do:</code> is either the result of the protected
+block (if no exception) or the result of the handler block (if caught).</p>
+<p>The general form is:</p>
+<pre><code>[risky code] on: ExceptionClass do: [:ex | recovery code]</code></pre>
+<p>The exception hierarchy has <code>Exception</code> at the root, with <code>Error</code> and
+<code>Warning</code> as its main subclasses. Specific errors like <code>ZeroDivide</code>,
+<code>MessageNotUnderstood</code>, and <code>StackOverflow</code> are subclasses of <code>Error</code>.
+Catching <code>Error</code> will catch all of them.</p>
+<p>If you catch a broad class like <code>Error</code>, you will also catch its
+subclasses. Be as specific as possible to avoid masking unexpected
+errors.</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>[42] on: Error do: [:e | &#39;caught&#39;]</code></pre>
+</div>
+<p>When no exception occurs, <code>on:do:</code> returns the result of the protected
+block unchanged. The handler block is never evaluated.</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>[10 + 5] on: Error do: [:e | 0]
+[&#39;hello&#39; , &#39; world&#39;] on: Error do: [:e | &#39;error&#39;]</code></pre>
+</div>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <h2>Guaranteed Cleanup with ensure:</h2>
+<p>The <code>ensure:</code> message guarantees that a cleanup block runs after the
+receiver block finishes, whether it completed normally, raised an
+exception, or exited via a non-local return. The result of <code>ensure:</code> is
+the result of the receiver block -- the cleanup block&#39;s result is
+discarded.</p>
+<p>This is Maggie&#39;s equivalent of try/finally in other languages. Use it
+for resource cleanup: closing files, releasing locks, restoring state.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>[1 + 2] ensure: [nil] &gt;&gt;&gt; 3
+[42] ensure: [99] &gt;&gt;&gt; 42</code></pre>
+</div>
+<p>The cleanup block always runs. Here we track the cleanup in a variable
+to prove it executes:</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>log := &#39;start&#39;.
+[log := log , &#39;-work&#39;] ensure: [log := log , &#39;-done&#39;].
+log &gt;&gt;&gt; &#39;start-work-done&#39;</code></pre>
+</div>
+<p>Even when the main block raises an exception, the ensure block still
+runs. Combine <code>on:do:</code> with <code>ensure:</code> to handle the error and clean
+up:</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>cleaned := false.
+[[1 / 0] on: ZeroDivide do: [:e | &#39;caught&#39;]] ensure: [cleaned := true].
+cleaned</code></pre>
+</div>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <h2>Error-Only Cleanup with ifCurtailed:</h2>
+<p>The <code>ifCurtailed:</code> message is like <code>ensure:</code> but only runs the cleanup
+block if the receiver block terminates abnormally -- via an exception or
+a non-local return. If the block completes normally, the curtailment
+block is skipped entirely.</p>
+<p>Use <code>ifCurtailed:</code> when cleanup is only needed on failure. For example,
+rolling back a transaction that should only be undone if the operation
+fails.</p>
+<p>The form is:</p>
+<pre><code>[code] ifCurtailed: [error-only cleanup]</code></pre>
+<p>When the block succeeds, <code>ifCurtailed:</code> returns the block&#39;s result and
+the cleanup block is never evaluated:</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>[42] ifCurtailed: [99]
+[1 + 2] ifCurtailed: [0]</code></pre>
+</div>
+<p>The key difference from <code>ensure:</code>: the curtailment block does not run
+on normal completion. With <code>ensure:</code>, the cleanup block always runs.
+With <code>ifCurtailed:</code>, it only runs if something went wrong.</p>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <h2>Catching StackOverflow</h2>
+<p>The VM enforces a maximum call frame depth (default: 4096). When a
+method recurses too deeply without tail-call optimization, the VM
+raises a <code>StackOverflow</code> exception. This is a subclass of <code>Error</code>, so
+it is catchable with <code>on:do:</code>.</p>
+<p>Self-recursive methods in tail position are automatically optimized by
+the compiler (tail-call optimization), so they will not hit the stack
+limit. Only non-tail-recursive methods can overflow.</p>
+<p>Because <code>StackOverflow</code> is a subclass of <code>Error</code>, you can catch it
+either specifically or through the broader <code>Error</code> class:</p>
+<pre><code>[deeplyRecursiveMethod] on: StackOverflow do: [:ex | &#39;overflow caught&#39;]
+[deeplyRecursiveMethod] on: Error do: [:ex | &#39;some error caught&#39;]</code></pre>
+<p>Catching <code>StackOverflow</code> lets you provide a graceful fallback instead
+of crashing. This is useful for user-supplied code in REPLs or
+sandboxed environments.</p>
+<p>Note: the stack overflow limit is configurable at the Go level via the
+interpreter&#39;s <code>MaxFrameDepth</code> field. The default of 4096 is generous
+enough for normal code but will catch runaway recursion.</p>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <h2>The Result Pattern: Success and Failure</h2>
+<p>The Result pattern represents the outcome of an operation as a
+first-class value. Instead of raising exceptions for expected failures,
+you return a <code>Success</code> wrapping the result or a <code>Failure</code> wrapping an
+error reason.</p>
+<p>Create results with factory methods on the classes:</p>
+<ul>
+<li><code>Success with: value</code> -- wrap a success value</li>
+<li><code>Failure with: reason</code> -- wrap an error reason</li>
+<li><code>Result success: value</code> -- same as <code>Success with:</code></li>
+<li><code>Result failure: reason</code> -- same as <code>Failure with:</code></li>
+</ul>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>(Success with: 42) value &gt;&gt;&gt; 42
+(Success with: 42) isSuccess &gt;&gt;&gt; true
+(Success with: 42) isFailure &gt;&gt;&gt; false
+(Success with: 42) error &gt;&gt;&gt; nil</code></pre>
+</div>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>(Failure with: &#39;oops&#39;) error &gt;&gt;&gt; &#39;oops&#39;
+(Failure with: &#39;oops&#39;) isFailure &gt;&gt;&gt; true
+(Failure with: &#39;oops&#39;) isSuccess &gt;&gt;&gt; false
+(Failure with: &#39;oops&#39;) value &gt;&gt;&gt; nil</code></pre>
+</div>
+<p>The <code>printString</code> method gives a readable representation:</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>(Success with: 42) printString &gt;&gt;&gt; &#39;Success(42)&#39;
+(Failure with: &#39;oops&#39;) printString &gt;&gt;&gt; &#39;Failure(&#39;&#39;oops&#39;&#39;)&#39;</code></pre>
+</div>
+<p>You can also use the <code>Result</code> base class factories:</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>(Result success: 10) value &gt;&gt;&gt; 10
+(Result failure: &#39;bad&#39;) error &gt;&gt;&gt; &#39;bad&#39;</code></pre>
+</div>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <h2>Branching on Results</h2>
+<p>Results support branching methods that let you run different code
+depending on whether the result is a success or failure.</p>
+<p><code>ifSuccess:</code> evaluates its block with the wrapped value if the
+receiver is a Success. On a Failure, it returns the receiver
+unchanged.</p>
+<p><code>ifFailure:</code> evaluates its block with the error if the receiver is
+a Failure. On a Success, it returns the receiver unchanged.</p>
+<p><code>onSuccess:onFailure:</code> takes two blocks and evaluates exactly one,
+depending on the result type. This is the most explicit form and
+makes both paths visible at the call site.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>(Success with: 42) ifSuccess: [:v | v + 1] &gt;&gt;&gt; 43
+(Success with: &#39;ok&#39;) ifSuccess: [:v | v , &#39;!&#39;] &gt;&gt;&gt; &#39;ok!&#39;</code></pre>
+</div>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>(Failure with: &#39;bad&#39;) ifFailure: [:e | &#39;Error: &#39; , e] &gt;&gt;&gt; &#39;Error: bad&#39;</code></pre>
+</div>
+<p>The <code>onSuccess:onFailure:</code> form is useful when you want to handle
+both paths in one expression:</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>(Success with: 5) onSuccess: [:v | v * 10] onFailure: [:e | -1] &gt;&gt;&gt; 50
+(Failure with: &#39;x&#39;) onSuccess: [:v | v * 10] onFailure: [:e | -1] &gt;&gt;&gt; -1</code></pre>
+</div>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <h2>Transforming Results with map:</h2>
+<p>The <code>map:</code> message transforms the value inside a Success by applying
+a block, returning a new Success wrapping the transformed value. On
+a Failure, <code>map:</code> does nothing -- it propagates the Failure unchanged
+without evaluating the block.</p>
+<p>This lets you build pipelines that only process the happy path. If
+any step produces a Failure, the rest of the pipeline is skipped.</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>(Success with: 5) map: [:v | v * 2]
+(Success with: &#39;hi&#39;) map: [:v | v , &#39;!&#39;]</code></pre>
+</div>
+<p>Failures propagate untouched through <code>map:</code>:</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>(Failure with: &#39;err&#39;) map: [:v | v * 2]</code></pre>
+</div>
+<p>You can chain multiple <code>map:</code> calls to build a transformation
+pipeline:</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>r := (Success with: 3) map: [:v | v + 1].
+r map: [:v | v * 10]</code></pre>
+</div>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <h2>Chaining with then:</h2>
+<p>The <code>then:</code> message is like <code>map:</code> but smarter about its return value.
+If the block returns a Result, <code>then:</code> returns it directly. If the
+block returns a plain value, <code>then:</code> wraps it in a new Success. On a
+Failure, <code>then:</code> propagates the failure without evaluating the block.</p>
+<p>Use <code>then:</code> when your transformation might itself fail and return a
+new Result. This avoids nested Results (a Success wrapping a Success).</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>(Success with: 10) then: [:v | Success with: v * 2]
+(Success with: 10) then: [:v | Failure with: &#39;nope&#39;]</code></pre>
+</div>
+<p>When the block returns a plain value, <code>then:</code> wraps it:</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>(Success with: 10) then: [:v | v + 5]</code></pre>
+</div>
+<p>Failures propagate through <code>then:</code> without running the block:</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>(Failure with: &#39;x&#39;) then: [:v | v + 1]</code></pre>
+</div>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <h2>Chaining with flatMap:</h2>
+<p>The <code>flatMap:</code> message is for blocks that always return a Result. It
+evaluates the block with the success value and returns whatever Result
+the block produces. Unlike <code>then:</code>, <code>flatMap:</code> does not wrap plain
+values -- the block is expected to return a Result.</p>
+<p>On a Failure, <code>flatMap:</code> propagates the failure without evaluating
+the block, just like <code>map:</code> and <code>then:</code>.</p>
+<p>Use <code>flatMap:</code> when you have a sequence of operations that each
+return a Result and you want to short-circuit on the first failure.</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>(Success with: 10) flatMap: [:v | Success with: v + 1]
+(Success with: 10) flatMap: [:v | Failure with: &#39;fail&#39;]
+(Failure with: &#39;x&#39;) flatMap: [:v | Success with: 99]</code></pre>
+</div>
+<p>The difference between <code>map:</code>, <code>then:</code>, and <code>flatMap:</code>:</p>
+<ul>
+<li><code>map:</code> -- block returns a plain value, always wrapped in Success</li>
+<li><code>then:</code> -- block returns either a Result or a plain value (auto-wrapped)</li>
+<li><code>flatMap:</code> -- block must return a Result (not auto-wrapped)</li>
+</ul>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <h2>Safe Division Example</h2>
+<p>Here is a practical example: a safe division function that returns
+a Result instead of raising ZeroDivide. This shows how the Result
+pattern replaces exception-based error handling for expected failures.</p>
+<p>The idea is simple: check for zero before dividing, and return a
+Failure if the divisor is zero. Otherwise return a Success with the
+quotient.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>r := 1 = 0 ifTrue: [Failure with: &#39;division by zero&#39;] ifFalse: [Success with: 10 / 1].
+r value &gt;&gt;&gt; 10</code></pre>
+</div>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>r := 0 = 0 ifTrue: [Failure with: &#39;division by zero&#39;] ifFalse: [Success with: 10 / 1].
+r error &gt;&gt;&gt; &#39;division by zero&#39;</code></pre>
+</div>
+<p>You can chain safe division with further transformations. If the
+division fails, the entire chain short-circuits:</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>r := 5 = 0 ifTrue: [Failure with: &#39;div/0&#39;] ifFalse: [Success with: 10 / 5].
+r map: [:v | v * 100]</code></pre>
+</div>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>r := 0 = 0 ifTrue: [Failure with: &#39;div/0&#39;] ifFalse: [Success with: 10 / 0].
+r map: [:v | v * 100]</code></pre>
+</div>
+<p>Compare this to the exception approach:</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>[10 / 0] on: ZeroDivide do: [:e | -1]</code></pre>
+</div>
+<p>Both approaches work. Use exceptions when the failure is truly
+unexpected. Use Results when failure is a normal part of the
+operation (like user input validation or parsing).</p>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <h2>Combining Exceptions and Results</h2>
+<p>Exceptions and Results serve different purposes and work well
+together. A common pattern is to wrap exception-raising code in a
+Result: use <code>on:do:</code> to catch the exception and return a Failure,
+or return a Success if no exception occurs.</p>
+<p>This &#34;try&#34; pattern converts exceptions into Results for further
+processing:</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>r := [[Success with: 10 + 5] on: Error do: [:e | Failure with: &#39;error&#39;]] value.
+r value</code></pre>
+</div>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>r := [[Success with: 1 / 0] on: ZeroDivide do: [:e | Failure with: &#39;div by zero&#39;]] value.
+r error</code></pre>
+</div>
+<p>You can then chain Result transformations on the output:</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>r := [[Success with: 10 + 5] on: Error do: [:e | Failure with: &#39;error&#39;]] value.
+r map: [:v | v * 2]</code></pre>
+</div>
+<p>Another useful pattern is the <code>ensure:</code> + Result combination: perform
+cleanup regardless of whether the operation succeeded or failed, while
+still returning a typed Result:</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>cleaned := false.
+r := [Success with: 42] ensure: [cleaned := true].
+r value &gt;&gt;&gt; 42</code></pre>
+</div>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>cleaned := false.
+r := [Success with: 42] ensure: [cleaned := true].
+cleaned &gt;&gt;&gt; true</code></pre>
+</div>
+<p>This gives you the best of both worlds: structured error values for
+control flow, and guaranteed cleanup for resource management.</p>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <h2>The Exception Hierarchy</h2>
+<p>Maggie&#39;s exception classes form a hierarchy rooted at <code>Exception</code>:</p>
+<ul>
+<li><code>Exception</code> -- root of all exceptions</li>
+<li><code>Error</code> -- errors that should typically be caught</li>
+<li><code>ZeroDivide</code> -- division by zero</li>
+<li><code>MessageNotUnderstood</code> -- message sent to object that does not understand it</li>
+<li><code>StackOverflow</code> -- call frame depth exceeded</li>
+<li><code>Warning</code> -- non-fatal conditions</li>
+</ul>
+<p>When you use <code>on:do:</code>, the handler catches the specified class and all
+its subclasses. Catching <code>Error</code> will catch <code>ZeroDivide</code>,
+<code>MessageNotUnderstood</code>, and <code>StackOverflow</code>. Catching <code>Exception</code>
+will catch everything, including warnings.</p>
+<p>Be specific in your handlers. Catching <code>Error</code> when you only expect
+<code>ZeroDivide</code> can mask bugs in your code:</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>[1 / 0] on: ZeroDivide do: [:e | &#39;zero!&#39;]</code></pre>
+</div>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>[1 / 0] on: Error do: [:e | &#39;some error&#39;]</code></pre>
+</div>
+<p>Both catch the same ZeroDivide, but the first handler makes it clear
+what exception is expected.</p>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <h2>Summary</h2>
+<p>Maggie provides two complementary approaches to error handling:</p>
+<p><strong>Exceptions</strong> -- for truly exceptional situations:
+- <code>[code] on: ExClass do: [:e | handler]</code> -- catch exceptions
+- <code>[code] ensure: [cleanup]</code> -- guaranteed cleanup (try/finally)
+- <code>[code] ifCurtailed: [cleanup]</code> -- cleanup only on abnormal exit
+- Exception hierarchy: Exception &gt; Error &gt; ZeroDivide, StackOverflow, etc.</p>
+<p><strong>Results</strong> -- for expected failure modes:
+- <code>Success with: value</code> / <code>Failure with: reason</code> -- create results
+- <code>isSuccess</code> / <code>isFailure</code> -- test the outcome
+- <code>value</code> / <code>error</code> -- extract the wrapped value or reason
+- <code>map:</code> -- transform the value (Failures pass through)
+- <code>then:</code> -- chain with auto-wrapping (Failures pass through)
+- <code>flatMap:</code> -- chain without wrapping (Failures pass through)
+- <code>ifSuccess:</code> / <code>ifFailure:</code> -- branch on outcome
+- <code>onSuccess:onFailure:</code> -- handle both branches</p>
+<p>Use exceptions for things that should not normally happen (division
+by zero, stack overflow). Use Results for operations where failure
+is a normal possibility (parsing, validation, I/O). Combine both
+by wrapping exception-raising code in <code>on:do:</code> and returning a
+Result.</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>[42] on: Error do: [:e | 0]
+[1 + 2] ensure: [nil]
+(Success with: 5) map: [:v | v * 2]
+(Failure with: &#39;x&#39;) map: [:v | v * 2]</code></pre>
+</div>
+
+
+    </div>
+
+
+    <div class="footer">
+        Generated by Maggie doc generator.
+    </div>
+</main>
+    <script src="../js/playground.js"></script>
+</body>
+</html>
