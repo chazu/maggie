@@ -39,6 +39,10 @@ const (
 	// OS/exec
 	externalProcessMarker       uint32 = 45 << 24
 
+	// Unix domain sockets
+	unixListenerMarker          uint32 = 46 << 24
+	unixConnMarker              uint32 = 47 << 24
+
 	// Distribution protocol (reserved for Phase 6)
 	chunkMarker                 uint32 = 42 << 24
 	remoteRefMarker             uint32 = 43 << 24

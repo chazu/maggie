@@ -1,0 +1,129 @@
+"""
+A Unix domain socket server that listens for connections at a
+filesystem path.
+
+Unix domain sockets provide fast, secure IPC on the same machine.
+The server listens at a path and accepts incoming connections,
+returning SocketConnection objects for each client.
+
+```example
+"Basic server that echoes lines back to clients"
+server := UnixSocketServer listenAt: '/tmp/echo.sock'.
+
+[server isRunning] whileTrue: [
+    conn := server accept.
+    [conn isClosed not] whileTrue: [
+        line := conn receiveLine.
+        conn sendLine: line
+    ]
+]
+```
+
+```example
+"Server with channel-based accept for concurrent handling"
+server := UnixSocketServer listenAt: '/tmp/app.sock'.
+ch := Channel new: 10.
+server acceptToChannel: ch.
+
+[server isRunning] whileTrue: [
+    conn := ch receive.
+    [conn receiveLine] fork
+]
+```
+
+```example
+"Server with explicit permissions"
+server := UnixSocketServer listenAt: '/tmp/secure.sock' mode: 8r660
+```
+"""
+UnixSocketServer subclass: Object
+
+  """
+  Create a server listening at the given filesystem path.
+  Removes stale socket files automatically.
+
+  ```example
+  server := UnixSocketServer listenAt: '/tmp/test.sock'.
+  server isRunning   "=> true"
+  ```
+  """
+  class method: listenAt: path [
+      ^self primListenAt: path
+  ]
+
+  """
+  Create a server listening at path with the given file mode
+  (permissions). Mode is an integer, e.g. 8r660.
+
+  ```example
+  server := UnixSocketServer listenAt: '/tmp/test.sock' mode: 8r660
+  ```
+  """
+  class method: listenAt: path mode: mode [
+      ^self primListenAtMode: path mode: mode
+  ]
+
+  """
+  Accept a new client connection. Blocks until a client connects.
+  Returns a SocketConnection.
+
+  ```example
+  conn := server accept.
+  line := conn receiveLine.
+  conn close
+  ```
+  """
+  method: accept [
+      ^self primAccept
+  ]
+
+  """
+  Spawn a background goroutine that accepts connections and sends
+  them to the given Channel. Returns self immediately.
+
+  ```example
+  ch := Channel new: 10.
+  server acceptToChannel: ch.
+  conn := ch receive
+  ```
+  """
+  method: acceptToChannel: channel [
+      ^self primAcceptToChannel: channel
+  ]
+
+  """
+  Stop the server and remove the socket file.
+
+  ```example
+  server close.
+  server isClosed   "=> true"
+  ```
+  """
+  method: close [
+      ^self primClose
+  ]
+
+  """
+  Return the filesystem path of this server's socket.
+
+  ```example
+  (UnixSocketServer listenAt: '/tmp/x.sock') path   "=> '/tmp/x.sock'"
+  ```
+  """
+  method: path [
+      ^self primPath
+  ]
+
+  """
+  True if the server is accepting connections.
+  """
+  method: isRunning [
+      ^self primIsRunning
+  ]
+
+  """
+  True if the server has been closed.
+  """
+  method: isClosed [
+      ^self primIsClosed
+  ]

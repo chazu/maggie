@@ -1,0 +1,101 @@
+"""
+A bidirectional connection over a Unix domain socket.
+
+SocketConnection objects are returned by UnixSocketServer>>accept
+and UnixSocketClient>>connectTo:. They support both raw byte
+I/O and line-based protocols (ideal for JSON-RPC).
+
+```example
+"Line-based JSON-RPC protocol"
+conn := UnixSocketClient connectTo: '/tmp/rpc.sock'.
+conn sendLine: '{"jsonrpc":"2.0","method":"ping","id":1}'.
+response := conn receiveLine.
+conn close
+```
+
+```example
+"Raw send/receive"
+conn := UnixSocketClient connectTo: '/tmp/app.sock'.
+conn send: 'HELLO'.
+data := conn receive.
+conn close
+```
+"""
+SocketConnection subclass: Object
+
+  """
+  Send raw string data over the connection.
+
+  ```example
+  conn send: 'hello world'
+  ```
+  """
+  method: send: data [
+      ^self primSend: data
+  ]
+
+  """
+  Send a string followed by a newline. Useful for line-delimited
+  protocols like JSON-RPC.
+
+  ```example
+  conn sendLine: '{"method":"test"}'
+  ```
+  """
+  method: sendLine: data [
+      ^self primSendLine: data
+  ]
+
+  """
+  Read up to 4096 bytes from the connection. Blocks until data
+  is available.
+
+  ```example
+  data := conn receive
+  ```
+  """
+  method: receive [
+      ^self primReceive
+  ]
+
+  """
+  Read up to maxBytes bytes from the connection.
+
+  ```example
+  data := conn receive: 1024
+  ```
+  """
+  method: receive: maxBytes [
+      ^self primReceiveMax: maxBytes
+  ]
+
+  """
+  Read one newline-delimited line. The trailing newline is stripped.
+  Blocks until a full line is available.
+
+  ```example
+  line := conn receiveLine
+  ```
+  """
+  method: receiveLine [
+      ^self primReceiveLine
+  ]
+
+  """
+  Close the connection.
+
+  ```example
+  conn close.
+  conn isClosed   "=> true"
+  ```
+  """
+  method: close [
+      ^self primClose
+  ]
+
+  """
+  True if the connection has been closed.
+  """
+  method: isClosed [
+      ^self primIsClosed
+  ]
