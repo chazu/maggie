@@ -1389,6 +1389,253 @@ func BenchmarkImageWriterCreate(b *testing.B) {
 	}
 }
 
+// ---------------------------------------------------------------------------
+// SaveImageAtomic tests
+// ---------------------------------------------------------------------------
+
+func TestSaveImageAtomicBasic(t *testing.T) {
+	vm := NewVM()
+
+	// Add some state to verify round-trip
+	testClass := NewClassWithInstVars("AtomicTest", vm.ObjectClass, []string{"value"})
+	vm.Classes.Register(testClass)
+	vm.SetGlobal("atomicVal", FromSmallInt(42))
+
+	tmpDir := t.TempDir()
+	imagePath := filepath.Join(tmpDir, "checkpoint.image")
+
+	// First atomic save (no previous file)
+	err := vm.SaveImageAtomic(imagePath)
+	if err != nil {
+		t.Fatalf("SaveImageAtomic failed: %v", err)
+	}
+
+	// Verify file exists and is valid
+	info, err := os.Stat(imagePath)
+	if err != nil {
+		t.Fatalf("Image file not created: %v", err)
+	}
+	if info.Size() < int64(ImageHeaderSize) {
+		t.Errorf("Image file too small: %d bytes", info.Size())
+	}
+
+	// Verify magic number
+	data, err := os.ReadFile(imagePath)
+	if err != nil {
+		t.Fatalf("Failed to read image: %v", err)
+	}
+	if !bytes.Equal(data[0:4], ImageMagic[:]) {
+		t.Error("Magic number mismatch")
+	}
+
+	// .prev should NOT exist on first save
+	prevPath := imagePath + ".prev"
+	if _, err := os.Stat(prevPath); err == nil {
+		t.Error(".prev file should not exist on first save")
+	}
+
+	// .tmp should NOT exist after successful save
+	tmpPath := imagePath + ".tmp"
+	if _, err := os.Stat(tmpPath); err == nil {
+		t.Error(".tmp file should not exist after successful save")
+	}
+}
+
+func TestSaveImageAtomicCreatesPrev(t *testing.T) {
+	vm := NewVM()
+	vm.SetGlobal("version", FromSmallInt(1))
+
+	tmpDir := t.TempDir()
+	imagePath := filepath.Join(tmpDir, "checkpoint.image")
+	prevPath := imagePath + ".prev"
+
+	// First save
+	if err := vm.SaveImageAtomic(imagePath); err != nil {
+		t.Fatalf("First SaveImageAtomic failed: %v", err)
+	}
+	firstSize, _ := os.Stat(imagePath)
+
+	// Update state and save again
+	vm.SetGlobal("version", FromSmallInt(2))
+	if err := vm.SaveImageAtomic(imagePath); err != nil {
+		t.Fatalf("Second SaveImageAtomic failed: %v", err)
+	}
+
+	// .prev should now exist with the first save's content
+	prevInfo, err := os.Stat(prevPath)
+	if err != nil {
+		t.Fatalf(".prev file should exist after second save: %v", err)
+	}
+	if prevInfo.Size() != firstSize.Size() {
+		t.Errorf(".prev size = %d, want %d (first save size)", prevInfo.Size(), firstSize.Size())
+	}
+
+	// .prev should be a valid image
+	prevData, _ := os.ReadFile(prevPath)
+	if !bytes.Equal(prevData[0:4], ImageMagic[:]) {
+		t.Error(".prev file has invalid magic number")
+	}
+}
+
+func TestSaveImageAtomicRoundTrip(t *testing.T) {
+	// Verify we can checkpoint and restore with full state
+	vm1 := NewVM()
+
+	testClass := NewClassWithInstVars("CheckpointRT", vm1.ObjectClass, []string{"name"})
+	vm1.Classes.Register(testClass)
+
+	obj := testClass.NewInstance()
+	obj.SetSlot(0, vm1.Symbols.SymbolValue("hello"))
+	vm1.SetGlobal("myObj", obj.ToValue())
+	vm1.SetGlobal("counter", FromSmallInt(99))
+
+	tmpDir := t.TempDir()
+	imagePath := filepath.Join(tmpDir, "round-trip.image")
+
+	// Atomic save
+	if err := vm1.SaveImageAtomic(imagePath); err != nil {
+		t.Fatalf("SaveImageAtomic failed: %v", err)
+	}
+
+	// Load into fresh VM
+	imageData, err := os.ReadFile(imagePath)
+	if err != nil {
+		t.Fatalf("Failed to read image: %v", err)
+	}
+
+	vm2 := NewVM()
+	if err := vm2.LoadImageFromBytes(imageData); err != nil {
+		t.Fatalf("LoadImageFromBytes failed: %v", err)
+	}
+
+	// Verify state
+	counterVal, ok := vm2.Globals["counter"]
+	if !ok || !counterVal.IsSmallInt() || counterVal.SmallInt() != 99 {
+		t.Errorf("counter = %v, want 99", counterVal)
+	}
+
+	loadedClass := vm2.LookupClass("CheckpointRT")
+	if loadedClass == nil {
+		t.Fatal("CheckpointRT class not found after restore")
+	}
+
+	if len(loadedClass.InstVars) != 1 || loadedClass.InstVars[0] != "name" {
+		t.Errorf("CheckpointRT instVars = %v, want [name]", loadedClass.InstVars)
+	}
+}
+
+func TestSaveImageAtomicSourcePreservation(t *testing.T) {
+	// Verify that method source text survives checkpoint/restore and FileOut works
+	vm1 := NewVM()
+
+	testClass := NewClass("SourceRT", vm1.ObjectClass)
+	vm1.Classes.Register(testClass)
+
+	// Add a method with source text
+	selectors := vm1.Selectors
+	mb := NewCompiledMethodBuilder("greet", 0)
+	mb.Bytecode().EmitInt8(OpPushInt8, 7)
+	mb.Bytecode().Emit(OpReturnTop)
+	method := mb.Build()
+	method.Source = "method: greet [ ^7 ]"
+	method.SetClass(testClass)
+	greetSel := selectors.Intern("greet")
+	testClass.VTable.AddMethod(greetSel, method)
+
+	tmpDir := t.TempDir()
+	imagePath := filepath.Join(tmpDir, "source-rt.image")
+
+	// Checkpoint
+	if err := vm1.SaveImageAtomic(imagePath); err != nil {
+		t.Fatalf("SaveImageAtomic failed: %v", err)
+	}
+
+	// Restore
+	imageData, _ := os.ReadFile(imagePath)
+	vm2 := NewVM()
+	if err := vm2.LoadImageFromBytes(imageData); err != nil {
+		t.Fatalf("LoadImageFromBytes failed: %v", err)
+	}
+
+	// Verify method source is preserved
+	loadedClass := vm2.LookupClass("SourceRT")
+	if loadedClass == nil {
+		t.Fatal("SourceRT not found after restore")
+	}
+
+	loadedGreetSel := vm2.Selectors.Intern("greet")
+	loadedMethod := loadedClass.VTable.Lookup(loadedGreetSel)
+	if loadedMethod == nil {
+		t.Fatal("greet method not found after restore")
+	}
+
+	cm, ok := loadedMethod.(*CompiledMethod)
+	if !ok {
+		t.Fatal("greet is not a CompiledMethod")
+	}
+
+	if cm.Source != "method: greet [ ^7 ]" {
+		t.Errorf("Source = %q, want %q", cm.Source, "method: greet [ ^7 ]")
+	}
+
+	// Verify FileOut produces valid source
+	source := FileOutClass(loadedClass, vm2.Selectors)
+	if source == "" {
+		t.Error("FileOutClass returned empty string for restored class")
+	}
+	if !bytes.Contains([]byte(source), []byte("greet")) {
+		t.Error("FileOutClass output does not contain method name 'greet'")
+	}
+}
+
+func TestSaveImageAtomicInvalidPath(t *testing.T) {
+	vm := NewVM()
+
+	err := vm.SaveImageAtomic("/nonexistent/directory/test.image")
+	if err == nil {
+		t.Error("Expected error for invalid path")
+	}
+}
+
+func TestSaveImageAtomicMultipleCheckpoints(t *testing.T) {
+	// Simulate periodic checkpointing (3 saves), verify .prev is always the previous version
+	vm := NewVM()
+
+	tmpDir := t.TempDir()
+	imagePath := filepath.Join(tmpDir, "periodic.image")
+	prevPath := imagePath + ".prev"
+
+	// Save 1
+	vm.SetGlobal("epoch", FromSmallInt(1))
+	if err := vm.SaveImageAtomic(imagePath); err != nil {
+		t.Fatalf("Save 1 failed: %v", err)
+	}
+	save1Data, _ := os.ReadFile(imagePath)
+
+	// Save 2
+	vm.SetGlobal("epoch", FromSmallInt(2))
+	if err := vm.SaveImageAtomic(imagePath); err != nil {
+		t.Fatalf("Save 2 failed: %v", err)
+	}
+	// .prev should be save 1
+	prevData, _ := os.ReadFile(prevPath)
+	if !bytes.Equal(prevData, save1Data) {
+		t.Error(".prev after save 2 should equal save 1 data")
+	}
+	save2Data, _ := os.ReadFile(imagePath)
+
+	// Save 3
+	vm.SetGlobal("epoch", FromSmallInt(3))
+	if err := vm.SaveImageAtomic(imagePath); err != nil {
+		t.Fatalf("Save 3 failed: %v", err)
+	}
+	// .prev should be save 2
+	prevData, _ = os.ReadFile(prevPath)
+	if !bytes.Equal(prevData, save2Data) {
+		t.Error(".prev after save 3 should equal save 2 data")
+	}
+}
+
 func BenchmarkVMSaveImage(b *testing.B) {
 	vm := NewVM()
 
