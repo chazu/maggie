@@ -1,0 +1,110 @@
+"""
+A CUE evaluation context for loading, compiling, and validating CUE configurations.
+
+CueContext wraps the CUE compiler and provides methods to compile CUE from
+strings, load from files or directories (with cue.mod/ module support),
+validate data against schemas, and inject hidden fields for workflow
+step compilation.
+
+```example
+"Compile CUE from a string"
+ctx := CueContext new.
+result := ctx compileString: 'name: "Alice", age: 30'.
+result value toMaggie
+```
+
+```example
+"Validate data against a schema"
+ctx := CueContext new.
+ctx validate: 'name: "Alice", age: 30'
+    against: 'name: string, age: int & >0'
+```
+
+```example
+"Load CUE from a directory with module support"
+ctx := CueContext new.
+result := ctx loadDir: './config'.
+result value
+```
+"""
+CueContext subclass: Object
+
+  """
+  Compile a CUE source string into a CueValue. Returns a Result
+  wrapping the CueValue on success, or an error message on failure.
+
+  ```example
+  ctx := CueContext new.
+  result := ctx compileString: 'x: 42, y: x + 1'.
+  result value lookup: 'y'
+  ```
+  """
+  method: compileString: source [
+      ^self primCompileString: source
+  ]
+
+  """
+  Load CUE from a file path. Returns a Result wrapping the CueValue.
+
+  ```example
+  ctx := CueContext new.
+  result := ctx loadFile: '/path/to/config.cue'.
+  result isSuccess ifTrue: [result value toMaggie]
+  ```
+  """
+  method: loadFile: path [
+      ^self primLoadFile: path
+  ]
+
+  """
+  Load CUE from a directory, with cue.mod/ module traversal support.
+  Returns a Result wrapping the CueValue.
+
+  ```example
+  ctx := CueContext new.
+  result := ctx loadDir: './myproject'.
+  result isSuccess ifTrue: [result value fields]
+  ```
+  """
+  method: loadDir: path [
+      ^self primLoadDir: path
+  ]
+
+  """
+  Validate a CUE data string against a CUE schema string.
+  Returns a Success Result if valid, Failure with error details if not.
+
+  ```example
+  ctx := CueContext new.
+  result := ctx validate: 'name: "Alice", age: 30'
+                 against: 'name: string, age: int & >0'.
+  result isSuccess >>> true
+  ```
+  """
+  method: validate: data against: schema [
+      ^self primValidate: data against: schema
+  ]
+
+  """
+  Inject hidden fields from a Dictionary into a CUE source string.
+  Dictionary keys starting with _ become hidden CUE fields.
+  Returns a Result wrapping the new CueValue.
+
+  ```example
+  ctx := CueContext new.
+  fields := Dictionary new.
+  fields at: '_input' put: 'hello'.
+  result := ctx inject: fields into: '_input: _, output: _input'.
+  result value lookup: 'output'
+  ```
+  """
+  method: inject: fields into: source [
+      ^self primInject: fields into: source
+  ]
+
+  """
+  Return a string representation of this context.
+  """
+  method: printString [
+      ^'a CueContext'
+  ]

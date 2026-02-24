@@ -47,6 +47,10 @@ const (
 	jsonReaderMarker            uint32 = 48 << 24
 	jsonWriterMarker            uint32 = 49 << 24
 
+	// CUE evaluation primitives
+	cueContextMarker            uint32 = 50 << 24
+	cueValueMarker              uint32 = 51 << 24
+
 	// Distribution protocol (reserved for Phase 6)
 	chunkMarker                 uint32 = 42 << 24
 	remoteRefMarker             uint32 = 43 << 24
