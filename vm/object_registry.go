@@ -78,6 +78,11 @@ type ObjectRegistry struct {
 	classVars   map[*Class]map[string]Value
 	classVarsMu sync.RWMutex
 
+	// ExternalProcess registry
+	extProcesses   map[int]*ExternalProcessObject
+	extProcessesMu sync.RWMutex
+	extProcessID   atomic.Int32
+
 	// GoObject registry
 	goObjects   map[uint32]*GoObjectWrapper
 	goObjectsMu sync.RWMutex
@@ -106,6 +111,7 @@ func NewObjectRegistry() *ObjectRegistry {
 		httpResponses: make(map[int]*HttpResponseObject),
 		cells:         make(map[*Cell]struct{}),
 		classVars:     make(map[*Class]map[string]Value),
+		extProcesses:  make(map[int]*ExternalProcessObject),
 		goObjects:     make(map[uint32]*GoObjectWrapper),
 		classValues:   make(map[int]*Class),
 	}
@@ -121,6 +127,7 @@ func NewObjectRegistry() *ObjectRegistry {
 	or.httpServerID.Store(1)
 	or.httpRequestID.Store(1)
 	or.httpResponseID.Store(1)
+	or.extProcessID.Store(1)
 	or.weakRefCounter.Store(0)
 	or.goObjectID.Store(0)
 	or.classValueID.Store(1)
@@ -640,6 +647,35 @@ func (or *ObjectRegistry) HttpResponseCount() int {
 	or.httpResponsesMu.RLock()
 	defer or.httpResponsesMu.RUnlock()
 	return len(or.httpResponses)
+}
+
+// ---------------------------------------------------------------------------
+// ExternalProcess Registry Methods
+// ---------------------------------------------------------------------------
+
+// RegisterExternalProcess adds an external process to the registry and returns its ID.
+func (or *ObjectRegistry) RegisterExternalProcess(p *ExternalProcessObject) int {
+	id := int(or.extProcessID.Add(1) - 1)
+
+	or.extProcessesMu.Lock()
+	or.extProcesses[id] = p
+	or.extProcessesMu.Unlock()
+
+	return id
+}
+
+// GetExternalProcess retrieves an external process by its ID.
+func (or *ObjectRegistry) GetExternalProcess(id int) *ExternalProcessObject {
+	or.extProcessesMu.RLock()
+	defer or.extProcessesMu.RUnlock()
+	return or.extProcesses[id]
+}
+
+// UnregisterExternalProcess removes an external process from the registry.
+func (or *ObjectRegistry) UnregisterExternalProcess(id int) {
+	or.extProcessesMu.Lock()
+	defer or.extProcessesMu.Unlock()
+	delete(or.extProcesses, id)
 }
 
 // ---------------------------------------------------------------------------

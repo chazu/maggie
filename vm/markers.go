@@ -36,6 +36,9 @@ const (
 	httpResponseMarker          uint32 = 40 << 24
 	goObjectMarker              uint32 = 41 << 24
 
+	// OS/exec
+	externalProcessMarker       uint32 = 45 << 24
+
 	// Distribution protocol (reserved for Phase 6)
 	chunkMarker                 uint32 = 42 << 24
 	remoteRefMarker             uint32 = 43 << 24

@@ -1,0 +1,46 @@
+"""
+Execute external system processes from Maggie.
+
+ExternalProcess wraps Go's os/exec package, providing synchronous
+and asynchronous process execution with stdout/stderr capture,
+environment injection, working directory control, and timeouts.
+
+```example
+"Quick one-liner: run a command and get stdout"
+ExternalProcess run: 'echo' args: #('hello world')
+"=> 'hello world\n'"
+```
+
+```example
+"Run git status in a specific directory"
+p := (ExternalProcess command: 'git' args: #('status' '--short'))
+    dir: '/path/to/repo'.
+p run.
+p stdout   "=> '...\n'"
+p exitCode "=> 0"
+```
+
+```example
+"Async process with wait"
+p := (ExternalProcess command: 'sleep' args: #('1')) start.
+p isDone   "=> false"
+p wait.
+p isDone   "=> true"
+```
+
+```example
+"Environment variable injection"
+p := (ExternalProcess command: 'env')
+    env: (Dictionary new at: 'MY_VAR' put: 'hello'; yourself).
+p run.
+p stdout   "=> '...MY_VAR=hello...'"
+```
+
+```example
+"Run with timeout (kills process after N ms)"
+p := (ExternalProcess command: 'sleep' args: #('60'))
+    runWithTimeout: 100.
+p exitCode "=> -1 (killed)"
+```
+"""
+ExternalProcess subclass: Object
