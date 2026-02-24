@@ -1,0 +1,167 @@
+"""
+A CUE value representing a compiled CUE expression.
+
+CueValue wraps a CUE evaluator value and provides methods for
+validation, unification, field lookup, iteration, and conversion
+to native Maggie types. CueValues are immutable — operations like
+unify: and fillPath:with: return new CueValues.
+
+```example
+ctx := CueContext new.
+val := (ctx compileString: 'x: 1, y: 2') value.
+val lookup: 'x'
+```
+
+```example
+"Convert CUE struct to Maggie Dictionary"
+ctx := CueContext new.
+val := (ctx compileString: 'a: 1, b: "hello"') value.
+val toMaggie
+```
+"""
+CueValue subclass: Object
+
+  """
+  Validate this CUE value. Returns a Success Result if valid,
+  Failure with error details if the value has constraint violations.
+
+  ```example
+  ctx := CueContext new.
+  val := (ctx compileString: 'x: 42') value.
+  val validate isSuccess >>> true
+  ```
+  """
+  method: validate [
+      ^self primValidate
+  ]
+
+  """
+  Unify this CUE value with another CueValue. Returns a Result
+  wrapping the unified CueValue. Unification fails if the values
+  have conflicting constraints.
+
+  ```example
+  ctx := CueContext new.
+  schema := (ctx compileString: 'name: string') value.
+  data := (ctx compileString: 'name: "Alice"') value.
+  (schema unify: data) value toMaggie
+  ```
+  """
+  method: unify: other [
+      ^self primUnify: other
+  ]
+
+  """
+  Look up a field by dot-separated path string. Returns a Result
+  wrapping the field's CueValue.
+
+  ```example
+  ctx := CueContext new.
+  val := (ctx compileString: 'a: {b: {c: 42}}') value.
+  ((val lookup: 'a.b.c') value toMaggie) >>> 42
+  ```
+  """
+  method: lookup: path [
+      ^self primLookup: path
+  ]
+
+  """
+  Fill a path with a value, returning a new CueValue. Useful for
+  injecting concrete values into CUE templates.
+
+  ```example
+  ctx := CueContext new.
+  val := (ctx compileString: 'x: _, result: x') value.
+  filled := (val fillPath: 'x' with: 42) value.
+  (filled lookup: 'result') value toMaggie
+  ```
+  """
+  method: fillPath: path with: value [
+      ^self primFillPath: path with: value
+  ]
+
+  """
+  Return a Dictionary mapping field names to CueValues.
+  Only works on struct-kinded values.
+
+  ```example
+  ctx := CueContext new.
+  val := (ctx compileString: 'a: 1, b: 2') value.
+  val fields value
+  ```
+  """
+  method: fields [
+      ^self primFields
+  ]
+
+  """
+  Convert this CUE value to a native Maggie value.
+  - CUE int -> SmallInt
+  - CUE float -> Float
+  - CUE string -> String
+  - CUE bool -> true/false
+  - CUE null -> nil
+  - CUE struct -> Dictionary
+  - CUE list -> Array
+  - CUE constraint -> CueValue (unchanged)
+
+  ```example
+  ctx := CueContext new.
+  val := (ctx compileString: '42') value.
+  val toMaggie >>> 42
+  ```
+  """
+  method: toMaggie [
+      ^self primToMaggie
+  ]
+
+  """
+  Serialize this CUE value to a JSON string. Returns a Result
+  wrapping the JSON string.
+
+  ```example
+  ctx := CueContext new.
+  val := (ctx compileString: 'x: 1, y: 2') value.
+  val toJSON value
+  ```
+  """
+  method: toJSON [
+      ^self primToJSON
+  ]
+
+  """
+  Return the CUE kind of this value as a string symbol
+  (e.g., 'struct', 'int', 'string', 'list', 'bool').
+  """
+  method: kind [
+      ^self primKind
+  ]
+
+  """
+  Return true if this CUE value is fully resolved (concrete),
+  false if it still has constraints or placeholders.
+  """
+  method: isConcrete [
+      ^self primIsConcrete
+  ]
+
+  """
+  Return true if this value exists (is not a CUE bottom value).
+  """
+  method: exists [
+      ^self primExists
+  ]
+
+  """
+  Return the error string if this value has an error, nil otherwise.
+  """
+  method: error [
+      ^self primError
+  ]
+
+  """
+  Return a human-readable string representation.
+  """
+  method: printString [
+      ^self primPrintString
+  ]
