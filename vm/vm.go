@@ -277,6 +277,7 @@ func (vm *VM) bootstrap() {
 	vm.registerFilePrimitives()
 	vm.registerDebuggerPrimitives()
 	vm.registerHttpPrimitives()
+	vm.registerSqlitePrimitives()
 
 	// Phase 7: Set up globals
 	vm.Globals["Object"] = vm.classValue(vm.ObjectClass)
@@ -394,7 +395,7 @@ func (vm *VM) registerSymbolDispatch() {
 			}
 			cls := vmRef.GoObjectClass(v)
 			if cls != nil {
-				return cls, false
+				return cls, true
 			}
 			return nil, false
 		},
