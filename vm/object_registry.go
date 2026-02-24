@@ -78,6 +78,16 @@ type ObjectRegistry struct {
 	classVars   map[*Class]map[string]Value
 	classVarsMu sync.RWMutex
 
+	// Unix listener registry
+	unixListeners   map[int]*UnixListenerObject
+	unixListenersMu sync.RWMutex
+	unixListenerID  atomic.Int32
+
+	// Unix connection registry
+	unixConns   map[int]*UnixConnObject
+	unixConnsMu sync.RWMutex
+	unixConnID  atomic.Int32
+
 	// GoObject registry
 	goObjects   map[uint32]*GoObjectWrapper
 	goObjectsMu sync.RWMutex
@@ -106,6 +116,8 @@ func NewObjectRegistry() *ObjectRegistry {
 		httpResponses: make(map[int]*HttpResponseObject),
 		cells:         make(map[*Cell]struct{}),
 		classVars:     make(map[*Class]map[string]Value),
+		unixListeners: make(map[int]*UnixListenerObject),
+		unixConns:     make(map[int]*UnixConnObject),
 		goObjects:     make(map[uint32]*GoObjectWrapper),
 		classValues:   make(map[int]*Class),
 	}
@@ -124,6 +136,8 @@ func NewObjectRegistry() *ObjectRegistry {
 	or.weakRefCounter.Store(0)
 	or.goObjectID.Store(0)
 	or.classValueID.Store(1)
+	or.unixListenerID.Store(1)
+	or.unixConnID.Store(1)
 
 	return or
 }
@@ -781,6 +795,78 @@ func (or *ObjectRegistry) ClassValueCount() int {
 }
 
 // ---------------------------------------------------------------------------
+// Unix Listener Registry Methods
+// ---------------------------------------------------------------------------
+
+// RegisterUnixListener adds a Unix listener to the registry and returns its ID.
+func (or *ObjectRegistry) RegisterUnixListener(l *UnixListenerObject) int {
+	id := int(or.unixListenerID.Add(1) - 1)
+
+	or.unixListenersMu.Lock()
+	or.unixListeners[id] = l
+	or.unixListenersMu.Unlock()
+
+	return id
+}
+
+// GetUnixListener retrieves a Unix listener by its ID.
+func (or *ObjectRegistry) GetUnixListener(id int) *UnixListenerObject {
+	or.unixListenersMu.RLock()
+	defer or.unixListenersMu.RUnlock()
+	return or.unixListeners[id]
+}
+
+// UnregisterUnixListener removes a Unix listener from the registry.
+func (or *ObjectRegistry) UnregisterUnixListener(id int) {
+	or.unixListenersMu.Lock()
+	defer or.unixListenersMu.Unlock()
+	delete(or.unixListeners, id)
+}
+
+// UnixListenerCount returns the number of registered Unix listeners.
+func (or *ObjectRegistry) UnixListenerCount() int {
+	or.unixListenersMu.RLock()
+	defer or.unixListenersMu.RUnlock()
+	return len(or.unixListeners)
+}
+
+// ---------------------------------------------------------------------------
+// Unix Connection Registry Methods
+// ---------------------------------------------------------------------------
+
+// RegisterUnixConn adds a Unix connection to the registry and returns its ID.
+func (or *ObjectRegistry) RegisterUnixConn(c *UnixConnObject) int {
+	id := int(or.unixConnID.Add(1) - 1)
+
+	or.unixConnsMu.Lock()
+	or.unixConns[id] = c
+	or.unixConnsMu.Unlock()
+
+	return id
+}
+
+// GetUnixConn retrieves a Unix connection by its ID.
+func (or *ObjectRegistry) GetUnixConn(id int) *UnixConnObject {
+	or.unixConnsMu.RLock()
+	defer or.unixConnsMu.RUnlock()
+	return or.unixConns[id]
+}
+
+// UnregisterUnixConn removes a Unix connection from the registry.
+func (or *ObjectRegistry) UnregisterUnixConn(id int) {
+	or.unixConnsMu.Lock()
+	defer or.unixConnsMu.Unlock()
+	delete(or.unixConns, id)
+}
+
+// UnixConnCount returns the number of registered Unix connections.
+func (or *ObjectRegistry) UnixConnCount() int {
+	or.unixConnsMu.RLock()
+	defer or.unixConnsMu.RUnlock()
+	return len(or.unixConns)
+}
+
+// ---------------------------------------------------------------------------
 // Extended Stats
 // ---------------------------------------------------------------------------
 
@@ -801,5 +887,7 @@ func (or *ObjectRegistry) FullStats() map[string]int {
 	stats["classVarClasses"] = or.ClassVarCount()
 	stats["goObjects"] = or.GoObjectCount()
 	stats["classValues"] = or.ClassValueCount()
+	stats["unixListeners"] = or.UnixListenerCount()
+	stats["unixConns"] = or.UnixConnCount()
 	return stats
 }

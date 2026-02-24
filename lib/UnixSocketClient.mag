@@ -1,0 +1,29 @@
+"""
+A Unix domain socket client that connects to a server at a
+filesystem path.
+
+Returns a SocketConnection for sending and receiving data.
+
+```example
+conn := UnixSocketClient connectTo: '/tmp/echo.sock'.
+conn sendLine: 'hello'.
+response := conn receiveLine.
+conn close
+```
+"""
+UnixSocketClient subclass: Object
+
+  """
+  Connect to a Unix domain socket server at the given path.
+  Returns a SocketConnection on success, or a Failure on error.
+
+  ```example
+  conn := UnixSocketClient connectTo: '/tmp/app.sock'.
+  conn sendLine: '{"method":"ping"}'.
+  result := conn receiveLine.
+  conn close
+  ```
+  """
+  class method: connectTo: path [
+      ^self primConnectTo: path
+  ]
