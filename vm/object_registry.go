@@ -83,6 +83,16 @@ type ObjectRegistry struct {
 	goObjectsMu sync.RWMutex
 	goObjectID  atomic.Uint32
 
+	// CUE context registry
+	cueContexts   map[int]*CueContextObject
+	cueContextsMu sync.RWMutex
+	cueContextID  atomic.Int32
+
+	// CUE value registry
+	cueValues   map[int]*CueValueObject
+	cueValuesMu sync.RWMutex
+	cueValueID  atomic.Int32
+
 	// Class value registry (VM-local, previously a package-level global)
 	classValues   map[int]*Class
 	classValuesMu sync.RWMutex
@@ -108,6 +118,8 @@ func NewObjectRegistry() *ObjectRegistry {
 		classVars:     make(map[*Class]map[string]Value),
 		goObjects:     make(map[uint32]*GoObjectWrapper),
 		classValues:   make(map[int]*Class),
+		cueContexts:   make(map[int]*CueContextObject),
+		cueValues:     make(map[int]*CueValueObject),
 	}
 
 	// Start IDs at 1 (0 could be confused with nil/uninitialized)
@@ -124,6 +136,8 @@ func NewObjectRegistry() *ObjectRegistry {
 	or.weakRefCounter.Store(0)
 	or.goObjectID.Store(0)
 	or.classValueID.Store(1)
+	or.cueContextID.Store(1)
+	or.cueValueID.Store(1)
 
 	return or
 }
@@ -781,6 +795,74 @@ func (or *ObjectRegistry) ClassValueCount() int {
 }
 
 // ---------------------------------------------------------------------------
+// CUE Context Registry Methods
+// ---------------------------------------------------------------------------
+
+// RegisterCueContext adds a CUE context to the registry and returns its ID.
+func (or *ObjectRegistry) RegisterCueContext(c *CueContextObject) int {
+	id := int(or.cueContextID.Add(1) - 1)
+	or.cueContextsMu.Lock()
+	or.cueContexts[id] = c
+	or.cueContextsMu.Unlock()
+	return id
+}
+
+// GetCueContext retrieves a CUE context by its ID.
+func (or *ObjectRegistry) GetCueContext(id int) *CueContextObject {
+	or.cueContextsMu.RLock()
+	defer or.cueContextsMu.RUnlock()
+	return or.cueContexts[id]
+}
+
+// UnregisterCueContext removes a CUE context from the registry.
+func (or *ObjectRegistry) UnregisterCueContext(id int) {
+	or.cueContextsMu.Lock()
+	defer or.cueContextsMu.Unlock()
+	delete(or.cueContexts, id)
+}
+
+// CueContextCount returns the number of registered CUE contexts.
+func (or *ObjectRegistry) CueContextCount() int {
+	or.cueContextsMu.RLock()
+	defer or.cueContextsMu.RUnlock()
+	return len(or.cueContexts)
+}
+
+// ---------------------------------------------------------------------------
+// CUE Value Registry Methods
+// ---------------------------------------------------------------------------
+
+// RegisterCueValue adds a CUE value to the registry and returns its ID.
+func (or *ObjectRegistry) RegisterCueValue(c *CueValueObject) int {
+	id := int(or.cueValueID.Add(1) - 1)
+	or.cueValuesMu.Lock()
+	or.cueValues[id] = c
+	or.cueValuesMu.Unlock()
+	return id
+}
+
+// GetCueValue retrieves a CUE value by its ID.
+func (or *ObjectRegistry) GetCueValue(id int) *CueValueObject {
+	or.cueValuesMu.RLock()
+	defer or.cueValuesMu.RUnlock()
+	return or.cueValues[id]
+}
+
+// UnregisterCueValue removes a CUE value from the registry.
+func (or *ObjectRegistry) UnregisterCueValue(id int) {
+	or.cueValuesMu.Lock()
+	defer or.cueValuesMu.Unlock()
+	delete(or.cueValues, id)
+}
+
+// CueValueCount returns the number of registered CUE values.
+func (or *ObjectRegistry) CueValueCount() int {
+	or.cueValuesMu.RLock()
+	defer or.cueValuesMu.RUnlock()
+	return len(or.cueValues)
+}
+
+// ---------------------------------------------------------------------------
 // Extended Stats
 // ---------------------------------------------------------------------------
 
@@ -801,5 +883,7 @@ func (or *ObjectRegistry) FullStats() map[string]int {
 	stats["classVarClasses"] = or.ClassVarCount()
 	stats["goObjects"] = or.GoObjectCount()
 	stats["classValues"] = or.ClassValueCount()
+	stats["cueContexts"] = or.CueContextCount()
+	stats["cueValues"] = or.CueValueCount()
 	return stats
 }
