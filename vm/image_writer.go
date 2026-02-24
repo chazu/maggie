@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"io"
 	"os"
+	"path/filepath"
 	"sort"
 	"unsafe"
 )
@@ -923,6 +924,66 @@ func (vm *VM) SaveImage(path string) error {
 	defer f.Close()
 
 	return vm.SaveImageTo(f)
+}
+
+// SaveImageAtomic saves the VM state to a file using crash-safe atomic writes.
+// The write protocol is:
+//  1. Write to <path>.tmp
+//  2. Fsync the temp file to ensure data is on disk
+//  3. If <path> exists, rename it to <path>.prev (rollback copy)
+//  4. Rename <path>.tmp to <path> (atomic on POSIX)
+//  5. Fsync the parent directory to ensure the rename is durable
+//
+// On crash during step 1-2, the original file is untouched.
+// On crash during step 3-4, <path>.prev contains the previous valid image.
+// After successful completion, <path>.prev is retained as a rollback copy.
+func (vm *VM) SaveImageAtomic(path string) error {
+	tmpPath := path + ".tmp"
+	prevPath := path + ".prev"
+
+	// Step 1: Write to temp file
+	f, err := os.Create(tmpPath)
+	if err != nil {
+		return err
+	}
+
+	if err := vm.SaveImageTo(f); err != nil {
+		f.Close()
+		os.Remove(tmpPath)
+		return err
+	}
+
+	// Step 2: Fsync to ensure data is on disk
+	if err := f.Sync(); err != nil {
+		f.Close()
+		os.Remove(tmpPath)
+		return err
+	}
+	f.Close()
+
+	// Step 3: If target exists, rename to .prev for rollback
+	if _, err := os.Stat(path); err == nil {
+		// Remove old .prev if it exists
+		os.Remove(prevPath)
+		if err := os.Rename(path, prevPath); err != nil {
+			os.Remove(tmpPath)
+			return err
+		}
+	}
+
+	// Step 4: Atomic rename of tmp to target
+	if err := os.Rename(tmpPath, path); err != nil {
+		return err
+	}
+
+	// Step 5: Fsync parent directory for rename durability
+	dir, err := os.Open(filepath.Dir(path))
+	if err == nil {
+		dir.Sync()
+		dir.Close()
+	}
+
+	return nil
 }
 
 // SaveImageTo saves the VM state to a writer.

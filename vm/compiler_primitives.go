@@ -387,6 +387,26 @@ func (vm *VM) registerCompilerPrimitives() {
 
 		return v.registry.NewStringValue(path)
 	})
+
+	// saveImageAtomic: - Save the current VM state using crash-safe atomic writes
+	// Writes to .tmp, fsyncs, renames .prev as rollback, renames .tmp to target.
+	// Returns the path written, or a Failure
+	compilerClass.AddClassMethod1(vm.Selectors, "saveImageAtomic:", func(vmPtr interface{}, recv Value, pathVal Value) Value {
+		v := vmPtr.(*VM)
+
+		var path string
+		if IsStringValue(pathVal) {
+			path = v.registry.GetStringContent(pathVal)
+		} else {
+			return v.newFailureResult("saveImageAtomic: requires a String path")
+		}
+
+		if err := v.SaveImageAtomic(path); err != nil {
+			return v.newFailureResult("saveImageAtomic: " + err.Error())
+		}
+
+		return v.registry.NewStringValue(path)
+	})
 }
 
 // restoreGlobalsMap restores a Globals map after evaluate:withLocals: execution.
