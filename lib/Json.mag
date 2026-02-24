@@ -1,0 +1,215 @@
+"""
+Encode and decode JSON data.
+
+`Json` converts between Maggie objects and JSON strings.
+Dictionaries map to JSON objects, Arrays to JSON arrays,
+Strings/Numbers/Booleans/nil map directly.
+
+```example
+Json encode: #{'name' -> 'Alice'. 'age' -> 30}
+  "=> '{\"age\":30,\"name\":\"Alice\"}'"
+
+Json decode: '{"x": 1, "y": [2, 3]}'
+  "=> a Dictionary"
+
+Json encodePretty: #{'key' -> 'value'}
+  "=> '{\n  \"key\": \"value\"\n}'"
+```
+"""
+Json subclass: Object
+
+  """
+  Encode a Maggie object as a compact JSON string.
+
+  Supported types: Dictionary, Array, String, SmallInteger, Float,
+  true, false, nil.
+
+  ```example
+  Json encode: 42                    "=> '42'"
+  Json encode: 'hello'              "=> '\"hello\"'"
+  Json encode: true                 "=> 'true'"
+  Json encode: nil                  "=> 'null'"
+  Json encode: #(1 2 3)            "=> '[1,2,3]'"
+  ```
+  """
+  class method: encode: anObject [
+      ^self primEncode: anObject
+  ]
+
+  """
+  Encode a Maggie object as a pretty-printed JSON string with
+  two-space indentation.
+
+  ```example
+  Json encodePretty: #{'a' -> 1}
+  ```
+  """
+  class method: encodePretty: anObject [
+      ^self primEncodePretty: anObject
+  ]
+
+  """
+  Decode a JSON string into Maggie objects.
+
+  JSON objects become Dictionaries, arrays become Arrays,
+  strings become Strings, integers become SmallIntegers,
+  decimals become Floats, booleans become true/false,
+  and null becomes nil.
+
+  Raises `JsonParseError` on malformed input.
+
+  ```example
+  Json decode: '42'                "=> 42"
+  Json decode: '"hello"'           "=> 'hello'"
+  Json decode: '[1, 2, 3]'        "=> #(1 2 3)"
+  Json decode: 'null'             "=> nil"
+  ```
+  """
+  class method: decode: aString [
+      ^self primDecode: aString
+  ]
+
+
+"""
+JsonParseError is raised when JSON input is malformed or cannot
+be encoded.
+
+```example
+[Json decode: '{invalid}']
+    on: JsonParseError
+    do: [:e | e messageText]
+```
+"""
+JsonParseError subclass: Error
+
+
+"""
+Incremental JSON reader for streaming decode of multiple values.
+
+```example
+reader := JsonReader new: '[1,2] {"a":3}'.
+reader next        "=> #(1 2)"
+reader next        "=> a Dictionary"
+reader next        "=> nil (EOF)"
+```
+"""
+JsonReader subclass: Object
+
+  """
+  Create a new JsonReader from a string containing one or more
+  JSON values.
+
+  ```example
+  reader := JsonReader new: '1 2 3'.
+  reader next   "=> 1"
+  ```
+  """
+  class method: new: aString [
+      ^self primNew: aString
+  ]
+
+  """
+  Read and decode the next JSON value from the stream.
+  Returns nil at end-of-input.
+
+  ```example
+  reader := JsonReader new: '42'.
+  reader next   "=> 42"
+  reader next   "=> nil"
+  ```
+  """
+  method: next [
+      ^self primNext
+  ]
+
+  """
+  Return true if more values can be read.
+
+  ```example
+  reader := JsonReader new: '1 2'.
+  reader hasMore   "=> true"
+  reader next.
+  reader next.
+  reader hasMore   "=> false"
+  ```
+  """
+  method: hasMore [
+      ^self primHasMore
+  ]
+
+
+"""
+Incremental JSON writer for streaming encode of multiple values.
+
+```example
+writer := JsonWriter new.
+writer write: 42.
+writer write: 'hello'.
+writer contents   "=> '42\n\"hello\"'"
+```
+"""
+JsonWriter subclass: Object
+
+  """
+  Create a new compact JsonWriter.
+
+  ```example
+  JsonWriter new contents   "=> ''"
+  ```
+  """
+  class method: new [
+      ^self primNew
+  ]
+
+  """
+  Create a new pretty-printing JsonWriter with two-space indent.
+
+  ```example
+  writer := JsonWriter newPretty.
+  writer write: #{'a' -> 1}.
+  writer contents
+  ```
+  """
+  class method: newPretty [
+      ^self primNewPretty
+  ]
+
+  """
+  Encode and append a value to the output buffer.
+
+  ```example
+  writer := JsonWriter new.
+  writer write: #(1 2 3).
+  writer contents   "=> '[1,2,3]'"
+  ```
+  """
+  method: write: anObject [
+      ^self primWrite: anObject
+  ]
+
+  """
+  Return the accumulated JSON output as a string.
+
+  ```example
+  writer := JsonWriter new.
+  writer write: true.
+  writer contents   "=> 'true'"
+  ```
+  """
+  method: contents [
+      ^self primContents
+  ]
+
+  """
+  Clear the output buffer.
+
+  ```example
+  writer := JsonWriter new.
+  writer write: 1.
+  writer reset.
+  writer contents   "=> ''"
+  ```
+  """
+  method: reset [
+      ^self primReset
+  ]

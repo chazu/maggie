@@ -78,6 +78,16 @@ type ObjectRegistry struct {
 	classVars   map[*Class]map[string]Value
 	classVarsMu sync.RWMutex
 
+	// JSON reader registry
+	jsonReaders   map[int]*JsonReaderObject
+	jsonReadersMu sync.RWMutex
+	jsonReaderID  atomic.Int32
+
+	// JSON writer registry
+	jsonWriters   map[int]*JsonWriterObject
+	jsonWritersMu sync.RWMutex
+	jsonWriterID  atomic.Int32
+
 	// GoObject registry
 	goObjects   map[uint32]*GoObjectWrapper
 	goObjectsMu sync.RWMutex
@@ -106,6 +116,8 @@ func NewObjectRegistry() *ObjectRegistry {
 		httpResponses: make(map[int]*HttpResponseObject),
 		cells:         make(map[*Cell]struct{}),
 		classVars:     make(map[*Class]map[string]Value),
+		jsonReaders:   make(map[int]*JsonReaderObject),
+		jsonWriters:   make(map[int]*JsonWriterObject),
 		goObjects:     make(map[uint32]*GoObjectWrapper),
 		classValues:   make(map[int]*Class),
 	}
@@ -121,6 +133,8 @@ func NewObjectRegistry() *ObjectRegistry {
 	or.httpServerID.Store(1)
 	or.httpRequestID.Store(1)
 	or.httpResponseID.Store(1)
+	or.jsonReaderID.Store(1)
+	or.jsonWriterID.Store(1)
 	or.weakRefCounter.Store(0)
 	or.goObjectID.Store(0)
 	or.classValueID.Store(1)
@@ -640,6 +654,50 @@ func (or *ObjectRegistry) HttpResponseCount() int {
 	or.httpResponsesMu.RLock()
 	defer or.httpResponsesMu.RUnlock()
 	return len(or.httpResponses)
+}
+
+// ---------------------------------------------------------------------------
+// JSON Reader Registry Methods
+// ---------------------------------------------------------------------------
+
+// RegisterJsonReader adds a JSON reader to the registry and returns its ID.
+func (or *ObjectRegistry) RegisterJsonReader(r *JsonReaderObject) int {
+	id := int(or.jsonReaderID.Add(1) - 1)
+
+	or.jsonReadersMu.Lock()
+	or.jsonReaders[id] = r
+	or.jsonReadersMu.Unlock()
+
+	return id
+}
+
+// GetJsonReader retrieves a JSON reader by its ID.
+func (or *ObjectRegistry) GetJsonReader(id int) *JsonReaderObject {
+	or.jsonReadersMu.RLock()
+	defer or.jsonReadersMu.RUnlock()
+	return or.jsonReaders[id]
+}
+
+// ---------------------------------------------------------------------------
+// JSON Writer Registry Methods
+// ---------------------------------------------------------------------------
+
+// RegisterJsonWriter adds a JSON writer to the registry and returns its ID.
+func (or *ObjectRegistry) RegisterJsonWriter(w *JsonWriterObject) int {
+	id := int(or.jsonWriterID.Add(1) - 1)
+
+	or.jsonWritersMu.Lock()
+	or.jsonWriters[id] = w
+	or.jsonWritersMu.Unlock()
+
+	return id
+}
+
+// GetJsonWriter retrieves a JSON writer by its ID.
+func (or *ObjectRegistry) GetJsonWriter(id int) *JsonWriterObject {
+	or.jsonWritersMu.RLock()
+	defer or.jsonWritersMu.RUnlock()
+	return or.jsonWriters[id]
 }
 
 // ---------------------------------------------------------------------------

@@ -36,6 +36,10 @@ const (
 	httpResponseMarker          uint32 = 40 << 24
 	goObjectMarker              uint32 = 41 << 24
 
+	// JSON
+	jsonReaderMarker            uint32 = 45 << 24
+	jsonWriterMarker            uint32 = 46 << 24
+
 	// Distribution protocol (reserved for Phase 6)
 	chunkMarker                 uint32 = 42 << 24
 	remoteRefMarker             uint32 = 43 << 24
