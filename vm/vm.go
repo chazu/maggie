@@ -283,6 +283,7 @@ func (vm *VM) bootstrap() {
 	vm.registerDuckDBPrimitives()
 	vm.registerJSONPrimitives()
 	vm.registerCuePrimitives()
+	vm.registerSqlitePrimitives()
 
 	// Phase 7: Set up globals
 	vm.Globals["Object"] = vm.classValue(vm.ObjectClass)

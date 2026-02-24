@@ -1,0 +1,357 @@
+"""
+A native SQLite database connection backed by modernc.org/sqlite (pure Go).
+
+SqliteDatabase provides persistent storage with SQL queries, transactions,
+prepared statements, migrations, and WAL mode support.
+
+```example
+"Open an in-memory database, create a table, insert and query"
+db := SqliteDatabase openMemory.
+db execute: 'CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT, age INTEGER)'.
+db execute: 'INSERT INTO users (name, age) VALUES (?, ?)' with: #('Alice' 30).
+row := db queryRow: 'SELECT * FROM users WHERE name = ?' with: #('Alice').
+row at: 'name'
+```
+
+```example
+"File-based database with WAL mode"
+db := SqliteDatabase open: '/tmp/app.db'.
+db enableWAL.
+db execute: 'CREATE TABLE IF NOT EXISTS config (key TEXT PRIMARY KEY, val TEXT)'.
+db close
+```
+"""
+SqliteDatabase subclass: Object
+
+  "--- Class methods: Opening databases ---"
+
+  """
+  Open a SQLite database at the given file path. Creates the file if
+  it does not exist.
+
+  ```example
+  db := SqliteDatabase open: '/tmp/myapp.db'.
+  db close
+  ```
+  """
+  classMethod: open: path [
+      ^self primOpen: path
+  ]
+
+  """
+  Open an in-memory SQLite database. Data is lost when the database
+  is closed.
+
+  ```example
+  db := SqliteDatabase openMemory.
+  db execute: 'SELECT sqlite_version()'
+  ```
+  """
+  classMethod: openMemory [
+      ^self primOpenMemory
+  ]
+
+  "--- Instance methods: Executing SQL ---"
+
+  """
+  Execute SQL that returns no rows (CREATE, INSERT, UPDATE, DELETE).
+  Returns the number of rows affected.
+
+  ```example
+  db := SqliteDatabase openMemory.
+  db execute: 'CREATE TABLE t (id INTEGER PRIMARY KEY, val TEXT)'.
+  db execute: 'INSERT INTO t (val) VALUES (''hello'')'
+  ```
+  """
+  method: execute: sql [
+      ^self primExecute: sql
+  ]
+
+  """
+  Execute SQL with positional parameters. Parameters are passed as
+  an Array and bound to `?` placeholders in order.
+
+  ```example
+  db := SqliteDatabase openMemory.
+  db execute: 'CREATE TABLE t (id INTEGER PRIMARY KEY, name TEXT, age INTEGER)'.
+  db execute: 'INSERT INTO t (name, age) VALUES (?, ?)' with: #('Alice' 30)
+  ```
+  """
+  method: execute: sql with: params [
+      ^self primExecuteWith: sql params: params
+  ]
+
+  "--- Instance methods: Querying ---"
+
+  """
+  Execute a SQL query and return a SqliteRows cursor for iteration.
+
+  ```example
+  db := SqliteDatabase openMemory.
+  db execute: 'CREATE TABLE t (id INTEGER PRIMARY KEY, val TEXT)'.
+  db execute: 'INSERT INTO t (val) VALUES (''a'')'.
+  rows := db query: 'SELECT * FROM t'.
+  [rows next] whileTrue: [rows asDict].
+  rows close
+  ```
+  """
+  method: query: sql [
+      ^self primQuery: sql
+  ]
+
+  """
+  Execute a SQL query with parameters, returning a SqliteRows cursor.
+
+  ```example
+  rows := db query: 'SELECT * FROM users WHERE age > ?' with: #(25).
+  [rows next] whileTrue: [rows asDict].
+  rows close
+  ```
+  """
+  method: query: sql with: params [
+      ^self primQueryWith: sql params: params
+  ]
+
+  """
+  Execute a query and return the first row as a Dictionary, or nil
+  if no rows match.
+
+  ```example
+  db := SqliteDatabase openMemory.
+  db execute: 'CREATE TABLE t (id INTEGER PRIMARY KEY, name TEXT)'.
+  db execute: 'INSERT INTO t (name) VALUES (''Alice'')'.
+  db queryRow: 'SELECT * FROM t WHERE id = 1'
+  ```
+  """
+  method: queryRow: sql [
+      ^self primQueryRow: sql
+  ]
+
+  """
+  Execute a query with parameters and return the first row as a
+  Dictionary, or nil if no rows match.
+
+  ```example
+  db queryRow: 'SELECT * FROM users WHERE name = ?' with: #('Alice')
+  ```
+  """
+  method: queryRow: sql with: params [
+      ^self primQueryRowWith: sql params: params
+  ]
+
+  """
+  Execute a query and return all rows as an Array of Dictionaries.
+
+  ```example
+  db queryAll: 'SELECT * FROM users ORDER BY name'
+  ```
+  """
+  method: queryAll: sql [
+      ^self primQueryAll: sql
+  ]
+
+  """
+  Execute a query with parameters and return all rows as an Array
+  of Dictionaries.
+
+  ```example
+  db queryAll: 'SELECT * FROM users WHERE age > ?' with: #(25)
+  ```
+  """
+  method: queryAll: sql with: params [
+      ^self primQueryAllWith: sql params: params
+  ]
+
+  "--- Instance methods: Prepared statements ---"
+
+  """
+  Prepare a SQL statement for repeated execution. Returns a
+  SqliteStatement.
+
+  ```example
+  stmt := db prepare: 'INSERT INTO users (name, age) VALUES (?, ?)'.
+  stmt executeWith: #('Alice' 30).
+  stmt executeWith: #('Bob' 25).
+  stmt close
+  ```
+  """
+  method: prepare: sql [
+      ^self primPrepare: sql
+  ]
+
+  "--- Instance methods: Transactions ---"
+
+  """
+  Begin a new transaction. Returns the database for chaining.
+
+  ```example
+  db beginTransaction.
+  db execute: 'INSERT INTO t (val) VALUES (''inside-tx'')'.
+  db commitTransaction
+  ```
+  """
+  method: beginTransaction [
+      ^self primBeginTransaction
+  ]
+
+  """
+  Commit the current transaction.
+  """
+  method: commitTransaction [
+      ^self primCommitTransaction
+  ]
+
+  """
+  Rollback the current transaction.
+  """
+  method: rollbackTransaction [
+      ^self primRollbackTransaction
+  ]
+
+  """
+  Execute a block inside a transaction. If the block raises an
+  exception, the transaction is rolled back automatically.
+  Otherwise it is committed.
+
+  ```example
+  db withTransaction: [
+      db execute: 'INSERT INTO users (name) VALUES (?)' with: #('Alice').
+      db execute: 'INSERT INTO users (name) VALUES (?)' with: #('Bob')
+  ]
+  ```
+  """
+  method: withTransaction: aBlock [
+      self beginTransaction.
+      [
+          aBlock value.
+          self commitTransaction
+      ] on: Error do: [:ex |
+          self rollbackTransaction.
+          ex signal
+      ]
+  ]
+
+  "--- Instance methods: PRAGMAs ---"
+
+  """
+  Get a PRAGMA value by name.
+
+  ```example
+  db pragma: 'journal_mode'
+  ```
+  """
+  method: pragma: name [
+      ^self primPragma: name
+  ]
+
+  """
+  Set a PRAGMA value.
+
+  ```example
+  db pragma: 'cache_size' set: '-2000'
+  ```
+  """
+  method: pragma: name set: value [
+      ^self primPragmaSet: name value: value
+  ]
+
+  """
+  Enable WAL (Write-Ahead Logging) journal mode for better
+  concurrent read performance.
+
+  ```example
+  db := SqliteDatabase open: '/tmp/app.db'.
+  db enableWAL
+  ```
+  """
+  method: enableWAL [
+      ^self primEnableWAL
+  ]
+
+  "--- Instance methods: Schema inspection ---"
+
+  """
+  Check if a table exists by name. Returns true or false.
+
+  ```example
+  db tableExists: 'users'
+  ```
+  """
+  method: tableExists: name [
+      ^self primTableExists: name
+  ]
+
+  """
+  List all table names as an Array of Strings.
+
+  ```example
+  db tables
+  ```
+  """
+  method: tables [
+      ^self primTables
+  ]
+
+  "--- Instance methods: Migration support ---"
+
+  """
+  Run a migration SQL if the given version has not been applied.
+  Returns true if the migration was applied, false if already applied.
+
+  ```example
+  db migrate: 'CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT)' version: 1.
+  db migrate: 'ALTER TABLE users ADD COLUMN age INTEGER' version: 2
+  ```
+  """
+  method: migrate: sql version: version [
+      ^self primMigrate: sql version: version
+  ]
+
+  """
+  Get the highest applied migration version number. Returns 0 if
+  no migrations have been applied.
+  """
+  method: migrationVersion [
+      ^self primMigrationVersion
+  ]
+
+  "--- Instance methods: Metadata ---"
+
+  """
+  Get the file path of this database, or ':memory:' for in-memory databases.
+  """
+  method: path [
+      ^self primPath
+  ]
+
+  """
+  Get the SQLite version string.
+  """
+  method: version [
+      ^self primVersion
+  ]
+
+  """
+  Get the last inserted row ID.
+  """
+  method: lastInsertId [
+      ^self primLastInsertId
+  ]
+
+  """
+  Check if the database connection is closed.
+  """
+  method: isClosed [
+      ^self primIsClosed
+  ]
+
+  """
+  Close the database connection.
+  """
+  method: close [
+      ^self primClose
+  ]
+
+  method: printString [
+      ^'a SqliteDatabase (', self path, ')'
+  ]
