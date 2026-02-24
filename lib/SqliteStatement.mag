@@ -1,0 +1,75 @@
+"""
+A prepared SQL statement for repeated execution against a SqliteDatabase.
+
+Prepared statements are created via `SqliteDatabase>>prepare:` and can be
+executed multiple times with different parameters. Always close statements
+when done.
+
+```example
+stmt := db prepare: 'INSERT INTO users (name, age) VALUES (?, ?)'.
+stmt executeWith: #('Alice' 30).
+stmt executeWith: #('Bob' 25).
+stmt close
+```
+"""
+SqliteStatement subclass: Object
+
+  """
+  Execute the prepared statement with no parameters. Returns the
+  number of rows affected.
+  """
+  method: execute [
+      ^self primExecute
+  ]
+
+  """
+  Execute the prepared statement with positional parameters. Returns
+  the number of rows affected.
+
+  ```example
+  stmt executeWith: #('Alice' 30)
+  ```
+  """
+  method: executeWith: params [
+      ^self primExecuteWith: params
+  ]
+
+  """
+  Query with the prepared statement (no parameters). Returns a
+  SqliteRows cursor.
+  """
+  method: query [
+      ^self primQuery
+  ]
+
+  """
+  Query with the prepared statement and parameters. Returns a
+  SqliteRows cursor.
+
+  ```example
+  rows := stmt queryWith: #('Alice').
+  [rows next] whileTrue: [rows asDict].
+  rows close
+  ```
+  """
+  method: queryWith: params [
+      ^self primQueryWith: params
+  ]
+
+  """
+  Get the SQL string used to create this statement.
+  """
+  method: sql [
+      ^self primSql
+  ]
+
+  """
+  Close the prepared statement and release resources.
+  """
+  method: close [
+      ^self primClose
+  ]
+
+  method: printString [
+      ^'a SqliteStatement'
+  ]

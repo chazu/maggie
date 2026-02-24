@@ -1,0 +1,112 @@
+"""
+A cursor over rows returned by a SqliteDatabase query.
+
+SqliteRows provides row-by-row iteration over SQL query results.
+Call `next` to advance to the next row, then use `asDict`,
+`columnAt:`, or `columnNamed:` to read values. Always close the
+cursor when done.
+
+```example
+rows := db query: 'SELECT id, name FROM users ORDER BY id'.
+[rows next] whileTrue: [
+    row := rows asDict.
+    row at: 'name'
+].
+rows close
+```
+"""
+SqliteRows subclass: Object
+
+  """
+  Advance to the next row. Returns true if a row is available,
+  false if all rows have been consumed.
+
+  ```example
+  rows := db query: 'SELECT * FROM users'.
+  [rows next] whileTrue: [rows asDict]
+  ```
+  """
+  method: next [
+      ^self primNext
+  ]
+
+  """
+  Get the current row as a Dictionary with column names as keys.
+
+  ```example
+  rows next.
+  row := rows asDict.
+  row at: 'name'
+  ```
+  """
+  method: asDict [
+      ^self primAsDict
+  ]
+
+  """
+  Get a column value by zero-based index for the current row.
+
+  ```example
+  rows next.
+  rows columnAt: 0
+  ```
+  """
+  method: columnAt: index [
+      ^self primColumnAt: index
+  ]
+
+  """
+  Get a column value by name for the current row.
+
+  ```example
+  rows next.
+  rows columnNamed: 'name'
+  ```
+  """
+  method: columnNamed: name [
+      ^self primColumnNamed: name
+  ]
+
+  """
+  Get the column names as an Array of Strings.
+  """
+  method: columns [
+      ^self primColumns
+  ]
+
+  """
+  Get the number of columns in the result set.
+  """
+  method: columnCount [
+      ^self primColumnCount
+  ]
+
+  """
+  Close the cursor and release resources.
+  """
+  method: close [
+      ^self primClose
+  ]
+
+  """
+  Collect all remaining rows as an Array of Dictionaries.
+  Closes the cursor when done.
+
+  ```example
+  rows := db query: 'SELECT * FROM users'.
+  allRows := rows toArray
+  ```
+  """
+  method: toArray [
+      | result |
+      result := Array new: 0.
+      [self next] whileTrue: [
+          result := result copyWith: self asDict
+      ].
+      self close.
+      ^result
+  ]
+
+  method: printString [
+      ^'a SqliteRows'
+  ]
