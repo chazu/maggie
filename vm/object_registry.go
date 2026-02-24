@@ -93,6 +93,16 @@ type ObjectRegistry struct {
 	unixConnsMu sync.RWMutex
 	unixConnID  atomic.Int32
 
+	// JSON reader registry
+	jsonReaders   map[int]*JsonReaderObject
+	jsonReadersMu sync.RWMutex
+	jsonReaderID  atomic.Int32
+
+	// JSON writer registry
+	jsonWriters   map[int]*JsonWriterObject
+	jsonWritersMu sync.RWMutex
+	jsonWriterID  atomic.Int32
+
 	// GoObject registry
 	goObjects   map[uint32]*GoObjectWrapper
 	goObjectsMu sync.RWMutex
@@ -124,6 +134,8 @@ func NewObjectRegistry() *ObjectRegistry {
 		extProcesses:  make(map[int]*ExternalProcessObject),
 		unixListeners: make(map[int]*UnixListenerObject),
 		unixConns:     make(map[int]*UnixConnObject),
+		jsonReaders:   make(map[int]*JsonReaderObject),
+		jsonWriters:   make(map[int]*JsonWriterObject),
 		goObjects:     make(map[uint32]*GoObjectWrapper),
 		classValues:   make(map[int]*Class),
 	}
@@ -140,6 +152,8 @@ func NewObjectRegistry() *ObjectRegistry {
 	or.httpRequestID.Store(1)
 	or.httpResponseID.Store(1)
 	or.extProcessID.Store(1)
+	or.jsonReaderID.Store(1)
+	or.jsonWriterID.Store(1)
 	or.weakRefCounter.Store(0)
 	or.goObjectID.Store(0)
 	or.classValueID.Store(1)
@@ -678,6 +692,21 @@ func (or *ObjectRegistry) RegisterExternalProcess(p *ExternalProcessObject) int 
 	return id
 }
 
+// ---------------------------------------------------------------------------
+// JSON Reader Registry Methods
+// ---------------------------------------------------------------------------
+
+// RegisterJsonReader adds a JSON reader to the registry and returns its ID.
+func (or *ObjectRegistry) RegisterJsonReader(r *JsonReaderObject) int {
+	id := int(or.jsonReaderID.Add(1) - 1)
+
+	or.jsonReadersMu.Lock()
+	or.jsonReaders[id] = r
+	or.jsonReadersMu.Unlock()
+
+	return id
+}
+
 // GetExternalProcess retrieves an external process by its ID.
 func (or *ObjectRegistry) GetExternalProcess(id int) *ExternalProcessObject {
 	or.extProcessesMu.RLock()
@@ -690,6 +719,35 @@ func (or *ObjectRegistry) UnregisterExternalProcess(id int) {
 	or.extProcessesMu.Lock()
 	defer or.extProcessesMu.Unlock()
 	delete(or.extProcesses, id)
+}
+
+// GetJsonReader retrieves a JSON reader by its ID.
+func (or *ObjectRegistry) GetJsonReader(id int) *JsonReaderObject {
+	or.jsonReadersMu.RLock()
+	defer or.jsonReadersMu.RUnlock()
+	return or.jsonReaders[id]
+}
+
+// ---------------------------------------------------------------------------
+// JSON Writer Registry Methods
+// ---------------------------------------------------------------------------
+
+// RegisterJsonWriter adds a JSON writer to the registry and returns its ID.
+func (or *ObjectRegistry) RegisterJsonWriter(w *JsonWriterObject) int {
+	id := int(or.jsonWriterID.Add(1) - 1)
+
+	or.jsonWritersMu.Lock()
+	or.jsonWriters[id] = w
+	or.jsonWritersMu.Unlock()
+
+	return id
+}
+
+// GetJsonWriter retrieves a JSON writer by its ID.
+func (or *ObjectRegistry) GetJsonWriter(id int) *JsonWriterObject {
+	or.jsonWritersMu.RLock()
+	defer or.jsonWritersMu.RUnlock()
+	return or.jsonWriters[id]
 }
 
 // ---------------------------------------------------------------------------

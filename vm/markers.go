@@ -43,6 +43,10 @@ const (
 	unixListenerMarker          uint32 = 46 << 24
 	unixConnMarker              uint32 = 47 << 24
 
+	// JSON
+	jsonReaderMarker            uint32 = 48 << 24
+	jsonWriterMarker            uint32 = 49 << 24
+
 	// Distribution protocol (reserved for Phase 6)
 	chunkMarker                 uint32 = 42 << 24
 	remoteRefMarker             uint32 = 43 << 24
