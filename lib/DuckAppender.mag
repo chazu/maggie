@@ -1,0 +1,26 @@
+"""
+A high-throughput bulk insert appender for DuckDB tables.
+
+DuckAppender provides fast bulk inserts by bypassing SQL parsing.
+Create an appender from a DuckDatabase, append rows as arrays,
+then flush or close to commit.
+
+```example
+db := DuckDatabase new.
+db execute: 'CREATE TABLE metrics (ts INTEGER, name VARCHAR, val DOUBLE)'.
+app := db appender: 'metrics'.
+1 to: 1000 do: [:i |
+    app appendRow: {i. 'metric'. i * 0.1}
+].
+app close.
+db query: 'SELECT count(*) as n FROM metrics'
+```
+"""
+DuckAppender subclass: Object
+
+  """
+  Return a string representation.
+  """
+  method: printString [
+      ^'a DuckAppender'
+  ]

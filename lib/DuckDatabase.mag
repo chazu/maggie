@@ -1,0 +1,57 @@
+"""
+A DuckDB analytical database for high-performance SQL queries.
+
+DuckDatabase provides in-memory and file-backed analytical databases
+powered by DuckDB. It supports SQL queries, DDL/DML execution,
+Parquet file operations via SQL, and high-throughput bulk inserts
+via DuckAppender.
+
+```example
+"In-memory analytics on a Parquet file"
+db := DuckDatabase new.
+results := db query: 'SELECT * FROM read_parquet(''data.parquet'') LIMIT 10'.
+db close
+```
+
+```example
+"File-backed database with table creation"
+db := DuckDatabase open: '/tmp/analytics.duckdb'.
+db execute: 'CREATE TABLE events (id INTEGER, name VARCHAR, value DOUBLE)'.
+db execute: 'INSERT INTO events VALUES (1, ''click'', 3.14)'.
+results := db query: 'SELECT * FROM events'.
+db close
+```
+
+```example
+"Bulk insert with appender"
+db := DuckDatabase new.
+db execute: 'CREATE TABLE metrics (ts INTEGER, name VARCHAR, val DOUBLE)'.
+app := db appender: 'metrics'.
+app appendRow: #(1 'cpu' 42.5).
+app appendRow: #(2 'mem' 87.3).
+app close.
+db query: 'SELECT * FROM metrics'
+```
+
+```example
+"Export query results to Parquet"
+db := DuckDatabase new.
+db execute: 'CREATE TABLE data AS SELECT * FROM range(100) t(id)'.
+db execute: 'COPY data TO ''/tmp/output.parquet'' (FORMAT PARQUET)'.
+db close
+```
+
+```example
+"Cross-database query from Parquet"
+db := DuckDatabase new.
+db query: 'SELECT count(*) as n FROM read_parquet(''/tmp/output.parquet'')'
+```
+"""
+DuckDatabase subclass: Object
+
+  """
+  Return a string representation.
+  """
+  method: printString [
+      ^'a DuckDatabase'
+  ]
