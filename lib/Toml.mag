@@ -1,0 +1,40 @@
+"""
+Parse and generate TOML (Tom's Obvious Minimal Language) documents.
+
+All methods are class-side — Toml is never instantiated.
+
+Type mapping:
+  TOML table         <-> Dictionary
+  TOML array         <-> Array
+  TOML string        <-> String
+  TOML integer       <-> SmallInteger
+  TOML float         <-> Float
+  TOML boolean       <-> True / False
+  TOML datetime      <-> String (ISO 8601)
+  TOML array of tables <-> Array of Dictionaries
+
+Malformed input raises `TomlParseError` with line/column info.
+
+```example
+"Parse a TOML string"
+config := Toml decode: '[server]
+host = "localhost"
+port = 8080'.
+(config at: 'server') at: 'host'
+```
+
+```example
+"Encode a Dictionary as TOML"
+d := Dictionary new.
+d at: 'name' put: 'my-app'.
+d at: 'version' put: '1.0.0'.
+Toml encode: d
+```
+
+```example
+"Read a TOML file"
+config := Toml decodeFile: 'config.toml'.
+config at: 'database'
+```
+"""
+Toml subclass: Object
