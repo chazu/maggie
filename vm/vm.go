@@ -280,6 +280,7 @@ func (vm *VM) bootstrap() {
 	vm.registerTomlPrimitives()
 	vm.registerExecPrimitives()
 	vm.registerUnixSocketPrimitives()
+	vm.registerDuckDBPrimitives()
 
 	// Phase 7: Set up globals
 	vm.Globals["Object"] = vm.classValue(vm.ObjectClass)
@@ -397,7 +398,7 @@ func (vm *VM) registerSymbolDispatch() {
 			}
 			cls := vmRef.GoObjectClass(v)
 			if cls != nil {
-				return cls, false
+				return cls, true
 			}
 			return nil, false
 		},
