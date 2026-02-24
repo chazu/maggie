@@ -278,6 +278,7 @@ func (vm *VM) bootstrap() {
 	vm.registerDebuggerPrimitives()
 	vm.registerHttpPrimitives()
 	vm.registerTomlPrimitives()
+	vm.registerExecPrimitives()
 
 	// Phase 7: Set up globals
 	vm.Globals["Object"] = vm.classValue(vm.ObjectClass)
