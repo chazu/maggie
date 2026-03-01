@@ -68,4 +68,13 @@ func (vm *VM) registerSystemPrimitives() {
 		v := vmPtr.(*VM)
 		return v.registry.NewStringValue(strconv.Itoa(os.Getpid()))
 	})
+
+	// System executable — returns os.Args[0] (the binary path)
+	sysClass.AddClassMethod0(vm.Selectors, "executable", func(vmPtr interface{}, recv Value) Value {
+		v := vmPtr.(*VM)
+		if len(os.Args) > 0 {
+			return v.registry.NewStringValue(os.Args[0])
+		}
+		return v.registry.NewStringValue("pp")
+	})
 }

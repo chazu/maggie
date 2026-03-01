@@ -1,8 +1,5 @@
 package vm
 
-import (
-	"fmt"
-)
 
 // ---------------------------------------------------------------------------
 // Result: Functional error handling pattern
@@ -88,17 +85,13 @@ func (vm *VM) registerResultPrimitives() {
 	// Success>>isSuccess - return true
 	s.AddMethod0(vm.Selectors, "isSuccess", func(vmPtr interface{}, recv Value) Value {
 		v := vmPtr.(*VM)
-		fmt.Println("[Result] isSuccess called on Success")
 		r := v.registry.GetResultFromValue(recv)
 		if r == nil {
-			fmt.Println("[Result] isSuccess: r is nil!")
 			return False
 		}
 		if r.resultType == ResultSuccess {
-			fmt.Println("[Result] isSuccess: returning True")
 			return True
 		}
-		fmt.Println("[Result] isSuccess: returning False (wrong type)")
 		return False
 	})
 
@@ -182,26 +175,30 @@ func (vm *VM) registerResultPrimitives() {
 	f := vm.FailureClass
 
 	// Failure class>>with: reason - create a Failure wrapping reason (class method)
-	f.AddClassMethod1(vm.Selectors, "with:", func(vmPtr interface{}, recv Value, reason Value) Value {
+	failureWithFn := func(vmPtr interface{}, recv Value, reason Value) Value {
 		v := vmPtr.(*VM)
 		r := createResult(ResultFailure, reason)
 		return v.registry.RegisterResultValue(r)
-	})
+	}
+	f.AddClassMethod1(vm.Selectors, "with:", failureWithFn)
+	f.AddClassMethod1(vm.Selectors, "reason:", failureWithFn)
 
 	// Failure>>value - return nil (Failure has no value)
 	f.AddMethod0(vm.Selectors, "value", func(_ interface{}, recv Value) Value {
 		return Nil
 	})
 
-	// Failure>>error - return the error/reason
-	f.AddMethod0(vm.Selectors, "error", func(vmPtr interface{}, recv Value) Value {
+	// Failure>>error / Failure>>reason - return the error/reason
+	failureErrorFn := func(vmPtr interface{}, recv Value) Value {
 		v := vmPtr.(*VM)
 		r := v.registry.GetResultFromValue(recv)
 		if r == nil || r.resultType != ResultFailure {
 			return Nil
 		}
 		return r.value
-	})
+	}
+	f.AddMethod0(vm.Selectors, "error", failureErrorFn)
+	f.AddMethod0(vm.Selectors, "reason", failureErrorFn)
 
 	// Failure>>primError - primitive for error (same as error)
 	f.AddMethod0(vm.Selectors, "primError", func(vmPtr interface{}, recv Value) Value {

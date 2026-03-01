@@ -503,14 +503,20 @@ func (ir *ImageReader) ReadClasses(vm *VM) ([]*Class, error) {
 		}
 
 		// Check if class already exists in VM (core classes)
-		existingClass := vm.Classes.Lookup(name)
+		// Use full namespaced name for lookup since ClassTable stores
+		// namespaced classes under "Namespace::ClassName"
+		lookupKey := name
+		if namespace != "" {
+			lookupKey = namespace + "::" + name
+		}
+		existingClass := vm.Classes.Lookup(lookupKey)
 		if existingClass != nil {
 			// Use existing class, but update instance variables if needed
 			if classDocString != "" {
 				existingClass.DocString = classDocString
 			}
 			ir.classes[i] = existingClass
-			ir.classNameToIndex[name] = i
+			ir.classNameToIndex[lookupKey] = i
 			ir.decoder.AddClass(existingClass)
 			continue
 		}
@@ -527,7 +533,7 @@ func (ir *ImageReader) ReadClasses(vm *VM) ([]*Class, error) {
 		c.DocString = classDocString
 
 		ir.classes[i] = c
-		ir.classNameToIndex[name] = i
+		ir.classNameToIndex[lookupKey] = i
 		ir.decoder.AddClass(c)
 	}
 
@@ -539,7 +545,7 @@ func (ir *ImageReader) ReadClasses(vm *VM) ([]*Class, error) {
 		}
 
 		// Check if this is an existing VM class (already has superclass set up)
-		if vm.Classes.Lookup(c.Name) != nil && c.VTable != nil {
+		if vm.Classes.Lookup(c.FullName()) != nil && c.VTable != nil {
 			continue
 		}
 
