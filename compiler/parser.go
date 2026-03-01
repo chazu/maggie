@@ -1138,7 +1138,11 @@ func (p *Parser) parseInstanceVars() []string {
 	}
 
 	// Handle identifier format: instanceVars: var1 var2 var3
+	// Stop when we hit "class" followed by "method:" (class method syntax)
 	for p.curTokenIs(TokenIdentifier) {
+		if p.curToken.Literal == "class" && p.peekTokenIs(TokenKeyword) && p.peekToken.Literal == "method:" {
+			break
+		}
 		vars = append(vars, p.curToken.Literal)
 		p.nextToken()
 	}

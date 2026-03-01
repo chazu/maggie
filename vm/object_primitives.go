@@ -1,5 +1,10 @@
 package vm
 
+import (
+	"fmt"
+	"os"
+)
+
 // ---------------------------------------------------------------------------
 // Object Primitives
 // ---------------------------------------------------------------------------
@@ -101,6 +106,16 @@ func (vm *VM) registerObjectPrimitives() {
 		return True
 	})
 
+	// isFailure — default: false (overridden by Failure)
+	c.AddMethod0(vm.Selectors, "isFailure", func(_ interface{}, recv Value) Value {
+		return False
+	})
+
+	// isSuccess — default: false (overridden by Success)
+	c.AddMethod0(vm.Selectors, "isSuccess", func(_ interface{}, recv Value) Value {
+		return False
+	})
+
 	// yourself
 	c.AddMethod0(vm.Selectors, "yourself", func(_ interface{}, recv Value) Value {
 		return recv
@@ -157,14 +172,34 @@ func (vm *VM) registerObjectPrimitives() {
 			if obj != nil && obj.NumSlots() > 0 {
 				selectorSym := obj.GetSlot(0)
 				if selectorSym.IsSymbol() {
-					selectorName = v.Symbols.Name(selectorSym.SymbolID())
+					symID := selectorSym.SymbolID()
+					selectorName = v.Symbols.Name(symID)
+					if selectorName == "" {
+						// Debug: symbol not found
+						fmt.Fprintf(os.Stderr, "[DNU-handler] symbol ID %d not found in SymbolTable (size %d)\n", symID, len(v.Symbols.All()))
+					}
+				} else {
+					fmt.Fprintf(os.Stderr, "[DNU-handler] slot 0 is not a symbol: %v\n", selectorSym)
 				}
+			} else {
+				fmt.Fprintf(os.Stderr, "[DNU-handler] message object has %d slots\n", func() int { if obj != nil { return obj.NumSlots() }; return -1 }())
 			}
 		} else if IsStringValue(message) {
 			// Backward compat: if a bare string is passed (old-style)
 			selectorName = v.registry.GetStringContent(message)
 		} else if message.IsSymbol() {
 			selectorName = v.Symbols.Name(message.SymbolID())
+		} else {
+			fmt.Fprintf(os.Stderr, "[DNU-handler] message is not object/string/symbol: %v\n", message)
+		}
+
+		// Debug: show receiver info
+		if selectorName == "" || selectorName == "<unknown>" {
+			recvClass := "<nil-vtable>"
+			if vt := v.interpreter.vtableFor(recv); vt != nil && vt.Class() != nil {
+				recvClass = vt.Class().FullName()
+			}
+			fmt.Fprintf(os.Stderr, "[DNU-handler] receiver class: %s, selector: %q\n", recvClass, selectorName)
 		}
 
 		stackTrace := ""
