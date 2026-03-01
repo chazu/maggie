@@ -1318,6 +1318,28 @@ func (ir *ImageReader) ReadAll(vm *VM) error {
 		return fmt.Errorf("failed to read globals: %w", err)
 	}
 
+	// Re-register class values in the VM's object registry.
+	// Globals may contain class values with stale registry IDs from the
+	// image's original VM. We need to re-register each class so the new
+	// VM's registry can resolve them during dispatch.
+	for name, v := range vm.Globals {
+		if !isClassValue(v) {
+			continue
+		}
+		// The global name is the class key (e.g. "Cli::CliMain" or "Object")
+		cls := vm.Classes.Lookup(name)
+		if cls == nil {
+			continue
+		}
+		// RegisterClassValue is idempotent for classes that already have an
+		// ID (built-in classes), but will assign a new ID for image-loaded
+		// classes whose classValueID is 0.
+		newVal := vm.registry.RegisterClassValue(cls)
+		if newVal != v {
+			vm.Globals[name] = newVal
+		}
+	}
+
 	// Read class variables (v3+)
 	if ir.header.Version >= 3 {
 		err = ir.ReadClassVars(vm)

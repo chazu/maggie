@@ -812,8 +812,16 @@ func (p *Parser) ParseSourceFile() *SourceFile {
 	startPos := p.curToken.Pos
 	sf := &SourceFile{}
 
-	// Parse namespace and import declarations (must come before class/trait defs)
+	// Parse namespace and import declarations (must come before class/trait defs).
+	// Skip docstrings that may appear before or between them, preserving the
+	// last one as a pending docstring for the first class/trait definition.
+	var pendingDocString string
 	for !p.curTokenIs(TokenEOF) {
+		if p.curTokenIs(TokenDocstring) {
+			pendingDocString = p.curToken.Literal
+			p.nextToken()
+			continue
+		}
 		if p.curTokenIs(TokenKeyword) {
 			switch p.curToken.Literal {
 			case "namespace:":
@@ -821,20 +829,20 @@ func (p *Parser) ParseSourceFile() *SourceFile {
 				if ns != nil {
 					sf.Namespace = ns
 				}
+				pendingDocString = "" // docstring before namespace: is file-level, not class-level
 				continue
 			case "import:":
 				imp := p.parseImportDecl()
 				if imp != nil {
 					sf.Imports = append(sf.Imports, imp)
 				}
+				pendingDocString = "" // docstring before import: is file-level, not class-level
 				continue
 			}
 		}
-		// Not a namespace/import — stop preamble parsing
+		// Not a namespace/import/docstring — stop preamble parsing
 		break
 	}
-
-	var pendingDocString string
 	for !p.curTokenIs(TokenEOF) {
 		// Capture docstrings for the next class/trait definition
 		if p.curTokenIs(TokenDocstring) {
@@ -1020,6 +1028,16 @@ func (p *Parser) parseClassDefBody(className string, startPos Position) *ClassDe
 				p.nextToken()
 				pendingDocString = ""
 			}
+		} else if p.curTokenIs(TokenIdentifier) && p.curToken.Literal == "class" && p.peekTokenIs(TokenKeyword) && p.peekToken.Literal == "method:" {
+			// Handle two-word "class method:" syntax as a class method
+			p.nextToken() // consume "class"
+			// Now current token is "method:" — parse as class method
+			method := p.parseMethodInBrackets(true)
+			if method != nil {
+				method.DocString = pendingDocString
+				classDef.ClassMethods = append(classDef.ClassMethods, method)
+			}
+			pendingDocString = ""
 		} else {
 			// Skip non-keyword tokens (whitespace handled by lexer)
 			p.nextToken()
