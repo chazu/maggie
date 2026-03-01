@@ -121,6 +121,35 @@ String subclass: Object
   ]
 
   """
+  Return true if the string starts with the given prefix.
+
+  ```test
+  'hello' startsWith: 'hel' >>> true
+  'hello' startsWith: 'xyz' >>> false
+  '--key' startsWith: '--' >>> true
+  ```
+  """
+  method: startsWith: prefix [
+      prefix size > self size
+          ifTrue: [false]
+          ifFalse: [(self copyFrom: 0 to: prefix size) = prefix]
+  ]
+
+  """
+  Return true if the string ends with the given suffix.
+
+  ```test
+  'hello' endsWith: 'llo' >>> true
+  'hello' endsWith: 'xyz' >>> false
+  ```
+  """
+  method: endsWith: suffix [
+      suffix size > self size
+          ifTrue: [false]
+          ifFalse: [(self copyFrom: self size - suffix size to: self size) = suffix]
+  ]
+
+  """
   Return true if the string contains the given substring or character.
 
   ```test
@@ -189,6 +218,18 @@ String subclass: Object
   """
   method: copyFrom: start to: end [
       ^self primCopyFrom: start to: end
+  ]
+
+  """
+  Return a substring from start index to the end, 0-based.
+
+  ```test
+  'hello' copyFrom: 2 >>> 'llo'
+  'hello' copyFrom: 0 >>> 'hello'
+  ```
+  """
+  method: copyFrom: start [
+      ^self copyFrom: start to: self size
   ]
 
   """
@@ -263,6 +304,36 @@ String subclass: Object
   """
   method: trimBoth [
       ^self primTrimBoth
+  ]
+
+  """
+  Return a new string with all occurrences of old replaced by new.
+
+  ```test
+  'hello world' replaceAll: 'o' with: '0' >>> 'hell0 w0rld'
+  'aaa' replaceAll: 'a' with: 'bb' >>> 'bbbbbb'
+  'hello' replaceAll: 'z' with: 'q' >>> 'hello'
+  'a-b-c' replaceAll: '-' with: '_' >>> 'a_b_c'
+  ```
+  """
+  method: replaceAll: old with: new [
+      | result remaining idx done |
+      result := ''.
+      remaining := self.
+      done := false.
+      [remaining isEmpty or: [done]] whileFalse: [
+          idx := remaining indexOf: old.
+          idx = -1
+              ifTrue: [
+                  result := result, remaining.
+                  done := true
+              ]
+              ifFalse: [
+                  result := result, (remaining copyFrom: 0 to: idx), new.
+                  remaining := remaining copyFrom: idx + old size to: remaining size
+              ]
+      ].
+      ^result
   ]
 
   """

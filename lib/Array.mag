@@ -272,6 +272,20 @@ Array subclass: Object
   ]
 
   """
+  Return a new array containing elements from start index to the end.
+  0-based indexing.
+
+  ```test
+  #(10 20 30 40 50) copyFrom: 2 >>> #(30 40 50 )
+  #(10 20 30) copyFrom: 0 >>> #(10 20 30 )
+  #(10 20 30) copyFrom: 3 >>> #()
+  ```
+  """
+  method: copyFrom: start [
+      ^self copyFrom: start to: self size
+  ]
+
+  """
   Return a new array with element appended at the end.
 
   ```test

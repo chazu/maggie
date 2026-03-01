@@ -121,21 +121,21 @@ func (vm *VM) registerObjectPrimitives() {
 		return recv
 	})
 
-	// ifNil: - for non-nil objects, don't evaluate block
+	// ifNil: - for non-nil objects, return receiver (don't evaluate block)
 	c.AddMethod1(vm.Selectors, "ifNil:", func(_ interface{}, recv Value, block Value) Value {
-		return Nil
+		return recv
 	})
 
-	// ifNotNil: - for non-nil objects, evaluate block
+	// ifNotNil: - for non-nil objects, evaluate block with receiver as argument
 	c.AddMethod1(vm.Selectors, "ifNotNil:", func(vmPtr interface{}, recv Value, block Value) Value {
 		v := vmPtr.(*VM)
-		return v.evaluateBlock(block, nil)
+		return v.evaluateBlock(block, []Value{recv})
 	})
 
-	// ifNil:ifNotNil: - for non-nil objects, evaluate second block
+	// ifNil:ifNotNil: - for non-nil objects, evaluate second block with receiver
 	c.AddMethod2(vm.Selectors, "ifNil:ifNotNil:", func(vmPtr interface{}, recv Value, nilBlock, notNilBlock Value) Value {
 		v := vmPtr.(*VM)
-		return v.evaluateBlock(notNilBlock, nil)
+		return v.evaluateBlock(notNilBlock, []Value{recv})
 	})
 
 	// perform: - send message by selector
