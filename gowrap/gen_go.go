@@ -10,6 +10,7 @@ import (
 // The output is a Go source file that registers primitives with the VM.
 func GenerateGoGlue(model *PackageModel) (string, error) {
 	namespace := GoPackageToMaggieNamespace(model.ImportPath)
+	pkgPath := model.ImportPath
 
 	var b strings.Builder
 
@@ -44,8 +45,13 @@ func GenerateGoGlue(model *PackageModel) (string, error) {
 		}
 		className := GoNameToMaggieClassName(namespace, tp.Name)
 		fmt.Fprintf(&b, "\t// Type: %s\n", tp.Name)
-		fmt.Fprintf(&b, "\t%sClass := v.RegisterGoType(%q, reflect.TypeOf((*pkg.%s)(nil)))\n",
-			lcFirst(tp.Name), className, tp.Name)
+		if len(tp.Methods) > 0 {
+			fmt.Fprintf(&b, "\t%sClass := v.RegisterGoType(%q, reflect.TypeOf((*pkg.%s)(nil)))\n",
+				lcFirst(tp.Name), className, tp.Name)
+		} else {
+			fmt.Fprintf(&b, "\tv.RegisterGoType(%q, reflect.TypeOf((*pkg.%s)(nil)))\n",
+				className, tp.Name)
+		}
 	}
 
 	if len(model.Types) > 0 {
@@ -61,7 +67,7 @@ func GenerateGoGlue(model *PackageModel) (string, error) {
 
 	// Register package-level functions as class methods on namespace class
 	for _, fn := range model.Functions {
-		generateFunctionBinding(&b, fn)
+		generateFunctionBinding(&b, fn, pkgPath)
 	}
 
 	// Register methods on types
@@ -70,7 +76,7 @@ func GenerateGoGlue(model *PackageModel) (string, error) {
 			continue
 		}
 		for _, m := range tp.Methods {
-			generateMethodBinding(&b, m, tp)
+			generateMethodBinding(&b, m, tp, pkgPath)
 		}
 	}
 
@@ -79,10 +85,27 @@ func GenerateGoGlue(model *PackageModel) (string, error) {
 	return b.String(), nil
 }
 
-func generateFunctionBinding(b *strings.Builder, fn FunctionModel) {
+// hasUnconvertibleParam returns true if any param has a type that goTypeConversion
+// cannot handle (returns empty string). Such methods must be skipped since they'd
+// produce uncompilable code.
+func hasUnconvertibleParam(params []ParamModel, pkgPath string) (bool, string) {
+	for _, p := range params {
+		conv := goTypeConversion(p.GoType, "x", pkgPath)
+		if conv == "" {
+			return true, p.TypeStr
+		}
+	}
+	return false, ""
+}
+
+func generateFunctionBinding(b *strings.Builder, fn FunctionModel, pkgPath string) {
 	selector := GoNameToMaggieSelector(fn.Name, len(fn.Params))
 	if len(fn.Params) > 4 {
 		fmt.Fprintf(b, "\t// Skipped: %s (too many parameters: %d)\n", fn.Name, len(fn.Params))
+		return
+	}
+	if bad, typStr := hasUnconvertibleParam(fn.Params, pkgPath); bad {
+		fmt.Fprintf(b, "\t// Skipped: %s (unconvertible parameter type: %s)\n", fn.Name, typStr)
 		return
 	}
 
@@ -92,23 +115,27 @@ func generateFunctionBinding(b *strings.Builder, fn FunctionModel) {
 
 	// Extract Go args
 	for i, p := range fn.Params {
-		conv := goTypeConversion(p.GoType, fmt.Sprintf("args[%d]", i))
+		conv := goTypeConversion(p.GoType, fmt.Sprintf("args[%d]", i), pkgPath)
 		if conv != "" {
 			fmt.Fprintf(b, "\t\targ%d := %s\n", i, conv)
 		}
 	}
 
-	callArgs := buildCallArgs(fn.Params)
+	callArgs := buildCallArgs(fn.Params, pkgPath)
 	callExpr := fmt.Sprintf("pkg.%s(%s)", fn.Name, strings.Join(callArgs, ", "))
 
 	writeReturnHandling(b, callExpr, fn.Results, fn.ReturnsErr)
 	fmt.Fprintf(b, "\t}))\n\n")
 }
 
-func generateMethodBinding(b *strings.Builder, m FunctionModel, tp TypeModel) {
+func generateMethodBinding(b *strings.Builder, m FunctionModel, tp TypeModel, pkgPath string) {
 	selector := GoNameToMaggieSelector(m.Name, len(m.Params))
 	if len(m.Params) > 4 {
 		fmt.Fprintf(b, "\t// Skipped: %s.%s (too many parameters: %d)\n", tp.Name, m.Name, len(m.Params))
+		return
+	}
+	if bad, typStr := hasUnconvertibleParam(m.Params, pkgPath); bad {
+		fmt.Fprintf(b, "\t// Skipped: %s.%s (unconvertible parameter type: %s)\n", tp.Name, m.Name, typStr)
 		return
 	}
 
@@ -126,23 +153,23 @@ func generateMethodBinding(b *strings.Builder, m FunctionModel, tp TypeModel) {
 
 	// Extract Go args
 	for i, p := range m.Params {
-		conv := goTypeConversion(p.GoType, fmt.Sprintf("args[%d]", i))
+		conv := goTypeConversion(p.GoType, fmt.Sprintf("args[%d]", i), pkgPath)
 		if conv != "" {
 			fmt.Fprintf(b, "\t\targ%d := %s\n", i, conv)
 		}
 	}
 
-	callArgs := buildCallArgs(m.Params)
+	callArgs := buildCallArgs(m.Params, pkgPath)
 	callExpr := fmt.Sprintf("self.%s(%s)", m.Name, strings.Join(callArgs, ", "))
 
 	writeReturnHandling(b, callExpr, m.Results, m.ReturnsErr)
 	fmt.Fprintf(b, "\t})\n\n")
 }
 
-func buildCallArgs(params []ParamModel) []string {
+func buildCallArgs(params []ParamModel, pkgPath string) []string {
 	args := make([]string, len(params))
 	for i, p := range params {
-		conv := goTypeConversion(p.GoType, fmt.Sprintf("args[%d]", i))
+		conv := goTypeConversion(p.GoType, fmt.Sprintf("args[%d]", i), pkgPath)
 		if conv != "" {
 			args[i] = fmt.Sprintf("arg%d", i)
 		} else {
@@ -187,8 +214,71 @@ func writeReturnHandling(b *strings.Builder, callExpr string, results []ParamMod
 }
 
 // goTypeConversion returns a Go expression that converts a Maggie Value to the
-// expected Go type. Returns "" if no direct conversion is available.
-func goTypeConversion(t types.Type, valueExpr string) string {
+// expected Go type. wrappedPkgPath is the import path of the package being wrapped,
+// used to distinguish same-package types (accessed as pkg.X) from external types.
+// Returns "" if no direct conversion is available.
+func goTypeConversion(t types.Type, valueExpr, wrappedPkgPath string) string {
+	// Handle pointer types first.
+	if ptr, ok := t.(*types.Pointer); ok {
+		elem := ptr.Elem()
+		// Pointer to named type (e.g., *TuplePattern): extract via ValueToGo type assertion.
+		if named, isNamed := elem.(*types.Named); isNamed {
+			if named.Obj().Pkg() != nil && named.Obj().Pkg().Path() == wrappedPkgPath {
+				return fmt.Sprintf("v.ValueToGo(%s).(*pkg.%s)", valueExpr, named.Obj().Name())
+			}
+			// Pointer to type from another package — unconvertible.
+			return ""
+		}
+		// Pointer to basic type (e.g., *string, *int64): convert value, take address.
+		if basic, ok := elem.Underlying().(*types.Basic); ok {
+			switch {
+			case basic.Info()&types.IsString != 0:
+				return fmt.Sprintf("func() *string { s := v.ValueToGo(%s).(string); return &s }()", valueExpr)
+			case basic.Info()&types.IsInteger != 0:
+				return fmt.Sprintf("func() *%s { n := %s(%s.SmallInt()); return &n }()", basic.Name(), basic.Name(), valueExpr)
+			case basic.Info()&types.IsFloat != 0:
+				return fmt.Sprintf("func() *%s { f := %s(%s.Float64()); return &f }()", basic.Name(), basic.Name(), valueExpr)
+			case basic.Info()&types.IsBoolean != 0:
+				return fmt.Sprintf("func() *bool { b := v.ValueToGo(%s).(bool); return &b }()", valueExpr)
+			}
+		}
+		// Unknown pointer target: unconvertible.
+		return ""
+	}
+
+	// Handle named types.
+	if named, ok := t.(*types.Named); ok {
+		// Named struct types (value params, not pointers).
+		if _, isStruct := named.Underlying().(*types.Struct); isStruct {
+			if named.Obj().Pkg() != nil && named.Obj().Pkg().Path() == wrappedPkgPath {
+				// GoObject stores *T, dereference to get T value.
+				return fmt.Sprintf("*v.ValueToGo(%s).(*pkg.%s)", valueExpr, named.Obj().Name())
+			}
+			// Struct from another package — unconvertible.
+			return ""
+		}
+		// Named types with basic underlying types (e.g., type Format string).
+		// Only handle types from the wrapped package (accessible as pkg.TypeName).
+		if basic, ok := named.Underlying().(*types.Basic); ok {
+			if named.Obj().Pkg() != nil && named.Obj().Pkg().Path() == wrappedPkgPath {
+				castExpr := fmt.Sprintf("pkg.%s", named.Obj().Name())
+				switch {
+				case basic.Info()&types.IsString != 0:
+					return fmt.Sprintf("%s(v.ValueToGo(%s).(string))", castExpr, valueExpr)
+				case basic.Info()&types.IsInteger != 0:
+					return fmt.Sprintf("%s(%s.SmallInt())", castExpr, valueExpr)
+				case basic.Info()&types.IsFloat != 0:
+					return fmt.Sprintf("%s(%s.Float64())", castExpr, valueExpr)
+				case basic.Info()&types.IsBoolean != 0:
+					return fmt.Sprintf("%s(v.ValueToGo(%s).(bool))", castExpr, valueExpr)
+				}
+			}
+			// Named type from another package (e.g., time.Duration) — unconvertible
+			// since we can't import the package in the generated code.
+			return ""
+		}
+	}
+
 	underlying := t.Underlying()
 	switch u := underlying.(type) {
 	case *types.Basic:
@@ -207,7 +297,11 @@ func goTypeConversion(t types.Type, valueExpr string) string {
 			return fmt.Sprintf("[]byte(v.ValueToGo(%s).(string))", valueExpr)
 		}
 	case *types.Interface:
-		return fmt.Sprintf("v.ValueToGo(%s)", valueExpr)
+		// Only handle empty interface (interface{} / any). Non-empty interfaces
+		// like context.Context can't be auto-converted from Maggie values.
+		if u.NumMethods() == 0 {
+			return fmt.Sprintf("v.ValueToGo(%s)", valueExpr)
+		}
 	}
 	return ""
 }
