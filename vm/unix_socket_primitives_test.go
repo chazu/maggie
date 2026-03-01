@@ -30,7 +30,7 @@ func TestUnixSocketServerListenAndClose(t *testing.T) {
 	// listenAt:
 	serverClass := vm.Globals["UnixSocketServer"]
 	pathVal := vm.registry.NewStringValue(sockPath)
-	result := vm.Send(serverClass, "listenAt:", []Value{pathVal})
+	result := vm.Send(serverClass, "primListenAt:", []Value{pathVal})
 
 	if !isUnixListenerValue(result) {
 		if isResultValue(result) {
@@ -48,19 +48,19 @@ func TestUnixSocketServerListenAndClose(t *testing.T) {
 	}
 
 	// isRunning
-	running := vm.Send(result, "isRunning", nil)
+	running := vm.Send(result, "primIsRunning", nil)
 	if running != True {
 		t.Fatal("server should be running after listenAt:")
 	}
 
 	// path
-	gotPath := vm.Send(result, "path", nil)
+	gotPath := vm.Send(result, "primPath", nil)
 	if vm.valueToString(gotPath) != sockPath {
 		t.Fatalf("path should return %q, got %q", sockPath, vm.valueToString(gotPath))
 	}
 
 	// close
-	vm.Send(result, "close", nil)
+	vm.Send(result, "primClose", nil)
 
 	// Verify socket file removed
 	if _, err := os.Stat(sockPath); !os.IsNotExist(err) {
@@ -68,7 +68,7 @@ func TestUnixSocketServerListenAndClose(t *testing.T) {
 	}
 
 	// isClosed
-	closed := vm.Send(result, "isClosed", nil)
+	closed := vm.Send(result, "primIsClosed", nil)
 	if closed != True {
 		t.Fatal("server should be closed after close")
 	}
@@ -107,7 +107,7 @@ func TestUnixSocketClientConnectAndSendReceive(t *testing.T) {
 	// connectTo:
 	clientClass := vm.Globals["UnixSocketClient"]
 	pathVal := vm.registry.NewStringValue(sockPath)
-	connVal := vm.Send(clientClass, "connectTo:", []Value{pathVal})
+	connVal := vm.Send(clientClass, "primConnectTo:", []Value{pathVal})
 
 	if !isUnixConnValue(connVal) {
 		if isResultValue(connVal) {
@@ -120,7 +120,7 @@ func TestUnixSocketClientConnectAndSendReceive(t *testing.T) {
 	}
 
 	// send:
-	sendResult := vm.Send(connVal, "send:", []Value{vm.registry.NewStringValue("hello")})
+	sendResult := vm.Send(connVal, "primSend:", []Value{vm.registry.NewStringValue("hello")})
 	if sendResult != connVal {
 		if isResultValue(sendResult) {
 			r := vm.registry.GetResultFromValue(sendResult)
@@ -131,7 +131,7 @@ func TestUnixSocketClientConnectAndSendReceive(t *testing.T) {
 	}
 
 	// receive
-	recvResult := vm.Send(connVal, "receive", nil)
+	recvResult := vm.Send(connVal, "primReceive", nil)
 	if isResultValue(recvResult) {
 		r := vm.registry.GetResultFromValue(recvResult)
 		if r != nil && r.resultType == ResultFailure {
@@ -144,10 +144,10 @@ func TestUnixSocketClientConnectAndSendReceive(t *testing.T) {
 	}
 
 	// close
-	vm.Send(connVal, "close", nil)
+	vm.Send(connVal, "primClose", nil)
 
 	// isClosed
-	closed := vm.Send(connVal, "isClosed", nil)
+	closed := vm.Send(connVal, "primIsClosed", nil)
 	if closed != True {
 		t.Fatal("connection should be closed after close")
 	}
@@ -183,7 +183,7 @@ func TestUnixSocketLineProtocol(t *testing.T) {
 
 	clientClass := vm.Globals["UnixSocketClient"]
 	pathVal := vm.registry.NewStringValue(sockPath)
-	connVal := vm.Send(clientClass, "connectTo:", []Value{pathVal})
+	connVal := vm.Send(clientClass, "primConnectTo:", []Value{pathVal})
 	if !isUnixConnValue(connVal) {
 		if isResultValue(connVal) {
 			r := vm.registry.GetResultFromValue(connVal)
@@ -195,10 +195,10 @@ func TestUnixSocketLineProtocol(t *testing.T) {
 	}
 
 	// sendLine:
-	vm.Send(connVal, "sendLine:", []Value{vm.registry.NewStringValue(`{"method":"test"}`)})
+	vm.Send(connVal, "primSendLine:", []Value{vm.registry.NewStringValue(`{"method":"test"}`)})
 
 	// receiveLine
-	lineResult := vm.Send(connVal, "receiveLine", nil)
+	lineResult := vm.Send(connVal, "primReceiveLine", nil)
 	if isResultValue(lineResult) {
 		r := vm.registry.GetResultFromValue(lineResult)
 		if r != nil && r.resultType == ResultFailure {
@@ -212,7 +212,7 @@ func TestUnixSocketLineProtocol(t *testing.T) {
 		t.Fatalf("expected %q, got %q", expected, lineStr)
 	}
 
-	vm.Send(connVal, "close", nil)
+	vm.Send(connVal, "primClose", nil)
 	wg.Wait()
 }
 
@@ -222,7 +222,7 @@ func TestUnixSocketServerAccept(t *testing.T) {
 
 	serverClass := vm.Globals["UnixSocketServer"]
 	pathVal := vm.registry.NewStringValue(sockPath)
-	serverVal := vm.Send(serverClass, "listenAt:", []Value{pathVal})
+	serverVal := vm.Send(serverClass, "primListenAt:", []Value{pathVal})
 	if !isUnixListenerValue(serverVal) {
 		if isResultValue(serverVal) {
 			r := vm.registry.GetResultFromValue(serverVal)
@@ -249,7 +249,7 @@ func TestUnixSocketServerAccept(t *testing.T) {
 	}()
 
 	// Server accept
-	connVal := vm.Send(serverVal, "accept", nil)
+	connVal := vm.Send(serverVal, "primAccept", nil)
 	if !isUnixConnValue(connVal) {
 		if isResultValue(connVal) {
 			r := vm.registry.GetResultFromValue(connVal)
@@ -260,14 +260,14 @@ func TestUnixSocketServerAccept(t *testing.T) {
 		t.Fatalf("accept should return SocketConnection")
 	}
 
-	lineResult := vm.Send(connVal, "receiveLine", nil)
+	lineResult := vm.Send(connVal, "primReceiveLine", nil)
 	lineStr := vm.valueToString(lineResult)
 	if lineStr != "from-client" {
 		t.Fatalf("expected 'from-client', got %q", lineStr)
 	}
 
-	vm.Send(connVal, "close", nil)
-	vm.Send(serverVal, "close", nil)
+	vm.Send(connVal, "primClose", nil)
+	vm.Send(serverVal, "primClose", nil)
 	wg.Wait()
 }
 
@@ -277,7 +277,7 @@ func TestUnixSocketConcurrentConnections(t *testing.T) {
 
 	serverClass := vm.Globals["UnixSocketServer"]
 	pathVal := vm.registry.NewStringValue(sockPath)
-	serverVal := vm.Send(serverClass, "listenAt:", []Value{pathVal})
+	serverVal := vm.Send(serverClass, "primListenAt:", []Value{pathVal})
 	if !isUnixListenerValue(serverVal) {
 		if isResultValue(serverVal) {
 			r := vm.registry.GetResultFromValue(serverVal)
@@ -308,20 +308,20 @@ func TestUnixSocketConcurrentConnections(t *testing.T) {
 	}
 
 	for i := 0; i < numClients; i++ {
-		connVal := vm.Send(serverVal, "accept", nil)
+		connVal := vm.Send(serverVal, "primAccept", nil)
 		if !isUnixConnValue(connVal) {
 			continue
 		}
-		lineResult := vm.Send(connVal, "receiveLine", nil)
+		lineResult := vm.Send(connVal, "primReceiveLine", nil)
 		lineStr := vm.valueToString(lineResult)
 		if lineStr != "ping" {
 			t.Errorf("expected 'ping', got %q", lineStr)
 		}
-		vm.Send(connVal, "sendLine:", []Value{vm.registry.NewStringValue("pong")})
-		vm.Send(connVal, "close", nil)
+		vm.Send(connVal, "primSendLine:", []Value{vm.registry.NewStringValue("pong")})
+		vm.Send(connVal, "primClose", nil)
 	}
 
-	vm.Send(serverVal, "close", nil)
+	vm.Send(serverVal, "primClose", nil)
 	wg.Wait()
 }
 
@@ -344,7 +344,7 @@ func TestUnixSocketStaleSocketCleanup(t *testing.T) {
 	// listenAt: should detect the stale file (can't connect to it) and remove it
 	serverClass := vm.Globals["UnixSocketServer"]
 	pathVal := vm.registry.NewStringValue(sockPath)
-	result := vm.Send(serverClass, "listenAt:", []Value{pathVal})
+	result := vm.Send(serverClass, "primListenAt:", []Value{pathVal})
 
 	if !isUnixListenerValue(result) {
 		if isResultValue(result) {
@@ -356,7 +356,7 @@ func TestUnixSocketStaleSocketCleanup(t *testing.T) {
 		t.Fatal("listenAt: should return UnixSocketServer value on stale socket cleanup")
 	}
 
-	vm.Send(result, "close", nil)
+	vm.Send(result, "primClose", nil)
 }
 
 func TestUnixSocketServerListenAtMode(t *testing.T) {
@@ -366,7 +366,7 @@ func TestUnixSocketServerListenAtMode(t *testing.T) {
 	serverClass := vm.Globals["UnixSocketServer"]
 	pathVal := vm.registry.NewStringValue(sockPath)
 	modeVal := FromSmallInt(0o660)
-	result := vm.Send(serverClass, "listenAt:mode:", []Value{pathVal, modeVal})
+	result := vm.Send(serverClass, "primListenAtMode:mode:", []Value{pathVal, modeVal})
 
 	if !isUnixListenerValue(result) {
 		if isResultValue(result) {
@@ -387,7 +387,7 @@ func TestUnixSocketServerListenAtMode(t *testing.T) {
 		t.Fatalf("expected mode 0660, got %o", perm)
 	}
 
-	vm.Send(result, "close", nil)
+	vm.Send(result, "primClose", nil)
 }
 
 func TestUnixSocketConnectToFailure(t *testing.T) {
@@ -395,7 +395,7 @@ func TestUnixSocketConnectToFailure(t *testing.T) {
 
 	clientClass := vm.Globals["UnixSocketClient"]
 	pathVal := vm.registry.NewStringValue("/tmp/mag-nonexistent.sock")
-	result := vm.Send(clientClass, "connectTo:", []Value{pathVal})
+	result := vm.Send(clientClass, "primConnectTo:", []Value{pathVal})
 
 	if !isResultValue(result) {
 		t.Fatal("connectTo: non-existent path should return a Result")
@@ -412,7 +412,7 @@ func TestUnixSocketAcceptToChannel(t *testing.T) {
 
 	serverClass := vm.Globals["UnixSocketServer"]
 	pathVal := vm.registry.NewStringValue(sockPath)
-	serverVal := vm.Send(serverClass, "listenAt:", []Value{pathVal})
+	serverVal := vm.Send(serverClass, "primListenAt:", []Value{pathVal})
 	if !isUnixListenerValue(serverVal) {
 		if isResultValue(serverVal) {
 			r := vm.registry.GetResultFromValue(serverVal)
@@ -426,7 +426,7 @@ func TestUnixSocketAcceptToChannel(t *testing.T) {
 	ch := createChannel(5)
 	chVal := vm.registry.RegisterChannel(ch)
 
-	result := vm.Send(serverVal, "acceptToChannel:", []Value{chVal})
+	result := vm.Send(serverVal, "primAcceptToChannel:", []Value{chVal})
 	if result != serverVal {
 		if isResultValue(result) {
 			r := vm.registry.GetResultFromValue(result)
@@ -447,10 +447,10 @@ func TestUnixSocketAcceptToChannel(t *testing.T) {
 		if !isUnixConnValue(connVal) {
 			t.Fatal("channel should receive SocketConnection value")
 		}
-		vm.Send(connVal, "close", nil)
+		vm.Send(connVal, "primClose", nil)
 	case <-time.After(2 * time.Second):
 		t.Fatal("timeout waiting for connection on channel")
 	}
 
-	vm.Send(serverVal, "close", nil)
+	vm.Send(serverVal, "primClose", nil)
 }

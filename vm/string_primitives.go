@@ -43,7 +43,9 @@ func (vm *VM) getStringLike(v Value) string {
 	if IsCharacterValue(v) {
 		return string(GetCharacterCodePoint(v))
 	}
-	// Symbols are not handled here — use vm.Symbols.Name() for that
+	if v.IsSymbol() {
+		return vm.Symbols.Name(v.SymbolID())
+	}
 	return ""
 }
 
@@ -251,6 +253,13 @@ func (vm *VM) registerStringPrimitivesExtended() {
 			last = v.Send(block, "value:", []Value{charVal})
 		}
 		return last
+	})
+
+	// primTrimBoth - trim whitespace from both ends
+	c.AddMethod0(vm.Selectors, "primTrimBoth", func(vmPtr interface{}, recv Value) Value {
+		v := vmPtr.(*VM)
+		s := v.registry.GetStringContent(recv)
+		return v.registry.NewStringValue(strings.TrimSpace(s))
 	})
 
 	// println - print the string to stdout with newline

@@ -433,15 +433,14 @@ func (i *Interpreter) pushBlockFrame(block *BlockMethod, captures []Value, args 
 }
 
 func (i *Interpreter) popFrame() {
-	frameIndex := i.fp
-	frame := i.frames[frameIndex]
+	frame := i.frames[i.fp]
 	i.sp = frame.BP // Discard temps
-	i.frames[frameIndex] = nil
+	i.frames[i.fp] = nil
 	i.fp--
-	// Clean up any blocks whose home frame is being popped
-	if i.vm != nil {
-		i.vm.registry.ReleaseBlocksForFrame(frameIndex)
-	}
+	// NOTE: We intentionally do NOT release blocks when frames are popped.
+	// Blocks may escape their home frame (stored in Dictionaries, instance vars, etc.)
+	// and be invoked later as callbacks. The block registry uses a sweep-based GC
+	// to clean up unreachable blocks instead.
 }
 
 // ---------------------------------------------------------------------------
@@ -1926,7 +1925,8 @@ func (i *Interpreter) primitiveValue(rcvr Value) Value {
 }
 
 func (i *Interpreter) primitiveValue1(rcvr Value, arg Value) Value {
-	if bv := i.getBlockValue(rcvr); bv != nil {
+	bv := i.getBlockValue(rcvr)
+	if bv != nil {
 		return i.ExecuteBlock(bv.Block, bv.Captures, []Value{arg}, bv.HomeFrame, bv.HomeSelf, bv.HomeMethod)
 	}
 	return Nil

@@ -254,6 +254,18 @@ String subclass: Object
   ]
 
   """
+  Return a copy with leading and trailing whitespace removed.
+
+  ```test
+  '  hello  ' trimBoth >>> 'hello'
+  'no spaces' trimBoth >>> 'no spaces'
+  ```
+  """
+  method: trimBoth [
+      ^self primTrimBoth
+  ]
+
+  """
   Return the receiver (strings are already strings).
 
   ```test

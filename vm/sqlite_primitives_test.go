@@ -17,7 +17,7 @@ func TestSqliteOpenMemory(t *testing.T) {
 		t.Fatal("SqliteDatabase class not in Globals")
 	}
 
-	result := vm.Send(dbClassVal, "openMemory", nil)
+	result := vm.Send(dbClassVal, "primOpenMemory", nil)
 	if result == Nil {
 		t.Fatal("openMemory returned nil")
 	}
@@ -42,7 +42,7 @@ func TestSqliteOpenFile(t *testing.T) {
 	dbPath := filepath.Join(tmpDir, "test.db")
 
 	pathVal := vm.registry.NewStringValue(dbPath)
-	result := vm.Send(dbClassVal, "open:", []Value{pathVal})
+	result := vm.Send(dbClassVal, "primOpen:", []Value{pathVal})
 
 	dbObj := vm.getSqliteDB(result)
 	if dbObj == nil {
@@ -61,7 +61,7 @@ func TestSqliteClose(t *testing.T) {
 	vm := NewVM()
 	db := sqliteOpenMemory(t, vm)
 
-	result := vm.Send(db, "close", nil)
+	result := vm.Send(db, "primClose", nil)
 	if result != True {
 		t.Error("close should return true")
 	}
@@ -72,7 +72,7 @@ func TestSqliteClose(t *testing.T) {
 	}
 
 	// Close again should fail
-	result = vm.Send(db, "close", nil)
+	result = vm.Send(db, "primClose", nil)
 	if result == True {
 		t.Error("double close should return failure")
 	}
@@ -87,7 +87,7 @@ func TestSqliteExecuteAndQuery(t *testing.T) {
 
 	// Insert
 	sqlVal := vm.registry.NewStringValue("INSERT INTO users (name, age) VALUES ('Alice', 30)")
-	result := vm.Send(db, "execute:", []Value{sqlVal})
+	result := vm.Send(db, "primExecute:", []Value{sqlVal})
 	if sqliteIsFailure(vm, result) {
 		t.Fatal("INSERT failed:", sqliteFailureMsg(vm, result))
 	}
@@ -101,14 +101,14 @@ func TestSqliteExecuteAndQuery(t *testing.T) {
 		vm.registry.NewStringValue("Bob"),
 		FromSmallInt(25),
 	})
-	result = vm.Send(db, "execute:with:", []Value{sqlVal, params})
+	result = vm.Send(db, "primExecuteWith:params:", []Value{sqlVal, params})
 	if sqliteIsFailure(vm, result) {
 		t.Fatal("INSERT with params failed:", sqliteFailureMsg(vm, result))
 	}
 
 	// Query all
 	sqlVal = vm.registry.NewStringValue("SELECT * FROM users ORDER BY id")
-	result = vm.Send(db, "queryAll:", []Value{sqlVal})
+	result = vm.Send(db, "primQueryAll:", []Value{sqlVal})
 	if sqliteIsFailure(vm, result) {
 		t.Fatal("queryAll: failed:", sqliteFailureMsg(vm, result))
 	}
@@ -134,7 +134,7 @@ func TestSqliteQueryRow(t *testing.T) {
 	sqliteExec(t, vm, db, "INSERT INTO items (name) VALUES ('Widget')")
 
 	sqlVal := vm.registry.NewStringValue("SELECT * FROM items WHERE id = 1")
-	result := vm.Send(db, "queryRow:", []Value{sqlVal})
+	result := vm.Send(db, "primQueryRow:", []Value{sqlVal})
 	if result == Nil {
 		t.Fatal("queryRow: returned nil")
 	}
@@ -149,7 +149,7 @@ func TestSqliteQueryRow(t *testing.T) {
 
 	// Query row that doesn't exist
 	sqlVal = vm.registry.NewStringValue("SELECT * FROM items WHERE id = 999")
-	result = vm.Send(db, "queryRow:", []Value{sqlVal})
+	result = vm.Send(db, "primQueryRow:", []Value{sqlVal})
 	if result != Nil {
 		t.Error("queryRow: for no results should return nil")
 	}
@@ -164,7 +164,7 @@ func TestSqliteQueryRowWithParams(t *testing.T) {
 
 	sqlVal := vm.registry.NewStringValue("SELECT * FROM items WHERE name = ?")
 	params := vm.NewArrayWithElements([]Value{vm.registry.NewStringValue("Widget")})
-	result := vm.Send(db, "queryRow:with:", []Value{sqlVal, params})
+	result := vm.Send(db, "primQueryRowWith:params:", []Value{sqlVal, params})
 	if result == Nil {
 		t.Fatal("queryRow:with: returned nil")
 	}
@@ -180,7 +180,7 @@ func TestSqliteTransaction(t *testing.T) {
 	sqliteExec(t, vm, db, "CREATE TABLE txtest (id INTEGER PRIMARY KEY, val TEXT)")
 
 	// Begin transaction
-	result := vm.Send(db, "beginTransaction", nil)
+	result := vm.Send(db, "primBeginTransaction", nil)
 	if result != db {
 		t.Error("beginTransaction should return the database for chaining")
 	}
@@ -189,25 +189,25 @@ func TestSqliteTransaction(t *testing.T) {
 	sqliteExec(t, vm, db, "INSERT INTO txtest (val) VALUES ('inside-tx')")
 
 	// Rollback
-	result = vm.Send(db, "rollbackTransaction", nil)
+	result = vm.Send(db, "primRollbackTransaction", nil)
 	if result != True {
 		t.Error("rollbackTransaction should return true")
 	}
 
 	// Verify data was rolled back
 	sqlVal := vm.registry.NewStringValue("SELECT COUNT(*) as cnt FROM txtest")
-	rowResult := vm.Send(db, "queryRow:", []Value{sqlVal})
+	rowResult := vm.Send(db, "primQueryRow:", []Value{sqlVal})
 	if rowResult == Nil {
 		t.Fatal("queryRow returned nil after rollback")
 	}
 
 	// Test commit
-	vm.Send(db, "beginTransaction", nil)
+	vm.Send(db, "primBeginTransaction", nil)
 	sqliteExec(t, vm, db, "INSERT INTO txtest (val) VALUES ('committed')")
-	vm.Send(db, "commitTransaction", nil)
+	vm.Send(db, "primCommitTransaction", nil)
 
 	sqlVal = vm.registry.NewStringValue("SELECT COUNT(*) as cnt FROM txtest")
-	rowResult = vm.Send(db, "queryRow:", []Value{sqlVal})
+	rowResult = vm.Send(db, "primQueryRow:", []Value{sqlVal})
 	if rowResult == Nil {
 		t.Fatal("queryRow returned nil after commit")
 	}
@@ -221,7 +221,7 @@ func TestSqlitePreparedStatement(t *testing.T) {
 
 	// Prepare an insert statement
 	sqlVal := vm.registry.NewStringValue("INSERT INTO prep_test (name) VALUES (?)")
-	stmt := vm.Send(db, "prepare:", []Value{sqlVal})
+	stmt := vm.Send(db, "primPrepare:", []Value{sqlVal})
 	if sqliteIsFailure(vm, stmt) {
 		t.Fatal("prepare: failed:", sqliteFailureMsg(vm, stmt))
 	}
@@ -234,21 +234,21 @@ func TestSqlitePreparedStatement(t *testing.T) {
 	// Execute with different params
 	for _, name := range []string{"Alice", "Bob", "Charlie"} {
 		params := vm.NewArrayWithElements([]Value{vm.registry.NewStringValue(name)})
-		result := vm.Send(stmt, "executeWith:", []Value{params})
+		result := vm.Send(stmt, "primExecuteWith:", []Value{params})
 		if sqliteIsFailure(vm, result) {
 			t.Fatalf("executeWith: failed for %s: %s", name, sqliteFailureMsg(vm, result))
 		}
 	}
 
 	// Close statement
-	result := vm.Send(stmt, "close", nil)
+	result := vm.Send(stmt, "primClose", nil)
 	if result != True {
 		t.Error("close should return true")
 	}
 
 	// Verify rows were inserted
 	sqlVal = vm.registry.NewStringValue("SELECT COUNT(*) as cnt FROM prep_test")
-	row := vm.Send(db, "queryRow:", []Value{sqlVal})
+	row := vm.Send(db, "primQueryRow:", []Value{sqlVal})
 	if row == Nil {
 		t.Fatal("queryRow returned nil")
 	}
@@ -264,7 +264,7 @@ func TestSqliteRows(t *testing.T) {
 
 	// Query returning rows
 	sqlVal := vm.registry.NewStringValue("SELECT * FROM row_test ORDER BY id")
-	rows := vm.Send(db, "query:", []Value{sqlVal})
+	rows := vm.Send(db, "primQuery:", []Value{sqlVal})
 	if sqliteIsFailure(vm, rows) {
 		t.Fatal("query: failed:", sqliteFailureMsg(vm, rows))
 	}
@@ -275,11 +275,11 @@ func TestSqliteRows(t *testing.T) {
 	}
 
 	// Check columns
-	cols := vm.Send(rows, "columns", nil)
+	cols := vm.Send(rows, "primColumns", nil)
 	if !cols.IsObject() {
 		t.Fatal("columns should return an array")
 	}
-	colCount := vm.Send(rows, "columnCount", nil)
+	colCount := vm.Send(rows, "primColumnCount", nil)
 	if !colCount.IsSmallInt() || colCount.SmallInt() != 3 {
 		t.Errorf("expected 3 columns, got %v", colCount)
 	}
@@ -287,14 +287,14 @@ func TestSqliteRows(t *testing.T) {
 	// Iterate rows
 	count := 0
 	for {
-		hasNext := vm.Send(rows, "next", nil)
+		hasNext := vm.Send(rows, "primNext", nil)
 		if hasNext != True {
 			break
 		}
 		count++
 
 		// Get current row as dict
-		dict := vm.Send(rows, "asDict", nil)
+		dict := vm.Send(rows, "primAsDict", nil)
 		if sqliteIsFailure(vm, dict) {
 			t.Fatal("asDict failed:", sqliteFailureMsg(vm, dict))
 		}
@@ -308,7 +308,7 @@ func TestSqliteRows(t *testing.T) {
 	}
 
 	// Close rows
-	result := vm.Send(rows, "close", nil)
+	result := vm.Send(rows, "primClose", nil)
 	if result != True {
 		t.Error("rows close should return true")
 	}
@@ -328,7 +328,7 @@ func TestSqliteTypeMapping(t *testing.T) {
 	sqliteExec(t, vm, db, "INSERT INTO types_test VALUES (42, 3.14, 'hello', X'DEADBEEF', NULL)")
 
 	sqlVal := vm.registry.NewStringValue("SELECT * FROM types_test")
-	row := vm.Send(db, "queryRow:", []Value{sqlVal})
+	row := vm.Send(db, "primQueryRow:", []Value{sqlVal})
 	if row == Nil || sqliteIsFailure(vm, row) {
 		t.Fatal("queryRow: returned nil or failure")
 	}
@@ -347,7 +347,7 @@ func TestSqliteWAL(t *testing.T) {
 	vm := NewVM()
 	db := sqliteOpenMemory(t, vm)
 
-	result := vm.Send(db, "enableWAL", nil)
+	result := vm.Send(db, "primEnableWAL", nil)
 	if sqliteIsFailure(vm, result) {
 		t.Fatal("enableWAL failed:", sqliteFailureMsg(vm, result))
 	}
@@ -358,14 +358,14 @@ func TestSqlitePragma(t *testing.T) {
 	db := sqliteOpenMemory(t, vm)
 
 	nameVal := vm.registry.NewStringValue("journal_mode")
-	result := vm.Send(db, "pragma:", []Value{nameVal})
+	result := vm.Send(db, "primPragma:", []Value{nameVal})
 	if sqliteIsFailure(vm, result) {
 		t.Fatal("pragma: failed:", sqliteFailureMsg(vm, result))
 	}
 
 	nameVal = vm.registry.NewStringValue("cache_size")
 	valVal := vm.registry.NewStringValue("-2000")
-	result = vm.Send(db, "pragma:set:", []Value{nameVal, valVal})
+	result = vm.Send(db, "primPragmaSet:value:", []Value{nameVal, valVal})
 	if result != True {
 		t.Error("pragma:set: should return true")
 	}
@@ -378,13 +378,13 @@ func TestSqliteTableExists(t *testing.T) {
 	sqliteExec(t, vm, db, "CREATE TABLE exists_test (id INTEGER)")
 
 	nameVal := vm.registry.NewStringValue("exists_test")
-	result := vm.Send(db, "tableExists:", []Value{nameVal})
+	result := vm.Send(db, "primTableExists:", []Value{nameVal})
 	if result != True {
 		t.Error("tableExists: should return true for existing table")
 	}
 
 	nameVal = vm.registry.NewStringValue("nonexistent")
-	result = vm.Send(db, "tableExists:", []Value{nameVal})
+	result = vm.Send(db, "primTableExists:", []Value{nameVal})
 	if result != False {
 		t.Error("tableExists: should return false for nonexistent table")
 	}
@@ -397,7 +397,7 @@ func TestSqliteTables(t *testing.T) {
 	sqliteExec(t, vm, db, "CREATE TABLE alpha (id INTEGER)")
 	sqliteExec(t, vm, db, "CREATE TABLE beta (id INTEGER)")
 
-	result := vm.Send(db, "tables", nil)
+	result := vm.Send(db, "primTables", nil)
 	if !result.IsObject() {
 		t.Fatal("tables should return an array")
 	}
@@ -411,7 +411,7 @@ func TestSqliteVersion(t *testing.T) {
 	vm := NewVM()
 	db := sqliteOpenMemory(t, vm)
 
-	result := vm.Send(db, "version", nil)
+	result := vm.Send(db, "primVersion", nil)
 	if sqliteIsFailure(vm, result) {
 		t.Fatal("version failed:", sqliteFailureMsg(vm, result))
 	}
@@ -427,29 +427,29 @@ func TestSqliteMigration(t *testing.T) {
 
 	sqlVal := vm.registry.NewStringValue("CREATE TABLE migration_test (id INTEGER PRIMARY KEY, name TEXT)")
 	verVal := FromSmallInt(1)
-	result := vm.Send(db, "migrate:version:", []Value{sqlVal, verVal})
+	result := vm.Send(db, "primMigrate:version:", []Value{sqlVal, verVal})
 	if result != True {
 		t.Error("first migration should return true (applied)")
 	}
 
-	result = vm.Send(db, "migrate:version:", []Value{sqlVal, verVal})
+	result = vm.Send(db, "primMigrate:version:", []Value{sqlVal, verVal})
 	if result != False {
 		t.Error("duplicate migration should return false (already applied)")
 	}
 
-	result = vm.Send(db, "migrationVersion", nil)
+	result = vm.Send(db, "primMigrationVersion", nil)
 	if !result.IsSmallInt() || result.SmallInt() != 1 {
 		t.Errorf("migrationVersion = %v, want 1", result)
 	}
 
 	sqlVal = vm.registry.NewStringValue("ALTER TABLE migration_test ADD COLUMN age INTEGER")
 	verVal = FromSmallInt(2)
-	result = vm.Send(db, "migrate:version:", []Value{sqlVal, verVal})
+	result = vm.Send(db, "primMigrate:version:", []Value{sqlVal, verVal})
 	if result != True {
 		t.Error("migration v2 should return true")
 	}
 
-	result = vm.Send(db, "migrationVersion", nil)
+	result = vm.Send(db, "primMigrationVersion", nil)
 	if !result.IsSmallInt() || result.SmallInt() != 2 {
 		t.Errorf("migrationVersion = %v, want 2", result)
 	}
@@ -462,13 +462,13 @@ func TestSqliteLastInsertId(t *testing.T) {
 	sqliteExec(t, vm, db, "CREATE TABLE lid_test (id INTEGER PRIMARY KEY, name TEXT)")
 	sqliteExec(t, vm, db, "INSERT INTO lid_test (name) VALUES ('first')")
 
-	result := vm.Send(db, "lastInsertId", nil)
+	result := vm.Send(db, "primLastInsertId", nil)
 	if !result.IsSmallInt() || result.SmallInt() != 1 {
 		t.Errorf("lastInsertId = %v, want 1", result)
 	}
 
 	sqliteExec(t, vm, db, "INSERT INTO lid_test (name) VALUES ('second')")
-	result = vm.Send(db, "lastInsertId", nil)
+	result = vm.Send(db, "primLastInsertId", nil)
 	if !result.IsSmallInt() || result.SmallInt() != 2 {
 		t.Errorf("lastInsertId = %v, want 2", result)
 	}
@@ -478,14 +478,14 @@ func TestSqliteIsClosed(t *testing.T) {
 	vm := NewVM()
 	db := sqliteOpenMemory(t, vm)
 
-	result := vm.Send(db, "isClosed", nil)
+	result := vm.Send(db, "primIsClosed", nil)
 	if result != False {
 		t.Error("isClosed should return false for open database")
 	}
 
-	vm.Send(db, "close", nil)
+	vm.Send(db, "primClose", nil)
 
-	result = vm.Send(db, "isClosed", nil)
+	result = vm.Send(db, "primIsClosed", nil)
 	if result != True {
 		t.Error("isClosed should return true after close")
 	}
@@ -494,15 +494,15 @@ func TestSqliteIsClosed(t *testing.T) {
 func TestSqliteClosedDatabaseErrors(t *testing.T) {
 	vm := NewVM()
 	db := sqliteOpenMemory(t, vm)
-	vm.Send(db, "close", nil)
+	vm.Send(db, "primClose", nil)
 
 	sqlVal := vm.registry.NewStringValue("SELECT 1")
-	result := vm.Send(db, "execute:", []Value{sqlVal})
+	result := vm.Send(db, "primExecute:", []Value{sqlVal})
 	if !sqliteIsFailure(vm, result) {
 		t.Error("execute on closed db should return failure")
 	}
 
-	result = vm.Send(db, "query:", []Value{sqlVal})
+	result = vm.Send(db, "primQuery:", []Value{sqlVal})
 	if !sqliteIsFailure(vm, result) {
 		t.Error("query on closed db should return failure")
 	}
@@ -512,7 +512,7 @@ func TestSqlitePath(t *testing.T) {
 	vm := NewVM()
 	db := sqliteOpenMemory(t, vm)
 
-	result := vm.Send(db, "path", nil)
+	result := vm.Send(db, "primPath", nil)
 	path := vm.registry.GetStringContent(result)
 	if path != ":memory:" {
 		t.Errorf("path = %q, want :memory:", path)
@@ -527,18 +527,18 @@ func TestSqliteStmtSQL(t *testing.T) {
 
 	sqlStr := "INSERT INTO sql_test (id) VALUES (?)"
 	sqlVal := vm.registry.NewStringValue(sqlStr)
-	stmt := vm.Send(db, "prepare:", []Value{sqlVal})
+	stmt := vm.Send(db, "primPrepare:", []Value{sqlVal})
 	if sqliteIsFailure(vm, stmt) {
 		t.Fatal("prepare: failed:", sqliteFailureMsg(vm, stmt))
 	}
 
-	result := vm.Send(stmt, "sql", nil)
+	result := vm.Send(stmt, "primSql", nil)
 	got := vm.registry.GetStringContent(result)
 	if got != sqlStr {
 		t.Errorf("sql = %q, want %q", got, sqlStr)
 	}
 
-	vm.Send(stmt, "close", nil)
+	vm.Send(stmt, "primClose", nil)
 }
 
 // ---------------------------------------------------------------------------
@@ -551,7 +551,7 @@ func sqliteOpenMemory(t *testing.T, vm *VM) Value {
 	if dbClassVal == Nil {
 		t.Fatal("SqliteDatabase class not in Globals")
 	}
-	result := vm.Send(dbClassVal, "openMemory", nil)
+	result := vm.Send(dbClassVal, "primOpenMemory", nil)
 	if result == Nil || sqliteIsFailure(vm, result) {
 		t.Fatal("openMemory failed")
 	}
@@ -561,7 +561,7 @@ func sqliteOpenMemory(t *testing.T, vm *VM) Value {
 func sqliteExec(t *testing.T, vm *VM, db Value, sql string) {
 	t.Helper()
 	sqlVal := vm.registry.NewStringValue(sql)
-	result := vm.Send(db, "execute:", []Value{sqlVal})
+	result := vm.Send(db, "primExecute:", []Value{sqlVal})
 	if sqliteIsFailure(vm, result) {
 		t.Fatal("execute failed:", sqliteFailureMsg(vm, result), "sql:", sql)
 	}

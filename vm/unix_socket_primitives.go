@@ -127,8 +127,8 @@ func (vm *VM) registerUnixSocketPrimitives() {
 	// UnixSocketServer class methods
 	// -----------------------------------------------------------------------
 
-	// UnixSocketServer listenAt: path
-	serverClass.AddClassMethod1(vm.Selectors, "listenAt:", func(vmPtr interface{}, recv Value, pathVal Value) Value {
+	// UnixSocketServer primListenAt: path
+	serverClass.AddClassMethod1(vm.Selectors, "primListenAt:", func(vmPtr interface{}, recv Value, pathVal Value) Value {
 		v := vmPtr.(*VM)
 		path := v.valueToString(pathVal)
 		if path == "" {
@@ -161,8 +161,8 @@ func (vm *VM) registerUnixSocketPrimitives() {
 		return v.vmRegisterUnixListener(srv)
 	})
 
-	// UnixSocketServer listenAt:mode:
-	serverClass.AddClassMethod2(vm.Selectors, "listenAt:mode:", func(vmPtr interface{}, recv Value, pathVal, modeVal Value) Value {
+	// UnixSocketServer primListenAtMode:mode:
+	serverClass.AddClassMethod2(vm.Selectors, "primListenAtMode:mode:", func(vmPtr interface{}, recv Value, pathVal, modeVal Value) Value {
 		v := vmPtr.(*VM)
 		path := v.valueToString(pathVal)
 		if path == "" {
@@ -208,8 +208,8 @@ func (vm *VM) registerUnixSocketPrimitives() {
 	// UnixSocketServer instance methods
 	// -----------------------------------------------------------------------
 
-	// accept — blocking accept, returns a SocketConnection
-	serverClass.AddMethod0(vm.Selectors, "accept", func(vmPtr interface{}, recv Value) Value {
+	// primAccept — blocking accept, returns a SocketConnection
+	serverClass.AddMethod0(vm.Selectors, "primAccept", func(vmPtr interface{}, recv Value) Value {
 		v := vmPtr.(*VM)
 		srv := v.vmGetUnixListener(recv)
 		if srv == nil {
@@ -231,8 +231,8 @@ func (vm *VM) registerUnixSocketPrimitives() {
 		return v.vmRegisterUnixConn(connObj)
 	})
 
-	// acceptToChannel: ch — spawn goroutine that sends new connections to channel
-	serverClass.AddMethod1(vm.Selectors, "acceptToChannel:", func(vmPtr interface{}, recv Value, chVal Value) Value {
+	// primAcceptToChannel: ch — spawn goroutine that sends new connections to channel
+	serverClass.AddMethod1(vm.Selectors, "primAcceptToChannel:", func(vmPtr interface{}, recv Value, chVal Value) Value {
 		v := vmPtr.(*VM)
 		srv := v.vmGetUnixListener(recv)
 		if srv == nil {
@@ -265,8 +265,8 @@ func (vm *VM) registerUnixSocketPrimitives() {
 		return recv
 	})
 
-	// close — stop accepting, remove socket file
-	serverClass.AddMethod0(vm.Selectors, "close", func(vmPtr interface{}, recv Value) Value {
+	// primClose — stop accepting, remove socket file
+	serverClass.AddMethod0(vm.Selectors, "primClose", func(vmPtr interface{}, recv Value) Value {
 		v := vmPtr.(*VM)
 		srv := v.vmGetUnixListener(recv)
 		if srv == nil {
@@ -288,8 +288,8 @@ func (vm *VM) registerUnixSocketPrimitives() {
 		return recv
 	})
 
-	// path — returns the socket file path
-	serverClass.AddMethod0(vm.Selectors, "path", func(vmPtr interface{}, recv Value) Value {
+	// primPath — returns the socket file path
+	serverClass.AddMethod0(vm.Selectors, "primPath", func(vmPtr interface{}, recv Value) Value {
 		v := vmPtr.(*VM)
 		srv := v.vmGetUnixListener(recv)
 		if srv == nil {
@@ -298,8 +298,8 @@ func (vm *VM) registerUnixSocketPrimitives() {
 		return v.registry.NewStringValue(srv.path)
 	})
 
-	// isRunning
-	serverClass.AddMethod0(vm.Selectors, "isRunning", func(vmPtr interface{}, recv Value) Value {
+	// primIsRunning
+	serverClass.AddMethod0(vm.Selectors, "primIsRunning", func(vmPtr interface{}, recv Value) Value {
 		v := vmPtr.(*VM)
 		srv := v.vmGetUnixListener(recv)
 		if srv == nil {
@@ -311,8 +311,8 @@ func (vm *VM) registerUnixSocketPrimitives() {
 		return False
 	})
 
-	// isClosed
-	serverClass.AddMethod0(vm.Selectors, "isClosed", func(vmPtr interface{}, recv Value) Value {
+	// primIsClosed
+	serverClass.AddMethod0(vm.Selectors, "primIsClosed", func(vmPtr interface{}, recv Value) Value {
 		v := vmPtr.(*VM)
 		srv := v.vmGetUnixListener(recv)
 		if srv == nil {
@@ -328,8 +328,8 @@ func (vm *VM) registerUnixSocketPrimitives() {
 	// UnixSocketClient class methods
 	// -----------------------------------------------------------------------
 
-	// UnixSocketClient connectTo: path
-	clientClass.AddClassMethod1(vm.Selectors, "connectTo:", func(vmPtr interface{}, recv Value, pathVal Value) Value {
+	// UnixSocketClient primConnectTo: path
+	clientClass.AddClassMethod1(vm.Selectors, "primConnectTo:", func(vmPtr interface{}, recv Value, pathVal Value) Value {
 		v := vmPtr.(*VM)
 		path := v.valueToString(pathVal)
 		if path == "" {
@@ -352,8 +352,8 @@ func (vm *VM) registerUnixSocketPrimitives() {
 	// SocketConnection instance methods
 	// -----------------------------------------------------------------------
 
-	// send: data — write string data to connection
-	connClass.AddMethod1(vm.Selectors, "send:", func(vmPtr interface{}, recv Value, dataVal Value) Value {
+	// primSend: data — write string data to connection
+	connClass.AddMethod1(vm.Selectors, "primSend:", func(vmPtr interface{}, recv Value, dataVal Value) Value {
 		v := vmPtr.(*VM)
 		c := v.vmGetUnixConn(recv)
 		if c == nil {
@@ -371,8 +371,8 @@ func (vm *VM) registerUnixSocketPrimitives() {
 		return recv
 	})
 
-	// sendLine: data — write string data followed by newline
-	connClass.AddMethod1(vm.Selectors, "sendLine:", func(vmPtr interface{}, recv Value, dataVal Value) Value {
+	// primSendLine: data — write string data followed by newline
+	connClass.AddMethod1(vm.Selectors, "primSendLine:", func(vmPtr interface{}, recv Value, dataVal Value) Value {
 		v := vmPtr.(*VM)
 		c := v.vmGetUnixConn(recv)
 		if c == nil {
@@ -390,8 +390,8 @@ func (vm *VM) registerUnixSocketPrimitives() {
 		return recv
 	})
 
-	// receive — read up to 4096 bytes
-	connClass.AddMethod0(vm.Selectors, "receive", func(vmPtr interface{}, recv Value) Value {
+	// primReceive — read up to 4096 bytes
+	connClass.AddMethod0(vm.Selectors, "primReceive", func(vmPtr interface{}, recv Value) Value {
 		v := vmPtr.(*VM)
 		c := v.vmGetUnixConn(recv)
 		if c == nil {
@@ -409,8 +409,8 @@ func (vm *VM) registerUnixSocketPrimitives() {
 		return v.registry.NewStringValue(string(buf[:n]))
 	})
 
-	// receive: maxBytes — read up to maxBytes
-	connClass.AddMethod1(vm.Selectors, "receive:", func(vmPtr interface{}, recv Value, maxVal Value) Value {
+	// primReceiveMax: maxBytes — read up to maxBytes
+	connClass.AddMethod1(vm.Selectors, "primReceiveMax:", func(vmPtr interface{}, recv Value, maxVal Value) Value {
 		v := vmPtr.(*VM)
 		c := v.vmGetUnixConn(recv)
 		if c == nil {
@@ -435,8 +435,8 @@ func (vm *VM) registerUnixSocketPrimitives() {
 		return v.registry.NewStringValue(string(buf[:n]))
 	})
 
-	// receiveLine — read one newline-delimited line (for JSON-RPC)
-	connClass.AddMethod0(vm.Selectors, "receiveLine", func(vmPtr interface{}, recv Value) Value {
+	// primReceiveLine — read one newline-delimited line (for JSON-RPC)
+	connClass.AddMethod0(vm.Selectors, "primReceiveLine", func(vmPtr interface{}, recv Value) Value {
 		v := vmPtr.(*VM)
 		c := v.vmGetUnixConn(recv)
 		if c == nil {
@@ -464,8 +464,8 @@ func (vm *VM) registerUnixSocketPrimitives() {
 		return v.registry.NewStringValue(line)
 	})
 
-	// close
-	connClass.AddMethod0(vm.Selectors, "close", func(vmPtr interface{}, recv Value) Value {
+	// primClose
+	connClass.AddMethod0(vm.Selectors, "primClose", func(vmPtr interface{}, recv Value) Value {
 		v := vmPtr.(*VM)
 		c := v.vmGetUnixConn(recv)
 		if c == nil {
@@ -484,8 +484,8 @@ func (vm *VM) registerUnixSocketPrimitives() {
 		return recv
 	})
 
-	// isClosed
-	connClass.AddMethod0(vm.Selectors, "isClosed", func(vmPtr interface{}, recv Value) Value {
+	// primIsClosed
+	connClass.AddMethod0(vm.Selectors, "primIsClosed", func(vmPtr interface{}, recv Value) Value {
 		v := vmPtr.(*VM)
 		c := v.vmGetUnixConn(recv)
 		if c == nil {

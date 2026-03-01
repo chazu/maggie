@@ -62,7 +62,7 @@ func (vm *VM) registerSqlitePrimitives() {
 
 func (vm *VM) registerSqliteDatabasePrimitives(dbClass *Class) {
 	// open: path — Open a SQLite database at the given path
-	dbClass.AddClassMethod1(vm.Selectors, "open:", func(vmPtr interface{}, recv Value, pathVal Value) Value {
+	dbClass.AddClassMethod1(vm.Selectors, "primOpen:", func(vmPtr interface{}, recv Value, pathVal Value) Value {
 		v := vmPtr.(*VM)
 		path := v.valueToString(pathVal)
 		if path == "" {
@@ -90,7 +90,7 @@ func (vm *VM) registerSqliteDatabasePrimitives(dbClass *Class) {
 	})
 
 	// openMemory — Open an in-memory SQLite database
-	dbClass.AddClassMethod0(vm.Selectors, "openMemory", func(vmPtr interface{}, recv Value) Value {
+	dbClass.AddClassMethod0(vm.Selectors, "primOpenMemory", func(vmPtr interface{}, recv Value) Value {
 		v := vmPtr.(*VM)
 
 		db, err := sql.Open("sqlite", ":memory:")
@@ -108,7 +108,7 @@ func (vm *VM) registerSqliteDatabasePrimitives(dbClass *Class) {
 	})
 
 	// close — Close the database
-	dbClass.AddMethod0(vm.Selectors, "close", func(vmPtr interface{}, recv Value) Value {
+	dbClass.AddMethod0(vm.Selectors, "primClose", func(vmPtr interface{}, recv Value) Value {
 		v := vmPtr.(*VM)
 		dbObj := v.getSqliteDB(recv)
 		if dbObj == nil {
@@ -128,7 +128,7 @@ func (vm *VM) registerSqliteDatabasePrimitives(dbClass *Class) {
 	})
 
 	// execute: sql — Execute SQL that returns no rows (CREATE, INSERT, UPDATE, DELETE)
-	dbClass.AddMethod1(vm.Selectors, "execute:", func(vmPtr interface{}, recv Value, sqlVal Value) Value {
+	dbClass.AddMethod1(vm.Selectors, "primExecute:", func(vmPtr interface{}, recv Value, sqlVal Value) Value {
 		v := vmPtr.(*VM)
 		dbObj := v.getSqliteDB(recv)
 		if dbObj == nil {
@@ -153,7 +153,7 @@ func (vm *VM) registerSqliteDatabasePrimitives(dbClass *Class) {
 	})
 
 	// execute:with: sql params — Execute SQL with positional parameters (array)
-	dbClass.AddMethod2(vm.Selectors, "execute:with:", func(vmPtr interface{}, recv Value, sqlVal, paramsVal Value) Value {
+	dbClass.AddMethod2(vm.Selectors, "primExecuteWith:params:", func(vmPtr interface{}, recv Value, sqlVal, paramsVal Value) Value {
 		v := vmPtr.(*VM)
 		dbObj := v.getSqliteDB(recv)
 		if dbObj == nil {
@@ -179,7 +179,7 @@ func (vm *VM) registerSqliteDatabasePrimitives(dbClass *Class) {
 	})
 
 	// query: sql — Execute SQL that returns rows (SELECT)
-	dbClass.AddMethod1(vm.Selectors, "query:", func(vmPtr interface{}, recv Value, sqlVal Value) Value {
+	dbClass.AddMethod1(vm.Selectors, "primQuery:", func(vmPtr interface{}, recv Value, sqlVal Value) Value {
 		v := vmPtr.(*VM)
 		dbObj := v.getSqliteDB(recv)
 		if dbObj == nil {
@@ -210,7 +210,7 @@ func (vm *VM) registerSqliteDatabasePrimitives(dbClass *Class) {
 	})
 
 	// query:with: sql params — Execute SQL query with positional parameters
-	dbClass.AddMethod2(vm.Selectors, "query:with:", func(vmPtr interface{}, recv Value, sqlVal, paramsVal Value) Value {
+	dbClass.AddMethod2(vm.Selectors, "primQueryWith:params:", func(vmPtr interface{}, recv Value, sqlVal, paramsVal Value) Value {
 		v := vmPtr.(*VM)
 		dbObj := v.getSqliteDB(recv)
 		if dbObj == nil {
@@ -242,7 +242,7 @@ func (vm *VM) registerSqliteDatabasePrimitives(dbClass *Class) {
 	})
 
 	// queryRow: sql — Execute SQL and return a single row as a Dictionary
-	dbClass.AddMethod1(vm.Selectors, "queryRow:", func(vmPtr interface{}, recv Value, sqlVal Value) Value {
+	dbClass.AddMethod1(vm.Selectors, "primQueryRow:", func(vmPtr interface{}, recv Value, sqlVal Value) Value {
 		v := vmPtr.(*VM)
 		dbObj := v.getSqliteDB(recv)
 		if dbObj == nil {
@@ -267,7 +267,7 @@ func (vm *VM) registerSqliteDatabasePrimitives(dbClass *Class) {
 	})
 
 	// queryRow:with: sql params — Execute SQL with params and return a single row
-	dbClass.AddMethod2(vm.Selectors, "queryRow:with:", func(vmPtr interface{}, recv Value, sqlVal, paramsVal Value) Value {
+	dbClass.AddMethod2(vm.Selectors, "primQueryRowWith:params:", func(vmPtr interface{}, recv Value, sqlVal, paramsVal Value) Value {
 		v := vmPtr.(*VM)
 		dbObj := v.getSqliteDB(recv)
 		if dbObj == nil {
@@ -293,7 +293,7 @@ func (vm *VM) registerSqliteDatabasePrimitives(dbClass *Class) {
 	})
 
 	// queryAll: sql — Execute SQL and return all rows as an Array of Dictionaries
-	dbClass.AddMethod1(vm.Selectors, "queryAll:", func(vmPtr interface{}, recv Value, sqlVal Value) Value {
+	dbClass.AddMethod1(vm.Selectors, "primQueryAll:", func(vmPtr interface{}, recv Value, sqlVal Value) Value {
 		v := vmPtr.(*VM)
 		dbObj := v.getSqliteDB(recv)
 		if dbObj == nil {
@@ -308,7 +308,7 @@ func (vm *VM) registerSqliteDatabasePrimitives(dbClass *Class) {
 	})
 
 	// queryAll:with: sql params — Execute SQL with params and return all rows
-	dbClass.AddMethod2(vm.Selectors, "queryAll:with:", func(vmPtr interface{}, recv Value, sqlVal, paramsVal Value) Value {
+	dbClass.AddMethod2(vm.Selectors, "primQueryAllWith:params:", func(vmPtr interface{}, recv Value, sqlVal, paramsVal Value) Value {
 		v := vmPtr.(*VM)
 		dbObj := v.getSqliteDB(recv)
 		if dbObj == nil {
@@ -324,7 +324,7 @@ func (vm *VM) registerSqliteDatabasePrimitives(dbClass *Class) {
 	})
 
 	// prepare: sql — Prepare a statement for repeated execution
-	dbClass.AddMethod1(vm.Selectors, "prepare:", func(vmPtr interface{}, recv Value, sqlVal Value) Value {
+	dbClass.AddMethod1(vm.Selectors, "primPrepare:", func(vmPtr interface{}, recv Value, sqlVal Value) Value {
 		v := vmPtr.(*VM)
 		dbObj := v.getSqliteDB(recv)
 		if dbObj == nil {
@@ -354,7 +354,7 @@ func (vm *VM) registerSqliteDatabasePrimitives(dbClass *Class) {
 	})
 
 	// pragma: name — Get a PRAGMA value
-	dbClass.AddMethod1(vm.Selectors, "pragma:", func(vmPtr interface{}, recv Value, nameVal Value) Value {
+	dbClass.AddMethod1(vm.Selectors, "primPragma:", func(vmPtr interface{}, recv Value, nameVal Value) Value {
 		v := vmPtr.(*VM)
 		dbObj := v.getSqliteDB(recv)
 		if dbObj == nil {
@@ -374,7 +374,7 @@ func (vm *VM) registerSqliteDatabasePrimitives(dbClass *Class) {
 	})
 
 	// pragma:set: name value — Set a PRAGMA value
-	dbClass.AddMethod2(vm.Selectors, "pragma:set:", func(vmPtr interface{}, recv Value, nameVal, valVal Value) Value {
+	dbClass.AddMethod2(vm.Selectors, "primPragmaSet:value:", func(vmPtr interface{}, recv Value, nameVal, valVal Value) Value {
 		v := vmPtr.(*VM)
 		dbObj := v.getSqliteDB(recv)
 		if dbObj == nil {
@@ -394,7 +394,7 @@ func (vm *VM) registerSqliteDatabasePrimitives(dbClass *Class) {
 	})
 
 	// enableWAL — Enable WAL journal mode
-	dbClass.AddMethod0(vm.Selectors, "enableWAL", func(vmPtr interface{}, recv Value) Value {
+	dbClass.AddMethod0(vm.Selectors, "primEnableWAL", func(vmPtr interface{}, recv Value) Value {
 		v := vmPtr.(*VM)
 		dbObj := v.getSqliteDB(recv)
 		if dbObj == nil {
@@ -413,7 +413,7 @@ func (vm *VM) registerSqliteDatabasePrimitives(dbClass *Class) {
 	})
 
 	// beginTransaction — Start a new transaction, returns the db for chaining
-	dbClass.AddMethod0(vm.Selectors, "beginTransaction", func(vmPtr interface{}, recv Value) Value {
+	dbClass.AddMethod0(vm.Selectors, "primBeginTransaction", func(vmPtr interface{}, recv Value) Value {
 		v := vmPtr.(*VM)
 		dbObj := v.getSqliteDB(recv)
 		if dbObj == nil {
@@ -431,7 +431,7 @@ func (vm *VM) registerSqliteDatabasePrimitives(dbClass *Class) {
 	})
 
 	// commitTransaction — Commit the current transaction
-	dbClass.AddMethod0(vm.Selectors, "commitTransaction", func(vmPtr interface{}, recv Value) Value {
+	dbClass.AddMethod0(vm.Selectors, "primCommitTransaction", func(vmPtr interface{}, recv Value) Value {
 		v := vmPtr.(*VM)
 		dbObj := v.getSqliteDB(recv)
 		if dbObj == nil {
@@ -449,7 +449,7 @@ func (vm *VM) registerSqliteDatabasePrimitives(dbClass *Class) {
 	})
 
 	// rollbackTransaction — Rollback the current transaction
-	dbClass.AddMethod0(vm.Selectors, "rollbackTransaction", func(vmPtr interface{}, recv Value) Value {
+	dbClass.AddMethod0(vm.Selectors, "primRollbackTransaction", func(vmPtr interface{}, recv Value) Value {
 		v := vmPtr.(*VM)
 		dbObj := v.getSqliteDB(recv)
 		if dbObj == nil {
@@ -467,7 +467,7 @@ func (vm *VM) registerSqliteDatabasePrimitives(dbClass *Class) {
 	})
 
 	// path — Get the database path
-	dbClass.AddMethod0(vm.Selectors, "path", func(vmPtr interface{}, recv Value) Value {
+	dbClass.AddMethod0(vm.Selectors, "primPath", func(vmPtr interface{}, recv Value) Value {
 		v := vmPtr.(*VM)
 		dbObj := v.getSqliteDB(recv)
 		if dbObj == nil {
@@ -477,7 +477,7 @@ func (vm *VM) registerSqliteDatabasePrimitives(dbClass *Class) {
 	})
 
 	// isClosed — Check if the database is closed
-	dbClass.AddMethod0(vm.Selectors, "isClosed", func(vmPtr interface{}, recv Value) Value {
+	dbClass.AddMethod0(vm.Selectors, "primIsClosed", func(vmPtr interface{}, recv Value) Value {
 		v := vmPtr.(*VM)
 		dbObj := v.getSqliteDB(recv)
 		if dbObj == nil {
@@ -490,7 +490,7 @@ func (vm *VM) registerSqliteDatabasePrimitives(dbClass *Class) {
 	})
 
 	// lastInsertId — Get the last insert row ID (via a query)
-	dbClass.AddMethod0(vm.Selectors, "lastInsertId", func(vmPtr interface{}, recv Value) Value {
+	dbClass.AddMethod0(vm.Selectors, "primLastInsertId", func(vmPtr interface{}, recv Value) Value {
 		v := vmPtr.(*VM)
 		dbObj := v.getSqliteDB(recv)
 		if dbObj == nil {
@@ -509,7 +509,7 @@ func (vm *VM) registerSqliteDatabasePrimitives(dbClass *Class) {
 	})
 
 	// tableExists: name — Check if a table exists
-	dbClass.AddMethod1(vm.Selectors, "tableExists:", func(vmPtr interface{}, recv Value, nameVal Value) Value {
+	dbClass.AddMethod1(vm.Selectors, "primTableExists:", func(vmPtr interface{}, recv Value, nameVal Value) Value {
 		v := vmPtr.(*VM)
 		dbObj := v.getSqliteDB(recv)
 		if dbObj == nil {
@@ -534,7 +534,7 @@ func (vm *VM) registerSqliteDatabasePrimitives(dbClass *Class) {
 	})
 
 	// tables — List all table names
-	dbClass.AddMethod0(vm.Selectors, "tables", func(vmPtr interface{}, recv Value) Value {
+	dbClass.AddMethod0(vm.Selectors, "primTables", func(vmPtr interface{}, recv Value) Value {
 		v := vmPtr.(*VM)
 		dbObj := v.getSqliteDB(recv)
 		if dbObj == nil {
@@ -562,7 +562,7 @@ func (vm *VM) registerSqliteDatabasePrimitives(dbClass *Class) {
 	})
 
 	// version — Get SQLite version string
-	dbClass.AddMethod0(vm.Selectors, "version", func(vmPtr interface{}, recv Value) Value {
+	dbClass.AddMethod0(vm.Selectors, "primVersion", func(vmPtr interface{}, recv Value) Value {
 		v := vmPtr.(*VM)
 		dbObj := v.getSqliteDB(recv)
 		if dbObj == nil {
@@ -581,7 +581,7 @@ func (vm *VM) registerSqliteDatabasePrimitives(dbClass *Class) {
 	})
 
 	// migrate:version: sql version — Run a migration if not already applied
-	dbClass.AddMethod2(vm.Selectors, "migrate:version:", func(vmPtr interface{}, recv Value, sqlVal, versionVal Value) Value {
+	dbClass.AddMethod2(vm.Selectors, "primMigrate:version:", func(vmPtr interface{}, recv Value, sqlVal, versionVal Value) Value {
 		v := vmPtr.(*VM)
 		dbObj := v.getSqliteDB(recv)
 		if dbObj == nil {
@@ -644,7 +644,7 @@ func (vm *VM) registerSqliteDatabasePrimitives(dbClass *Class) {
 	})
 
 	// migrationVersion — Get the highest applied migration version
-	dbClass.AddMethod0(vm.Selectors, "migrationVersion", func(vmPtr interface{}, recv Value) Value {
+	dbClass.AddMethod0(vm.Selectors, "primMigrationVersion", func(vmPtr interface{}, recv Value) Value {
 		v := vmPtr.(*VM)
 		dbObj := v.getSqliteDB(recv)
 		if dbObj == nil {
@@ -681,7 +681,7 @@ func (vm *VM) registerSqliteDatabasePrimitives(dbClass *Class) {
 
 func (vm *VM) registerSqliteStatementPrimitives(stmtClass *Class) {
 	// execute — Execute the prepared statement with no params
-	stmtClass.AddMethod0(vm.Selectors, "execute", func(vmPtr interface{}, recv Value) Value {
+	stmtClass.AddMethod0(vm.Selectors, "primExecute", func(vmPtr interface{}, recv Value) Value {
 		v := vmPtr.(*VM)
 		stmtObj := v.getSqliteStmt(recv)
 		if stmtObj == nil {
@@ -700,7 +700,7 @@ func (vm *VM) registerSqliteStatementPrimitives(stmtClass *Class) {
 	})
 
 	// executeWith: params — Execute the prepared statement with params (array)
-	stmtClass.AddMethod1(vm.Selectors, "executeWith:", func(vmPtr interface{}, recv Value, paramsVal Value) Value {
+	stmtClass.AddMethod1(vm.Selectors, "primExecuteWith:", func(vmPtr interface{}, recv Value, paramsVal Value) Value {
 		v := vmPtr.(*VM)
 		stmtObj := v.getSqliteStmt(recv)
 		if stmtObj == nil {
@@ -720,7 +720,7 @@ func (vm *VM) registerSqliteStatementPrimitives(stmtClass *Class) {
 	})
 
 	// query — Query with the prepared statement, no params
-	stmtClass.AddMethod0(vm.Selectors, "query", func(vmPtr interface{}, recv Value) Value {
+	stmtClass.AddMethod0(vm.Selectors, "primQuery", func(vmPtr interface{}, recv Value) Value {
 		v := vmPtr.(*VM)
 		stmtObj := v.getSqliteStmt(recv)
 		if stmtObj == nil {
@@ -746,7 +746,7 @@ func (vm *VM) registerSqliteStatementPrimitives(stmtClass *Class) {
 	})
 
 	// queryWith: params — Query with the prepared statement and params
-	stmtClass.AddMethod1(vm.Selectors, "queryWith:", func(vmPtr interface{}, recv Value, paramsVal Value) Value {
+	stmtClass.AddMethod1(vm.Selectors, "primQueryWith:", func(vmPtr interface{}, recv Value, paramsVal Value) Value {
 		v := vmPtr.(*VM)
 		stmtObj := v.getSqliteStmt(recv)
 		if stmtObj == nil {
@@ -773,7 +773,7 @@ func (vm *VM) registerSqliteStatementPrimitives(stmtClass *Class) {
 	})
 
 	// close — Close the prepared statement
-	stmtClass.AddMethod0(vm.Selectors, "close", func(vmPtr interface{}, recv Value) Value {
+	stmtClass.AddMethod0(vm.Selectors, "primClose", func(vmPtr interface{}, recv Value) Value {
 		v := vmPtr.(*VM)
 		stmtObj := v.getSqliteStmt(recv)
 		if stmtObj == nil {
@@ -791,7 +791,7 @@ func (vm *VM) registerSqliteStatementPrimitives(stmtClass *Class) {
 	})
 
 	// sql — Get the SQL string used to create this statement
-	stmtClass.AddMethod0(vm.Selectors, "sql", func(vmPtr interface{}, recv Value) Value {
+	stmtClass.AddMethod0(vm.Selectors, "primSql", func(vmPtr interface{}, recv Value) Value {
 		v := vmPtr.(*VM)
 		stmtObj := v.getSqliteStmt(recv)
 		if stmtObj == nil {
@@ -807,7 +807,7 @@ func (vm *VM) registerSqliteStatementPrimitives(stmtClass *Class) {
 
 func (vm *VM) registerSqliteRowsPrimitives(rowsClass *Class) {
 	// next — Advance to next row. Returns true if a row is available, false if done.
-	rowsClass.AddMethod0(vm.Selectors, "next", func(vmPtr interface{}, recv Value) Value {
+	rowsClass.AddMethod0(vm.Selectors, "primNext", func(vmPtr interface{}, recv Value) Value {
 		v := vmPtr.(*VM)
 		rowsObj := v.getSqliteRows(recv)
 		if rowsObj == nil {
@@ -823,7 +823,7 @@ func (vm *VM) registerSqliteRowsPrimitives(rowsClass *Class) {
 	})
 
 	// columnAt: index — Get column value at zero-based index for current row
-	rowsClass.AddMethod1(vm.Selectors, "columnAt:", func(vmPtr interface{}, recv Value, indexVal Value) Value {
+	rowsClass.AddMethod1(vm.Selectors, "primColumnAt:", func(vmPtr interface{}, recv Value, indexVal Value) Value {
 		v := vmPtr.(*VM)
 		rowsObj := v.getSqliteRows(recv)
 		if rowsObj == nil {
@@ -842,7 +842,7 @@ func (vm *VM) registerSqliteRowsPrimitives(rowsClass *Class) {
 	})
 
 	// columnNamed: name — Get column value by name for current row
-	rowsClass.AddMethod1(vm.Selectors, "columnNamed:", func(vmPtr interface{}, recv Value, nameVal Value) Value {
+	rowsClass.AddMethod1(vm.Selectors, "primColumnNamed:", func(vmPtr interface{}, recv Value, nameVal Value) Value {
 		v := vmPtr.(*VM)
 		rowsObj := v.getSqliteRows(recv)
 		if rowsObj == nil {
@@ -865,7 +865,7 @@ func (vm *VM) registerSqliteRowsPrimitives(rowsClass *Class) {
 	})
 
 	// asDict — Get current row as a Dictionary
-	rowsClass.AddMethod0(vm.Selectors, "asDict", func(vmPtr interface{}, recv Value) Value {
+	rowsClass.AddMethod0(vm.Selectors, "primAsDict", func(vmPtr interface{}, recv Value) Value {
 		v := vmPtr.(*VM)
 		rowsObj := v.getSqliteRows(recv)
 		if rowsObj == nil {
@@ -876,7 +876,7 @@ func (vm *VM) registerSqliteRowsPrimitives(rowsClass *Class) {
 	})
 
 	// columns — Get column names as an Array of Strings
-	rowsClass.AddMethod0(vm.Selectors, "columns", func(vmPtr interface{}, recv Value) Value {
+	rowsClass.AddMethod0(vm.Selectors, "primColumns", func(vmPtr interface{}, recv Value) Value {
 		v := vmPtr.(*VM)
 		rowsObj := v.getSqliteRows(recv)
 		if rowsObj == nil {
@@ -891,7 +891,7 @@ func (vm *VM) registerSqliteRowsPrimitives(rowsClass *Class) {
 	})
 
 	// columnCount — Get number of columns
-	rowsClass.AddMethod0(vm.Selectors, "columnCount", func(vmPtr interface{}, recv Value) Value {
+	rowsClass.AddMethod0(vm.Selectors, "primColumnCount", func(vmPtr interface{}, recv Value) Value {
 		v := vmPtr.(*VM)
 		rowsObj := v.getSqliteRows(recv)
 		if rowsObj == nil {
@@ -901,7 +901,7 @@ func (vm *VM) registerSqliteRowsPrimitives(rowsClass *Class) {
 	})
 
 	// close — Close the rows cursor
-	rowsClass.AddMethod0(vm.Selectors, "close", func(vmPtr interface{}, recv Value) Value {
+	rowsClass.AddMethod0(vm.Selectors, "primClose", func(vmPtr interface{}, recv Value) Value {
 		v := vmPtr.(*VM)
 		rowsObj := v.getSqliteRows(recv)
 		if rowsObj == nil {

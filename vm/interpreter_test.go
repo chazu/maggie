@@ -829,19 +829,14 @@ func TestBlockRegistryCleanup(t *testing.T) {
 		t.Errorf("blocks tracked for home frame = %d, want %d", reg.BlocksByHomeFrameCount(homeFrame), numBlocks)
 	}
 
-	// Pop the home frame - this should clean up all blocks
+	// Pop the home frame - blocks should persist (they may escape as callbacks)
 	interp.popFrame()
 
-	// Verify blocks were cleaned up
+	// Verify blocks are still alive after frame pop
 	for _, id := range blockIDs {
-		if reg.HasBlock(id) {
-			t.Errorf("block %d still in registry after home frame popped", id)
+		if !reg.HasBlock(id) {
+			t.Errorf("block %d was incorrectly cleaned up after home frame popped", id)
 		}
-	}
-
-	// Verify home frame tracking was cleaned up
-	if reg.BlocksByHomeFrameHas(homeFrame) {
-		t.Errorf("home frame %d still tracked after being popped", homeFrame)
 	}
 }
 
@@ -868,13 +863,11 @@ func TestBlockRegistryMultipleFrames(t *testing.T) {
 
 	// Push first frame and create blocks
 	interp.pushFrame(m, Nil, nil)
-	frame1 := interp.fp
 	block1 := interp.createBlockValue(blockMethod, nil)
 	block1ID := int(block1.BlockID())
 
 	// Push second frame and create blocks
 	interp.pushFrame(m, Nil, nil)
-	frame2 := interp.fp
 	block2 := interp.createBlockValue(blockMethod, nil)
 	block2ID := int(block2.BlockID())
 
@@ -886,30 +879,25 @@ func TestBlockRegistryMultipleFrames(t *testing.T) {
 		t.Error("block2 not in registry")
 	}
 
-	// Pop frame2 - should only clean up block2
+	// Pop frame2 - blocks should persist (they may escape as callbacks)
 	interp.popFrame()
 
-	// block1 should still exist, block2 should be gone
+	// Both blocks should still exist after frame pop
 	if !reg.HasBlock(block1ID) {
 		t.Error("block1 was incorrectly cleaned up")
 	}
-	if reg.HasBlock(block2ID) {
-		t.Error("block2 was not cleaned up")
+	if !reg.HasBlock(block2ID) {
+		t.Error("block2 was incorrectly cleaned up after frame2 popped")
 	}
 
-	// Pop frame1 - should clean up block1
+	// Pop frame1 - blocks should still persist
 	interp.popFrame()
 
-	if reg.HasBlock(block1ID) {
-		t.Error("block1 was not cleaned up after frame1 popped")
+	if !reg.HasBlock(block1ID) {
+		t.Error("block1 was incorrectly cleaned up after frame1 popped")
 	}
-
-	// Verify both home frames are no longer tracked
-	if reg.BlocksByHomeFrameHas(frame1) {
-		t.Errorf("frame1 still tracked")
-	}
-	if reg.BlocksByHomeFrameHas(frame2) {
-		t.Errorf("frame2 still tracked")
+	if !reg.HasBlock(block2ID) {
+		t.Error("block2 was incorrectly cleaned up after both frames popped")
 	}
 }
 

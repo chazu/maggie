@@ -3,6 +3,7 @@ package vm
 import (
 	"os"
 	"strconv"
+	"time"
 )
 
 // ---------------------------------------------------------------------------
@@ -76,5 +77,10 @@ func (vm *VM) registerSystemPrimitives() {
 			return v.registry.NewStringValue(os.Args[0])
 		}
 		return v.registry.NewStringValue("pp")
+	})
+
+	// System epochSeconds — returns current Unix timestamp as SmallInt
+	sysClass.AddClassMethod0(vm.Selectors, "epochSeconds", func(vmPtr interface{}, recv Value) Value {
+		return FromSmallInt(time.Now().Unix())
 	})
 }

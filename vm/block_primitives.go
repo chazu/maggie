@@ -1,5 +1,7 @@
 package vm
 
+// Block primitives for the Maggie VM
+
 // ---------------------------------------------------------------------------
 // Block Primitives
 // ---------------------------------------------------------------------------
@@ -110,5 +112,6 @@ func (vm *VM) evaluateBlock(blockVal Value, args []Value) Value {
 	if bv == nil {
 		return Nil
 	}
-	return interp.ExecuteBlock(bv.Block, bv.Captures, args, bv.HomeFrame, bv.HomeSelf, bv.HomeMethod)
+	result := interp.ExecuteBlock(bv.Block, bv.Captures, args, bv.HomeFrame, bv.HomeSelf, bv.HomeMethod)
+	return result
 }

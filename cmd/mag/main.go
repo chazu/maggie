@@ -726,14 +726,12 @@ func collectFiles(path string) ([]parsedFile, error) {
 			return nil, fmt.Errorf("parse error in %s: %v", fp, err)
 		}
 
-		// Derive namespace: directory override > file declaration
-		nsOverride := ""
-		if basePath != "" {
-			nsOverride = deriveNamespace(fp, basePath)
-		}
-		namespace := nsOverride
-		if namespace == "" && sf.Namespace != nil {
+		// Derive namespace: file declaration > directory derivation
+		namespace := ""
+		if sf.Namespace != nil {
 			namespace = sf.Namespace.Name
+		} else if basePath != "" {
+			namespace = deriveNamespace(fp, basePath)
 		}
 
 		// Collect import paths
@@ -1418,6 +1416,32 @@ func loadProject(vmInst *vm.VM, m *manifest.Manifest, verbose bool) (int, error)
 			return 0, fmt.Errorf("collecting source %s: %w", srcDir, err)
 		}
 		allFiles = append(allFiles, files...)
+	}
+
+	// Auto-import: within a project, all namespaces are implicitly available
+	// so cross-namespace references (e.g., ProcyonPark -> ProcyonPark::Bbs::TupleSpace) resolve.
+	allNamespaces := make(map[string]bool)
+	for _, pf := range allFiles {
+		if pf.namespace != "" {
+			allNamespaces[pf.namespace] = true
+		}
+	}
+	if len(allNamespaces) > 0 {
+		nsList := make([]string, 0, len(allNamespaces))
+		for ns := range allNamespaces {
+			nsList = append(nsList, ns)
+		}
+		for i := range allFiles {
+			existing := make(map[string]bool, len(allFiles[i].imports))
+			for _, imp := range allFiles[i].imports {
+				existing[imp] = true
+			}
+			for _, ns := range nsList {
+				if ns != allFiles[i].namespace && !existing[ns] {
+					allFiles[i].imports = append(allFiles[i].imports, ns)
+				}
+			}
+		}
 	}
 
 	// Compile everything in one two-pass batch
