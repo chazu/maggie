@@ -977,7 +977,7 @@ func (ir *ImageReader) remapBytecodeSelectors(bytecode []byte) {
 	for i < len(bytecode) {
 		op := Opcode(bytecode[i])
 		switch op {
-		case OpSend, OpSendSuper:
+		case OpSend, OpSendSuper, OpTailSend:
 			// Format: opcode (1 byte) + selector (2 bytes little-endian) + argc (1 byte)
 			if i+3 < len(bytecode) {
 				// Read original selector ID (little-endian 16-bit)
