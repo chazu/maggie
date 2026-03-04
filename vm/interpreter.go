@@ -3,6 +3,7 @@ package vm
 import (
 	"encoding/binary"
 	"fmt"
+	"math/bits"
 )
 
 // ---------------------------------------------------------------------------
@@ -1721,7 +1722,11 @@ func (i *Interpreter) sendBinaryFallback(rcvr, arg Value, selectorID int) (resul
 
 func (i *Interpreter) primitivePlus(a, b Value) Value {
 	if a.IsSmallInt() && b.IsSmallInt() {
-		return FromSmallInt(a.SmallInt() + b.SmallInt())
+		result := a.SmallInt() + b.SmallInt()
+		if result > MaxSmallInt || result < MinSmallInt {
+			return FromFloat64(float64(result))
+		}
+		return FromSmallInt(result)
 	}
 	if a.IsFloat() && b.IsFloat() {
 		return FromFloat64(a.Float64() + b.Float64())
@@ -1737,7 +1742,11 @@ func (i *Interpreter) primitivePlus(a, b Value) Value {
 
 func (i *Interpreter) primitiveMinus(a, b Value) Value {
 	if a.IsSmallInt() && b.IsSmallInt() {
-		return FromSmallInt(a.SmallInt() - b.SmallInt())
+		result := a.SmallInt() - b.SmallInt()
+		if result > MaxSmallInt || result < MinSmallInt {
+			return FromFloat64(float64(result))
+		}
+		return FromSmallInt(result)
 	}
 	if a.IsFloat() && b.IsFloat() {
 		return FromFloat64(a.Float64() - b.Float64())
@@ -1753,7 +1762,15 @@ func (i *Interpreter) primitiveMinus(a, b Value) Value {
 
 func (i *Interpreter) primitiveTimes(a, b Value) Value {
 	if a.IsSmallInt() && b.IsSmallInt() {
-		return FromSmallInt(a.SmallInt() * b.SmallInt())
+		ai, bi := a.SmallInt(), b.SmallInt()
+		result, overflow := mulOverflowCheck(ai, bi)
+		if overflow {
+			return FromFloat64(float64(ai) * float64(bi))
+		}
+		if result > MaxSmallInt || result < MinSmallInt {
+			return FromFloat64(float64(result))
+		}
+		return FromSmallInt(result)
 	}
 	if a.IsFloat() && b.IsFloat() {
 		return FromFloat64(a.Float64() * b.Float64())
@@ -1765,6 +1782,22 @@ func (i *Interpreter) primitiveTimes(a, b Value) Value {
 		return FromFloat64(a.Float64() * float64(b.SmallInt()))
 	}
 	return i.sendBinaryFallback(a, b, i.selectorTimes)
+}
+
+// mulOverflowCheck returns the product of a and b and whether it overflowed int64.
+func mulOverflowCheck(a, b int64) (int64, bool) {
+	hi, lo := bits.Mul64(uint64(a), uint64(b))
+	result := int64(lo)
+	// For signed multiplication, the upper 64 bits must be the sign-extension of the lower 64.
+	// Adjust hi for the signed contribution: Mul64 is unsigned, so we compensate.
+	if a < 0 {
+		hi -= uint64(b)
+	}
+	if b < 0 {
+		hi -= uint64(a)
+	}
+	signExtend := uint64(result >> 63)
+	return result, hi != signExtend
 }
 
 func (i *Interpreter) primitiveDiv(a, b Value) Value {
