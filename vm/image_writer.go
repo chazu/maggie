@@ -104,10 +104,12 @@ func (w *ImageWriter) collectFromVM(vm *VM) {
 	}
 
 	// Collect strings from global names (sorted for deterministic output)
+	vm.globalsMu.RLock()
 	globalNames := make([]string, 0, len(vm.Globals))
 	for name := range vm.Globals {
 		globalNames = append(globalNames, name)
 	}
+	vm.globalsMu.RUnlock()
 	sort.Strings(globalNames)
 	for _, name := range globalNames {
 		w.registerString(name)
@@ -1001,7 +1003,14 @@ func (vm *VM) SaveImageTo(w io.Writer) error {
 	writer.writeClasses()
 	writer.writeMethods()
 	writer.writeObjects()
-	writer.writeGlobals(vm.Globals)
+	// Snapshot globals under lock to avoid races with concurrent goroutines
+	vm.globalsMu.RLock()
+	globalsSnapshot := make(map[string]Value, len(vm.Globals))
+	for k, v := range vm.Globals {
+		globalsSnapshot[k] = v
+	}
+	vm.globalsMu.RUnlock()
+	writer.writeGlobals(globalsSnapshot)
 	writer.writeClassVars()
 
 	// Patch header with final offsets
@@ -1045,13 +1054,19 @@ func (vm *VM) CollectAllObjects() []*Object {
 	}
 
 	// Visit globals in sorted key order for deterministic output
+	vm.globalsMu.RLock()
 	globalNames := make([]string, 0, len(vm.Globals))
 	for name := range vm.Globals {
 		globalNames = append(globalNames, name)
 	}
+	globalsCopy := make(map[string]Value, len(vm.Globals))
+	for k, v := range vm.Globals {
+		globalsCopy[k] = v
+	}
+	vm.globalsMu.RUnlock()
 	sort.Strings(globalNames)
 	for _, name := range globalNames {
-		visit(vm.Globals[name])
+		visit(globalsCopy[name])
 	}
 
 	// Visit class variable values in deterministic order

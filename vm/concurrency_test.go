@@ -2830,3 +2830,106 @@ func TestChannelSafeSendBlocking(t *testing.T) {
 		t.Error("safeTrySend on closed channel should return false")
 	}
 }
+
+// TestGlobalsRWMutexConcurrency verifies that concurrent reads from forked
+// interpreters don't race with writes from the main interpreter. Run with
+// -race to detect data races.
+func TestGlobalsRWMutexConcurrency(t *testing.T) {
+	vm := NewVM()
+	defer vm.Shutdown()
+
+	const numReaders = 10
+	const iterations = 1000
+
+	// Pre-populate a global that readers will look up
+	vm.SetGlobal("sharedCounter", FromSmallInt(0))
+
+	var wg sync.WaitGroup
+
+	// Start reader goroutines that simulate forked interpreters reading globals
+	for r := 0; r < numReaders; r++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			// Create a forked interpreter (as fork primitives do)
+			interp := vm.newForkedInterpreter(nil)
+			for j := 0; j < iterations; j++ {
+				val, ok := interp.LookupGlobal("sharedCounter")
+				if !ok {
+					t.Errorf("LookupGlobal returned not-found for sharedCounter")
+					return
+				}
+				if !val.IsSmallInt() {
+					t.Errorf("expected SmallInt, got %v", val)
+					return
+				}
+			}
+		}()
+	}
+
+	// Main goroutine writes to globals concurrently
+	for j := 0; j < iterations; j++ {
+		vm.SetGlobal("sharedCounter", FromSmallInt(int64(j)))
+	}
+
+	wg.Wait()
+
+	// Verify final value is accessible
+	val, ok := vm.LookupGlobal("sharedCounter")
+	if !ok {
+		t.Fatal("sharedCounter not found after test")
+	}
+	if val.SmallInt() != int64(iterations-1) {
+		t.Errorf("sharedCounter = %d, want %d", val.SmallInt(), iterations-1)
+	}
+}
+
+// TestGlobalsRWMutexForkedWriteIsolation verifies that forked interpreter
+// writes go to localWrites (not shared Globals) and reads from shared Globals
+// are properly synchronized.
+func TestGlobalsRWMutexForkedWriteIsolation(t *testing.T) {
+	vm := NewVM()
+	defer vm.Shutdown()
+
+	vm.SetGlobal("isolationTest", FromSmallInt(100))
+
+	var wg sync.WaitGroup
+	const numForked = 5
+
+	for r := 0; r < numForked; r++ {
+		wg.Add(1)
+		go func(id int) {
+			defer wg.Done()
+			interp := vm.newForkedInterpreter(nil)
+
+			// Read from shared globals (should see 100)
+			val, ok := interp.LookupGlobal("isolationTest")
+			if !ok || val.SmallInt() != 100 {
+				t.Errorf("forked interp %d: expected 100, got %v (ok=%v)", id, val, ok)
+				return
+			}
+
+			// Write to localWrites (should not affect shared globals)
+			interp.SetGlobal("isolationTest", FromSmallInt(int64(200+id)))
+
+			// Read back should see the local write
+			val, ok = interp.LookupGlobal("isolationTest")
+			if !ok || val.SmallInt() != int64(200+id) {
+				t.Errorf("forked interp %d: expected %d after local write, got %v", id, 200+id, val)
+			}
+		}(r)
+	}
+
+	// Main interpreter writes concurrently
+	for j := 0; j < 100; j++ {
+		vm.SetGlobal("isolationTest", FromSmallInt(100))
+	}
+
+	wg.Wait()
+
+	// Shared globals should still be 100
+	val, ok := vm.LookupGlobal("isolationTest")
+	if !ok || val.SmallInt() != 100 {
+		t.Errorf("shared global isolationTest = %v, want 100", val)
+	}
+}

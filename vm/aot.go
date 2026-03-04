@@ -254,13 +254,13 @@ func (c *AOTCompiler) compileBytecode(bc []byte, isBlock bool) {
 		case OpPushGlobal:
 			idx := binary.LittleEndian.Uint16(bc[pos:])
 			pos += 2
-			c.writeLine("stack[sp] = vm.Globals[vm.Symbols.Name(literals[%d].SymbolID())]", idx)
+			c.writeLine("if v, ok := vm.LookupGlobal(vm.Symbols.Name(literals[%d].SymbolID())); ok { stack[sp] = v } else { stack[sp] = Nil }", idx)
 			c.writeLine("sp++")
 
 		case OpStoreGlobal:
 			idx := binary.LittleEndian.Uint16(bc[pos:])
 			pos += 2
-			c.writeLine("vm.Globals[vm.Symbols.Name(literals[%d].SymbolID())] = stack[sp-1]", idx)
+			c.writeLine("vm.SetGlobal(vm.Symbols.Name(literals[%d].SymbolID()), stack[sp-1])", idx)
 
 		case OpPushCaptured:
 			idx := bc[pos]

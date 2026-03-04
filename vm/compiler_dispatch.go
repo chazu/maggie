@@ -130,7 +130,7 @@ func (m *MaggieCompilerBackend) Compile(source string, class *Class) (*CompiledM
 	source = convertToNewStyleFormat(source)
 
 	// Look up the Compiler class
-	compilerClassVal, ok := m.vm.Globals["Compiler"]
+	compilerClassVal, ok := m.vm.LookupGlobal("Compiler")
 	if !ok {
 		// Fall back if Maggie compiler not available
 		if m.fallback != nil {
@@ -172,7 +172,7 @@ func (m *MaggieCompilerBackend) Compile(source string, class *Class) (*CompiledM
 // CompileExpression compiles a single expression using the Maggie compiler.
 func (m *MaggieCompilerBackend) CompileExpression(source string) (*CompiledMethod, error) {
 	// Look up the Compiler class
-	compilerClassVal, ok := m.vm.Globals["Compiler"]
+	compilerClassVal, ok := m.vm.LookupGlobal("Compiler")
 	if !ok {
 		if m.fallback != nil {
 			return m.fallback.CompileExpression(source)

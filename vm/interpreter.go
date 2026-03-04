@@ -192,6 +192,12 @@ func (i *Interpreter) LookupGlobal(name string) (Value, bool) {
 			return val, true
 		}
 	}
+	if i.vm != nil {
+		i.vm.globalsMu.RLock()
+		val, ok := i.Globals[name]
+		i.vm.globalsMu.RUnlock()
+		return val, ok
+	}
 	val, ok := i.Globals[name]
 	return val, ok
 }
@@ -207,7 +213,13 @@ func (i *Interpreter) SetGlobal(name string, val Value) {
 		}
 		i.localWrites[name] = val
 	} else {
-		i.Globals[name] = val
+		if i.vm != nil {
+			i.vm.globalsMu.Lock()
+			i.Globals[name] = val
+			i.vm.globalsMu.Unlock()
+		} else {
+			i.Globals[name] = val
+		}
 	}
 }
 
@@ -648,15 +660,33 @@ func (i *Interpreter) runFrame() Value {
 					} else if i.localWrites != nil {
 						if val, ok := i.localWrites[globalName]; ok {
 							i.push(val)
-						} else if val, ok := i.Globals[globalName]; ok {
+						} else {
+							if i.vm != nil {
+								i.vm.globalsMu.RLock()
+							}
+							val, ok := i.Globals[globalName]
+							if i.vm != nil {
+								i.vm.globalsMu.RUnlock()
+							}
+							if ok {
+								i.push(val)
+							} else {
+								i.push(Nil)
+							}
+						}
+					} else {
+						if i.vm != nil {
+							i.vm.globalsMu.RLock()
+						}
+						val, ok := i.Globals[globalName]
+						if i.vm != nil {
+							i.vm.globalsMu.RUnlock()
+						}
+						if ok {
 							i.push(val)
 						} else {
 							i.push(Nil)
 						}
-					} else if val, ok := i.Globals[globalName]; ok {
-						i.push(val)
-					} else {
-						i.push(Nil)
 					}
 				} else {
 					i.push(Nil)
@@ -688,7 +718,13 @@ func (i *Interpreter) runFrame() Value {
 						i.localWrites[globalName] = i.top()
 					} else {
 						// Main interpreter: write directly to shared Globals
+						if i.vm != nil {
+							i.vm.globalsMu.Lock()
+						}
 						i.Globals[globalName] = i.top()
+						if i.vm != nil {
+							i.vm.globalsMu.Unlock()
+						}
 					}
 				}
 			}
