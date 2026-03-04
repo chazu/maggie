@@ -1,5 +1,7 @@
 package vm
 
+import "sort"
+
 // ---------------------------------------------------------------------------
 // Array Primitives
 // ---------------------------------------------------------------------------
@@ -137,6 +139,121 @@ func (vm *VM) registerArrayPrimitives() {
 			obj.SetSlot(1, elem2)
 		}
 		return arr
+	})
+
+	// sort: - sort array in-place using a comparison block
+	// The block receives two elements and should return a negative number (a < b),
+	// zero (a = b), or a positive number (a > b).
+	c.AddMethod1(vm.Selectors, "primSort:", func(vmPtr interface{}, recv Value, block Value) Value {
+		v := vmPtr.(*VM)
+		if !recv.IsObject() {
+			return recv
+		}
+		obj := ObjectFromValue(recv)
+		if obj == nil {
+			return recv
+		}
+		n := obj.NumSlots()
+		// Build an index slice, sort it, then rearrange slots
+		indices := make([]int, n)
+		for i := range indices {
+			indices[i] = i
+		}
+		// Cache the elements so comparisons use original values
+		elems := make([]Value, n)
+		for i := 0; i < n; i++ {
+			elems[i] = obj.GetSlot(i)
+		}
+		sort.SliceStable(indices, func(i, j int) bool {
+			a := elems[indices[i]]
+			b := elems[indices[j]]
+			result := v.evaluateBlock(block, []Value{a, b})
+			if result.IsSmallInt() {
+				return result.SmallInt() < 0
+			}
+			return false
+		})
+		// Rearrange slots according to sorted indices
+		sorted := make([]Value, n)
+		for i, idx := range indices {
+			sorted[i] = elems[idx]
+		}
+		for i, val := range sorted {
+			obj.SetSlot(i, val)
+		}
+		return recv
+	})
+
+	// sort - sort array in-place using default < comparison
+	c.AddMethod0(vm.Selectors, "primSortDefault", func(vmPtr interface{}, recv Value) Value {
+		v := vmPtr.(*VM)
+		if !recv.IsObject() {
+			return recv
+		}
+		obj := ObjectFromValue(recv)
+		if obj == nil {
+			return recv
+		}
+		n := obj.NumSlots()
+		elems := make([]Value, n)
+		for i := 0; i < n; i++ {
+			elems[i] = obj.GetSlot(i)
+		}
+		sort.SliceStable(elems, func(i, j int) bool {
+			result := v.Send(elems[i], "<", []Value{elems[j]})
+			return result == True
+		})
+		for i, val := range elems {
+			obj.SetSlot(i, val)
+		}
+		return recv
+	})
+
+	// sorted: - return a new sorted array using a comparison block (non-destructive)
+	c.AddMethod1(vm.Selectors, "primSorted:", func(vmPtr interface{}, recv Value, block Value) Value {
+		v := vmPtr.(*VM)
+		if !recv.IsObject() {
+			return recv
+		}
+		obj := ObjectFromValue(recv)
+		if obj == nil {
+			return recv
+		}
+		n := obj.NumSlots()
+		elems := make([]Value, n)
+		for i := 0; i < n; i++ {
+			elems[i] = obj.GetSlot(i)
+		}
+		sort.SliceStable(elems, func(i, j int) bool {
+			result := v.evaluateBlock(block, []Value{elems[i], elems[j]})
+			if result.IsSmallInt() {
+				return result.SmallInt() < 0
+			}
+			return false
+		})
+		return v.NewArrayWithElements(elems)
+	})
+
+	// sorted - return a new sorted array using default < comparison (non-destructive)
+	c.AddMethod0(vm.Selectors, "primSortedDefault", func(vmPtr interface{}, recv Value) Value {
+		v := vmPtr.(*VM)
+		if !recv.IsObject() {
+			return recv
+		}
+		obj := ObjectFromValue(recv)
+		if obj == nil {
+			return recv
+		}
+		n := obj.NumSlots()
+		elems := make([]Value, n)
+		for i := 0; i < n; i++ {
+			elems[i] = obj.GetSlot(i)
+		}
+		sort.SliceStable(elems, func(i, j int) bool {
+			result := v.Send(elems[i], "<", []Value{elems[j]})
+			return result == True
+		})
+		return v.NewArrayWithElements(elems)
 	})
 }
 

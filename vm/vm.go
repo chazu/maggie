@@ -40,6 +40,7 @@ type VM struct {
 	ByteArrayClass         *Class
 	AssociationClass       *Class
 	DictionaryClass        *Class
+	SetClass               *Class
 	CompiledMethodClass    *Class
 	ChannelClass           *Class
 	ProcessClass           *Class
@@ -212,6 +213,7 @@ func (vm *VM) bootstrap() {
 	vm.ByteArrayClass = vm.createClass("ByteArray", vm.ObjectClass)
 	vm.AssociationClass = vm.createClassWithIvars("Association", vm.ObjectClass, []string{"key", "value"})
 	vm.DictionaryClass = vm.createClassWithIvars("Dictionary", vm.ObjectClass, []string{"table", "size"})
+	vm.SetClass = vm.createClassWithIvars("Set", vm.ObjectClass, []string{"dict"})
 
 	// Phase 5: Create method/block classes
 	vm.BlockClass = vm.createClass("Block", vm.ObjectClass)
@@ -268,6 +270,7 @@ func (vm *VM) bootstrap() {
 	vm.registerCancellationContextPrimitives()
 	vm.registerResultPrimitives()
 	vm.registerDictionaryPrimitives()
+	vm.registerSetPrimitives()
 	vm.registerGrpcPrimitives()
 	vm.registerContextPrimitives()
 	vm.registerExceptionPrimitives()
@@ -316,6 +319,7 @@ func (vm *VM) bootstrap() {
 	vm.Globals["Success"] = vm.classValue(vm.SuccessClass)
 	vm.Globals["Failure"] = vm.classValue(vm.FailureClass)
 	vm.Globals["Dictionary"] = vm.classValue(vm.DictionaryClass)
+	vm.Globals["Set"] = vm.classValue(vm.SetClass)
 	vm.Globals["GrpcClient"] = vm.classValue(vm.GrpcClientClass)
 	vm.Globals["GrpcStream"] = vm.classValue(vm.GrpcStreamClass)
 	vm.Globals["Context"] = vm.classValue(vm.ContextClass)
