@@ -2764,3 +2764,69 @@ func TestForkWithoutDo_HidesClasses(t *testing.T) {
 		t.Errorf("forkWithout:do: saw HTTP = %v, want Nil", result)
 	}
 }
+
+// TestChannelSendClosedRace verifies that sending to a channel that is closed
+// concurrently does not panic. This exercises the TOCTOU fix in safeSend/safeTrySend.
+func TestChannelSendClosedRace(t *testing.T) {
+	const numSenders = 10
+	const sendsPerSender = 100
+
+	for trial := 0; trial < 5; trial++ {
+		// Use a large buffer so blocking senders can make progress without a
+		// drain goroutine (avoids race-detector false positives on Value copies
+		// between sender/receiver stacks in Go 1.25 recvDirect).
+		ch := createChannel(numSenders * sendsPerSender * 2)
+
+		var wg sync.WaitGroup
+
+		// Spawn goroutines using safeTrySend (non-blocking, won't hang)
+		for i := 0; i < numSenders; i++ {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				for j := 0; j < sendsPerSender; j++ {
+					ch.safeTrySend(FromSmallInt(int64(j)))
+				}
+			}()
+		}
+
+		// Close the channel while sends are in flight
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			// Let some sends happen first
+			time.Sleep(time.Microsecond * 10)
+			ch.mu.Lock()
+			if !ch.closed.Load() {
+				ch.closed.Store(true)
+				close(ch.ch)
+			}
+			ch.mu.Unlock()
+		}()
+
+		wg.Wait()
+	}
+	// If we reach here without a panic, the test passes.
+}
+
+// TestChannelSafeSendBlocking verifies that safeSend on a closed channel
+// returns false instead of panicking.
+func TestChannelSafeSendBlocking(t *testing.T) {
+	ch := createChannel(1)
+
+	// Close the channel first
+	ch.closed.Store(true)
+	close(ch.ch)
+
+	// safeSend on a closed channel should return false, not panic
+	ok := ch.safeSend(FromSmallInt(42))
+	if ok {
+		t.Error("safeSend on closed channel should return false")
+	}
+
+	// safeTrySend on a closed channel should return false, not panic
+	ok = ch.safeTrySend(FromSmallInt(42))
+	if ok {
+		t.Error("safeTrySend on closed channel should return false")
+	}
+}
