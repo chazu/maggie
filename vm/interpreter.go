@@ -1675,7 +1675,7 @@ func (i *Interpreter) getBlockValue(v Value) *BlockValue {
 // primitive fast path doesn't handle the receiver type. This allows methods
 // loaded from .mag files (e.g., String comparison operators) to be dispatched
 // correctly by the optimized binary opcodes (OpSendLT, OpSendGT, etc.).
-func (i *Interpreter) sendBinaryFallback(rcvr, arg Value, selectorID int) Value {
+func (i *Interpreter) sendBinaryFallback(rcvr, arg Value, selectorID int) (result Value) {
 	vt := i.vtableFor(rcvr)
 	if vt == nil {
 		return Nil
@@ -1687,7 +1687,34 @@ func (i *Interpreter) sendBinaryFallback(rcvr, arg Value, selectorID int) Value 
 	args := []Value{arg}
 	if cm, ok := method.(*CompiledMethod); ok {
 		i.pushFrame(cm, rcvr, args)
-		return i.runFrame()
+		homeFrame := i.fp
+
+		// Catch non-local returns from blocks created in this method
+		defer func() {
+			if r := recover(); r != nil {
+				if nlr, ok := r.(NonLocalReturn); ok {
+					// If this is the target frame, return the value
+					if nlr.HomeFrame == homeFrame {
+						// Unwind any remaining frames to our home frame
+						for i.fp > homeFrame {
+							i.popFrame()
+						}
+						if i.fp == homeFrame {
+							i.popFrame()
+						}
+						result = nlr.Value
+						return
+					}
+					// Not our frame, propagate up
+					panic(nlr)
+				}
+				// Re-panic for other errors
+				panic(r)
+			}
+		}()
+
+		result = i.runFrame()
+		return
 	}
 	return method.Invoke(i.vm, rcvr, args)
 }

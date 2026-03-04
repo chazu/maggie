@@ -1709,3 +1709,88 @@ func TestUnrestrictedFastPath(t *testing.T) {
 		t.Error("main interp.forked should be false")
 	}
 }
+
+// TestSendBinaryFallbackNLR verifies that sendBinaryFallback correctly handles
+// NonLocalReturn from blocks inside compiled methods. Without NLR protection,
+// the panic from ^value inside a block would escape unhandled and crash the VM.
+func TestSendBinaryFallbackNLR(t *testing.T) {
+	testVM := NewVM()
+
+	// Create a custom class that overrides "+"
+	class := NewClass("NLRAdder", nil)
+	testVM.Classes.Register(class)
+
+	plusSelID := testVM.Selectors.Intern("+")
+
+	// Block bytecode: [^captured_other]
+	// This does a non-local return of the captured argument from the enclosing method.
+	blockMethod := &BlockMethod{
+		Arity:       0,
+		NumTemps:    0,
+		NumCaptures: 1,
+		Bytecode: func() []byte {
+			bb := NewBytecodeBuilder()
+			bb.EmitByte(OpPushCaptured, 0) // push captured "other" arg
+			bb.Emit(OpReturnTop)           // NLR: returns from enclosing method
+			return bb.Bytes()
+		}(),
+	}
+
+	// Method: + other
+	//   | block |
+	//   block := [^other].   "block that does non-local return"
+	//   block value.
+	//   ^999                  "should never reach here"
+	b := NewCompiledMethodBuilder("+", 1) // 1 arg: other
+	b.SetNumTemps(1)                      // temp 0 = other
+
+	blockIdx := b.AddBlock(blockMethod)
+
+	bc := b.Bytecode()
+	bc.EmitByte(OpCaptureTemp, 0)                      // push temp 0 (other) as capture
+	bc.EmitCreateBlock(uint16(blockIdx), 1)             // create block with 1 capture
+	bc.Emit(OpSendValue)                                // block value (triggers NLR)
+	bc.EmitInt8(OpPushInt8, 127)                        // push 999 -- should NOT be reached
+	bc.Emit(OpReturnTop)
+
+	m := b.Build()
+	m.SetClass(class)
+	class.VTable.AddMethod(plusSelID, m)
+
+	obj := class.NewInstance()
+	objVal := obj.ToValue()
+
+	// Call obj + 42
+	// Since obj is a custom object (not SmallInt/Float), primitivePlus falls
+	// through to sendBinaryFallback, which dispatches to our compiled + method.
+	// The block inside does ^42 (NLR). Without the fix, this panics.
+	var result Value
+	var panicked bool
+	func() {
+		defer func() {
+			if r := recover(); r != nil {
+				panicked = true
+				t.Errorf("sendBinaryFallback did not catch NLR; panic escaped: %v", r)
+			}
+		}()
+		// Use OpSendPlus path: push obj and 42, execute a method that does OpSendPlus
+		caller := NewCompiledMethodBuilder("testCaller", 0)
+		callerBC := caller.Bytecode()
+		callerBC.Emit(OpPushSelf)             // push receiver (obj)
+		callerBC.EmitInt8(OpPushInt8, 42)     // push 42
+		callerBC.Emit(OpSendPlus)             // obj + 42 -> sendBinaryFallback
+		callerBC.Emit(OpReturnTop)
+		callerMethod := caller.Build()
+
+		result = testVM.interpreter.Execute(callerMethod, objVal, nil)
+	}()
+
+	if panicked {
+		return
+	}
+
+	// The NLR should return 42 (the argument passed to +)
+	if !result.IsSmallInt() || result.SmallInt() != 42 {
+		t.Errorf("result = %v (SmallInt=%v), want 42", result, result.SmallInt())
+	}
+}
