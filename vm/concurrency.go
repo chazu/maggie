@@ -23,6 +23,62 @@ type ChannelObject struct {
 	mu     sync.Mutex // protects close operation
 }
 
+// safeSend attempts to send val on ch.ch while holding the mutex to prevent
+// a concurrent close from causing a panic. The mutex is held only to check
+// the closed flag and initiate the send; for unbuffered channels the send
+// may block while holding the lock (which is acceptable because close() also
+// acquires the lock, so close will wait until the send completes or another
+// goroutine receives).
+func (co *ChannelObject) safeSend(val Value) bool {
+	co.mu.Lock()
+	if co.closed.Load() {
+		co.mu.Unlock()
+		return false
+	}
+	// For buffered channels with space, the send completes immediately.
+	// For unbuffered or full buffered channels, we must unlock before
+	// blocking to avoid deadlock with close().
+	select {
+	case co.ch <- val:
+		co.mu.Unlock()
+		return true
+	default:
+		// Channel is full or unbuffered with no receiver; unlock and
+		// do a blocking send with recover protection.
+		co.mu.Unlock()
+		return co.safeSendBlocking(val)
+	}
+}
+
+// safeSendBlocking does a blocking send with defer/recover to catch
+// "send on closed channel" panics that can occur if the channel is
+// closed while we are waiting for a receiver.
+func (co *ChannelObject) safeSendBlocking(val Value) (ok bool) {
+	defer func() {
+		if r := recover(); r != nil {
+			ok = false
+		}
+	}()
+	co.ch <- val
+	return true
+}
+
+// safeTrySend attempts a non-blocking send on ch.ch while holding the
+// mutex to prevent a concurrent close.
+func (co *ChannelObject) safeTrySend(val Value) bool {
+	co.mu.Lock()
+	defer co.mu.Unlock()
+	if co.closed.Load() {
+		return false
+	}
+	select {
+	case co.ch <- val:
+		return true
+	default:
+		return false
+	}
+}
+
 func createChannel(buffered int) *ChannelObject {
 	ch := &ChannelObject{}
 	if buffered > 0 {
@@ -146,7 +202,9 @@ func (vm *VM) registerChannelPrimitives() {
 		if ch.closed.Load() {
 			return Nil // Can't send to closed channel
 		}
-		ch.ch <- val
+		if !ch.safeSend(val) {
+			return Nil // Channel closed between check and send
+		}
 		return recv
 	})
 
@@ -192,12 +250,10 @@ func (vm *VM) registerChannelPrimitives() {
 		if ch.closed.Load() {
 			return False
 		}
-		select {
-		case ch.ch <- val:
+		if ch.safeTrySend(val) {
 			return True
-		default:
-			return False
 		}
+		return False
 	})
 
 	// Channel>>primClose - close the channel
@@ -241,7 +297,9 @@ func (vm *VM) registerChannelPrimitives() {
 		if ch.closed.Load() {
 			return Nil
 		}
-		ch.ch <- val
+		if !ch.safeSend(val) {
+			return Nil
+		}
 		return recv
 	})
 
@@ -269,12 +327,10 @@ func (vm *VM) registerChannelPrimitives() {
 		if ch.closed.Load() {
 			return False
 		}
-		select {
-		case ch.ch <- val:
+		if ch.safeTrySend(val) {
 			return True
-		default:
-			return False
 		}
+		return False
 	})
 
 	// Channel>>tryReceive - alias for primTryReceive
