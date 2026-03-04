@@ -298,6 +298,100 @@ Array subclass: Object
   ]
 
   """
+  Sort the array in-place using a comparison block.
+  The block receives two elements and should return a negative number
+  (a < b), zero (a = b), or positive number (a > b).
+  Returns the receiver.
+
+  ```test
+  a := #(3 1 2) copy.
+  a sort: [:a :b | a - b].
+  a >>> #(1 2 3 )
+  ```
+  """
+  method: sort: aBlock [
+      ^self primSort: aBlock
+  ]
+
+  """
+  Sort the array in-place using default < comparison.
+  Returns the receiver.
+
+  ```test
+  a := #(3 1 2) copy.
+  a sort.
+  a >>> #(1 2 3 )
+  ```
+  """
+  method: sort [
+      ^self primSortDefault
+  ]
+
+  """
+  Return a new sorted array using a comparison block (non-destructive).
+  The block receives two elements and should return a negative number
+  (a < b), zero (a = b), or positive number (a > b).
+
+  ```test
+  a := #(3 1 2).
+  a sorted: [:a :b | a - b] >>> #(1 2 3 )
+  a >>> #(3 1 2 )
+  ```
+  """
+  method: sorted: aBlock [
+      ^self primSorted: aBlock
+  ]
+
+  """
+  Return a new sorted array using default < comparison (non-destructive).
+
+  ```test
+  a := #(3 1 2).
+  a sorted >>> #(1 2 3 )
+  a >>> #(3 1 2 )
+  ```
+  """
+  method: sorted [
+      ^self primSortedDefault
+  ]
+
+  """
+  Return a copy of this array.
+
+  ```test
+  a := #(1 2 3).
+  b := a copy.
+  b at: 0 put: 99.
+  a at: 0 >>> 1
+  ```
+  """
+  method: copy [
+      | result |
+      result := Array new: self size.
+      0 to: self size - 1 do: [:i | result at: i put: (self at: i)].
+      ^result
+  ]
+
+  """
+  Join array elements into a string with a separator.
+
+  ```test
+  #('a' 'b' 'c') join: ', ' >>> 'a, b, c'
+  #() join: ', ' >>> ''
+  #('x') join: ', ' >>> 'x'
+  ```
+  """
+  method: join: separator [
+      | s |
+      s := ''.
+      0 to: self size - 1 do: [:i |
+          i > 0 ifTrue: [s := s, separator].
+          s := s, (self at: i) printString
+      ].
+      ^s
+  ]
+
+  """
   Return a string representation of the array.
 
   ```test
