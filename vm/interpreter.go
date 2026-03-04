@@ -2022,6 +2022,8 @@ func (i *Interpreter) primitiveNew(rcvr Value) Value {
 }
 
 func (i *Interpreter) primitiveClass(rcvr Value) Value {
-	// Placeholder - would return class of value
+	if i.vm != nil {
+		return i.vm.primitiveClass(rcvr)
+	}
 	return Nil
 }

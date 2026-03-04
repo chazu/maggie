@@ -142,12 +142,12 @@ Object subclass: nil
   ]
 
   """
-  Return the class of the receiver as a symbol.
+  Return the class of the receiver as a first-class class value.
 
   ```test
-  3 class >>> #SmallInteger
-  true class >>> #True
-  nil class >>> #UndefinedObject
+  3 class name >>> #SmallInteger
+  true class name >>> #True
+  nil class name >>> #UndefinedObject
   ```
   """
   method: class [
@@ -155,14 +155,15 @@ Object subclass: nil
   ]
 
   """
-  Return true if the receiver's class matches aClass.
+  Return true if the receiver is an instance of aClass or one of its
+  subclasses. Uses class identity comparison via the primitive.
 
   ```example
   3 isKindOf: SmallInteger
   ```
   """
   method: isKindOf: aClass [
-      ^self class == aClass
+      ^self primIsKindOf: aClass
   ]
 
   """

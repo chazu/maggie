@@ -189,8 +189,8 @@ func (vm *VM) bootstrap() {
 	vm.ObjectClass = vm.createBootstrapClass("Object", nil)
 	vm.ClassClass = vm.createBootstrapClass("Class", vm.ObjectClass)
 
-	// Now we can properly set up metaclasses
-	// For now, we skip full metaclass support for simplicity
+	// Create the Metaclass class (subclass of Class)
+	vm.MetaclassClass = vm.createClass("Metaclass", vm.ClassClass)
 
 	// Phase 2: Create behavior classes
 	vm.BooleanClass = vm.createClass("Boolean", vm.ObjectClass)
@@ -290,6 +290,7 @@ func (vm *VM) bootstrap() {
 	// Phase 7: Set up globals
 	vm.Globals["Object"] = vm.classValue(vm.ObjectClass)
 	vm.Globals["Class"] = vm.classValue(vm.ClassClass)
+	vm.Globals["Metaclass"] = vm.classValue(vm.MetaclassClass)
 	vm.Globals["Boolean"] = vm.classValue(vm.BooleanClass)
 	vm.Globals["True"] = vm.classValue(vm.TrueClass)
 	vm.Globals["False"] = vm.classValue(vm.FalseClass)
@@ -433,6 +434,58 @@ func (vm *VM) ClassValue(c *Class) Value {
 	return vm.registry.RegisterClassValue(c)
 }
 
+// MetaclassFor returns (or lazily creates) the metaclass for the given class.
+// In Smalltalk, every class X has a unique metaclass "X class" such that:
+//   - X is the sole instance of "X class"
+//   - "X class" has X's ClassVTable as its instance-side VTable
+//   - "X class"'s superclass is "X superclass class" (metaclass inheritance
+//     mirrors class inheritance)
+//   - The class of every metaclass is Metaclass
+func (vm *VM) MetaclassFor(c *Class) *Class {
+	if c.Metaclass != nil {
+		return c.Metaclass
+	}
+
+	// Build the metaclass name: "SmallInteger class"
+	metaName := c.Name + " class"
+
+	// Determine the metaclass's superclass.
+	// The metaclass hierarchy mirrors the class hierarchy:
+	//   SmallInteger class -> Object class -> Class
+	var metaSuperclass *Class
+	if c.Superclass != nil {
+		metaSuperclass = vm.MetaclassFor(c.Superclass)
+	} else {
+		// Object's metaclass has Class as its superclass
+		metaSuperclass = vm.ClassClass
+	}
+
+	// Create the metaclass. Its VTable delegates to c's ClassVTable
+	// so that class-side methods are accessible through the metaclass.
+	meta := &Class{
+		Name:       metaName,
+		Superclass: metaSuperclass,
+	}
+
+	// The metaclass's VTable reuses the class's ClassVTable.
+	// We need to set the parent chain correctly: the ClassVTable's parent
+	// already points to superclass.ClassVTable, which is exactly what we want
+	// for metaclass method inheritance.
+	meta.VTable = c.ClassVTable
+
+	// The metaclass's ClassVTable (metaclass-of-metaclass methods) inherits
+	// from Metaclass's ClassVTable. This allows Metaclass class-side methods
+	// to be available on all metaclasses.
+	if vm.MetaclassClass != nil {
+		meta.ClassVTable = NewVTable(meta, vm.MetaclassClass.ClassVTable)
+	} else {
+		meta.ClassVTable = NewVTable(meta, nil)
+	}
+
+	c.Metaclass = meta
+	return meta
+}
+
 // GetClassFromValue extracts the *Class from a class value using the
 // VM-local registry. Returns nil if v is not a class value or not found.
 func (vm *VM) GetClassFromValue(v Value) *Class {
@@ -544,11 +597,20 @@ func (vm *VM) registerStringPrimitives() {
 // ---------------------------------------------------------------------------
 
 func (vm *VM) primitiveClass(v Value) Value {
+	// If v is a class value, return its metaclass
+	if isClassValue(v) {
+		cls := vm.registry.GetClassFromValue(v)
+		if cls != nil {
+			meta := vm.MetaclassFor(cls)
+			return vm.classValue(meta)
+		}
+	}
+	// For instances, return the class as a first-class class value
 	cls := vm.ClassFor(v)
 	if cls != nil {
-		return vm.Symbols.SymbolValue(cls.Name)
+		return vm.classValue(cls)
 	}
-	return vm.Symbols.SymbolValue("Object")
+	return vm.classValue(vm.ObjectClass)
 }
 
 // ClassFor returns the class for a value.
@@ -572,7 +634,8 @@ func (vm *VM) ClassFor(v Value) *Class {
 		// Use the central dispatch table for all symbol-encoded types
 		if cls, isClassSide := vm.symbolDispatch.ClassForSymbolVM(v, vm); cls != nil {
 			if isClassSide {
-				return vm.ClassClass
+				// For class values, return the metaclass (lazily created)
+				return vm.MetaclassFor(cls)
 			}
 			return cls
 		}

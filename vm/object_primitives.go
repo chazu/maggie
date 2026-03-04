@@ -62,14 +62,45 @@ func (vm *VM) registerObjectPrimitives() {
 		return recv
 	})
 
-	// class - return the class of the receiver
+	// class - return the class of the receiver (instance-side)
 	c.AddMethod0(vm.Selectors, "class", func(_ interface{}, recv Value) Value {
+		return vm.primitiveClass(recv)
+	})
+
+	// class - return the metaclass of the receiver (class-side)
+	// When you send `class` to a class value (e.g., SmallInteger class),
+	// you get the metaclass ("SmallInteger class").
+	c.AddClassMethod0(vm.Selectors, "class", func(vmPtr interface{}, recv Value) Value {
 		return vm.primitiveClass(recv)
 	})
 
 	// primClass - same as class, but a primitive that Maggie code can call
 	c.AddMethod0(vm.Selectors, "primClass", func(_ interface{}, recv Value) Value {
 		return vm.primitiveClass(recv)
+	})
+
+	// primIsKindOf: - check if receiver is an instance of aClass or a subclass
+	c.AddMethod1(vm.Selectors, "primIsKindOf:", func(vmPtr interface{}, recv Value, aClass Value) Value {
+		v := vmPtr.(*VM)
+		receiverClass := v.ClassFor(recv)
+		if receiverClass == nil {
+			return False
+		}
+		// Extract the target class from the argument
+		var targetClass *Class
+		if isClassValue(aClass) {
+			targetClass = v.registry.GetClassFromValue(aClass)
+		} else if aClass.IsSymbol() {
+			symName := v.Symbols.Name(aClass.SymbolID())
+			targetClass = v.Classes.Lookup(symName)
+		}
+		if targetClass == nil {
+			return False
+		}
+		if receiverClass.IsSubclassOf(targetClass) {
+			return True
+		}
+		return False
 	})
 
 	// primIdentical: - identity comparison primitive (called from Object.mag's ==)
