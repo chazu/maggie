@@ -36,6 +36,9 @@ const (
 	httpResponseMarker          uint32 = 40 << 24
 	goObjectMarker              uint32 = 41 << 24
 
+	// BigInteger (arbitrary-precision integer)
+	bigIntMarker                uint32 = 10 << 24
+
 	// OS/exec
 	externalProcessMarker       uint32 = 45 << 24
 

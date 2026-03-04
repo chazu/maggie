@@ -31,6 +31,7 @@ type VM struct {
 	FalseClass             *Class
 	UndefinedObjectClass   *Class
 	SmallIntegerClass      *Class
+	BigIntegerClass        *Class
 	FloatClass             *Class
 	StringClass            *Class
 	SymbolClass            *Class
@@ -200,6 +201,7 @@ func (vm *VM) bootstrap() {
 
 	// Phase 3: Create magnitude classes
 	vm.SmallIntegerClass = vm.createClass("SmallInteger", vm.ObjectClass)
+	vm.BigIntegerClass = vm.createClass("BigInteger", vm.ObjectClass)
 	vm.FloatClass = vm.createClass("Float", vm.ObjectClass)
 
 	// Phase 4: Create collection classes
@@ -250,6 +252,7 @@ func (vm *VM) bootstrap() {
 	vm.registerObjectPrimitives()
 	vm.registerBooleanPrimitives()
 	vm.registerSmallIntegerPrimitives()
+	vm.registerBigIntegerPrimitives()
 	vm.registerFloatPrimitives()
 	vm.registerSymbolPrimitives()
 	vm.registerStringPrimitives()
@@ -295,6 +298,7 @@ func (vm *VM) bootstrap() {
 	vm.Globals["False"] = vm.classValue(vm.FalseClass)
 	vm.Globals["UndefinedObject"] = vm.classValue(vm.UndefinedObjectClass)
 	vm.Globals["SmallInteger"] = vm.classValue(vm.SmallIntegerClass)
+	vm.Globals["BigInteger"] = vm.classValue(vm.BigIntegerClass)
 	vm.Globals["Float"] = vm.classValue(vm.FloatClass)
 	vm.Globals["String"] = vm.classValue(vm.StringClass)
 	vm.Globals["Symbol"] = vm.classValue(vm.SymbolClass)
@@ -359,6 +363,9 @@ func (vm *VM) registerSymbolDispatch() {
 	sd.Register(waitGroupMarker, &SymbolTypeEntry{Class: vm.WaitGroupClass})
 	sd.Register(semaphoreMarker, &SymbolTypeEntry{Class: vm.SemaphoreClass})
 	sd.Register(cancellationContextMarker, &SymbolTypeEntry{Class: vm.CancellationContextClass})
+
+	// BigInteger
+	sd.Register(bigIntMarker, &SymbolTypeEntry{Class: vm.BigIntegerClass})
 
 	// gRPC
 	sd.Register(grpcClientMarker, &SymbolTypeEntry{Class: vm.GrpcClientClass})

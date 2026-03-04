@@ -3,6 +3,7 @@ package vm
 import (
 	"encoding/binary"
 	"fmt"
+	"math/big"
 )
 
 // ---------------------------------------------------------------------------
@@ -1694,7 +1695,12 @@ func (i *Interpreter) sendBinaryFallback(rcvr, arg Value, selectorID int) Value 
 
 func (i *Interpreter) primitivePlus(a, b Value) Value {
 	if a.IsSmallInt() && b.IsSmallInt() {
-		return FromSmallInt(a.SmallInt() + b.SmallInt())
+		result := a.SmallInt() + b.SmallInt()
+		if v, ok := TryFromSmallInt(result); ok {
+			return v
+		}
+		// Overflow: promote to BigInt
+		return i.vm.registry.NewBigIntValue(new(big.Int).Add(big.NewInt(a.SmallInt()), big.NewInt(b.SmallInt())))
 	}
 	if a.IsFloat() && b.IsFloat() {
 		return FromFloat64(a.Float64() + b.Float64())
@@ -1710,7 +1716,12 @@ func (i *Interpreter) primitivePlus(a, b Value) Value {
 
 func (i *Interpreter) primitiveMinus(a, b Value) Value {
 	if a.IsSmallInt() && b.IsSmallInt() {
-		return FromSmallInt(a.SmallInt() - b.SmallInt())
+		result := a.SmallInt() - b.SmallInt()
+		if v, ok := TryFromSmallInt(result); ok {
+			return v
+		}
+		// Overflow: promote to BigInt
+		return i.vm.registry.NewBigIntValue(new(big.Int).Sub(big.NewInt(a.SmallInt()), big.NewInt(b.SmallInt())))
 	}
 	if a.IsFloat() && b.IsFloat() {
 		return FromFloat64(a.Float64() - b.Float64())
@@ -1726,7 +1737,18 @@ func (i *Interpreter) primitiveMinus(a, b Value) Value {
 
 func (i *Interpreter) primitiveTimes(a, b Value) Value {
 	if a.IsSmallInt() && b.IsSmallInt() {
-		return FromSmallInt(a.SmallInt() * b.SmallInt())
+		ax, bx := a.SmallInt(), b.SmallInt()
+		result := ax * bx
+		// Check for overflow: if b!=0 and result/b != a, overflow occurred
+		if bx != 0 && result/bx != ax {
+			bigResult := new(big.Int).Mul(big.NewInt(ax), big.NewInt(bx))
+			return i.vm.registry.NewBigIntValue(bigResult)
+		}
+		if v, ok := TryFromSmallInt(result); ok {
+			return v
+		}
+		// Fits in int64 but not SmallInt (48-bit) — promote to BigInt
+		return i.vm.registry.NewBigIntValue(big.NewInt(result))
 	}
 	if a.IsFloat() && b.IsFloat() {
 		return FromFloat64(a.Float64() * b.Float64())
