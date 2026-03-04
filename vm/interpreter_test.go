@@ -1797,11 +1797,9 @@ func TestSendBinaryFallbackNLR(t *testing.T) {
 
 
 // ---------------------------------------------------------------------------
-// Arithmetic overflow promotion tests
+// Arithmetic overflow promotion tests (now promotes to BigInt, not Float)
 // ---------------------------------------------------------------------------
 
-// TestArithmeticOverflowPlus verifies that SmallInt addition promotes to Float
-// when the result exceeds MaxSmallInt or goes below MinSmallInt.
 func TestArithmeticOverflowPlus(t *testing.T) {
 	vm := NewVM()
 	interp := vm.interpreter
@@ -1812,24 +1810,16 @@ func TestArithmeticOverflowPlus(t *testing.T) {
 		t.Errorf("10 + 20 = %v, want SmallInt 30", result)
 	}
 
-	// MaxSmallInt + 1 should promote to Float
+	// MaxSmallInt + 1 should promote to BigInt
 	result = interp.primitivePlus(FromSmallInt(MaxSmallInt), FromSmallInt(1))
-	if !result.IsFloat() {
-		t.Fatalf("MaxSmallInt + 1 should be Float, got SmallInt")
-	}
-	expected := float64(MaxSmallInt) + 1.0
-	if result.Float64() != expected {
-		t.Errorf("MaxSmallInt + 1 = %v, want %v", result.Float64(), expected)
+	if !IsBigIntValue(result) {
+		t.Fatalf("MaxSmallInt + 1 should be BigInt")
 	}
 
-	// MinSmallInt + (-1) should promote to Float
+	// MinSmallInt + (-1) should promote to BigInt
 	result = interp.primitivePlus(FromSmallInt(MinSmallInt), FromSmallInt(-1))
-	if !result.IsFloat() {
-		t.Fatalf("MinSmallInt + (-1) should be Float, got SmallInt")
-	}
-	expected = float64(MinSmallInt) - 1.0
-	if result.Float64() != expected {
-		t.Errorf("MinSmallInt + (-1) = %v, want %v", result.Float64(), expected)
+	if !IsBigIntValue(result) {
+		t.Fatalf("MinSmallInt + (-1) should be BigInt")
 	}
 
 	// Boundary: MaxSmallInt + 0 stays SmallInt
@@ -1839,8 +1829,6 @@ func TestArithmeticOverflowPlus(t *testing.T) {
 	}
 }
 
-// TestArithmeticOverflowMinus verifies that SmallInt subtraction promotes to Float
-// when the result exceeds SmallInt range.
 func TestArithmeticOverflowMinus(t *testing.T) {
 	vm := NewVM()
 	interp := vm.interpreter
@@ -1851,29 +1839,19 @@ func TestArithmeticOverflowMinus(t *testing.T) {
 		t.Errorf("30 - 10 = %v, want SmallInt 20", result)
 	}
 
-	// MinSmallInt - 1 should promote to Float
+	// MinSmallInt - 1 should promote to BigInt
 	result = interp.primitiveMinus(FromSmallInt(MinSmallInt), FromSmallInt(1))
-	if !result.IsFloat() {
-		t.Fatalf("MinSmallInt - 1 should be Float, got SmallInt")
-	}
-	expected := float64(MinSmallInt) - 1.0
-	if result.Float64() != expected {
-		t.Errorf("MinSmallInt - 1 = %v, want %v", result.Float64(), expected)
+	if !IsBigIntValue(result) {
+		t.Fatalf("MinSmallInt - 1 should be BigInt")
 	}
 
-	// MaxSmallInt - (-1) should promote to Float
+	// MaxSmallInt - (-1) should promote to BigInt
 	result = interp.primitiveMinus(FromSmallInt(MaxSmallInt), FromSmallInt(-1))
-	if !result.IsFloat() {
-		t.Fatalf("MaxSmallInt - (-1) should be Float, got SmallInt")
-	}
-	expected = float64(MaxSmallInt) + 1.0
-	if result.Float64() != expected {
-		t.Errorf("MaxSmallInt - (-1) = %v, want %v", result.Float64(), expected)
+	if !IsBigIntValue(result) {
+		t.Fatalf("MaxSmallInt - (-1) should be BigInt")
 	}
 }
 
-// TestArithmeticOverflowTimes verifies that SmallInt multiplication promotes to Float
-// when the result exceeds SmallInt range or overflows int64.
 func TestArithmeticOverflowTimes(t *testing.T) {
 	vm := NewVM()
 	interp := vm.interpreter
@@ -1884,29 +1862,22 @@ func TestArithmeticOverflowTimes(t *testing.T) {
 		t.Errorf("6 * 7 = %v, want SmallInt 42", result)
 	}
 
-	// Large multiplication exceeding MaxSmallInt but within int64
-	// MaxSmallInt is (1<<47)-1 = 140737488355327
-	// 140737488355327 * 2 = 281474976710654 which exceeds MaxSmallInt
+	// MaxSmallInt * 2 should promote to BigInt
 	result = interp.primitiveTimes(FromSmallInt(MaxSmallInt), FromSmallInt(2))
-	if !result.IsFloat() {
-		t.Fatalf("MaxSmallInt * 2 should be Float, got SmallInt")
-	}
-	expected := float64(MaxSmallInt) * 2.0
-	if result.Float64() != expected {
-		t.Errorf("MaxSmallInt * 2 = %v, want %v", result.Float64(), expected)
+	if !IsBigIntValue(result) {
+		t.Fatalf("MaxSmallInt * 2 should be BigInt")
 	}
 
-	// Multiplication that would overflow int64
-	// MaxSmallInt * MaxSmallInt overflows int64
+	// MaxSmallInt * MaxSmallInt overflows int64 — should be BigInt
 	result = interp.primitiveTimes(FromSmallInt(MaxSmallInt), FromSmallInt(MaxSmallInt))
-	if !result.IsFloat() {
-		t.Fatalf("MaxSmallInt * MaxSmallInt should be Float, got SmallInt")
+	if !IsBigIntValue(result) {
+		t.Fatalf("MaxSmallInt * MaxSmallInt should be BigInt")
 	}
 
-	// Negative overflow
+	// MinSmallInt * 2 should be BigInt
 	result = interp.primitiveTimes(FromSmallInt(MinSmallInt), FromSmallInt(2))
-	if !result.IsFloat() {
-		t.Fatalf("MinSmallInt * 2 should be Float, got SmallInt")
+	if !IsBigIntValue(result) {
+		t.Fatalf("MinSmallInt * 2 should be BigInt")
 	}
 
 	// Zero and one (no overflow)

@@ -108,6 +108,11 @@ type ObjectRegistry struct {
 	goObjectsMu sync.RWMutex
 	goObjectID  atomic.Uint32
 
+	// BigInt registry
+	bigInts   map[uint32]*BigIntObject
+	bigIntsMu sync.RWMutex
+	bigIntID  atomic.Uint32
+
 	// CUE context registry
 	cueContexts   map[int]*CueContextObject
 	cueContextsMu sync.RWMutex
@@ -147,6 +152,7 @@ func NewObjectRegistry() *ObjectRegistry {
 		jsonReaders:   make(map[int]*JsonReaderObject),
 		jsonWriters:   make(map[int]*JsonWriterObject),
 		goObjects:     make(map[uint32]*GoObjectWrapper),
+		bigInts:       make(map[uint32]*BigIntObject),
 		classValues:   make(map[int]*Class),
 		cueContexts:   make(map[int]*CueContextObject),
 		cueValues:     make(map[int]*CueValueObject),
@@ -168,6 +174,7 @@ func NewObjectRegistry() *ObjectRegistry {
 	or.jsonWriterID.Store(1)
 	or.weakRefCounter.Store(0)
 	or.goObjectID.Store(0)
+	or.bigIntID.Store(0)
 	or.classValueID.Store(1)
 	or.unixListenerID.Store(1)
 	or.unixConnID.Store(1)
@@ -1062,6 +1069,7 @@ func (or *ObjectRegistry) FullStats() map[string]int {
 	stats["cells"] = or.CellCount()
 	stats["classVarClasses"] = or.ClassVarCount()
 	stats["goObjects"] = or.GoObjectCount()
+	stats["bigInts"] = or.BigIntCount()
 	stats["classValues"] = or.ClassValueCount()
 	stats["unixListeners"] = or.UnixListenerCount()
 	stats["unixConns"] = or.UnixConnCount()

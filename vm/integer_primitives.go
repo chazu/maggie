@@ -1,6 +1,9 @@
 package vm
 
-import "strconv"
+import (
+	"math/big"
+	"strconv"
+)
 
 // ---------------------------------------------------------------------------
 // SmallInteger Primitives
@@ -10,9 +13,21 @@ func (vm *VM) registerSmallIntegerPrimitives() {
 	c := vm.SmallIntegerClass
 
 	// Arithmetic
-	c.AddMethod1(vm.Selectors, "+", func(_ interface{}, recv Value, arg Value) Value {
+	c.AddMethod1(vm.Selectors, "+", func(vmPtr interface{}, recv Value, arg Value) Value {
+		v := vmPtr.(*VM)
 		if arg.IsSmallInt() {
-			return FromSmallInt(recv.SmallInt() + arg.SmallInt())
+			result := recv.SmallInt() + arg.SmallInt()
+			if val, ok := TryFromSmallInt(result); ok {
+				return val
+			}
+			return v.registry.NewBigIntValue(new(big.Int).Add(big.NewInt(recv.SmallInt()), big.NewInt(arg.SmallInt())))
+		}
+		if IsBigIntValue(arg) {
+			a := big.NewInt(recv.SmallInt())
+			b := getBigIntOperand(v, arg)
+			if b != nil {
+				return v.registry.NewBigIntValue(new(big.Int).Add(a, b))
+			}
 		}
 		if arg.IsFloat() {
 			return FromFloat64(float64(recv.SmallInt()) + arg.Float64())
@@ -20,9 +35,21 @@ func (vm *VM) registerSmallIntegerPrimitives() {
 		return Nil
 	})
 
-	c.AddMethod1(vm.Selectors, "-", func(_ interface{}, recv Value, arg Value) Value {
+	c.AddMethod1(vm.Selectors, "-", func(vmPtr interface{}, recv Value, arg Value) Value {
+		v := vmPtr.(*VM)
 		if arg.IsSmallInt() {
-			return FromSmallInt(recv.SmallInt() - arg.SmallInt())
+			result := recv.SmallInt() - arg.SmallInt()
+			if val, ok := TryFromSmallInt(result); ok {
+				return val
+			}
+			return v.registry.NewBigIntValue(new(big.Int).Sub(big.NewInt(recv.SmallInt()), big.NewInt(arg.SmallInt())))
+		}
+		if IsBigIntValue(arg) {
+			a := big.NewInt(recv.SmallInt())
+			b := getBigIntOperand(v, arg)
+			if b != nil {
+				return v.registry.NewBigIntValue(new(big.Int).Sub(a, b))
+			}
 		}
 		if arg.IsFloat() {
 			return FromFloat64(float64(recv.SmallInt()) - arg.Float64())
@@ -30,9 +57,18 @@ func (vm *VM) registerSmallIntegerPrimitives() {
 		return Nil
 	})
 
-	c.AddMethod1(vm.Selectors, "*", func(_ interface{}, recv Value, arg Value) Value {
+	c.AddMethod1(vm.Selectors, "*", func(vmPtr interface{}, recv Value, arg Value) Value {
+		v := vmPtr.(*VM)
 		if arg.IsSmallInt() {
-			return FromSmallInt(recv.SmallInt() * arg.SmallInt())
+			result := new(big.Int).Mul(big.NewInt(recv.SmallInt()), big.NewInt(arg.SmallInt()))
+			return v.registry.NewBigIntValue(result) // auto-demotes if fits
+		}
+		if IsBigIntValue(arg) {
+			a := big.NewInt(recv.SmallInt())
+			b := getBigIntOperand(v, arg)
+			if b != nil {
+				return v.registry.NewBigIntValue(new(big.Int).Mul(a, b))
+			}
 		}
 		if arg.IsFloat() {
 			return FromFloat64(float64(recv.SmallInt()) * arg.Float64())
@@ -40,12 +76,21 @@ func (vm *VM) registerSmallIntegerPrimitives() {
 		return Nil
 	})
 
-	c.AddMethod1(vm.Selectors, "/", func(_ interface{}, recv Value, arg Value) Value {
+	c.AddMethod1(vm.Selectors, "/", func(vmPtr interface{}, recv Value, arg Value) Value {
+		v := vmPtr.(*VM)
 		if arg.IsSmallInt() {
 			if arg.SmallInt() == 0 {
 				return Nil // Division by zero
 			}
 			return FromSmallInt(recv.SmallInt() / arg.SmallInt())
+		}
+		if IsBigIntValue(arg) {
+			a := big.NewInt(recv.SmallInt())
+			b := getBigIntOperand(v, arg)
+			if b != nil && b.Sign() != 0 {
+				return v.registry.NewBigIntValue(new(big.Int).Quo(a, b))
+			}
+			return Nil
 		}
 		if arg.IsFloat() {
 			return FromFloat64(float64(recv.SmallInt()) / arg.Float64())
@@ -53,12 +98,20 @@ func (vm *VM) registerSmallIntegerPrimitives() {
 		return Nil
 	})
 
-	c.AddMethod1(vm.Selectors, "\\\\", func(_ interface{}, recv Value, arg Value) Value {
+	c.AddMethod1(vm.Selectors, "\\\\", func(vmPtr interface{}, recv Value, arg Value) Value {
+		v := vmPtr.(*VM)
 		if arg.IsSmallInt() {
 			if arg.SmallInt() == 0 {
 				return Nil
 			}
 			return FromSmallInt(recv.SmallInt() % arg.SmallInt())
+		}
+		if IsBigIntValue(arg) {
+			a := big.NewInt(recv.SmallInt())
+			b := getBigIntOperand(v, arg)
+			if b != nil && b.Sign() != 0 {
+				return v.registry.NewBigIntValue(new(big.Int).Rem(a, b))
+			}
 		}
 		return Nil
 	})
@@ -82,52 +135,77 @@ func (vm *VM) registerSmallIntegerPrimitives() {
 	})
 
 	// Comparisons
-	c.AddMethod1(vm.Selectors, "<", func(_ interface{}, recv Value, arg Value) Value {
+	c.AddMethod1(vm.Selectors, "<", func(vmPtr interface{}, recv Value, arg Value) Value {
 		if arg.IsSmallInt() {
-			if recv.SmallInt() < arg.SmallInt() {
-				return True
+			return FromBool(recv.SmallInt() < arg.SmallInt())
+		}
+		if IsBigIntValue(arg) {
+			v := vmPtr.(*VM)
+			a := big.NewInt(recv.SmallInt())
+			b := getBigIntOperand(v, arg)
+			if b != nil {
+				return FromBool(a.Cmp(b) < 0)
 			}
-			return False
 		}
 		return Nil
 	})
 
-	c.AddMethod1(vm.Selectors, ">", func(_ interface{}, recv Value, arg Value) Value {
+	c.AddMethod1(vm.Selectors, ">", func(vmPtr interface{}, recv Value, arg Value) Value {
 		if arg.IsSmallInt() {
-			if recv.SmallInt() > arg.SmallInt() {
-				return True
+			return FromBool(recv.SmallInt() > arg.SmallInt())
+		}
+		if IsBigIntValue(arg) {
+			v := vmPtr.(*VM)
+			a := big.NewInt(recv.SmallInt())
+			b := getBigIntOperand(v, arg)
+			if b != nil {
+				return FromBool(a.Cmp(b) > 0)
 			}
-			return False
 		}
 		return Nil
 	})
 
-	c.AddMethod1(vm.Selectors, "<=", func(_ interface{}, recv Value, arg Value) Value {
+	c.AddMethod1(vm.Selectors, "<=", func(vmPtr interface{}, recv Value, arg Value) Value {
 		if arg.IsSmallInt() {
-			if recv.SmallInt() <= arg.SmallInt() {
-				return True
+			return FromBool(recv.SmallInt() <= arg.SmallInt())
+		}
+		if IsBigIntValue(arg) {
+			v := vmPtr.(*VM)
+			a := big.NewInt(recv.SmallInt())
+			b := getBigIntOperand(v, arg)
+			if b != nil {
+				return FromBool(a.Cmp(b) <= 0)
 			}
-			return False
 		}
 		return Nil
 	})
 
-	c.AddMethod1(vm.Selectors, ">=", func(_ interface{}, recv Value, arg Value) Value {
+	c.AddMethod1(vm.Selectors, ">=", func(vmPtr interface{}, recv Value, arg Value) Value {
 		if arg.IsSmallInt() {
-			if recv.SmallInt() >= arg.SmallInt() {
-				return True
+			return FromBool(recv.SmallInt() >= arg.SmallInt())
+		}
+		if IsBigIntValue(arg) {
+			v := vmPtr.(*VM)
+			a := big.NewInt(recv.SmallInt())
+			b := getBigIntOperand(v, arg)
+			if b != nil {
+				return FromBool(a.Cmp(b) >= 0)
 			}
-			return False
 		}
 		return Nil
 	})
 
-	c.AddMethod1(vm.Selectors, "=", func(_ interface{}, recv Value, arg Value) Value {
+	c.AddMethod1(vm.Selectors, "=", func(vmPtr interface{}, recv Value, arg Value) Value {
 		if arg.IsSmallInt() {
-			if recv.SmallInt() == arg.SmallInt() {
-				return True
+			return FromBool(recv.SmallInt() == arg.SmallInt())
+		}
+		if IsBigIntValue(arg) {
+			v := vmPtr.(*VM)
+			a := big.NewInt(recv.SmallInt())
+			b := getBigIntOperand(v, arg)
+			if b != nil {
+				return FromBool(a.Cmp(b) == 0)
 			}
-			return False
 		}
 		return Nil
 	})
@@ -154,25 +232,39 @@ func (vm *VM) registerSmallIntegerPrimitives() {
 		return Nil
 	})
 
-	c.AddMethod1(vm.Selectors, "bitShift:", func(_ interface{}, recv Value, arg Value) Value {
+	c.AddMethod1(vm.Selectors, "bitShift:", func(vmPtr interface{}, recv Value, arg Value) Value {
+		v := vmPtr.(*VM)
 		if arg.IsSmallInt() {
 			shift := arg.SmallInt()
 			if shift >= 0 {
-				return FromSmallInt(recv.SmallInt() << uint(shift))
+				// Use big.Int for left shifts to avoid overflow
+				result := new(big.Int).Lsh(big.NewInt(recv.SmallInt()), uint(shift))
+				return v.registry.NewBigIntValue(result)
 			}
 			return FromSmallInt(recv.SmallInt() >> uint(-shift))
 		}
 		return Nil
 	})
 
-	c.AddMethod0(vm.Selectors, "negated", func(_ interface{}, recv Value) Value {
-		return FromSmallInt(-recv.SmallInt())
+	c.AddMethod0(vm.Selectors, "negated", func(vmPtr interface{}, recv Value) Value {
+		v := vmPtr.(*VM)
+		n := recv.SmallInt()
+		result := -n
+		if val, ok := TryFromSmallInt(result); ok {
+			return val
+		}
+		return v.registry.NewBigIntValue(new(big.Int).Neg(big.NewInt(n)))
 	})
 
-	c.AddMethod0(vm.Selectors, "abs", func(_ interface{}, recv Value) Value {
+	c.AddMethod0(vm.Selectors, "abs", func(vmPtr interface{}, recv Value) Value {
+		v := vmPtr.(*VM)
 		n := recv.SmallInt()
 		if n < 0 {
-			return FromSmallInt(-n)
+			result := -n
+			if val, ok := TryFromSmallInt(result); ok {
+				return val
+			}
+			return v.registry.NewBigIntValue(new(big.Int).Abs(big.NewInt(n)))
 		}
 		return recv
 	})

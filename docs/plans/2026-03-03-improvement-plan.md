@@ -149,11 +149,17 @@
   3. `pass` — pop the current handler and re-signal. Requires the handler stack to be traversable.
 
 ### TODO 16: Wire up `become:` (identity swapping)
-- **Problem:** The `forward` field on Object suggests `become:` was planned but is not functional. Identity swapping is a core Smalltalk capability used for schema migration, proxy patterns, and futures.
-- **Research needed:** Determine the feasibility given NaN-boxed values. Traditional `become:` swaps the identity of two objects — all references to A now point to B and vice versa. With NaN-boxing, objects don't have a single pointer identity; they're encoded as tagged values. This may require:
-  - A forwarding pointer table (checked on every object access — expensive)
-  - Or restricting `become:` to heap-allocated objects (registry-based values) where the registry ID can be swapped
-- **Key question:** Is the `forward` field already used anywhere? If so, `become:` may be partially implemented.
+- **Status: Already implemented** — no work needed.
+- **Implementation:**
+  - `Become()` method at `vm/object.go:324-347` — two-way identity swap (swaps vtables, sizes, and all slot contents)
+  - `BecomeForward()` method at `vm/object.go:349-357` — one-way forwarding (redirects all accesses to another object)
+  - `become:` primitive registered at `vm/object_primitives.go:277-290` — validates both arguments are objects and calls `Become()`
+  - `becomeForward:` primitive registered at `vm/object_primitives.go:294-307` — one-way forwarding variant
+- **Features:**
+  - Full two-way identity swapping via `become:`
+  - One-way forwarding for proxies and lazy loading via `becomeForward:`
+  - Supports NaN-boxed objects through the `forward` field resolution mechanism
+  - No registry-based overhead — direct field swaps on heap-allocated Object structs
 
 ### TODO 17: Add sorted/hashed collections to core library
 - **Problem:** No SortedCollection, Set, Bag, or OrderedDictionary in the core library. These are standard in Smalltalk and expected by users.
