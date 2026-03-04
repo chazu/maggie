@@ -71,4 +71,5 @@ BenchmarkHotPath_ClassInstantiation-8          	 9101892	       215.6 ns/op	    
 BenchmarkHotPath_ClassInstantiation-8          	 8773510	       217.0 ns/op	     148 B/op	       1 allocs/op
 BenchmarkHotPath_ClassInstantiation-8          	 9720861	       223.0 ns/op	     142 B/op	       1 allocs/op
 BenchmarkHotPath_ClassInstantiation-8          	 8851653	       220.0 ns/op	     148 B/op	       1 allocs/op
-BenchmarkHotPath_ClassInstantiation-8          	
+BenchmarkHotPath_ClassInstantiation-8          	 9801488	       221.7 ns/op	     141 B/op	       1 allocs/op
+BenchmarkHotPath_ExceptionSignalCatch-8        	
