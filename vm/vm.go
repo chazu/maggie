@@ -20,6 +20,7 @@ type VM struct {
 	Classes   *ClassTable    // class name -> Class
 	Traits    *TraitTable    // trait name -> Trait
 	Globals   map[string]Value
+	globalsMu sync.RWMutex // protects Globals map for concurrent access
 
 	// Well-known classes (for fast-path checks and bootstrapping)
 	ObjectClass            *Class
@@ -786,13 +787,17 @@ func (vm *VM) SymbolName(id uint32) string {
 
 // LookupGlobal returns a global value by name.
 func (vm *VM) LookupGlobal(name string) (Value, bool) {
+	vm.globalsMu.RLock()
 	v, ok := vm.Globals[name]
+	vm.globalsMu.RUnlock()
 	return v, ok
 }
 
 // SetGlobal sets a global value.
 func (vm *VM) SetGlobal(name string, value Value) {
+	vm.globalsMu.Lock()
 	vm.Globals[name] = value
+	vm.globalsMu.Unlock()
 }
 
 // LookupClass returns a class by name.
@@ -927,9 +932,11 @@ func (vm *VM) CollectGarbage() int {
 	}
 
 	// Mark objects reachable from globals
+	vm.globalsMu.RLock()
 	for _, v := range vm.Globals {
 		vm.markValue(v, marked)
 	}
+	vm.globalsMu.RUnlock()
 
 	// Mark objects reachable from block captures (VM-local registry)
 	vm.registry.blocksMu.RLock()

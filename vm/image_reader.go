@@ -1184,7 +1184,7 @@ func (ir *ImageReader) ReadGlobals(vm *VM) error {
 		}
 
 		value := ir.decoder.DecodeValue(valueData)
-		vm.Globals[name] = value
+		vm.SetGlobal(name, value)
 	}
 
 	return nil
@@ -1342,7 +1342,7 @@ func (ir *ImageReader) ReadAll(vm *VM) error {
 		// classes whose classValueID is 0.
 		newVal := vm.registry.RegisterClassValue(cls)
 		if newVal != v {
-			vm.Globals[name] = newVal
+			vm.SetGlobal(name, newVal)
 		}
 	}
 

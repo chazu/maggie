@@ -168,7 +168,7 @@ func (vm *VM) RegisterGoType(className string, goType reflect.Type) *Class {
 	class := vm.Classes.Lookup(className)
 	if class == nil {
 		class = vm.createClass(className, vm.ObjectClass)
-		vm.Globals[className] = vm.classValue(class)
+		vm.SetGlobal(className, vm.classValue(class))
 	}
 
 	vm.goTypeRegistry.Register(goType, class, className)
