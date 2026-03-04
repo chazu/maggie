@@ -475,6 +475,195 @@ func TestFullDispatchSimulation(t *testing.T) {
 // Benchmarks
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// VTable flattening tests
+// ---------------------------------------------------------------------------
+
+func TestVTableFlattenBasic(t *testing.T) {
+	// After Lookup, flat array should be populated
+	vt := NewVTable(&Class{Name: "Test"}, nil)
+	m := NewMethod0("m", func(vm interface{}, r Value) Value { return Nil })
+	vt.AddMethod(3, m)
+
+	// First lookup triggers rebuild
+	got := vt.Lookup(3)
+	if got != m {
+		t.Error("Lookup should return the method after flatten")
+	}
+	// flat should now be non-nil
+	if vt.flat == nil {
+		t.Error("flat should be populated after Lookup")
+	}
+	if vt.dirty {
+		t.Error("dirty should be false after rebuild")
+	}
+}
+
+func TestVTableFlattenInherited(t *testing.T) {
+	grandparent := NewVTable(&Class{Name: "GP"}, nil)
+	gm := NewMethod0("gm", func(vm interface{}, r Value) Value { return FromSmallInt(1) })
+	grandparent.AddMethod(0, gm)
+
+	parent := NewVTable(&Class{Name: "P"}, grandparent)
+	pm := NewMethod0("pm", func(vm interface{}, r Value) Value { return FromSmallInt(2) })
+	parent.AddMethod(1, pm)
+
+	child := NewVTable(&Class{Name: "C"}, parent)
+	cm := NewMethod0("cm", func(vm interface{}, r Value) Value { return FromSmallInt(3) })
+	child.AddMethod(2, cm)
+
+	// Child should see all three methods
+	if got := child.Lookup(0); got != gm {
+		t.Error("child should inherit grandparent method")
+	}
+	if got := child.Lookup(1); got != pm {
+		t.Error("child should inherit parent method")
+	}
+	if got := child.Lookup(2); got != cm {
+		t.Error("child should have its own method")
+	}
+}
+
+func TestVTableFlattenOverride(t *testing.T) {
+	parent := NewVTable(&Class{Name: "P"}, nil)
+	pm := NewMethod0("m", func(vm interface{}, r Value) Value { return FromSmallInt(1) })
+	parent.AddMethod(0, pm)
+
+	child := NewVTable(&Class{Name: "C"}, parent)
+	cm := NewMethod0("m", func(vm interface{}, r Value) Value { return FromSmallInt(2) })
+	child.AddMethod(0, cm)
+
+	// Child override should win
+	if got := child.Lookup(0); got != cm {
+		t.Error("child override should take precedence")
+	}
+	// Parent unchanged
+	if got := parent.Lookup(0); got != pm {
+		t.Error("parent should keep its own method")
+	}
+}
+
+func TestVTableFlattenAddMethodInvalidates(t *testing.T) {
+	vt := NewVTable(&Class{Name: "Test"}, nil)
+	m1 := NewMethod0("m1", func(vm interface{}, r Value) Value { return FromSmallInt(1) })
+	vt.AddMethod(0, m1)
+
+	// Force rebuild
+	_ = vt.Lookup(0)
+	if vt.flat == nil {
+		t.Fatal("flat should be populated")
+	}
+
+	// Add a new method — should invalidate
+	m2 := NewMethod0("m2", func(vm interface{}, r Value) Value { return FromSmallInt(2) })
+	vt.AddMethod(1, m2)
+	if vt.flat != nil {
+		t.Error("flat should be nil after AddMethod")
+	}
+
+	// Next lookup should rebuild and find both
+	if got := vt.Lookup(0); got != m1 {
+		t.Error("should still find m1 after rebuild")
+	}
+	if got := vt.Lookup(1); got != m2 {
+		t.Error("should find m2 after rebuild")
+	}
+}
+
+func TestVTableFlattenSetParentInvalidates(t *testing.T) {
+	parent := NewVTable(&Class{Name: "P"}, nil)
+	pm := NewMethod0("pm", func(vm interface{}, r Value) Value { return FromSmallInt(1) })
+	parent.AddMethod(0, pm)
+
+	child := NewVTable(&Class{Name: "C"}, nil)
+	cm := NewMethod0("cm", func(vm interface{}, r Value) Value { return FromSmallInt(2) })
+	child.AddMethod(1, cm)
+
+	// Force rebuild with no parent
+	if got := child.Lookup(0); got != nil {
+		t.Error("should not find parent method before SetParent")
+	}
+
+	// Set parent — should invalidate
+	child.SetParent(parent)
+	if vt := child; vt.flat != nil {
+		t.Error("flat should be nil after SetParent")
+	}
+
+	// Now should find parent's method
+	if got := child.Lookup(0); got != pm {
+		t.Error("should find parent method after SetParent")
+	}
+}
+
+func TestVTableFlattenRemoveMethodFallsBack(t *testing.T) {
+	parent := NewVTable(&Class{Name: "P"}, nil)
+	pm := NewMethod0("pm", func(vm interface{}, r Value) Value { return FromSmallInt(1) })
+	parent.AddMethod(0, pm)
+
+	child := NewVTable(&Class{Name: "C"}, parent)
+	cm := NewMethod0("cm", func(vm interface{}, r Value) Value { return FromSmallInt(2) })
+	child.AddMethod(0, cm) // Override parent
+
+	// Should see child's override
+	if got := child.Lookup(0); got != cm {
+		t.Error("should see child override")
+	}
+
+	// Remove child's override — should fall back to parent
+	child.RemoveMethod(0)
+	if got := child.Lookup(0); got != pm {
+		t.Error("after RemoveMethod, should fall back to parent method")
+	}
+}
+
+func TestVTableFlattenDeepChain(t *testing.T) {
+	// 5-level deep inheritance chain
+	var prev *VTable
+	methods := make([]Method, 5)
+	for i := 0; i < 5; i++ {
+		vt := NewVTable(&Class{Name: string(rune('A' + i))}, prev)
+		methods[i] = NewMethod0("m", func(vm interface{}, r Value) Value { return Nil })
+		vt.AddMethod(i, methods[i])
+		prev = vt
+	}
+
+	// Bottom of chain should see all methods
+	for i := 0; i < 5; i++ {
+		if got := prev.Lookup(i); got != methods[i] {
+			t.Errorf("deep chain: Lookup(%d) should find method from level %d", i, i)
+		}
+	}
+}
+
+func TestVTableLocalMethodsUnaffectedByFlatten(t *testing.T) {
+	parent := NewVTable(&Class{Name: "P"}, nil)
+	parent.AddMethod(0, NewMethod0("pm", func(vm interface{}, r Value) Value { return Nil }))
+
+	child := NewVTable(&Class{Name: "C"}, parent)
+	cm := NewMethod0("cm", func(vm interface{}, r Value) Value { return Nil })
+	child.AddMethod(1, cm)
+
+	// Force flatten
+	_ = child.Lookup(0)
+
+	// LocalMethods should only return child's method
+	local := child.LocalMethods()
+	if len(local) != 1 {
+		t.Errorf("LocalMethods should have 1 entry, got %d", len(local))
+	}
+	if local[1] != cm {
+		t.Error("LocalMethods should return child's local method")
+	}
+	if _, ok := local[0]; ok {
+		t.Error("LocalMethods should NOT contain inherited parent method")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Benchmarks
+// ---------------------------------------------------------------------------
+
 func BenchmarkSelectorIntern(b *testing.B) {
 	st := NewSelectorTable()
 	b.ResetTimer()

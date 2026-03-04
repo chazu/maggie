@@ -44,7 +44,9 @@ const NumInlineSlots = 4
 type VTable struct {
 	class   *Class   // The class this vtable belongs to
 	parent  *VTable  // Parent vtable for inheritance lookup
-	methods []Method // Methods indexed by selector ID
+	methods []Method // Local methods indexed by selector ID
+	flat    []Method // Flattened: inherited + local (nil until first rebuild)
+	dirty   bool     // True when flat needs rebuild
 }
 
 // Class represents a Maggie class.
