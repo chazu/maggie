@@ -1105,3 +1105,117 @@ func TestIntegrationE2E_EvalInContext(t *testing.T) {
 		t.Errorf("evaluate: 'self at: 1' in array = %v, want 200", result)
 	}
 }
+
+// ---------------------------------------------------------------------------
+// NLR Unwinding Tests (flag-based non-local return)
+// ---------------------------------------------------------------------------
+
+// TestNLR_ThroughNestedSends tests NLR through A->B->C where block in C returns from A.
+func TestNLR_ThroughNestedSends(t *testing.T) {
+	vmInst := vm.NewVM()
+
+	// C: method with a block that does NLR (^)
+	compileMethod(t, vmInst, vmInst.SmallIntegerClass, `nlrInner
+	[:x | ^x] value: 42.
+	^-1`)
+
+	// B: calls C
+	compileMethod(t, vmInst, vmInst.SmallIntegerClass, `nlrMiddle
+	^self nlrInner`)
+
+	// A: calls B
+	compileMethod(t, vmInst, vmInst.SmallIntegerClass, `nlrOuter
+	^self nlrMiddle`)
+
+	result := vmInst.Send(vm.FromSmallInt(0), "nlrOuter", nil)
+	if !result.IsSmallInt() || result.SmallInt() != 42 {
+		t.Errorf("NLR through nested sends = %v, want 42", result)
+	}
+}
+
+// TestNLR_SameMethod tests NLR from block within same method.
+func TestNLR_SameMethod(t *testing.T) {
+	vmInst := vm.NewVM()
+
+	compileMethod(t, vmInst, vmInst.SmallIntegerClass, `nlrSame
+	[:x | ^x * 2] value: self.
+	^-1`)
+
+	result := vmInst.Send(vm.FromSmallInt(5), "nlrSame", nil)
+	if !result.IsSmallInt() || result.SmallInt() != 10 {
+		t.Errorf("NLR same method = %v, want 10", result)
+	}
+}
+
+// TestNLR_DeepChain tests NLR through 4+ levels of sends.
+func TestNLR_DeepChain(t *testing.T) {
+	vmInst := vm.NewVM()
+
+	compileMethod(t, vmInst, vmInst.SmallIntegerClass, `deepA
+	^self deepB + 1`)
+
+	compileMethod(t, vmInst, vmInst.SmallIntegerClass, `deepB
+	^self deepC + 10`)
+
+	compileMethod(t, vmInst, vmInst.SmallIntegerClass, `deepC
+	^self deepD + 100`)
+
+	compileMethod(t, vmInst, vmInst.SmallIntegerClass, `deepD
+	[:x | ^x] value: 999.
+	^-1`)
+
+	result := vmInst.Send(vm.FromSmallInt(0), "deepA", nil)
+	// deepD's NLR returns 999 from deepD, then deepC returns 999+100=1099,
+	// deepB returns 1099+10=1109, deepA returns 1109+1=1110
+	if !result.IsSmallInt() || result.SmallInt() != 1110 {
+		t.Errorf("NLR deep chain = %v, want 1110", result)
+	}
+}
+
+// TestNLR_ThroughEnsure tests that ensure: block executes during NLR.
+func TestNLR_ThroughEnsure(t *testing.T) {
+	vmInst := vm.NewVM()
+
+	// Use a global to track ensure execution
+	compileMethod(t, vmInst, vmInst.SmallIntegerClass, `nlrWithEnsure
+	| result |
+	result := 0.
+	[^42] ensure: [result := 99].
+	^result`)
+
+	result := vmInst.Send(vm.FromSmallInt(0), "nlrWithEnsure", nil)
+	// The NLR from [^42] should return 42 from the method
+	if !result.IsSmallInt() || result.SmallInt() != 42 {
+		t.Errorf("NLR through ensure = %v, want 42", result)
+	}
+}
+
+// TestNLR_ThroughIfCurtailed tests that ifCurtailed: runs on NLR.
+func TestNLR_ThroughIfCurtailed(t *testing.T) {
+	vmInst := vm.NewVM()
+
+	compileMethod(t, vmInst, vmInst.SmallIntegerClass, `nlrWithCurtail
+	[^42] ifCurtailed: [99].
+	^-1`)
+
+	result := vmInst.Send(vm.FromSmallInt(0), "nlrWithCurtail", nil)
+	// NLR should return 42
+	if !result.IsSmallInt() || result.SmallInt() != 42 {
+		t.Errorf("NLR through ifCurtailed = %v, want 42", result)
+	}
+}
+
+// TestNLR_ThroughOnDo tests NLR through on:do: exception handler.
+func TestNLR_ThroughOnDo(t *testing.T) {
+	vmInst := vm.NewVM()
+
+	compileMethod(t, vmInst, vmInst.SmallIntegerClass, `nlrWithOnDo
+	[^42] on: Error do: [:e | -1].
+	^-1`)
+
+	result := vmInst.Send(vm.FromSmallInt(0), "nlrWithOnDo", nil)
+	// NLR should return 42, not trigger the error handler
+	if !result.IsSmallInt() || result.SmallInt() != 42 {
+		t.Errorf("NLR through on:do: = %v, want 42", result)
+	}
+}

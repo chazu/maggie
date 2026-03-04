@@ -518,6 +518,12 @@ func (vm *VM) executeProtectedBlock(
 		result = vm.interpreter.ExecuteBlock(bv.Block, bv.Captures, nil, bv.HomeFrame, bv.HomeSelf, bv.HomeMethod)
 	}()
 
+	// If NLR is unwinding through us, pop handler and propagate
+	if vm.interpreter.unwinding {
+		vm.interpreter.PopExceptionHandler()
+		return handlerOutcome{action: handlerDone, result: Nil}
+	}
+
 	if !caught {
 		// Normal completion - remove the handler
 		vm.interpreter.PopExceptionHandler()
@@ -591,12 +597,23 @@ func (vm *VM) evaluateBlockWithEnsure(blockVal Value, ensureBlock Value) Value {
 
 	func() {
 		defer func() {
-			// Always evaluate the ensure block
-			if ebv != nil {
-				vm.interpreter.ExecuteBlock(ebv.Block, ebv.Captures, nil, ebv.HomeFrame, ebv.HomeSelf, ebv.HomeMethod)
-			}
-			// If there was a panic, we'll re-panic after ensure
+			// If there was a panic (SignaledException etc.), run ensure then re-panic
 			if r := recover(); r != nil {
+				// Save/clear any NLR unwinding state before running ensure
+				wasUnwinding := vm.interpreter.unwinding
+				savedValue := vm.interpreter.unwindValue
+				savedTarget := vm.interpreter.unwindTarget
+				vm.interpreter.unwinding = false
+
+				if ebv != nil {
+					vm.interpreter.ExecuteBlock(ebv.Block, ebv.Captures, nil, ebv.HomeFrame, ebv.HomeSelf, ebv.HomeMethod)
+				}
+
+				// Restore unwinding state
+				vm.interpreter.unwinding = wasUnwinding
+				vm.interpreter.unwindValue = savedValue
+				vm.interpreter.unwindTarget = savedTarget
+
 				didPanic = true
 				panicValue = r
 			}
@@ -606,6 +623,30 @@ func (vm *VM) evaluateBlockWithEnsure(blockVal Value, ensureBlock Value) Value {
 
 	if didPanic {
 		panic(panicValue)
+	}
+
+	// Check for NLR unwinding — save/clear state, run ensure, restore
+	if vm.interpreter.unwinding {
+		savedValue := vm.interpreter.unwindValue
+		savedTarget := vm.interpreter.unwindTarget
+		vm.interpreter.unwinding = false
+
+		if ebv != nil {
+			vm.interpreter.ExecuteBlock(ebv.Block, ebv.Captures, nil, ebv.HomeFrame, ebv.HomeSelf, ebv.HomeMethod)
+		}
+
+		// Restore unwinding state (ensure block's own NLR replaces if it did one)
+		if !vm.interpreter.unwinding {
+			vm.interpreter.unwinding = true
+			vm.interpreter.unwindValue = savedValue
+			vm.interpreter.unwindTarget = savedTarget
+		}
+		return Nil
+	}
+
+	// Normal completion — always run ensure
+	if ebv != nil {
+		vm.interpreter.ExecuteBlock(ebv.Block, ebv.Captures, nil, ebv.HomeFrame, ebv.HomeSelf, ebv.HomeMethod)
 	}
 
 	return result
@@ -627,10 +668,22 @@ func (vm *VM) evaluateBlockIfCurtailed(blockVal Value, curtailBlock Value) Value
 	func() {
 		defer func() {
 			if r := recover(); r != nil {
-				// Exception occurred - evaluate curtail block
+				// Exception occurred (SignaledException etc.) - evaluate curtail block
+				// Save/clear NLR state before running curtail
+				wasUnwinding := vm.interpreter.unwinding
+				savedValue := vm.interpreter.unwindValue
+				savedTarget := vm.interpreter.unwindTarget
+				vm.interpreter.unwinding = false
+
 				if cbv != nil {
 					vm.interpreter.ExecuteBlock(cbv.Block, cbv.Captures, nil, cbv.HomeFrame, cbv.HomeSelf, cbv.HomeMethod)
 				}
+
+				// Restore unwinding state
+				vm.interpreter.unwinding = wasUnwinding
+				vm.interpreter.unwindValue = savedValue
+				vm.interpreter.unwindTarget = savedTarget
+
 				didPanic = true
 				panicValue = r
 			}
@@ -640,6 +693,25 @@ func (vm *VM) evaluateBlockIfCurtailed(blockVal Value, curtailBlock Value) Value
 
 	if didPanic {
 		panic(panicValue)
+	}
+
+	// NLR unwinding through us — curtailed, so run the curtail block
+	if vm.interpreter.unwinding {
+		savedValue := vm.interpreter.unwindValue
+		savedTarget := vm.interpreter.unwindTarget
+		vm.interpreter.unwinding = false
+
+		if cbv != nil {
+			vm.interpreter.ExecuteBlock(cbv.Block, cbv.Captures, nil, cbv.HomeFrame, cbv.HomeSelf, cbv.HomeMethod)
+		}
+
+		// Restore unwinding state (curtail block's own NLR replaces if it did one)
+		if !vm.interpreter.unwinding {
+			vm.interpreter.unwinding = true
+			vm.interpreter.unwindValue = savedValue
+			vm.interpreter.unwindTarget = savedTarget
+		}
+		return Nil
 	}
 
 	return result

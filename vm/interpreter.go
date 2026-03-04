@@ -79,6 +79,11 @@ type Interpreter struct {
 	hidden      map[string]bool  // restricted global names (nil if unrestricted)
 	forked      bool             // true for forked interpreters (writes go to localWrites)
 
+	// NLR unwinding state (replaces panic/recover for non-local returns)
+	unwinding    bool
+	unwindValue  Value
+	unwindTarget int // HomeFrame of the NLR target
+
 	// Back-reference to owning VM for registry access.
 	// nil for standalone interpreters in tests.
 	vm *VM
@@ -495,31 +500,24 @@ func (i *Interpreter) Execute(method *CompiledMethod, receiver Value, args []Val
 	i.pushFrame(method, receiver, args)
 	homeFrame := i.fp
 
-	// Catch non-local returns from blocks
-	defer func() {
-		if r := recover(); r != nil {
-			if nlr, ok := r.(NonLocalReturn); ok {
-				// If this is the target frame, return the value
-				if nlr.HomeFrame == homeFrame {
-					// Unwind any remaining frames to our home frame
-					for i.fp > homeFrame {
-						i.popFrame()
-					}
-					if i.fp == homeFrame {
-						i.popFrame()
-					}
-					result = nlr.Value
-					return
-				}
-				// Not our frame, propagate up
-				panic(nlr)
-			}
-			// Re-panic for other errors
-			panic(r)
-		}
-	}()
-
 	result = i.runFrame()
+	if i.unwinding {
+		if i.unwindTarget == homeFrame {
+			for i.fp > homeFrame {
+				i.popFrame()
+			}
+			if i.fp == homeFrame {
+				i.popFrame()
+			}
+			result = i.unwindValue
+			i.unwinding = false
+			i.unwindValue = Nil
+			return result
+		}
+		// NLR targeting a frame below us — should not happen in normal usage.
+		// Convert to panic as safety valve.
+		panic(NonLocalReturn{Value: i.unwindValue, HomeFrame: i.unwindTarget})
+	}
 	return result
 }
 
@@ -844,6 +842,10 @@ func (i *Interpreter) runFrame() Value {
 			argc := int(bc[frame.IP])
 			frame.IP++
 			result := i.send(sel, argc)
+			if i.unwinding {
+				i.popFrame()
+				return Nil
+			}
 			i.push(result)
 
 		case OpTailSend:
@@ -911,6 +913,10 @@ func (i *Interpreter) runFrame() Value {
 				i.push(arg)
 			}
 			tailResult := i.send(sel, argc)
+			if i.unwinding {
+				i.popFrame()
+				return Nil
+			}
 			i.push(tailResult)
 
 		case OpSendSuper:
@@ -929,6 +935,10 @@ func (i *Interpreter) runFrame() Value {
 			}
 			if method != nil {
 				result := i.sendSuper(sel, argc, method)
+				if i.unwinding {
+					i.popFrame()
+					return Nil
+				}
 				i.push(result)
 			} else {
 				i.push(Nil)
@@ -938,95 +948,190 @@ func (i *Interpreter) runFrame() Value {
 		case OpSendPlus:
 			b := i.pop()
 			a := i.pop()
-			i.push(i.primitivePlus(a, b))
+			result := i.primitivePlus(a, b)
+			if i.unwinding {
+				i.popFrame()
+				return Nil
+			}
+			i.push(result)
 
 		case OpSendMinus:
 			b := i.pop()
 			a := i.pop()
-			i.push(i.primitiveMinus(a, b))
+			result := i.primitiveMinus(a, b)
+			if i.unwinding {
+				i.popFrame()
+				return Nil
+			}
+			i.push(result)
 
 		case OpSendTimes:
 			b := i.pop()
 			a := i.pop()
-			i.push(i.primitiveTimes(a, b))
+			result := i.primitiveTimes(a, b)
+			if i.unwinding {
+				i.popFrame()
+				return Nil
+			}
+			i.push(result)
 
 		case OpSendDiv:
 			b := i.pop()
 			a := i.pop()
-			i.push(i.primitiveDiv(a, b))
+			result := i.primitiveDiv(a, b)
+			if i.unwinding {
+				i.popFrame()
+				return Nil
+			}
+			i.push(result)
 
 		case OpSendMod:
 			b := i.pop()
 			a := i.pop()
-			i.push(i.primitiveMod(a, b))
+			result := i.primitiveMod(a, b)
+			if i.unwinding {
+				i.popFrame()
+				return Nil
+			}
+			i.push(result)
 
 		case OpSendLT:
 			b := i.pop()
 			a := i.pop()
-			i.push(i.primitiveLT(a, b))
+			result := i.primitiveLT(a, b)
+			if i.unwinding {
+				i.popFrame()
+				return Nil
+			}
+			i.push(result)
 
 		case OpSendGT:
 			b := i.pop()
 			a := i.pop()
-			i.push(i.primitiveGT(a, b))
+			result := i.primitiveGT(a, b)
+			if i.unwinding {
+				i.popFrame()
+				return Nil
+			}
+			i.push(result)
 
 		case OpSendLE:
 			b := i.pop()
 			a := i.pop()
-			i.push(i.primitiveLE(a, b))
+			result := i.primitiveLE(a, b)
+			if i.unwinding {
+				i.popFrame()
+				return Nil
+			}
+			i.push(result)
 
 		case OpSendGE:
 			b := i.pop()
 			a := i.pop()
-			i.push(i.primitiveGE(a, b))
+			result := i.primitiveGE(a, b)
+			if i.unwinding {
+				i.popFrame()
+				return Nil
+			}
+			i.push(result)
 
 		case OpSendEQ:
 			b := i.pop()
 			a := i.pop()
-			i.push(i.primitiveEQ(a, b))
+			result := i.primitiveEQ(a, b)
+			if i.unwinding {
+				i.popFrame()
+				return Nil
+			}
+			i.push(result)
 
 		case OpSendNE:
 			b := i.pop()
 			a := i.pop()
-			i.push(i.primitiveNE(a, b))
+			result := i.primitiveNE(a, b)
+			if i.unwinding {
+				i.popFrame()
+				return Nil
+			}
+			i.push(result)
 
 		case OpSendAt:
 			idx := i.pop()
 			rcvr := i.pop()
-			i.push(i.primitiveAt(rcvr, idx))
+			result := i.primitiveAt(rcvr, idx)
+			if i.unwinding {
+				i.popFrame()
+				return Nil
+			}
+			i.push(result)
 
 		case OpSendAtPut:
 			val := i.pop()
 			idx := i.pop()
 			rcvr := i.pop()
-			i.push(i.primitiveAtPut(rcvr, idx, val))
+			result := i.primitiveAtPut(rcvr, idx, val)
+			if i.unwinding {
+				i.popFrame()
+				return Nil
+			}
+			i.push(result)
 
 		case OpSendSize:
 			rcvr := i.pop()
-			i.push(i.primitiveSize(rcvr))
+			result := i.primitiveSize(rcvr)
+			if i.unwinding {
+				i.popFrame()
+				return Nil
+			}
+			i.push(result)
 
 		case OpSendValue:
 			rcvr := i.pop()
-			i.push(i.primitiveValue(rcvr))
+			result := i.primitiveValue(rcvr)
+			if i.unwinding {
+				i.popFrame()
+				return Nil
+			}
+			i.push(result)
 
 		case OpSendValue1:
 			arg := i.pop()
 			rcvr := i.pop()
-			i.push(i.primitiveValue1(rcvr, arg))
+			result := i.primitiveValue1(rcvr, arg)
+			if i.unwinding {
+				i.popFrame()
+				return Nil
+			}
+			i.push(result)
 
 		case OpSendValue2:
 			arg2 := i.pop()
 			arg1 := i.pop()
 			rcvr := i.pop()
-			i.push(i.primitiveValue2(rcvr, arg1, arg2))
+			result := i.primitiveValue2(rcvr, arg1, arg2)
+			if i.unwinding {
+				i.popFrame()
+				return Nil
+			}
+			i.push(result)
 
 		case OpSendNew:
 			rcvr := i.pop()
-			i.push(i.primitiveNew(rcvr))
+			result := i.primitiveNew(rcvr)
+			if i.unwinding {
+				i.popFrame()
+				return Nil
+			}
+			i.push(result)
 
 		case OpSendClass:
 			rcvr := i.pop()
-			i.push(i.primitiveClass(rcvr))
+			result := i.primitiveClass(rcvr)
+			if i.unwinding {
+				i.popFrame()
+				return Nil
+			}
+			i.push(result)
 
 		// --- Control flow ---
 		case OpJump:
@@ -1078,9 +1183,12 @@ func (i *Interpreter) runFrame() Value {
 					i.popFrame()
 					return result
 				}
-				// Non-local return: return from the home context (enclosing method)
+				// Non-local return: set unwinding flag instead of panic
 				i.popFrame()
-				panic(NonLocalReturn{Value: result, HomeFrame: frame.HomeFrame})
+				i.unwinding = true
+				i.unwindValue = result
+				i.unwindTarget = frame.HomeFrame
+				return Nil
 			}
 			// Method: local return
 			i.popFrame()
@@ -1243,31 +1351,22 @@ func (i *Interpreter) send(selector int, argc int) (result Value) {
 		i.pushFrame(cm, rcvr, args)
 		homeFrame := i.fp
 
-		// Catch non-local returns from blocks created in this method
-		defer func() {
-			if r := recover(); r != nil {
-				if nlr, ok := r.(NonLocalReturn); ok {
-					// If this is the target frame, return the value
-					if nlr.HomeFrame == homeFrame {
-						// Unwind any remaining frames to our home frame
-						for i.fp > homeFrame {
-							i.popFrame()
-						}
-						if i.fp == homeFrame {
-							i.popFrame()
-						}
-						result = nlr.Value
-						return
-					}
-					// Not our frame, propagate up
-					panic(nlr)
-				}
-				// Re-panic for other errors
-				panic(r)
-			}
-		}()
-
 		result = i.runFrame()
+		if i.unwinding {
+			if i.unwindTarget == homeFrame {
+				for i.fp > homeFrame {
+					i.popFrame()
+				}
+				if i.fp == homeFrame {
+					i.popFrame()
+				}
+				result = i.unwindValue
+				i.unwinding = false
+				i.unwindValue = Nil
+				return result
+			}
+			return Nil // propagate
+		}
 		return result
 	}
 
@@ -1357,27 +1456,22 @@ func (i *Interpreter) sendSuper(selector int, argc int, callingMethod *CompiledM
 		i.pushFrame(cm, rcvr, args)
 		homeFrame := i.fp
 
-		// Catch non-local returns
-		defer func() {
-			if r := recover(); r != nil {
-				if nlr, ok := r.(NonLocalReturn); ok {
-					if nlr.HomeFrame == homeFrame {
-						for i.fp > homeFrame {
-							i.popFrame()
-						}
-						if i.fp == homeFrame {
-							i.popFrame()
-						}
-						result = nlr.Value
-						return
-					}
-					panic(nlr)
-				}
-				panic(r)
-			}
-		}()
-
 		result = i.runFrame()
+		if i.unwinding {
+			if i.unwindTarget == homeFrame {
+				for i.fp > homeFrame {
+					i.popFrame()
+				}
+				if i.fp == homeFrame {
+					i.popFrame()
+				}
+				result = i.unwindValue
+				i.unwinding = false
+				i.unwindValue = Nil
+				return result
+			}
+			return Nil // propagate
+		}
 		return result
 	}
 
@@ -1795,32 +1889,23 @@ func (i *Interpreter) sendBinaryFallback(rcvr, arg Value, selectorID int) (resul
 		i.pushFrame(cm, rcvr, args)
 		homeFrame := i.fp
 
-		// Catch non-local returns from blocks created in this method
-		defer func() {
-			if r := recover(); r != nil {
-				if nlr, ok := r.(NonLocalReturn); ok {
-					// If this is the target frame, return the value
-					if nlr.HomeFrame == homeFrame {
-						// Unwind any remaining frames to our home frame
-						for i.fp > homeFrame {
-							i.popFrame()
-						}
-						if i.fp == homeFrame {
-							i.popFrame()
-						}
-						result = nlr.Value
-						return
-					}
-					// Not our frame, propagate up
-					panic(nlr)
-				}
-				// Re-panic for other errors
-				panic(r)
-			}
-		}()
-
 		result = i.runFrame()
-		return
+		if i.unwinding {
+			if i.unwindTarget == homeFrame {
+				for i.fp > homeFrame {
+					i.popFrame()
+				}
+				if i.fp == homeFrame {
+					i.popFrame()
+				}
+				result = i.unwindValue
+				i.unwinding = false
+				i.unwindValue = Nil
+				return result
+			}
+			return Nil // propagate
+		}
+		return result
 	}
 	return method.Invoke(i.vm, rcvr, args)
 }

@@ -543,32 +543,25 @@ func TestAttachedBlockNonLocalReturn(t *testing.T) {
 		Literals:    nil,
 	}
 
-	// Execute in attached mode - should panic with NonLocalReturn
-	var caught *NonLocalReturn
-	func() {
-		defer func() {
-			if r := recover(); r != nil {
-				if nlr, ok := r.(NonLocalReturn); ok {
-					caught = &nlr
-				}
-			}
-		}()
-		interp.ExecuteBlock(blockMethod, nil, nil, homeFrame, Nil, m)
-	}()
+	// Execute in attached mode - should set unwinding flag for NLR
+	interp.ExecuteBlock(blockMethod, nil, nil, homeFrame, Nil, m)
 
-	if caught == nil {
-		t.Error("Attached block NLR should have panicked with NonLocalReturn")
+	if !interp.unwinding {
+		t.Error("Attached block NLR should have set unwinding flag")
 		return
 	}
 
-	if !caught.Value.IsSmallInt() || caught.Value.SmallInt() != 77 {
-		t.Errorf("NonLocalReturn value = %v, want 77", caught.Value)
+	if !interp.unwindValue.IsSmallInt() || interp.unwindValue.SmallInt() != 77 {
+		t.Errorf("unwindValue = %v, want 77", interp.unwindValue)
 	}
 
-	if caught.HomeFrame != homeFrame {
-		t.Errorf("NonLocalReturn HomeFrame = %d, want %d", caught.HomeFrame, homeFrame)
+	if interp.unwindTarget != homeFrame {
+		t.Errorf("unwindTarget = %d, want %d", interp.unwindTarget, homeFrame)
 	}
 
+	// Clean up
+	interp.unwinding = false
+	interp.unwindValue = Nil
 	interp.popFrame()
 }
 
