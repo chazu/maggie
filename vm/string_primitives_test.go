@@ -287,3 +287,49 @@ func TestStringClassAssignment(t *testing.T) {
 		t.Errorf("String class is %v, want StringClass", class.Name)
 	}
 }
+
+func TestCompareStrings(t *testing.T) {
+	v := NewVM()
+
+	// Equal strings (different Value objects, same content)
+	s1 := v.registry.NewStringValue("hello")
+	s2 := v.registry.NewStringValue("hello")
+	if !v.registry.CompareStrings(s1, s2) {
+		t.Error("CompareStrings returned false for equal strings")
+	}
+
+	// Unequal strings
+	s3 := v.registry.NewStringValue("world")
+	if v.registry.CompareStrings(s1, s3) {
+		t.Error("CompareStrings returned true for unequal strings")
+	}
+
+	// Same Value (identity)
+	if !v.registry.CompareStrings(s1, s1) {
+		t.Error("CompareStrings returned false for identical value")
+	}
+
+	// Empty strings
+	e1 := v.registry.NewStringValue("")
+	e2 := v.registry.NewStringValue("")
+	if !v.registry.CompareStrings(e1, e2) {
+		t.Error("CompareStrings returned false for empty strings")
+	}
+
+	// Non-string values (symbol)
+	sym := FromSymbolID(42)
+	if v.registry.CompareStrings(sym, s1) {
+		t.Error("CompareStrings returned true for symbol vs string")
+	}
+
+	// Non-symbol values
+	num := FromSmallInt(42)
+	if v.registry.CompareStrings(num, s1) {
+		t.Error("CompareStrings returned true for integer vs string")
+	}
+
+	// Nil value
+	if v.registry.CompareStrings(Nil, s1) {
+		t.Error("CompareStrings returned true for Nil vs string")
+	}
+}

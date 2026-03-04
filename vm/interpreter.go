@@ -1907,9 +1907,9 @@ func (i *Interpreter) primitiveEQ(a, b Value) Value {
 			return True
 		}
 	}
-	// For strings, compare content
+	// For strings, compare content under a single read lock
 	if IsStringValue(a) && IsStringValue(b) {
-		if i.vm.registry.GetStringContent(a) == i.vm.registry.GetStringContent(b) {
+		if i.vm.registry.CompareStrings(a, b) {
 			return True
 		}
 	}

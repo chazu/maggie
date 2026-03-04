@@ -455,6 +455,32 @@ func (or *ObjectRegistry) NewStringValue(s string) Value {
 	return FromSymbolID(id)
 }
 
+// CompareStrings compares two string values under a single read lock.
+// Returns true if both are valid strings with equal content.
+// This is more efficient than two separate GetStringContent calls
+// because it only acquires stringsMu.RLock once instead of twice.
+func (or *ObjectRegistry) CompareStrings(a, b Value) bool {
+	if !a.IsSymbol() || !b.IsSymbol() {
+		return false
+	}
+	idA := a.SymbolID()
+	idB := b.SymbolID()
+	if idA < stringIDOffset || idB < stringIDOffset {
+		return false
+	}
+
+	or.stringsMu.RLock()
+	defer or.stringsMu.RUnlock()
+
+	objA := or.strings[idA]
+	objB := or.strings[idB]
+
+	if objA == nil || objB == nil {
+		return false
+	}
+	return objA.Content == objB.Content
+}
+
 // GetStringContent returns the Go string content of a string Value.
 // Returns empty string if v is not a string.
 func (or *ObjectRegistry) GetStringContent(v Value) string {
