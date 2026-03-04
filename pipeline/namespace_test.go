@@ -1,4 +1,4 @@
-package main
+package pipeline
 
 import (
 	"strings"
@@ -20,9 +20,9 @@ func TestDeriveNamespace(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		got := deriveNamespace(tc.filePath, tc.basePath)
+		got := DeriveNamespace(tc.filePath, tc.basePath)
 		if got != tc.want {
-			t.Errorf("deriveNamespace(%q, %q) = %q, want %q", tc.filePath, tc.basePath, got, tc.want)
+			t.Errorf("DeriveNamespace(%q, %q) = %q, want %q", tc.filePath, tc.basePath, got, tc.want)
 		}
 	}
 }
@@ -41,9 +41,9 @@ func TestRemapImport(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		got := remapImport(tc.imp, tc.oldPfx, tc.newPfx)
+		got := RemapImport(tc.imp, tc.oldPfx, tc.newPfx)
 		if got != tc.want {
-			t.Errorf("remapImport(%q, %q, %q) = %q, want %q", tc.imp, tc.oldPfx, tc.newPfx, got, tc.want)
+			t.Errorf("RemapImport(%q, %q, %q) = %q, want %q", tc.imp, tc.oldPfx, tc.newPfx, got, tc.want)
 		}
 	}
 }
@@ -54,18 +54,18 @@ func TestPrefixDepNamespaces(t *testing.T) {
 		Namespace: "Yutani",
 	}
 
-	files := []parsedFile{
-		{namespace: "", path: "src/Main.mag"},          // root-level
-		{namespace: "Widgets", path: "src/widgets/B.mag"}, // subdir
+	files := []ParsedFile{
+		{Namespace: "", Path: "src/Main.mag"},             // root-level
+		{Namespace: "Widgets", Path: "src/widgets/B.mag"}, // subdir
 	}
 
-	prefixDepNamespaces(files, dep, false)
+	PrefixDepNamespaces(files, dep, nil)
 
-	if files[0].namespace != "Yutani" {
-		t.Errorf("root file namespace = %q, want %q", files[0].namespace, "Yutani")
+	if files[0].Namespace != "Yutani" {
+		t.Errorf("root file namespace = %q, want %q", files[0].Namespace, "Yutani")
 	}
-	if files[1].namespace != "Yutani::Widgets" {
-		t.Errorf("subdir file namespace = %q, want %q", files[1].namespace, "Yutani::Widgets")
+	if files[1].Namespace != "Yutani::Widgets" {
+		t.Errorf("subdir file namespace = %q, want %q", files[1].Namespace, "Yutani::Widgets")
 	}
 }
 
@@ -78,24 +78,24 @@ func TestPrefixDepNamespacesWithRemap(t *testing.T) {
 		},
 	}
 
-	files := []parsedFile{
+	files := []ParsedFile{
 		{
-			namespace: "",
-			path:      "src/Main.mag",
-			imports:   []string{"Yutani::Events", "OtherDep"},
+			Namespace: "",
+			Path:      "src/Main.mag",
+			Imports:   []string{"Yutani::Events", "OtherDep"},
 		},
 	}
 
-	prefixDepNamespaces(files, dep, false)
+	PrefixDepNamespaces(files, dep, nil)
 
-	if files[0].namespace != "ThirdParty::Yutani" {
-		t.Errorf("namespace = %q, want %q", files[0].namespace, "ThirdParty::Yutani")
+	if files[0].Namespace != "ThirdParty::Yutani" {
+		t.Errorf("namespace = %q, want %q", files[0].Namespace, "ThirdParty::Yutani")
 	}
-	if files[0].imports[0] != "ThirdParty::Yutani::Events" {
-		t.Errorf("import[0] = %q, want %q", files[0].imports[0], "ThirdParty::Yutani::Events")
+	if files[0].Imports[0] != "ThirdParty::Yutani::Events" {
+		t.Errorf("import[0] = %q, want %q", files[0].Imports[0], "ThirdParty::Yutani::Events")
 	}
-	if files[0].imports[1] != "OtherDep" {
-		t.Errorf("import[1] = %q, want %q", files[0].imports[1], "OtherDep")
+	if files[0].Imports[1] != "OtherDep" {
+		t.Errorf("import[1] = %q, want %q", files[0].Imports[1], "OtherDep")
 	}
 }
 
@@ -109,19 +109,19 @@ func TestPrefixDepNamespacesNoRemap(t *testing.T) {
 		},
 	}
 
-	files := []parsedFile{
+	files := []ParsedFile{
 		{
-			namespace: "",
-			path:      "src/Main.mag",
-			imports:   []string{"Yutani::Events"},
+			Namespace: "",
+			Path:      "src/Main.mag",
+			Imports:   []string{"Yutani::Events"},
 		},
 	}
 
-	prefixDepNamespaces(files, dep, false)
+	PrefixDepNamespaces(files, dep, nil)
 
 	// Import should be unchanged (no remap when override == original)
-	if files[0].imports[0] != "Yutani::Events" {
-		t.Errorf("import[0] = %q, want %q", files[0].imports[0], "Yutani::Events")
+	if files[0].Imports[0] != "Yutani::Events" {
+		t.Errorf("import[0] = %q, want %q", files[0].Imports[0], "Yutani::Events")
 	}
 }
 
@@ -131,7 +131,7 @@ func TestCheckNamespaceCollisions(t *testing.T) {
 			{Name: "a", Namespace: "Alpha"},
 			{Name: "b", Namespace: "Beta"},
 		}
-		if err := checkNamespaceCollisions(deps); err != nil {
+		if err := CheckNamespaceCollisions(deps); err != nil {
 			t.Errorf("unexpected error: %v", err)
 		}
 	})
@@ -141,7 +141,7 @@ func TestCheckNamespaceCollisions(t *testing.T) {
 			{Name: "ui-toolkit", Namespace: "Widgets"},
 			{Name: "yutani-widgets", Namespace: "Widgets"},
 		}
-		err := checkNamespaceCollisions(deps)
+		err := CheckNamespaceCollisions(deps)
 		if err == nil {
 			t.Fatal("expected error")
 		}
@@ -161,7 +161,7 @@ func TestCheckNamespaceCollisions(t *testing.T) {
 			{Name: "c", Namespace: "NS2"},
 			{Name: "d", Namespace: "NS2"},
 		}
-		err := checkNamespaceCollisions(deps)
+		err := CheckNamespaceCollisions(deps)
 		if err == nil {
 			t.Fatal("expected error")
 		}

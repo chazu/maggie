@@ -1,4 +1,4 @@
-package main
+package pipeline
 
 import (
 	"os"
@@ -6,8 +6,43 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/chazu/maggie/compiler"
 	"github.com/chazu/maggie/vm"
 )
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+func newTestVM(t *testing.T) *vm.VM {
+	t.Helper()
+	vmInst := vm.NewVM()
+	imagePath := filepath.Join("..", "cmd", "mag", "maggie.image")
+	data, err := os.ReadFile(imagePath)
+	if err != nil {
+		t.Fatalf("reading maggie.image: %v", err)
+	}
+	if err := vmInst.LoadImageFromBytes(data); err != nil {
+		t.Fatalf("loading image: %v", err)
+	}
+	vmInst.ReRegisterNilPrimitives()
+	vmInst.ReRegisterBooleanPrimitives()
+	vmInst.UseGoCompiler(compiler.Compile)
+	return vmInst
+}
+
+func newPipeline(vmInst *vm.VM) *Pipeline {
+	return &Pipeline{VM: vmInst}
+}
+
+func writeMagFile(t *testing.T, dir, name, source string) string {
+	t.Helper()
+	p := filepath.Join(dir, name)
+	if err := os.WriteFile(p, []byte(source), 0644); err != nil {
+		t.Fatalf("writing %s: %v", p, err)
+	}
+	return p
+}
 
 // ---------------------------------------------------------------------------
 // Forward reference: File A extends class from File B, A loaded before B
@@ -15,10 +50,9 @@ import (
 
 func TestTwoPass_ForwardReference(t *testing.T) {
 	vmInst := newTestVM(t)
+	pipe := newPipeline(vmInst)
 	tmpDir := t.TempDir()
 
-	// BaseWidget defined in B.mag, Button in A.mag extends BaseWidget.
-	// Alphabetical ordering means A.mag is loaded first.
 	writeMagFile(t, tmpDir, "A_Button.mag", `Button subclass: BaseWidget
   instanceVars: label
 
@@ -34,15 +68,14 @@ func TestTwoPass_ForwardReference(t *testing.T) {
   method: y [ ^y ]
 `)
 
-	methods, err := compilePath(tmpDir, vmInst, false)
+	methods, err := pipe.CompilePath(tmpDir)
 	if err != nil {
-		t.Fatalf("compilePath failed: %v", err)
+		t.Fatalf("CompilePath failed: %v", err)
 	}
 	if methods == 0 {
 		t.Fatal("expected compiled methods")
 	}
 
-	// Verify Button's superclass is BaseWidget, not Object
 	button := vmInst.LookupClass("Button")
 	if button == nil {
 		t.Fatal("Button class not found")
@@ -55,22 +88,17 @@ func TestTwoPass_ForwardReference(t *testing.T) {
 		t.Errorf("Button.Superclass = %s, want BaseWidget", superName)
 	}
 
-	// Verify Button inherits BaseWidget's instance variables
 	allIvars := button.AllInstVarNames()
 	if len(allIvars) != 3 {
 		t.Errorf("Button allIvars = %v, want [x y label]", allIvars)
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Circular imports: File A imports B, File B imports A
-// ---------------------------------------------------------------------------
-
 func TestTwoPass_CircularImports(t *testing.T) {
 	vmInst := newTestVM(t)
+	pipe := newPipeline(vmInst)
 	tmpDir := t.TempDir()
 
-	// Create subdirectories for namespaces
 	nsA := filepath.Join(tmpDir, "alpha")
 	nsB := filepath.Join(tmpDir, "beta")
 	os.Mkdir(nsA, 0755)
@@ -90,15 +118,14 @@ Bar subclass: Object
   method: greet [ ^'hello from Bar' ]
 `)
 
-	methods, err := compilePath(tmpDir+"/...", vmInst, false)
+	methods, err := pipe.CompilePath(tmpDir + "/...")
 	if err != nil {
-		t.Fatalf("compilePath failed: %v", err)
+		t.Fatalf("CompilePath failed: %v", err)
 	}
 	if methods < 2 {
 		t.Errorf("expected at least 2 methods, got %d", methods)
 	}
 
-	// Both classes should exist with proper namespaces
 	foo := vmInst.Classes.LookupInNamespace("Alpha", "Foo")
 	if foo == nil {
 		t.Error("Alpha::Foo not found")
@@ -109,19 +136,16 @@ Bar subclass: Object
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Unresolved superclass produces clear error
-// ---------------------------------------------------------------------------
-
 func TestTwoPass_UnresolvedSuperclassError(t *testing.T) {
 	vmInst := newTestVM(t)
+	pipe := newPipeline(vmInst)
 	tmpDir := t.TempDir()
 
 	writeMagFile(t, tmpDir, "Orphan.mag", `Orphan subclass: NonExistentParent
   method: test [ ^1 ]
 `)
 
-	_, err := compilePath(tmpDir, vmInst, false)
+	_, err := pipe.CompilePath(tmpDir)
 	if err == nil {
 		t.Fatal("expected error for unresolved superclass, got nil")
 	}
@@ -135,15 +159,11 @@ func TestTwoPass_UnresolvedSuperclassError(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Trait forward reference: trait in File B, used by class in File A
-// ---------------------------------------------------------------------------
-
 func TestTwoPass_TraitForwardReference(t *testing.T) {
 	vmInst := newTestVM(t)
+	pipe := newPipeline(vmInst)
 	tmpDir := t.TempDir()
 
-	// A_User.mag includes Greetable trait, defined in B_Greetable.mag
 	writeMagFile(t, tmpDir, "A_User.mag", `User subclass: Object
   include: Greetable
 
@@ -154,15 +174,14 @@ func TestTwoPass_TraitForwardReference(t *testing.T) {
   method: greet [ ^'Hello!' ]
 `)
 
-	methods, err := compilePath(tmpDir, vmInst, false)
+	methods, err := pipe.CompilePath(tmpDir)
 	if err != nil {
-		t.Fatalf("compilePath failed: %v", err)
+		t.Fatalf("CompilePath failed: %v", err)
 	}
 	if methods == 0 {
 		t.Fatal("expected compiled methods")
 	}
 
-	// Verify User has the greet method from the trait
 	user := vmInst.LookupClass("User")
 	if user == nil {
 		t.Fatal("User class not found")
@@ -177,12 +196,9 @@ func TestTwoPass_TraitForwardReference(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Namespace isolation: state doesn't leak between files
-// ---------------------------------------------------------------------------
-
 func TestTwoPass_NamespaceIsolation(t *testing.T) {
 	vmInst := newTestVM(t)
+	pipe := newPipeline(vmInst)
 	tmpDir := t.TempDir()
 
 	nsA := filepath.Join(tmpDir, "alpha")
@@ -190,7 +206,6 @@ func TestTwoPass_NamespaceIsolation(t *testing.T) {
 	os.Mkdir(nsA, 0755)
 	os.Mkdir(nsB, 0755)
 
-	// Both namespaces define a class named "Widget"
 	writeMagFile(t, nsA, "Widget.mag", `Widget subclass: Object
   method: source [ ^'alpha' ]
 `)
@@ -199,12 +214,11 @@ func TestTwoPass_NamespaceIsolation(t *testing.T) {
   method: source [ ^'beta' ]
 `)
 
-	_, err := compilePath(tmpDir+"/...", vmInst, false)
+	_, err := pipe.CompilePath(tmpDir + "/...")
 	if err != nil {
-		t.Fatalf("compilePath failed: %v", err)
+		t.Fatalf("CompilePath failed: %v", err)
 	}
 
-	// Both namespaced Widgets should exist
 	alphaWidget := vmInst.Classes.LookupInNamespace("Alpha", "Widget")
 	if alphaWidget == nil {
 		t.Error("Alpha::Widget not found")
@@ -214,18 +228,14 @@ func TestTwoPass_NamespaceIsolation(t *testing.T) {
 		t.Error("Beta::Widget not found")
 	}
 
-	// They should be different classes
 	if alphaWidget == betaWidget {
 		t.Error("Alpha::Widget and Beta::Widget should be different class objects")
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Cross-file superclass with namespaces and imports
-// ---------------------------------------------------------------------------
-
 func TestTwoPass_CrossNamespaceSuperclass(t *testing.T) {
 	vmInst := newTestVM(t)
+	pipe := newPipeline(vmInst)
 	tmpDir := t.TempDir()
 
 	nsBase := filepath.Join(tmpDir, "base")
@@ -248,9 +258,9 @@ Button subclass: Component
   method: label [ ^label ]
 `)
 
-	methods, err := compilePath(tmpDir+"/...", vmInst, false)
+	methods, err := pipe.CompilePath(tmpDir + "/...")
 	if err != nil {
-		t.Fatalf("compilePath failed: %v", err)
+		t.Fatalf("CompilePath failed: %v", err)
 	}
 	if methods == 0 {
 		t.Fatal("expected compiled methods")
@@ -261,16 +271,11 @@ Button subclass: Component
 		t.Fatal("App::Button not found")
 	}
 
-	// Button should inherit Component's ivars
 	allIvars := button.AllInstVarNames()
 	if len(allIvars) != 2 {
 		t.Errorf("Button allIvars = %v, want [id label]", allIvars)
 	}
 }
-
-// ---------------------------------------------------------------------------
-// collectFiles returns parsed files without compilation
-// ---------------------------------------------------------------------------
 
 func TestCollectFiles_ReturnsWithoutCompiling(t *testing.T) {
 	tmpDir := t.TempDir()
@@ -282,41 +287,37 @@ func TestCollectFiles_ReturnsWithoutCompiling(t *testing.T) {
   method: test [ ^2 ]
 `)
 
-	files, err := collectFiles(tmpDir)
+	files, err := CollectFiles(tmpDir)
 	if err != nil {
-		t.Fatalf("collectFiles failed: %v", err)
+		t.Fatalf("CollectFiles failed: %v", err)
 	}
 
 	if len(files) != 2 {
 		t.Fatalf("expected 2 files, got %d", len(files))
 	}
 
-	// Verify parsed data is present
 	for _, pf := range files {
-		if pf.sf == nil {
+		if pf.SF == nil {
 			t.Error("parsed file has nil SourceFile")
 		}
-		if pf.path == "" {
+		if pf.Path == "" {
 			t.Error("parsed file has empty path")
 		}
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Existing compilePath API still works for single files
-// ---------------------------------------------------------------------------
-
 func TestTwoPass_SingleFileCompilePath(t *testing.T) {
 	vmInst := newTestVM(t)
+	pipe := newPipeline(vmInst)
 	tmpDir := t.TempDir()
 
 	p := writeMagFile(t, tmpDir, "Solo.mag", `Solo subclass: Object
   method: value [ ^42 ]
 `)
 
-	methods, err := compilePath(p, vmInst, false)
+	methods, err := pipe.CompilePath(p)
 	if err != nil {
-		t.Fatalf("compilePath single file failed: %v", err)
+		t.Fatalf("CompilePath single file failed: %v", err)
 	}
 	if methods != 1 {
 		t.Errorf("expected 1 method, got %d", methods)
@@ -329,11 +330,12 @@ func TestTwoPass_SingleFileCompilePath(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// FQN resolution: cross-namespace class reference in method body
+// FQN resolution tests
 // ---------------------------------------------------------------------------
 
 func TestFQN_CrossNamespaceClassReference(t *testing.T) {
 	vmInst := newTestVM(t)
+	pipe := newPipeline(vmInst)
 	tmpDir := t.TempDir()
 
 	nsWidgets := filepath.Join(tmpDir, "widgets")
@@ -354,19 +356,12 @@ Factory subclass: Object
   ]
 `)
 
-	_, err := compilePath(tmpDir+"/...", vmInst, false)
+	_, err := pipe.CompilePath(tmpDir + "/...")
 	if err != nil {
-		t.Fatalf("compilePath failed: %v", err)
-	}
-
-	// Execute App::Factory makeButton — should return a Widgets::Button instance
-	factoryClass := vmInst.Classes.LookupInNamespace("App", "Factory")
-	if factoryClass == nil {
-		t.Fatal("App::Factory not found")
+		t.Fatalf("CompilePath failed: %v", err)
 	}
 
 	result := vmInst.Send(vmInst.Symbols.SymbolValue("App::Factory"), "makeButton", nil)
-	// Send label to the result
 	labelResult := vmInst.Send(result, "label", nil)
 	if !vm.IsStringValue(labelResult) {
 		t.Fatalf("expected string result from label, got %v", labelResult)
@@ -377,12 +372,9 @@ Factory subclass: Object
 	}
 }
 
-// ---------------------------------------------------------------------------
-// FQN resolution: same-namespace class reference (no import needed)
-// ---------------------------------------------------------------------------
-
 func TestFQN_SameNamespaceClassReference(t *testing.T) {
 	vmInst := newTestVM(t)
+	pipe := newPipeline(vmInst)
 	tmpDir := t.TempDir()
 
 	nsModels := filepath.Join(tmpDir, "models")
@@ -398,12 +390,11 @@ func TestFQN_SameNamespaceClassReference(t *testing.T) {
   ]
 `)
 
-	_, err := compilePath(tmpDir+"/...", vmInst, false)
+	_, err := pipe.CompilePath(tmpDir + "/...")
 	if err != nil {
-		t.Fatalf("compilePath failed: %v", err)
+		t.Fatalf("CompilePath failed: %v", err)
 	}
 
-	// Derived create should return a Models::Base instance
 	result := vmInst.Send(vmInst.Symbols.SymbolValue("Models::Derived"), "create", nil)
 	kindResult := vmInst.Send(result, "kind", nil)
 	if !vm.IsStringValue(kindResult) {
@@ -415,23 +406,18 @@ func TestFQN_SameNamespaceClassReference(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// FQN resolution: bare name still works for root namespace classes
-// ---------------------------------------------------------------------------
-
 func TestFQN_BareNameRootNamespace(t *testing.T) {
 	vmInst := newTestVM(t)
+	pipe := newPipeline(vmInst)
 	tmpDir := t.TempDir()
 
 	nsApp := filepath.Join(tmpDir, "app")
 	os.Mkdir(nsApp, 0755)
 
-	// Root-level class (no namespace)
 	writeMagFile(t, tmpDir, "Helper.mag", `Helper subclass: Object
   method: help [ ^'helping' ]
 `)
 
-	// Namespaced class references the root-level Helper
 	writeMagFile(t, nsApp, "Worker.mag", `namespace: 'App'
 
 Worker subclass: Object
@@ -440,9 +426,9 @@ Worker subclass: Object
   ]
 `)
 
-	_, err := compilePath(tmpDir+"/...", vmInst, false)
+	_, err := pipe.CompilePath(tmpDir + "/...")
 	if err != nil {
-		t.Fatalf("compilePath failed: %v", err)
+		t.Fatalf("CompilePath failed: %v", err)
 	}
 
 	result := vmInst.Send(vmInst.Symbols.SymbolValue("App::Worker"), "getHelper", nil)
@@ -456,12 +442,9 @@ Worker subclass: Object
 	}
 }
 
-// ---------------------------------------------------------------------------
-// FQN resolution: assignment to namespaced global
-// ---------------------------------------------------------------------------
-
 func TestFQN_AssignmentResolvesNamespace(t *testing.T) {
 	vmInst := newTestVM(t)
+	pipe := newPipeline(vmInst)
 	tmpDir := t.TempDir()
 
 	nsWidgets := filepath.Join(tmpDir, "widgets")
@@ -484,9 +467,9 @@ Setup subclass: Object
   ]
 `)
 
-	_, err := compilePath(tmpDir+"/...", vmInst, false)
+	_, err := pipe.CompilePath(tmpDir + "/...")
 	if err != nil {
-		t.Fatalf("compilePath failed: %v", err)
+		t.Fatalf("CompilePath failed: %v", err)
 	}
 
 	result := vmInst.Send(vmInst.Symbols.SymbolValue("App::Setup"), "createConfig", nil)
@@ -500,12 +483,9 @@ Setup subclass: Object
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Trait with namespace gets Namespace field set
-// ---------------------------------------------------------------------------
-
 func TestTwoPass_TraitNamespace(t *testing.T) {
 	vmInst := newTestVM(t)
+	pipe := newPipeline(vmInst)
 	tmpDir := t.TempDir()
 
 	nsDir := filepath.Join(tmpDir, "mylib")
@@ -515,9 +495,9 @@ func TestTwoPass_TraitNamespace(t *testing.T) {
   method: printString [ ^'<printable>' ]
 `)
 
-	_, err := compilePath(tmpDir+"/...", vmInst, false)
+	_, err := pipe.CompilePath(tmpDir + "/...")
 	if err != nil {
-		t.Fatalf("compilePath failed: %v", err)
+		t.Fatalf("CompilePath failed: %v", err)
 	}
 
 	trait := vmInst.Traits.Lookup("Printable")
@@ -530,11 +510,12 @@ func TestTwoPass_TraitNamespace(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// No short-name Globals: namespaced classes register ONLY under FQN
+// No short-name Globals tests
 // ---------------------------------------------------------------------------
 
 func TestNoShortNameGlobals_NamespacedClassOnlyFQN(t *testing.T) {
 	vmInst := newTestVM(t)
+	pipe := newPipeline(vmInst)
 	tmpDir := t.TempDir()
 
 	nsA := filepath.Join(tmpDir, "alpha")
@@ -542,7 +523,6 @@ func TestNoShortNameGlobals_NamespacedClassOnlyFQN(t *testing.T) {
 	os.Mkdir(nsA, 0755)
 	os.Mkdir(nsB, 0755)
 
-	// Both namespaces define a class named "Widget"
 	writeMagFile(t, nsA, "Widget.mag", `Widget subclass: Object
   method: source [ ^'alpha' ]
 `)
@@ -551,12 +531,11 @@ func TestNoShortNameGlobals_NamespacedClassOnlyFQN(t *testing.T) {
   method: source [ ^'beta' ]
 `)
 
-	_, err := compilePath(tmpDir+"/...", vmInst, false)
+	_, err := pipe.CompilePath(tmpDir + "/...")
 	if err != nil {
-		t.Fatalf("compilePath failed: %v", err)
+		t.Fatalf("CompilePath failed: %v", err)
 	}
 
-	// Both FQN entries should exist in Globals
 	alphaFQN := "Alpha::Widget"
 	betaFQN := "Beta::Widget"
 
@@ -569,47 +548,37 @@ func TestNoShortNameGlobals_NamespacedClassOnlyFQN(t *testing.T) {
 		t.Errorf("Globals[%q] not found", betaFQN)
 	}
 
-	// The two class values must be distinct
 	if alphaOK && betaOK && alphaVal == betaVal {
 		t.Error("Alpha::Widget and Beta::Widget should be different class values in Globals")
 	}
 
-	// Bare name "Widget" must NOT be in Globals (no short-name registration)
 	if _, bareOK := vmInst.Globals["Widget"]; bareOK {
 		t.Error("Globals[\"Widget\"] should not exist — namespaced classes must only register under FQN")
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Root-namespace classes still register under bare name in Globals
-// ---------------------------------------------------------------------------
-
 func TestNoShortNameGlobals_RootClassBareNameInGlobals(t *testing.T) {
 	vmInst := newTestVM(t)
+	pipe := newPipeline(vmInst)
 	tmpDir := t.TempDir()
 
-	// Root-level class (no namespace derived because it's directly in tmpDir)
 	writeMagFile(t, tmpDir, "Helper.mag", `Helper subclass: Object
   method: help [ ^'helping' ]
 `)
 
-	_, err := compilePath(tmpDir, vmInst, false)
+	_, err := pipe.CompilePath(tmpDir)
 	if err != nil {
-		t.Fatalf("compilePath failed: %v", err)
+		t.Fatalf("CompilePath failed: %v", err)
 	}
 
-	// Bare name should be in Globals (root namespace class)
 	if _, ok := vmInst.Globals["Helper"]; !ok {
 		t.Error("Globals[\"Helper\"] should exist for root-namespace class")
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Cross-namespace method body reference works via import + FQN Globals
-// ---------------------------------------------------------------------------
-
 func TestNoShortNameGlobals_CrossNamespaceMethodRef(t *testing.T) {
 	vmInst := newTestVM(t)
+	pipe := newPipeline(vmInst)
 	tmpDir := t.TempDir()
 
 	nsLib := filepath.Join(tmpDir, "lib")
@@ -621,7 +590,6 @@ func TestNoShortNameGlobals_CrossNamespaceMethodRef(t *testing.T) {
   method: greet [ ^'hello' ]
 `)
 
-	// App::Factory imports Lib so "Greeter" resolves to "Lib::Greeter" at compile time
 	writeMagFile(t, nsApp, "Factory.mag", `namespace: 'App'
 import: 'Lib'
 
@@ -631,12 +599,11 @@ Factory subclass: Object
   ]
 `)
 
-	_, err := compilePath(tmpDir+"/...", vmInst, false)
+	_, err := pipe.CompilePath(tmpDir + "/...")
 	if err != nil {
-		t.Fatalf("compilePath failed: %v", err)
+		t.Fatalf("CompilePath failed: %v", err)
 	}
 
-	// Execute App::Factory makeGreeter and verify it returns a Lib::Greeter
 	result := vmInst.Send(vmInst.Symbols.SymbolValue("App::Factory"), "makeGreeter", nil)
 	greetResult := vmInst.Send(result, "greet", nil)
 	if !vm.IsStringValue(greetResult) {
@@ -647,22 +614,17 @@ Factory subclass: Object
 		t.Errorf("greet = %q, want %q", got, "hello")
 	}
 
-	// Bare "Greeter" should NOT be in Globals
 	if _, ok := vmInst.Globals["Greeter"]; ok {
 		t.Error("Globals[\"Greeter\"] should not exist — Greeter has namespace Lib")
 	}
-	// FQN should be in Globals
 	if _, ok := vmInst.Globals["Lib::Greeter"]; !ok {
 		t.Error("Globals[\"Lib::Greeter\"] should exist")
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Explicit FQN syntax in method body: Widgets::Button new
-// ---------------------------------------------------------------------------
-
 func TestFQN_ExplicitFQNInMethodBody(t *testing.T) {
 	vmInst := newTestVM(t)
+	pipe := newPipeline(vmInst)
 	tmpDir := t.TempDir()
 
 	nsWidgets := filepath.Join(tmpDir, "widgets")
@@ -674,8 +636,6 @@ func TestFQN_ExplicitFQNInMethodBody(t *testing.T) {
   method: label [ ^'OK' ]
 `)
 
-	// App::Factory uses explicit FQN syntax Widgets::Button in method body
-	// (no import needed when using explicit FQN)
 	writeMagFile(t, nsApp, "Factory.mag", `namespace: 'App'
 
 Factory subclass: Object
@@ -684,12 +644,11 @@ Factory subclass: Object
   ]
 `)
 
-	_, err := compilePath(tmpDir+"/...", vmInst, false)
+	_, err := pipe.CompilePath(tmpDir + "/...")
 	if err != nil {
-		t.Fatalf("compilePath failed: %v", err)
+		t.Fatalf("CompilePath failed: %v", err)
 	}
 
-	// Execute App::Factory makeButton — should return a Widgets::Button instance
 	result := vmInst.Send(vmInst.Symbols.SymbolValue("App::Factory"), "makeButton", nil)
 	labelResult := vmInst.Send(result, "label", nil)
 	if !vm.IsStringValue(labelResult) {
@@ -701,15 +660,11 @@ Factory subclass: Object
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Explicit FQN syntax with multi-level namespace: A::B::C
-// ---------------------------------------------------------------------------
-
 func TestFQN_ExplicitMultiLevelFQN(t *testing.T) {
 	vmInst := newTestVM(t)
+	pipe := newPipeline(vmInst)
 	tmpDir := t.TempDir()
 
-	// Create nested namespace: ui/widgets/
 	nsUI := filepath.Join(tmpDir, "ui")
 	nsWidgets := filepath.Join(nsUI, "widgets")
 	nsApp := filepath.Join(tmpDir, "app")
@@ -721,7 +676,6 @@ func TestFQN_ExplicitMultiLevelFQN(t *testing.T) {
   method: kind [ ^'slider' ]
 `)
 
-	// App::Factory uses explicit multi-level FQN: Ui::Widgets::Slider
 	writeMagFile(t, nsApp, "Factory.mag", `namespace: 'App'
 
 Factory subclass: Object
@@ -730,9 +684,9 @@ Factory subclass: Object
   ]
 `)
 
-	_, err := compilePath(tmpDir+"/...", vmInst, false)
+	_, err := pipe.CompilePath(tmpDir + "/...")
 	if err != nil {
-		t.Fatalf("compilePath failed: %v", err)
+		t.Fatalf("CompilePath failed: %v", err)
 	}
 
 	result := vmInst.Send(vmInst.Symbols.SymbolValue("App::Factory"), "makeSlider", nil)
@@ -743,5 +697,96 @@ Factory subclass: Object
 	got := vmInst.Registry().GetStringContent(kindResult)
 	if got != "slider" {
 		t.Errorf("kind = %q, want %q", got, "slider")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// ContentStore tests
+// ---------------------------------------------------------------------------
+
+func TestCompileAll_PopulatesContentStore(t *testing.T) {
+	vmInst := newTestVM(t)
+	pipe := newPipeline(vmInst)
+	tmpDir := t.TempDir()
+
+	writeMagFile(t, tmpDir, "Greeter.mag", `Greeter subclass: Object
+  instanceVars: name
+
+  method: name [ ^name ]
+  method: greet [ ^'Hello, ', name ]
+
+  classMethod: hello [ ^'Hello' ]
+`)
+
+	methods, err := pipe.CompilePath(tmpDir)
+	if err != nil {
+		t.Fatalf("CompilePath failed: %v", err)
+	}
+	if methods == 0 {
+		t.Fatal("expected compiled methods")
+	}
+
+	store := vmInst.ContentStore()
+
+	if store.MethodCount() == 0 {
+		t.Error("ContentStore has no methods after compilation")
+	}
+	if store.ClassCount() == 0 {
+		t.Error("ContentStore has no class digests after compilation")
+	}
+
+	classHashes := store.ClassHashes()
+	found := false
+	for _, h := range classHashes {
+		d := store.LookupClass(h)
+		if d != nil && d.Name == "Greeter" {
+			found = true
+			if len(d.MethodHashes) == 0 {
+				t.Error("Greeter class digest has no method hashes")
+			}
+			break
+		}
+	}
+	if !found {
+		t.Error("Greeter class digest not found in ContentStore")
+	}
+
+	allHashes := store.AllHashes()
+	if len(allHashes) < methods+1 {
+		t.Errorf("AllHashes: got %d, want at least %d (methods=%d + classes)", len(allHashes), methods+1, methods)
+	}
+}
+
+func TestCompileAll_ContentStore_MultipleClasses(t *testing.T) {
+	vmInst := newTestVM(t)
+	pipe := newPipeline(vmInst)
+	tmpDir := t.TempDir()
+
+	writeMagFile(t, tmpDir, "Animal.mag", `Animal subclass: Object
+  instanceVars: name
+
+  method: name [ ^name ]
+`)
+
+	writeMagFile(t, tmpDir, "Dog.mag", `Dog subclass: Animal
+  instanceVars: breed
+
+  method: breed [ ^breed ]
+  method: speak [ ^'Woof!' ]
+`)
+
+	_, err := pipe.CompilePath(tmpDir + "/...")
+	if err != nil {
+		t.Fatalf("CompilePath failed: %v", err)
+	}
+
+	store := vmInst.ContentStore()
+
+	if store.ClassCount() < 2 {
+		t.Errorf("ClassCount: got %d, want at least 2", store.ClassCount())
+	}
+
+	if store.MethodCount() < 3 {
+		t.Errorf("MethodCount: got %d, want at least 3", store.MethodCount())
 	}
 }

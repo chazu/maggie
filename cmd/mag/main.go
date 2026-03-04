@@ -6,14 +6,15 @@ import (
 	_ "embed"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 
 	"github.com/chazu/maggie/compiler"
 	"github.com/chazu/maggie/compiler/hash"
 	"github.com/chazu/maggie/manifest"
+	"github.com/chazu/maggie/pipeline"
 	"github.com/chazu/maggie/server"
 	"github.com/chazu/maggie/vm"
 	"github.com/chazu/maggie/vm/dist"
@@ -157,14 +158,29 @@ func main() {
 		}
 	}
 
+	// Set up pipeline for compilation
+	var verboseWriter io.Writer
+	if *verbose {
+		verboseWriter = os.Stdout
+	}
+	pipe := &pipeline.Pipeline{VM: vmInst, Verbose: verboseWriter}
+
 	// Wire up fileIn support so Compiler fileIn: primitives work
 	vmInst.SetFileInFunc(func(v *vm.VM, source string, sourcePath string, nsOverride string, verbose bool) (int, error) {
-		return compileSourceFile(v, source, sourcePath, nsOverride, verbose)
+		p := &pipeline.Pipeline{VM: v}
+		if verbose {
+			p.Verbose = os.Stdout
+		}
+		return p.CompileSourceFile(source, sourcePath, nsOverride)
 	})
 
 	// Wire up batch fileIn for two-pass directory loading (Compiler fileInAll:)
 	vmInst.SetFileInBatchFunc(func(v *vm.VM, dirPath string, verbose bool) (int, error) {
-		return compilePath(dirPath+"/...", v, verbose)
+		p := &pipeline.Pipeline{VM: v}
+		if verbose {
+			p.Verbose = os.Stdout
+		}
+		return p.CompilePath(dirPath + "/...")
 	})
 
 	if *verbose {
@@ -196,7 +212,7 @@ func main() {
 	if len(paths) > 0 {
 		totalMethods := 0
 		for _, path := range paths {
-			methods, err := compilePath(path, vmInst, *verbose)
+			methods, err := pipe.CompilePath(path)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 				os.Exit(1)
@@ -210,7 +226,7 @@ func main() {
 		// No paths but doc/doctest/main/save-image requested: try loading from maggie.toml
 		if m, _ := manifest.FindAndLoad("."); m != nil {
 			loadedManifest = m
-			methods, err := loadProject(vmInst, m, *verbose)
+			methods, err := pipe.LoadProject(m)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "Error loading project: %v\n", err)
 				os.Exit(1)
@@ -346,7 +362,11 @@ func loadRC(vmInst *vm.VM, verbose bool) error {
 		fmt.Printf("Loading %s\n", rcPath)
 	}
 
-	_, err = compileFile(rcPath, vmInst, verbose)
+	p := &pipeline.Pipeline{VM: vmInst}
+	if verbose {
+		p.Verbose = os.Stdout
+	}
+	_, err = p.CompileFile(rcPath)
 	return err
 }
 
@@ -646,416 +666,6 @@ func printValue(vmInst *vm.VM, v vm.Value) {
 	}
 }
 
-// parsedFile holds a parsed source file along with its resolved metadata.
-type parsedFile struct {
-	sf        *compiler.SourceFile
-	namespace string   // effective namespace (override or declared)
-	imports   []string // import paths
-	path      string   // source file path
-	basePath  string   // for error messages
-}
-
-// collectFiles resolves a path (file, directory, or .../...) into parsed files.
-// It reads, parses, and derives namespaces but does NOT compile anything.
-func collectFiles(path string) ([]parsedFile, error) {
-	// Check for recursive pattern
-	recursive := false
-	if strings.HasSuffix(path, "/...") {
-		recursive = true
-		path = strings.TrimSuffix(path, "/...")
-	}
-
-	// Resolve path
-	path, err := filepath.Abs(path)
-	if err != nil {
-		return nil, fmt.Errorf("invalid path %q: %w", path, err)
-	}
-
-	info, err := os.Stat(path)
-	if err != nil {
-		return nil, fmt.Errorf("cannot access %q: %w", path, err)
-	}
-
-	// basePath is the root from which namespaces are derived
-	basePath := path
-
-	var filePaths []string
-	if info.IsDir() {
-		if recursive {
-			err = filepath.Walk(path, func(p string, info os.FileInfo, err error) error {
-				if err != nil {
-					return err
-				}
-				if !info.IsDir() && strings.HasSuffix(p, ".mag") {
-					filePaths = append(filePaths, p)
-				}
-				return nil
-			})
-			if err != nil {
-				return nil, fmt.Errorf("walking %q: %w", path, err)
-			}
-		} else {
-			entries, err := os.ReadDir(path)
-			if err != nil {
-				return nil, fmt.Errorf("reading %q: %w", path, err)
-			}
-			for _, e := range entries {
-				if !e.IsDir() && strings.HasSuffix(e.Name(), ".mag") {
-					filePaths = append(filePaths, filepath.Join(path, e.Name()))
-				}
-			}
-		}
-	} else {
-		basePath = ""
-		if strings.HasSuffix(path, ".mag") {
-			filePaths = append(filePaths, path)
-		} else {
-			return nil, fmt.Errorf("%q is not a .mag file", path)
-		}
-	}
-
-	var result []parsedFile
-	for _, fp := range filePaths {
-		content, err := os.ReadFile(fp)
-		if err != nil {
-			return nil, fmt.Errorf("reading %q: %w", fp, err)
-		}
-
-		sf, err := compiler.ParseSourceFileFromString(string(content))
-		if err != nil {
-			return nil, fmt.Errorf("parse error in %s: %v", fp, err)
-		}
-
-		// Derive namespace: file declaration > directory derivation
-		namespace := ""
-		if sf.Namespace != nil {
-			namespace = sf.Namespace.Name
-		} else if basePath != "" {
-			namespace = deriveNamespace(fp, basePath)
-		}
-
-		// Collect import paths
-		var imports []string
-		for _, imp := range sf.Imports {
-			imports = append(imports, imp.Path)
-		}
-
-		result = append(result, parsedFile{
-			sf:        sf,
-			namespace: namespace,
-			imports:   imports,
-			path:      fp,
-			basePath:  basePath,
-		})
-	}
-
-	return result, nil
-}
-
-// compileAll implements two-pass compilation over a set of parsed files.
-//
-// Pass 1a: Register class and trait skeletons (names only, ObjectClass as temporary superclass).
-// Pass 1b: Resolve actual superclass pointers using import resolution.
-// Pass 2:  Compile trait methods, class methods (instance + class), and apply trait inclusions.
-func compileAll(files []parsedFile, vmInst *vm.VM, verbose bool) (int, error) {
-	// Track classes created in this batch so we can fix up superclasses in pass 1b.
-	type classEntry struct {
-		class    *vm.Class
-		classDef *compiler.ClassDef
-		pf       *parsedFile
-	}
-	var classEntries []classEntry
-
-	// ---------------------------------------------------------------
-	// Pass 1a — Register class and trait skeletons
-	// ---------------------------------------------------------------
-	for i := range files {
-		pf := &files[i]
-
-		// Register trait skeletons
-		for _, traitDef := range pf.sf.Traits {
-			trait := vm.NewTrait(traitDef.Name)
-			if pf.namespace != "" {
-				trait.Namespace = pf.namespace
-			}
-			if traitDef.DocString != "" {
-				trait.DocString = traitDef.DocString
-			}
-			vmInst.Traits.Register(trait)
-
-			if verbose {
-				if pf.namespace != "" {
-					fmt.Printf("  Registered trait %s::%s\n", pf.namespace, traitDef.Name)
-				} else {
-					fmt.Printf("  Registered trait %s\n", traitDef.Name)
-				}
-			}
-		}
-
-		// Register class skeletons
-		for _, classDef := range pf.sf.Classes {
-			// Check if the class already exists (e.g., extending a core class from the image)
-			var class *vm.Class
-			if pf.namespace != "" {
-				class = vmInst.Classes.LookupInNamespace(pf.namespace, classDef.Name)
-			}
-			if class == nil {
-				class = vmInst.Classes.Lookup(classDef.Name)
-			}
-
-			if class == nil {
-				// Create with ObjectClass as temporary superclass — resolved in pass 1b
-				class = vm.NewClassWithInstVars(classDef.Name, vmInst.ObjectClass, classDef.InstanceVariables)
-
-				if pf.namespace != "" {
-					class.Namespace = pf.namespace
-				}
-				if classDef.DocString != "" {
-					class.DocString = classDef.DocString
-				}
-
-				vmInst.Classes.Register(class)
-
-				// Register as first-class class value in Globals.
-				// Namespaced classes are registered ONLY under the FQN to avoid
-				// silent last-loaded-wins collisions when two namespaces define the
-				// same bare class name.  Root-namespace classes (no namespace) are
-				// registered under the bare name, which IS their FQN.
-				classVal := vmInst.ClassValue(class)
-				if pf.namespace != "" {
-					fullName := pf.namespace + "::" + classDef.Name
-					vmInst.Globals[fullName] = classVal
-				} else {
-					vmInst.Globals[classDef.Name] = classVal
-				}
-
-				if verbose {
-					if pf.namespace != "" {
-						fmt.Printf("  Created class %s::%s (skeleton)\n", pf.namespace, classDef.Name)
-					} else {
-						fmt.Printf("  Created class %s (skeleton)\n", classDef.Name)
-					}
-				}
-
-				// Track for superclass resolution in pass 1b
-				classEntries = append(classEntries, classEntry{class: class, classDef: classDef, pf: pf})
-			} else {
-				// Class already exists (extending core class) — still track for method compilation
-				classEntries = append(classEntries, classEntry{class: class, classDef: classDef, pf: pf})
-			}
-		}
-	}
-
-	// ---------------------------------------------------------------
-	// Pass 1b — Resolve superclass pointers
-	// ---------------------------------------------------------------
-	for _, ce := range classEntries {
-		if ce.classDef.Superclass == "" || ce.classDef.Superclass == "Object" {
-			// Already correctly set to ObjectClass from pass 1a
-			continue
-		}
-
-		// Check if the current superclass is already correct (for pre-existing classes)
-		if ce.class.Superclass != nil && ce.class.Superclass != vmInst.ObjectClass {
-			continue
-		}
-
-		resolved := vmInst.Classes.LookupWithImports(ce.classDef.Superclass, ce.pf.namespace, ce.pf.imports)
-		if resolved == nil {
-			return 0, fmt.Errorf("class %s: superclass %s not found\n  declared in: %s\n  namespace: %s\n  imports searched: %v",
-				ce.classDef.Name, ce.classDef.Superclass, ce.pf.path, ce.pf.namespace, ce.pf.imports)
-		}
-
-		// Update superclass and recalculate slot layout
-		ce.class.Superclass = resolved
-		ce.class.VTable.SetParent(resolved.VTable)
-		ce.class.ClassVTable.SetParent(resolved.ClassVTable)
-		ce.class.NumSlots = len(ce.class.AllInstVarNames())
-
-		if verbose {
-			fmt.Printf("  Resolved %s superclass -> %s\n", ce.classDef.Name, resolved.FullName())
-		}
-	}
-
-	// ---------------------------------------------------------------
-	// Pass 2 — Compile trait methods and class methods
-	// ---------------------------------------------------------------
-	compiled := 0
-
-	for i := range files {
-		pf := &files[i]
-
-		// Compile trait methods
-		for _, traitDef := range pf.sf.Traits {
-			trait := vmInst.Traits.Lookup(traitDef.Name)
-			if trait == nil {
-				return compiled, fmt.Errorf("internal error: trait %s not found after registration", traitDef.Name)
-			}
-
-			for _, methodDef := range traitDef.Methods {
-				method, err := compiler.CompileMethodDefWithContext(methodDef, vmInst.Selectors, vmInst.Symbols, vmInst.Registry(), nil, pf.namespace, pf.imports, vmInst.Classes)
-				if err != nil {
-					return compiled, fmt.Errorf("error compiling trait %s>>%s in %s: %v", traitDef.Name, methodDef.Selector, pf.path, err)
-				}
-
-				if methodDef.SourceText != "" {
-					method.Source = methodDef.SourceText
-				}
-				if methodDef.DocString != "" {
-					method.SetDocString(methodDef.DocString)
-				}
-
-				hashAndSetMethod(methodDef, method, nil, pf, vmInst)
-
-				selectorID := vmInst.Selectors.Intern(method.Name())
-				trait.AddMethod(selectorID, method)
-				compiled++
-			}
-
-			// Add required method selectors
-			for _, reqSelector := range traitDef.Requires {
-				selectorID := vmInst.Selectors.Intern(reqSelector)
-				trait.AddRequires(selectorID)
-			}
-
-			if verbose {
-				fmt.Printf("  trait %s: %d methods\n", traitDef.Name, len(traitDef.Methods))
-			}
-		}
-	}
-
-	// Compile class methods (separate loop so all traits are fully compiled first)
-	for _, ce := range classEntries {
-		class := ce.class
-		classDef := ce.classDef
-		pf := ce.pf
-
-		// Compile instance methods
-		allIvars := class.AllInstVarNames()
-		for _, methodDef := range classDef.Methods {
-			// Handle <primitive> stubs
-			if methodDef.IsPrimitiveStub {
-				if methodDef.DocString != "" {
-					selectorID := vmInst.Selectors.Lookup(methodDef.Selector)
-					if selectorID >= 0 {
-						existing := class.VTable.Lookup(selectorID)
-						if existing != nil {
-							if ds, ok := existing.(vm.DocStringable); ok {
-								ds.SetDocString(methodDef.DocString)
-							}
-						}
-					}
-				}
-				continue
-			}
-
-			method, err := compiler.CompileMethodDefWithContext(methodDef, vmInst.Selectors, vmInst.Symbols, vmInst.Registry(), allIvars, pf.namespace, pf.imports, vmInst.Classes)
-			if err != nil {
-				return compiled, fmt.Errorf("error compiling %s>>%s: %v", classDef.Name, methodDef.Selector, err)
-			}
-
-			if methodDef.SourceText != "" {
-				method.Source = methodDef.SourceText
-			}
-			if methodDef.DocString != "" {
-				method.SetDocString(methodDef.DocString)
-			}
-
-			// Compute content hash with instance variable context
-			instVarMap := make(map[string]int, len(allIvars))
-			for idx, name := range allIvars {
-				instVarMap[name] = idx
-			}
-			hashAndSetMethod(methodDef, method, instVarMap, pf, vmInst)
-
-			method.SetClass(class)
-			selectorID := vmInst.Selectors.Intern(method.Name())
-			class.VTable.AddMethod(selectorID, method)
-			compiled++
-		}
-
-		// Compile class methods
-		for _, methodDef := range classDef.ClassMethods {
-			if methodDef.IsPrimitiveStub {
-				if methodDef.DocString != "" {
-					selectorID := vmInst.Selectors.Lookup(methodDef.Selector)
-					if selectorID >= 0 {
-						existing := class.ClassVTable.Lookup(selectorID)
-						if existing != nil {
-							if ds, ok := existing.(vm.DocStringable); ok {
-								ds.SetDocString(methodDef.DocString)
-							}
-						}
-					}
-				}
-				continue
-			}
-
-			method, err := compiler.CompileMethodDefWithContext(methodDef, vmInst.Selectors, vmInst.Symbols, vmInst.Registry(), nil, pf.namespace, pf.imports, vmInst.Classes)
-			if err != nil {
-				return compiled, fmt.Errorf("error compiling %s class>>%s: %v", classDef.Name, methodDef.Selector, err)
-			}
-
-			if methodDef.SourceText != "" {
-				method.Source = methodDef.SourceText
-			}
-			if methodDef.DocString != "" {
-				method.SetDocString(methodDef.DocString)
-			}
-
-			hashAndSetMethod(methodDef, method, nil, pf, vmInst)
-
-			method.SetClass(class)
-			method.IsClassMethod = true
-			selectorID := vmInst.Selectors.Intern(method.Name())
-			class.ClassVTable.AddMethod(selectorID, method)
-			compiled++
-		}
-
-		// Apply trait inclusions
-		for _, traitName := range classDef.Traits {
-			errMsg := class.IncludeTraitByName(traitName, vmInst.Traits, vmInst.Selectors)
-			if errMsg != "" {
-				return compiled, fmt.Errorf("error including trait %s in %s (%s): %s", traitName, classDef.Name, pf.path, errMsg)
-			}
-			if verbose {
-				trait := vmInst.Traits.Lookup(traitName)
-				if trait != nil {
-					fmt.Printf("    included trait %s (%d methods)\n", traitName, trait.MethodCount())
-				}
-			}
-		}
-
-		if verbose && len(classDef.Methods)+len(classDef.ClassMethods) > 0 {
-			fmt.Printf("  %s: %d methods\n", classDef.Name, len(classDef.Methods)+len(classDef.ClassMethods))
-		}
-	}
-
-	// ---------------------------------------------------------------
-	// Populate ContentStore — index all compiled methods & class digests
-	// ---------------------------------------------------------------
-	store := vmInst.ContentStore()
-	for _, ce := range classEntries {
-		if ce.class.VTable != nil {
-			for _, m := range ce.class.VTable.LocalMethods() {
-				if cm, ok := m.(*vm.CompiledMethod); ok {
-					store.IndexMethod(cm)
-				}
-			}
-		}
-		if ce.class.ClassVTable != nil {
-			for _, m := range ce.class.ClassVTable.LocalMethods() {
-				if cm, ok := m.(*vm.CompiledMethod); ok {
-					store.IndexMethod(cm)
-				}
-			}
-		}
-		digest := vm.DigestClass(ce.class)
-		store.IndexClass(digest)
-	}
-
-	return compiled, nil
-}
 
 // buildCompileFunc creates a compile function suitable for the sync service's
 // method chunk verification. It parses source text into an AST, compiles it
@@ -1072,106 +682,6 @@ func buildCompileFunc(vmInst *vm.VM) func(string) ([32]byte, error) {
 	}
 }
 
-// resolveGlobalForHash resolves a bare name to its FQN for content hashing.
-// This mirrors the compiler's resolveGlobalName logic.
-func resolveGlobalForHash(name, namespace string, imports []string, classes *vm.ClassTable) string {
-	if classes == nil {
-		return name
-	}
-	cls := classes.LookupWithImports(name, namespace, imports)
-	if cls != nil && cls.Namespace != "" {
-		return cls.Namespace + "::" + cls.Name
-	}
-	return name
-}
-
-// hashAndSetMethod computes and sets the content hash on a compiled method.
-func hashAndSetMethod(methodDef *compiler.MethodDef, method *vm.CompiledMethod, instVars map[string]int, pf *parsedFile, vmInst *vm.VM) {
-	h := hash.HashMethod(methodDef, instVars, func(name string) string {
-		return resolveGlobalForHash(name, pf.namespace, pf.imports, vmInst.Classes)
-	})
-	method.SetContentHash(h)
-}
-
-// compilePath compiles .mag files from a path into the VM.
-// Supports ./... syntax for recursive loading.
-// When loading from directories, namespace is derived from directory structure.
-func compilePath(path string, vmInst *vm.VM, verbose bool) (int, error) {
-	files, err := collectFiles(path)
-	if err != nil {
-		return 0, err
-	}
-	return compileAll(files, vmInst, verbose)
-}
-
-// deriveNamespace computes a namespace from a file's relative directory path.
-// Given filePath="/app/src/myapp/models/User.mag" and basePath="/app/src",
-// returns "Myapp::Models".
-// Returns empty string for files at the root level (no subdirectory).
-func deriveNamespace(filePath, basePath string) string {
-	rel, err := filepath.Rel(basePath, filepath.Dir(filePath))
-	if err != nil || rel == "." {
-		return ""
-	}
-
-	segments := strings.Split(rel, string(filepath.Separator))
-	var nsSegments []string
-	for _, seg := range segments {
-		if seg == "" || seg == "." {
-			continue
-		}
-		nsSegments = append(nsSegments, manifest.ToPascalCase(seg))
-	}
-
-	if len(nsSegments) == 0 {
-		return ""
-	}
-
-	return strings.Join(nsSegments, "::")
-}
-
-// compileFile compiles a single .mag file into the VM using Trashtalk syntax.
-func compileFile(path string, vmInst *vm.VM, verbose bool) (int, error) {
-	content, err := os.ReadFile(path)
-	if err != nil {
-		return 0, err
-	}
-
-	return compileSourceFile(vmInst, string(content), path, "", verbose)
-}
-
-// compileSourceFile compiles source text into the VM.
-// namespace is an optional override (from directory convention or explicit); if empty,
-// the file's own namespace: declaration is used.
-// This is the shared compilation function used by compileFile, fileIn, and loadProject.
-// It wraps a single source text into the two-pass pipeline.
-func compileSourceFile(vmInst *vm.VM, source string, sourcePath string, nsOverride string, verbose bool) (int, error) {
-	sf, err := compiler.ParseSourceFileFromString(source)
-	if err != nil {
-		return 0, fmt.Errorf("parse error in %s: %v", sourcePath, err)
-	}
-
-	// Determine the effective namespace
-	namespace := nsOverride
-	if namespace == "" && sf.Namespace != nil {
-		namespace = sf.Namespace.Name
-	}
-
-	// Collect import paths
-	var imports []string
-	for _, imp := range sf.Imports {
-		imports = append(imports, imp.Path)
-	}
-
-	pf := parsedFile{
-		sf:        sf,
-		namespace: namespace,
-		imports:   imports,
-		path:      sourcePath,
-	}
-
-	return compileAll([]parsedFile{pf}, vmInst, verbose)
-}
 
 // runYutaniIDE loads the Yutani library and starts the IDE
 func runYutaniIDE(vmInst *vm.VM, addr string, tool string, verbose bool) error {
@@ -1186,7 +696,11 @@ func runYutaniIDE(vmInst *vm.VM, addr string, tool string, verbose bool) error {
 	}
 
 	// Load all yutani .mag files recursively
-	_, err = compilePath(yutaniPath+"/...", vmInst, verbose)
+	p := &pipeline.Pipeline{VM: vmInst}
+	if verbose {
+		p.Verbose = os.Stdout
+	}
+	_, err = p.CompilePath(yutaniPath + "/...")
 	if err != nil {
 		return fmt.Errorf("loading Yutani library: %w", err)
 	}
@@ -1275,178 +789,6 @@ func findYutaniLib() (string, error) {
 	return "", fmt.Errorf("Yutani library not found. Set MAGGIE_HOME or run from project root")
 }
 
-// checkNamespaceCollisions checks that no two dependencies resolve to the same namespace.
-// Reports all collisions at once with a suggested fix.
-func checkNamespaceCollisions(deps []manifest.ResolvedDep) error {
-	// Map namespace -> list of dep names
-	nsMap := make(map[string][]string)
-	for _, dep := range deps {
-		nsMap[dep.Namespace] = append(nsMap[dep.Namespace], dep.Name)
-	}
-
-	// Collect collisions (sorted for deterministic output)
-	var collisions []string
-	for ns, names := range nsMap {
-		if len(names) > 1 {
-			sort.Strings(names)
-			collisions = append(collisions, fmt.Sprintf("  namespace %q: [%s]", ns, strings.Join(names, ", ")))
-		}
-	}
-
-	if len(collisions) == 0 {
-		return nil
-	}
-
-	sort.Strings(collisions)
-	return fmt.Errorf("dependency namespace collision(s):\n%s\n\nFix by adding explicit namespace overrides in [dependencies]",
-		strings.Join(collisions, "\n"))
-}
-
-// prefixDepNamespaces prefixes all file namespaces with the dependency's resolved namespace.
-// Root-level files (no directory-derived namespace) get dep.Namespace only.
-// Subdir files get dep.Namespace + "::" + existing namespace.
-func prefixDepNamespaces(files []parsedFile, dep manifest.ResolvedDep, verbose bool) {
-	if dep.Namespace == "" {
-		return
-	}
-
-	// Determine the dep's "original" namespace (from its own manifest).
-	// This is used for import remapping when consumer overrides differ.
-	var originalNS string
-	if dep.Manifest != nil && dep.Manifest.Project.Namespace != "" {
-		originalNS = dep.Manifest.Project.Namespace
-	}
-
-	// Check if import remapping is needed
-	needsRemap := originalNS != "" && originalNS != dep.Namespace
-
-	for i := range files {
-		if files[i].namespace == "" {
-			files[i].namespace = dep.Namespace
-		} else {
-			files[i].namespace = dep.Namespace + "::" + files[i].namespace
-		}
-
-		// Remap imports if consumer override differs from original namespace
-		if needsRemap {
-			for j, imp := range files[i].imports {
-				remapped := remapImport(imp, originalNS, dep.Namespace)
-				if remapped != imp {
-					if verbose {
-						fmt.Printf("  Remapped import %q -> %q in %s\n", imp, remapped, files[i].path)
-					}
-					files[i].imports[j] = remapped
-				}
-			}
-		}
-	}
-}
-
-// remapImport replaces an import's oldPrefix with newPrefix.
-// "Yutani" with old="Yutani" new="ThirdParty::Yutani" -> "ThirdParty::Yutani"
-// "Yutani::Events" with old="Yutani" new="ThirdParty::Yutani" -> "ThirdParty::Yutani::Events"
-// "OtherDep" (no match) -> "OtherDep" (unchanged)
-func remapImport(imp, oldPrefix, newPrefix string) string {
-	if imp == oldPrefix {
-		return newPrefix
-	}
-	if strings.HasPrefix(imp, oldPrefix+"::") {
-		return newPrefix + imp[len(oldPrefix):]
-	}
-	return imp
-}
-
-// loadProject resolves dependencies and loads source directories from a project manifest.
-// Collects all files from all deps + project sources, then compiles in one two-pass batch.
-// Returns total method count.
-func loadProject(vmInst *vm.VM, m *manifest.Manifest, verbose bool) (int, error) {
-	var allFiles []parsedFile
-
-	// Collect files from dependencies
-	if len(m.Dependencies) > 0 {
-		resolver := manifest.NewResolver(m, verbose)
-		deps, err := resolver.Resolve()
-		if err != nil {
-			return 0, fmt.Errorf("dependency resolution failed: %w", err)
-		}
-
-		if err := checkNamespaceCollisions(deps); err != nil {
-			return 0, err
-		}
-
-		for _, dep := range deps {
-			var depFiles []parsedFile
-			if dep.Manifest != nil {
-				for _, srcDir := range dep.Manifest.SourceDirPaths() {
-					if _, err := os.Stat(srcDir); err != nil {
-						continue
-					}
-					files, err := collectFiles(srcDir + "/...")
-					if err != nil {
-						return 0, fmt.Errorf("collecting dependency %s: %w", dep.Name, err)
-					}
-					depFiles = append(depFiles, files...)
-				}
-			} else {
-				depPath := dep.LocalPath + "/..."
-				files, err := collectFiles(depPath)
-				if err != nil {
-					return 0, fmt.Errorf("collecting dependency %s: %w", dep.Name, err)
-				}
-				depFiles = append(depFiles, files...)
-			}
-
-			// Prefix dep file namespaces with the dep's resolved namespace
-			prefixDepNamespaces(depFiles, dep, verbose)
-
-			allFiles = append(allFiles, depFiles...)
-		}
-	}
-
-	// Collect files from project source directories
-	for _, srcDir := range m.SourceDirPaths() {
-		if _, err := os.Stat(srcDir); err != nil {
-			if verbose {
-				fmt.Printf("  Skipping missing source dir: %s\n", srcDir)
-			}
-			continue
-		}
-		files, err := collectFiles(srcDir + "/...")
-		if err != nil {
-			return 0, fmt.Errorf("collecting source %s: %w", srcDir, err)
-		}
-		allFiles = append(allFiles, files...)
-	}
-
-	// Auto-import: within a project, all namespaces are implicitly available
-	// so cross-namespace references (e.g., ProcyonPark -> ProcyonPark::Bbs::TupleSpace) resolve.
-	allNamespaces := make(map[string]bool)
-	for _, pf := range allFiles {
-		if pf.namespace != "" {
-			allNamespaces[pf.namespace] = true
-		}
-	}
-	if len(allNamespaces) > 0 {
-		nsList := make([]string, 0, len(allNamespaces))
-		for ns := range allNamespaces {
-			nsList = append(nsList, ns)
-		}
-		for i := range allFiles {
-			existing := make(map[string]bool, len(allFiles[i].imports))
-			for _, imp := range allFiles[i].imports {
-				existing[imp] = true
-			}
-			for _, ns := range nsList {
-				if ns != allFiles[i].namespace && !existing[ns] {
-					allFiles[i].imports = append(allFiles[i].imports, ns)
-				}
-			}
-		}
-	}
-
-	// Compile everything in one two-pass batch
-	return compileAll(allFiles, vmInst, verbose)
-}
 
 // handleDepsCommand handles the "mag deps" subcommand.
 func handleDepsCommand(args []string, verbose bool) {

@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/chazu/maggie/compiler"
+	"github.com/chazu/maggie/pipeline"
 	"github.com/chazu/maggie/vm"
 )
 
@@ -36,6 +37,10 @@ func writeMagFile(t *testing.T, dir, name, source string) string {
 		t.Fatalf("writing %s: %v", p, err)
 	}
 	return p
+}
+
+func newPipeline(vmInst *vm.VM) *pipeline.Pipeline {
+	return &pipeline.Pipeline{VM: vmInst}
 }
 
 // lookupClassMethod finds a class-side compiled method by class name and
@@ -116,7 +121,7 @@ func TestSaveImage_AfterCompilingSource(t *testing.T) {
 `)
 
 	// Compile the source file (mimics what compilePath does for a single file)
-	methods, err := compilePath(tmpDir, vmInst, false)
+	methods, err := newPipeline(vmInst).CompilePath(tmpDir)
 	if err != nil {
 		t.Fatalf("compilePath failed: %v", err)
 	}
@@ -175,7 +180,7 @@ func TestLoadImage_ClassesSurviveRoundTrip(t *testing.T) {
 `
 	writeMagFile(t, tmpDir, "Counter.mag", source)
 
-	if _, err := compilePath(tmpDir, vmInst, false); err != nil {
+	if _, err := newPipeline(vmInst).CompilePath(tmpDir); err != nil {
 		t.Fatalf("compilePath failed: %v", err)
 	}
 
@@ -225,7 +230,7 @@ func TestLoadImage_MethodsSurviveRoundTrip(t *testing.T) {
   ]
 `)
 
-	if _, err := compilePath(tmpDir, vmInst, false); err != nil {
+	if _, err := newPipeline(vmInst).CompilePath(tmpDir); err != nil {
 		t.Fatalf("compilePath failed: %v", err)
 	}
 
@@ -290,7 +295,7 @@ func TestImageRoundTrip_ExecuteMethod(t *testing.T) {
 `
 	writeMagFile(t, tmpDir, "Adder.mag", source)
 
-	if _, err := compilePath(tmpDir, vmInst, false); err != nil {
+	if _, err := newPipeline(vmInst).CompilePath(tmpDir); err != nil {
 		t.Fatalf("compilePath failed: %v", err)
 	}
 
@@ -343,7 +348,7 @@ func TestImageRoundTrip_ExecuteInstanceMethod(t *testing.T) {
 `
 	writeMagFile(t, tmpDir, "Magic.mag", source)
 
-	if _, err := compilePath(tmpDir, vmInst, false); err != nil {
+	if _, err := newPipeline(vmInst).CompilePath(tmpDir); err != nil {
 		t.Fatalf("compilePath failed: %v", err)
 	}
 
@@ -449,7 +454,7 @@ func TestImageRoundTrip_MultipleClasses(t *testing.T) {
   ]
 `)
 
-	if _, err := compilePath(tmpDir, vmInst, false); err != nil {
+	if _, err := newPipeline(vmInst).CompilePath(tmpDir); err != nil {
 		t.Fatalf("compilePath failed: %v", err)
 	}
 
@@ -508,7 +513,7 @@ func TestLoadImage_FreshVMCanLoadSavedImage(t *testing.T) {
     ^99
   ]
 `)
-	if _, err := compilePath(tmpDir, vmInst, false); err != nil {
+	if _, err := newPipeline(vmInst).CompilePath(tmpDir); err != nil {
 		t.Fatalf("compilePath failed: %v", err)
 	}
 
@@ -556,8 +561,8 @@ func TestLoadImage_CanCompileAdditionalSource(t *testing.T) {
 	writeMagFile(t, tmpDir, "Base.mag", `Base subclass: Object
   classMethod: value [ ^10 ]
 `)
-	if _, err := compilePath(filepath.Join(tmpDir, "Base.mag"), vmInst, false); err != nil {
-		t.Fatalf("compilePath Base.mag failed: %v", err)
+	if _, err := newPipeline(vmInst).CompilePath(filepath.Join(tmpDir, "Base.mag")); err != nil {
+		t.Fatalf("CompilePath Base.mag failed: %v", err)
 	}
 
 	imagePath := filepath.Join(tmpDir, "base.image")
@@ -582,8 +587,8 @@ func TestLoadImage_CanCompileAdditionalSource(t *testing.T) {
 	writeMagFile(t, extraDir, "Extra.mag", `Extra subclass: Object
   classMethod: value [ ^20 ]
 `)
-	if _, err := compilePath(extraDir, vm2, false); err != nil {
-		t.Fatalf("compilePath Extra.mag failed: %v", err)
+	if _, err := newPipeline(vm2).CompilePath(extraDir); err != nil {
+		t.Fatalf("CompilePath Extra.mag failed: %v", err)
 	}
 
 	// Verify both Base (from image) and Extra (from source) exist
@@ -619,8 +624,8 @@ func TestSaveImage_OverwritesExistingFile(t *testing.T) {
 	writeMagFile(t, extraDir, "Extra.mag", `Extra subclass: Object
   classMethod: value [ ^100 ]
 `)
-	if _, err := compilePath(extraDir, vmInst, false); err != nil {
-		t.Fatalf("compilePath failed: %v", err)
+	if _, err := newPipeline(vmInst).CompilePath(extraDir); err != nil {
+		t.Fatalf("CompilePath failed: %v", err)
 	}
 
 	// Save again to the same path
@@ -689,7 +694,7 @@ func TestImageRoundTrip_ClassMethodIsClassMethodFlag(t *testing.T) {
 `
 	writeMagFile(t, tmpDir, "Gadget.mag", source)
 
-	if _, err := compilePath(tmpDir, vmInst, false); err != nil {
+	if _, err := newPipeline(vmInst).CompilePath(tmpDir); err != nil {
 		t.Fatalf("compilePath failed: %v", err)
 	}
 

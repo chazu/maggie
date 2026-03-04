@@ -9,6 +9,7 @@ import (
 	"github.com/chazu/maggie/compiler"
 	"github.com/chazu/maggie/gowrap"
 	"github.com/chazu/maggie/manifest"
+	"github.com/chazu/maggie/pipeline"
 	"github.com/chazu/maggie/vm"
 )
 
@@ -186,7 +187,11 @@ func compileProjectImage(m *manifest.Manifest, verbose bool) (string, error) {
 	vmInst.UseGoCompiler(compiler.Compile)
 
 	// Compile project sources
-	methods, err := loadProject(vmInst, m, verbose)
+	pipe := &pipeline.Pipeline{VM: vmInst}
+	if verbose {
+		pipe.Verbose = os.Stdout
+	}
+	methods, err := pipe.LoadProject(m)
 	if err != nil {
 		return "", fmt.Errorf("compiling project: %w", err)
 	}
