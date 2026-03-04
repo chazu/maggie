@@ -63,6 +63,23 @@ type SignaledException struct {
 	Object    *ExceptionObject
 }
 
+// PassException is panicked when a handler calls "pass" to forward the
+// exception to the next outer handler.
+type PassException struct {
+	Exception Value
+	Object    *ExceptionObject
+}
+
+// RetryException is panicked when a handler calls "retry" to re-execute
+// the protected block from the beginning.
+type RetryException struct{}
+
+// ResumeException is panicked when a handler calls "resume:" to resume
+// execution after the signal point with a specific value.
+type ResumeException struct {
+	Value Value
+}
+
 // ---------------------------------------------------------------------------
 // Interpreter exception handler stack
 // ---------------------------------------------------------------------------
@@ -255,8 +272,9 @@ func (vm *VM) registerExceptionPrimitives() {
 		if exObj == nil || !exObj.Resumable {
 			return Nil
 		}
-		exObj.Handled = true
-		return val
+		// Panic with ResumeException; the enclosing evaluateHandlerBlock
+		// defer will catch it and use the value as the on:do: result.
+		panic(ResumeException{Value: val})
 	})
 
 	// Exception>>pass - pass the exception to the next handler
@@ -266,15 +284,17 @@ func (vm *VM) registerExceptionPrimitives() {
 		if exObj == nil {
 			return Nil
 		}
-		// Re-signal to find next handler
-		return v.signalExceptionObject(recv, exObj)
+		// Panic with PassException; the enclosing evaluateBlockWithHandler
+		// defer will catch this, pop its handler, and re-panic with a
+		// SignaledException so the next outer handler can catch it.
+		panic(PassException{Exception: recv, Object: exObj})
 	})
 
 	// Exception>>retry - retry the protected block
 	ex.AddMethod0(vm.Selectors, "retry", func(_ interface{}, recv Value) Value {
-		// Retry is complex - needs to re-evaluate the protected block
-		// For now, just return nil
-		return Nil
+		// Panic with RetryException; the enclosing evaluateBlockWithHandler
+		// defer will catch this and re-execute the protected block.
+		panic(RetryException{})
 	})
 
 	// Exception>>return - return nil from the protected block
@@ -388,34 +408,26 @@ func (vm *VM) signalException(exClass *Class, messageText Value) Value {
 }
 
 // signalExceptionObject signals an existing exception.
+// It always panics with SignaledException; the nearest enclosing
+// evaluateBlockWithHandler defer/recover will catch it.
 func (vm *VM) signalExceptionObject(exVal Value, ex *ExceptionObject) Value {
-	// Find a handler for this exception
-	handler := vm.interpreter.FindHandler(ex.ExceptionClass)
+	panic(SignaledException{Exception: exVal, Object: ex})
+}
 
-	if handler == nil {
-		// No handler found - this is an unhandled exception
-		// For now, panic with the exception (can be caught at top level)
-		panic(SignaledException{Exception: exVal, Object: ex})
-	}
+// handlerAction represents the outcome of evaluating a handler block.
+type handlerAction int
 
-	// Found a handler - evaluate the handler block with the exception
-	// First, pop the handler from the stack so it doesn't catch its own errors
-	vm.interpreter.PopExceptionHandler()
+const (
+	handlerDone  handlerAction = iota // handler completed normally
+	handlerPass                       // handler called pass
+	handlerRetry                      // handler called retry
+)
 
-	// Get the handler block
-	bv := vm.interpreter.getBlockValue(handler.HandlerBlock)
-	if bv == nil {
-		// Handler block is invalid
-		return Nil
-	}
-
-	// Evaluate handler with the exception as argument
-	result := vm.interpreter.ExecuteBlock(bv.Block, bv.Captures, []Value{exVal}, bv.HomeFrame, bv.HomeSelf, bv.HomeMethod)
-
-	// If the exception wasn't explicitly handled (resume/return),
-	// the handler's return value becomes the result
-	ex.Handled = true
-	return result
+// handlerOutcome captures the result and control-flow action from a handler.
+type handlerOutcome struct {
+	action    handlerAction
+	result    Value
+	passExc   SignaledException // valid when action == handlerPass
 }
 
 // evaluateBlockWithHandler evaluates a block with an exception handler installed.
@@ -444,47 +456,125 @@ func (vm *VM) evaluateBlockWithHandler(blockVal Value, exceptionClass *Class, ha
 	}
 	vm.interpreter.PushExceptionHandler(handler)
 
-	// Evaluate the protected block, catching any signaled exceptions
+	// Retry loop: if the handler calls retry, we re-execute the protected block.
+	for {
+		outcome := vm.executeProtectedBlock(bv, hbv, handler, exceptionClass)
+
+		switch outcome.action {
+		case handlerRetry:
+			// Re-install the handler and loop to re-execute the protected block
+			vm.interpreter.PushExceptionHandler(handler)
+			continue
+		case handlerPass:
+			// Re-signal as a panic so the next outer handler catches it
+			panic(SignaledException{
+				Exception: outcome.passExc.Exception,
+				Object:    outcome.passExc.Object,
+			})
+		default:
+			// Normal completion or handler completed
+			return outcome.result
+		}
+	}
+}
+
+// executeProtectedBlock runs the protected block inside a defer/recover.
+// If an exception is caught, it evaluates the handler block and returns
+// the outcome (which may indicate pass or retry).
+func (vm *VM) executeProtectedBlock(
+	bv *BlockValue,
+	hbv *BlockValue,
+	handler *ExceptionHandler,
+	exceptionClass *Class,
+) handlerOutcome {
 	var result Value
+	var outcome handlerOutcome
+	caught := false
+
 	func() {
 		defer func() {
 			if r := recover(); r != nil {
 				if sigEx, ok := r.(SignaledException); ok {
 					// Exception was signaled - check if our handler handles it
 					if vm.interpreter.isKindOf(sigEx.Object.ExceptionClass, exceptionClass) {
-						// Our handler handles this exception.
-						// Unwind the frame stack back to where the handler was
-						// installed so the handler block can execute cleanly.
+						caught = true
+						// Pop our handler so it does not catch its own
+						// re-signals or passes from within the handler block.
+						vm.interpreter.PopExceptionHandler()
+						// Unwind the frame stack back to where the handler
+						// was installed so the handler block executes cleanly.
 						for vm.interpreter.fp > handler.FrameIndex {
 							vm.interpreter.popFrame()
 						}
 						// Evaluate the handler block
-						result = vm.interpreter.ExecuteBlock(
-							hbv.Block,
-							hbv.Captures,
-							[]Value{sigEx.Exception},
-							hbv.HomeFrame,
-							hbv.HomeSelf,
-							hbv.HomeMethod,
-						)
-						sigEx.Object.Handled = true
+						outcome = vm.evaluateHandlerBlock(hbv, sigEx)
 						return
 					}
-					// Not our exception - re-panic
-					panic(r)
 				}
-				// Not a SignaledException - re-panic
+				// Not our exception or not a SignaledException - re-panic
 				panic(r)
 			}
 		}()
 		result = vm.interpreter.ExecuteBlock(bv.Block, bv.Captures, nil, bv.HomeFrame, bv.HomeSelf, bv.HomeMethod)
 	}()
 
-	// Remove the handler
-	vm.interpreter.PopExceptionHandler()
-
-	return result
+	if !caught {
+		// Normal completion - remove the handler
+		vm.interpreter.PopExceptionHandler()
+		return handlerOutcome{action: handlerDone, result: result}
+	}
+	return outcome
 }
+
+// evaluateHandlerBlock evaluates the handler block for a caught exception,
+// handling pass, retry, and resume control flow.
+func (vm *VM) evaluateHandlerBlock(hbv *BlockValue, sigEx SignaledException) handlerOutcome {
+	var handlerResult Value
+	var outcome handlerOutcome
+
+	func() {
+		defer func() {
+			if r := recover(); r != nil {
+				switch pe := r.(type) {
+				case PassException:
+					// pass: signal back to evaluateBlockWithHandler
+					outcome = handlerOutcome{
+						action:  handlerPass,
+						passExc: SignaledException{Exception: pe.Exception, Object: pe.Object},
+					}
+					return
+				case RetryException:
+					// retry: signal back to evaluateBlockWithHandler
+					outcome = handlerOutcome{action: handlerRetry}
+					return
+				case ResumeException:
+					// resume: use the provided value as the result
+					sigEx.Object.Handled = true
+					outcome = handlerOutcome{action: handlerDone, result: pe.Value}
+					return
+				default:
+					panic(r)
+				}
+			}
+		}()
+		handlerResult = vm.interpreter.ExecuteBlock(
+			hbv.Block,
+			hbv.Captures,
+			[]Value{sigEx.Exception},
+			hbv.HomeFrame,
+			hbv.HomeSelf,
+			hbv.HomeMethod,
+		)
+		sigEx.Object.Handled = true
+	}()
+
+	// If a special action was set by the defer, return it
+	if outcome.action != handlerDone {
+		return outcome
+	}
+	return handlerOutcome{action: handlerDone, result: handlerResult}
+}
+
 
 // evaluateBlockWithEnsure evaluates a block, then always evaluates the ensure block.
 func (vm *VM) evaluateBlockWithEnsure(blockVal Value, ensureBlock Value) Value {

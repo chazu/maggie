@@ -407,6 +407,317 @@ func TestClassForException(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
+// Pass Tests
+// ---------------------------------------------------------------------------
+
+// TestPassForwardsToOuterHandler verifies that calling "pass" inside a handler
+// forwards the exception to the next outer handler.
+//
+// Equivalent Smalltalk:
+//   [[Error signal]
+//       on: Error do: [:ex | ex pass]]
+//       on: Error do: [:ex | 99]
+//
+// The inner handler passes, so the outer handler should return 99.
+func TestPassForwardsToOuterHandler(t *testing.T) {
+	vm := NewVM()
+
+	passSelID := vm.Selectors.Intern("pass")
+	onDoSelID := vm.Selectors.Intern("on:do:")
+	triggerSelID := vm.Selectors.Intern("trigger")
+	errorClassVal := vm.classValue(vm.ErrorClass)
+
+	// Helper class that signals Error when "trigger" is sent
+	signalerClass := NewClass("PassTestSignaler", nil)
+	vm.Classes.Register(signalerClass)
+	signalerClass.AddMethod0(vm.Selectors, "trigger", func(vmPtr interface{}, recv Value) Value {
+		v := vmPtr.(*VM)
+		return v.signalException(v.ErrorClass, Nil)
+	})
+	signalerObj := signalerClass.NewInstance()
+
+	// Signal block: [signaler trigger]
+	signalBlock := &BlockMethod{
+		Arity: 0, NumTemps: 0, NumCaptures: 1,
+		Bytecode: func() []byte {
+			bb := NewBytecodeBuilder()
+			bb.EmitByte(OpPushCaptured, 0)
+			bb.EmitSend(OpSend, uint16(triggerSelID), 0)
+			bb.Emit(OpBlockReturn)
+			return bb.Bytes()
+		}(),
+	}
+	signalBV := &BlockValue{
+		Block: signalBlock, Captures: []Value{signalerObj.ToValue()},
+		HomeFrame: -1, HomeSelf: Nil, HomeMethod: nil,
+	}
+	signalBlockVal := FromBlockID(uint32(vm.registry.RegisterBlock(signalBV)))
+
+	// Inner handler: [:ex | ex pass]
+	passHandlerBlock := &BlockMethod{
+		Arity: 1, NumTemps: 1,
+		Bytecode: func() []byte {
+			bb := NewBytecodeBuilder()
+			bb.EmitByte(OpPushTemp, 0)
+			bb.EmitSend(OpSend, uint16(passSelID), 0)
+			bb.Emit(OpBlockReturn)
+			return bb.Bytes()
+		}(),
+	}
+	passHandlerBV := &BlockValue{
+		Block: passHandlerBlock, HomeFrame: -1, HomeSelf: Nil, HomeMethod: nil,
+	}
+	passHandlerVal := FromBlockID(uint32(vm.registry.RegisterBlock(passHandlerBV)))
+
+	// Outer handler: [:ex | 99]
+	outerHandlerBlock := &BlockMethod{
+		Arity: 1, NumTemps: 1,
+		Bytecode: func() []byte {
+			bb := NewBytecodeBuilder()
+			bb.EmitInt8(OpPushInt8, 99)
+			bb.Emit(OpBlockReturn)
+			return bb.Bytes()
+		}(),
+	}
+	outerHandlerBV := &BlockValue{
+		Block: outerHandlerBlock, HomeFrame: -1, HomeSelf: Nil, HomeMethod: nil,
+	}
+	outerHandlerVal := FromBlockID(uint32(vm.registry.RegisterBlock(outerHandlerBV)))
+
+	// Inner on:do: block: [signaler trigger] on: Error do: [:ex | ex pass]
+	innerBlock := &BlockMethod{
+		Arity: 0, NumTemps: 0, NumCaptures: 3,
+		Bytecode: func() []byte {
+			bb := NewBytecodeBuilder()
+			bb.EmitByte(OpPushCaptured, 0) // signalBlockVal
+			bb.EmitByte(OpPushCaptured, 1) // errorClassVal
+			bb.EmitByte(OpPushCaptured, 2) // passHandlerVal
+			bb.EmitSend(OpSend, uint16(onDoSelID), 2)
+			bb.Emit(OpBlockReturn)
+			return bb.Bytes()
+		}(),
+	}
+	innerBV := &BlockValue{
+		Block: innerBlock, Captures: []Value{signalBlockVal, errorClassVal, passHandlerVal},
+		HomeFrame: -1, HomeSelf: Nil, HomeMethod: nil,
+	}
+	innerBlockVal := FromBlockID(uint32(vm.registry.RegisterBlock(innerBV)))
+
+	// Outer: [inner] on: Error do: [:ex | 99]
+	result := vm.evaluateBlockWithHandler(innerBlockVal, vm.ErrorClass, outerHandlerVal)
+
+	if !result.IsSmallInt() || result.SmallInt() != 99 {
+		t.Errorf("pass should forward to outer handler, got %v, want 99", result)
+	}
+}
+
+// TestNestedExceptionHandlersWithPass verifies that pass works correctly
+// with multiple levels of nesting.
+//
+// Equivalent Smalltalk:
+//   [[[signaler trigger] on: Error do: [:e | e pass]]
+//       on: Error do: [:e | e pass]]
+//       on: Error do: [:e | 42]
+//
+// Both inner handlers pass, so the outermost handler returns 42.
+func TestNestedExceptionHandlersWithPass(t *testing.T) {
+	vm := NewVM()
+
+	passSelID := vm.Selectors.Intern("pass")
+	onDoSelID := vm.Selectors.Intern("on:do:")
+	triggerSelID := vm.Selectors.Intern("trigger")
+	errorClassVal := vm.classValue(vm.ErrorClass)
+
+	// Helper class to signal Error
+	signalerClass := NewClass("NestedPassSignaler", nil)
+	vm.Classes.Register(signalerClass)
+	signalerClass.AddMethod0(vm.Selectors, "trigger", func(vmPtr interface{}, recv Value) Value {
+		v := vmPtr.(*VM)
+		return v.signalException(v.ErrorClass, Nil)
+	})
+	signalerObj := signalerClass.NewInstance()
+
+	// Signal block: [signaler trigger]
+	signalBlock := &BlockMethod{
+		Arity: 0, NumTemps: 0, NumCaptures: 1,
+		Bytecode: func() []byte {
+			bb := NewBytecodeBuilder()
+			bb.EmitByte(OpPushCaptured, 0)
+			bb.EmitSend(OpSend, uint16(triggerSelID), 0)
+			bb.Emit(OpBlockReturn)
+			return bb.Bytes()
+		}(),
+	}
+	signalBV := &BlockValue{
+		Block: signalBlock, Captures: []Value{signalerObj.ToValue()},
+		HomeFrame: -1, HomeSelf: Nil, HomeMethod: nil,
+	}
+	signalBlockVal := FromBlockID(uint32(vm.registry.RegisterBlock(signalBV)))
+
+	// Pass handler: [:ex | ex pass]
+	passHandler := &BlockMethod{
+		Arity: 1, NumTemps: 1,
+		Bytecode: func() []byte {
+			bb := NewBytecodeBuilder()
+			bb.EmitByte(OpPushTemp, 0)
+			bb.EmitSend(OpSend, uint16(passSelID), 0)
+			bb.Emit(OpBlockReturn)
+			return bb.Bytes()
+		}(),
+	}
+	passHandlerBV1 := &BlockValue{
+		Block: passHandler, HomeFrame: -1, HomeSelf: Nil, HomeMethod: nil,
+	}
+	passHandlerVal1 := FromBlockID(uint32(vm.registry.RegisterBlock(passHandlerBV1)))
+
+	passHandlerBV2 := &BlockValue{
+		Block: passHandler, HomeFrame: -1, HomeSelf: Nil, HomeMethod: nil,
+	}
+	passHandlerVal2 := FromBlockID(uint32(vm.registry.RegisterBlock(passHandlerBV2)))
+
+	// Outer handler: [:ex | 42]
+	outerHandler := &BlockMethod{
+		Arity: 1, NumTemps: 1,
+		Bytecode: func() []byte {
+			bb := NewBytecodeBuilder()
+			bb.EmitInt8(OpPushInt8, 42)
+			bb.Emit(OpBlockReturn)
+			return bb.Bytes()
+		}(),
+	}
+	outerHandlerBV := &BlockValue{
+		Block: outerHandler, HomeFrame: -1, HomeSelf: Nil, HomeMethod: nil,
+	}
+	outerHandlerVal := FromBlockID(uint32(vm.registry.RegisterBlock(outerHandlerBV)))
+
+	// Build inner: [signaler trigger] on: Error do: [:ex | ex pass]
+	innerBlock := &BlockMethod{
+		Arity: 0, NumTemps: 0, NumCaptures: 3,
+		Bytecode: func() []byte {
+			bb := NewBytecodeBuilder()
+			bb.EmitByte(OpPushCaptured, 0)
+			bb.EmitByte(OpPushCaptured, 1)
+			bb.EmitByte(OpPushCaptured, 2)
+			bb.EmitSend(OpSend, uint16(onDoSelID), 2)
+			bb.Emit(OpBlockReturn)
+			return bb.Bytes()
+		}(),
+	}
+	innerBV := &BlockValue{
+		Block: innerBlock, Captures: []Value{signalBlockVal, errorClassVal, passHandlerVal1},
+		HomeFrame: -1, HomeSelf: Nil, HomeMethod: nil,
+	}
+	innerBlockVal := FromBlockID(uint32(vm.registry.RegisterBlock(innerBV)))
+
+	// Build middle: [inner] on: Error do: [:ex | ex pass]
+	middleBlock := &BlockMethod{
+		Arity: 0, NumTemps: 0, NumCaptures: 3,
+		Bytecode: func() []byte {
+			bb := NewBytecodeBuilder()
+			bb.EmitByte(OpPushCaptured, 0)
+			bb.EmitByte(OpPushCaptured, 1)
+			bb.EmitByte(OpPushCaptured, 2)
+			bb.EmitSend(OpSend, uint16(onDoSelID), 2)
+			bb.Emit(OpBlockReturn)
+			return bb.Bytes()
+		}(),
+	}
+	middleBV := &BlockValue{
+		Block: middleBlock, Captures: []Value{innerBlockVal, errorClassVal, passHandlerVal2},
+		HomeFrame: -1, HomeSelf: Nil, HomeMethod: nil,
+	}
+	middleBlockVal := FromBlockID(uint32(vm.registry.RegisterBlock(middleBV)))
+
+	// Outermost: [middle] on: Error do: [:ex | 42]
+	result := vm.evaluateBlockWithHandler(middleBlockVal, vm.ErrorClass, outerHandlerVal)
+
+	if !result.IsSmallInt() || result.SmallInt() != 42 {
+		t.Errorf("double pass should forward to outermost handler, got %v, want 42", result)
+	}
+}
+
+// TestRetryReexecutesProtectedBlock verifies that calling "retry" inside
+// a handler re-executes the protected block from the beginning.
+//
+// Equivalent Smalltalk:
+//   | count |
+//   count := 0.
+//   [count := count + 1.
+//    count < 3 ifTrue: [Error signal]] on: Error do: [:ex | ex retry].
+//
+// After retry, count should be 3 (block executes 3 times: signals at 1, 2, succeeds at 3).
+func TestRetryReexecutesProtectedBlock(t *testing.T) {
+	vm := NewVM()
+
+	retrySelID := vm.Selectors.Intern("retry")
+
+	// We'll use a Go-level counter to track retries, since bytecode-level
+	// shared state is complex. We'll create a class with a primitive method
+	// that increments a counter and signals when count < 3.
+	count := 0
+
+	counterClass := NewClass("RetryCounter", nil)
+	vm.Classes.Register(counterClass)
+
+	// RetryCounter>>check - increments counter, signals Error if < 3
+	checkSelID := vm.Selectors.Intern("check")
+	counterClass.AddMethod0(vm.Selectors, "check", func(vmPtr interface{}, recv Value) Value {
+		v := vmPtr.(*VM)
+		count++
+		if count < 3 {
+			v.signalException(v.ErrorClass, Nil)
+		}
+		return FromSmallInt(int64(count))
+	})
+
+	counterObj := counterClass.NewInstance()
+
+	// Protected block: [counter check]
+	protectedBlock := &BlockMethod{
+		Arity: 0, NumTemps: 0, NumCaptures: 1,
+		Bytecode: func() []byte {
+			bb := NewBytecodeBuilder()
+			bb.EmitByte(OpPushCaptured, 0)                    // push counter
+			bb.EmitSend(OpSend, uint16(checkSelID), 0)        // counter check
+			bb.Emit(OpBlockReturn)
+			return bb.Bytes()
+		}(),
+	}
+
+	// Handler: [:ex | ex retry]
+	retryHandler := &BlockMethod{
+		Arity: 1, NumTemps: 1,
+		Bytecode: func() []byte {
+			bb := NewBytecodeBuilder()
+			bb.EmitByte(OpPushTemp, 0)
+			bb.EmitSend(OpSend, uint16(retrySelID), 0)
+			bb.Emit(OpBlockReturn)
+			return bb.Bytes()
+		}(),
+	}
+
+	protectedBV := &BlockValue{
+		Block: protectedBlock, Captures: []Value{counterObj.ToValue()},
+		HomeFrame: -1, HomeSelf: Nil, HomeMethod: nil,
+	}
+	retryHandlerBV := &BlockValue{
+		Block: retryHandler, HomeFrame: -1, HomeSelf: Nil, HomeMethod: nil,
+	}
+
+	protectedBlockVal := FromBlockID(uint32(vm.registry.RegisterBlock(protectedBV)))
+	retryHandlerVal := FromBlockID(uint32(vm.registry.RegisterBlock(retryHandlerBV)))
+
+	result := vm.evaluateBlockWithHandler(protectedBlockVal, vm.ErrorClass, retryHandlerVal)
+
+	if count != 3 {
+		t.Errorf("retry should have caused 3 executions, got %d", count)
+	}
+	if !result.IsSmallInt() || result.SmallInt() != 3 {
+		t.Errorf("result should be 3 (final count), got %v", result)
+	}
+}
+
+// ---------------------------------------------------------------------------
 // Benchmarks
 // ---------------------------------------------------------------------------
 
