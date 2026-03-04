@@ -60,6 +60,11 @@ type Class struct {
 	ClassVars   []string // Class variable names (shared across all instances)
 	DocString   string   // documentation from """ ... """ (empty if none)
 
+	// Metaclass is the lazily-created metaclass for this class.
+	// In Smalltalk, every class X has a metaclass "X class" whose instances
+	// are class X itself. The metaclass's VTable delegates to X's ClassVTable.
+	Metaclass *Class
+
 	classValueID int // Registry ID for class value encoding (0 = not yet registered)
 }
 
