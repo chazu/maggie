@@ -231,7 +231,12 @@ func (i *Interpreter) StackTrace() string {
 		var location string
 		if frame.Block != nil {
 			// Block frame
-			location = fmt.Sprintf("  [%d] <block> at IP %d", j, frame.IP)
+			loc := frame.Block.SourceLocation(frame.IP)
+			if loc != nil {
+				location = fmt.Sprintf("  [%d] <block> at line %d, column %d", j, loc.Line, loc.Column)
+			} else {
+				location = fmt.Sprintf("  [%d] <block> at IP %d", j, frame.IP)
+			}
 		} else if frame.Method != nil {
 			// Method frame
 			methodName := frame.Method.Name()
@@ -239,7 +244,12 @@ func (i *Interpreter) StackTrace() string {
 			if frame.Method.Class() != nil {
 				className = frame.Method.Class().Name
 			}
-			location = fmt.Sprintf("  [%d] %s>>%s at IP %d", j, className, methodName, frame.IP)
+			loc := frame.Method.SourceLocation(frame.IP)
+			if loc != nil {
+				location = fmt.Sprintf("  [%d] %s>>%s at line %d, column %d", j, className, methodName, loc.Line, loc.Column)
+			} else {
+				location = fmt.Sprintf("  [%d] %s>>%s at IP %d", j, className, methodName, frame.IP)
+			}
 		}
 		result += location + "\n"
 	}

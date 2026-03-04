@@ -47,6 +47,9 @@ type Compiler struct {
 	// For tail-call optimization
 	methodSelector string // selector of the method being compiled (for detecting self-recursion)
 
+	// Source mapping: bytecode offset → source position
+	sourceMap []vm.SourceLoc
+
 	// For FQN resolution in method bodies
 	namespace  string         // file's effective namespace (empty = root)
 	imports    []string       // file's import paths
@@ -110,6 +113,26 @@ func (c *Compiler) errorAt(node Node, format string, args ...interface{}) {
 	c.errors = append(c.errors, msg)
 }
 
+// emitSourcePos records a source map entry mapping the current bytecode offset
+// to the given AST node's start position. Duplicate entries (same offset) are
+// suppressed to keep the map compact.
+func (c *Compiler) emitSourcePos(node Node) {
+	pos := node.Span().Start
+	if pos.Line == 0 {
+		return // no position info
+	}
+	offset := c.builder.Len()
+	// Suppress duplicate: if the last entry has the same offset, skip
+	if len(c.sourceMap) > 0 && c.sourceMap[len(c.sourceMap)-1].Offset == offset {
+		return
+	}
+	c.sourceMap = append(c.sourceMap, vm.SourceLoc{
+		Offset: offset,
+		Line:   pos.Line,
+		Column: pos.Column,
+	})
+}
+
 // CompileMethod compiles a method definition to a CompiledMethod.
 func (c *Compiler) CompileMethod(method *MethodDef) *vm.CompiledMethod {
 	c.builder = vm.NewBytecodeBuilder()
@@ -121,6 +144,7 @@ func (c *Compiler) CompileMethod(method *MethodDef) *vm.CompiledMethod {
 	c.numArgs = len(method.Parameters)
 	c.numTemps = c.numArgs + len(method.Temps) // Total temps = args + locals
 	c.methodSelector = method.Selector
+	c.sourceMap = nil
 
 	// Analyze which variables need cell boxing
 	// (block-local variables that are captured AND assigned)
@@ -187,7 +211,12 @@ func (c *Compiler) CompileMethod(method *MethodDef) *vm.CompiledMethod {
 		b.AddBlock(block)
 	}
 
-	return b.Build()
+	result := b.Build()
+
+	// Transfer accumulated source map
+	result.SourceMap = c.sourceMap
+
+	return result
 }
 
 // CompileExpression compiles an expression for REPL/eval.
@@ -200,6 +229,7 @@ func (c *Compiler) CompileExpression(expr Expr) *vm.CompiledMethod {
 	c.args = make(map[string]int)
 	c.numArgs = 0
 	c.numTemps = 0
+	c.sourceMap = nil
 
 	c.compileExpr(expr)
 	c.builder.Emit(vm.OpReturnTop)
@@ -215,7 +245,9 @@ func (c *Compiler) CompileExpression(expr Expr) *vm.CompiledMethod {
 		b.AddBlock(block)
 	}
 
-	return b.Build()
+	result := b.Build()
+	result.SourceMap = c.sourceMap
+	return result
 }
 
 // endsWithReturn checks if statement list ends with a return.
@@ -242,6 +274,7 @@ func (c *Compiler) compileStatements(stmts []Stmt) {
 }
 
 func (c *Compiler) compileStmt(stmt Stmt) {
+	c.emitSourcePos(stmt)
 	switch s := stmt.(type) {
 	case *ExprStmt:
 		c.compileExpr(s.Expr)
@@ -314,6 +347,7 @@ func (c *Compiler) emitTailSend(selector string, numArgs int) {
 // ---------------------------------------------------------------------------
 
 func (c *Compiler) compileExpr(expr Expr) {
+	c.emitSourcePos(expr)
 	switch e := expr.(type) {
 	case *IntLiteral:
 		c.compileInt(e.Value)
@@ -732,6 +766,7 @@ func (c *Compiler) compileBlock(block *Block) {
 	oldCapturedVars := c.capturedVars
 	oldBlockNestingDepth := c.blockNestingDepth
 	oldCellInitialized := c.cellInitialized
+	oldSourceMap := c.sourceMap
 
 	// Increment nesting depth: 0=method, 1=first block, 2+=nested blocks
 	newNestingDepth := oldBlockNestingDepth + 1
@@ -799,6 +834,7 @@ func (c *Compiler) compileBlock(block *Block) {
 	c.capturedVars = newCapturedVars
 	c.blockNestingDepth = newNestingDepth
 	c.cellInitialized = make(map[string]bool) // Fresh for each block's own temps
+	c.sourceMap = nil                          // Fresh source map for block
 
 	// Parameters
 	for i, param := range block.Parameters {
@@ -848,6 +884,7 @@ func (c *Compiler) compileBlock(block *Block) {
 		NumCaptures: numCaptures,
 		Bytecode:    c.builder.Bytes(),
 		Literals:    c.literals, // Block gets its own literals
+		SourceMap:   c.sourceMap,
 	}
 
 	// Restore state
@@ -867,6 +904,7 @@ func (c *Compiler) compileBlock(block *Block) {
 	c.capturedVars = oldCapturedVars
 	c.blockNestingDepth = oldBlockNestingDepth
 	c.cellInitialized = oldCellInitialized
+	c.sourceMap = oldSourceMap
 
 	// Emit capture instructions (push each captured variable onto stack)
 	// The variables are captured from the enclosing scope

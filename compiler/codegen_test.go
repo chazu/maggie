@@ -697,3 +697,111 @@ func TestCompileUnaryTailCall(t *testing.T) {
 		t.Logf("bytecode: %v", vm.Disassemble(compiled.Bytecode))
 	}
 }
+
+// ---------------------------------------------------------------------------
+// Source map tests
+// ---------------------------------------------------------------------------
+
+func TestSourceMapEmittedForMethod(t *testing.T) {
+	selectors := vm.NewSelectorTable()
+	symbols := vm.NewSymbolTable()
+	registry := newTestRegistry()
+
+	source := "doSomething\n  | x |\n  x := 42.\n  ^x + 1"
+	method, err := Compile(source, selectors, symbols, registry)
+	if err != nil {
+		t.Fatalf("compile error: %v", err)
+	}
+
+	if len(method.SourceMap) == 0 {
+		t.Fatal("expected non-empty source map for compiled method")
+	}
+
+	// Verify entries have valid line numbers (1-based)
+	for i, loc := range method.SourceMap {
+		if loc.Line < 1 {
+			t.Errorf("source map entry %d has invalid line %d", i, loc.Line)
+		}
+		if loc.Column < 1 {
+			t.Errorf("source map entry %d has invalid column %d", i, loc.Column)
+		}
+		if loc.Offset < 0 {
+			t.Errorf("source map entry %d has negative offset %d", i, loc.Offset)
+		}
+	}
+
+	// Verify offsets are monotonically non-decreasing
+	for i := 1; i < len(method.SourceMap); i++ {
+		if method.SourceMap[i].Offset < method.SourceMap[i-1].Offset {
+			t.Errorf("source map offsets not monotonic: entry %d offset %d < entry %d offset %d",
+				i, method.SourceMap[i].Offset, i-1, method.SourceMap[i-1].Offset)
+		}
+	}
+}
+
+func TestSourceMapEmittedForExpression(t *testing.T) {
+	selectors := vm.NewSelectorTable()
+	symbols := vm.NewSymbolTable()
+	registry := newTestRegistry()
+
+	method, err := CompileExpr("3 + 4", selectors, symbols, registry)
+	if err != nil {
+		t.Fatalf("compile error: %v", err)
+	}
+
+	if len(method.SourceMap) == 0 {
+		t.Fatal("expected non-empty source map for compiled expression")
+	}
+}
+
+func TestSourceMapEmittedForBlock(t *testing.T) {
+	selectors := vm.NewSelectorTable()
+	symbols := vm.NewSymbolTable()
+	registry := newTestRegistry()
+
+	source := "doIt\n  [:x | x + 1] value: 5"
+	method, err := Compile(source, selectors, symbols, registry)
+	if err != nil {
+		t.Fatalf("compile error: %v", err)
+	}
+
+	// Method itself should have source map entries
+	if len(method.SourceMap) == 0 {
+		t.Fatal("expected non-empty source map for method containing block")
+	}
+
+	// The block should also have source map entries
+	if len(method.Blocks) == 0 {
+		t.Fatal("expected at least one block")
+	}
+	block := method.Blocks[0]
+	if len(block.SourceMap) == 0 {
+		t.Fatal("expected non-empty source map for block")
+	}
+}
+
+func TestSourceLocationLookup(t *testing.T) {
+	selectors := vm.NewSelectorTable()
+	symbols := vm.NewSymbolTable()
+	registry := newTestRegistry()
+
+	source := "doIt\n  | x |\n  x := 10.\n  ^x"
+	method, err := Compile(source, selectors, symbols, registry)
+	if err != nil {
+		t.Fatalf("compile error: %v", err)
+	}
+
+	if len(method.SourceMap) == 0 {
+		t.Fatal("source map is empty")
+	}
+
+	// Look up the first entry's offset -- should return a valid location
+	firstOffset := method.SourceMap[0].Offset
+	loc := method.SourceLocation(firstOffset)
+	if loc == nil {
+		t.Fatal("SourceLocation returned nil for a mapped offset")
+	}
+	if loc.Line < 1 {
+		t.Errorf("expected line >= 1, got %d", loc.Line)
+	}
+}
