@@ -22,9 +22,7 @@ type BigIntObject struct {
 // RegisterBigInt stores a BigIntObject and returns a symbol-encoded Value.
 func (or *ObjectRegistry) RegisterBigInt(obj *BigIntObject) Value {
 	id := or.bigIntID.Add(1)
-	or.bigIntsMu.Lock()
-	or.bigInts[id] = obj
-	or.bigIntsMu.Unlock()
+	or.bigInts.Put(id, obj)
 	return FromSymbolID(uint32(id) | bigIntMarker)
 }
 
@@ -39,9 +37,7 @@ func (or *ObjectRegistry) GetBigInt(v Value) *BigIntObject {
 		return nil
 	}
 	rawID := id & 0x00FFFFFF
-	or.bigIntsMu.RLock()
-	defer or.bigIntsMu.RUnlock()
-	return or.bigInts[rawID]
+	return or.bigInts.Get(rawID)
 }
 
 // UnregisterBigInt removes a BigInt from the registry.
@@ -54,16 +50,12 @@ func (or *ObjectRegistry) UnregisterBigInt(v Value) {
 		return
 	}
 	rawID := id & 0x00FFFFFF
-	or.bigIntsMu.Lock()
-	delete(or.bigInts, rawID)
-	or.bigIntsMu.Unlock()
+	or.bigInts.Delete(rawID)
 }
 
 // BigIntCount returns the number of registered BigInts.
 func (or *ObjectRegistry) BigIntCount() int {
-	or.bigIntsMu.RLock()
-	defer or.bigIntsMu.RUnlock()
-	return len(or.bigInts)
+	return or.bigInts.Count()
 }
 
 // ---------------------------------------------------------------------------

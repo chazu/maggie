@@ -17,116 +17,56 @@ import (
 type ObjectRegistry struct {
 	*ConcurrencyRegistry
 
-	// Exception registry
-	exceptions   map[uint32]*ExceptionObject
-	exceptionsMu sync.RWMutex
-	exceptionID  atomic.Uint32
+	// TypedRegistry-backed registries (storage + locking delegated)
+	exceptions    *TypedRegistry[uint32, *ExceptionObject]
+	results       *TypedRegistry[int, *ResultObject]
+	contexts      *TypedRegistry[uint32, *ContextValue]
+	dictionaries  *TypedRegistry[uint32, *DictionaryObject]
+	strings       *TypedRegistry[uint32, *StringObject]
+	grpcClients   *TypedRegistry[int, *GrpcClientObject]
+	grpcStreams   *TypedRegistry[int, *GrpcStreamObject]
+	httpServers   *TypedRegistry[int, *HttpServerObject]
+	httpRequests  *TypedRegistry[int, *HttpRequestObject]
+	httpResponses *TypedRegistry[int, *HttpResponseObject]
+	extProcesses  *TypedRegistry[int, *ExternalProcessObject]
+	unixListeners *TypedRegistry[int, *UnixListenerObject]
+	unixConns     *TypedRegistry[int, *UnixConnObject]
+	jsonReaders   *TypedRegistry[int, *JsonReaderObject]
+	jsonWriters   *TypedRegistry[int, *JsonWriterObject]
+	goObjects     *TypedRegistry[uint32, *GoObjectWrapper]
+	bigInts       *TypedRegistry[uint32, *BigIntObject]
+	cueContexts   *TypedRegistry[int, *CueContextObject]
+	cueValues     *TypedRegistry[int, *CueValueObject]
+	classValues   *TypedRegistry[int, *Class]
 
-	// Result registry
-	results   map[int]*ResultObject
-	resultsMu sync.RWMutex
-	resultID  atomic.Int32
-
-	// Context registry
-	contexts   map[uint32]*ContextValue
-	contextsMu sync.RWMutex
-	contextID  atomic.Uint32
-
-	// Dictionary registry
-	dictionaries   map[uint32]*DictionaryObject
-	dictionariesMu sync.RWMutex
+	// Atomic ID counters (allocation patterns vary per registry)
+	exceptionID    atomic.Uint32
+	resultID       atomic.Int32
+	contextID      atomic.Uint32
 	dictionaryID   atomic.Uint32
-
-	// String registry
-	strings   map[uint32]*StringObject
-	stringsMu sync.RWMutex
-	stringID  atomic.Uint32
-
-	// gRPC client registry
-	grpcClients   map[int]*GrpcClientObject
-	grpcClientsMu sync.RWMutex
-	grpcClientID  atomic.Int32
-
-	// gRPC stream registry
-	grpcStreams   map[int]*GrpcStreamObject
-	grpcStreamsMu sync.RWMutex
-	grpcStreamID  atomic.Int32
-
-	// HTTP server registry
-	httpServers   map[int]*HttpServerObject
-	httpServersMu sync.RWMutex
-	httpServerID  atomic.Int32
-
-	// HTTP request registry
-	httpRequests   map[int]*HttpRequestObject
-	httpRequestsMu sync.RWMutex
+	stringID       atomic.Uint32
+	grpcClientID   atomic.Int32
+	grpcStreamID   atomic.Int32
+	httpServerID   atomic.Int32
 	httpRequestID  atomic.Int32
-
-	// HTTP response registry
-	httpResponses   map[int]*HttpResponseObject
-	httpResponsesMu sync.RWMutex
-	httpResponseID  atomic.Int32
-
-	// Cell registry (no ID counter; cells register by pointer)
-	cells   map[*Cell]struct{}
-	cellsMu sync.Mutex
-
-	// Weak reference ID counter
-	weakRefCounter atomic.Uint32
-
-	// Class variable storage
-	classVars   map[*Class]map[string]Value
-	classVarsMu sync.RWMutex
-
-	// ExternalProcess registry
-	extProcesses   map[int]*ExternalProcessObject
-	extProcessesMu sync.RWMutex
+	httpResponseID atomic.Int32
 	extProcessID   atomic.Int32
+	unixListenerID atomic.Int32
+	unixConnID     atomic.Int32
+	jsonReaderID   atomic.Int32
+	jsonWriterID   atomic.Int32
+	goObjectID     atomic.Uint32
+	bigIntID       atomic.Uint32
+	cueContextID   atomic.Int32
+	cueValueID     atomic.Int32
+	classValueID   atomic.Int32
 
-	// Unix listener registry
-	unixListeners   map[int]*UnixListenerObject
-	unixListenersMu sync.RWMutex
-	unixListenerID  atomic.Int32
-
-	// Unix connection registry
-	unixConns   map[int]*UnixConnObject
-	unixConnsMu sync.RWMutex
-	unixConnID  atomic.Int32
-
-	// JSON reader registry
-	jsonReaders   map[int]*JsonReaderObject
-	jsonReadersMu sync.RWMutex
-	jsonReaderID  atomic.Int32
-
-	// JSON writer registry
-	jsonWriters   map[int]*JsonWriterObject
-	jsonWritersMu sync.RWMutex
-	jsonWriterID  atomic.Int32
-
-	// GoObject registry
-	goObjects   map[uint32]*GoObjectWrapper
-	goObjectsMu sync.RWMutex
-	goObjectID  atomic.Uint32
-
-	// BigInt registry
-	bigInts   map[uint32]*BigIntObject
-	bigIntsMu sync.RWMutex
-	bigIntID  atomic.Uint32
-
-	// CUE context registry
-	cueContexts   map[int]*CueContextObject
-	cueContextsMu sync.RWMutex
-	cueContextID  atomic.Int32
-
-	// CUE value registry
-	cueValues   map[int]*CueValueObject
-	cueValuesMu sync.RWMutex
-	cueValueID  atomic.Int32
-
-	// Class value registry (VM-local, previously a package-level global)
-	classValues   map[int]*Class
-	classValuesMu sync.RWMutex
-	classValueID  atomic.Int32
+	// Special registries (not suitable for TypedRegistry)
+	cells          map[*Cell]struct{} // set semantics
+	cellsMu        sync.Mutex
+	weakRefCounter atomic.Uint32       // counter only
+	classVars      map[*Class]map[string]Value // nested map
+	classVarsMu    sync.RWMutex
 }
 
 // NewObjectRegistry creates a new ObjectRegistry with all maps initialized.
@@ -134,28 +74,29 @@ func NewObjectRegistry() *ObjectRegistry {
 	or := &ObjectRegistry{
 		ConcurrencyRegistry: NewConcurrencyRegistry(),
 
-		exceptions:    make(map[uint32]*ExceptionObject),
-		results:       make(map[int]*ResultObject),
-		contexts:      make(map[uint32]*ContextValue),
-		dictionaries:  make(map[uint32]*DictionaryObject),
-		strings:       make(map[uint32]*StringObject),
-		grpcClients:   make(map[int]*GrpcClientObject),
-		grpcStreams:    make(map[int]*GrpcStreamObject),
-		httpServers:   make(map[int]*HttpServerObject),
-		httpRequests:  make(map[int]*HttpRequestObject),
-		httpResponses: make(map[int]*HttpResponseObject),
-		cells:         make(map[*Cell]struct{}),
-		classVars:     make(map[*Class]map[string]Value),
-		extProcesses:  make(map[int]*ExternalProcessObject),
-		unixListeners: make(map[int]*UnixListenerObject),
-		unixConns:     make(map[int]*UnixConnObject),
-		jsonReaders:   make(map[int]*JsonReaderObject),
-		jsonWriters:   make(map[int]*JsonWriterObject),
-		goObjects:     make(map[uint32]*GoObjectWrapper),
-		bigInts:       make(map[uint32]*BigIntObject),
-		classValues:   make(map[int]*Class),
-		cueContexts:   make(map[int]*CueContextObject),
-		cueValues:     make(map[int]*CueValueObject),
+		exceptions:    NewTypedRegistry[uint32, *ExceptionObject](),
+		results:       NewTypedRegistry[int, *ResultObject](),
+		contexts:      NewTypedRegistry[uint32, *ContextValue](),
+		dictionaries:  NewTypedRegistry[uint32, *DictionaryObject](),
+		strings:       NewTypedRegistry[uint32, *StringObject](),
+		grpcClients:   NewTypedRegistry[int, *GrpcClientObject](),
+		grpcStreams:   NewTypedRegistry[int, *GrpcStreamObject](),
+		httpServers:   NewTypedRegistry[int, *HttpServerObject](),
+		httpRequests:  NewTypedRegistry[int, *HttpRequestObject](),
+		httpResponses: NewTypedRegistry[int, *HttpResponseObject](),
+		extProcesses:  NewTypedRegistry[int, *ExternalProcessObject](),
+		unixListeners: NewTypedRegistry[int, *UnixListenerObject](),
+		unixConns:     NewTypedRegistry[int, *UnixConnObject](),
+		jsonReaders:   NewTypedRegistry[int, *JsonReaderObject](),
+		jsonWriters:   NewTypedRegistry[int, *JsonWriterObject](),
+		goObjects:     NewTypedRegistry[uint32, *GoObjectWrapper](),
+		bigInts:       NewTypedRegistry[uint32, *BigIntObject](),
+		cueContexts:   NewTypedRegistry[int, *CueContextObject](),
+		cueValues:     NewTypedRegistry[int, *CueValueObject](),
+		classValues:   NewTypedRegistry[int, *Class](),
+
+		cells:     make(map[*Cell]struct{}),
+		classVars: make(map[*Class]map[string]Value),
 	}
 
 	// Start IDs at 1 (0 could be confused with nil/uninitialized)
@@ -191,49 +132,31 @@ func NewObjectRegistry() *ObjectRegistry {
 // RegisterException adds an exception to the registry and returns its ID.
 func (or *ObjectRegistry) RegisterException(ex *ExceptionObject) uint32 {
 	id := or.exceptionID.Add(1)
-
-	or.exceptionsMu.Lock()
-	or.exceptions[id] = ex
-	or.exceptionsMu.Unlock()
-
+	or.exceptions.Put(id, ex)
 	return id
 }
 
 // GetException retrieves an exception by its ID.
 func (or *ObjectRegistry) GetException(id uint32) *ExceptionObject {
-	or.exceptionsMu.RLock()
-	defer or.exceptionsMu.RUnlock()
-	return or.exceptions[id]
+	return or.exceptions.Get(id)
 }
 
 // UnregisterException removes an exception from the registry.
 func (or *ObjectRegistry) UnregisterException(id uint32) {
-	or.exceptionsMu.Lock()
-	defer or.exceptionsMu.Unlock()
-	delete(or.exceptions, id)
+	or.exceptions.Delete(id)
 }
 
 // SweepExceptions removes handled exceptions from the registry.
 // Returns the number of exceptions swept.
 func (or *ObjectRegistry) SweepExceptions() int {
-	or.exceptionsMu.Lock()
-	defer or.exceptionsMu.Unlock()
-
-	swept := 0
-	for id, ex := range or.exceptions {
-		if ex.Handled {
-			delete(or.exceptions, id)
-			swept++
-		}
-	}
-	return swept
+	return or.exceptions.Sweep(func(_ uint32, ex *ExceptionObject) bool {
+		return !ex.Handled
+	})
 }
 
 // ExceptionCount returns the number of registered exceptions.
 func (or *ObjectRegistry) ExceptionCount() int {
-	or.exceptionsMu.RLock()
-	defer or.exceptionsMu.RUnlock()
-	return len(or.exceptions)
+	return or.exceptions.Count()
 }
 
 // ---------------------------------------------------------------------------
@@ -243,33 +166,23 @@ func (or *ObjectRegistry) ExceptionCount() int {
 // RegisterResult adds a result to the registry and returns its ID.
 func (or *ObjectRegistry) RegisterResult(r *ResultObject) int {
 	id := int(or.resultID.Add(1) - 1)
-
-	or.resultsMu.Lock()
-	or.results[id] = r
-	or.resultsMu.Unlock()
-
+	or.results.Put(id, r)
 	return id
 }
 
 // GetResult retrieves a result by its ID.
 func (or *ObjectRegistry) GetResult(id int) *ResultObject {
-	or.resultsMu.RLock()
-	defer or.resultsMu.RUnlock()
-	return or.results[id]
+	return or.results.Get(id)
 }
 
 // UnregisterResult removes a result from the registry.
 func (or *ObjectRegistry) UnregisterResult(id int) {
-	or.resultsMu.Lock()
-	defer or.resultsMu.Unlock()
-	delete(or.results, id)
+	or.results.Delete(id)
 }
 
 // ResultCount returns the number of registered results.
 func (or *ObjectRegistry) ResultCount() int {
-	or.resultsMu.RLock()
-	defer or.resultsMu.RUnlock()
-	return len(or.results)
+	return or.results.Count()
 }
 
 // RegisterResultValue creates a Result, registers it, and returns a Value.
@@ -295,40 +208,28 @@ func (or *ObjectRegistry) GetResultFromValue(v Value) *ResultObject {
 // RegisterContext adds a context to the registry and returns its ID.
 func (or *ObjectRegistry) RegisterContext(ctx *ContextValue) uint32 {
 	id := or.contextID.Add(1) - 1
-
-	or.contextsMu.Lock()
-	or.contexts[id] = ctx
-	or.contextsMu.Unlock()
-
+	or.contexts.Put(id, ctx)
 	return id
 }
 
 // GetContext retrieves a context by its ID.
 func (or *ObjectRegistry) GetContext(id uint32) *ContextValue {
-	or.contextsMu.RLock()
-	defer or.contextsMu.RUnlock()
-	return or.contexts[id]
+	return or.contexts.Get(id)
 }
 
 // UnregisterContext removes a context from the registry.
 func (or *ObjectRegistry) UnregisterContext(id uint32) {
-	or.contextsMu.Lock()
-	defer or.contextsMu.Unlock()
-	delete(or.contexts, id)
+	or.contexts.Delete(id)
 }
 
 // ClearContexts removes all contexts (for testing/reset).
 func (or *ObjectRegistry) ClearContexts() {
-	or.contextsMu.Lock()
-	defer or.contextsMu.Unlock()
-	or.contexts = make(map[uint32]*ContextValue)
+	or.contexts.Clear()
 }
 
 // ContextCount returns the number of registered contexts.
 func (or *ObjectRegistry) ContextCount() int {
-	or.contextsMu.RLock()
-	defer or.contextsMu.RUnlock()
-	return len(or.contexts)
+	return or.contexts.Count()
 }
 
 // RegisterContextValue registers a ContextValue and returns a Value representing it.
@@ -360,33 +261,23 @@ func (or *ObjectRegistry) UnregisterContextValue(v Value) {
 // RegisterDictionary adds a dictionary to the registry and returns its ID.
 func (or *ObjectRegistry) RegisterDictionary(d *DictionaryObject) uint32 {
 	id := or.dictionaryID.Add(1) - 1
-
-	or.dictionariesMu.Lock()
-	or.dictionaries[id] = d
-	or.dictionariesMu.Unlock()
-
+	or.dictionaries.Put(id, d)
 	return id
 }
 
 // GetDictionary retrieves a dictionary by its ID.
 func (or *ObjectRegistry) GetDictionary(id uint32) *DictionaryObject {
-	or.dictionariesMu.RLock()
-	defer or.dictionariesMu.RUnlock()
-	return or.dictionaries[id]
+	return or.dictionaries.Get(id)
 }
 
 // UnregisterDictionary removes a dictionary from the registry.
 func (or *ObjectRegistry) UnregisterDictionary(id uint32) {
-	or.dictionariesMu.Lock()
-	defer or.dictionariesMu.Unlock()
-	delete(or.dictionaries, id)
+	or.dictionaries.Delete(id)
 }
 
 // DictionaryCount returns the number of registered dictionaries.
 func (or *ObjectRegistry) DictionaryCount() int {
-	or.dictionariesMu.RLock()
-	defer or.dictionariesMu.RUnlock()
-	return len(or.dictionaries)
+	return or.dictionaries.Count()
 }
 
 // NewDictionaryValue creates a new empty dictionary Value, registered in the registry.
@@ -419,33 +310,23 @@ func (or *ObjectRegistry) GetDictionaryObject(v Value) *DictionaryObject {
 // RegisterString adds a string to the registry and returns its ID.
 func (or *ObjectRegistry) RegisterString(s *StringObject) uint32 {
 	id := or.stringID.Add(1) - 1
-
-	or.stringsMu.Lock()
-	or.strings[id] = s
-	or.stringsMu.Unlock()
-
+	or.strings.Put(id, s)
 	return id
 }
 
 // GetString retrieves a string by its ID.
 func (or *ObjectRegistry) GetString(id uint32) *StringObject {
-	or.stringsMu.RLock()
-	defer or.stringsMu.RUnlock()
-	return or.strings[id]
+	return or.strings.Get(id)
 }
 
 // UnregisterString removes a string from the registry.
 func (or *ObjectRegistry) UnregisterString(id uint32) {
-	or.stringsMu.Lock()
-	defer or.stringsMu.Unlock()
-	delete(or.strings, id)
+	or.strings.Delete(id)
 }
 
 // StringCount returns the number of registered strings.
 func (or *ObjectRegistry) StringCount() int {
-	or.stringsMu.RLock()
-	defer or.stringsMu.RUnlock()
-	return len(or.strings)
+	return or.strings.Count()
 }
 
 // NewStringValue creates a Value from a Go string, registering it in the registry.
@@ -458,7 +339,7 @@ func (or *ObjectRegistry) NewStringValue(s string) Value {
 // CompareStrings compares two string values under a single read lock.
 // Returns true if both are valid strings with equal content.
 // This is more efficient than two separate GetStringContent calls
-// because it only acquires stringsMu.RLock once instead of twice.
+// because it only acquires the lock once instead of twice.
 func (or *ObjectRegistry) CompareStrings(a, b Value) bool {
 	if !a.IsSymbol() || !b.IsSymbol() {
 		return false
@@ -469,11 +350,11 @@ func (or *ObjectRegistry) CompareStrings(a, b Value) bool {
 		return false
 	}
 
-	or.stringsMu.RLock()
-	defer or.stringsMu.RUnlock()
+	or.strings.RLock()
+	defer or.strings.RUnlock()
 
-	objA := or.strings[idA]
-	objB := or.strings[idB]
+	objA := or.strings.UnsafeGet(idA)
+	objB := or.strings.UnsafeGet(idB)
 
 	if objA == nil || objB == nil {
 		return false
@@ -519,49 +400,31 @@ func (or *ObjectRegistry) GetStringObject(v Value) *StringObject {
 // RegisterGrpcClient adds a gRPC client to the registry and returns its ID.
 func (or *ObjectRegistry) RegisterGrpcClient(c *GrpcClientObject) int {
 	id := int(or.grpcClientID.Add(1) - 1)
-
-	or.grpcClientsMu.Lock()
-	or.grpcClients[id] = c
-	or.grpcClientsMu.Unlock()
-
+	or.grpcClients.Put(id, c)
 	return id
 }
 
 // GetGrpcClient retrieves a gRPC client by its ID.
 func (or *ObjectRegistry) GetGrpcClient(id int) *GrpcClientObject {
-	or.grpcClientsMu.RLock()
-	defer or.grpcClientsMu.RUnlock()
-	return or.grpcClients[id]
+	return or.grpcClients.Get(id)
 }
 
 // UnregisterGrpcClient removes a gRPC client from the registry.
 func (or *ObjectRegistry) UnregisterGrpcClient(id int) {
-	or.grpcClientsMu.Lock()
-	defer or.grpcClientsMu.Unlock()
-	delete(or.grpcClients, id)
+	or.grpcClients.Delete(id)
 }
 
 // SweepGrpcClients removes closed gRPC clients from the registry.
 // Returns the number of clients swept.
 func (or *ObjectRegistry) SweepGrpcClients() int {
-	or.grpcClientsMu.Lock()
-	defer or.grpcClientsMu.Unlock()
-
-	swept := 0
-	for id, c := range or.grpcClients {
-		if c.closed.Load() {
-			delete(or.grpcClients, id)
-			swept++
-		}
-	}
-	return swept
+	return or.grpcClients.Sweep(func(_ int, c *GrpcClientObject) bool {
+		return !c.closed.Load()
+	})
 }
 
 // GrpcClientCount returns the number of registered gRPC clients.
 func (or *ObjectRegistry) GrpcClientCount() int {
-	or.grpcClientsMu.RLock()
-	defer or.grpcClientsMu.RUnlock()
-	return len(or.grpcClients)
+	return or.grpcClients.Count()
 }
 
 // ---------------------------------------------------------------------------
@@ -571,33 +434,23 @@ func (or *ObjectRegistry) GrpcClientCount() int {
 // RegisterGrpcStream adds a gRPC stream to the registry and returns its ID.
 func (or *ObjectRegistry) RegisterGrpcStream(s *GrpcStreamObject) int {
 	id := int(or.grpcStreamID.Add(1) - 1)
-
-	or.grpcStreamsMu.Lock()
-	or.grpcStreams[id] = s
-	or.grpcStreamsMu.Unlock()
-
+	or.grpcStreams.Put(id, s)
 	return id
 }
 
 // GetGrpcStream retrieves a gRPC stream by its ID.
 func (or *ObjectRegistry) GetGrpcStream(id int) *GrpcStreamObject {
-	or.grpcStreamsMu.RLock()
-	defer or.grpcStreamsMu.RUnlock()
-	return or.grpcStreams[id]
+	return or.grpcStreams.Get(id)
 }
 
 // UnregisterGrpcStream removes a gRPC stream from the registry.
 func (or *ObjectRegistry) UnregisterGrpcStream(id int) {
-	or.grpcStreamsMu.Lock()
-	defer or.grpcStreamsMu.Unlock()
-	delete(or.grpcStreams, id)
+	or.grpcStreams.Delete(id)
 }
 
 // GrpcStreamCount returns the number of registered gRPC streams.
 func (or *ObjectRegistry) GrpcStreamCount() int {
-	or.grpcStreamsMu.RLock()
-	defer or.grpcStreamsMu.RUnlock()
-	return len(or.grpcStreams)
+	return or.grpcStreams.Count()
 }
 
 // ---------------------------------------------------------------------------
@@ -607,49 +460,31 @@ func (or *ObjectRegistry) GrpcStreamCount() int {
 // RegisterHttpServer adds an HTTP server to the registry and returns its ID.
 func (or *ObjectRegistry) RegisterHttpServer(s *HttpServerObject) int {
 	id := int(or.httpServerID.Add(1) - 1)
-
-	or.httpServersMu.Lock()
-	or.httpServers[id] = s
-	or.httpServersMu.Unlock()
-
+	or.httpServers.Put(id, s)
 	return id
 }
 
 // GetHttpServer retrieves an HTTP server by its ID.
 func (or *ObjectRegistry) GetHttpServer(id int) *HttpServerObject {
-	or.httpServersMu.RLock()
-	defer or.httpServersMu.RUnlock()
-	return or.httpServers[id]
+	return or.httpServers.Get(id)
 }
 
 // UnregisterHttpServer removes an HTTP server from the registry.
 func (or *ObjectRegistry) UnregisterHttpServer(id int) {
-	or.httpServersMu.Lock()
-	defer or.httpServersMu.Unlock()
-	delete(or.httpServers, id)
+	or.httpServers.Delete(id)
 }
 
 // SweepHttpServers removes stopped HTTP servers from the registry.
 // Returns the number of servers swept.
 func (or *ObjectRegistry) SweepHttpServers() int {
-	or.httpServersMu.Lock()
-	defer or.httpServersMu.Unlock()
-
-	swept := 0
-	for id, s := range or.httpServers {
-		if !s.running.Load() {
-			delete(or.httpServers, id)
-			swept++
-		}
-	}
-	return swept
+	return or.httpServers.Sweep(func(_ int, s *HttpServerObject) bool {
+		return s.running.Load()
+	})
 }
 
 // HttpServerCount returns the number of registered HTTP servers.
 func (or *ObjectRegistry) HttpServerCount() int {
-	or.httpServersMu.RLock()
-	defer or.httpServersMu.RUnlock()
-	return len(or.httpServers)
+	return or.httpServers.Count()
 }
 
 // ---------------------------------------------------------------------------
@@ -659,33 +494,23 @@ func (or *ObjectRegistry) HttpServerCount() int {
 // RegisterHttpRequest adds an HTTP request to the registry and returns its ID.
 func (or *ObjectRegistry) RegisterHttpRequest(req *HttpRequestObject) int {
 	id := int(or.httpRequestID.Add(1) - 1)
-
-	or.httpRequestsMu.Lock()
-	or.httpRequests[id] = req
-	or.httpRequestsMu.Unlock()
-
+	or.httpRequests.Put(id, req)
 	return id
 }
 
 // GetHttpRequest retrieves an HTTP request by its ID.
 func (or *ObjectRegistry) GetHttpRequest(id int) *HttpRequestObject {
-	or.httpRequestsMu.RLock()
-	defer or.httpRequestsMu.RUnlock()
-	return or.httpRequests[id]
+	return or.httpRequests.Get(id)
 }
 
 // UnregisterHttpRequest removes an HTTP request from the registry.
 func (or *ObjectRegistry) UnregisterHttpRequest(id int) {
-	or.httpRequestsMu.Lock()
-	defer or.httpRequestsMu.Unlock()
-	delete(or.httpRequests, id)
+	or.httpRequests.Delete(id)
 }
 
 // HttpRequestCount returns the number of registered HTTP requests.
 func (or *ObjectRegistry) HttpRequestCount() int {
-	or.httpRequestsMu.RLock()
-	defer or.httpRequestsMu.RUnlock()
-	return len(or.httpRequests)
+	return or.httpRequests.Count()
 }
 
 // ---------------------------------------------------------------------------
@@ -695,33 +520,23 @@ func (or *ObjectRegistry) HttpRequestCount() int {
 // RegisterHttpResponse adds an HTTP response to the registry and returns its ID.
 func (or *ObjectRegistry) RegisterHttpResponse(resp *HttpResponseObject) int {
 	id := int(or.httpResponseID.Add(1) - 1)
-
-	or.httpResponsesMu.Lock()
-	or.httpResponses[id] = resp
-	or.httpResponsesMu.Unlock()
-
+	or.httpResponses.Put(id, resp)
 	return id
 }
 
 // GetHttpResponse retrieves an HTTP response by its ID.
 func (or *ObjectRegistry) GetHttpResponse(id int) *HttpResponseObject {
-	or.httpResponsesMu.RLock()
-	defer or.httpResponsesMu.RUnlock()
-	return or.httpResponses[id]
+	return or.httpResponses.Get(id)
 }
 
 // UnregisterHttpResponse removes an HTTP response from the registry.
 func (or *ObjectRegistry) UnregisterHttpResponse(id int) {
-	or.httpResponsesMu.Lock()
-	defer or.httpResponsesMu.Unlock()
-	delete(or.httpResponses, id)
+	or.httpResponses.Delete(id)
 }
 
 // HttpResponseCount returns the number of registered HTTP responses.
 func (or *ObjectRegistry) HttpResponseCount() int {
-	or.httpResponsesMu.RLock()
-	defer or.httpResponsesMu.RUnlock()
-	return len(or.httpResponses)
+	return or.httpResponses.Count()
 }
 
 // ---------------------------------------------------------------------------
@@ -731,12 +546,18 @@ func (or *ObjectRegistry) HttpResponseCount() int {
 // RegisterExternalProcess adds an external process to the registry and returns its ID.
 func (or *ObjectRegistry) RegisterExternalProcess(p *ExternalProcessObject) int {
 	id := int(or.extProcessID.Add(1) - 1)
-
-	or.extProcessesMu.Lock()
-	or.extProcesses[id] = p
-	or.extProcessesMu.Unlock()
-
+	or.extProcesses.Put(id, p)
 	return id
+}
+
+// GetExternalProcess retrieves an external process by its ID.
+func (or *ObjectRegistry) GetExternalProcess(id int) *ExternalProcessObject {
+	return or.extProcesses.Get(id)
+}
+
+// UnregisterExternalProcess removes an external process from the registry.
+func (or *ObjectRegistry) UnregisterExternalProcess(id int) {
+	or.extProcesses.Delete(id)
 }
 
 // ---------------------------------------------------------------------------
@@ -746,33 +567,13 @@ func (or *ObjectRegistry) RegisterExternalProcess(p *ExternalProcessObject) int 
 // RegisterJsonReader adds a JSON reader to the registry and returns its ID.
 func (or *ObjectRegistry) RegisterJsonReader(r *JsonReaderObject) int {
 	id := int(or.jsonReaderID.Add(1) - 1)
-
-	or.jsonReadersMu.Lock()
-	or.jsonReaders[id] = r
-	or.jsonReadersMu.Unlock()
-
+	or.jsonReaders.Put(id, r)
 	return id
-}
-
-// GetExternalProcess retrieves an external process by its ID.
-func (or *ObjectRegistry) GetExternalProcess(id int) *ExternalProcessObject {
-	or.extProcessesMu.RLock()
-	defer or.extProcessesMu.RUnlock()
-	return or.extProcesses[id]
-}
-
-// UnregisterExternalProcess removes an external process from the registry.
-func (or *ObjectRegistry) UnregisterExternalProcess(id int) {
-	or.extProcessesMu.Lock()
-	defer or.extProcessesMu.Unlock()
-	delete(or.extProcesses, id)
 }
 
 // GetJsonReader retrieves a JSON reader by its ID.
 func (or *ObjectRegistry) GetJsonReader(id int) *JsonReaderObject {
-	or.jsonReadersMu.RLock()
-	defer or.jsonReadersMu.RUnlock()
-	return or.jsonReaders[id]
+	return or.jsonReaders.Get(id)
 }
 
 // ---------------------------------------------------------------------------
@@ -782,19 +583,13 @@ func (or *ObjectRegistry) GetJsonReader(id int) *JsonReaderObject {
 // RegisterJsonWriter adds a JSON writer to the registry and returns its ID.
 func (or *ObjectRegistry) RegisterJsonWriter(w *JsonWriterObject) int {
 	id := int(or.jsonWriterID.Add(1) - 1)
-
-	or.jsonWritersMu.Lock()
-	or.jsonWriters[id] = w
-	or.jsonWritersMu.Unlock()
-
+	or.jsonWriters.Put(id, w)
 	return id
 }
 
 // GetJsonWriter retrieves a JSON writer by its ID.
 func (or *ObjectRegistry) GetJsonWriter(id int) *JsonWriterObject {
-	or.jsonWritersMu.RLock()
-	defer or.jsonWritersMu.RUnlock()
-	return or.jsonWriters[id]
+	return or.jsonWriters.Get(id)
 }
 
 // ---------------------------------------------------------------------------
@@ -906,11 +701,7 @@ func (or *ObjectRegistry) RegisterClassValue(c *Class) Value {
 
 	// Slow path: register new
 	id := int(or.classValueID.Add(1) - 1)
-
-	or.classValuesMu.Lock()
-	or.classValues[id] = c
-	or.classValuesMu.Unlock()
-
+	or.classValues.Put(id, c)
 	c.classValueID = id
 	return classToValue(id)
 }
@@ -922,17 +713,12 @@ func (or *ObjectRegistry) GetClassFromValue(v Value) *Class {
 		return nil
 	}
 	id := classValueIDFromValue(v)
-
-	or.classValuesMu.RLock()
-	defer or.classValuesMu.RUnlock()
-	return or.classValues[id]
+	return or.classValues.Get(id)
 }
 
 // ClassValueCount returns the number of registered class values.
 func (or *ObjectRegistry) ClassValueCount() int {
-	or.classValuesMu.RLock()
-	defer or.classValuesMu.RUnlock()
-	return len(or.classValues)
+	return or.classValues.Count()
 }
 
 // ---------------------------------------------------------------------------
@@ -942,33 +728,23 @@ func (or *ObjectRegistry) ClassValueCount() int {
 // RegisterUnixListener adds a Unix listener to the registry and returns its ID.
 func (or *ObjectRegistry) RegisterUnixListener(l *UnixListenerObject) int {
 	id := int(or.unixListenerID.Add(1) - 1)
-
-	or.unixListenersMu.Lock()
-	or.unixListeners[id] = l
-	or.unixListenersMu.Unlock()
-
+	or.unixListeners.Put(id, l)
 	return id
 }
 
 // GetUnixListener retrieves a Unix listener by its ID.
 func (or *ObjectRegistry) GetUnixListener(id int) *UnixListenerObject {
-	or.unixListenersMu.RLock()
-	defer or.unixListenersMu.RUnlock()
-	return or.unixListeners[id]
+	return or.unixListeners.Get(id)
 }
 
 // UnregisterUnixListener removes a Unix listener from the registry.
 func (or *ObjectRegistry) UnregisterUnixListener(id int) {
-	or.unixListenersMu.Lock()
-	defer or.unixListenersMu.Unlock()
-	delete(or.unixListeners, id)
+	or.unixListeners.Delete(id)
 }
 
 // UnixListenerCount returns the number of registered Unix listeners.
 func (or *ObjectRegistry) UnixListenerCount() int {
-	or.unixListenersMu.RLock()
-	defer or.unixListenersMu.RUnlock()
-	return len(or.unixListeners)
+	return or.unixListeners.Count()
 }
 
 // ---------------------------------------------------------------------------
@@ -978,33 +754,23 @@ func (or *ObjectRegistry) UnixListenerCount() int {
 // RegisterUnixConn adds a Unix connection to the registry and returns its ID.
 func (or *ObjectRegistry) RegisterUnixConn(c *UnixConnObject) int {
 	id := int(or.unixConnID.Add(1) - 1)
-
-	or.unixConnsMu.Lock()
-	or.unixConns[id] = c
-	or.unixConnsMu.Unlock()
-
+	or.unixConns.Put(id, c)
 	return id
 }
 
 // GetUnixConn retrieves a Unix connection by its ID.
 func (or *ObjectRegistry) GetUnixConn(id int) *UnixConnObject {
-	or.unixConnsMu.RLock()
-	defer or.unixConnsMu.RUnlock()
-	return or.unixConns[id]
+	return or.unixConns.Get(id)
 }
 
 // UnregisterUnixConn removes a Unix connection from the registry.
 func (or *ObjectRegistry) UnregisterUnixConn(id int) {
-	or.unixConnsMu.Lock()
-	defer or.unixConnsMu.Unlock()
-	delete(or.unixConns, id)
+	or.unixConns.Delete(id)
 }
 
 // UnixConnCount returns the number of registered Unix connections.
 func (or *ObjectRegistry) UnixConnCount() int {
-	or.unixConnsMu.RLock()
-	defer or.unixConnsMu.RUnlock()
-	return len(or.unixConns)
+	return or.unixConns.Count()
 }
 
 // ---------------------------------------------------------------------------
@@ -1014,31 +780,23 @@ func (or *ObjectRegistry) UnixConnCount() int {
 // RegisterCueContext adds a CUE context to the registry and returns its ID.
 func (or *ObjectRegistry) RegisterCueContext(c *CueContextObject) int {
 	id := int(or.cueContextID.Add(1) - 1)
-	or.cueContextsMu.Lock()
-	or.cueContexts[id] = c
-	or.cueContextsMu.Unlock()
+	or.cueContexts.Put(id, c)
 	return id
 }
 
 // GetCueContext retrieves a CUE context by its ID.
 func (or *ObjectRegistry) GetCueContext(id int) *CueContextObject {
-	or.cueContextsMu.RLock()
-	defer or.cueContextsMu.RUnlock()
-	return or.cueContexts[id]
+	return or.cueContexts.Get(id)
 }
 
 // UnregisterCueContext removes a CUE context from the registry.
 func (or *ObjectRegistry) UnregisterCueContext(id int) {
-	or.cueContextsMu.Lock()
-	defer or.cueContextsMu.Unlock()
-	delete(or.cueContexts, id)
+	or.cueContexts.Delete(id)
 }
 
 // CueContextCount returns the number of registered CUE contexts.
 func (or *ObjectRegistry) CueContextCount() int {
-	or.cueContextsMu.RLock()
-	defer or.cueContextsMu.RUnlock()
-	return len(or.cueContexts)
+	return or.cueContexts.Count()
 }
 
 // ---------------------------------------------------------------------------
@@ -1048,31 +806,23 @@ func (or *ObjectRegistry) CueContextCount() int {
 // RegisterCueValue adds a CUE value to the registry and returns its ID.
 func (or *ObjectRegistry) RegisterCueValue(c *CueValueObject) int {
 	id := int(or.cueValueID.Add(1) - 1)
-	or.cueValuesMu.Lock()
-	or.cueValues[id] = c
-	or.cueValuesMu.Unlock()
+	or.cueValues.Put(id, c)
 	return id
 }
 
 // GetCueValue retrieves a CUE value by its ID.
 func (or *ObjectRegistry) GetCueValue(id int) *CueValueObject {
-	or.cueValuesMu.RLock()
-	defer or.cueValuesMu.RUnlock()
-	return or.cueValues[id]
+	return or.cueValues.Get(id)
 }
 
 // UnregisterCueValue removes a CUE value from the registry.
 func (or *ObjectRegistry) UnregisterCueValue(id int) {
-	or.cueValuesMu.Lock()
-	defer or.cueValuesMu.Unlock()
-	delete(or.cueValues, id)
+	or.cueValues.Delete(id)
 }
 
 // CueValueCount returns the number of registered CUE values.
 func (or *ObjectRegistry) CueValueCount() int {
-	or.cueValuesMu.RLock()
-	defer or.cueValuesMu.RUnlock()
-	return len(or.cueValues)
+	return or.cueValues.Count()
 }
 
 // ---------------------------------------------------------------------------
