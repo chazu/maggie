@@ -298,6 +298,23 @@ func (i *Interpreter) popN(n int) []Value {
 	return result
 }
 
+// peekN returns a sub-slice of the stack without allocating.
+// The values are valid only until the next stack mutation.
+func (i *Interpreter) peekN(n int) []Value {
+	if i.sp < n {
+		panic("stack underflow")
+	}
+	return i.stack[i.sp-n : i.sp]
+}
+
+// dropN removes n values from the stack without returning them.
+func (i *Interpreter) dropN(n int) {
+	if i.sp < n {
+		panic("stack underflow")
+	}
+	i.sp -= n
+}
+
 // getTemp returns a temporary variable relative to the current frame's base pointer.
 func (i *Interpreter) getTemp(index int) Value {
 	frame := i.frames[i.fp]
@@ -799,7 +816,19 @@ func (i *Interpreter) runFrame() Value {
 			argc := int(bc[frame.IP])
 			frame.IP++
 
-			tailArgs := i.popN(argc)
+			// Copy args into a stack-local buffer to avoid allocation.
+			// Both the optimized path (resets SP) and the fallback path
+			// (re-pushes args) mutate the stack, so a copy is required.
+			var tailBuf [16]Value
+			var tailArgs []Value
+			if argc <= len(tailBuf) {
+				copy(tailBuf[:argc], i.peekN(argc))
+				tailArgs = tailBuf[:argc]
+				i.dropN(argc)
+			} else {
+				// >16 args is vanishingly rare; fall back to allocating popN.
+				tailArgs = i.popN(argc)
+			}
 			tailRcvr := i.pop()
 
 			// Only optimize if:
@@ -1120,12 +1149,18 @@ func (i *Interpreter) runFrame() Value {
 // send performs a message send via VTable lookup.
 // Uses inline caching for faster dispatch on monomorphic call sites.
 func (i *Interpreter) send(selector int, argc int) (result Value) {
-	args := i.popN(argc)
+	// peekN returns a zero-allocation view into the stack.
+	// Safe for pushFrame (which copies values individually) and for
+	// sendDoesNotUnderstand/Invoke (which read values before stack mutation).
+	args := i.peekN(argc)
+	i.dropN(argc)
 	rcvr := i.pop()
 
 	// Get the vtable for the receiver
 	vt := i.vtableFor(rcvr)
 	if vt == nil {
+		// sendDoesNotUnderstand reads args immediately (createMessage copies
+		// element values into an Object), so the peekN slice is safe here.
 		return i.sendDoesNotUnderstand(rcvr, selector, args)
 	}
 
@@ -1166,7 +1201,9 @@ func (i *Interpreter) send(selector int, argc int) (result Value) {
 
 	// Check if it's a compiled method or primitive
 	if cm, ok := method.(*CompiledMethod); ok {
-		// Push frame and record home frame for non-local return handling
+		// pushFrame iterates args and pushes each value individually.
+		// Since sp was already decremented past the args region, pushFrame
+		// writes to positions below where peekN points — no aliasing.
 		i.pushFrame(cm, rcvr, args)
 		homeFrame := i.fp
 
@@ -1198,8 +1235,18 @@ func (i *Interpreter) send(selector int, argc int) (result Value) {
 		return result
 	}
 
-	// Primitive method - pass the VM (for primitives that need it)
-	return method.Invoke(i.vm, rcvr, args)
+	// Primitive method — args may be retained by the callee, so copy
+	// from the peekN view into a stack-local buffer to avoid aliasing.
+	var argBuf [16]Value
+	var argsCopy []Value
+	if argc <= len(argBuf) {
+		copy(argBuf[:argc], args)
+		argsCopy = argBuf[:argc]
+	} else {
+		argsCopy = make([]Value, argc)
+		copy(argsCopy, args)
+	}
+	return method.Invoke(i.vm, rcvr, argsCopy)
 }
 
 // sendDoesNotUnderstand dispatches doesNotUnderstand: with a reified Message.
@@ -1241,7 +1288,8 @@ func (i *Interpreter) sendDoesNotUnderstand(receiver Value, selectorID int, args
 
 // sendSuper performs a super send.
 func (i *Interpreter) sendSuper(selector int, argc int, callingMethod *CompiledMethod) (result Value) {
-	args := i.popN(argc)
+	args := i.peekN(argc)
+	i.dropN(argc)
 	rcvr := i.pop()
 
 	// Get the defining class and determine if this is a class method
@@ -1297,7 +1345,17 @@ func (i *Interpreter) sendSuper(selector int, argc int, callingMethod *CompiledM
 		return result
 	}
 
-	return method.Invoke(i.vm, rcvr, args)
+	// Primitive method — copy args from the peekN view to avoid aliasing.
+	var argBuf [16]Value
+	var argsCopy []Value
+	if argc <= len(argBuf) {
+		copy(argBuf[:argc], args)
+		argsCopy = argBuf[:argc]
+	} else {
+		argsCopy = make([]Value, argc)
+		copy(argsCopy, args)
+	}
+	return method.Invoke(i.vm, rcvr, argsCopy)
 }
 
 // vtableFor returns the vtable for a value.
