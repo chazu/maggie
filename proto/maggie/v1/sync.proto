@@ -19,6 +19,12 @@ service SyncService {
 
   // Ping checks service liveness.
   rpc Ping(PingRequest) returns (PingResponse);
+
+  // Resolve maps a class name (FQN) to its content hash.
+  rpc Resolve(ResolveRequest) returns (ResolveResponse);
+
+  // List enumerates all content in the local store.
+  rpc List(ListRequest) returns (ListResponse);
 }
 
 message AnnounceRequest {
@@ -65,4 +71,21 @@ message PingRequest {}
 
 message PingResponse {
   int64 content_count = 1;  // number of hashes in local content store
+}
+
+message ResolveRequest {
+  string class_name = 1;  // FQN like "MyApp::Greeter"
+}
+
+message ResolveResponse {
+  bytes root_hash = 1;    // 32-byte hash of the class digest
+  bool found = 2;
+}
+
+message ListRequest {}
+
+message ListResponse {
+  repeated bytes method_hashes = 1;
+  repeated bytes class_hashes = 2;
+  repeated string class_names = 3;  // parallel with class_hashes for display
 }

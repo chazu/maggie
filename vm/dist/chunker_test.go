@@ -39,7 +39,7 @@ func TestClassToChunk(t *testing.T) {
 		Hash:           sha256.Sum256([]byte("class-foo")),
 	}
 
-	c := ClassToChunk(d, "Foo subclass: Object", []string{"HTTP"})
+	c := ClassToChunk(d, []string{"HTTP"})
 
 	if c.Hash != d.Hash {
 		t.Error("Hash mismatch")

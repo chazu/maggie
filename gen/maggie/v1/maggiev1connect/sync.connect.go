@@ -41,6 +41,10 @@ const (
 	SyncServiceServeProcedure = "/maggie.v1.SyncService/Serve"
 	// SyncServicePingProcedure is the fully-qualified name of the SyncService's Ping RPC.
 	SyncServicePingProcedure = "/maggie.v1.SyncService/Ping"
+	// SyncServiceResolveProcedure is the fully-qualified name of the SyncService's Resolve RPC.
+	SyncServiceResolveProcedure = "/maggie.v1.SyncService/Resolve"
+	// SyncServiceListProcedure is the fully-qualified name of the SyncService's List RPC.
+	SyncServiceListProcedure = "/maggie.v1.SyncService/List"
 )
 
 // SyncServiceClient is a client for the maggie.v1.SyncService service.
@@ -56,6 +60,10 @@ type SyncServiceClient interface {
 	Serve(context.Context, *connect.Request[v1.ServeRequest]) (*connect.Response[v1.ServeResponse], error)
 	// Ping checks service liveness.
 	Ping(context.Context, *connect.Request[v1.PingRequest]) (*connect.Response[v1.PingResponse], error)
+	// Resolve maps a class name (FQN) to its content hash.
+	Resolve(context.Context, *connect.Request[v1.ResolveRequest]) (*connect.Response[v1.ResolveResponse], error)
+	// List enumerates all content in the local store.
+	List(context.Context, *connect.Request[v1.ListRequest]) (*connect.Response[v1.ListResponse], error)
 }
 
 // NewSyncServiceClient constructs a client for the maggie.v1.SyncService service. By default, it
@@ -93,6 +101,18 @@ func NewSyncServiceClient(httpClient connect.HTTPClient, baseURL string, opts ..
 			connect.WithSchema(syncServiceMethods.ByName("Ping")),
 			connect.WithClientOptions(opts...),
 		),
+		resolve: connect.NewClient[v1.ResolveRequest, v1.ResolveResponse](
+			httpClient,
+			baseURL+SyncServiceResolveProcedure,
+			connect.WithSchema(syncServiceMethods.ByName("Resolve")),
+			connect.WithClientOptions(opts...),
+		),
+		list: connect.NewClient[v1.ListRequest, v1.ListResponse](
+			httpClient,
+			baseURL+SyncServiceListProcedure,
+			connect.WithSchema(syncServiceMethods.ByName("List")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -102,6 +122,8 @@ type syncServiceClient struct {
 	transfer *connect.Client[v1.TransferRequest, v1.TransferResponse]
 	serve    *connect.Client[v1.ServeRequest, v1.ServeResponse]
 	ping     *connect.Client[v1.PingRequest, v1.PingResponse]
+	resolve  *connect.Client[v1.ResolveRequest, v1.ResolveResponse]
+	list     *connect.Client[v1.ListRequest, v1.ListResponse]
 }
 
 // Announce calls maggie.v1.SyncService.Announce.
@@ -124,6 +146,16 @@ func (c *syncServiceClient) Ping(ctx context.Context, req *connect.Request[v1.Pi
 	return c.ping.CallUnary(ctx, req)
 }
 
+// Resolve calls maggie.v1.SyncService.Resolve.
+func (c *syncServiceClient) Resolve(ctx context.Context, req *connect.Request[v1.ResolveRequest]) (*connect.Response[v1.ResolveResponse], error) {
+	return c.resolve.CallUnary(ctx, req)
+}
+
+// List calls maggie.v1.SyncService.List.
+func (c *syncServiceClient) List(ctx context.Context, req *connect.Request[v1.ListRequest]) (*connect.Response[v1.ListResponse], error) {
+	return c.list.CallUnary(ctx, req)
+}
+
 // SyncServiceHandler is an implementation of the maggie.v1.SyncService service.
 type SyncServiceHandler interface {
 	// Announce advertises a set of content hashes to a peer.
@@ -137,6 +169,10 @@ type SyncServiceHandler interface {
 	Serve(context.Context, *connect.Request[v1.ServeRequest]) (*connect.Response[v1.ServeResponse], error)
 	// Ping checks service liveness.
 	Ping(context.Context, *connect.Request[v1.PingRequest]) (*connect.Response[v1.PingResponse], error)
+	// Resolve maps a class name (FQN) to its content hash.
+	Resolve(context.Context, *connect.Request[v1.ResolveRequest]) (*connect.Response[v1.ResolveResponse], error)
+	// List enumerates all content in the local store.
+	List(context.Context, *connect.Request[v1.ListRequest]) (*connect.Response[v1.ListResponse], error)
 }
 
 // NewSyncServiceHandler builds an HTTP handler from the service implementation. It returns the path
@@ -170,6 +206,18 @@ func NewSyncServiceHandler(svc SyncServiceHandler, opts ...connect.HandlerOption
 		connect.WithSchema(syncServiceMethods.ByName("Ping")),
 		connect.WithHandlerOptions(opts...),
 	)
+	syncServiceResolveHandler := connect.NewUnaryHandler(
+		SyncServiceResolveProcedure,
+		svc.Resolve,
+		connect.WithSchema(syncServiceMethods.ByName("Resolve")),
+		connect.WithHandlerOptions(opts...),
+	)
+	syncServiceListHandler := connect.NewUnaryHandler(
+		SyncServiceListProcedure,
+		svc.List,
+		connect.WithSchema(syncServiceMethods.ByName("List")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/maggie.v1.SyncService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case SyncServiceAnnounceProcedure:
@@ -180,6 +228,10 @@ func NewSyncServiceHandler(svc SyncServiceHandler, opts ...connect.HandlerOption
 			syncServiceServeHandler.ServeHTTP(w, r)
 		case SyncServicePingProcedure:
 			syncServicePingHandler.ServeHTTP(w, r)
+		case SyncServiceResolveProcedure:
+			syncServiceResolveHandler.ServeHTTP(w, r)
+		case SyncServiceListProcedure:
+			syncServiceListHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -203,4 +255,12 @@ func (UnimplementedSyncServiceHandler) Serve(context.Context, *connect.Request[v
 
 func (UnimplementedSyncServiceHandler) Ping(context.Context, *connect.Request[v1.PingRequest]) (*connect.Response[v1.PingResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("maggie.v1.SyncService.Ping is not implemented"))
+}
+
+func (UnimplementedSyncServiceHandler) Resolve(context.Context, *connect.Request[v1.ResolveRequest]) (*connect.Response[v1.ResolveResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("maggie.v1.SyncService.Resolve is not implemented"))
+}
+
+func (UnimplementedSyncServiceHandler) List(context.Context, *connect.Request[v1.ListRequest]) (*connect.Response[v1.ListResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("maggie.v1.SyncService.List is not implemented"))
 }

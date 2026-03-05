@@ -2,6 +2,8 @@ package vm
 
 import (
 	"crypto/sha256"
+	"fmt"
+	"strings"
 	"testing"
 )
 
@@ -79,6 +81,116 @@ func TestContentStore_AllHashes(t *testing.T) {
 	all := cs.AllHashes()
 	if len(all) != 2 {
 		t.Errorf("AllHashes: got %d, want 2", len(all))
+	}
+}
+
+func TestContentStore_LookupClassByName(t *testing.T) {
+	cs := NewContentStore()
+
+	d := &ClassDigest{
+		Name: "MyApp::Greeter",
+		Hash: sha256.Sum256([]byte("greeter")),
+	}
+	cs.IndexClass(d)
+
+	got := cs.LookupClassByName("MyApp::Greeter")
+	if got != d {
+		t.Error("LookupClassByName should find the class")
+	}
+
+	got = cs.LookupClassByName("NoSuchClass")
+	if got != nil {
+		t.Error("LookupClassByName should return nil for missing class")
+	}
+}
+
+func TestContentStore_AllClassDigests(t *testing.T) {
+	cs := NewContentStore()
+
+	d1 := &ClassDigest{Name: "A", Hash: sha256.Sum256([]byte("a"))}
+	d2 := &ClassDigest{Name: "B", Hash: sha256.Sum256([]byte("b"))}
+	cs.IndexClass(d1)
+	cs.IndexClass(d2)
+
+	all := cs.AllClassDigests()
+	if len(all) != 2 {
+		t.Errorf("AllClassDigests: got %d, want 2", len(all))
+	}
+}
+
+func TestContentStore_AllMethodHashes(t *testing.T) {
+	cs := NewContentStore()
+
+	m1 := &CompiledMethod{}
+	h1 := sha256.Sum256([]byte("m1"))
+	m1.SetContentHash(h1)
+	cs.IndexMethod(m1)
+
+	m2 := &CompiledMethod{}
+	h2 := sha256.Sum256([]byte("m2"))
+	m2.SetContentHash(h2)
+	cs.IndexMethod(m2)
+
+	all := cs.AllMethodHashes()
+	if len(all) != 2 {
+		t.Errorf("AllMethodHashes: got %d, want 2", len(all))
+	}
+}
+
+func TestContentStore_LookupByPrefix(t *testing.T) {
+	cs := NewContentStore()
+
+	// Add a method
+	m := &CompiledMethod{}
+	mh := sha256.Sum256([]byte("test-method-for-prefix"))
+	m.SetContentHash(mh)
+	cs.IndexMethod(m)
+
+	// Add a class
+	ch := sha256.Sum256([]byte("test-class-for-prefix"))
+	d := &ClassDigest{Name: "TestClass", Hash: ch}
+	cs.IndexClass(d)
+
+	mhHex := fmt.Sprintf("%x", mh)
+	chHex := fmt.Sprintf("%x", ch)
+
+	// Test: too short prefix
+	_, _, err := cs.LookupByPrefix("ab")
+	if err == nil {
+		t.Error("Should error on prefix shorter than 4 chars")
+	}
+
+	// Test: prefix not found
+	_, _, err = cs.LookupByPrefix("0000")
+	if err == nil || !strings.Contains(err.Error(), "no hash found") {
+		// It's possible 0000 matches something, so check carefully
+		if err == nil {
+			t.Error("Expected error or specific match for 0000 prefix")
+		}
+	}
+
+	// Test: method lookup by prefix
+	hash, typ, err := cs.LookupByPrefix(mhHex[:8])
+	if err != nil {
+		t.Fatalf("LookupByPrefix method: %v", err)
+	}
+	if hash != mh {
+		t.Error("Hash mismatch for method lookup")
+	}
+	if typ != "method" {
+		t.Errorf("Type: got %q, want %q", typ, "method")
+	}
+
+	// Test: class lookup by prefix
+	hash, typ, err = cs.LookupByPrefix(chHex[:8])
+	if err != nil {
+		t.Fatalf("LookupByPrefix class: %v", err)
+	}
+	if hash != ch {
+		t.Error("Hash mismatch for class lookup")
+	}
+	if typ != "class" {
+		t.Errorf("Type: got %q, want %q", typ, "class")
 	}
 }
 

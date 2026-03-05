@@ -339,7 +339,6 @@ primitives = "primitives/redis_primitives.go"
 **Extension model (phased):**
 1. **Phase 1 (MVP):** `mag build` compiles a custom binary. Every project with Go wrappers has its own `mag` executable.
 2. **Phase 2 (future):** Go plugin support (`.so` loading) for platforms that support it. Share base `mag` binary, load wrappers as plugins.
-3. **Phase 3 (future):** Investigate Yaegi or similar for interpreted Go (performance tradeoff, but true "fetch and run").
 
 **Concurrency model:**
 - Go goroutines spawned by wrapped code run independently of Maggie processes

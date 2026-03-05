@@ -185,11 +185,13 @@ func (s *SyncService) indexVerifiedMethod(chunk *dist.Chunk) {
 
 // indexVerifiedClass indexes a class digest from a verified chunk.
 func (s *SyncService) indexVerifiedClass(chunk *dist.Chunk) {
-	d := &vm.ClassDigest{
-		Name:         chunk.Content,
-		Hash:         chunk.Hash,
-		MethodHashes: chunk.Dependencies,
+	d, err := dist.DecodeClassContent(chunk.Content)
+	if err != nil {
+		// Fallback: treat Content as bare class name for backward compat
+		d = &vm.ClassDigest{Name: chunk.Content}
 	}
+	d.Hash = chunk.Hash
+	d.MethodHashes = chunk.Dependencies
 	s.store.IndexClass(d)
 }
 
@@ -250,7 +252,7 @@ func (s *SyncService) Serve(
 				methodChunks = append(methodChunks, data)
 			}
 		} else if d := s.store.LookupClass(h); d != nil {
-			chunk := dist.ClassToChunk(d, d.Name, nil)
+			chunk := dist.ClassToChunk(d, nil)
 			data, err := dist.MarshalChunk(chunk)
 			if err == nil {
 				classChunks = append(classChunks, data)
@@ -275,6 +277,58 @@ func (s *SyncService) Ping(
 	count := int64(s.store.MethodCount() + s.store.ClassCount())
 	return connect.NewResponse(&maggiev1.PingResponse{
 		ContentCount: count,
+	}), nil
+}
+
+// Resolve maps a class name (FQN) to its content hash.
+func (s *SyncService) Resolve(
+	ctx context.Context,
+	req *connect.Request[maggiev1.ResolveRequest],
+) (*connect.Response[maggiev1.ResolveResponse], error) {
+	name := req.Msg.ClassName
+	if name == "" {
+		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("class_name is required"))
+	}
+
+	d := s.store.LookupClassByName(name)
+	if d == nil {
+		return connect.NewResponse(&maggiev1.ResolveResponse{
+			Found: false,
+		}), nil
+	}
+
+	return connect.NewResponse(&maggiev1.ResolveResponse{
+		RootHash: d.Hash[:],
+		Found:    true,
+	}), nil
+}
+
+// List enumerates all content in the local store.
+func (s *SyncService) List(
+	ctx context.Context,
+	req *connect.Request[maggiev1.ListRequest],
+) (*connect.Response[maggiev1.ListResponse], error) {
+	methodHashes := s.store.AllMethodHashes()
+	classDigests := s.store.AllClassDigests()
+
+	mhBytes := make([][]byte, len(methodHashes))
+	for i, h := range methodHashes {
+		hCopy := h
+		mhBytes[i] = hCopy[:]
+	}
+
+	chBytes := make([][]byte, len(classDigests))
+	classNames := make([]string, len(classDigests))
+	for i, d := range classDigests {
+		hCopy := d.Hash
+		chBytes[i] = hCopy[:]
+		classNames[i] = d.Name
+	}
+
+	return connect.NewResponse(&maggiev1.ListResponse{
+		MethodHashes: mhBytes,
+		ClassHashes:  chBytes,
+		ClassNames:   classNames,
 	}), nil
 }
 

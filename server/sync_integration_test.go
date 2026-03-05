@@ -6,13 +6,18 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
 	"connectrpc.com/connect"
 
+	"github.com/chazu/maggie/compiler"
+	"github.com/chazu/maggie/compiler/hash"
 	maggiev1 "github.com/chazu/maggie/gen/maggie/v1"
 	"github.com/chazu/maggie/gen/maggie/v1/maggiev1connect"
+	"github.com/chazu/maggie/pipeline"
 	"github.com/chazu/maggie/vm"
 	"github.com/chazu/maggie/vm/dist"
 )
@@ -135,7 +140,7 @@ func TestEndToEnd_PushPull(t *testing.T) {
 			data, _ := dist.MarshalChunk(chunk)
 			methodChunks = append(methodChunks, data)
 		} else if d := storeA.LookupClass(h); d != nil {
-			chunk := dist.ClassToChunk(d, d.Name, nil)
+			chunk := dist.ClassToChunk(d, nil)
 			data, _ := dist.MarshalChunk(chunk)
 			classChunks = append(classChunks, data)
 		}
@@ -202,11 +207,12 @@ func TestEndToEnd_PushPull(t *testing.T) {
 			m.SetContentHash(chunk.Hash)
 			storeC.IndexMethod(m)
 		case dist.ChunkClass:
-			d := &vm.ClassDigest{
-				Name:         chunk.Content,
-				Hash:         chunk.Hash,
-				MethodHashes: chunk.Dependencies,
+			d, decErr := dist.DecodeClassContent(chunk.Content)
+			if decErr != nil {
+				d = &vm.ClassDigest{Name: chunk.Content}
 			}
+			d.Hash = chunk.Hash
+			d.MethodHashes = chunk.Dependencies
 			storeC.IndexClass(d)
 		}
 	}
@@ -217,6 +223,198 @@ func TestEndToEnd_PushPull(t *testing.T) {
 	if storeC.ClassCount() != 1 {
 		t.Errorf("Store C classes: got %d, want 1", storeC.ClassCount())
 	}
+
+	// Verify that class digest on C has rich metadata (from EncodeClassContent)
+	for _, ch := range storeC.ClassHashes() {
+		d := storeC.LookupClass(ch)
+		if d == nil {
+			continue
+		}
+		if d.Name != "Greeter" {
+			t.Errorf("Store C class name: got %q, want %q", d.Name, "Greeter")
+		}
+		if d.Namespace != "MyApp" {
+			t.Errorf("Store C class namespace: got %q, want %q", d.Namespace, "MyApp")
+		}
+	}
+}
+
+// TestEndToEnd_PushPullRehydrate tests the full push/pull/rehydrate cycle.
+// VM-A creates a real compiled class, pushes to VM-B (server), pulls to VM-C,
+// rehydrates on VM-C, and verifies the method is callable.
+func TestEndToEnd_PushPullRehydrate(t *testing.T) {
+	// --- VM-A: create a real compiled class ---
+	vmA := newTestVMForServer(t)
+	storeA := vmA.ContentStore()
+
+	// Create a class with a method using the pipeline
+	pipe := &pipeline.Pipeline{VM: vmA}
+	source := `TestSyncGreeter subclass: Object
+  method: answer [ ^42 ]
+  classMethod: classAnswer [ ^99 ]
+`
+	compiled, err := pipe.CompileSourceFile(source, "test.mag", "")
+	if err != nil {
+		t.Fatalf("CompileSourceFile: %v", err)
+	}
+	if compiled == 0 {
+		t.Fatal("expected compiled methods")
+	}
+
+	// Find the class digest
+	var classDigest *vm.ClassDigest
+	for _, ch := range storeA.ClassHashes() {
+		d := storeA.LookupClass(ch)
+		if d != nil && d.Name == "TestSyncGreeter" {
+			classDigest = d
+			break
+		}
+	}
+	if classDigest == nil {
+		t.Fatal("TestSyncGreeter class digest not found in store A")
+	}
+
+	// --- VM-B: start server ---
+	storeB := vm.NewContentStore()
+	// Use a real compile function that matches the content-hashing system
+	realCompile := func(source string) ([32]byte, error) {
+		md, err := compiler.ParseMethodDef(source)
+		if err != nil {
+			return [32]byte{}, err
+		}
+		return hash.HashMethod(md, nil, func(name string) string { return name }), nil
+	}
+	baseURL, stop := startTestServer(t, storeB, realCompile, nil)
+	defer stop()
+	time.Sleep(10 * time.Millisecond)
+
+	// --- Push from A to B ---
+	client := maggiev1connect.NewSyncServiceClient(http.DefaultClient, baseURL)
+	ctx := context.Background()
+
+	allHashes := storeA.AllHashes()
+	hashBytes := make([][]byte, len(allHashes))
+	for i, h := range allHashes {
+		hCopy := h
+		hashBytes[i] = hCopy[:]
+	}
+
+	annResp, err := client.Announce(ctx, connect.NewRequest(&maggiev1.AnnounceRequest{
+		RootHash:  classDigest.Hash[:],
+		AllHashes: hashBytes,
+	}))
+	if err != nil {
+		t.Fatalf("Announce failed: %v", err)
+	}
+	if annResp.Msg.Status != maggiev1.AnnounceStatus_ANNOUNCE_ACCEPTED {
+		t.Fatalf("Expected ACCEPTED, got %v", annResp.Msg.Status)
+	}
+
+	// Build and transfer chunks
+	var methodChunks, classChunks [][]byte
+	for _, wantHash := range annResp.Msg.Want {
+		var h [32]byte
+		copy(h[:], wantHash)
+		if m := storeA.LookupMethod(h); m != nil {
+			chunk := dist.MethodToChunk(m, nil)
+			data, _ := dist.MarshalChunk(chunk)
+			methodChunks = append(methodChunks, data)
+		} else if d := storeA.LookupClass(h); d != nil {
+			chunk := dist.ClassToChunk(d, nil)
+			data, _ := dist.MarshalChunk(chunk)
+			classChunks = append(classChunks, data)
+		}
+	}
+	chunks := append(methodChunks, classChunks...)
+
+	_, err = client.Transfer(ctx, connect.NewRequest(&maggiev1.TransferRequest{
+		Chunks: chunks,
+	}))
+	if err != nil {
+		t.Fatalf("Transfer failed: %v", err)
+	}
+
+	// --- Pull from B to C ---
+	vmC := newTestVMForServer(t)
+	storeC := vmC.ContentStore()
+
+	serveResp, err := client.Serve(ctx, connect.NewRequest(&maggiev1.ServeRequest{
+		RootHash: classDigest.Hash[:],
+	}))
+	if err != nil {
+		t.Fatalf("Serve failed: %v", err)
+	}
+
+	// Index chunks in C
+	for _, chunkBytes := range serveResp.Msg.Chunks {
+		chunk, err := dist.UnmarshalChunk(chunkBytes)
+		if err != nil {
+			t.Fatalf("Unmarshal: %v", err)
+		}
+		switch chunk.Type {
+		case dist.ChunkMethod:
+			m := &vm.CompiledMethod{Source: chunk.Content}
+			m.SetContentHash(chunk.Hash)
+			storeC.IndexMethod(m)
+		case dist.ChunkClass:
+			d, decErr := dist.DecodeClassContent(chunk.Content)
+			if decErr != nil {
+				d = &vm.ClassDigest{Name: chunk.Content}
+			}
+			d.Hash = chunk.Hash
+			d.MethodHashes = chunk.Dependencies
+			storeC.IndexClass(d)
+		}
+	}
+
+	// --- Rehydrate on VM-C ---
+	rehydrated, err := pipeline.RehydrateFromStore(vmC)
+	if err != nil {
+		t.Fatalf("RehydrateFromStore: %v", err)
+	}
+	if rehydrated != 2 { // answer + classAnswer
+		t.Errorf("Rehydrated: got %d, want 2", rehydrated)
+	}
+
+	// --- Verify the class exists and methods work ---
+	cls := vmC.Classes.Lookup("TestSyncGreeter")
+	if cls == nil {
+		t.Fatal("TestSyncGreeter not found in VM-C ClassTable")
+	}
+	if _, ok := vmC.Globals["TestSyncGreeter"]; !ok {
+		t.Error("TestSyncGreeter not found in VM-C Globals")
+	}
+
+	// Test instance method
+	inst := vmC.Send(vmC.ClassValue(cls), "new", nil)
+	result := vmC.Send(inst, "answer", nil)
+	if !result.IsSmallInt() || result.SmallInt() != 42 {
+		t.Errorf("TestSyncGreeter>>answer = %v, want 42", result)
+	}
+
+	// Test class method
+	classResult := vmC.Send(vmC.ClassValue(cls), "classAnswer", nil)
+	if !classResult.IsSmallInt() || classResult.SmallInt() != 99 {
+		t.Errorf("TestSyncGreeter class>>classAnswer = %v, want 99", classResult)
+	}
+}
+
+// newTestVMForServer creates a VM loaded with the standard image, suitable
+// for integration tests that need a fully functional VM.
+func newTestVMForServer(t *testing.T) *vm.VM {
+	t.Helper()
+	vmInst := vm.NewVM()
+	data, err := os.ReadFile(filepath.Join("..", "cmd", "mag", "maggie.image"))
+	if err != nil {
+		t.Fatalf("reading maggie.image: %v", err)
+	}
+	if err := vmInst.LoadImageFromBytes(data); err != nil {
+		t.Fatalf("loading image: %v", err)
+	}
+	vmInst.ReRegisterNilPrimitives()
+	vmInst.ReRegisterBooleanPrimitives()
+	vmInst.UseGoCompiler(compiler.Compile)
+	return vmInst
 }
 
 // TestEndToEnd_CapabilityRejection verifies that a receiver with restricted

@@ -149,7 +149,7 @@ proc := Process forkWithout: #('File' 'HTTP') do: [dangerous code].
 - `[go-wrap]` section in `maggie.toml`
 - `mag build` CLI subcommand: compile custom binary with wrappers
 - Type mapping: Go primitives <-> Maggie primitives, structs <-> opaque handles, `(T, error)` <-> Result monad
-- Phased extension: custom binary (5a), Go plugins (5b), Yaegi interpreted (5c)
+- Phased extension: custom binary (5a), Go plugins (5b)
 
 ---
 

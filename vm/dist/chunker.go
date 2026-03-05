@@ -9,22 +9,34 @@ import (
 // source and verifies the hash matches.
 func MethodToChunk(m *vm.CompiledMethod, caps []string) *Chunk {
 	h := m.GetContentHash()
-	return &Chunk{
+	c := &Chunk{
 		Hash:         h,
 		Type:         ChunkMethod,
 		Content:      m.Source,
 		Capabilities: caps,
+		Selector:     m.Name(),
+		IsClassSide:  m.IsClassMethod,
 	}
+	if cls := m.Class(); cls != nil {
+		if cls.Namespace != "" {
+			c.ClassName = cls.Namespace + "::" + cls.Name
+		} else {
+			c.ClassName = cls.Name
+		}
+	}
+	return c
 }
 
-// ClassToChunk creates a Chunk from a ClassDigest and its source text.
-func ClassToChunk(d *vm.ClassDigest, source string, caps []string) *Chunk {
+// ClassToChunk creates a Chunk from a ClassDigest. The Content field is
+// populated with the deterministic text encoding of the digest's structural
+// metadata (name, namespace, superclass, ivars, cvars, docstring).
+func ClassToChunk(d *vm.ClassDigest, caps []string) *Chunk {
 	deps := make([][32]byte, len(d.MethodHashes))
 	copy(deps, d.MethodHashes)
 	return &Chunk{
 		Hash:         d.Hash,
 		Type:         ChunkClass,
-		Content:      source,
+		Content:      EncodeClassContent(d),
 		Dependencies: deps,
 		Capabilities: caps,
 	}

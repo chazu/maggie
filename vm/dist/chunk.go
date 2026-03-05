@@ -21,6 +21,9 @@ type Chunk struct {
 	Content      string     `cbor:"3,keyasint"`           // source text
 	Dependencies [][32]byte `cbor:"4,keyasint,omitempty"` // referenced hashes
 	Capabilities []string   `cbor:"5,keyasint,omitempty"` // required capabilities
+	Selector     string     `cbor:"6,keyasint,omitempty"` // method selector (e.g., "hello", "greet:")
+	ClassName    string     `cbor:"7,keyasint,omitempty"` // owning class FQN (e.g., "MyApp::Greeter")
+	IsClassSide  bool       `cbor:"8,keyasint,omitempty"` // true for class methods, false for instance
 }
 
 // SyncAnnouncement is sent by a peer to advertise what it has available.

@@ -3,6 +3,7 @@ package vm
 import (
 	"crypto/sha256"
 	"encoding/binary"
+	"fmt"
 	"sort"
 	"sync"
 )
@@ -137,6 +138,82 @@ func (cs *ContentStore) ClassCount() int {
 	cs.mu.RLock()
 	defer cs.mu.RUnlock()
 	return len(cs.classes)
+}
+
+// LookupClassByName returns the first ClassDigest whose Name matches the
+// given fully-qualified name, or nil if no match is found. This is a linear
+// scan and not intended for hot paths.
+func (cs *ContentStore) LookupClassByName(name string) *ClassDigest {
+	cs.mu.RLock()
+	defer cs.mu.RUnlock()
+	for _, d := range cs.classes {
+		if d.Name == name {
+			return d
+		}
+	}
+	return nil
+}
+
+// AllClassDigests returns all class digests in the store.
+func (cs *ContentStore) AllClassDigests() []*ClassDigest {
+	cs.mu.RLock()
+	defer cs.mu.RUnlock()
+	result := make([]*ClassDigest, 0, len(cs.classes))
+	for _, d := range cs.classes {
+		result = append(result, d)
+	}
+	return result
+}
+
+// AllMethodHashes returns all method content hashes in the store.
+func (cs *ContentStore) AllMethodHashes() [][32]byte {
+	cs.mu.RLock()
+	defer cs.mu.RUnlock()
+	result := make([][32]byte, 0, len(cs.methods))
+	for h := range cs.methods {
+		result = append(result, h)
+	}
+	return result
+}
+
+// LookupByPrefix finds a hash by its hex prefix (like git short hashes).
+// Returns the full hash, the type ("method" or "class"), and an error.
+// Errors if prefix is ambiguous (multiple matches) or not found.
+// Minimum prefix length is 4 hex characters.
+func (cs *ContentStore) LookupByPrefix(prefix string) ([32]byte, string, error) {
+	if len(prefix) < 4 {
+		return [32]byte{}, "", fmt.Errorf("prefix must be at least 4 hex characters, got %d", len(prefix))
+	}
+
+	cs.mu.RLock()
+	defer cs.mu.RUnlock()
+
+	var matches [][32]byte
+	var types []string
+
+	for h := range cs.methods {
+		hexStr := fmt.Sprintf("%x", h)
+		if len(hexStr) >= len(prefix) && hexStr[:len(prefix)] == prefix {
+			matches = append(matches, h)
+			types = append(types, "method")
+		}
+	}
+	for h := range cs.classes {
+		hexStr := fmt.Sprintf("%x", h)
+		if len(hexStr) >= len(prefix) && hexStr[:len(prefix)] == prefix {
+			matches = append(matches, h)
+			types = append(types, "class")
+		}
+	}
+
+	switch len(matches) {
+	case 0:
+		return [32]byte{}, "", fmt.Errorf("no hash found with prefix %q", prefix)
+	case 1:
+		return matches[0], types[0], nil
+	default:
+		return [32]byte{}, "", fmt.Errorf("ambiguous prefix %q: matches %d hashes", prefix, len(matches))
+	}
 }
 
 // ---------------------------------------------------------------------------
