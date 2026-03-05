@@ -28,6 +28,7 @@ type ServerOption func(*serverConfig)
 type serverConfig struct {
 	compileFunc func(string) ([32]byte, error)
 	syncPolicy  *dist.CapabilityPolicy
+	diskCache   *dist.DiskCache
 }
 
 // WithCompileFunc sets the compile function used by the sync service to
@@ -40,6 +41,12 @@ func WithCompileFunc(fn func(string) ([32]byte, error)) ServerOption {
 // If not set, a permissive policy (allow all) is used.
 func WithSyncPolicy(policy *dist.CapabilityPolicy) ServerOption {
 	return func(c *serverConfig) { c.syncPolicy = policy }
+}
+
+// WithDiskCache sets the disk cache used by the sync service to persist
+// received chunks after successful transfers.
+func WithDiskCache(dc *dist.DiskCache) ServerOption {
+	return func(c *serverConfig) { c.diskCache = dc }
 }
 
 // New creates a MaggieServer wrapping the given VM.
@@ -68,7 +75,7 @@ func New(v *vm.VM, opts ...ServerOption) *MaggieServer {
 	browseSvc := NewBrowseService(worker)
 	modifySvc := NewModifyService(worker, handles, sessions)
 	inspectSvc := NewInspectService(worker, handles)
-	syncSvc := NewSyncService(worker, v.ContentStore(), dist.NewPeerStore(), cfg.syncPolicy, cfg.compileFunc)
+	syncSvc := NewSyncService(worker, v.ContentStore(), dist.NewPeerStore(), cfg.syncPolicy, cfg.compileFunc, cfg.diskCache)
 
 	evalPath, evalHandler := maggiev1connect.NewEvaluationServiceHandler(evalSvc)
 	sessionPath, sessionHandler := maggiev1connect.NewSessionServiceHandler(sessionSvc)

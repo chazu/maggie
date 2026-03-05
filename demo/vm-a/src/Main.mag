@@ -1,0 +1,25 @@
+namespace: 'DemoA'
+
+Main subclass: Object
+
+  classMethod: start [
+    | result server done |
+
+    "Verify Greeter works locally"
+    result := Greeter new greet: 'Local'.
+    ('Local test: ' , result) println.
+
+    "Start HTTP server on port 9001 to receive messages from VM-B"
+    server := HttpServer new: 9001.
+    server route: '/message' method: 'POST' handler: [:req |
+      ('VM-A received: ' , req body) println.
+      HttpResponse new: 200 body: 'OK'
+    ].
+
+    'VM-A ready. Waiting for messages on port 9001...' println.
+
+    "server start blocks, so fork it and wait on a channel to keep main alive"
+    done := Channel new.
+    [server start] fork.
+    done receive
+  ]

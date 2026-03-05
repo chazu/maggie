@@ -1,0 +1,12 @@
+[project]
+name = "demo-vm-b"
+namespace = "DemoB"
+
+[source]
+dirs = ["src"]
+entry = "Main.start"
+
+[sync]
+listen = ":8082"
+peers = ["vm-a:8081"]
+capabilities = ["HTTP"]

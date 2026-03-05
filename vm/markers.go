@@ -54,6 +54,9 @@ const (
 	cueContextMarker            uint32 = 50 << 24
 	cueValueMarker              uint32 = 51 << 24
 
+	// HTTP client
+	httpClientMarker            uint32 = 52 << 24
+
 	// Distribution protocol (reserved for Phase 6)
 	chunkMarker                 uint32 = 42 << 24
 	remoteRefMarker             uint32 = 43 << 24

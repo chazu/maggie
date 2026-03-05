@@ -1,0 +1,24 @@
+services:
+  vm-a:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    volumes:
+      - ./vm-a/src:/app/src
+      - ./vm-a/maggie.toml:/app/maggie.toml
+    ports:
+      - "8081:8081"
+      - "9001:9001"
+    command: ["-m", "Main.start"]
+
+  vm-b:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    volumes:
+      - ./vm-b/src:/app/src
+      - ./vm-b/maggie.toml:/app/maggie.toml
+    ports:
+      - "8082:8082"
+      - "9002:9002"
+    command: ["-m", "Main.start"]

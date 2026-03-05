@@ -1,0 +1,11 @@
+namespace: 'DemoA'
+
+Greeter subclass: Object
+
+  classMethod: new [
+    ^super new
+  ]
+
+  method: greet: name [
+    ^'Hello from VM-A, ' , name , '!'
+  ]

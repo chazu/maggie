@@ -12,6 +12,43 @@ import (
 )
 
 // ---------------------------------------------------------------------------
+// HttpClient Registry
+// ---------------------------------------------------------------------------
+
+// HttpClientObject wraps Go's net/http.Client for use in Maggie.
+type HttpClientObject struct {
+	client *http.Client
+}
+
+func httpClientToValue(id int) Value {
+	return FromSymbolID(uint32(id) | httpClientMarker)
+}
+
+func isHttpClientValue(v Value) bool {
+	if !v.IsSymbol() {
+		return false
+	}
+	id := v.SymbolID()
+	return (id & (0xFF << 24)) == httpClientMarker
+}
+
+func httpClientIDFromValue(v Value) int {
+	return int(v.SymbolID() & ^uint32(0xFF<<24))
+}
+
+func (vm *VM) vmGetHttpClient(v Value) *HttpClientObject {
+	if !isHttpClientValue(v) {
+		return nil
+	}
+	return vm.registry.GetHttpClient(httpClientIDFromValue(v))
+}
+
+func (vm *VM) vmRegisterHttpClient(c *HttpClientObject) Value {
+	id := vm.registry.RegisterHttpClient(c)
+	return httpClientToValue(id)
+}
+
+// ---------------------------------------------------------------------------
 // HttpServer Registry
 // ---------------------------------------------------------------------------
 
@@ -423,5 +460,155 @@ func (vm *VM) registerHttpPrimitives() {
 			return v.registry.NewStringValue("")
 		}
 		return v.registry.NewStringValue(resp.body)
+	})
+
+	// -------------------------------------------------------------------
+	// HttpClient Primitives
+	// -------------------------------------------------------------------
+
+	httpClientClass := vm.createClass("HttpClient", vm.ObjectClass)
+	vm.Globals["HttpClient"] = vm.classValue(httpClientClass)
+	vm.symbolDispatch.Register(httpClientMarker, &SymbolTypeEntry{Class: httpClientClass})
+
+	// HttpClient new — creates a new client with a 30s timeout
+	httpClientClass.AddClassMethod0(vm.Selectors, "new", func(vmPtr interface{}, recv Value) Value {
+		v := vmPtr.(*VM)
+		c := &HttpClientObject{
+			client: &http.Client{
+				Timeout: 30 * time.Second,
+			},
+		}
+		return v.vmRegisterHttpClient(c)
+	})
+
+	// get: url — HTTP GET, returns response body as string
+	httpClientClass.AddMethod1(vm.Selectors, "get:", func(vmPtr interface{}, recv Value, urlVal Value) Value {
+		v := vmPtr.(*VM)
+		c := v.vmGetHttpClient(recv)
+		if c == nil {
+			return Nil
+		}
+		url := v.valueToString(urlVal)
+		if url == "" {
+			return Nil
+		}
+		resp, err := c.client.Get(url)
+		if err != nil {
+			return Nil
+		}
+		defer resp.Body.Close()
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return Nil
+		}
+		return v.registry.NewStringValue(string(body))
+	})
+
+	// post:body: — HTTP POST with string body, returns response body as string
+	httpClientClass.AddMethod2(vm.Selectors, "post:body:", func(vmPtr interface{}, recv Value, urlVal, bodyVal Value) Value {
+		v := vmPtr.(*VM)
+		c := v.vmGetHttpClient(recv)
+		if c == nil {
+			return Nil
+		}
+		url := v.valueToString(urlVal)
+		bodyStr := v.valueToString(bodyVal)
+		if url == "" {
+			return Nil
+		}
+		resp, err := c.client.Post(url, "application/octet-stream", strings.NewReader(bodyStr))
+		if err != nil {
+			return Nil
+		}
+		defer resp.Body.Close()
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return Nil
+		}
+		return v.registry.NewStringValue(string(body))
+	})
+
+	// post:body:contentType: — HTTP POST with explicit content type
+	httpClientClass.AddMethod3(vm.Selectors, "post:body:contentType:", func(vmPtr interface{}, recv Value, urlVal, bodyVal, ctVal Value) Value {
+		v := vmPtr.(*VM)
+		c := v.vmGetHttpClient(recv)
+		if c == nil {
+			return Nil
+		}
+		url := v.valueToString(urlVal)
+		bodyStr := v.valueToString(bodyVal)
+		ct := v.valueToString(ctVal)
+		if url == "" {
+			return Nil
+		}
+		if ct == "" {
+			ct = "application/octet-stream"
+		}
+		resp, err := c.client.Post(url, ct, strings.NewReader(bodyStr))
+		if err != nil {
+			return Nil
+		}
+		defer resp.Body.Close()
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return Nil
+		}
+		return v.registry.NewStringValue(string(body))
+	})
+
+	// put:body: — HTTP PUT with string body, returns response body as string
+	httpClientClass.AddMethod2(vm.Selectors, "put:body:", func(vmPtr interface{}, recv Value, urlVal, bodyVal Value) Value {
+		v := vmPtr.(*VM)
+		c := v.vmGetHttpClient(recv)
+		if c == nil {
+			return Nil
+		}
+		url := v.valueToString(urlVal)
+		bodyStr := v.valueToString(bodyVal)
+		if url == "" {
+			return Nil
+		}
+		req, err := http.NewRequest(http.MethodPut, url, strings.NewReader(bodyStr))
+		if err != nil {
+			return Nil
+		}
+		req.Header.Set("Content-Type", "application/octet-stream")
+		resp, err := c.client.Do(req)
+		if err != nil {
+			return Nil
+		}
+		defer resp.Body.Close()
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return Nil
+		}
+		return v.registry.NewStringValue(string(body))
+	})
+
+	// delete: url — HTTP DELETE, returns response body as string
+	httpClientClass.AddMethod1(vm.Selectors, "delete:", func(vmPtr interface{}, recv Value, urlVal Value) Value {
+		v := vmPtr.(*VM)
+		c := v.vmGetHttpClient(recv)
+		if c == nil {
+			return Nil
+		}
+		url := v.valueToString(urlVal)
+		if url == "" {
+			return Nil
+		}
+		req, err := http.NewRequest(http.MethodDelete, url, nil)
+		if err != nil {
+			return Nil
+		}
+		resp, err := c.client.Do(req)
+		if err != nil {
+			return Nil
+		}
+		defer resp.Body.Close()
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return Nil
+		}
+		return v.registry.NewStringValue(string(body))
 	})
 }

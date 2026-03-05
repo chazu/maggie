@@ -1,0 +1,33 @@
+namespace: 'DemoB'
+
+Main subclass: Object
+
+  classMethod: start [
+    | greeterClass result |
+
+    'VM-B starting. Waiting 3 seconds for VM-A...' println.
+    Process sleep: 3000.
+
+    'VM-B pulling code from VM-A...' println.
+
+    "Greeter class is rehydrated by the launch script (mag sync pull)
+     before Main.start runs. Check if it exists."
+    greeterClass := Compiler getGlobal: #'DemoA::Greeter'.
+    greeterClass isNil ifTrue: [
+      'ERROR: Greeter class not found. Did mag sync pull run?' println.
+      ^nil
+    ].
+
+    'Greeter class found. Running in sandbox...' println.
+
+    "Run the received code in a restricted process (sandboxed)"
+    result := [greeterClass new greet: 'World'] forkRestricted: #('File' 'Network').
+    result := result wait.
+
+    ('Sandbox result: ' , result) println.
+
+    "Send the result back to VM-A via HTTP"
+    HttpClient new post: 'http://vm-a:9001/message' body: result contentType: 'text/plain'.
+
+    'VM-B sent result to VM-A.' println
+  ]

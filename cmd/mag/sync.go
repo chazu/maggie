@@ -27,7 +27,7 @@ import (
 //	mag sync list                              List all local content
 //	mag sync diff <peer-addr>                  Compare local vs remote content
 //	mag sync show <hash-prefix>                Show details for a hash
-func handleSyncCommand(args []string, vmInst *vm.VM, m *manifest.Manifest, verbose bool) {
+func handleSyncCommand(args []string, vmInst *vm.VM, m *manifest.Manifest, verbose bool, diskCache *dist.DiskCache) {
 	if len(args) == 0 {
 		fmt.Fprintln(os.Stderr, "Usage: mag sync [push|pull|status|list|diff|show] ...")
 		fmt.Fprintln(os.Stderr, "  push [peer-addr]                Push local project to peer (uses manifest peers if omitted)")
@@ -61,7 +61,7 @@ func handleSyncCommand(args []string, vmInst *vm.VM, m *manifest.Manifest, verbo
 			fmt.Fprintln(os.Stderr, "Usage: mag sync pull <peer-addr> <class-name-or-hash>")
 			os.Exit(1)
 		}
-		handleSyncPull(vmInst, args[1], args[2], verbose)
+		handleSyncPull(vmInst, args[1], args[2], verbose, diskCache)
 	case "list":
 		handleSyncList(vmInst)
 	case "diff":
@@ -185,7 +185,7 @@ func handleSyncPush(vmInst *vm.VM, peerAddr string, verbose bool) {
 		txResp.Msg.Accepted, txResp.Msg.Rejected)
 }
 
-func handleSyncPull(vmInst *vm.VM, peerAddr string, rootHashHex string, verbose bool) {
+func handleSyncPull(vmInst *vm.VM, peerAddr string, rootHashHex string, verbose bool, diskCache *dist.DiskCache) {
 	baseURL := normalizeAddr(peerAddr)
 	client := maggiev1connect.NewSyncServiceClient(http.DefaultClient, baseURL)
 	ctx := context.Background()
@@ -324,6 +324,16 @@ func handleSyncPull(vmInst *vm.VM, peerAddr string, rootHashHex string, verbose 
 	}
 	if compiled > 0 {
 		fmt.Printf("Rehydrated: %d methods compiled\n", compiled)
+	}
+
+	// Persist newly pulled content to disk cache
+	if diskCache != nil {
+		written, saveErr := diskCache.SaveFrom(vmInst.ContentStore())
+		if saveErr != nil {
+			fmt.Fprintf(os.Stderr, "Warning: failed to save disk cache: %v\n", saveErr)
+		} else if verbose && written > 0 {
+			fmt.Printf("Saved %d chunks to disk cache\n", written)
+		}
 	}
 }
 

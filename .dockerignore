@@ -1,0 +1,13 @@
+.git
+.gitignore
+.beads
+.maggie/deps
+.claude
+.roam
+*.image
+demo/
+docs/
+benchmarks/
+scripts/
+**/*_test.go
+**/*.test

@@ -24,6 +24,9 @@ type SyncService struct {
 	// compile compiles source text and returns its content hash.
 	// Injected to avoid depending on the compiler package.
 	compile func(source string) ([32]byte, error)
+
+	// diskCache persists received chunks to disk. May be nil.
+	diskCache *dist.DiskCache
 }
 
 // NewSyncService creates a SyncService.
@@ -33,13 +36,15 @@ func NewSyncService(
 	peers *dist.PeerStore,
 	policy *dist.CapabilityPolicy,
 	compile func(source string) ([32]byte, error),
+	diskCache *dist.DiskCache,
 ) *SyncService {
 	return &SyncService{
-		worker:  worker,
-		store:   store,
-		peers:   peers,
-		policy:  policy,
-		compile: compile,
+		worker:    worker,
+		store:     store,
+		peers:     peers,
+		policy:    policy,
+		compile:   compile,
+		diskCache: diskCache,
 	}
 }
 
@@ -165,6 +170,12 @@ func (s *SyncService) Transfer(
 		default:
 			rejected++
 		}
+	}
+
+	// Persist newly received content to disk cache
+	if s.diskCache != nil && accepted > 0 {
+		// Best-effort: don't fail the RPC if cache write fails
+		s.diskCache.SaveFrom(s.store)
 	}
 
 	return connect.NewResponse(&maggiev1.TransferResponse{

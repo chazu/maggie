@@ -1,0 +1,88 @@
+"""
+An incoming HTTP request received by an HttpServer route handler.
+
+HttpRequest objects are created by the server and passed to route
+handler blocks. They provide access to the request method, path,
+headers, query parameters, and body.
+
+```example
+"Inspecting a request in a handler"
+server route: '/api/data' method: 'POST' handler: [:req |
+    | method path body |
+    method := req method.     "=> 'POST'"
+    path := req path.         "=> '/api/data'"
+    body := req body.         "=> request body string"
+    HttpResponse new: 200 body: body
+]
+```
+
+```example
+"Reading headers and query parameters"
+server route: '/search' method: 'GET' handler: [:req |
+    | auth query |
+    auth := req header: 'Authorization'.
+    query := req queryParam: 'q'.
+    HttpResponse new: 200 body: 'Searching for: ', query
+]
+```
+"""
+HttpRequest subclass: Object
+
+  """
+  Return the request body as a string. The body is read lazily on
+  first access and cached for subsequent calls.
+
+  ```example
+  body := request body
+  ```
+  """
+  method: body [
+      <primitive>
+  ]
+
+  """
+  Return the URL path of the request (e.g. '/api/data').
+
+  ```example
+  request path   "=> '/api/data'"
+  ```
+  """
+  method: path [
+      <primitive>
+  ]
+
+  """
+  Return the HTTP method of the request (e.g. 'GET', 'POST').
+
+  ```example
+  request method   "=> 'GET'"
+  ```
+  """
+  method: method [
+      <primitive>
+  ]
+
+  """
+  Return the value of the named HTTP header, or an empty string
+  if the header is not present.
+
+  ```example
+  contentType := request header: 'Content-Type'
+  ```
+  """
+  method: header: name [
+      <primitive>
+  ]
+
+  """
+  Return the value of the named URL query parameter, or an empty
+  string if the parameter is not present.
+
+  ```example
+  "For URL '/search?q=hello'"
+  request queryParam: 'q'   "=> 'hello'"
+  ```
+  """
+  method: queryParam: name [
+      <primitive>
+  ]

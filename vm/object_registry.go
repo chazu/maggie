@@ -26,6 +26,7 @@ type ObjectRegistry struct {
 	grpcClients   *TypedRegistry[int, *GrpcClientObject]
 	grpcStreams   *TypedRegistry[int, *GrpcStreamObject]
 	httpServers   *TypedRegistry[int, *HttpServerObject]
+	httpClients   *TypedRegistry[int, *HttpClientObject]
 	httpRequests  *TypedRegistry[int, *HttpRequestObject]
 	httpResponses *TypedRegistry[int, *HttpResponseObject]
 	extProcesses  *TypedRegistry[int, *ExternalProcessObject]
@@ -48,6 +49,7 @@ type ObjectRegistry struct {
 	grpcClientID   atomic.Int32
 	grpcStreamID   atomic.Int32
 	httpServerID   atomic.Int32
+	httpClientID   atomic.Int32
 	httpRequestID  atomic.Int32
 	httpResponseID atomic.Int32
 	extProcessID   atomic.Int32
@@ -82,6 +84,7 @@ func NewObjectRegistry() *ObjectRegistry {
 		grpcClients:   NewTypedRegistry[int, *GrpcClientObject](),
 		grpcStreams:   NewTypedRegistry[int, *GrpcStreamObject](),
 		httpServers:   NewTypedRegistry[int, *HttpServerObject](),
+		httpClients:   NewTypedRegistry[int, *HttpClientObject](),
 		httpRequests:  NewTypedRegistry[int, *HttpRequestObject](),
 		httpResponses: NewTypedRegistry[int, *HttpResponseObject](),
 		extProcesses:  NewTypedRegistry[int, *ExternalProcessObject](),
@@ -108,6 +111,7 @@ func NewObjectRegistry() *ObjectRegistry {
 	or.grpcClientID.Store(1)
 	or.grpcStreamID.Store(1)
 	or.httpServerID.Store(1)
+	or.httpClientID.Store(1)
 	or.httpRequestID.Store(1)
 	or.httpResponseID.Store(1)
 	or.extProcessID.Store(1)
@@ -488,6 +492,32 @@ func (or *ObjectRegistry) HttpServerCount() int {
 }
 
 // ---------------------------------------------------------------------------
+// HTTP Client Registry Methods
+// ---------------------------------------------------------------------------
+
+// RegisterHttpClient adds an HTTP client to the registry and returns its ID.
+func (or *ObjectRegistry) RegisterHttpClient(c *HttpClientObject) int {
+	id := int(or.httpClientID.Add(1) - 1)
+	or.httpClients.Put(id, c)
+	return id
+}
+
+// GetHttpClient retrieves an HTTP client by its ID.
+func (or *ObjectRegistry) GetHttpClient(id int) *HttpClientObject {
+	return or.httpClients.Get(id)
+}
+
+// UnregisterHttpClient removes an HTTP client from the registry.
+func (or *ObjectRegistry) UnregisterHttpClient(id int) {
+	or.httpClients.Delete(id)
+}
+
+// HttpClientCount returns the number of registered HTTP clients.
+func (or *ObjectRegistry) HttpClientCount() int {
+	return or.httpClients.Count()
+}
+
+// ---------------------------------------------------------------------------
 // HTTP Request Registry Methods
 // ---------------------------------------------------------------------------
 
@@ -840,6 +870,7 @@ func (or *ObjectRegistry) FullStats() map[string]int {
 	stats["grpcClients"] = or.GrpcClientCount()
 	stats["grpcStreams"] = or.GrpcStreamCount()
 	stats["httpServers"] = or.HttpServerCount()
+	stats["httpClients"] = or.HttpClientCount()
 	stats["httpRequests"] = or.HttpRequestCount()
 	stats["httpResponses"] = or.HttpResponseCount()
 	stats["cells"] = or.CellCount()

@@ -1,0 +1,84 @@
+"""
+An HTTP response returned from an HttpServer route handler.
+
+HttpResponse wraps a status code, body string, and headers map.
+Create responses with `new:body:` and optionally set headers
+before returning from a route handler block.
+
+```example
+"Simple 200 response"
+HttpResponse new: 200 body: 'Hello, world!'
+```
+
+```example
+"JSON response with content type"
+response := HttpResponse new: 200 body: '{"status": "ok"}'.
+response contentType: 'application/json'
+```
+
+```example
+"Response with custom headers"
+response := HttpResponse new: 201 body: 'Created'.
+response header: 'Location' value: '/api/items/42'.
+response contentType: 'application/json'
+```
+"""
+HttpResponse subclass: Object
+
+  """
+  Create a new HTTP response with the given status code and body string.
+
+  ```example
+  HttpResponse new: 200 body: 'OK'
+  HttpResponse new: 404 body: 'Not Found'
+  HttpResponse new: 500 body: 'Internal Server Error'
+  ```
+  """
+  class method: new: status body: body [
+      <primitive>
+  ]
+
+  """
+  Set a response header. Returns self for chaining.
+
+  ```example
+  response header: 'X-Custom' value: 'my-value'
+  ```
+  """
+  method: header: name value: value [
+      <primitive>
+  ]
+
+  """
+  Set the Content-Type header. Convenience method equivalent to
+  `self header: 'Content-Type' value: mime`. Returns self for chaining.
+
+  ```example
+  response contentType: 'application/json'
+  ```
+  """
+  method: contentType: mime [
+      <primitive>
+  ]
+
+  """
+  Return the status code of this response.
+
+  ```example
+  (HttpResponse new: 200 body: 'OK') status   "=> 200"
+  ```
+  """
+  method: status [
+      <primitive>
+  ]
+
+  """
+  Return the body string of this response.
+
+  ```example
+  (HttpResponse new: 200 body: 'hello') body   "=> 'hello'"
+  ```
+  """
+  method: body [
+      <primitive>
+  ]

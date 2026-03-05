@@ -147,6 +147,19 @@ func main() {
 	vmInst.ReRegisterNilPrimitives()
 	vmInst.ReRegisterBooleanPrimitives()
 
+	// Load disk cache into ContentStore (restores previously synced content)
+	var diskCache *dist.DiskCache
+	cacheDir := ".maggie/cache"
+	if dc, err := dist.NewDiskCache(cacheDir); err == nil {
+		diskCache = dc
+		loaded, loadErr := dc.LoadInto(vmInst.ContentStore())
+		if loadErr != nil {
+			fmt.Fprintf(os.Stderr, "Warning: failed to load disk cache: %v\n", loadErr)
+		} else if *verbose && loaded > 0 {
+			fmt.Printf("Loaded %d chunks from disk cache\n", loaded)
+		}
+	}
+
 	// Set up compiler backend (Go compiler by default)
 	vmInst.UseGoCompiler(compiler.Compile)
 
@@ -252,11 +265,19 @@ func main() {
 		}
 	}
 
+	// Wire sync restriction list into the VM for sandboxed execution
+	if loadedManifest != nil && len(loadedManifest.Sync.Capabilities) > 0 {
+		vmInst.SetSyncRestrictions(loadedManifest.Sync.Capabilities)
+	}
+
 	// Start sync server if configured via manifest
 	if loadedManifest != nil && loadedManifest.Sync.Listen != "" {
 		syncAddr := loadedManifest.Sync.Listen
 		var syncOpts []server.ServerOption
 		syncOpts = append(syncOpts, server.WithCompileFunc(buildCompileFunc(vmInst)))
+		if diskCache != nil {
+			syncOpts = append(syncOpts, server.WithDiskCache(diskCache))
+		}
 		if len(loadedManifest.Sync.Capabilities) > 0 {
 			syncOpts = append(syncOpts, server.WithSyncPolicy(
 				dist.NewRestrictedPolicy(loadedManifest.Sync.Capabilities),
@@ -291,7 +312,7 @@ func main() {
 
 	// Handle sync subcommand (after sources are compiled)
 	if syncArgs != nil {
-		handleSyncCommand(syncArgs, vmInst, loadedManifest, *verbose)
+		handleSyncCommand(syncArgs, vmInst, loadedManifest, *verbose, diskCache)
 		return
 	}
 

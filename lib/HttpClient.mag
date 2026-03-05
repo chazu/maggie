@@ -1,0 +1,106 @@
+"""
+An HTTP client for making requests to web servers.
+
+HttpClient wraps Go's net/http.Client with a default 30-second timeout.
+All request methods return the response body as a string, or nil on error.
+
+```example
+"Simple GET request"
+client := HttpClient new.
+body := client get: 'http://example.com/api/status'.
+body print
+```
+
+```example
+"POST with JSON body"
+client := HttpClient new.
+response := client post: 'http://example.com/api/data'
+                   body: '{"name": "Alice"}'
+                   contentType: 'application/json'.
+response print
+```
+
+```example
+"PUT and DELETE"
+client := HttpClient new.
+client put: 'http://example.com/api/items/1' body: '{"updated": true}'.
+client delete: 'http://example.com/api/items/1'
+```
+"""
+HttpClient subclass: Object
+
+  """
+  Create a new HttpClient with a default 30-second timeout.
+
+  ```example
+  client := HttpClient new
+  ```
+  """
+  class method: new [
+      <primitive>
+  ]
+
+  """
+  Perform an HTTP GET request. Returns the response body as a string,
+  or nil on error.
+
+  ```example
+  body := HttpClient new get: 'http://example.com/'
+  ```
+  """
+  method: get: url [
+      <primitive>
+  ]
+
+  """
+  Perform an HTTP POST request with the given body string.
+  Uses 'application/octet-stream' as the default content type.
+  Returns the response body as a string, or nil on error.
+
+  ```example
+  result := HttpClient new post: 'http://example.com/api' body: 'hello'
+  ```
+  """
+  method: post: url body: body [
+      <primitive>
+  ]
+
+  """
+  Perform an HTTP POST request with the given body and content type.
+  Returns the response body as a string, or nil on error.
+
+  ```example
+  result := HttpClient new
+      post: 'http://example.com/api'
+      body: '{"key": "value"}'
+      contentType: 'application/json'
+  ```
+  """
+  method: post: url body: body contentType: contentType [
+      <primitive>
+  ]
+
+  """
+  Perform an HTTP PUT request with the given body string.
+  Uses 'application/octet-stream' as the content type.
+  Returns the response body as a string, or nil on error.
+
+  ```example
+  result := HttpClient new put: 'http://example.com/api/item' body: 'data'
+  ```
+  """
+  method: put: url body: body [
+      <primitive>
+  ]
+
+  """
+  Perform an HTTP DELETE request. Returns the response body as a string,
+  or nil on error.
+
+  ```example
+  result := HttpClient new delete: 'http://example.com/api/item/1'
+  ```
+  """
+  method: delete: url [
+      <primitive>
+  ]

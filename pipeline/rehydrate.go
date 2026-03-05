@@ -97,6 +97,9 @@ func RehydrateFromStore(vmInst *vm.VM) (int, error) {
 			vmInst.Globals[d.Name] = classVal
 		}
 
+		// Mark as received from network (not locally loaded)
+		vmInst.MarkRehydrated(fqn)
+
 		classMap[fqn] = class
 	}
 

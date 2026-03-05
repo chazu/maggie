@@ -117,6 +117,15 @@ type VM struct {
 	// contentStore indexes compiled methods and class digests by content hash
 	// for the distribution protocol.
 	contentStore *ContentStore
+
+	// RehydratedClasses tracks class names that were installed via the sync/
+	// rehydration pipeline (i.e., received from the network, not loaded locally).
+	RehydratedClasses map[string]bool
+
+	// syncRestrictions is the default list of global names to hide when
+	// running received code in a sandbox. Populated from the manifest's
+	// [sync].capabilities at startup.
+	syncRestrictions []string
 }
 
 // NewVM creates and bootstraps a new VM.
@@ -281,6 +290,7 @@ func (vm *VM) bootstrap() {
 	vm.registerClassReflectionPrimitives()
 	vm.registerDocstringPrimitives()
 	vm.registerCompilerPrimitives()
+	vm.registerSandboxPrimitives()
 	vm.registerFilePrimitives()
 	vm.registerDebuggerPrimitives()
 	vm.registerHttpPrimitives()
@@ -905,6 +915,34 @@ func (vm *VM) ContentStore() *ContentStore {
 		vm.contentStore = NewContentStore()
 	}
 	return vm.contentStore
+}
+
+// SetSyncRestrictions sets the default restriction list for sandboxed execution
+// of received code. Typically called at startup from the manifest config.
+func (vm *VM) SetSyncRestrictions(names []string) {
+	vm.syncRestrictions = names
+}
+
+// SyncRestrictions returns the default restriction list for sandboxed execution.
+func (vm *VM) SyncRestrictions() []string {
+	return vm.syncRestrictions
+}
+
+// MarkRehydrated records a class name as having been installed via the
+// sync/rehydration pipeline (received from the network).
+func (vm *VM) MarkRehydrated(className string) {
+	if vm.RehydratedClasses == nil {
+		vm.RehydratedClasses = make(map[string]bool)
+	}
+	vm.RehydratedClasses[className] = true
+}
+
+// IsRehydrated returns true if the class was installed via rehydration.
+func (vm *VM) IsRehydrated(className string) bool {
+	if vm.RehydratedClasses == nil {
+		return false
+	}
+	return vm.RehydratedClasses[className]
 }
 
 // GoTypeRegistry returns the VM's Go type registry, creating it if needed.

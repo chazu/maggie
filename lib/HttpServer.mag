@@ -1,0 +1,115 @@
+"""
+An HTTP server for handling web requests.
+
+HttpServer wraps Go's net/http server. It supports static file serving
+and route-based request handling with method filtering. Route handlers
+receive an HttpRequest and should return an HttpResponse or a string.
+
+```example
+"Basic web server"
+server := HttpServer new: 8080.
+server route: '/hello' method: 'GET' handler: [:req |
+    HttpResponse new: 200 body: 'Hello, world!'
+].
+server start
+```
+
+```example
+"Static file server with API endpoint"
+server := HttpServer new: 3000.
+server serveStatic: '/assets/' from: './public'.
+server route: '/api/echo' method: 'POST' handler: [:req |
+    HttpResponse new: 200 body: req body
+].
+server start
+```
+"""
+HttpServer subclass: Object
+
+  """
+  Create a new HTTP server listening on the given port.
+  The server is not started until `start` is called.
+
+  ```example
+  server := HttpServer new: 8080
+  ```
+  """
+  class method: new: port [
+      <primitive>
+  ]
+
+  """
+  Register a static file handler. Requests matching urlPath will be
+  served from dirPath on the filesystem. Returns self for chaining.
+
+  ```example
+  server serveStatic: '/static/' from: './public'
+  ```
+  """
+  method: serveStatic: urlPath from: dirPath [
+      <primitive>
+  ]
+
+  """
+  Register a route handler. The handler block receives an HttpRequest
+  and should return an HttpResponse or a string. If method is empty,
+  all HTTP methods are accepted. Returns self for chaining.
+
+  ```example
+  server route: '/api/data' method: 'GET' handler: [:req |
+      HttpResponse new: 200 body: 'OK'
+  ]
+  ```
+  """
+  method: route: path method: httpMethod handler: block [
+      <primitive>
+  ]
+
+  """
+  Start the server. This blocks the current process until the server
+  is stopped. Returns self on clean shutdown, or nil on error.
+
+  ```example
+  server := HttpServer new: 8080.
+  [server start] fork.
+  "Server is now running in background"
+  ```
+  """
+  method: start [
+      <primitive>
+  ]
+
+  """
+  Stop the server gracefully with a 5-second shutdown timeout.
+  Returns self.
+
+  ```example
+  server stop
+  ```
+  """
+  method: stop [
+      <primitive>
+  ]
+
+  """
+  Return the port number this server is configured to listen on.
+
+  ```example
+  (HttpServer new: 8080) port   "=> 8080"
+  ```
+  """
+  method: port [
+      <primitive>
+  ]
+
+  """
+  Return true if the server is currently running.
+
+  ```example
+  server := HttpServer new: 8080.
+  server isRunning   "=> false"
+  ```
+  """
+  method: isRunning [
+      <primitive>
+  ]
