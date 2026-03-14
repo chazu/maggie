@@ -33,7 +33,7 @@ func startTestServer(t *testing.T, store *vm.ContentStore, compile func(string) 
 
 	worker := NewVMWorker(vm.NewVM())
 	peers := dist.NewPeerStore()
-	svc := NewSyncService(worker, store, peers, policy, compile)
+	svc := NewSyncService(worker, store, peers, policy, compile, nil)
 
 	mux := http.NewServeMux()
 	path, handler := maggiev1connect.NewSyncServiceHandler(svc)

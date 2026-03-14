@@ -19,7 +19,7 @@ func newTestSyncService() (*SyncService, *vm.ContentStore) {
 	compile := func(source string) ([32]byte, error) {
 		return sha256.Sum256([]byte(source)), nil
 	}
-	svc := NewSyncService(testWorker, store, peers, policy, compile)
+	svc := NewSyncService(testWorker, store, peers, policy, compile, nil)
 	return svc, store
 }
 
@@ -116,7 +116,7 @@ func TestSyncAnnounce_RejectedByPolicy(t *testing.T) {
 	store := vm.NewContentStore()
 	peers := dist.NewPeerStore()
 	policy := dist.NewRestrictedPolicy([]string{"File"})
-	svc := NewSyncService(testWorker, store, peers, policy, nil)
+	svc := NewSyncService(testWorker, store, peers, policy, nil, nil)
 
 	rootHash := sha256.Sum256([]byte("root"))
 
@@ -227,7 +227,7 @@ func TestSyncTransfer_NilCompileFunc(t *testing.T) {
 	store := vm.NewContentStore()
 	peers := dist.NewPeerStore()
 	policy := dist.NewPermissivePolicy()
-	svc := NewSyncService(testWorker, store, peers, policy, nil) // nil compile
+	svc := NewSyncService(testWorker, store, peers, policy, nil, nil) // nil compile
 
 	source := "source"
 	h := sha256.Sum256([]byte(source))
@@ -332,7 +332,7 @@ func TestSyncAnnounce_BannedPeer(t *testing.T) {
 	store := vm.NewContentStore()
 	peers := dist.NewPeerStore()
 	policy := dist.NewPermissivePolicy()
-	svc := NewSyncService(testWorker, store, peers, policy, nil)
+	svc := NewSyncService(testWorker, store, peers, policy, nil, nil)
 
 	// Ban the peer (default threshold = 3 mismatches)
 	peers.RecordHashMismatch("unknown")
@@ -356,7 +356,7 @@ func TestSyncTransfer_BannedPeer(t *testing.T) {
 	compile := func(source string) ([32]byte, error) {
 		return sha256.Sum256([]byte(source)), nil
 	}
-	svc := NewSyncService(testWorker, store, peers, policy, compile)
+	svc := NewSyncService(testWorker, store, peers, policy, compile, nil)
 
 	// Ban the peer
 	peers.RecordHashMismatch("unknown")
