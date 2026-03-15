@@ -277,4 +277,17 @@ func (vm *VM) registerStringPrimitivesExtended() {
 		fmt.Print(s)
 		return recv
 	})
+
+	// primSplit: - split string by separator, returns Array of strings
+	c.AddMethod1(vm.Selectors, "primSplit:", func(vmPtr interface{}, recv Value, sep Value) Value {
+		v := vmPtr.(*VM)
+		s := v.registry.GetStringContent(recv)
+		separator := v.getStringLike(sep)
+		parts := strings.Split(s, separator)
+		elems := make([]Value, len(parts))
+		for i, part := range parts {
+			elems[i] = v.registry.NewStringValue(part)
+		}
+		return v.NewArrayWithElements(elems)
+	})
 }

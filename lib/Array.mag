@@ -374,6 +374,21 @@ Array subclass: Object
 
   """
   Join array elements into a string with a separator.
+  Elements should be strings; non-string elements are treated as empty.
+
+  ```test
+  #('a' 'b' 'c') joinWith: ', ' >>> 'a, b, c'
+  #() joinWith: ', ' >>> ''
+  #('x') joinWith: ', ' >>> 'x'
+  ```
+  """
+  method: joinWith: separator [
+      ^self primJoinWith: separator
+  ]
+
+  """
+  Join array elements into a string with a separator.
+  Converts each element to a string via printString before joining.
 
   ```test
   #('a' 'b' 'c') join: ', ' >>> 'a, b, c'
