@@ -1,0 +1,35 @@
+"""
+Random number generation with both class-level and instance-level APIs.
+
+Class methods use a global auto-seeded source — convenient for general use.
+Instance methods use a per-instance generator, optionally seeded for
+reproducible sequences.
+
+```test
+(Random next) < 1.0 >>> true
+(Random next) > -1.0 >>> true
+(Random nextInt: 1) = 0 >>> true
+(Random nextBetween: 5 and: 5) >>> 5
+(Random new: 42) nextInt: 1000 >>> (Random new: 42) nextInt: 1000
+(Random new: 99) next < 1.0 >>> true
+```
+
+```example
+"Roll a six-sided die"
+Random nextInt: 6
+```
+
+```example
+"Reproducible sequence"
+r := Random new: 42.
+r nextInt: 100
+```
+"""
+Random subclass: Object
+
+  """
+  Return a human-readable string representation.
+  """
+  method: printString [
+    ^'a Random'
+  ]
