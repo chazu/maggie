@@ -388,7 +388,7 @@ Array subclass: Object
 
   """
   Join array elements into a string with a separator.
-  Converts each element to a string via printString before joining.
+  Alias for joinWith: — uses the raw string value of each element.
 
   ```test
   #('a' 'b' 'c') join: ', ' >>> 'a, b, c'
@@ -397,13 +397,7 @@ Array subclass: Object
   ```
   """
   method: join: separator [
-      | s |
-      s := ''.
-      0 to: self size - 1 do: [:i |
-          i > 0 ifTrue: [s := s, separator].
-          s := s, (self at: i) printString
-      ].
-      ^s
+      ^self primJoinWith: separator
   ]
 
   """
