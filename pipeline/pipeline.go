@@ -207,6 +207,9 @@ func (p *Pipeline) CompileAll(files []ParsedFile) (int, error) {
 				classEntries = append(classEntries, classEntry{class: class, classDef: classDef, pf: pf})
 			} else {
 				// Class already exists (extending core class) — still track for method compilation
+				if classDef.DocString != "" && class.DocString == "" {
+					class.DocString = classDef.DocString
+				}
 				classEntries = append(classEntries, classEntry{class: class, classDef: classDef, pf: pf})
 			}
 		}
