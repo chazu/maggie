@@ -16,14 +16,13 @@ import (
 // handleBuildCommand processes the `mag build` subcommand.
 // Usage:
 //
-//	mag build              # ./mag-custom (gowrap-only, legacy)
+//	mag build              # ./mag-custom
 //	mag build -o myapp     # custom output
 //
-// If the project has [source] dirs and an entry point, the sources are compiled
-// into an image that is embedded in the output binary. The binary loads the image
-// on startup and runs the entry point. No Go code is needed in the project.
-//
-// If [go-wrap] packages are present, they are also included in the binary.
+// The project must have [source] dirs. Sources are compiled into an image that
+// is embedded in the output binary. The binary loads the image on startup and
+// runs the entry point. If [go-wrap] packages are present, they are also
+// included in the binary.
 func handleBuildCommand(args []string, verbose bool) {
 	var outputBinary string
 
@@ -56,81 +55,28 @@ func handleBuildCommand(args []string, verbose bool) {
 		os.Exit(1)
 	}
 
-	hasSources := len(m.Source.Dirs) > 0
-	hasGoWrap := len(m.GoWrap.Packages) > 0
-
-	if !hasSources && !hasGoWrap {
-		fmt.Fprintln(os.Stderr, "Error: maggie.toml has no [source] dirs and no [go-wrap] packages")
+	if len(m.Source.Dirs) == 0 {
+		fmt.Fprintln(os.Stderr, "Error: maggie.toml has no [source] dirs")
+		fmt.Fprintln(os.Stderr, "mag build requires source files to compile into an embedded image")
 		os.Exit(1)
 	}
 
-	// If we have sources, compile them into an image
-	var imagePath string
-	if hasSources {
-		imagePath, err = compileProjectImage(m, verbose)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error compiling image: %v\n", err)
-			os.Exit(1)
-		}
-		defer os.Remove(imagePath)
+	hasGoWrap := len(m.GoWrap.Packages) > 0
+
+	// Compile sources into an image
+	imagePath, err := compileProjectImage(m, verbose)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error compiling image: %v\n", err)
+		os.Exit(1)
 	}
+	defer os.Remove(imagePath)
 
-	if imagePath != "" {
-		// Embedded image build — may or may not have gowrap packages
-		var wrapperPkgs []gowrap.WrapperPackageInfo
-		var wrapDir string
+	// Wrap Go packages if configured
+	var wrapperPkgs []gowrap.WrapperPackageInfo
+	var wrapDir string
 
-		if hasGoWrap {
-			wrapDir = m.WrapOutputDir()
-			for _, pkg := range m.GoWrap.Packages {
-				target := wrapTarget{
-					ImportPath: pkg.Import,
-					Include:    pkg.Include,
-				}
-				if err := wrapPackage(target, wrapDir, verbose); err != nil {
-					fmt.Fprintf(os.Stderr, "Error wrapping %s: %v\n", pkg.Import, err)
-					os.Exit(1)
-				}
-			}
-			for _, pkg := range m.GoWrap.Packages {
-				model, err := gowrap.IntrospectPackage(pkg.Import, nil)
-				if err != nil {
-					fmt.Fprintf(os.Stderr, "Error introspecting %s: %v\n", pkg.Import, err)
-					os.Exit(1)
-				}
-				wrapperPkgs = append(wrapperPkgs, gowrap.WrapperPackageInfo{
-					ImportPath: pkg.Import,
-					PkgName:    model.Name,
-				})
-			}
-		}
-
-		maggieDir := detectMaggieDir()
-
-		opts := gowrap.EmbeddedBuildOptions{
-			OutputBinary: outputBinary,
-			ImagePath:    imagePath,
-			EntryPoint:   m.Source.Entry,
-			Namespace:    m.Project.Namespace,
-			WrapDir:      wrapDir,
-			WrapperPkgs:  wrapperPkgs,
-			ProjectDir:   m.Dir,
-			MaggieDir:    maggieDir,
-			Verbose:      verbose,
-		}
-
-		if err := gowrap.BuildEmbedded(opts); err != nil {
-			fmt.Fprintf(os.Stderr, "Error building: %v\n", err)
-			os.Exit(1)
-		}
-	} else {
-		// Legacy gowrap-only build (no sources to embed)
-		if !hasGoWrap {
-			fmt.Fprintln(os.Stderr, "No [go-wrap.packages] configured in maggie.toml")
-			os.Exit(1)
-		}
-
-		wrapDir := m.WrapOutputDir()
+	if hasGoWrap {
+		wrapDir = m.WrapOutputDir()
 		for _, pkg := range m.GoWrap.Packages {
 			target := wrapTarget{
 				ImportPath: pkg.Import,
@@ -141,8 +87,6 @@ func handleBuildCommand(args []string, verbose bool) {
 				os.Exit(1)
 			}
 		}
-
-		var wrapperPkgs []gowrap.WrapperPackageInfo
 		for _, pkg := range m.GoWrap.Packages {
 			model, err := gowrap.IntrospectPackage(pkg.Import, nil)
 			if err != nil {
@@ -154,19 +98,25 @@ func handleBuildCommand(args []string, verbose bool) {
 				PkgName:    model.Name,
 			})
 		}
+	}
 
-		opts := gowrap.BuildOptions{
-			OutputBinary: outputBinary,
-			WrapDir:      wrapDir,
-			WrapperPkgs:  wrapperPkgs,
-			ProjectDir:   m.Dir,
-			Verbose:      verbose,
-		}
+	maggieDir := detectMaggieDir()
 
-		if err := gowrap.Build(opts); err != nil {
-			fmt.Fprintf(os.Stderr, "Error building: %v\n", err)
-			os.Exit(1)
-		}
+	opts := gowrap.EmbeddedBuildOptions{
+		OutputBinary: outputBinary,
+		ImagePath:    imagePath,
+		EntryPoint:   m.Source.Entry,
+		Namespace:    m.Project.Namespace,
+		WrapDir:      wrapDir,
+		WrapperPkgs:  wrapperPkgs,
+		ProjectDir:   m.Dir,
+		MaggieDir:    maggieDir,
+		Verbose:      verbose,
+	}
+
+	if err := gowrap.BuildEmbedded(opts); err != nil {
+		fmt.Fprintf(os.Stderr, "Error building: %v\n", err)
+		os.Exit(1)
 	}
 
 	fmt.Printf("Built %s\n", outputBinary)
