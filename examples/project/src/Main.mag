@@ -1,0 +1,19 @@
+namespace: 'GreetingApp'
+
+"""
+Entry point for the greeting application.
+Demonstrates creating objects and sending messages.
+"""
+Main subclass: Object
+
+  classMethod: start [
+    | greeter |
+    greeter := Greeter new: 'World'.
+    greeter greet println.
+    greeter greetFormally println.
+
+    "Greet a few more people"
+    #('Alice' 'Bob' 'Charlie') do: [:name |
+      (Greeter new: name) greet println
+    ].
+  ]
