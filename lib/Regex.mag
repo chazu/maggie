@@ -1,0 +1,119 @@
+"""
+Regular expression pattern matching wrapping Go's regexp engine.
+
+Compile a pattern with `Regex compile:`, which returns a Result
+(Success wrapping a Regex, or Failure with an error message).
+Use the compiled Regex to match, find, replace, and split strings.
+
+```test
+(Regex compile: '[0-9]+') isSuccess >>> true
+(Regex compile: '[invalid') isFailure >>> true
+```
+
+```example
+"Find all numbers in a string"
+re := (Regex compile: '[0-9]+') value.
+re findAllIn: 'abc 123 def 456'
+```
+"""
+Regex subclass: Object
+
+  """
+  Compile a regex pattern string. Returns Success wrapping a Regex
+  on success, or Failure with an error message on invalid pattern.
+
+  ```test
+  (Regex compile: 'hello') isSuccess >>> true
+  (Regex compile: '[') isFailure >>> true
+  (Regex compile: '^\d+$') isSuccess >>> true
+  ```
+  """
+  classMethod: compile: pattern [
+      ^<primitive>
+  ]
+
+  """
+  Test whether the given string matches this pattern.
+
+  ```test
+  (Regex compile: '^hello') value matches: 'hello world' >>> true
+  (Regex compile: '^hello') value matches: 'world hello' >>> false
+  (Regex compile: '\d+') value matches: 'abc123' >>> true
+  (Regex compile: '^\d+$') value matches: 'abc' >>> false
+  ```
+  """
+  method: matches: aString [
+      ^<primitive>
+  ]
+
+  """
+  Find the first match of this pattern in the given string.
+  Returns the matched substring, or nil if no match.
+
+  ```test
+  (Regex compile: '\d+') value findIn: 'abc 123 def' >>> '123'
+  (Regex compile: 'xyz') value findIn: 'abc def' >>> nil
+  ```
+  """
+  method: findIn: aString [
+      ^<primitive>
+  ]
+
+  """
+  Find all matches of this pattern in the given string.
+  Returns an Array of matched substrings.
+
+  ```test
+  (Regex compile: '\d+') value findAllIn: 'a1 b22 c333' >>> #('1' '22' '333')
+  ((Regex compile: 'x') value findAllIn: 'abc') size >>> 0
+  ```
+  """
+  method: findAllIn: aString [
+      ^<primitive>
+  ]
+
+  """
+  Replace all occurrences of this pattern in the string with replacement.
+
+  ```test
+  (Regex compile: '\d+') value replaceIn: 'a1b2c3' with: 'X' >>> 'aXbXcX'
+  (Regex compile: '\s+') value replaceIn: 'hello   world' with: ' ' >>> 'hello world'
+  ```
+  """
+  method: replaceIn: aString with: replacement [
+      ^<primitive>
+  ]
+
+  """
+  Split the string by this pattern. Returns an Array of substrings.
+
+  ```test
+  (Regex compile: ',\s*') value split: 'a, b, c' >>> #('a' 'b' 'c')
+  (Regex compile: '\d+') value split: 'a1b2c' >>> #('a' 'b' 'c')
+  ```
+  """
+  method: split: aString [
+      ^<primitive>
+  ]
+
+  """
+  Return the original pattern string used to compile this Regex.
+
+  ```test
+  (Regex compile: 'hello') value pattern >>> 'hello'
+  ```
+  """
+  method: pattern [
+      ^<primitive>
+  ]
+
+  """
+  Return a human-readable representation.
+
+  ```test
+  (Regex compile: '\d+') value printString >>> 'Regex(/\d+/)'
+  ```
+  """
+  method: printString [
+      ^<primitive>
+  ]
