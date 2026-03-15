@@ -59,8 +59,27 @@ func (g *GoCompilerBackend) Compile(source string, class *Class) (*CompiledMetho
 
 // CompileExpression compiles a single expression using the Go compiler.
 func (g *GoCompilerBackend) CompileExpression(source string) (*CompiledMethod, error) {
-	// Wrap expression in a method
-	methodSource := "doIt\n    ^" + source
+	// Wrap expression in a method body.
+	// For multi-statement expressions (separated by '.'), the ^ (return)
+	// must be placed before the last statement only. Otherwise, the method
+	// returns after the first statement and remaining statements are dead code.
+	source = strings.TrimSpace(source)
+	lastDot := strings.LastIndex(source, ".")
+	var methodSource string
+	if lastDot < 0 {
+		// Single expression: return it directly
+		methodSource = "doIt\n    ^" + source
+	} else {
+		// Multi-statement: execute all but last, return last
+		prefix := source[:lastDot+1]
+		suffix := strings.TrimSpace(source[lastDot+1:])
+		if suffix == "" {
+			// Trailing dot with no final expression — return the whole thing
+			methodSource = "doIt\n    ^" + source
+		} else {
+			methodSource = "doIt\n    " + prefix + " ^" + suffix
+		}
+	}
 	return g.Compile(methodSource, nil)
 }
 
