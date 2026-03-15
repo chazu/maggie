@@ -313,6 +313,112 @@ func (vm *VM) registerFilePrimitives() {
 		}
 		return v.registry.NewStringValue(home)
 	})
+
+	// ---------------------------------------------------------------------------
+	// File metadata
+	// ---------------------------------------------------------------------------
+
+	// size: path - Get file size in bytes
+	fileClass.AddClassMethod1(vm.Selectors, "size:", func(vmPtr interface{}, recv Value, pathVal Value) Value {
+		v := vmPtr.(*VM)
+		path := v.valueToString(pathVal)
+		if path == "" {
+			return v.newFailureResult("size: requires a path string")
+		}
+		info, err := os.Stat(path)
+		if err != nil {
+			return v.newFailureResult("Cannot stat file: " + err.Error())
+		}
+		return FromSmallInt(info.Size())
+	})
+
+	// modificationTime: path - Get file modification time as Unix milliseconds
+	fileClass.AddClassMethod1(vm.Selectors, "modificationTime:", func(vmPtr interface{}, recv Value, pathVal Value) Value {
+		v := vmPtr.(*VM)
+		path := v.valueToString(pathVal)
+		if path == "" {
+			return v.newFailureResult("modificationTime: requires a path string")
+		}
+		info, err := os.Stat(path)
+		if err != nil {
+			return v.newFailureResult("Cannot stat file: " + err.Error())
+		}
+		return FromSmallInt(info.ModTime().UnixMilli())
+	})
+
+	// ---------------------------------------------------------------------------
+	// Recursive deletion
+	// ---------------------------------------------------------------------------
+
+	// deleteAll: path - Recursively delete a file or directory
+	fileClass.AddClassMethod1(vm.Selectors, "deleteAll:", func(vmPtr interface{}, recv Value, pathVal Value) Value {
+		v := vmPtr.(*VM)
+		path := v.valueToString(pathVal)
+		if path == "" {
+			return v.newFailureResult("deleteAll: requires a path string")
+		}
+		err := os.RemoveAll(path)
+		if err != nil {
+			return v.newFailureResult("Cannot delete: " + err.Error())
+		}
+		return v.newSuccessResult(pathVal)
+	})
+
+	// ---------------------------------------------------------------------------
+	// Glob
+	// ---------------------------------------------------------------------------
+
+	// glob:in: pattern dir - Find files matching a glob pattern in a directory
+	// Returns an array of matching paths, or Failure on error
+	fileClass.AddClassMethod2(vm.Selectors, "glob:in:", func(vmPtr interface{}, recv Value, patternVal, dirVal Value) Value {
+		v := vmPtr.(*VM)
+		pattern := v.valueToString(patternVal)
+		dir := v.valueToString(dirVal)
+		if pattern == "" || dir == "" {
+			return v.newFailureResult("glob:in: requires pattern and directory strings")
+		}
+		full := filepath.Join(dir, pattern)
+		matches, err := filepath.Glob(full)
+		if err != nil {
+			return v.newFailureResult("Invalid glob pattern: " + err.Error())
+		}
+		values := make([]Value, len(matches))
+		for i, m := range matches {
+			values[i] = v.registry.NewStringValue(m)
+		}
+		return v.NewArrayWithElements(values)
+	})
+
+	// ---------------------------------------------------------------------------
+	// Temporary files
+	// ---------------------------------------------------------------------------
+
+	// tempFile - Create a temporary file in the default temp directory
+	// Returns Success with the path, or Failure on error
+	fileClass.AddClassMethod0(vm.Selectors, "tempFile", func(vmPtr interface{}, recv Value) Value {
+		v := vmPtr.(*VM)
+		f, err := os.CreateTemp("", "maggie-*")
+		if err != nil {
+			return v.newFailureResult("Cannot create temp file: " + err.Error())
+		}
+		name := f.Name()
+		f.Close()
+		return v.newSuccessResult(v.registry.NewStringValue(name))
+	})
+
+	// tempFileWithPrefix: prefix - Create a temporary file with a given prefix
+	// Returns Success with the path, or Failure on error
+	fileClass.AddClassMethod1(vm.Selectors, "tempFileWithPrefix:", func(vmPtr interface{}, recv Value, prefixVal Value) Value {
+		v := vmPtr.(*VM)
+		prefix := v.valueToString(prefixVal)
+		f, err := os.CreateTemp("", prefix+"-*")
+		if err != nil {
+			return v.newFailureResult("Cannot create temp file: " + err.Error())
+		}
+		name := f.Name()
+		f.Close()
+		return v.newSuccessResult(v.registry.NewStringValue(name))
+	})
 }
 
 // valueToString converts a Value to a Go string.
