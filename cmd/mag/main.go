@@ -91,6 +91,12 @@ func main() {
 		fmt.Fprintf(os.Stderr, "  mag lsp                        # Same as --lsp (subcommand form)\n")
 		fmt.Fprintf(os.Stderr, "\nExperimental:\n")
 		fmt.Fprintf(os.Stderr, "  mag -i --experimental-maggie-compiler  # Use self-hosting compiler\n")
+		fmt.Fprintf(os.Stderr, "\nLearning Maggie:\n")
+		fmt.Fprintf(os.Stderr, "  mag help <topic>                       # API reference for any class or method\n")
+		fmt.Fprintf(os.Stderr, "  mag doc --serve                        # Browsable HTML docs on localhost\n")
+		fmt.Fprintf(os.Stderr, "  mag doctest                            # Run doc tests to verify examples\n")
+		fmt.Fprintf(os.Stderr, "  examples/                              # Runnable example programs\n")
+		fmt.Fprintf(os.Stderr, "  lib/guide/                             # Tutorial chapters (start here!)\n")
 	}
 	flag.Parse()
 
