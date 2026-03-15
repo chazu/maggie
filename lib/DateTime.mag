@@ -125,7 +125,7 @@ DateTime subclass: Object
   Return a new DateTime offset by the given number of seconds.
 
   ```test
-  (DateTime fromEpoch: 0) addSeconds: 60 . epochSeconds >>> 60
+  ((DateTime fromEpoch: 0) addSeconds: 60) epochSeconds >>> 60
   ```
   """
   method: addSeconds: n [ <primitive> ]
@@ -134,7 +134,7 @@ DateTime subclass: Object
   Return a new DateTime offset by the given number of minutes.
 
   ```test
-  (DateTime fromEpoch: 0) addMinutes: 5 . epochSeconds >>> 300
+  ((DateTime fromEpoch: 0) addMinutes: 5) epochSeconds >>> 300
   ```
   """
   method: addMinutes: n [ <primitive> ]
@@ -143,7 +143,7 @@ DateTime subclass: Object
   Return a new DateTime offset by the given number of hours.
 
   ```test
-  (DateTime fromEpoch: 0) addHours: 2 . epochSeconds >>> 7200
+  ((DateTime fromEpoch: 0) addHours: 2) epochSeconds >>> 7200
   ```
   """
   method: addHours: n [ <primitive> ]
@@ -152,7 +152,7 @@ DateTime subclass: Object
   Return a new DateTime offset by the given number of days.
 
   ```test
-  (DateTime fromEpoch: 0) addDays: 1 . epochSeconds >>> 86400
+  ((DateTime fromEpoch: 0) addDays: 1) epochSeconds >>> 86400
   ```
   """
   method: addDays: n [ <primitive> ]

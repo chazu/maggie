@@ -842,18 +842,33 @@ func (ir *ImageReader) readMethod(vm *VM) (*CompiledMethod, error) {
 		if int(classIdx) < len(ir.classes) {
 			class := ir.classes[classIdx]
 			method.class = class
-			// Register method in appropriate vtable using VM's selector ID
+			// Register method in appropriate vtable using VM's selector ID.
+			// Skip if a native (non-compiled) method already occupies the slot —
+			// native methods are registered by Go code during VM init and are
+			// the authoritative implementation for primitives. Transfer the
+			// docstring from the image method to the native method.
 			if isClassMethod {
-				// Class method goes on ClassVTable
 				if class.ClassVTable != nil {
+					if existing := class.ClassVTable.LookupLocal(vmSelectorID); existing != nil {
+						if _, isCompiled := existing.(*CompiledMethod); !isCompiled {
+							transferDocString(method, existing)
+							goto skipVTableAdd
+						}
+					}
 					class.ClassVTable.AddMethod(vmSelectorID, method)
 				}
 			} else {
-				// Instance method goes on VTable
 				if class.VTable != nil {
+					if existing := class.VTable.LookupLocal(vmSelectorID); existing != nil {
+						if _, isCompiled := existing.(*CompiledMethod); !isCompiled {
+							transferDocString(method, existing)
+							goto skipVTableAdd
+						}
+					}
 					class.VTable.AddMethod(vmSelectorID, method)
 				}
 			}
+		skipVTableAdd:
 		}
 	}
 
@@ -863,6 +878,21 @@ func (ir *ImageReader) readMethod(vm *VM) (*CompiledMethod, error) {
 	}
 
 	return method, nil
+}
+
+// transferDocString copies the docstring from a compiled method to an existing
+// native method, preserving documentation when the image method is skipped in
+// favor of a Go-registered primitive.
+func transferDocString(from *CompiledMethod, to Method) {
+	doc := from.DocString()
+	if doc == "" {
+		return
+	}
+	if ds, ok := to.(DocStringable); ok {
+		if ds.DocString() == "" {
+			ds.SetDocString(doc)
+		}
+	}
 }
 
 // readBlock reads a single block method.
