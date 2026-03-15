@@ -304,6 +304,7 @@ func (vm *VM) bootstrap() {
 	vm.registerSystemPrimitives()
 	vm.registerSignalPrimitives()
 	vm.registerRegexPrimitives()
+	vm.registerDateTimePrimitives()
 
 	// Phase 7: Set up globals
 	vm.Globals["Object"] = vm.classValue(vm.ObjectClass)
