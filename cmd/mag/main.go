@@ -72,6 +72,8 @@ func main() {
 		fmt.Fprintf(os.Stderr, "  mag fmt                        # Format all .mag files in current dir\n")
 		fmt.Fprintf(os.Stderr, "  mag fmt lib/Array.mag          # Format a specific file\n")
 		fmt.Fprintf(os.Stderr, "  mag fmt --check lib/           # Check formatting (non-zero exit if changes needed)\n")
+		fmt.Fprintf(os.Stderr, "\nProject:\n")
+		fmt.Fprintf(os.Stderr, "  mag new myapp                  # Create a new Maggie project\n")
 		fmt.Fprintf(os.Stderr, "\nHelp:\n")
 		fmt.Fprintf(os.Stderr, "  mag help                       # List all classes\n")
 		fmt.Fprintf(os.Stderr, "  mag help Array                 # Show Array class help\n")
@@ -91,6 +93,12 @@ func main() {
 		fmt.Fprintf(os.Stderr, "  mag lsp                        # Same as --lsp (subcommand form)\n")
 		fmt.Fprintf(os.Stderr, "\nExperimental:\n")
 		fmt.Fprintf(os.Stderr, "  mag -i --experimental-maggie-compiler  # Use self-hosting compiler\n")
+		fmt.Fprintf(os.Stderr, "\nLearning Maggie:\n")
+		fmt.Fprintf(os.Stderr, "  mag help <topic>                       # API reference for any class or method\n")
+		fmt.Fprintf(os.Stderr, "  mag doc --serve                        # Browsable HTML docs on localhost\n")
+		fmt.Fprintf(os.Stderr, "  mag doctest                            # Run doc tests to verify examples\n")
+		fmt.Fprintf(os.Stderr, "  examples/                              # Runnable example programs\n")
+		fmt.Fprintf(os.Stderr, "  lib/guide/                             # Tutorial chapters (start here!)\n")
 	}
 	flag.Parse()
 
@@ -109,6 +117,9 @@ func main() {
 			return
 		case "fmt":
 			handleFmtCommand(args[1:])
+			return
+		case "new":
+			handleNewCommand(args[1:])
 			return
 		case "wrap":
 			handleWrapCommand(args[1:], *verbose)
