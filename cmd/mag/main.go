@@ -9,6 +9,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/chazu/maggie/compiler"
@@ -44,6 +45,7 @@ func main() {
 		fmt.Fprintf(os.Stderr, "       mag fmt [--check] [files or dirs...]\n")
 		fmt.Fprintf(os.Stderr, "       mag wrap [packages...]                 (generate Go bindings)\n")
 		fmt.Fprintf(os.Stderr, "       mag build [-o output]                   (compile custom binary)\n")
+		fmt.Fprintf(os.Stderr, "       mag help [ClassName|Class>>method]       (show help for classes/methods)\n")
 		fmt.Fprintf(os.Stderr, "       mag sync [push|pull|status]             (content distribution)\n")
 		fmt.Fprintf(os.Stderr, "       mag doc [--output dir] [--title title]\n")
 		fmt.Fprintf(os.Stderr, "       mag doctest [--verbose] [--class name]\n\n")
@@ -70,6 +72,11 @@ func main() {
 		fmt.Fprintf(os.Stderr, "  mag fmt                        # Format all .mag files in current dir\n")
 		fmt.Fprintf(os.Stderr, "  mag fmt lib/Array.mag          # Format a specific file\n")
 		fmt.Fprintf(os.Stderr, "  mag fmt --check lib/           # Check formatting (non-zero exit if changes needed)\n")
+		fmt.Fprintf(os.Stderr, "\nHelp:\n")
+		fmt.Fprintf(os.Stderr, "  mag help                       # List all classes\n")
+		fmt.Fprintf(os.Stderr, "  mag help Array                 # Show Array class help\n")
+		fmt.Fprintf(os.Stderr, "  mag help Array>>at:            # Show method docstring\n")
+		fmt.Fprintf(os.Stderr, "  mag help Yutani::Button        # Show FQN class help\n")
 		fmt.Fprintf(os.Stderr, "\nDocumentation:\n")
 		fmt.Fprintf(os.Stderr, "  mag doc                        # Generate HTML docs from image\n")
 		fmt.Fprintf(os.Stderr, "  mag doc --output ./site        # Generate to specific directory\n")
@@ -92,6 +99,7 @@ func main() {
 	var docMode string  // "doc" or "doctest"
 	var docArgs []string
 	var syncArgs []string
+	var helpArgs []string
 	if len(args) > 0 {
 		switch args[0] {
 		case "lsp":
@@ -108,6 +116,8 @@ func main() {
 		case "build":
 			handleBuildCommand(args[1:], *verbose)
 			return
+		case "help":
+			helpArgs = args[1:]
 		case "sync":
 			syncArgs = args[1:]
 		case "doc":
@@ -220,6 +230,9 @@ func main() {
 	if syncArgs != nil && len(paths) > 0 && paths[0] == "sync" {
 		paths = nil // sync at start: no source paths
 	}
+	if helpArgs != nil && len(paths) > 0 && paths[0] == "help" {
+		paths = nil // help at start: no source paths
+	}
 
 	var loadedManifest *manifest.Manifest
 	if len(paths) > 0 {
@@ -235,7 +248,7 @@ func main() {
 		if *verbose && totalMethods > 0 {
 			fmt.Printf("Compiled %d methods\n", totalMethods)
 		}
-	} else if docMode != "" || syncArgs != nil || *mainEntry != "" || *saveImagePath != "" {
+	} else if docMode != "" || syncArgs != nil || helpArgs != nil || *mainEntry != "" || *saveImagePath != "" {
 		// No paths but doc/doctest/main/save-image requested: try loading from maggie.toml
 		if m, _ := manifest.FindAndLoad("."); m != nil {
 			loadedManifest = m
@@ -313,6 +326,12 @@ func main() {
 	// Handle sync subcommand (after sources are compiled)
 	if syncArgs != nil {
 		handleSyncCommand(syncArgs, vmInst, loadedManifest, *verbose, diskCache)
+		return
+	}
+
+	// Handle help subcommand (after sources are compiled)
+	if helpArgs != nil {
+		handleHelpCommand(vmInst, helpArgs)
 		return
 	}
 
@@ -551,6 +570,42 @@ func handleREPLCommand(vmInst *vm.VM, cmd string) {
 	default:
 		fmt.Printf("Unknown command: %s (type :help for commands)\n", cmd)
 	}
+}
+
+// handleHelpCommand handles the "mag help" subcommand.
+// With no args, lists all classes. With an arg, shows class or method help.
+func handleHelpCommand(vmInst *vm.VM, args []string) {
+	if len(args) == 0 {
+		// List all classes sorted by name
+		classes := vmInst.Classes.All()
+		sort.Slice(classes, func(i, j int) bool {
+			return classes[i].Name < classes[j].Name
+		})
+		for _, cls := range classes {
+			name := cls.Name
+			if cls.Namespace != "" {
+				name = cls.Namespace + "::" + cls.Name
+			}
+			if cls.DocString != "" {
+				// Show first line of docstring as summary
+				summary := cls.DocString
+				if idx := strings.IndexByte(summary, '\n'); idx != -1 {
+					summary = summary[:idx]
+				}
+				fmt.Printf("  %-30s %s\n", name, summary)
+			} else {
+				fmt.Printf("  %s\n", name)
+			}
+		}
+		return
+	}
+
+	// Join all remaining args as the query (handles "mag help Array >> at:" with spaces)
+	query := strings.Join(args, " ")
+	query = strings.ReplaceAll(query, " >> ", ">>")
+	query = strings.TrimSpace(query)
+
+	handleHelpLookup(vmInst, query)
 }
 
 // handleHelpLookup handles :help ClassName and :help ClassName>>methodName
