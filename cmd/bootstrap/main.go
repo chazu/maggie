@@ -234,6 +234,23 @@ func compileAllFiles(files []string, vmInst *vm.VM, verbose bool) (int, error) {
 			// Compile instance methods (with instance variable context)
 			allIvars := class.AllInstVarNames()
 			for _, methodDef := range classDef.Methods {
+				// Skip <primitive> stubs — these exist only for docstrings.
+				// The real implementation is a Go primitive already registered on the class.
+				if methodDef.IsPrimitiveStub {
+					if methodDef.DocString != "" {
+						selectorID := vmInst.Selectors.Lookup(methodDef.Selector)
+						if selectorID >= 0 {
+							existing := class.VTable.Lookup(selectorID)
+							if existing != nil {
+								if ds, ok := existing.(vm.DocStringable); ok {
+									ds.SetDocString(methodDef.DocString)
+								}
+							}
+						}
+					}
+					continue
+				}
+
 				method, err := compiler.CompileMethodDefWithIvars(methodDef, vmInst.Selectors, vmInst.Symbols, vmInst.Registry(), classDef.InstanceVariables)
 				if err != nil {
 					return compiled, fmt.Errorf("error compiling %s>>%s in %s: %v", classDef.Name, methodDef.Selector, pf.path, err)
@@ -259,6 +276,22 @@ func compileAllFiles(files []string, vmInst *vm.VM, verbose bool) (int, error) {
 
 			// Compile class methods (add to ClassVTable for class-side dispatch)
 			for _, methodDef := range classDef.ClassMethods {
+				// Skip <primitive> stubs for class methods too.
+				if methodDef.IsPrimitiveStub {
+					if methodDef.DocString != "" {
+						selectorID := vmInst.Selectors.Lookup(methodDef.Selector)
+						if selectorID >= 0 {
+							existing := class.ClassVTable.Lookup(selectorID)
+							if existing != nil {
+								if ds, ok := existing.(vm.DocStringable); ok {
+									ds.SetDocString(methodDef.DocString)
+								}
+							}
+						}
+					}
+					continue
+				}
+
 				method, err := compiler.CompileMethodDef(methodDef, vmInst.Selectors, vmInst.Symbols, vmInst.Registry())
 				if err != nil {
 					return compiled, fmt.Errorf("error compiling %s class>>%s in %s: %v", classDef.Name, methodDef.Selector, pf.path, err)
