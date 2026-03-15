@@ -303,6 +303,7 @@ func (vm *VM) bootstrap() {
 	vm.registerSqlitePrimitives()
 	vm.registerSystemPrimitives()
 	vm.registerSignalPrimitives()
+	vm.registerRegexPrimitives()
 
 	// Phase 7: Set up globals
 	vm.Globals["Object"] = vm.classValue(vm.ObjectClass)
