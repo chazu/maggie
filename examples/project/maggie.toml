@@ -1,0 +1,8 @@
+[project]
+name = "greeting-app"
+namespace = "GreetingApp"
+version = "0.1.0"
+
+[source]
+dirs = ["src"]
+entry = "GreetingApp::Main.start"
