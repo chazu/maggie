@@ -1871,6 +1871,44 @@ func (i *Interpreter) getBlockValue(v Value) *BlockValue {
 // Primitive operations (fast paths)
 // ---------------------------------------------------------------------------
 
+// sendUnaryFallback performs a VTable lookup for a unary message when the
+// primitive fast path doesn't handle the receiver type. This allows custom
+// implementations (e.g., Set>>size, class-side new) to be dispatched correctly
+// by the optimized unary opcodes (OpSendSize, OpSendNew, etc.).
+func (i *Interpreter) sendUnaryFallback(rcvr Value, selectorID int) (result Value) {
+	vt := i.vtableFor(rcvr)
+	if vt == nil {
+		return Nil
+	}
+	method := vt.Lookup(selectorID)
+	if method == nil {
+		return Nil
+	}
+	if cm, ok := method.(*CompiledMethod); ok {
+		i.pushFrame(cm, rcvr, nil)
+		homeFrame := i.fp
+
+		result = i.runFrame()
+		if i.unwinding {
+			if i.unwindTarget == homeFrame {
+				for i.fp > homeFrame {
+					i.popFrame()
+				}
+				if i.fp == homeFrame {
+					i.popFrame()
+				}
+				result = i.unwindValue
+				i.unwinding = false
+				i.unwindValue = Nil
+				return result
+			}
+			return Nil // propagate
+		}
+		return result
+	}
+	return method.Invoke(i.vm, rcvr, nil)
+}
+
 // sendBinaryFallback performs a VTable lookup for a binary operator when the
 // primitive fast path doesn't handle the receiver type. This allows methods
 // loaded from .mag files (e.g., String comparison operators) to be dispatched
@@ -2154,11 +2192,19 @@ func (i *Interpreter) primitiveAtPut(rcvr, idx, val Value) Value {
 }
 
 func (i *Interpreter) primitiveSize(rcvr Value) Value {
-	// Handle arrays/objects
+	// Handle arrays: NumSlots is the array length
 	if rcvr.IsObject() {
 		obj := ObjectFromValue(rcvr)
 		if obj != nil {
-			return FromSmallInt(int64(obj.NumSlots()))
+			cls := obj.VTablePtr().Class()
+			// Only use NumSlots for Array (and its subclasses).
+			// Other classes (Set, Dictionary, etc.) may define their own
+			// size method that differs from the number of instance variable slots.
+			if cls != nil && (cls.Name == "Array" || (cls.Superclass != nil && cls.Superclass.Name == "Array")) {
+				return FromSmallInt(int64(obj.NumSlots()))
+			}
+			// Fall back to VTable dispatch for all other object types
+			return i.sendUnaryFallback(rcvr, i.selectorSize)
 		}
 	}
 
@@ -2168,7 +2214,8 @@ func (i *Interpreter) primitiveSize(rcvr Value) Value {
 		return FromSmallInt(int64(len(str)))
 	}
 
-	return FromSmallInt(0)
+	// Fall back to VTable dispatch for other types
+	return i.sendUnaryFallback(rcvr, i.selectorSize)
 }
 
 func (i *Interpreter) primitiveValue(rcvr Value) Value {
@@ -2202,8 +2249,10 @@ func (i *Interpreter) primitiveValue3(rcvr, arg1, arg2, arg3 Value) Value {
 }
 
 func (i *Interpreter) primitiveNew(rcvr Value) Value {
-	// Placeholder - would create new instance of class
-	return Nil
+	// Dispatch to the class-side new method via VTable lookup.
+	// Many classes (Set, Dictionary, etc.) define custom new that
+	// initializes instance variables, so we must go through the VTable.
+	return i.sendUnaryFallback(rcvr, i.selectorNew)
 }
 
 func (i *Interpreter) primitiveClass(rcvr Value) Value {
