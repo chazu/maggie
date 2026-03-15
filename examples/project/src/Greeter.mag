@@ -1,0 +1,29 @@
+namespace: 'GreetingApp'
+
+"""
+A simple greeter that produces greeting messages.
+Shows instance variables, methods, and string concatenation.
+"""
+Greeter subclass: Object
+  instanceVars: name
+
+  classMethod: new: aName [
+    ^self basicNew init: aName
+  ]
+
+  method: init: aName [
+    name := aName.
+    ^self
+  ]
+
+  method: name [
+    ^name
+  ]
+
+  method: greet [
+    ^'Hello, ' , name , '!'
+  ]
+
+  method: greetFormally [
+    ^'Good day, ' , name , '. How do you do?'
+  ]

@@ -1,0 +1,37 @@
+namespace: 'GowrapExample'
+
+import: 'Go'
+
+"Go interop example: wrapping the Go 'strings' package."
+
+Main subclass: Object
+
+  classMethod: start [
+    "Entry point for the gowrap example."
+
+    | result |
+
+    "--- Package-level functions (via Go::Strings class methods) ---"
+
+    "Check if a string contains a substring"
+    result := Go::Strings contains: 'Hello, Maggie!' _: 'Maggie'.
+    ('contains Maggie: ', result printString) println.
+
+    result := Go::Strings contains: 'Hello, Maggie!' _: 'Python'.
+    ('contains Python: ', result printString) println.
+
+    "Check string prefixes"
+    result := Go::Strings hasPrefix: 'Hello, Maggie!' _: 'Hello'.
+    ('hasPrefix Hello: ', result printString) println.
+
+    "Check string suffixes"
+    result := Go::Strings hasSuffix: 'Hello, Maggie!' _: '!'.
+    ('hasSuffix !: ', result printString) println.
+
+    "Case conversion"
+    result := Go::Strings toUpper: 'hello'.
+    ('toUpper hello: ', result) println.
+
+    result := Go::Strings toLower: 'HELLO'.
+    ('toLower HELLO: ', result) println.
+  ]

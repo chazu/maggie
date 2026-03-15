@@ -1,0 +1,15 @@
+[project]
+name = "gowrap-example"
+namespace = "GowrapExample"
+version = "0.1.0"
+
+[source]
+dirs = ["wrap/strings", "src"]
+entry = "Main.start"
+
+[go-wrap]
+output = "wrap"
+
+[[go-wrap.packages]]
+import = "strings"
+include = ["Contains", "HasPrefix", "HasSuffix", "ToUpper", "ToLower"]
