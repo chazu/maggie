@@ -72,6 +72,8 @@ func main() {
 		fmt.Fprintf(os.Stderr, "  mag fmt                        # Format all .mag files in current dir\n")
 		fmt.Fprintf(os.Stderr, "  mag fmt lib/Array.mag          # Format a specific file\n")
 		fmt.Fprintf(os.Stderr, "  mag fmt --check lib/           # Check formatting (non-zero exit if changes needed)\n")
+		fmt.Fprintf(os.Stderr, "\nProject:\n")
+		fmt.Fprintf(os.Stderr, "  mag new myapp                  # Create a new Maggie project\n")
 		fmt.Fprintf(os.Stderr, "\nHelp:\n")
 		fmt.Fprintf(os.Stderr, "  mag help                       # List all classes\n")
 		fmt.Fprintf(os.Stderr, "  mag help Array                 # Show Array class help\n")
@@ -115,6 +117,9 @@ func main() {
 			return
 		case "fmt":
 			handleFmtCommand(args[1:])
+			return
+		case "new":
+			handleNewCommand(args[1:])
 			return
 		case "wrap":
 			handleWrapCommand(args[1:], *verbose)
