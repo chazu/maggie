@@ -138,9 +138,8 @@ func collectAndRunDoctests(vmInst *vm.VM, classFilter string, verbose bool) []do
 					continue
 				}
 				assertions := parseDoctestAssertions(sec.Content)
-				for _, asrt := range assertions {
-					classResults = append(classResults, runDoctestAssertion(vmInst, asrt, verbose))
-				}
+				classResults = append(classResults,
+					runDoctestBlockSharedScope(vmInst, assertions, verbose)...)
 			}
 			if len(classResults) > 0 {
 				allResults = append(allResults, doctestMethodResult{
@@ -207,11 +206,10 @@ func runDoctestMethods(vmInst *vm.VM, cls *vm.Class, methods map[int]vm.Method, 
 				continue
 			}
 
-			// Run setup lines and assertions.
-			for _, asrt := range assertions {
-				result := runDoctestAssertion(vmInst, asrt, verbose)
-				methodResults = append(methodResults, result)
-			}
+			// Run the test block with shared scope by compiling all
+			// lines into a single method that collects assertion results.
+			methodResults = append(methodResults,
+				runDoctestBlockSharedScope(vmInst, assertions, verbose)...)
 		}
 
 		if len(methodResults) > 0 {
@@ -278,52 +276,123 @@ func parseDoctestAssertions(content string) []doctestAssertion {
 	return assertions
 }
 
-// runDoctestAssertion compiles and evaluates a single assertion or setup line.
-func runDoctestAssertion(vmInst *vm.VM, asrt doctestAssertion, verbose bool) doctestResult {
-	// Setup line (no expected value): just run the expression.
-	if asrt.Expected == "" {
-		_, err := doctestEvalExpression(vmInst, asrt.Expr)
-		if err != nil {
-			return doctestResult{
-				Assertion: asrt,
-				Passed:    false,
-				Error:     err.Error(),
+// runDoctestBlockSharedScope runs a test block by compiling all lines into
+// a single method. Each assertion captures its result into an array slot,
+// so setup runs exactly once and variables persist across all lines.
+func runDoctestBlockSharedScope(vmInst *vm.VM, assertions []doctestAssertion, verbose bool) []doctestResult {
+	var results []doctestResult
+
+	// Separate assertions that have expected values from setup lines.
+	// Build a single method body that:
+	// 1. Executes all lines in order
+	// 2. Stores each assertion result into a results array
+	// 3. Returns the results array
+	type indexedAssertion struct {
+		asrt     doctestAssertion
+		resultIdx int // index in the results array, -1 for setup
+	}
+
+	var indexed []indexedAssertion
+	assertionCount := 0
+	for _, asrt := range assertions {
+		if asrt.Expected == "" {
+			indexed = append(indexed, indexedAssertion{asrt: asrt, resultIdx: -1})
+		} else {
+			indexed = append(indexed, indexedAssertion{asrt: asrt, resultIdx: assertionCount})
+			assertionCount++
+		}
+	}
+
+	if assertionCount == 0 {
+		// No assertions, just setup lines — run them once
+		for _, ia := range indexed {
+			results = append(results, doctestResult{Assertion: ia.asrt, Passed: true})
+		}
+		return results
+	}
+
+	// Build method body: __results := Array new: N. <lines>. ^__results
+	var bodyLines []string
+	bodyLines = append(bodyLines, fmt.Sprintf("__dtResults := Array new: %d", assertionCount))
+
+	for _, ia := range indexed {
+		expr := strings.TrimSuffix(strings.TrimSpace(ia.asrt.Expr), ".")
+		if ia.resultIdx < 0 {
+			// Setup line
+			bodyLines = append(bodyLines, expr)
+		} else {
+			// Assertion: store result
+			bodyLines = append(bodyLines, fmt.Sprintf("__dtResults at: %d put: (%s)", ia.resultIdx, expr))
+		}
+	}
+	bodyLines = append(bodyLines, "^__dtResults")
+
+	source := "doIt\n    | __dtResults |\n    " + strings.Join(bodyLines, ".\n    ")
+
+	method, compileErr := vmInst.Compile(source, nil)
+	if compileErr != nil {
+		// If compilation fails, report error on all assertions
+		for _, ia := range indexed {
+			if ia.resultIdx >= 0 {
+				results = append(results, doctestResult{
+					Assertion: ia.asrt,
+					Passed:    false,
+					Error:     fmt.Sprintf("compile: %v", compileErr),
+				})
+			} else {
+				results = append(results, doctestResult{Assertion: ia.asrt, Passed: true})
 			}
 		}
-		return doctestResult{
-			Assertion: asrt,
-			Passed:    true,
+		return results
+	}
+
+	resultsArray, execErr := vmInst.ExecuteSafe(method, vm.Nil, nil)
+	if execErr != nil {
+		for _, ia := range indexed {
+			if ia.resultIdx >= 0 {
+				results = append(results, doctestResult{
+					Assertion: ia.asrt,
+					Passed:    false,
+					Error:     fmt.Sprintf("runtime: %v", execErr),
+				})
+			} else {
+				results = append(results, doctestResult{Assertion: ia.asrt, Passed: true})
+			}
 		}
+		return results
 	}
 
-	// Assertion line: evaluate both sides and compare.
-	actual, err := doctestEvalExpression(vmInst, asrt.Expr)
-	if err != nil {
-		return doctestResult{
-			Assertion: asrt,
-			Passed:    false,
-			Error:     fmt.Sprintf("expression error: %s", err),
+	// Extract results and compare
+	for _, ia := range indexed {
+		if ia.resultIdx < 0 {
+			results = append(results, doctestResult{Assertion: ia.asrt, Passed: true})
+			continue
 		}
-	}
 
-	expected, err := doctestEvalExpression(vmInst, asrt.Expected)
-	if err != nil {
-		return doctestResult{
-			Assertion: asrt,
-			Passed:    false,
-			Error:     fmt.Sprintf("expected-value error: %s", err),
+		// Get actual value from results array
+		actual := vmInst.Send(resultsArray, "at:", []vm.Value{vm.FromSmallInt(int64(ia.resultIdx))})
+
+		// Evaluate expected
+		expected, err := doctestEvalExpression(vmInst, ia.asrt.Expected)
+		if err != nil {
+			results = append(results, doctestResult{
+				Assertion: ia.asrt,
+				Passed:    false,
+				Error:     fmt.Sprintf("expected-value error: %s", err),
+			})
+			continue
 		}
+
+		pass, actualStr, expectedStr := doctestCompareValues(vmInst, actual, expected)
+		results = append(results, doctestResult{
+			Assertion:   ia.asrt,
+			Passed:      pass,
+			ActualStr:   actualStr,
+			ExpectedStr: expectedStr,
+		})
 	}
 
-	// Compare values.
-	pass, actualStr, expectedStr := doctestCompareValues(vmInst, actual, expected)
-
-	return doctestResult{
-		Assertion:   asrt,
-		Passed:      pass,
-		ActualStr:   actualStr,
-		ExpectedStr: expectedStr,
-	}
+	return results
 }
 
 // ---------------------------------------------------------------------------
@@ -338,8 +407,32 @@ func doctestEvalExpression(vmInst *vm.VM, expr string) (vm.Value, error) {
 		return vm.Nil, nil
 	}
 
-	// Wrap expression as a doIt method (same pattern as the REPL).
-	source := "doIt\n    ^" + strings.TrimSuffix(expr, ".")
+	// Wrap expression as a doIt method. For multi-statement expressions
+	// (setup + assertion), place ^ before the last statement.
+	expr = strings.TrimSpace(expr)
+	expr = strings.TrimSuffix(expr, ".")
+
+	// Find the last statement separator (". " pattern — dot followed by space).
+	// This avoids splitting on dots inside string literals or number literals.
+	lastSep := -1
+	inString := false
+	for i := 0; i < len(expr); i++ {
+		if expr[i] == '\'' {
+			inString = !inString
+		}
+		if !inString && expr[i] == '.' && i+1 < len(expr) && expr[i+1] == ' ' {
+			lastSep = i
+		}
+	}
+
+	var source string
+	if lastSep < 0 {
+		source = "doIt\n    ^" + expr
+	} else {
+		prefix := expr[:lastSep+1]
+		suffix := strings.TrimSpace(expr[lastSep+1:])
+		source = "doIt\n    " + prefix + " ^" + suffix
+	}
 
 	method, err := vmInst.Compile(source, nil)
 	if err != nil {
