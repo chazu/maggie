@@ -100,7 +100,7 @@ DateTime subclass: Object
   (DateTime parse: '2025-03-14' format: '2006-01-02') format: '01/02/2006' >>> '03/14/2025'
   ```
   """
-  method: format: [ <primitive> ]
+  method: format: layout [ <primitive> ]
 
   """
   Return the Unix epoch timestamp in seconds.
@@ -128,7 +128,7 @@ DateTime subclass: Object
   (DateTime fromEpoch: 0) addSeconds: 60 . epochSeconds >>> 60
   ```
   """
-  method: addSeconds: [ <primitive> ]
+  method: addSeconds: n [ <primitive> ]
 
   """
   Return a new DateTime offset by the given number of minutes.
@@ -137,7 +137,7 @@ DateTime subclass: Object
   (DateTime fromEpoch: 0) addMinutes: 5 . epochSeconds >>> 300
   ```
   """
-  method: addMinutes: [ <primitive> ]
+  method: addMinutes: n [ <primitive> ]
 
   """
   Return a new DateTime offset by the given number of hours.
@@ -146,7 +146,7 @@ DateTime subclass: Object
   (DateTime fromEpoch: 0) addHours: 2 . epochSeconds >>> 7200
   ```
   """
-  method: addHours: [ <primitive> ]
+  method: addHours: n [ <primitive> ]
 
   """
   Return a new DateTime offset by the given number of days.
@@ -155,7 +155,7 @@ DateTime subclass: Object
   (DateTime fromEpoch: 0) addDays: 1 . epochSeconds >>> 86400
   ```
   """
-  method: addDays: [ <primitive> ]
+  method: addDays: n [ <primitive> ]
 
   """
   Return the difference in seconds between self and another DateTime
@@ -166,7 +166,7 @@ DateTime subclass: Object
   (DateTime fromEpoch: 0) differenceFrom: (DateTime fromEpoch: 100) >>> -100
   ```
   """
-  method: differenceFrom: [ <primitive> ]
+  method: differenceFrom: other [ <primitive> ]
 
   """
   Return an ISO 8601 (RFC3339) string representation.

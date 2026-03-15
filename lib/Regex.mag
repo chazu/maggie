@@ -29,7 +29,7 @@ Regex subclass: Object
   ```
   """
   classMethod: compile: pattern [
-      ^<primitive>
+      <primitive>
   ]
 
   """
@@ -43,7 +43,7 @@ Regex subclass: Object
   ```
   """
   method: matches: aString [
-      ^<primitive>
+      <primitive>
   ]
 
   """
@@ -56,7 +56,7 @@ Regex subclass: Object
   ```
   """
   method: findIn: aString [
-      ^<primitive>
+      <primitive>
   ]
 
   """
@@ -69,7 +69,7 @@ Regex subclass: Object
   ```
   """
   method: findAllIn: aString [
-      ^<primitive>
+      <primitive>
   ]
 
   """
@@ -81,7 +81,7 @@ Regex subclass: Object
   ```
   """
   method: replaceIn: aString with: replacement [
-      ^<primitive>
+      <primitive>
   ]
 
   """
@@ -93,7 +93,7 @@ Regex subclass: Object
   ```
   """
   method: split: aString [
-      ^<primitive>
+      <primitive>
   ]
 
   """
@@ -104,7 +104,7 @@ Regex subclass: Object
   ```
   """
   method: pattern [
-      ^<primitive>
+      <primitive>
   ]
 
   """
@@ -115,5 +115,5 @@ Regex subclass: Object
   ```
   """
   method: printString [
-      ^<primitive>
+      <primitive>
   ]
