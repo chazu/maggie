@@ -57,6 +57,7 @@ type VM struct {
 	WeakReferenceClass     *Class
 	CharacterClass         *Class
 	MessageClass           *Class
+	RandomClass            *Class
 
 	// Exception hierarchy
 	ExceptionClass             *Class
@@ -257,6 +258,9 @@ func (vm *VM) bootstrap() {
 	// Phase 5i: Create Message class (for doesNotUnderstand:)
 	vm.bootstrapMessageClass()
 
+	// Phase 5j: Create Random class
+	vm.RandomClass = vm.createClass("Random", vm.ObjectClass)
+
 	// Phase 5f: Create Exception class hierarchy
 	vm.bootstrapExceptionClasses()
 
@@ -302,7 +306,10 @@ func (vm *VM) bootstrap() {
 	vm.registerCuePrimitives()
 	vm.registerSqlitePrimitives()
 	vm.registerSystemPrimitives()
+	vm.registerRandomPrimitives()
 	vm.registerSignalPrimitives()
+	vm.registerRegexPrimitives()
+	vm.registerDateTimePrimitives()
 
 	// Phase 7: Set up globals
 	vm.Globals["Object"] = vm.classValue(vm.ObjectClass)
@@ -335,6 +342,7 @@ func (vm *VM) bootstrap() {
 	vm.Globals["Context"] = vm.classValue(vm.ContextClass)
 	vm.Globals["WeakReference"] = vm.classValue(vm.WeakReferenceClass)
 	vm.Globals["Character"] = vm.classValue(vm.CharacterClass)
+	vm.Globals["Random"] = vm.classValue(vm.RandomClass)
 
 	// Well-known symbols
 	vm.Globals["nil"] = Nil

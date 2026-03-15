@@ -1,0 +1,228 @@
+"""
+File system operations for reading, writing, and manipulating files and paths.
+
+File provides class-side methods for all file I/O. Methods that can fail
+return a Result (Success or Failure). Path manipulation methods are pure
+and always return strings. All methods are primitives registered on the
+class side.
+
+## Reading
+
+- `File readFileContents: path` -- Read entire file as a string. Returns
+  Failure if the file cannot be read.
+
+## Writing
+
+- `File writeFileContents: path contents: string` -- Write string to file,
+  replacing existing content. Returns Success with path.
+- `File appendToFile: path contents: string` -- Append string to file,
+  creating it if needed. Returns Success with path.
+
+## Existence and info
+
+- `File exists: path` -- Return true if a file or directory exists.
+- `File isDirectory: path` -- Return true if path is a directory.
+- `File isFile: path` -- Return true if path is a regular file.
+
+## Directory operations
+
+- `File listDirectory: path` -- Return an Array of filenames in a directory.
+- `File createDirectory: path` -- Create directory and parents. Returns Success.
+
+## File manipulation
+
+- `File delete: path` -- Delete a file or empty directory. Returns Success.
+- `File deleteAll: path` -- Recursively delete a file or directory tree.
+- `File rename: old to: new` -- Rename or move. Returns Success with new path.
+- `File copy: src to: dst` -- Copy a file. Returns Success with destination.
+
+## Path manipulation
+
+- `File basename: path` -- Last path component (filename).
+- `File dirname: path` -- Directory portion of a path.
+- `File extension: path` -- File extension including the dot.
+- `File join: base with: name` -- Join two path components.
+- `File absolutePath: path` -- Convert to absolute path.
+
+## Directories
+
+- `File workingDirectory` -- Current working directory.
+- `File homeDirectory` -- User home directory.
+
+## File metadata
+
+- `File size: path` -- File size in bytes.
+- `File modificationTime: path` -- Modification time as Unix milliseconds.
+
+## Glob
+
+- `File glob: pattern in: dir` -- Find files matching a glob pattern.
+
+## Temporary files
+
+- `File tempFile` -- Create a temp file. Returns Success with path.
+- `File tempFileWithPrefix: prefix` -- Create a temp file with a prefix.
+
+```test
+File basename: '/home/user/file.txt' >>> 'file.txt'
+File basename: '/tmp/' >>> 'tmp'
+File basename: 'file.mag' >>> 'file.mag'
+```
+
+```test
+File dirname: '/home/user/file.txt' >>> '/home/user'
+File dirname: 'file.mag' >>> '.'
+```
+
+```test
+File extension: 'readme.md' >>> '.md'
+File extension: 'archive.tar.gz' >>> '.gz'
+File extension: 'Makefile' >>> ''
+```
+
+```test
+File join: '/home' with: 'user' >>> '/home/user'
+File join: '/tmp' with: 'file.txt' >>> '/tmp/file.txt'
+```
+
+```test
+(File absolutePath: '/tmp') >>> '/tmp'
+```
+
+```test
+(File workingDirectory) class >>> String
+```
+
+```test
+(File homeDirectory) class >>> String
+```
+
+```test
+File isDirectory: '/tmp' >>> true
+File isDirectory: '/nonexistent/xyzzy' >>> false
+```
+
+```test
+File exists: '/nonexistent/path/xyzzy' >>> false
+```
+
+```test
+ftResult := File tempFile.
+ftResult isSuccess >>> true
+File exists: ftResult value >>> true
+```
+
+```test
+ftPath1 := (File tempFile) value.
+File writeFileContents: ftPath1 contents: 'hello maggie'.
+File readFileContents: ftPath1 >>> 'hello maggie'
+```
+
+```test
+ftPath2 := (File tempFile) value.
+(File writeFileContents: ftPath2 contents: 'test data') isSuccess >>> true
+```
+
+```test
+ftPath3 := (File tempFile) value.
+File writeFileContents: ftPath3 contents: 'first'.
+File appendToFile: ftPath3 contents: ' second'.
+File readFileContents: ftPath3 >>> 'first second'
+```
+
+```test
+ftPath4 := (File tempFile) value.
+File exists: ftPath4 >>> true
+File isFile: ftPath4 >>> true
+File isFile: '/tmp' >>> false
+```
+
+```test
+ftPath5 := (File tempFile) value.
+File writeFileContents: ftPath5 contents: 'hello'.
+File size: ftPath5 >>> 5
+```
+
+```test
+ftPath6 := (File tempFile) value.
+(File modificationTime: ftPath6) > 0 >>> true
+```
+
+```test
+ftPath7 := (File tempFile) value.
+File exists: ftPath7 >>> true
+(File delete: ftPath7) isSuccess >>> true
+File exists: ftPath7 >>> false
+```
+
+```test
+ftPathA := (File tempFile) value.
+ftPathB := ftPathA, '.renamed'.
+File writeFileContents: ftPathA contents: 'data'.
+(File rename: ftPathA to: ftPathB) isSuccess >>> true
+File exists: ftPathA >>> false
+File readFileContents: ftPathB >>> 'data'
+```
+
+```test
+ftSrc := (File tempFile) value.
+ftDst := ftSrc, '.copy'.
+File writeFileContents: ftSrc contents: 'original'.
+(File copy: ftSrc to: ftDst) isSuccess >>> true
+File readFileContents: ftDst >>> 'original'
+```
+
+```test
+ftDir1 := '/tmp/maggie-test-mkdir'.
+(File createDirectory: ftDir1) isSuccess >>> true
+File isDirectory: ftDir1 >>> true
+```
+
+```test
+ftDir2 := '/tmp/maggie-test-listdir-dt'.
+File createDirectory: ftDir2.
+File writeFileContents: (File join: ftDir2 with: 'a.txt') contents: 'a'.
+(File listDirectory: ftDir2) class >>> Array
+```
+
+```test
+ftDir3 := '/tmp/maggie-test-deleteall-dt'.
+File createDirectory: (File join: ftDir3 with: 'sub').
+File writeFileContents: (File join: ftDir3 with: 'sub/f.txt') contents: 'x'.
+(File deleteAll: ftDir3) isSuccess >>> true
+File exists: ftDir3 >>> false
+```
+
+```test
+ftDir4 := '/tmp/maggie-test-glob-dt'.
+File createDirectory: ftDir4.
+File writeFileContents: (File join: ftDir4 with: 'a.txt') contents: 'a'.
+File writeFileContents: (File join: ftDir4 with: 'b.txt') contents: 'b'.
+(File glob: '*.txt' in: ftDir4) size >>> 2
+```
+
+```test
+ftPfxResult := File tempFileWithPrefix: 'myapp'.
+ftPfxResult isSuccess >>> true
+(File basename: ftPfxResult value) includes: 'myapp' >>> true
+```
+
+```example
+"Read a file, transform it, write it back"
+contents := File readFileContents: '/tmp/example.txt'.
+File writeFileContents: '/tmp/example.txt' contents: contents, ' (updated)'
+```
+
+```example
+"Check if a path exists before reading"
+(File exists: '/tmp/myfile.txt')
+    ifTrue:  [File readFileContents: '/tmp/myfile.txt']
+    ifFalse: ['File not found']
+```
+
+```example
+"List .mag files in a directory"
+File glob: '*.mag' in: 'lib/'
+```
+"""
+File subclass: Object

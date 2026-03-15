@@ -348,6 +348,19 @@ String subclass: Object
   ]
 
   """
+  Split the string by the given separator and return an Array of substrings.
+
+  ```test
+  'a,b,c' split: ',' >>> #('a' 'b' 'c' )
+  'hello' split: 'l' >>> #('he' '' 'o' )
+  'no-sep' split: ',' >>> #('no-sep' )
+  ```
+  """
+  method: split: separator [
+      ^self primSplit: separator
+  ]
+
+  """
   Return a quoted string representation suitable for display.
 
   ```test
