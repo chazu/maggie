@@ -2249,10 +2249,22 @@ func (i *Interpreter) primitiveValue3(rcvr, arg1, arg2, arg3 Value) Value {
 }
 
 func (i *Interpreter) primitiveNew(rcvr Value) Value {
-	// Dispatch to the class-side new method via VTable lookup.
-	// Many classes (Set, Dictionary, etc.) define custom new that
-	// initializes instance variables, so we must go through the VTable.
-	return i.sendUnaryFallback(rcvr, i.selectorNew)
+	// Try VTable dispatch first — many classes (Set, Dictionary, etc.)
+	// define custom new that initializes instance variables.
+	result := i.sendUnaryFallback(rcvr, i.selectorNew)
+	if result != Nil {
+		return result
+	}
+	// Fallback: create a basic instance (for classes without custom new)
+	if rcvr.IsObject() {
+		cls := i.vm.classFromValue(rcvr)
+		if cls != nil {
+			obj := cls.NewInstance()
+			i.vm.keepAlive[obj] = struct{}{}
+			return obj.ToValue()
+		}
+	}
+	return Nil
 }
 
 func (i *Interpreter) primitiveClass(rcvr Value) Value {

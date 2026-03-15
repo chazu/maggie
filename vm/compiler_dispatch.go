@@ -63,8 +63,25 @@ func (g *GoCompilerBackend) CompileExpression(source string) (*CompiledMethod, e
 	// For multi-statement expressions (separated by '.'), the ^ (return)
 	// must be placed before the last statement only. Otherwise, the method
 	// returns after the first statement and remaining statements are dead code.
+	//
+	// Statement separators are '. ' (dot followed by space/newline/EOF-after-content).
+	// A dot inside a number literal (e.g., 3.7) is NOT a statement separator.
 	source = strings.TrimSpace(source)
-	lastDot := strings.LastIndex(source, ".")
+	lastDot := -1
+	for i := len(source) - 1; i >= 0; i-- {
+		if source[i] == '.' {
+			// A statement-separating dot is followed by whitespace or is at the end,
+			// AND is not preceded by a digit (which would make it a decimal point).
+			if i > 0 && source[i-1] >= '0' && source[i-1] <= '9' {
+				// Check if this dot is inside a number literal
+				if i+1 < len(source) && source[i+1] >= '0' && source[i+1] <= '9' {
+					continue // decimal point in number like 3.7
+				}
+			}
+			lastDot = i
+			break
+		}
+	}
 	var methodSource string
 	if lastDot < 0 {
 		// Single expression: return it directly
