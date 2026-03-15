@@ -167,6 +167,7 @@ func main() {
 	// Re-register critical primitives that may have been overwritten by image methods
 	vmInst.ReRegisterNilPrimitives()
 	vmInst.ReRegisterBooleanPrimitives()
+	vmInst.ReRegisterRegexPrimitives()
 
 	// Load disk cache into ContentStore (restores previously synced content)
 	var diskCache *dist.DiskCache

@@ -171,6 +171,60 @@ func (vm *VM) registerRegexInstanceMethods(regexClass *Class) {
 	})
 }
 
+// ReRegisterRegexPrimitives forces re-registration of Regex primitives.
+// Call this after loading an image to ensure primitives override any compiled
+// method stubs from <primitive> declarations in Regex.mag.
+func (vm *VM) ReRegisterRegexPrimitives() {
+	regexClass := vm.Classes.Lookup("Regex")
+	if regexClass == nil {
+		return
+	}
+
+	// Preserve docstrings from existing methods (may come from image-loaded stubs).
+	instDocs := collectDocStrings(regexClass.VTable)
+	classDocs := collectDocStrings(regexClass.ClassVTable)
+
+	vm.registerRegexClassMethods(regexClass)
+	vm.registerRegexInstanceMethods(regexClass)
+	vm.registerStringRegexMethods()
+
+	// Restore docstrings onto the newly-registered primitive methods.
+	applyDocStrings(regexClass.VTable, instDocs)
+	applyDocStrings(regexClass.ClassVTable, classDocs)
+}
+
+// collectDocStrings gathers docstrings from all methods in a VTable, keyed by selector ID.
+func collectDocStrings(vt *VTable) map[int]string {
+	if vt == nil {
+		return nil
+	}
+	docs := make(map[int]string)
+	for selID, method := range vt.LocalMethods() {
+		if ds, ok := method.(DocStringable); ok {
+			if doc := ds.DocString(); doc != "" {
+				docs[selID] = doc
+			}
+		}
+	}
+	return docs
+}
+
+// applyDocStrings restores docstrings onto methods in a VTable.
+func applyDocStrings(vt *VTable, docs map[int]string) {
+	if vt == nil || len(docs) == 0 {
+		return
+	}
+	for selID, doc := range docs {
+		method := vt.Lookup(selID)
+		if method == nil {
+			continue
+		}
+		if ds, ok := method.(DocStringable); ok {
+			ds.SetDocString(doc)
+		}
+	}
+}
+
 // ---------------------------------------------------------------------------
 // String convenience methods for regex
 // ---------------------------------------------------------------------------
