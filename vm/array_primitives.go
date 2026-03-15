@@ -1,6 +1,9 @@
 package vm
 
-import "sort"
+import (
+	"sort"
+	"strings"
+)
 
 // ---------------------------------------------------------------------------
 // Array Primitives
@@ -232,6 +235,26 @@ func (vm *VM) registerArrayPrimitives() {
 			return false
 		})
 		return v.NewArrayWithElements(elems)
+	})
+
+	// primJoinWith: - join array elements into a string with separator
+	c.AddMethod1(vm.Selectors, "primJoinWith:", func(vmPtr interface{}, recv Value, sep Value) Value {
+		v := vmPtr.(*VM)
+		if !recv.IsObject() {
+			return v.registry.NewStringValue("")
+		}
+		obj := ObjectFromValue(recv)
+		if obj == nil {
+			return v.registry.NewStringValue("")
+		}
+		separator := v.getStringLike(sep)
+		n := obj.NumSlots()
+		parts := make([]string, n)
+		for i := 0; i < n; i++ {
+			elem := obj.GetSlot(i)
+			parts[i] = v.getStringLike(elem)
+		}
+		return v.registry.NewStringValue(strings.Join(parts, separator))
 	})
 
 	// sorted - return a new sorted array using default < comparison (non-destructive)
