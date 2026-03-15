@@ -1,4 +1,4 @@
-.PHONY: all bootstrap mag clean test test-ide test-all proto serve
+.PHONY: all bootstrap mag install clean test test-ide test-all proto serve
 
 # Default target builds everything
 all: mag
@@ -11,6 +11,11 @@ bootstrap:
 mag: bootstrap
 	cp maggie.image cmd/mag/
 	go build -o mag ./cmd/mag/
+	codesign -s - mag
+
+# Install the mag binary into GOBIN (or GOPATH/bin)
+install: mag
+	cp mag $(shell go env GOBIN 2>/dev/null || echo "$(shell go env GOPATH)/bin")/mag
 
 # Generate Go code from protobuf definitions
 proto:
