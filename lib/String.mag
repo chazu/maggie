@@ -130,7 +130,7 @@ String subclass: Object
   ```
   """
   method: startsWith: prefix [
-      prefix size > self size
+      ^prefix size > self size
           ifTrue: [false]
           ifFalse: [(self copyFrom: 0 to: prefix size) = prefix]
   ]
@@ -144,7 +144,7 @@ String subclass: Object
   ```
   """
   method: endsWith: suffix [
-      suffix size > self size
+      ^suffix size > self size
           ifTrue: [false]
           ifFalse: [(self copyFrom: self size - suffix size to: self size) = suffix]
   ]
