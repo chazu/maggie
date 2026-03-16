@@ -107,8 +107,8 @@ func (vm *VM) registerCuePrimitives() {
 		return v.vmRegisterCueContext(obj)
 	})
 
-	// CueContext>>compileString: — compile CUE source from a string, returns CueValue
-	cueContextClass.AddMethod1(vm.Selectors, "compileString:", func(vmPtr interface{}, recv Value, srcVal Value) Value {
+	// CueContext>>primCompileString: — compile CUE source from a string, returns CueValue
+	cueContextClass.AddMethod1(vm.Selectors, "primCompileString:", func(vmPtr interface{}, recv Value, srcVal Value) Value {
 		v := vmPtr.(*VM)
 		cctx := v.vmGetCueContext(recv)
 		if cctx == nil {
@@ -124,7 +124,7 @@ func (vm *VM) registerCuePrimitives() {
 	})
 
 	// CueContext>>loadFile: — load CUE from a single file
-	cueContextClass.AddMethod1(vm.Selectors, "loadFile:", func(vmPtr interface{}, recv Value, pathVal Value) Value {
+	cueContextClass.AddMethod1(vm.Selectors, "primLoadFile:", func(vmPtr interface{}, recv Value, pathVal Value) Value {
 		v := vmPtr.(*VM)
 		cctx := v.vmGetCueContext(recv)
 		if cctx == nil {
@@ -144,7 +144,7 @@ func (vm *VM) registerCuePrimitives() {
 	})
 
 	// CueContext>>loadDir: — load CUE from a directory (module-aware with cue.mod/ traversal)
-	cueContextClass.AddMethod1(vm.Selectors, "loadDir:", func(vmPtr interface{}, recv Value, dirVal Value) Value {
+	cueContextClass.AddMethod1(vm.Selectors, "primLoadDir:", func(vmPtr interface{}, recv Value, dirVal Value) Value {
 		v := vmPtr.(*VM)
 		cctx := v.vmGetCueContext(recv)
 		if cctx == nil {
@@ -173,7 +173,7 @@ func (vm *VM) registerCuePrimitives() {
 	})
 
 	// CueContext>>validate:against: — validate data CUE string against schema CUE string
-	cueContextClass.AddMethod2(vm.Selectors, "validate:against:", func(vmPtr interface{}, recv Value, dataVal, schemaVal Value) Value {
+	cueContextClass.AddMethod2(vm.Selectors, "primValidate:against:", func(vmPtr interface{}, recv Value, dataVal, schemaVal Value) Value {
 		v := vmPtr.(*VM)
 		cctx := v.vmGetCueContext(recv)
 		if cctx == nil {
@@ -199,7 +199,7 @@ func (vm *VM) registerCuePrimitives() {
 	})
 
 	// CueContext>>inject:into: — inject hidden fields (as JSON string) into CUE source
-	cueContextClass.AddMethod2(vm.Selectors, "inject:into:", func(vmPtr interface{}, recv Value, fieldsVal, srcVal Value) Value {
+	cueContextClass.AddMethod2(vm.Selectors, "primInject:into:", func(vmPtr interface{}, recv Value, fieldsVal, srcVal Value) Value {
 		v := vmPtr.(*VM)
 		cctx := v.vmGetCueContext(recv)
 		if cctx == nil {
@@ -245,7 +245,7 @@ func (vm *VM) registerCuePrimitives() {
 	// -----------------------------------------------------------------------
 
 	// CueValue>>validate — validate a CUE value, returns Result
-	cueValueClass.AddMethod0(vm.Selectors, "validate", func(vmPtr interface{}, recv Value) Value {
+	cueValueClass.AddMethod0(vm.Selectors, "primValidate", func(vmPtr interface{}, recv Value) Value {
 		v := vmPtr.(*VM)
 		cv := v.vmGetCueValue(recv)
 		if cv == nil {
@@ -258,7 +258,7 @@ func (vm *VM) registerCuePrimitives() {
 	})
 
 	// CueValue>>unify: — unify with another CueValue
-	cueValueClass.AddMethod1(vm.Selectors, "unify:", func(vmPtr interface{}, recv Value, otherVal Value) Value {
+	cueValueClass.AddMethod1(vm.Selectors, "primUnify:", func(vmPtr interface{}, recv Value, otherVal Value) Value {
 		v := vmPtr.(*VM)
 		cv := v.vmGetCueValue(recv)
 		if cv == nil {
@@ -277,7 +277,7 @@ func (vm *VM) registerCuePrimitives() {
 	})
 
 	// CueValue>>lookup: — lookup a field by path string
-	cueValueClass.AddMethod1(vm.Selectors, "lookup:", func(vmPtr interface{}, recv Value, pathVal Value) Value {
+	cueValueClass.AddMethod1(vm.Selectors, "primLookup:", func(vmPtr interface{}, recv Value, pathVal Value) Value {
 		v := vmPtr.(*VM)
 		cv := v.vmGetCueValue(recv)
 		if cv == nil {
@@ -296,7 +296,7 @@ func (vm *VM) registerCuePrimitives() {
 	})
 
 	// CueValue>>fillPath:with: — fill a path with a value, returns new CueValue
-	cueValueClass.AddMethod2(vm.Selectors, "fillPath:with:", func(vmPtr interface{}, recv Value, pathVal, valueVal Value) Value {
+	cueValueClass.AddMethod2(vm.Selectors, "primFillPath:with:", func(vmPtr interface{}, recv Value, pathVal, valueVal Value) Value {
 		v := vmPtr.(*VM)
 		cv := v.vmGetCueValue(recv)
 		if cv == nil {
@@ -319,7 +319,7 @@ func (vm *VM) registerCuePrimitives() {
 	})
 
 	// CueValue>>fields — return a Dictionary of field name -> CueValue
-	cueValueClass.AddMethod0(vm.Selectors, "fields", func(vmPtr interface{}, recv Value) Value {
+	cueValueClass.AddMethod0(vm.Selectors, "primFields", func(vmPtr interface{}, recv Value) Value {
 		v := vmPtr.(*VM)
 		cv := v.vmGetCueValue(recv)
 		if cv == nil {
@@ -340,7 +340,7 @@ func (vm *VM) registerCuePrimitives() {
 	})
 
 	// CueValue>>toMaggie — convert CUE value to native Maggie value
-	cueValueClass.AddMethod0(vm.Selectors, "toMaggie", func(vmPtr interface{}, recv Value) Value {
+	cueValueClass.AddMethod0(vm.Selectors, "primToMaggie", func(vmPtr interface{}, recv Value) Value {
 		v := vmPtr.(*VM)
 		cv := v.vmGetCueValue(recv)
 		if cv == nil {
@@ -351,7 +351,7 @@ func (vm *VM) registerCuePrimitives() {
 	})
 
 	// CueValue>>toJSON — serialize CUE value to JSON string
-	cueValueClass.AddMethod0(vm.Selectors, "toJSON", func(vmPtr interface{}, recv Value) Value {
+	cueValueClass.AddMethod0(vm.Selectors, "primToJSON", func(vmPtr interface{}, recv Value) Value {
 		v := vmPtr.(*VM)
 		cv := v.vmGetCueValue(recv)
 		if cv == nil {
@@ -365,7 +365,7 @@ func (vm *VM) registerCuePrimitives() {
 	})
 
 	// CueValue>>kind — return CUE kind as a symbol string
-	cueValueClass.AddMethod0(vm.Selectors, "kind", func(vmPtr interface{}, recv Value) Value {
+	cueValueClass.AddMethod0(vm.Selectors, "primKind", func(vmPtr interface{}, recv Value) Value {
 		v := vmPtr.(*VM)
 		cv := v.vmGetCueValue(recv)
 		if cv == nil {
@@ -376,7 +376,7 @@ func (vm *VM) registerCuePrimitives() {
 	})
 
 	// CueValue>>isConcrete — check if the value is fully resolved
-	cueValueClass.AddMethod0(vm.Selectors, "isConcrete", func(vmPtr interface{}, recv Value) Value {
+	cueValueClass.AddMethod0(vm.Selectors, "primIsConcrete", func(vmPtr interface{}, recv Value) Value {
 		v := vmPtr.(*VM)
 		cv := v.vmGetCueValue(recv)
 		if cv == nil {
@@ -389,7 +389,7 @@ func (vm *VM) registerCuePrimitives() {
 	})
 
 	// CueValue>>exists — check if the value exists (non-bottom)
-	cueValueClass.AddMethod0(vm.Selectors, "exists", func(vmPtr interface{}, recv Value) Value {
+	cueValueClass.AddMethod0(vm.Selectors, "primExists", func(vmPtr interface{}, recv Value) Value {
 		v := vmPtr.(*VM)
 		cv := v.vmGetCueValue(recv)
 		if cv == nil {
@@ -402,7 +402,7 @@ func (vm *VM) registerCuePrimitives() {
 	})
 
 	// CueValue>>error — return error string if value has error, nil otherwise
-	cueValueClass.AddMethod0(vm.Selectors, "error", func(vmPtr interface{}, recv Value) Value {
+	cueValueClass.AddMethod0(vm.Selectors, "primError", func(vmPtr interface{}, recv Value) Value {
 		v := vmPtr.(*VM)
 		cv := v.vmGetCueValue(recv)
 		if cv == nil {
@@ -414,8 +414,24 @@ func (vm *VM) registerCuePrimitives() {
 		return Nil
 	})
 
+	// CueValue>>matchesObject: — unify this CUE value against an object's projection
+	// Returns true if the unification succeeds (no bottom), false otherwise
+	cueValueClass.AddMethod1(vm.Selectors, "primMatchesObject:", func(vmPtr interface{}, recv Value, objVal Value) Value {
+		v := vmPtr.(*VM)
+		cv := v.vmGetCueValue(recv)
+		if cv == nil {
+			return False
+		}
+		projection := v.objectAsCueValue(objVal)
+		unified := cv.val.Unify(projection.val)
+		if unified.Err() != nil {
+			return False
+		}
+		return True
+	})
+
 	// CueValue>>printString — string representation for display
-	cueValueClass.AddMethod0(vm.Selectors, "printString", func(vmPtr interface{}, recv Value) Value {
+	cueValueClass.AddMethod0(vm.Selectors, "primPrintString", func(vmPtr interface{}, recv Value) Value {
 		v := vmPtr.(*VM)
 		cv := v.vmGetCueValue(recv)
 		if cv == nil {
@@ -427,6 +443,42 @@ func (vm *VM) registerCuePrimitives() {
 		}
 		return v.registry.NewStringValue(string(data))
 	})
+}
+
+// ---------------------------------------------------------------------------
+// Object → CUE projection
+// ---------------------------------------------------------------------------
+
+// objectAsCueValue projects a Maggie object's instance variables into a CUE struct.
+// The resulting CUE value has field names matching the ivar names and values
+// converted via cueExportValue. Non-object values (SmallInt, String, etc.) are
+// exported as simple CUE scalars.
+func (vm *VM) objectAsCueValue(v Value) *CueValueObject {
+	ctx := cuecontext.New()
+
+	// For non-object values, encode directly as a scalar
+	obj := ObjectFromValue(v)
+	if obj == nil {
+		goVal := vm.cueExportValue(v)
+		cueVal := ctx.Encode(goVal)
+		return &CueValueObject{val: cueVal}
+	}
+
+	// Build a map from ivar names to exported values
+	cls := vm.ClassFor(v)
+	if cls == nil {
+		cueVal := ctx.Encode(nil)
+		return &CueValueObject{val: cueVal}
+	}
+
+	ivarNames := cls.AllInstVarNames()
+	m := make(map[string]interface{}, len(ivarNames))
+	for i, name := range ivarNames {
+		m[name] = vm.cueExportValue(obj.GetSlot(i))
+	}
+
+	cueVal := ctx.Encode(m)
+	return &CueValueObject{val: cueVal}
 }
 
 // ---------------------------------------------------------------------------
@@ -529,10 +581,21 @@ func (vm *VM) cueExportValue(v Value) interface{} {
 		}
 		return m
 	}
-	// Array -> slice
+	// Object -> map (named ivars) or slice (array-like)
 	if v.IsObject() {
 		obj := ObjectFromValue(v)
 		if obj != nil {
+			cls := vm.ClassFor(v)
+			ivarNames := cls.AllInstVarNames()
+			if len(ivarNames) > 0 {
+				// Object with named instance variables -> map
+				m := make(map[string]interface{}, len(ivarNames))
+				for i, name := range ivarNames {
+					m[name] = vm.cueExportValue(obj.GetSlot(i))
+				}
+				return m
+			}
+			// Array-like object (no ivars) -> slice
 			n := obj.NumSlots()
 			s := make([]interface{}, n)
 			for i := 0; i < n; i++ {

@@ -7,7 +7,7 @@
 A Smalltalk dialect implemented in Go. Named for [Margaret Hamilton](https://en.wikipedia.org/wiki/Margaret_Hamilton_\(software_engineer\))
 
 **Documentation:**
-- **Language Guide** — Run `mag doc --serve` and open the Guide tab, or browse `lib/guide/` source files directly. 14 chapters from Getting Started through Tooling, with runnable examples validated by `mag doctest`.
+- **Language Guide** — Run `mag doc --serve` and open the Guide tab, or browse `lib/guide/` source files directly. 15 chapters from Getting Started through CUE Integration, with runnable examples validated by `mag doctest`.
 - [Design Document](docs/MAGGIE_DESIGN.md) - Architecture and implementation details
 - [Language Server](docs/lsp.md) - LSP features and editor integration
 
@@ -146,6 +146,26 @@ mag --image my-app.image -m Main.start
 # Save from within Maggie code
 Compiler saveImage: 'my-app.image'.
 ```
+
+## CUE Integration
+
+Maggie integrates [CUE](https://cuelang.org) as a first-class citizen for constraint-based validation and pattern matching. Any object can be projected into the CUE value lattice, and CUE schemas can be used for structural template matching.
+
+```smalltalk
+"Project an object into CUE and check its kind"
+42 asCueValue kind          "=> 'int'"
+
+"Match objects against CUE schemas"
+ctx := CueContext new.
+schema := (ctx compileString: 'int & >0 & <100') value.
+schema matchesObject: 50    "=> true"
+schema matchesObject: 200   "=> false"
+
+"Validate data against a schema"
+ctx validate: 'name: "Alice", age: 30' against: 'name: string, age: int & >0'
+```
+
+See Guide 15 (CUE Integration) for full coverage, and [ROADMAP.md](ROADMAP.md) for planned layers (class schemas, method guards/predicate dispatch).
 
 ## Adaptive Compilation
 

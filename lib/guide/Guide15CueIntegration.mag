@@ -1,0 +1,177 @@
+"""
+CUE is a constraint-based configuration language built on a value lattice.
+Maggie integrates CUE as a first-class citizen, letting you project objects
+into CUE values, validate data against schemas, and use CUE unification
+for structural pattern matching.
+
+CUE's value lattice has a natural correspondence with Smalltalk's object model:
+CUE's top type is like Object, unification narrows constraints like subclassing,
+and bottom (error) is like doesNotUnderstand:. This makes CUE a powerful
+substrate for schema validation, template matching, and (eventually) predicate
+dispatch.
+
+This chapter covers the current CUE integration: contexts, values, object
+projection, and template matching.
+
+```test
+ctx := CueContext new.
+val := (ctx compileString: 'x: 42') value.
+val kind >>> 'struct'
+val isConcrete >>> true
+```
+"""
+Guide15CueIntegration subclass: Object
+
+  """
+  ## CUE Contexts and Values
+
+  A CueContext wraps the CUE evaluation engine. Use it to compile CUE source
+  strings into CueValues, load CUE from files or directories, and validate
+  data against schemas.
+
+  CueValues are immutable -- operations like unify: and fillPath:with: return
+  new CueValues rather than modifying the original. Every CUE operation that
+  can fail returns a Result (Success or Failure).
+
+  ```test
+  ctx := CueContext new.
+  result := ctx compileString: 'name: "Alice", age: 30'.
+  result isSuccess >>> true
+  result value kind >>> 'struct'
+  result value isConcrete >>> true
+  ```
+  """
+  method: cueContextsAndValues [
+      ^'See class docstring'
+  ]
+
+  """
+  ## Compiling and Inspecting CUE
+
+  Compile CUE from a string with compileString:. The result wraps a CueValue
+  you can inspect with kind, isConcrete, exists, and error.
+
+  Use lookup: to navigate into nested structs by dot-separated path. Use
+  toMaggie to convert concrete CUE values into native Maggie values
+  (int, string, bool, Array, Dictionary).
+
+  ```test
+  ctx := CueContext new.
+  val := (ctx compileString: 'a: {b: {c: 42}}') value.
+  inner := (val lookup: 'a.b.c') value.
+  inner toMaggie value >>> 42
+  inner kind >>> 'int'
+  ```
+  """
+  method: compilingAndInspecting [
+      ^'See class docstring'
+  ]
+
+  """
+  ## Unification
+
+  CUE unification combines two values, narrowing constraints. If the values
+  conflict, the result is bottom (an error). Use unify: to combine a schema
+  with concrete data.
+
+  ```test
+  ctx := CueContext new.
+  schema := (ctx compileString: 'name: string, age: int') value.
+  data := (ctx compileString: 'name: "Alice", age: 30') value.
+  result := schema unify: data.
+  result isSuccess >>> true
+  ```
+  """
+  method: unification [
+      ^'See class docstring'
+  ]
+
+  """
+  ## Schema Validation
+
+  Use validate:against: on a CueContext to check data against a schema
+  in a single step. Or compile separately and unify: manually for more
+  control.
+
+  ```test
+  ctx := CueContext new.
+  result := ctx validate: 'name: "Alice", age: 30' against: 'name: string, age: int & >0'.
+  result isSuccess >>> true
+  bad := ctx validate: 'name: "Alice", age: -5' against: 'name: string, age: int & >0'.
+  bad isSuccess >>> false
+  ```
+  """
+  method: schemaValidation [
+      ^'See class docstring'
+  ]
+
+  """
+  ## Object Projection with asCueValue
+
+  Any Maggie object can be projected into a CUE value with asCueValue.
+  For objects with named instance variables, this produces a CUE struct
+  whose fields match the ivar names. For scalars (numbers, strings,
+  booleans), it produces a CUE scalar value.
+
+  This is the foundation for CUE-based pattern matching -- you project
+  an object into the CUE lattice, then unify with a template to check
+  if it matches.
+
+  ```test
+  42 asCueValue kind >>> 'int'
+  'hello' asCueValue kind >>> 'string'
+  true asCueValue kind >>> 'bool'
+  42 asCueValue isConcrete >>> true
+  ```
+  """
+  method: objectProjection [
+      ^'See class docstring'
+  ]
+
+  """
+  ## Template Matching with matchesObject:
+
+  matchesObject: is the bridge between CUE schemas and Maggie objects.
+  It projects the object into CUE (via asCueValue) and unifies with
+  the receiver (a CUE template). Returns true if the unification
+  succeeds, false if it hits bottom.
+
+  This gives you structural, range-aware, composable pattern matching
+  against any object -- much richer than simple equality checks.
+
+  ```test
+  ctx := CueContext new.
+  intSchema := (ctx compileString: 'int') value.
+  intSchema matchesObject: 42 >>> true
+  intSchema matchesObject: 'hello' >>> false
+  strSchema := (ctx compileString: 'string') value.
+  strSchema matchesObject: 'world' >>> true
+  strSchema matchesObject: 99 >>> false
+  numRange := (ctx compileString: '>0 & <100') value.
+  numRange matchesObject: 50 >>> true
+  numRange matchesObject: 150 >>> false
+  numRange matchesObject: 0 >>> false
+  ```
+  """
+  method: templateMatching [
+      ^'See class docstring'
+  ]
+
+  """
+  ## FillPath: Injecting Values into Templates
+
+  Use fillPath:with: to inject a concrete value at a specific path in
+  a CUE template. This is useful for parameterizing CUE configurations
+  or building up values incrementally. Hidden fields (starting with _)
+  are supported.
+
+  ```test
+  ctx := CueContext new.
+  tmpl := (ctx compileString: 'x: _, result: x + 1') value.
+  filled := (tmpl fillPath: 'x' with: 10) value.
+  (filled lookup: 'result') value toMaggie value >>> 11
+  ```
+  """
+  method: fillPath [
+      ^'See class docstring'
+  ]

@@ -79,6 +79,13 @@ func (vm *VM) registerObjectPrimitives() {
 		return vm.primitiveClass(recv)
 	})
 
+	// primAsCueValue - project this object's instance variables into a CUE value
+	c.AddMethod0(vm.Selectors, "primAsCueValue", func(vmPtr interface{}, recv Value) Value {
+		v := vmPtr.(*VM)
+		cueObj := v.objectAsCueValue(recv)
+		return v.vmRegisterCueValue(cueObj)
+	})
+
 	// primIsKindOf: - check if receiver is an instance of aClass or a subclass
 	c.AddMethod1(vm.Selectors, "primIsKindOf:", func(vmPtr interface{}, recv Value, aClass Value) Value {
 		v := vmPtr.(*VM)

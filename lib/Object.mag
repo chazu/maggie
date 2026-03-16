@@ -217,3 +217,18 @@ Object subclass: nil
   method: printString [
       ^self class name
   ]
+
+  """
+  Project this object's instance variables into a CUE value.
+  Returns a CueValue whose fields are the ivar names with their current values.
+  Scalars (numbers, strings, booleans) project as CUE scalars.
+  Objects with named ivars project as CUE structs.
+
+  ```test
+  42 asCueValue kind >>> 'int'
+  'hello' asCueValue kind >>> 'string'
+  ```
+  """
+  method: asCueValue [
+      ^self primAsCueValue
+  ]

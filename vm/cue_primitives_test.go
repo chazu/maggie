@@ -512,6 +512,320 @@ func TestCueValueMarkerDistinct(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
+// objectAsCueValue Tests
+// ---------------------------------------------------------------------------
+
+func TestObjectAsCueValueWithIvars(t *testing.T) {
+	vm := NewVM()
+
+	// Create a Point class with x and y ivars
+	pointClass := vm.createClass("Point", vm.ObjectClass)
+	pointClass.InstVars = []string{"x", "y"}
+	pointClass.NumSlots = 2
+	vm.Globals["Point"] = vm.classValue(pointClass)
+
+	// Create an instance with x=3, y=7
+	obj := NewObject(pointClass.VTable, 2)
+	obj.SetSlot(0, FromSmallInt(3))
+	obj.SetSlot(1, FromSmallInt(7))
+
+	cueObj := vm.objectAsCueValue(obj.ToValue())
+	if cueObj == nil {
+		t.Fatal("objectAsCueValue returned nil")
+	}
+
+	// Check that the CUE value has the right fields
+	xVal := cueObj.val.LookupPath(cue.ParsePath("x"))
+	if !xVal.Exists() {
+		t.Fatal("CUE value should have field 'x'")
+	}
+	n, err := xVal.Int64()
+	if err != nil {
+		t.Fatalf("expected int64 for x: %v", err)
+	}
+	if n != 3 {
+		t.Errorf("expected x=3, got %d", n)
+	}
+
+	yVal := cueObj.val.LookupPath(cue.ParsePath("y"))
+	if !yVal.Exists() {
+		t.Fatal("CUE value should have field 'y'")
+	}
+	n, err = yVal.Int64()
+	if err != nil {
+		t.Fatalf("expected int64 for y: %v", err)
+	}
+	if n != 7 {
+		t.Errorf("expected y=7, got %d", n)
+	}
+}
+
+func TestObjectAsCueValueScalar(t *testing.T) {
+	vm := NewVM()
+
+	// SmallInt should project as a scalar
+	cueObj := vm.objectAsCueValue(FromSmallInt(42))
+	if cueObj == nil {
+		t.Fatal("objectAsCueValue returned nil for SmallInt")
+	}
+	n, err := cueObj.val.Int64()
+	if err != nil {
+		t.Fatalf("expected int64: %v", err)
+	}
+	if n != 42 {
+		t.Errorf("expected 42, got %d", n)
+	}
+}
+
+func TestObjectAsCueValueString(t *testing.T) {
+	vm := NewVM()
+
+	strVal := vm.registry.NewStringValue("hello")
+	cueObj := vm.objectAsCueValue(strVal)
+	if cueObj == nil {
+		t.Fatal("objectAsCueValue returned nil for String")
+	}
+	s, err := cueObj.val.String()
+	if err != nil {
+		t.Fatalf("expected string: %v", err)
+	}
+	if s != "hello" {
+		t.Errorf("expected 'hello', got %q", s)
+	}
+}
+
+func TestObjectAsCueValueNoIvars(t *testing.T) {
+	vm := NewVM()
+
+	// Object with no ivars should produce an empty struct
+	obj := NewObject(vm.ObjectClass.VTable, 0)
+	cueObj := vm.objectAsCueValue(obj.ToValue())
+	if cueObj == nil {
+		t.Fatal("objectAsCueValue returned nil")
+	}
+	if err := cueObj.val.Err(); err != nil {
+		t.Fatalf("CUE value has error: %v", err)
+	}
+}
+
+func TestObjectAsCueValueInheritedIvars(t *testing.T) {
+	vm := NewVM()
+
+	// Parent class with 'name'
+	personClass := vm.createClass("Person", vm.ObjectClass)
+	personClass.InstVars = []string{"name"}
+	personClass.NumSlots = 1
+
+	// Child class with 'age' (inherits 'name')
+	studentClass := vm.createClass("Student", personClass)
+	studentClass.InstVars = []string{"age"}
+	studentClass.NumSlots = 2
+
+	obj := NewObject(studentClass.VTable, 2)
+	obj.SetSlot(0, vm.registry.NewStringValue("Alice"))
+	obj.SetSlot(1, FromSmallInt(20))
+
+	cueObj := vm.objectAsCueValue(obj.ToValue())
+
+	nameVal := cueObj.val.LookupPath(cue.ParsePath("name"))
+	if !nameVal.Exists() {
+		t.Fatal("should have inherited field 'name'")
+	}
+	s, err := nameVal.String()
+	if err != nil {
+		t.Fatalf("expected string for name: %v", err)
+	}
+	if s != "Alice" {
+		t.Errorf("expected 'Alice', got %q", s)
+	}
+
+	ageVal := cueObj.val.LookupPath(cue.ParsePath("age"))
+	if !ageVal.Exists() {
+		t.Fatal("should have field 'age'")
+	}
+	n, err := ageVal.Int64()
+	if err != nil {
+		t.Fatalf("expected int for age: %v", err)
+	}
+	if n != 20 {
+		t.Errorf("expected 20, got %d", n)
+	}
+}
+
+func TestObjectAsCueValueNestedObject(t *testing.T) {
+	vm := NewVM()
+
+	// Inner class: Point with x, y
+	pointClass := vm.createClass("Point", vm.ObjectClass)
+	pointClass.InstVars = []string{"x", "y"}
+	pointClass.NumSlots = 2
+
+	// Outer class: Line with start, end
+	lineClass := vm.createClass("Line", vm.ObjectClass)
+	lineClass.InstVars = []string{"start", "end"}
+	lineClass.NumSlots = 2
+
+	p1 := NewObject(pointClass.VTable, 2)
+	p1.SetSlot(0, FromSmallInt(1))
+	p1.SetSlot(1, FromSmallInt(2))
+
+	p2 := NewObject(pointClass.VTable, 2)
+	p2.SetSlot(0, FromSmallInt(10))
+	p2.SetSlot(1, FromSmallInt(20))
+
+	line := NewObject(lineClass.VTable, 2)
+	line.SetSlot(0, p1.ToValue())
+	line.SetSlot(1, p2.ToValue())
+
+	cueObj := vm.objectAsCueValue(line.ToValue())
+
+	// start.x should be 1
+	startX := cueObj.val.LookupPath(cue.ParsePath("start.x"))
+	if !startX.Exists() {
+		t.Fatal("should have nested field start.x")
+	}
+	n, err := startX.Int64()
+	if err != nil {
+		t.Fatalf("expected int for start.x: %v", err)
+	}
+	if n != 1 {
+		t.Errorf("expected start.x=1, got %d", n)
+	}
+
+	// end.y should be 20
+	endY := cueObj.val.LookupPath(cue.ParsePath("end.y"))
+	if !endY.Exists() {
+		t.Fatal("should have nested field end.y")
+	}
+	n, err = endY.Int64()
+	if err != nil {
+		t.Fatalf("expected int for end.y: %v", err)
+	}
+	if n != 20 {
+		t.Errorf("expected end.y=20, got %d", n)
+	}
+}
+
+func TestObjectAsCueValueNilSlots(t *testing.T) {
+	vm := NewVM()
+
+	pointClass := vm.createClass("Point", vm.ObjectClass)
+	pointClass.InstVars = []string{"x", "y"}
+	pointClass.NumSlots = 2
+
+	// Create with default nil slots
+	obj := NewObject(pointClass.VTable, 2)
+
+	cueObj := vm.objectAsCueValue(obj.ToValue())
+	if cueObj == nil {
+		t.Fatal("objectAsCueValue returned nil")
+	}
+	if err := cueObj.val.Err(); err != nil {
+		t.Fatalf("CUE value has error: %v", err)
+	}
+
+	// x should be null (nil maps to null in CUE)
+	xVal := cueObj.val.LookupPath(cue.ParsePath("x"))
+	if !xVal.Exists() {
+		t.Fatal("should have field 'x' even if nil")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// matchesObject Tests
+// ---------------------------------------------------------------------------
+
+func TestMatchesObjectSuccess(t *testing.T) {
+	vm := NewVM()
+
+	// Create Point class
+	pointClass := vm.createClass("Point", vm.ObjectClass)
+	pointClass.InstVars = []string{"x", "y"}
+	pointClass.NumSlots = 2
+
+	// Create instance x=3, y=7
+	obj := NewObject(pointClass.VTable, 2)
+	obj.SetSlot(0, FromSmallInt(3))
+	obj.SetSlot(1, FromSmallInt(7))
+
+	// Schema: x and y must be numbers
+	ctx := cuecontext.New()
+	schema := ctx.CompileString(`x: number, y: number`)
+	if err := schema.Err(); err != nil {
+		t.Fatalf("schema compile error: %v", err)
+	}
+
+	cv := &CueValueObject{val: schema}
+	projection := vm.objectAsCueValue(obj.ToValue())
+	unified := cv.val.Unify(projection.val)
+	if unified.Err() != nil {
+		t.Errorf("expected match, got error: %v", unified.Err())
+	}
+}
+
+func TestMatchesObjectFailure(t *testing.T) {
+	vm := NewVM()
+
+	// Create Point class
+	pointClass := vm.createClass("Point", vm.ObjectClass)
+	pointClass.InstVars = []string{"x", "y"}
+	pointClass.NumSlots = 2
+
+	// Create instance x=3, y=7
+	obj := NewObject(pointClass.VTable, 2)
+	obj.SetSlot(0, FromSmallInt(3))
+	obj.SetSlot(1, FromSmallInt(7))
+
+	// Schema: x must be a string (should fail)
+	ctx := cuecontext.New()
+	schema := ctx.CompileString(`x: string, y: number`)
+	if err := schema.Err(); err != nil {
+		t.Fatalf("schema compile error: %v", err)
+	}
+
+	cv := &CueValueObject{val: schema}
+	projection := vm.objectAsCueValue(obj.ToValue())
+	unified := cv.val.Unify(projection.val)
+	if unified.Err() == nil {
+		t.Error("expected unification failure for string vs int")
+	}
+}
+
+func TestMatchesObjectWithConstraint(t *testing.T) {
+	vm := NewVM()
+
+	// Create Point class
+	pointClass := vm.createClass("Point", vm.ObjectClass)
+	pointClass.InstVars = []string{"x", "y"}
+	pointClass.NumSlots = 2
+
+	// x=50, y=200
+	obj := NewObject(pointClass.VTable, 2)
+	obj.SetSlot(0, FromSmallInt(50))
+	obj.SetSlot(1, FromSmallInt(200))
+
+	ctx := cuecontext.New()
+
+	// Schema: x > 0 & < 100 — should match
+	schema1 := ctx.CompileString(`x: >0 & <100, y: number`)
+	cv1 := &CueValueObject{val: schema1}
+	p1 := vm.objectAsCueValue(obj.ToValue())
+	u1 := cv1.val.Unify(p1.val)
+	if u1.Err() != nil {
+		t.Errorf("x=50 should satisfy >0 & <100: %v", u1.Err())
+	}
+
+	// Schema: x > 100 — should fail (x=50)
+	schema2 := ctx.CompileString(`x: >100, y: number`)
+	cv2 := &CueValueObject{val: schema2}
+	p2 := vm.objectAsCueValue(obj.ToValue())
+	u2 := cv2.val.Unify(p2.val)
+	if u2.Err() == nil {
+		t.Error("x=50 should not satisfy >100")
+	}
+}
+
+// ---------------------------------------------------------------------------
 // Helper to avoid importing cue in test file signatures
 // ---------------------------------------------------------------------------
 

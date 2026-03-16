@@ -160,6 +160,25 @@ CueValue subclass: Object
   ]
 
   """
+  Test whether this CUE value (as a template/schema) matches an object.
+  Projects the object's instance variables into a CUE struct and unifies
+  with this value. Returns true if unification succeeds (no bottom).
+
+  ```test
+  ctx := CueContext new.
+  intSchema := (ctx compileString: 'int') value.
+  intSchema matchesObject: 42 >>> true
+  intSchema matchesObject: 'hello' >>> false
+  strSchema := (ctx compileString: 'string') value.
+  strSchema matchesObject: 'hello' >>> true
+  strSchema matchesObject: 42 >>> false
+  ```
+  """
+  method: matchesObject: anObject [
+      ^self primMatchesObject: anObject
+  ]
+
+  """
   Return a human-readable string representation.
   """
   method: printString [
