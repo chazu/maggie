@@ -102,33 +102,45 @@ Higher-level abstractions built on top of node protocol.
 3. **Cluster membership** — gossip protocol or mDNS for node discovery
 4. **Capability enforcement at runtime** — tie `forkRestricted:` mechanism to distributed capability policy
 
-### Tuplespace — FUTURE
+### Tuplespace & Concurrent Constraint Programming — IN PROGRESS
 
-Linda-style shared tuple space as a distributed coordination primitive.
+Detailed plan: `docs/plans/2026-03-15-tuplespace-implementation-plan.md`
 
-- Tuple templates as CUE partial structs (depends on CUE Layer 1)
-- `In` / `Out` / `Read` operations with CUE unification matching
-- Distributed tuplespace spanning multiple nodes (depends on node protocol)
-- Constraint hierarchies on tuple lifecycle ("must exist" vs. "should be consumed within N seconds")
+1. **CUE Subsumption** — `CueValue>>subsumes:` / `subsumedBy:` for entailment checking
+2. **Local TupleSpace** — Linda-style `in:`/`out:`/`read:` with CUE unification matching and goroutine-based blocking
+3. **Linear Logic Extensions** — tuple modes (linear/affine/persistent), atomic multi-take (⊗), choice (⊕), lease/expiry
+4. **Constraint Store (CCP)** — monotonic CUE-backed store with `tell:`/`ask:`/suspend, concurrent constraint programming semantics
+5. **Agent Orchestration Patterns** — application-layer Maggie code: Agent class, task/result protocols, fan-out/fan-in/pipeline/auction/blackboard/consensus patterns
+6. **Distributed Tuplespace** — depends on node protocol; partitioned tuples, CRDT-like constraint store replication
 
 ---
 
 ## Ordering
 
 ```
-CUE Layer 1 (now)
+CUE Layer 1 (done)
     │
     ├──→ CUE Layer 2 (schema on class)
     │        │
     │        └──→ CUE Layer 3 (method guards)
     │
+    ├──→ CUE Subsumption (now)
+    │        │
+    │        └──→ Local TupleSpace
+    │                 │
+    │                 ├──→ Linear Logic Extensions
+    │                 │
+    │                 └──→ Constraint Store (CCP)
+    │                          │
+    │                          └──→ Agent Orchestration (app layer)
+    │
     ├──→ Distribution Gaps (polish)
     │        │
     │        └──→ Node Protocol
     │                 │
-    │                 └──→ Distributed Programming Model
-    │
-    └──→ Tuplespace (after Layer 1 + Node Protocol)
+    │                 ├──→ Distributed Programming Model
+    │                 │
+    │                 └──→ Distributed TupleSpace
 ```
 
-CUE Layer 1 and Distribution Gaps can proceed in parallel. Tuplespace is the convergence point — it needs both CUE unification and distributed node communication.
+The local tuplespace track (subsumption → tuplespace → linear extensions / constraint store) is independent of the distribution track. Agent orchestration can begin as soon as the local tuplespace exists. Distribution comes later.
