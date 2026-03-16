@@ -7,7 +7,7 @@
 A Smalltalk dialect implemented in Go. Named for [Margaret Hamilton](https://en.wikipedia.org/wiki/Margaret_Hamilton_\(software_engineer\))
 
 **Documentation:**
-- **Language Guide** — Run `mag doc --serve` and open the Guide tab, or browse `lib/guide/` source files directly. 15 chapters from Getting Started through CUE Integration, with runnable examples validated by `mag doctest`.
+- **Language Guide** — Run `mag doc --serve` and open the Guide tab, or browse `lib/guide/` source files directly. 16 chapters from Getting Started through TupleSpace & Constraint Programming, with runnable examples validated by `mag doctest`.
 - [Design Document](docs/MAGGIE_DESIGN.md) - Architecture and implementation details
 - [Language Server](docs/lsp.md) - LSP features and editor integration
 
@@ -166,6 +166,32 @@ ctx validate: 'name: "Alice", age: 30' against: 'name: string, age: int & >0'
 ```
 
 See Guide 15 (CUE Integration) for full coverage, and [ROADMAP.md](ROADMAP.md) for planned layers (class schemas, method guards/predicate dispatch).
+
+## TupleSpace & Constraint Store
+
+Maggie provides Linda-style tuplespace coordination with linear logic semantics and a concurrent constraint programming (CCP) constraint store.
+
+```smalltalk
+"TupleSpace: publish, take, and match tuples via CUE templates"
+ts := TupleSpace new.
+ctx := CueContext new.
+ts out: 42.
+ts out: 'hello'.
+ts tryIn: (ctx compileString: 'int') value   "=> 42 (consumed)"
+
+"Persistent tuples (never consumed — shared facts)"
+ts outPersistent: 'config-value'.
+
+"Atomic multi-take (tensor product — all or nothing)"
+ts inAll: {intTemplate. stringTemplate}
+
+"Constraint Store: monotonic knowledge with ask/tell"
+store := ConstraintStore new.
+store tell: (ctx compileString: '{ready: true}') value.
+store tryAsk: (ctx compileString: '{ready: true}') value  "=> true"
+```
+
+See Guide 16 (TupleSpace & Constraint Programming) for full coverage.
 
 ## Adaptive Compilation
 

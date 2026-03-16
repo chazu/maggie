@@ -1,0 +1,192 @@
+"""
+TupleSpace and ConstraintStore provide two complementary coordination
+primitives for concurrent programming. TupleSpace is a Linda-style shared
+space where tuples are published and consumed; ConstraintStore is a monotonic
+shared knowledge base where constraints accumulate and processes block until
+their queries are entailed.
+
+Together they enable concurrent constraint programming: tasks and resources
+flow through the tuplespace (linear logic), while shared knowledge accumulates
+in the constraint store (monotonic CUE unification).
+
+```test
+ts := TupleSpace new.
+ts out: 42.
+ts size >>> 1
+ts isEmpty >>> false
+```
+
+```test
+store := ConstraintStore new.
+store isConsistent >>> true
+```
+"""
+Guide16TupleSpace subclass: Object
+
+  """
+  ## TupleSpace Basics
+
+  A TupleSpace stores tuples (any Maggie objects) and retrieves them by
+  matching against CUE templates. Templates are CueValues compiled from
+  CUE source strings.
+
+  - out: publishes a tuple (non-blocking)
+  - in: takes a matching tuple (blocking, destructive)
+  - read: reads a matching tuple (blocking, non-destructive)
+  - tryIn: / tryRead: are non-blocking variants
+
+  ```test
+  ts := TupleSpace new.
+  ctx := CueContext new.
+  intTmpl := (ctx compileString: 'int') value.
+  ts out: 42.
+  ts out: 'hello'.
+  ts tryIn: intTmpl >>> 42
+  ts size >>> 1
+  ```
+  """
+  method: tupleSpaceBasics [
+      ^'See class docstring'
+  ]
+
+  """
+  ## Tuple Modes
+
+  Tuples have three modes controlling their consumption semantics:
+
+  - **Linear** (default via out:): consumed exactly once by in:
+  - **Persistent** (via outPersistent:): never consumed; in: returns a
+    copy but the tuple stays. Models shared facts and blackboard knowledge.
+  - **Affine** (via outAffine:ttl:): consumed at most once, auto-removed
+    after TTL expires if not consumed first.
+
+  ```test
+  ts := TupleSpace new.
+  ctx := CueContext new.
+  intTmpl := (ctx compileString: 'int') value.
+  ts outPersistent: 42.
+  ts tryIn: intTmpl >>> 42
+  ts tryIn: intTmpl >>> 42
+  ts size >>> 1
+  ```
+  """
+  method: tupleModes [
+      ^'See class docstring'
+  ]
+
+  """
+  ## Template Matching
+
+  Templates use CUE's full constraint language. You can match by type,
+  by value range, by struct shape, or any combination. Matching projects
+  the tuple into CUE via asCueValue and unifies with the template.
+
+  ```test
+  ts := TupleSpace new.
+  ctx := CueContext new.
+  ts out: 50.
+  ts out: 200.
+  rangeTmpl := (ctx compileString: '>0 & <100') value.
+  ts tryIn: rangeTmpl >>> 50
+  ts size >>> 1
+  ```
+  """
+  method: templateMatching [
+      ^'See class docstring'
+  ]
+
+  """
+  ## Atomic Multi-Take (inAll:)
+
+  inAll: atomically takes ALL tuples matching an array of templates,
+  or blocks until all are simultaneously satisfiable. Each template
+  matches a different tuple. This prevents the coordination bug where
+  an agent grabs a task but the required resource was taken between
+  two separate in: calls.
+
+  This is the tensor product from linear logic.
+
+  ```example
+  ts := TupleSpace new.
+  ctx := CueContext new.
+  ts out: 42.
+  ts out: 'hello'.
+  results := ts inAll: {(ctx compileString: 'int') value. (ctx compileString: 'string') value}.
+  ```
+  """
+  method: atomicMultiTake [
+      ^'See class docstring'
+  ]
+
+  """
+  ## Choice (inAny:)
+
+  inAny: takes whichever tuple matches first from an array of templates.
+  If none match, blocks until any one does. This is the additive
+  disjunction from linear logic -- like Channel select: but for tuple
+  templates.
+
+  ```example
+  ts := TupleSpace new.
+  ctx := CueContext new.
+  ts out: 42.
+  result := ts inAny: {(ctx compileString: 'int') value. (ctx compileString: 'string') value}.
+  ```
+  """
+  method: choice [
+      ^'See class docstring'
+  ]
+
+  """
+  ## Constraint Store
+
+  A ConstraintStore holds a single CUE value that starts as top
+  (unconstrained) and narrows monotonically via unification. Processes
+  tell constraints to add information and ask to check entailment.
+
+  - tell: unifies a constraint into the store (fails if conflicting)
+  - ask: blocks until the store entails the query (subsumption)
+  - tryAsk: non-blocking entailment check
+
+  ```test
+  store := ConstraintStore new.
+  ctx := CueContext new.
+  store tell: (ctx compileString: '{x: 42}') value.
+  store tell: (ctx compileString: '{y: "hello"}') value.
+  query := (ctx compileString: '{x: int, y: string}') value.
+  store tryAsk: query >>> true
+  ```
+  """
+  method: constraintStore [
+      ^'See class docstring'
+  ]
+
+  """
+  ## Combining TupleSpace and ConstraintStore
+
+  The two primitives are complementary:
+
+  - TupleSpace: transient resources, consumed on read. Coordination via
+    presence/absence of tuples. Linear logic semantics.
+  - ConstraintStore: monotonic knowledge, never consumed. Coordination
+    via entailment. Concurrent constraint programming semantics.
+
+  A typical agent pattern: check prerequisites in the constraint store
+  (ask:), then take a task from the tuplespace (in:), do work, publish
+  results back to the tuplespace (out:), and tell new knowledge to the
+  constraint store (tell:).
+
+  ```test
+  ts := TupleSpace new.
+  store := ConstraintStore new.
+  ctx := CueContext new.
+  store tell: (ctx compileString: '{ready: true}') value.
+  store tryAsk: (ctx compileString: '{ready: true}') value >>> true
+  ts out: 42.
+  intTmpl := (ctx compileString: 'int') value.
+  ts tryIn: intTmpl >>> 42
+  ```
+  """
+  method: combining [
+      ^'See class docstring'
+  ]
