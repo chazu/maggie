@@ -61,13 +61,13 @@ func handleSyncCommand(args []string, vmInst *vm.VM, m *manifest.Manifest, verbo
 				handleSyncPush(vmInst, peer, verbose)
 			}
 		} else {
-			fmt.Fprintln(os.Stderr, "Usage: mag sync push <peer-addr>")
+			fmt.Fprintf(os.Stderr, "Usage: %s sync push <peer-addr>\n", progName())
 			fmt.Fprintln(os.Stderr, "  (or configure [sync].peers in maggie.toml)")
 			os.Exit(1)
 		}
 	case "pull":
 		if len(args) < 3 {
-			fmt.Fprintln(os.Stderr, "Usage: mag sync pull <peer-addr> <class-name-or-hash>")
+			fmt.Fprintf(os.Stderr, "Usage: %s sync pull <peer-addr> <class-name-or-hash>\n", progName())
 			os.Exit(1)
 		}
 		handleSyncPull(vmInst, args[1], args[2], verbose, diskCache)
@@ -75,13 +75,13 @@ func handleSyncCommand(args []string, vmInst *vm.VM, m *manifest.Manifest, verbo
 		handleSyncList(vmInst)
 	case "diff":
 		if len(args) < 2 {
-			fmt.Fprintln(os.Stderr, "Usage: mag sync diff <peer-addr>")
+			fmt.Fprintf(os.Stderr, "Usage: %s sync diff <peer-addr>\n", progName())
 			os.Exit(1)
 		}
 		handleSyncDiff(vmInst, args[1], verbose)
 	case "show":
 		if len(args) < 2 {
-			fmt.Fprintln(os.Stderr, "Usage: mag sync show <hash-prefix>")
+			fmt.Fprintf(os.Stderr, "Usage: %s sync show <hash-prefix>\n", progName())
 			os.Exit(1)
 		}
 		handleSyncShow(vmInst, args[1])

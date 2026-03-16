@@ -142,11 +142,17 @@ mag wrap --output ./wrappers    # custom output directory
 ### `mag build`
 
 ```bash
-mag build              # produces ./mag-custom
+mag build              # entry-point-only binary (./mag-custom)
 mag build -o myapp     # custom output binary name
+mag build --full       # full mag CLI with project baked in
+mag build --full -o myapp
 ```
 
 Requires `maggie.toml`. Compiles `.mag` sources into an embedded image binary that registers wrapped Go types at startup.
+
+Without `--full`, the binary only loads the image and runs the entry point.
+
+With `--full`, the binary is a complete `mag` CLI — REPL, `fmt`, `doctest`, `help`, LSP, and all other subcommands work. Your project's classes are pre-loaded in the embedded image. When invoked with no arguments, it runs the project's entry point; use `-i` for REPL access.
 
 ## Integration: Loading Stubs
 

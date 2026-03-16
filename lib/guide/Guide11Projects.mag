@@ -580,6 +580,15 @@ Guide11Projects subclass: Object
 
   # Run from the saved image
   mag --image todo-app.image -m Main.start
+
+  # Build a standalone binary (runs entry point only)
+  mag build -o todo-app
+
+  # Build a full Maggie system with your project baked in
+  mag build --full -o todo-app
+  # ./todo-app         runs Main.start
+  # ./todo-app -i      REPL with all your classes loaded
+  # ./todo-app help    browse your classes interactively
   ```
   """
   method: s12_completeExample [

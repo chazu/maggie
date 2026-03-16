@@ -234,6 +234,20 @@ mag fmt --check
 
 The `Format()` Go function in `cmd/mag/format.go` can also be used as a library.
 
+### Building Custom Binaries
+
+```bash
+# Entry-point-only binary (minimal, just runs your app)
+mag build -o myapp
+
+# Full-system binary (complete mag CLI with project baked in)
+mag build --full -o myapp
+```
+
+With `--full`, the binary is a complete `mag` CLI with the project's image embedded. When invoked with no arguments, it runs the project's entry point; all `mag` subcommands (REPL, `fmt`, `doctest`, `help`, LSP, etc.) still work. Without `--full`, the binary only runs the entry point.
+
+**Implementation:** `cmd/mag/build.go` dispatches to `gowrap.BuildFullSystem()` (copies `cmd/mag/*.go` + generates `project_config.go` with entry point and wrapper registrars) or `gowrap.BuildEmbedded()` (generates minimal `main.go`). The `projectEntryPoint`, `projectNamespace`, and `projectWrapperRegistrars` package-level vars in `main.go` are set by the generated `project_config.go` via `init()`.
+
 ---
 
 ## Module System

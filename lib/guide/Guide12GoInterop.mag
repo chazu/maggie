@@ -256,10 +256,9 @@ Guide12GoInterop subclass: Object
   ## The mag build Command
 
   After wrapping, `mag build` compiles a custom Maggie binary that
-  includes the wrapped Go packages. The resulting binary works exactly
-  like the standard `mag` command but has your Go types baked in.
+  includes the wrapped Go packages.
 
-  **Basic usage:**
+  **Basic usage (entry-point-only binary):**
 
   ```example
   mag build
@@ -267,12 +266,38 @@ Guide12GoInterop subclass: Object
 
   This reads `maggie.toml`, runs `mag wrap` for all configured
   packages (if not already generated), then creates a custom binary
-  at `./mag-custom`.
+  at `./mag-custom`. The binary loads the embedded image and runs
+  your entry point.
+
+  **Full-system binary:**
+
+  ```example
+  mag build --full
+  ```
+
+  With `--full`, the resulting binary is a complete Maggie system --
+  REPL, `fmt`, `doctest`, `help`, LSP, and all other `mag` subcommands
+  work. Your project's classes are pre-loaded in the embedded image.
+  When invoked with no arguments, it runs your entry point:
+
+  ```example
+  ./myapp                  # Runs Main.start (your entry point)
+  ./myapp -i               # REPL with all your classes loaded
+  ./myapp fmt src/          # Format your source files
+  ./myapp doctest           # Run your docstring tests
+  ./myapp help MyClass      # Show help for your classes
+  ```
+
+  This is useful for distributing a self-contained Maggie system that
+  includes your application code. The recipient gets a single binary
+  that can run your app, explore it interactively, or use any of the
+  standard Maggie development tools.
 
   **Custom output path:**
 
   ```example
   mag build -o myapp
+  mag build --full -o myapp
   ```
 
   **What happens under the hood:**
@@ -280,25 +305,25 @@ Guide12GoInterop subclass: Object
   1. `mag wrap` runs for each package in `[go-wrap.packages]`,
      generating `wrap.go` and `stubs.mag` files.
 
-  2. A temporary Go module is created with a `main.go` that imports
-     the Maggie VM and all wrapper packages.
+  2. Project sources are compiled into an image (stdlib + your code).
 
-  3. The generated `main.go` calls `RegisterPrimitives(v)` for each
-     wrapper package during VM initialization.
+  3. Without `--full`: a temporary Go module is created with a minimal
+     `main.go` that loads the image and runs the entry point.
 
-  4. `go build` compiles everything into a single binary.
+  4. With `--full`: the actual `cmd/mag/` source files are copied into
+     a temporary module, with the project image replacing the stock
+     `maggie.image`. A generated `project_config.go` sets the default
+     entry point and registers any wrapped Go packages.
 
-  5. The temporary module is cleaned up.
+  5. `go build` compiles everything into a single binary.
 
-  The custom binary embeds all the standard Maggie library code plus
-  the generated stubs. When you run it, the wrapped Go types are
-  available immediately -- no additional loading step needed.
+  6. The temporary module is cleaned up.
 
   **Requirements:**
 
   - A Go toolchain must be installed (the `go` command must be in PATH)
-  - A `maggie.toml` with `[go-wrap]` configuration
-  - A `go.mod` in the project directory (for module resolution)
+  - A `maggie.toml` with `[source]` dirs
+  - A `go.mod` in the project directory (if using `[go-wrap]`)
   """
   method: s05_magBuild [
       "This section is prose-only. No runnable example needed."
@@ -531,7 +556,8 @@ Guide12GoInterop subclass: Object
   **Step 3: Build the custom binary**
 
   ```example
-  mag build -o my-app
+  mag build -o my-app           # entry-point-only binary
+  mag build --full -o my-app    # full mag system with your code
   ```
 
   **Step 4: Write Maggie code that uses the wrapped packages**

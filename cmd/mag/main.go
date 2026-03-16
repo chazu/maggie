@@ -24,6 +24,20 @@ import (
 //go:embed maggie.image
 var embeddedImage []byte
 
+// projectEntryPoint is the default entry point for full-system builds.
+// When non-empty, the binary runs this entry point when invoked with no
+// arguments instead of dropping to the REPL. Set via init() in a generated
+// project_config.go during "mag build --full".
+var projectEntryPoint string
+
+// projectNamespace is the project namespace for full-system builds.
+// Used to qualify the projectEntryPoint class name.
+var projectNamespace string
+
+// projectWrapperRegistrars holds Go-wrap package registration functions
+// for full-system builds. Populated by init() in generated project_config.go.
+var projectWrapperRegistrars []func(*vm.VM)
+
 // reorderArgs moves flags (arguments starting with "-") before positional
 // arguments so that Go's flag package parses them even when interspersed
 // with paths (e.g., "mag ./src/... --save-image app.image").
@@ -86,63 +100,64 @@ func main() {
 	lspMode := flag.Bool("lsp", false, "Start LSP server on stdio")
 
 	flag.Usage = func() {
-		fmt.Fprintf(os.Stderr, "Usage: mag [options] [paths...]\n")
-		fmt.Fprintf(os.Stderr, "       mag deps [resolve|update|list]\n")
-		fmt.Fprintf(os.Stderr, "       mag fmt [--check] [files or dirs...]\n")
-		fmt.Fprintf(os.Stderr, "       mag wrap [packages...]                 (generate Go bindings)\n")
-		fmt.Fprintf(os.Stderr, "       mag build [-o output]                   (compile custom binary)\n")
-		fmt.Fprintf(os.Stderr, "       mag help [ClassName|Class>>method]       (show help for classes/methods)\n")
-		fmt.Fprintf(os.Stderr, "       mag sync [push|pull|status]             (content distribution)\n")
-		fmt.Fprintf(os.Stderr, "       mag doc [--output dir] [--title title]\n")
-		fmt.Fprintf(os.Stderr, "       mag doctest [--verbose] [--class name]\n\n")
+		p := progName()
+		fmt.Fprintf(os.Stderr, "Usage: %s [options] [paths...]\n", p)
+		fmt.Fprintf(os.Stderr, "       %s deps [resolve|update|list]\n", p)
+		fmt.Fprintf(os.Stderr, "       %s fmt [--check] [files or dirs...]\n", p)
+		fmt.Fprintf(os.Stderr, "       %s wrap [packages...]                 (generate Go bindings)\n", p)
+		fmt.Fprintf(os.Stderr, "       %s build [--full] [-o output]           (compile custom binary)\n", p)
+		fmt.Fprintf(os.Stderr, "       %s help [ClassName|Class>>method]       (show help for classes/methods)\n", p)
+		fmt.Fprintf(os.Stderr, "       %s sync [push|pull|status]             (content distribution)\n", p)
+		fmt.Fprintf(os.Stderr, "       %s doc [--output dir] [--title title]\n", p)
+		fmt.Fprintf(os.Stderr, "       %s doctest [--verbose] [--class name]\n\n", p)
 		fmt.Fprintf(os.Stderr, "Starts Maggie with the default image and compiles .mag files from the given paths.\n")
 		fmt.Fprintf(os.Stderr, "If no paths are given and a maggie.toml exists, loads the project from it.\n\n")
 		fmt.Fprintf(os.Stderr, "Options:\n")
 		flag.PrintDefaults()
 		fmt.Fprintf(os.Stderr, "\nExamples:\n")
-		fmt.Fprintf(os.Stderr, "  mag -i                 # Start REPL\n")
-		fmt.Fprintf(os.Stderr, "  mag ./src -m main      # Load src/, run 'main' method\n")
-		fmt.Fprintf(os.Stderr, "  mag ./... -m App.start # Load recursively, run App.start\n")
-		fmt.Fprintf(os.Stderr, "  mag --yutani           # Start Yutani IDE launcher (connects to localhost:7755)\n")
-		fmt.Fprintf(os.Stderr, "  mag --yutani --ide-tool inspector  # Start Inspector directly\n")
-		fmt.Fprintf(os.Stderr, "  mag --yutani --yutani-addr host:port  # Connect to specific server\n")
+		fmt.Fprintf(os.Stderr, "  %s -i                 # Start REPL\n", p)
+		fmt.Fprintf(os.Stderr, "  %s ./src -m main      # Load src/, run 'main' method\n", p)
+		fmt.Fprintf(os.Stderr, "  %s ./... -m App.start # Load recursively, run App.start\n", p)
+		fmt.Fprintf(os.Stderr, "  %s --yutani           # Start Yutani IDE launcher (connects to localhost:7755)\n", p)
+		fmt.Fprintf(os.Stderr, "  %s --yutani --ide-tool inspector  # Start Inspector directly\n", p)
+		fmt.Fprintf(os.Stderr, "  %s --yutani --yutani-addr host:port  # Connect to specific server\n", p)
 		fmt.Fprintf(os.Stderr, "\nImages:\n")
-		fmt.Fprintf(os.Stderr, "  mag ./src/... --save-image app.image  # Compile sources, save image\n")
-		fmt.Fprintf(os.Stderr, "  mag --image app.image -m Main.start   # Run from custom image\n")
+		fmt.Fprintf(os.Stderr, "  %s ./src/... --save-image app.image  # Compile sources, save image\n", p)
+		fmt.Fprintf(os.Stderr, "  %s --image app.image -m Main.start   # Run from custom image\n", p)
 		fmt.Fprintf(os.Stderr, "\nProject & Dependencies:\n")
-		fmt.Fprintf(os.Stderr, "  mag -m Main.start      # Load project from maggie.toml, run entry point\n")
-		fmt.Fprintf(os.Stderr, "  mag deps               # Resolve and fetch dependencies\n")
-		fmt.Fprintf(os.Stderr, "  mag deps update         # Re-resolve ignoring lock file\n")
-		fmt.Fprintf(os.Stderr, "  mag deps list           # Show dependency tree\n")
+		fmt.Fprintf(os.Stderr, "  %s -m Main.start      # Load project from maggie.toml, run entry point\n", p)
+		fmt.Fprintf(os.Stderr, "  %s deps               # Resolve and fetch dependencies\n", p)
+		fmt.Fprintf(os.Stderr, "  %s deps update         # Re-resolve ignoring lock file\n", p)
+		fmt.Fprintf(os.Stderr, "  %s deps list           # Show dependency tree\n", p)
 		fmt.Fprintf(os.Stderr, "\nFormatting:\n")
-		fmt.Fprintf(os.Stderr, "  mag fmt                        # Format all .mag files in current dir\n")
-		fmt.Fprintf(os.Stderr, "  mag fmt lib/Array.mag          # Format a specific file\n")
-		fmt.Fprintf(os.Stderr, "  mag fmt --check lib/           # Check formatting (non-zero exit if changes needed)\n")
+		fmt.Fprintf(os.Stderr, "  %s fmt                        # Format all .mag files in current dir\n", p)
+		fmt.Fprintf(os.Stderr, "  %s fmt lib/Array.mag          # Format a specific file\n", p)
+		fmt.Fprintf(os.Stderr, "  %s fmt --check lib/           # Check formatting (non-zero exit if changes needed)\n", p)
 		fmt.Fprintf(os.Stderr, "\nProject:\n")
-		fmt.Fprintf(os.Stderr, "  mag new myapp                  # Create a new Maggie project\n")
+		fmt.Fprintf(os.Stderr, "  %s new myapp                  # Create a new Maggie project\n", p)
 		fmt.Fprintf(os.Stderr, "\nHelp:\n")
-		fmt.Fprintf(os.Stderr, "  mag help                       # List all classes\n")
-		fmt.Fprintf(os.Stderr, "  mag help Array                 # Show Array class help\n")
-		fmt.Fprintf(os.Stderr, "  mag help Array>>at:            # Show method docstring\n")
-		fmt.Fprintf(os.Stderr, "  mag help Yutani::Button        # Show FQN class help\n")
+		fmt.Fprintf(os.Stderr, "  %s help                       # List all classes\n", p)
+		fmt.Fprintf(os.Stderr, "  %s help Array                 # Show Array class help\n", p)
+		fmt.Fprintf(os.Stderr, "  %s help Array>>at:            # Show method docstring\n", p)
+		fmt.Fprintf(os.Stderr, "  %s help Yutani::Button        # Show FQN class help\n", p)
 		fmt.Fprintf(os.Stderr, "\nDocumentation:\n")
-		fmt.Fprintf(os.Stderr, "  mag doc                        # Generate HTML docs from image\n")
-		fmt.Fprintf(os.Stderr, "  mag doc --output ./site        # Generate to specific directory\n")
-		fmt.Fprintf(os.Stderr, "  mag doc --serve                # Generate docs and serve on :8080\n")
-		fmt.Fprintf(os.Stderr, "  mag doc --serve --port 3000    # Generate docs and serve on :3000\n")
-		fmt.Fprintf(os.Stderr, "  mag doctest                    # Run docstring tests\n")
-		fmt.Fprintf(os.Stderr, "  mag doctest --verbose          # Run with detailed output\n")
+		fmt.Fprintf(os.Stderr, "  %s doc                        # Generate HTML docs from image\n", p)
+		fmt.Fprintf(os.Stderr, "  %s doc --output ./site        # Generate to specific directory\n", p)
+		fmt.Fprintf(os.Stderr, "  %s doc --serve                # Generate docs and serve on :8080\n", p)
+		fmt.Fprintf(os.Stderr, "  %s doc --serve --port 3000    # Generate docs and serve on :3000\n", p)
+		fmt.Fprintf(os.Stderr, "  %s doctest                    # Run docstring tests\n", p)
+		fmt.Fprintf(os.Stderr, "  %s doctest --verbose          # Run with detailed output\n", p)
 		fmt.Fprintf(os.Stderr, "\nLanguage Server:\n")
-		fmt.Fprintf(os.Stderr, "  mag --serve                    # Start language server on :4567\n")
-		fmt.Fprintf(os.Stderr, "  mag ./lib/... --serve --port 8080  # Load libs, serve on :8080\n")
-		fmt.Fprintf(os.Stderr, "  mag --lsp                      # Start LSP server on stdio\n")
-		fmt.Fprintf(os.Stderr, "  mag lsp                        # Same as --lsp (subcommand form)\n")
+		fmt.Fprintf(os.Stderr, "  %s --serve                    # Start language server on :4567\n", p)
+		fmt.Fprintf(os.Stderr, "  %s ./lib/... --serve --port 8080  # Load libs, serve on :8080\n", p)
+		fmt.Fprintf(os.Stderr, "  %s --lsp                      # Start LSP server on stdio\n", p)
+		fmt.Fprintf(os.Stderr, "  %s lsp                        # Same as --lsp (subcommand form)\n", p)
 		fmt.Fprintf(os.Stderr, "\nExperimental:\n")
-		fmt.Fprintf(os.Stderr, "  mag -i --experimental-maggie-compiler  # Use self-hosting compiler\n")
+		fmt.Fprintf(os.Stderr, "  %s -i --experimental-maggie-compiler  # Use self-hosting compiler\n", p)
 		fmt.Fprintf(os.Stderr, "\nLearning Maggie:\n")
-		fmt.Fprintf(os.Stderr, "  mag help <topic>                       # API reference for any class or method\n")
-		fmt.Fprintf(os.Stderr, "  mag doc --serve                        # Browsable HTML docs on localhost\n")
-		fmt.Fprintf(os.Stderr, "  mag doctest                            # Run doc tests to verify examples\n")
+		fmt.Fprintf(os.Stderr, "  %s help <topic>                       # API reference for any class or method\n", p)
+		fmt.Fprintf(os.Stderr, "  %s doc --serve                        # Browsable HTML docs on localhost\n", p)
+		fmt.Fprintf(os.Stderr, "  %s doctest                            # Run doc tests to verify examples\n", p)
 		fmt.Fprintf(os.Stderr, "  examples/                              # Runnable example programs\n")
 		fmt.Fprintf(os.Stderr, "  lib/guide/                             # Tutorial chapters (start here!)\n")
 	}
@@ -230,6 +245,11 @@ func main() {
 	// Set up compiler backend (Go compiler by default)
 	vmInst.UseGoCompiler(compiler.Compile)
 
+	// Register wrapper packages from full-system builds
+	for _, register := range projectWrapperRegistrars {
+		register(vmInst)
+	}
+
 	// Switch to experimental Maggie compiler if requested
 	if *useMaggieCompiler {
 		vmInst.UseMaggieCompiler()
@@ -309,6 +329,9 @@ func main() {
 		// No paths but doc/doctest/main/save-image requested: try loading from maggie.toml
 		if m, _ := manifest.FindAndLoad("."); m != nil {
 			loadedManifest = m
+			if projectNamespace == "" {
+				projectNamespace = m.Project.Namespace
+			}
 			methods, err := pipe.LoadProject(m)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "Error loading project: %v\n", err)
@@ -437,6 +460,20 @@ func main() {
 		os.Exit(0)
 	}
 
+	// If this is a full-system build with a default entry point, run it
+	// when no explicit -m was given and no other action was taken.
+	if projectEntryPoint != "" && *mainEntry == "" && len(paths) == 0 && !*interactive {
+		result, err := runMain(vmInst, projectEntryPoint, *verbose)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			os.Exit(1)
+		}
+		if result.IsSmallInt() {
+			os.Exit(int(result.SmallInt()))
+		}
+		os.Exit(0)
+	}
+
 	// Start REPL if requested or if no paths given
 	if *interactive || (len(paths) == 0 && *mainEntry == "") {
 		runREPL(vmInst)
@@ -486,14 +523,19 @@ func runMain(vmInst *vm.VM, entry string, verbose bool) (vm.Value, error) {
 		fmt.Printf("Looking for %s.%s\n", className, methodName)
 	}
 
-	// Find the class
+	// Find the class — try bare name first, then with project namespace
+	qualifiedName := className
 	class := vmInst.Classes.Lookup(className)
+	if class == nil && projectNamespace != "" {
+		qualifiedName = projectNamespace + "::" + className
+		class = vmInst.Classes.Lookup(qualifiedName)
+	}
 	if class == nil {
 		return vm.Nil, fmt.Errorf("class %q not found", className)
 	}
 
 	if verbose {
-		fmt.Printf("Found class %s\n", className)
+		fmt.Printf("Found class %s\n", qualifiedName)
 	}
 
 	// Check for class method first, then instance method
@@ -505,7 +547,7 @@ func runMain(vmInst *vm.VM, entry string, verbose bool) (vm.Value, error) {
 		}
 		// Execute class method - send to the class itself
 		// Class values are represented as symbols of the class name
-		classValue := vmInst.Symbols.SymbolValue(className)
+		classValue := vmInst.Symbols.SymbolValue(qualifiedName)
 		result := vmInst.Send(classValue, methodName, nil)
 		return result, nil
 	}
@@ -1008,7 +1050,7 @@ func handleDepsCommand(args []string, verbose bool) {
 
 	default:
 		fmt.Fprintf(os.Stderr, "Unknown deps subcommand: %s\n", subcmd)
-		fmt.Fprintf(os.Stderr, "Usage: mag deps [resolve|update|list]\n")
+		fmt.Fprintf(os.Stderr, "Usage: %s deps [resolve|update|list]\n", progName())
 		os.Exit(1)
 	}
 }

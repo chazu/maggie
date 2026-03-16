@@ -108,6 +108,30 @@ mag deps list         # Show resolved dependency tree
 
 Dependencies are stored in `.maggie/deps/` and locked in `.maggie/lock.toml`.
 
+## Building Custom Binaries
+
+Build a standalone binary from your project:
+
+```bash
+# Entry-point-only binary (just runs your app)
+mag build -o myapp
+
+# Full-system binary (complete mag CLI with your project baked in)
+mag build --full -o myapp
+```
+
+With `--full`, the resulting binary is a complete Maggie system — REPL, `fmt`, `doctest`, `help`, LSP, and all other `mag` subcommands work. When invoked with no arguments, it runs your project's entry point. Use `-i` to drop into a REPL with all your classes pre-loaded.
+
+```bash
+./myapp                  # Runs your entry point (e.g., Main.start)
+./myapp -i               # REPL with your classes loaded
+./myapp fmt src/          # Format your source files
+./myapp doctest           # Run your docstring tests
+./myapp help MyClass      # Show help for your classes
+```
+
+Without `--full`, the binary only runs the entry point (smaller, simpler).
+
 ## Images
 
 Maggie uses binary images to snapshot VM state (classes, methods, globals).

@@ -65,7 +65,7 @@ func handleWrapCommand(args []string, verbose bool) {
 		}
 		if m == nil {
 			fmt.Fprintln(os.Stderr, "Error: no maggie.toml found and no packages specified")
-			fmt.Fprintln(os.Stderr, "Usage: mag wrap [packages...] or configure [go-wrap] in maggie.toml")
+			fmt.Fprintf(os.Stderr, "Usage: %s wrap [packages...] or configure [go-wrap] in maggie.toml\n", progName())
 			os.Exit(1)
 		}
 

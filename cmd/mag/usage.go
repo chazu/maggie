@@ -3,7 +3,14 @@ package main
 import (
 	"fmt"
 	"os"
+	"path/filepath"
+	"strings"
 )
+
+// progName returns the binary name for use in usage strings.
+func progName() string {
+	return filepath.Base(os.Args[0])
+}
 
 // wantsHelp returns true if the first arg is a help request.
 func wantsHelp(args []string) bool {
@@ -19,10 +26,12 @@ func wantsHelp(args []string) bool {
 
 // subcmdUsage prints cobra-style usage for a subcommand and exits.
 func subcmdUsage(name, short string, sections ...string) {
+	prog := progName()
 	fmt.Fprintf(os.Stderr, "%s\n\n", short)
-	fmt.Fprintf(os.Stderr, "Usage:\n  mag %s\n", name)
+	fmt.Fprintf(os.Stderr, "Usage:\n  %s %s\n", prog, name)
 	for _, s := range sections {
-		fmt.Fprint(os.Stderr, s)
+		// Replace "mag " with actual binary name in section text
+		fmt.Fprint(os.Stderr, strings.ReplaceAll(s, "mag ", prog+" "))
 	}
 	fmt.Fprintln(os.Stderr)
 	os.Exit(0)
@@ -44,12 +53,14 @@ func usageFlags(flags [][2]string) string {
 
 // usageExamples formats an "Examples:" section.
 func usageExamples(examples [][2]string) string {
+	prog := progName()
 	s := "\nExamples:\n"
 	for _, e := range examples {
+		line := strings.Replace(e[0], "mag ", prog+" ", 1)
 		if e[1] != "" {
-			s += fmt.Sprintf("  %s  # %s\n", e[0], e[1])
+			s += fmt.Sprintf("  %s  # %s\n", line, e[1])
 		} else {
-			s += fmt.Sprintf("  %s\n", e[0])
+			s += fmt.Sprintf("  %s\n", line)
 		}
 	}
 	return s

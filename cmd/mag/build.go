@@ -16,33 +16,44 @@ import (
 // handleBuildCommand processes the `mag build` subcommand.
 // Usage:
 //
-//	mag build              # ./mag-custom
+//	mag build              # ./mag-custom (entry-point-only binary)
+//	mag build --full       # ./mag-custom (full mag CLI with project baked in)
 //	mag build -o myapp     # custom output
 //
 // The project must have [source] dirs. Sources are compiled into an image that
-// is embedded in the output binary. The binary loads the image on startup and
-// runs the entry point. If [go-wrap] packages are present, they are also
-// included in the binary.
+// is embedded in the output binary.
+//
+// Without --full, the binary loads the image on startup and runs the entry point.
+// With --full, the binary is a complete mag CLI (REPL, fmt, doctest, help, etc.)
+// with the project's code baked into the embedded image. When invoked with no
+// arguments, it runs the project's entry point; all mag subcommands still work.
 func handleBuildCommand(args []string, verbose bool) {
 	if wantsHelp(args) {
-		subcmdUsage("build [-o output]",
+		subcmdUsage("build [--full] [-o output]",
 			"Compile a Maggie project into a standalone binary.",
 			usageFlags([][2]string{
+				{"--full", "Build a full mag system (REPL, fmt, doctest, etc.) with project baked in"},
 				{"-o, --output <path>", "Output binary path (default: mag-custom)"},
 			}),
 			usageExamples([][2]string{
-				{"mag build", "Build ./mag-custom from maggie.toml"},
-				{"mag build -o myapp", "Build with custom output name"},
+				{"mag build", "Build entry-point-only binary"},
+				{"mag build --full", "Build full mag system with project code"},
+				{"mag build --full -o myapp", "Full system with custom output name"},
 			}),
-			"\nRequires a maggie.toml with [source] dirs. The project sources are compiled\ninto an image that is embedded in the output binary.\n",
+			"\nWithout --full, the binary only runs the entry point.\n"+
+				"With --full, the binary is a complete mag CLI with your project's classes\n"+
+				"pre-loaded. Running it with no arguments executes your entry point;\n"+
+				"all mag subcommands (fmt, doctest, help, -i, etc.) still work.\n",
 		)
 	}
 
 	var outputBinary string
+	fullSystem := false
 
 	// Parse flags
 	for i := 0; i < len(args); i++ {
-		if args[i] == "-o" || args[i] == "--output" {
+		switch args[i] {
+		case "-o", "--output":
 			if i+1 < len(args) {
 				outputBinary = args[i+1]
 				i++
@@ -50,6 +61,8 @@ func handleBuildCommand(args []string, verbose bool) {
 				fmt.Fprintln(os.Stderr, "Error: -o requires an output path")
 				os.Exit(1)
 			}
+		case "--full":
+			fullSystem = true
 		}
 	}
 
@@ -65,13 +78,13 @@ func handleBuildCommand(args []string, verbose bool) {
 	}
 	if m == nil {
 		fmt.Fprintln(os.Stderr, "Error: no maggie.toml found")
-		fmt.Fprintln(os.Stderr, "mag build requires a maggie.toml")
+		fmt.Fprintf(os.Stderr, "%s build requires a maggie.toml\n", progName())
 		os.Exit(1)
 	}
 
 	if len(m.Source.Dirs) == 0 {
 		fmt.Fprintln(os.Stderr, "Error: maggie.toml has no [source] dirs")
-		fmt.Fprintln(os.Stderr, "mag build requires source files to compile into an embedded image")
+		fmt.Fprintf(os.Stderr, "%s build requires source files to compile into an embedded image\n", progName())
 		os.Exit(1)
 	}
 
@@ -116,24 +129,45 @@ func handleBuildCommand(args []string, verbose bool) {
 
 	maggieDir := detectMaggieDir()
 
-	opts := gowrap.EmbeddedBuildOptions{
-		OutputBinary: outputBinary,
-		ImagePath:    imagePath,
-		EntryPoint:   m.Source.Entry,
-		Namespace:    m.Project.Namespace,
-		WrapDir:      wrapDir,
-		WrapperPkgs:  wrapperPkgs,
-		ProjectDir:   m.Dir,
-		MaggieDir:    maggieDir,
-		Verbose:      verbose,
+	if fullSystem {
+		opts := gowrap.FullSystemBuildOptions{
+			OutputBinary: outputBinary,
+			ImagePath:    imagePath,
+			EntryPoint:   m.Source.Entry,
+			Namespace:    m.Project.Namespace,
+			WrapDir:      wrapDir,
+			WrapperPkgs:  wrapperPkgs,
+			ProjectDir:   m.Dir,
+			MaggieDir:    maggieDir,
+			Verbose:      verbose,
+		}
+		if err := gowrap.BuildFullSystem(opts); err != nil {
+			fmt.Fprintf(os.Stderr, "Error building: %v\n", err)
+			os.Exit(1)
+		}
+	} else {
+		opts := gowrap.EmbeddedBuildOptions{
+			OutputBinary: outputBinary,
+			ImagePath:    imagePath,
+			EntryPoint:   m.Source.Entry,
+			Namespace:    m.Project.Namespace,
+			WrapDir:      wrapDir,
+			WrapperPkgs:  wrapperPkgs,
+			ProjectDir:   m.Dir,
+			MaggieDir:    maggieDir,
+			Verbose:      verbose,
+		}
+		if err := gowrap.BuildEmbedded(opts); err != nil {
+			fmt.Fprintf(os.Stderr, "Error building: %v\n", err)
+			os.Exit(1)
+		}
 	}
 
-	if err := gowrap.BuildEmbedded(opts); err != nil {
-		fmt.Fprintf(os.Stderr, "Error building: %v\n", err)
-		os.Exit(1)
+	if fullSystem {
+		fmt.Printf("Built %s (full system)\n", outputBinary)
+	} else {
+		fmt.Printf("Built %s\n", outputBinary)
 	}
-
-	fmt.Printf("Built %s\n", outputBinary)
 }
 
 // compileProjectImage creates a VM, compiles the project sources, and saves

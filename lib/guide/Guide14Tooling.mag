@@ -506,6 +506,46 @@ Guide14Tooling subclass: Object
   ]
 
   """
+  ## Building Custom Binaries
+
+  The `mag build` command compiles your project into a standalone
+  binary. There are two modes:
+
+  **Entry-point-only** (default): The binary loads the embedded image
+  and runs the entry point. Smallest output, no CLI features.
+
+  ```example
+  mag build -o myapp
+  ./myapp                  # runs Main.start
+  ```
+
+  **Full system** (`--full`): The binary is a complete Maggie system
+  with your project's classes pre-loaded. All `mag` subcommands work.
+  When invoked with no arguments, it runs your entry point.
+
+  ```example
+  mag build --full -o myapp
+  ./myapp                  # runs Main.start
+  ./myapp -i               # REPL with your classes loaded
+  ./myapp fmt src/          # format your source files
+  ./myapp doctest           # run your docstring tests
+  ./myapp help MyClass      # show help for your classes
+  ./myapp --lsp             # LSP server with your classes
+  ```
+
+  Full-system builds are useful for distributing a self-contained
+  Maggie environment. The recipient gets a single binary that can
+  run your application, explore it interactively, and use all the
+  standard development tools -- no separate `mag` install needed.
+
+  Both modes support Go interop via `[go-wrap]` in `maggie.toml`.
+  See the Go Interop chapter for details.
+  """
+  method: s09_buildingBinaries [
+      ^nil
+  ]
+
+  """
   ## Workflow Summary
 
   Here is a typical development workflow using Maggie's tooling:
@@ -518,15 +558,17 @@ Guide14Tooling subclass: Object
   6. **Debug interactively** in the REPL with `mag -i`
   7. **Use your editor** with LSP support via `mag --lsp`
   8. **Save images** with `--save-image` for fast deployment
-  9. **Inspect graphically** with `mag --yutani` when needed
+  9. **Build binaries** with `mag build` or `mag build --full`
+  10. **Inspect graphically** with `mag --yutani` when needed
 
   All of these tools work together. Docstrings drive both the
   documentation site and the test suite. The REPL shares its
   evaluation pipeline with doctest and the doc server's playground.
   The LSP server uses the same VM introspection that powers `:help`
-  in the REPL. And images capture the full state so that any tool
-  can start from a pre-compiled baseline.
+  in the REPL. Images capture the full state so that any tool
+  can start from a pre-compiled baseline. And `mag build --full`
+  packages the entire toolchain into a single distributable binary.
   """
-  method: s09_workflow [
+  method: s10_workflow [
       ^nil
   ]
