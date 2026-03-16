@@ -179,6 +179,44 @@ CueValue subclass: Object
   ]
 
   """
+  Check if this CUE value subsumes (is more general than) another.
+  Returns true if self is a valid constraint that other satisfies.
+  The argument can be a CueValue or any Maggie object (projected via asCueValue).
+
+  ```test
+  ctx := CueContext new.
+  intType := (ctx compileString: 'int') value.
+  concrete := (ctx compileString: '42') value.
+  intType subsumes: concrete >>> true
+  concrete subsumes: intType >>> false
+  rangeType := (ctx compileString: '>0 & <100') value.
+  fifty := (ctx compileString: '50') value.
+  rangeType subsumes: fifty >>> true
+  twoHundred := (ctx compileString: '200') value.
+  rangeType subsumes: twoHundred >>> false
+  ```
+  """
+  method: subsumes: other [
+      ^self primSubsumes: other
+  ]
+
+  """
+  Check if this CUE value is subsumed by (is more specific than) another.
+  Returns true if other is a valid constraint that self satisfies.
+
+  ```test
+  ctx := CueContext new.
+  concrete := (ctx compileString: '42') value.
+  intType := (ctx compileString: 'int') value.
+  concrete subsumedBy: intType >>> true
+  intType subsumedBy: concrete >>> false
+  ```
+  """
+  method: subsumedBy: other [
+      ^self primSubsumedBy: other
+  ]
+
+  """
   Return a human-readable string representation.
   """
   method: printString [

@@ -826,6 +826,82 @@ func TestMatchesObjectWithConstraint(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
+// Subsumption Tests
+// ---------------------------------------------------------------------------
+
+func TestSubsumesIntType(t *testing.T) {
+	ctx := cuecontext.New()
+	intType := &CueValueObject{val: ctx.CompileString("int")}
+	concrete := &CueValueObject{val: ctx.CompileString("42")}
+
+	// int subsumes 42
+	if intType.val.Subsume(concrete.val, cue.Final()) != nil {
+		t.Error("int should subsume 42")
+	}
+	// 42 does not subsume int
+	if concrete.val.Subsume(intType.val, cue.Final()) == nil {
+		t.Error("42 should not subsume int")
+	}
+}
+
+func TestSubsumesRange(t *testing.T) {
+	ctx := cuecontext.New()
+	rangeType := &CueValueObject{val: ctx.CompileString(">0 & <100")}
+	fifty := &CueValueObject{val: ctx.CompileString("50")}
+	twoHundred := &CueValueObject{val: ctx.CompileString("200")}
+
+	if rangeType.val.Subsume(fifty.val, cue.Final()) != nil {
+		t.Error(">0 & <100 should subsume 50")
+	}
+	if rangeType.val.Subsume(twoHundred.val, cue.Final()) == nil {
+		t.Error(">0 & <100 should not subsume 200")
+	}
+}
+
+func TestSubsumesStruct(t *testing.T) {
+	ctx := cuecontext.New()
+	schema := &CueValueObject{val: ctx.CompileString("{x: int, y: int}")}
+	concrete := &CueValueObject{val: ctx.CompileString("{x: 3, y: 7}")}
+	wrong := &CueValueObject{val: ctx.CompileString(`{x: "hello", y: 7}`)}
+
+	if schema.val.Subsume(concrete.val, cue.Final()) != nil {
+		t.Error("{x:int,y:int} should subsume {x:3,y:7}")
+	}
+	if schema.val.Subsume(wrong.val, cue.Final()) == nil {
+		t.Error("{x:int,y:int} should not subsume {x:\"hello\",y:7}")
+	}
+}
+
+func TestSubsumesReflexive(t *testing.T) {
+	ctx := cuecontext.New()
+	v := &CueValueObject{val: ctx.CompileString("42")}
+	if v.val.Subsume(v.val, cue.Final()) != nil {
+		t.Error("a value should subsume itself")
+	}
+}
+
+func TestSubsumesWithMaggieObject(t *testing.T) {
+	vm := NewVM()
+
+	pointClass := vm.createClass("Point", vm.ObjectClass)
+	pointClass.InstVars = []string{"x", "y"}
+	pointClass.NumSlots = 2
+
+	obj := NewObject(pointClass.VTable, 2)
+	obj.SetSlot(0, FromSmallInt(3))
+	obj.SetSlot(1, FromSmallInt(7))
+
+	ctx := cuecontext.New()
+	schema := &CueValueObject{val: ctx.CompileString("{x: int, y: int}")}
+
+	// Project object and check subsumption
+	projection := vm.objectAsCueValue(obj.ToValue())
+	if schema.val.Subsume(projection.val, cue.Final()) != nil {
+		t.Error("{x:int,y:int} should subsume Point(3,7)")
+	}
+}
+
+// ---------------------------------------------------------------------------
 // Helper to avoid importing cue in test file signatures
 // ---------------------------------------------------------------------------
 

@@ -158,6 +158,33 @@ Guide15CueIntegration subclass: Object
   ]
 
   """
+  ## Subsumption (Entailment)
+
+  Unification asks "can these merge?" Subsumption asks "does A already
+  imply B?" — that is, is A more general than B? This is the entailment
+  relation needed for constraint programming.
+
+  Use subsumes: to check if a schema covers a value, and subsumedBy:
+  for the reverse. subsumes: also accepts plain Maggie objects (they
+  are projected via asCueValue automatically).
+
+  ```test
+  ctx := CueContext new.
+  intType := (ctx compileString: 'int') value.
+  concrete := (ctx compileString: '42') value.
+  intType subsumes: concrete >>> true
+  concrete subsumes: intType >>> false
+  rangeType := (ctx compileString: '>0 & <100') value.
+  fifty := (ctx compileString: '50') value.
+  rangeType subsumes: fifty >>> true
+  rangeType subsumes: intType >>> false
+  ```
+  """
+  method: subsumption [
+      ^'See class docstring'
+  ]
+
+  """
   ## FillPath: Injecting Values into Templates
 
   Use fillPath:with: to inject a concrete value at a specific path in

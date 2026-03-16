@@ -430,6 +430,42 @@ func (vm *VM) registerCuePrimitives() {
 		return True
 	})
 
+	// CueValue>>primSubsumes: — does self subsume other? (self is more general)
+	// e.g., `int` subsumes `42`, `>0` subsumes `5`
+	cueValueClass.AddMethod1(vm.Selectors, "primSubsumes:", func(vmPtr interface{}, recv Value, otherVal Value) Value {
+		v := vmPtr.(*VM)
+		cv := v.vmGetCueValue(recv)
+		if cv == nil {
+			return False
+		}
+		other := v.vmGetCueValue(otherVal)
+		if other == nil {
+			// Try projecting a non-CueValue argument into CUE
+			other = v.objectAsCueValue(otherVal)
+		}
+		if cv.val.Subsume(other.val, cue.Final()) == nil {
+			return True
+		}
+		return False
+	})
+
+	// CueValue>>primSubsumedBy: — is self subsumed by other? (self is more specific)
+	cueValueClass.AddMethod1(vm.Selectors, "primSubsumedBy:", func(vmPtr interface{}, recv Value, otherVal Value) Value {
+		v := vmPtr.(*VM)
+		cv := v.vmGetCueValue(recv)
+		if cv == nil {
+			return False
+		}
+		other := v.vmGetCueValue(otherVal)
+		if other == nil {
+			other = v.objectAsCueValue(otherVal)
+		}
+		if other.val.Subsume(cv.val, cue.Final()) == nil {
+			return True
+		}
+		return False
+	})
+
 	// CueValue>>printString — string representation for display
 	cueValueClass.AddMethod0(vm.Selectors, "primPrintString", func(vmPtr interface{}, recv Value) Value {
 		v := vmPtr.(*VM)
