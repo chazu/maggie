@@ -54,6 +54,21 @@ type doctestMethodResult struct {
 
 // handleDoctestCommand is the entry point for `mag doctest`.
 func handleDoctestCommand(vmInst *vm.VM, args []string) {
+	if wantsHelp(args) {
+		subcmdUsage("doctest [flags]",
+			"Run tests embedded in method docstrings.",
+			usageFlags([][2]string{
+				{"-v, --verbose", "Show each test as it runs"},
+				{"-c, --class <name>", "Run tests only for the named class"},
+			}),
+			usageExamples([][2]string{
+				{"mag doctest", "Run all docstring tests"},
+				{"mag doctest --verbose", "Run with detailed output"},
+				{"mag doctest --class Array", "Run tests for Array only"},
+			}),
+		)
+	}
+
 	verbose := false
 	classFilter := ""
 

@@ -24,6 +24,20 @@ import (
 // runs the entry point. If [go-wrap] packages are present, they are also
 // included in the binary.
 func handleBuildCommand(args []string, verbose bool) {
+	if wantsHelp(args) {
+		subcmdUsage("build [-o output]",
+			"Compile a Maggie project into a standalone binary.",
+			usageFlags([][2]string{
+				{"-o, --output <path>", "Output binary path (default: mag-custom)"},
+			}),
+			usageExamples([][2]string{
+				{"mag build", "Build ./mag-custom from maggie.toml"},
+				{"mag build -o myapp", "Build with custom output name"},
+			}),
+			"\nRequires a maggie.toml with [source] dirs. The project sources are compiled\ninto an image that is embedded in the output binary.\n",
+		)
+	}
+
 	var outputBinary string
 
 	// Parse flags

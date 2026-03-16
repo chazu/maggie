@@ -28,15 +28,24 @@ import (
 //	mag sync diff <peer-addr>                  Compare local vs remote content
 //	mag sync show <hash-prefix>                Show details for a hash
 func handleSyncCommand(args []string, vmInst *vm.VM, m *manifest.Manifest, verbose bool, diskCache *dist.DiskCache) {
-	if len(args) == 0 {
-		fmt.Fprintln(os.Stderr, "Usage: mag sync [push|pull|status|list|diff|show] ...")
-		fmt.Fprintln(os.Stderr, "  push [peer-addr]                Push local project to peer (uses manifest peers if omitted)")
-		fmt.Fprintln(os.Stderr, "  pull <peer-addr> <class-or-hash>  Pull by class name or root hash")
-		fmt.Fprintln(os.Stderr, "  status                          Show content store stats")
-		fmt.Fprintln(os.Stderr, "  list                            List all local content")
-		fmt.Fprintln(os.Stderr, "  diff <peer-addr>                Compare local vs remote content")
-		fmt.Fprintln(os.Stderr, "  show <hash-prefix>              Show details for a content hash")
-		os.Exit(1)
+	if len(args) == 0 || wantsHelp(args) {
+		subcmdUsage("sync <command>",
+			"Content-addressed distribution and synchronization.",
+			usageSubcommands([][2]string{
+				{"push [peer-addr]", "Push local project to peer (uses manifest peers if omitted)"},
+				{"pull <peer-addr> <class-or-hash>", "Pull by class name or root hash"},
+				{"status", "Show content store stats"},
+				{"list", "List all local content"},
+				{"diff <peer-addr>", "Compare local vs remote content"},
+				{"show <hash-prefix>", "Show details for a content hash"},
+			}),
+			usageExamples([][2]string{
+				{"mag sync status", "Show local content store stats"},
+				{"mag sync push", "Push to all manifest peers"},
+				{"mag sync push localhost:4567", "Push to a specific peer"},
+				{"mag sync pull localhost:4567 Array", "Pull a class from peer"},
+			}),
+		)
 	}
 
 	switch args[0] {

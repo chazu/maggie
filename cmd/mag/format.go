@@ -758,20 +758,27 @@ func stmtToString(stmt compiler.Stmt) string {
 // ---------------------------------------------------------------------------
 
 func handleFmtCommand(args []string) {
+	if wantsHelp(args) {
+		subcmdUsage("fmt [--check] [files or dirs...]",
+			"Format Maggie source files to canonical style.",
+			usageFlags([][2]string{
+				{"--check", "Check formatting without modifying files (exit 1 if changes needed)"},
+			}),
+			usageExamples([][2]string{
+				{"mag fmt", "Format all .mag files in current directory"},
+				{"mag fmt src/", "Format all .mag files in src/"},
+				{"mag fmt lib/Array.mag", "Format a specific file"},
+				{"mag fmt --check lib/", "Check without modifying"},
+			}),
+		)
+	}
+
 	checkMode := false
 	var files []string
 
 	for _, arg := range args {
 		if arg == "--check" {
 			checkMode = true
-		} else if arg == "--help" || arg == "-h" {
-			fmt.Fprintf(os.Stderr, "Usage: mag fmt [--check] <files or directories...>\n\n")
-			fmt.Fprintf(os.Stderr, "Format Maggie source files to canonical style.\n\n")
-			fmt.Fprintf(os.Stderr, "Options:\n")
-			fmt.Fprintf(os.Stderr, "  --check   Check formatting without modifying files.\n")
-			fmt.Fprintf(os.Stderr, "            Exits with code 1 if any files need formatting.\n\n")
-			fmt.Fprintf(os.Stderr, "If no files are given, formats all .mag files in the current directory.\n")
-			os.Exit(0)
 		} else {
 			files = append(files, arg)
 		}

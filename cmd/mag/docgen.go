@@ -277,6 +277,24 @@ func stripLeadingTitle(doc string) string {
 
 // handleDocCommand generates HTML API documentation from all classes in the VM.
 func handleDocCommand(vmInst *vm.VM, args []string) {
+	if wantsHelp(args) {
+		subcmdUsage("doc [flags]",
+			"Generate HTML API documentation from loaded classes.",
+			usageFlags([][2]string{
+				{"--output <dir>", "Output directory (default: docs/api)"},
+				{"--title <string>", "Documentation title (default: Maggie API Reference)"},
+				{"--serve", "Generate docs and serve on HTTP"},
+				{"--port <number>", "Port for --serve (default: 8080)"},
+			}),
+			usageExamples([][2]string{
+				{"mag doc", "Generate HTML docs to docs/api/"},
+				{"mag doc --output ./site", "Generate to custom directory"},
+				{"mag doc --serve", "Generate and serve on :8080"},
+				{"mag doc --serve --port 3000", "Serve on custom port"},
+			}),
+		)
+	}
+
 	outputDir := "docs/api"
 	title := "Maggie API Reference"
 

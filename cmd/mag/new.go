@@ -13,13 +13,14 @@ import (
 // ---------------------------------------------------------------------------
 
 func handleNewCommand(args []string) {
-	if len(args) == 0 || args[0] == "--help" || args[0] == "-h" {
-		fmt.Fprintf(os.Stderr, "Usage: mag new <project-name>\n\n")
-		fmt.Fprintf(os.Stderr, "Create a new Maggie project with standard structure.\n")
-		if len(args) == 0 {
-			os.Exit(1)
-		}
-		os.Exit(0)
+	if len(args) == 0 || wantsHelp(args) {
+		subcmdUsage("new <project-name>",
+			"Create a new Maggie project with standard structure.",
+			usageExamples([][2]string{
+				{"mag new myapp", "Create a new project in ./myapp/"},
+			}),
+			"\nCreates a directory with maggie.toml, src/Main.mag, and a basic project layout.\n",
+		)
 	}
 
 	name := args[0]

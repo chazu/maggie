@@ -17,6 +17,21 @@ import (
 //	mag wrap encoding/json        # single package, ad-hoc
 //	mag wrap --output ./wrappers  # custom output dir
 func handleWrapCommand(args []string, verbose bool) {
+	if wantsHelp(args) {
+		subcmdUsage("wrap [packages...]",
+			"Generate Go interop bindings for Go packages.",
+			usageFlags([][2]string{
+				{"-o, --output <dir>", "Output directory (default: .maggie/wrap)"},
+			}),
+			usageExamples([][2]string{
+				{"mag wrap", "Wrap all packages from maggie.toml"},
+				{"mag wrap encoding/json", "Wrap a single Go package"},
+				{"mag wrap -o ./wrappers net/http", "Wrap to custom directory"},
+			}),
+			"\nWith no arguments, reads [go-wrap.packages] from maggie.toml.\n",
+		)
+	}
+
 	var outputDir string
 	var packages []wrapTarget
 

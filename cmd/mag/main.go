@@ -24,7 +24,53 @@ import (
 //go:embed maggie.image
 var embeddedImage []byte
 
+// reorderArgs moves flags (arguments starting with "-") before positional
+// arguments so that Go's flag package parses them even when interspersed
+// with paths (e.g., "mag ./src/... --save-image app.image").
+//
+// Once a known subcommand is encountered, all remaining arguments are passed
+// through unchanged so that subcommand-specific flags (like --help) are not
+// intercepted by the top-level flag parser.
+func reorderArgs(args []string) []string {
+	// Subcommands that handle their own flags
+	subcommands := map[string]bool{
+		"build": true, "deps": true, "fmt": true, "new": true,
+		"wrap": true, "sync": true, "doc": true, "doctest": true,
+		"help": true, "lsp": true,
+	}
+	// Known top-level flags that take a value argument
+	valueFlags := map[string]bool{
+		"-m": true, "--m": true,
+		"-save-image": true, "--save-image": true,
+		"-image": true, "--image": true,
+		"-port": true, "--port": true,
+		"-yutani-addr": true, "--yutani-addr": true,
+		"-ide-tool": true, "--ide-tool": true,
+	}
+	var flags, positional []string
+	for i := 0; i < len(args); i++ {
+		a := args[i]
+		// If this is a known subcommand, pass it and everything after it through as-is
+		if subcommands[a] {
+			positional = append(positional, args[i:]...)
+			break
+		}
+		if strings.HasPrefix(a, "-") {
+			flags = append(flags, a)
+			// If this flag takes a value and it's not using "=" syntax, consume next arg too
+			if !strings.Contains(a, "=") && valueFlags[a] && i+1 < len(args) {
+				i++
+				flags = append(flags, args[i])
+			}
+		} else {
+			positional = append(positional, a)
+		}
+	}
+	return append(flags, positional...)
+}
+
 func main() {
+	os.Args = append(os.Args[:1], reorderArgs(os.Args[1:])...)
 	verbose := flag.Bool("v", false, "Verbose output")
 	interactive := flag.Bool("i", false, "Start interactive REPL")
 	mainEntry := flag.String("m", "", "Main entry point (e.g., 'Main.run' or just 'main')")
@@ -879,6 +925,22 @@ func findYutaniLib() (string, error) {
 
 // handleDepsCommand handles the "mag deps" subcommand.
 func handleDepsCommand(args []string, verbose bool) {
+	if wantsHelp(args) {
+		subcmdUsage("deps [command]",
+			"Manage project dependencies declared in maggie.toml.",
+			usageSubcommands([][2]string{
+				{"resolve", "Resolve and fetch all dependencies (default)"},
+				{"update", "Re-resolve ignoring the lock file"},
+				{"list", "Show the dependency tree"},
+			}),
+			usageExamples([][2]string{
+				{"mag deps", "Resolve and fetch dependencies"},
+				{"mag deps update", "Re-resolve from scratch"},
+				{"mag deps list", "Show dependency tree"},
+			}),
+		)
+	}
+
 	m, err := manifest.FindAndLoad(".")
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
