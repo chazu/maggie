@@ -1,0 +1,144 @@
+"""
+A Linda-style shared tuple space for concurrent coordination.
+
+TupleSpace stores tuples (any Maggie objects) and retrieves them by
+matching against CUE templates. Operations can be blocking (in:, read:)
+or non-blocking (tryIn:, tryRead:). Blocking operations suspend the
+current process until a matching tuple is available.
+
+Tuples are matched using CUE unification: a template is a CueValue,
+and a tuple matches if projecting it into CUE and unifying with the
+template produces no error (no bottom).
+
+```test
+ts := TupleSpace new.
+ts isEmpty >>> true
+ts out: 42.
+ts size >>> 1
+ts isEmpty >>> false
+```
+"""
+TupleSpace subclass: Object
+
+  """
+  Publish a tuple into the space. Non-blocking. If a process is
+  blocked waiting for a matching tuple (via in: or read:), it will
+  be woken immediately.
+
+  ```test
+  ts := TupleSpace new.
+  ts out: 42.
+  ts out: 'hello'.
+  ts size >>> 2
+  ```
+  """
+  method: out: aTuple [
+      ^self primOut: aTuple
+  ]
+
+  """
+  Take the first tuple matching the CUE template. Blocks until a
+  matching tuple is available. The tuple is removed from the space
+  (destructive read / linear consumption).
+
+  The template must be a CueValue. Use CueContext>>compileString:
+  to create templates.
+
+  ```example
+  ts := TupleSpace new.
+  ctx := CueContext new.
+  [ts out: 42] fork.
+  ts in: (ctx compileString: 'int') value
+  ```
+  """
+  method: in: aTemplate [
+      ^self primIn: aTemplate
+  ]
+
+  """
+  Read the first tuple matching the CUE template. Blocks until a
+  matching tuple is available. The tuple remains in the space
+  (non-destructive read).
+
+  ```example
+  ts := TupleSpace new.
+  ctx := CueContext new.
+  ts out: 42.
+  ts read: (ctx compileString: 'int') value
+  ```
+  """
+  method: read: aTemplate [
+      ^self primRead: aTemplate
+  ]
+
+  """
+  Try to take a matching tuple without blocking. Returns the tuple
+  if found (and removes it), or nil if no match.
+
+  ```test
+  ts := TupleSpace new.
+  ctx := CueContext new.
+  intTmpl := (ctx compileString: 'int') value.
+  ts tryIn: intTmpl >>> nil
+  ts out: 42.
+  ts tryIn: intTmpl >>> 42
+  ts size >>> 0
+  ```
+  """
+  method: tryIn: aTemplate [
+      ^self primTryIn: aTemplate
+  ]
+
+  """
+  Try to read a matching tuple without blocking. Returns the tuple
+  if found (does not remove it), or nil if no match.
+
+  ```test
+  ts := TupleSpace new.
+  ctx := CueContext new.
+  intTmpl := (ctx compileString: 'int') value.
+  ts tryRead: intTmpl >>> nil
+  ts out: 42.
+  ts tryRead: intTmpl >>> 42
+  ts size >>> 1
+  ```
+  """
+  method: tryRead: aTemplate [
+      ^self primTryRead: aTemplate
+  ]
+
+  """
+  Return the number of tuples currently stored.
+
+  ```test
+  ts := TupleSpace new.
+  ts size >>> 0
+  ts out: 1.
+  ts out: 2.
+  ts size >>> 2
+  ```
+  """
+  method: size [
+      ^self primSize
+  ]
+
+  """
+  Return true if the space contains no tuples.
+
+  ```test
+  ts := TupleSpace new.
+  ts isEmpty >>> true
+  ts out: 1.
+  ts isEmpty >>> false
+  ```
+  """
+  method: isEmpty [
+      ^self primIsEmpty
+  ]
+
+  """
+  Return a human-readable description.
+  """
+  method: printString [
+      ^self primPrintString
+  ]

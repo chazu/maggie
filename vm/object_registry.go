@@ -38,6 +38,7 @@ type ObjectRegistry struct {
 	bigInts       *TypedRegistry[uint32, *BigIntObject]
 	cueContexts   *TypedRegistry[int, *CueContextObject]
 	cueValues     *TypedRegistry[int, *CueValueObject]
+	tupleSpaces   *TypedRegistry[int, *TupleSpaceObject]
 	classValues   *TypedRegistry[int, *Class]
 
 	// Atomic ID counters (allocation patterns vary per registry)
@@ -61,6 +62,7 @@ type ObjectRegistry struct {
 	bigIntID       atomic.Uint32
 	cueContextID   atomic.Int32
 	cueValueID     atomic.Int32
+	tupleSpaceID   atomic.Int32
 	classValueID   atomic.Int32
 
 	// Special registries (not suitable for TypedRegistry)
@@ -96,6 +98,7 @@ func NewObjectRegistry() *ObjectRegistry {
 		bigInts:       NewTypedRegistry[uint32, *BigIntObject](),
 		cueContexts:   NewTypedRegistry[int, *CueContextObject](),
 		cueValues:     NewTypedRegistry[int, *CueValueObject](),
+		tupleSpaces:   NewTypedRegistry[int, *TupleSpaceObject](),
 		classValues:   NewTypedRegistry[int, *Class](),
 
 		cells:     make(map[*Cell]struct{}),
@@ -125,6 +128,7 @@ func NewObjectRegistry() *ObjectRegistry {
 	or.unixConnID.Store(1)
 	or.cueContextID.Store(1)
 	or.cueValueID.Store(1)
+	or.tupleSpaceID.Store(1)
 
 	return or
 }
@@ -853,6 +857,22 @@ func (or *ObjectRegistry) UnregisterCueValue(id int) {
 // CueValueCount returns the number of registered CUE values.
 func (or *ObjectRegistry) CueValueCount() int {
 	return or.cueValues.Count()
+}
+
+// ---------------------------------------------------------------------------
+// TupleSpace Registry Methods
+// ---------------------------------------------------------------------------
+
+// RegisterTupleSpace adds a tuple space to the registry and returns its ID.
+func (or *ObjectRegistry) RegisterTupleSpace(ts *TupleSpaceObject) int {
+	id := int(or.tupleSpaceID.Add(1) - 1)
+	or.tupleSpaces.Put(id, ts)
+	return id
+}
+
+// GetTupleSpace retrieves a tuple space by its ID.
+func (or *ObjectRegistry) GetTupleSpace(id int) *TupleSpaceObject {
+	return or.tupleSpaces.Get(id)
 }
 
 // ---------------------------------------------------------------------------

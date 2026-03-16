@@ -57,6 +57,9 @@ const (
 	// HTTP client
 	httpClientMarker            uint32 = 52 << 24
 
+	// TupleSpace
+	tupleSpaceMarker            uint32 = 53 << 24
+
 	// Distribution protocol (reserved for Phase 6)
 	chunkMarker                 uint32 = 42 << 24
 	remoteRefMarker             uint32 = 43 << 24
