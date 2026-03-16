@@ -1,0 +1,151 @@
+"""
+A monotonic shared constraint store for concurrent constraint programming.
+
+ConstraintStore holds a single CUE value that starts as top (unconstrained)
+and monotonically narrows via unification. Processes tell constraints to add
+information and ask constraints to check entailment, blocking until the store
+implies their query.
+
+```test
+store := ConstraintStore new.
+store isConsistent >>> true
+```
+
+```test
+store := ConstraintStore new.
+ctx := CueContext new.
+constraint := (ctx compileString: '{x: 42}') value.
+(store tell: constraint) isSuccess >>> true
+store tryAsk: constraint >>> true
+```
+
+```test
+store := ConstraintStore new.
+ctx := CueContext new.
+store tell: (ctx compileString: '{x: 42}') value.
+store tell: (ctx compileString: '{y: "hello"}') value.
+query := (ctx compileString: '{x: int, y: string}') value.
+store tryAsk: query >>> true
+```
+
+```test
+store := ConstraintStore new.
+ctx := CueContext new.
+c1 := (ctx compileString: '{x: 42}') value.
+store tell: c1.
+c2 := (ctx compileString: '{x: "hello"}') value.
+(store tell: c2) isSuccess >>> false
+store isConsistent >>> true
+```
+
+```test
+store := ConstraintStore new.
+ctx := CueContext new.
+query := (ctx compileString: '{x: int}') value.
+store tryAsk: query >>> false
+```
+
+```test
+store := ConstraintStore new.
+ctx := CueContext new.
+store tell: (ctx compileString: '{x: 42}') value.
+val := store value.
+(val lookup: 'x') value toMaggie value >>> 42
+```
+"""
+ConstraintStore subclass: Object
+
+  """
+  Tell a CUE constraint to the store (monotonic narrowing via unification).
+  Returns a Success Result if the constraint is consistent with the store,
+  or a Failure Result if it conflicts (store unchanged on failure).
+
+  The argument must be a CueValue.
+  """
+  method: tell: aCueValue [
+      ^self primTell: aCueValue
+  ]
+
+  """
+  Block until the store subsumes (entails) the given CUE constraint.
+  Returns true when the query is entailed.
+
+  The argument must be a CueValue.
+  """
+  method: ask: aCueValue [
+      ^self primAsk: aCueValue
+  ]
+
+  """
+  Non-blocking entailment check. Returns true if the store currently
+  subsumes the query, false otherwise.
+
+  The argument must be a CueValue.
+  """
+  method: tryAsk: aCueValue [
+      ^self primTryAsk: aCueValue
+  ]
+
+  """
+  Register a block callback that fires when a constraint becomes entailed.
+  If the constraint is already entailed, the block is invoked immediately.
+  Otherwise, a goroutine waits and invokes the block when a future tell
+  makes it entailed.
+  """
+  method: watch: aCueValue do: aBlock [
+      ^self primWatch: aCueValue do: aBlock
+  ]
+
+  """
+  Return the current store state as a CueValue (snapshot).
+  """
+  method: value [
+      ^self primValue
+  ]
+
+  """
+  Return true if the store is consistent (not bottom).
+  """
+  method: isConsistent [
+      ^self primIsConsistent
+  ]
+
+  """
+  Return a human-readable description.
+  """
+  method: printString [
+      ^self primPrintString
+  ]
+
+  """
+  Convenience: tell a CUE source string (compiles it first).
+  Returns a Result.
+  """
+  method: tellString: aString [
+      | ctx val |
+      ctx := CueContext new.
+      val := (ctx compileString: aString) value.
+      ^self tell: val
+  ]
+
+  """
+  Convenience: non-blocking ask using a CUE source string.
+  Returns true/false.
+  """
+  method: tryAskString: aString [
+      | ctx val |
+      ctx := CueContext new.
+      val := (ctx compileString: aString) value.
+      ^self tryAsk: val
+  ]
+
+  """
+  Convenience: blocking ask using a CUE source string.
+  Returns true when entailed.
+  """
+  method: askString: aString [
+      | ctx val |
+      ctx := CueContext new.
+      val := (ctx compileString: aString) value.
+      ^self ask: val
+  ]

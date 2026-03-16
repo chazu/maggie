@@ -60,6 +60,9 @@ const (
 	// TupleSpace
 	tupleSpaceMarker            uint32 = 53 << 24
 
+	// ConstraintStore (Concurrent Constraint Programming)
+	constraintStoreMarker       uint32 = 54 << 24
+
 	// Distribution protocol (reserved for Phase 6)
 	chunkMarker                 uint32 = 42 << 24
 	remoteRefMarker             uint32 = 43 << 24

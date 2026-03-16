@@ -38,8 +38,9 @@ type ObjectRegistry struct {
 	bigInts       *TypedRegistry[uint32, *BigIntObject]
 	cueContexts   *TypedRegistry[int, *CueContextObject]
 	cueValues     *TypedRegistry[int, *CueValueObject]
-	tupleSpaces   *TypedRegistry[int, *TupleSpaceObject]
-	classValues   *TypedRegistry[int, *Class]
+	tupleSpaces       *TypedRegistry[int, *TupleSpaceObject]
+	constraintStores  *TypedRegistry[int, *ConstraintStoreObject]
+	classValues       *TypedRegistry[int, *Class]
 
 	// Atomic ID counters (allocation patterns vary per registry)
 	exceptionID    atomic.Uint32
@@ -62,8 +63,9 @@ type ObjectRegistry struct {
 	bigIntID       atomic.Uint32
 	cueContextID   atomic.Int32
 	cueValueID     atomic.Int32
-	tupleSpaceID   atomic.Int32
-	classValueID   atomic.Int32
+	tupleSpaceID       atomic.Int32
+	constraintStoreID  atomic.Int32
+	classValueID       atomic.Int32
 
 	// Special registries (not suitable for TypedRegistry)
 	cells          map[*Cell]struct{} // set semantics
@@ -98,8 +100,9 @@ func NewObjectRegistry() *ObjectRegistry {
 		bigInts:       NewTypedRegistry[uint32, *BigIntObject](),
 		cueContexts:   NewTypedRegistry[int, *CueContextObject](),
 		cueValues:     NewTypedRegistry[int, *CueValueObject](),
-		tupleSpaces:   NewTypedRegistry[int, *TupleSpaceObject](),
-		classValues:   NewTypedRegistry[int, *Class](),
+		tupleSpaces:       NewTypedRegistry[int, *TupleSpaceObject](),
+		constraintStores:  NewTypedRegistry[int, *ConstraintStoreObject](),
+		classValues:       NewTypedRegistry[int, *Class](),
 
 		cells:     make(map[*Cell]struct{}),
 		classVars: make(map[*Class]map[string]Value),
@@ -129,6 +132,7 @@ func NewObjectRegistry() *ObjectRegistry {
 	or.cueContextID.Store(1)
 	or.cueValueID.Store(1)
 	or.tupleSpaceID.Store(1)
+	or.constraintStoreID.Store(1)
 
 	return or
 }
@@ -876,6 +880,27 @@ func (or *ObjectRegistry) GetTupleSpace(id int) *TupleSpaceObject {
 }
 
 // ---------------------------------------------------------------------------
+// ConstraintStore Registry Methods
+// ---------------------------------------------------------------------------
+
+// RegisterConstraintStore adds a constraint store to the registry and returns its ID.
+func (or *ObjectRegistry) RegisterConstraintStore(cs *ConstraintStoreObject) int {
+	id := int(or.constraintStoreID.Add(1) - 1)
+	or.constraintStores.Put(id, cs)
+	return id
+}
+
+// GetConstraintStore retrieves a constraint store by its ID.
+func (or *ObjectRegistry) GetConstraintStore(id int) *ConstraintStoreObject {
+	return or.constraintStores.Get(id)
+}
+
+// ConstraintStoreCount returns the number of registered constraint stores.
+func (or *ObjectRegistry) ConstraintStoreCount() int {
+	return or.constraintStores.Count()
+}
+
+// ---------------------------------------------------------------------------
 // Extended Stats
 // ---------------------------------------------------------------------------
 
@@ -902,5 +927,6 @@ func (or *ObjectRegistry) FullStats() map[string]int {
 	stats["unixConns"] = or.UnixConnCount()
 	stats["cueContexts"] = or.CueContextCount()
 	stats["cueValues"] = or.CueValueCount()
+	stats["constraintStores"] = or.ConstraintStoreCount()
 	return stats
 }

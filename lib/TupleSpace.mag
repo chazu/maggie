@@ -10,6 +10,11 @@ Tuples are matched using CUE unification: a template is a CueValue,
 and a tuple matches if projecting it into CUE and unifying with the
 template produces no error (no bottom).
 
+Tuples have three modes:
+  - Linear (default): consumed exactly once by in:
+  - Persistent: never consumed; in: returns a copy but keeps the original
+  - Affine: consumed at most once, can expire via TTL
+
 ```test
 ts := TupleSpace new.
 ts isEmpty >>> true
@@ -23,7 +28,8 @@ TupleSpace subclass: Object
   """
   Publish a tuple into the space. Non-blocking. If a process is
   blocked waiting for a matching tuple (via in: or read:), it will
-  be woken immediately.
+  be woken immediately. The tuple is stored in linear mode (consumed
+  exactly once by in:).
 
   ```test
   ts := TupleSpace new.
@@ -37,9 +43,62 @@ TupleSpace subclass: Object
   ]
 
   """
+  Publish a persistent tuple into the space. Persistent tuples are
+  never consumed by in: -- reads return the value but the tuple
+  stays in the space. Useful for shared facts and blackboard knowledge.
+
+  ```test
+  ts := TupleSpace new.
+  ctx := CueContext new.
+  intTmpl := (ctx compileString: 'int') value.
+  ts outPersistent: 42.
+  ts tryIn: intTmpl >>> 42
+  ts size >>> 1
+  ts tryIn: intTmpl >>> 42
+  ts size >>> 1
+  ```
+  """
+  method: outPersistent: aTuple [
+      ^self primOutPersistent: aTuple
+  ]
+
+  """
+  Publish an affine tuple with a time-to-live in milliseconds.
+  The tuple is automatically removed after the TTL expires if not
+  consumed first. Expired tuples are lazily cleaned during scans.
+
+  ```example
+  ts := TupleSpace new.
+  ts outAffine: 'ephemeral offer' ttl: 5000.
+  ```
+  """
+  method: outAffine: aTuple ttl: milliseconds [
+      ^self primOutAffine: aTuple ttl: milliseconds
+  ]
+
+  """
+  Publish a tuple that is automatically removed when the given
+  CancellationContext is cancelled. The tuple behaves as linear
+  until cancellation.
+
+  ```example
+  ts := TupleSpace new.
+  ctx := CancellationContext withCancel.
+  ts out: 'resource' withContext: ctx.
+  ctx cancel.
+  ```
+  """
+  method: out: aTuple withContext: aContext [
+      ^self primOut: aTuple withContext: aContext
+  ]
+
+  """
   Take the first tuple matching the CUE template. Blocks until a
   matching tuple is available. The tuple is removed from the space
   (destructive read / linear consumption).
+
+  For persistent tuples, the value is returned but the tuple stays
+  in the space (non-destructive).
 
   The template must be a CueValue. Use CueContext>>compileString:
   to create templates.
@@ -105,6 +164,48 @@ TupleSpace subclass: Object
   """
   method: tryRead: aTemplate [
       ^self primTryRead: aTemplate
+  ]
+
+  """
+  Atomically take ALL tuples matching an array of templates.
+  Blocks until all templates are simultaneously satisfiable.
+  Each template must match a DIFFERENT tuple.
+
+  This is the tensor product from linear logic -- it prevents
+  the classic coordination bug where an agent takes a task but
+  the required resource was grabbed between two separate in: calls.
+
+  Returns an Array of results in the same order as the templates.
+
+  ```example
+  ts := TupleSpace new.
+  ctx := CueContext new.
+  ts out: 42.
+  ts out: 'hello'.
+  ts inAll: {(ctx compileString: 'int') value. (ctx compileString: 'string') value}
+  ```
+  """
+  method: inAll: templateArray [
+      ^self primInAll: templateArray
+  ]
+
+  """
+  Take whichever tuple matches first from an array of templates.
+  Scans tuples and returns the first match from any template.
+  If none match, blocks until any one does.
+
+  This is the additive disjunction from linear logic -- like
+  Channel select: but for tuple templates.
+
+  ```example
+  ts := TupleSpace new.
+  ctx := CueContext new.
+  ts out: 42.
+  ts inAny: {(ctx compileString: 'int') value. (ctx compileString: 'string') value}
+  ```
+  """
+  method: inAny: templateArray [
+      ^self primInAny: templateArray
   ]
 
   """

@@ -305,6 +305,7 @@ func (vm *VM) bootstrap() {
 	vm.registerJSONPrimitives()
 	vm.registerCuePrimitives()
 	vm.registerTupleSpacePrimitives()
+	vm.registerConstraintStorePrimitives()
 	vm.registerSqlitePrimitives()
 	vm.registerSystemPrimitives()
 	vm.registerRandomPrimitives()
