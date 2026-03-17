@@ -130,11 +130,13 @@ func (vm *VM) registerMutexPrimitives() {
 			mu.mu.Unlock()
 		}()
 
-		// Execute the block
-		return v.currentInterpreter().ExecuteBlock(
-			bv.Block, bv.Captures, nil,
-			bv.HomeFrame, bv.HomeSelf, bv.HomeMethod,
+		// Execute the block using ExecuteBlockDetached to avoid stale
+		// HomeFrame references. Blocks passed to critical: should not
+		// use non-local returns (^) anyway, so detached mode is safe.
+		result := v.currentInterpreter().ExecuteBlockDetached(
+			bv.Block, bv.Captures, nil, bv.HomeSelf, bv.HomeMethod,
 		)
+		return result
 	}
 	m.AddMethod1(vm.Selectors, "critical:", criticalFn)
 	m.AddMethod1(vm.Selectors, "primCritical:", criticalFn)

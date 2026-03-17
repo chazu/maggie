@@ -432,14 +432,18 @@ type handlerOutcome struct {
 
 // evaluateBlockWithHandler evaluates a block with an exception handler installed.
 func (vm *VM) evaluateBlockWithHandler(blockVal Value, exceptionClass *Class, handlerBlock Value) Value {
+	// Use the current goroutine's interpreter (not vm.interpreter which is
+	// the main interpreter — wrong when called from a forked goroutine).
+	interp := vm.currentInterpreter()
+
 	// Get the protected block
-	bv := vm.interpreter.getBlockValue(blockVal)
+	bv := interp.getBlockValue(blockVal)
 	if bv == nil {
 		return Nil
 	}
 
 	// Get handler block info
-	hbv := vm.interpreter.getBlockValue(handlerBlock)
+	hbv := interp.getBlockValue(handlerBlock)
 	if hbv == nil {
 		// No valid handler, just evaluate the block
 		return vm.evaluateBlock(blockVal, nil)
@@ -449,12 +453,12 @@ func (vm *VM) evaluateBlockWithHandler(blockVal Value, exceptionClass *Class, ha
 	handler := &ExceptionHandler{
 		ExceptionClass: exceptionClass,
 		HandlerBlock:   handlerBlock,
-		FrameIndex:     vm.interpreter.fp,
+		FrameIndex:     interp.fp,
 		HomeFrame:      hbv.HomeFrame,
 		HomeSelf:       hbv.HomeSelf,
 		Captures:       hbv.Captures,
 	}
-	vm.interpreter.PushExceptionHandler(handler)
+	interp.PushExceptionHandler(handler)
 
 	// Retry loop: if the handler calls retry, we re-execute the protected block.
 	for {
@@ -463,7 +467,7 @@ func (vm *VM) evaluateBlockWithHandler(blockVal Value, exceptionClass *Class, ha
 		switch outcome.action {
 		case handlerRetry:
 			// Re-install the handler and loop to re-execute the protected block
-			vm.interpreter.PushExceptionHandler(handler)
+			interp.PushExceptionHandler(handler)
 			continue
 		case handlerPass:
 			// Re-signal as a panic so the next outer handler catches it
@@ -487,6 +491,7 @@ func (vm *VM) executeProtectedBlock(
 	handler *ExceptionHandler,
 	exceptionClass *Class,
 ) handlerOutcome {
+	interp := vm.currentInterpreter()
 	var result Value
 	var outcome handlerOutcome
 	caught := false
@@ -496,15 +501,15 @@ func (vm *VM) executeProtectedBlock(
 			if r := recover(); r != nil {
 				if sigEx, ok := r.(SignaledException); ok {
 					// Exception was signaled - check if our handler handles it
-					if vm.interpreter.isKindOf(sigEx.Object.ExceptionClass, exceptionClass) {
+					if interp.isKindOf(sigEx.Object.ExceptionClass, exceptionClass) {
 						caught = true
 						// Pop our handler so it does not catch its own
 						// re-signals or passes from within the handler block.
-						vm.interpreter.PopExceptionHandler()
+						interp.PopExceptionHandler()
 						// Unwind the frame stack back to where the handler
 						// was installed so the handler block executes cleanly.
-						for vm.interpreter.fp > handler.FrameIndex {
-							vm.interpreter.popFrame()
+						for interp.fp > handler.FrameIndex {
+							interp.popFrame()
 						}
 						// Evaluate the handler block
 						outcome = vm.evaluateHandlerBlock(hbv, sigEx)
@@ -515,18 +520,18 @@ func (vm *VM) executeProtectedBlock(
 				panic(r)
 			}
 		}()
-		result = vm.interpreter.ExecuteBlock(bv.Block, bv.Captures, nil, bv.HomeFrame, bv.HomeSelf, bv.HomeMethod)
+		result = interp.ExecuteBlock(bv.Block, bv.Captures, nil, bv.HomeFrame, bv.HomeSelf, bv.HomeMethod)
 	}()
 
 	// If NLR is unwinding through us, pop handler and propagate
-	if vm.interpreter.unwinding {
-		vm.interpreter.PopExceptionHandler()
+	if interp.unwinding {
+		interp.PopExceptionHandler()
 		return handlerOutcome{action: handlerDone, result: Nil}
 	}
 
 	if !caught {
 		// Normal completion - remove the handler
-		vm.interpreter.PopExceptionHandler()
+		interp.PopExceptionHandler()
 		return handlerOutcome{action: handlerDone, result: result}
 	}
 	return outcome
@@ -535,6 +540,7 @@ func (vm *VM) executeProtectedBlock(
 // evaluateHandlerBlock evaluates the handler block for a caught exception,
 // handling pass, retry, and resume control flow.
 func (vm *VM) evaluateHandlerBlock(hbv *BlockValue, sigEx SignaledException) handlerOutcome {
+	interp := vm.currentInterpreter()
 	var handlerResult Value
 	var outcome handlerOutcome
 
@@ -563,7 +569,7 @@ func (vm *VM) evaluateHandlerBlock(hbv *BlockValue, sigEx SignaledException) han
 				}
 			}
 		}()
-		handlerResult = vm.interpreter.ExecuteBlock(
+		handlerResult = interp.ExecuteBlock(
 			hbv.Block,
 			hbv.Captures,
 			[]Value{sigEx.Exception},
@@ -584,12 +590,13 @@ func (vm *VM) evaluateHandlerBlock(hbv *BlockValue, sigEx SignaledException) han
 
 // evaluateBlockWithEnsure evaluates a block, then always evaluates the ensure block.
 func (vm *VM) evaluateBlockWithEnsure(blockVal Value, ensureBlock Value) Value {
-	bv := vm.interpreter.getBlockValue(blockVal)
+	interp := vm.currentInterpreter()
+	bv := interp.getBlockValue(blockVal)
 	if bv == nil {
 		return Nil
 	}
 
-	ebv := vm.interpreter.getBlockValue(ensureBlock)
+	ebv := interp.getBlockValue(ensureBlock)
 
 	var result Value
 	var didPanic bool
@@ -600,25 +607,25 @@ func (vm *VM) evaluateBlockWithEnsure(blockVal Value, ensureBlock Value) Value {
 			// If there was a panic (SignaledException etc.), run ensure then re-panic
 			if r := recover(); r != nil {
 				// Save/clear any NLR unwinding state before running ensure
-				wasUnwinding := vm.interpreter.unwinding
-				savedValue := vm.interpreter.unwindValue
-				savedTarget := vm.interpreter.unwindTarget
-				vm.interpreter.unwinding = false
+				wasUnwinding := interp.unwinding
+				savedValue := interp.unwindValue
+				savedTarget := interp.unwindTarget
+				interp.unwinding = false
 
 				if ebv != nil {
-					vm.interpreter.ExecuteBlock(ebv.Block, ebv.Captures, nil, ebv.HomeFrame, ebv.HomeSelf, ebv.HomeMethod)
+					interp.ExecuteBlock(ebv.Block, ebv.Captures, nil, ebv.HomeFrame, ebv.HomeSelf, ebv.HomeMethod)
 				}
 
 				// Restore unwinding state
-				vm.interpreter.unwinding = wasUnwinding
-				vm.interpreter.unwindValue = savedValue
-				vm.interpreter.unwindTarget = savedTarget
+				interp.unwinding = wasUnwinding
+				interp.unwindValue = savedValue
+				interp.unwindTarget = savedTarget
 
 				didPanic = true
 				panicValue = r
 			}
 		}()
-		result = vm.interpreter.ExecuteBlock(bv.Block, bv.Captures, nil, bv.HomeFrame, bv.HomeSelf, bv.HomeMethod)
+		result = interp.ExecuteBlock(bv.Block, bv.Captures, nil, bv.HomeFrame, bv.HomeSelf, bv.HomeMethod)
 	}()
 
 	if didPanic {
@@ -626,27 +633,27 @@ func (vm *VM) evaluateBlockWithEnsure(blockVal Value, ensureBlock Value) Value {
 	}
 
 	// Check for NLR unwinding — save/clear state, run ensure, restore
-	if vm.interpreter.unwinding {
-		savedValue := vm.interpreter.unwindValue
-		savedTarget := vm.interpreter.unwindTarget
-		vm.interpreter.unwinding = false
+	if interp.unwinding {
+		savedValue := interp.unwindValue
+		savedTarget := interp.unwindTarget
+		interp.unwinding = false
 
 		if ebv != nil {
-			vm.interpreter.ExecuteBlock(ebv.Block, ebv.Captures, nil, ebv.HomeFrame, ebv.HomeSelf, ebv.HomeMethod)
+			interp.ExecuteBlock(ebv.Block, ebv.Captures, nil, ebv.HomeFrame, ebv.HomeSelf, ebv.HomeMethod)
 		}
 
 		// Restore unwinding state (ensure block's own NLR replaces if it did one)
-		if !vm.interpreter.unwinding {
-			vm.interpreter.unwinding = true
-			vm.interpreter.unwindValue = savedValue
-			vm.interpreter.unwindTarget = savedTarget
+		if !interp.unwinding {
+			interp.unwinding = true
+			interp.unwindValue = savedValue
+			interp.unwindTarget = savedTarget
 		}
 		return Nil
 	}
 
 	// Normal completion — always run ensure
 	if ebv != nil {
-		vm.interpreter.ExecuteBlock(ebv.Block, ebv.Captures, nil, ebv.HomeFrame, ebv.HomeSelf, ebv.HomeMethod)
+		interp.ExecuteBlock(ebv.Block, ebv.Captures, nil, ebv.HomeFrame, ebv.HomeSelf, ebv.HomeMethod)
 	}
 
 	return result
@@ -654,12 +661,13 @@ func (vm *VM) evaluateBlockWithEnsure(blockVal Value, ensureBlock Value) Value {
 
 // evaluateBlockIfCurtailed evaluates a block; if an exception occurs, evaluates curtailBlock.
 func (vm *VM) evaluateBlockIfCurtailed(blockVal Value, curtailBlock Value) Value {
-	bv := vm.interpreter.getBlockValue(blockVal)
+	interp := vm.currentInterpreter()
+	bv := interp.getBlockValue(blockVal)
 	if bv == nil {
 		return Nil
 	}
 
-	cbv := vm.interpreter.getBlockValue(curtailBlock)
+	cbv := interp.getBlockValue(curtailBlock)
 
 	var result Value
 	var didPanic bool
@@ -670,25 +678,25 @@ func (vm *VM) evaluateBlockIfCurtailed(blockVal Value, curtailBlock Value) Value
 			if r := recover(); r != nil {
 				// Exception occurred (SignaledException etc.) - evaluate curtail block
 				// Save/clear NLR state before running curtail
-				wasUnwinding := vm.interpreter.unwinding
-				savedValue := vm.interpreter.unwindValue
-				savedTarget := vm.interpreter.unwindTarget
-				vm.interpreter.unwinding = false
+				wasUnwinding := interp.unwinding
+				savedValue := interp.unwindValue
+				savedTarget := interp.unwindTarget
+				interp.unwinding = false
 
 				if cbv != nil {
-					vm.interpreter.ExecuteBlock(cbv.Block, cbv.Captures, nil, cbv.HomeFrame, cbv.HomeSelf, cbv.HomeMethod)
+					interp.ExecuteBlock(cbv.Block, cbv.Captures, nil, cbv.HomeFrame, cbv.HomeSelf, cbv.HomeMethod)
 				}
 
 				// Restore unwinding state
-				vm.interpreter.unwinding = wasUnwinding
-				vm.interpreter.unwindValue = savedValue
-				vm.interpreter.unwindTarget = savedTarget
+				interp.unwinding = wasUnwinding
+				interp.unwindValue = savedValue
+				interp.unwindTarget = savedTarget
 
 				didPanic = true
 				panicValue = r
 			}
 		}()
-		result = vm.interpreter.ExecuteBlock(bv.Block, bv.Captures, nil, bv.HomeFrame, bv.HomeSelf, bv.HomeMethod)
+		result = interp.ExecuteBlock(bv.Block, bv.Captures, nil, bv.HomeFrame, bv.HomeSelf, bv.HomeMethod)
 	}()
 
 	if didPanic {
