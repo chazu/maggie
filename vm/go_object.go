@@ -151,8 +151,14 @@ func (vm *VM) RegisterGoType(className string, goType reflect.Type) *Class {
 		vm.goTypeRegistry = NewGoTypeRegistry()
 	}
 
-	if info := vm.goTypeRegistry.LookupByType(goType); info != nil {
-		return info.Class
+	// Skip LookupByType for namespace sentinel types (*struct{}) —
+	// all namespace classes share the same Go type, so the first one
+	// registered would shadow all subsequent ones.
+	isNamespaceSentinel := goType == reflect.TypeOf((*struct{})(nil))
+	if !isNamespaceSentinel {
+		if info := vm.goTypeRegistry.LookupByType(goType); info != nil {
+			return info.Class
+		}
 	}
 
 	class := vm.Classes.Lookup(className)

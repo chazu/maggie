@@ -104,6 +104,9 @@ func handleBuildCommand(args []string, verbose bool) {
 
 	if hasGoWrap {
 		wrapDir = m.WrapOutputDir()
+		if verbose {
+			fmt.Fprintf(os.Stderr, "go-wrap: %d packages, wrapDir=%s\n", len(m.GoWrap.Packages), wrapDir)
+		}
 		for _, pkg := range m.GoWrap.Packages {
 			target := wrapTarget{
 				ImportPath: pkg.Import,
@@ -117,8 +120,11 @@ func handleBuildCommand(args []string, verbose bool) {
 		for _, pkg := range m.GoWrap.Packages {
 			model, err := gowrap.IntrospectPackage(pkg.Import, nil)
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "Error introspecting %s: %v\n", pkg.Import, err)
-				os.Exit(1)
+				fmt.Fprintf(os.Stderr, "Warning: could not introspect %s: %v (skipping wrapper registration)\n", pkg.Import, err)
+				continue
+			}
+			if verbose {
+				fmt.Fprintf(os.Stderr, "go-wrap: registered %s (pkg=%s)\n", pkg.Import, model.Name)
 			}
 			wrapperPkgs = append(wrapperPkgs, gowrap.WrapperPackageInfo{
 				ImportPath: pkg.Import,
