@@ -506,6 +506,71 @@ Guide14Tooling subclass: Object
   ]
 
   """
+  ## Profiling
+
+  Maggie includes a wall-clock sampling profiler that periodically
+  snapshots interpreter call stacks and produces flamegraph-compatible
+  output. This helps identify performance bottlenecks across the
+  Maggie, gowrap, and Go boundary.
+
+  ### CLI Usage
+
+  The simplest way to profile is with the `--profile` flag:
+
+  ```example
+  # Profile at 1000 Hz (default), write to profile.folded
+  mag --profile -m Main.start
+
+  # Profile at 500 Hz, write to a custom file
+  mag --profile --profile-rate 500 --profile-output my.folded -m Main.start
+
+  # Also enable Go pprof CPU profiler (writes cpu.pprof)
+  mag --profile --pprof -m Main.start
+  ```
+
+  The output file (`profile.folded`) uses the folded-stack format:
+
+  ```example
+  ClassName>>method1;ClassName>>method2;[primitive sleep:] 42
+  ```
+
+  Each line is a semicolon-separated call stack followed by a sample
+  count. This format is understood by:
+
+  - [flamegraph.pl](https://github.com/brendangregg/FlameGraph)
+  - [speedscope](https://www.speedscope.app/) (drag and drop the file)
+  - [inferno](https://github.com/jonhoo/inferno)
+
+  ### Maggie API
+
+  You can also control the profiler from Maggie code:
+
+  ```test
+  Compiler isProfiling >>> false
+  ```
+
+  ```example
+  "Start profiling at 1000 Hz"
+  Compiler startProfiling.
+
+  "Start profiling at a custom rate (Hz)"
+  Compiler startProfiling: 500.
+
+  "Check if profiling is active"
+  Compiler isProfiling.    "=> true"
+
+  "Stop and get folded-stack output as a String"
+  result := Compiler stopProfiling.
+  ```
+
+  The `stopProfiling` method returns the folded-stack data as a
+  Maggie String, which you can write to a file or inspect in the REPL.
+  """
+  method: s08b_profiling [
+      ^nil
+  ]
+
+  """
   ## Building Custom Binaries
 
   The `mag build` command compiles your project into a standalone

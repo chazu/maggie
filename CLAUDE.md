@@ -438,6 +438,42 @@ See `~/dev/go/yutani/DEBUG_GUIDE.md` for complete debugging documentation.
 
 ---
 
+## Profiling
+
+Maggie includes a wall-clock sampling profiler that periodically snapshots interpreter call stacks and produces flamegraph-compatible folded-stack output.
+
+### CLI Flags
+
+```bash
+mag --profile -m Main.start                    # Profile at 1000 Hz → profile.folded
+mag --profile --profile-rate 500 -m Main.start  # 500 Hz
+mag --profile --profile-output out.folded -m Main.start  # Custom output path
+mag --pprof -m Main.start                      # Go pprof CPU profiler → cpu.pprof
+mag --profile --pprof -m Main.start            # Both profilers
+```
+
+### Maggie API
+
+```smalltalk
+Compiler startProfiling.          "Start at 1000 Hz"
+Compiler startProfiling: 500.     "Start at custom Hz"
+result := Compiler stopProfiling. "Stop, returns folded-stacks String"
+Compiler isProfiling.             "true/false"
+```
+
+### Go API
+
+```go
+sp := vm.StartSamplingProfiler(time.Millisecond) // 1000 Hz
+// ... run code ...
+sp = vm.StopSamplingProfiler()
+sp.WriteFoldedStacks(os.Stdout)
+```
+
+The `SamplingProfiler` type lives in `vm/sampling_profiler.go`. Primitive calls are tagged via `activePrimitiveName` in the `Interpreter` struct (atomic pointer, zero cost when profiler is nil).
+
+---
+
 ## Benchmarking
 
 Run benchmarks and compare against a stored baseline using `scripts/bench-compare.sh`:

@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"math/big"
 	"math/bits"
+	"sync/atomic"
+	"unsafe"
 )
 
 // ---------------------------------------------------------------------------
@@ -100,6 +102,10 @@ type Interpreter struct {
 
 	// Profiling (for JIT hot code detection)
 	Profiler *Profiler
+
+	// Sampling profiler: name of currently executing primitive (nil when in bytecode).
+	// Accessed atomically by the sampling goroutine.
+	activePrimitiveName unsafe.Pointer // *string
 
 	// Exception handling
 	exceptionHandlers *ExceptionHandler // Stack of installed exception handlers
@@ -1381,6 +1387,13 @@ func (i *Interpreter) send(selector int, argc int) (result Value) {
 		argsCopy = make([]Value, argc)
 		copy(argsCopy, args)
 	}
+	if i.vm != nil && i.vm.samplingProfiler != nil {
+		name := methodName(method)
+		atomic.StorePointer(&i.activePrimitiveName, unsafe.Pointer(&name))
+		result = method.Invoke(i.vm, rcvr, argsCopy)
+		atomic.StorePointer(&i.activePrimitiveName, nil)
+		return result
+	}
 	return method.Invoke(i.vm, rcvr, argsCopy)
 }
 
@@ -1484,6 +1497,13 @@ func (i *Interpreter) sendSuper(selector int, argc int, callingMethod *CompiledM
 	} else {
 		argsCopy = make([]Value, argc)
 		copy(argsCopy, args)
+	}
+	if i.vm != nil && i.vm.samplingProfiler != nil {
+		name := methodName(method)
+		atomic.StorePointer(&i.activePrimitiveName, unsafe.Pointer(&name))
+		result = method.Invoke(i.vm, rcvr, argsCopy)
+		atomic.StorePointer(&i.activePrimitiveName, nil)
+		return result
 	}
 	return method.Invoke(i.vm, rcvr, argsCopy)
 }
@@ -1906,6 +1926,13 @@ func (i *Interpreter) sendUnaryFallback(rcvr Value, selectorID int) (result Valu
 		}
 		return result
 	}
+	if i.vm != nil && i.vm.samplingProfiler != nil {
+		name := methodName(method)
+		atomic.StorePointer(&i.activePrimitiveName, unsafe.Pointer(&name))
+		result = method.Invoke(i.vm, rcvr, nil)
+		atomic.StorePointer(&i.activePrimitiveName, nil)
+		return result
+	}
 	return method.Invoke(i.vm, rcvr, nil)
 }
 
@@ -1945,7 +1972,24 @@ func (i *Interpreter) sendBinaryFallback(rcvr, arg Value, selectorID int) (resul
 		}
 		return result
 	}
+	if i.vm != nil && i.vm.samplingProfiler != nil {
+		name := methodName(method)
+		atomic.StorePointer(&i.activePrimitiveName, unsafe.Pointer(&name))
+		result = method.Invoke(i.vm, rcvr, args)
+		atomic.StorePointer(&i.activePrimitiveName, nil)
+		return result
+	}
 	return method.Invoke(i.vm, rcvr, args)
+}
+
+// methodName extracts the name from a Method. All concrete method types
+// implement namedMethod (Name() string), but the Method interface itself
+// only has Invoke(). This avoids widening the minimal interface.
+func methodName(m Method) string {
+	if nm, ok := m.(namedMethod); ok {
+		return nm.Name()
+	}
+	return "<unknown>"
 }
 
 func (i *Interpreter) primitivePlus(a, b Value) Value {

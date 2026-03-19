@@ -9,8 +9,10 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime/pprof"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/chazu/maggie/compiler"
 	"github.com/chazu/maggie/compiler/hash"
@@ -60,6 +62,8 @@ func reorderArgs(args []string) []string {
 		"-port": true, "--port": true,
 		"-yutani-addr": true, "--yutani-addr": true,
 		"-ide-tool": true, "--ide-tool": true,
+		"-profile-rate": true, "--profile-rate": true,
+		"-profile-output": true, "--profile-output": true,
 	}
 	var flags, positional []string
 	for i := 0; i < len(args); i++ {
@@ -98,6 +102,10 @@ func main() {
 	serveMode := flag.Bool("serve", false, "Start language server (gRPC + Connect HTTP/JSON)")
 	servePort := flag.Int("port", 4567, "Language server port (used with --serve)")
 	lspMode := flag.Bool("lsp", false, "Start LSP server on stdio")
+	profileMode := flag.Bool("profile", false, "Enable wall-clock sampling profiler")
+	profileRate := flag.Int("profile-rate", 1000, "Sampling rate in Hz (default 1000)")
+	profileOutput := flag.String("profile-output", "profile.folded", "Profile output file")
+	pprofMode := flag.Bool("pprof", false, "Enable Go pprof CPU profiler")
 
 	flag.Usage = func() {
 		p := progName()
@@ -293,6 +301,57 @@ func main() {
 		if err := loadRC(vmInst, *verbose); err != nil {
 			fmt.Fprintf(os.Stderr, "Warning: error loading ~/.maggierc: %v\n", err)
 		}
+	}
+
+	// Start Go pprof CPU profiler if requested
+	if *pprofMode {
+		f, err := os.Create("cpu.pprof")
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error creating cpu.pprof: %v\n", err)
+			os.Exit(1)
+		}
+		if err := pprof.StartCPUProfile(f); err != nil {
+			fmt.Fprintf(os.Stderr, "Error starting pprof: %v\n", err)
+			os.Exit(1)
+		}
+		defer func() {
+			pprof.StopCPUProfile()
+			f.Close()
+			if *verbose {
+				fmt.Println("Go CPU profile written to cpu.pprof")
+			}
+		}()
+	}
+
+	// Start wall-clock sampling profiler if requested
+	if *profileMode {
+		interval := time.Second / time.Duration(*profileRate)
+		vmInst.StartSamplingProfiler(interval)
+		if *verbose {
+			fmt.Printf("Sampling profiler started at %d Hz\n", *profileRate)
+		}
+		defer func() {
+			sp := vmInst.StopSamplingProfiler()
+			if sp != nil {
+				f, err := os.Create(*profileOutput)
+				if err != nil {
+					fmt.Fprintf(os.Stderr, "Error creating profile output: %v\n", err)
+					return
+				}
+				defer f.Close()
+				if err := sp.WriteFoldedStacks(f); err != nil {
+					fmt.Fprintf(os.Stderr, "Error writing profile: %v\n", err)
+					return
+				}
+				stats := sp.Stats()
+				if *verbose {
+					fmt.Printf("Profile written to %s (%d samples, %d dropped)\n",
+						*profileOutput, stats.TotalSamples, stats.Dropped)
+				} else {
+					fmt.Printf("Profile written to %s\n", *profileOutput)
+				}
+			}
+		}()
 	}
 
 	// Compile paths from command line or project manifest

@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 )
 
 // ---------------------------------------------------------------------------
@@ -127,6 +128,9 @@ type VM struct {
 	// running received code in a sandbox. Populated from the manifest's
 	// [sync].capabilities at startup.
 	syncRestrictions []string
+
+	// samplingProfiler is the wall-clock sampling profiler (nil when disabled).
+	samplingProfiler *SamplingProfiler
 }
 
 // NewVM creates and bootstraps a new VM.
@@ -1149,6 +1153,9 @@ func (vm *VM) currentInterpreter() *Interpreter {
 // Shutdown stops background goroutines (registry GC, etc.) and releases
 // resources. Call this when the VM is no longer needed.
 func (vm *VM) Shutdown() {
+	if vm.samplingProfiler != nil {
+		vm.samplingProfiler.Stop()
+	}
 	if vm.registryGC != nil {
 		vm.registryGC.Stop()
 	}
@@ -1158,4 +1165,32 @@ func (vm *VM) Shutdown() {
 // and monitoring. Returns nil if the VM has not been initialized.
 func (vm *VM) RegistryGC() *RegistryGC {
 	return vm.registryGC
+}
+
+// StartSamplingProfiler creates and starts a wall-clock sampling profiler.
+// If one is already running, it is stopped first.
+func (vm *VM) StartSamplingProfiler(interval time.Duration) *SamplingProfiler {
+	if vm.samplingProfiler != nil {
+		vm.samplingProfiler.Stop()
+	}
+	sp := NewSamplingProfiler(vm, interval)
+	vm.samplingProfiler = sp
+	sp.Start()
+	return sp
+}
+
+// StopSamplingProfiler stops the sampling profiler and returns it
+// (so callers can write output). Returns nil if no profiler was running.
+func (vm *VM) StopSamplingProfiler() *SamplingProfiler {
+	sp := vm.samplingProfiler
+	if sp != nil {
+		sp.Stop()
+		vm.samplingProfiler = nil
+	}
+	return sp
+}
+
+// SamplingProfiler returns the current sampling profiler, or nil.
+func (vm *VM) SamplingProfiler() *SamplingProfiler {
+	return vm.samplingProfiler
 }

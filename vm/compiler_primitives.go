@@ -1,8 +1,10 @@
 package vm
 
 import (
+	"bytes"
 	"os"
 	"path/filepath"
+	"time"
 )
 
 // ---------------------------------------------------------------------------
@@ -407,6 +409,63 @@ func (vm *VM) registerCompilerPrimitives() {
 
 		return v.registry.NewStringValue(path)
 	})
+
+	// ---------------------------------------------------------------------------
+	// Profiling primitives
+	// ---------------------------------------------------------------------------
+
+	// startProfiling - Start wall-clock sampling profiler at 1000 Hz
+	startProf := &Method0{name: "startProfiling", fn: func(vmPtr interface{}, recv Value) Value {
+		v := vmPtr.(*VM)
+		v.StartSamplingProfiler(time.Millisecond) // 1000 Hz
+		return True
+	}}
+	startProf.SetDocString("Start the wall-clock sampling profiler at 1000 Hz (1ms interval).\nSamples interpreter call stacks periodically and aggregates them\nfor flamegraph-compatible output. Stop with `Compiler stopProfiling`.")
+	compilerClass.AddClassMethod(vm.Selectors, "startProfiling", startProf)
+
+	// startProfiling: - Start profiler at custom Hz
+	startProfHz := &Method1{name: "startProfiling:", fn: func(vmPtr interface{}, recv Value, hzVal Value) Value {
+		v := vmPtr.(*VM)
+		hz := int64(1000)
+		if hzVal.IsSmallInt() {
+			hz = hzVal.SmallInt()
+		}
+		if hz <= 0 {
+			hz = 1
+		}
+		interval := time.Second / time.Duration(hz)
+		v.StartSamplingProfiler(interval)
+		return True
+	}}
+	startProfHz.SetDocString("Start the wall-clock sampling profiler at the given rate (in Hz).\nFor example, `Compiler startProfiling: 500` samples 500 times per second.\nStop with `Compiler stopProfiling`.")
+	compilerClass.AddClassMethod(vm.Selectors, "startProfiling:", startProfHz)
+
+	// stopProfiling - Stop profiler and return folded-stacks string
+	stopProf := &Method0{name: "stopProfiling", fn: func(vmPtr interface{}, recv Value) Value {
+		v := vmPtr.(*VM)
+		sp := v.StopSamplingProfiler()
+		if sp == nil {
+			return Nil
+		}
+		var buf bytes.Buffer
+		if err := sp.WriteFoldedStacks(&buf); err != nil {
+			return v.newFailureResult("stopProfiling: " + err.Error())
+		}
+		return v.registry.NewStringValue(buf.String())
+	}}
+	stopProf.SetDocString("Stop the wall-clock sampling profiler and return the collected\nprofile data as a folded-stack string. The format is compatible with\nflamegraph.pl and speedscope. Returns nil if no profiler was running.")
+	compilerClass.AddClassMethod(vm.Selectors, "stopProfiling", stopProf)
+
+	// isProfiling - Check if profiler is running
+	isProf := &Method0{name: "isProfiling", fn: func(vmPtr interface{}, recv Value) Value {
+		v := vmPtr.(*VM)
+		if v.SamplingProfiler() != nil {
+			return True
+		}
+		return False
+	}}
+	isProf.SetDocString("Return true if the wall-clock sampling profiler is currently running.")
+	compilerClass.AddClassMethod(vm.Selectors, "isProfiling", isProf)
 }
 
 // restoreGlobalsMap restores a Globals map after evaluate:withLocals: execution.
