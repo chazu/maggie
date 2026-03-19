@@ -121,6 +121,29 @@ func (vm *VM) registerArrayPrimitives() {
 		return v.NewArray(int(n))
 	})
 
+	// new:withAll: - create array of given size, all elements set to value
+	c.AddClassMethod(vm.Selectors, "new:withAll:", NewPrimitiveMethod("new:withAll:", func(vmPtr interface{}, recv Value, args []Value) Value {
+		v := vmPtr.(*VM)
+		if len(args) < 2 || !args[0].IsSmallInt() {
+			return Nil
+		}
+		n := int(args[0].SmallInt())
+		if n < 0 {
+			return Nil
+		}
+		fill := args[1]
+		arr := v.NewArray(n)
+		if arr.IsObject() {
+			obj := ObjectFromValue(arr)
+			if obj != nil {
+				for i := 0; i < n; i++ {
+					obj.SetSlot(i, fill)
+				}
+			}
+		}
+		return arr
+	}))
+
 	// with: - create single-element array (class side)
 	c.AddClassMethod1(vm.Selectors, "with:", func(vmPtr interface{}, recv Value, elem Value) Value {
 		v := vmPtr.(*VM)
