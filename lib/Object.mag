@@ -205,6 +205,19 @@ Object subclass: nil
   ]
 
   """
+  Return true if the receiver's class (or any superclass) implements
+  the given selector.
+
+  ```test
+  3 respondsTo: #printString >>> true
+  3 respondsTo: #frobnicate >>> false
+  ```
+  """
+  method: respondsTo: aSelector [
+      ^self class allMethodNames includes: aSelector
+  ]
+
+  """
   Return a string representation of the receiver. The default
   implementation returns the class name. Subclasses typically
   override this to provide more useful output.
