@@ -240,11 +240,10 @@ func (vm *VM) registerObjectPrimitives() {
 			fmt.Fprintf(os.Stderr, "[DNU-handler] receiver class: %s, selector: %q\n", recvClass, selectorName)
 		}
 
-		stackTrace := ""
-		if v.interpreter != nil {
-			stackTrace = "\nStack trace:\n" + v.interpreter.StackTrace()
-		}
-		panic("Maggie error: Message not understood: " + selectorName + stackTrace)
+		// Signal a proper MessageNotUnderstood exception (catchable by on:do:)
+		msgText := "Message not understood: " + selectorName
+		v.signalException(v.MessageNotUnderstoodClass, v.registry.NewStringValue(msgText))
+		return Nil // unreachable — signalException always panics
 	})
 
 	// = - value equality (default to identity)
@@ -268,7 +267,7 @@ func (vm *VM) registerObjectPrimitives() {
 		return FromSmallInt(int64(recv))
 	})
 
-	// primError: - raise an error (halt execution)
+	// primError: - raise an error (signal proper exception, catchable by on:do:)
 	c.AddMethod1(vm.Selectors, "primError:", func(vmPtr interface{}, recv Value, message Value) Value {
 		v := vmPtr.(*VM)
 		var msgStr string
@@ -279,12 +278,8 @@ func (vm *VM) registerObjectPrimitives() {
 		} else {
 			msgStr = "<unknown error>"
 		}
-		// Include stack trace in error message
-		stackTrace := ""
-		if v.interpreter != nil {
-			stackTrace = "\nStack trace:\n" + v.interpreter.StackTrace()
-		}
-		panic("Maggie error: " + msgStr + stackTrace)
+		v.signalException(v.ErrorClass, v.registry.NewStringValue(msgStr))
+		return Nil // unreachable — signalException always panics
 	})
 
 	// ---------------------------------------------------------------------------

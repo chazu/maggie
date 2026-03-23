@@ -516,7 +516,34 @@ func (vm *VM) executeProtectedBlock(
 						return
 					}
 				}
-				// Not our exception or not a SignaledException - re-panic
+				// Not a SignaledException — convert raw panics to Error exceptions
+				// so on:do: can catch them instead of crashing the program.
+				if interp.isKindOf(vm.ErrorClass, exceptionClass) {
+					var msg string
+					switch v := r.(type) {
+					case string:
+						msg = v
+					case error:
+						msg = v.Error()
+					default:
+						msg = fmt.Sprintf("%v", v)
+					}
+					caught = true
+					interp.PopExceptionHandler()
+					for interp.fp > handler.FrameIndex {
+						interp.popFrame()
+					}
+					ex := &ExceptionObject{
+						ExceptionClass: vm.ErrorClass,
+						MessageText:    vm.registry.NewStringValue(msg),
+						Resumable:      false,
+					}
+					id := vm.registry.RegisterException(ex)
+					exVal := FromExceptionID(id)
+					outcome = vm.evaluateHandlerBlock(hbv, SignaledException{Exception: exVal, Object: ex})
+					return
+				}
+				// Handler doesn't catch Error - re-panic
 				panic(r)
 			}
 		}()
