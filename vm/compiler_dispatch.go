@@ -51,6 +51,9 @@ func (g *GoCompilerBackend) Compile(source string, class *Class) (*CompiledMetho
 	if err != nil {
 		return nil, err
 	}
+	if source != "" {
+		method.Source = source
+	}
 	if class != nil {
 		method.SetClass(class)
 	}
@@ -202,7 +205,7 @@ func (m *MaggieCompilerBackend) Compile(source string, class *Class) (*CompiledM
 	// Extract the CompiledMethod from the result
 	// The Maggie compiler returns a Dictionary with bytecode, literals, etc.
 	// We need to convert it to a CompiledMethod
-	return m.extractCompiledMethod(resultVal, class)
+	return m.extractCompiledMethod(resultVal, class, source)
 }
 
 // CompileExpression compiles a single expression using the Maggie compiler.
@@ -229,11 +232,11 @@ func (m *MaggieCompilerBackend) CompileExpression(source string) (*CompiledMetho
 	sourceVal := m.vm.registry.NewStringValue(source)
 	resultVal := m.vm.Send(compilerInstance, "compileExpression:", []Value{sourceVal})
 
-	return m.extractCompiledMethod(resultVal, nil)
+	return m.extractCompiledMethod(resultVal, nil, source)
 }
 
 // extractCompiledMethod converts a Maggie compiler result to a CompiledMethod.
-func (m *MaggieCompilerBackend) extractCompiledMethod(resultVal Value, class *Class) (*CompiledMethod, error) {
+func (m *MaggieCompilerBackend) extractCompiledMethod(resultVal Value, class *Class, source string) (*CompiledMethod, error) {
 	// The Maggie compiler returns a Dictionary with:
 	// - #selector -> Symbol
 	// - #bytecode -> Array of integers
@@ -310,6 +313,11 @@ func (m *MaggieCompilerBackend) extractCompiledMethod(resultVal Value, class *Cl
 	blockMethodsKey := m.vm.Symbols.SymbolValue("blockMethods")
 	blockMethodsVal := m.vm.Send(resultVal, "at:", []Value{blockMethodsKey})
 	m.extractBlockMethods(builder, blockMethodsVal)
+
+	// Store original source for methodSourceFor: introspection
+	if source != "" {
+		builder.SetSource(source)
+	}
 
 	method := builder.Build()
 	if class != nil {
