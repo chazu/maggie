@@ -1,8 +1,35 @@
 package vm
 
+import "strings"
+
 // ---------------------------------------------------------------------------
 // Class Reflection Primitives
 // ---------------------------------------------------------------------------
+
+// stripMethodPrefix removes "method:" or "classMethod:" prefix and surrounding brackets
+// from source that was stored by methodSourceFor:, converting it back to old-style format
+// that Compile()+convertToNewStyleFormat can handle.
+func stripMethodPrefix(source string) string {
+	trimmed := strings.TrimSpace(source)
+	for _, prefix := range []string{"classMethod:", "method:"} {
+		if strings.HasPrefix(trimmed, prefix) {
+			body := strings.TrimPrefix(trimmed, prefix)
+			body = strings.TrimSpace(body)
+			// Remove surrounding [ ] if present
+			if strings.HasSuffix(body, "]") {
+				// Find the first [ and extract selector + body
+				idx := strings.Index(body, "[")
+				if idx > 0 {
+					selector := strings.TrimSpace(body[:idx])
+					inner := body[idx+1 : len(body)-1]
+					return selector + "\n" + inner
+				}
+			}
+			return body
+		}
+	}
+	return source
+}
 
 func (vm *VM) registerClassReflectionPrimitives() {
 	c := vm.ObjectClass
@@ -299,5 +326,76 @@ func (vm *VM) registerClassReflectionPrimitives() {
 			}
 		}
 		return Nil
+	})
+
+	// ---------------------------------------------------------------------------
+	// Live method installation
+	// ---------------------------------------------------------------------------
+
+	// compileAndInstall: - compile a method source string and install it on this class.
+	// Returns the selector name (Symbol) on success, or signals an error on failure.
+	// Accepts both formats:
+	//   'method: greet [ ^''hello'' ]'  (new-style, method: prefix stripped automatically)
+	//   'greet\n    ^''hello'''         (old-style, selector on first line)
+	c.AddClassMethod1(vm.Selectors, "compileAndInstall:", func(vmPtr interface{}, recv Value, sourceVal Value) Value {
+		v := vmPtr.(*VM)
+		cls := v.classFromValue(recv)
+		if cls == nil {
+			v.signalException(v.ErrorClass, v.registry.NewStringValue("compileAndInstall: receiver is not a class"))
+			return Nil
+		}
+		var source string
+		if IsStringValue(sourceVal) {
+			source = v.registry.GetStringContent(sourceVal)
+		} else {
+			v.signalException(v.ErrorClass, v.registry.NewStringValue("compileAndInstall: argument must be a string"))
+			return Nil
+		}
+		// Strip method:/classMethod: prefix if present — Compile() adds it back via convertToNewStyleFormat
+		source = stripMethodPrefix(source)
+		method, err := v.Compile(source, cls)
+		if err != nil {
+			v.signalException(v.ErrorClass, v.registry.NewStringValue("compileAndInstall: compile error: "+err.Error()))
+			return Nil
+		}
+		if method == nil {
+			v.signalException(v.ErrorClass, v.registry.NewStringValue("compileAndInstall: compilation returned nil"))
+			return Nil
+		}
+		method.SetClass(cls)
+		selectorID := v.Selectors.Intern(method.Name())
+		cls.VTable.AddMethod(selectorID, method)
+		return v.Symbols.SymbolValue(method.Name())
+	})
+
+	// compileAndInstallClassMethod: - compile and install a class-side method.
+	c.AddClassMethod1(vm.Selectors, "compileAndInstallClassMethod:", func(vmPtr interface{}, recv Value, sourceVal Value) Value {
+		v := vmPtr.(*VM)
+		cls := v.classFromValue(recv)
+		if cls == nil {
+			v.signalException(v.ErrorClass, v.registry.NewStringValue("compileAndInstallClassMethod: receiver is not a class"))
+			return Nil
+		}
+		var source string
+		if IsStringValue(sourceVal) {
+			source = v.registry.GetStringContent(sourceVal)
+		} else {
+			v.signalException(v.ErrorClass, v.registry.NewStringValue("compileAndInstallClassMethod: argument must be a string"))
+			return Nil
+		}
+		source = stripMethodPrefix(source)
+		method, err := v.Compile(source, cls)
+		if err != nil {
+			v.signalException(v.ErrorClass, v.registry.NewStringValue("compileAndInstallClassMethod: compile error: "+err.Error()))
+			return Nil
+		}
+		if method == nil {
+			v.signalException(v.ErrorClass, v.registry.NewStringValue("compileAndInstallClassMethod: compilation returned nil"))
+			return Nil
+		}
+		method.SetClass(cls)
+		selectorID := v.Selectors.Intern(method.Name())
+		cls.ClassVTable.AddMethod(selectorID, method)
+		return v.Symbols.SymbolValue(method.Name())
 	})
 }
