@@ -88,6 +88,17 @@ func reorderArgs(args []string) []string {
 }
 
 func main() {
+	os.Exit(run())
+}
+
+func run() (exitCode int) {
+	// Recover from panics so deferred profiler/pprof flushes still run.
+	defer func() {
+		if r := recover(); r != nil {
+			fmt.Fprintf(os.Stderr, "%v\n", r)
+			exitCode = 1
+		}
+	}()
 	os.Args = append(os.Args[:1], reorderArgs(os.Args[1:])...)
 	verbose := flag.Bool("v", false, "Verbose output")
 	interactive := flag.Bool("i", false, "Start interactive REPL")
@@ -225,12 +236,12 @@ func main() {
 	if *customImagePath != "" {
 		if err := vmInst.LoadImage(*customImagePath); err != nil {
 			fmt.Fprintf(os.Stderr, "Error loading image %s: %v\n", *customImagePath, err)
-			os.Exit(1)
+			return 1
 		}
 	} else {
 		if err := vmInst.LoadImageFromBytes(embeddedImage); err != nil {
 			fmt.Fprintf(os.Stderr, "Error loading embedded image: %v\n", err)
-			os.Exit(1)
+			return 1
 		}
 	}
 	// Re-register critical primitives that may have been overwritten by image methods
@@ -308,11 +319,11 @@ func main() {
 		f, err := os.Create("cpu.pprof")
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error creating cpu.pprof: %v\n", err)
-			os.Exit(1)
+			return 1
 		}
 		if err := pprof.StartCPUProfile(f); err != nil {
 			fmt.Fprintf(os.Stderr, "Error starting pprof: %v\n", err)
-			os.Exit(1)
+			return 1
 		}
 		defer func() {
 			pprof.StopCPUProfile()
@@ -377,7 +388,7 @@ func main() {
 			methods, err := pipe.CompilePath(path)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-				os.Exit(1)
+				return 1
 			}
 			totalMethods += methods
 		}
@@ -394,7 +405,7 @@ func main() {
 			methods, err := pipe.LoadProject(m)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "Error loading project: %v\n", err)
-				os.Exit(1)
+				return 1
 			}
 			if *verbose && methods > 0 {
 				fmt.Printf("Project %s: compiled %d methods\n", m.Project.Name, methods)
@@ -410,7 +421,7 @@ func main() {
 	if *saveImagePath != "" {
 		if err := vmInst.SaveImage(*saveImagePath); err != nil {
 			fmt.Fprintf(os.Stderr, "Error saving image: %v\n", err)
-			os.Exit(1)
+			return 1
 		}
 		if *verbose {
 			fmt.Printf("Image saved to %s\n", *saveImagePath)
@@ -455,23 +466,23 @@ func main() {
 			outputDir := docArgOutput(docArgs)
 			handleDocServe(vmInst, outputDir, port)
 		}
-		return
+		return 0
 	}
 	if docMode == "doctest" {
 		handleDoctestCommand(vmInst, docArgs)
-		return
+		return 0
 	}
 
 	// Handle sync subcommand (after sources are compiled)
 	if syncArgs != nil {
 		handleSyncCommand(syncArgs, vmInst, loadedManifest, *verbose, diskCache)
-		return
+		return 0
 	}
 
 	// Handle help subcommand (after sources are compiled)
 	if helpArgs != nil {
 		handleHelpCommand(vmInst, helpArgs)
-		return
+		return 0
 	}
 
 	// Run main entry point if specified
@@ -479,13 +490,13 @@ func main() {
 		result, err := runMain(vmInst, *mainEntry, *verbose)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-			os.Exit(1)
+			return 1
 		}
 		// If main returns a small integer, use it as exit code
 		if result.IsSmallInt() {
-			os.Exit(int(result.SmallInt()))
+			return int(result.SmallInt())
 		}
-		os.Exit(0)
+		return 0
 	}
 
 	// Start LSP server if requested
@@ -493,9 +504,9 @@ func main() {
 		lsp := server.NewLSP(vmInst)
 		if err := lsp.Run(); err != nil {
 			fmt.Fprintf(os.Stderr, "LSP error: %v\n", err)
-			os.Exit(1)
+			return 1
 		}
-		os.Exit(0)
+		return 0
 	}
 
 	// Start language server if requested
@@ -505,18 +516,18 @@ func main() {
 		defer srv.Stop()
 		if err := srv.ListenAndServe(addr); err != nil {
 			fmt.Fprintf(os.Stderr, "Server error: %v\n", err)
-			os.Exit(1)
+			return 1
 		}
-		os.Exit(0)
+		return 0
 	}
 
 	// Start Yutani IDE mode if requested
 	if *yutaniMode {
 		if err := runYutaniIDE(vmInst, *yutaniAddr, *yutaniTool, *verbose); err != nil {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-			os.Exit(1)
+			return 1
 		}
-		os.Exit(0)
+		return 0
 	}
 
 	// If this is a full-system build with a default entry point, run it
@@ -525,18 +536,19 @@ func main() {
 		result, err := runMain(vmInst, projectEntryPoint, *verbose)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-			os.Exit(1)
+			return 1
 		}
 		if result.IsSmallInt() {
-			os.Exit(int(result.SmallInt()))
+			return int(result.SmallInt())
 		}
-		os.Exit(0)
+		return 0
 	}
 
 	// Start REPL if requested or if no paths given
 	if *interactive || (len(paths) == 0 && *mainEntry == "") {
 		runREPL(vmInst)
 	}
+	return 0
 }
 
 // loadRC loads ~/.maggierc if it exists

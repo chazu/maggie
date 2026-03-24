@@ -111,20 +111,27 @@ func generateFunctionBinding(b *strings.Builder, fn FunctionModel, pkgPath strin
 
 	fmt.Fprintf(b, "\tnsClass.AddClassMethod(v.Selectors, %q, vm.NewPrimitiveMethod(%q, func(vmPtr interface{}, receiver vm.Value, args []vm.Value) vm.Value {\n",
 		selector, selector)
-	fmt.Fprintf(b, "\t\tv := vmPtr.(*vm.VM)\n")
 
-	// Extract Go args
+	// Generate body into temp buffer to check if v is used
+	var body strings.Builder
 	for i, p := range fn.Params {
 		conv := goTypeConversion(p.GoType, fmt.Sprintf("args[%d]", i), pkgPath)
 		if conv != "" {
-			fmt.Fprintf(b, "\t\targ%d := %s\n", i, conv)
+			fmt.Fprintf(&body, "\t\targ%d := %s\n", i, conv)
 		}
 	}
-
 	callArgs := buildCallArgs(fn.Params, pkgPath)
 	callExpr := fmt.Sprintf("pkg.%s(%s)", fn.Name, strings.Join(callArgs, ", "))
+	writeReturnHandling(&body, callExpr, fn.Results, fn.ReturnsErr)
 
-	writeReturnHandling(b, callExpr, fn.Results, fn.ReturnsErr)
+	bodyStr := body.String()
+	if strings.Contains(bodyStr, "v.") {
+		fmt.Fprintf(b, "\t\tv := vmPtr.(*vm.VM)\n")
+	} else {
+		fmt.Fprintf(b, "\t\t_ = vmPtr\n")
+	}
+	b.WriteString(bodyStr)
+
 	fmt.Fprintf(b, "\t}))\n\n")
 }
 

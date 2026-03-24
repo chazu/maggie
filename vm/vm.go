@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -76,7 +77,8 @@ type VM struct {
 
 	// Goroutine-local interpreter tracking (for forked processes)
 	// Maps goroutine ID to the interpreter running in that goroutine
-	interpreters sync.Map // int64 -> *Interpreter
+	interpreters    sync.Map // int64 -> *Interpreter
+	interpreterCount int32   // number of registered forked interpreters (atomic)
 
 	// Debugger for IDE integration
 	Debugger *DebugServer
@@ -1126,6 +1128,7 @@ func getGoroutineID() int64 {
 func (vm *VM) registerInterpreter(interp *Interpreter) {
 	gid := getGoroutineID()
 	vm.interpreters.Store(gid, interp)
+	atomic.AddInt32(&vm.interpreterCount, 1)
 }
 
 // unregisterInterpreter removes the interpreter for the current goroutine.
@@ -1133,16 +1136,24 @@ func (vm *VM) registerInterpreter(interp *Interpreter) {
 func (vm *VM) unregisterInterpreter() {
 	gid := getGoroutineID()
 	vm.interpreters.Delete(gid)
+	atomic.AddInt32(&vm.interpreterCount, -1)
 }
 
 // currentInterpreter returns the interpreter for the current goroutine.
-// If no interpreter is registered for this goroutine, returns the main interpreter.
+// Fast path: when no forked interpreters exist, returns the main interpreter
+// directly (avoiding the extremely expensive getGoroutineID/runtime.Stack).
+// Slow path: looks up by goroutine ID for multi-goroutine programs.
 func (vm *VM) currentInterpreter() *Interpreter {
+	// Fast path: no forked goroutines, must be main interpreter
+	if atomic.LoadInt32(&vm.interpreterCount) == 0 {
+		return vm.interpreter
+	}
+	// Slow path: look up by goroutine ID
 	gid := getGoroutineID()
 	if interp, ok := vm.interpreters.Load(gid); ok {
 		return interp.(*Interpreter)
 	}
-	// Fallback to main interpreter
+	// Fallback to main interpreter (main goroutine isn't registered)
 	return vm.interpreter
 }
 
