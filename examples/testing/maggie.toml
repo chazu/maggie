@@ -1,0 +1,18 @@
+[project]
+name = "testing-example"
+namespace = "TestingExample"
+version = "0.1.0"
+description = "Demonstrates test configuration"
+
+[source]
+dirs = ["src"]
+entry = "TestingExample::Main.start"
+
+[test]
+dirs = ["test"]
+entry = "TestingExample::TestRunner.run"
+timeout = 10000
+
+[scripts]
+pretest = "echo Running tests..."
+posttest = "echo Tests complete!"

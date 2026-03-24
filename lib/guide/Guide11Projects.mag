@@ -63,13 +63,18 @@ Guide11Projects subclass: Object
   ## The [project] Section
 
   The `[project]` section identifies the project and sets its root
-  namespace.
+  namespace. It also supports optional metadata fields.
 
   ```example
   [project]
   name = "weather-service"
   namespace = "Weather"
   version = "1.2.0"
+  description = "A weather data aggregation service"
+  license = "MIT"
+  authors = ["Alice <alice@example.com>"]
+  repository = "https://github.com/example/weather-service"
+  maggie = ">=0.10.0"
   ```
 
   **name** -- a short identifier for the project. Used in dependency
@@ -82,8 +87,17 @@ Guide11Projects subclass: Object
   is also what consumers see when they import this project as a
   dependency.
 
-  **version** -- a semver-style version string. Currently informational
-  only but will be used for version constraint resolution in the future.
+  **version** -- a semver-style version string.
+
+  **description**, **license**, **authors**, **repository** -- optional
+  metadata fields. Currently informational (useful for `mag help` and
+  future package registries).
+
+  **maggie** -- a version constraint on the Maggie toolchain. If set,
+  the manifest is rejected at load time if the running `mag` version
+  does not satisfy the constraint. Supported forms: `>=X.Y.Z`,
+  `<X.Y.Z`, `>=X.Y.Z <A.B.C` (range), `~X.Y.Z` (pessimistic --
+  allows patch updates within the same minor version).
 
   If `namespace` is omitted, it defaults to the PascalCase form of
   the project name. A project named `weather-service` would get the
@@ -104,6 +118,7 @@ Guide11Projects subclass: Object
   [source]
   dirs = ["src"]
   entry = "Main.start"
+  exclude = ["*_scratch.mag", "*_test.mag"]
   ```
 
   **dirs** -- a list of directories (relative to the project root) that
@@ -123,11 +138,18 @@ Guide11Projects subclass: Object
   with namespace `MyApp`, an entry of `Main.start` calls the `start`
   class method on `MyApp::Main`.
 
-  The entry point is invoked with the `-m` flag:
+  **exclude** -- a list of glob patterns. Files matching any pattern
+  are skipped during compilation. Patterns are matched against both
+  the filename and the relative path from the source directory.
+  Uses `filepath.Match` syntax (e.g., `*_test.mag`, `scratch_*.mag`).
+
+  The entry point is invoked with the `-m` flag or the `mag run`
+  subcommand:
 
   ```example
   mag -m Main.start        # Calls MyApp::Main.start
-  mag -m App.run           # Calls MyApp::App.run
+  mag run                  # Run the default entry point
+  mag run -t server        # Run a named target
   ```
 
   You can also specify an entry point directly on the command line,
@@ -153,11 +175,17 @@ Guide11Projects subclass: Object
   [dependencies]
   yutani = { git = "https://github.com/chazu/yutani-mag", tag = "v0.5.0" }
   shared-lib = { path = "../shared-lib" }
+  bleeding = { git = "https://github.com/example/lib", branch = "main" }
+  pinned = { git = "https://github.com/example/exact", commit = "abc123" }
   ```
 
-  Git dependencies require a `git` URL and a `tag` to pin the version.
-  The repository is cloned to `.maggie/deps/<name>/` and checked out
-  to the specified tag.
+  Git dependencies require a `git` URL and exactly one ref specifier:
+  `tag`, `branch`, or `commit`. These are mutually exclusive -- if
+  you specify more than one, the manifest is rejected at load time.
+
+  - **tag** -- checks out a specific git tag (most common for releases)
+  - **branch** -- tracks a branch; the lock file pins the exact commit
+  - **commit** -- pins an exact commit hash
 
   Path dependencies use a `path` relative to the project root (or an
   absolute path). These are useful during development when you want to
@@ -172,6 +200,23 @@ Guide11Projects subclass: Object
 
   Without the override, the namespace is resolved automatically (see
   the section on namespace mapping below).
+
+  ### Dev-Dependencies
+
+  The `[dev-dependencies]` section declares dependencies that are only
+  needed during development and testing. They use the same format as
+  regular dependencies but are excluded from production builds.
+
+  ```example
+  [dev-dependencies]
+  test-helpers = { path = "../test-helpers" }
+  mock-server = { git = "https://example.com/mock", tag = "v1.0.0" }
+  ```
+
+  Dev-dependencies are loaded when running `mag test`, using the REPL
+  (`mag -i`), or in other development contexts. They are excluded from
+  `mag build` production binaries. A dependency name cannot appear in
+  both `[dependencies]` and `[dev-dependencies]`.
   """
   method: s04_dependenciesSection [
       "This section is prose-only. No runnable example needed."
@@ -306,6 +351,133 @@ Guide11Projects subclass: Object
   ```
   """
   method: s07_lockFile [
+      "This section is prose-only. No runnable example needed."
+      ^nil
+  ]
+
+  """
+  ## Test Configuration
+
+  The `[test]` section configures test execution. It declares where
+  test source files live, which entry point to call, and an optional
+  timeout.
+
+  ```example
+  [test]
+  dirs = ["test"]
+  entry = "TestRunner.run"
+  timeout = 30000
+  exclude = ["*_slow.mag"]
+  ```
+
+  **dirs** -- directories containing test source files. These are
+  compiled in addition to the project's `[source].dirs`.
+
+  **entry** -- the class method to call when running `mag test`. The
+  entry point should return a small integer exit code (0 = pass).
+
+  **timeout** -- maximum time in milliseconds for the test run. If
+  exceeded, `mag test` exits with code 2. Set to 0 (or omit) for no
+  timeout.
+
+  **exclude** -- glob patterns to exclude from test sources.
+
+  Running tests:
+
+  ```example
+  mag test                       # run tests using [test] config
+  mag test --timeout 5000        # override timeout
+  mag test --entry OtherRunner.run   # override entry point
+  ```
+
+  Dev-dependencies are loaded automatically when running `mag test`.
+  """
+  method: s06b_testConfig [
+      "This section is prose-only. No runnable example needed."
+      ^nil
+  ]
+
+  """
+  ## Script Hooks
+
+  The `[scripts]` section defines lifecycle hooks that run shell
+  commands at build and test boundaries. Empty strings are no-ops.
+
+  ```example
+  [scripts]
+  prebuild = "mag fmt --check"
+  postbuild = "echo Build complete!"
+  pretest = "echo Running tests..."
+  posttest = "echo Tests done!"
+  ```
+
+  **prebuild** -- runs before `mag build` compiles sources.
+  **postbuild** -- runs after `mag build` writes the binary.
+  **pretest** -- runs before `mag test` executes the test entry point.
+  **posttest** -- runs after `mag test` completes.
+
+  Scripts run via `sh -c` in the project directory. If a prebuild or
+  pretest script fails (non-zero exit), the build or test is aborted.
+  Postbuild and posttest failures are reported as warnings.
+  """
+  method: s06c_scriptHooks [
+      "This section is prose-only. No runnable example needed."
+      ^nil
+  ]
+
+  """
+  ## Multi-Target Builds
+
+  Projects can declare multiple build targets using `[[target]]` array
+  tables. Each target has its own entry point, output binary name, and
+  optional source directory and go-wrap overrides.
+
+  ```example
+  [source]
+  dirs = ["src"]
+  entry = "Main.start"
+
+  [[target]]
+  name = "server"
+  entry = "MyApp::Server.start"
+  output = "my-server"
+  full = true
+
+  [[target]]
+  name = "cli"
+  entry = "MyApp::CLI.main"
+  output = "my-cli"
+  extra-dirs = ["tools"]
+  exclude-dirs = ["admin"]
+  ```
+
+  Each target inherits the project's `[source].dirs` and adds its own
+  `extra-dirs` (or removes dirs listed in `exclude-dirs`). The
+  `[source].exclude` patterns and any `target.exclude` patterns are
+  combined. Go-wrap packages from both the top-level `[go-wrap]` and
+  `target.go-wrap` are merged.
+
+  Building targets:
+
+  ```example
+  mag build               # build the default (first) target
+  mag build -t server     # build a specific target
+  mag build --all         # build all targets
+  mag build -t cli -o /usr/local/bin/mycli
+  ```
+
+  Running targets:
+
+  ```example
+  mag run                 # run the default entry point
+  mag run -t server       # run a named target
+  ```
+
+  If no `[[target]]` sections are defined, the project behaves as
+  before -- a single implicit target derived from top-level config.
+  Existing manifests require no changes.
+  """
+  method: s06d_multiTarget [
       "This section is prose-only. No runnable example needed."
       ^nil
   ]
@@ -515,19 +687,34 @@ Guide11Projects subclass: Object
   name = "todo-app"
   namespace = "Todo"
   version = "0.1.0"
+  description = "A todo list application"
+  license = "MIT"
+  maggie = ">=0.10.0"
 
   [source]
   dirs = ["src"]
   entry = "Main.start"
+  exclude = ["*_scratch.mag"]
 
   [dependencies]
   yutani = { git = "https://github.com/chazu/yutani-mag", tag = "v0.5.0" }
   shared-models = { path = "../shared-models" }
   http-client = { git = "https://github.com/example/http-client-mag", tag = "v1.0.0", namespace = "Http" }
 
+  [dev-dependencies]
+  test-helpers = { path = "../test-helpers" }
+
   [image]
   output = "todo-app.image"
   include-source = true
+
+  [test]
+  dirs = ["test"]
+  entry = "TodoTests.run"
+  timeout = 30000
+
+  [scripts]
+  prebuild = "mag fmt --check"
   ```
 
   And the corresponding project layout:

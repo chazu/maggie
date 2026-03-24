@@ -48,6 +48,16 @@ version = "0.1.0"
 [source]
 dirs = ["src"]
 entry = "Main.start"
+
+# [test]
+# dirs = ["test"]
+# entry = "TestRunner.run"
+
+# [scripts]
+# prebuild = "mag fmt --check"
+
+# [dev-dependencies]
+# test-helpers = { path = "../test-helpers" }
 `, name, namespace)
 
 	tomlPath := filepath.Join(name, "maggie.toml")

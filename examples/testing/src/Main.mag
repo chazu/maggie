@@ -1,0 +1,5 @@
+Main subclass: Object
+
+  classMethod: start [
+    'TestingExample started!' println
+  ]

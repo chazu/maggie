@@ -331,14 +331,19 @@ Guide10Modules subclass: Object
 
   Key sections:
 
-  - **[project]** -- name, namespace (root namespace for all classes in
-    this project), and version.
-  - **[source]** -- which directories to compile, and the entry point
-    method (resolved relative to the project namespace).
-  - **[dependencies]** -- external libraries, either from git repos or
-    local paths.
+  - **[project]** -- name, namespace, version, and optional metadata
+    (description, license, authors, repository, maggie version constraint).
+  - **[source]** -- which directories to compile, entry point, and
+    exclude patterns for filtering files.
+  - **[dependencies]** -- external libraries (git with tag/branch/commit,
+    or local paths).
+  - **[dev-dependencies]** -- same format, loaded only for test/dev.
   - **[image]** -- output image file name and whether to preserve
     method source text in the image.
+  - **[test]** -- test directories, entry point, and timeout.
+  - **[scripts]** -- lifecycle hooks (prebuild, postbuild, pretest, posttest).
+  - **[[target]]** -- multiple build targets with per-target entry points,
+    source dirs, and go-wrap configuration.
 
   Running the project:
 
@@ -367,7 +372,12 @@ Guide10Modules subclass: Object
   yutani = { git = "https://github.com/chazu/yutani-mag", tag = "v0.5.0" }
   local-lib = { path = "../shared-lib" }
   ui-toolkit = { path = "../ui-toolkit", namespace = "CustomUI" }
+  bleeding = { git = "https://github.com/example/lib", branch = "main" }
   ```
+
+  Git dependencies use exactly one ref specifier: `tag`, `branch`,
+  or `commit` (mutually exclusive). The lock file always records the
+  exact commit hash regardless of which specifier is used.
 
   Each dependency maps to a namespace, resolved in order:
   1. Consumer override -- explicit `namespace` in the dependency entry.

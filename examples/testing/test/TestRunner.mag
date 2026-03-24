@@ -1,0 +1,6 @@
+TestRunner subclass: Object
+
+  classMethod: run [
+    'All tests passed!' println
+    ^0
+  ]

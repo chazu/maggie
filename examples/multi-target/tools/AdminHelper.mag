@@ -1,0 +1,5 @@
+AdminHelper subclass: Object
+
+  classMethod: info [
+    'Admin helper loaded' println
+  ]

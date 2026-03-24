@@ -18,6 +18,7 @@ type LockedDep struct {
 	Git    string `toml:"git,omitempty"`
 	Commit string `toml:"commit,omitempty"`
 	Tag    string `toml:"tag,omitempty"`
+	Branch string `toml:"branch,omitempty"`
 	Path   string `toml:"path,omitempty"`
 }
 

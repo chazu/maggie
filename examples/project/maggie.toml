@@ -2,6 +2,9 @@
 name = "greeting-app"
 namespace = "GreetingApp"
 version = "0.1.0"
+description = "A simple greeting application"
+license = "MIT"
+authors = ["Example Author <author@example.com>"]
 
 [source]
 dirs = ["src"]

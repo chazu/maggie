@@ -1,0 +1,25 @@
+[project]
+name = "multi-target-example"
+namespace = "MultiTarget"
+version = "0.1.0"
+description = "Demonstrates multiple build targets"
+maggie = ">=0.10.0"
+
+[source]
+dirs = ["src"]
+exclude = ["*_scratch.mag"]
+
+[[target]]
+name = "server"
+entry = "MultiTarget::Server.start"
+output = "my-server"
+
+[[target]]
+name = "cli"
+entry = "MultiTarget::CLI.main"
+output = "my-cli"
+extra-dirs = ["tools"]
+
+[scripts]
+prebuild = "echo Building multi-target project..."
+postbuild = "echo Build complete!"

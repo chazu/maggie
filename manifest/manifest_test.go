@@ -186,6 +186,242 @@ func TestLockFileRoundTrip(t *testing.T) {
 	}
 }
 
+func TestLoadManifestMetadata(t *testing.T) {
+	dir := t.TempDir()
+	tomlContent := `
+[project]
+name = "rich-app"
+namespace = "RichApp"
+version = "1.0.0"
+description = "A feature-rich application"
+license = "MIT"
+authors = ["Alice <alice@example.com>", "Bob <bob@example.com>"]
+repository = "https://github.com/example/rich-app"
+`
+	if err := os.WriteFile(filepath.Join(dir, "maggie.toml"), []byte(tomlContent), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	m, err := Load(dir)
+	if err != nil {
+		t.Fatalf("Load failed: %v", err)
+	}
+	if m.Project.Description != "A feature-rich application" {
+		t.Errorf("description = %q", m.Project.Description)
+	}
+	if m.Project.License != "MIT" {
+		t.Errorf("license = %q", m.Project.License)
+	}
+	if len(m.Project.Authors) != 2 {
+		t.Errorf("authors count = %d, want 2", len(m.Project.Authors))
+	}
+	if m.Project.Repository != "https://github.com/example/rich-app" {
+		t.Errorf("repository = %q", m.Project.Repository)
+	}
+}
+
+func TestLoadManifestSourceExclude(t *testing.T) {
+	dir := t.TempDir()
+	tomlContent := `
+[project]
+name = "test"
+
+[source]
+dirs = ["src"]
+exclude = ["*_test.mag", "scratch/**"]
+`
+	if err := os.WriteFile(filepath.Join(dir, "maggie.toml"), []byte(tomlContent), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	m, err := Load(dir)
+	if err != nil {
+		t.Fatalf("Load failed: %v", err)
+	}
+	if len(m.Source.Exclude) != 2 {
+		t.Errorf("exclude count = %d, want 2", len(m.Source.Exclude))
+	}
+}
+
+func TestLoadManifestDependencyBranch(t *testing.T) {
+	dir := t.TempDir()
+	tomlContent := `
+[project]
+name = "test"
+
+[dependencies]
+lib-a = { git = "https://example.com/a", branch = "develop" }
+lib-b = { git = "https://example.com/b", commit = "abc123def" }
+`
+	if err := os.WriteFile(filepath.Join(dir, "maggie.toml"), []byte(tomlContent), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	m, err := Load(dir)
+	if err != nil {
+		t.Fatalf("Load failed: %v", err)
+	}
+	if m.Dependencies["lib-a"].Branch != "develop" {
+		t.Errorf("lib-a branch = %q, want develop", m.Dependencies["lib-a"].Branch)
+	}
+	if m.Dependencies["lib-b"].Commit != "abc123def" {
+		t.Errorf("lib-b commit = %q, want abc123def", m.Dependencies["lib-b"].Commit)
+	}
+}
+
+func TestLoadManifestDevDependencies(t *testing.T) {
+	dir := t.TempDir()
+	tomlContent := `
+[project]
+name = "test"
+
+[dependencies]
+core = { path = "../core" }
+
+[dev-dependencies]
+test-helpers = { path = "../test-helpers" }
+`
+	if err := os.WriteFile(filepath.Join(dir, "maggie.toml"), []byte(tomlContent), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	m, err := Load(dir)
+	if err != nil {
+		t.Fatalf("Load failed: %v", err)
+	}
+	if len(m.Dependencies) != 1 {
+		t.Errorf("dependencies count = %d, want 1", len(m.Dependencies))
+	}
+	if len(m.DevDependencies) != 1 {
+		t.Errorf("dev-dependencies count = %d, want 1", len(m.DevDependencies))
+	}
+	if m.DevDependencies["test-helpers"].Path != "../test-helpers" {
+		t.Errorf("test-helpers path = %q", m.DevDependencies["test-helpers"].Path)
+	}
+}
+
+func TestAllDependencies(t *testing.T) {
+	m := &Manifest{
+		Dependencies:    map[string]Dependency{"a": {Path: "../a"}},
+		DevDependencies: map[string]Dependency{"b": {Path: "../b"}},
+	}
+	all, err := m.AllDependencies()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(all) != 2 {
+		t.Fatalf("expected 2, got %d", len(all))
+	}
+}
+
+func TestAllDependenciesConflict(t *testing.T) {
+	m := &Manifest{
+		Dependencies:    map[string]Dependency{"lib": {Path: "../a"}},
+		DevDependencies: map[string]Dependency{"lib": {Path: "../b"}},
+	}
+	_, err := m.AllDependencies()
+	if err == nil {
+		t.Error("expected error for duplicate dep name across sections")
+	}
+}
+
+func TestLoadManifestTestConfig(t *testing.T) {
+	dir := t.TempDir()
+	tomlContent := `
+[project]
+name = "test"
+
+[test]
+dirs = ["test", "spec"]
+entry = "TestRunner.run"
+timeout = 30000
+exclude = ["*_slow.mag"]
+`
+	if err := os.WriteFile(filepath.Join(dir, "maggie.toml"), []byte(tomlContent), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	m, err := Load(dir)
+	if err != nil {
+		t.Fatalf("Load failed: %v", err)
+	}
+	if len(m.Test.Dirs) != 2 {
+		t.Errorf("test dirs count = %d, want 2", len(m.Test.Dirs))
+	}
+	if m.Test.Entry != "TestRunner.run" {
+		t.Errorf("test entry = %q", m.Test.Entry)
+	}
+	if m.Test.Timeout != 30000 {
+		t.Errorf("test timeout = %d, want 30000", m.Test.Timeout)
+	}
+}
+
+func TestLoadManifestScripts(t *testing.T) {
+	dir := t.TempDir()
+	tomlContent := `
+[project]
+name = "test"
+
+[scripts]
+prebuild = "mag fmt --check"
+postbuild = "echo done"
+pretest = "mag build"
+posttest = "echo tests done"
+`
+	if err := os.WriteFile(filepath.Join(dir, "maggie.toml"), []byte(tomlContent), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	m, err := Load(dir)
+	if err != nil {
+		t.Fatalf("Load failed: %v", err)
+	}
+	if m.Scripts.Prebuild != "mag fmt --check" {
+		t.Errorf("prebuild = %q", m.Scripts.Prebuild)
+	}
+	if m.Scripts.Postbuild != "echo done" {
+		t.Errorf("postbuild = %q", m.Scripts.Postbuild)
+	}
+}
+
+func TestTestDirPaths(t *testing.T) {
+	m := &Manifest{
+		Dir:  "/app",
+		Test: TestConfig{Dirs: []string{"test", "spec"}},
+	}
+	paths := m.TestDirPaths()
+	if len(paths) != 2 {
+		t.Fatalf("expected 2 paths, got %d", len(paths))
+	}
+	if paths[0] != "/app/test" {
+		t.Errorf("paths[0] = %q, want /app/test", paths[0])
+	}
+}
+
+func TestLockFileRoundTripWithBranch(t *testing.T) {
+	dir := t.TempDir()
+	lockPath := filepath.Join(dir, "lock.toml")
+
+	lf := &LockFile{
+		Deps: []LockedDep{
+			{Name: "lib", Git: "https://example.com/lib", Branch: "develop", Commit: "abc123"},
+		},
+	}
+
+	if err := WriteLock(lockPath, lf); err != nil {
+		t.Fatalf("WriteLock failed: %v", err)
+	}
+
+	loaded, err := ReadLock(lockPath)
+	if err != nil {
+		t.Fatalf("ReadLock failed: %v", err)
+	}
+
+	if loaded.Deps[0].Branch != "develop" {
+		t.Errorf("branch = %q, want develop", loaded.Deps[0].Branch)
+	}
+}
+
 func TestReadLockNotFound(t *testing.T) {
 	lf, err := ReadLock("/nonexistent/path/lock.toml")
 	if err != nil {

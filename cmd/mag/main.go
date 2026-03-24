@@ -52,7 +52,7 @@ func reorderArgs(args []string) []string {
 	subcommands := map[string]bool{
 		"build": true, "deps": true, "fmt": true, "new": true,
 		"wrap": true, "sync": true, "doc": true, "doctest": true,
-		"help": true, "lsp": true,
+		"help": true, "lsp": true, "test": true, "run": true,
 	}
 	// Known top-level flags that take a value argument
 	valueFlags := map[string]bool{
@@ -206,6 +206,12 @@ func run() (exitCode int) {
 			return
 		case "build":
 			handleBuildCommand(args[1:], *verbose)
+			return
+		case "test":
+			handleTestCommand(args[1:], *verbose)
+			return
+		case "run":
+			handleRunCommand(args[1:], *verbose)
 			return
 		case "help":
 			helpArgs = args[1:]

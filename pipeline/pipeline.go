@@ -26,6 +26,8 @@ type ParsedFile struct {
 type Pipeline struct {
 	VM      *vm.VM
 	Verbose io.Writer // nil = silent
+	Exclude []string  // source exclude glob patterns from manifest
+	DevMode bool      // when true, include dev-dependencies
 }
 
 // logf prints to Verbose if non-nil.
@@ -37,7 +39,16 @@ func (p *Pipeline) logf(format string, args ...interface{}) {
 
 // CollectFiles resolves a path (file, directory, or .../...) into parsed files.
 // It reads, parses, and derives namespaces but does NOT compile anything.
-func CollectFiles(path string) ([]ParsedFile, error) {
+// Optional exclude patterns filter out files matching any glob pattern.
+func CollectFiles(path string, exclude ...[]string) ([]ParsedFile, error) {
+	var excludePatterns []string
+	if len(exclude) > 0 {
+		excludePatterns = exclude[0]
+	}
+	return collectFilesImpl(path, excludePatterns)
+}
+
+func collectFilesImpl(path string, exclude []string) ([]ParsedFile, error) {
 	// Check for recursive pattern
 	recursive := false
 	if strings.HasSuffix(path, "/...") {
@@ -94,6 +105,11 @@ func CollectFiles(path string) ([]ParsedFile, error) {
 		}
 	}
 
+	// Apply exclude patterns
+	if len(exclude) > 0 {
+		filePaths = filterExcluded(filePaths, basePath, exclude)
+	}
+
 	var result []ParsedFile
 	for _, fp := range filePaths {
 		content, err := os.ReadFile(fp)
@@ -130,6 +146,38 @@ func CollectFiles(path string) ([]ParsedFile, error) {
 	}
 
 	return result, nil
+}
+
+// filterExcluded removes file paths matching any of the glob patterns.
+// Patterns are matched against relative paths from basePath and against base names.
+func filterExcluded(paths []string, basePath string, patterns []string) []string {
+	if len(patterns) == 0 {
+		return paths
+	}
+	var kept []string
+	for _, p := range paths {
+		rel := filepath.Base(p)
+		if basePath != "" {
+			if r, err := filepath.Rel(basePath, p); err == nil {
+				rel = r
+			}
+		}
+		excluded := false
+		for _, pat := range patterns {
+			if matched, _ := filepath.Match(pat, rel); matched {
+				excluded = true
+				break
+			}
+			if matched, _ := filepath.Match(pat, filepath.Base(p)); matched {
+				excluded = true
+				break
+			}
+		}
+		if !excluded {
+			kept = append(kept, p)
+		}
+	}
+	return kept
 }
 
 // CompileAll implements two-pass compilation over a set of parsed files.
@@ -420,7 +468,7 @@ func (p *Pipeline) CompileAll(files []ParsedFile) (int, error) {
 // CompilePath compiles .mag files from a path into the VM.
 // Supports ./... syntax for recursive loading.
 func (p *Pipeline) CompilePath(path string) (int, error) {
-	files, err := CollectFiles(path)
+	files, err := CollectFiles(path, p.Exclude)
 	if err != nil {
 		return 0, err
 	}
@@ -471,9 +519,21 @@ func (p *Pipeline) CompileSourceFile(source, sourcePath, nsOverride string) (int
 func (p *Pipeline) LoadProject(m *manifest.Manifest) (int, error) {
 	var allFiles []ParsedFile
 
+	// Determine which dependencies to resolve
+	var depsToResolve map[string]manifest.Dependency
+	if p.DevMode {
+		var err error
+		depsToResolve, err = m.AllDependencies()
+		if err != nil {
+			return 0, err
+		}
+	} else {
+		depsToResolve = m.Dependencies
+	}
+
 	// Collect files from dependencies
-	if len(m.Dependencies) > 0 {
-		resolver := manifest.NewResolver(m, p.Verbose != nil)
+	if len(depsToResolve) > 0 {
+		resolver := manifest.NewResolver(m, p.Verbose != nil, depsToResolve)
 		deps, err := resolver.Resolve()
 		if err != nil {
 			return 0, fmt.Errorf("dependency resolution failed: %w", err)
@@ -517,7 +577,104 @@ func (p *Pipeline) LoadProject(m *manifest.Manifest) (int, error) {
 			p.logf("  Skipping missing source dir: %s\n", srcDir)
 			continue
 		}
-		files, err := CollectFiles(srcDir + "/...")
+		files, err := CollectFiles(srcDir+"/...", m.Source.Exclude)
+		if err != nil {
+			return 0, fmt.Errorf("collecting source %s: %w", srcDir, err)
+		}
+		allFiles = append(allFiles, files...)
+	}
+
+	// Auto-import: within a project, all namespaces are implicitly available
+	allNamespaces := make(map[string]bool)
+	for _, pf := range allFiles {
+		if pf.Namespace != "" {
+			allNamespaces[pf.Namespace] = true
+		}
+	}
+	if len(allNamespaces) > 0 {
+		nsList := make([]string, 0, len(allNamespaces))
+		for ns := range allNamespaces {
+			nsList = append(nsList, ns)
+		}
+		for i := range allFiles {
+			existing := make(map[string]bool, len(allFiles[i].Imports))
+			for _, imp := range allFiles[i].Imports {
+				existing[imp] = true
+			}
+			for _, ns := range nsList {
+				if ns != allFiles[i].Namespace && !existing[ns] {
+					allFiles[i].Imports = append(allFiles[i].Imports, ns)
+				}
+			}
+		}
+	}
+
+	return p.CompileAll(allFiles)
+}
+
+// LoadTarget resolves dependencies and loads sources for a specific build target.
+func (p *Pipeline) LoadTarget(m *manifest.Manifest, target *manifest.ResolvedTarget) (int, error) {
+	var allFiles []ParsedFile
+
+	// Determine which dependencies to resolve
+	var depsToResolve map[string]manifest.Dependency
+	if p.DevMode {
+		var err error
+		depsToResolve, err = m.AllDependencies()
+		if err != nil {
+			return 0, err
+		}
+	} else {
+		depsToResolve = m.Dependencies
+	}
+
+	// Collect files from dependencies (same as LoadProject)
+	if len(depsToResolve) > 0 {
+		resolver := manifest.NewResolver(m, p.Verbose != nil, depsToResolve)
+		deps, err := resolver.Resolve()
+		if err != nil {
+			return 0, fmt.Errorf("dependency resolution failed: %w", err)
+		}
+
+		if err := CheckNamespaceCollisions(deps); err != nil {
+			return 0, err
+		}
+
+		for _, dep := range deps {
+			var depFiles []ParsedFile
+			if dep.Manifest != nil {
+				for _, srcDir := range dep.Manifest.SourceDirPaths() {
+					if _, err := os.Stat(srcDir); err != nil {
+						continue
+					}
+					files, err := CollectFiles(srcDir + "/...")
+					if err != nil {
+						return 0, fmt.Errorf("collecting dependency %s: %w", dep.Name, err)
+					}
+					depFiles = append(depFiles, files...)
+				}
+			} else {
+				depPath := dep.LocalPath + "/..."
+				files, err := CollectFiles(depPath)
+				if err != nil {
+					return 0, fmt.Errorf("collecting dependency %s: %w", dep.Name, err)
+				}
+				depFiles = append(depFiles, files...)
+			}
+
+			PrefixDepNamespaces(depFiles, dep, p.Verbose)
+			allFiles = append(allFiles, depFiles...)
+		}
+	}
+
+	// Collect files from target source directories
+	for _, dir := range target.Dirs {
+		srcDir := filepath.Join(m.Dir, dir)
+		if _, err := os.Stat(srcDir); err != nil {
+			p.logf("  Skipping missing source dir: %s\n", srcDir)
+			continue
+		}
+		files, err := CollectFiles(srcDir+"/...", target.Exclude)
 		if err != nil {
 			return 0, fmt.Errorf("collecting source %s: %w", srcDir, err)
 		}

@@ -242,11 +242,19 @@ mag build -o myapp
 
 # Full-system binary (complete mag CLI with project baked in)
 mag build --full -o myapp
+
+# Build a specific target
+mag build -t server
+
+# Build all targets
+mag build --all
 ```
 
 With `--full`, the binary is a complete `mag` CLI with the project's image embedded. When invoked with no arguments, it runs the project's entry point; all `mag` subcommands (REPL, `fmt`, `doctest`, `help`, LSP, etc.) still work. Without `--full`, the binary only runs the entry point.
 
-**Implementation:** `cmd/mag/build.go` dispatches to `gowrap.BuildFullSystem()` (copies `cmd/mag/*.go` + generates `project_config.go` with entry point and wrapper registrars) or `gowrap.BuildEmbedded()` (generates minimal `main.go`). The `projectEntryPoint`, `projectNamespace`, and `projectWrapperRegistrars` package-level vars in `main.go` are set by the generated `project_config.go` via `init()`.
+When `[[target]]` sections are defined in `maggie.toml`, `-t <name>` selects a specific target and `--all` builds all of them. CLI flags (`-o`, `--full`) override the target's configuration.
+
+**Implementation:** `cmd/mag/build.go` resolves targets via `manifest.ResolveTarget()` / `ResolveAllTargets()`, then dispatches to `gowrap.BuildFullSystem()` or `gowrap.BuildEmbedded()` per target. The `projectEntryPoint`, `projectNamespace`, and `projectWrapperRegistrars` package-level vars in `main.go` are set by the generated `project_config.go` via `init()`.
 
 ---
 
@@ -306,25 +314,126 @@ A `maggie.toml` file in the project root configures the project:
 name = "my-app"
 namespace = "MyApp"
 version = "0.1.0"
+description = "A web app with admin tools"
+license = "MIT"
+authors = ["Alice <alice@example.com>"]
+repository = "https://github.com/example/my-app"
+maggie = ">=0.10.0"          # minimum Maggie version required
 
 [source]
 dirs = ["src"]               # source directories to compile
 entry = "Main.start"         # entry point (resolved relative to project namespace)
+exclude = ["*_scratch.mag"]  # glob patterns to exclude from compilation
 
 [dependencies]
 yutani = { git = "https://github.com/chazu/yutani-mag", tag = "v0.5.0" }
 local-lib = { path = "../shared-lib" }
+bleeding = { git = "https://github.com/example/lib", branch = "main" }
+pinned = { git = "https://github.com/example/exact", commit = "abc123" }
+
+[dev-dependencies]
+test-helpers = { path = "../test-helpers" }
 
 [image]
 output = "my-app.image"
 include-source = true         # preserve method source in image for fileOut
+
+[test]
+dirs = ["test"]               # test source directories
+entry = "TestRunner.run"      # test entry point
+timeout = 30000               # timeout in milliseconds (0 = no timeout)
+
+[scripts]
+prebuild = "mag fmt --check"
+postbuild = "echo done"
+pretest = "echo running tests"
+posttest = "echo tests done"
 ```
+
+**Project metadata:** `description`, `license`, `authors`, and `repository` are informational. The `maggie` field is a version constraint — if the running `mag` version is too old, loading fails with a clear error. Supported constraint forms: `>=X.Y.Z`, `<X.Y.Z`, `>=X.Y.Z <A.B.C`, `~X.Y.Z` (pessimistic).
+
+**Source exclude:** Glob patterns matched against filenames and relative paths. Uses `filepath.Match` syntax (single-level globs).
+
+**Dev-dependencies:** Same format as `[dependencies]` but only loaded for `mag test`, `mag -i` (REPL), and other development commands. Excluded from `mag build` production binaries.
+
+**Dependency refs:** Each git dependency uses exactly one of `tag`, `branch`, or `commit` (mutually exclusive). The lock file pins exact commit hashes regardless.
 
 When `mag` is invoked without explicit paths and a `maggie.toml` exists, the project is loaded automatically:
 
 ```bash
 mag -m Main.start       # Detects maggie.toml, resolves deps, loads src/, runs Main.start
+mag run                 # Run the default entry point
+mag run -t server       # Run a named target
 mag --save-image app.image  # Same, but also saves image
+```
+
+### Multi-Target Builds
+
+Projects can declare multiple build targets using `[[target]]` array tables:
+
+```toml
+[source]
+dirs = ["src"]
+entry = "Main.start"    # default entry (used when no targets declared)
+
+[[target]]
+name = "server"
+entry = "MyApp::Server.start"
+output = "my-server"
+full = true              # full mag CLI with project baked in
+
+  [[target.go-wrap]]     # per-target Go package wrapping
+  import = "net/http"
+  include = ["ListenAndServe"]
+
+  [target.image]
+  output = "server.image"
+  include-source = false
+
+[[target]]
+name = "cli"
+entry = "MyApp::CLI.main"
+output = "my-cli"
+extra-dirs = ["tools"]   # additional source dirs
+exclude-dirs = ["admin"] # dirs to remove from base source.dirs
+exclude = ["*_debug.mag"] # additional file exclude patterns
+```
+
+**Source composition per target:** `project.source.dirs + target.extra-dirs - target.exclude-dirs`, filtered by `source.exclude + target.exclude`.
+
+**Go-wrap composition:** Top-level `go-wrap.packages` + `target.go-wrap.packages` (additive).
+
+**CLI:**
+
+```bash
+mag build               # build the default (first) target
+mag build -t server     # build a specific target
+mag build --all         # build all targets
+mag build -t cli -o /usr/local/bin/mycli  # -o overrides target output
+```
+
+If no `[[target]]` sections exist, the project behaves as before (single target from top-level config). Backward compatible.
+
+### Test Configuration
+
+```bash
+mag test                    # run tests from [test] config
+mag test --timeout 5000     # override timeout
+mag test --entry CustomRunner.run  # override entry point
+```
+
+Test dirs are compiled in addition to source dirs. Dev-dependencies are loaded automatically. The test entry point should return a small integer exit code (0 = pass).
+
+### Script Hooks
+
+Lifecycle hooks run shell commands at build/test boundaries. Empty strings are no-ops.
+
+```toml
+[scripts]
+prebuild = "mag fmt --check"  # before compilation
+postbuild = "echo done"       # after binary is written
+pretest = "mag build"         # before test execution
+posttest = "echo done"        # after tests complete
 ```
 
 ### Dependency Management
@@ -338,8 +447,13 @@ mag deps list     # Show dependency tree
 ```
 
 **Dependency types:**
-- `git` — cloned to `.maggie/deps/<name>/`, checked out to the specified tag
+- `git` — cloned to `.maggie/deps/<name>/`, checked out to the specified tag, branch, or commit
 - `path` — local filesystem path (relative to project root)
+
+**Ref specifiers** (mutually exclusive — pick one per dependency):
+- `tag = "v1.0.0"` — exact tag
+- `branch = "main"` — track a branch (lock file pins the commit)
+- `commit = "abc123"` — exact commit hash
 
 **Dependency storage layout:**
 

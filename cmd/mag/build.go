@@ -14,41 +14,36 @@ import (
 )
 
 // handleBuildCommand processes the `mag build` subcommand.
-// Usage:
-//
-//	mag build              # ./mag-custom (entry-point-only binary)
-//	mag build --full       # ./mag-custom (full mag CLI with project baked in)
-//	mag build -o myapp     # custom output
-//
-// The project must have [source] dirs. Sources are compiled into an image that
-// is embedded in the output binary.
-//
-// Without --full, the binary loads the image on startup and runs the entry point.
-// With --full, the binary is a complete mag CLI (REPL, fmt, doctest, help, etc.)
-// with the project's code baked into the embedded image. When invoked with no
-// arguments, it runs the project's entry point; all mag subcommands still work.
 func handleBuildCommand(args []string, verbose bool) {
 	if wantsHelp(args) {
-		subcmdUsage("build [--full] [-o output]",
+		subcmdUsage("build [--full] [-o output] [-t target] [--all]",
 			"Compile a Maggie project into a standalone binary.",
 			usageFlags([][2]string{
 				{"--full", "Build a full mag system (REPL, fmt, doctest, etc.) with project baked in"},
-				{"-o, --output <path>", "Output binary path (default: mag-custom)"},
+				{"-o, --output <path>", "Output binary path (overrides target output)"},
+				{"-t, --target <name>", "Build a specific target from [[target]] in maggie.toml"},
+				{"--all", "Build all targets"},
 			}),
 			usageExamples([][2]string{
 				{"mag build", "Build entry-point-only binary"},
 				{"mag build --full", "Build full mag system with project code"},
 				{"mag build --full -o myapp", "Full system with custom output name"},
+				{"mag build -t server", "Build the 'server' target"},
+				{"mag build --all", "Build all declared targets"},
 			}),
 			"\nWithout --full, the binary only runs the entry point.\n"+
 				"With --full, the binary is a complete mag CLI with your project's classes\n"+
 				"pre-loaded. Running it with no arguments executes your entry point;\n"+
-				"all mag subcommands (fmt, doctest, help, -i, etc.) still work.\n",
+				"all mag subcommands (fmt, doctest, help, -i, etc.) still work.\n"+
+				"\nWith [[target]] sections in maggie.toml, use -t to build a specific target\n"+
+				"or --all to build all targets. Without targets, builds from top-level config.\n",
 		)
 	}
 
 	var outputBinary string
-	fullSystem := false
+	var targetName string
+	var buildAll bool
+	fullOverride := -1 // -1 = not set, 0 = false, 1 = true
 
 	// Parse flags
 	for i := 0; i < len(args); i++ {
@@ -62,12 +57,18 @@ func handleBuildCommand(args []string, verbose bool) {
 				os.Exit(1)
 			}
 		case "--full":
-			fullSystem = true
+			fullOverride = 1
+		case "-t", "--target":
+			if i+1 < len(args) {
+				targetName = args[i+1]
+				i++
+			} else {
+				fmt.Fprintln(os.Stderr, "Error: -t requires a target name")
+				os.Exit(1)
+			}
+		case "--all":
+			buildAll = true
 		}
-	}
-
-	if outputBinary == "" {
-		outputBinary = "mag-custom"
 	}
 
 	// Load manifest
@@ -88,13 +89,69 @@ func handleBuildCommand(args []string, verbose bool) {
 		os.Exit(1)
 	}
 
-	hasGoWrap := len(m.GoWrap.Packages) > 0
-
-	// Compile sources into an image
-	imagePath, err := compileProjectImage(m, verbose)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error compiling image: %v\n", err)
+	// Run prebuild script
+	if err := manifest.RunScript("prebuild", m.Scripts.Prebuild, m.Dir, verbose); err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
+	}
+
+	// Resolve targets
+	var targets []manifest.ResolvedTarget
+	if buildAll {
+		targets, err = m.ResolveAllTargets()
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			os.Exit(1)
+		}
+	} else if targetName != "" {
+		t, err := m.ResolveTarget(targetName)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			os.Exit(1)
+		}
+		targets = []manifest.ResolvedTarget{*t}
+	} else {
+		targets = []manifest.ResolvedTarget{*m.ResolveDefaultTarget()}
+	}
+
+	// Apply CLI overrides
+	for i := range targets {
+		if outputBinary != "" {
+			targets[i].Output = outputBinary
+		}
+		if fullOverride >= 0 {
+			targets[i].Full = fullOverride == 1
+		}
+		if targets[i].Output == "" {
+			targets[i].Output = "mag-custom"
+		}
+	}
+
+	// Build each target
+	for _, target := range targets {
+		if err := buildTarget(m, &target, verbose); err != nil {
+			fmt.Fprintf(os.Stderr, "Error building target %q: %v\n", target.Name, err)
+			os.Exit(1)
+		}
+		if target.Full {
+			fmt.Printf("Built %s (full system)\n", target.Output)
+		} else {
+			fmt.Printf("Built %s\n", target.Output)
+		}
+	}
+
+	// Run postbuild script
+	if err := manifest.RunScript("postbuild", m.Scripts.Postbuild, m.Dir, verbose); err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: %v\n", err)
+	}
+}
+
+// buildTarget compiles and links a single build target.
+func buildTarget(m *manifest.Manifest, target *manifest.ResolvedTarget, verbose bool) error {
+	// Compile sources into an image
+	imagePath, err := compileTargetImage(m, target, verbose)
+	if err != nil {
+		return fmt.Errorf("compiling image: %w", err)
 	}
 	defer os.Remove(imagePath)
 
@@ -102,22 +159,24 @@ func handleBuildCommand(args []string, verbose bool) {
 	var wrapperPkgs []gowrap.WrapperPackageInfo
 	var wrapDir string
 
-	if hasGoWrap {
+	if len(target.GoWrap.Packages) > 0 {
 		wrapDir = m.WrapOutputDir()
-		if verbose {
-			fmt.Fprintf(os.Stderr, "go-wrap: %d packages, wrapDir=%s\n", len(m.GoWrap.Packages), wrapDir)
+		if target.GoWrap.Output != "" {
+			wrapDir = filepath.Join(m.Dir, target.GoWrap.Output)
 		}
-		for _, pkg := range m.GoWrap.Packages {
-			target := wrapTarget{
+		if verbose {
+			fmt.Fprintf(os.Stderr, "go-wrap: %d packages, wrapDir=%s\n", len(target.GoWrap.Packages), wrapDir)
+		}
+		for _, pkg := range target.GoWrap.Packages {
+			wt := wrapTarget{
 				ImportPath: pkg.Import,
 				Include:    pkg.Include,
 			}
-			if err := wrapPackage(target, wrapDir, verbose); err != nil {
-				fmt.Fprintf(os.Stderr, "Error wrapping %s: %v\n", pkg.Import, err)
-				os.Exit(1)
+			if err := wrapPackage(wt, wrapDir, verbose); err != nil {
+				return fmt.Errorf("wrapping %s: %w", pkg.Import, err)
 			}
 		}
-		for _, pkg := range m.GoWrap.Packages {
+		for _, pkg := range target.GoWrap.Packages {
 			model, err := gowrap.IntrospectPackage(pkg.Import, nil)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "Warning: could not introspect %s: %v (skipping wrapper registration)\n", pkg.Import, err)
@@ -135,11 +194,11 @@ func handleBuildCommand(args []string, verbose bool) {
 
 	maggieDir := detectMaggieDir()
 
-	if fullSystem {
+	if target.Full {
 		opts := gowrap.FullSystemBuildOptions{
-			OutputBinary: outputBinary,
+			OutputBinary: target.Output,
 			ImagePath:    imagePath,
-			EntryPoint:   m.Source.Entry,
+			EntryPoint:   target.Entry,
 			Namespace:    m.Project.Namespace,
 			WrapDir:      wrapDir,
 			WrapperPkgs:  wrapperPkgs,
@@ -147,42 +206,28 @@ func handleBuildCommand(args []string, verbose bool) {
 			MaggieDir:    maggieDir,
 			Verbose:      verbose,
 		}
-		if err := gowrap.BuildFullSystem(opts); err != nil {
-			fmt.Fprintf(os.Stderr, "Error building: %v\n", err)
-			os.Exit(1)
-		}
-	} else {
-		opts := gowrap.EmbeddedBuildOptions{
-			OutputBinary: outputBinary,
-			ImagePath:    imagePath,
-			EntryPoint:   m.Source.Entry,
-			Namespace:    m.Project.Namespace,
-			WrapDir:      wrapDir,
-			WrapperPkgs:  wrapperPkgs,
-			ProjectDir:   m.Dir,
-			MaggieDir:    maggieDir,
-			Verbose:      verbose,
-		}
-		if err := gowrap.BuildEmbedded(opts); err != nil {
-			fmt.Fprintf(os.Stderr, "Error building: %v\n", err)
-			os.Exit(1)
-		}
+		return gowrap.BuildFullSystem(opts)
 	}
 
-	if fullSystem {
-		fmt.Printf("Built %s (full system)\n", outputBinary)
-	} else {
-		fmt.Printf("Built %s\n", outputBinary)
+	opts := gowrap.EmbeddedBuildOptions{
+		OutputBinary: target.Output,
+		ImagePath:    imagePath,
+		EntryPoint:   target.Entry,
+		Namespace:    m.Project.Namespace,
+		WrapDir:      wrapDir,
+		WrapperPkgs:  wrapperPkgs,
+		ProjectDir:   m.Dir,
+		MaggieDir:    maggieDir,
+		Verbose:      verbose,
 	}
+	return gowrap.BuildEmbedded(opts)
 }
 
-// compileProjectImage creates a VM, compiles the project sources, and saves
-// the resulting image to a temp file. Returns the path to the temp image file.
-func compileProjectImage(m *manifest.Manifest, verbose bool) (string, error) {
+// compileTargetImage creates a VM, compiles a target's sources, and saves the image.
+func compileTargetImage(m *manifest.Manifest, target *manifest.ResolvedTarget, verbose bool) (string, error) {
 	vmInst := vm.NewVM()
 	defer vmInst.Shutdown()
 
-	// Load the default image first (provides stdlib)
 	if err := vmInst.LoadImageFromBytes(embeddedImage); err != nil {
 		return "", fmt.Errorf("loading base image: %w", err)
 	}
@@ -190,12 +235,15 @@ func compileProjectImage(m *manifest.Manifest, verbose bool) (string, error) {
 	vmInst.ReRegisterBooleanPrimitives()
 	vmInst.UseGoCompiler(compiler.Compile)
 
-	// Compile project sources
-	pipe := &pipeline.Pipeline{VM: vmInst}
+	pipe := &pipeline.Pipeline{
+		VM:      vmInst,
+		Exclude: target.Exclude,
+	}
 	if verbose {
 		pipe.Verbose = os.Stdout
 	}
-	methods, err := pipe.LoadProject(m)
+
+	methods, err := pipe.LoadTarget(m, target)
 	if err != nil {
 		return "", fmt.Errorf("compiling project: %w", err)
 	}
@@ -203,7 +251,6 @@ func compileProjectImage(m *manifest.Manifest, verbose bool) (string, error) {
 		fmt.Printf("Compiled %d methods into image\n", methods)
 	}
 
-	// Save to temp file
 	tmpFile, err := os.CreateTemp("", "mag-build-image-*.image")
 	if err != nil {
 		return "", fmt.Errorf("creating temp image: %w", err)
@@ -226,19 +273,20 @@ func compileProjectImage(m *manifest.Manifest, verbose bool) (string, error) {
 	return tmpPath, nil
 }
 
+// compileProjectImage creates a VM, compiles the project sources, and saves
+// the resulting image to a temp file. Returns the path to the temp image file.
+// Kept for backward compatibility with non-target-aware callers.
+func compileProjectImage(m *manifest.Manifest, verbose bool) (string, error) {
+	target := m.ResolveDefaultTarget()
+	return compileTargetImage(m, target, verbose)
+}
+
 // detectMaggieDir finds the maggie module directory.
-// It uses the runtime to find the maggie package path.
 func detectMaggieDir() string {
-	// The mag binary is built from the maggie module, so we can find it
-	// relative to our own executable or via GOPATH/module cache.
-	// Most reliable: use runtime caller info to find our own source.
 	_, filename, _, ok := runtime.Caller(0)
 	if ok {
-		// filename is something like /path/to/maggie/cmd/mag/build.go
-		// maggie dir is two levels up
 		return filepath.Dir(filepath.Dir(filepath.Dir(filename)))
 	}
-	// Fallback: check MAGGIE_DIR env var
 	if dir := os.Getenv("MAGGIE_DIR"); dir != "" {
 		return dir
 	}

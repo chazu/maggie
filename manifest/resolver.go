@@ -17,16 +17,24 @@ type ResolvedDep struct {
 // Resolver manages dependency resolution.
 type Resolver struct {
 	manifest *Manifest
+	deps     map[string]Dependency // deps to resolve (may include dev-deps)
 	lock     *LockFile
 	verbose  bool
 }
 
 // NewResolver creates a new dependency resolver.
-func NewResolver(m *Manifest, verbose bool) *Resolver {
-	return &Resolver{
+// If deps is provided, it overrides m.Dependencies (used when including dev-deps).
+func NewResolver(m *Manifest, verbose bool, deps ...map[string]Dependency) *Resolver {
+	r := &Resolver{
 		manifest: m,
 		verbose:  verbose,
 	}
+	if len(deps) > 0 && deps[0] != nil {
+		r.deps = deps[0]
+	} else {
+		r.deps = m.Dependencies
+	}
+	return r
 }
 
 // Resolve resolves all dependencies and returns them in load order
@@ -47,7 +55,7 @@ func (r *Resolver) Resolve() ([]ResolvedDep, error) {
 
 	// Resolve each direct dependency
 	resolved := make(map[string]*ResolvedDep)
-	order, err := r.resolveAll(r.manifest.Dependencies, resolved)
+	order, err := r.resolveAll(r.deps, resolved)
 	if err != nil {
 		return nil, err
 	}
@@ -167,8 +175,17 @@ func (r *Resolver) resolveOne(name string, dep Dependency) (*ResolvedDep, error)
 		} else {
 			// Check if we need to update
 			locked := r.lock.FindLockedDep(name)
-			if locked != nil && locked.Tag == dep.Tag {
-				// Already at correct version, skip fetch
+			if locked != nil && locked.Tag == dep.Tag && locked.Branch == dep.Branch {
+				if dep.Commit == "" || locked.Commit == dep.Commit {
+					// Already at correct version, skip fetch
+				} else {
+					if r.verbose {
+						fmt.Printf("  Fetching %s\n", name)
+					}
+					if err := gitFetch(depDir); err != nil {
+						return nil, err
+					}
+				}
 			} else {
 				if r.verbose {
 					fmt.Printf("  Fetching %s\n", name)
@@ -179,9 +196,16 @@ func (r *Resolver) resolveOne(name string, dep Dependency) (*ResolvedDep, error)
 			}
 		}
 
-		// Checkout the requested ref
-		if dep.Tag != "" {
-			if err := gitCheckout(depDir, dep.Tag); err != nil {
+		// Checkout the requested ref (tag, branch, or commit)
+		ref := dep.Tag
+		if ref == "" {
+			ref = dep.Branch
+		}
+		if ref == "" {
+			ref = dep.Commit
+		}
+		if ref != "" {
+			if err := gitCheckout(depDir, ref); err != nil {
 				return nil, err
 			}
 		}
@@ -214,10 +238,14 @@ func (r *Resolver) writeLock(resolved map[string]*ResolvedDep) error {
 			Name: rd.Name,
 		}
 
-		dep := r.manifest.Dependencies[rd.Name]
+		dep, ok := r.deps[rd.Name]
+		if !ok {
+			dep = r.manifest.Dependencies[rd.Name]
+		}
 		if dep.Git != "" {
 			ld.Git = dep.Git
 			ld.Tag = dep.Tag
+			ld.Branch = dep.Branch
 			// Get current commit
 			if commit, err := gitCurrentCommit(rd.LocalPath); err == nil {
 				ld.Commit = commit

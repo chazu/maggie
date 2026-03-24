@@ -598,6 +598,16 @@ Guide14Tooling subclass: Object
   ./myapp --lsp             # LSP server with your classes
   ```
 
+  **Multi-target builds**: When `[[target]]` sections are defined
+  in `maggie.toml`, use `-t` to build a specific target or `--all`
+  to build all of them:
+
+  ```example
+  mag build -t server          # build the 'server' target
+  mag build --all              # build all targets
+  mag build -t cli -o /usr/local/bin/mycli
+  ```
+
   Full-system builds are useful for distributing a self-contained
   Maggie environment. The recipient gets a single binary that can
   run your application, explore it interactively, and use all the
@@ -619,12 +629,14 @@ Guide14Tooling subclass: Object
   2. **Format** with `mag fmt` (or `mag fmt --check` in CI)
   3. **Add docstrings** with `test` and `example` blocks
   4. **Run doctests** with `mag doctest` to verify examples
-  5. **Browse docs** with `mag doc --serve`
-  6. **Debug interactively** in the REPL with `mag -i`
-  7. **Use your editor** with LSP support via `mag --lsp`
-  8. **Save images** with `--save-image` for fast deployment
-  9. **Build binaries** with `mag build` or `mag build --full`
-  10. **Inspect graphically** with `mag --yutani` when needed
+  5. **Run tests** with `mag test` (uses `[test]` config from manifest)
+  6. **Browse docs** with `mag doc --serve`
+  7. **Debug interactively** in the REPL with `mag -i`
+  8. **Use your editor** with LSP support via `mag --lsp`
+  9. **Run your app** with `mag run` or `mag run -t <target>`
+  10. **Save images** with `--save-image` for fast deployment
+  11. **Build binaries** with `mag build`, `mag build -t <target>`, or `mag build --all`
+  12. **Inspect graphically** with `mag --yutani` when needed
 
   All of these tools work together. Docstrings drive both the
   documentation site and the test suite. The REPL shares its
