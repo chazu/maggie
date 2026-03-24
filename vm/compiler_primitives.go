@@ -411,6 +411,72 @@ func (vm *VM) registerCompilerPrimitives() {
 	})
 
 	// ---------------------------------------------------------------------------
+	// Stack introspection
+	// ---------------------------------------------------------------------------
+
+	// captureCallStack - returns current call stack as array of dictionaries.
+	// Each dict has: 'id', 'class', 'method', 'line', 'column', 'isBlock'.
+	// Works without Debugger being active.
+	compilerClass.AddClassMethod0(vm.Selectors, "captureCallStack", func(vmPtr interface{}, recv Value) Value {
+		v := vmPtr.(*VM)
+		interp := v.currentInterpreter()
+		if interp == nil || interp.fp < 0 {
+			return v.NewArrayWithElements(nil)
+		}
+		var frames []Value
+		for j := interp.fp; j >= 0; j-- {
+			frame := interp.frames[j]
+			if frame == nil {
+				continue
+			}
+			dict := v.NewDictionary()
+			v.DictionaryAtPut(dict, v.registry.NewStringValue("id"), FromSmallInt(int64(j)))
+
+			className := ""
+			methodName := ""
+			line := 0
+			column := 0
+			isBlock := false
+
+			if frame.Block != nil {
+				isBlock = true
+				methodName = "<block>"
+				loc := frame.Block.SourceLocation(frame.IP)
+				if loc != nil {
+					line = loc.Line
+					column = loc.Column
+				}
+				if frame.HomeMethod != nil && frame.HomeMethod.Class() != nil {
+					className = frame.HomeMethod.Class().Name
+				}
+			} else if frame.Method != nil {
+				methodName = frame.Method.Name()
+				if frame.Method.Class() != nil {
+					className = frame.Method.Class().Name
+				}
+				loc := frame.Method.SourceLocation(frame.IP)
+				if loc != nil {
+					line = loc.Line
+					column = loc.Column
+				}
+			}
+
+			v.DictionaryAtPut(dict, v.registry.NewStringValue("class"), v.registry.NewStringValue(className))
+			v.DictionaryAtPut(dict, v.registry.NewStringValue("method"), v.registry.NewStringValue(methodName))
+			v.DictionaryAtPut(dict, v.registry.NewStringValue("line"), FromSmallInt(int64(line)))
+			v.DictionaryAtPut(dict, v.registry.NewStringValue("column"), FromSmallInt(int64(column)))
+			if isBlock {
+				v.DictionaryAtPut(dict, v.registry.NewStringValue("isBlock"), True)
+			} else {
+				v.DictionaryAtPut(dict, v.registry.NewStringValue("isBlock"), False)
+			}
+
+			frames = append(frames, dict)
+		}
+		return v.NewArrayWithElements(frames)
+	})
+
+	// ---------------------------------------------------------------------------
 	// Surgical source file updates
 	// ---------------------------------------------------------------------------
 
