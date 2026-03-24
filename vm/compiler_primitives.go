@@ -411,6 +411,49 @@ func (vm *VM) registerCompilerPrimitives() {
 	})
 
 	// ---------------------------------------------------------------------------
+	// Surgical source file updates
+	// ---------------------------------------------------------------------------
+
+	// updateMethodInFile:selector:source: - Replace a single method in a .mag file
+	// Finds the method by selector and replaces it with new source, preserving
+	// the rest of the file (imports, comments, other methods, ordering).
+	// Returns the file path on success, or a Failure.
+	compilerClass.AddClassMethod3(vm.Selectors, "updateMethodInFile:selector:source:",
+		func(vmPtr interface{}, recv Value, fileVal, selectorVal, sourceVal Value) Value {
+			v := vmPtr.(*VM)
+			var filePath, selector, source string
+
+			if IsStringValue(fileVal) {
+				filePath = v.registry.GetStringContent(fileVal)
+			} else {
+				return v.newFailureResult("updateMethodInFile:selector:source: file path must be a String")
+			}
+			if IsStringValue(selectorVal) {
+				selector = v.registry.GetStringContent(selectorVal)
+			} else if selectorVal.IsSymbol() {
+				selector = v.Symbols.Name(selectorVal.SymbolID())
+			} else {
+				return v.newFailureResult("updateMethodInFile:selector:source: selector must be a String or Symbol")
+			}
+			if IsStringValue(sourceVal) {
+				source = v.registry.GetStringContent(sourceVal)
+			} else {
+				return v.newFailureResult("updateMethodInFile:selector:source: source must be a String")
+			}
+
+			// Try instance method first, then class method
+			err := UpdateMethodInFile(filePath, selector, source, false)
+			if err != nil {
+				err = UpdateMethodInFile(filePath, selector, source, true)
+			}
+			if err != nil {
+				return v.newFailureResult("updateMethodInFile: " + err.Error())
+			}
+
+			return v.registry.NewStringValue(filePath)
+		})
+
+	// ---------------------------------------------------------------------------
 	// Profiling primitives
 	// ---------------------------------------------------------------------------
 

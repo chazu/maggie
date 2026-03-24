@@ -9,15 +9,40 @@ import "strings"
 // stripMethodPrefix removes "method:" or "classMethod:" prefix and surrounding brackets
 // from source that was stored by methodSourceFor:, converting it back to old-style format
 // that Compile()+convertToNewStyleFormat can handle.
+// Handles leading docstrings: """...""" or "..." before the method: keyword.
 func stripMethodPrefix(source string) string {
 	trimmed := strings.TrimSpace(source)
+
+	// Skip leading docstrings (triple-quoted """ or single "...")
+	work := trimmed
+	for {
+		work = strings.TrimSpace(work)
+		if strings.HasPrefix(work, `"""`) {
+			// Triple-quoted docstring
+			end := strings.Index(work[3:], `"""`)
+			if end >= 0 {
+				work = work[3+end+3:]
+				continue
+			}
+		}
+		if strings.HasPrefix(work, `"`) && !strings.HasPrefix(work, `""`) {
+			// Single-line comment/docstring
+			end := strings.Index(work[1:], `"`)
+			if end >= 0 {
+				work = work[1+end+1:]
+				continue
+			}
+		}
+		break
+	}
+
+	work = strings.TrimSpace(work)
 	for _, prefix := range []string{"classMethod:", "method:"} {
-		if strings.HasPrefix(trimmed, prefix) {
-			body := strings.TrimPrefix(trimmed, prefix)
+		if strings.HasPrefix(work, prefix) {
+			body := strings.TrimPrefix(work, prefix)
 			body = strings.TrimSpace(body)
 			// Remove surrounding [ ] if present
 			if strings.HasSuffix(body, "]") {
-				// Find the first [ and extract selector + body
 				idx := strings.Index(body, "[")
 				if idx > 0 {
 					selector := strings.TrimSpace(body[:idx])
