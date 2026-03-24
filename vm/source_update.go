@@ -32,12 +32,19 @@ func UpdateMethodInFile(filePath string, selector string, newSource string, isCl
 		return fmt.Errorf("method %s %s not found in %s", prefix, selector, filePath)
 	}
 
-	// Ensure newSource has proper indentation (2 spaces for method body)
+	// Format replacement: each line gets 2-space indent to match .mag convention
 	newSource = strings.TrimSpace(newSource)
-	// Add leading newline and trailing newline for clean formatting
-	replacement := "\n  " + indentMethod(newSource) + "\n"
+	lines := strings.Split(newSource, "\n")
+	var sb strings.Builder
+	sb.WriteString("\n")
+	for _, line := range lines {
+		sb.WriteString("  ")
+		sb.WriteString(line)
+		sb.WriteString("\n")
+	}
 
 	// Replace the method range
+	replacement := sb.String()
 	result := content[:start] + replacement + content[end:]
 
 	err = os.WriteFile(filePath, []byte(result), 0644)
