@@ -58,6 +58,12 @@ func (vm *VM) getStringLike(v Value) string {
 func (vm *VM) registerStringPrimitivesExtended() {
 	c := vm.StringClass
 
+	// lf - return a string containing a single newline character
+	c.AddClassMethod(vm.Selectors, "lf", &Method0{name: "lf", fn: func(vmPtr interface{}, recv Value) Value {
+		v := vmPtr.(*VM)
+		return v.registry.NewStringValue("\n")
+	}})
+
 	// primSize - return the length of the string
 	c.AddMethod0(vm.Selectors, "primSize", func(vmPtr interface{}, recv Value) Value {
 		v := vmPtr.(*VM)
