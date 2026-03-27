@@ -1241,8 +1241,7 @@ func (i *Interpreter) runFrame() Value {
 				block = frame.Method.GetBlock(int(methodIdx))
 			}
 
-			// Pop captures from stack
-			// popN returns values in the same order they were pushed
+			// Captures are retained by BlockValue, so a copy is required.
 			captures := i.popN(nCaptures)
 
 			if block != nil {
@@ -1271,9 +1270,11 @@ func (i *Interpreter) runFrame() Value {
 		case OpCreateArray:
 			size := int(bc[frame.IP])
 			frame.IP++
-			elements := i.popN(size)
-			// Create array with the elements
+			// peekN returns a zero-allocation view into the stack.
+			// NewObjectWithSlots copies elements individually, so no aliasing risk.
+			elements := i.peekN(size)
 			arr := i.vm.NewArrayWithElements(elements)
+			i.dropN(size)
 			i.push(arr)
 
 		case OpCreateObject:
@@ -1949,7 +1950,10 @@ func (i *Interpreter) sendBinaryFallback(rcvr, arg Value, selectorID int) (resul
 	if method == nil {
 		return Nil
 	}
-	args := []Value{arg}
+	// Stack-local buffer avoids heap allocation for the single-arg slice.
+	// pushFrame iterates args individually, so this is safe.
+	argBuf := [1]Value{arg}
+	args := argBuf[:]
 	if cm, ok := method.(*CompiledMethod); ok {
 		i.pushFrame(cm, rcvr, args)
 		homeFrame := i.fp

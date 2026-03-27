@@ -1,5 +1,59 @@
 # Changelog
 
+## 2026-03-26 — VM Performance: Remaining Allocation Hot Paths
+
+Full audit of the 2026-03-03 VM improvement plan. Every P1 correctness
+and P2 performance item is now resolved. Remaining: P3 (architecture
+refactors needing design input) and P4 TODOs 14/15 (metaclass hierarchy,
+exception resume/retry).
+
+### P1 Correctness — All Done (pre-existing)
+
+- **TODO 1 (sendBinaryFallback NLR):** Uses the `unwinding` flag, same as
+  `send()` and `Execute()`. No defer/recover in the NLR path.
+
+- **TODO 2 (channel TOCTOU):** `safeSend()` holds the mutex for the
+  close-check + non-blocking send, falls back to `safeSendBlocking()` with
+  `defer/recover` for the blocking case. Race-free.
+
+- **TODO 3 (integer overflow):** `TryFromSmallInt` + BigInt promotion is wired
+  into `primitivePlus`, `primitiveMinus`, `primitiveTimes`. Full BigInt
+  implementation in `vm/bigint.go` with `bigint_primitives.go`.
+
+- **TODO 4 (Globals sync):** `globalsMu sync.RWMutex` on the VM struct,
+  used in all interpreter read/write paths and image writer.
+
+### P2 Performance — Already Done (pre-existing)
+
+- **TODO 5 (defer/recover elimination):** `send()`, `sendBinaryFallback()`,
+  `Execute()` all use the `unwinding` flag mechanism.
+
+- **TODO 6 (popN → peekN in send):** `send()` already uses `peekN`/`dropN`
+  with a stack-local `argBuf[16]` for primitives.
+
+- **TODO 7 (VTable flattening):** `flat`/`dirty` lazy rebuild — `Lookup()` is
+  O(1) after first access, with automatic invalidation on
+  `AddMethod`/`SetParent`/`RemoveMethod`.
+
+### New Optimizations
+
+- **OpCreateArray: `popN` → `peekN`/`dropN`** — Array literal creation
+  (`#(1 2 3)`) no longer allocates a temporary `[]Value` slice.
+  `NewObjectWithSlots` copies elements individually from the stack view.
+
+- **sendBinaryFallback: `[]Value{arg}` → `argBuf[1]`** — When optimized binary
+  opcodes (OpSendPlus, OpSendLT, etc.) fall through to a compiled Maggie method,
+  the single-argument slice is now stack-allocated via `[1]Value` array.
+  Eliminates 1 heap allocation (8 bytes) per fallback dispatch.
+
+### Investigated and Rejected
+
+- **String registry `sync.Map`:** Replacing `TypedRegistry` (RWMutex) with
+  `sync.Map` for lock-free reads. Rejected because `sync.Map` boxes `uint32`
+  keys as `interface{}`, adding 2 allocations per operation and ~60% regression
+  on StringConcat. The RWMutex approach is faster for single-threaded hot paths
+  where there's no lock contention.
+
 ## 2026-03-15 — CUE Integration & Tuplespace
 
 A single session that took Maggie from "CUE as a library" to a full

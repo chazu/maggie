@@ -2,31 +2,32 @@
 
 **Date:** 2026-03-03
 **Source:** Language architect review (`docs/plans/2026-03-03-language-architect-review.md`)
+**Status audit:** 2026-03-26 — P1 (all done), P2 (all done), P4 TODOs 13/16 (done). Remaining: P3 (design needed), P4 TODOs 14/15 (design needed).
 
 ---
 
 ## Priority 1 — Correctness
 
-### TODO 1: Fix `sendBinaryFallback` missing NLR protection
+### ~~TODO 1: Fix `sendBinaryFallback` missing NLR protection~~ DONE
 - **File:** `vm/interpreter.go:1678-1693`
 - **Problem:** When optimized binary ops (`OpSendPlus`, `OpSendLT`, etc.) fall through to a compiled Maggie method via `sendBinaryFallback`, no `defer/recover` is installed for `NonLocalReturn`. If the target method contains a block with `^`, the NLR panic escapes and crashes the VM.
 - **Fix:** Add the same `defer/recover` block used in `send()` to `sendBinaryFallback` when dispatching to a compiled method. The pattern is already duplicated in `Execute()`, `send()`, and `sendSuper()` — add it here as well.
 - **Test:** Write a test where an optimized binary op (e.g., `+`) is overridden in a class with a method that contains a block performing `^value`. Verify the VM does not crash.
 
-### TODO 2: Fix TOCTOU race in channel `primSend:`
+### ~~TODO 2: Fix TOCTOU race in channel `primSend:`~~ DONE
 - **File:** `vm/concurrency.go:140-150`
 - **Problem:** `primSend:` checks `ch.closed.Load()` before sending, but the channel can close between the check and `ch.ch <- val`, causing a Go panic (send on closed channel).
 - **Fix:** Wrap the send in a `recover()`, or hold the channel's mutex during the close-check + send sequence. The recover approach is simpler: catch the panic from sending on a closed channel and return an error value to Maggie.
 - **Test:** Write a concurrent test that rapidly closes a channel while another goroutine sends to it. Verify no panic.
 
-### TODO 3: Fix integer overflow in arithmetic primitives
+### ~~TODO 3: Fix integer overflow in arithmetic primitives~~ DONE
 - **File:** `vm/interpreter.go:1695-1697`
 - **Problem:** `primitivePlus`, `primitiveMinus`, `primitiveTimes` do not check for overflow of 48-bit SmallInts. `FromSmallInt` silently truncates results that exceed `MaxSmallInt`.
 - **Fix (short-term):** After arithmetic, check if the result exceeds `MaxSmallInt` or is below `MinSmallInt`. If so, promote to Float64 (since BigInteger doesn't exist yet). This is lossy but better than silent truncation.
 - **Fix (long-term):** Implement BigInteger (see TODO 13) and promote to BigInt on overflow.
 - **Test:** Test `MaxSmallInt + 1`, `MinSmallInt - 1`, and large multiplications.
 
-### TODO 4: Add synchronization to `Globals` map
+### ~~TODO 4: Add synchronization to `Globals` map~~ DONE
 - **Files:** `vm/vm.go:22`, `vm/interpreter.go:193,208`
 - **Problem:** `vm.Globals` is a plain `map[string]Value` written by the main interpreter without synchronization while forked interpreters may read it concurrently. This is a data race.
 - **Fix options:**
@@ -39,7 +40,7 @@
 
 ## Priority 2 — Performance
 
-### TODO 5: Eliminate defer/recover from the `send()` hot path
+### ~~TODO 5: Eliminate defer/recover from the `send()` hot path~~ DONE
 - **Files:** `vm/interpreter.go:458-483, 1162-1183, 1265-1282`
 - **Problem:** Every compiled method invocation installs `defer/recover` for NonLocalReturn handling. Go's `defer` has per-call overhead even when no panic occurs, and `recover()` inhibits Go compiler optimizations (inlining, escape analysis). This is the single most expensive pattern in the interpreter.
 - **Fix:** Replace panic/recover NLR with an explicit return-target mechanism:
@@ -50,7 +51,7 @@
 - **Research needed:** Study how Cog/Spur (Squeak/Pharo VM) handles NLR for implementation guidance. Benchmark before/after to quantify the improvement.
 - **Test:** All existing NLR tests must still pass. Add benchmarks for message send throughput.
 
-### TODO 6: Eliminate `popN()` slice allocation
+### ~~TODO 6: Eliminate `popN()` slice allocation~~ DONE
 - **File:** `vm/interpreter.go:279-287`
 - **Problem:** `popN()` creates a new `[]Value` slice on every call. Called on every `OpSend`/`OpTailSend`, this is a major source of GC pressure.
 - **Fix options:**
@@ -59,14 +60,14 @@
 - **Research needed:** Audit all callers of `popN` to determine if any retain the slice beyond the immediate send. If not, option (a) is safe and zero-allocation.
 - **Test:** Run `BenchmarkHotPath` before/after. Verify no test regressions.
 
-### TODO 7: Flatten VTables for O(1) dispatch
+### ~~TODO 7: Flatten VTables for O(1) dispatch~~ DONE
 - **File:** `vm/vtable.go:14-23`
 - **Problem:** `VTable.Lookup()` walks the parent chain linearly — O(n) in hierarchy depth. Inline caching mitigates for monomorphic sites but polymorphic sites pay full cost.
 - **Fix:** At class creation time, copy all parent methods into the child VTable so every lookup is O(1). When a method is added/changed on a superclass, propagate to subclasses.
 - **Research needed:** Determine the cost of propagation on method redefinition. Audit how many places modify VTables after class creation (e.g., `addMethod`, trait inclusion). Consider a "dirty bit" approach where flattened tables are rebuilt lazily.
 - **Trade-off:** More memory per VTable, more complexity on method changes. Justified if benchmarks show meaningful improvement on polymorphic dispatch.
 
-### TODO 8: Reduce string registry contention
+### ~~TODO 8: Reduce string registry contention~~ INVESTIGATED — no change needed
 - **File:** `vm/object_registry.go` (string registry section)
 - **Problem:** Every string operation goes through a mutex-protected map lookup. String comparison in `primitiveEQ` does two mutex-guarded lookups. Strings are the most common heap-allocated values.
 - **Fix options:**
@@ -119,7 +120,7 @@
 
 ## Priority 4 — Language Completeness
 
-### TODO 13: Implement BigInteger with automatic SmallInt promotion
+### ~~TODO 13: Implement BigInteger with automatic SmallInt promotion~~ DONE
 - **Problem:** 48-bit SmallInts are the only integer representation. Arithmetic silently wraps/truncates on overflow. This is a fundamental gap for a Smalltalk-family language.
 - **Fix:**
   1. Add a `BigInt` class backed by Go's `math/big.Int`.
@@ -148,7 +149,7 @@
   2. `resume:` — return a value from the `signal` call site. Requires saving a continuation (or at least the frame + IP) at the signal point.
   3. `pass` — pop the current handler and re-signal. Requires the handler stack to be traversable.
 
-### TODO 16: Wire up `become:` (identity swapping)
+### ~~TODO 16: Wire up `become:` (identity swapping)~~ DONE
 - **Status: Already implemented** — no work needed.
 - **Implementation:**
   - `Become()` method at `vm/object.go:324-347` — two-way identity swap (swaps vtables, sizes, and all slot contents)
