@@ -164,6 +164,104 @@ func TestExtractWord_LineBeyondDocument(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
+// extractWord with :: namespace separators
+// ---------------------------------------------------------------------------
+
+func TestExtractWord_FQN_CursorOnBare(t *testing.T) {
+	text := "Widgets::Button new"
+	// Cursor on "Button" (col 12)
+	pos := protocol.Position{Line: 0, Character: 12}
+	word := extractWord(text, pos)
+	if word != "Widgets::Button" {
+		t.Errorf("extractWord = %q, want %q", word, "Widgets::Button")
+	}
+}
+
+func TestExtractWord_FQN_CursorOnNamespace(t *testing.T) {
+	text := "Widgets::Button new"
+	// Cursor on "Widgets" (col 3)
+	pos := protocol.Position{Line: 0, Character: 3}
+	word := extractWord(text, pos)
+	if word != "Widgets::Button" {
+		t.Errorf("extractWord = %q, want %q", word, "Widgets::Button")
+	}
+}
+
+func TestExtractWord_FQN_DeepNamespace(t *testing.T) {
+	text := "Yutani::Widgets::Button new"
+	pos := protocol.Position{Line: 0, Character: 20}
+	word := extractWord(text, pos)
+	if word != "Yutani::Widgets::Button" {
+		t.Errorf("extractWord = %q, want %q", word, "Yutani::Widgets::Button")
+	}
+}
+
+func TestExtractWord_SingleColonNotFQN(t *testing.T) {
+	text := "obj at: value"
+	// Cursor on "at" (col 5)
+	pos := protocol.Position{Line: 0, Character: 5}
+	word := extractWord(text, pos)
+	// Single colon should NOT be treated as namespace separator
+	if word != "at" {
+		t.Errorf("extractWord = %q, want %q", word, "at")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Document symbols
+// ---------------------------------------------------------------------------
+
+func TestLSP_DocumentSymbol(t *testing.T) {
+	lsp := &LspServer{
+		worker: testWorker,
+		docs:   make(map[string]string),
+	}
+
+	source := `namespace: 'MyApp'
+
+MyWidget subclass: Object
+  method: render [ ^self ]
+  classMethod: new [ ^super new ]
+`
+	lsp.mu.Lock()
+	lsp.docs["file:///test.mag"] = source
+	lsp.mu.Unlock()
+
+	result, err := lsp.textDocumentDocumentSymbol(nil, &protocol.DocumentSymbolParams{
+		TextDocument: protocol.TextDocumentIdentifier{URI: "file:///test.mag"},
+	})
+	if err != nil {
+		t.Fatalf("documentSymbol returned error: %v", err)
+	}
+	symbols, ok := result.([]protocol.DocumentSymbol)
+	if !ok {
+		t.Fatalf("documentSymbol result type = %T, want []protocol.DocumentSymbol", result)
+	}
+
+	// Should have namespace + class = 2 top-level symbols
+	if len(symbols) < 2 {
+		t.Fatalf("documentSymbol returned %d symbols, want at least 2", len(symbols))
+	}
+
+	// First should be namespace
+	if symbols[0].Kind != protocol.SymbolKindNamespace {
+		t.Errorf("first symbol kind = %v, want Namespace", symbols[0].Kind)
+	}
+
+	// Second should be class with children (methods)
+	classSym := symbols[1]
+	if classSym.Kind != protocol.SymbolKindClass {
+		t.Errorf("class symbol kind = %v, want Class", classSym.Kind)
+	}
+	if classSym.Name != "MyWidget" {
+		t.Errorf("class symbol name = %q, want %q", classSym.Name, "MyWidget")
+	}
+	if len(classSym.Children) != 2 {
+		t.Errorf("class children count = %d, want 2 (instance + class method)", len(classSym.Children))
+	}
+}
+
+// ---------------------------------------------------------------------------
 // boolPtr
 // ---------------------------------------------------------------------------
 

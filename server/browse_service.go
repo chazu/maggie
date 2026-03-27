@@ -487,8 +487,8 @@ func bytecodeSendsSelector(bytecode []byte, targetSelID int, isSpecialized bool,
 			return true
 		}
 
-		// Check OpSend / OpSendSuper (4 bytes: op + 2-byte selector + 1-byte argc)
-		if op == vm.OpSend || op == vm.OpSendSuper {
+		// Check OpSend / OpSendSuper / OpTailSend (4 bytes: op + 2-byte selector + 1-byte argc)
+		if op == vm.OpSend || op == vm.OpSendSuper || op == vm.OpTailSend {
 			if i+2 < len(bytecode) {
 				selID := int(bytecode[i+1]) | int(bytecode[i+2])<<8
 				if selID == targetSelID {
