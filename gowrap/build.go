@@ -267,10 +267,71 @@ func generateProjectConfig(maggieModule, entryPoint, namespace, projectDir, wrap
 	return b.String()
 }
 
+// parseGoModDirectives extracts require and replace directives from a go.mod file.
+// It returns them as raw lines so they can be merged into the generated go.mod.
+func parseGoModDirectives(projectDir string) (requires []string, replaces []string) {
+	goModPath := filepath.Join(projectDir, "go.mod")
+	data, err := os.ReadFile(goModPath)
+	if err != nil {
+		return nil, nil
+	}
+
+	lines := strings.Split(string(data), "\n")
+	inRequire := false
+	inReplace := false
+
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+
+		// Track block boundaries
+		if trimmed == "require (" {
+			inRequire = true
+			continue
+		}
+		if trimmed == "replace (" {
+			inReplace = true
+			continue
+		}
+		if trimmed == ")" {
+			inRequire = false
+			inReplace = false
+			continue
+		}
+
+		// Single-line directives
+		if strings.HasPrefix(trimmed, "require ") && !strings.HasSuffix(trimmed, "(") {
+			requires = append(requires, strings.TrimPrefix(trimmed, "require "))
+			continue
+		}
+		if strings.HasPrefix(trimmed, "replace ") && !strings.HasSuffix(trimmed, "(") {
+			replaces = append(replaces, strings.TrimPrefix(trimmed, "replace "))
+			continue
+		}
+
+		// Block entries
+		if inRequire && trimmed != "" && !strings.HasPrefix(trimmed, "//") {
+			requires = append(requires, trimmed)
+		}
+		if inReplace && trimmed != "" && !strings.HasPrefix(trimmed, "//") {
+			replaces = append(replaces, trimmed)
+		}
+	}
+
+	return requires, replaces
+}
+
 func generateEmbeddedGoMod(maggieModule, maggieDir, projectDir, wrapDir string, wrapperPkgs []WrapperPackageInfo) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "module mag-embedded-build\n\n")
 	fmt.Fprintf(&b, "go 1.24\n\n")
+
+	// Collect requires and replaces from the project's go.mod
+	projectRequires, projectReplaces := parseGoModDirectives(projectDir)
+
+	// Build a set of modules we already handle so we don't duplicate
+	handledRequires := map[string]bool{maggieModule: true}
+	handledReplaces := map[string]bool{maggieModule: true}
+
 	fmt.Fprintf(&b, "require (\n")
 	fmt.Fprintf(&b, "\t%s v0.0.0\n", maggieModule)
 
@@ -279,6 +340,17 @@ func generateEmbeddedGoMod(maggieModule, maggieDir, projectDir, wrapDir string, 
 		projectModule, err := detectModulePath(projectDir)
 		if err == nil {
 			fmt.Fprintf(&b, "\t%s v0.0.0\n", projectModule)
+			handledRequires[projectModule] = true
+			handledReplaces[projectModule] = true
+		}
+	}
+
+	// Propagate project's require directives
+	for _, req := range projectRequires {
+		parts := strings.Fields(req)
+		if len(parts) >= 1 && !handledRequires[parts[0]] {
+			fmt.Fprintf(&b, "\t%s\n", req)
+			handledRequires[parts[0]] = true
 		}
 	}
 
@@ -290,6 +362,20 @@ func generateEmbeddedGoMod(maggieModule, maggieDir, projectDir, wrapDir string, 
 		projectModule, err := detectModulePath(projectDir)
 		if err == nil {
 			fmt.Fprintf(&b, "\t%s => %s\n", projectModule, projectDir)
+		}
+	}
+
+	// Propagate project's replace directives, resolving relative paths
+	for _, rep := range projectReplaces {
+		parts := strings.Fields(rep)
+		if len(parts) >= 3 && parts[1] == "=>" && !handledReplaces[parts[0]] {
+			target := parts[2]
+			// Resolve relative paths against the project directory
+			if !filepath.IsAbs(target) {
+				target = filepath.Join(projectDir, target)
+			}
+			fmt.Fprintf(&b, "\t%s => %s\n", parts[0], target)
+			handledReplaces[parts[0]] = true
 		}
 	}
 
