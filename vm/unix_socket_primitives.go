@@ -35,8 +35,8 @@ type UnixConnObject struct {
 // Value encoding helpers
 // ---------------------------------------------------------------------------
 
-func unixListenerToValue(id int) Value {
-	return FromSymbolID(uint32(id) | unixListenerMarker)
+func unixListenerToValue(id uint32) Value {
+	return FromSymbolID(id | unixListenerMarker)
 }
 
 func isUnixListenerValue(v Value) bool {
@@ -46,12 +46,12 @@ func isUnixListenerValue(v Value) bool {
 	return (v.SymbolID() & markerMask) == unixListenerMarker
 }
 
-func unixListenerIDFromValue(v Value) int {
-	return int(v.SymbolID() & ^markerMask)
+func unixListenerIDFromValue(v Value) uint32 {
+	return v.SymbolID() & ^markerMask
 }
 
-func unixConnToValue(id int) Value {
-	return FromSymbolID(uint32(id) | unixConnMarker)
+func unixConnToValue(id uint32) Value {
+	return FromSymbolID(id | unixConnMarker)
 }
 
 func isUnixConnValue(v Value) bool {
@@ -61,8 +61,8 @@ func isUnixConnValue(v Value) bool {
 	return (v.SymbolID() & markerMask) == unixConnMarker
 }
 
-func unixConnIDFromValue(v Value) int {
-	return int(v.SymbolID() & ^markerMask)
+func unixConnIDFromValue(v Value) uint32 {
+	return v.SymbolID() & ^markerMask
 }
 
 // ---------------------------------------------------------------------------

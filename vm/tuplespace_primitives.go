@@ -53,8 +53,8 @@ type tupleWaiter struct {
 
 // NaN-boxing helpers for TupleSpace values.
 
-func tupleSpaceToValue(id int) Value {
-	return FromSymbolID(uint32(id) | tupleSpaceMarker)
+func tupleSpaceToValue(id uint32) Value {
+	return FromSymbolID(id | tupleSpaceMarker)
 }
 
 func isTupleSpaceValue(v Value) bool {
@@ -64,8 +64,8 @@ func isTupleSpaceValue(v Value) bool {
 	return (v.SymbolID() & markerMask) == tupleSpaceMarker
 }
 
-func tupleSpaceIDFromValue(v Value) int {
-	return int(v.SymbolID() & ^uint32(0xFF<<24))
+func tupleSpaceIDFromValue(v Value) uint32 {
+	return v.SymbolID() & ^uint32(0xFF<<24)
 }
 
 func (vm *VM) vmGetTupleSpace(v Value) *TupleSpaceObject {

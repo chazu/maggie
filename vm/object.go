@@ -67,7 +67,7 @@ type Class struct {
 	// are class X itself. The metaclass's VTable delegates to X's ClassVTable.
 	Metaclass *Class
 
-	classValueID int // Registry ID for class value encoding (0 = not yet registered)
+	classValueID uint32 // Registry ID for class value encoding (0 = not yet registered)
 }
 
 // Method represents a compiled or primitive method.

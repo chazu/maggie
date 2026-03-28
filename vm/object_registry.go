@@ -19,53 +19,53 @@ type ObjectRegistry struct {
 
 	// TypedRegistry-backed registries (storage + locking delegated)
 	exceptions    *TypedRegistry[uint32, *ExceptionObject]
-	results       *TypedRegistry[int, *ResultObject]
+	results       *TypedRegistry[uint32, *ResultObject]
 	contexts      *TypedRegistry[uint32, *ContextValue]
 	dictionaries  *TypedRegistry[uint32, *DictionaryObject]
 	strings       *TypedRegistry[uint32, *StringObject]
-	grpcClients   *TypedRegistry[int, *GrpcClientObject]
-	grpcStreams   *TypedRegistry[int, *GrpcStreamObject]
-	httpServers   *TypedRegistry[int, *HttpServerObject]
-	httpClients   *TypedRegistry[int, *HttpClientObject]
-	httpRequests  *TypedRegistry[int, *HttpRequestObject]
-	httpResponses *TypedRegistry[int, *HttpResponseObject]
-	extProcesses  *TypedRegistry[int, *ExternalProcessObject]
-	unixListeners *TypedRegistry[int, *UnixListenerObject]
-	unixConns     *TypedRegistry[int, *UnixConnObject]
-	jsonReaders   *TypedRegistry[int, *JsonReaderObject]
-	jsonWriters   *TypedRegistry[int, *JsonWriterObject]
+	grpcClients   *TypedRegistry[uint32, *GrpcClientObject]
+	grpcStreams   *TypedRegistry[uint32, *GrpcStreamObject]
+	httpServers   *TypedRegistry[uint32, *HttpServerObject]
+	httpClients   *TypedRegistry[uint32, *HttpClientObject]
+	httpRequests  *TypedRegistry[uint32, *HttpRequestObject]
+	httpResponses *TypedRegistry[uint32, *HttpResponseObject]
+	extProcesses  *TypedRegistry[uint32, *ExternalProcessObject]
+	unixListeners *TypedRegistry[uint32, *UnixListenerObject]
+	unixConns     *TypedRegistry[uint32, *UnixConnObject]
+	jsonReaders   *TypedRegistry[uint32, *JsonReaderObject]
+	jsonWriters   *TypedRegistry[uint32, *JsonWriterObject]
 	goObjects     *TypedRegistry[uint32, *GoObjectWrapper]
 	bigInts       *TypedRegistry[uint32, *BigIntObject]
-	cueContexts   *TypedRegistry[int, *CueContextObject]
-	cueValues     *TypedRegistry[int, *CueValueObject]
-	tupleSpaces       *TypedRegistry[int, *TupleSpaceObject]
-	constraintStores  *TypedRegistry[int, *ConstraintStoreObject]
-	classValues       *TypedRegistry[int, *Class]
+	cueContexts   *TypedRegistry[uint32, *CueContextObject]
+	cueValues     *TypedRegistry[uint32, *CueValueObject]
+	tupleSpaces       *TypedRegistry[uint32, *TupleSpaceObject]
+	constraintStores  *TypedRegistry[uint32, *ConstraintStoreObject]
+	classValues       *TypedRegistry[uint32, *Class]
 
 	// Atomic ID counters (allocation patterns vary per registry)
 	exceptionID    atomic.Uint32
-	resultID       atomic.Int32
+	resultID       atomic.Uint32
 	contextID      atomic.Uint32
 	dictionaryID   atomic.Uint32
 	stringID       atomic.Uint32
-	grpcClientID   atomic.Int32
-	grpcStreamID   atomic.Int32
-	httpServerID   atomic.Int32
-	httpClientID   atomic.Int32
-	httpRequestID  atomic.Int32
-	httpResponseID atomic.Int32
-	extProcessID   atomic.Int32
-	unixListenerID atomic.Int32
-	unixConnID     atomic.Int32
-	jsonReaderID   atomic.Int32
-	jsonWriterID   atomic.Int32
+	grpcClientID   atomic.Uint32
+	grpcStreamID   atomic.Uint32
+	httpServerID   atomic.Uint32
+	httpClientID   atomic.Uint32
+	httpRequestID  atomic.Uint32
+	httpResponseID atomic.Uint32
+	extProcessID   atomic.Uint32
+	unixListenerID atomic.Uint32
+	unixConnID     atomic.Uint32
+	jsonReaderID   atomic.Uint32
+	jsonWriterID   atomic.Uint32
 	goObjectID     atomic.Uint32
 	bigIntID       atomic.Uint32
-	cueContextID   atomic.Int32
-	cueValueID     atomic.Int32
-	tupleSpaceID       atomic.Int32
-	constraintStoreID  atomic.Int32
-	classValueID       atomic.Int32
+	cueContextID   atomic.Uint32
+	cueValueID     atomic.Uint32
+	tupleSpaceID       atomic.Uint32
+	constraintStoreID  atomic.Uint32
+	classValueID       atomic.Uint32
 
 	// Special registries (not suitable for TypedRegistry)
 	cells          map[*Cell]struct{} // set semantics
@@ -81,28 +81,28 @@ func NewObjectRegistry() *ObjectRegistry {
 		ConcurrencyRegistry: NewConcurrencyRegistry(),
 
 		exceptions:    NewTypedRegistry[uint32, *ExceptionObject](),
-		results:       NewTypedRegistry[int, *ResultObject](),
+		results:       NewTypedRegistry[uint32, *ResultObject](),
 		contexts:      NewTypedRegistry[uint32, *ContextValue](),
 		dictionaries:  NewTypedRegistry[uint32, *DictionaryObject](),
 		strings:       NewTypedRegistry[uint32, *StringObject](),
-		grpcClients:   NewTypedRegistry[int, *GrpcClientObject](),
-		grpcStreams:   NewTypedRegistry[int, *GrpcStreamObject](),
-		httpServers:   NewTypedRegistry[int, *HttpServerObject](),
-		httpClients:   NewTypedRegistry[int, *HttpClientObject](),
-		httpRequests:  NewTypedRegistry[int, *HttpRequestObject](),
-		httpResponses: NewTypedRegistry[int, *HttpResponseObject](),
-		extProcesses:  NewTypedRegistry[int, *ExternalProcessObject](),
-		unixListeners: NewTypedRegistry[int, *UnixListenerObject](),
-		unixConns:     NewTypedRegistry[int, *UnixConnObject](),
-		jsonReaders:   NewTypedRegistry[int, *JsonReaderObject](),
-		jsonWriters:   NewTypedRegistry[int, *JsonWriterObject](),
+		grpcClients:   NewTypedRegistry[uint32, *GrpcClientObject](),
+		grpcStreams:   NewTypedRegistry[uint32, *GrpcStreamObject](),
+		httpServers:   NewTypedRegistry[uint32, *HttpServerObject](),
+		httpClients:   NewTypedRegistry[uint32, *HttpClientObject](),
+		httpRequests:  NewTypedRegistry[uint32, *HttpRequestObject](),
+		httpResponses: NewTypedRegistry[uint32, *HttpResponseObject](),
+		extProcesses:  NewTypedRegistry[uint32, *ExternalProcessObject](),
+		unixListeners: NewTypedRegistry[uint32, *UnixListenerObject](),
+		unixConns:     NewTypedRegistry[uint32, *UnixConnObject](),
+		jsonReaders:   NewTypedRegistry[uint32, *JsonReaderObject](),
+		jsonWriters:   NewTypedRegistry[uint32, *JsonWriterObject](),
 		goObjects:     NewTypedRegistry[uint32, *GoObjectWrapper](),
 		bigInts:       NewTypedRegistry[uint32, *BigIntObject](),
-		cueContexts:   NewTypedRegistry[int, *CueContextObject](),
-		cueValues:     NewTypedRegistry[int, *CueValueObject](),
-		tupleSpaces:       NewTypedRegistry[int, *TupleSpaceObject](),
-		constraintStores:  NewTypedRegistry[int, *ConstraintStoreObject](),
-		classValues:       NewTypedRegistry[int, *Class](),
+		cueContexts:   NewTypedRegistry[uint32, *CueContextObject](),
+		cueValues:     NewTypedRegistry[uint32, *CueValueObject](),
+		tupleSpaces:       NewTypedRegistry[uint32, *TupleSpaceObject](),
+		constraintStores:  NewTypedRegistry[uint32, *ConstraintStoreObject](),
+		classValues:       NewTypedRegistry[uint32, *Class](),
 
 		cells:     make(map[*Cell]struct{}),
 		classVars: make(map[*Class]map[string]Value),
@@ -143,7 +143,7 @@ func NewObjectRegistry() *ObjectRegistry {
 
 // RegisterException adds an exception to the registry and returns its ID.
 func (or *ObjectRegistry) RegisterException(ex *ExceptionObject) uint32 {
-	id := or.exceptionID.Add(1)
+	id := or.exceptionID.Add(1) - 1
 	or.exceptions.Put(id, ex)
 	return id
 }
@@ -176,19 +176,19 @@ func (or *ObjectRegistry) ExceptionCount() int {
 // ---------------------------------------------------------------------------
 
 // RegisterResult adds a result to the registry and returns its ID.
-func (or *ObjectRegistry) RegisterResult(r *ResultObject) int {
-	id := int(or.resultID.Add(1) - 1)
+func (or *ObjectRegistry) RegisterResult(r *ResultObject) uint32 {
+	id := or.resultID.Add(1) - 1
 	or.results.Put(id, r)
 	return id
 }
 
 // GetResult retrieves a result by its ID.
-func (or *ObjectRegistry) GetResult(id int) *ResultObject {
+func (or *ObjectRegistry) GetResult(id uint32) *ResultObject {
 	return or.results.Get(id)
 }
 
 // UnregisterResult removes a result from the registry.
-func (or *ObjectRegistry) UnregisterResult(id int) {
+func (or *ObjectRegistry) UnregisterResult(id uint32) {
 	or.results.Delete(id)
 }
 
@@ -200,7 +200,7 @@ func (or *ObjectRegistry) ResultCount() int {
 // RegisterResultValue creates a Result, registers it, and returns a Value.
 func (or *ObjectRegistry) RegisterResultValue(r *ResultObject) Value {
 	id := or.RegisterResult(r)
-	return FromSymbolID(uint32(id) | resultMarker)
+	return FromSymbolID(id | resultMarker)
 }
 
 // GetResultFromValue retrieves a ResultObject from a Value.
@@ -209,7 +209,7 @@ func (or *ObjectRegistry) GetResultFromValue(v Value) *ResultObject {
 	if !isResultValue(v) {
 		return nil
 	}
-	id := int(v.SymbolID() & ^uint32(4<<24))
+	id := v.SymbolID() & ^uint32(4<<24)
 	return or.GetResult(id)
 }
 
@@ -410,26 +410,26 @@ func (or *ObjectRegistry) GetStringObject(v Value) *StringObject {
 // ---------------------------------------------------------------------------
 
 // RegisterGrpcClient adds a gRPC client to the registry and returns its ID.
-func (or *ObjectRegistry) RegisterGrpcClient(c *GrpcClientObject) int {
-	id := int(or.grpcClientID.Add(1) - 1)
+func (or *ObjectRegistry) RegisterGrpcClient(c *GrpcClientObject) uint32 {
+	id := or.grpcClientID.Add(1) - 1
 	or.grpcClients.Put(id, c)
 	return id
 }
 
 // GetGrpcClient retrieves a gRPC client by its ID.
-func (or *ObjectRegistry) GetGrpcClient(id int) *GrpcClientObject {
+func (or *ObjectRegistry) GetGrpcClient(id uint32) *GrpcClientObject {
 	return or.grpcClients.Get(id)
 }
 
 // UnregisterGrpcClient removes a gRPC client from the registry.
-func (or *ObjectRegistry) UnregisterGrpcClient(id int) {
+func (or *ObjectRegistry) UnregisterGrpcClient(id uint32) {
 	or.grpcClients.Delete(id)
 }
 
 // SweepGrpcClients removes closed gRPC clients from the registry.
 // Returns the number of clients swept.
 func (or *ObjectRegistry) SweepGrpcClients() int {
-	return or.grpcClients.Sweep(func(_ int, c *GrpcClientObject) bool {
+	return or.grpcClients.Sweep(func(_ uint32, c *GrpcClientObject) bool {
 		return !c.closed.Load()
 	})
 }
@@ -444,19 +444,19 @@ func (or *ObjectRegistry) GrpcClientCount() int {
 // ---------------------------------------------------------------------------
 
 // RegisterGrpcStream adds a gRPC stream to the registry and returns its ID.
-func (or *ObjectRegistry) RegisterGrpcStream(s *GrpcStreamObject) int {
-	id := int(or.grpcStreamID.Add(1) - 1)
+func (or *ObjectRegistry) RegisterGrpcStream(s *GrpcStreamObject) uint32 {
+	id := or.grpcStreamID.Add(1) - 1
 	or.grpcStreams.Put(id, s)
 	return id
 }
 
 // GetGrpcStream retrieves a gRPC stream by its ID.
-func (or *ObjectRegistry) GetGrpcStream(id int) *GrpcStreamObject {
+func (or *ObjectRegistry) GetGrpcStream(id uint32) *GrpcStreamObject {
 	return or.grpcStreams.Get(id)
 }
 
 // UnregisterGrpcStream removes a gRPC stream from the registry.
-func (or *ObjectRegistry) UnregisterGrpcStream(id int) {
+func (or *ObjectRegistry) UnregisterGrpcStream(id uint32) {
 	or.grpcStreams.Delete(id)
 }
 
@@ -470,26 +470,26 @@ func (or *ObjectRegistry) GrpcStreamCount() int {
 // ---------------------------------------------------------------------------
 
 // RegisterHttpServer adds an HTTP server to the registry and returns its ID.
-func (or *ObjectRegistry) RegisterHttpServer(s *HttpServerObject) int {
-	id := int(or.httpServerID.Add(1) - 1)
+func (or *ObjectRegistry) RegisterHttpServer(s *HttpServerObject) uint32 {
+	id := or.httpServerID.Add(1) - 1
 	or.httpServers.Put(id, s)
 	return id
 }
 
 // GetHttpServer retrieves an HTTP server by its ID.
-func (or *ObjectRegistry) GetHttpServer(id int) *HttpServerObject {
+func (or *ObjectRegistry) GetHttpServer(id uint32) *HttpServerObject {
 	return or.httpServers.Get(id)
 }
 
 // UnregisterHttpServer removes an HTTP server from the registry.
-func (or *ObjectRegistry) UnregisterHttpServer(id int) {
+func (or *ObjectRegistry) UnregisterHttpServer(id uint32) {
 	or.httpServers.Delete(id)
 }
 
 // SweepHttpServers removes stopped HTTP servers from the registry.
 // Returns the number of servers swept.
 func (or *ObjectRegistry) SweepHttpServers() int {
-	return or.httpServers.Sweep(func(_ int, s *HttpServerObject) bool {
+	return or.httpServers.Sweep(func(_ uint32, s *HttpServerObject) bool {
 		return s.running.Load()
 	})
 }
@@ -504,19 +504,19 @@ func (or *ObjectRegistry) HttpServerCount() int {
 // ---------------------------------------------------------------------------
 
 // RegisterHttpClient adds an HTTP client to the registry and returns its ID.
-func (or *ObjectRegistry) RegisterHttpClient(c *HttpClientObject) int {
-	id := int(or.httpClientID.Add(1) - 1)
+func (or *ObjectRegistry) RegisterHttpClient(c *HttpClientObject) uint32 {
+	id := or.httpClientID.Add(1) - 1
 	or.httpClients.Put(id, c)
 	return id
 }
 
 // GetHttpClient retrieves an HTTP client by its ID.
-func (or *ObjectRegistry) GetHttpClient(id int) *HttpClientObject {
+func (or *ObjectRegistry) GetHttpClient(id uint32) *HttpClientObject {
 	return or.httpClients.Get(id)
 }
 
 // UnregisterHttpClient removes an HTTP client from the registry.
-func (or *ObjectRegistry) UnregisterHttpClient(id int) {
+func (or *ObjectRegistry) UnregisterHttpClient(id uint32) {
 	or.httpClients.Delete(id)
 }
 
@@ -530,19 +530,19 @@ func (or *ObjectRegistry) HttpClientCount() int {
 // ---------------------------------------------------------------------------
 
 // RegisterHttpRequest adds an HTTP request to the registry and returns its ID.
-func (or *ObjectRegistry) RegisterHttpRequest(req *HttpRequestObject) int {
-	id := int(or.httpRequestID.Add(1) - 1)
+func (or *ObjectRegistry) RegisterHttpRequest(req *HttpRequestObject) uint32 {
+	id := or.httpRequestID.Add(1) - 1
 	or.httpRequests.Put(id, req)
 	return id
 }
 
 // GetHttpRequest retrieves an HTTP request by its ID.
-func (or *ObjectRegistry) GetHttpRequest(id int) *HttpRequestObject {
+func (or *ObjectRegistry) GetHttpRequest(id uint32) *HttpRequestObject {
 	return or.httpRequests.Get(id)
 }
 
 // UnregisterHttpRequest removes an HTTP request from the registry.
-func (or *ObjectRegistry) UnregisterHttpRequest(id int) {
+func (or *ObjectRegistry) UnregisterHttpRequest(id uint32) {
 	or.httpRequests.Delete(id)
 }
 
@@ -556,19 +556,19 @@ func (or *ObjectRegistry) HttpRequestCount() int {
 // ---------------------------------------------------------------------------
 
 // RegisterHttpResponse adds an HTTP response to the registry and returns its ID.
-func (or *ObjectRegistry) RegisterHttpResponse(resp *HttpResponseObject) int {
-	id := int(or.httpResponseID.Add(1) - 1)
+func (or *ObjectRegistry) RegisterHttpResponse(resp *HttpResponseObject) uint32 {
+	id := or.httpResponseID.Add(1) - 1
 	or.httpResponses.Put(id, resp)
 	return id
 }
 
 // GetHttpResponse retrieves an HTTP response by its ID.
-func (or *ObjectRegistry) GetHttpResponse(id int) *HttpResponseObject {
+func (or *ObjectRegistry) GetHttpResponse(id uint32) *HttpResponseObject {
 	return or.httpResponses.Get(id)
 }
 
 // UnregisterHttpResponse removes an HTTP response from the registry.
-func (or *ObjectRegistry) UnregisterHttpResponse(id int) {
+func (or *ObjectRegistry) UnregisterHttpResponse(id uint32) {
 	or.httpResponses.Delete(id)
 }
 
@@ -582,19 +582,19 @@ func (or *ObjectRegistry) HttpResponseCount() int {
 // ---------------------------------------------------------------------------
 
 // RegisterExternalProcess adds an external process to the registry and returns its ID.
-func (or *ObjectRegistry) RegisterExternalProcess(p *ExternalProcessObject) int {
-	id := int(or.extProcessID.Add(1) - 1)
+func (or *ObjectRegistry) RegisterExternalProcess(p *ExternalProcessObject) uint32 {
+	id := or.extProcessID.Add(1) - 1
 	or.extProcesses.Put(id, p)
 	return id
 }
 
 // GetExternalProcess retrieves an external process by its ID.
-func (or *ObjectRegistry) GetExternalProcess(id int) *ExternalProcessObject {
+func (or *ObjectRegistry) GetExternalProcess(id uint32) *ExternalProcessObject {
 	return or.extProcesses.Get(id)
 }
 
 // UnregisterExternalProcess removes an external process from the registry.
-func (or *ObjectRegistry) UnregisterExternalProcess(id int) {
+func (or *ObjectRegistry) UnregisterExternalProcess(id uint32) {
 	or.extProcesses.Delete(id)
 }
 
@@ -603,14 +603,14 @@ func (or *ObjectRegistry) UnregisterExternalProcess(id int) {
 // ---------------------------------------------------------------------------
 
 // RegisterJsonReader adds a JSON reader to the registry and returns its ID.
-func (or *ObjectRegistry) RegisterJsonReader(r *JsonReaderObject) int {
-	id := int(or.jsonReaderID.Add(1) - 1)
+func (or *ObjectRegistry) RegisterJsonReader(r *JsonReaderObject) uint32 {
+	id := or.jsonReaderID.Add(1) - 1
 	or.jsonReaders.Put(id, r)
 	return id
 }
 
 // GetJsonReader retrieves a JSON reader by its ID.
-func (or *ObjectRegistry) GetJsonReader(id int) *JsonReaderObject {
+func (or *ObjectRegistry) GetJsonReader(id uint32) *JsonReaderObject {
 	return or.jsonReaders.Get(id)
 }
 
@@ -619,14 +619,14 @@ func (or *ObjectRegistry) GetJsonReader(id int) *JsonReaderObject {
 // ---------------------------------------------------------------------------
 
 // RegisterJsonWriter adds a JSON writer to the registry and returns its ID.
-func (or *ObjectRegistry) RegisterJsonWriter(w *JsonWriterObject) int {
-	id := int(or.jsonWriterID.Add(1) - 1)
+func (or *ObjectRegistry) RegisterJsonWriter(w *JsonWriterObject) uint32 {
+	id := or.jsonWriterID.Add(1) - 1
 	or.jsonWriters.Put(id, w)
 	return id
 }
 
 // GetJsonWriter retrieves a JSON writer by its ID.
-func (or *ObjectRegistry) GetJsonWriter(id int) *JsonWriterObject {
+func (or *ObjectRegistry) GetJsonWriter(id uint32) *JsonWriterObject {
 	return or.jsonWriters.Get(id)
 }
 
@@ -738,7 +738,7 @@ func (or *ObjectRegistry) RegisterClassValue(c *Class) Value {
 	}
 
 	// Slow path: register new
-	id := int(or.classValueID.Add(1) - 1)
+	id := or.classValueID.Add(1) - 1
 	or.classValues.Put(id, c)
 	c.classValueID = id
 	return classToValue(id)
@@ -764,19 +764,19 @@ func (or *ObjectRegistry) ClassValueCount() int {
 // ---------------------------------------------------------------------------
 
 // RegisterUnixListener adds a Unix listener to the registry and returns its ID.
-func (or *ObjectRegistry) RegisterUnixListener(l *UnixListenerObject) int {
-	id := int(or.unixListenerID.Add(1) - 1)
+func (or *ObjectRegistry) RegisterUnixListener(l *UnixListenerObject) uint32 {
+	id := or.unixListenerID.Add(1) - 1
 	or.unixListeners.Put(id, l)
 	return id
 }
 
 // GetUnixListener retrieves a Unix listener by its ID.
-func (or *ObjectRegistry) GetUnixListener(id int) *UnixListenerObject {
+func (or *ObjectRegistry) GetUnixListener(id uint32) *UnixListenerObject {
 	return or.unixListeners.Get(id)
 }
 
 // UnregisterUnixListener removes a Unix listener from the registry.
-func (or *ObjectRegistry) UnregisterUnixListener(id int) {
+func (or *ObjectRegistry) UnregisterUnixListener(id uint32) {
 	or.unixListeners.Delete(id)
 }
 
@@ -790,19 +790,19 @@ func (or *ObjectRegistry) UnixListenerCount() int {
 // ---------------------------------------------------------------------------
 
 // RegisterUnixConn adds a Unix connection to the registry and returns its ID.
-func (or *ObjectRegistry) RegisterUnixConn(c *UnixConnObject) int {
-	id := int(or.unixConnID.Add(1) - 1)
+func (or *ObjectRegistry) RegisterUnixConn(c *UnixConnObject) uint32 {
+	id := or.unixConnID.Add(1) - 1
 	or.unixConns.Put(id, c)
 	return id
 }
 
 // GetUnixConn retrieves a Unix connection by its ID.
-func (or *ObjectRegistry) GetUnixConn(id int) *UnixConnObject {
+func (or *ObjectRegistry) GetUnixConn(id uint32) *UnixConnObject {
 	return or.unixConns.Get(id)
 }
 
 // UnregisterUnixConn removes a Unix connection from the registry.
-func (or *ObjectRegistry) UnregisterUnixConn(id int) {
+func (or *ObjectRegistry) UnregisterUnixConn(id uint32) {
 	or.unixConns.Delete(id)
 }
 
@@ -816,19 +816,19 @@ func (or *ObjectRegistry) UnixConnCount() int {
 // ---------------------------------------------------------------------------
 
 // RegisterCueContext adds a CUE context to the registry and returns its ID.
-func (or *ObjectRegistry) RegisterCueContext(c *CueContextObject) int {
-	id := int(or.cueContextID.Add(1) - 1)
+func (or *ObjectRegistry) RegisterCueContext(c *CueContextObject) uint32 {
+	id := or.cueContextID.Add(1) - 1
 	or.cueContexts.Put(id, c)
 	return id
 }
 
 // GetCueContext retrieves a CUE context by its ID.
-func (or *ObjectRegistry) GetCueContext(id int) *CueContextObject {
+func (or *ObjectRegistry) GetCueContext(id uint32) *CueContextObject {
 	return or.cueContexts.Get(id)
 }
 
 // UnregisterCueContext removes a CUE context from the registry.
-func (or *ObjectRegistry) UnregisterCueContext(id int) {
+func (or *ObjectRegistry) UnregisterCueContext(id uint32) {
 	or.cueContexts.Delete(id)
 }
 
@@ -842,19 +842,19 @@ func (or *ObjectRegistry) CueContextCount() int {
 // ---------------------------------------------------------------------------
 
 // RegisterCueValue adds a CUE value to the registry and returns its ID.
-func (or *ObjectRegistry) RegisterCueValue(c *CueValueObject) int {
-	id := int(or.cueValueID.Add(1) - 1)
+func (or *ObjectRegistry) RegisterCueValue(c *CueValueObject) uint32 {
+	id := or.cueValueID.Add(1) - 1
 	or.cueValues.Put(id, c)
 	return id
 }
 
 // GetCueValue retrieves a CUE value by its ID.
-func (or *ObjectRegistry) GetCueValue(id int) *CueValueObject {
+func (or *ObjectRegistry) GetCueValue(id uint32) *CueValueObject {
 	return or.cueValues.Get(id)
 }
 
 // UnregisterCueValue removes a CUE value from the registry.
-func (or *ObjectRegistry) UnregisterCueValue(id int) {
+func (or *ObjectRegistry) UnregisterCueValue(id uint32) {
 	or.cueValues.Delete(id)
 }
 
@@ -868,14 +868,14 @@ func (or *ObjectRegistry) CueValueCount() int {
 // ---------------------------------------------------------------------------
 
 // RegisterTupleSpace adds a tuple space to the registry and returns its ID.
-func (or *ObjectRegistry) RegisterTupleSpace(ts *TupleSpaceObject) int {
-	id := int(or.tupleSpaceID.Add(1) - 1)
+func (or *ObjectRegistry) RegisterTupleSpace(ts *TupleSpaceObject) uint32 {
+	id := or.tupleSpaceID.Add(1) - 1
 	or.tupleSpaces.Put(id, ts)
 	return id
 }
 
 // GetTupleSpace retrieves a tuple space by its ID.
-func (or *ObjectRegistry) GetTupleSpace(id int) *TupleSpaceObject {
+func (or *ObjectRegistry) GetTupleSpace(id uint32) *TupleSpaceObject {
 	return or.tupleSpaces.Get(id)
 }
 
@@ -884,14 +884,14 @@ func (or *ObjectRegistry) GetTupleSpace(id int) *TupleSpaceObject {
 // ---------------------------------------------------------------------------
 
 // RegisterConstraintStore adds a constraint store to the registry and returns its ID.
-func (or *ObjectRegistry) RegisterConstraintStore(cs *ConstraintStoreObject) int {
-	id := int(or.constraintStoreID.Add(1) - 1)
+func (or *ObjectRegistry) RegisterConstraintStore(cs *ConstraintStoreObject) uint32 {
+	id := or.constraintStoreID.Add(1) - 1
 	or.constraintStores.Put(id, cs)
 	return id
 }
 
 // GetConstraintStore retrieves a constraint store by its ID.
-func (or *ObjectRegistry) GetConstraintStore(id int) *ConstraintStoreObject {
+func (or *ObjectRegistry) GetConstraintStore(id uint32) *ConstraintStoreObject {
 	return or.constraintStores.Get(id)
 }
 

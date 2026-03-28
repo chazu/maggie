@@ -41,8 +41,8 @@ type ExternalProcessObject struct {
 // Value encoding helpers
 // ---------------------------------------------------------------------------
 
-func extProcessToValue(id int) Value {
-	return FromSymbolID(uint32(id) | externalProcessMarker)
+func extProcessToValue(id uint32) Value {
+	return FromSymbolID(id | externalProcessMarker)
 }
 
 func isExtProcessValue(v Value) bool {
@@ -53,8 +53,8 @@ func isExtProcessValue(v Value) bool {
 	return (id & (0xFF << 24)) == externalProcessMarker
 }
 
-func extProcessIDFromValue(v Value) int {
-	return int(v.SymbolID() & ^uint32(0xFF<<24))
+func extProcessIDFromValue(v Value) uint32 {
+	return v.SymbolID() & ^uint32(0xFF<<24)
 }
 
 func (vm *VM) vmGetExtProcess(v Value) *ExternalProcessObject {

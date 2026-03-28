@@ -12,8 +12,8 @@ package vm
 // *Class pointer in the VM-local class value registry (ObjectRegistry).
 
 // classToValue creates a Value from a class registry ID.
-func classToValue(id int) Value {
-	return FromSymbolID(uint32(id) | classValueMarker)
+func classToValue(id uint32) Value {
+	return FromSymbolID(id | classValueMarker)
 }
 
 // isClassValue returns true if this value is a class value.
@@ -26,8 +26,8 @@ func isClassValue(v Value) bool {
 }
 
 // classValueIDFromValue extracts the registry ID from a class value.
-func classValueIDFromValue(v Value) int {
-	return int(v.SymbolID() & ^markerMask)
+func classValueIDFromValue(v Value) uint32 {
+	return v.SymbolID() & ^markerMask
 }
 
 // ---------------------------------------------------------------------------

@@ -29,9 +29,9 @@ func createResult(rtype ResultType, val Value) *ResultObject {
 }
 
 
-func resultToValue(id int) Value {
+func resultToValue(id uint32) Value {
 	// Use symbol encoding with marker 4 << 24 (channels use 1, processes use 2)
-	return FromSymbolID(uint32(id) | resultMarker)
+	return FromSymbolID(id | resultMarker)
 }
 
 func isResultValue(v Value) bool {

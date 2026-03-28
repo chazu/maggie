@@ -30,8 +30,8 @@ type JsonWriterObject struct {
 // JsonReader Registry helpers
 // ---------------------------------------------------------------------------
 
-func jsonReaderToValue(id int) Value {
-	return FromSymbolID(uint32(id) | jsonReaderMarker)
+func jsonReaderToValue(id uint32) Value {
+	return FromSymbolID(id | jsonReaderMarker)
 }
 
 func isJsonReaderValue(v Value) bool {
@@ -41,16 +41,16 @@ func isJsonReaderValue(v Value) bool {
 	return (v.SymbolID() & markerMask) == jsonReaderMarker
 }
 
-func jsonReaderIDFromValue(v Value) int {
-	return int(v.SymbolID() & ^markerMask)
+func jsonReaderIDFromValue(v Value) uint32 {
+	return v.SymbolID() & ^markerMask
 }
 
 // ---------------------------------------------------------------------------
 // JsonWriter Registry helpers
 // ---------------------------------------------------------------------------
 
-func jsonWriterToValue(id int) Value {
-	return FromSymbolID(uint32(id) | jsonWriterMarker)
+func jsonWriterToValue(id uint32) Value {
+	return FromSymbolID(id | jsonWriterMarker)
 }
 
 func isJsonWriterValue(v Value) bool {
@@ -60,8 +60,8 @@ func isJsonWriterValue(v Value) bool {
 	return (v.SymbolID() & markerMask) == jsonWriterMarker
 }
 
-func jsonWriterIDFromValue(v Value) int {
-	return int(v.SymbolID() & ^markerMask)
+func jsonWriterIDFromValue(v Value) uint32 {
+	return v.SymbolID() & ^markerMask
 }
 
 // ---------------------------------------------------------------------------

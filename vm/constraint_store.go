@@ -84,8 +84,8 @@ func (cs *ConstraintStoreObject) isConsistent() bool {
 
 // NaN-boxing helpers for ConstraintStore values.
 
-func constraintStoreToValue(id int) Value {
-	return FromSymbolID(uint32(id) | constraintStoreMarker)
+func constraintStoreToValue(id uint32) Value {
+	return FromSymbolID(id | constraintStoreMarker)
 }
 
 func isConstraintStoreValue(v Value) bool {
@@ -95,8 +95,8 @@ func isConstraintStoreValue(v Value) bool {
 	return (v.SymbolID() & markerMask) == constraintStoreMarker
 }
 
-func constraintStoreIDFromValue(v Value) int {
-	return int(v.SymbolID() & ^uint32(0xFF<<24))
+func constraintStoreIDFromValue(v Value) uint32 {
+	return v.SymbolID() & ^uint32(0xFF<<24)
 }
 
 func (vm *VM) vmGetConstraintStore(v Value) *ConstraintStoreObject {

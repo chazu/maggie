@@ -19,8 +19,8 @@ type CueContextObject struct {
 	ctx *cue.Context
 }
 
-func cueContextToValue(id int) Value {
-	return FromSymbolID(uint32(id) | cueContextMarker)
+func cueContextToValue(id uint32) Value {
+	return FromSymbolID(id | cueContextMarker)
 }
 
 func isCueContextValue(v Value) bool {
@@ -30,8 +30,8 @@ func isCueContextValue(v Value) bool {
 	return (v.SymbolID() & markerMask) == cueContextMarker
 }
 
-func cueContextIDFromValue(v Value) int {
-	return int(v.SymbolID() & ^uint32(0xFF<<24))
+func cueContextIDFromValue(v Value) uint32 {
+	return v.SymbolID() & ^uint32(0xFF<<24)
 }
 
 func (vm *VM) vmGetCueContext(v Value) *CueContextObject {
@@ -54,8 +54,8 @@ type CueValueObject struct {
 	val cue.Value
 }
 
-func cueValueToValue(id int) Value {
-	return FromSymbolID(uint32(id) | cueValueMarker)
+func cueValueToValue(id uint32) Value {
+	return FromSymbolID(id | cueValueMarker)
 }
 
 func isCueValueValue(v Value) bool {
@@ -65,8 +65,8 @@ func isCueValueValue(v Value) bool {
 	return (v.SymbolID() & markerMask) == cueValueMarker
 }
 
-func cueValueIDFromValue(v Value) int {
-	return int(v.SymbolID() & ^uint32(0xFF<<24))
+func cueValueIDFromValue(v Value) uint32 {
+	return v.SymbolID() & ^uint32(0xFF<<24)
 }
 
 func (vm *VM) vmGetCueValue(v Value) *CueValueObject {

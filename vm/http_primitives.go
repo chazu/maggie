@@ -20,8 +20,8 @@ type HttpClientObject struct {
 	client *http.Client
 }
 
-func httpClientToValue(id int) Value {
-	return FromSymbolID(uint32(id) | httpClientMarker)
+func httpClientToValue(id uint32) Value {
+	return FromSymbolID(id | httpClientMarker)
 }
 
 func isHttpClientValue(v Value) bool {
@@ -32,8 +32,8 @@ func isHttpClientValue(v Value) bool {
 	return (id & (0xFF << 24)) == httpClientMarker
 }
 
-func httpClientIDFromValue(v Value) int {
-	return int(v.SymbolID() & ^uint32(0xFF<<24))
+func httpClientIDFromValue(v Value) uint32 {
+	return v.SymbolID() & ^uint32(0xFF<<24)
 }
 
 func (vm *VM) vmGetHttpClient(v Value) *HttpClientObject {
@@ -62,8 +62,8 @@ type HttpServerObject struct {
 }
 
 
-func httpServerToValue(id int) Value {
-	return FromSymbolID(uint32(id) | httpServerMarker)
+func httpServerToValue(id uint32) Value {
+	return FromSymbolID(id | httpServerMarker)
 }
 
 func isHttpServerValue(v Value) bool {
@@ -74,8 +74,8 @@ func isHttpServerValue(v Value) bool {
 	return (id & (0xFF << 24)) == httpServerMarker
 }
 
-func httpServerIDFromValue(v Value) int {
-	return int(v.SymbolID() & ^uint32(0xFF<<24))
+func httpServerIDFromValue(v Value) uint32 {
+	return v.SymbolID() & ^uint32(0xFF<<24)
 }
 
 func (vm *VM) vmGetHttpServer(v Value) *HttpServerObject {
@@ -108,8 +108,8 @@ type HttpRequestObject struct {
 }
 
 
-func httpRequestToValue(id int) Value {
-	return FromSymbolID(uint32(id) | httpRequestMarker)
+func httpRequestToValue(id uint32) Value {
+	return FromSymbolID(id | httpRequestMarker)
 }
 
 func isHttpRequestValue(v Value) bool {
@@ -120,8 +120,8 @@ func isHttpRequestValue(v Value) bool {
 	return (id & (0xFF << 24)) == httpRequestMarker
 }
 
-func httpRequestIDFromValue(v Value) int {
-	return int(v.SymbolID() & ^uint32(0xFF<<24))
+func httpRequestIDFromValue(v Value) uint32 {
+	return v.SymbolID() & ^uint32(0xFF<<24)
 }
 
 func (vm *VM) vmGetHttpRequest(v Value) *HttpRequestObject {
@@ -154,8 +154,8 @@ type HttpResponseObject struct {
 }
 
 
-func httpResponseToValue(id int) Value {
-	return FromSymbolID(uint32(id) | httpResponseMarker)
+func httpResponseToValue(id uint32) Value {
+	return FromSymbolID(id | httpResponseMarker)
 }
 
 func isHttpResponseValue(v Value) bool {
@@ -166,8 +166,8 @@ func isHttpResponseValue(v Value) bool {
 	return (id & (0xFF << 24)) == httpResponseMarker
 }
 
-func httpResponseIDFromValue(v Value) int {
-	return int(v.SymbolID() & ^uint32(0xFF<<24))
+func httpResponseIDFromValue(v Value) uint32 {
+	return v.SymbolID() & ^uint32(0xFF<<24)
 }
 
 func (vm *VM) vmGetHttpResponse(v Value) *HttpResponseObject {
