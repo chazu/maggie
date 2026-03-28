@@ -16,24 +16,14 @@ import (
 // HTTP requests, HTTP responses, cells, weak reference IDs, and class variables.
 type ObjectRegistry struct {
 	*ConcurrencyRegistry
+	*IORegistry
 
-	// AutoIDRegistry-backed registries (storage + locking + ID allocation)
+	// Core VM registries (AutoIDRegistry-backed)
 	exceptions       *AutoIDRegistry[*ExceptionObject]
 	results          *AutoIDRegistry[*ResultObject]
 	contexts         *AutoIDRegistry[*ContextValue]
 	dictionaries     *AutoIDRegistry[*DictionaryObject]
 	strings          *AutoIDRegistry[*StringObject]
-	grpcClients      *AutoIDRegistry[*GrpcClientObject]
-	grpcStreams      *AutoIDRegistry[*GrpcStreamObject]
-	httpServers      *AutoIDRegistry[*HttpServerObject]
-	httpClients      *AutoIDRegistry[*HttpClientObject]
-	httpRequests     *AutoIDRegistry[*HttpRequestObject]
-	httpResponses    *AutoIDRegistry[*HttpResponseObject]
-	extProcesses     *AutoIDRegistry[*ExternalProcessObject]
-	unixListeners    *AutoIDRegistry[*UnixListenerObject]
-	unixConns        *AutoIDRegistry[*UnixConnObject]
-	jsonReaders      *AutoIDRegistry[*JsonReaderObject]
-	jsonWriters      *AutoIDRegistry[*JsonWriterObject]
 	goObjects        *AutoIDRegistry[*GoObjectWrapper]
 	bigInts          *AutoIDRegistry[*BigIntObject]
 	cueContexts      *AutoIDRegistry[*CueContextObject]
@@ -54,6 +44,7 @@ type ObjectRegistry struct {
 func NewObjectRegistry() *ObjectRegistry {
 	or := &ObjectRegistry{
 		ConcurrencyRegistry: NewConcurrencyRegistry(),
+		IORegistry:          NewIORegistry(),
 
 		// Start IDs at 1 unless otherwise noted (0 = nil/uninitialized)
 		exceptions:       NewAutoIDRegistry[*ExceptionObject](1),
@@ -61,17 +52,6 @@ func NewObjectRegistry() *ObjectRegistry {
 		contexts:         NewAutoIDRegistry[*ContextValue](1),
 		dictionaries:     NewAutoIDRegistry[*DictionaryObject](dictionaryIDOffset),
 		strings:          NewAutoIDRegistry[*StringObject](stringIDOffset),
-		grpcClients:      NewAutoIDRegistry[*GrpcClientObject](1),
-		grpcStreams:      NewAutoIDRegistry[*GrpcStreamObject](1),
-		httpServers:      NewAutoIDRegistry[*HttpServerObject](1),
-		httpClients:      NewAutoIDRegistry[*HttpClientObject](1),
-		httpRequests:     NewAutoIDRegistry[*HttpRequestObject](1),
-		httpResponses:    NewAutoIDRegistry[*HttpResponseObject](1),
-		extProcesses:     NewAutoIDRegistry[*ExternalProcessObject](1),
-		unixListeners:    NewAutoIDRegistry[*UnixListenerObject](1),
-		unixConns:        NewAutoIDRegistry[*UnixConnObject](1),
-		jsonReaders:      NewAutoIDRegistry[*JsonReaderObject](1),
-		jsonWriters:      NewAutoIDRegistry[*JsonWriterObject](1),
 		goObjects:        NewAutoIDRegistry[*GoObjectWrapper](0),
 		bigInts:          NewAutoIDRegistry[*BigIntObject](0),
 		cueContexts:      NewAutoIDRegistry[*CueContextObject](1),
@@ -266,76 +246,6 @@ func (or *ObjectRegistry) GetStringObject(v Value) *StringObject {
 }
 
 // ---------------------------------------------------------------------------
-// gRPC Registry Methods (delegates to AutoIDRegistry)
-// ---------------------------------------------------------------------------
-
-func (or *ObjectRegistry) RegisterGrpcClient(c *GrpcClientObject) uint32 { return or.grpcClients.Register(c) }
-func (or *ObjectRegistry) GetGrpcClient(id uint32) *GrpcClientObject     { return or.grpcClients.Get(id) }
-func (or *ObjectRegistry) UnregisterGrpcClient(id uint32)                { or.grpcClients.Delete(id) }
-func (or *ObjectRegistry) GrpcClientCount() int                          { return or.grpcClients.Count() }
-
-// SweepGrpcClients removes closed gRPC clients from the registry.
-func (or *ObjectRegistry) SweepGrpcClients() int {
-	return or.grpcClients.Sweep(func(_ uint32, c *GrpcClientObject) bool {
-		return !c.closed.Load()
-	})
-}
-
-func (or *ObjectRegistry) RegisterGrpcStream(s *GrpcStreamObject) uint32 { return or.grpcStreams.Register(s) }
-func (or *ObjectRegistry) GetGrpcStream(id uint32) *GrpcStreamObject     { return or.grpcStreams.Get(id) }
-func (or *ObjectRegistry) UnregisterGrpcStream(id uint32)                { or.grpcStreams.Delete(id) }
-func (or *ObjectRegistry) GrpcStreamCount() int                          { return or.grpcStreams.Count() }
-
-// ---------------------------------------------------------------------------
-// HTTP Registry Methods (delegates to AutoIDRegistry)
-// ---------------------------------------------------------------------------
-
-func (or *ObjectRegistry) RegisterHttpServer(s *HttpServerObject) uint32 { return or.httpServers.Register(s) }
-func (or *ObjectRegistry) GetHttpServer(id uint32) *HttpServerObject     { return or.httpServers.Get(id) }
-func (or *ObjectRegistry) UnregisterHttpServer(id uint32)                { or.httpServers.Delete(id) }
-func (or *ObjectRegistry) HttpServerCount() int                          { return or.httpServers.Count() }
-
-// SweepHttpServers removes stopped HTTP servers from the registry.
-func (or *ObjectRegistry) SweepHttpServers() int {
-	return or.httpServers.Sweep(func(_ uint32, s *HttpServerObject) bool {
-		return s.running.Load()
-	})
-}
-
-func (or *ObjectRegistry) RegisterHttpClient(c *HttpClientObject) uint32 { return or.httpClients.Register(c) }
-func (or *ObjectRegistry) GetHttpClient(id uint32) *HttpClientObject     { return or.httpClients.Get(id) }
-func (or *ObjectRegistry) UnregisterHttpClient(id uint32)                { or.httpClients.Delete(id) }
-func (or *ObjectRegistry) HttpClientCount() int                          { return or.httpClients.Count() }
-
-func (or *ObjectRegistry) RegisterHttpRequest(req *HttpRequestObject) uint32 { return or.httpRequests.Register(req) }
-func (or *ObjectRegistry) GetHttpRequest(id uint32) *HttpRequestObject       { return or.httpRequests.Get(id) }
-func (or *ObjectRegistry) UnregisterHttpRequest(id uint32)                   { or.httpRequests.Delete(id) }
-func (or *ObjectRegistry) HttpRequestCount() int                             { return or.httpRequests.Count() }
-
-func (or *ObjectRegistry) RegisterHttpResponse(resp *HttpResponseObject) uint32 { return or.httpResponses.Register(resp) }
-func (or *ObjectRegistry) GetHttpResponse(id uint32) *HttpResponseObject        { return or.httpResponses.Get(id) }
-func (or *ObjectRegistry) UnregisterHttpResponse(id uint32)                     { or.httpResponses.Delete(id) }
-func (or *ObjectRegistry) HttpResponseCount() int                               { return or.httpResponses.Count() }
-
-// ---------------------------------------------------------------------------
-// ExternalProcess Registry Methods (delegates to AutoIDRegistry)
-// ---------------------------------------------------------------------------
-
-func (or *ObjectRegistry) RegisterExternalProcess(p *ExternalProcessObject) uint32 { return or.extProcesses.Register(p) }
-func (or *ObjectRegistry) GetExternalProcess(id uint32) *ExternalProcessObject     { return or.extProcesses.Get(id) }
-func (or *ObjectRegistry) UnregisterExternalProcess(id uint32)                     { or.extProcesses.Delete(id) }
-
-// ---------------------------------------------------------------------------
-// JSON Registry Methods (delegates to AutoIDRegistry)
-// ---------------------------------------------------------------------------
-
-func (or *ObjectRegistry) RegisterJsonReader(r *JsonReaderObject) uint32 { return or.jsonReaders.Register(r) }
-func (or *ObjectRegistry) GetJsonReader(id uint32) *JsonReaderObject     { return or.jsonReaders.Get(id) }
-
-func (or *ObjectRegistry) RegisterJsonWriter(w *JsonWriterObject) uint32 { return or.jsonWriters.Register(w) }
-func (or *ObjectRegistry) GetJsonWriter(id uint32) *JsonWriterObject     { return or.jsonWriters.Get(id) }
-
-// ---------------------------------------------------------------------------
 // Cell Registry Methods
 // ---------------------------------------------------------------------------
 
@@ -464,20 +374,6 @@ func (or *ObjectRegistry) ClassValueCount() int {
 }
 
 // ---------------------------------------------------------------------------
-// Unix Socket Registry Methods (delegates to AutoIDRegistry)
-// ---------------------------------------------------------------------------
-
-func (or *ObjectRegistry) RegisterUnixListener(l *UnixListenerObject) uint32 { return or.unixListeners.Register(l) }
-func (or *ObjectRegistry) GetUnixListener(id uint32) *UnixListenerObject     { return or.unixListeners.Get(id) }
-func (or *ObjectRegistry) UnregisterUnixListener(id uint32)                  { or.unixListeners.Delete(id) }
-func (or *ObjectRegistry) UnixListenerCount() int                            { return or.unixListeners.Count() }
-
-func (or *ObjectRegistry) RegisterUnixConn(c *UnixConnObject) uint32 { return or.unixConns.Register(c) }
-func (or *ObjectRegistry) GetUnixConn(id uint32) *UnixConnObject     { return or.unixConns.Get(id) }
-func (or *ObjectRegistry) UnregisterUnixConn(id uint32)              { or.unixConns.Delete(id) }
-func (or *ObjectRegistry) UnixConnCount() int                        { return or.unixConns.Count() }
-
-// ---------------------------------------------------------------------------
 // CUE Context Registry Methods (delegates to AutoIDRegistry)
 // ---------------------------------------------------------------------------
 
@@ -517,24 +413,19 @@ func (or *ObjectRegistry) ConstraintStoreCount() int                            
 // FullStats returns counts of all registered objects across all registries.
 func (or *ObjectRegistry) FullStats() map[string]int {
 	stats := or.ConcurrencyRegistry.Stats()
+	for k, v := range or.IORegistry.IOStats() {
+		stats[k] = v
+	}
 	stats["exceptions"] = or.ExceptionCount()
 	stats["results"] = or.ResultCount()
 	stats["contexts"] = or.ContextCount()
 	stats["dictionaries"] = or.DictionaryCount()
 	stats["strings"] = or.StringCount()
-	stats["grpcClients"] = or.GrpcClientCount()
-	stats["grpcStreams"] = or.GrpcStreamCount()
-	stats["httpServers"] = or.HttpServerCount()
-	stats["httpClients"] = or.HttpClientCount()
-	stats["httpRequests"] = or.HttpRequestCount()
-	stats["httpResponses"] = or.HttpResponseCount()
 	stats["cells"] = or.CellCount()
 	stats["classVarClasses"] = or.ClassVarCount()
 	stats["goObjects"] = or.GoObjectCount()
 	stats["bigInts"] = or.BigIntCount()
 	stats["classValues"] = or.ClassValueCount()
-	stats["unixListeners"] = or.UnixListenerCount()
-	stats["unixConns"] = or.UnixConnCount()
 	stats["cueContexts"] = or.CueContextCount()
 	stats["cueValues"] = or.CueValueCount()
 	stats["constraintStores"] = or.ConstraintStoreCount()
