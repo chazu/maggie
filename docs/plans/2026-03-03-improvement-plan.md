@@ -2,7 +2,7 @@
 
 **Date:** 2026-03-03
 **Source:** Language architect review (`docs/plans/2026-03-03-language-architect-review.md`)
-**Status audit:** 2026-03-26 — P1 (all done), P2 (all done), P4 TODOs 13/16 (done). Remaining: P3 (design needed), P4 TODOs 14/15 (design needed).
+**Status audit:** 2026-03-28 — P1 (all done), P2 (all done), P3 TODOs 9/10 (done), P4 TODOs 13/16 (done). Remaining: P3 TODOs 11/12, P4 TODOs 14/15.
 
 ---
 
@@ -90,7 +90,7 @@
   4. Migrate one registry at a time (strings first, as it's the most performance-sensitive).
 - **Research needed:** Determine if the generic registry approach works with NaN-boxed value IDs (uint32 keys). Check if any code relies on cross-registry operations that would be harder with separate types.
 
-### TODO 10: Extract compilation pipeline from `cmd/mag/main.go`
+### ~~TODO 10: Extract compilation pipeline from `cmd/mag/main.go`~~ DONE
 - **File:** `cmd/mag/main.go` (1523 lines)
 - **Problem:** Critical compilation pipeline logic (`compileAll`, `loadProject`, skeleton registration, superclass resolution, method compilation) is interleaved with CLI argument parsing, REPL logic, and subcommand dispatch. This makes the pipeline untestable and `main.go` a God Object.
 - **Fix:**
