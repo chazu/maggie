@@ -2,7 +2,7 @@
 
 **Date:** 2026-03-03
 **Source:** Language architect review (`docs/plans/2026-03-03-language-architect-review.md`)
-**Status audit:** 2026-03-28 — P1 (all done), P2 (all done), P3 TODOs 9/10 (done), P4 TODOs 13/16 (done). Remaining: P3 TODOs 11/12, P4 TODOs 14/15.
+**Status audit:** 2026-03-28 — P1 (all done), P2 (all done), P3 TODOs 9/10/11 (done), P4 TODOs 13/16 (done). Remaining: P3 TODO 12 (peephole), P4 TODOs 14/15.
 
 ---
 
@@ -99,7 +99,7 @@
   3. `main.go` becomes a thin dispatcher that parses args and calls into these packages.
 - **Research needed:** Map the dependency graph of functions in `main.go` to determine the cleanest extraction boundaries. Some functions reference CLI-specific state (flags, output writers) that needs to be parameterized.
 
-### TODO 11: Add bytecode-to-source-position mapping
+### ~~TODO 11: Add bytecode-to-source-position mapping~~ DONE
 - **Problem:** No source position info is preserved in compiled bytecode. Stack traces show only frame index and instruction pointer — no file names or line numbers. The LSP server cannot provide precise runtime error locations.
 - **Fix:**
   1. During compilation, emit a source position table alongside bytecodes: `[]SourcePos` where each entry maps a bytecode offset to a `(file, line, col)` triple.
