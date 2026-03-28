@@ -216,6 +216,9 @@ func (c *Compiler) CompileMethod(method *MethodDef) *vm.CompiledMethod {
 	// Transfer accumulated source map
 	result.SourceMap = c.sourceMap
 
+	// Peephole optimize bytecode (constant folding, push-pop elimination, dead code)
+	result.Bytecode, result.SourceMap = Peephole(result.Bytecode, result.SourceMap)
+
 	return result
 }
 
@@ -247,6 +250,7 @@ func (c *Compiler) CompileExpression(expr Expr) *vm.CompiledMethod {
 
 	result := b.Build()
 	result.SourceMap = c.sourceMap
+	result.Bytecode, result.SourceMap = Peephole(result.Bytecode, result.SourceMap)
 	return result
 }
 
