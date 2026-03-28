@@ -98,9 +98,8 @@ func (r *GoTypeRegistry) Count() int {
 
 // RegisterGoObject stores a GoObjectWrapper and returns a symbol-encoded Value.
 func (or *ObjectRegistry) RegisterGoObject(obj *GoObjectWrapper) Value {
-	id := or.goObjectID.Add(1)
-	or.goObjects.Put(id, obj)
-	return FromSymbolID(uint32(id) | goObjectMarker)
+	id := or.goObjects.Register(obj)
+	return FromSymbolID(id | goObjectMarker)
 }
 
 // GetGoObject retrieves a GoObjectWrapper from a symbol-encoded Value.

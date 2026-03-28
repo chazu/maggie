@@ -21,9 +21,8 @@ type BigIntObject struct {
 
 // RegisterBigInt stores a BigIntObject and returns a symbol-encoded Value.
 func (or *ObjectRegistry) RegisterBigInt(obj *BigIntObject) Value {
-	id := or.bigIntID.Add(1)
-	or.bigInts.Put(id, obj)
-	return FromSymbolID(uint32(id) | bigIntMarker)
+	id := or.bigInts.Register(obj)
+	return FromSymbolID(id | bigIntMarker)
 }
 
 // GetBigInt retrieves a BigIntObject from a symbol-encoded Value.
