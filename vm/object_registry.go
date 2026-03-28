@@ -36,10 +36,10 @@ type ObjectRegistry struct {
 	jsonWriters   *TypedRegistry[uint32, *JsonWriterObject]
 	goObjects     *TypedRegistry[uint32, *GoObjectWrapper]
 	bigInts       *TypedRegistry[uint32, *BigIntObject]
-	cueContexts   *TypedRegistry[uint32, *CueContextObject]
-	cueValues     *TypedRegistry[uint32, *CueValueObject]
-	tupleSpaces       *TypedRegistry[uint32, *TupleSpaceObject]
-	constraintStores  *TypedRegistry[uint32, *ConstraintStoreObject]
+	cueContexts      *AutoIDRegistry[*CueContextObject]
+	cueValues        *AutoIDRegistry[*CueValueObject]
+	tupleSpaces      *AutoIDRegistry[*TupleSpaceObject]
+	constraintStores *AutoIDRegistry[*ConstraintStoreObject]
 	classValues       *TypedRegistry[uint32, *Class]
 
 	// Atomic ID counters (allocation patterns vary per registry)
@@ -61,10 +61,6 @@ type ObjectRegistry struct {
 	jsonWriterID   atomic.Uint32
 	goObjectID     atomic.Uint32
 	bigIntID       atomic.Uint32
-	cueContextID   atomic.Uint32
-	cueValueID     atomic.Uint32
-	tupleSpaceID       atomic.Uint32
-	constraintStoreID  atomic.Uint32
 	classValueID       atomic.Uint32
 
 	// Special registries (not suitable for TypedRegistry)
@@ -98,10 +94,10 @@ func NewObjectRegistry() *ObjectRegistry {
 		jsonWriters:   NewTypedRegistry[uint32, *JsonWriterObject](),
 		goObjects:     NewTypedRegistry[uint32, *GoObjectWrapper](),
 		bigInts:       NewTypedRegistry[uint32, *BigIntObject](),
-		cueContexts:   NewTypedRegistry[uint32, *CueContextObject](),
-		cueValues:     NewTypedRegistry[uint32, *CueValueObject](),
-		tupleSpaces:       NewTypedRegistry[uint32, *TupleSpaceObject](),
-		constraintStores:  NewTypedRegistry[uint32, *ConstraintStoreObject](),
+		cueContexts:      NewAutoIDRegistry[*CueContextObject](1),
+		cueValues:        NewAutoIDRegistry[*CueValueObject](1),
+		tupleSpaces:      NewAutoIDRegistry[*TupleSpaceObject](1),
+		constraintStores: NewAutoIDRegistry[*ConstraintStoreObject](1),
 		classValues:       NewTypedRegistry[uint32, *Class](),
 
 		cells:     make(map[*Cell]struct{}),
@@ -129,10 +125,8 @@ func NewObjectRegistry() *ObjectRegistry {
 	or.classValueID.Store(1)
 	or.unixListenerID.Store(1)
 	or.unixConnID.Store(1)
-	or.cueContextID.Store(1)
-	or.cueValueID.Store(1)
-	or.tupleSpaceID.Store(1)
-	or.constraintStoreID.Store(1)
+	// cueContexts, cueValues, tupleSpaces, constraintStores:
+	// start IDs configured via NewAutoIDRegistry(1) above
 
 	return or
 }
@@ -812,93 +806,37 @@ func (or *ObjectRegistry) UnixConnCount() int {
 }
 
 // ---------------------------------------------------------------------------
-// CUE Context Registry Methods
+// CUE Context Registry Methods (delegates to AutoIDRegistry)
 // ---------------------------------------------------------------------------
 
-// RegisterCueContext adds a CUE context to the registry and returns its ID.
-func (or *ObjectRegistry) RegisterCueContext(c *CueContextObject) uint32 {
-	id := or.cueContextID.Add(1) - 1
-	or.cueContexts.Put(id, c)
-	return id
-}
-
-// GetCueContext retrieves a CUE context by its ID.
-func (or *ObjectRegistry) GetCueContext(id uint32) *CueContextObject {
-	return or.cueContexts.Get(id)
-}
-
-// UnregisterCueContext removes a CUE context from the registry.
-func (or *ObjectRegistry) UnregisterCueContext(id uint32) {
-	or.cueContexts.Delete(id)
-}
-
-// CueContextCount returns the number of registered CUE contexts.
-func (or *ObjectRegistry) CueContextCount() int {
-	return or.cueContexts.Count()
-}
+func (or *ObjectRegistry) RegisterCueContext(c *CueContextObject) uint32 { return or.cueContexts.Register(c) }
+func (or *ObjectRegistry) GetCueContext(id uint32) *CueContextObject     { return or.cueContexts.Get(id) }
+func (or *ObjectRegistry) UnregisterCueContext(id uint32)                { or.cueContexts.Delete(id) }
+func (or *ObjectRegistry) CueContextCount() int                         { return or.cueContexts.Count() }
 
 // ---------------------------------------------------------------------------
-// CUE Value Registry Methods
+// CUE Value Registry Methods (delegates to AutoIDRegistry)
 // ---------------------------------------------------------------------------
 
-// RegisterCueValue adds a CUE value to the registry and returns its ID.
-func (or *ObjectRegistry) RegisterCueValue(c *CueValueObject) uint32 {
-	id := or.cueValueID.Add(1) - 1
-	or.cueValues.Put(id, c)
-	return id
-}
-
-// GetCueValue retrieves a CUE value by its ID.
-func (or *ObjectRegistry) GetCueValue(id uint32) *CueValueObject {
-	return or.cueValues.Get(id)
-}
-
-// UnregisterCueValue removes a CUE value from the registry.
-func (or *ObjectRegistry) UnregisterCueValue(id uint32) {
-	or.cueValues.Delete(id)
-}
-
-// CueValueCount returns the number of registered CUE values.
-func (or *ObjectRegistry) CueValueCount() int {
-	return or.cueValues.Count()
-}
+func (or *ObjectRegistry) RegisterCueValue(c *CueValueObject) uint32 { return or.cueValues.Register(c) }
+func (or *ObjectRegistry) GetCueValue(id uint32) *CueValueObject     { return or.cueValues.Get(id) }
+func (or *ObjectRegistry) UnregisterCueValue(id uint32)              { or.cueValues.Delete(id) }
+func (or *ObjectRegistry) CueValueCount() int                        { return or.cueValues.Count() }
 
 // ---------------------------------------------------------------------------
-// TupleSpace Registry Methods
+// TupleSpace Registry Methods (delegates to AutoIDRegistry)
 // ---------------------------------------------------------------------------
 
-// RegisterTupleSpace adds a tuple space to the registry and returns its ID.
-func (or *ObjectRegistry) RegisterTupleSpace(ts *TupleSpaceObject) uint32 {
-	id := or.tupleSpaceID.Add(1) - 1
-	or.tupleSpaces.Put(id, ts)
-	return id
-}
-
-// GetTupleSpace retrieves a tuple space by its ID.
-func (or *ObjectRegistry) GetTupleSpace(id uint32) *TupleSpaceObject {
-	return or.tupleSpaces.Get(id)
-}
+func (or *ObjectRegistry) RegisterTupleSpace(ts *TupleSpaceObject) uint32 { return or.tupleSpaces.Register(ts) }
+func (or *ObjectRegistry) GetTupleSpace(id uint32) *TupleSpaceObject      { return or.tupleSpaces.Get(id) }
 
 // ---------------------------------------------------------------------------
-// ConstraintStore Registry Methods
+// ConstraintStore Registry Methods (delegates to AutoIDRegistry)
 // ---------------------------------------------------------------------------
 
-// RegisterConstraintStore adds a constraint store to the registry and returns its ID.
-func (or *ObjectRegistry) RegisterConstraintStore(cs *ConstraintStoreObject) uint32 {
-	id := or.constraintStoreID.Add(1) - 1
-	or.constraintStores.Put(id, cs)
-	return id
-}
-
-// GetConstraintStore retrieves a constraint store by its ID.
-func (or *ObjectRegistry) GetConstraintStore(id uint32) *ConstraintStoreObject {
-	return or.constraintStores.Get(id)
-}
-
-// ConstraintStoreCount returns the number of registered constraint stores.
-func (or *ObjectRegistry) ConstraintStoreCount() int {
-	return or.constraintStores.Count()
-}
+func (or *ObjectRegistry) RegisterConstraintStore(cs *ConstraintStoreObject) uint32 { return or.constraintStores.Register(cs) }
+func (or *ObjectRegistry) GetConstraintStore(id uint32) *ConstraintStoreObject      { return or.constraintStores.Get(id) }
+func (or *ObjectRegistry) ConstraintStoreCount() int                                { return or.constraintStores.Count() }
 
 // ---------------------------------------------------------------------------
 // Extended Stats

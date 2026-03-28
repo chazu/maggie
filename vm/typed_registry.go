@@ -1,6 +1,9 @@
 package vm
 
-import "sync"
+import (
+	"sync"
+	"sync/atomic"
+)
 
 // TypedRegistry is a generic, thread-safe registry for mapping keys to values.
 // It handles storage and locking only; ID allocation remains with the caller.
@@ -99,4 +102,34 @@ func (r *TypedRegistry[K, V]) RUnlock() {
 // Caller must hold at least a read lock via RLock.
 func (r *TypedRegistry[K, V]) UnsafeGet(key K) V {
 	return r.data[key]
+}
+
+// ---------------------------------------------------------------------------
+// AutoIDRegistry: TypedRegistry + auto-incrementing uint32 ID allocation
+// ---------------------------------------------------------------------------
+
+// AutoIDRegistry bundles a TypedRegistry[uint32, V] with an atomic ID counter.
+// It collapses the Register/Get/Delete/Count boilerplate that repeats across
+// every domain in ObjectRegistry.
+type AutoIDRegistry[V any] struct {
+	TypedRegistry[uint32, V]
+	nextID atomic.Uint32
+}
+
+// NewAutoIDRegistry creates an AutoIDRegistry with the given starting ID.
+// Use startID=1 for most domains (0 is reserved as nil/uninitialized).
+// Use larger offsets for domains that share the symbol ID space (e.g., strings).
+func NewAutoIDRegistry[V any](startID uint32) *AutoIDRegistry[V] {
+	r := &AutoIDRegistry[V]{
+		TypedRegistry: TypedRegistry[uint32, V]{data: make(map[uint32]V)},
+	}
+	r.nextID.Store(startID)
+	return r
+}
+
+// Register stores a value and returns its auto-assigned ID.
+func (r *AutoIDRegistry[V]) Register(v V) uint32 {
+	id := r.nextID.Add(1) - 1
+	r.Put(id, v)
+	return id
 }

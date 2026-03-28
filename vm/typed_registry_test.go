@@ -98,6 +98,78 @@ func TestTypedRegistry_RLockUnsafeGet(t *testing.T) {
 	}
 }
 
+func TestAutoIDRegistry_RegisterAndGet(t *testing.T) {
+	r := NewAutoIDRegistry[string](1)
+
+	id1 := r.Register("first")
+	id2 := r.Register("second")
+	id3 := r.Register("third")
+
+	if id1 != 1 || id2 != 2 || id3 != 3 {
+		t.Errorf("IDs = (%d, %d, %d), want (1, 2, 3)", id1, id2, id3)
+	}
+	if got := r.Get(id1); got != "first" {
+		t.Errorf("Get(%d) = %q, want %q", id1, got, "first")
+	}
+	if got := r.Get(id2); got != "second" {
+		t.Errorf("Get(%d) = %q, want %q", id2, got, "second")
+	}
+}
+
+func TestAutoIDRegistry_CustomStartID(t *testing.T) {
+	r := NewAutoIDRegistry[string](100)
+	id := r.Register("value")
+	if id != 100 {
+		t.Errorf("first ID = %d, want 100", id)
+	}
+}
+
+func TestAutoIDRegistry_DeleteAndCount(t *testing.T) {
+	r := NewAutoIDRegistry[int](1)
+	id1 := r.Register(10)
+	r.Register(20)
+	r.Register(30)
+
+	if r.Count() != 3 {
+		t.Fatalf("count = %d, want 3", r.Count())
+	}
+	r.Delete(id1)
+	if r.Count() != 2 {
+		t.Errorf("count after delete = %d, want 2", r.Count())
+	}
+}
+
+func TestAutoIDRegistry_Sweep(t *testing.T) {
+	r := NewAutoIDRegistry[int](1)
+	for i := 0; i < 10; i++ {
+		r.Register(i)
+	}
+	swept := r.Sweep(func(_ uint32, v int) bool { return v%2 == 0 })
+	if swept != 5 {
+		t.Errorf("swept = %d, want 5", swept)
+	}
+	if r.Count() != 5 {
+		t.Errorf("count after sweep = %d, want 5", r.Count())
+	}
+}
+
+func TestAutoIDRegistry_ConcurrentRegister(t *testing.T) {
+	r := NewAutoIDRegistry[int](1)
+	var wg sync.WaitGroup
+	for i := 0; i < 100; i++ {
+		wg.Add(1)
+		go func(n int) {
+			defer wg.Done()
+			id := r.Register(n)
+			_ = r.Get(id)
+		}(i)
+	}
+	wg.Wait()
+	if r.Count() != 100 {
+		t.Errorf("count = %d, want 100", r.Count())
+	}
+}
+
 func TestTypedRegistry_ConcurrentAccess(t *testing.T) {
 	r := NewTypedRegistry[int, int]()
 	var wg sync.WaitGroup
