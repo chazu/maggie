@@ -2,7 +2,7 @@
 
 **Date:** 2026-03-03
 **Source:** Language architect review (`docs/plans/2026-03-03-language-architect-review.md`)
-**Status audit:** 2026-03-28 — P1 (all done), P2 (all done), P3 TODOs 9/10/11 (done), P4 TODOs 13/16 (done). Remaining: P3 TODO 12 (peephole), P4 TODOs 14/15.
+**Status audit:** 2026-03-28 — All P1/P2/P3 done. P4 TODOs 13/16 done. Remaining: P4 TODOs 14 (metaclass) and 15 (exception resume/retry) — both need design input.
 
 ---
 
@@ -108,7 +108,7 @@
   4. Update the image format (v5) to persist source maps.
 - **Research needed:** Study how other bytecode VMs (CPython, Lua, JVM) represent source maps compactly. A run-length encoding approach (one entry per source line change, not per bytecode) would be efficient.
 
-### TODO 12: Add a peephole optimizer pass
+### ~~TODO 12: Add a peephole optimizer pass~~ DONE
 - **Problem:** The compiler goes directly from AST to final bytecode with no optimization. Constant expressions like `3 + 4` emit 3 instructions instead of 1. No dead code elimination, no common subexpression elimination.
 - **Fix (incremental):**
   1. **Phase A — Constant folding:** After codegen, scan for patterns like `PushInt/PushInt/SendPlus` and replace with `PushInt(result)`. This is a simple peephole pass over the bytecode array.
