@@ -1,10 +1,12 @@
 """
-Maggie has two numeric types: SmallInteger for exact whole numbers and Float
-for IEEE 754 double-precision decimals. Both support the standard arithmetic
-operators and comparisons. SmallIntegers are stored as tagged pointers inside
+Maggie has three numeric types: SmallInteger for exact whole numbers (48-bit),
+BigInteger for arbitrary-precision integers, and Float for IEEE 754 double-
+precision decimals. SmallIntegers are stored as tagged pointers inside
 the NaN-boxed value representation, so integer arithmetic never allocates
-heap memory. Floats are used whenever a literal contains a decimal point or
-when an integer operation involves a Float operand.
+heap memory. When arithmetic overflows SmallInteger range, values are
+automatically promoted to BigInteger and demoted back when results fit.
+Floats are used whenever a literal contains a decimal point or when an
+integer operation involves a Float operand.
 
 All arithmetic and comparison operators are messages sent to the receiver.
 There is no special syntax for math -- 3 + 4 sends the message + with
@@ -392,4 +394,32 @@ Guide03Numbers subclass: Object
           i odd ifTrue: [sum := sum + (i * i)]
       ].
       ^sum
+  ]
+
+  """
+  When SmallInteger arithmetic overflows the 48-bit range, values are
+  automatically promoted to BigInteger. This is transparent -- you use
+  the same operators and the VM handles the promotion. If a result fits
+  back in SmallInteger range, it is demoted automatically.
+
+  ```test
+  20 factorial class name >>> #BigInteger
+  20 factorial > 0 >>> true
+  20 factorial > 1000000000 >>> true
+  (10 factorial / 10 factorial) class name >>> #SmallInteger
+  ```
+
+  BigInteger supports all the same arithmetic, comparison, and bitwise
+  operations as SmallInteger. Mixed operations with SmallInteger or
+  Float are handled automatically.
+
+  ```test
+  n := 20 factorial.
+  (n + 1) > n >>> true
+  (n - n) = 0 >>> true
+  n = n >>> true
+  ```
+  """
+  method: s13_bigInteger [
+      20 factorial
   ]

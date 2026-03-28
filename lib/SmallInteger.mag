@@ -1,11 +1,13 @@
 """
 Integer values represented as tagged pointers for efficient arithmetic.
 
-SmallInteger is the primary numeric type in Maggie. Arithmetic operators
-(+, -, *, /, \\, //), comparisons (<, >, <=, >=, =), and iteration
-(timesRepeat:, to:do:, to:by:do:) are implemented as primitives for
-performance. The methods below provide higher-level numeric operations
-built on those primitives.
+SmallInteger is the primary numeric type in Maggie, storing exact
+integers in the 48-bit range. Arithmetic operators (+, -, *, /, \\, //),
+comparisons (<, >, <=, >=, =), and iteration (timesRepeat:, to:do:,
+to:by:do:) are implemented as primitives for performance. When
+arithmetic overflows SmallInteger range, the result is automatically
+promoted to BigInteger. The methods below provide higher-level numeric
+operations built on those primitives.
 
 ```test
 3 + 4 >>> 7

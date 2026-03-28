@@ -1,0 +1,67 @@
+"""
+Arbitrary-precision integers for values that exceed SmallInteger range.
+
+BigInteger is created automatically when SmallInteger arithmetic overflows
+the 48-bit range. You never need to create BigIntegers explicitly — they
+appear transparently from operations like factorial on large numbers,
+exponentiation, or simply adding beyond SmallInteger limits.
+
+BigInteger supports all the same arithmetic (+, -, *, /, \\, //),
+comparison (<, >, <=, >=, =), and bitwise (bitAnd:, bitOr:, bitXor:,
+bitShift:) operators as SmallInteger. Mixed BigInteger/SmallInteger
+operations are handled automatically — the SmallInt operand is promoted.
+Mixed BigInteger/Float operations produce Float results.
+
+If a BigInteger result fits back in the SmallInteger range, it is
+automatically demoted for efficiency.
+
+```test
+20 factorial class name >>> #BigInteger
+20 factorial > 0 >>> true
+20 factorial printString >>> '2432902008176640000'
+```
+"""
+BigInteger subclass: Object
+
+  """
+  Return the absolute value.
+  """
+  method: abs [ ^self primAbs ]
+
+  """
+  Return the negation of the receiver.
+  """
+  method: negated [ ^self primNegated ]
+
+  """
+  Return -1, 0, or 1 indicating the sign.
+
+  ```test
+  20 factorial sign >>> 1
+  ```
+  """
+  method: sign [ ^self primSign ]
+
+  """
+  Return true if the receiver is zero.
+  """
+  method: isZero [ ^self primIsZero ]
+
+  """
+  Convert to Float (may lose precision for very large values).
+
+  ```test
+  20 factorial asFloat class name >>> #Float
+  ```
+  """
+  method: asFloat [ ^self primAsFloat ]
+
+  """
+  Convert to SmallInteger (truncates if too large).
+  """
+  method: asSmallInt [ ^self primAsSmallInt ]
+
+  """
+  Return a human-readable string representation.
+  """
+  method: printString [ ^self primPrintString ]
