@@ -1,11 +1,12 @@
 module github.com/chazu/maggie
 
-go 1.24.5
+go 1.25.7
 
 require (
 	connectrpc.com/connect v1.19.1
 	cuelang.org/go v0.15.4
 	github.com/BurntSushi/toml v1.6.0
+	github.com/chazu/goquint v0.0.0-20260303000434-ed4b48aa0d4d
 	github.com/fxamacker/cbor/v2 v2.5.0
 	github.com/jhump/protoreflect v1.15.4
 	github.com/marcboeker/go-duckdb v1.8.5

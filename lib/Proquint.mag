@@ -1,0 +1,31 @@
+"""
+Pronounceable identifiers for integers and binary data.
+
+Proquints encode integers as alternating consonant-vowel sequences that
+are easy to read, pronounce, and remember. A 32-bit value becomes two
+hyphenated quintuplets (e.g., 'lusab-babad'), and a 64-bit value becomes
+four quintuplets. Useful for node IDs, content hashes, IP addresses, and
+any context where human-readable identifiers improve usability.
+
+See https://arxiv.org/html/0901.4016 for the specification.
+
+All methods are class-side — Proquint is a utility class with no instances.
+
+Class methods:
+  Proquint encode: anInteger       — 32-bit integer to proquint string
+  Proquint encode64: anInteger     — 64-bit integer to proquint string
+  Proquint decode: aString         — proquint string to 32-bit integer
+  Proquint decode64: aString       — proquint string to 64-bit integer
+  Proquint random                  — random 32-bit proquint
+  Proquint random64                — random 64-bit proquint
+  Proquint encodeHex: aHexString   — hex string to proquint
+  Proquint encodeHex64: aHexString — 64-bit hex string to proquint
+
+```test
+(Proquint encode: 0) >>> 'babab-babab'
+(Proquint decode: 'babab-babab') >>> 0
+(Proquint decode: (Proquint encode: 12345)) >>> 12345
+(Proquint random) size > 0 >>> true
+```
+"""
+Proquint subclass: Object

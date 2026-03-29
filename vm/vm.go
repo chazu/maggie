@@ -312,6 +312,7 @@ func (vm *VM) bootstrap() {
 	vm.registerCuePrimitives()
 	vm.registerTupleSpacePrimitives()
 	vm.registerConstraintStorePrimitives()
+	vm.registerProquintPrimitives()
 	vm.registerSqlitePrimitives()
 	vm.registerSystemPrimitives()
 	vm.registerRandomPrimitives()
