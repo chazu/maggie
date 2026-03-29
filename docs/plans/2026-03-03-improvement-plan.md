@@ -2,7 +2,7 @@
 
 **Date:** 2026-03-03
 **Source:** Language architect review (`docs/plans/2026-03-03-language-architect-review.md`)
-**Status audit:** 2026-03-28 — All P1/P2/P3 done. P4 TODOs 13/16 done. Remaining: P4 TODOs 14 (metaclass) and 15 (exception resume/retry) — both need design input.
+**Status audit:** 2026-03-28 — 15 of 16 TODOs done. Remaining: P4 TODO 14 (full metaclass hierarchy) — needs design input.
 
 ---
 
@@ -138,7 +138,7 @@
   - How does this interact with the existing class-side method storage?
   - What breaks if metaclasses are added? (Image format, `allClasses`, reflection primitives, etc.)
 
-### TODO 15: Add exception resume/retry/pass semantics
+### ~~TODO 15: Add exception resume/retry/pass semantics~~ DONE
 - **Problem:** Only `on:do:` catching is supported. No `retry` (restart the protected block), `resume:` (continue from the signal point with a value), or `pass` (re-signal to outer handler).
 - **Research needed:** This requires understanding how the exception signaling mechanism currently works and where resume/retry control flow would re-enter. Key questions:
   - How is the exception handler stack maintained? (Is it a linked list of handler frames, or something else?)
