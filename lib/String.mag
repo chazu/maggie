@@ -370,3 +370,13 @@ String subclass: Object
   method: printString [
       ^'''', self, ''''
   ]
+
+  """
+  Return a string containing a single newline character (LF).
+  Class method — call as `String lf`.
+
+  ```test
+  String lf size >>> 1
+  ```
+  """
+  classMethod: lf [ ^self primLf ]

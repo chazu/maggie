@@ -755,6 +755,19 @@ Guide07Classes subclass: Object
   - Override methods to specialize behavior in subclasses
   - Use `subclassResponsibility` for abstract method stubs
 
+  ## Metaclasses
+
+  Every class has a corresponding metaclass, accessible via the `class`
+  message. Sending `class` to an instance returns its class; sending
+  `class` to a class returns its metaclass. Metaclass inheritance
+  mirrors class inheritance: `SmallInteger class` has `Object class`
+  as its superclass.
+
+  ```test
+  42 class name >>> #SmallInteger
+  SmallInteger class name >>> #'SmallInteger class'
+  ```
+
   The class system is simple but expressive. Combined with blocks for
   control flow and traits for cross-cutting concerns, it provides all
   the tools you need to structure programs of any size.

@@ -498,6 +498,29 @@ Guide08ErrorHandling subclass: Object
   ]
 
   """
+  ## Advanced Exception Control Flow
+
+  Inside a handler block, the exception object supports several
+  control flow messages beyond simply returning a value:
+
+  - `resume:` -- resume execution after the signal point with a value
+  - `retry` -- re-execute the protected block from the beginning
+  - `pass` -- forward the exception to the next outer handler
+  - `return` -- return nil from the on:do: expression
+  - `return:` -- return a specific value from the on:do: expression
+
+  ```test
+  ([Error signal: 'oops'] on: Error do: [:e | e return: 42]) >>> 42
+  ```
+  """
+  method: s12b_advancedExceptionControl [
+      | count |
+      count := 0.
+      [count := count + 1. count < 3 ifTrue: [Error signal]. count]
+          on: Error do: [:e | e retry]
+  ]
+
+  """
   ## Summary
 
   Maggie provides two complementary approaches to error handling:
@@ -506,6 +529,7 @@ Guide08ErrorHandling subclass: Object
   - `[code] on: ExClass do: [:e | handler]` -- catch exceptions
   - `[code] ensure: [cleanup]` -- guaranteed cleanup (try/finally)
   - `[code] ifCurtailed: [cleanup]` -- cleanup only on abnormal exit
+  - `resume:`, `retry`, `pass` -- advanced handler control flow
   - Exception hierarchy: Exception > Error > ZeroDivide, StackOverflow, etc.
 
   **Results** -- for expected failure modes:

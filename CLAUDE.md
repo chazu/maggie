@@ -217,6 +217,44 @@ Self-recursive methods in tail position are automatically optimized by the compi
 
 No code changes are needed — TCO is transparent. It works alongside stack overflow protection (non-tail-recursive methods still hit the depth limit).
 
+### Peephole Bytecode Optimizer
+
+The compiler runs a peephole optimization pass after codegen (`compiler/peephole.go`):
+
+- **Constant folding:** `3 + 4` compiles to `PushInt8(7)` instead of `PushInt8(3)/PushInt8(4)/SendPlus`. Chains fold completely. Overflow promotes to `PushInt32`.
+- **Push-pop elimination:** Side-effect-free `Push*/Pop` pairs (from statement separators, cell init, etc.) are stripped.
+- **Dead code elimination:** Unreachable instructions after unconditional jumps/returns are removed, respecting jump targets.
+
+The pass iterates until stable, adjusts jump offsets, and remaps source map entries. Transparent — no user action needed.
+
+### Source Position Mapping
+
+Compiled methods and blocks carry a `SourceMap []SourceLoc` that maps bytecode offsets to `(line, column)` positions. The compiler emits entries during codegen; the interpreter uses them for stack traces:
+
+```
+  [0] MyClass>>myMethod at line 5, column 3
+  [1] <block> at line 12, column 7
+```
+
+Source maps are persisted in the image format and survive save/load cycles.
+
+### Call Stack Capture
+
+```smalltalk
+Compiler captureCallStack.   "Returns an Array of Dictionaries"
+```
+
+Each dictionary contains `#class`, `#method`, `#line`, `#column`, and `#ip` keys. Useful for post-mortem debugging and custom error reporting.
+
+### BigInteger
+
+When SmallInteger arithmetic overflows the 48-bit range, values are automatically promoted to BigInteger (backed by Go's `math/big.Int`). Demotion back to SmallInteger happens when results fit. All arithmetic, comparison, and bitwise operations work transparently across SmallInteger and BigInteger.
+
+```smalltalk
+20 factorial.              "→ BigInteger: 2432902008176640000"
+20 factorial class name.   "→ #BigInteger"
+```
+
 ### Source Formatting
 
 Format Maggie source files to a canonical style:
