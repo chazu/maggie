@@ -2,7 +2,7 @@
 
 **Date:** 2026-03-03
 **Source:** Language architect review (`docs/plans/2026-03-03-language-architect-review.md`)
-**Status audit:** 2026-03-28 — 15 of 16 TODOs done. Remaining: P4 TODO 14 (full metaclass hierarchy) — needs design input.
+**Status audit:** 2026-03-28 — ALL 16 TODOs COMPLETE.
 
 ---
 
@@ -130,7 +130,7 @@
   5. All comparison and hashing primitives must handle SmallInt-BigInt mixed operations.
 - **Research needed:** Study the NaN-boxing marker space to find a free marker for BigInt. Determine if `math/big.Int` performance is acceptable or if a custom implementation is needed for small big-ints (e.g., 64-bit or 128-bit before going to arbitrary precision).
 
-### TODO 14: Implement full metaclass hierarchy
+### ~~TODO 14: Implement full metaclass hierarchy~~ DONE
 - **File:** `vm/vm.go:191` — "we skip full metaclass support for simplicity"
 - **Problem:** Class-side methods exist but there are no first-class metaclasses. This means no `Metaclass` class, no `class` message returning a proper metaclass object, and no ability to define class-side inheritance independently.
 - **Research needed:** This is a major architectural change. Study how Squeak/Pharo implements the metaclass hierarchy (Class/Metaclass/ClassDescription/Behavior) and determine the minimal subset needed for Maggie. Key questions:
