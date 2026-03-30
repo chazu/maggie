@@ -706,6 +706,69 @@ Guide09Concurrency subclass: Object
   ]
 
   """
+  ## Process Links
+
+  Links create bidirectional crash propagation between processes.
+  When a linked process terminates abnormally, the other process
+  is also killed -- unless it is trapping exits.
+
+  Normal exits do not propagate through links. Only crashes and
+  explicit kills trigger propagation.
+
+  ```example
+  "Link two processes -- if worker crashes, supervisor knows"
+  worker := [
+      Process sleep: 100.
+      1 / 0   "crash!"
+  ] fork.
+  Process current trapExit: true.
+  Process current link: worker.
+  msg := Process receive: 500.
+  msg isNil
+      ifTrue: ['No crash detected']
+      ifFalse: [msg selector]        "=> #exit"
+  ```
+
+  `trapExit: true` converts kill signals into mailbox messages
+  with selector `#exit`, allowing a supervisor process to detect
+  and handle child crashes without dying itself.
+  """
+  method: s12d_processLinks [
+      "Links require concurrent processes; see examples above."
+      ^nil
+  ]
+
+  """
+  ## Process Monitors
+
+  Monitors are unidirectional: the watcher is notified when the
+  watched process dies, but is not killed. The notification arrives
+  as a `MailboxMessage` with selector `#processDown:` and a
+  4-element array payload: `#(refID processValue reason result)`.
+
+  If the monitored process is already dead when the monitor is
+  established, the DOWN message is delivered immediately.
+
+  ```example
+  "Monitor a short-lived worker"
+  worker := [42] fork.
+  ref := Process current monitor: worker.
+  worker wait.
+  msg := Process tryReceive.
+  msg isNil
+      ifTrue: ['No notification']
+      ifFalse: [msg selector]        "=> #processDown:"
+  ```
+
+  Use `demonitor:` with the ref ID to cancel a monitor before
+  the watched process dies.
+  """
+  method: s12e_processMonitors [
+      "Monitors require concurrent processes; see examples above."
+      ^nil
+  ]
+
+  """
   ## Pattern: Producer-Consumer
 
   The producer-consumer pattern uses a channel as a bounded buffer

@@ -320,6 +320,7 @@ func (vm *VM) bootstrap() {
 	vm.registerChannelSelectPrimitives()
 	vm.registerProcessPrimitives()
 	vm.registerMailboxPrimitives()
+	vm.registerLinkMonitorPrimitives()
 	vm.registerFuturePrimitives()
 	vm.registerNodePrimitives()
 	vm.registerRemoteProcessPrimitives()

@@ -188,6 +188,81 @@ Process subclass: Object
       ^self primUnregister
   ]
 
+  -- Links and monitors
+
+  """
+  Create a bidirectional link with another process. If either
+  linked process terminates abnormally, the other is also killed
+  (unless it is trapping exits).
+
+  ```example
+  child := [Process sleep: 1000] fork.
+  Process current link: child
+  ```
+  """
+  method: link: otherProcess [
+      ^self primLink: otherProcess
+  ]
+
+  """
+  Remove a bidirectional link.
+  """
+  method: unlink: otherProcess [
+      ^self primUnlink: otherProcess
+  ]
+
+  """
+  Monitor another process. Returns a reference ID (SmallInt).
+  When the monitored process dies, a `processDown:` message
+  is delivered to this process's mailbox with payload
+  `#(refID processValue reasonSymbol resultValue)`.
+
+  ```example
+  worker := [42] fork.
+  ref := Process current monitor: worker.
+  worker wait.
+  Process tryReceive    "=> MailboxMessage with #processDown:"
+  ```
+  """
+  method: monitor: otherProcess [
+      ^self primMonitor: otherProcess
+  ]
+
+  """
+  Cancel a monitor by its reference ID.
+  """
+  method: demonitor: refID [
+      ^self primDemonitor: refID
+  ]
+
+  """
+  Set whether this process traps exit signals from linked
+  processes. When true, exit signals are delivered as mailbox
+  messages with selector `#exit` instead of killing the process.
+
+  ```example
+  Process current trapExit: true
+  ```
+  """
+  method: trapExit: aBoolean [
+      ^self primTrapExit: aBoolean
+  ]
+
+  """
+  Return whether this process is trapping exits.
+  """
+  method: trapExit [
+      ^self primTrapExit
+  ]
+
+  """
+  Return the exit reason of this process (a Symbol like
+  `#normal`, `#linked`, `#error`), or nil if still running.
+  """
+  method: exitReason [
+      ^self primExitReason
+  ]
+
   -- Class-side mailbox methods
 
   """

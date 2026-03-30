@@ -78,6 +78,31 @@ msg selector.                      "Selector symbol or nil"
 msg payload.                       "The payload value"
 ```
 
+### Process Links and Monitors
+
+Links and monitors provide process lifecycle notifications (Erlang-style).
+
+```smalltalk
+"Links — bidirectional crash propagation"
+Process current link: childProcess.      "Link to child"
+Process current unlink: childProcess.    "Remove link"
+
+"Monitors — unidirectional death notification"
+ref := Process current monitor: worker.  "Monitor worker, returns ref ID"
+Process current demonitor: ref.          "Cancel monitor"
+
+"Trap exits — convert link kills to mailbox messages"
+Process current trapExit: true.
+"Now linked process deaths deliver #exit messages instead of killing"
+
+"Exit reason"
+proc exitReason.                         "#normal, #linked, #error, or nil"
+```
+
+**Link semantics**: abnormal exits propagate (linked process is killed). Normal exits do NOT propagate. `trapExit: true` converts kill signals into `#exit` mailbox messages.
+
+**Monitor semantics**: when the monitored process dies, the watcher receives a `MailboxMessage` with selector `#processDown:` and payload `#(refID processValue reasonSymbol resultValue)`. If the monitored process is already dead, the DOWN message is delivered immediately.
+
 ### Registered Process Names
 
 Processes can register under a string name for discovery. Names are unique — registering a name taken by a live process fails. Dead process names are lazily cleaned up.

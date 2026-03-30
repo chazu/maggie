@@ -1,6 +1,7 @@
 package vm
 
 import (
+	"fmt"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -128,6 +129,13 @@ type ProcessObject struct {
 	mu        sync.Mutex
 	waitGroup sync.WaitGroup
 	mailbox   *Mailbox // per-process message mailbox
+
+	// Links and monitors
+	links      map[uint64]bool       // bidirectional link partners (nil until first use)
+	trapExit   bool                  // if true, exit signals become mailbox messages
+	monitors   map[uint64]*MonitorRef // monitors where THIS process is being watched
+	myMonitors map[uint64]*MonitorRef // monitors where THIS process is the watcher
+	exitReason ExitReason            // set by FinishProcess
 }
 
 // Mailbox returns the process's mailbox.
@@ -150,15 +158,19 @@ func isProcessValue(v Value) bool {
 	return (id & (0xFF << 24)) == processMarker
 }
 
+// markDone is the legacy termination method. New code should use
+// vm.FinishProcess() instead, which handles link/monitor notifications.
+// Kept for backward compatibility with tests that don't have a VM reference.
 func (p *ProcessObject) markDone(result Value, err error) {
 	p.mu.Lock()
 	p.result = result
 	p.err = err
+	p.exitReason = ExitReason{Normal: err == nil, Result: result, Error: err}
 	p.state.Store(int32(ProcessTerminated))
 	p.mu.Unlock()
 	p.waitGroup.Done()
 	if p.mailbox != nil {
-		p.mailbox.Close() // wake blocked receivers, reject future sends
+		p.mailbox.Close()
 	}
 	close(p.done)
 }
@@ -447,10 +459,10 @@ func (vm *VM) registerProcessPrimitives() {
 				if r := recover(); r != nil {
 					// If somehow a NonLocalReturn escapes, capture its value
 					if nlr, ok := r.(NonLocalReturn); ok {
-						proc.markDone(nlr.Value, nil)
+						v.FinishProcess(proc, ExitNormal(nlr.Value))
 					} else {
 						// Process crashed with other error
-						proc.markDone(Nil, nil)
+						v.FinishProcess(proc, ExitError(fmt.Errorf("process panic: %v", r)))
 					}
 				}
 				// Unregister the interpreter when done
@@ -464,7 +476,7 @@ func (vm *VM) registerProcessPrimitives() {
 			v.registerInterpreter(interp)
 			// Use ExecuteBlockDetached so ^ becomes local return
 			result := interp.ExecuteBlockDetached(bv.Block, bv.Captures, nil, bv.HomeSelf, bv.HomeMethod)
-			proc.markDone(result, nil)
+			v.FinishProcess(proc, ExitNormal(result))
 		}()
 
 		return procValue
@@ -486,9 +498,9 @@ func (vm *VM) registerProcessPrimitives() {
 			defer func() {
 				if r := recover(); r != nil {
 					if nlr, ok := r.(NonLocalReturn); ok {
-						proc.markDone(nlr.Value, nil)
+						v.FinishProcess(proc, ExitNormal(nlr.Value))
 					} else {
-						proc.markDone(Nil, nil)
+						v.FinishProcess(proc, ExitError(fmt.Errorf("process panic: %v", r)))
 					}
 				}
 				v.unregisterInterpreter()
@@ -498,7 +510,7 @@ func (vm *VM) registerProcessPrimitives() {
 			interp.processID = proc.id
 			v.registerInterpreter(interp)
 			result := interp.ExecuteBlockDetached(bv.Block, bv.Captures, []Value{arg}, bv.HomeSelf, bv.HomeMethod)
-			proc.markDone(result, nil)
+			v.FinishProcess(proc, ExitNormal(result))
 		}()
 
 		return procValue
@@ -526,9 +538,9 @@ func (vm *VM) registerProcessPrimitives() {
 			defer func() {
 				if r := recover(); r != nil {
 					if nlr, ok := r.(NonLocalReturn); ok {
-						proc.markDone(nlr.Value, nil)
+						v.FinishProcess(proc, ExitNormal(nlr.Value))
 					} else {
-						proc.markDone(Nil, nil)
+						v.FinishProcess(proc, ExitError(fmt.Errorf("process panic: %v", r)))
 					}
 				}
 				v.unregisterInterpreter()
@@ -553,7 +565,7 @@ func (vm *VM) registerProcessPrimitives() {
 			// Pass context as first argument
 			result := interp.ExecuteBlockDetached(bv.Block, bv.Captures, []Value{ctxArg}, bv.HomeSelf, bv.HomeMethod)
 			close(done)
-			proc.markDone(result, nil)
+			v.FinishProcess(proc, ExitNormal(result))
 		}()
 
 		return procValue
@@ -577,9 +589,9 @@ func (vm *VM) registerProcessPrimitives() {
 			defer func() {
 				if r := recover(); r != nil {
 					if nlr, ok := r.(NonLocalReturn); ok {
-						proc.markDone(nlr.Value, nil)
+						v.FinishProcess(proc, ExitNormal(nlr.Value))
 					} else {
-						proc.markDone(Nil, nil)
+						v.FinishProcess(proc, ExitError(fmt.Errorf("process panic: %v", r)))
 					}
 				}
 				v.unregisterInterpreter()
@@ -589,7 +601,7 @@ func (vm *VM) registerProcessPrimitives() {
 			interp.processID = proc.id
 			v.registerInterpreter(interp)
 			result := interp.ExecuteBlockDetached(bv.Block, bv.Captures, nil, bv.HomeSelf, bv.HomeMethod)
-			proc.markDone(result, nil)
+			v.FinishProcess(proc, ExitNormal(result))
 		}()
 
 		return procValue
@@ -741,9 +753,9 @@ func (vm *VM) registerProcessPrimitives() {
 			defer func() {
 				if r := recover(); r != nil {
 					if nlr, ok := r.(NonLocalReturn); ok {
-						proc.markDone(nlr.Value, nil)
+						v.FinishProcess(proc, ExitNormal(nlr.Value))
 					} else {
-						proc.markDone(Nil, nil)
+						v.FinishProcess(proc, ExitError(fmt.Errorf("process panic: %v", r)))
 					}
 				}
 				v.unregisterInterpreter()
@@ -753,7 +765,7 @@ func (vm *VM) registerProcessPrimitives() {
 			interp.processID = proc.id
 			v.registerInterpreter(interp)
 			result := interp.ExecuteBlockDetached(bv.Block, bv.Captures, nil, bv.HomeSelf, bv.HomeMethod)
-			proc.markDone(result, nil)
+			v.FinishProcess(proc, ExitNormal(result))
 		}()
 
 		return procValue
@@ -788,9 +800,9 @@ func (vm *VM) registerProcessPrimitives() {
 			defer func() {
 				if r := recover(); r != nil {
 					if nlr, ok := r.(NonLocalReturn); ok {
-						proc.markDone(nlr.Value, nil)
+						v.FinishProcess(proc, ExitNormal(nlr.Value))
 					} else {
-						proc.markDone(Nil, nil)
+						v.FinishProcess(proc, ExitError(fmt.Errorf("process panic: %v", r)))
 					}
 				}
 				v.unregisterInterpreter()
@@ -800,7 +812,7 @@ func (vm *VM) registerProcessPrimitives() {
 			interp.processID = proc.id
 			v.registerInterpreter(interp)
 			result := interp.ExecuteBlockDetached(bv.Block, bv.Captures, nil, bv.HomeSelf, bv.HomeMethod)
-			proc.markDone(result, nil)
+			v.FinishProcess(proc, ExitNormal(result))
 		}()
 
 		return procValue
@@ -833,6 +845,113 @@ func (vm *VM) extractHiddenMap(restrictionsVal Value) map[string]bool {
 		}
 	}
 	return hidden
+}
+
+// ---------------------------------------------------------------------------
+// Link and Monitor primitives
+// ---------------------------------------------------------------------------
+
+func (vm *VM) registerLinkMonitorPrimitives() {
+	c := vm.ProcessClass
+
+	// Process>>primLink: otherProcess
+	c.AddMethod1(vm.Selectors, "primLink:", func(vmPtr interface{}, recv Value, other Value) Value {
+		v := vmPtr.(*VM)
+		procA := v.getProcess(recv)
+		procB := v.getProcess(other)
+		if procA == nil || procB == nil {
+			return False
+		}
+		v.LinkProcesses(procA, procB)
+		return True
+	})
+
+	// Process>>primUnlink: otherProcess
+	c.AddMethod1(vm.Selectors, "primUnlink:", func(vmPtr interface{}, recv Value, other Value) Value {
+		v := vmPtr.(*VM)
+		procA := v.getProcess(recv)
+		procB := v.getProcess(other)
+		if procA == nil || procB == nil {
+			return False
+		}
+		v.UnlinkProcesses(procA, procB)
+		return True
+	})
+
+	// Process>>primMonitor: otherProcess — returns monitor ref ID as SmallInt
+	c.AddMethod1(vm.Selectors, "primMonitor:", func(vmPtr interface{}, recv Value, other Value) Value {
+		v := vmPtr.(*VM)
+		watcher := v.getProcess(recv)
+		watched := v.getProcess(other)
+		if watcher == nil || watched == nil {
+			return Nil
+		}
+		ref := v.MonitorProcess(watcher, watched)
+		return FromSmallInt(int64(ref.ID))
+	})
+
+	// Process>>primDemonitor: refID
+	c.AddMethod1(vm.Selectors, "primDemonitor:", func(vmPtr interface{}, recv Value, refIDVal Value) Value {
+		v := vmPtr.(*VM)
+		watcher := v.getProcess(recv)
+		if watcher == nil || !refIDVal.IsSmallInt() {
+			return False
+		}
+		refID := uint64(refIDVal.SmallInt())
+		watcher.mu.Lock()
+		ref, ok := watcher.myMonitors[refID]
+		watcher.mu.Unlock()
+		if !ok {
+			return False
+		}
+		v.DemonitorProcess(ref)
+		return True
+	})
+
+	// Process>>primTrapExit: aBoolean
+	c.AddMethod1(vm.Selectors, "primTrapExit:", func(vmPtr interface{}, recv Value, flag Value) Value {
+		v := vmPtr.(*VM)
+		proc := v.getProcess(recv)
+		if proc == nil {
+			return False
+		}
+		proc.mu.Lock()
+		proc.trapExit = (flag == True)
+		proc.mu.Unlock()
+		return True
+	})
+
+	// Process>>primTrapExit — query
+	c.AddMethod0(vm.Selectors, "primTrapExit", func(vmPtr interface{}, recv Value) Value {
+		v := vmPtr.(*VM)
+		proc := v.getProcess(recv)
+		if proc == nil {
+			return False
+		}
+		proc.mu.Lock()
+		trapping := proc.trapExit
+		proc.mu.Unlock()
+		if trapping {
+			return True
+		}
+		return False
+	})
+
+	// Process>>primExitReason — returns exit reason as symbol or nil
+	c.AddMethod0(vm.Selectors, "primExitReason", func(vmPtr interface{}, recv Value) Value {
+		v := vmPtr.(*VM)
+		proc := v.getProcess(recv)
+		if proc == nil {
+			return Nil
+		}
+		if !proc.isDone() {
+			return Nil
+		}
+		proc.mu.Lock()
+		reason := proc.exitReason
+		proc.mu.Unlock()
+		return v.exitReasonToValue(reason)
+	})
 }
 
 // ---------------------------------------------------------------------------

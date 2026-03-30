@@ -52,6 +52,9 @@ type ConcurrencyRegistry struct {
 	futures   map[int]*FutureObject
 	futuresMu sync.RWMutex
 	futureID  atomic.Int32
+
+	// Monitor ref ID counter
+	monitorRefID atomic.Uint64
 }
 
 // NewConcurrencyRegistry creates a new concurrency registry.
@@ -76,6 +79,7 @@ func NewConcurrencyRegistry() *ConcurrencyRegistry {
 	cr.cancellationContextID.Store(1)
 	cr.blockID.Store(1)
 	cr.futureID.Store(1)
+	cr.monitorRefID.Store(1)
 	return cr
 }
 
