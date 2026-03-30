@@ -201,6 +201,22 @@ An **AOT compiler** (`vm/aot.go`) can translate bytecode methods to Go source co
 
 See [docs/MAGGIE_DESIGN.md](docs/MAGGIE_DESIGN.md) (Execution Architecture) for details.
 
+## Content-Addressed Code
+
+Every compiled method has a **semantic content hash** (SHA-256 of its normalized AST with De Bruijn indexed variables). Methods with identical behavior produce identical hashes regardless of variable naming, whitespace, or comments. This enables Unison-style code sharing: if two nodes have the same hash, they have the same code.
+
+Methods also carry a **typed content hash** that includes type annotations (parameter types, return types) alongside the semantic content. This creates a two-layer identity system:
+
+- **Semantic hash** — identifies behavior. Same code = same hash, even if type annotations differ. Used for execution identity and content-addressed distribution.
+- **Typed hash** — identifies behavior + type contract. Used for distributed type verification: a node can check that received code has been type-checked without re-running the checker.
+
+Both hashes are computed at compile time, persisted in images, and carried in the distribution protocol. The `ContentStore` indexes by semantic hash; the typed hash is metadata for verification.
+
+```bash
+mag sync push localhost:9090    # Push code by content hash
+mag sync pull localhost:9090    # Pull and verify by hash
+```
+
 ## Formatting
 
 Maggie includes a built-in source formatter:
