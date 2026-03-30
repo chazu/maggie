@@ -136,15 +136,23 @@ func (p *Parser) ParseMethod() *MethodDef {
 	startPos := p.curToken.Pos
 
 	// Parse method signature
-	selector, params := p.parseMethodSignature()
+	selector, params, paramTypes := p.parseMethodSignature()
 	if selector == "" {
 		return nil
 	}
 
+	// Parse optional return type annotation: ^<Type>
+	var returnType *TypeExpr
+	if p.curTokenIs(TokenCaret) && p.peekTokenIs(TokenBinarySelector) && p.peekToken.Literal == "<" {
+		p.nextToken() // consume ^
+		returnType = p.parseTypeExpr()
+	}
+
 	// Parse temporaries (| temp1 temp2 |)
 	var temps []string
+	var tempTypes []*TypeExpr
 	if p.curTokenIs(TokenBar) {
-		temps = p.parseTemporaries()
+		temps, tempTypes = p.parseTemporaries()
 	}
 
 	// Parse statements
@@ -156,17 +164,21 @@ func (p *Parser) ParseMethod() *MethodDef {
 		Parameters: params,
 		Temps:      temps,
 		Statements: stmts,
+		ParamTypes: paramTypes,
+		TempTypes:  tempTypes,
+		ReturnType: returnType,
 	}
 }
 
 // parseMethodSignature parses a method signature.
-func (p *Parser) parseMethodSignature() (string, []string) {
+// Returns selector, parameter names, and optional type annotations (parallel to params).
+func (p *Parser) parseMethodSignature() (string, []string, []*TypeExpr) {
 	switch {
 	case p.curTokenIs(TokenIdentifier):
 		// Unary method
 		selector := p.curToken.Literal
 		p.nextToken()
-		return selector, nil
+		return selector, nil, nil
 
 	case p.curTokenIs(TokenBinarySelector):
 		// Binary method
@@ -174,46 +186,93 @@ func (p *Parser) parseMethodSignature() (string, []string) {
 		p.nextToken()
 		if !p.curTokenIs(TokenIdentifier) {
 			p.errorf("expected parameter name after binary selector")
-			return "", nil
+			return "", nil, nil
 		}
 		param := p.curToken.Literal
 		p.nextToken()
-		return selector, []string{param}
+		var paramTypes []*TypeExpr
+		if p.curTokenIs(TokenBinarySelector) && p.curToken.Literal == "<" {
+			paramTypes = append(paramTypes, p.parseTypeExpr())
+		} else {
+			paramTypes = append(paramTypes, nil)
+		}
+		return selector, []string{param}, paramTypes
 
 	case p.curTokenIs(TokenKeyword):
 		// Keyword method
 		var selector strings.Builder
 		var params []string
+		var paramTypes []*TypeExpr
 		for p.curTokenIs(TokenKeyword) {
 			selector.WriteString(p.curToken.Literal)
 			p.nextToken()
 			if !p.curTokenIs(TokenIdentifier) {
 				p.errorf("expected parameter name after keyword")
-				return "", nil
+				return "", nil, nil
 			}
 			params = append(params, p.curToken.Literal)
 			p.nextToken()
+			if p.curTokenIs(TokenBinarySelector) && p.curToken.Literal == "<" {
+				paramTypes = append(paramTypes, p.parseTypeExpr())
+			} else {
+				paramTypes = append(paramTypes, nil)
+			}
 		}
-		return selector.String(), params
+		return selector.String(), params, paramTypes
 
 	default:
 		p.errorf("expected method signature")
-		return "", nil
+		return "", nil, nil
 	}
 }
 
+// parseTypeExpr parses a type annotation <TypeName>.
+// Expects the current token to be a TokenBinarySelector with literal "<".
+func (p *Parser) parseTypeExpr() *TypeExpr {
+	startPos := p.curToken.Pos
+	p.nextToken() // consume <
+
+	if !p.curTokenIs(TokenIdentifier) {
+		p.errorf("expected type name after '<'")
+		return nil
+	}
+	name := p.curToken.Literal
+	p.nextToken() // consume type name
+
+	// Expect > — it's a TokenBinarySelector with literal ">"
+	if p.curTokenIs(TokenBinarySelector) && len(p.curToken.Literal) > 0 && p.curToken.Literal[0] == '>' {
+		if p.curToken.Literal == ">" {
+			p.nextToken() // consume >
+		} else {
+			// Handle ">=" etc by consuming the whole token
+			p.nextToken()
+		}
+	} else {
+		p.errorf("expected '>' to close type annotation")
+		return nil
+	}
+
+	return &TypeExpr{SpanVal: MakeSpan(startPos, p.curToken.Pos), Name: name}
+}
+
 // parseTemporaries parses | temp1 temp2 |
-func (p *Parser) parseTemporaries() []string {
+func (p *Parser) parseTemporaries() ([]string, []*TypeExpr) {
 	p.nextToken() // consume |
 	var temps []string
+	var tempTypes []*TypeExpr
 	for p.curTokenIs(TokenIdentifier) {
 		temps = append(temps, p.curToken.Literal)
 		p.nextToken()
+		if p.curTokenIs(TokenBinarySelector) && p.curToken.Literal == "<" {
+			tempTypes = append(tempTypes, p.parseTypeExpr())
+		} else {
+			tempTypes = append(tempTypes, nil)
+		}
 	}
 	if !p.expect(TokenBar) {
-		return nil
+		return nil, nil
 	}
-	return temps
+	return temps, tempTypes
 }
 
 // parseReturn parses ^expr
@@ -716,7 +775,7 @@ func (p *Parser) parseBlock() *Block {
 	// Parse temporaries | temp1 temp2 |
 	var temps []string
 	if p.curTokenIs(TokenBar) {
-		temps = p.parseTemporaries()
+		temps, _ = p.parseTemporaries()
 	}
 
 	// Parse statements
@@ -875,8 +934,17 @@ func (p *Parser) ParseSourceFile() *SourceFile {
 				}
 				pendingDocString = ""
 
+			case p.curTokenIs(TokenIdentifier) && p.curToken.Literal == "protocol":
+				// Protocol definition: Name protocol
+				protocolDef := p.parseProtocolDefBody(name, startPos)
+				if protocolDef != nil {
+					protocolDef.DocString = pendingDocString
+					sf.Protocols = append(sf.Protocols, protocolDef)
+				}
+				pendingDocString = ""
+
 			default:
-				p.errorf("expected 'subclass:' or 'trait' after class/trait name %s", name)
+				p.errorf("expected 'subclass:', 'trait', or 'protocol' after class/trait name %s", name)
 				p.nextToken()
 				pendingDocString = ""
 			}
@@ -977,7 +1045,7 @@ func (p *Parser) parseClassDefBody(className string, startPos Position) *ClassDe
 		if p.curTokenIs(TokenIdentifier) && (p.peekTokenIs(TokenKeyword) || p.peekTokenIs(TokenIdentifier)) {
 			// Could be another class or trait definition
 			// Peek ahead to see if it's "subclass:" or "trait"
-			if p.peekToken.Literal == "subclass:" || p.peekToken.Literal == "trait" {
+			if p.peekToken.Literal == "subclass:" || p.peekToken.Literal == "trait" || p.peekToken.Literal == "protocol" {
 				break
 			}
 		}
@@ -993,8 +1061,9 @@ func (p *Parser) parseClassDefBody(className string, startPos Position) *ClassDe
 			keyword := p.curToken.Literal
 			switch keyword {
 			case "instanceVars:", "instanceVariables:":
-				vars := p.parseInstanceVars()
+				vars, varTypes := p.parseInstanceVars()
 				classDef.InstanceVariables = append(classDef.InstanceVariables, vars...)
+				classDef.InstanceVarTypes = append(classDef.InstanceVarTypes, varTypes...)
 				pendingDocString = ""
 
 			case "include:":
@@ -1067,7 +1136,7 @@ func (p *Parser) parseTraitDefBody(traitName string, startPos Position) *TraitDe
 	for !p.curTokenIs(TokenEOF) {
 		// Check if we've reached another top-level definition
 		if p.curTokenIs(TokenIdentifier) && (p.peekTokenIs(TokenKeyword) || p.peekTokenIs(TokenIdentifier)) {
-			if p.peekToken.Literal == "subclass:" || p.peekToken.Literal == "trait" {
+			if p.peekToken.Literal == "subclass:" || p.peekToken.Literal == "trait" || p.peekToken.Literal == "protocol" {
 				break
 			}
 		}
@@ -1118,11 +1187,13 @@ func (p *Parser) parseTraitDefBody(traitName string, startPos Position) *TraitDe
 
 // parseInstanceVars parses instance variable declarations.
 // Format: instanceVars: name1 name2 name3
+// OR:     instanceVars: name1 <Type1> name2 name3 <Type3>
 // OR:     instanceVariables: 'name1 name2 name3'
-func (p *Parser) parseInstanceVars() []string {
+func (p *Parser) parseInstanceVars() ([]string, []*TypeExpr) {
 	p.nextToken() // consume "instanceVars:" or "instanceVariables:"
 
 	var vars []string
+	var varTypes []*TypeExpr
 
 	// Handle string literal format: instanceVariables: 'var1 var2 var3'
 	if p.curTokenIs(TokenString) {
@@ -1132,9 +1203,10 @@ func (p *Parser) parseInstanceVars() []string {
 		for _, v := range strings.Fields(str) {
 			if v != "" {
 				vars = append(vars, v)
+				varTypes = append(varTypes, nil)
 			}
 		}
-		return vars
+		return vars, varTypes
 	}
 
 	// Handle identifier format: instanceVars: var1 var2 var3
@@ -1145,9 +1217,14 @@ func (p *Parser) parseInstanceVars() []string {
 		}
 		vars = append(vars, p.curToken.Literal)
 		p.nextToken()
+		if p.curTokenIs(TokenBinarySelector) && p.curToken.Literal == "<" {
+			varTypes = append(varTypes, p.parseTypeExpr())
+		} else {
+			varTypes = append(varTypes, nil)
+		}
 	}
 
-	return vars
+	return vars, varTypes
 }
 
 // parseMethodInBrackets parses a method definition with selector and body in brackets.
@@ -1158,9 +1235,16 @@ func (p *Parser) parseMethodInBrackets(isClassMethod bool) *MethodDef {
 	p.nextToken()                         // consume "method:" or "classMethod:"
 
 	// Parse method signature
-	selector, params := p.parseMethodSignature()
+	selector, params, paramTypes := p.parseMethodSignature()
 	if selector == "" {
 		return nil
+	}
+
+	// Parse optional return type annotation: ^<Type> (before the opening bracket)
+	var returnType *TypeExpr
+	if p.curTokenIs(TokenCaret) && p.peekTokenIs(TokenBinarySelector) && p.peekToken.Literal == "<" {
+		p.nextToken() // consume ^
+		returnType = p.parseTypeExpr()
 	}
 
 	// Expect opening bracket
@@ -1195,13 +1279,16 @@ func (p *Parser) parseMethodInBrackets(isClassMethod bool) *MethodDef {
 			Parameters:      params,
 			IsPrimitiveStub: true,
 			SourceText:      sourceText,
+			ParamTypes:      paramTypes,
+			ReturnType:      returnType,
 		}
 	}
 
 	// Parse temporaries (| temp1 temp2 |)
 	var temps []string
+	var tempTypes []*TypeExpr
 	if p.curTokenIs(TokenBar) {
-		temps = p.parseTemporaries()
+		temps, tempTypes = p.parseTemporaries()
 	}
 
 	// Parse statements until ]
@@ -1226,6 +1313,9 @@ func (p *Parser) parseMethodInBrackets(isClassMethod bool) *MethodDef {
 		Temps:      temps,
 		Statements: stmts,
 		SourceText: sourceText,
+		ParamTypes: paramTypes,
+		TempTypes:  tempTypes,
+		ReturnType: returnType,
 	}
 }
 
@@ -1249,4 +1339,117 @@ func (p *Parser) parseStatementsUntilBracket() []Stmt {
 	}
 
 	return stmts
+}
+
+// ---------------------------------------------------------------------------
+// Protocol parsing
+// ---------------------------------------------------------------------------
+
+// parseProtocolDefBody parses the body of a protocol definition after the protocol name.
+// Expects: protocol followed by entries (message signatures and includes)
+func (p *Parser) parseProtocolDefBody(protocolName string, startPos Position) *ProtocolDef {
+	p.nextToken() // consume "protocol"
+
+	protDef := &ProtocolDef{
+		SpanVal: MakeSpan(startPos, p.curToken.Pos),
+		Name:    protocolName,
+	}
+
+	// Parse protocol body: message signatures and includes
+	for !p.curTokenIs(TokenEOF) {
+		// Check if we've reached another top-level definition
+		if p.curTokenIs(TokenIdentifier) && (p.peekTokenIs(TokenKeyword) || p.peekTokenIs(TokenIdentifier)) {
+			if p.peekToken.Literal == "subclass:" || p.peekToken.Literal == "trait" || p.peekToken.Literal == "protocol" {
+				break
+			}
+		}
+
+		// Skip docstrings (attach to protocol)
+		if p.curTokenIs(TokenDocstring) {
+			if protDef.DocString == "" {
+				protDef.DocString = p.curToken.Literal
+			}
+			p.nextToken()
+			continue
+		}
+
+		// includes: OtherProtocol
+		if p.curTokenIs(TokenKeyword) && p.curToken.Literal == "includes:" {
+			p.nextToken() // consume "includes:"
+			if p.curTokenIs(TokenIdentifier) {
+				protDef.Includes = append(protDef.Includes, p.curToken.Literal)
+				p.nextToken()
+			}
+			if p.curTokenIs(TokenPeriod) {
+				p.nextToken()
+			}
+			continue
+		}
+
+		// Parse protocol entry: selector with optional param types and return type
+		entry := p.parseProtocolEntry()
+		if entry != nil {
+			protDef.Entries = append(protDef.Entries, entry)
+		} else {
+			// Skip unrecognized tokens to avoid infinite loop
+			p.nextToken()
+		}
+	}
+
+	protDef.SpanVal = MakeSpan(startPos, p.curToken.Pos)
+	return protDef
+}
+
+// parseProtocolEntry parses a single protocol entry like "at: <Integer> put: <Object> ^<Object>."
+func (p *Parser) parseProtocolEntry() *ProtocolEntry {
+	startPos := p.curToken.Pos
+	entry := &ProtocolEntry{SpanVal: MakeSpan(startPos, p.curToken.Pos)}
+
+	switch {
+	case p.curTokenIs(TokenIdentifier):
+		// Unary entry: "size ^<Integer>."
+		entry.Selector = p.curToken.Literal
+		p.nextToken()
+
+	case p.curTokenIs(TokenBinarySelector) && p.curToken.Literal != "<":
+		// Binary entry: "+ <Number> ^<Number>."
+		entry.Selector = p.curToken.Literal
+		p.nextToken()
+		if p.curTokenIs(TokenBinarySelector) && p.curToken.Literal == "<" {
+			entry.ParamTypes = append(entry.ParamTypes, p.parseTypeExpr())
+		}
+
+	case p.curTokenIs(TokenKeyword):
+		// Keyword entry: "at: <Integer> put: <Object> ^<Object>."
+		var selector strings.Builder
+		for p.curTokenIs(TokenKeyword) {
+			selector.WriteString(p.curToken.Literal)
+			p.nextToken()
+			if p.curTokenIs(TokenBinarySelector) && p.curToken.Literal == "<" {
+				entry.ParamTypes = append(entry.ParamTypes, p.parseTypeExpr())
+			} else {
+				entry.ParamTypes = append(entry.ParamTypes, nil)
+			}
+		}
+		entry.Selector = selector.String()
+
+	default:
+		return nil
+	}
+
+	// Parse optional return type: ^<Type>
+	if p.curTokenIs(TokenCaret) {
+		p.nextToken() // consume ^
+		if p.curTokenIs(TokenBinarySelector) && p.curToken.Literal == "<" {
+			entry.ReturnType = p.parseTypeExpr()
+		}
+	}
+
+	// Consume trailing period
+	if p.curTokenIs(TokenPeriod) {
+		p.nextToken()
+	}
+
+	entry.SpanVal = MakeSpan(startPos, p.curToken.Pos)
+	return entry
 }

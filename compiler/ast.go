@@ -299,6 +299,11 @@ type MethodDef struct {
 	IsPrimitiveStub bool   // true if body is [ <primitive> ] (docstring-only stub)
 	SourceText      string // original source text (for fileOut)
 	DocString       string // docstring from """ ... """ (empty if none)
+
+	// Optional type annotations (nil entries = untyped)
+	ParamTypes []*TypeExpr // parallel to Parameters
+	TempTypes  []*TypeExpr // parallel to Temps
+	ReturnType *TypeExpr   // nil = untyped
 }
 
 func (n *MethodDef) Span() Span { return n.SpanVal }
@@ -317,6 +322,9 @@ type ClassDef struct {
 	Methods           []*MethodDef
 	ClassMethods      []*MethodDef
 	DocString         string // docstring from """ ... """ (empty if none)
+
+	// Optional type annotations (nil entries = untyped)
+	InstanceVarTypes []*TypeExpr // parallel to InstanceVariables
 }
 
 func (n *ClassDef) Span() Span { return n.SpanVal }
@@ -363,12 +371,49 @@ type SourceFile struct {
 	Imports    []*ImportDecl
 	Classes    []*ClassDef
 	Traits     []*TraitDef
+	Protocols  []*ProtocolDef
 	Methods    []*MethodDef // extension methods
 	Statements []Stmt       // top-level statements (for scripts/REPL)
 }
 
 func (n *SourceFile) Span() Span { return n.SpanVal }
 func (n *SourceFile) node()      {}
+
+// ---------------------------------------------------------------------------
+// Type annotation nodes
+// ---------------------------------------------------------------------------
+
+// TypeExpr represents a type annotation (e.g., <Integer>, <Self>, <Dynamic>).
+type TypeExpr struct {
+	SpanVal Span
+	Name    string // "Integer", "Self", "Dynamic", protocol name, or class name
+}
+
+func (n *TypeExpr) Span() Span { return n.SpanVal }
+func (n *TypeExpr) node()      {}
+
+// ProtocolEntry is a single message signature in a protocol definition.
+type ProtocolEntry struct {
+	SpanVal    Span
+	Selector   string     // "size", "at:put:", etc.
+	ParamTypes []*TypeExpr // one per parameter (nil entries = untyped)
+	ReturnType *TypeExpr   // nil means <Dynamic>
+}
+
+func (n *ProtocolEntry) Span() Span { return n.SpanVal }
+func (n *ProtocolEntry) node()      {}
+
+// ProtocolDef represents a protocol definition.
+type ProtocolDef struct {
+	SpanVal   Span
+	Name      string
+	Includes  []string          // names of included protocols
+	Entries   []*ProtocolEntry  // message signatures
+	DocString string
+}
+
+func (n *ProtocolDef) Span() Span { return n.SpanVal }
+func (n *ProtocolDef) node()      {}
 
 // ---------------------------------------------------------------------------
 // Helper functions
