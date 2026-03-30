@@ -210,12 +210,45 @@ Methods also carry a **typed content hash** that includes type annotations (para
 - **Semantic hash** — identifies behavior. Same code = same hash, even if type annotations differ. Used for execution identity and content-addressed distribution.
 - **Typed hash** — identifies behavior + type contract. Used for distributed type verification: a node can check that received code has been type-checked without re-running the checker.
 
-Both hashes are computed at compile time, persisted in images, and carried in the distribution protocol. The `ContentStore` indexes by semantic hash; the typed hash is metadata for verification.
+Both hashes are computed at compile time, persisted in images, and carried in the distribution protocol. The `ContentStore` indexes primarily by semantic hash (used for have/want negotiation between nodes) and maintains a reverse index from typed hash to semantic hash for local verification. When receiving code from a peer, the sync service verifies both hashes — semantic for identity, typed for type annotation integrity.
 
 ```bash
 mag sync push localhost:9090    # Push code by content hash
 mag sync pull localhost:9090    # Pull and verify by hash
 ```
+
+## Distributed Messaging
+
+Maggie processes on different nodes can exchange messages over HTTP/2. Each node has an Ed25519 identity (stored in `.maggie/node.key`) and all messages are cryptographically signed.
+
+```smalltalk
+"Connect to a remote node"
+node := Node connect: 'localhost:8081'.
+
+"Get a reference to a named process"
+worker := node processNamed: 'counter'.
+
+"Fire-and-forget (delivers to remote mailbox)"
+worker cast: #increment: with: 42.
+
+"Request-response (returns a Future)"
+future := worker asyncSend: #compute: with: data.
+result := future await.
+```
+
+On the receiving side, processes read from their mailbox:
+
+```smalltalk
+"Register and receive"
+Process current registerAs: 'counter'.
+msg := Process receive.          "Blocks until message arrives"
+msg selector.                    "=> #increment:"
+msg payload.                     "=> 42"
+```
+
+All message payloads are serialized with CBOR. Supported types include integers, floats, strings, symbols, arrays, dictionaries, objects (with circular reference support), and CUE values. Non-serializable types (Process, Channel, Mutex) raise errors at send time.
+
+See [`examples/distributed-counter/`](examples/distributed-counter/) for a complete runnable example.
 
 ## Formatting
 

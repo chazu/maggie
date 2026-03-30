@@ -1,0 +1,40 @@
+"""
+Distributed counter server. Registers as 'counter' and processes
+increment messages from remote clients.
+
+Start with:
+  mag --serve --port 9200 examples/distributed-counter/server.mag -m Counter.start
+"""
+Counter subclass: Object
+  instanceVars: total
+
+  classMethod: start [
+      | counter |
+      counter := self new.
+      counter run
+  ]
+
+  method: initialize [
+      total := 0
+  ]
+
+  method: run [
+      total := 0.
+      Process current registerAs: 'counter'.
+      'Counter service ready' println.
+
+      "Process messages forever"
+      [true] whileTrue: [
+          | msg |
+          msg := Process receive.
+          msg selector = #increment:
+              ifTrue: [
+                  total := total + msg payload.
+                  ('Total: ', total printString) println
+              ]
+      ]
+  ]
+
+  method: total [
+      ^total
+  ]

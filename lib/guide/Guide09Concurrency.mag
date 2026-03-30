@@ -609,6 +609,103 @@ Guide09Concurrency subclass: Object
   ]
 
   """
+  ## Process Mailboxes
+
+  Every process has a bounded mailbox for receiving messages from other
+  processes. This is an alternative to channels for actor-style messaging
+  where each process has its own inbox.
+
+  **Sending messages:**
+
+  - `aProcess send: value` -- fire-and-forget, wraps value in a
+    MailboxMessage with no selector.
+  - `aProcess send: #selector with: value` -- sends a MailboxMessage
+    with the given selector and payload.
+
+  Both return `true` if delivered, `false` if the process is dead or
+  its mailbox is full (default capacity: 1024).
+
+  **Receiving messages:**
+
+  - `Process receive` -- blocking receive, returns a MailboxMessage.
+  - `Process receive: ms` -- blocking with timeout, returns nil on timeout.
+  - `Process tryReceive` -- non-blocking, returns nil if empty.
+
+  A MailboxMessage has three accessors: `sender` (the sending process
+  or nil), `selector` (a Symbol or nil), and `payload` (the value).
+
+  ```example
+  "Simple send and receive between two processes"
+  p := [
+      msg := Process receive.
+      msg payload * 2
+  ] fork.
+  Process sleep: 10.
+  p send: 21.
+  p wait                      "=> 42"
+  ```
+
+  ```example
+  "Selector-based messaging"
+  p := [
+      msg := Process receive.
+      msg selector             "=> #greet"
+  ] fork.
+  Process sleep: 10.
+  p send: #greet with: 'hello'.
+  p wait
+  ```
+
+  ```example
+  "Non-blocking receive returns nil when empty"
+  p := [Process tryReceive] fork.
+  p wait                      "=> nil"
+  ```
+
+  ```example
+  "Timeout receive returns nil when no message arrives"
+  p := [Process receive: 50] fork.
+  p wait                      "=> nil"
+  ```
+  """
+  method: s12b_processMailboxes [
+      "Mailbox messaging requires concurrent processes; see examples above."
+      ^nil
+  ]
+
+  """
+  ## Registered Process Names
+
+  Processes can register themselves under a string name for discovery
+  by other processes. This avoids passing process references through
+  channels.
+
+  - `aProcess registerAs: 'name'` -- register (fails if name taken by
+    live process)
+  - `Process named: 'name'` -- look up by name, returns process or nil
+  - `aProcess unregister` -- remove registration
+
+  Names are automatically cleaned up when the process dies.
+
+  ```example
+  "Register and look up a process by name"
+  worker := [
+      Process current registerAs: 'adder'.
+      msg := Process receive.
+      msg payload + 10
+  ] fork.
+  Process sleep: 20.
+  found := Process named: 'adder'.
+  found send: 32.
+  worker wait                 "=> 42"
+  ```
+  """
+  method: s12c_registeredNames [
+      "Name registration requires concurrent processes; see examples above."
+      ^nil
+  ]
+
+  """
   ## Pattern: Producer-Consumer
 
   The producer-consumer pattern uses a channel as a bounded buffer

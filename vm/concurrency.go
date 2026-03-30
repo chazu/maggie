@@ -127,7 +127,14 @@ type ProcessObject struct {
 	err       error
 	mu        sync.Mutex
 	waitGroup sync.WaitGroup
+	mailbox   *Mailbox // per-process message mailbox
 }
+
+// Mailbox returns the process's mailbox.
+func (p *ProcessObject) Mailbox() *Mailbox { return p.mailbox }
+
+// IsDone returns true if the process has terminated.
+func (p *ProcessObject) IsDone() bool { return p.isDone() }
 
 
 func processToValue(id uint64) Value {
@@ -150,6 +157,9 @@ func (p *ProcessObject) markDone(result Value, err error) {
 	p.state.Store(int32(ProcessTerminated))
 	p.mu.Unlock()
 	p.waitGroup.Done()
+	if p.mailbox != nil {
+		p.mailbox.Close() // wake blocked receivers, reject future sends
+	}
 	close(p.done)
 }
 
@@ -449,6 +459,7 @@ func (vm *VM) registerProcessPrimitives() {
 
 			// Create a forked interpreter for this goroutine
 			interp := v.newForkedInterpreter(nil)
+			interp.processID = proc.id
 			// Register this interpreter for the current goroutine
 			v.registerInterpreter(interp)
 			// Use ExecuteBlockDetached so ^ becomes local return
@@ -484,6 +495,7 @@ func (vm *VM) registerProcessPrimitives() {
 			}()
 
 			interp := v.newForkedInterpreter(nil)
+			interp.processID = proc.id
 			v.registerInterpreter(interp)
 			result := interp.ExecuteBlockDetached(bv.Block, bv.Captures, []Value{arg}, bv.HomeSelf, bv.HomeMethod)
 			proc.markDone(result, nil)
@@ -523,6 +535,7 @@ func (vm *VM) registerProcessPrimitives() {
 			}()
 
 			interp := v.newForkedInterpreter(nil)
+			interp.processID = proc.id
 			v.registerInterpreter(interp)
 
 			// Monitor context cancellation
@@ -573,6 +586,7 @@ func (vm *VM) registerProcessPrimitives() {
 			}()
 
 			interp := v.newForkedInterpreter(nil)
+			interp.processID = proc.id
 			v.registerInterpreter(interp)
 			result := interp.ExecuteBlockDetached(bv.Block, bv.Captures, nil, bv.HomeSelf, bv.HomeMethod)
 			proc.markDone(result, nil)
@@ -675,10 +689,10 @@ func (vm *VM) registerProcessPrimitives() {
 		return recv
 	})
 
-	// Process class>>current - get current process (placeholder for now) (class method)
-	c.AddClassMethod0(vm.Selectors, "current", func(_ interface{}, recv Value) Value {
-		// In a full implementation, we'd track the current process per goroutine
-		return Nil
+	// Process class>>current - get current process (class method)
+	c.AddClassMethod0(vm.Selectors, "current", func(vmPtr interface{}, recv Value) Value {
+		v := vmPtr.(*VM)
+		return v.currentProcessValue()
 	})
 
 	// Process class>>yield - yield to other goroutines (class method)
@@ -736,6 +750,7 @@ func (vm *VM) registerProcessPrimitives() {
 			}()
 
 			interp := v.newForkedInterpreter(hidden)
+			interp.processID = proc.id
 			v.registerInterpreter(interp)
 			result := interp.ExecuteBlockDetached(bv.Block, bv.Captures, nil, bv.HomeSelf, bv.HomeMethod)
 			proc.markDone(result, nil)
@@ -782,6 +797,7 @@ func (vm *VM) registerProcessPrimitives() {
 			}()
 
 			interp := v.newForkedInterpreter(hidden)
+			interp.processID = proc.id
 			v.registerInterpreter(interp)
 			result := interp.ExecuteBlockDetached(bv.Block, bv.Captures, nil, bv.HomeSelf, bv.HomeMethod)
 			proc.markDone(result, nil)
@@ -817,4 +833,176 @@ func (vm *VM) extractHiddenMap(restrictionsVal Value) map[string]bool {
 		}
 	}
 	return hidden
+}
+
+// ---------------------------------------------------------------------------
+// Mailbox primitives
+// ---------------------------------------------------------------------------
+
+func (vm *VM) registerMailboxPrimitives() {
+	c := vm.ProcessClass
+
+	// Bootstrap MailboxMessage class
+	vm.MailboxMessageClass = NewClassWithInstVars("MailboxMessage", vm.ObjectClass, []string{"sender", "selector", "payload"})
+	vm.MailboxMessageClass.NumSlots = 3
+	vm.Classes.Register(vm.MailboxMessageClass)
+	vm.Globals["MailboxMessage"] = vm.classValue(vm.MailboxMessageClass)
+
+	// MailboxMessage accessors
+	vm.MailboxMessageClass.AddMethod0(vm.Selectors, "sender", func(_ interface{}, recv Value) Value {
+		obj := ObjectFromValue(recv)
+		if obj == nil {
+			return Nil
+		}
+		return obj.GetSlot(0)
+	})
+	vm.MailboxMessageClass.AddMethod0(vm.Selectors, "selector", func(_ interface{}, recv Value) Value {
+		obj := ObjectFromValue(recv)
+		if obj == nil {
+			return Nil
+		}
+		return obj.GetSlot(1)
+	})
+	vm.MailboxMessageClass.AddMethod0(vm.Selectors, "payload", func(_ interface{}, recv Value) Value {
+		obj := ObjectFromValue(recv)
+		if obj == nil {
+			return Nil
+		}
+		return obj.GetSlot(2)
+	})
+
+	// Process>>primSend: payload — fire-and-forget to target's mailbox
+	c.AddMethod1(vm.Selectors, "primSend:", func(vmPtr interface{}, recv Value, payload Value) Value {
+		v := vmPtr.(*VM)
+		proc := v.getProcess(recv)
+		if proc == nil || proc.mailbox == nil {
+			return False
+		}
+		senderProc := v.currentProcessValue()
+		msg := v.CreateMailboxMessage(senderProc, "", payload)
+		if !proc.mailbox.TrySend(msg) {
+			return False
+		}
+		return True
+	})
+
+	// Process>>primSend:with: selector payload — selector-based message
+	c.AddMethod2(vm.Selectors, "primSend:with:", func(vmPtr interface{}, recv Value, selectorVal, payload Value) Value {
+		v := vmPtr.(*VM)
+		proc := v.getProcess(recv)
+		if proc == nil || proc.mailbox == nil {
+			return False
+		}
+		sel := ""
+		if selectorVal.IsSymbol() && !IsStringValue(selectorVal) {
+			sel = v.Symbols.Name(selectorVal.SymbolID())
+		} else if IsStringValue(selectorVal) {
+			sel = v.registry.GetStringContent(selectorVal)
+		}
+		senderProc := v.currentProcessValue()
+		msg := v.CreateMailboxMessage(senderProc, sel, payload)
+		if !proc.mailbox.TrySend(msg) {
+			return False
+		}
+		return True
+	})
+
+	// Process class>>primReceive — blocking receive from current process's mailbox
+	c.AddClassMethod0(vm.Selectors, "primReceive", func(vmPtr interface{}, recv Value) Value {
+		v := vmPtr.(*VM)
+		proc := v.currentProcess()
+		if proc == nil || proc.mailbox == nil {
+			return Nil
+		}
+		msg, ok := proc.mailbox.Receive()
+		if !ok {
+			return Nil
+		}
+		return msg
+	})
+
+	// Process class>>primReceive: timeoutMs — receive with timeout
+	c.AddClassMethod1(vm.Selectors, "primReceive:", func(vmPtr interface{}, recv Value, timeoutVal Value) Value {
+		v := vmPtr.(*VM)
+		proc := v.currentProcess()
+		if proc == nil || proc.mailbox == nil {
+			return Nil
+		}
+		if !timeoutVal.IsSmallInt() {
+			return Nil
+		}
+		ms := timeoutVal.SmallInt()
+		msg, ok := proc.mailbox.ReceiveTimeout(time.Duration(ms) * time.Millisecond)
+		if !ok {
+			return Nil
+		}
+		return msg
+	})
+
+	// Process class>>primTryReceive — non-blocking receive
+	c.AddClassMethod0(vm.Selectors, "primTryReceive", func(vmPtr interface{}, recv Value) Value {
+		v := vmPtr.(*VM)
+		proc := v.currentProcess()
+		if proc == nil || proc.mailbox == nil {
+			return Nil
+		}
+		msg, ok := proc.mailbox.TryReceive()
+		if !ok {
+			return Nil
+		}
+		return msg
+	})
+
+	// Process>>primRegisterAs: name — register this process with a name
+	c.AddMethod1(vm.Selectors, "primRegisterAs:", func(vmPtr interface{}, recv Value, nameVal Value) Value {
+		v := vmPtr.(*VM)
+		proc := v.getProcess(recv)
+		if proc == nil {
+			return False
+		}
+		name := ""
+		if IsStringValue(nameVal) {
+			name = v.registry.GetStringContent(nameVal)
+		} else if nameVal.IsSymbol() {
+			name = v.Symbols.Name(nameVal.SymbolID())
+		}
+		if name == "" {
+			return False
+		}
+		if v.RegisterProcessName(name, proc.id) {
+			return True
+		}
+		return False
+	})
+
+	// Process class>>primNamed: name — look up process by registered name
+	c.AddClassMethod1(vm.Selectors, "primNamed:", func(vmPtr interface{}, recv Value, nameVal Value) Value {
+		v := vmPtr.(*VM)
+		name := ""
+		if IsStringValue(nameVal) {
+			name = v.registry.GetStringContent(nameVal)
+		} else if nameVal.IsSymbol() {
+			name = v.Symbols.Name(nameVal.SymbolID())
+		}
+		if name == "" {
+			return Nil
+		}
+		return v.LookupProcessName(name)
+	})
+
+	// Process>>primUnregister — remove name registration for this process
+	c.AddMethod0(vm.Selectors, "primUnregister", func(vmPtr interface{}, recv Value) Value {
+		v := vmPtr.(*VM)
+		proc := v.getProcess(recv)
+		if proc == nil {
+			return Nil
+		}
+		v.processNamesMu.RLock()
+		name, ok := v.processNamesByID[proc.id]
+		v.processNamesMu.RUnlock()
+		if ok {
+			v.UnregisterProcessName(name)
+		}
+		return recv
+	})
 }

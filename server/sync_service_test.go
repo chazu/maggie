@@ -16,8 +16,8 @@ func newTestSyncService() (*SyncService, *vm.ContentStore) {
 	store := vm.NewContentStore()
 	peers := dist.NewPeerStore()
 	policy := dist.NewPermissivePolicy()
-	compile := func(source string) ([32]byte, error) {
-		return sha256.Sum256([]byte(source)), nil
+	compile := func(source string) (dist.CompileResult, error) {
+		return dist.CompileResult{SemanticHash: sha256.Sum256([]byte(source))}, nil
 	}
 	svc := NewSyncService(testWorker, store, peers, policy, compile, nil)
 	return svc, store
@@ -353,8 +353,8 @@ func TestSyncTransfer_BannedPeer(t *testing.T) {
 	store := vm.NewContentStore()
 	peers := dist.NewPeerStore()
 	policy := dist.NewPermissivePolicy()
-	compile := func(source string) ([32]byte, error) {
-		return sha256.Sum256([]byte(source)), nil
+	compile := func(source string) (dist.CompileResult, error) {
+		return dist.CompileResult{SemanticHash: sha256.Sum256([]byte(source))}, nil
 	}
 	svc := NewSyncService(testWorker, store, peers, policy, compile, nil)
 

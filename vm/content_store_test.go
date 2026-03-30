@@ -194,6 +194,121 @@ func TestContentStore_LookupByPrefix(t *testing.T) {
 	}
 }
 
+// ---------------------------------------------------------------------------
+// Dual-hash (semantic + typed) indexing
+// ---------------------------------------------------------------------------
+
+func TestContentStore_TypedHashIndexing_Method(t *testing.T) {
+	cs := NewContentStore()
+
+	m := &CompiledMethod{}
+	sh := sha256.Sum256([]byte("semantic"))
+	th := sha256.Sum256([]byte("typed"))
+	m.SetContentHash(sh)
+	m.SetTypedHash(th)
+	cs.IndexMethod(m)
+
+	// Lookup by semantic hash
+	if cs.LookupMethod(sh) != m {
+		t.Error("LookupMethod by semantic hash should find method")
+	}
+
+	// Lookup by typed hash
+	if cs.LookupMethodByTypedHash(th) != m {
+		t.Error("LookupMethodByTypedHash should find method")
+	}
+
+	// HasHash should match both
+	if !cs.HasHash(sh) {
+		t.Error("HasHash should match semantic hash")
+	}
+	if !cs.HasHash(th) {
+		t.Error("HasHash should match typed hash")
+	}
+
+	// Unknown hash should not match
+	unknown := sha256.Sum256([]byte("unknown"))
+	if cs.HasHash(unknown) {
+		t.Error("HasHash should not match unknown hash")
+	}
+}
+
+func TestContentStore_TypedHashIndexing_Class(t *testing.T) {
+	cs := NewContentStore()
+
+	sh := sha256.Sum256([]byte("class-semantic"))
+	th := sha256.Sum256([]byte("class-typed"))
+	d := &ClassDigest{
+		Name:      "MyClass",
+		Hash:      sh,
+		TypedHash: th,
+	}
+	cs.IndexClass(d)
+
+	// Lookup by semantic hash
+	if cs.LookupClass(sh) != d {
+		t.Error("LookupClass by semantic hash should find class")
+	}
+
+	// Lookup by typed hash
+	if cs.LookupClassByTypedHash(th) != d {
+		t.Error("LookupClassByTypedHash should find class")
+	}
+
+	// HasHash should match both
+	if !cs.HasHash(sh) {
+		t.Error("HasHash should match class semantic hash")
+	}
+	if !cs.HasHash(th) {
+		t.Error("HasHash should match class typed hash")
+	}
+}
+
+func TestContentStore_ZeroTypedHash_NotIndexed(t *testing.T) {
+	cs := NewContentStore()
+
+	m := &CompiledMethod{}
+	sh := sha256.Sum256([]byte("semantic-only"))
+	m.SetContentHash(sh)
+	// TypedHash left as zero
+	cs.IndexMethod(m)
+
+	// Semantic should work
+	if cs.LookupMethod(sh) != m {
+		t.Error("LookupMethod by semantic hash should work")
+	}
+
+	// Typed lookup with zero hash should return nil
+	if cs.LookupMethodByTypedHash([32]byte{}) != nil {
+		t.Error("LookupMethodByTypedHash with zero hash should return nil")
+	}
+}
+
+func TestContentStore_LookupByPrefix_TypedHash(t *testing.T) {
+	cs := NewContentStore()
+
+	sh := sha256.Sum256([]byte("prefix-semantic"))
+	th := sha256.Sum256([]byte("prefix-typed"))
+	m := &CompiledMethod{}
+	m.SetContentHash(sh)
+	m.SetTypedHash(th)
+	cs.IndexMethod(m)
+
+	thHex := fmt.Sprintf("%x", th)
+
+	// Should resolve typed hash prefix to the semantic hash
+	hash, typ, err := cs.LookupByPrefix(thHex[:8])
+	if err != nil {
+		t.Fatalf("LookupByPrefix typed: %v", err)
+	}
+	if hash != sh {
+		t.Error("LookupByPrefix should resolve typed prefix to semantic hash")
+	}
+	if typ != "method" {
+		t.Errorf("Type: got %q, want %q", typ, "method")
+	}
+}
+
 func TestHashClass_Deterministic(t *testing.T) {
 	mh1 := sha256.Sum256([]byte("method1"))
 	mh2 := sha256.Sum256([]byte("method2"))

@@ -47,6 +47,11 @@ type ConcurrencyRegistry struct {
 	blocksByHomeFrame map[int][]int // maps frameIndex → list of blockIDs
 	blocksMu         sync.RWMutex
 	blockID          atomic.Int32
+
+	// Future registry
+	futures   map[int]*FutureObject
+	futuresMu sync.RWMutex
+	futureID  atomic.Int32
 }
 
 // NewConcurrencyRegistry creates a new concurrency registry.
@@ -60,6 +65,7 @@ func NewConcurrencyRegistry() *ConcurrencyRegistry {
 		cancellationContexts: make(map[int]*CancellationContextObject),
 		blocks:               make(map[int]*BlockValue),
 		blocksByHomeFrame:    make(map[int][]int),
+		futures:              make(map[int]*FutureObject),
 	}
 	// Start IDs at 1 (0 could be confused with nil/uninitialized)
 	cr.channelID.Store(1)
@@ -69,6 +75,7 @@ func NewConcurrencyRegistry() *ConcurrencyRegistry {
 	cr.semaphoreID.Store(1)
 	cr.cancellationContextID.Store(1)
 	cr.blockID.Store(1)
+	cr.futureID.Store(1)
 	return cr
 }
 
@@ -147,12 +154,20 @@ func (cr *ConcurrencyRegistry) GetProcess(v Value) *ProcessObject {
 	return cr.processes[id]
 }
 
-// CreateProcess creates a new process with a unique ID.
+// GetProcessByID retrieves a process by its raw uint64 ID.
+func (cr *ConcurrencyRegistry) GetProcessByID(id uint64) *ProcessObject {
+	cr.processesMu.RLock()
+	defer cr.processesMu.RUnlock()
+	return cr.processes[id]
+}
+
+// CreateProcess creates a new process with a unique ID and a mailbox.
 func (cr *ConcurrencyRegistry) CreateProcess() *ProcessObject {
 	id := cr.processID.Add(1) - 1
 	proc := &ProcessObject{
-		id:   id,
-		done: make(chan struct{}),
+		id:      id,
+		done:    make(chan struct{}),
+		mailbox: NewMailbox(DefaultMailboxCapacity),
 	}
 	proc.state.Store(int32(ProcessRunning))
 	proc.waitGroup.Add(1)
@@ -457,6 +472,51 @@ func (cr *ConcurrencyRegistry) Sweep() (channels, processes, blocks int) {
 	return
 }
 
+// ---------------------------------------------------------------------------
+// Future Registry Methods
+// ---------------------------------------------------------------------------
+
+// RegisterFuture adds a future to the registry and returns its Value.
+func (cr *ConcurrencyRegistry) RegisterFuture(f *FutureObject) Value {
+	id := int(cr.futureID.Add(1) - 1)
+	cr.futuresMu.Lock()
+	cr.futures[id] = f
+	cr.futuresMu.Unlock()
+	return futureToValue(uint32(id))
+}
+
+// GetFuture retrieves a future by its Value.
+func (cr *ConcurrencyRegistry) GetFuture(v Value) *FutureObject {
+	if !isFutureValue(v) {
+		return nil
+	}
+	id := int(futureIDFromValue(v))
+	cr.futuresMu.RLock()
+	defer cr.futuresMu.RUnlock()
+	return cr.futures[id]
+}
+
+// FutureCount returns the number of registered futures.
+func (cr *ConcurrencyRegistry) FutureCount() int {
+	cr.futuresMu.RLock()
+	defer cr.futuresMu.RUnlock()
+	return len(cr.futures)
+}
+
+// SweepFutures removes resolved futures from the registry.
+func (cr *ConcurrencyRegistry) SweepFutures() int {
+	cr.futuresMu.Lock()
+	defer cr.futuresMu.Unlock()
+	swept := 0
+	for id, f := range cr.futures {
+		if f.IsResolved() {
+			delete(cr.futures, id)
+			swept++
+		}
+	}
+	return swept
+}
+
 // Stats returns counts of all registered objects.
 func (cr *ConcurrencyRegistry) Stats() map[string]int {
 	return map[string]int{
@@ -467,5 +527,6 @@ func (cr *ConcurrencyRegistry) Stats() map[string]int {
 		"semaphores":           cr.SemaphoreCount(),
 		"cancellationContexts": cr.CancellationContextCount(),
 		"blocks":               cr.BlockCount(),
+		"futures":              cr.FutureCount(),
 	}
 }

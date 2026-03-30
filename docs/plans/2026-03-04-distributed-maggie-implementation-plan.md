@@ -122,18 +122,20 @@ func (p *Pipeline) RehydrateFromStore() (int, error) {
 
 Option (B) is better because it preserves the original source for readability and `fileOut`. The method chunk needs to carry namespace/imports metadata. Add these as structured fields:
 
-**Extend `Chunk` struct in `vm/dist/chunk.go`:**
+**Extend `Chunk` struct in `vm/dist/chunk.go`:** (DONE — also includes dual-hash fields)
 
 ```go
 type Chunk struct {
-    Hash         [32]byte   `cbor:"1,keyasint"`
-    Type         ChunkType  `cbor:"2,keyasint"`
-    Content      string     `cbor:"3,keyasint"`
-    Dependencies [][32]byte `cbor:"4,keyasint,omitempty"`
-    Capabilities []string   `cbor:"5,keyasint,omitempty"`
-    Selector     string     `cbor:"6,keyasint,omitempty"` // method selector
-    ClassName    string     `cbor:"7,keyasint,omitempty"` // owning class FQN
-    IsClassSide  bool       `cbor:"8,keyasint,omitempty"` // class method vs instance
+    Hash              [32]byte   `cbor:"1,keyasint"`            // semantic hash (identity)
+    Type              ChunkType  `cbor:"2,keyasint"`
+    Content           string     `cbor:"3,keyasint"`
+    Dependencies      [][32]byte `cbor:"4,keyasint,omitempty"`  // semantic method hashes
+    Capabilities      []string   `cbor:"5,keyasint,omitempty"`
+    Selector          string     `cbor:"6,keyasint,omitempty"`  // method selector
+    ClassName         string     `cbor:"7,keyasint,omitempty"`  // owning class FQN
+    IsClassSide       bool       `cbor:"8,keyasint,omitempty"`  // class method vs instance
+    TypedHash         [32]byte   `cbor:"9,keyasint,omitempty"`  // typed content hash
+    TypedDependencies [][32]byte `cbor:"10,keyasint,omitempty"` // typed method hashes
 }
 ```
 
@@ -590,7 +592,7 @@ For distributed messaging, Maggie values must be serializable. Define a CBOR-bas
 | Array | CBOR array (recursive) |
 | Object | CBOR map: {classHash, slots: [...]} |
 
-Objects are serialized as their class's content hash plus their slot values. The receiver must have (or pull) the class to deserialize. This is the code-on-demand trigger.
+Objects are serialized as their class's **semantic** content hash plus their slot values. The semantic hash identifies the code regardless of type annotations — this is the correct identity key for code-on-demand. The typed hash can optionally travel alongside for verification but is not the lookup key. The receiver must have (or pull) the class to deserialize. This is the code-on-demand trigger.
 
 **Non-serializable types:** Process, Channel, Mutex, Semaphore, WaitGroup, CancellationContext, GoObjectWrapper. Attempting to serialize these raises an error. Future work: Channel proxying (see Section 3.2).
 

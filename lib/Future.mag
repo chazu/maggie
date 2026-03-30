@@ -1,0 +1,74 @@
+"""
+A Future represents a pending asynchronous result from a remote
+operation. Created by `RemoteProcess>>asyncSend:with:`.
+
+Use `await` to block until the result is available. Use `isResolved`
+to check without blocking. Use `result` to get the value if resolved.
+
+```example
+future := worker asyncSend: #compute: with: 42.
+future isResolved       "=> false (initially)"
+result := future await. "=> blocks until resolved"
+future isResolved       "=> true"
+```
+"""
+Future subclass: Object
+
+  """
+  Block the current process until the Future resolves.
+  Returns the result value. If the remote side returned an
+  error, returns nil (check `error` for the error message).
+
+  ```example
+  future await    "=> the result value"
+  ```
+  """
+  method: await [
+      ^self primAwait
+  ]
+
+  """
+  Block for at most `ms` milliseconds. Returns the result
+  value if resolved in time, or nil on timeout.
+
+  ```example
+  future await: 5000    "=> result or nil"
+  ```
+  """
+  method: await: ms [
+      ^self primAwait: ms
+  ]
+
+  """
+  Return true if the Future has been resolved (success or error).
+
+  ```example
+  future isResolved    "=> true/false"
+  ```
+  """
+  method: isResolved [
+      ^self primIsResolved
+  ]
+
+  """
+  Return the result value if resolved, or nil if still pending.
+  Does not block.
+  """
+  method: result [
+      ^self primResult
+  ]
+
+  """
+  Return the error message string if the Future resolved with
+  an error, or nil if successful or still pending.
+  """
+  method: error [
+      ^self primError
+  ]
+
+  """
+  Return a string representation.
+  """
+  method: printString [
+      ^self primPrintString
+  ]

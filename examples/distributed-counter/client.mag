@@ -1,0 +1,33 @@
+"""
+Distributed counter client. Connects to a server and sends
+increment messages to the 'counter' process.
+
+Run with:
+  mag examples/distributed-counter/client.mag -m Client.run
+
+Make sure the server is running on the same port (default 9200):
+  mag --serve --port 9200 examples/distributed-counter/server.mag -m Counter.start
+"""
+Client subclass: Object
+  classMethod: run [
+      | node counter |
+      node := Node connect: 'localhost:9200'.
+
+      node ping ifFalse: [
+          'Cannot reach server at localhost:9200' println.
+          ^nil
+      ].
+      'Connected to server' println.
+
+      counter := node processNamed: 'counter'.
+
+      "Send 5 increment messages"
+      1 to: 5 do: [:i |
+          counter cast: #increment: with: i * 10.
+          ('Sent increment: ', (i * 10) printString) println
+      ].
+
+      "Wait for messages to be delivered"
+      Process sleep: 500.
+      'All messages sent and delivered' println
+  ]

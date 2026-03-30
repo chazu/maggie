@@ -21,9 +21,9 @@ type SyncService struct {
 	peers  *dist.PeerStore
 	policy *dist.CapabilityPolicy
 
-	// compile compiles source text and returns its content hash.
-	// Injected to avoid depending on the compiler package.
-	compile func(source string) ([32]byte, error)
+	// compile compiles source text and returns both semantic and typed
+	// content hashes. Injected to avoid depending on the compiler package.
+	compile func(source string) (dist.CompileResult, error)
 
 	// diskCache persists received chunks to disk. May be nil.
 	diskCache *dist.DiskCache
@@ -35,7 +35,7 @@ func NewSyncService(
 	store *vm.ContentStore,
 	peers *dist.PeerStore,
 	policy *dist.CapabilityPolicy,
-	compile func(source string) ([32]byte, error),
+	compile func(source string) (dist.CompileResult, error),
 	diskCache *dist.DiskCache,
 ) *SyncService {
 	return &SyncService{
@@ -186,15 +186,20 @@ func (s *SyncService) Transfer(
 }
 
 // indexVerifiedMethod creates a CompiledMethod stub from a verified chunk
-// and indexes it in the content store. The method has source text and hash
-// but no compiled bytecode — it serves as proof we received verified content.
+// and indexes it in the content store. The method has source text, semantic
+// hash, and typed hash but no compiled bytecode — it serves as proof we
+// received verified content.
 func (s *SyncService) indexVerifiedMethod(chunk *dist.Chunk) {
 	m := &vm.CompiledMethod{Source: chunk.Content}
 	m.SetContentHash(chunk.Hash)
+	if chunk.TypedHash != ([32]byte{}) {
+		m.SetTypedHash(chunk.TypedHash)
+	}
 	s.store.IndexMethod(m)
 }
 
 // indexVerifiedClass indexes a class digest from a verified chunk.
+// Populates both semantic and typed hashes from the chunk.
 func (s *SyncService) indexVerifiedClass(chunk *dist.Chunk) {
 	d, err := dist.DecodeClassContent(chunk.Content)
 	if err != nil {
@@ -203,6 +208,12 @@ func (s *SyncService) indexVerifiedClass(chunk *dist.Chunk) {
 	}
 	d.Hash = chunk.Hash
 	d.MethodHashes = chunk.Dependencies
+	if chunk.TypedHash != ([32]byte{}) {
+		d.TypedHash = chunk.TypedHash
+	}
+	if len(chunk.TypedDependencies) > 0 {
+		d.TypedMethodHashes = chunk.TypedDependencies
+	}
 	s.store.IndexClass(d)
 }
 
@@ -340,6 +351,93 @@ func (s *SyncService) List(
 		MethodHashes: mhBytes,
 		ClassHashes:  chBytes,
 		ClassNames:   classNames,
+	}), nil
+}
+
+// DeliverMessage handles an incoming message from a remote node. It verifies
+// the signature, checks peer reputation, and delivers the message to the
+// target process's mailbox. This is the core RPC for distributed messaging.
+func (s *SyncService) DeliverMessage(
+	ctx context.Context,
+	req *connect.Request[maggiev1.DeliverMessageRequest],
+) (*connect.Response[maggiev1.DeliverMessageResponse], error) {
+	msg := req.Msg
+
+	// Decode the CBOR envelope
+	envelope, err := dist.UnmarshalEnvelope(msg.Envelope)
+	if err != nil {
+		return connect.NewResponse(&maggiev1.DeliverMessageResponse{
+			Success:      false,
+			ErrorKind:    "deserializationError",
+			ErrorMessage: fmt.Sprintf("invalid envelope: %v", err),
+		}), nil
+	}
+
+	// Derive peer ID from the sender's public key (hex-encoded for PeerStore compat)
+	peerID := fmt.Sprintf("%x", envelope.SenderNode)
+
+	// Check if peer is banned
+	if s.peers.IsBanned(peerID) {
+		return nil, connect.NewError(connect.CodePermissionDenied, fmt.Errorf("peer is banned"))
+	}
+
+	// Verify signature
+	if err := envelope.Verify(); err != nil {
+		s.peers.RecordHashMismatch(peerID) // bad signatures count toward ban
+		return connect.NewResponse(&maggiev1.DeliverMessageResponse{
+			Success:      false,
+			ErrorKind:    "signatureInvalid",
+			ErrorMessage: err.Error(),
+		}), nil
+	}
+
+	s.peers.RecordSuccess(peerID)
+
+	// Resolve target process by name or ID
+	var proc *vm.ProcessObject
+	if envelope.TargetName != "" {
+		procVal := s.worker.vm.LookupProcessName(envelope.TargetName)
+		if procVal == vm.Nil {
+			return connect.NewResponse(&maggiev1.DeliverMessageResponse{
+				Success:      false,
+				ErrorKind:    "processNotFound",
+				ErrorMessage: fmt.Sprintf("no process registered as %q", envelope.TargetName),
+			}), nil
+		}
+		proc = s.worker.vm.GetProcessByID(uint64(procVal.SymbolID() & ^uint32(0xFF<<24)))
+	} else {
+		proc = s.worker.vm.GetProcessByID(envelope.TargetProcess)
+	}
+	if proc == nil || proc.IsDone() {
+		return connect.NewResponse(&maggiev1.DeliverMessageResponse{
+			Success:      false,
+			ErrorKind:    "processNotFound",
+			ErrorMessage: "target process not found or terminated",
+		}), nil
+	}
+
+	// Deserialize payload
+	payload, err := s.worker.vm.DeserializeValue(envelope.Payload)
+	if err != nil {
+		return connect.NewResponse(&maggiev1.DeliverMessageResponse{
+			Success:      false,
+			ErrorKind:    "deserializationError",
+			ErrorMessage: fmt.Sprintf("payload: %v", err),
+		}), nil
+	}
+
+	// Create MailboxMessage and deliver to mailbox
+	mailboxMsg := s.worker.vm.CreateMailboxMessage(vm.Nil, envelope.Selector, payload)
+	if !proc.Mailbox().TrySend(mailboxMsg) {
+		return connect.NewResponse(&maggiev1.DeliverMessageResponse{
+			Success:      false,
+			ErrorKind:    "mailboxFull",
+			ErrorMessage: "target process mailbox is full",
+		}), nil
+	}
+
+	return connect.NewResponse(&maggiev1.DeliverMessageResponse{
+		Success: true,
 	}), nil
 }
 

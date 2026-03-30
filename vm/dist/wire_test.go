@@ -10,14 +10,18 @@ import (
 
 func TestChunk_CBORRoundTrip(t *testing.T) {
 	h := sha256.Sum256([]byte("method-source"))
+	th := sha256.Sum256([]byte("method-source-typed"))
 	dep := sha256.Sum256([]byte("dep"))
+	tdep := sha256.Sum256([]byte("dep-typed"))
 
 	c := &Chunk{
-		Hash:         h,
-		Type:         ChunkMethod,
-		Content:      "method: x [ ^x + 1 ]",
-		Dependencies: [][32]byte{dep},
-		Capabilities: []string{"File"},
+		Hash:              h,
+		Type:              ChunkMethod,
+		Content:           "method: x [ ^x + 1 ]",
+		Dependencies:      [][32]byte{dep},
+		Capabilities:      []string{"File"},
+		TypedHash:         th,
+		TypedDependencies: [][32]byte{tdep},
 	}
 
 	data, err := MarshalChunk(c)
@@ -44,6 +48,12 @@ func TestChunk_CBORRoundTrip(t *testing.T) {
 	}
 	if len(got.Capabilities) != 1 || got.Capabilities[0] != "File" {
 		t.Error("Capabilities mismatch")
+	}
+	if got.TypedHash != th {
+		t.Error("TypedHash mismatch")
+	}
+	if len(got.TypedDependencies) != 1 || got.TypedDependencies[0] != tdep {
+		t.Error("TypedDependencies mismatch")
 	}
 }
 
@@ -167,11 +177,43 @@ func TestVerifyChunkMethod_Valid(t *testing.T) {
 	h := sha256.Sum256([]byte("source"))
 	c := &Chunk{Hash: h, Type: ChunkMethod, Content: "source"}
 
-	err := VerifyChunkMethod(c, func(source string) ([32]byte, error) {
-		return sha256.Sum256([]byte(source)), nil
+	err := VerifyChunkMethod(c, func(source string) (CompileResult, error) {
+		return CompileResult{SemanticHash: sha256.Sum256([]byte(source))}, nil
 	})
 	if err != nil {
 		t.Errorf("VerifyChunkMethod should succeed: %v", err)
+	}
+}
+
+func TestVerifyChunkMethod_ValidWithTypedHash(t *testing.T) {
+	sh := sha256.Sum256([]byte("source"))
+	th := sha256.Sum256([]byte("source-typed"))
+	c := &Chunk{Hash: sh, Type: ChunkMethod, Content: "source", TypedHash: th}
+
+	err := VerifyChunkMethod(c, func(source string) (CompileResult, error) {
+		return CompileResult{
+			SemanticHash: sha256.Sum256([]byte(source)),
+			TypedHash:    sha256.Sum256([]byte(source + "-typed")),
+		}, nil
+	})
+	if err != nil {
+		t.Errorf("VerifyChunkMethod should succeed with matching typed hash: %v", err)
+	}
+}
+
+func TestVerifyChunkMethod_TypedHashMismatch(t *testing.T) {
+	sh := sha256.Sum256([]byte("source"))
+	th := sha256.Sum256([]byte("claimed-typed"))
+	c := &Chunk{Hash: sh, Type: ChunkMethod, Content: "source", TypedHash: th}
+
+	err := VerifyChunkMethod(c, func(source string) (CompileResult, error) {
+		return CompileResult{
+			SemanticHash: sha256.Sum256([]byte(source)),
+			TypedHash:    sha256.Sum256([]byte("different-typed")),
+		}, nil
+	})
+	if err == nil {
+		t.Error("VerifyChunkMethod should fail on typed hash mismatch")
 	}
 }
 
@@ -179,8 +221,8 @@ func TestVerifyChunkMethod_Mismatch(t *testing.T) {
 	h := sha256.Sum256([]byte("claimed"))
 	c := &Chunk{Hash: h, Type: ChunkMethod, Content: "actual"}
 
-	err := VerifyChunkMethod(c, func(source string) ([32]byte, error) {
-		return sha256.Sum256([]byte(source)), nil
+	err := VerifyChunkMethod(c, func(source string) (CompileResult, error) {
+		return CompileResult{SemanticHash: sha256.Sum256([]byte(source))}, nil
 	})
 	if err == nil {
 		t.Error("VerifyChunkMethod should fail on hash mismatch")
@@ -190,8 +232,8 @@ func TestVerifyChunkMethod_Mismatch(t *testing.T) {
 func TestVerifyChunkMethod_CompileError(t *testing.T) {
 	c := &Chunk{Type: ChunkMethod, Content: "bad"}
 
-	err := VerifyChunkMethod(c, func(source string) ([32]byte, error) {
-		return [32]byte{}, fmt.Errorf("syntax error")
+	err := VerifyChunkMethod(c, func(source string) (CompileResult, error) {
+		return CompileResult{}, fmt.Errorf("syntax error")
 	})
 	if err == nil {
 		t.Error("VerifyChunkMethod should propagate compile errors")
@@ -201,8 +243,8 @@ func TestVerifyChunkMethod_CompileError(t *testing.T) {
 func TestVerifyChunkMethod_WrongType(t *testing.T) {
 	c := &Chunk{Type: ChunkClass}
 
-	err := VerifyChunkMethod(c, func(source string) ([32]byte, error) {
-		return [32]byte{}, nil
+	err := VerifyChunkMethod(c, func(source string) (CompileResult, error) {
+		return CompileResult{}, nil
 	})
 	if err == nil {
 		t.Error("VerifyChunkMethod should reject non-method chunks")

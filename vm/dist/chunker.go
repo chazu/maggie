@@ -31,16 +31,23 @@ func MethodToChunk(m *vm.CompiledMethod, caps []string) *Chunk {
 // ClassToChunk creates a Chunk from a ClassDigest. The Content field is
 // populated with the deterministic text encoding of the digest's structural
 // metadata (name, namespace, superclass, ivars, cvars, docstring).
+// Both semantic and typed hashes are propagated to the chunk.
 func ClassToChunk(d *vm.ClassDigest, caps []string) *Chunk {
 	deps := make([][32]byte, len(d.MethodHashes))
 	copy(deps, d.MethodHashes)
-	return &Chunk{
+	c := &Chunk{
 		Hash:         d.Hash,
 		Type:         ChunkClass,
 		Content:      EncodeClassContent(d),
 		Dependencies: deps,
 		Capabilities: caps,
+		TypedHash:    d.TypedHash,
 	}
+	if len(d.TypedMethodHashes) > 0 {
+		c.TypedDependencies = make([][32]byte, len(d.TypedMethodHashes))
+		copy(c.TypedDependencies, d.TypedMethodHashes)
+	}
+	return c
 }
 
 // ModuleToChunk creates a Chunk representing a module (namespace) that

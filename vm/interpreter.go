@@ -80,6 +80,7 @@ type Interpreter struct {
 	localWrites map[string]Value // process-local global writes (nil until first write)
 	hidden      map[string]bool  // restricted global names (nil if unrestricted)
 	forked      bool             // true for forked interpreters (writes go to localWrites)
+	processID   uint64           // ID of the ProcessObject this interpreter belongs to (0 = main)
 
 	// NLR unwinding state (replaces panic/recover for non-local returns)
 	unwinding    bool

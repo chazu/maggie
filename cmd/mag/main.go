@@ -12,8 +12,16 @@ import (
 	"strings"
 	"time"
 
+	"context"
+	"crypto/ed25519"
+	"net/http"
+
+	"connectrpc.com/connect"
+
 	"github.com/chazu/maggie/compiler"
 	"github.com/chazu/maggie/compiler/hash"
+	maggiev1 "github.com/chazu/maggie/gen/maggie/v1"
+	"github.com/chazu/maggie/gen/maggie/v1/maggiev1connect"
 	"github.com/chazu/maggie/manifest"
 	"github.com/chazu/maggie/pipeline"
 	"github.com/chazu/maggie/server"
@@ -271,6 +279,9 @@ func run() (exitCode int) {
 	// Set up compiler backend (Go compiler by default)
 	vmInst.UseGoCompiler(compiler.Compile)
 
+	// Wire NodeRefFactory for remote messaging
+	vmInst.NodeRefFactory = buildNodeRefFactory()
+
 	// Register wrapper packages from full-system builds
 	for _, register := range projectWrapperRegistrars {
 		register(vmInst)
@@ -501,6 +512,20 @@ func run() (exitCode int) {
 		return 0
 	}
 
+	// If --serve and -m are both specified, start the server before the
+	// entry point so that the process can receive remote messages.
+	if *serveMode && *mainEntry != "" {
+		addr := fmt.Sprintf(":%d", *servePort)
+		srv := server.New(vmInst, server.WithCompileFunc(buildCompileFunc(vmInst)))
+		go func() {
+			if err := srv.ListenAndServe(addr); err != nil {
+				fmt.Fprintf(os.Stderr, "Server error: %v\n", err)
+			}
+		}()
+		time.Sleep(50 * time.Millisecond)
+		// The serve-only path below will be skipped since mainEntry is set
+	}
+
 	// Run main entry point if specified
 	if *mainEntry != "" {
 		result, err := runMain(vmInst, *mainEntry, *verbose)
@@ -525,16 +550,33 @@ func run() (exitCode int) {
 		return 0
 	}
 
-	// Start language server if requested
+	// Start language server if requested.
+	// If -m is also specified, the server runs in the background and the
+	// entry point runs in the foreground. Otherwise, the server is the
+	// foreground (blocking) operation.
 	if *serveMode {
 		addr := fmt.Sprintf(":%d", *servePort)
 		srv := server.New(vmInst, server.WithCompileFunc(buildCompileFunc(vmInst)))
 		defer srv.Stop()
-		if err := srv.ListenAndServe(addr); err != nil {
-			fmt.Fprintf(os.Stderr, "Server error: %v\n", err)
-			return 1
+
+		if *mainEntry != "" {
+			// Both --serve and -m: start server in background, entry point is foreground
+			go func() {
+				if err := srv.ListenAndServe(addr); err != nil {
+					fmt.Fprintf(os.Stderr, "Server error: %v\n", err)
+				}
+			}()
+			// Small delay to ensure server is listening before entry point runs
+			time.Sleep(50 * time.Millisecond)
+			// Fall through to entry point execution below
+		} else {
+			// Serve-only mode (no -m)
+			if err := srv.ListenAndServe(addr); err != nil {
+				fmt.Fprintf(os.Stderr, "Server error: %v\n", err)
+				return 1
+			}
+			return 0
 		}
-		return 0
 	}
 
 	// Start Yutani IDE mode if requested
@@ -659,16 +701,51 @@ func runMain(vmInst *vm.VM, entry string, verbose bool) (vm.Value, error) {
 }
 
 // buildCompileFunc creates a compile function suitable for the sync service's
-// method chunk verification. It parses source text into an AST, compiles it
-// to verify validity, and returns the content hash.
-func buildCompileFunc(vmInst *vm.VM) func(string) ([32]byte, error) {
-	return func(source string) ([32]byte, error) {
+// method chunk verification. It parses source text into an AST and returns
+// both the semantic content hash and the typed content hash.
+func buildCompileFunc(vmInst *vm.VM) func(string) (dist.CompileResult, error) {
+	return func(source string) (dist.CompileResult, error) {
 		parser := compiler.NewParser(source)
 		methodDef := parser.ParseMethod()
 		if errs := parser.Errors(); len(errs) > 0 {
-			return [32]byte{}, fmt.Errorf("parse errors: %v", errs)
+			return dist.CompileResult{}, fmt.Errorf("parse errors: %v", errs)
 		}
-		h := hash.HashMethod(methodDef, nil, nil)
-		return h, nil
+		semantic := hash.HashMethod(methodDef, nil, nil)
+		typed := hash.HashTypedMethod(methodDef, nil, nil)
+		return dist.CompileResult{SemanticHash: semantic, TypedHash: typed}, nil
+	}
+}
+
+// buildNodeRefFactory creates a factory function that produces fully-wired
+// NodeRefData instances with gRPC SendFunc and PingFunc.
+func buildNodeRefFactory() vm.NodeRefFactory {
+	return func(addr string, pub ed25519.PublicKey, priv ed25519.PrivateKey) *vm.NodeRefData {
+		ref := vm.NewNodeRefData(addr, pub, priv)
+
+		baseURL := "http://" + addr
+		client := maggiev1connect.NewSyncServiceClient(http.DefaultClient, baseURL)
+
+		ref.SendFunc = func(envelope []byte) ([]byte, string, string, error) {
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
+			resp, err := client.DeliverMessage(ctx, connect.NewRequest(
+				&maggiev1.DeliverMessageRequest{Envelope: envelope}))
+			if err != nil {
+				return nil, "", "", err
+			}
+			if !resp.Msg.Success {
+				return nil, resp.Msg.ErrorKind, resp.Msg.ErrorMessage, nil
+			}
+			return resp.Msg.ResponsePayload, "", "", nil
+		}
+
+		ref.PingFunc = func() bool {
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			_, err := client.Ping(ctx, connect.NewRequest(&maggiev1.PingRequest{}))
+			return err == nil
+		}
+
+		return ref
 	}
 }

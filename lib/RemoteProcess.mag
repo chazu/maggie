@@ -1,0 +1,66 @@
+"""
+A reference to a process on a remote Maggie node. Created via
+`Node>>processNamed:`. Supports fire-and-forget messaging
+(`cast:with:`) and request-response (`asyncSend:with:`).
+
+```example
+node := Node connect: 'localhost:8081'.
+worker := node processNamed: 'compute'.
+
+"Fire-and-forget"
+worker cast: #logEvent: with: eventData.
+
+"Request-response (returns a Future)"
+future := worker asyncSend: #compute: with: 42.
+result := future await.
+```
+"""
+RemoteProcess subclass: Object
+  instanceVars: node name
+
+  """
+  The name of the remote process.
+  """
+  method: name [
+      ^name
+  ]
+
+  """
+  The Node connection this process belongs to.
+  """
+  method: node [
+      ^node
+  ]
+
+  """
+  Fire-and-forget: send a message to the remote process without
+  waiting for a response. Returns true if the send was initiated.
+
+  ```example
+  worker cast: #log: with: 'hello'
+  ```
+  """
+  method: cast: selector with: payload [
+      ^self primCast: selector with: payload
+  ]
+
+  """
+  Request-response: send a message and return a Future that will
+  resolve with the remote process's response. Use `await` on the
+  Future to block until the result is available.
+
+  ```example
+  future := worker asyncSend: #compute: with: 42.
+  future await        "=> the result from the remote side"
+  ```
+  """
+  method: asyncSend: selector with: payload [
+      ^self primAsyncSend: selector with: payload
+  ]
+
+  """
+  Return a string representation.
+  """
+  method: printString [
+      ^'a RemoteProcess(', name, ')'
+  ]

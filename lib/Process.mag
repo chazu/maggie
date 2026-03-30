@@ -133,3 +133,115 @@ Process subclass: Object
   method: printString [
       ^'a Process'
   ]
+
+  -- Mailbox messaging
+
+  """
+  Send a value to this process's mailbox (fire-and-forget).
+  Returns `true` if the message was delivered, `false` if the
+  process is dead or its mailbox is full.
+
+  ```example
+  p := [Process receive] fork.
+  Process sleep: 10.
+  p send: 42
+  ```
+  """
+  method: send: value [
+      ^self primSend: value
+  ]
+
+  """
+  Send a selector-based message to this process's mailbox.
+  The receiver gets a MailboxMessage with the given selector
+  and payload.
+
+  ```example
+  p := [Process receive] fork.
+  Process sleep: 10.
+  p send: #doWork with: 42
+  ```
+  """
+  method: send: selector with: payload [
+      ^self primSend: selector with: payload
+  ]
+
+  """
+  Register this process under a name for lookup by other
+  processes. Returns `true` if successful, `false` if the
+  name is already taken by a live process.
+
+  ```example
+  p := [Process receive] fork.
+  Process sleep: 10.
+  p registerAs: 'worker'
+  ```
+  """
+  method: registerAs: name [
+      ^self primRegisterAs: name
+  ]
+
+  """
+  Remove this process's name registration.
+  """
+  method: unregister [
+      ^self primUnregister
+  ]
+
+  -- Class-side mailbox methods
+
+  """
+  Block the current process until a message arrives in its
+  mailbox. Returns a MailboxMessage.
+
+  ```example
+  p := [Process receive payload] fork.
+  Process sleep: 10.
+  p send: 42.
+  p wait
+  ```
+  """
+  classMethod: receive [
+      ^self primReceive
+  ]
+
+  """
+  Block the current process for up to `ms` milliseconds
+  waiting for a message. Returns a MailboxMessage or `nil`
+  on timeout.
+
+  ```example
+  p := [Process receive: 50] fork.
+  p wait
+  ```
+  """
+  classMethod: receive: ms [
+      ^self primReceive: ms
+  ]
+
+  """
+  Non-blocking receive. Returns a MailboxMessage if one is
+  available, or `nil` if the mailbox is empty.
+
+  ```example
+  Process tryReceive
+  ```
+  """
+  classMethod: tryReceive [
+      ^self primTryReceive
+  ]
+
+  """
+  Look up a process by its registered name.
+  Returns the Process or `nil` if not found.
+
+  ```example
+  p := [Process receive] fork.
+  Process sleep: 10.
+  p registerAs: 'lookup-test'.
+  Process named: 'lookup-test'
+  ```
+  """
+  classMethod: named: name [
+      ^self primNamed: name
+  ]

@@ -1,0 +1,56 @@
+"""
+A message received from a process mailbox. Each MailboxMessage wraps
+a payload value with optional metadata about the sender and message
+selector.
+
+MailboxMessages are created automatically by `Process>>send:` and
+`Process>>send:with:`. They are received by `Process receive`,
+`Process receive:`, `Process tryReceive`, and
+`Process receiveMatching:`.
+
+```example
+p := [Process receive payload] fork.
+Process sleep: 10.
+p send: 42.
+p wait
+```
+
+```example
+p := [Process receive selector] fork.
+Process sleep: 10.
+p send: #doWork with: 'data'.
+p wait
+```
+"""
+MailboxMessage subclass: Object
+  instanceVars: sender selector payload
+
+  """
+  The process that sent this message, or `nil` for remote
+  or system messages.
+  """
+  method: sender [
+      ^sender
+  ]
+
+  """
+  The message selector (a Symbol), or `nil` if none was
+  specified (raw send).
+  """
+  method: selector [
+      ^selector
+  ]
+
+  """
+  The payload value of the message.
+  """
+  method: payload [
+      ^payload
+  ]
+
+  """
+  Return a string representation of the message.
+  """
+  method: printString [
+      ^'a MailboxMessage(', (selector ifNil: ['(raw)'] ifNotNil: [selector]), ')'
+  ]

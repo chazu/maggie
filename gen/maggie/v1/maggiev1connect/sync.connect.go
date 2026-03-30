@@ -45,6 +45,9 @@ const (
 	SyncServiceResolveProcedure = "/maggie.v1.SyncService/Resolve"
 	// SyncServiceListProcedure is the fully-qualified name of the SyncService's List RPC.
 	SyncServiceListProcedure = "/maggie.v1.SyncService/List"
+	// SyncServiceDeliverMessageProcedure is the fully-qualified name of the SyncService's
+	// DeliverMessage RPC.
+	SyncServiceDeliverMessageProcedure = "/maggie.v1.SyncService/DeliverMessage"
 )
 
 // SyncServiceClient is a client for the maggie.v1.SyncService service.
@@ -64,6 +67,10 @@ type SyncServiceClient interface {
 	Resolve(context.Context, *connect.Request[v1.ResolveRequest]) (*connect.Response[v1.ResolveResponse], error)
 	// List enumerates all content in the local store.
 	List(context.Context, *connect.Request[v1.ListRequest]) (*connect.Response[v1.ListResponse], error)
+	// DeliverMessage delivers a message to a process on this node.
+	// The message payload is a CBOR-encoded MessageEnvelope containing
+	// a signed, serialized Maggie value.
+	DeliverMessage(context.Context, *connect.Request[v1.DeliverMessageRequest]) (*connect.Response[v1.DeliverMessageResponse], error)
 }
 
 // NewSyncServiceClient constructs a client for the maggie.v1.SyncService service. By default, it
@@ -113,17 +120,24 @@ func NewSyncServiceClient(httpClient connect.HTTPClient, baseURL string, opts ..
 			connect.WithSchema(syncServiceMethods.ByName("List")),
 			connect.WithClientOptions(opts...),
 		),
+		deliverMessage: connect.NewClient[v1.DeliverMessageRequest, v1.DeliverMessageResponse](
+			httpClient,
+			baseURL+SyncServiceDeliverMessageProcedure,
+			connect.WithSchema(syncServiceMethods.ByName("DeliverMessage")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
 // syncServiceClient implements SyncServiceClient.
 type syncServiceClient struct {
-	announce *connect.Client[v1.AnnounceRequest, v1.AnnounceResponse]
-	transfer *connect.Client[v1.TransferRequest, v1.TransferResponse]
-	serve    *connect.Client[v1.ServeRequest, v1.ServeResponse]
-	ping     *connect.Client[v1.PingRequest, v1.PingResponse]
-	resolve  *connect.Client[v1.ResolveRequest, v1.ResolveResponse]
-	list     *connect.Client[v1.ListRequest, v1.ListResponse]
+	announce       *connect.Client[v1.AnnounceRequest, v1.AnnounceResponse]
+	transfer       *connect.Client[v1.TransferRequest, v1.TransferResponse]
+	serve          *connect.Client[v1.ServeRequest, v1.ServeResponse]
+	ping           *connect.Client[v1.PingRequest, v1.PingResponse]
+	resolve        *connect.Client[v1.ResolveRequest, v1.ResolveResponse]
+	list           *connect.Client[v1.ListRequest, v1.ListResponse]
+	deliverMessage *connect.Client[v1.DeliverMessageRequest, v1.DeliverMessageResponse]
 }
 
 // Announce calls maggie.v1.SyncService.Announce.
@@ -156,6 +170,11 @@ func (c *syncServiceClient) List(ctx context.Context, req *connect.Request[v1.Li
 	return c.list.CallUnary(ctx, req)
 }
 
+// DeliverMessage calls maggie.v1.SyncService.DeliverMessage.
+func (c *syncServiceClient) DeliverMessage(ctx context.Context, req *connect.Request[v1.DeliverMessageRequest]) (*connect.Response[v1.DeliverMessageResponse], error) {
+	return c.deliverMessage.CallUnary(ctx, req)
+}
+
 // SyncServiceHandler is an implementation of the maggie.v1.SyncService service.
 type SyncServiceHandler interface {
 	// Announce advertises a set of content hashes to a peer.
@@ -173,6 +192,10 @@ type SyncServiceHandler interface {
 	Resolve(context.Context, *connect.Request[v1.ResolveRequest]) (*connect.Response[v1.ResolveResponse], error)
 	// List enumerates all content in the local store.
 	List(context.Context, *connect.Request[v1.ListRequest]) (*connect.Response[v1.ListResponse], error)
+	// DeliverMessage delivers a message to a process on this node.
+	// The message payload is a CBOR-encoded MessageEnvelope containing
+	// a signed, serialized Maggie value.
+	DeliverMessage(context.Context, *connect.Request[v1.DeliverMessageRequest]) (*connect.Response[v1.DeliverMessageResponse], error)
 }
 
 // NewSyncServiceHandler builds an HTTP handler from the service implementation. It returns the path
@@ -218,6 +241,12 @@ func NewSyncServiceHandler(svc SyncServiceHandler, opts ...connect.HandlerOption
 		connect.WithSchema(syncServiceMethods.ByName("List")),
 		connect.WithHandlerOptions(opts...),
 	)
+	syncServiceDeliverMessageHandler := connect.NewUnaryHandler(
+		SyncServiceDeliverMessageProcedure,
+		svc.DeliverMessage,
+		connect.WithSchema(syncServiceMethods.ByName("DeliverMessage")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/maggie.v1.SyncService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case SyncServiceAnnounceProcedure:
@@ -232,6 +261,8 @@ func NewSyncServiceHandler(svc SyncServiceHandler, opts ...connect.HandlerOption
 			syncServiceResolveHandler.ServeHTTP(w, r)
 		case SyncServiceListProcedure:
 			syncServiceListHandler.ServeHTTP(w, r)
+		case SyncServiceDeliverMessageProcedure:
+			syncServiceDeliverMessageHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -263,4 +294,8 @@ func (UnimplementedSyncServiceHandler) Resolve(context.Context, *connect.Request
 
 func (UnimplementedSyncServiceHandler) List(context.Context, *connect.Request[v1.ListRequest]) (*connect.Response[v1.ListResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("maggie.v1.SyncService.List is not implemented"))
+}
+
+func (UnimplementedSyncServiceHandler) DeliverMessage(context.Context, *connect.Request[v1.DeliverMessageRequest]) (*connect.Response[v1.DeliverMessageResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("maggie.v1.SyncService.DeliverMessage is not implemented"))
 }

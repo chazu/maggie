@@ -1,5 +1,79 @@
 # Changelog
 
+## 2026-03-30 — Distributed Computing Phase A: Remote Messaging
+
+Complete implementation of distributed messaging between Maggie VMs.
+Two VMs can exchange serialized values over HTTP/2 with Ed25519-signed
+message envelopes, process mailboxes, and registered process names.
+
+### Value Serialization (`vm/serial.go`)
+- CBOR-based serialization for all Maggie value types (SmallInt, BigInteger,
+  Float, Boolean, Nil, String, Symbol, Character, Array, Dictionary, Object,
+  CueValue)
+- Circular object reference handling via backreference tags
+- Private CBOR tag range 27001-27012 for Maggie-specific types
+- GC safety: deserialized objects registered with `vm.KeepAlive()`
+- 21 round-trip tests including nested objects and cycles
+
+### Node Identity (`vm/dist/identity.go`)
+- Ed25519 keypair generation and persistence (`.maggie/node.key`)
+- 32-byte public key as node ID, displayable as proquint
+- Sign/verify for message authentication
+- 10 tests including key persistence and corruption detection
+
+### Message Envelope + DeliverMessage RPC
+- `MessageEnvelope` with sender, target (ID or name), reply-to, selector,
+  payload, class hints, nonce, Ed25519 signature
+- Signature covers `payload || nonce || targetProcess` (prevents replay,
+  redirection, and tampering)
+- `DeliverMessage` gRPC handler: decode, verify, check reputation, deliver
+- Bad signatures count toward peer ban threshold
+- 8 envelope tests + 3 E2E integration tests
+
+### Process Mailboxes (`vm/mailbox.go`)
+- Bounded ring buffer (default 1024) with `sync.Cond` for blocking receive
+- `TrySend`, `Receive`, `ReceiveTimeout`, `TryReceive`
+- Snapshot + version for selective receive (`receiveMatching:`)
+- Every `ProcessObject` gets a mailbox, closed on process death
+- `MailboxMessage` class with sender/selector/payload accessors
+- `Process current` now returns the actual current process
+- Registered process names with lazy dead-process cleanup
+- 16 mailbox unit tests + 8 integration tests
+
+### Remote Messaging API
+- **Node**: `Node connect: 'host:port'`, `ping`, `processNamed:`
+  (NaN-boxed with marker 43)
+- **RemoteProcess**: `cast:with:` (fire-and-forget), `asyncSend:with:`
+  (returns Future) — regular 2-slot Object
+- **Future**: write-once container backed by `chan Value` capacity 1,
+  `await`, `await:`, `isResolved`, `error` (NaN-boxed with marker 44)
+- NodeRefFactory injected from `cmd/mag` for gRPC client wiring
+- `--serve` + `-m` now starts HTTP server before entry point
+- 14 unit tests + 3 E2E integration tests (including distributed demo)
+
+### Dual-Hash Distribution Updates
+- `ContentStore` indexes by both semantic and typed hash
+- `ClassToChunk` propagates `TypedHash` and `TypedMethodHashes`
+- `VerifyChunkMethod` verifies typed hash when present
+- `CompileResult` replaces bare `[32]byte` in compile function signatures
+- 6 new tests for dual-hash indexing and verification
+
+### Documentation
+- CLAUDE.md: process mailboxes, registered names, remote messaging sections
+- README.md: distributed messaging section with code examples
+- Guide09Concurrency: mailbox and name registration sections with examples
+- Guide13Distribution: dual-hash, node identity, message delivery, remote
+  messaging API, updated security model
+- New lib files: Process.mag (8 new methods), MailboxMessage.mag, Node.mag,
+  RemoteProcess.mag, Future.mag
+- Example app: `examples/distributed-counter/` (server + client, verified working)
+
+### Test Summary
+- 72 new tests across 8 test files
+- 3 end-to-end integration tests with real HTTP transport
+- Distributed counter demo validated: client sends 5 messages, server
+  accumulates totals correctly
+
 ## 2026-03-26 — VM Performance: Remaining Allocation Hot Paths
 
 Full audit of the 2026-03-03 VM improvement plan. Every P1 correctness

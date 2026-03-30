@@ -14,10 +14,22 @@ import (
 
 // ContentStore indexes compiled methods and class digests by their content
 // hash. It is the VM-local backing store for the distribution protocol.
+//
+// Methods and classes are indexed by semantic hash (primary key for identity
+// and negotiation) and optionally by typed hash (for local verification).
+// Semantic hashes are used in have/want negotiation — two nodes with the
+// same code but different type annotations see each other as identical.
+// Typed hashes travel as metadata and are verified locally after receipt.
 type ContentStore struct {
 	mu      sync.RWMutex
 	methods map[[32]byte]*CompiledMethod
 	classes map[[32]byte]*ClassDigest
+
+	// Typed hash → semantic hash reverse indexes for local verification.
+	// These allow looking up content by typed hash without changing the
+	// primary identity model (semantic hash = identity).
+	typedMethods map[[32]byte][32]byte // typed hash → semantic hash
+	typedClasses map[[32]byte][32]byte // typed hash → semantic hash
 }
 
 // ClassDigest is a compact representation of a class suitable for content
@@ -39,13 +51,17 @@ type ClassDigest struct {
 // NewContentStore creates an empty content store.
 func NewContentStore() *ContentStore {
 	return &ContentStore{
-		methods: make(map[[32]byte]*CompiledMethod),
-		classes: make(map[[32]byte]*ClassDigest),
+		methods:      make(map[[32]byte]*CompiledMethod),
+		classes:      make(map[[32]byte]*ClassDigest),
+		typedMethods: make(map[[32]byte][32]byte),
+		typedClasses: make(map[[32]byte][32]byte),
 	}
 }
 
 // IndexMethod adds a compiled method to the store, keyed by its ContentHash.
-// Methods with a zero hash are silently ignored.
+// If the method also has a non-zero TypedHash, the typed hash is indexed as
+// a reverse pointer to the semantic hash. Methods with a zero semantic hash
+// are silently ignored.
 func (cs *ContentStore) IndexMethod(m *CompiledMethod) {
 	h := m.GetContentHash()
 	if h == [32]byte{} {
@@ -53,43 +69,80 @@ func (cs *ContentStore) IndexMethod(m *CompiledMethod) {
 	}
 	cs.mu.Lock()
 	cs.methods[h] = m
+	if th := m.GetTypedHash(); th != ([32]byte{}) {
+		cs.typedMethods[th] = h
+	}
 	cs.mu.Unlock()
 }
 
-// LookupMethod returns the method for the given hash, or nil.
+// LookupMethod returns the method for the given semantic hash, or nil.
 func (cs *ContentStore) LookupMethod(h [32]byte) *CompiledMethod {
 	cs.mu.RLock()
 	defer cs.mu.RUnlock()
 	return cs.methods[h]
 }
 
-// IndexClass adds a class digest to the store.
+// LookupMethodByTypedHash returns the method whose typed hash matches h,
+// or nil if no match. Looks up via the typed→semantic reverse index.
+func (cs *ContentStore) LookupMethodByTypedHash(h [32]byte) *CompiledMethod {
+	cs.mu.RLock()
+	defer cs.mu.RUnlock()
+	if semantic, ok := cs.typedMethods[h]; ok {
+		return cs.methods[semantic]
+	}
+	return nil
+}
+
+// IndexClass adds a class digest to the store. If the digest has a non-zero
+// TypedHash, it is indexed as a reverse pointer to the semantic hash.
 func (cs *ContentStore) IndexClass(d *ClassDigest) {
 	if d.Hash == ([32]byte{}) {
 		return
 	}
 	cs.mu.Lock()
 	cs.classes[d.Hash] = d
+	if d.TypedHash != ([32]byte{}) {
+		cs.typedClasses[d.TypedHash] = d.Hash
+	}
 	cs.mu.Unlock()
 }
 
-// LookupClass returns the class digest for the given hash, or nil.
+// LookupClass returns the class digest for the given semantic hash, or nil.
 func (cs *ContentStore) LookupClass(h [32]byte) *ClassDigest {
 	cs.mu.RLock()
 	defer cs.mu.RUnlock()
 	return cs.classes[h]
 }
 
+// LookupClassByTypedHash returns the class digest whose typed hash matches h,
+// or nil if no match. Looks up via the typed→semantic reverse index.
+func (cs *ContentStore) LookupClassByTypedHash(h [32]byte) *ClassDigest {
+	cs.mu.RLock()
+	defer cs.mu.RUnlock()
+	if semantic, ok := cs.typedClasses[h]; ok {
+		return cs.classes[semantic]
+	}
+	return nil
+}
+
 // HasHash returns true if the store contains either a method or class with
-// the given hash.
+// the given hash. Checks both semantic and typed hash indexes.
 func (cs *ContentStore) HasHash(h [32]byte) bool {
 	cs.mu.RLock()
 	defer cs.mu.RUnlock()
 	if _, ok := cs.methods[h]; ok {
 		return true
 	}
-	_, ok := cs.classes[h]
-	return ok
+	if _, ok := cs.classes[h]; ok {
+		return true
+	}
+	if _, ok := cs.typedMethods[h]; ok {
+		return true
+	}
+	if _, ok := cs.typedClasses[h]; ok {
+		return true
+	}
+	return false
 }
 
 // MethodHashes returns all method content hashes in the store.
@@ -193,6 +246,7 @@ func (cs *ContentStore) LookupByPrefix(prefix string) ([32]byte, string, error) 
 	var matches [][32]byte
 	var types []string
 
+	// Search semantic hashes (primary identity)
 	for h := range cs.methods {
 		hexStr := fmt.Sprintf("%x", h)
 		if len(hexStr) >= len(prefix) && hexStr[:len(prefix)] == prefix {
@@ -205,6 +259,40 @@ func (cs *ContentStore) LookupByPrefix(prefix string) ([32]byte, string, error) 
 		if len(hexStr) >= len(prefix) && hexStr[:len(prefix)] == prefix {
 			matches = append(matches, h)
 			types = append(types, "class")
+		}
+	}
+	// Search typed hashes (resolve to semantic hash for return)
+	for th, sh := range cs.typedMethods {
+		hexStr := fmt.Sprintf("%x", th)
+		if len(hexStr) >= len(prefix) && hexStr[:len(prefix)] == prefix {
+			// Avoid duplicate if semantic hash already matched
+			dup := false
+			for _, m := range matches {
+				if m == sh {
+					dup = true
+					break
+				}
+			}
+			if !dup {
+				matches = append(matches, sh)
+				types = append(types, "method")
+			}
+		}
+	}
+	for th, sh := range cs.typedClasses {
+		hexStr := fmt.Sprintf("%x", th)
+		if len(hexStr) >= len(prefix) && hexStr[:len(prefix)] == prefix {
+			dup := false
+			for _, m := range matches {
+				if m == sh {
+					dup = true
+					break
+				}
+			}
+			if !dup {
+				matches = append(matches, sh)
+				types = append(types, "class")
+			}
 		}
 	}
 

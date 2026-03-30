@@ -25,6 +25,22 @@ service SyncService {
 
   // List enumerates all content in the local store.
   rpc List(ListRequest) returns (ListResponse);
+
+  // DeliverMessage delivers a message to a process on this node.
+  // The message payload is a CBOR-encoded MessageEnvelope containing
+  // a signed, serialized Maggie value.
+  rpc DeliverMessage(DeliverMessageRequest) returns (DeliverMessageResponse);
+}
+
+message DeliverMessageRequest {
+  bytes envelope = 1;  // CBOR-encoded MessageEnvelope
+}
+
+message DeliverMessageResponse {
+  bool success = 1;
+  string error_kind = 2;      // error kind: processNotFound, mailboxFull, signatureInvalid, etc.
+  string error_message = 3;   // human-readable error description
+  bytes response_payload = 4; // CBOR-encoded response value (for request-response pattern)
 }
 
 message AnnounceRequest {

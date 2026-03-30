@@ -256,6 +256,113 @@ Guide13Distribution subclass: Object
   ]
 
   """
+  ## Dual-Hash Verification
+
+  Every method carries two content hashes:
+
+  - **Semantic hash** -- computed from the normalized AST (de Bruijn
+    indexed, no position data). Identifies the method's behavior.
+    Two methods with the same logic produce the same semantic hash,
+    even if they have different type annotations or variable names.
+
+  - **Typed hash** -- computed from the normalized AST plus type
+    annotations (parameter types, return type, effect annotations).
+    Identifies the method's behavior AND its type contract.
+
+  The semantic hash is the primary identity used for negotiation
+  between nodes. The typed hash is metadata for local verification --
+  when receiving code from a peer, the sync service verifies both
+  hashes if present.
+
+  Class digests also carry both hash layers: a semantic class hash
+  (using semantic method hashes) and a typed class hash (using typed
+  method hashes). The ContentStore indexes by semantic hash and
+  maintains a reverse index from typed hash to semantic hash.
+
+  ```example
+  # Two methods with the same logic but different type annotations
+  # have the same semantic hash but different typed hashes:
+  #
+  # method: add: x to: y [ ^x + y ]
+  # method: add: x <Integer> to: y <Integer> ^<Integer> [ ^x + y ]
+  #
+  #   Semantic hash: abc123...  (same)
+  #   Typed hash:    def456... vs fff789...  (different)
+  ```
+  """
+  method: s06b_dualHash [
+      "Dual hashing is automatic and transparent."
+      ^nil
+  ]
+
+  """
+  ## Node Identity
+
+  Each Maggie node has a stable Ed25519 keypair stored in
+  `.maggie/node.key`. The 32-byte public key is the node ID.
+
+  - Generated automatically on first run (via `LoadOrCreateIdentity`)
+  - Displayed as a 4-segment proquint for human readability
+  - Used to sign outgoing messages (Ed25519 signatures)
+  - Used as the peer identifier in the reputation system
+
+  All inter-node messages are signed by the sender's private key.
+  The receiver verifies the signature against the sender's public
+  key before processing. This prevents message forgery and enables
+  cryptographic peer identification.
+
+  ```example
+  # Node identity on disk:
+  #   .maggie/node.key    (64 bytes: 32-byte seed + 32-byte public key)
+  #
+  # Node ID displayed as proquint:
+  #   babab-dabab-babab-dabab.fidod-gutih-josij-kumol.
+  #   nobop-qurur-sasit-tuvuv.waxay-zibab-dabab-fidod
+  #
+  # CLI commands (planned):
+  #   mag node id           # display proquint node ID
+  #   mag node init         # generate keypair if not present
+  ```
+  """
+  method: s06c_nodeIdentity [
+      "Node identity is managed automatically by the runtime."
+      ^nil
+  ]
+
+  """
+  ## Message Delivery
+
+  The `DeliverMessage` RPC delivers a signed message to a process
+  on the target node. Messages are wrapped in a `MessageEnvelope`
+  containing:
+
+  - `SenderNode` -- the sender's Ed25519 public key (32 bytes)
+  - `TargetProcess` -- process ID on the target node
+  - `TargetName` -- registered process name (alternative to ID)
+  - `ReplyTo` -- optional reply address (node + process)
+  - `Selector` -- message selector (method name)
+  - `Payload` -- CBOR-encoded serialized Maggie value
+  - `ClassHints` -- class hashes referenced in payload (for prefetch)
+  - `Nonce` -- monotonic counter for replay prevention
+  - `Signature` -- Ed25519 over (payload || nonce || targetProcess)
+
+  The receiver:
+  1. Decodes the CBOR envelope
+  2. Checks if the sender peer is banned
+  3. Verifies the Ed25519 signature
+  4. Resolves the target process (by name or ID)
+  5. Deserializes the payload
+  6. Creates a MailboxMessage and delivers to the process's mailbox
+
+  Error kinds returned on failure: `signatureInvalid`,
+  `processNotFound`, `mailboxFull`, `deserializationError`.
+  """
+  method: s06d_messageDelivery [
+      "Message delivery is handled by the sync service RPC."
+      ^nil
+  ]
+
+  """
   ## Reputation and Peer Tracking
 
   The sync service tracks the reputation of every peer it interacts
@@ -404,29 +511,119 @@ Guide13Distribution subclass: Object
   ]
 
   """
+  ## Remote Messaging
+
+  Maggie supports actor-style messaging between processes on different
+  nodes. Connect to a remote node, get a reference to a named process,
+  and send messages via fire-and-forget or request-response patterns.
+
+  **Connecting to a remote node:**
+
+  ```example
+  node := Node connect: 'localhost:8081'.
+  node ping.            "=> true if reachable"
+  node addr.            "=> 'localhost:8081'"
+  ```
+
+  **Getting a remote process reference:**
+
+  ```example
+  worker := node processNamed: 'worker-1'.
+  ```
+
+  The remote process must be registered with `registerAs:` on the
+  remote node. `processNamed:` returns a RemoteProcess value that
+  can send messages but cannot receive -- it is a one-way handle.
+
+  **Fire-and-forget (cast):**
+
+  ```example
+  "Delivers to the remote process's mailbox. Does not wait."
+  worker cast: #logEvent: with: eventData.
+  ```
+
+  Returns `true` immediately. The message is sent in a background
+  goroutine. The remote process reads it with `Process receive`.
+
+  **Request-response (asyncSend):**
+
+  ```example
+  "Returns a Future that resolves when the remote side responds."
+  future := worker asyncSend: #compute: with: 42.
+  result := future await.        "Blocks until resolved"
+  result := future await: 5000.  "With timeout in milliseconds"
+  future isResolved.             "true/false (non-blocking)"
+  future error.                  "Error message or nil"
+  ```
+
+  **Value serialization:**
+
+  All message payloads are serialized with CBOR. Supported types:
+  SmallInt, BigInteger, Float, Boolean, Nil, String, Symbol,
+  Character, Array, Dictionary, Object (with named ivars), and
+  CueValue. Circular object references are handled via backreference
+  tags. Non-serializable types (Process, Channel, Mutex, etc.)
+  raise an error at send time.
+
+  **Example: distributed counter**
+
+  Server (registers a counter process):
+
+  ```example
+  "On the server node:"
+  Process current registerAs: 'counter'.
+  total := 0.
+  [true] whileTrue: [
+      msg := Process receive.
+      msg selector = #increment:
+          ifTrue: [total := total + msg payload]
+  ]
+  ```
+
+  Client (sends increment messages):
+
+  ```example
+  "On the client node:"
+  node := Node connect: 'server:8081'.
+  counter := node processNamed: 'counter'.
+  1 to: 5 do: [:i |
+      counter cast: #increment: with: i * 10
+  ]
+  ```
+
+  See `examples/distributed-counter/` for a complete runnable example.
+  """
+  method: s10b_remoteMessaging [
+      "Remote messaging uses Node, RemoteProcess, and Future classes."
+      ^nil
+  ]
+
+  """
   ## Security Model
 
-  The security model is built on one principle: **never trust content,
-  always verify**.
+  The security model is built on two principles: **never trust content,
+  always verify** and **every message is signed**.
 
-  When a method chunk arrives from a peer, the receiver:
+  **Code verification:** When a method chunk arrives from a peer, the
+  receiver compiles it independently and verifies the content hash
+  matches. A malicious peer cannot send arbitrary bytecode disguised
+  as a known hash.
 
-  1. Extracts the source text from the chunk.
-  2. Compiles the source using its own compiler.
-  3. Computes the content hash of the compiled AST.
-  4. Compares the computed hash against the declared hash.
-  5. Rejects the chunk if the hashes do not match.
-
-  A malicious peer cannot send arbitrary bytecode disguised as a known
-  hash -- the receiver's compiler is the final arbiter. For class and
-  module chunks, verification checks that all declared dependency
-  hashes exist in the local ContentStore.
+  **Message signing:** Every inter-node message is signed with the
+  sender's Ed25519 private key. The receiver verifies the signature
+  before processing. The signature covers the payload, nonce, and
+  target process ID -- preventing message forgery, replay attacks,
+  and message redirection.
 
   **Security layers:**
 
+  - **Ed25519 message signing** -- every message is cryptographically
+    authenticated. Bad signatures are rejected and count toward
+    the peer ban threshold.
   - **Capability filtering** -- reject content requiring unwanted
     capabilities (e.g., File or Network access).
-  - **Peer banning** -- auto-ban peers after repeated hash mismatches.
+  - **Peer banning** -- auto-ban peers after repeated hash mismatches
+    or signature failures.
   - **Process restriction** -- sandbox received code in restricted
     processes that hide sensitive globals.
   - **No remote code execution** -- the protocol transfers source
@@ -436,22 +633,17 @@ Guide13Distribution subclass: Object
 
   **Not yet provided:**
 
-  - Cryptographic peer identity (planned)
-  - Encrypted transport (use a TLS reverse proxy)
-  - Signed content (hashes verify integrity, not provenance)
+  - Encrypted transport (use a TLS reverse proxy for now)
   - Peer discovery (peers are configured manually)
 
   ```example
-  # Verification flow for a method chunk:
+  # Message security flow:
   #
-  #   Peer sends:  { hash: abc123, type: Method, content: "method: foo [...]" }
-  #   Receiver:    compile("method: foo [...]") -> hash = abc123  (match!)
-  #                -> accept and index
+  #   Sender:   serialize(value) -> sign(payload || nonce || target) -> send
+  #   Receiver: verify(signature, sender_pubkey) -> check_peer_reputation
+  #             -> deserialize(payload) -> deliver_to_mailbox
   #
-  #   Peer sends:  { hash: abc123, type: Method, content: "method: evil [...]" }
-  #   Receiver:    compile("method: evil [...]") -> hash = fff999  (MISMATCH)
-  #                -> reject, record hash mismatch for peer
-  #                -> if mismatches >= 3, ban peer
+  #   If signature fails: reject, record mismatch, ban after 3 failures
   ```
   """
   method: s11_securityModel [

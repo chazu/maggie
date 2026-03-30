@@ -15,16 +15,21 @@ const (
 // Chunk is the atomic unit of code distribution. Each chunk carries source
 // text plus a content hash. The receiver compiles the source and verifies
 // that the resulting hash matches.
+//
+// Hash is the semantic content hash (primary identity for negotiation).
+// TypedHash is the typed content hash (includes type annotations; used for
+// local verification but not for have/want negotiation).
 type Chunk struct {
-	Hash         [32]byte   `cbor:"1,keyasint"`
-	Type         ChunkType  `cbor:"2,keyasint"`
-	Content      string     `cbor:"3,keyasint"`           // source text
-	Dependencies [][32]byte `cbor:"4,keyasint,omitempty"` // referenced hashes
-	Capabilities []string   `cbor:"5,keyasint,omitempty"` // required capabilities
-	Selector     string     `cbor:"6,keyasint,omitempty"` // method selector (e.g., "hello", "greet:")
-	ClassName    string     `cbor:"7,keyasint,omitempty"` // owning class FQN (e.g., "MyApp::Greeter")
-	IsClassSide  bool       `cbor:"8,keyasint,omitempty"` // true for class methods, false for instance
-	TypedHash    [32]byte   `cbor:"9,keyasint,omitempty"` // typed content hash
+	Hash              [32]byte   `cbor:"1,keyasint"`
+	Type              ChunkType  `cbor:"2,keyasint"`
+	Content           string     `cbor:"3,keyasint"`           // source text
+	Dependencies      [][32]byte `cbor:"4,keyasint,omitempty"` // semantic method hashes (for classes)
+	Capabilities      []string   `cbor:"5,keyasint,omitempty"` // required capabilities
+	Selector          string     `cbor:"6,keyasint,omitempty"` // method selector (e.g., "hello", "greet:")
+	ClassName         string     `cbor:"7,keyasint,omitempty"` // owning class FQN (e.g., "MyApp::Greeter")
+	IsClassSide       bool       `cbor:"8,keyasint,omitempty"` // true for class methods, false for instance
+	TypedHash         [32]byte   `cbor:"9,keyasint,omitempty"` // typed content hash
+	TypedDependencies [][32]byte `cbor:"10,keyasint,omitempty"` // typed method hashes (parallel to Dependencies)
 }
 
 // SyncAnnouncement is sent by a peer to advertise what it has available.

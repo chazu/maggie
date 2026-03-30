@@ -93,6 +93,34 @@ type VM struct {
 	// weakRefs tracks weak references for the GC to process.
 	weakRefs *WeakRegistry
 
+	// mainProcess is the ProcessObject for the main interpreter goroutine.
+	// Created during NewVM so that Process current / Process receive work
+	// from the main goroutine.
+	mainProcess *ProcessObject
+
+	// Process name registry: registered names → process ID.
+	processNames   map[string]uint64
+	processNamesMu sync.RWMutex
+	processNamesByID map[uint64]string
+
+	// MailboxMessageClass is bootstrapped for mailbox message instances.
+	MailboxMessageClass  *Class
+	FutureClass          *Class
+	NodeClass            *Class
+	RemoteProcessClass   *Class
+
+	// Node references for remote connections
+	nodeRefs   map[int]*NodeRefData
+	nodeRefsMu sync.RWMutex
+	nodeRefID  atomic.Int32
+
+	// Local node identity keys (loaded lazily)
+	localIdentity *nodeIdentityHolder
+
+	// NodeRefFactory creates fully-wired NodeRefData instances.
+	// Set by cmd/mag to inject gRPC client wiring.
+	NodeRefFactory NodeRefFactory
+
 	// registry holds all VM-local object registries (concurrency, exceptions,
 	// results, contexts, dictionaries, strings, gRPC, HTTP, cells, class vars, etc.).
 	registry *ObjectRegistry
@@ -143,10 +171,13 @@ func NewVM() *VM {
 		Classes:        NewClassTable(),
 		Traits:         NewTraitTable(),
 		Globals:        make(map[string]Value),
-		keepAlive:      make(map[*Object]struct{}),
-		weakRefs:       NewWeakRegistry(),
-		registry:       NewObjectRegistry(),
-		symbolDispatch: NewSymbolDispatch(),
+		keepAlive:        make(map[*Object]struct{}),
+		weakRefs:         NewWeakRegistry(),
+		registry:         NewObjectRegistry(),
+		symbolDispatch:   NewSymbolDispatch(),
+		processNames:     make(map[string]uint64),
+		processNamesByID: make(map[uint64]string),
+		nodeRefs:         make(map[int]*NodeRefData),
 	}
 
 	// Bootstrap core classes
@@ -154,6 +185,11 @@ func NewVM() *VM {
 
 	// Create interpreter
 	vm.interpreter = vm.newInterpreter()
+
+	// Create the main process (so Process current / Process receive work
+	// from the main goroutine)
+	vm.mainProcess = vm.registry.CreateProcess()
+	vm.registry.RegisterProcess(vm.mainProcess)
 
 	// Create debug server
 	vm.Debugger = NewDebugServer(vm)
@@ -283,6 +319,10 @@ func (vm *VM) bootstrap() {
 	vm.registerChannelPrimitives()
 	vm.registerChannelSelectPrimitives()
 	vm.registerProcessPrimitives()
+	vm.registerMailboxPrimitives()
+	vm.registerFuturePrimitives()
+	vm.registerNodePrimitives()
+	vm.registerRemoteProcessPrimitives()
 	vm.registerMutexPrimitives()
 	vm.registerWaitGroupPrimitives()
 	vm.registerSemaphorePrimitives()
@@ -585,6 +625,108 @@ func (vm *VM) registerProcess(proc *ProcessObject) Value {
 
 func (vm *VM) getProcess(v Value) *ProcessObject {
 	return vm.registry.GetProcess(v)
+}
+
+// MainProcessID returns the ID of the main process.
+func (vm *VM) MainProcessID() uint64 {
+	if vm.mainProcess != nil {
+		return vm.mainProcess.id
+	}
+	return 0
+}
+
+// GetProcessByID retrieves a process by its raw uint64 ID.
+func (vm *VM) GetProcessByID(id uint64) *ProcessObject {
+	return vm.registry.ConcurrencyRegistry.GetProcessByID(id)
+}
+
+// currentProcess returns the ProcessObject for the current goroutine.
+func (vm *VM) currentProcess() *ProcessObject {
+	interp := vm.currentInterpreter()
+	if interp == vm.interpreter {
+		return vm.mainProcess
+	}
+	if interp.processID == 0 {
+		return nil
+	}
+	return vm.GetProcessByID(interp.processID)
+}
+
+// currentProcessValue returns the Value for the current process.
+func (vm *VM) currentProcessValue() Value {
+	proc := vm.currentProcess()
+	if proc == nil {
+		return Nil
+	}
+	return processToValue(proc.id)
+}
+
+// RegisterProcessName registers a name for a process. Returns false if
+// the name is already taken by a live process.
+func (vm *VM) RegisterProcessName(name string, procID uint64) bool {
+	vm.processNamesMu.Lock()
+	defer vm.processNamesMu.Unlock()
+
+	if existingID, ok := vm.processNames[name]; ok {
+		proc := vm.GetProcessByID(existingID)
+		if proc != nil && !proc.isDone() {
+			return false // name taken by live process
+		}
+		delete(vm.processNamesByID, existingID)
+	}
+	vm.processNames[name] = procID
+	vm.processNamesByID[procID] = name
+	return true
+}
+
+// LookupProcessName returns the process Value for a registered name.
+// Returns Nil if not found or if the process is dead.
+func (vm *VM) LookupProcessName(name string) Value {
+	vm.processNamesMu.RLock()
+	id, ok := vm.processNames[name]
+	vm.processNamesMu.RUnlock()
+	if !ok {
+		return Nil
+	}
+	proc := vm.GetProcessByID(id)
+	if proc == nil || proc.isDone() {
+		// Lazy cleanup
+		vm.processNamesMu.Lock()
+		if vm.processNames[name] == id {
+			delete(vm.processNames, name)
+			delete(vm.processNamesByID, id)
+		}
+		vm.processNamesMu.Unlock()
+		return Nil
+	}
+	return processToValue(id)
+}
+
+// UnregisterProcessName removes a name registration.
+func (vm *VM) UnregisterProcessName(name string) {
+	vm.processNamesMu.Lock()
+	if id, ok := vm.processNames[name]; ok {
+		delete(vm.processNames, name)
+		delete(vm.processNamesByID, id)
+	}
+	vm.processNamesMu.Unlock()
+}
+
+// CreateMailboxMessage creates a MailboxMessage instance with sender, selector, payload.
+func (vm *VM) CreateMailboxMessage(sender Value, selector string, payload Value) Value {
+	if vm.MailboxMessageClass == nil {
+		return payload // fallback if class not bootstrapped
+	}
+	instance := NewObject(vm.MailboxMessageClass.VTable, 3)
+	instance.SetSlot(0, sender)
+	if selector != "" {
+		instance.SetSlot(1, vm.Symbols.SymbolValue(selector))
+	} else {
+		instance.SetSlot(1, Nil)
+	}
+	instance.SetSlot(2, payload)
+	vm.KeepAlive(instance)
+	return instance.ToValue()
 }
 
 // --- Mutex helpers ---

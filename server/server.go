@@ -26,14 +26,15 @@ type MaggieServer struct {
 type ServerOption func(*serverConfig)
 
 type serverConfig struct {
-	compileFunc func(string) ([32]byte, error)
+	compileFunc func(string) (dist.CompileResult, error)
 	syncPolicy  *dist.CapabilityPolicy
 	diskCache   *dist.DiskCache
 }
 
 // WithCompileFunc sets the compile function used by the sync service to
-// verify method chunks. Without this, method chunk verification is disabled.
-func WithCompileFunc(fn func(string) ([32]byte, error)) ServerOption {
+// verify method chunks. The function should return both semantic and typed
+// content hashes. Without this, method chunk verification is disabled.
+func WithCompileFunc(fn func(string) (dist.CompileResult, error)) ServerOption {
 	return func(c *serverConfig) { c.compileFunc = fn }
 }
 

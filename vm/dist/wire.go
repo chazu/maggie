@@ -103,22 +103,34 @@ func UnmarshalCapabilityManifest(data []byte) (*CapabilityManifest, error) {
 	return &m, nil
 }
 
+// CompileResult holds both semantic and typed content hashes from compilation.
+type CompileResult struct {
+	SemanticHash [32]byte
+	TypedHash    [32]byte // zero if source has no type annotations
+}
+
 // VerifyChunkMethod compiles source from a chunk and verifies that the
 // resulting content hash matches the chunk's declared hash.
 //
 // The compile function is injected to avoid the dist package depending on
-// the compiler package. It should compile the source text and return the
-// content hash of the resulting method.
-func VerifyChunkMethod(c *Chunk, compile func(source string) ([32]byte, error)) error {
+// the compiler package. It should compile the source text and return both
+// semantic and typed content hashes.
+func VerifyChunkMethod(c *Chunk, compile func(source string) (CompileResult, error)) error {
 	if c.Type != ChunkMethod {
 		return fmt.Errorf("dist: cannot verify non-method chunk (type=%d)", c.Type)
 	}
-	computed, err := compile(c.Content)
+	result, err := compile(c.Content)
 	if err != nil {
 		return fmt.Errorf("dist: compile failed: %w", err)
 	}
-	if computed != c.Hash {
-		return fmt.Errorf("dist: hash mismatch: declared %x, computed %x", c.Hash, computed)
+	if result.SemanticHash != c.Hash {
+		return fmt.Errorf("dist: semantic hash mismatch: declared %x, computed %x", c.Hash, result.SemanticHash)
+	}
+	// Verify typed hash if both the chunk and compiled result have one
+	if c.TypedHash != ([32]byte{}) && result.TypedHash != ([32]byte{}) {
+		if result.TypedHash != c.TypedHash {
+			return fmt.Errorf("dist: typed hash mismatch: declared %x, computed %x", c.TypedHash, result.TypedHash)
+		}
 	}
 	return nil
 }

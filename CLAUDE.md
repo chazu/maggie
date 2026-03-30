@@ -58,6 +58,61 @@ Process forkWithout: #('File' 'HTTP') do: [dangerous code].  "Fork with restrict
 
 **Process-level restriction**: Forked processes can be restricted from seeing certain globals (classes, modules). Restricted names simply resolve to `nil` — there is no permission error. Restrictions are inherited by child forks. `Compiler evaluate:` and `Object allClasses` respect process restrictions. Forked process writes to globals go to a process-local overlay and don't affect the shared VM state.
 
+### Process Mailboxes
+
+Every process has a bounded mailbox (default capacity 1024) for actor-style messaging. Messages are `MailboxMessage` objects with `sender`, `selector`, and `payload` accessors.
+
+```smalltalk
+"Sending"
+aProcess send: value.              "Fire-and-forget to mailbox"
+aProcess send: #sel with: value.   "Selector-based message"
+
+"Receiving (class methods — operate on current process)"
+Process receive.                   "Blocking receive → MailboxMessage"
+Process receive: 5000.             "Receive with timeout (ms) → MailboxMessage or nil"
+Process tryReceive.                "Non-blocking → MailboxMessage or nil"
+
+"MailboxMessage accessors"
+msg sender.                        "Sender process or nil"
+msg selector.                      "Selector symbol or nil"
+msg payload.                       "The payload value"
+```
+
+### Registered Process Names
+
+Processes can register under a string name for discovery. Names are unique — registering a name taken by a live process fails. Dead process names are lazily cleaned up.
+
+```smalltalk
+Process current registerAs: 'worker-1'.  "Register"
+Process named: 'worker-1'.               "Look up → Process or nil"
+aProcess unregister.                     "Remove registration"
+```
+
+### Remote Messaging (Node, RemoteProcess, Future)
+
+Connect to remote nodes and send messages to processes on other VMs.
+
+```smalltalk
+"Connect to a remote node"
+node := Node connect: 'localhost:8081'.
+node ping.                               "true/false"
+
+"Get a remote process reference"
+worker := node processNamed: 'worker-1'.
+
+"Fire-and-forget (delivers to remote mailbox)"
+worker cast: #logEvent: with: eventData.
+
+"Request-response (returns a Future)"
+future := worker asyncSend: #compute: with: 42.
+result := future await.                  "Blocks until resolved"
+result := future await: 5000.            "With timeout (ms)"
+future isResolved.                       "true/false"
+future error.                            "Error message or nil"
+```
+
+Messages are signed with Ed25519 (node identity from `.maggie/node.key`). Payloads are serialized with CBOR. Non-serializable types (Process, Channel, Mutex, etc.) raise errors at send time.
+
 ### Mutex (mutual exclusion)
 
 ```smalltalk
