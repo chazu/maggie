@@ -103,6 +103,20 @@ proc exitReason.                         "#normal, #linked, #error, or nil"
 
 **Monitor semantics**: when the monitored process dies, the watcher receives a `MailboxMessage` with selector `#processDown:` and payload `#(refID processValue reasonSymbol resultValue)`. If the monitored process is already dead, the DOWN message is delivered immediately.
 
+**Trust model**: peer trust is managed by `TrustStore` (`vm/dist/trust.go`) with per-peer permission bits (`PermSync`, `PermMessage`, `PermSpawn`). Unknown peers get `DefaultPerms` from the policy (default: sync-only). Configured in `maggie.toml` under `[trust]`. Ed25519 public keys are the canonical peer identity (`NodeID [32]byte`). Auto-bans after 3 hash mismatches. Spawn restrictions define globals hidden from remotely-spawned processes.
+
+```toml
+[trust]
+default = "sync"
+ban-threshold = 3
+spawn-restrictions = ["File", "ExternalProcess", "HTTP"]
+
+[[trust.peer]]
+id = "a1b2c3..."
+name = "build-farm"
+perms = "sync,spawn"
+```
+
 **Cross-node monitors**: links and monitors work transparently with `RemoteProcess` values. When monitoring a remote process, the VM sends a `MonitorProcess` RPC to the remote node. When the remote process dies, a `__down__` notification is sent back via `DeliverMessage`. A `NodeHealthMonitor` heartbeat loop pings remote nodes with active watches every 5 seconds. After 3 missed pings, the node is declared dead and all monitors/links for that node receive synthetic `nodeDown` exit signals.
 
 ### Registered Process Names

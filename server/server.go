@@ -27,7 +27,7 @@ type ServerOption func(*serverConfig)
 
 type serverConfig struct {
 	compileFunc func(string) (dist.CompileResult, error)
-	syncPolicy  *dist.CapabilityPolicy
+	trustStore  *dist.TrustStore
 	diskCache   *dist.DiskCache
 }
 
@@ -38,10 +38,10 @@ func WithCompileFunc(fn func(string) (dist.CompileResult, error)) ServerOption {
 	return func(c *serverConfig) { c.compileFunc = fn }
 }
 
-// WithSyncPolicy sets the capability policy for the sync service.
-// If not set, a permissive policy (allow all) is used.
-func WithSyncPolicy(policy *dist.CapabilityPolicy) ServerOption {
-	return func(c *serverConfig) { c.syncPolicy = policy }
+// WithTrustStore sets the trust store for the sync service.
+// If not set, a permissive trust store (allow all) is used.
+func WithTrustStore(ts *dist.TrustStore) ServerOption {
+	return func(c *serverConfig) { c.trustStore = ts }
 }
 
 // WithDiskCache sets the disk cache used by the sync service to persist
@@ -53,7 +53,7 @@ func WithDiskCache(dc *dist.DiskCache) ServerOption {
 // New creates a MaggieServer wrapping the given VM.
 func New(v *vm.VM, opts ...ServerOption) *MaggieServer {
 	cfg := &serverConfig{
-		syncPolicy: dist.NewPermissivePolicy(),
+		trustStore: dist.NewPermissiveTrustStore(),
 	}
 	for _, opt := range opts {
 		opt(cfg)
@@ -76,7 +76,7 @@ func New(v *vm.VM, opts ...ServerOption) *MaggieServer {
 	browseSvc := NewBrowseService(worker)
 	modifySvc := NewModifyService(worker, handles, sessions)
 	inspectSvc := NewInspectService(worker, handles)
-	syncSvc := NewSyncService(worker, v.ContentStore(), dist.NewPeerStore(), cfg.syncPolicy, cfg.compileFunc, cfg.diskCache)
+	syncSvc := NewSyncService(worker, v.ContentStore(), cfg.trustStore, cfg.compileFunc, cfg.diskCache)
 
 	evalPath, evalHandler := maggiev1connect.NewEvaluationServiceHandler(evalSvc)
 	sessionPath, sessionHandler := maggiev1connect.NewSessionServiceHandler(sessionSvc)

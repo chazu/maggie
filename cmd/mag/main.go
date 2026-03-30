@@ -462,11 +462,8 @@ func run() (exitCode int) {
 		if diskCache != nil {
 			syncOpts = append(syncOpts, server.WithDiskCache(diskCache))
 		}
-		if len(loadedManifest.Sync.Capabilities) > 0 {
-			syncOpts = append(syncOpts, server.WithSyncPolicy(
-				dist.NewRestrictedPolicy(loadedManifest.Sync.Capabilities),
-			))
-		}
+		trustStore := loadTrustStore(loadedManifest)
+		syncOpts = append(syncOpts, server.WithTrustStore(trustStore))
 		srv := server.New(vmInst, syncOpts...)
 		go func() {
 			if err := srv.ListenAndServe(syncAddr); err != nil {
@@ -748,4 +745,33 @@ func buildNodeRefFactory() vm.NodeRefFactory {
 
 		return ref
 	}
+}
+
+// loadTrustStore creates a TrustStore from the manifest's [trust] section.
+func loadTrustStore(m *manifest.Manifest) *dist.TrustStore {
+	policy := dist.TrustPolicy{
+		DefaultPerms: dist.PermSync, // safe default: sync only
+		BanThreshold: 3,
+	}
+	if m != nil && m.Trust.Default != "" {
+		policy.DefaultPerms = dist.ParsePerm(m.Trust.Default)
+	}
+	if m != nil && m.Trust.BanThreshold > 0 {
+		policy.BanThreshold = m.Trust.BanThreshold
+	}
+	if m != nil && len(m.Trust.SpawnRestrictions) > 0 {
+		policy.SpawnRestrictions = m.Trust.SpawnRestrictions
+	}
+	ts := dist.NewTrustStore(policy)
+	if m != nil {
+		for _, p := range m.Trust.Peers {
+			id, err := dist.ParseNodeID(p.ID)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "trust: ignoring invalid peer ID %q: %v\n", p.ID, err)
+				continue
+			}
+			ts.AddConfiguredPeer(id, p.Name, dist.ParsePerm(p.Perms))
+		}
+	}
+	return ts
 }

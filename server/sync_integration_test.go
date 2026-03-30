@@ -26,17 +26,16 @@ import (
 // returns the base URL and a stop function.
 // startTestServerWithVM creates an in-process server and also returns the VM
 // for tests that need to interact with the server's process registry.
-func startTestServerWithVM(t *testing.T, store *vm.ContentStore, compile func(string) (dist.CompileResult, error), policy *dist.CapabilityPolicy) (string, *vm.VM, func()) {
+func startTestServerWithVM(t *testing.T, store *vm.ContentStore, compile func(string) (dist.CompileResult, error), trust *dist.TrustStore) (string, *vm.VM, func()) {
 	t.Helper()
 
-	if policy == nil {
-		policy = dist.NewPermissivePolicy()
+	if trust == nil {
+		trust = dist.NewPermissiveTrustStore()
 	}
 
 	testVM := vm.NewVM()
 	worker := NewVMWorker(testVM)
-	peers := dist.NewPeerStore()
-	svc := NewSyncService(worker, store, peers, policy, compile, nil)
+	svc := NewSyncService(worker, store, trust, compile, nil)
 
 	mux := http.NewServeMux()
 	path, handler := maggiev1connect.NewSyncServiceHandler(svc)
@@ -59,16 +58,15 @@ func startTestServerWithVM(t *testing.T, store *vm.ContentStore, compile func(st
 	return baseURL, testVM, stop
 }
 
-func startTestServer(t *testing.T, store *vm.ContentStore, compile func(string) (dist.CompileResult, error), policy *dist.CapabilityPolicy) (string, func()) {
+func startTestServer(t *testing.T, store *vm.ContentStore, compile func(string) (dist.CompileResult, error), trust *dist.TrustStore) (string, func()) {
 	t.Helper()
 
-	if policy == nil {
-		policy = dist.NewPermissivePolicy()
+	if trust == nil {
+		trust = dist.NewPermissiveTrustStore()
 	}
 
 	worker := NewVMWorker(vm.NewVM())
-	peers := dist.NewPeerStore()
-	svc := NewSyncService(worker, store, peers, policy, compile, nil)
+	svc := NewSyncService(worker, store, trust, compile, nil)
 
 	mux := http.NewServeMux()
 	path, handler := maggiev1connect.NewSyncServiceHandler(svc)
@@ -474,13 +472,16 @@ func newTestVMForServer(t *testing.T) *vm.VM {
 	return vmInst
 }
 
-// TestEndToEnd_CapabilityRejection verifies that a receiver with restricted
-// capabilities rejects announcements requiring denied capabilities.
-func TestEndToEnd_CapabilityRejection(t *testing.T) {
+// TestEndToEnd_TrustRejection verifies that a receiver with restricted
+// trust policy rejects sync from unknown peers.
+func TestEndToEnd_TrustRejection(t *testing.T) {
 	store := vm.NewContentStore()
-	// Server only allows "File" capability
-	policy := dist.NewRestrictedPolicy([]string{"File"})
-	baseURL, stop := startTestServer(t, store, nil, policy)
+	// Server denies sync for unknown peers
+	trust := dist.NewTrustStore(dist.TrustPolicy{
+		DefaultPerms: dist.PermNone,
+		BanThreshold: 3,
+	})
+	baseURL, stop := startTestServer(t, store, nil, trust)
 	defer stop()
 
 	time.Sleep(10 * time.Millisecond)
@@ -490,17 +491,10 @@ func TestEndToEnd_CapabilityRejection(t *testing.T) {
 
 	rootHash := sha256.Sum256([]byte("root"))
 
-	// Build capability manifest requiring "Network" (not allowed)
-	capManifest := &dist.CapabilityManifest{Required: []string{"Network"}}
-	capBytes, err := dist.MarshalCapabilityManifest(capManifest)
-	if err != nil {
-		t.Fatalf("marshal capability: %v", err)
-	}
-
+	// Attempt to announce — should be rejected (no sync permission)
 	resp, err := client.Announce(ctx, connect.NewRequest(&maggiev1.AnnounceRequest{
-		RootHash:           rootHash[:],
-		AllHashes:          [][]byte{rootHash[:]},
-		CapabilityManifest: capBytes,
+		RootHash:  rootHash[:],
+		AllHashes: [][]byte{rootHash[:]},
 	}))
 	if err != nil {
 		t.Fatalf("Announce failed: %v", err)

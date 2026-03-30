@@ -14,12 +14,11 @@ import (
 // hashes the source text (no real compilation).
 func newTestSyncService() (*SyncService, *vm.ContentStore) {
 	store := vm.NewContentStore()
-	peers := dist.NewPeerStore()
-	policy := dist.NewPermissivePolicy()
+	trust := dist.NewPermissiveTrustStore()
 	compile := func(source string) (dist.CompileResult, error) {
 		return dist.CompileResult{SemanticHash: sha256.Sum256([]byte(source))}, nil
 	}
-	svc := NewSyncService(testWorker, store, peers, policy, compile, nil)
+	svc := NewSyncService(testWorker, store, trust, compile, nil)
 	return svc, store
 }
 
@@ -112,25 +111,20 @@ func TestSyncAnnounce_InvalidRootHash(t *testing.T) {
 	}
 }
 
-func TestSyncAnnounce_RejectedByPolicy(t *testing.T) {
+func TestSyncAnnounce_RejectedByTrust(t *testing.T) {
 	store := vm.NewContentStore()
-	peers := dist.NewPeerStore()
-	policy := dist.NewRestrictedPolicy([]string{"File"})
-	svc := NewSyncService(testWorker, store, peers, policy, nil, nil)
+	// Default: no permissions for unknown peers
+	trust := dist.NewTrustStore(dist.TrustPolicy{
+		DefaultPerms: dist.PermNone,
+		BanThreshold: 3,
+	})
+	svc := NewSyncService(testWorker, store, trust, nil, nil)
 
 	rootHash := sha256.Sum256([]byte("root"))
 
-	// Encode a capability manifest requiring "Network" which is not allowed
-	capManifest := dist.CapabilityManifest{Required: []string{"Network"}}
-	capBytes, err := marshalCBOR(&capManifest)
-	if err != nil {
-		t.Fatalf("marshal capability: %v", err)
-	}
-
 	resp, err := svc.Announce(bg(), connectReq(&maggiev1.AnnounceRequest{
-		RootHash:           rootHash[:],
-		AllHashes:          [][]byte{rootHash[:]},
-		CapabilityManifest: capBytes,
+		RootHash:  rootHash[:],
+		AllHashes: [][]byte{rootHash[:]},
 	}))
 	if err != nil {
 		t.Fatalf("Announce returned error: %v", err)
@@ -225,9 +219,8 @@ func TestSyncTransfer_InvalidCBOR(t *testing.T) {
 
 func TestSyncTransfer_NilCompileFunc(t *testing.T) {
 	store := vm.NewContentStore()
-	peers := dist.NewPeerStore()
-	policy := dist.NewPermissivePolicy()
-	svc := NewSyncService(testWorker, store, peers, policy, nil, nil) // nil compile
+	trust := dist.NewPermissiveTrustStore()
+	svc := NewSyncService(testWorker, store, trust, nil, nil) // nil compile
 
 	source := "source"
 	h := sha256.Sum256([]byte(source))
@@ -330,14 +323,15 @@ func TestSyncTransfer_ClassChunk_MissingDep(t *testing.T) {
 
 func TestSyncAnnounce_BannedPeer(t *testing.T) {
 	store := vm.NewContentStore()
-	peers := dist.NewPeerStore()
-	policy := dist.NewPermissivePolicy()
-	svc := NewSyncService(testWorker, store, peers, policy, nil, nil)
+	trust := dist.NewPermissiveTrustStore()
+	svc := NewSyncService(testWorker, store, trust, nil, nil)
 
-	// Ban the peer (default threshold = 3 mismatches)
-	peers.RecordHashMismatch("unknown")
-	peers.RecordHashMismatch("unknown")
-	peers.RecordHashMismatch("unknown")
+	// Ban the peer — test HTTP clients have no headers, so
+	// peerNodeIDFromRequest hashes "ip:unknown"
+	testPeerID := testNodeID()
+	trust.RecordHashMismatch(testPeerID)
+	trust.RecordHashMismatch(testPeerID)
+	trust.RecordHashMismatch(testPeerID)
 
 	rootHash := sha256.Sum256([]byte("root"))
 	_, err := svc.Announce(bg(), connectReq(&maggiev1.AnnounceRequest{
@@ -351,17 +345,17 @@ func TestSyncAnnounce_BannedPeer(t *testing.T) {
 
 func TestSyncTransfer_BannedPeer(t *testing.T) {
 	store := vm.NewContentStore()
-	peers := dist.NewPeerStore()
-	policy := dist.NewPermissivePolicy()
+	trust := dist.NewPermissiveTrustStore()
 	compile := func(source string) (dist.CompileResult, error) {
 		return dist.CompileResult{SemanticHash: sha256.Sum256([]byte(source))}, nil
 	}
-	svc := NewSyncService(testWorker, store, peers, policy, compile, nil)
+	svc := NewSyncService(testWorker, store, trust, compile, nil)
 
 	// Ban the peer
-	peers.RecordHashMismatch("unknown")
-	peers.RecordHashMismatch("unknown")
-	peers.RecordHashMismatch("unknown")
+	testPeerID := testNodeID()
+	trust.RecordHashMismatch(testPeerID)
+	trust.RecordHashMismatch(testPeerID)
+	trust.RecordHashMismatch(testPeerID)
 
 	source := "source"
 	h := sha256.Sum256([]byte(source))
@@ -525,6 +519,12 @@ func TestSyncServe_ChunksInOrder(t *testing.T) {
 
 // marshalCBOR is a test helper that encodes a value to CBOR.
 func marshalCBOR(v interface{}) ([]byte, error) {
-	// Use the same CBOR library as the dist package
 	return dist.MarshalCapabilityManifest(v.(*dist.CapabilityManifest))
+}
+
+// testNodeID returns the NodeID that peerNodeIDFromRequest generates
+// for test HTTP clients (which have no headers → "ip:unknown").
+func testNodeID() dist.NodeID {
+	h := sha256.Sum256([]byte("ip:unknown"))
+	return dist.NodeIDFromBytes(h[:])
 }

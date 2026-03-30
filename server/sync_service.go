@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"crypto/sha256"
 	"fmt"
 
 	"connectrpc.com/connect"
@@ -18,8 +19,7 @@ type SyncService struct {
 	maggiev1connect.UnimplementedSyncServiceHandler
 	worker *VMWorker
 	store  *vm.ContentStore
-	peers  *dist.PeerStore
-	policy *dist.CapabilityPolicy
+	trust  *dist.TrustStore
 
 	// compile compiles source text and returns both semantic and typed
 	// content hashes. Injected to avoid depending on the compiler package.
@@ -33,16 +33,14 @@ type SyncService struct {
 func NewSyncService(
 	worker *VMWorker,
 	store *vm.ContentStore,
-	peers *dist.PeerStore,
-	policy *dist.CapabilityPolicy,
+	trust *dist.TrustStore,
 	compile func(source string) (dist.CompileResult, error),
 	diskCache *dist.DiskCache,
 ) *SyncService {
 	return &SyncService{
 		worker:    worker,
 		store:     store,
-		peers:     peers,
-		policy:    policy,
+		trust:     trust,
 		compile:   compile,
 		diskCache: diskCache,
 	}
@@ -56,9 +54,9 @@ func (s *SyncService) Announce(
 	req *connect.Request[maggiev1.AnnounceRequest],
 ) (*connect.Response[maggiev1.AnnounceResponse], error) {
 	msg := req.Msg
-	peerID := peerFromRequest(req)
+	peerID := peerNodeIDFromRequest(req)
 
-	if s.peers.IsBanned(peerID) {
+	if s.trust.IsBanned(peerID) {
 		return nil, connect.NewError(connect.CodePermissionDenied, fmt.Errorf("peer is banned"))
 	}
 
@@ -66,13 +64,21 @@ func (s *SyncService) Announce(
 		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("root_hash must be 32 bytes"))
 	}
 
-	// Decode capability manifest if present
+	// Check sync permission
+	if !s.trust.Check(peerID, dist.PermSync) {
+		return connect.NewResponse(&maggiev1.AnnounceResponse{
+			Status:       maggiev1.AnnounceStatus_ANNOUNCE_REJECTED,
+			RejectReason: fmt.Sprintf("peer %s not permitted to sync", peerID),
+		}), nil
+	}
+
+	// Decode capability manifest if present (informational — trust perms are authoritative)
 	if len(msg.CapabilityManifest) > 0 {
 		manifest, err := dist.UnmarshalCapabilityManifest(msg.CapabilityManifest)
 		if err != nil {
 			return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("invalid capability manifest: %v", err))
 		}
-		if err := s.policy.Check(manifest); err != nil {
+		if err := s.trust.CheckCapabilities(manifest); err != nil {
 			return connect.NewResponse(&maggiev1.AnnounceResponse{
 				Status:       maggiev1.AnnounceStatus_ANNOUNCE_REJECTED,
 				RejectReason: err.Error(),
@@ -112,9 +118,9 @@ func (s *SyncService) Transfer(
 	req *connect.Request[maggiev1.TransferRequest],
 ) (*connect.Response[maggiev1.TransferResponse], error) {
 	msg := req.Msg
-	peerID := peerFromRequest(req)
+	peerID := peerNodeIDFromRequest(req)
 
-	if s.peers.IsBanned(peerID) {
+	if s.trust.IsBanned(peerID) {
 		return nil, connect.NewError(connect.CodePermissionDenied, fmt.Errorf("peer is banned"))
 	}
 
@@ -138,34 +144,34 @@ func (s *SyncService) Transfer(
 			if err := dist.VerifyChunkMethod(chunk, s.compile); err != nil {
 				rejected++
 				failedHashes = append(failedHashes, chunk.Hash[:])
-				s.peers.RecordHashMismatch(peerID)
+				s.trust.RecordHashMismatch(peerID)
 				continue
 			}
 			// Verification passed — index in content store
 			s.indexVerifiedMethod(chunk)
 			accepted++
-			s.peers.RecordSuccess(peerID)
+			s.trust.RecordSuccess(peerID)
 
 		case dist.ChunkClass:
 			if err := dist.VerifyChunkClass(chunk, s.store); err != nil {
 				rejected++
 				failedHashes = append(failedHashes, chunk.Hash[:])
-				s.peers.RecordHashMismatch(peerID)
+				s.trust.RecordHashMismatch(peerID)
 				continue
 			}
 			s.indexVerifiedClass(chunk)
 			accepted++
-			s.peers.RecordSuccess(peerID)
+			s.trust.RecordSuccess(peerID)
 
 		case dist.ChunkModule:
 			if err := dist.VerifyChunkModule(chunk, s.store); err != nil {
 				rejected++
 				failedHashes = append(failedHashes, chunk.Hash[:])
-				s.peers.RecordHashMismatch(peerID)
+				s.trust.RecordHashMismatch(peerID)
 				continue
 			}
 			accepted++
-			s.peers.RecordSuccess(peerID)
+			s.trust.RecordSuccess(peerID)
 
 		default:
 			rejected++
@@ -224,9 +230,9 @@ func (s *SyncService) Serve(
 	req *connect.Request[maggiev1.ServeRequest],
 ) (*connect.Response[maggiev1.ServeResponse], error) {
 	msg := req.Msg
-	peerID := peerFromRequest(req)
+	peerID := peerNodeIDFromRequest(req)
 
-	if s.peers.IsBanned(peerID) {
+	if s.trust.IsBanned(peerID) {
 		return nil, connect.NewError(connect.CodePermissionDenied, fmt.Errorf("peer is banned"))
 	}
 
@@ -373,17 +379,17 @@ func (s *SyncService) DeliverMessage(
 		}), nil
 	}
 
-	// Derive peer ID from the sender's public key (hex-encoded for PeerStore compat)
-	peerID := fmt.Sprintf("%x", envelope.SenderNode)
+	// Derive peer ID from the envelope's Ed25519 public key
+	peerID := peerNodeIDFromEnvelope(envelope)
 
 	// Check if peer is banned
-	if s.peers.IsBanned(peerID) {
+	if s.trust.IsBanned(peerID) {
 		return nil, connect.NewError(connect.CodePermissionDenied, fmt.Errorf("peer is banned"))
 	}
 
 	// Verify signature
 	if err := envelope.Verify(); err != nil {
-		s.peers.RecordHashMismatch(peerID) // bad signatures count toward ban
+		s.trust.RecordHashMismatch(peerID) // bad signatures count toward ban
 		return connect.NewResponse(&maggiev1.DeliverMessageResponse{
 			Success:      false,
 			ErrorKind:    "signatureInvalid",
@@ -391,7 +397,7 @@ func (s *SyncService) DeliverMessage(
 		}), nil
 	}
 
-	s.peers.RecordSuccess(peerID)
+	s.trust.RecordSuccess(peerID)
 
 	// Infrastructure selectors: route through monitor/link system
 	if envelope.Selector == vm.SelectorDown {
@@ -516,16 +522,29 @@ func (s *SyncService) DemonitorProcess(
 	return connect.NewResponse(&maggiev1.DemonitorProcessResponse{Success: true}), nil
 }
 
-// peerFromRequest extracts a peer identifier from a Connect request's headers.
-// Falls back to "unknown" if no address is available.
-func peerFromRequest[T any](req *connect.Request[T]) string {
-	// Try X-Forwarded-For (common behind proxies)
+// peerNodeIDFromRequest extracts a NodeID from a Connect request.
+// Tries X-Maggie-Node-ID header first (hex-encoded Ed25519 public key),
+// falls back to a deterministic hash of the IP address for backward compat.
+func peerNodeIDFromRequest[T any](req *connect.Request[T]) dist.NodeID {
+	// Best: explicit node ID header
+	if idHex := req.Header().Get("X-Maggie-Node-ID"); idHex != "" {
+		if id, err := dist.ParseNodeID(idHex); err == nil {
+			return id
+		}
+	}
+	// Fallback: hash the IP into a deterministic NodeID
+	addr := "unknown"
 	if xff := req.Header().Get("X-Forwarded-For"); xff != "" {
-		return xff
+		addr = xff
+	} else if peer := req.Header().Get("X-Real-Ip"); peer != "" {
+		addr = peer
 	}
-	// Try the connect peer header
-	if peer := req.Header().Get("X-Real-Ip"); peer != "" {
-		return peer
-	}
-	return "unknown"
+	// Use SHA-256 of the address string as a pseudo-NodeID
+	h := sha256.Sum256([]byte("ip:" + addr))
+	return dist.NodeIDFromBytes(h[:])
+}
+
+// peerNodeIDFromEnvelope extracts a NodeID from a message envelope's sender key.
+func peerNodeIDFromEnvelope(envelope *dist.MessageEnvelope) dist.NodeID {
+	return dist.NodeIDFromBytes(envelope.SenderNode[:])
 }

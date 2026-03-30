@@ -19,6 +19,7 @@ type Manifest struct {
 	Image           ImageConfig            `toml:"image"`
 	GoWrap          GoWrapConfig           `toml:"go-wrap"`
 	Sync            SyncConfig             `toml:"sync"`
+	Trust           TrustConfig            `toml:"trust"`
 	Test            TestConfig             `toml:"test"`
 	Scripts         ScriptsConfig          `toml:"scripts"`
 	Targets         []TargetConfig         `toml:"target"`
@@ -79,6 +80,21 @@ type SyncConfig struct {
 	Capabilities []string `toml:"capabilities"` // e.g., ["File", "HTTP"]
 	Listen       string   `toml:"listen"`       // e.g., ":8081"
 	Peers        []string `toml:"peers"`        // e.g., ["localhost:8082"]
+}
+
+// TrustConfig configures the node trust model.
+type TrustConfig struct {
+	Default           string      `toml:"default"`            // default perms for unknown peers
+	BanThreshold      int         `toml:"ban-threshold"`      // hash mismatches before auto-ban
+	SpawnRestrictions []string    `toml:"spawn-restrictions"` // globals hidden from remote spawns
+	Peers             []TrustPeer `toml:"peer"`               // explicitly configured peers
+}
+
+// TrustPeer is an explicitly configured peer with permissions.
+type TrustPeer struct {
+	ID    string `toml:"id"`    // Ed25519 public key, hex-encoded
+	Name  string `toml:"name"`  // human-readable label
+	Perms string `toml:"perms"` // comma-separated: sync, message, spawn, all
 }
 
 // TestConfig configures test execution.
