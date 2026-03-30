@@ -304,7 +304,7 @@ Guide13Distribution subclass: Object
   - Generated automatically on first run (via `LoadOrCreateIdentity`)
   - Displayed as a 4-segment proquint for human readability
   - Used to sign outgoing messages (Ed25519 signatures)
-  - Used as the peer identifier in the reputation system
+  - Used as the peer identifier in the trust system (`NodeID`)
 
   All inter-node messages are signed by the sender's private key.
   The receiver verifies the signature against the sender's public
@@ -363,114 +363,127 @@ Guide13Distribution subclass: Object
   ]
 
   """
-  ## Reputation and Peer Tracking
+  ## Trust and Peer Tracking
 
-  The sync service tracks the reputation of every peer it interacts
-  with. Reputation is based on verification outcomes:
+  The `TrustStore` manages all peer trust decisions. Each peer is
+  identified by its Ed25519 public key (`NodeID`, 32 bytes). The
+  store tracks per-peer permission bits, operation counts, and ban
+  status.
 
-  - **Successful syncs** -- incremented each time a chunk passes
-    verification.
-  - **Failed syncs** -- incremented when a transfer fails.
-  - **Hash mismatches** -- incremented when a chunk's declared hash
-    does not match the hash computed by recompiling its source.
+  **Permission bits** (combinable):
 
-  When a peer accumulates too many hash mismatches (default: 3), it
-  is automatically **banned**. A banned peer's Announce, Transfer,
-  and Serve requests are rejected. This prevents a malicious peer
-  from flooding the network with invalid content.
+  - `sync` -- push/pull code via Announce, Transfer, Serve RPCs
+  - `message` -- send messages to registered processes via DeliverMessage
+  - `spawn` -- remote process spawning via forkOn: (Phase B)
+
+  **Auto-banning:** After 3 hash mismatches (configurable), a peer
+  is automatically banned. Banned peers are denied all operations.
+  Explicitly adding a peer to `maggie.toml` un-bans it.
+
+  **Default permissions** for unknown peers are configured in the
+  `[trust]` section of `maggie.toml`. The safe default is `sync`
+  only -- messaging and spawning require explicit allowlisting.
 
   ```example
-  # PeerReputation fields:
-  #   PeerID          -- "192.168.1.42" (from X-Forwarded-For or X-Real-Ip)
-  #   SuccessfulSyncs -- 47
-  #   FailedSyncs     -- 0
-  #   HashMismatches  -- 0
-  #   LastSeen        -- 2026-02-07T15:30:00Z
-  #   Banned          -- false
+  # TrustStore per-peer record:
+  #   NodeID         -- Ed25519 public key (32 bytes, displayed as hex)
+  #   Perms          -- sync, message, spawn (bitmask)
+  #   SuccessfulOps  -- 47
+  #   HashMismatches -- 0
+  #   Banned         -- false
+  #   Configured     -- true (if declared in maggie.toml)
   ```
 
-  Peer identity is currently derived from HTTP headers
-  (`X-Forwarded-For` or `X-Real-Ip`). If neither is present, the
-  peer is identified as "unknown".
+  Peer identity for sync RPCs is derived from the `X-Maggie-Node-ID`
+  header (hex-encoded public key). For message delivery, it comes
+  from the Ed25519 key in the signed `MessageEnvelope`.
   """
   method: s07_reputation [
-      "Reputation tracking is handled by the sync service internally."
+      "Trust tracking is handled by the TrustStore internally."
       ^nil
   ]
 
   """
-  ## Capabilities
+  ## Capabilities and Spawn Restrictions
 
-  Capabilities are a lightweight permission system for distributed
-  code. Each chunk can declare capabilities it requires (e.g., "File",
-  "HTTP", "Network"). When a peer announces content for push, it
-  includes a CapabilityManifest listing all required capabilities.
+  Each chunk can declare capabilities it requires (e.g., "File",
+  "HTTP", "Network") via a `CapabilityManifest`. This is
+  informational metadata carried during code distribution.
 
-  The receiving VM checks the manifest against its `CapabilityPolicy`:
+  The trust model controls what peers can *do* (sync, message,
+  spawn) via permission bits. Capabilities describe what the
+  *code* needs. These are orthogonal:
 
-  - **AllowedCapabilities** -- if set, only these capabilities are
-    permitted. A nil list means "allow all" (permissive mode).
-  - **DeniedCapabilities** -- these capabilities are explicitly
-    blocked, regardless of the allow list.
+  - **Permission bits** gate who can connect and what operations
+    they can perform (configured per-peer in `[trust]`).
+  - **Spawn restrictions** gate what remotely-spawned code can
+    access (configured node-wide in `[trust].spawn-restrictions`).
 
-  If any required capability is denied or not allowed, the Announce
-  RPC returns `REJECTED` with a reason string.
+  When a remote node spawns a process via `forkOn:`, the spawned
+  process runs in a restricted sandbox. The `spawn-restrictions`
+  list defines globals that are always hidden from remote code:
 
   ```example
-  # A locked-down receiver might deny specific capabilities:
-  #   policy.Deny("File")
-  #   policy.Deny("Network")
-  # Then any push containing File or Network chunks is rejected.
+  [trust]
+  spawn-restrictions = ["File", "ExternalProcess", "HTTP", "HttpServer"]
   ```
 
-  Capabilities integrate with process-level restriction. A VM that
-  receives code requiring "File" access can fork a restricted process
-  that hides the File class, limiting what the received code can do
-  even if the capability was accepted at the sync level.
+  The spawner can request *additional* restrictions, but cannot
+  remove policy restrictions. The receiving node always has final say.
+
+  Capabilities also integrate with process-level restriction locally.
+  A VM that receives code requiring "File" access can fork a restricted
+  process that hides the File class, regardless of trust settings.
   """
   method: s08_capabilities [
-      "Capabilities are configured in maggie.toml and enforced by the server."
+      "Trust and capabilities are configured in maggie.toml."
       ^nil
   ]
 
   """
-  ## Manifest Configuration: [sync]
+  ## Manifest Configuration: [sync] and [trust]
 
-  The `[sync]` section in `maggie.toml` configures distribution:
+  The `[sync]` section configures code distribution:
 
   ```example
   [sync]
-  capabilities = ["File", "HTTP"]   # Capabilities this project requires
+  capabilities = ["File", "HTTP"]   # Capabilities this project declares
   listen = ":8081"                  # Start a sync server on this address
-  peers = ["localhost:8082", "staging.example.com:8081"]  # Default push targets
+  peers = ["localhost:8082"]        # Default push targets
   ```
 
-  **Fields:**
-
-  - `capabilities` -- capability strings declared in the manifest
-    when pushing. If a receiver does not allow a listed capability,
-    the push is rejected.
-
-  - `listen` -- address for the sync server to bind to. When set,
-    `mag` automatically starts a sync server alongside the main
-    application. If omitted, no sync server is started.
-
-  - `peers` -- default push targets. Used when `mag sync push` is
-    invoked without an explicit address.
+  The `[trust]` section configures the peer trust model:
 
   ```example
-  # Minimal config for a library that only serves content:
-  [sync]
-  listen = ":9000"
+  [trust]
+  default = "sync"                          # Permissions for unknown peers
+  ban-threshold = 3                         # Mismatches before auto-ban
+  spawn-restrictions = ["File", "HTTP"]     # Hidden from remote spawns
 
-  # Config for an app that pushes to staging and production:
-  [sync]
-  capabilities = ["File", "HTTP", "Network"]
-  peers = ["staging.internal:8081", "prod.internal:8081"]
+  [[trust.peer]]
+  id = "a1b2c3d4e5f6..."                   # Ed25519 public key (hex)
+  name = "build-farm"                       # Human-readable label
+  perms = "sync,spawn"                      # Allowed operations
   ```
+
+  **[sync] fields:**
+
+  - `capabilities` -- capability strings declared when pushing.
+  - `listen` -- address for the sync server to bind to.
+  - `peers` -- default push targets for `mag sync push`.
+
+  **[trust] fields:**
+
+  - `default` -- permissions for unknown peers (default: `"sync"`).
+    Options: `sync`, `message`, `spawn`, `all`, comma-separated.
+  - `ban-threshold` -- hash mismatches before auto-ban (default: 3).
+  - `spawn-restrictions` -- globals always hidden from remotely
+    spawned processes.
+  - `[[trust.peer]]` -- explicitly configured peers with `id`
+    (hex public key), `name` (label), and `perms` (permissions).
   """
   method: s09_manifestConfig [
-      "Sync configuration goes in maggie.toml under [sync]."
+      "Configuration goes in maggie.toml under [sync] and [trust]."
       ^nil
   ]
 
@@ -490,8 +503,7 @@ Guide13Distribution subclass: Object
   automatically. The server is configured with:
 
   - A `CompileFunc` for verifying incoming method chunks.
-  - A `CapabilityPolicy` derived from the manifest.
-  - A `PeerStore` for tracking reputation.
+  - A `TrustStore` loaded from the `[trust]` section of the manifest.
   - The VM's `ContentStore` for looking up and indexing content.
 
   All communication uses standard HTTP/2. There is no custom binary
