@@ -304,6 +304,9 @@ type MethodDef struct {
 	ParamTypes []*TypeExpr // parallel to Parameters
 	TempTypes  []*TypeExpr // parallel to Temps
 	ReturnType *TypeExpr   // nil = untyped
+
+	// Optional effect annotations (e.g., ! <IO, Network>)
+	Effects []*TypeExpr // nil/empty = no effect annotation
 }
 
 func (n *MethodDef) Span() Span { return n.SpanVal }
@@ -398,6 +401,7 @@ type ProtocolEntry struct {
 	Selector   string     // "size", "at:put:", etc.
 	ParamTypes []*TypeExpr // one per parameter (nil entries = untyped)
 	ReturnType *TypeExpr   // nil means <Dynamic>
+	Effects    []*TypeExpr // nil/empty = no effect annotation
 }
 
 func (n *ProtocolEntry) Span() Span { return n.SpanVal }

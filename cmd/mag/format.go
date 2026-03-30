@@ -360,6 +360,21 @@ func formatMethodSignature(method *compiler.MethodDef) string {
 		sig += " ^<" + method.ReturnType.Name + ">"
 	}
 
+	// Append effect annotations
+	if len(method.Effects) > 0 {
+		var effectNames []string
+		for _, eff := range method.Effects {
+			if eff != nil {
+				effectNames = append(effectNames, eff.Name)
+			}
+		}
+		if len(effectNames) == 1 {
+			sig += " ! <" + effectNames[0] + ">"
+		} else if len(effectNames) > 1 {
+			sig += " ! <" + strings.Join(effectNames, ", ") + ">"
+		}
+	}
+
 	return sig
 }
 

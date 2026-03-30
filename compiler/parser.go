@@ -148,6 +148,9 @@ func (p *Parser) ParseMethod() *MethodDef {
 		returnType = p.parseTypeExpr()
 	}
 
+	// Parse optional effect annotations: ! <Effect> or ! <Effect, Effect>
+	effects := p.parseEffectAnnotations()
+
 	// Parse temporaries (| temp1 temp2 |)
 	var temps []string
 	var tempTypes []*TypeExpr
@@ -167,6 +170,7 @@ func (p *Parser) ParseMethod() *MethodDef {
 		ParamTypes: paramTypes,
 		TempTypes:  tempTypes,
 		ReturnType: returnType,
+		Effects:    effects,
 	}
 }
 
@@ -253,6 +257,59 @@ func (p *Parser) parseTypeExpr() *TypeExpr {
 	}
 
 	return &TypeExpr{SpanVal: MakeSpan(startPos, p.curToken.Pos), Name: name}
+}
+
+// parseEffectAnnotations parses optional effect annotations: ! <Effect> or ! <IO, Network>.
+// The ! is a TokenBinarySelector. Inside the angle brackets, effect names are
+// identifiers separated by commas (which lex as TokenBinarySelector with literal ",").
+// Returns nil if no effect annotation is present.
+func (p *Parser) parseEffectAnnotations() []*TypeExpr {
+	// Check for standalone "!" (not "!=" or "!<" etc.)
+	if !p.curTokenIs(TokenBinarySelector) || p.curToken.Literal != "!" {
+		return nil
+	}
+	// Peek must be "<" to distinguish from other uses of "!"
+	if !p.peekTokenIs(TokenBinarySelector) || p.peekToken.Literal != "<" {
+		return nil
+	}
+
+	p.nextToken() // consume !
+	p.nextToken() // consume <
+
+	var effects []*TypeExpr
+	for {
+		if !p.curTokenIs(TokenIdentifier) {
+			p.errorf("expected effect name after '<' or ','")
+			return nil
+		}
+		startPos := p.curToken.Pos
+		effects = append(effects, &TypeExpr{
+			SpanVal: MakeSpan(startPos, p.curToken.Pos),
+			Name:    p.curToken.Literal,
+		})
+		p.nextToken() // consume effect name
+
+		// Check for comma separator
+		if p.curTokenIs(TokenBinarySelector) && p.curToken.Literal == "," {
+			p.nextToken() // consume ,
+			continue
+		}
+		break
+	}
+
+	// Expect closing >
+	if p.curTokenIs(TokenBinarySelector) && len(p.curToken.Literal) > 0 && p.curToken.Literal[0] == '>' {
+		if p.curToken.Literal == ">" {
+			p.nextToken() // consume >
+		} else {
+			p.nextToken() // consume >= etc.
+		}
+	} else {
+		p.errorf("expected '>' to close effect annotation")
+		return nil
+	}
+
+	return effects
 }
 
 // parseTemporaries parses | temp1 temp2 |
@@ -1247,6 +1304,9 @@ func (p *Parser) parseMethodInBrackets(isClassMethod bool) *MethodDef {
 		returnType = p.parseTypeExpr()
 	}
 
+	// Parse optional effect annotations: ! <Effect> or ! <Effect, Effect>
+	effects := p.parseEffectAnnotations()
+
 	// Expect opening bracket
 	if !p.curTokenIs(TokenLBracket) {
 		p.errorf("expected '[' after method signature")
@@ -1281,6 +1341,7 @@ func (p *Parser) parseMethodInBrackets(isClassMethod bool) *MethodDef {
 			SourceText:      sourceText,
 			ParamTypes:      paramTypes,
 			ReturnType:      returnType,
+			Effects:         effects,
 		}
 	}
 
@@ -1316,6 +1377,7 @@ func (p *Parser) parseMethodInBrackets(isClassMethod bool) *MethodDef {
 		ParamTypes: paramTypes,
 		TempTypes:  tempTypes,
 		ReturnType: returnType,
+		Effects:    effects,
 	}
 }
 
@@ -1444,6 +1506,9 @@ func (p *Parser) parseProtocolEntry() *ProtocolEntry {
 			entry.ReturnType = p.parseTypeExpr()
 		}
 	}
+
+	// Parse optional effect annotations: ! <Effect>
+	entry.Effects = p.parseEffectAnnotations()
 
 	// Consume trailing period
 	if p.curTokenIs(TokenPeriod) {

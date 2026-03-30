@@ -828,10 +828,43 @@ Guide07Classes subclass: Object
   warnings — you only get warnings when the checker positively
   determines an incompatibility.
 
+  ## Effect Annotations
+
+  Methods can declare their side effects using `! <Effect>` syntax
+  after the return type annotation. The type checker verifies that the
+  method body's inferred effects match the declaration.
+
+  ```example
+  "Declare a pure method (no side effects)"
+  method: add: x <Integer> to: y <Integer> ^<Integer> ! <Pure> [
+      ^x + y
+  ]
+
+  "Declare IO and Network effects"
+  method: fetchUrl: url <String> ^<String> ! <IO, Network> [
+      ^HTTP get: url
+  ]
+
+  "Declare a single effect"
+  method: save: data <String> ! <IO> [
+      File write: data to: 'output.txt'
+  ]
+  ```
+
+  The recognized effects are: `IO` (file and process operations),
+  `Network` (HTTP, sockets, gRPC), `Process` (channels, mutexes,
+  goroutines), `State` (global variable mutation, Compiler evaluate:),
+  and `Pure` (assertion that the method has no effects).
+
+  Effect annotations are gradual — methods without annotations produce
+  no effect warnings. The checker only warns when a method declares
+  effects but its body contains undeclared effects, or when a method
+  declares `Pure` but its body has side effects.
+
   The class system is simple but expressive. Combined with blocks for
-  control flow, traits for cross-cutting concerns, and optional type
-  annotations with inference, it provides all the tools you need to
-  structure programs of any size.
+  control flow, traits for cross-cutting concerns, optional type
+  annotations with inference, and effect annotations, it provides all
+  the tools you need to structure programs of any size.
 
   ```test
   Object new class name >>> #Object

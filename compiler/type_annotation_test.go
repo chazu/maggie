@@ -314,6 +314,121 @@ Counter subclass: Object
 // Backward compatibility: <primitive> must still work
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Effect annotation parsing tests
+// ---------------------------------------------------------------------------
+
+func TestParseEffectSinglePure(t *testing.T) {
+	source := "compute ^<Integer> ! <Pure> [ ^42 ]"
+	p := NewParser(source)
+	m := p.ParseMethod()
+	if m == nil {
+		t.Fatal("expected method, got nil")
+	}
+	if len(p.Errors()) > 0 {
+		t.Fatalf("parse errors: %v", p.Errors())
+	}
+	if len(m.Effects) != 1 {
+		t.Fatalf("expected 1 effect, got %d", len(m.Effects))
+	}
+	if m.Effects[0].Name != "Pure" {
+		t.Errorf("effect = %q, want 'Pure'", m.Effects[0].Name)
+	}
+}
+
+func TestParseEffectMultiple(t *testing.T) {
+	source := "fetch: url <String> ^<String> ! <IO, Network> [ ^url ]"
+	p := NewParser(source)
+	m := p.ParseMethod()
+	if m == nil {
+		t.Fatal("expected method, got nil")
+	}
+	if len(p.Errors()) > 0 {
+		t.Fatalf("parse errors: %v", p.Errors())
+	}
+	if len(m.Effects) != 2 {
+		t.Fatalf("expected 2 effects, got %d", len(m.Effects))
+	}
+	if m.Effects[0].Name != "IO" {
+		t.Errorf("effect 0 = %q, want 'IO'", m.Effects[0].Name)
+	}
+	if m.Effects[1].Name != "Network" {
+		t.Errorf("effect 1 = %q, want 'Network'", m.Effects[1].Name)
+	}
+}
+
+func TestParseEffectNoAnnotation(t *testing.T) {
+	source := "simple [ ^42 ]"
+	p := NewParser(source)
+	m := p.ParseMethod()
+	if m == nil {
+		t.Fatal("expected method, got nil")
+	}
+	if len(m.Effects) != 0 {
+		t.Errorf("expected no effects, got %d", len(m.Effects))
+	}
+}
+
+func TestParseEffectInBrackets(t *testing.T) {
+	source := `MyClass subclass: Object
+  method: write: data <String> ! <IO> [
+    ^data
+  ]
+`
+	p := NewParser(source)
+	sf := p.ParseSourceFile()
+	if len(sf.Classes) != 1 {
+		t.Fatalf("expected 1 class, got %d", len(sf.Classes))
+	}
+	if len(sf.Classes[0].Methods) != 1 {
+		t.Fatalf("expected 1 method, got %d", len(sf.Classes[0].Methods))
+	}
+	m := sf.Classes[0].Methods[0]
+	if len(m.Effects) != 1 || m.Effects[0].Name != "IO" {
+		t.Errorf("expected IO effect, got %v", m.Effects)
+	}
+}
+
+func TestParseEffectOnProtocolEntry(t *testing.T) {
+	source := `Writable protocol
+  write: <String> ^<Boolean> ! <IO>.
+`
+	p := NewParser(source)
+	sf := p.ParseSourceFile()
+	if len(sf.Protocols) != 1 {
+		t.Fatalf("expected 1 protocol, got %d", len(sf.Protocols))
+	}
+	proto := sf.Protocols[0]
+	if len(proto.Entries) != 1 {
+		t.Fatalf("expected 1 entry, got %d", len(proto.Entries))
+	}
+	entry := proto.Entries[0]
+	if len(entry.Effects) != 1 || entry.Effects[0].Name != "IO" {
+		t.Errorf("expected IO effect on protocol entry, got %v", entry.Effects)
+	}
+}
+
+func TestParseEffectWithReturnTypeAndTypes(t *testing.T) {
+	source := "save: path <String> ^<Boolean> ! <IO, State> [ ^true ]"
+	p := NewParser(source)
+	m := p.ParseMethod()
+	if m == nil {
+		t.Fatal("expected method, got nil")
+	}
+	if len(p.Errors()) > 0 {
+		t.Fatalf("parse errors: %v", p.Errors())
+	}
+	if m.ReturnType == nil || m.ReturnType.Name != "Boolean" {
+		t.Errorf("return type = %v, want 'Boolean'", m.ReturnType)
+	}
+	if len(m.Effects) != 2 {
+		t.Fatalf("expected 2 effects, got %d", len(m.Effects))
+	}
+	if m.Effects[0].Name != "IO" || m.Effects[1].Name != "State" {
+		t.Errorf("effects = [%s, %s], want [IO, State]", m.Effects[0].Name, m.Effects[1].Name)
+	}
+}
+
 func TestPrimitiveStubStillWorks(t *testing.T) {
 	source := `MyClass subclass: Object
   method: primFoo [ <primitive> ]

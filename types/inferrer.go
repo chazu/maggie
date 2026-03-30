@@ -16,11 +16,14 @@ import (
 type Inferrer struct {
 	ReturnTypes *ReturnTypeTable
 	Protocols   *ProtocolRegistry
+	EffectTable *EffectTable
 	VM          *vm.VM
 	Verbose     bool
 
-	className   string       // class being checked
-	diagnostics []Diagnostic // collected during inference
+	className      string           // class being checked
+	diagnostics    []Diagnostic     // collected during inference
+	inferredEffect Effect           // accumulated effects during inference
+	methodLocals   map[string]bool  // params + temps declared in method signature
 }
 
 // NewInferrer creates an inferrer with the given dependencies.
@@ -33,11 +36,24 @@ func NewInferrer(rt *ReturnTypeTable, protocols *ProtocolRegistry, vmInst *vm.VM
 	}
 }
 
+// SetEffectTable sets the effect table for callee effect propagation.
+func (inf *Inferrer) SetEffectTable(et *EffectTable) {
+	inf.EffectTable = et
+}
+
 // InferMethod performs type inference on a method body.
-// Returns the inferred return type and any diagnostics generated.
-func (inf *Inferrer) InferMethod(className string, md *compiler.MethodDef) (MaggieType, []Diagnostic) {
+// Returns the inferred return type, inferred effects, and any diagnostics generated.
+func (inf *Inferrer) InferMethod(className string, md *compiler.MethodDef) (MaggieType, Effect, []Diagnostic) {
 	inf.className = className
 	inf.diagnostics = nil
+	inf.inferredEffect = EffectNone
+	inf.methodLocals = make(map[string]bool)
+	for _, p := range md.Parameters {
+		inf.methodLocals[p] = true
+	}
+	for _, t := range md.Temps {
+		inf.methodLocals[t] = true
+	}
 
 	env := NewTypeEnv(nil)
 
@@ -93,7 +109,9 @@ func (inf *Inferrer) InferMethod(className string, md *compiler.MethodDef) (Magg
 
 	diags := inf.diagnostics
 	inf.diagnostics = nil
-	return lastReturnType, diags
+	eff := inf.inferredEffect
+	inf.inferredEffect = EffectNone
+	return lastReturnType, eff, diags
 }
 
 // inferExpr infers the type of an expression, updating the TypeEnv
@@ -133,6 +151,12 @@ func (inf *Inferrer) inferExpr(env *TypeEnv, expr compiler.Expr) MaggieType {
 		return &DynamicType{}
 	case *compiler.Assignment:
 		valType := inf.inferExpr(env, e.Value)
+		// Global assignment (not a declared param/temp) implies State effect
+		if inf.methodLocals != nil && !inf.methodLocals[e.Variable] {
+			if _, isInEnv := env.Lookup(e.Variable); !isInEnv {
+				inf.inferredEffect = inf.inferredEffect.Union(EffectState)
+			}
+		}
 		env.Set(e.Variable, valType)
 		return valType
 	case *compiler.UnaryMessage:
@@ -149,6 +173,22 @@ func (inf *Inferrer) inferExpr(env *TypeEnv, expr compiler.Expr) MaggieType {
 		// Cascade returns the receiver
 		return recvType
 	case *compiler.Block:
+		// Walk block body for effect inference (blocks may contain effectful code)
+		blockEnv := NewTypeEnv(env)
+		for _, param := range e.Parameters {
+			blockEnv.Set(param, &DynamicType{})
+		}
+		for _, temp := range e.Temps {
+			blockEnv.Set(temp, &DynamicType{})
+		}
+		for _, stmt := range e.Statements {
+			switch s := stmt.(type) {
+			case *compiler.ExprStmt:
+				inf.inferExpr(blockEnv, s.Expr)
+			case *compiler.Return:
+				inf.inferExpr(blockEnv, s.Value)
+			}
+		}
 		return &NamedType{Name: "Block"}
 	default:
 		return &DynamicType{}
@@ -166,6 +206,23 @@ func (inf *Inferrer) inferSend(recvType MaggieType, selector string, pos compile
 	className := inf.resolveTypeName(recvType)
 	if className == "" {
 		return &DynamicType{}
+	}
+
+	// Accumulate effects from global class usage
+	if eff, ok := GlobalEffects[className]; ok {
+		inf.inferredEffect = inf.inferredEffect.Union(eff)
+	}
+	// Accumulate effects from specific class+selector pairs
+	if selEffects, ok := SelectorEffects[className]; ok {
+		if eff, ok := selEffects[selector]; ok {
+			inf.inferredEffect = inf.inferredEffect.Union(eff)
+		}
+	}
+	// Propagate callee effects from the effect table (except Pure flag)
+	if inf.EffectTable != nil {
+		if eff, ok := inf.EffectTable.Lookup(className, selector); ok {
+			inf.inferredEffect = inf.inferredEffect.Union(eff & ^EffectPure)
+		}
 	}
 
 	// Look up return type in the table (direct class match)

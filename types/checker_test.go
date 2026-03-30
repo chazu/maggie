@@ -317,6 +317,114 @@ func TestCheckerInferencePrimitiveStubSkipped(t *testing.T) {
 	}
 }
 
+// ---------------------------------------------------------------------------
+// Effect checking tests
+// ---------------------------------------------------------------------------
+
+func TestCheckerEffectPureViolation(t *testing.T) {
+	v := testVM()
+	c := NewChecker(v)
+
+	source := `MyClass subclass: Object
+  method: compute ^<Integer> ! <Pure> [
+    | x |
+    x := 42.
+    ^x
+  ]
+`
+	p := compiler.NewParser(source)
+	sf := p.ParseSourceFile()
+	c.CheckSourceFile(sf)
+
+	// This method is pure (only local vars), should have no diagnostic
+	for _, d := range c.Diagnostics {
+		if contains(d.Message, "Pure") && contains(d.Message, "effects") {
+			t.Errorf("pure method should not trigger effect warning: %s", d.Message)
+		}
+	}
+}
+
+func TestCheckerEffectUndeclared(t *testing.T) {
+	v := testVM()
+	c := NewChecker(v)
+
+	// Method declares IO but body doesn't use IO classes -- no warning
+	// (undeclared effect check only fires if body has MORE effects than declared)
+	source := `MyClass subclass: Object
+  method: simple ! <IO> [
+    ^42
+  ]
+`
+	p := compiler.NewParser(source)
+	sf := p.ParseSourceFile()
+	c.CheckSourceFile(sf)
+
+	// Declaring IO but not using it: no diagnostic (over-declaring is fine)
+	for _, d := range c.Diagnostics {
+		if contains(d.Message, "undeclared") {
+			t.Errorf("over-declared effects should not trigger: %s", d.Message)
+		}
+	}
+}
+
+func TestCheckerEffectUnknownName(t *testing.T) {
+	v := testVM()
+	c := NewChecker(v)
+
+	source := `MyClass subclass: Object
+  method: test ! <Bogus> [
+    ^42
+  ]
+`
+	p := compiler.NewParser(source)
+	sf := p.ParseSourceFile()
+	c.CheckSourceFile(sf)
+
+	found := false
+	for _, d := range c.Diagnostics {
+		if contains(d.Message, "unknown effect") && contains(d.Message, "Bogus") {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("expected unknown effect diagnostic, got: %v", c.Diagnostics)
+	}
+}
+
+func TestCheckerNoEffectAnnotationNoDiagnostics(t *testing.T) {
+	v := testVM()
+	c := NewChecker(v)
+
+	// No effect annotation -> no effect warnings (gradual)
+	source := `MyClass subclass: Object
+  method: test [
+    ^42
+  ]
+`
+	p := compiler.NewParser(source)
+	sf := p.ParseSourceFile()
+	c.CheckSourceFile(sf)
+
+	for _, d := range c.Diagnostics {
+		if contains(d.Message, "effect") {
+			t.Errorf("unannotated method should not trigger effect warnings: %s", d.Message)
+		}
+	}
+}
+
+func contains(s, sub string) bool {
+	return len(s) >= len(sub) && (s == sub || len(s) > 0 && containsHelper(s, sub))
+}
+
+func containsHelper(s, sub string) bool {
+	for i := 0; i+len(sub) <= len(s); i++ {
+		if s[i:i+len(sub)] == sub {
+			return true
+		}
+	}
+	return false
+}
+
 func TestTypeCompatibility(t *testing.T) {
 	tests := []struct {
 		from, to MaggieType

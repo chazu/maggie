@@ -22,6 +22,7 @@ func (d Diagnostic) String() string {
 type Checker struct {
 	Protocols   *ProtocolRegistry
 	ReturnTypes *ReturnTypeTable
+	EffectTable *EffectTable
 	VM          *vm.VM
 	Verbose     bool
 	Diagnostics []Diagnostic
@@ -32,6 +33,7 @@ func NewChecker(vmInst *vm.VM) *Checker {
 	return &Checker{
 		Protocols:   NewProtocolRegistry(),
 		ReturnTypes: NewReturnTypeTable(),
+		EffectTable: NewEffectTable(),
 		VM:          vmInst,
 	}
 }
@@ -43,13 +45,15 @@ func (c *Checker) CheckSourceFile(sf *compiler.SourceFile) {
 		c.Protocols.RegisterFromAST(protoDef)
 	}
 
-	// Harvest return type annotations from all methods before inference
+	// Harvest return type and effect annotations from all methods before inference
 	for _, classDef := range sf.Classes {
 		for _, method := range classDef.Methods {
 			c.ReturnTypes.HarvestFromMethod(classDef.Name, method)
+			c.EffectTable.HarvestFromMethod(classDef.Name, method)
 		}
 		for _, method := range classDef.ClassMethods {
 			c.ReturnTypes.HarvestFromMethod(classDef.Name, method)
+			c.EffectTable.HarvestFromMethod(classDef.Name, method)
 		}
 	}
 
@@ -90,12 +94,27 @@ func (c *Checker) checkMethodDef(method *compiler.MethodDef, classDef *compiler.
 		}
 	}
 
+	// Validate effect annotation names
+	for _, eff := range method.Effects {
+		if eff != nil && !IsValidEffect(eff.Name) {
+			c.addDiagnostic(eff.SpanVal.Start,
+				fmt.Sprintf("unknown effect <%s>", eff.Name))
+		}
+	}
+
 	// Run type inference on the method body (skip primitive stubs)
 	if !method.IsPrimitiveStub && len(method.Statements) > 0 {
 		inferrer := NewInferrer(c.ReturnTypes, c.Protocols, c.VM, c.Verbose)
-		_, diags := inferrer.InferMethod(classDef.Name, method)
+		inferrer.SetEffectTable(c.EffectTable)
+		_, inferredEffect, diags := inferrer.InferMethod(classDef.Name, method)
 		for _, d := range diags {
 			c.addDiagnostic(d.Pos, d.Message)
+		}
+
+		// Check declared effects against inferred effects
+		if len(method.Effects) > 0 {
+			declared := ParseEffects(method.Effects)
+			c.checkEffects(method, declared, inferredEffect)
 		}
 	}
 }
@@ -161,6 +180,27 @@ func (c *Checker) CheckProtocolSatisfaction(className string, protocolName strin
 					fmt.Sprintf("  missing method: %s", selector))
 			}
 		}
+	}
+}
+
+// checkEffects verifies that a method's declared effects match its inferred effects.
+func (c *Checker) checkEffects(method *compiler.MethodDef, declared, inferred Effect) {
+	if declared.IsPure() {
+		// Pure assertion: body must have no effects
+		violating := inferred & ^EffectPure
+		if !violating.IsEmpty() {
+			c.addDiagnostic(method.SpanVal.Start,
+				fmt.Sprintf("method %s declared Pure but body has effects: %s",
+					method.Selector, violating.String()))
+		}
+		return
+	}
+	// Check for undeclared effects
+	undeclared := inferred & ^declared
+	if !undeclared.IsEmpty() {
+		c.addDiagnostic(method.SpanVal.Start,
+			fmt.Sprintf("method %s has undeclared effects: %s (declared: %s)",
+				method.Selector, undeclared.String(), declared.String()))
 	}
 }
 

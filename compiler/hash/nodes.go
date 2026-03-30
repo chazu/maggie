@@ -172,6 +172,9 @@ type HMethodDef struct {
 	ParamTypes []HTypeAnnotation // parallel to params, nil slice = untyped mode
 	TempTypes  []HTypeAnnotation // parallel to temps
 	ReturnType HTypeAnnotation   // Name="" means untyped
+
+	// Effect annotations (sorted for determinism, only for typed hashing)
+	Effects []string // e.g., ["IO", "Network"]
 }
 
 func (*HMethodDef) hnode() {}

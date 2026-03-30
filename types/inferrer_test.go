@@ -97,7 +97,7 @@ func TestInferLiteralTypes(t *testing.T) {
 			if md == nil {
 				t.Fatal("failed to parse method")
 			}
-			retType, diags := inf.InferMethod(className, md)
+			retType, _, diags := inf.InferMethod(className, md)
 			if len(diags) > 0 {
 				t.Errorf("unexpected diagnostics: %v", diags)
 			}
@@ -122,7 +122,7 @@ func TestInferAssignmentPropagation(t *testing.T) {
 		t.Fatal("failed to parse method")
 	}
 
-	retType, diags := inf.InferMethod(className, md)
+	retType, _, diags := inf.InferMethod(className, md)
 	if len(diags) > 0 {
 		t.Errorf("unexpected diagnostics: %v", diags)
 	}
@@ -146,7 +146,7 @@ func TestInferAssignmentChain(t *testing.T) {
 		t.Fatal("failed to parse method")
 	}
 
-	retType, diags := inf.InferMethod(className, md)
+	retType, _, diags := inf.InferMethod(className, md)
 	if len(diags) > 0 {
 		t.Errorf("unexpected diagnostics: %v", diags)
 	}
@@ -170,7 +170,7 @@ func TestInferReassignmentLastWriteWins(t *testing.T) {
 		t.Fatal("failed to parse method")
 	}
 
-	retType, diags := inf.InferMethod(className, md)
+	retType, _, diags := inf.InferMethod(className, md)
 	if len(diags) > 0 {
 		t.Errorf("unexpected diagnostics: %v", diags)
 	}
@@ -193,7 +193,7 @@ func TestInferMessageSendReturnType(t *testing.T) {
 		t.Fatal("failed to parse method")
 	}
 
-	retType, diags := inf.InferMethod(className, md)
+	retType, _, diags := inf.InferMethod(className, md)
 	if len(diags) > 0 {
 		t.Errorf("unexpected diagnostics: %v", diags)
 	}
@@ -217,7 +217,7 @@ func TestInferChainedSends(t *testing.T) {
 		t.Fatal("failed to parse method")
 	}
 
-	retType, diags := inf.InferMethod(className, md)
+	retType, _, diags := inf.InferMethod(className, md)
 	if len(diags) > 0 {
 		t.Errorf("unexpected diagnostics: %v", diags)
 	}
@@ -238,7 +238,7 @@ func TestInferBinaryMessageReturnType(t *testing.T) {
 		t.Fatal("failed to parse method")
 	}
 
-	retType, diags := inf.InferMethod(className, md)
+	retType, _, diags := inf.InferMethod(className, md)
 	if len(diags) > 0 {
 		t.Errorf("unexpected diagnostics: %v", diags)
 	}
@@ -259,7 +259,7 @@ func TestInferComparisonReturnType(t *testing.T) {
 		t.Fatal("failed to parse method")
 	}
 
-	retType, diags := inf.InferMethod(className, md)
+	retType, _, diags := inf.InferMethod(className, md)
 	if len(diags) > 0 {
 		t.Errorf("unexpected diagnostics: %v", diags)
 	}
@@ -280,7 +280,7 @@ func TestInferDoesNotUnderstandWarning(t *testing.T) {
 		t.Fatal("failed to parse method")
 	}
 
-	_, diags := inf.InferMethod(className, md)
+	_, _, diags := inf.InferMethod(className, md)
 	if len(diags) == 0 {
 		t.Fatal("expected 'does not understand' diagnostic")
 	}
@@ -308,7 +308,7 @@ func TestInferDynamicSuppressesWarnings(t *testing.T) {
 		t.Fatal("failed to parse method")
 	}
 
-	_, diags := inf.InferMethod(className, md)
+	_, _, diags := inf.InferMethod(className, md)
 	if len(diags) > 0 {
 		t.Errorf("Dynamic receiver should suppress warnings, got: %v", diags)
 	}
@@ -326,7 +326,7 @@ func TestInferUnboundVariableIsDynamic(t *testing.T) {
 		t.Fatal("failed to parse method")
 	}
 
-	retType, diags := inf.InferMethod(className, md)
+	retType, _, diags := inf.InferMethod(className, md)
 	if len(diags) > 0 {
 		t.Errorf("unbound variable should be Dynamic with no warnings, got: %v", diags)
 	}
@@ -347,7 +347,7 @@ func TestInferParameterWithAnnotation(t *testing.T) {
 		t.Fatal("failed to parse method")
 	}
 
-	retType, diags := inf.InferMethod(className, md)
+	retType, _, diags := inf.InferMethod(className, md)
 	if len(diags) > 0 {
 		t.Errorf("unexpected diagnostics: %v", diags)
 	}
@@ -368,7 +368,7 @@ func TestInferReturnTypeMismatch(t *testing.T) {
 		t.Fatal("failed to parse method")
 	}
 
-	_, diags := inf.InferMethod(className, md)
+	_, _, diags := inf.InferMethod(className, md)
 	if len(diags) == 0 {
 		t.Fatal("expected return type mismatch diagnostic")
 	}
@@ -395,7 +395,7 @@ func TestInferNoReturnStatementIsDynamic(t *testing.T) {
 		t.Fatal("failed to parse method")
 	}
 
-	retType, _ := inf.InferMethod(className, md)
+	retType, _, _ := inf.InferMethod(className, md)
 	if !IsDynamic(retType) {
 		t.Errorf("expected Dynamic when no return statement, got %s", retType)
 	}
@@ -413,7 +413,7 @@ func TestInferYourselfReturnsSelf(t *testing.T) {
 		t.Fatal("failed to parse method")
 	}
 
-	retType, diags := inf.InferMethod(className, md)
+	retType, _, diags := inf.InferMethod(className, md)
 	if len(diags) > 0 {
 		t.Errorf("unexpected diagnostics: %v", diags)
 	}
@@ -435,7 +435,7 @@ func TestInferKeywordMessage(t *testing.T) {
 		t.Fatal("failed to parse method")
 	}
 
-	retType, diags := inf.InferMethod(className, md)
+	retType, _, diags := inf.InferMethod(className, md)
 	if len(diags) > 0 {
 		t.Errorf("unexpected diagnostics: %v", diags)
 	}
@@ -456,7 +456,7 @@ func TestInferStringConcat(t *testing.T) {
 		t.Fatal("failed to parse method")
 	}
 
-	retType, diags := inf.InferMethod(className, md)
+	retType, _, diags := inf.InferMethod(className, md)
 	if len(diags) > 0 {
 		t.Errorf("unexpected diagnostics: %v", diags)
 	}

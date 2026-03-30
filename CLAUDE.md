@@ -313,6 +313,37 @@ Reports warnings to stderr, never blocks compilation. Checks:
 
 Type inference works without any annotations — it tracks types from literals (`42` → SmallInteger, `'hello'` → String) through assignments and message send chains. Untyped code produces `<Dynamic>` which suppresses warnings.
 
+#### Effect Annotations
+
+Methods can declare their side effects using `! <Effect>` syntax after the return type:
+
+```smalltalk
+"Pure method (no side effects)"
+method: add: x <Integer> to: y <Integer> ^<Integer> ! <Pure> [
+    ^x + y
+]
+
+"Multiple effects"
+method: fetchAndSave: url <String> ! <IO, Network> [
+    | data |
+    data := HTTP get: url.
+    File write: data to: 'cache.txt'
+]
+
+"Single effect"
+method: spawn: block ! <Process> [
+    ^block fork
+]
+```
+
+Recognized effects: `IO` (File, ExternalProcess, SqliteDatabase, DuckDatabase), `Network` (HTTP, HttpClient, HttpServer, UnixSocketClient, UnixSocketServer, GrpcClient), `Process` (Process, Channel, Mutex, WaitGroup, Semaphore, CancellationContext), `State` (global assignment, Compiler evaluate:/setGlobal:to:), `Pure` (assertion of no effects).
+
+Effect annotations are **gradual** — unannotated methods get no effect warnings. The checker warns when:
+- A method declared `! <Pure>` has effectful code in its body
+- A method declares effects but its body contains additional undeclared effects
+
+Effects propagate through calls: if method A calls method B which is annotated `! <IO>`, then A inherits the IO effect.
+
 ### Source Formatting
 
 Format Maggie source files to a canonical style:

@@ -256,6 +256,12 @@ func (s *serializer) serializeMethodTypes(n *HMethodDef) {
 
 	// Return type
 	s.writeString(n.ReturnType.Name)
+
+	// Effects (sorted strings)
+	s.writeUint32(uint32(len(n.Effects)))
+	for _, eff := range n.Effects {
+		s.writeString(eff)
+	}
 }
 
 // serializeBlockTypes writes type annotation data for an HBlock.
@@ -272,7 +278,7 @@ func (s *serializer) serializeBlockTypes(n *HBlock) {
 	}
 }
 
-// hasMethodTypes returns true if the method has any type annotations.
+// hasMethodTypes returns true if the method has any type or effect annotations.
 func hasMethodTypes(n *HMethodDef) bool {
 	if n.ReturnType.Name != "" {
 		return true
@@ -286,6 +292,9 @@ func hasMethodTypes(n *HMethodDef) bool {
 		if tt.Name != "" {
 			return true
 		}
+	}
+	if len(n.Effects) > 0 {
+		return true
 	}
 	return false
 }
