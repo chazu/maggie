@@ -248,6 +248,16 @@ msg payload.                     "=> 42"
 
 All message payloads are serialized with CBOR. Supported types include integers, floats, strings, symbols, arrays, dictionaries, objects (with circular reference support), and CUE values. Non-serializable types (Process, Channel, Mutex) raise errors at send time.
 
+Process monitors and links work across nodes. A `NodeHealthMonitor` pings remote nodes with active watches and synthesizes `nodeDown` notifications on failure:
+
+```smalltalk
+"Monitor a remote process"
+ref := Process current monitor: remoteWorker.
+msg := Process receive.
+msg selector = #processDown:
+    ifTrue: ['Worker died: ', msg payload printString].
+```
+
 See [`examples/distributed-counter/`](examples/distributed-counter/) for a complete runnable example.
 
 ## Formatting

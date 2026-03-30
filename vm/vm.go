@@ -88,7 +88,9 @@ type VM struct {
 
 	// keepAlive holds references to objects to prevent GC.
 	// Uses a map for O(1) lookup and removal during garbage collection.
-	keepAlive map[*Object]struct{}
+	// Protected by keepAliveMu for thread-safe access from gRPC handlers.
+	keepAlive   map[*Object]struct{}
+	keepAliveMu sync.Mutex
 
 	// weakRefs tracks weak references for the GC to process.
 	weakRefs *WeakRegistry
@@ -1174,6 +1176,7 @@ func (vm *VM) CollectGarbage() int {
 	}
 
 	// Sweep phase: remove unmarked objects from keepAlive
+	vm.keepAliveMu.Lock()
 	collected := 0
 	for obj := range vm.keepAlive {
 		if _, isMarked := marked[obj]; !isMarked {
@@ -1181,6 +1184,7 @@ func (vm *VM) CollectGarbage() int {
 			collected++
 		}
 	}
+	vm.keepAliveMu.Unlock()
 
 	return collected
 }
@@ -1213,20 +1217,26 @@ func (vm *VM) markValue(v Value, marked map[*Object]struct{}) {
 // KeepAlive pins an object to prevent garbage collection.
 func (vm *VM) KeepAlive(obj *Object) {
 	if obj != nil {
+		vm.keepAliveMu.Lock()
 		vm.keepAlive[obj] = struct{}{}
+		vm.keepAliveMu.Unlock()
 	}
 }
 
 // ReleaseKeepAlive unpins an object, allowing garbage collection.
 func (vm *VM) ReleaseKeepAlive(obj *Object) {
 	if obj != nil {
+		vm.keepAliveMu.Lock()
 		delete(vm.keepAlive, obj)
+		vm.keepAliveMu.Unlock()
 	}
 }
 
 // KeepAliveCount returns the number of objects in the keepAlive set.
 // Useful for testing and debugging.
 func (vm *VM) KeepAliveCount() int {
+	vm.keepAliveMu.Lock()
+	defer vm.keepAliveMu.Unlock()
 	return len(vm.keepAlive)
 }
 

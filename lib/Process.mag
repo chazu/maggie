@@ -217,11 +217,17 @@ Process subclass: Object
   is delivered to this process's mailbox with payload
   `#(refID processValue reasonSymbol resultValue)`.
 
+  Works with both local and remote processes. For remote
+  processes, a `MonitorProcess` RPC is sent to the remote node,
+  and a `NodeHealthMonitor` heartbeat loop detects node failures.
+
   ```example
   worker := [42] fork.
   ref := Process current monitor: worker.
   worker wait.
-  Process tryReceive    "=> MailboxMessage with #processDown:"
+  Process sleep: 10.
+  msg := Process tryReceive.
+  msg selector    "=> #processDown:"
   ```
   """
   method: monitor: otherProcess [
@@ -230,6 +236,12 @@ Process subclass: Object
 
   """
   Cancel a monitor by its reference ID.
+
+  ```example
+  worker := [Process sleep: 5000] fork.
+  ref := Process current monitor: worker.
+  Process current demonitor: ref
+  ```
   """
   method: demonitor: refID [
       ^self primDemonitor: refID
@@ -240,8 +252,8 @@ Process subclass: Object
   processes. When true, exit signals are delivered as mailbox
   messages with selector `#exit` instead of killing the process.
 
-  ```example
-  Process current trapExit: true
+  ```test
+  Process current trapExit: true >>> true
   ```
   """
   method: trapExit: aBoolean [
@@ -250,6 +262,11 @@ Process subclass: Object
 
   """
   Return whether this process is trapping exits.
+
+  ```test
+  Process current trapExit: true.
+  Process current trapExit >>> true
+  ```
   """
   method: trapExit [
       ^self primTrapExit
@@ -258,6 +275,10 @@ Process subclass: Object
   """
   Return the exit reason of this process (a Symbol like
   `#normal`, `#linked`, `#error`), or nil if still running.
+
+  ```test
+  Process current exitReason >>> nil
+  ```
   """
   method: exitReason [
       ^self primExitReason
@@ -298,8 +319,13 @@ Process subclass: Object
   Non-blocking receive. Returns a MailboxMessage if one is
   available, or `nil` if the mailbox is empty.
 
-  ```example
-  Process tryReceive
+  ```test
+  Process tryReceive >>> nil
+  ```
+
+  ```test
+  Process current send: 42.
+  Process tryReceive class name >>> #MailboxMessage
   ```
   """
   classMethod: tryReceive [

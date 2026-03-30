@@ -599,6 +599,65 @@ Guide13Distribution subclass: Object
   ]
 
   """
+  ## Cross-Node Monitors and Links
+
+  Process monitors and links work transparently across nodes. When you
+  monitor a `RemoteProcess`, the VM establishes the monitor via a
+  `MonitorProcess` RPC. When the remote process dies, a `__down__`
+  notification is sent back and delivered as a local `#processDown:`
+  message.
+
+  ```example
+  "Monitor a remote process"
+  node := Node connect: 'worker-host:9200'.
+  worker := node processNamed: 'compute-worker'.
+  ref := Process current monitor: worker.
+
+  "Wait for DOWN notification"
+  msg := Process receive.
+  msg selector = #processDown:
+      ifTrue: [
+          info := msg payload.
+          "info is #(refID processValue reason result)"
+          ('Worker died: ', (info at: 3) printString) println
+      ]
+  ```
+
+  **Node failure detection:**
+
+  When the first cross-node monitor or link is established, a
+  `NodeHealthMonitor` starts sending periodic heartbeat pings to
+  the remote node (every 5 seconds by default). If 3 consecutive
+  pings fail, the node is declared dead and all monitors/links for
+  that node receive synthetic `nodeDown` exit signals.
+
+  This means monitors catch both individual process death (normal
+  notification) and entire node failure (timeout-based detection).
+  The watcher receives the same `#processDown:` message in both
+  cases -- the exit reason is `#normal`, `#error`, `#linked`, or
+  `#nodeDown`.
+
+  ```example
+  "The watcher handles both process and node death the same way"
+  msg := Process receive.
+  msg selector = #processDown: ifTrue: [
+      reason := msg payload at: 3.   "Symbol: #normal, #error, or #nodeDown"
+      reason = #nodeDown
+          ifTrue: ['Entire node went down' println]
+          ifFalse: ['Process exited normally or crashed' println]
+  ]
+  ```
+
+  Links also work across nodes: if a remote linked process dies
+  abnormally, the local process is killed (or receives an `#exit`
+  message if trapping exits).
+  """
+  method: s10c_crossNodeMonitors [
+      "Cross-node monitors use MonitorProcess/DemonitorProcess RPCs."
+      ^nil
+  ]
+
+  """
   ## Security Model
 
   The security model is built on two principles: **never trust content,

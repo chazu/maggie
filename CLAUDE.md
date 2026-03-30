@@ -103,6 +103,8 @@ proc exitReason.                         "#normal, #linked, #error, or nil"
 
 **Monitor semantics**: when the monitored process dies, the watcher receives a `MailboxMessage` with selector `#processDown:` and payload `#(refID processValue reasonSymbol resultValue)`. If the monitored process is already dead, the DOWN message is delivered immediately.
 
+**Cross-node monitors**: links and monitors work transparently with `RemoteProcess` values. When monitoring a remote process, the VM sends a `MonitorProcess` RPC to the remote node. When the remote process dies, a `__down__` notification is sent back via `DeliverMessage`. A `NodeHealthMonitor` heartbeat loop pings remote nodes with active watches every 5 seconds. After 3 missed pings, the node is declared dead and all monitors/links for that node receive synthetic `nodeDown` exit signals.
+
 ### Registered Process Names
 
 Processes can register under a string name for discovery. Names are unique — registering a name taken by a live process fails. Dead process names are lazily cleaned up.

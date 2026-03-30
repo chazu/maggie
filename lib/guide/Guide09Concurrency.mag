@@ -762,6 +762,9 @@ Guide09Concurrency subclass: Object
 
   Use `demonitor:` with the ref ID to cancel a monitor before
   the watched process dies.
+
+  Monitors also work across nodes -- see Guide13 (Distribution)
+  for cross-node monitors with automatic failure detection.
   """
   method: s12e_processMonitors [
       "Monitors require concurrent processes; see examples above."
