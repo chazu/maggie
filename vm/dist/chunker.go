@@ -16,6 +16,7 @@ func MethodToChunk(m *vm.CompiledMethod, caps []string) *Chunk {
 		Capabilities: caps,
 		Selector:     m.Name(),
 		IsClassSide:  m.IsClassMethod,
+		TypedHash:    m.GetTypedHash(),
 	}
 	if cls := m.Class(); cls != nil {
 		if cls.Namespace != "" {

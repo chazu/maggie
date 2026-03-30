@@ -31,6 +31,7 @@ type CompiledMethod struct {
 
 	// Content addressing
 	ContentHash [32]byte // SHA-256 of normalized AST (zero = not computed)
+	TypedHash   [32]byte // SHA-256 of normalized AST + type annotations (zero = not computed)
 
 	// Debugging support
 	Source    string      // original source text
@@ -134,6 +135,16 @@ func (m *CompiledMethod) GetContentHash() [32]byte {
 // SetContentHash sets the method's content hash.
 func (m *CompiledMethod) SetContentHash(h [32]byte) {
 	m.ContentHash = h
+}
+
+// GetTypedHash returns the method's typed content hash.
+func (m *CompiledMethod) GetTypedHash() [32]byte {
+	return m.TypedHash
+}
+
+// SetTypedHash sets the method's typed content hash.
+func (m *CompiledMethod) SetTypedHash(h [32]byte) {
+	m.TypedHash = h
 }
 
 // GetInlineCaches returns the inline cache table, creating it if needed.

@@ -156,9 +156,11 @@ func compileAllFiles(files []string, vmInst *vm.VM, verbose bool) (int, error) {
 					method.SetDocString(methodDef.DocString)
 				}
 
-				// Compute content hash
+				// Compute content hash and typed hash
 				h := hash.HashMethod(methodDef, nil, nil)
 				method.SetContentHash(h)
+				th := hash.HashTypedMethod(methodDef, nil, nil)
+				method.SetTypedHash(th)
 
 				selectorID := vmInst.Selectors.Intern(method.Name())
 				trait.AddMethod(selectorID, method)
@@ -268,6 +270,8 @@ func compileAllFiles(files []string, vmInst *vm.VM, verbose bool) (int, error) {
 				}
 				h := hash.HashMethod(methodDef, instVarMap, nil)
 				method.SetContentHash(h)
+				th := hash.HashTypedMethod(methodDef, instVarMap, nil)
+				method.SetTypedHash(th)
 
 				method.SetClass(class)
 				class.VTable.AddMethod(vmInst.Selectors.Intern(method.Name()), method)
@@ -302,9 +306,11 @@ func compileAllFiles(files []string, vmInst *vm.VM, verbose bool) (int, error) {
 					method.SetDocString(methodDef.DocString)
 				}
 
-				// Compute content hash
+				// Compute content hash and typed hash
 				ch := hash.HashMethod(methodDef, nil, nil)
 				method.SetContentHash(ch)
+				tch := hash.HashTypedMethod(methodDef, nil, nil)
+				method.SetTypedHash(tch)
 
 				method.SetClass(class)
 				method.IsClassMethod = true

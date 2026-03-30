@@ -133,6 +133,9 @@ type HBlock struct {
 	Arity      int
 	NumTemps   int
 	Statements []HNode
+
+	// Type annotations (only populated for typed hashing)
+	ParamTypes []HTypeAnnotation // nil slice = untyped mode
 }
 
 // HPrimitive represents a primitive call.
@@ -150,6 +153,12 @@ func (*HPrimitive) hnode()  {}
 // Top-level definition nodes
 // ---------------------------------------------------------------------------
 
+// HTypeAnnotation represents a type annotation in the hashing AST.
+// Empty Name means untyped/Dynamic.
+type HTypeAnnotation struct {
+	Name string // FQN-resolved type name, "" = untyped
+}
+
 // HMethodDef is the top-level hashing node for a method.
 type HMethodDef struct {
 	Selector   string
@@ -158,6 +167,11 @@ type HMethodDef struct {
 	Primitive  int
 	DocString  string
 	Statements []HNode
+
+	// Type annotations (only populated for typed hashing)
+	ParamTypes []HTypeAnnotation // parallel to params, nil slice = untyped mode
+	TempTypes  []HTypeAnnotation // parallel to temps
+	ReturnType HTypeAnnotation   // Name="" means untyped
 }
 
 func (*HMethodDef) hnode() {}

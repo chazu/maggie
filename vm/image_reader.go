@@ -806,6 +806,16 @@ func (ir *ImageReader) readMethod(vm *VM) (*CompiledMethod, error) {
 		copy(contentHash[:], hashBytes)
 	}
 
+	// Read typed hash (v5+): 32 bytes
+	var typedHash [32]byte
+	if ir.header.Version >= 5 {
+		hashBytes, err := ir.readBytes(32)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read typed hash: %w", err)
+		}
+		copy(typedHash[:], hashBytes)
+	}
+
 	// Remap selector IDs in bytecode from image space to VM space
 	// This is critical because primitive selectors are pre-interned and may have different IDs
 	ir.remapBytecodeSelectors(bytecode)
@@ -829,6 +839,7 @@ func (ir *ImageReader) readMethod(vm *VM) (*CompiledMethod, error) {
 		Bytecode:      bytecode,
 		Blocks:        blocks,
 		ContentHash:   contentHash,
+		TypedHash:     typedHash,
 		Source:        source,
 		docString:     docString,
 		SourceMap:     sourceMap,

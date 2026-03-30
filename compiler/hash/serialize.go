@@ -20,14 +20,26 @@ import (
 // Serialize produces a deterministic byte serialization of an HNode tree.
 // The returned bytes are suitable for hashing with SHA-256.
 func Serialize(node HNode) []byte {
-	s := &serializer{buf: make([]byte, 0, 256)}
+	s := &serializer{buf: make([]byte, 0, 256), includeTypes: false}
+	s.writeByte(HashVersion)
+	s.serializeNode(node)
+	return s.buf
+}
+
+// SerializeTyped produces a deterministic byte serialization that includes
+// type annotations. The format is a superset of Serialize — all semantic
+// fields are written identically, with type annotation data appended after
+// each method/block node.
+func SerializeTyped(node HNode) []byte {
+	s := &serializer{buf: make([]byte, 0, 256), includeTypes: true}
 	s.writeByte(HashVersion)
 	s.serializeNode(node)
 	return s.buf
 }
 
 type serializer struct {
-	buf []byte
+	buf          []byte
+	includeTypes bool
 }
 
 func (s *serializer) writeByte(b byte) {
@@ -190,6 +202,9 @@ func (s *serializer) serializeNode(node HNode) {
 		for _, stmt := range n.Statements {
 			s.serializeNode(stmt)
 		}
+		if s.includeTypes {
+			s.serializeBlockTypes(n)
+		}
 
 	case *HPrimitive:
 		s.writeByte(TagPrimitive)
@@ -211,5 +226,76 @@ func (s *serializer) serializeNode(node HNode) {
 				s.serializeNode(stmt)
 			}
 		}
+		if s.includeTypes {
+			s.serializeMethodTypes(n)
+		}
 	}
+}
+
+// serializeMethodTypes writes type annotation data for an HMethodDef.
+// If any type annotations are present, writes 0x01 followed by the data.
+// If none are present, writes 0x00.
+func (s *serializer) serializeMethodTypes(n *HMethodDef) {
+	if !hasMethodTypes(n) {
+		s.writeByte(TypesAbsent)
+		return
+	}
+	s.writeByte(TypesPresent)
+
+	// Param types
+	s.writeUint32(uint32(len(n.ParamTypes)))
+	for _, pt := range n.ParamTypes {
+		s.writeString(pt.Name)
+	}
+
+	// Temp types
+	s.writeUint32(uint32(len(n.TempTypes)))
+	for _, tt := range n.TempTypes {
+		s.writeString(tt.Name)
+	}
+
+	// Return type
+	s.writeString(n.ReturnType.Name)
+}
+
+// serializeBlockTypes writes type annotation data for an HBlock.
+func (s *serializer) serializeBlockTypes(n *HBlock) {
+	if !hasBlockTypes(n) {
+		s.writeByte(TypesAbsent)
+		return
+	}
+	s.writeByte(TypesPresent)
+
+	s.writeUint32(uint32(len(n.ParamTypes)))
+	for _, pt := range n.ParamTypes {
+		s.writeString(pt.Name)
+	}
+}
+
+// hasMethodTypes returns true if the method has any type annotations.
+func hasMethodTypes(n *HMethodDef) bool {
+	if n.ReturnType.Name != "" {
+		return true
+	}
+	for _, pt := range n.ParamTypes {
+		if pt.Name != "" {
+			return true
+		}
+	}
+	for _, tt := range n.TempTypes {
+		if tt.Name != "" {
+			return true
+		}
+	}
+	return false
+}
+
+// hasBlockTypes returns true if the block has any type annotations.
+func hasBlockTypes(n *HBlock) bool {
+	for _, pt := range n.ParamTypes {
+		if pt.Name != "" {
+			return true
+		}
+	}
+	return false
 }

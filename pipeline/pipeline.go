@@ -721,12 +721,16 @@ func resolveGlobalForHash(name, namespace string, imports []string, classes *vm.
 	return name
 }
 
-// hashAndSetMethod computes and sets the content hash on a compiled method.
+// hashAndSetMethod computes and sets the content hash and typed hash on a compiled method.
 func hashAndSetMethod(methodDef *compiler.MethodDef, method *vm.CompiledMethod, instVars map[string]int, pf *ParsedFile, vmInst *vm.VM) {
-	h := hash.HashMethod(methodDef, instVars, func(name string) string {
+	resolveGlobal := func(name string) string {
 		return resolveGlobalForHash(name, pf.Namespace, pf.Imports, vmInst.Classes)
-	})
+	}
+	h := hash.HashMethod(methodDef, instVars, resolveGlobal)
 	method.SetContentHash(h)
+
+	th := hash.HashTypedMethod(methodDef, instVars, resolveGlobal)
+	method.SetTypedHash(th)
 }
 
 // qualifiedName returns "ns::name" if ns is non-empty, otherwise just "name".

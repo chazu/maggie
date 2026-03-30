@@ -24,6 +24,7 @@ type Chunk struct {
 	Selector     string     `cbor:"6,keyasint,omitempty"` // method selector (e.g., "hello", "greet:")
 	ClassName    string     `cbor:"7,keyasint,omitempty"` // owning class FQN (e.g., "MyApp::Greeter")
 	IsClassSide  bool       `cbor:"8,keyasint,omitempty"` // true for class methods, false for instance
+	TypedHash    [32]byte   `cbor:"9,keyasint,omitempty"` // typed content hash
 }
 
 // SyncAnnouncement is sent by a peer to advertise what it has available.

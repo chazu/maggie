@@ -24,14 +24,16 @@ type ContentStore struct {
 // addressing and distribution. It stores the class's structural metadata
 // and the content hashes of all its methods.
 type ClassDigest struct {
-	Name           string
-	Namespace      string
-	SuperclassName string
-	InstVars       []string
-	ClassVars      []string
-	DocString      string
-	MethodHashes   [][32]byte // sorted for deterministic hashing
-	Hash           [32]byte
+	Name              string
+	Namespace         string
+	SuperclassName    string
+	InstVars          []string
+	ClassVars         []string
+	DocString         string
+	MethodHashes      [][32]byte // sorted for deterministic hashing
+	Hash              [32]byte
+	TypedMethodHashes [][32]byte // parallel to MethodHashes, zero entries = no types
+	TypedHash         [32]byte   // class digest including typed method hashes
 }
 
 // NewContentStore creates an empty content store.
@@ -297,7 +299,7 @@ func DigestClass(c *Class) *ClassDigest {
 	}
 	d.DocString = c.DocString
 
-	// Collect method content hashes from VTable
+	// Collect method content hashes and typed hashes from VTable
 	collectHashes := func(vt *VTable) {
 		if vt == nil {
 			return
@@ -307,6 +309,7 @@ func DigestClass(c *Class) *ClassDigest {
 				h := cm.GetContentHash()
 				if h != ([32]byte{}) {
 					d.MethodHashes = append(d.MethodHashes, h)
+					d.TypedMethodHashes = append(d.TypedMethodHashes, cm.GetTypedHash())
 				}
 			}
 		}
@@ -315,5 +318,6 @@ func DigestClass(c *Class) *ClassDigest {
 	collectHashes(c.ClassVTable)
 
 	d.Hash = HashClass(d.Name, d.Namespace, d.SuperclassName, d.InstVars, d.ClassVars, d.DocString, d.MethodHashes)
+	d.TypedHash = HashClass(d.Name, d.Namespace, d.SuperclassName, d.InstVars, d.ClassVars, d.DocString, d.TypedMethodHashes)
 	return d
 }

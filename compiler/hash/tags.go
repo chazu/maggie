@@ -64,6 +64,13 @@ const (
 	TagCascadeKeyword byte = 0x22
 )
 
+// Typed serialization presence bytes. These are NOT node tags — they indicate
+// whether type annotation data follows in the typed serialization format.
+const (
+	TypesAbsent  byte = 0x00
+	TypesPresent byte = 0x01
+)
+
 // allTags lists every defined tag for uniqueness verification in tests.
 var allTags = []byte{
 	TagReservedZero,
