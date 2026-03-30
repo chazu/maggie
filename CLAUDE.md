@@ -255,6 +255,60 @@ When SmallInteger arithmetic overflows the 48-bit range, values are automaticall
 20 factorial class name.   "→ #BigInteger"
 ```
 
+### Type Annotations and Protocols
+
+Maggie supports optional structural type annotations. Types are checked by `mag typecheck` — they never affect compilation or runtime behavior (zero cost, Strongtalk model).
+
+#### Type Annotations
+
+```smalltalk
+"Parameter types"
+method: at: index <Integer> put: value <Object> [ ... ]
+
+"Return types (caret + angle brackets)"
+method: size ^<Integer> [ ^items size ]
+
+"Binary method"
+method: + other <Number> ^<Number> [ ^self primPlus: other ]
+
+"Typed temporaries"
+| count <Integer> name <String> |
+
+"Typed instance variables"
+instanceVars: name <String> age <Integer>
+```
+
+Special types: `<Self>` (receiver type), `<Dynamic>` (compatible with everything, the default for untyped code).
+
+#### Protocols
+
+Protocols define structural types — a set of message signatures that a class must respond to:
+
+```smalltalk
+Sizeable protocol
+  size ^<Integer>.
+  isEmpty ^<Boolean>.
+
+Indexable protocol
+  includes: Sizeable.
+  at: <Integer> ^<Object>.
+  at: <Integer> put: <Object> ^<Object>.
+```
+
+Protocol inclusion (`includes:`) imports all signatures from another protocol. Protocols live in `.mag` files and participate in the namespace/import system.
+
+#### Type Checking
+
+```bash
+mag typecheck                  # check all .mag files in current dir
+mag typecheck src/             # check specific directory
+mag typecheck --verbose        # show all checks
+```
+
+Reports warnings to stderr, never blocks compilation. Checks:
+- Type annotations reference known types/protocols
+- Classes satisfy protocols used as parameter types
+
 ### Source Formatting
 
 Format Maggie source files to a canonical style:

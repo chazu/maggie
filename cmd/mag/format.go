@@ -97,9 +97,17 @@ func (f *formatter) formatSourceFile(sf *compiler.SourceFile) {
 		f.formatClassDef(cls)
 	}
 
+	// Protocols
+	for i, proto := range sf.Protocols {
+		if i > 0 || len(sf.Classes) > 0 {
+			f.newline()
+		}
+		f.formatProtocolDef(proto)
+	}
+
 	// Traits
 	for i, trait := range sf.Traits {
-		if i > 0 || len(sf.Classes) > 0 {
+		if i > 0 || len(sf.Classes) > 0 || len(sf.Protocols) > 0 {
 			f.newline()
 		}
 		f.formatTraitDef(trait)
@@ -132,8 +140,17 @@ func (f *formatter) formatClassDef(cls *compiler.ClassDef) {
 
 	// Instance variables
 	if len(cls.InstanceVariables) > 0 {
-		ivars := strings.Join(cls.InstanceVariables, " ")
-		f.writeln(fmt.Sprintf("  instanceVars: %s", ivars))
+		f.write("  instanceVars: ")
+		for i, ivar := range cls.InstanceVariables {
+			if i > 0 {
+				f.write(" ")
+			}
+			f.write(ivar)
+			if i < len(cls.InstanceVarTypes) && cls.InstanceVarTypes[i] != nil {
+				f.write(" <" + cls.InstanceVarTypes[i].Name + ">")
+			}
+		}
+		f.newline()
 	}
 
 	// Instance methods
@@ -182,6 +199,68 @@ func (f *formatter) formatTraitDef(trait *compiler.TraitDef) {
 }
 
 // ---------------------------------------------------------------------------
+// Protocol definition formatting
+// ---------------------------------------------------------------------------
+
+func (f *formatter) formatProtocolDef(proto *compiler.ProtocolDef) {
+	// Protocol docstring
+	if proto.DocString != "" {
+		f.formatDocString(proto.DocString, 0)
+	}
+
+	// Protocol header
+	f.writeln(fmt.Sprintf("%s protocol", proto.Name))
+
+	// Includes
+	for _, inc := range proto.Includes {
+		f.writeln(fmt.Sprintf("  includes: %s.", inc))
+	}
+
+	// Entries
+	for _, entry := range proto.Entries {
+		f.write("  ")
+		f.write(formatProtocolEntry(entry))
+		f.writeln(".")
+	}
+}
+
+// formatProtocolEntry formats a single protocol entry.
+func formatProtocolEntry(entry *compiler.ProtocolEntry) string {
+	sel := entry.Selector
+	var sig string
+
+	if len(entry.ParamTypes) == 0 && !strings.Contains(sel, ":") {
+		// Unary: "size"
+		sig = sel
+	} else if !strings.Contains(sel, ":") {
+		// Binary: "+ <Number>"
+		sig = sel
+		if len(entry.ParamTypes) > 0 && entry.ParamTypes[0] != nil {
+			sig += " <" + entry.ParamTypes[0].Name + ">"
+		}
+	} else {
+		// Keyword: "at: <Integer> put: <Object>"
+		keywords := splitKeywordSelector(sel)
+		var parts []string
+		for i, kw := range keywords {
+			part := kw + ":"
+			if i < len(entry.ParamTypes) && entry.ParamTypes[i] != nil {
+				part += " <" + entry.ParamTypes[i].Name + ">"
+			}
+			parts = append(parts, part)
+		}
+		sig = strings.Join(parts, " ")
+	}
+
+	// Return type
+	if entry.ReturnType != nil {
+		sig += " ^<" + entry.ReturnType.Name + ">"
+	}
+
+	return sig
+}
+
+// ---------------------------------------------------------------------------
 // Method definition formatting
 // ---------------------------------------------------------------------------
 
@@ -213,7 +292,15 @@ func (f *formatter) formatMethodDef(method *compiler.MethodDef, keyword string, 
 	if len(method.Temps) > 0 {
 		f.writeIndent()
 		f.write("| ")
-		f.write(strings.Join(method.Temps, " "))
+		for i, temp := range method.Temps {
+			if i > 0 {
+				f.write(" ")
+			}
+			f.write(temp)
+			if i < len(method.TempTypes) && method.TempTypes[i] != nil {
+				f.write(" <" + method.TempTypes[i].Name + ">")
+			}
+		}
 		f.writeln(" |")
 	}
 
@@ -238,27 +325,42 @@ func formatMethodSignature(method *compiler.MethodDef) string {
 	sel := method.Selector
 	params := method.Parameters
 
+	var sig string
+
 	// Unary selector (no parameters)
 	if len(params) == 0 {
-		return sel
-	}
-
-	// Binary selector (one parameter)
-	if len(params) == 1 && !strings.Contains(sel, ":") {
-		return sel + " " + params[0]
-	}
-
-	// Keyword selector: split by ":" to pair keywords with parameters
-	keywords := splitKeywordSelector(sel)
-	var parts []string
-	for i, kw := range keywords {
-		if i < len(params) {
-			parts = append(parts, kw+": "+params[i])
-		} else {
-			parts = append(parts, kw+":")
+		sig = sel
+	} else if len(params) == 1 && !strings.Contains(sel, ":") {
+		// Binary selector (one parameter)
+		p := params[0]
+		if len(method.ParamTypes) > 0 && method.ParamTypes[0] != nil {
+			p += " <" + method.ParamTypes[0].Name + ">"
 		}
+		sig = sel + " " + p
+	} else {
+		// Keyword selector: split by ":" to pair keywords with parameters
+		keywords := splitKeywordSelector(sel)
+		var parts []string
+		for i, kw := range keywords {
+			if i < len(params) {
+				p := params[i]
+				if i < len(method.ParamTypes) && method.ParamTypes[i] != nil {
+					p += " <" + method.ParamTypes[i].Name + ">"
+				}
+				parts = append(parts, kw+": "+p)
+			} else {
+				parts = append(parts, kw+":")
+			}
+		}
+		sig = strings.Join(parts, " ")
 	}
-	return strings.Join(parts, " ")
+
+	// Append return type annotation
+	if method.ReturnType != nil {
+		sig += " ^<" + method.ReturnType.Name + ">"
+	}
+
+	return sig
 }
 
 // splitKeywordSelector splits "at:put:" into ["at", "put"].

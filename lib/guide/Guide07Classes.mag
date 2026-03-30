@@ -768,9 +768,45 @@ Guide07Classes subclass: Object
   SmallInteger class name >>> #'SmallInteger class'
   ```
 
+  ## Type Annotations
+
+  Methods can carry optional type annotations for parameters and return
+  values. These are checked by `mag typecheck` but do not affect
+  compilation or runtime behavior — they are documentation that the
+  type checker can verify.
+
+  ```example
+  "Typed method signature"
+  method: at: index <Integer> ^<Object> [
+      ^items at: index
+  ]
+
+  "Typed instance variables"
+  Account subclass: Object
+    instanceVars: name <String> balance <Integer>
+  ```
+
+  ## Protocols
+
+  Protocols define structural types — a set of message signatures.
+  Any class that responds to all messages in a protocol satisfies it,
+  without needing to declare that it does (like Go interfaces).
+
+  ```example
+  Sizeable protocol
+    size ^<Integer>.
+    isEmpty ^<Boolean>.
+
+  "Use a protocol as a parameter type"
+  method: measure: thing <Sizeable> ^<Integer> [
+      ^thing size
+  ]
+  ```
+
   The class system is simple but expressive. Combined with blocks for
-  control flow and traits for cross-cutting concerns, it provides all
-  the tools you need to structure programs of any size.
+  control flow, traits for cross-cutting concerns, and optional type
+  annotations for verification, it provides all the tools you need to
+  structure programs of any size.
 
   ```test
   Object new class name >>> #Object
