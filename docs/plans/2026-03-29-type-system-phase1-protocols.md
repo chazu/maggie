@@ -2,7 +2,7 @@
 
 **Date:** 2026-03-29
 **Depends on:** Brainstorm at `docs/brainstorms/2026-03-28-type-system-design.md`
-**Status:** Draft — review before implementation
+**Status:** COMPLETE
 
 ---
 
