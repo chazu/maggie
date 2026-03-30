@@ -308,6 +308,10 @@ mag typecheck --verbose        # show all checks
 Reports warnings to stderr, never blocks compilation. Checks:
 - Type annotations reference known types/protocols
 - Classes satisfy protocols used as parameter types
+- **Type inference:** infers types from literals and assignments, warns when a message is sent to an incompatible type (e.g., `42 isEmpty` warns "SmallInteger does not understand #isEmpty")
+- Return type annotations are cross-checked against inferred return types
+
+Type inference works without any annotations — it tracks types from literals (`42` → SmallInteger, `'hello'` → String) through assignments and message send chains. Untyped code produces `<Dynamic>` which suppresses warnings.
 
 ### Source Formatting
 

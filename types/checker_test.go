@@ -189,6 +189,134 @@ Indexable protocol
 	}
 }
 
+// --- Integration tests: inference via Checker ---
+
+func TestCheckerInferenceIntegration(t *testing.T) {
+	v := testVM()
+	c := NewChecker(v)
+
+	// Method returns string literal but declares ^<Integer> -- should warn
+	source := `MyClass subclass: Object
+  method: bad ^<Integer> [
+    ^'hello'
+  ]
+`
+	p := compiler.NewParser(source)
+	sf := p.ParseSourceFile()
+	c.CheckSourceFile(sf)
+
+	found := false
+	for _, d := range c.Diagnostics {
+		if d.Message == "inferred return type String is not assignable to declared Integer" {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("expected return type mismatch diagnostic, got: %v", c.Diagnostics)
+	}
+}
+
+func TestCheckerInferenceNoDiagnosticsForMatchingTypes(t *testing.T) {
+	v := testVM()
+	c := NewChecker(v)
+
+	source := `MyClass subclass: Object
+  method: good ^<String> [
+    ^'hello'
+  ]
+`
+	p := compiler.NewParser(source)
+	sf := p.ParseSourceFile()
+	c.CheckSourceFile(sf)
+
+	if len(c.Diagnostics) != 0 {
+		t.Errorf("matching return types should produce no diagnostics, got %d:", len(c.Diagnostics))
+		for _, d := range c.Diagnostics {
+			t.Logf("  %s", d)
+		}
+	}
+}
+
+func TestCheckerHarvestReturnTypes(t *testing.T) {
+	v := testVM()
+	c := NewChecker(v)
+
+	// Define a class with an annotated method, then use it in inference
+	source := `Counter subclass: Object
+  method: count ^<SmallInteger> [
+    ^42
+  ]
+  method: label ^<String> [
+    ^'items'
+  ]
+`
+	p := compiler.NewParser(source)
+	sf := p.ParseSourceFile()
+	c.CheckSourceFile(sf)
+
+	// Verify the return types were harvested
+	typ, ok := c.ReturnTypes.Lookup("Counter", "count")
+	if !ok {
+		t.Fatal("expected harvested return type for Counter>>count")
+	}
+	if typ.String() != "SmallInteger" {
+		t.Errorf("expected SmallInteger, got %s", typ)
+	}
+
+	typ, ok = c.ReturnTypes.Lookup("Counter", "label")
+	if !ok {
+		t.Fatal("expected harvested return type for Counter>>label")
+	}
+	if typ.String() != "String" {
+		t.Errorf("expected String, got %s", typ)
+	}
+}
+
+func TestCheckerInferenceDoesNotUnderstand(t *testing.T) {
+	v := testVM()
+	c := NewChecker(v)
+
+	// SmallInteger does not understand #isEmpty
+	source := `MyClass subclass: Object
+  method: test [
+    ^42 isEmpty
+  ]
+`
+	p := compiler.NewParser(source)
+	sf := p.ParseSourceFile()
+	c.CheckSourceFile(sf)
+
+	found := false
+	for _, d := range c.Diagnostics {
+		if d.Message == "SmallInteger does not understand #isEmpty" {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("expected 'does not understand' diagnostic, got: %v", c.Diagnostics)
+	}
+}
+
+func TestCheckerInferencePrimitiveStubSkipped(t *testing.T) {
+	v := testVM()
+	c := NewChecker(v)
+
+	// Primitive stubs should not be inferred
+	source := `MyClass subclass: Object
+  method: prim [ <primitive> ]
+`
+	p := compiler.NewParser(source)
+	sf := p.ParseSourceFile()
+	c.CheckSourceFile(sf)
+
+	if len(c.Diagnostics) != 0 {
+		t.Errorf("primitive stubs should produce no diagnostics, got %d:", len(c.Diagnostics))
+		for _, d := range c.Diagnostics {
+			t.Logf("  %s", d)
+		}
+	}
+}
+
 func TestTypeCompatibility(t *testing.T) {
 	tests := []struct {
 		from, to MaggieType

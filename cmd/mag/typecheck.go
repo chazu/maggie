@@ -22,6 +22,7 @@ func handleTypecheckCommand(args []string, vmInst *vm.VM) {
 	}
 
 	checker := types.NewChecker(vmInst)
+	checker.Verbose = *verbose
 	totalFiles := 0
 
 	for _, path := range paths {

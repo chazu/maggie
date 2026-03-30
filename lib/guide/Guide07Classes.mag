@@ -803,9 +803,34 @@ Guide07Classes subclass: Object
   ]
   ```
 
+  ## Type Inference
+
+  The type checker can infer types from literals and assignments without
+  any annotations. This catches common bugs like sending a message to
+  the wrong type of object:
+
+  ```example
+  "The checker infers x is SmallInteger from the literal 42"
+  method: example [
+      | x |
+      x := 42.
+      x isEmpty.   "WARNING: SmallInteger does not understand #isEmpty"
+  ]
+
+  "Chained sends track through return types"
+  method: example2 [
+      ^'hello' size asString   "String → Integer → String"
+  ]
+  ```
+
+  Inference works through assignments, message send return types, and
+  chained sends. Untyped code produces `<Dynamic>` which suppresses
+  warnings — you only get warnings when the checker positively
+  determines an incompatibility.
+
   The class system is simple but expressive. Combined with blocks for
   control flow, traits for cross-cutting concerns, and optional type
-  annotations for verification, it provides all the tools you need to
+  annotations with inference, it provides all the tools you need to
   structure programs of any size.
 
   ```test

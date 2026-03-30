@@ -21,15 +21,18 @@ func (d Diagnostic) String() string {
 // It produces diagnostics (warnings) but never blocks compilation.
 type Checker struct {
 	Protocols   *ProtocolRegistry
+	ReturnTypes *ReturnTypeTable
 	VM          *vm.VM
+	Verbose     bool
 	Diagnostics []Diagnostic
 }
 
 // NewChecker creates a type checker with the given VM for class lookups.
 func NewChecker(vmInst *vm.VM) *Checker {
 	return &Checker{
-		Protocols: NewProtocolRegistry(),
-		VM:        vmInst,
+		Protocols:   NewProtocolRegistry(),
+		ReturnTypes: NewReturnTypeTable(),
+		VM:          vmInst,
 	}
 }
 
@@ -38,6 +41,16 @@ func (c *Checker) CheckSourceFile(sf *compiler.SourceFile) {
 	// Register protocols first (they may be referenced by classes)
 	for _, protoDef := range sf.Protocols {
 		c.Protocols.RegisterFromAST(protoDef)
+	}
+
+	// Harvest return type annotations from all methods before inference
+	for _, classDef := range sf.Classes {
+		for _, method := range classDef.Methods {
+			c.ReturnTypes.HarvestFromMethod(classDef.Name, method)
+		}
+		for _, method := range classDef.ClassMethods {
+			c.ReturnTypes.HarvestFromMethod(classDef.Name, method)
+		}
 	}
 
 	// Check class definitions
@@ -74,6 +87,15 @@ func (c *Checker) checkMethodDef(method *compiler.MethodDef, classDef *compiler.
 	for i, tempType := range method.TempTypes {
 		if tempType != nil {
 			c.checkTypeExists(tempType, method.Temps[i])
+		}
+	}
+
+	// Run type inference on the method body (skip primitive stubs)
+	if !method.IsPrimitiveStub && len(method.Statements) > 0 {
+		inferrer := NewInferrer(c.ReturnTypes, c.Protocols, c.VM, c.Verbose)
+		_, diags := inferrer.InferMethod(classDef.Name, method)
+		for _, d := range diags {
+			c.addDiagnostic(d.Pos, d.Message)
 		}
 	}
 }
