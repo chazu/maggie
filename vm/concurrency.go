@@ -135,7 +135,8 @@ type ProcessObject struct {
 	trapExit   bool                  // if true, exit signals become mailbox messages
 	monitors   map[uint64]*MonitorRef // monitors where THIS process is being watched
 	myMonitors map[uint64]*MonitorRef // monitors where THIS process is the watcher
-	exitReason ExitReason            // set by FinishProcess
+	exitReason     ExitReason                   // set by FinishProcess
+	remoteMonitors map[uint64]*RemoteMonitorRef // monitors from remote nodes watching THIS process
 }
 
 // Mailbox returns the process's mailbox.

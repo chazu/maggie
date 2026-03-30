@@ -33,6 +33,16 @@ func (vm *VM) FinishProcess(proc *ProcessObject, reason ExitReason) {
 		proc.monitors = nil
 	}
 
+	// Snapshot remote monitors
+	var remoteRefs []*RemoteMonitorRef
+	if len(proc.remoteMonitors) > 0 {
+		remoteRefs = make([]*RemoteMonitorRef, 0, len(proc.remoteMonitors))
+		for _, ref := range proc.remoteMonitors {
+			remoteRefs = append(remoteRefs, ref)
+		}
+		proc.remoteMonitors = nil
+	}
+
 	proc.mu.Unlock()
 
 	proc.waitGroup.Done()
@@ -54,12 +64,18 @@ func (vm *VM) FinishProcess(proc *ProcessObject, reason ExitReason) {
 		}
 	}
 
-	// Deliver DOWN messages to monitors
+	// Deliver DOWN messages to local monitors
 	for _, ref := range monitorRefs {
 		watcher := vm.GetProcessByID(ref.Watcher)
 		if watcher != nil && !watcher.isDone() {
 			vm.deliverDownMessage(watcher, ref, reason)
 		}
+	}
+
+	// Send DOWN notifications to remote watchers
+	for _, rmRef := range remoteRefs {
+		vm.sendRemoteDown(rmRef, reason)
+		vm.remoteWatches.RemoveInboundMonitor(rmRef.RefID)
 	}
 }
 

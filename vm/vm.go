@@ -121,6 +121,10 @@ type VM struct {
 	// Set by cmd/mag to inject gRPC client wiring.
 	NodeRefFactory NodeRefFactory
 
+	// Cross-node monitor/link tracking and health monitoring
+	remoteWatches *RemoteWatchStore
+	healthMonitor *NodeHealthMonitor
+
 	// registry holds all VM-local object registries (concurrency, exceptions,
 	// results, contexts, dictionaries, strings, gRPC, HTTP, cells, class vars, etc.).
 	registry *ObjectRegistry
@@ -178,6 +182,7 @@ func NewVM() *VM {
 		processNames:     make(map[string]uint64),
 		processNamesByID: make(map[uint64]string),
 		nodeRefs:         make(map[int]*NodeRefData),
+		remoteWatches:    NewRemoteWatchStore(),
 	}
 
 	// Bootstrap core classes

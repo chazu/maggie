@@ -109,6 +109,11 @@ type CompileResult struct {
 	TypedHash    [32]byte // zero if source has no type annotations
 }
 
+// UnmarshalCBOR is a generic CBOR unmarshal helper for the server package.
+func UnmarshalCBOR(data []byte, v interface{}) error {
+	return cbor.Unmarshal(data, v)
+}
+
 // VerifyChunkMethod compiles source from a chunk and verifies that the
 // resulting content hash matches the chunk's declared hash.
 //

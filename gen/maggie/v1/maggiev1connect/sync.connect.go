@@ -48,6 +48,12 @@ const (
 	// SyncServiceDeliverMessageProcedure is the fully-qualified name of the SyncService's
 	// DeliverMessage RPC.
 	SyncServiceDeliverMessageProcedure = "/maggie.v1.SyncService/DeliverMessage"
+	// SyncServiceMonitorProcessProcedure is the fully-qualified name of the SyncService's
+	// MonitorProcess RPC.
+	SyncServiceMonitorProcessProcedure = "/maggie.v1.SyncService/MonitorProcess"
+	// SyncServiceDemonitorProcessProcedure is the fully-qualified name of the SyncService's
+	// DemonitorProcess RPC.
+	SyncServiceDemonitorProcessProcedure = "/maggie.v1.SyncService/DemonitorProcess"
 )
 
 // SyncServiceClient is a client for the maggie.v1.SyncService service.
@@ -71,6 +77,11 @@ type SyncServiceClient interface {
 	// The message payload is a CBOR-encoded MessageEnvelope containing
 	// a signed, serialized Maggie value.
 	DeliverMessage(context.Context, *connect.Request[v1.DeliverMessageRequest]) (*connect.Response[v1.DeliverMessageResponse], error)
+	// MonitorProcess asks this node to monitor a process on behalf of
+	// a remote watcher. DOWN notifications are sent via DeliverMessage.
+	MonitorProcess(context.Context, *connect.Request[v1.MonitorProcessRequest]) (*connect.Response[v1.MonitorProcessResponse], error)
+	// DemonitorProcess cancels a previously established remote monitor.
+	DemonitorProcess(context.Context, *connect.Request[v1.DemonitorProcessRequest]) (*connect.Response[v1.DemonitorProcessResponse], error)
 }
 
 // NewSyncServiceClient constructs a client for the maggie.v1.SyncService service. By default, it
@@ -126,18 +137,32 @@ func NewSyncServiceClient(httpClient connect.HTTPClient, baseURL string, opts ..
 			connect.WithSchema(syncServiceMethods.ByName("DeliverMessage")),
 			connect.WithClientOptions(opts...),
 		),
+		monitorProcess: connect.NewClient[v1.MonitorProcessRequest, v1.MonitorProcessResponse](
+			httpClient,
+			baseURL+SyncServiceMonitorProcessProcedure,
+			connect.WithSchema(syncServiceMethods.ByName("MonitorProcess")),
+			connect.WithClientOptions(opts...),
+		),
+		demonitorProcess: connect.NewClient[v1.DemonitorProcessRequest, v1.DemonitorProcessResponse](
+			httpClient,
+			baseURL+SyncServiceDemonitorProcessProcedure,
+			connect.WithSchema(syncServiceMethods.ByName("DemonitorProcess")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
 // syncServiceClient implements SyncServiceClient.
 type syncServiceClient struct {
-	announce       *connect.Client[v1.AnnounceRequest, v1.AnnounceResponse]
-	transfer       *connect.Client[v1.TransferRequest, v1.TransferResponse]
-	serve          *connect.Client[v1.ServeRequest, v1.ServeResponse]
-	ping           *connect.Client[v1.PingRequest, v1.PingResponse]
-	resolve        *connect.Client[v1.ResolveRequest, v1.ResolveResponse]
-	list           *connect.Client[v1.ListRequest, v1.ListResponse]
-	deliverMessage *connect.Client[v1.DeliverMessageRequest, v1.DeliverMessageResponse]
+	announce         *connect.Client[v1.AnnounceRequest, v1.AnnounceResponse]
+	transfer         *connect.Client[v1.TransferRequest, v1.TransferResponse]
+	serve            *connect.Client[v1.ServeRequest, v1.ServeResponse]
+	ping             *connect.Client[v1.PingRequest, v1.PingResponse]
+	resolve          *connect.Client[v1.ResolveRequest, v1.ResolveResponse]
+	list             *connect.Client[v1.ListRequest, v1.ListResponse]
+	deliverMessage   *connect.Client[v1.DeliverMessageRequest, v1.DeliverMessageResponse]
+	monitorProcess   *connect.Client[v1.MonitorProcessRequest, v1.MonitorProcessResponse]
+	demonitorProcess *connect.Client[v1.DemonitorProcessRequest, v1.DemonitorProcessResponse]
 }
 
 // Announce calls maggie.v1.SyncService.Announce.
@@ -175,6 +200,16 @@ func (c *syncServiceClient) DeliverMessage(ctx context.Context, req *connect.Req
 	return c.deliverMessage.CallUnary(ctx, req)
 }
 
+// MonitorProcess calls maggie.v1.SyncService.MonitorProcess.
+func (c *syncServiceClient) MonitorProcess(ctx context.Context, req *connect.Request[v1.MonitorProcessRequest]) (*connect.Response[v1.MonitorProcessResponse], error) {
+	return c.monitorProcess.CallUnary(ctx, req)
+}
+
+// DemonitorProcess calls maggie.v1.SyncService.DemonitorProcess.
+func (c *syncServiceClient) DemonitorProcess(ctx context.Context, req *connect.Request[v1.DemonitorProcessRequest]) (*connect.Response[v1.DemonitorProcessResponse], error) {
+	return c.demonitorProcess.CallUnary(ctx, req)
+}
+
 // SyncServiceHandler is an implementation of the maggie.v1.SyncService service.
 type SyncServiceHandler interface {
 	// Announce advertises a set of content hashes to a peer.
@@ -196,6 +231,11 @@ type SyncServiceHandler interface {
 	// The message payload is a CBOR-encoded MessageEnvelope containing
 	// a signed, serialized Maggie value.
 	DeliverMessage(context.Context, *connect.Request[v1.DeliverMessageRequest]) (*connect.Response[v1.DeliverMessageResponse], error)
+	// MonitorProcess asks this node to monitor a process on behalf of
+	// a remote watcher. DOWN notifications are sent via DeliverMessage.
+	MonitorProcess(context.Context, *connect.Request[v1.MonitorProcessRequest]) (*connect.Response[v1.MonitorProcessResponse], error)
+	// DemonitorProcess cancels a previously established remote monitor.
+	DemonitorProcess(context.Context, *connect.Request[v1.DemonitorProcessRequest]) (*connect.Response[v1.DemonitorProcessResponse], error)
 }
 
 // NewSyncServiceHandler builds an HTTP handler from the service implementation. It returns the path
@@ -247,6 +287,18 @@ func NewSyncServiceHandler(svc SyncServiceHandler, opts ...connect.HandlerOption
 		connect.WithSchema(syncServiceMethods.ByName("DeliverMessage")),
 		connect.WithHandlerOptions(opts...),
 	)
+	syncServiceMonitorProcessHandler := connect.NewUnaryHandler(
+		SyncServiceMonitorProcessProcedure,
+		svc.MonitorProcess,
+		connect.WithSchema(syncServiceMethods.ByName("MonitorProcess")),
+		connect.WithHandlerOptions(opts...),
+	)
+	syncServiceDemonitorProcessHandler := connect.NewUnaryHandler(
+		SyncServiceDemonitorProcessProcedure,
+		svc.DemonitorProcess,
+		connect.WithSchema(syncServiceMethods.ByName("DemonitorProcess")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/maggie.v1.SyncService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case SyncServiceAnnounceProcedure:
@@ -263,6 +315,10 @@ func NewSyncServiceHandler(svc SyncServiceHandler, opts ...connect.HandlerOption
 			syncServiceListHandler.ServeHTTP(w, r)
 		case SyncServiceDeliverMessageProcedure:
 			syncServiceDeliverMessageHandler.ServeHTTP(w, r)
+		case SyncServiceMonitorProcessProcedure:
+			syncServiceMonitorProcessHandler.ServeHTTP(w, r)
+		case SyncServiceDemonitorProcessProcedure:
+			syncServiceDemonitorProcessHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -298,4 +354,12 @@ func (UnimplementedSyncServiceHandler) List(context.Context, *connect.Request[v1
 
 func (UnimplementedSyncServiceHandler) DeliverMessage(context.Context, *connect.Request[v1.DeliverMessageRequest]) (*connect.Response[v1.DeliverMessageResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("maggie.v1.SyncService.DeliverMessage is not implemented"))
+}
+
+func (UnimplementedSyncServiceHandler) MonitorProcess(context.Context, *connect.Request[v1.MonitorProcessRequest]) (*connect.Response[v1.MonitorProcessResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("maggie.v1.SyncService.MonitorProcess is not implemented"))
+}
+
+func (UnimplementedSyncServiceHandler) DemonitorProcess(context.Context, *connect.Request[v1.DemonitorProcessRequest]) (*connect.Response[v1.DemonitorProcessResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("maggie.v1.SyncService.DemonitorProcess is not implemented"))
 }

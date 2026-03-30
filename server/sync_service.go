@@ -393,6 +393,11 @@ func (s *SyncService) DeliverMessage(
 
 	s.peers.RecordSuccess(peerID)
 
+	// Infrastructure selectors: route through monitor/link system
+	if envelope.Selector == vm.SelectorDown {
+		return s.handleRemoteDown(envelope)
+	}
+
 	// Resolve target process by name or ID
 	var proc *vm.ProcessObject
 	if envelope.TargetName != "" {
@@ -439,6 +444,76 @@ func (s *SyncService) DeliverMessage(
 	return connect.NewResponse(&maggiev1.DeliverMessageResponse{
 		Success: true,
 	}), nil
+}
+
+// handleRemoteDown processes a __down__ notification from a remote node.
+func (s *SyncService) handleRemoteDown(envelope *dist.MessageEnvelope) (*connect.Response[maggiev1.DeliverMessageResponse], error) {
+	type downPayload struct {
+		RefID  uint64 `cbor:"1,keyasint"`
+		Signal string `cbor:"2,keyasint"`
+		Normal bool   `cbor:"3,keyasint"`
+	}
+	var dp downPayload
+	if err := dist.UnmarshalCBOR(envelope.Payload, &dp); err != nil {
+		return connect.NewResponse(&maggiev1.DeliverMessageResponse{
+			Success:   false,
+			ErrorKind: "deserializationError",
+		}), nil
+	}
+
+	rmRef := s.worker.vm.RemoteWatches().RemoveOutboundMonitor(dp.RefID)
+	if rmRef == nil {
+		return connect.NewResponse(&maggiev1.DeliverMessageResponse{Success: true}), nil
+	}
+
+	watcher := s.worker.vm.GetProcessByID(rmRef.WatcherID)
+	if watcher != nil && !watcher.IsDone() {
+		reason := vm.ExitReason{Normal: dp.Normal, Signal: dp.Signal, Result: vm.Nil}
+		ref := &vm.MonitorRef{ID: dp.RefID, Watcher: rmRef.WatcherID}
+		s.worker.vm.DeliverDownMessage(watcher, ref, reason)
+	}
+
+	return connect.NewResponse(&maggiev1.DeliverMessageResponse{Success: true}), nil
+}
+
+// MonitorProcess handles a remote monitor request.
+func (s *SyncService) MonitorProcess(
+	ctx context.Context,
+	req *connect.Request[maggiev1.MonitorProcessRequest],
+) (*connect.Response[maggiev1.MonitorProcessResponse], error) {
+	msg := req.Msg
+
+	var senderNode [32]byte
+	if len(msg.SenderNode) == 32 {
+		copy(senderNode[:], msg.SenderNode)
+	}
+
+	alreadyDead, reason := s.worker.vm.HandleInboundMonitor(
+		msg.MonitorRefId,
+		msg.WatcherId,
+		senderNode,
+		msg.TargetName,
+		msg.TargetId,
+	)
+
+	resp := &maggiev1.MonitorProcessResponse{
+		Success:     true,
+		AlreadyDead: alreadyDead,
+	}
+	if alreadyDead {
+		resp.ExitSignal = reason.Signal
+		resp.ExitNormal = reason.Normal
+	}
+	return connect.NewResponse(resp), nil
+}
+
+// DemonitorProcess cancels a remote monitor.
+func (s *SyncService) DemonitorProcess(
+	ctx context.Context,
+	req *connect.Request[maggiev1.DemonitorProcessRequest],
+) (*connect.Response[maggiev1.DemonitorProcessResponse], error) {
+	s.worker.vm.RemoteWatches().RemoveInboundMonitor(req.Msg.MonitorRefId)
+	return connect.NewResponse(&maggiev1.DemonitorProcessResponse{Success: true}), nil
 }
 
 // peerFromRequest extracts a peer identifier from a Connect request's headers.

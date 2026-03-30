@@ -30,6 +30,13 @@ service SyncService {
   // The message payload is a CBOR-encoded MessageEnvelope containing
   // a signed, serialized Maggie value.
   rpc DeliverMessage(DeliverMessageRequest) returns (DeliverMessageResponse);
+
+  // MonitorProcess asks this node to monitor a process on behalf of
+  // a remote watcher. DOWN notifications are sent via DeliverMessage.
+  rpc MonitorProcess(MonitorProcessRequest) returns (MonitorProcessResponse);
+
+  // DemonitorProcess cancels a previously established remote monitor.
+  rpc DemonitorProcess(DemonitorProcessRequest) returns (DemonitorProcessResponse);
 }
 
 message DeliverMessageRequest {
@@ -104,4 +111,32 @@ message ListResponse {
   repeated bytes method_hashes = 1;
   repeated bytes class_hashes = 2;
   repeated string class_names = 3;  // parallel with class_hashes for display
+}
+
+// --- Cross-node monitors ---
+
+message MonitorProcessRequest {
+  bytes sender_node = 1;       // 32-byte public key of requesting node
+  uint64 watcher_id = 2;       // process ID on the requesting node
+  string target_name = 3;      // registered name of process to monitor
+  uint64 target_id = 4;        // OR process ID (name takes precedence)
+  uint64 monitor_ref_id = 5;   // ref ID allocated by the requesting node
+}
+
+message MonitorProcessResponse {
+  bool success = 1;
+  string error_kind = 2;
+  string error_message = 3;
+  bool already_dead = 4;
+  string exit_signal = 5;
+  bool exit_normal = 6;
+}
+
+message DemonitorProcessRequest {
+  bytes sender_node = 1;
+  uint64 monitor_ref_id = 2;
+}
+
+message DemonitorProcessResponse {
+  bool success = 1;
 }

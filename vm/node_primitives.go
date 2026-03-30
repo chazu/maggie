@@ -27,6 +27,10 @@ type NodeRefData struct {
 
 	// PingFunc checks if the remote node is reachable.
 	PingFunc func() bool
+
+	// Cross-node monitor/link RPCs (injected by cmd/mag)
+	MonitorFunc   func(watcherID, refID uint64, targetName string) (*MonitorResponse, error)
+	DemonitorFunc func(refID uint64) error
 }
 
 // nodeIdentityHolder wraps node identity keys.

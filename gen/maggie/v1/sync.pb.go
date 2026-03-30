@@ -793,6 +793,262 @@ func (x *ListResponse) GetClassNames() []string {
 	return nil
 }
 
+type MonitorProcessRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	SenderNode    []byte                 `protobuf:"bytes,1,opt,name=sender_node,json=senderNode,proto3" json:"sender_node,omitempty"`          // 32-byte public key of requesting node
+	WatcherId     uint64                 `protobuf:"varint,2,opt,name=watcher_id,json=watcherId,proto3" json:"watcher_id,omitempty"`            // process ID on the requesting node
+	TargetName    string                 `protobuf:"bytes,3,opt,name=target_name,json=targetName,proto3" json:"target_name,omitempty"`          // registered name of process to monitor
+	TargetId      uint64                 `protobuf:"varint,4,opt,name=target_id,json=targetId,proto3" json:"target_id,omitempty"`               // OR process ID (name takes precedence)
+	MonitorRefId  uint64                 `protobuf:"varint,5,opt,name=monitor_ref_id,json=monitorRefId,proto3" json:"monitor_ref_id,omitempty"` // ref ID allocated by the requesting node
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *MonitorProcessRequest) Reset() {
+	*x = MonitorProcessRequest{}
+	mi := &file_maggie_v1_sync_proto_msgTypes[14]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *MonitorProcessRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*MonitorProcessRequest) ProtoMessage() {}
+
+func (x *MonitorProcessRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_maggie_v1_sync_proto_msgTypes[14]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use MonitorProcessRequest.ProtoReflect.Descriptor instead.
+func (*MonitorProcessRequest) Descriptor() ([]byte, []int) {
+	return file_maggie_v1_sync_proto_rawDescGZIP(), []int{14}
+}
+
+func (x *MonitorProcessRequest) GetSenderNode() []byte {
+	if x != nil {
+		return x.SenderNode
+	}
+	return nil
+}
+
+func (x *MonitorProcessRequest) GetWatcherId() uint64 {
+	if x != nil {
+		return x.WatcherId
+	}
+	return 0
+}
+
+func (x *MonitorProcessRequest) GetTargetName() string {
+	if x != nil {
+		return x.TargetName
+	}
+	return ""
+}
+
+func (x *MonitorProcessRequest) GetTargetId() uint64 {
+	if x != nil {
+		return x.TargetId
+	}
+	return 0
+}
+
+func (x *MonitorProcessRequest) GetMonitorRefId() uint64 {
+	if x != nil {
+		return x.MonitorRefId
+	}
+	return 0
+}
+
+type MonitorProcessResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Success       bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
+	ErrorKind     string                 `protobuf:"bytes,2,opt,name=error_kind,json=errorKind,proto3" json:"error_kind,omitempty"`
+	ErrorMessage  string                 `protobuf:"bytes,3,opt,name=error_message,json=errorMessage,proto3" json:"error_message,omitempty"`
+	AlreadyDead   bool                   `protobuf:"varint,4,opt,name=already_dead,json=alreadyDead,proto3" json:"already_dead,omitempty"`
+	ExitSignal    string                 `protobuf:"bytes,5,opt,name=exit_signal,json=exitSignal,proto3" json:"exit_signal,omitempty"`
+	ExitNormal    bool                   `protobuf:"varint,6,opt,name=exit_normal,json=exitNormal,proto3" json:"exit_normal,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *MonitorProcessResponse) Reset() {
+	*x = MonitorProcessResponse{}
+	mi := &file_maggie_v1_sync_proto_msgTypes[15]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *MonitorProcessResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*MonitorProcessResponse) ProtoMessage() {}
+
+func (x *MonitorProcessResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_maggie_v1_sync_proto_msgTypes[15]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use MonitorProcessResponse.ProtoReflect.Descriptor instead.
+func (*MonitorProcessResponse) Descriptor() ([]byte, []int) {
+	return file_maggie_v1_sync_proto_rawDescGZIP(), []int{15}
+}
+
+func (x *MonitorProcessResponse) GetSuccess() bool {
+	if x != nil {
+		return x.Success
+	}
+	return false
+}
+
+func (x *MonitorProcessResponse) GetErrorKind() string {
+	if x != nil {
+		return x.ErrorKind
+	}
+	return ""
+}
+
+func (x *MonitorProcessResponse) GetErrorMessage() string {
+	if x != nil {
+		return x.ErrorMessage
+	}
+	return ""
+}
+
+func (x *MonitorProcessResponse) GetAlreadyDead() bool {
+	if x != nil {
+		return x.AlreadyDead
+	}
+	return false
+}
+
+func (x *MonitorProcessResponse) GetExitSignal() string {
+	if x != nil {
+		return x.ExitSignal
+	}
+	return ""
+}
+
+func (x *MonitorProcessResponse) GetExitNormal() bool {
+	if x != nil {
+		return x.ExitNormal
+	}
+	return false
+}
+
+type DemonitorProcessRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	SenderNode    []byte                 `protobuf:"bytes,1,opt,name=sender_node,json=senderNode,proto3" json:"sender_node,omitempty"`
+	MonitorRefId  uint64                 `protobuf:"varint,2,opt,name=monitor_ref_id,json=monitorRefId,proto3" json:"monitor_ref_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DemonitorProcessRequest) Reset() {
+	*x = DemonitorProcessRequest{}
+	mi := &file_maggie_v1_sync_proto_msgTypes[16]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DemonitorProcessRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DemonitorProcessRequest) ProtoMessage() {}
+
+func (x *DemonitorProcessRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_maggie_v1_sync_proto_msgTypes[16]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DemonitorProcessRequest.ProtoReflect.Descriptor instead.
+func (*DemonitorProcessRequest) Descriptor() ([]byte, []int) {
+	return file_maggie_v1_sync_proto_rawDescGZIP(), []int{16}
+}
+
+func (x *DemonitorProcessRequest) GetSenderNode() []byte {
+	if x != nil {
+		return x.SenderNode
+	}
+	return nil
+}
+
+func (x *DemonitorProcessRequest) GetMonitorRefId() uint64 {
+	if x != nil {
+		return x.MonitorRefId
+	}
+	return 0
+}
+
+type DemonitorProcessResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Success       bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DemonitorProcessResponse) Reset() {
+	*x = DemonitorProcessResponse{}
+	mi := &file_maggie_v1_sync_proto_msgTypes[17]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DemonitorProcessResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DemonitorProcessResponse) ProtoMessage() {}
+
+func (x *DemonitorProcessResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_maggie_v1_sync_proto_msgTypes[17]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DemonitorProcessResponse.ProtoReflect.Descriptor instead.
+func (*DemonitorProcessResponse) Descriptor() ([]byte, []int) {
+	return file_maggie_v1_sync_proto_rawDescGZIP(), []int{17}
+}
+
+func (x *DemonitorProcessResponse) GetSuccess() bool {
+	if x != nil {
+		return x.Success
+	}
+	return false
+}
+
 var File_maggie_v1_sync_proto protoreflect.FileDescriptor
 
 const file_maggie_v1_sync_proto_rawDesc = "" +
@@ -842,12 +1098,37 @@ const file_maggie_v1_sync_proto_rawDesc = "" +
 	"\rmethod_hashes\x18\x01 \x03(\fR\fmethodHashes\x12!\n" +
 	"\fclass_hashes\x18\x02 \x03(\fR\vclassHashes\x12\x1f\n" +
 	"\vclass_names\x18\x03 \x03(\tR\n" +
-	"classNames*z\n" +
+	"classNames\"\xbb\x01\n" +
+	"\x15MonitorProcessRequest\x12\x1f\n" +
+	"\vsender_node\x18\x01 \x01(\fR\n" +
+	"senderNode\x12\x1d\n" +
+	"\n" +
+	"watcher_id\x18\x02 \x01(\x04R\twatcherId\x12\x1f\n" +
+	"\vtarget_name\x18\x03 \x01(\tR\n" +
+	"targetName\x12\x1b\n" +
+	"\ttarget_id\x18\x04 \x01(\x04R\btargetId\x12$\n" +
+	"\x0emonitor_ref_id\x18\x05 \x01(\x04R\fmonitorRefId\"\xdb\x01\n" +
+	"\x16MonitorProcessResponse\x12\x18\n" +
+	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x1d\n" +
+	"\n" +
+	"error_kind\x18\x02 \x01(\tR\terrorKind\x12#\n" +
+	"\rerror_message\x18\x03 \x01(\tR\ferrorMessage\x12!\n" +
+	"\falready_dead\x18\x04 \x01(\bR\valreadyDead\x12\x1f\n" +
+	"\vexit_signal\x18\x05 \x01(\tR\n" +
+	"exitSignal\x12\x1f\n" +
+	"\vexit_normal\x18\x06 \x01(\bR\n" +
+	"exitNormal\"`\n" +
+	"\x17DemonitorProcessRequest\x12\x1f\n" +
+	"\vsender_node\x18\x01 \x01(\fR\n" +
+	"senderNode\x12$\n" +
+	"\x0emonitor_ref_id\x18\x02 \x01(\x04R\fmonitorRefId\"4\n" +
+	"\x18DemonitorProcessResponse\x12\x18\n" +
+	"\asuccess\x18\x01 \x01(\bR\asuccess*z\n" +
 	"\x0eAnnounceStatus\x12\x1f\n" +
 	"\x1bANNOUNCE_STATUS_UNSPECIFIED\x10\x00\x12\x15\n" +
 	"\x11ANNOUNCE_ACCEPTED\x10\x01\x12\x15\n" +
 	"\x11ANNOUNCE_REJECTED\x10\x02\x12\x19\n" +
-	"\x15ANNOUNCE_ALREADY_HAVE\x10\x032\xde\x03\n" +
+	"\x15ANNOUNCE_ALREADY_HAVE\x10\x032\x92\x05\n" +
 	"\vSyncService\x12C\n" +
 	"\bAnnounce\x12\x1a.maggie.v1.AnnounceRequest\x1a\x1b.maggie.v1.AnnounceResponse\x12C\n" +
 	"\bTransfer\x12\x1a.maggie.v1.TransferRequest\x1a\x1b.maggie.v1.TransferResponse\x12:\n" +
@@ -855,7 +1136,9 @@ const file_maggie_v1_sync_proto_rawDesc = "" +
 	"\x04Ping\x12\x16.maggie.v1.PingRequest\x1a\x17.maggie.v1.PingResponse\x12@\n" +
 	"\aResolve\x12\x19.maggie.v1.ResolveRequest\x1a\x1a.maggie.v1.ResolveResponse\x127\n" +
 	"\x04List\x12\x16.maggie.v1.ListRequest\x1a\x17.maggie.v1.ListResponse\x12U\n" +
-	"\x0eDeliverMessage\x12 .maggie.v1.DeliverMessageRequest\x1a!.maggie.v1.DeliverMessageResponseB0Z.github.com/chazu/maggie/gen/maggie/v1;maggiev1b\x06proto3"
+	"\x0eDeliverMessage\x12 .maggie.v1.DeliverMessageRequest\x1a!.maggie.v1.DeliverMessageResponse\x12U\n" +
+	"\x0eMonitorProcess\x12 .maggie.v1.MonitorProcessRequest\x1a!.maggie.v1.MonitorProcessResponse\x12[\n" +
+	"\x10DemonitorProcess\x12\".maggie.v1.DemonitorProcessRequest\x1a#.maggie.v1.DemonitorProcessResponseB0Z.github.com/chazu/maggie/gen/maggie/v1;maggiev1b\x06proto3"
 
 var (
 	file_maggie_v1_sync_proto_rawDescOnce sync.Once
@@ -870,23 +1153,27 @@ func file_maggie_v1_sync_proto_rawDescGZIP() []byte {
 }
 
 var file_maggie_v1_sync_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_maggie_v1_sync_proto_msgTypes = make([]protoimpl.MessageInfo, 14)
+var file_maggie_v1_sync_proto_msgTypes = make([]protoimpl.MessageInfo, 18)
 var file_maggie_v1_sync_proto_goTypes = []any{
-	(AnnounceStatus)(0),            // 0: maggie.v1.AnnounceStatus
-	(*DeliverMessageRequest)(nil),  // 1: maggie.v1.DeliverMessageRequest
-	(*DeliverMessageResponse)(nil), // 2: maggie.v1.DeliverMessageResponse
-	(*AnnounceRequest)(nil),        // 3: maggie.v1.AnnounceRequest
-	(*AnnounceResponse)(nil),       // 4: maggie.v1.AnnounceResponse
-	(*TransferRequest)(nil),        // 5: maggie.v1.TransferRequest
-	(*TransferResponse)(nil),       // 6: maggie.v1.TransferResponse
-	(*ServeRequest)(nil),           // 7: maggie.v1.ServeRequest
-	(*ServeResponse)(nil),          // 8: maggie.v1.ServeResponse
-	(*PingRequest)(nil),            // 9: maggie.v1.PingRequest
-	(*PingResponse)(nil),           // 10: maggie.v1.PingResponse
-	(*ResolveRequest)(nil),         // 11: maggie.v1.ResolveRequest
-	(*ResolveResponse)(nil),        // 12: maggie.v1.ResolveResponse
-	(*ListRequest)(nil),            // 13: maggie.v1.ListRequest
-	(*ListResponse)(nil),           // 14: maggie.v1.ListResponse
+	(AnnounceStatus)(0),              // 0: maggie.v1.AnnounceStatus
+	(*DeliverMessageRequest)(nil),    // 1: maggie.v1.DeliverMessageRequest
+	(*DeliverMessageResponse)(nil),   // 2: maggie.v1.DeliverMessageResponse
+	(*AnnounceRequest)(nil),          // 3: maggie.v1.AnnounceRequest
+	(*AnnounceResponse)(nil),         // 4: maggie.v1.AnnounceResponse
+	(*TransferRequest)(nil),          // 5: maggie.v1.TransferRequest
+	(*TransferResponse)(nil),         // 6: maggie.v1.TransferResponse
+	(*ServeRequest)(nil),             // 7: maggie.v1.ServeRequest
+	(*ServeResponse)(nil),            // 8: maggie.v1.ServeResponse
+	(*PingRequest)(nil),              // 9: maggie.v1.PingRequest
+	(*PingResponse)(nil),             // 10: maggie.v1.PingResponse
+	(*ResolveRequest)(nil),           // 11: maggie.v1.ResolveRequest
+	(*ResolveResponse)(nil),          // 12: maggie.v1.ResolveResponse
+	(*ListRequest)(nil),              // 13: maggie.v1.ListRequest
+	(*ListResponse)(nil),             // 14: maggie.v1.ListResponse
+	(*MonitorProcessRequest)(nil),    // 15: maggie.v1.MonitorProcessRequest
+	(*MonitorProcessResponse)(nil),   // 16: maggie.v1.MonitorProcessResponse
+	(*DemonitorProcessRequest)(nil),  // 17: maggie.v1.DemonitorProcessRequest
+	(*DemonitorProcessResponse)(nil), // 18: maggie.v1.DemonitorProcessResponse
 }
 var file_maggie_v1_sync_proto_depIdxs = []int32{
 	0,  // 0: maggie.v1.AnnounceResponse.status:type_name -> maggie.v1.AnnounceStatus
@@ -897,15 +1184,19 @@ var file_maggie_v1_sync_proto_depIdxs = []int32{
 	11, // 5: maggie.v1.SyncService.Resolve:input_type -> maggie.v1.ResolveRequest
 	13, // 6: maggie.v1.SyncService.List:input_type -> maggie.v1.ListRequest
 	1,  // 7: maggie.v1.SyncService.DeliverMessage:input_type -> maggie.v1.DeliverMessageRequest
-	4,  // 8: maggie.v1.SyncService.Announce:output_type -> maggie.v1.AnnounceResponse
-	6,  // 9: maggie.v1.SyncService.Transfer:output_type -> maggie.v1.TransferResponse
-	8,  // 10: maggie.v1.SyncService.Serve:output_type -> maggie.v1.ServeResponse
-	10, // 11: maggie.v1.SyncService.Ping:output_type -> maggie.v1.PingResponse
-	12, // 12: maggie.v1.SyncService.Resolve:output_type -> maggie.v1.ResolveResponse
-	14, // 13: maggie.v1.SyncService.List:output_type -> maggie.v1.ListResponse
-	2,  // 14: maggie.v1.SyncService.DeliverMessage:output_type -> maggie.v1.DeliverMessageResponse
-	8,  // [8:15] is the sub-list for method output_type
-	1,  // [1:8] is the sub-list for method input_type
+	15, // 8: maggie.v1.SyncService.MonitorProcess:input_type -> maggie.v1.MonitorProcessRequest
+	17, // 9: maggie.v1.SyncService.DemonitorProcess:input_type -> maggie.v1.DemonitorProcessRequest
+	4,  // 10: maggie.v1.SyncService.Announce:output_type -> maggie.v1.AnnounceResponse
+	6,  // 11: maggie.v1.SyncService.Transfer:output_type -> maggie.v1.TransferResponse
+	8,  // 12: maggie.v1.SyncService.Serve:output_type -> maggie.v1.ServeResponse
+	10, // 13: maggie.v1.SyncService.Ping:output_type -> maggie.v1.PingResponse
+	12, // 14: maggie.v1.SyncService.Resolve:output_type -> maggie.v1.ResolveResponse
+	14, // 15: maggie.v1.SyncService.List:output_type -> maggie.v1.ListResponse
+	2,  // 16: maggie.v1.SyncService.DeliverMessage:output_type -> maggie.v1.DeliverMessageResponse
+	16, // 17: maggie.v1.SyncService.MonitorProcess:output_type -> maggie.v1.MonitorProcessResponse
+	18, // 18: maggie.v1.SyncService.DemonitorProcess:output_type -> maggie.v1.DemonitorProcessResponse
+	10, // [10:19] is the sub-list for method output_type
+	1,  // [1:10] is the sub-list for method input_type
 	1,  // [1:1] is the sub-list for extension type_name
 	1,  // [1:1] is the sub-list for extension extendee
 	0,  // [0:1] is the sub-list for field type_name
@@ -922,7 +1213,7 @@ func file_maggie_v1_sync_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_maggie_v1_sync_proto_rawDesc), len(file_maggie_v1_sync_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   14,
+			NumMessages:   18,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
