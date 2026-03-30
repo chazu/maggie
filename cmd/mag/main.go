@@ -186,6 +186,7 @@ func run() (exitCode int) {
 	var docArgs []string
 	var syncArgs []string
 	var helpArgs []string
+	var typecheckArgs []string
 	if len(args) > 0 {
 		switch args[0] {
 		case "lsp":
@@ -211,6 +212,8 @@ func run() (exitCode int) {
 		case "run":
 			handleRunCommand(args[1:], *verbose)
 			return
+		case "typecheck":
+			typecheckArgs = args[1:]
 		case "help":
 			helpArgs = args[1:]
 		case "sync":
@@ -384,6 +387,9 @@ func run() (exitCode int) {
 	if helpArgs != nil && len(paths) > 0 && paths[0] == "help" {
 		paths = nil // help at start: no source paths
 	}
+	if typecheckArgs != nil && len(paths) > 0 && paths[0] == "typecheck" {
+		paths = nil // typecheck at start: no source paths
+	}
 
 	var loadedManifest *manifest.Manifest
 	if len(paths) > 0 {
@@ -486,6 +492,12 @@ func run() (exitCode int) {
 	// Handle help subcommand (after sources are compiled)
 	if helpArgs != nil {
 		handleHelpCommand(vmInst, helpArgs)
+		return 0
+	}
+
+	// Handle typecheck subcommand (after VM initialized)
+	if typecheckArgs != nil {
+		handleTypecheckCommand(typecheckArgs, vmInst)
 		return 0
 	}
 
