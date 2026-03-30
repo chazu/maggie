@@ -403,6 +403,9 @@ func (s *SyncService) DeliverMessage(
 	if envelope.Selector == vm.SelectorDown {
 		return s.handleRemoteDown(envelope)
 	}
+	if envelope.Selector == vm.SelectorSpawnResult {
+		return s.handleSpawnResult(envelope)
+	}
 
 	// Resolve target process by name or ID
 	var proc *vm.ProcessObject
@@ -482,6 +485,44 @@ func (s *SyncService) handleRemoteDown(envelope *dist.MessageEnvelope) (*connect
 	return connect.NewResponse(&maggiev1.DeliverMessageResponse{Success: true}), nil
 }
 
+// handleSpawnResult processes a spawn result delivery from a remote node.
+// The payload is a CBOR struct with futureID + result bytes.
+func (s *SyncService) handleSpawnResult(envelope *dist.MessageEnvelope) (*connect.Response[maggiev1.DeliverMessageResponse], error) {
+	type spawnResult struct {
+		FutureID    uint64 `cbor:"1,keyasint"`
+		ResultBytes []byte `cbor:"2,keyasint"`
+		ErrorMsg    string `cbor:"3,keyasint,omitempty"`
+	}
+	var sr spawnResult
+	if err := dist.UnmarshalCBOR(envelope.Payload, &sr); err != nil {
+		return connect.NewResponse(&maggiev1.DeliverMessageResponse{
+			Success:   false,
+			ErrorKind: "deserializationError",
+		}), nil
+	}
+
+	future := s.worker.vm.ResolvePendingSpawn(sr.FutureID)
+	if future == nil {
+		// Already resolved or unknown — not an error
+		return connect.NewResponse(&maggiev1.DeliverMessageResponse{Success: true}), nil
+	}
+
+	if sr.ErrorMsg != "" {
+		future.ResolveError(sr.ErrorMsg)
+	} else if len(sr.ResultBytes) > 0 {
+		result, err := s.worker.vm.DeserializeValue(sr.ResultBytes)
+		if err != nil {
+			future.ResolveError(fmt.Sprintf("result deserialize: %v", err))
+		} else {
+			future.Resolve(result)
+		}
+	} else {
+		future.Resolve(vm.Nil)
+	}
+
+	return connect.NewResponse(&maggiev1.DeliverMessageResponse{Success: true}), nil
+}
+
 // MonitorProcess handles a remote monitor request.
 func (s *SyncService) MonitorProcess(
 	ctx context.Context,
@@ -520,6 +561,279 @@ func (s *SyncService) DemonitorProcess(
 ) (*connect.Response[maggiev1.DemonitorProcessResponse], error) {
 	s.worker.vm.RemoteWatches().RemoveInboundMonitor(req.Msg.MonitorRefId)
 	return connect.NewResponse(&maggiev1.DemonitorProcessResponse{Success: true}), nil
+}
+
+// SpawnProcess handles a remote spawn request. It deserializes the
+// SpawnBlock from the signed envelope, checks PermSpawn permission,
+// resolves the block method (with code-on-demand pull if needed),
+// and executes the block in a restricted interpreter.
+func (s *SyncService) SpawnProcess(
+	ctx context.Context,
+	req *connect.Request[maggiev1.SpawnProcessRequest],
+) (*connect.Response[maggiev1.SpawnProcessResponse], error) {
+	msg := req.Msg
+
+	// Decode the CBOR envelope
+	envelope, err := dist.UnmarshalEnvelope(msg.Envelope)
+	if err != nil {
+		return connect.NewResponse(&maggiev1.SpawnProcessResponse{
+			Accepted: false,
+			Error:    fmt.Sprintf("invalid envelope: %v", err),
+		}), nil
+	}
+
+	// Derive peer ID and check permissions
+	peerID := peerNodeIDFromEnvelope(envelope)
+
+	if s.trust.IsBanned(peerID) {
+		return nil, connect.NewError(connect.CodePermissionDenied, fmt.Errorf("peer is banned"))
+	}
+
+	// Verify signature
+	if err := envelope.Verify(); err != nil {
+		s.trust.RecordHashMismatch(peerID)
+		return connect.NewResponse(&maggiev1.SpawnProcessResponse{
+			Accepted: false,
+			Error:    "invalid signature",
+		}), nil
+	}
+
+	// Check PermSpawn
+	if !s.trust.Check(peerID, dist.PermSpawn) {
+		return connect.NewResponse(&maggiev1.SpawnProcessResponse{
+			Accepted: false,
+			Error:    "spawn not permitted",
+		}), nil
+	}
+
+	// Deserialize SpawnBlock from envelope payload
+	sb, err := vm.DeserializeSpawnBlock(envelope.Payload)
+	if err != nil {
+		return connect.NewResponse(&maggiev1.SpawnProcessResponse{
+			Accepted: false,
+			Error:    fmt.Sprintf("invalid spawn block: %v", err),
+		}), nil
+	}
+
+	// Get spawn restrictions from trust store
+	restrictions := s.trust.SpawnRestrictions()
+
+	// Build a pull function for code-on-demand
+	// The pull func calls back to the spawning node's Serve RPC
+	var pullFunc func(hash [32]byte) error
+	if s.worker.pullFunc != nil {
+		pullFunc = func(hash [32]byte) error {
+			return s.worker.pullFunc(peerID, hash)
+		}
+	}
+
+	// Execute the spawn block
+	procName, err := s.worker.vm.ExecuteSpawnBlock(sb, restrictions, pullFunc)
+	if err != nil {
+		return connect.NewResponse(&maggiev1.SpawnProcessResponse{
+			Accepted: false,
+			Error:    err.Error(),
+		}), nil
+	}
+
+	s.trust.RecordSuccess(peerID)
+
+	// If this is a forkOn: (not spawnOn:), set up result delivery
+	if sb.SpawnMode == "fork" && sb.FutureID > 0 {
+		s.setupResultDelivery(sb, peerID, procName)
+	}
+
+	return connect.NewResponse(&maggiev1.SpawnProcessResponse{
+		Accepted:    true,
+		ProcessName: procName,
+	}), nil
+}
+
+// setupResultDelivery monitors the spawned process and delivers its result
+// back to the spawning node when it completes.
+func (s *SyncService) setupResultDelivery(sb *vm.SpawnBlock, spawnerID dist.NodeID, procName string) {
+	procVal := s.worker.vm.LookupProcessName(procName)
+	if procVal == vm.Nil {
+		return
+	}
+	procID := uint64(procVal.SymbolID() & ^uint32(0xFF<<24))
+	proc := s.worker.vm.GetProcessByID(procID)
+	if proc == nil {
+		return
+	}
+
+	go func() {
+		// Wait for the process to complete
+		result := proc.Wait()
+
+		// Serialize the result
+		resultBytes, err := s.worker.vm.SerializeValue(result)
+		if err != nil {
+			resultBytes, _ = s.worker.vm.SerializeValue(vm.Nil)
+		}
+
+		// Build a spawn-result envelope and deliver back to spawner
+		if s.worker.spawnResultFunc != nil {
+			s.worker.spawnResultFunc(spawnerID, sb.FutureID, resultBytes, proc.ExitReason().Error)
+		}
+	}()
+}
+
+// ---------------------------------------------------------------------------
+// Distributed Channel RPCs
+// ---------------------------------------------------------------------------
+
+// ChannelSend sends a value to an exported channel (blocking).
+func (s *SyncService) ChannelSend(
+	ctx context.Context,
+	req *connect.Request[maggiev1.ChannelSendRequest],
+) (*connect.Response[maggiev1.ChannelSendResponse], error) {
+	ch := s.worker.vm.LookupExportedChannel(req.Msg.ChannelId)
+	if ch == nil {
+		return connect.NewResponse(&maggiev1.ChannelSendResponse{
+			Success: false,
+			Error:   "channel not found",
+		}), nil
+	}
+
+	val, err := s.worker.vm.DeserializeValue(req.Msg.Value)
+	if err != nil {
+		return connect.NewResponse(&maggiev1.ChannelSendResponse{
+			Success: false,
+			Error:   fmt.Sprintf("deserialize: %v", err),
+		}), nil
+	}
+
+	if !ch.SafeSend(val) {
+		return connect.NewResponse(&maggiev1.ChannelSendResponse{
+			Success: false,
+			Error:   "channel closed",
+		}), nil
+	}
+
+	return connect.NewResponse(&maggiev1.ChannelSendResponse{Success: true}), nil
+}
+
+// ChannelReceive receives a value from an exported channel (blocking).
+func (s *SyncService) ChannelReceive(
+	ctx context.Context,
+	req *connect.Request[maggiev1.ChannelReceiveRequest],
+) (*connect.Response[maggiev1.ChannelReceiveResponse], error) {
+	ch := s.worker.vm.LookupExportedChannel(req.Msg.ChannelId)
+	if ch == nil {
+		return connect.NewResponse(&maggiev1.ChannelReceiveResponse{
+			Success: false,
+			Error:   "channel not found",
+		}), nil
+	}
+
+	val, ok := ch.Receive()
+	if !ok {
+		return connect.NewResponse(&maggiev1.ChannelReceiveResponse{
+			Success:     true,
+			ChannelOpen: false,
+		}), nil
+	}
+
+	data, err := s.worker.vm.SerializeValue(val)
+	if err != nil {
+		return connect.NewResponse(&maggiev1.ChannelReceiveResponse{
+			Success: false,
+			Error:   fmt.Sprintf("serialize: %v", err),
+		}), nil
+	}
+
+	return connect.NewResponse(&maggiev1.ChannelReceiveResponse{
+		Success:     true,
+		Value:       data,
+		ChannelOpen: true,
+	}), nil
+}
+
+// ChannelTrySend attempts a non-blocking send.
+func (s *SyncService) ChannelTrySend(
+	ctx context.Context,
+	req *connect.Request[maggiev1.ChannelSendRequest],
+) (*connect.Response[maggiev1.ChannelTrySendResponse], error) {
+	ch := s.worker.vm.LookupExportedChannel(req.Msg.ChannelId)
+	if ch == nil {
+		return connect.NewResponse(&maggiev1.ChannelTrySendResponse{
+			Error: "channel not found",
+		}), nil
+	}
+
+	val, err := s.worker.vm.DeserializeValue(req.Msg.Value)
+	if err != nil {
+		return connect.NewResponse(&maggiev1.ChannelTrySendResponse{
+			Error: fmt.Sprintf("deserialize: %v", err),
+		}), nil
+	}
+
+	sent := ch.SafeTrySend(val)
+	return connect.NewResponse(&maggiev1.ChannelTrySendResponse{Sent: sent}), nil
+}
+
+// ChannelTryReceive attempts a non-blocking receive.
+func (s *SyncService) ChannelTryReceive(
+	ctx context.Context,
+	req *connect.Request[maggiev1.ChannelReceiveRequest],
+) (*connect.Response[maggiev1.ChannelTryReceiveResponse], error) {
+	ch := s.worker.vm.LookupExportedChannel(req.Msg.ChannelId)
+	if ch == nil {
+		return connect.NewResponse(&maggiev1.ChannelTryReceiveResponse{
+			Error: "channel not found",
+		}), nil
+	}
+
+	val, gotValue, ok := ch.TryReceive()
+	if !gotValue {
+		return connect.NewResponse(&maggiev1.ChannelTryReceiveResponse{
+			GotValue:    false,
+			ChannelOpen: ok,
+		}), nil
+	}
+	data, err := s.worker.vm.SerializeValue(val)
+	if err != nil {
+		return connect.NewResponse(&maggiev1.ChannelTryReceiveResponse{
+			Error: fmt.Sprintf("serialize: %v", err),
+		}), nil
+	}
+	return connect.NewResponse(&maggiev1.ChannelTryReceiveResponse{
+		GotValue:    true,
+		Value:       data,
+		ChannelOpen: ok,
+	}), nil
+}
+
+// ChannelClose closes an exported channel.
+func (s *SyncService) ChannelClose(
+	ctx context.Context,
+	req *connect.Request[maggiev1.ChannelCloseRequest],
+) (*connect.Response[maggiev1.ChannelCloseResponse], error) {
+	ch := s.worker.vm.LookupExportedChannel(req.Msg.ChannelId)
+	if ch == nil {
+		return connect.NewResponse(&maggiev1.ChannelCloseResponse{Success: false}), nil
+	}
+
+	ch.Close()
+	return connect.NewResponse(&maggiev1.ChannelCloseResponse{Success: true}), nil
+}
+
+// ChannelStatus returns the status of an exported channel.
+func (s *SyncService) ChannelStatus(
+	ctx context.Context,
+	req *connect.Request[maggiev1.ChannelStatusRequest],
+) (*connect.Response[maggiev1.ChannelStatusResponse], error) {
+	ch := s.worker.vm.LookupExportedChannel(req.Msg.ChannelId)
+	if ch == nil {
+		return connect.NewResponse(&maggiev1.ChannelStatusResponse{Closed: true}), nil
+	}
+
+	return connect.NewResponse(&maggiev1.ChannelStatusResponse{
+		Size:     int32(ch.Size()),
+		Capacity: int32(ch.Cap()),
+		Closed:   ch.Closed(),
+	}), nil
 }
 
 // peerNodeIDFromRequest extracts a NodeID from a Connect request.

@@ -1,0 +1,236 @@
+"""
+Automated cluster membership management. Connects to seed nodes, monitors
+them for failure, and delivers membership events when nodes join or leave.
+
+Built on existing primitives: `Node connect:`, process monitors, and
+the `NodeHealthMonitor` heartbeat system.
+
+```example
+"Create a cluster from seed addresses"
+cluster := Cluster seeds: #('host1:8081' 'host2:8081').
+cluster start.
+
+cluster members.    "Array of live Node values"
+cluster size.       "Number of live members"
+
+"Register event handlers"
+cluster onMemberUp: [:node | ('joined: ', node addr) println].
+cluster onMemberDown: [:addr | ('left: ', addr) println].
+
+cluster stop
+```
+"""
+Cluster subclass: Object
+  instanceVars: seeds members process running
+                onUpBlock onDownBlock reconnectInterval
+                failedSeeds sentinelName ring
+
+  """
+  Create a cluster from an array of seed addresses (e.g., 'host:port').
+  """
+  classMethod: seeds: anArray [
+      | cluster |
+      cluster := self new.
+      cluster primInit: anArray.
+      ^cluster
+  ]
+
+  method: primInit: seedArray [
+      seeds := seedArray.
+      members := Dictionary new.
+      failedSeeds := Array new: 0.
+      running := false.
+      reconnectInterval := 10000.
+      sentinelName := '__cluster__'.
+      onUpBlock := nil.
+      onDownBlock := nil.
+      ring := HashRing new
+  ]
+
+  """Start the cluster membership manager."""
+  method: start [
+      "Register ourselves as a sentinel so peers can monitor us"
+      Process current registerAs: sentinelName.
+
+      running := true.
+      process := [self runLoop] fork.
+      ^process
+  ]
+
+  """Stop the cluster and disconnect from all peers."""
+  method: stop [
+      running := false.
+      process notNil ifTrue: [process primTerminate].
+      members := Dictionary new
+  ]
+
+  """Return an Array of currently live Node values."""
+  method: members [
+      | result |
+      result := Array new: 0.
+      members keysAndValuesDo: [:k :v | result := result , (Array with: v)].
+      ^result
+  ]
+
+  """Return the number of live members."""
+  method: size [
+      ^self members size
+  ]
+
+  """Return true if the given address is a live member."""
+  method: isConnected: addr [
+      ^(members at: addr ifAbsent: [nil]) notNil
+  ]
+
+  """Register a block to call when a new member joins. Block receives the Node."""
+  method: onMemberUp: aBlock [
+      onUpBlock := aBlock
+  ]
+
+  """Register a block to call when a member leaves. Block receives the address string."""
+  method: onMemberDown: aBlock [
+      onDownBlock := aBlock
+  ]
+
+  """
+  Return the node responsible for the given key using consistent hashing.
+  Returns a Node, or nil if the cluster is empty.
+
+  ```example
+  cluster := Cluster seeds: #('host1:8081' 'host2:8081').
+  node := cluster nodeFor: 'user-123'.
+  ```
+  """
+  method: nodeFor: key [
+      ^ring nodeFor: key
+  ]
+
+  """
+  Return N nodes responsible for the given key (for replication).
+  Returns an Array of Nodes.
+  """
+  method: nodesFor: key count: n [
+      ^ring nodesFor: key count: n
+  ]
+
+  """Return the underlying HashRing."""
+  method: ring [ ^ring ]
+
+  """Return the reconnect interval in milliseconds."""
+  method: reconnectInterval [
+      ^reconnectInterval
+  ]
+
+  """Set the reconnect interval in milliseconds."""
+  method: reconnectInterval: ms [
+      reconnectInterval := ms
+  ]
+
+  "--- Private: cluster management loop ---"
+
+  method: runLoop [
+      | lastReconnect msg now |
+      Process current trapExit: true.
+
+      "Connect to all seeds"
+      seeds do: [:addr | self connectSeed: addr].
+
+      "Main loop"
+      lastReconnect := DateTime now epochMillis.
+
+      [running] whileTrue: [
+          msg := Process receive: 1000.
+
+          msg notNil ifTrue: [
+              msg selector = #processDown: ifTrue: [
+                  self handleDown: msg payload
+              ]
+          ].
+
+          "Periodically retry failed seeds"
+          now := DateTime now epochMillis.
+          (now - lastReconnect >= reconnectInterval) ifTrue: [
+              lastReconnect := now.
+              self reconnectFailed
+          ]
+      ]
+  ]
+
+  method: connectSeed: addr [
+      | node sentinel |
+      [
+          node := Node connect: addr.
+          node ping ifTrue: [
+              sentinel := node processNamed: sentinelName.
+              sentinel notNil ifTrue: [
+                  Process current monitor: sentinel.
+                  members at: addr put: node.
+                  self notifyUp: node.
+                  "Remove from failed list if present"
+                  failedSeeds := failedSeeds reject: [:a | a = addr]
+              ] ifFalse: [
+                  "Node reachable but no sentinel — add as member anyway"
+                  members at: addr put: node.
+                  self notifyUp: node
+              ]
+          ] ifFalse: [
+              self addFailed: addr
+          ]
+      ] on: Error do: [:e |
+          self addFailed: addr
+      ]
+  ]
+
+  method: handleDown: info [
+      "info is #(refID processValue reasonSymbol resultValue)"
+      | reason deadAddrs |
+      reason := info at: 3.
+      deadAddrs := Array new: 0.
+
+      "Find members whose nodes are no longer reachable"
+      members keysAndValuesDo: [:addr :node |
+          node ping ifFalse: [
+              deadAddrs := deadAddrs , (Array with: addr)
+          ]
+      ].
+
+      "Remove dead members (notify before removing so ring can find the node)"
+      deadAddrs do: [:addr |
+          self notifyDown: addr.
+          members removeKey: addr ifAbsent: [nil].
+          self addFailed: addr
+      ]
+  ]
+
+  method: reconnectFailed [
+      | toRetry |
+      toRetry := failedSeeds copy.
+      failedSeeds := Array new: 0.
+      toRetry do: [:addr |
+          (members at: addr ifAbsent: [nil]) isNil ifTrue: [
+              self connectSeed: addr
+          ]
+      ]
+  ]
+
+  method: addFailed: addr [
+      (failedSeeds includes: addr) ifFalse: [
+          failedSeeds := failedSeeds , (Array with: addr)
+      ]
+  ]
+
+  method: notifyUp: node [
+      ring add: node.
+      onUpBlock notNil ifTrue: [onUpBlock value: node]
+  ]
+
+  method: notifyDown: addr [
+      | node |
+      node := members at: addr ifAbsent: [nil].
+      node notNil ifTrue: [ring remove: node].
+      onDownBlock notNil ifTrue: [onDownBlock value: addr]
+  ]
+
+  method: printString [
+      ^'a Cluster(', self size printString, ' members)'
+  ]

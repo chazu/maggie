@@ -91,6 +91,44 @@ func createChannel(buffered int) *ChannelObject {
 }
 
 
+// SafeSend sends a value, returning false if the channel is closed.
+func (co *ChannelObject) SafeSend(val Value) bool { return co.safeSend(val) }
+
+// SafeTrySend attempts a non-blocking send.
+func (co *ChannelObject) SafeTrySend(val Value) bool { return co.safeTrySend(val) }
+
+// Receive blocks until a value is received. Returns (value, ok).
+func (co *ChannelObject) Receive() (Value, bool) { val, ok := <-co.ch; return val, ok }
+
+// TryReceive attempts a non-blocking receive. Returns (value, gotValue, ok).
+func (co *ChannelObject) TryReceive() (Value, bool, bool) {
+	select {
+	case val, ok := <-co.ch:
+		return val, true, ok
+	default:
+		return Nil, false, !co.closed.Load()
+	}
+}
+
+// Close closes the channel.
+func (co *ChannelObject) Close() {
+	co.mu.Lock()
+	defer co.mu.Unlock()
+	if !co.closed.Load() {
+		co.closed.Store(true)
+		close(co.ch)
+	}
+}
+
+// Closed returns true if the channel is closed.
+func (co *ChannelObject) Closed() bool { return co.closed.Load() }
+
+// Size returns the number of buffered items.
+func (co *ChannelObject) Size() int { return len(co.ch) }
+
+// Cap returns the buffer capacity.
+func (co *ChannelObject) Cap() int { return cap(co.ch) }
+
 func channelToValue(id int) Value {
 	// Encode channel ID in a way we can distinguish from symbols
 	// Use the symbol encoding but with a special marker in the ID range
@@ -182,6 +220,9 @@ func (p *ProcessObject) wait() Value {
 	defer p.mu.Unlock()
 	return p.result
 }
+
+// Wait blocks until the process completes and returns its result.
+func (p *ProcessObject) Wait() Value { return p.wait() }
 
 func (p *ProcessObject) isDone() bool {
 	return p.state.Load() == int32(ProcessTerminated)
@@ -687,8 +728,14 @@ func (vm *VM) registerProcessPrimitives() {
 		return recv
 	})
 
-	// Process>>primTerminate - terminate process (stub, returns self)
-	c.AddMethod0(vm.Selectors, "primTerminate", func(_ interface{}, recv Value) Value {
+	// Process>>primTerminate - terminate process with shutdown signal
+	c.AddMethod0(vm.Selectors, "primTerminate", func(vmPtr interface{}, recv Value) Value {
+		v := vmPtr.(*VM)
+		proc := v.getProcess(recv)
+		if proc == nil || proc.isDone() {
+			return recv
+		}
+		v.FinishProcess(proc, ExitSignal("shutdown", Nil))
 		return recv
 	})
 

@@ -4,6 +4,7 @@ import (
 	"crypto/ed25519"
 	"crypto/rand"
 	"encoding/binary"
+	"encoding/hex"
 	"fmt"
 	"sync/atomic"
 )
@@ -31,6 +32,9 @@ type NodeRefData struct {
 	// Cross-node monitor/link RPCs (injected by cmd/mag)
 	MonitorFunc   func(watcherID, refID uint64, targetName string) (*MonitorResponse, error)
 	DemonitorFunc func(refID uint64) error
+
+	// SpawnFunc sends a SpawnProcess RPC. Returns (processName, error).
+	SpawnFunc SpawnFunc
 }
 
 // nodeIdentityHolder wraps node identity keys.
@@ -93,6 +97,12 @@ type envelopeData struct {
 type replyAddr struct {
 	NodeID    [32]byte `cbor:"1,keyasint"`
 	ProcessID uint64   `cbor:"2,keyasint"`
+}
+
+// BuildSignedEnvelope constructs a signed CBOR-encoded envelope. Exported for
+// use by cmd/mag wiring layer.
+func BuildSignedEnvelope(ref *NodeRefData, targetName, selector string, payload []byte, wantReply bool) ([]byte, error) {
+	return buildSignedEnvelope(ref, targetName, selector, payload, wantReply)
 }
 
 func buildSignedEnvelope(ref *NodeRefData, targetName, selector string, payload []byte, wantReply bool) ([]byte, error) {
@@ -245,6 +255,17 @@ func (vm *VM) registerNodePrimitives() {
 			return Nil
 		}
 		return v.createRemoteProcess(recv, nameStr)
+	})
+
+	// Node>>primNodeID — hex-encoded 32-byte public key
+	c.AddMethod0(vm.Selectors, "primNodeID", func(vmPtr interface{}, recv Value) Value {
+		v := vmPtr.(*VM)
+		ref := v.getNodeRef(recv)
+		if ref == nil {
+			return Nil
+		}
+		nid := ref.NodeID()
+		return v.registry.NewStringValue(hex.EncodeToString(nid[:]))
 	})
 
 	// Node>>printString

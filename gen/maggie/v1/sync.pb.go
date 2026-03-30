@@ -1049,6 +1049,638 @@ func (x *DemonitorProcessResponse) GetSuccess() bool {
 	return false
 }
 
+type SpawnProcessRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Envelope      []byte                 `protobuf:"bytes,1,opt,name=envelope,proto3" json:"envelope,omitempty"` // signed MessageEnvelope containing SpawnBlock payload
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SpawnProcessRequest) Reset() {
+	*x = SpawnProcessRequest{}
+	mi := &file_maggie_v1_sync_proto_msgTypes[18]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SpawnProcessRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SpawnProcessRequest) ProtoMessage() {}
+
+func (x *SpawnProcessRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_maggie_v1_sync_proto_msgTypes[18]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SpawnProcessRequest.ProtoReflect.Descriptor instead.
+func (*SpawnProcessRequest) Descriptor() ([]byte, []int) {
+	return file_maggie_v1_sync_proto_rawDescGZIP(), []int{18}
+}
+
+func (x *SpawnProcessRequest) GetEnvelope() []byte {
+	if x != nil {
+		return x.Envelope
+	}
+	return nil
+}
+
+type SpawnProcessResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Accepted      bool                   `protobuf:"varint,1,opt,name=accepted,proto3" json:"accepted,omitempty"`
+	Error         string                 `protobuf:"bytes,2,opt,name=error,proto3" json:"error,omitempty"`                                // non-empty if rejected
+	ProcessName   string                 `protobuf:"bytes,3,opt,name=process_name,json=processName,proto3" json:"process_name,omitempty"` // registered name of spawned process
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SpawnProcessResponse) Reset() {
+	*x = SpawnProcessResponse{}
+	mi := &file_maggie_v1_sync_proto_msgTypes[19]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SpawnProcessResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SpawnProcessResponse) ProtoMessage() {}
+
+func (x *SpawnProcessResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_maggie_v1_sync_proto_msgTypes[19]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SpawnProcessResponse.ProtoReflect.Descriptor instead.
+func (*SpawnProcessResponse) Descriptor() ([]byte, []int) {
+	return file_maggie_v1_sync_proto_rawDescGZIP(), []int{19}
+}
+
+func (x *SpawnProcessResponse) GetAccepted() bool {
+	if x != nil {
+		return x.Accepted
+	}
+	return false
+}
+
+func (x *SpawnProcessResponse) GetError() string {
+	if x != nil {
+		return x.Error
+	}
+	return ""
+}
+
+func (x *SpawnProcessResponse) GetProcessName() string {
+	if x != nil {
+		return x.ProcessName
+	}
+	return ""
+}
+
+type ChannelSendRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ChannelId     uint64                 `protobuf:"varint,1,opt,name=channel_id,json=channelId,proto3" json:"channel_id,omitempty"`
+	Value         []byte                 `protobuf:"bytes,2,opt,name=value,proto3" json:"value,omitempty"` // CBOR-serialized Maggie value
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ChannelSendRequest) Reset() {
+	*x = ChannelSendRequest{}
+	mi := &file_maggie_v1_sync_proto_msgTypes[20]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ChannelSendRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ChannelSendRequest) ProtoMessage() {}
+
+func (x *ChannelSendRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_maggie_v1_sync_proto_msgTypes[20]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ChannelSendRequest.ProtoReflect.Descriptor instead.
+func (*ChannelSendRequest) Descriptor() ([]byte, []int) {
+	return file_maggie_v1_sync_proto_rawDescGZIP(), []int{20}
+}
+
+func (x *ChannelSendRequest) GetChannelId() uint64 {
+	if x != nil {
+		return x.ChannelId
+	}
+	return 0
+}
+
+func (x *ChannelSendRequest) GetValue() []byte {
+	if x != nil {
+		return x.Value
+	}
+	return nil
+}
+
+type ChannelSendResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Success       bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
+	Error         string                 `protobuf:"bytes,2,opt,name=error,proto3" json:"error,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ChannelSendResponse) Reset() {
+	*x = ChannelSendResponse{}
+	mi := &file_maggie_v1_sync_proto_msgTypes[21]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ChannelSendResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ChannelSendResponse) ProtoMessage() {}
+
+func (x *ChannelSendResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_maggie_v1_sync_proto_msgTypes[21]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ChannelSendResponse.ProtoReflect.Descriptor instead.
+func (*ChannelSendResponse) Descriptor() ([]byte, []int) {
+	return file_maggie_v1_sync_proto_rawDescGZIP(), []int{21}
+}
+
+func (x *ChannelSendResponse) GetSuccess() bool {
+	if x != nil {
+		return x.Success
+	}
+	return false
+}
+
+func (x *ChannelSendResponse) GetError() string {
+	if x != nil {
+		return x.Error
+	}
+	return ""
+}
+
+type ChannelReceiveRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ChannelId     uint64                 `protobuf:"varint,1,opt,name=channel_id,json=channelId,proto3" json:"channel_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ChannelReceiveRequest) Reset() {
+	*x = ChannelReceiveRequest{}
+	mi := &file_maggie_v1_sync_proto_msgTypes[22]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ChannelReceiveRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ChannelReceiveRequest) ProtoMessage() {}
+
+func (x *ChannelReceiveRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_maggie_v1_sync_proto_msgTypes[22]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ChannelReceiveRequest.ProtoReflect.Descriptor instead.
+func (*ChannelReceiveRequest) Descriptor() ([]byte, []int) {
+	return file_maggie_v1_sync_proto_rawDescGZIP(), []int{22}
+}
+
+func (x *ChannelReceiveRequest) GetChannelId() uint64 {
+	if x != nil {
+		return x.ChannelId
+	}
+	return 0
+}
+
+type ChannelReceiveResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Success       bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
+	Value         []byte                 `protobuf:"bytes,2,opt,name=value,proto3" json:"value,omitempty"`                                 // CBOR-serialized Maggie value
+	ChannelOpen   bool                   `protobuf:"varint,3,opt,name=channel_open,json=channelOpen,proto3" json:"channel_open,omitempty"` // false if channel was closed
+	Error         string                 `protobuf:"bytes,4,opt,name=error,proto3" json:"error,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ChannelReceiveResponse) Reset() {
+	*x = ChannelReceiveResponse{}
+	mi := &file_maggie_v1_sync_proto_msgTypes[23]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ChannelReceiveResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ChannelReceiveResponse) ProtoMessage() {}
+
+func (x *ChannelReceiveResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_maggie_v1_sync_proto_msgTypes[23]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ChannelReceiveResponse.ProtoReflect.Descriptor instead.
+func (*ChannelReceiveResponse) Descriptor() ([]byte, []int) {
+	return file_maggie_v1_sync_proto_rawDescGZIP(), []int{23}
+}
+
+func (x *ChannelReceiveResponse) GetSuccess() bool {
+	if x != nil {
+		return x.Success
+	}
+	return false
+}
+
+func (x *ChannelReceiveResponse) GetValue() []byte {
+	if x != nil {
+		return x.Value
+	}
+	return nil
+}
+
+func (x *ChannelReceiveResponse) GetChannelOpen() bool {
+	if x != nil {
+		return x.ChannelOpen
+	}
+	return false
+}
+
+func (x *ChannelReceiveResponse) GetError() string {
+	if x != nil {
+		return x.Error
+	}
+	return ""
+}
+
+type ChannelTrySendResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Sent          bool                   `protobuf:"varint,1,opt,name=sent,proto3" json:"sent,omitempty"` // true if the value was accepted
+	Error         string                 `protobuf:"bytes,2,opt,name=error,proto3" json:"error,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ChannelTrySendResponse) Reset() {
+	*x = ChannelTrySendResponse{}
+	mi := &file_maggie_v1_sync_proto_msgTypes[24]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ChannelTrySendResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ChannelTrySendResponse) ProtoMessage() {}
+
+func (x *ChannelTrySendResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_maggie_v1_sync_proto_msgTypes[24]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ChannelTrySendResponse.ProtoReflect.Descriptor instead.
+func (*ChannelTrySendResponse) Descriptor() ([]byte, []int) {
+	return file_maggie_v1_sync_proto_rawDescGZIP(), []int{24}
+}
+
+func (x *ChannelTrySendResponse) GetSent() bool {
+	if x != nil {
+		return x.Sent
+	}
+	return false
+}
+
+func (x *ChannelTrySendResponse) GetError() string {
+	if x != nil {
+		return x.Error
+	}
+	return ""
+}
+
+type ChannelTryReceiveResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	GotValue      bool                   `protobuf:"varint,1,opt,name=got_value,json=gotValue,proto3" json:"got_value,omitempty"` // true if a value was received
+	Value         []byte                 `protobuf:"bytes,2,opt,name=value,proto3" json:"value,omitempty"`
+	ChannelOpen   bool                   `protobuf:"varint,3,opt,name=channel_open,json=channelOpen,proto3" json:"channel_open,omitempty"`
+	Error         string                 `protobuf:"bytes,4,opt,name=error,proto3" json:"error,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ChannelTryReceiveResponse) Reset() {
+	*x = ChannelTryReceiveResponse{}
+	mi := &file_maggie_v1_sync_proto_msgTypes[25]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ChannelTryReceiveResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ChannelTryReceiveResponse) ProtoMessage() {}
+
+func (x *ChannelTryReceiveResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_maggie_v1_sync_proto_msgTypes[25]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ChannelTryReceiveResponse.ProtoReflect.Descriptor instead.
+func (*ChannelTryReceiveResponse) Descriptor() ([]byte, []int) {
+	return file_maggie_v1_sync_proto_rawDescGZIP(), []int{25}
+}
+
+func (x *ChannelTryReceiveResponse) GetGotValue() bool {
+	if x != nil {
+		return x.GotValue
+	}
+	return false
+}
+
+func (x *ChannelTryReceiveResponse) GetValue() []byte {
+	if x != nil {
+		return x.Value
+	}
+	return nil
+}
+
+func (x *ChannelTryReceiveResponse) GetChannelOpen() bool {
+	if x != nil {
+		return x.ChannelOpen
+	}
+	return false
+}
+
+func (x *ChannelTryReceiveResponse) GetError() string {
+	if x != nil {
+		return x.Error
+	}
+	return ""
+}
+
+type ChannelCloseRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ChannelId     uint64                 `protobuf:"varint,1,opt,name=channel_id,json=channelId,proto3" json:"channel_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ChannelCloseRequest) Reset() {
+	*x = ChannelCloseRequest{}
+	mi := &file_maggie_v1_sync_proto_msgTypes[26]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ChannelCloseRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ChannelCloseRequest) ProtoMessage() {}
+
+func (x *ChannelCloseRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_maggie_v1_sync_proto_msgTypes[26]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ChannelCloseRequest.ProtoReflect.Descriptor instead.
+func (*ChannelCloseRequest) Descriptor() ([]byte, []int) {
+	return file_maggie_v1_sync_proto_rawDescGZIP(), []int{26}
+}
+
+func (x *ChannelCloseRequest) GetChannelId() uint64 {
+	if x != nil {
+		return x.ChannelId
+	}
+	return 0
+}
+
+type ChannelCloseResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Success       bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ChannelCloseResponse) Reset() {
+	*x = ChannelCloseResponse{}
+	mi := &file_maggie_v1_sync_proto_msgTypes[27]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ChannelCloseResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ChannelCloseResponse) ProtoMessage() {}
+
+func (x *ChannelCloseResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_maggie_v1_sync_proto_msgTypes[27]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ChannelCloseResponse.ProtoReflect.Descriptor instead.
+func (*ChannelCloseResponse) Descriptor() ([]byte, []int) {
+	return file_maggie_v1_sync_proto_rawDescGZIP(), []int{27}
+}
+
+func (x *ChannelCloseResponse) GetSuccess() bool {
+	if x != nil {
+		return x.Success
+	}
+	return false
+}
+
+type ChannelStatusRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ChannelId     uint64                 `protobuf:"varint,1,opt,name=channel_id,json=channelId,proto3" json:"channel_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ChannelStatusRequest) Reset() {
+	*x = ChannelStatusRequest{}
+	mi := &file_maggie_v1_sync_proto_msgTypes[28]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ChannelStatusRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ChannelStatusRequest) ProtoMessage() {}
+
+func (x *ChannelStatusRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_maggie_v1_sync_proto_msgTypes[28]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ChannelStatusRequest.ProtoReflect.Descriptor instead.
+func (*ChannelStatusRequest) Descriptor() ([]byte, []int) {
+	return file_maggie_v1_sync_proto_rawDescGZIP(), []int{28}
+}
+
+func (x *ChannelStatusRequest) GetChannelId() uint64 {
+	if x != nil {
+		return x.ChannelId
+	}
+	return 0
+}
+
+type ChannelStatusResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Size          int32                  `protobuf:"varint,1,opt,name=size,proto3" json:"size,omitempty"`
+	Capacity      int32                  `protobuf:"varint,2,opt,name=capacity,proto3" json:"capacity,omitempty"`
+	Closed        bool                   `protobuf:"varint,3,opt,name=closed,proto3" json:"closed,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ChannelStatusResponse) Reset() {
+	*x = ChannelStatusResponse{}
+	mi := &file_maggie_v1_sync_proto_msgTypes[29]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ChannelStatusResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ChannelStatusResponse) ProtoMessage() {}
+
+func (x *ChannelStatusResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_maggie_v1_sync_proto_msgTypes[29]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ChannelStatusResponse.ProtoReflect.Descriptor instead.
+func (*ChannelStatusResponse) Descriptor() ([]byte, []int) {
+	return file_maggie_v1_sync_proto_rawDescGZIP(), []int{29}
+}
+
+func (x *ChannelStatusResponse) GetSize() int32 {
+	if x != nil {
+		return x.Size
+	}
+	return 0
+}
+
+func (x *ChannelStatusResponse) GetCapacity() int32 {
+	if x != nil {
+		return x.Capacity
+	}
+	return 0
+}
+
+func (x *ChannelStatusResponse) GetClosed() bool {
+	if x != nil {
+		return x.Closed
+	}
+	return false
+}
+
 var File_maggie_v1_sync_proto protoreflect.FileDescriptor
 
 const file_maggie_v1_sync_proto_rawDesc = "" +
@@ -1123,12 +1755,53 @@ const file_maggie_v1_sync_proto_rawDesc = "" +
 	"senderNode\x12$\n" +
 	"\x0emonitor_ref_id\x18\x02 \x01(\x04R\fmonitorRefId\"4\n" +
 	"\x18DemonitorProcessResponse\x12\x18\n" +
-	"\asuccess\x18\x01 \x01(\bR\asuccess*z\n" +
+	"\asuccess\x18\x01 \x01(\bR\asuccess\"1\n" +
+	"\x13SpawnProcessRequest\x12\x1a\n" +
+	"\benvelope\x18\x01 \x01(\fR\benvelope\"k\n" +
+	"\x14SpawnProcessResponse\x12\x1a\n" +
+	"\baccepted\x18\x01 \x01(\bR\baccepted\x12\x14\n" +
+	"\x05error\x18\x02 \x01(\tR\x05error\x12!\n" +
+	"\fprocess_name\x18\x03 \x01(\tR\vprocessName\"I\n" +
+	"\x12ChannelSendRequest\x12\x1d\n" +
+	"\n" +
+	"channel_id\x18\x01 \x01(\x04R\tchannelId\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\fR\x05value\"E\n" +
+	"\x13ChannelSendResponse\x12\x18\n" +
+	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x14\n" +
+	"\x05error\x18\x02 \x01(\tR\x05error\"6\n" +
+	"\x15ChannelReceiveRequest\x12\x1d\n" +
+	"\n" +
+	"channel_id\x18\x01 \x01(\x04R\tchannelId\"\x81\x01\n" +
+	"\x16ChannelReceiveResponse\x12\x18\n" +
+	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\fR\x05value\x12!\n" +
+	"\fchannel_open\x18\x03 \x01(\bR\vchannelOpen\x12\x14\n" +
+	"\x05error\x18\x04 \x01(\tR\x05error\"B\n" +
+	"\x16ChannelTrySendResponse\x12\x12\n" +
+	"\x04sent\x18\x01 \x01(\bR\x04sent\x12\x14\n" +
+	"\x05error\x18\x02 \x01(\tR\x05error\"\x87\x01\n" +
+	"\x19ChannelTryReceiveResponse\x12\x1b\n" +
+	"\tgot_value\x18\x01 \x01(\bR\bgotValue\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\fR\x05value\x12!\n" +
+	"\fchannel_open\x18\x03 \x01(\bR\vchannelOpen\x12\x14\n" +
+	"\x05error\x18\x04 \x01(\tR\x05error\"4\n" +
+	"\x13ChannelCloseRequest\x12\x1d\n" +
+	"\n" +
+	"channel_id\x18\x01 \x01(\x04R\tchannelId\"0\n" +
+	"\x14ChannelCloseResponse\x12\x18\n" +
+	"\asuccess\x18\x01 \x01(\bR\asuccess\"5\n" +
+	"\x14ChannelStatusRequest\x12\x1d\n" +
+	"\n" +
+	"channel_id\x18\x01 \x01(\x04R\tchannelId\"_\n" +
+	"\x15ChannelStatusResponse\x12\x12\n" +
+	"\x04size\x18\x01 \x01(\x05R\x04size\x12\x1a\n" +
+	"\bcapacity\x18\x02 \x01(\x05R\bcapacity\x12\x16\n" +
+	"\x06closed\x18\x03 \x01(\bR\x06closed*z\n" +
 	"\x0eAnnounceStatus\x12\x1f\n" +
 	"\x1bANNOUNCE_STATUS_UNSPECIFIED\x10\x00\x12\x15\n" +
 	"\x11ANNOUNCE_ACCEPTED\x10\x01\x12\x15\n" +
 	"\x11ANNOUNCE_REJECTED\x10\x02\x12\x19\n" +
-	"\x15ANNOUNCE_ALREADY_HAVE\x10\x032\x92\x05\n" +
+	"\x15ANNOUNCE_ALREADY_HAVE\x10\x032\xde\t\n" +
 	"\vSyncService\x12C\n" +
 	"\bAnnounce\x12\x1a.maggie.v1.AnnounceRequest\x1a\x1b.maggie.v1.AnnounceResponse\x12C\n" +
 	"\bTransfer\x12\x1a.maggie.v1.TransferRequest\x1a\x1b.maggie.v1.TransferResponse\x12:\n" +
@@ -1138,7 +1811,14 @@ const file_maggie_v1_sync_proto_rawDesc = "" +
 	"\x04List\x12\x16.maggie.v1.ListRequest\x1a\x17.maggie.v1.ListResponse\x12U\n" +
 	"\x0eDeliverMessage\x12 .maggie.v1.DeliverMessageRequest\x1a!.maggie.v1.DeliverMessageResponse\x12U\n" +
 	"\x0eMonitorProcess\x12 .maggie.v1.MonitorProcessRequest\x1a!.maggie.v1.MonitorProcessResponse\x12[\n" +
-	"\x10DemonitorProcess\x12\".maggie.v1.DemonitorProcessRequest\x1a#.maggie.v1.DemonitorProcessResponseB0Z.github.com/chazu/maggie/gen/maggie/v1;maggiev1b\x06proto3"
+	"\x10DemonitorProcess\x12\".maggie.v1.DemonitorProcessRequest\x1a#.maggie.v1.DemonitorProcessResponse\x12O\n" +
+	"\fSpawnProcess\x12\x1e.maggie.v1.SpawnProcessRequest\x1a\x1f.maggie.v1.SpawnProcessResponse\x12L\n" +
+	"\vChannelSend\x12\x1d.maggie.v1.ChannelSendRequest\x1a\x1e.maggie.v1.ChannelSendResponse\x12U\n" +
+	"\x0eChannelReceive\x12 .maggie.v1.ChannelReceiveRequest\x1a!.maggie.v1.ChannelReceiveResponse\x12R\n" +
+	"\x0eChannelTrySend\x12\x1d.maggie.v1.ChannelSendRequest\x1a!.maggie.v1.ChannelTrySendResponse\x12[\n" +
+	"\x11ChannelTryReceive\x12 .maggie.v1.ChannelReceiveRequest\x1a$.maggie.v1.ChannelTryReceiveResponse\x12O\n" +
+	"\fChannelClose\x12\x1e.maggie.v1.ChannelCloseRequest\x1a\x1f.maggie.v1.ChannelCloseResponse\x12R\n" +
+	"\rChannelStatus\x12\x1f.maggie.v1.ChannelStatusRequest\x1a .maggie.v1.ChannelStatusResponseB0Z.github.com/chazu/maggie/gen/maggie/v1;maggiev1b\x06proto3"
 
 var (
 	file_maggie_v1_sync_proto_rawDescOnce sync.Once
@@ -1153,27 +1833,39 @@ func file_maggie_v1_sync_proto_rawDescGZIP() []byte {
 }
 
 var file_maggie_v1_sync_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_maggie_v1_sync_proto_msgTypes = make([]protoimpl.MessageInfo, 18)
+var file_maggie_v1_sync_proto_msgTypes = make([]protoimpl.MessageInfo, 30)
 var file_maggie_v1_sync_proto_goTypes = []any{
-	(AnnounceStatus)(0),              // 0: maggie.v1.AnnounceStatus
-	(*DeliverMessageRequest)(nil),    // 1: maggie.v1.DeliverMessageRequest
-	(*DeliverMessageResponse)(nil),   // 2: maggie.v1.DeliverMessageResponse
-	(*AnnounceRequest)(nil),          // 3: maggie.v1.AnnounceRequest
-	(*AnnounceResponse)(nil),         // 4: maggie.v1.AnnounceResponse
-	(*TransferRequest)(nil),          // 5: maggie.v1.TransferRequest
-	(*TransferResponse)(nil),         // 6: maggie.v1.TransferResponse
-	(*ServeRequest)(nil),             // 7: maggie.v1.ServeRequest
-	(*ServeResponse)(nil),            // 8: maggie.v1.ServeResponse
-	(*PingRequest)(nil),              // 9: maggie.v1.PingRequest
-	(*PingResponse)(nil),             // 10: maggie.v1.PingResponse
-	(*ResolveRequest)(nil),           // 11: maggie.v1.ResolveRequest
-	(*ResolveResponse)(nil),          // 12: maggie.v1.ResolveResponse
-	(*ListRequest)(nil),              // 13: maggie.v1.ListRequest
-	(*ListResponse)(nil),             // 14: maggie.v1.ListResponse
-	(*MonitorProcessRequest)(nil),    // 15: maggie.v1.MonitorProcessRequest
-	(*MonitorProcessResponse)(nil),   // 16: maggie.v1.MonitorProcessResponse
-	(*DemonitorProcessRequest)(nil),  // 17: maggie.v1.DemonitorProcessRequest
-	(*DemonitorProcessResponse)(nil), // 18: maggie.v1.DemonitorProcessResponse
+	(AnnounceStatus)(0),               // 0: maggie.v1.AnnounceStatus
+	(*DeliverMessageRequest)(nil),     // 1: maggie.v1.DeliverMessageRequest
+	(*DeliverMessageResponse)(nil),    // 2: maggie.v1.DeliverMessageResponse
+	(*AnnounceRequest)(nil),           // 3: maggie.v1.AnnounceRequest
+	(*AnnounceResponse)(nil),          // 4: maggie.v1.AnnounceResponse
+	(*TransferRequest)(nil),           // 5: maggie.v1.TransferRequest
+	(*TransferResponse)(nil),          // 6: maggie.v1.TransferResponse
+	(*ServeRequest)(nil),              // 7: maggie.v1.ServeRequest
+	(*ServeResponse)(nil),             // 8: maggie.v1.ServeResponse
+	(*PingRequest)(nil),               // 9: maggie.v1.PingRequest
+	(*PingResponse)(nil),              // 10: maggie.v1.PingResponse
+	(*ResolveRequest)(nil),            // 11: maggie.v1.ResolveRequest
+	(*ResolveResponse)(nil),           // 12: maggie.v1.ResolveResponse
+	(*ListRequest)(nil),               // 13: maggie.v1.ListRequest
+	(*ListResponse)(nil),              // 14: maggie.v1.ListResponse
+	(*MonitorProcessRequest)(nil),     // 15: maggie.v1.MonitorProcessRequest
+	(*MonitorProcessResponse)(nil),    // 16: maggie.v1.MonitorProcessResponse
+	(*DemonitorProcessRequest)(nil),   // 17: maggie.v1.DemonitorProcessRequest
+	(*DemonitorProcessResponse)(nil),  // 18: maggie.v1.DemonitorProcessResponse
+	(*SpawnProcessRequest)(nil),       // 19: maggie.v1.SpawnProcessRequest
+	(*SpawnProcessResponse)(nil),      // 20: maggie.v1.SpawnProcessResponse
+	(*ChannelSendRequest)(nil),        // 21: maggie.v1.ChannelSendRequest
+	(*ChannelSendResponse)(nil),       // 22: maggie.v1.ChannelSendResponse
+	(*ChannelReceiveRequest)(nil),     // 23: maggie.v1.ChannelReceiveRequest
+	(*ChannelReceiveResponse)(nil),    // 24: maggie.v1.ChannelReceiveResponse
+	(*ChannelTrySendResponse)(nil),    // 25: maggie.v1.ChannelTrySendResponse
+	(*ChannelTryReceiveResponse)(nil), // 26: maggie.v1.ChannelTryReceiveResponse
+	(*ChannelCloseRequest)(nil),       // 27: maggie.v1.ChannelCloseRequest
+	(*ChannelCloseResponse)(nil),      // 28: maggie.v1.ChannelCloseResponse
+	(*ChannelStatusRequest)(nil),      // 29: maggie.v1.ChannelStatusRequest
+	(*ChannelStatusResponse)(nil),     // 30: maggie.v1.ChannelStatusResponse
 }
 var file_maggie_v1_sync_proto_depIdxs = []int32{
 	0,  // 0: maggie.v1.AnnounceResponse.status:type_name -> maggie.v1.AnnounceStatus
@@ -1186,17 +1878,31 @@ var file_maggie_v1_sync_proto_depIdxs = []int32{
 	1,  // 7: maggie.v1.SyncService.DeliverMessage:input_type -> maggie.v1.DeliverMessageRequest
 	15, // 8: maggie.v1.SyncService.MonitorProcess:input_type -> maggie.v1.MonitorProcessRequest
 	17, // 9: maggie.v1.SyncService.DemonitorProcess:input_type -> maggie.v1.DemonitorProcessRequest
-	4,  // 10: maggie.v1.SyncService.Announce:output_type -> maggie.v1.AnnounceResponse
-	6,  // 11: maggie.v1.SyncService.Transfer:output_type -> maggie.v1.TransferResponse
-	8,  // 12: maggie.v1.SyncService.Serve:output_type -> maggie.v1.ServeResponse
-	10, // 13: maggie.v1.SyncService.Ping:output_type -> maggie.v1.PingResponse
-	12, // 14: maggie.v1.SyncService.Resolve:output_type -> maggie.v1.ResolveResponse
-	14, // 15: maggie.v1.SyncService.List:output_type -> maggie.v1.ListResponse
-	2,  // 16: maggie.v1.SyncService.DeliverMessage:output_type -> maggie.v1.DeliverMessageResponse
-	16, // 17: maggie.v1.SyncService.MonitorProcess:output_type -> maggie.v1.MonitorProcessResponse
-	18, // 18: maggie.v1.SyncService.DemonitorProcess:output_type -> maggie.v1.DemonitorProcessResponse
-	10, // [10:19] is the sub-list for method output_type
-	1,  // [1:10] is the sub-list for method input_type
+	19, // 10: maggie.v1.SyncService.SpawnProcess:input_type -> maggie.v1.SpawnProcessRequest
+	21, // 11: maggie.v1.SyncService.ChannelSend:input_type -> maggie.v1.ChannelSendRequest
+	23, // 12: maggie.v1.SyncService.ChannelReceive:input_type -> maggie.v1.ChannelReceiveRequest
+	21, // 13: maggie.v1.SyncService.ChannelTrySend:input_type -> maggie.v1.ChannelSendRequest
+	23, // 14: maggie.v1.SyncService.ChannelTryReceive:input_type -> maggie.v1.ChannelReceiveRequest
+	27, // 15: maggie.v1.SyncService.ChannelClose:input_type -> maggie.v1.ChannelCloseRequest
+	29, // 16: maggie.v1.SyncService.ChannelStatus:input_type -> maggie.v1.ChannelStatusRequest
+	4,  // 17: maggie.v1.SyncService.Announce:output_type -> maggie.v1.AnnounceResponse
+	6,  // 18: maggie.v1.SyncService.Transfer:output_type -> maggie.v1.TransferResponse
+	8,  // 19: maggie.v1.SyncService.Serve:output_type -> maggie.v1.ServeResponse
+	10, // 20: maggie.v1.SyncService.Ping:output_type -> maggie.v1.PingResponse
+	12, // 21: maggie.v1.SyncService.Resolve:output_type -> maggie.v1.ResolveResponse
+	14, // 22: maggie.v1.SyncService.List:output_type -> maggie.v1.ListResponse
+	2,  // 23: maggie.v1.SyncService.DeliverMessage:output_type -> maggie.v1.DeliverMessageResponse
+	16, // 24: maggie.v1.SyncService.MonitorProcess:output_type -> maggie.v1.MonitorProcessResponse
+	18, // 25: maggie.v1.SyncService.DemonitorProcess:output_type -> maggie.v1.DemonitorProcessResponse
+	20, // 26: maggie.v1.SyncService.SpawnProcess:output_type -> maggie.v1.SpawnProcessResponse
+	22, // 27: maggie.v1.SyncService.ChannelSend:output_type -> maggie.v1.ChannelSendResponse
+	24, // 28: maggie.v1.SyncService.ChannelReceive:output_type -> maggie.v1.ChannelReceiveResponse
+	25, // 29: maggie.v1.SyncService.ChannelTrySend:output_type -> maggie.v1.ChannelTrySendResponse
+	26, // 30: maggie.v1.SyncService.ChannelTryReceive:output_type -> maggie.v1.ChannelTryReceiveResponse
+	28, // 31: maggie.v1.SyncService.ChannelClose:output_type -> maggie.v1.ChannelCloseResponse
+	30, // 32: maggie.v1.SyncService.ChannelStatus:output_type -> maggie.v1.ChannelStatusResponse
+	17, // [17:33] is the sub-list for method output_type
+	1,  // [1:17] is the sub-list for method input_type
 	1,  // [1:1] is the sub-list for extension type_name
 	1,  // [1:1] is the sub-list for extension extendee
 	0,  // [0:1] is the sub-list for field type_name
@@ -1213,7 +1919,7 @@ func file_maggie_v1_sync_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_maggie_v1_sync_proto_rawDesc), len(file_maggie_v1_sync_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   18,
+			NumMessages:   30,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

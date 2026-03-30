@@ -2,6 +2,7 @@ package vm
 
 import (
 	"reflect"
+	"time"
 )
 
 // ---------------------------------------------------------------------------
@@ -10,16 +11,37 @@ import (
 
 // SelectCase represents a channel operation for select.
 type SelectCase struct {
-	Channel *ChannelObject
-	Dir     reflect.SelectDir // SelectRecv or SelectSend
-	Value   Value             // For send operations
-	Handler Value             // Block to execute on match
+	Channel *ChannelObject     // local channel (nil if remote)
+	Remote  *RemoteChannelRef  // remote channel (nil if local)
+	Dir     reflect.SelectDir  // SelectRecv or SelectSend
+	Value   Value              // For send operations
+	Handler Value              // Block to execute on match
 }
 
 // primitiveSelect implements Go's select statement for multiple channels.
 // It takes an array of SelectCase structs and an optional default handler.
 // Returns the result of executing the matched handler block.
 func (vm *VM) primitiveSelect(cases []SelectCase, defaultHandler Value) Value {
+	// Separate local and remote cases
+	hasRemote := false
+	for _, c := range cases {
+		if c.Remote != nil {
+			hasRemote = true
+			break
+		}
+	}
+
+	// Fast path: all local channels — use reflect.Select directly
+	if !hasRemote {
+		return vm.primitiveSelectLocal(cases, defaultHandler)
+	}
+
+	// Mixed local + remote: use polling strategy
+	return vm.primitiveSelectMixed(cases, defaultHandler)
+}
+
+// primitiveSelectLocal handles the pure-local case using reflect.Select.
+func (vm *VM) primitiveSelectLocal(cases []SelectCase, defaultHandler Value) Value {
 	interp := vm.currentInterpreter()
 
 	// Build reflect.SelectCase slice
@@ -60,7 +82,101 @@ func (vm *VM) primitiveSelect(cases []SelectCase, defaultHandler Value) Value {
 		)
 	}
 
-	// Get the handler for the chosen case
+	return vm.executeSelectHandler(interp, cases, chosen, recv, recvOK)
+}
+
+// primitiveSelectMixed handles select with a mix of local and remote channels.
+// Uses a polling strategy: try non-blocking ops on all channels in a loop
+// with exponential backoff.
+func (vm *VM) primitiveSelectMixed(cases []SelectCase, defaultHandler Value) Value {
+	interp := vm.currentInterpreter()
+
+	// If we have a default, try once non-blocking then return default
+	hasDefault := defaultHandler != Nil
+
+	maxWait := 100 * time.Millisecond
+	wait := time.Millisecond
+
+	for {
+		// Try each case non-blocking
+		for i, c := range cases {
+			if c.Dir == reflect.SelectRecv {
+				val, gotValue := vm.tryReceiveAny(c)
+				if gotValue {
+					return vm.executeSelectHandlerWithValue(interp, cases[i], val)
+				}
+			} else if c.Dir == reflect.SelectSend {
+				if vm.trySendAny(c) {
+					return vm.executeSelectHandlerNoValue(interp, cases[i])
+				}
+			}
+		}
+
+		// No case ready
+		if hasDefault {
+			bv := interp.getBlockValue(defaultHandler)
+			if bv == nil {
+				return Nil
+			}
+			return interp.ExecuteBlock(
+				bv.Block, bv.Captures, nil,
+				bv.HomeFrame, bv.HomeSelf, bv.HomeMethod,
+			)
+		}
+
+		// Backoff and retry
+		time.Sleep(wait)
+		if wait < maxWait {
+			wait *= 2
+			if wait > maxWait {
+				wait = maxWait
+			}
+		}
+	}
+}
+
+// tryReceiveAny attempts a non-blocking receive from either a local or remote channel.
+func (vm *VM) tryReceiveAny(c SelectCase) (Value, bool) {
+	if c.Channel != nil {
+		// Local channel
+		val, gotValue, _ := c.Channel.TryReceive()
+		if gotValue {
+			return val, true
+		}
+		return Nil, false
+	}
+	if c.Remote != nil && c.Remote.TryReceiveFunc != nil {
+		data, gotValue, _, err := c.Remote.TryReceiveFunc(c.Remote.ChannelID)
+		if err != nil || !gotValue {
+			return Nil, false
+		}
+		val, err := vm.DeserializeValue(data)
+		if err != nil {
+			return Nil, false
+		}
+		return val, true
+	}
+	return Nil, false
+}
+
+// trySendAny attempts a non-blocking send on either a local or remote channel.
+func (vm *VM) trySendAny(c SelectCase) bool {
+	if c.Channel != nil {
+		return c.Channel.SafeTrySend(c.Value)
+	}
+	if c.Remote != nil && c.Remote.TrySendFunc != nil {
+		data, err := vm.SerializeValue(c.Value)
+		if err != nil {
+			return false
+		}
+		sent, err := c.Remote.TrySendFunc(c.Remote.ChannelID, data)
+		return err == nil && sent
+	}
+	return false
+}
+
+// executeSelectHandler handles the result of a chosen case from reflect.Select.
+func (vm *VM) executeSelectHandler(interp *Interpreter, cases []SelectCase, chosen int, recv reflect.Value, recvOK bool) Value {
 	if chosen >= len(cases) {
 		return Nil
 	}
@@ -71,24 +187,41 @@ func (vm *VM) primitiveSelect(cases []SelectCase, defaultHandler Value) Value {
 		return Nil
 	}
 
-	// For receive operations, pass the received value to the handler
 	var args []Value
 	if cases[chosen].Dir == reflect.SelectRecv {
-		if recvOK {
-			// Channel was open, got a value
-			if recv.IsValid() {
-				args = []Value{recv.Interface().(Value)}
-			} else {
-				args = []Value{Nil}
-			}
+		if recvOK && recv.IsValid() {
+			args = []Value{recv.Interface().(Value)}
 		} else {
-			// Channel was closed
 			args = []Value{Nil}
 		}
 	}
 
 	return interp.ExecuteBlock(
 		bv.Block, bv.Captures, args,
+		bv.HomeFrame, bv.HomeSelf, bv.HomeMethod,
+	)
+}
+
+// executeSelectHandlerWithValue executes a receive handler with the given value.
+func (vm *VM) executeSelectHandlerWithValue(interp *Interpreter, c SelectCase, val Value) Value {
+	bv := interp.getBlockValue(c.Handler)
+	if bv == nil {
+		return Nil
+	}
+	return interp.ExecuteBlock(
+		bv.Block, bv.Captures, []Value{val},
+		bv.HomeFrame, bv.HomeSelf, bv.HomeMethod,
+	)
+}
+
+// executeSelectHandlerNoValue executes a send handler (no value argument).
+func (vm *VM) executeSelectHandlerNoValue(interp *Interpreter, c SelectCase) Value {
+	bv := interp.getBlockValue(c.Handler)
+	if bv == nil {
+		return Nil
+	}
+	return interp.ExecuteBlock(
+		bv.Block, bv.Captures, nil,
 		bv.HomeFrame, bv.HomeSelf, bv.HomeMethod,
 	)
 }
@@ -101,35 +234,24 @@ func (vm *VM) registerChannelSelectPrimitives() {
 	c := vm.ChannelClass
 
 	// Channel class>>select: casesArray
-	// casesArray is an Array of Associations: channel -> handlerBlock
-	// Blocks until one of the channels is ready, then executes its handler.
-	// For receive: handler receives the value as argument [:v | ...]
-	// Returns the result of the executed handler.
 	c.AddClassMethod1(vm.Selectors, "select:", func(vmPtr interface{}, recv Value, casesArray Value) Value {
 		v := vmPtr.(*VM)
 		return v.executeSelect(casesArray, Nil)
 	})
 
 	// Channel class>>select:ifNone:
-	// Like select: but with a default block that executes if no channel is ready.
-	// This is non-blocking if no channels are ready.
 	c.AddClassMethod2(vm.Selectors, "select:ifNone:", func(vmPtr interface{}, recv Value, casesArray Value, defaultBlock Value) Value {
 		v := vmPtr.(*VM)
 		return v.executeSelect(casesArray, defaultBlock)
 	})
 
 	// Channel>>onReceive: handlerBlock
-	// Convenience to create a receive case for select.
-	// Returns an Association of channel -> handler.
 	c.AddMethod1(vm.Selectors, "onReceive:", func(vmPtr interface{}, recv Value, handler Value) Value {
 		v := vmPtr.(*VM)
-		// Create an Association: recv -> handler
 		return v.createSelectCase(recv, handler, false, Nil)
 	})
 
 	// Channel>>onSend:do: value handlerBlock
-	// Convenience to create a send case for select.
-	// Returns an Association-like structure for send operations.
 	c.AddMethod2(vm.Selectors, "onSend:do:", func(vmPtr interface{}, recv Value, value Value, handler Value) Value {
 		v := vmPtr.(*VM)
 		return v.createSelectCase(recv, handler, true, value)
@@ -138,7 +260,6 @@ func (vm *VM) registerChannelSelectPrimitives() {
 
 // executeSelect parses the cases array and calls primitiveSelect.
 func (vm *VM) executeSelect(casesArray Value, defaultBlock Value) Value {
-	// Get the array of cases
 	arr := vm.getArrayValue(casesArray)
 	if arr == nil {
 		return Nil
@@ -157,47 +278,63 @@ func (vm *VM) executeSelect(casesArray Value, defaultBlock Value) Value {
 }
 
 // parseSelectCase extracts channel, handler, and direction from a case value.
-// Cases can be:
-// - Association (channel -> handler) for receive
-// - SelectCaseObject for send operations
+// Supports both local Channel and RemoteChannel values.
 func (vm *VM) parseSelectCase(caseVal Value) (SelectCase, bool) {
-	// Try as Association first (for receive operations)
 	obj := ObjectFromValue(caseVal)
 	if obj == nil {
 		return SelectCase{}, false
 	}
 
 	numSlots := obj.NumSlots()
+	if numSlots < 2 {
+		return SelectCase{}, false
+	}
 
-	// Check if it's an Association (2 slots: key, value)
-	if numSlots >= 2 {
-		key := obj.GetSlot(0)   // channel
-		value := obj.GetSlot(1) // handler
+	key := obj.GetSlot(0)   // channel
+	value := obj.GetSlot(1) // handler
 
-		ch := vm.getChannel(key)
-		if ch != nil {
-			// Check if it's a SelectCaseObject (for send operations)
-			// We use the "send" marker stored in slot 2
-			if numSlots >= 4 {
-				isSend := obj.GetSlot(2)
-				if isSend == True {
-					sendValue := obj.GetSlot(3)
-					return SelectCase{
-						Channel: ch,
-						Dir:     reflect.SelectSend,
-						Value:   sendValue,
-						Handler: value,
-					}, true
-				}
+	// Try local channel first
+	ch := vm.getChannel(key)
+	if ch != nil {
+		if numSlots >= 4 {
+			isSend := obj.GetSlot(2)
+			if isSend == True {
+				sendValue := obj.GetSlot(3)
+				return SelectCase{
+					Channel: ch,
+					Dir:     reflect.SelectSend,
+					Value:   sendValue,
+					Handler: value,
+				}, true
 			}
-
-			// Regular receive case
-			return SelectCase{
-				Channel: ch,
-				Dir:     reflect.SelectRecv,
-				Handler: value,
-			}, true
 		}
+		return SelectCase{
+			Channel: ch,
+			Dir:     reflect.SelectRecv,
+			Handler: value,
+		}, true
+	}
+
+	// Try remote channel
+	remote := vm.getRemoteChannel(key)
+	if remote != nil {
+		if numSlots >= 4 {
+			isSend := obj.GetSlot(2)
+			if isSend == True {
+				sendValue := obj.GetSlot(3)
+				return SelectCase{
+					Remote:  remote,
+					Dir:     reflect.SelectSend,
+					Value:   sendValue,
+					Handler: value,
+				}, true
+			}
+		}
+		return SelectCase{
+			Remote:  remote,
+			Dir:     reflect.SelectRecv,
+			Handler: value,
+		}, true
 	}
 
 	return SelectCase{}, false
@@ -205,16 +342,9 @@ func (vm *VM) parseSelectCase(caseVal Value) (SelectCase, bool) {
 
 // createSelectCase creates a case object for select.
 func (vm *VM) createSelectCase(channel Value, handler Value, isSend bool, sendValue Value) Value {
-	// Create an object to hold the case data
-	// For simplicity, we'll create an Association for receive
-	// and a custom object for send
 	if !isSend {
-		// Create Association for receive: channel -> handler
 		return vm.createAssociation(channel, handler)
 	}
-
-	// Create a custom object for send operations
-	// Structure: [channel, handler, isSend=true, sendValue]
 	obj := NewObjectWithSlots(vm.AssociationClass.VTable, []Value{channel, handler, True, sendValue})
 	return obj.ToValue()
 }

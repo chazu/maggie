@@ -26,9 +26,11 @@ type MaggieServer struct {
 type ServerOption func(*serverConfig)
 
 type serverConfig struct {
-	compileFunc func(string) (dist.CompileResult, error)
-	trustStore  *dist.TrustStore
-	diskCache   *dist.DiskCache
+	compileFunc     func(string) (dist.CompileResult, error)
+	trustStore      *dist.TrustStore
+	diskCache       *dist.DiskCache
+	pullFunc        func(peerID dist.NodeID, hash [32]byte) error
+	spawnResultFunc func(spawnerID dist.NodeID, futureID uint64, resultBytes []byte, errMsg error)
 }
 
 // WithCompileFunc sets the compile function used by the sync service to
@@ -50,6 +52,16 @@ func WithDiskCache(dc *dist.DiskCache) ServerOption {
 	return func(c *serverConfig) { c.diskCache = dc }
 }
 
+// WithPullFunc sets the code-on-demand pull function for spawn.
+func WithPullFunc(fn func(peerID dist.NodeID, hash [32]byte) error) ServerOption {
+	return func(c *serverConfig) { c.pullFunc = fn }
+}
+
+// WithSpawnResultFunc sets the callback for delivering spawn results.
+func WithSpawnResultFunc(fn func(spawnerID dist.NodeID, futureID uint64, resultBytes []byte, errMsg error)) ServerOption {
+	return func(c *serverConfig) { c.spawnResultFunc = fn }
+}
+
 // New creates a MaggieServer wrapping the given VM.
 func New(v *vm.VM, opts ...ServerOption) *MaggieServer {
 	cfg := &serverConfig{
@@ -60,6 +72,8 @@ func New(v *vm.VM, opts ...ServerOption) *MaggieServer {
 	}
 
 	worker := NewVMWorker(v)
+	worker.pullFunc = cfg.pullFunc
+	worker.spawnResultFunc = cfg.spawnResultFunc
 	handles := NewHandleStore(worker)
 	sessions := NewSessionStore(handles)
 

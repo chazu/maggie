@@ -256,6 +256,12 @@ func (vm *VM) findNodeRefByID(nodeID [32]byte) *NodeRefData {
 	return nil
 }
 
+// FindNodeRefByPublicKey finds a NodeRefData by its public key (NodeID).
+// Exported for use by cmd/mag spawn result delivery.
+func (vm *VM) FindNodeRefByPublicKey(nodeID [32]byte) *NodeRefData {
+	return vm.findNodeRefByID(nodeID)
+}
+
 // DeliverDownMessage is the exported version for server package access.
 func (vm *VM) DeliverDownMessage(watcher *ProcessObject, ref *MonitorRef, reason ExitReason) {
 	vm.deliverDownMessage(watcher, ref, reason)

@@ -1,0 +1,299 @@
+"""
+A child specification for a Supervisor. Each ChildSpec defines how to start
+a child process, when to restart it, and how to shut it down.
+
+```test
+spec := ChildSpec id: 'worker' start: [nil] restart: #permanent.
+spec id >>> 'worker'
+spec restart >>> #permanent
+spec shutdown >>> 5000
+```
+"""
+ChildSpec subclass: Object
+  instanceVars: id startBlock restart shutdown
+
+  classMethod: id: anId start: aBlock [
+      ^self id: anId start: aBlock restart: #permanent
+  ]
+
+  classMethod: id: anId start: aBlock restart: aRestart [
+      ^self id: anId start: aBlock restart: aRestart shutdown: 5000
+  ]
+
+  classMethod: id: anId start: aBlock restart: aRestart shutdown: aTimeout [
+      | spec |
+      spec := self new.
+      spec primSetId: anId.
+      spec primSetStartBlock: aBlock.
+      spec primSetRestart: aRestart.
+      spec primSetShutdown: aTimeout.
+      ^spec
+  ]
+
+  method: id [ ^id ]
+  method: restart [ ^restart ]
+  method: shutdown [ ^shutdown ]
+  method: startBlock [ ^startBlock ]
+
+  method: primSetId: v [ id := v ]
+  method: primSetStartBlock: v [ startBlock := v ]
+  method: primSetRestart: v [ restart := v ]
+  method: primSetShutdown: v [ shutdown := v ]
+
+  method: printString [
+      ^'a ChildSpec(', id printString, ', ', restart printString, ')'
+  ]
+
+
+"""
+An Erlang-style supervisor that manages child processes and restarts them
+according to a strategy when they fail.
+
+Strategies:
+  - `#oneForOne`   — only the crashed child is restarted
+  - `#oneForAll`   — all children are terminated and restarted
+  - `#restForOne`  — the crashed child and all children started after it
+
+Restart types (per child):
+  - `#permanent`   — always restart
+  - `#temporary`   — never restart
+  - `#transient`   — restart only on abnormal exit
+
+```example
+"Create a supervisor with two workers"
+sup := Supervisor
+    new: #oneForOne
+    children: {
+        ChildSpec id: 'db' start: [DbPool new run].
+        ChildSpec id: 'web' start: [WebServer new run] restart: #transient
+    }.
+sup start.
+
+"Add a child dynamically"
+sup startChild: (ChildSpec id: 'cache' start: [Cache new run]).
+
+"Shut down"
+sup stop
+```
+"""
+Supervisor subclass: Object
+  instanceVars: strategy childSpecs maxRestarts maxSeconds process
+                children restartTimes running
+
+  """
+  Create a supervisor with the given strategy and child specifications.
+  Default restart intensity: 3 restarts in 5 seconds.
+  """
+  classMethod: new: aStrategy children: specArray [
+      ^self new: aStrategy children: specArray maxRestarts: 3 maxSeconds: 5
+  ]
+
+  classMethod: new: aStrategy children: specArray maxRestarts: maxR maxSeconds: maxS [
+      | sup |
+      sup := self new.
+      sup primInit: aStrategy specs: specArray maxR: maxR maxS: maxS.
+      ^sup
+  ]
+
+  method: primInit: aStrategy specs: specArray maxR: maxR maxS: maxS [
+      strategy := aStrategy.
+      childSpecs := specArray.
+      maxRestarts := maxR.
+      maxSeconds := maxS.
+      children := Dictionary new.
+      restartTimes := Array new: 0.
+      running := false
+  ]
+
+  """Start the supervisor. Spawns a supervisor process that manages children."""
+  method: start [
+      running := true.
+      process := [self runLoop] fork.
+      process registerAs: ('supervisor-', self hash printString).
+      ^process
+  ]
+
+  """Stop the supervisor and all children."""
+  method: stop [
+      running := false.
+      self terminateAllChildren.
+      process notNil ifTrue: [process primTerminate]
+  ]
+
+  """Return the supervisor process."""
+  method: process [ ^process ]
+
+  """Return the strategy symbol."""
+  method: strategy [ ^strategy ]
+
+  """Return the child specs array."""
+  method: childSpecs [ ^childSpecs ]
+
+  """
+  Start a new child dynamically. Adds the spec and starts the child process.
+  Returns true if started successfully.
+  """
+  method: startChild: aSpec [
+      childSpecs := childSpecs , (Array with: aSpec).
+      ^self startOneChild: aSpec
+  ]
+
+  """
+  Terminate a child by ID. The child is stopped and its spec is removed.
+  """
+  method: terminateChild: anId [
+      | proc |
+      proc := children at: anId ifAbsent: [nil].
+      proc notNil ifTrue: [
+          proc primTerminate.
+          children removeKey: anId ifAbsent: [nil]
+      ].
+      childSpecs := childSpecs select: [:s | s id ~= anId]
+  ]
+
+  """Return the IDs of currently running children."""
+  method: runningChildren [
+      | ids |
+      ids := Array new: 0.
+      children keysAndValuesDo: [:k :v |
+          v isDone not ifTrue: [ids := ids , (Array with: k)]
+      ].
+      ^ids
+  ]
+
+  """Return the count of running children."""
+  method: countChildren [
+      ^self runningChildren size
+  ]
+
+  "--- Private: supervisor event loop ---"
+
+  method: runLoop [
+      "Start all initial children"
+      Process current trapExit: true.
+      childSpecs do: [:spec | self startOneChild: spec].
+
+      "Main loop: wait for exit signals and restart as needed"
+      [running] whileTrue: [
+          | msg |
+          msg := Process receive: 1000.
+          msg notNil ifTrue: [
+              msg selector = #processDown: ifTrue: [
+                  self handleChildDown: msg payload
+              ]
+          ]
+      ]
+  ]
+
+  method: startOneChild: aSpec [
+      | childProc |
+      childProc := aSpec startBlock fork.
+      Process current monitor: childProc.
+      children at: aSpec id put: childProc.
+      ^true
+  ]
+
+  method: handleChildDown: info [
+      "info is #(refID processValue reasonSymbol resultValue)"
+      | reason childId spec |
+      reason := info at: 3.
+      childId := self findChildId: (info at: 2).
+      childId isNil ifTrue: [^nil].
+
+      spec := self findSpec: childId.
+      spec isNil ifTrue: [^nil].
+
+      "Check restart policy"
+      (self shouldRestart: spec reason: reason) ifFalse: [
+          children removeKey: childId ifAbsent: [nil].
+          ^nil
+      ].
+
+      "Check restart intensity"
+      self recordRestart.
+      self restartIntensityExceeded ifTrue: [
+          "Too many restarts — crash the supervisor"
+          running := false.
+          self terminateAllChildren.
+          ^nil
+      ].
+
+      "Apply restart strategy"
+      strategy = #oneForOne ifTrue: [self restartChild: spec].
+      strategy = #oneForAll ifTrue: [self restartAllChildren].
+      strategy = #restForOne ifTrue: [self restartFrom: childId]
+  ]
+
+  method: findChildId: procValue [
+      children keysAndValuesDo: [:k :v |
+          v = procValue ifTrue: [^k]
+      ].
+      ^nil
+  ]
+
+  method: findSpec: anId [
+      childSpecs do: [:s | s id = anId ifTrue: [^s]].
+      ^nil
+  ]
+
+  method: shouldRestart: aSpec reason: reason [
+      aSpec restart = #permanent ifTrue: [^true].
+      aSpec restart = #temporary ifTrue: [^false].
+      aSpec restart = #transient ifTrue: [^reason ~= #normal].
+      ^false
+  ]
+
+  method: restartChild: aSpec [
+      self startOneChild: aSpec
+  ]
+
+  method: restartAllChildren [
+      self terminateAllChildren.
+      childSpecs do: [:spec | self startOneChild: spec]
+  ]
+
+  method: restartFrom: childId [
+      "Terminate this child and all children started after it, then restart"
+      | found specsToRestart proc |
+      found := false.
+      specsToRestart := Array new: 0.
+      childSpecs do: [:spec |
+          spec id = childId ifTrue: [found := true].
+          found ifTrue: [
+              specsToRestart := specsToRestart , (Array with: spec).
+              proc := children at: spec id ifAbsent: [nil].
+              proc notNil ifTrue: [
+                  proc primTerminate.
+                  children removeKey: spec id ifAbsent: [nil]
+              ]
+          ]
+      ].
+      specsToRestart do: [:spec | self startOneChild: spec]
+  ]
+
+  method: terminateAllChildren [
+      children keysAndValuesDo: [:k :v |
+          v isDone not ifTrue: [v primTerminate]
+      ].
+      children := Dictionary new
+  ]
+
+  method: recordRestart [
+      | now |
+      now := DateTime now epochMillis.
+      restartTimes := restartTimes , (Array with: now)
+  ]
+
+  method: restartIntensityExceeded [
+      | now windowStart count |
+      restartTimes size < maxRestarts ifTrue: [^false].
+      now := DateTime now epochMillis.
+      windowStart := now - (maxSeconds * 1000).
+      count := 0.
+      restartTimes do: [:t | t >= windowStart ifTrue: [count := count + 1]].
+      ^count > maxRestarts
+  ]
+
+  method: printString [
+      ^'a Supervisor(', strategy printString, ', ', self countChildren printString, ' children)'
+  ]

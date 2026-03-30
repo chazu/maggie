@@ -859,6 +859,94 @@ func TestEndToEnd_RemoteSendViaNodeRef(t *testing.T) {
 	}
 }
 
+// ---------------------------------------------------------------------------
+// SpawnProcess
+// ---------------------------------------------------------------------------
+
+// TestEndToEnd_SpawnProcess_PermissionDenied verifies that spawn requests
+// are rejected when the peer lacks PermSpawn.
+func TestEndToEnd_SpawnProcess_PermissionDenied(t *testing.T) {
+	store := vm.NewContentStore()
+	// Server allows sync but not spawn
+	trust := dist.NewTrustStore(dist.TrustPolicy{
+		DefaultPerms: dist.PermSync | dist.PermMessage,
+		BanThreshold: 3,
+	})
+	baseURL, _, stop := startTestServerWithVM(t, store, nil, trust)
+	defer stop()
+	time.Sleep(10 * time.Millisecond)
+
+	client := maggiev1connect.NewSyncServiceClient(http.DefaultClient, baseURL)
+	ctx := context.Background()
+
+	sender, _ := dist.GenerateIdentity()
+
+	// Build a spawn block payload (contents don't matter — permission check is first)
+	sb := &vm.SpawnBlock{
+		MethodHash: [32]byte{1, 2, 3},
+		SpawnMode:  "fork",
+	}
+	payload, _ := vm.CborSerialEncode(sb)
+
+	env := &dist.MessageEnvelope{
+		Payload: payload,
+		Nonce:   1,
+	}
+	env.Sign(sender)
+	envBytes, _ := dist.MarshalEnvelope(env)
+
+	resp, err := client.SpawnProcess(ctx, connect.NewRequest(&maggiev1.SpawnProcessRequest{
+		Envelope: envBytes,
+	}))
+	if err != nil {
+		t.Fatalf("SpawnProcess RPC error: %v", err)
+	}
+	if resp.Msg.Accepted {
+		t.Error("spawn should be rejected without PermSpawn")
+	}
+	if resp.Msg.Error != "spawn not permitted" {
+		t.Errorf("error: got %q, want %q", resp.Msg.Error, "spawn not permitted")
+	}
+}
+
+// TestEndToEnd_SpawnProcess_InvalidSignature verifies that spawn requests
+// with tampered signatures are rejected.
+func TestEndToEnd_SpawnProcess_InvalidSignature(t *testing.T) {
+	store := vm.NewContentStore()
+	trust := dist.NewPermissiveTrustStore()
+	baseURL, _, stop := startTestServerWithVM(t, store, nil, trust)
+	defer stop()
+	time.Sleep(10 * time.Millisecond)
+
+	client := maggiev1connect.NewSyncServiceClient(http.DefaultClient, baseURL)
+	ctx := context.Background()
+
+	sender, _ := dist.GenerateIdentity()
+
+	env := &dist.MessageEnvelope{
+		Payload: []byte{1, 2, 3},
+		Nonce:   1,
+	}
+	env.Sign(sender)
+
+	// Tamper with payload
+	env.Payload = []byte{4, 5, 6}
+	envBytes, _ := dist.MarshalEnvelope(env)
+
+	resp, err := client.SpawnProcess(ctx, connect.NewRequest(&maggiev1.SpawnProcessRequest{
+		Envelope: envBytes,
+	}))
+	if err != nil {
+		t.Fatalf("SpawnProcess RPC error: %v", err)
+	}
+	if resp.Msg.Accepted {
+		t.Error("tampered spawn should be rejected")
+	}
+	if resp.Msg.Error != "invalid signature" {
+		t.Errorf("error: got %q, want %q", resp.Msg.Error, "invalid signature")
+	}
+}
+
 // TestEndToEnd_DistributedDemo simulates a mini distributed computation:
 // - Server VM has a "counter" process that receives increment messages
 // - Client VM sends 5 increment messages via cast:with:

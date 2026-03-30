@@ -37,6 +37,27 @@ service SyncService {
 
   // DemonitorProcess cancels a previously established remote monitor.
   rpc DemonitorProcess(DemonitorProcessRequest) returns (DemonitorProcessResponse);
+
+  // SpawnProcess executes a serialized block on this node.
+  rpc SpawnProcess(SpawnProcessRequest) returns (SpawnProcessResponse);
+
+  // ChannelSend sends a value to an exported channel (blocking).
+  rpc ChannelSend(ChannelSendRequest) returns (ChannelSendResponse);
+
+  // ChannelReceive receives a value from an exported channel (blocking).
+  rpc ChannelReceive(ChannelReceiveRequest) returns (ChannelReceiveResponse);
+
+  // ChannelTrySend attempts a non-blocking send.
+  rpc ChannelTrySend(ChannelSendRequest) returns (ChannelTrySendResponse);
+
+  // ChannelTryReceive attempts a non-blocking receive.
+  rpc ChannelTryReceive(ChannelReceiveRequest) returns (ChannelTryReceiveResponse);
+
+  // ChannelClose closes an exported channel.
+  rpc ChannelClose(ChannelCloseRequest) returns (ChannelCloseResponse);
+
+  // ChannelStatus returns the status of an exported channel.
+  rpc ChannelStatus(ChannelStatusRequest) returns (ChannelStatusResponse);
 }
 
 message DeliverMessageRequest {
@@ -139,4 +160,69 @@ message DemonitorProcessRequest {
 
 message DemonitorProcessResponse {
   bool success = 1;
+}
+
+// --- Remote process spawning ---
+
+message SpawnProcessRequest {
+  bytes envelope = 1;       // signed MessageEnvelope containing SpawnBlock payload
+}
+
+message SpawnProcessResponse {
+  bool accepted = 1;
+  string error = 2;           // non-empty if rejected
+  string process_name = 3;    // registered name of spawned process
+}
+
+// --- Distributed channels ---
+
+message ChannelSendRequest {
+  uint64 channel_id = 1;
+  bytes value = 2;          // CBOR-serialized Maggie value
+}
+
+message ChannelSendResponse {
+  bool success = 1;
+  string error = 2;
+}
+
+message ChannelReceiveRequest {
+  uint64 channel_id = 1;
+}
+
+message ChannelReceiveResponse {
+  bool success = 1;
+  bytes value = 2;          // CBOR-serialized Maggie value
+  bool channel_open = 3;   // false if channel was closed
+  string error = 4;
+}
+
+message ChannelTrySendResponse {
+  bool sent = 1;            // true if the value was accepted
+  string error = 2;
+}
+
+message ChannelTryReceiveResponse {
+  bool got_value = 1;       // true if a value was received
+  bytes value = 2;
+  bool channel_open = 3;
+  string error = 4;
+}
+
+message ChannelCloseRequest {
+  uint64 channel_id = 1;
+}
+
+message ChannelCloseResponse {
+  bool success = 1;
+}
+
+message ChannelStatusRequest {
+  uint64 channel_id = 1;
+}
+
+message ChannelStatusResponse {
+  int32 size = 1;
+  int32 capacity = 2;
+  bool closed = 3;
 }

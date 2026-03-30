@@ -1,0 +1,137 @@
+"""
+A consistent hash ring for distributing keys across a set of nodes.
+Used by `Cluster` for deterministic key-to-node mapping that minimizes
+redistribution when nodes join or leave.
+
+Each node is placed at multiple virtual positions (replicas) on the ring
+for better distribution. The default is 150 virtual nodes per real node.
+
+```test
+ring := HashRing new.
+ring add: 'node-a'.
+ring add: 'node-b'.
+ring add: 'node-c'.
+ring size >>> 3
+ring isEmpty >>> false
+```
+
+```test
+ring := HashRing new: 1.
+ring add: 'x'.
+ring size >>> 1
+(ring nodeFor: 'any-key') notNil >>> true
+```
+
+```test
+ring := HashRing new.
+ring isEmpty >>> true
+ring size >>> 0
+```
+"""
+HashRing subclass: Object
+  instanceVars: nodes positions replicas
+
+  classMethod: new [
+      ^self new: 150
+  ]
+
+  """Create a hash ring with the given number of virtual nodes per real node."""
+  classMethod: new: replicaCount [
+      | ring |
+      ring := super new.
+      ring primInit: replicaCount.
+      ^ring
+  ]
+
+  method: primInit: replicaCount [
+      nodes := Array new: 0.
+      positions := Array new: 0.
+      replicas := replicaCount
+  ]
+
+  """Add a node to the ring. The node can be any object (typically a Node or String)."""
+  method: add: node [
+      | nodeKey |
+      nodes := nodes , (Array with: node).
+      nodeKey := node printString.
+      1 to: replicas do: [:i |
+          | vkey pos |
+          vkey := nodeKey , '-', i printString.
+          pos := self hashKey: vkey.
+          positions := positions , (Array with: (Array with: pos with: node))
+      ].
+      self sortPositions
+  ]
+
+  """Remove a node from the ring."""
+  method: remove: node [
+      nodes := nodes reject: [:n | n = node].
+      positions := positions reject: [:pair | (pair at: 1) = node]
+  ]
+
+  """Return the node responsible for the given key."""
+  method: nodeFor: key [
+      | keyHash |
+      positions isEmpty ifTrue: [^nil].
+      keyHash := self hashKey: key.
+      "Find the first position >= keyHash (clockwise walk)"
+      positions do: [:pair |
+          (pair at: 0) >= keyHash ifTrue: [^pair at: 1]
+      ].
+      "Wrap around to first node"
+      ^(positions at: 0) at: 1
+  ]
+
+  """Return the N nodes responsible for the given key (for replication)."""
+  method: nodesFor: key count: n [
+      | result node seen candidate candidateKey |
+      positions isEmpty ifTrue: [^Array new: 0].
+      result := Array new: 0.
+      seen := Dictionary new.
+      node := self nodeFor: key.
+      node notNil ifTrue: [
+          result := result , (Array with: node).
+          seen at: node printString put: true
+      ].
+      "Walk clockwise collecting unique nodes"
+      positions do: [:pair |
+          result size < n ifTrue: [
+              candidate := pair at: 1.
+              candidateKey := candidate printString.
+              (seen at: candidateKey ifAbsent: [nil]) isNil ifTrue: [
+                  result := result , (Array with: candidate).
+                  seen at: candidateKey put: true
+              ]
+          ]
+      ].
+      ^result
+  ]
+
+  """Return the number of real nodes in the ring."""
+  method: size [ ^nodes size ]
+
+  """Return true if the ring has no nodes."""
+  method: isEmpty [ ^nodes isEmpty ]
+
+  """Return all real nodes in the ring."""
+  method: nodes [ ^nodes copy ]
+
+  method: printString [
+      ^'a HashRing(', self size printString, ' nodes)'
+  ]
+
+  "--- Private ---"
+
+  method: sortPositions [
+      positions size <= 1 ifTrue: [^self].
+      positions := positions sorted: [:a :b |
+          (a at: 0) < (b at: 0) ifTrue: [-1] ifFalse: [
+              (a at: 0) > (b at: 0) ifTrue: [1] ifFalse: [0]
+          ]
+      ]
+  ]
+
+  method: hashKey: key [
+      "Content-based hash producing a bounded positive integer"
+      ^key printString hashCode
+  ]

@@ -1,0 +1,131 @@
+"""
+Maggie provides built-in cluster membership management and consistent
+hashing for distributing work across nodes. The `Cluster` class automates
+seed-based peer discovery, failure detection, and reconnection. The
+`HashRing` class provides deterministic key-to-node mapping.
+"""
+Guide11Clustering subclass: Object
+
+  """
+  ## Cluster Membership
+
+  The `Cluster` class connects to seed nodes, monitors them for failure,
+  and delivers membership events when nodes join or leave.
+
+  ```example
+  "Create a cluster from seed addresses"
+  cluster := Cluster seeds: #('host1:8081' 'host2:8081' 'host3:8081').
+  cluster start.
+
+  "Register handlers for membership changes"
+  cluster onMemberUp: [:node | ('Node joined: ', node addr) println].
+  cluster onMemberDown: [:addr | ('Node left: ', addr) println].
+
+  "Query live membership"
+  cluster members.    "Array of Node values"
+  cluster size.       "Integer"
+  cluster isConnected: 'host1:8081'.  "true/false"
+  ```
+
+  **How it works:**
+
+  1. Each node that joins a cluster registers a sentinel process
+     under the name `__cluster__` (via `registerAs:`).
+  2. The cluster manager connects to each seed, monitors the sentinel.
+  3. When a sentinel's node goes down (detected by `NodeHealthMonitor`),
+     the manager receives `#processDown:` and removes the dead member.
+  4. Failed seeds are retried periodically (default every 10 seconds).
+
+  ```example
+  "Custom reconnect interval"
+  cluster := Cluster seeds: #('host1:8081').
+  cluster reconnectInterval: 30000.  "30 seconds"
+  cluster start
+  ```
+  """
+  method: s01_clusterMembership [
+      "Cluster automates seed connection and failure detection."
+      ^nil
+  ]
+
+  """
+  ## Consistent Hashing
+
+  The `HashRing` class distributes keys across nodes with minimal
+  redistribution when nodes join or leave. Each real node is placed
+  at multiple virtual positions on the ring for even distribution.
+
+  ```example
+  "Standalone HashRing"
+  ring := HashRing new.           "150 virtual nodes per real node"
+  ring add: 'node-a'.
+  ring add: 'node-b'.
+  ring add: 'node-c'.
+
+  "Deterministic key-to-node mapping"
+  ring nodeFor: 'user-123'.       "Always returns the same node"
+  ring nodeFor: 'order-456'.      "May return a different node"
+
+  "Replication: get the top N nodes for a key"
+  ring nodesFor: 'user-123' count: 2.  "Array of 2 nodes"
+
+  "When a node leaves, only its keys are redistributed"
+  ring remove: 'node-b'.
+  ring nodeFor: 'user-123'.       "Same node if it wasn't node-b"
+  ```
+
+  **Integration with Cluster:** The `Cluster` class maintains a
+  `HashRing` internally. As members join and leave, the ring is
+  updated automatically:
+
+  ```example
+  cluster := Cluster seeds: #('host1:8081' 'host2:8081').
+  cluster start.
+
+  "Route a key to its responsible node"
+  node := cluster nodeFor: 'user-123'.
+  [:data | self processUser: data] forkOn: node with: userData.
+
+  "Get multiple nodes for replication"
+  replicas := cluster nodesFor: 'user-123' count: 3
+  ```
+
+  **Virtual nodes:** By default, each real node gets 150 virtual
+  positions on the ring. This ensures even distribution even with
+  a small number of real nodes. Use `HashRing new: n` to customize
+  the replica count.
+  """
+  method: s02_consistentHashing [
+      "HashRing provides deterministic key-to-node mapping."
+      ^nil
+  ]
+
+  """
+  ## Putting It Together
+
+  A typical distributed application combines Cluster, Supervisor,
+  and consistent hashing:
+
+  ```example
+  "Application startup"
+  | cluster supervisor |
+
+  "1. Start the cluster"
+  cluster := Cluster seeds: #('worker1:8081' 'worker2:8081').
+  cluster start.
+
+  "2. Supervise local workers"
+  supervisor := Supervisor new: #oneForOne children: {
+      ChildSpec id: 'handler' start: [RequestHandler new: cluster run]
+  }.
+  supervisor start.
+
+  "3. In the request handler, route work by key"
+  "node := cluster nodeFor: requestKey."
+  "[:req | self handle: req] forkOn: node with: request"
+  ```
+  """
+  method: s03_puttingItTogether [
+      "Combining Cluster, Supervisor, and HashRing."
+      ^nil
+  ]

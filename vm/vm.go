@@ -111,6 +111,12 @@ type VM struct {
 	NodeClass            *Class
 	RemoteProcessClass   *Class
 
+	RemoteChannelClass   *Class
+
+	// Remote channel registries
+	remoteChannels *remoteChannelRegistry
+	channelExports *channelExportRegistry
+
 	// Node references for remote connections
 	nodeRefs   map[int]*NodeRefData
 	nodeRefsMu sync.RWMutex
@@ -122,6 +128,10 @@ type VM struct {
 	// NodeRefFactory creates fully-wired NodeRefData instances.
 	// Set by cmd/mag to inject gRPC client wiring.
 	NodeRefFactory NodeRefFactory
+
+	// RemoteChannelFactory wires up RPC callbacks on a RemoteChannelRef.
+	// Set by cmd/mag to inject gRPC client wiring for channel operations.
+	RemoteChannelFactory func(ref *RemoteChannelRef)
 
 	// Cross-node monitor/link tracking and health monitoring
 	remoteWatches *RemoteWatchStore
@@ -167,6 +177,10 @@ type VM struct {
 
 	// samplingProfiler is the wall-clock sampling profiler (nil when disabled).
 	samplingProfiler *SamplingProfiler
+
+	// pendingSpawns tracks Futures for forkOn: calls awaiting results from
+	// remote nodes. Keyed by futureID embedded in the SpawnBlock.
+	pendingSpawns *pendingSpawnRegistry
 }
 
 // NewVM creates and bootstraps a new VM.
@@ -183,8 +197,11 @@ func NewVM() *VM {
 		symbolDispatch:   NewSymbolDispatch(),
 		processNames:     make(map[string]uint64),
 		processNamesByID: make(map[uint64]string),
+		remoteChannels:   newRemoteChannelRegistry(),
+		channelExports:   newChannelExportRegistry(),
 		nodeRefs:         make(map[int]*NodeRefData),
 		remoteWatches:    NewRemoteWatchStore(),
+		pendingSpawns:    newPendingSpawnRegistry(),
 	}
 
 	// Bootstrap core classes
@@ -331,6 +348,8 @@ func (vm *VM) bootstrap() {
 	vm.registerFuturePrimitives()
 	vm.registerNodePrimitives()
 	vm.registerRemoteProcessPrimitives()
+	vm.registerSpawnPrimitives()
+	vm.registerRemoteChannelPrimitives()
 	vm.registerMutexPrimitives()
 	vm.registerWaitGroupPrimitives()
 	vm.registerSemaphorePrimitives()
@@ -864,6 +883,25 @@ func (vm *VM) ExecuteSafe(method *CompiledMethod, receiver Value, args []Value) 
 				result = Nil
 				return
 			}
+			// Catch SignaledException (unhandled Maggie exception)
+			if sigEx, ok := r.(SignaledException); ok {
+				msg := "unhandled exception"
+				if sigEx.Object != nil {
+					className := ""
+					if sigEx.Object.ExceptionClass != nil {
+						className = sigEx.Object.ExceptionClass.Name
+					}
+					if IsStringValue(sigEx.Object.MessageText) {
+						msg = vm.registry.GetStringContent(sigEx.Object.MessageText)
+					}
+					if className != "" {
+						msg = className + ": " + msg
+					}
+				}
+				err = fmt.Errorf("%s", msg)
+				result = Nil
+				return
+			}
 			// Not a Maggie error, re-panic
 			panic(r)
 		}
@@ -1082,6 +1120,11 @@ func (vm *VM) ContentStore() *ContentStore {
 		vm.contentStore = NewContentStore()
 	}
 	return vm.contentStore
+}
+
+// SetContentStore replaces the content store. Used by tests.
+func (vm *VM) SetContentStore(cs *ContentStore) {
+	vm.contentStore = cs
 }
 
 // SetSyncRestrictions sets the default restriction list for sandboxed execution

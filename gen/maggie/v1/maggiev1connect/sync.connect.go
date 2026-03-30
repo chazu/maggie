@@ -54,6 +54,26 @@ const (
 	// SyncServiceDemonitorProcessProcedure is the fully-qualified name of the SyncService's
 	// DemonitorProcess RPC.
 	SyncServiceDemonitorProcessProcedure = "/maggie.v1.SyncService/DemonitorProcess"
+	// SyncServiceSpawnProcessProcedure is the fully-qualified name of the SyncService's SpawnProcess
+	// RPC.
+	SyncServiceSpawnProcessProcedure = "/maggie.v1.SyncService/SpawnProcess"
+	// SyncServiceChannelSendProcedure is the fully-qualified name of the SyncService's ChannelSend RPC.
+	SyncServiceChannelSendProcedure = "/maggie.v1.SyncService/ChannelSend"
+	// SyncServiceChannelReceiveProcedure is the fully-qualified name of the SyncService's
+	// ChannelReceive RPC.
+	SyncServiceChannelReceiveProcedure = "/maggie.v1.SyncService/ChannelReceive"
+	// SyncServiceChannelTrySendProcedure is the fully-qualified name of the SyncService's
+	// ChannelTrySend RPC.
+	SyncServiceChannelTrySendProcedure = "/maggie.v1.SyncService/ChannelTrySend"
+	// SyncServiceChannelTryReceiveProcedure is the fully-qualified name of the SyncService's
+	// ChannelTryReceive RPC.
+	SyncServiceChannelTryReceiveProcedure = "/maggie.v1.SyncService/ChannelTryReceive"
+	// SyncServiceChannelCloseProcedure is the fully-qualified name of the SyncService's ChannelClose
+	// RPC.
+	SyncServiceChannelCloseProcedure = "/maggie.v1.SyncService/ChannelClose"
+	// SyncServiceChannelStatusProcedure is the fully-qualified name of the SyncService's ChannelStatus
+	// RPC.
+	SyncServiceChannelStatusProcedure = "/maggie.v1.SyncService/ChannelStatus"
 )
 
 // SyncServiceClient is a client for the maggie.v1.SyncService service.
@@ -82,6 +102,20 @@ type SyncServiceClient interface {
 	MonitorProcess(context.Context, *connect.Request[v1.MonitorProcessRequest]) (*connect.Response[v1.MonitorProcessResponse], error)
 	// DemonitorProcess cancels a previously established remote monitor.
 	DemonitorProcess(context.Context, *connect.Request[v1.DemonitorProcessRequest]) (*connect.Response[v1.DemonitorProcessResponse], error)
+	// SpawnProcess executes a serialized block on this node.
+	SpawnProcess(context.Context, *connect.Request[v1.SpawnProcessRequest]) (*connect.Response[v1.SpawnProcessResponse], error)
+	// ChannelSend sends a value to an exported channel (blocking).
+	ChannelSend(context.Context, *connect.Request[v1.ChannelSendRequest]) (*connect.Response[v1.ChannelSendResponse], error)
+	// ChannelReceive receives a value from an exported channel (blocking).
+	ChannelReceive(context.Context, *connect.Request[v1.ChannelReceiveRequest]) (*connect.Response[v1.ChannelReceiveResponse], error)
+	// ChannelTrySend attempts a non-blocking send.
+	ChannelTrySend(context.Context, *connect.Request[v1.ChannelSendRequest]) (*connect.Response[v1.ChannelTrySendResponse], error)
+	// ChannelTryReceive attempts a non-blocking receive.
+	ChannelTryReceive(context.Context, *connect.Request[v1.ChannelReceiveRequest]) (*connect.Response[v1.ChannelTryReceiveResponse], error)
+	// ChannelClose closes an exported channel.
+	ChannelClose(context.Context, *connect.Request[v1.ChannelCloseRequest]) (*connect.Response[v1.ChannelCloseResponse], error)
+	// ChannelStatus returns the status of an exported channel.
+	ChannelStatus(context.Context, *connect.Request[v1.ChannelStatusRequest]) (*connect.Response[v1.ChannelStatusResponse], error)
 }
 
 // NewSyncServiceClient constructs a client for the maggie.v1.SyncService service. By default, it
@@ -149,20 +183,69 @@ func NewSyncServiceClient(httpClient connect.HTTPClient, baseURL string, opts ..
 			connect.WithSchema(syncServiceMethods.ByName("DemonitorProcess")),
 			connect.WithClientOptions(opts...),
 		),
+		spawnProcess: connect.NewClient[v1.SpawnProcessRequest, v1.SpawnProcessResponse](
+			httpClient,
+			baseURL+SyncServiceSpawnProcessProcedure,
+			connect.WithSchema(syncServiceMethods.ByName("SpawnProcess")),
+			connect.WithClientOptions(opts...),
+		),
+		channelSend: connect.NewClient[v1.ChannelSendRequest, v1.ChannelSendResponse](
+			httpClient,
+			baseURL+SyncServiceChannelSendProcedure,
+			connect.WithSchema(syncServiceMethods.ByName("ChannelSend")),
+			connect.WithClientOptions(opts...),
+		),
+		channelReceive: connect.NewClient[v1.ChannelReceiveRequest, v1.ChannelReceiveResponse](
+			httpClient,
+			baseURL+SyncServiceChannelReceiveProcedure,
+			connect.WithSchema(syncServiceMethods.ByName("ChannelReceive")),
+			connect.WithClientOptions(opts...),
+		),
+		channelTrySend: connect.NewClient[v1.ChannelSendRequest, v1.ChannelTrySendResponse](
+			httpClient,
+			baseURL+SyncServiceChannelTrySendProcedure,
+			connect.WithSchema(syncServiceMethods.ByName("ChannelTrySend")),
+			connect.WithClientOptions(opts...),
+		),
+		channelTryReceive: connect.NewClient[v1.ChannelReceiveRequest, v1.ChannelTryReceiveResponse](
+			httpClient,
+			baseURL+SyncServiceChannelTryReceiveProcedure,
+			connect.WithSchema(syncServiceMethods.ByName("ChannelTryReceive")),
+			connect.WithClientOptions(opts...),
+		),
+		channelClose: connect.NewClient[v1.ChannelCloseRequest, v1.ChannelCloseResponse](
+			httpClient,
+			baseURL+SyncServiceChannelCloseProcedure,
+			connect.WithSchema(syncServiceMethods.ByName("ChannelClose")),
+			connect.WithClientOptions(opts...),
+		),
+		channelStatus: connect.NewClient[v1.ChannelStatusRequest, v1.ChannelStatusResponse](
+			httpClient,
+			baseURL+SyncServiceChannelStatusProcedure,
+			connect.WithSchema(syncServiceMethods.ByName("ChannelStatus")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
 // syncServiceClient implements SyncServiceClient.
 type syncServiceClient struct {
-	announce         *connect.Client[v1.AnnounceRequest, v1.AnnounceResponse]
-	transfer         *connect.Client[v1.TransferRequest, v1.TransferResponse]
-	serve            *connect.Client[v1.ServeRequest, v1.ServeResponse]
-	ping             *connect.Client[v1.PingRequest, v1.PingResponse]
-	resolve          *connect.Client[v1.ResolveRequest, v1.ResolveResponse]
-	list             *connect.Client[v1.ListRequest, v1.ListResponse]
-	deliverMessage   *connect.Client[v1.DeliverMessageRequest, v1.DeliverMessageResponse]
-	monitorProcess   *connect.Client[v1.MonitorProcessRequest, v1.MonitorProcessResponse]
-	demonitorProcess *connect.Client[v1.DemonitorProcessRequest, v1.DemonitorProcessResponse]
+	announce          *connect.Client[v1.AnnounceRequest, v1.AnnounceResponse]
+	transfer          *connect.Client[v1.TransferRequest, v1.TransferResponse]
+	serve             *connect.Client[v1.ServeRequest, v1.ServeResponse]
+	ping              *connect.Client[v1.PingRequest, v1.PingResponse]
+	resolve           *connect.Client[v1.ResolveRequest, v1.ResolveResponse]
+	list              *connect.Client[v1.ListRequest, v1.ListResponse]
+	deliverMessage    *connect.Client[v1.DeliverMessageRequest, v1.DeliverMessageResponse]
+	monitorProcess    *connect.Client[v1.MonitorProcessRequest, v1.MonitorProcessResponse]
+	demonitorProcess  *connect.Client[v1.DemonitorProcessRequest, v1.DemonitorProcessResponse]
+	spawnProcess      *connect.Client[v1.SpawnProcessRequest, v1.SpawnProcessResponse]
+	channelSend       *connect.Client[v1.ChannelSendRequest, v1.ChannelSendResponse]
+	channelReceive    *connect.Client[v1.ChannelReceiveRequest, v1.ChannelReceiveResponse]
+	channelTrySend    *connect.Client[v1.ChannelSendRequest, v1.ChannelTrySendResponse]
+	channelTryReceive *connect.Client[v1.ChannelReceiveRequest, v1.ChannelTryReceiveResponse]
+	channelClose      *connect.Client[v1.ChannelCloseRequest, v1.ChannelCloseResponse]
+	channelStatus     *connect.Client[v1.ChannelStatusRequest, v1.ChannelStatusResponse]
 }
 
 // Announce calls maggie.v1.SyncService.Announce.
@@ -210,6 +293,41 @@ func (c *syncServiceClient) DemonitorProcess(ctx context.Context, req *connect.R
 	return c.demonitorProcess.CallUnary(ctx, req)
 }
 
+// SpawnProcess calls maggie.v1.SyncService.SpawnProcess.
+func (c *syncServiceClient) SpawnProcess(ctx context.Context, req *connect.Request[v1.SpawnProcessRequest]) (*connect.Response[v1.SpawnProcessResponse], error) {
+	return c.spawnProcess.CallUnary(ctx, req)
+}
+
+// ChannelSend calls maggie.v1.SyncService.ChannelSend.
+func (c *syncServiceClient) ChannelSend(ctx context.Context, req *connect.Request[v1.ChannelSendRequest]) (*connect.Response[v1.ChannelSendResponse], error) {
+	return c.channelSend.CallUnary(ctx, req)
+}
+
+// ChannelReceive calls maggie.v1.SyncService.ChannelReceive.
+func (c *syncServiceClient) ChannelReceive(ctx context.Context, req *connect.Request[v1.ChannelReceiveRequest]) (*connect.Response[v1.ChannelReceiveResponse], error) {
+	return c.channelReceive.CallUnary(ctx, req)
+}
+
+// ChannelTrySend calls maggie.v1.SyncService.ChannelTrySend.
+func (c *syncServiceClient) ChannelTrySend(ctx context.Context, req *connect.Request[v1.ChannelSendRequest]) (*connect.Response[v1.ChannelTrySendResponse], error) {
+	return c.channelTrySend.CallUnary(ctx, req)
+}
+
+// ChannelTryReceive calls maggie.v1.SyncService.ChannelTryReceive.
+func (c *syncServiceClient) ChannelTryReceive(ctx context.Context, req *connect.Request[v1.ChannelReceiveRequest]) (*connect.Response[v1.ChannelTryReceiveResponse], error) {
+	return c.channelTryReceive.CallUnary(ctx, req)
+}
+
+// ChannelClose calls maggie.v1.SyncService.ChannelClose.
+func (c *syncServiceClient) ChannelClose(ctx context.Context, req *connect.Request[v1.ChannelCloseRequest]) (*connect.Response[v1.ChannelCloseResponse], error) {
+	return c.channelClose.CallUnary(ctx, req)
+}
+
+// ChannelStatus calls maggie.v1.SyncService.ChannelStatus.
+func (c *syncServiceClient) ChannelStatus(ctx context.Context, req *connect.Request[v1.ChannelStatusRequest]) (*connect.Response[v1.ChannelStatusResponse], error) {
+	return c.channelStatus.CallUnary(ctx, req)
+}
+
 // SyncServiceHandler is an implementation of the maggie.v1.SyncService service.
 type SyncServiceHandler interface {
 	// Announce advertises a set of content hashes to a peer.
@@ -236,6 +354,20 @@ type SyncServiceHandler interface {
 	MonitorProcess(context.Context, *connect.Request[v1.MonitorProcessRequest]) (*connect.Response[v1.MonitorProcessResponse], error)
 	// DemonitorProcess cancels a previously established remote monitor.
 	DemonitorProcess(context.Context, *connect.Request[v1.DemonitorProcessRequest]) (*connect.Response[v1.DemonitorProcessResponse], error)
+	// SpawnProcess executes a serialized block on this node.
+	SpawnProcess(context.Context, *connect.Request[v1.SpawnProcessRequest]) (*connect.Response[v1.SpawnProcessResponse], error)
+	// ChannelSend sends a value to an exported channel (blocking).
+	ChannelSend(context.Context, *connect.Request[v1.ChannelSendRequest]) (*connect.Response[v1.ChannelSendResponse], error)
+	// ChannelReceive receives a value from an exported channel (blocking).
+	ChannelReceive(context.Context, *connect.Request[v1.ChannelReceiveRequest]) (*connect.Response[v1.ChannelReceiveResponse], error)
+	// ChannelTrySend attempts a non-blocking send.
+	ChannelTrySend(context.Context, *connect.Request[v1.ChannelSendRequest]) (*connect.Response[v1.ChannelTrySendResponse], error)
+	// ChannelTryReceive attempts a non-blocking receive.
+	ChannelTryReceive(context.Context, *connect.Request[v1.ChannelReceiveRequest]) (*connect.Response[v1.ChannelTryReceiveResponse], error)
+	// ChannelClose closes an exported channel.
+	ChannelClose(context.Context, *connect.Request[v1.ChannelCloseRequest]) (*connect.Response[v1.ChannelCloseResponse], error)
+	// ChannelStatus returns the status of an exported channel.
+	ChannelStatus(context.Context, *connect.Request[v1.ChannelStatusRequest]) (*connect.Response[v1.ChannelStatusResponse], error)
 }
 
 // NewSyncServiceHandler builds an HTTP handler from the service implementation. It returns the path
@@ -299,6 +431,48 @@ func NewSyncServiceHandler(svc SyncServiceHandler, opts ...connect.HandlerOption
 		connect.WithSchema(syncServiceMethods.ByName("DemonitorProcess")),
 		connect.WithHandlerOptions(opts...),
 	)
+	syncServiceSpawnProcessHandler := connect.NewUnaryHandler(
+		SyncServiceSpawnProcessProcedure,
+		svc.SpawnProcess,
+		connect.WithSchema(syncServiceMethods.ByName("SpawnProcess")),
+		connect.WithHandlerOptions(opts...),
+	)
+	syncServiceChannelSendHandler := connect.NewUnaryHandler(
+		SyncServiceChannelSendProcedure,
+		svc.ChannelSend,
+		connect.WithSchema(syncServiceMethods.ByName("ChannelSend")),
+		connect.WithHandlerOptions(opts...),
+	)
+	syncServiceChannelReceiveHandler := connect.NewUnaryHandler(
+		SyncServiceChannelReceiveProcedure,
+		svc.ChannelReceive,
+		connect.WithSchema(syncServiceMethods.ByName("ChannelReceive")),
+		connect.WithHandlerOptions(opts...),
+	)
+	syncServiceChannelTrySendHandler := connect.NewUnaryHandler(
+		SyncServiceChannelTrySendProcedure,
+		svc.ChannelTrySend,
+		connect.WithSchema(syncServiceMethods.ByName("ChannelTrySend")),
+		connect.WithHandlerOptions(opts...),
+	)
+	syncServiceChannelTryReceiveHandler := connect.NewUnaryHandler(
+		SyncServiceChannelTryReceiveProcedure,
+		svc.ChannelTryReceive,
+		connect.WithSchema(syncServiceMethods.ByName("ChannelTryReceive")),
+		connect.WithHandlerOptions(opts...),
+	)
+	syncServiceChannelCloseHandler := connect.NewUnaryHandler(
+		SyncServiceChannelCloseProcedure,
+		svc.ChannelClose,
+		connect.WithSchema(syncServiceMethods.ByName("ChannelClose")),
+		connect.WithHandlerOptions(opts...),
+	)
+	syncServiceChannelStatusHandler := connect.NewUnaryHandler(
+		SyncServiceChannelStatusProcedure,
+		svc.ChannelStatus,
+		connect.WithSchema(syncServiceMethods.ByName("ChannelStatus")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/maggie.v1.SyncService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case SyncServiceAnnounceProcedure:
@@ -319,6 +493,20 @@ func NewSyncServiceHandler(svc SyncServiceHandler, opts ...connect.HandlerOption
 			syncServiceMonitorProcessHandler.ServeHTTP(w, r)
 		case SyncServiceDemonitorProcessProcedure:
 			syncServiceDemonitorProcessHandler.ServeHTTP(w, r)
+		case SyncServiceSpawnProcessProcedure:
+			syncServiceSpawnProcessHandler.ServeHTTP(w, r)
+		case SyncServiceChannelSendProcedure:
+			syncServiceChannelSendHandler.ServeHTTP(w, r)
+		case SyncServiceChannelReceiveProcedure:
+			syncServiceChannelReceiveHandler.ServeHTTP(w, r)
+		case SyncServiceChannelTrySendProcedure:
+			syncServiceChannelTrySendHandler.ServeHTTP(w, r)
+		case SyncServiceChannelTryReceiveProcedure:
+			syncServiceChannelTryReceiveHandler.ServeHTTP(w, r)
+		case SyncServiceChannelCloseProcedure:
+			syncServiceChannelCloseHandler.ServeHTTP(w, r)
+		case SyncServiceChannelStatusProcedure:
+			syncServiceChannelStatusHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -362,4 +550,32 @@ func (UnimplementedSyncServiceHandler) MonitorProcess(context.Context, *connect.
 
 func (UnimplementedSyncServiceHandler) DemonitorProcess(context.Context, *connect.Request[v1.DemonitorProcessRequest]) (*connect.Response[v1.DemonitorProcessResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("maggie.v1.SyncService.DemonitorProcess is not implemented"))
+}
+
+func (UnimplementedSyncServiceHandler) SpawnProcess(context.Context, *connect.Request[v1.SpawnProcessRequest]) (*connect.Response[v1.SpawnProcessResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("maggie.v1.SyncService.SpawnProcess is not implemented"))
+}
+
+func (UnimplementedSyncServiceHandler) ChannelSend(context.Context, *connect.Request[v1.ChannelSendRequest]) (*connect.Response[v1.ChannelSendResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("maggie.v1.SyncService.ChannelSend is not implemented"))
+}
+
+func (UnimplementedSyncServiceHandler) ChannelReceive(context.Context, *connect.Request[v1.ChannelReceiveRequest]) (*connect.Response[v1.ChannelReceiveResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("maggie.v1.SyncService.ChannelReceive is not implemented"))
+}
+
+func (UnimplementedSyncServiceHandler) ChannelTrySend(context.Context, *connect.Request[v1.ChannelSendRequest]) (*connect.Response[v1.ChannelTrySendResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("maggie.v1.SyncService.ChannelTrySend is not implemented"))
+}
+
+func (UnimplementedSyncServiceHandler) ChannelTryReceive(context.Context, *connect.Request[v1.ChannelReceiveRequest]) (*connect.Response[v1.ChannelTryReceiveResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("maggie.v1.SyncService.ChannelTryReceive is not implemented"))
+}
+
+func (UnimplementedSyncServiceHandler) ChannelClose(context.Context, *connect.Request[v1.ChannelCloseRequest]) (*connect.Response[v1.ChannelCloseResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("maggie.v1.SyncService.ChannelClose is not implemented"))
+}
+
+func (UnimplementedSyncServiceHandler) ChannelStatus(context.Context, *connect.Request[v1.ChannelStatusRequest]) (*connect.Response[v1.ChannelStatusResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("maggie.v1.SyncService.ChannelStatus is not implemented"))
 }

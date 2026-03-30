@@ -1,0 +1,221 @@
+"""
+Supervisor trees provide fault tolerance by monitoring child processes
+and restarting them when they crash. This is the Erlang/OTP supervision
+pattern adapted for Maggie's Smalltalk syntax.
+
+A supervisor manages a set of child processes according to a restart
+strategy. When a child dies, the supervisor decides which children
+to restart based on the strategy and the child's restart policy.
+"""
+Guide10Supervisors subclass: Object
+
+  """
+  ## Child Specifications
+
+  A `ChildSpec` defines how to start a child, when to restart it,
+  and how long to wait for graceful shutdown.
+
+  ```example
+  "Minimal spec: permanent restart, 5s shutdown timeout"
+  spec := ChildSpec id: 'worker' start: [Worker new run].
+
+  "Full spec with all options"
+  spec := ChildSpec
+      id: 'db-pool'
+      start: [DbPool new: 10 run]
+      restart: #transient
+      shutdown: 10000
+  ```
+
+  **Restart policies:**
+  - `#permanent` — always restart (default)
+  - `#temporary` — never restart; let it stay dead
+  - `#transient` — restart only on abnormal exit (crash), not normal exit
+  """
+  method: s01_childSpecs [
+      "ChildSpec holds id, startBlock, restart policy, and shutdown timeout."
+      ^nil
+  ]
+
+  """
+  ## Restart Strategies
+
+  The supervisor's strategy determines what happens when a child dies:
+
+  **`#oneForOne`** — Only the crashed child is restarted. Other children
+  are unaffected. Use this when children are independent.
+
+  ```example
+  sup := Supervisor new: #oneForOne children: {
+      ChildSpec id: 'a' start: [WorkerA new run].
+      ChildSpec id: 'b' start: [WorkerB new run].
+      ChildSpec id: 'c' start: [WorkerC new run]
+  }.
+  sup start
+  ```
+
+  **`#oneForAll`** — All children are terminated and restarted when any
+  child dies. Use this when children depend on each other and must be
+  in a consistent state.
+
+  ```example
+  sup := Supervisor new: #oneForAll children: {
+      ChildSpec id: 'config' start: [ConfigLoader new run].
+      ChildSpec id: 'cache' start: [Cache new run].
+      ChildSpec id: 'server' start: [Server new run]
+  }.
+  sup start
+  ```
+
+  **`#restForOne`** — The crashed child and all children started after
+  it are terminated and restarted. Use this when later children depend
+  on earlier ones.
+
+  ```example
+  sup := Supervisor new: #restForOne children: {
+      ChildSpec id: 'db' start: [Database connect].
+      ChildSpec id: 'cache' start: [Cache new: db].
+      ChildSpec id: 'api' start: [Api new: cache]
+  }.
+  sup start
+  ```
+  """
+  method: s02_strategies [
+      "Strategies: #oneForOne, #oneForAll, #restForOne."
+      ^nil
+  ]
+
+  """
+  ## Restart Intensity
+
+  To prevent infinite restart loops, supervisors have a restart intensity
+  limit. By default, a supervisor allows 3 restarts in 5 seconds. If this
+  limit is exceeded, the supervisor itself crashes — which propagates to
+  its parent supervisor (if any).
+
+  ```example
+  "Custom restart intensity: 5 restarts in 10 seconds"
+  sup := Supervisor
+      new: #oneForOne
+      children: specs
+      maxRestarts: 5
+      maxSeconds: 10
+  ```
+  """
+  method: s03_restartIntensity [
+      "Max restarts per time window, then supervisor crashes upward."
+      ^nil
+  ]
+
+  """
+  ## Dynamic Children
+
+  Children can be added and removed at runtime:
+
+  ```example
+  sup := Supervisor new: #oneForOne children: {}.
+  sup start.
+
+  "Add a worker"
+  sup startChild: (ChildSpec id: 'worker-1' start: [Worker new run]).
+
+  "Remove a worker"
+  sup terminateChild: 'worker-1'.
+
+  "Query running children"
+  sup runningChildren.    "Array of IDs"
+  sup countChildren.      "Integer count"
+  ```
+  """
+  method: s04_dynamicChildren [
+      "startChild: and terminateChild: for runtime management."
+      ^nil
+  ]
+
+  """
+  ## Supervision Trees
+
+  Supervisors can be children of other supervisors, forming a tree.
+  When a child supervisor crashes (e.g., due to restart intensity
+  exceeded), the parent supervisor restarts it according to its own
+  strategy.
+
+  ```example
+  "Two-level supervision tree"
+  workerSup := Supervisor new: #oneForOne children: {
+      ChildSpec id: 'w1' start: [Worker new run].
+      ChildSpec id: 'w2' start: [Worker new run]
+  }.
+
+  topSup := Supervisor new: #oneForAll children: {
+      ChildSpec id: 'db' start: [Database connect].
+      ChildSpec id: 'workers' start: [workerSup start. Process receive]
+  }.
+  topSup start
+  ```
+  """
+  method: s05_supervisionTrees [
+      "Supervisors as children of other supervisors."
+      ^nil
+  ]
+
+  """
+  ## How It Works
+
+  Internally, a supervisor:
+
+  1. Runs as its own process with `trapExit: true`
+  2. Monitors each child process
+  3. Receives `#processDown:` messages when children die
+  4. Applies the restart strategy and policy
+  5. Tracks restart times to enforce the intensity limit
+
+  The supervisor process uses the standard mailbox for all communication.
+  When stopped, it terminates all children with a shutdown signal.
+  """
+  method: s06_internals [
+      "Supervisor process uses trapExit, monitors, and mailbox."
+      ^nil
+  ]
+
+  """
+  ## DynamicSupervisor
+
+  `DynamicSupervisor` manages a pool of identical children from a single
+  template `ChildSpec`. Unlike `Supervisor`, no children are defined
+  upfront — they are started on demand. This is equivalent to Erlang's
+  `simple_one_for_one` / `DynamicSupervisor`.
+
+  ```example
+  "Template: all children use the same start block"
+  template := ChildSpec
+      id: 'worker'
+      start: [:id | Worker new: id run]
+      restart: #permanent.
+
+  ds := DynamicSupervisor new: template.
+  ds start.
+
+  "Start children on demand with unique IDs"
+  ds startChild: 'worker-1'.
+  ds startChild: 'worker-2'.
+  ds startChild: 'worker-3'.
+
+  ds countChildren.     "=> 3"
+
+  "Remove a specific child"
+  ds terminateChild: 'worker-2'.
+  ds countChildren.     "=> 2"
+
+  ds stop
+  ```
+
+  Each child is started by calling the template's start block with
+  the child ID as argument (`forkWith:`). When a child crashes, it is
+  restarted individually with the same ID (like `#oneForOne`). The
+  same restart intensity limits apply.
+  """
+  method: s07_dynamicSupervisor [
+      "DynamicSupervisor for pool-style child management."
+      ^nil
+  ]

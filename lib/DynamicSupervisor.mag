@@ -1,0 +1,199 @@
+"""
+A dynamic supervisor that manages a pool of identical children started
+from a single template spec. Unlike `Supervisor`, children are not
+defined upfront — they are started on demand with `startChild:`.
+
+All children share the same restart policy from the template spec.
+When a child crashes, it is restarted individually (like `#oneForOne`).
+
+This is equivalent to Erlang's `simple_one_for_one` / `DynamicSupervisor`.
+
+```test
+ds := DynamicSupervisor new: (ChildSpec id: 'worker' start: [nil] restart: #temporary).
+ds template id >>> 'worker'
+```
+
+```example
+"Create a pool of workers"
+template := ChildSpec id: 'worker' start: [:id | Worker new: id run] restart: #permanent.
+ds := DynamicSupervisor new: template.
+ds start.
+
+"Start workers on demand"
+ds startChild: 'worker-1'.
+ds startChild: 'worker-2'.
+ds startChild: 'worker-3'.
+
+"Query"
+ds countChildren.     "=> 3"
+ds runningChildren.   "=> #('worker-1' 'worker-2' 'worker-3')"
+
+"Remove a specific child"
+ds terminateChild: 'worker-2'.
+
+ds stop
+```
+"""
+DynamicSupervisor subclass: Object
+  instanceVars: template children process running
+                maxRestarts maxSeconds restartTimes
+
+  """Create a DynamicSupervisor with a template ChildSpec."""
+  classMethod: new: templateSpec [
+      ^self new: templateSpec maxRestarts: 3 maxSeconds: 5
+  ]
+
+  classMethod: new: templateSpec maxRestarts: maxR maxSeconds: maxS [
+      | ds |
+      ds := super new.
+      ds primInit: templateSpec maxR: maxR maxS: maxS.
+      ^ds
+  ]
+
+  method: primInit: templateSpec maxR: maxR maxS: maxS [
+      template := templateSpec.
+      children := Dictionary new.
+      maxRestarts := maxR.
+      maxSeconds := maxS.
+      restartTimes := Array new: 0.
+      running := false
+  ]
+
+  """Return the template spec."""
+  method: template [ ^template ]
+
+  """Start the dynamic supervisor process."""
+  method: start [
+      running := true.
+      process := [self runLoop] fork.
+      ^process
+  ]
+
+  """Stop the dynamic supervisor and all children."""
+  method: stop [
+      running := false.
+      self terminateAllChildren.
+      process notNil ifTrue: [process primTerminate]
+  ]
+
+  """
+  Start a new child with the given ID. The template's start block
+  is evaluated with the ID as argument.
+  """
+  method: startChild: childId [
+      | childProc |
+      childProc := template startBlock forkWith: childId.
+      Process current monitor: childProc.
+      children at: childId put: childProc.
+      ^childProc
+  ]
+
+  """Terminate a child by ID."""
+  method: terminateChild: childId [
+      | proc |
+      proc := children at: childId ifAbsent: [nil].
+      proc notNil ifTrue: [
+          proc primTerminate.
+          children removeKey: childId ifAbsent: [nil]
+      ]
+  ]
+
+  """Return the IDs of currently running children."""
+  method: runningChildren [
+      | ids |
+      ids := Array new: 0.
+      children keysAndValuesDo: [:k :v |
+          v isDone not ifTrue: [ids := ids , (Array with: k)]
+      ].
+      ^ids
+  ]
+
+  """Return the count of running children."""
+  method: countChildren [
+      ^self runningChildren size
+  ]
+
+  """Return the supervisor process."""
+  method: process [ ^process ]
+
+  "--- Private ---"
+
+  method: runLoop [
+      Process current trapExit: true.
+
+      [running] whileTrue: [
+          | msg |
+          msg := Process receive: 1000.
+          msg notNil ifTrue: [
+              msg selector = #processDown: ifTrue: [
+                  self handleChildDown: msg payload
+              ]
+          ]
+      ]
+  ]
+
+  method: handleChildDown: info [
+      | reason childId |
+      reason := info at: 3.
+      childId := self findChildId: (info at: 2).
+      childId isNil ifTrue: [^nil].
+
+      "Check restart policy from template"
+      (self shouldRestart: reason) ifFalse: [
+          children removeKey: childId ifAbsent: [nil].
+          ^nil
+      ].
+
+      "Check restart intensity"
+      self recordRestart.
+      self restartIntensityExceeded ifTrue: [
+          running := false.
+          self terminateAllChildren.
+          ^nil
+      ].
+
+      "Restart the child with same ID"
+      children removeKey: childId ifAbsent: [nil].
+      self startChild: childId
+  ]
+
+  method: findChildId: procValue [
+      children keysAndValuesDo: [:k :v |
+          v = procValue ifTrue: [^k]
+      ].
+      ^nil
+  ]
+
+  method: shouldRestart: reason [
+      template restart = #permanent ifTrue: [^true].
+      template restart = #temporary ifTrue: [^false].
+      template restart = #transient ifTrue: [^reason ~= #normal].
+      ^false
+  ]
+
+  method: terminateAllChildren [
+      children keysAndValuesDo: [:k :v |
+          v isDone not ifTrue: [v primTerminate]
+      ].
+      children := Dictionary new
+  ]
+
+  method: recordRestart [
+      | now |
+      now := DateTime now epochMillis.
+      restartTimes := restartTimes , (Array with: now)
+  ]
+
+  method: restartIntensityExceeded [
+      | now windowStart count |
+      restartTimes size < maxRestarts ifTrue: [^false].
+      now := DateTime now epochMillis.
+      windowStart := now - (maxSeconds * 1000).
+      count := 0.
+      restartTimes do: [:t | t >= windowStart ifTrue: [count := count + 1]].
+      ^count > maxRestarts
+  ]
+
+  method: printString [
+      ^'a DynamicSupervisor(', self countChildren printString, ' children)'
+  ]

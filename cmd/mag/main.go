@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"runtime/pprof"
 	"strings"
+	"sync"
 	"time"
 
 	"context"
@@ -282,6 +283,9 @@ func run() (exitCode int) {
 	// Wire NodeRefFactory for remote messaging
 	vmInst.NodeRefFactory = buildNodeRefFactory()
 
+	// Wire RemoteChannelFactory for distributed channels
+	vmInst.RemoteChannelFactory = buildRemoteChannelFactory(vmInst)
+
 	// Register wrapper packages from full-system builds
 	for _, register := range projectWrapperRegistrars {
 		register(vmInst)
@@ -464,6 +468,7 @@ func run() (exitCode int) {
 		}
 		trustStore := loadTrustStore(loadedManifest)
 		syncOpts = append(syncOpts, server.WithTrustStore(trustStore))
+		syncOpts = append(syncOpts, server.WithSpawnResultFunc(buildSpawnResultFunc(vmInst)))
 		srv := server.New(vmInst, syncOpts...)
 		go func() {
 			if err := srv.ListenAndServe(syncAddr); err != nil {
@@ -743,7 +748,179 @@ func buildNodeRefFactory() vm.NodeRefFactory {
 			return err == nil
 		}
 
+		ref.SpawnFunc = func(spawnBlockBytes []byte) (string, error) {
+			// Build a signed envelope containing the SpawnBlock
+			envBytes, err := vm.BuildSignedEnvelope(ref, "", "", spawnBlockBytes, false)
+			if err != nil {
+				return "", fmt.Errorf("spawn: envelope: %w", err)
+			}
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
+			resp, err := client.SpawnProcess(ctx, connect.NewRequest(
+				&maggiev1.SpawnProcessRequest{Envelope: envBytes}))
+			if err != nil {
+				return "", err
+			}
+			if !resp.Msg.Accepted {
+				return "", fmt.Errorf("spawn rejected: %s", resp.Msg.Error)
+			}
+			return resp.Msg.ProcessName, nil
+		}
+
 		return ref
+	}
+}
+
+// buildRemoteChannelFactory creates a factory that wires RPC callbacks on
+// RemoteChannelRef instances when channels are deserialized from the network.
+func buildRemoteChannelFactory(vmInst *vm.VM) func(ref *vm.RemoteChannelRef) {
+	// Cache gRPC clients per node address to avoid creating duplicate connections
+	clientCache := make(map[string]maggiev1connect.SyncServiceClient)
+	var cacheMu sync.Mutex
+
+	getClient := func(ownerNode [32]byte) maggiev1connect.SyncServiceClient {
+		nodeRef := vmInst.FindNodeRefByPublicKey(ownerNode)
+		if nodeRef == nil {
+			return nil
+		}
+		addr := nodeRef.Addr
+		cacheMu.Lock()
+		defer cacheMu.Unlock()
+		if c, ok := clientCache[addr]; ok {
+			return c
+		}
+		c := maggiev1connect.NewSyncServiceClient(http.DefaultClient, "http://"+addr)
+		clientCache[addr] = c
+		return c
+	}
+
+	return func(ref *vm.RemoteChannelRef) {
+		ref.SendFunc = func(channelID uint64, data []byte) error {
+			client := getClient(ref.OwnerNode)
+			if client == nil {
+				return fmt.Errorf("channel: owner node not connected")
+			}
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
+			resp, err := client.ChannelSend(ctx, connect.NewRequest(
+				&maggiev1.ChannelSendRequest{ChannelId: channelID, Value: data}))
+			if err != nil {
+				return err
+			}
+			if !resp.Msg.Success {
+				return fmt.Errorf("%s", resp.Msg.Error)
+			}
+			return nil
+		}
+
+		ref.ReceiveFunc = func(channelID uint64) ([]byte, bool, error) {
+			client := getClient(ref.OwnerNode)
+			if client == nil {
+				return nil, false, fmt.Errorf("channel: owner node not connected")
+			}
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
+			resp, err := client.ChannelReceive(ctx, connect.NewRequest(
+				&maggiev1.ChannelReceiveRequest{ChannelId: channelID}))
+			if err != nil {
+				return nil, false, err
+			}
+			if !resp.Msg.Success {
+				return nil, false, fmt.Errorf("%s", resp.Msg.Error)
+			}
+			return resp.Msg.Value, resp.Msg.ChannelOpen, nil
+		}
+
+		ref.TrySendFunc = func(channelID uint64, data []byte) (bool, error) {
+			client := getClient(ref.OwnerNode)
+			if client == nil {
+				return false, fmt.Errorf("channel: owner node not connected")
+			}
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			resp, err := client.ChannelTrySend(ctx, connect.NewRequest(
+				&maggiev1.ChannelSendRequest{ChannelId: channelID, Value: data}))
+			if err != nil {
+				return false, err
+			}
+			return resp.Msg.Sent, nil
+		}
+
+		ref.TryReceiveFunc = func(channelID uint64) ([]byte, bool, bool, error) {
+			client := getClient(ref.OwnerNode)
+			if client == nil {
+				return nil, false, false, fmt.Errorf("channel: owner node not connected")
+			}
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			resp, err := client.ChannelTryReceive(ctx, connect.NewRequest(
+				&maggiev1.ChannelReceiveRequest{ChannelId: channelID}))
+			if err != nil {
+				return nil, false, false, err
+			}
+			return resp.Msg.Value, resp.Msg.GotValue, resp.Msg.ChannelOpen, nil
+		}
+
+		ref.CloseFunc = func(channelID uint64) error {
+			client := getClient(ref.OwnerNode)
+			if client == nil {
+				return fmt.Errorf("channel: owner node not connected")
+			}
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			_, err := client.ChannelClose(ctx, connect.NewRequest(
+				&maggiev1.ChannelCloseRequest{ChannelId: channelID}))
+			return err
+		}
+
+		ref.StatusFunc = func(channelID uint64) (int, int, bool, error) {
+			client := getClient(ref.OwnerNode)
+			if client == nil {
+				return 0, 0, true, fmt.Errorf("channel: owner node not connected")
+			}
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			resp, err := client.ChannelStatus(ctx, connect.NewRequest(
+				&maggiev1.ChannelStatusRequest{ChannelId: channelID}))
+			if err != nil {
+				return 0, 0, true, err
+			}
+			return int(resp.Msg.Size), int(resp.Msg.Capacity), resp.Msg.Closed, nil
+		}
+	}
+}
+
+// buildSpawnResultFunc creates a callback that delivers forkOn: results
+// back to the spawning node via DeliverMessage with __spawn_result__ selector.
+func buildSpawnResultFunc(vmInst *vm.VM) func(spawnerID dist.NodeID, futureID uint64, resultBytes []byte, errMsg error) {
+	return func(spawnerID dist.NodeID, futureID uint64, resultBytes []byte, errMsg error) {
+		// Find the node ref for the spawner
+		ref := vmInst.FindNodeRefByPublicKey(spawnerID)
+		if ref == nil || ref.SendFunc == nil {
+			return
+		}
+
+		// Build the spawn result payload
+		type spawnResultPayload struct {
+			FutureID    uint64 `cbor:"1,keyasint"`
+			ResultBytes []byte `cbor:"2,keyasint"`
+			ErrorMsg    string `cbor:"3,keyasint,omitempty"`
+		}
+		payload := spawnResultPayload{FutureID: futureID, ResultBytes: resultBytes}
+		if errMsg != nil {
+			payload.ErrorMsg = errMsg.Error()
+		}
+		payloadBytes, err := vm.CborSerialEncode(payload)
+		if err != nil {
+			return
+		}
+
+		envBytes, err := vm.BuildSignedEnvelope(ref, "", vm.SelectorSpawnResult, payloadBytes, false)
+		if err != nil {
+			return
+		}
+
+		go ref.SendFunc(envBytes)
 	}
 }
 

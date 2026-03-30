@@ -670,6 +670,135 @@ Guide13Distribution subclass: Object
   ]
 
   """
+  ## Remote Process Spawning
+
+  Blocks can be sent to remote nodes for execution using `forkOn:` and
+  `spawnOn:`. The block is serialized as a content hash (identifying
+  the block's compiled method) plus its captured variable values. The
+  remote node resolves the method by hash, deserializes the upvalues,
+  and executes the block in a restricted interpreter.
+
+  **`forkOn:`** returns a Future that resolves when the block completes:
+
+  ```example
+  node := Node connect: 'compute-host:9200'.
+  future := [20 factorial] forkOn: node.
+  result := future await.
+  result println
+  ```
+
+  **`forkOn:with:`** passes an argument to the remote block:
+
+  ```example
+  node := Node connect: 'compute-host:9200'.
+  future := [:n | n factorial] forkOn: node with: 100.
+  result := future await: 30000.  "30 second timeout"
+  ```
+
+  **`spawnOn:`** starts a long-lived process and returns a RemoteProcess:
+
+  ```example
+  node := Node connect: 'worker-host:9200'.
+  worker := [
+      [true] whileTrue: [
+          | msg |
+          msg := Process receive.
+          msg selector = #compute: ifTrue: [
+              (msg payload factorial) println
+          ]
+      ]
+  ] spawnOn: node.
+  worker cast: #compute: with: 42
+  ```
+
+  **Captured variables** must be serializable. Channels, Processes,
+  Mutexes, and other non-serializable types cause an immediate error
+  at the call site. Communicate with remote processes via their
+  mailbox instead.
+
+  **Code-on-demand:** If the remote node doesn't have the block's
+  method (identified by content hash), it automatically pulls it
+  from the spawning node via the sync protocol. This includes
+  transitive dependencies.
+
+  **Spawn restrictions:** The trust policy's `spawn-restrictions`
+  list specifies global names to hide from remotely-spawned
+  processes. For example, `File` and `HTTP` can be hidden to
+  prevent remote code from accessing the filesystem or network:
+
+  ```example
+  # maggie.toml
+  [trust]
+  spawn-restrictions = ["File", "ExternalProcess", "HTTP"]
+  ```
+
+  Remotely-spawned processes inherit these restrictions automatically.
+  They see `nil` when looking up restricted globals rather than
+  receiving a permission error.
+  """
+  method: s10d_remoteSpawning [
+      "Remote spawning uses SpawnProcess RPC with code-on-demand."
+      ^nil
+  ]
+
+  """
+  ## Distributed Channels
+
+  Channels can be passed across node boundaries. When a channel is
+  serialized (e.g., as a captured variable in `forkOn:` or as a
+  message payload), it becomes a `RemoteChannel` proxy on the
+  receiving node. The proxy forwards all operations (send, receive,
+  trySend, tryReceive, close) back to the owning node via RPC.
+
+  **Owner-proxy model:** A channel always lives on the node that
+  created it. Remote nodes get lightweight proxies. All operations
+  go through the owner, preserving FIFO ordering and backpressure.
+
+  ```example
+  "Node A creates a channel and sends it to Node B via spawn"
+  | ch node |
+  ch := Channel new: 10.
+  node := Node connect: 'worker:9200'.
+
+  "The block captures ch — it becomes a RemoteChannel on Node B"
+  [:remoteCh |
+      remoteCh send: 'hello from B'.
+      remoteCh send: 'another message'
+  ] forkOn: node with: ch.
+
+  "Node A receives from the local channel"
+  ch receive println.   "'hello from B'"
+  ch receive println.   "'another message'"
+  ```
+
+  **Channel select** works with remote channels. When a select
+  includes remote channels, the VM uses a polling strategy instead
+  of Go's `reflect.Select`:
+
+  ```example
+  localCh := Channel new.
+  remoteCh := node processNamed: 'data-source'.
+
+  Channel select: {
+      localCh onReceive: [:v | 'Local: ', v].
+      remoteCh onReceive: [:v | 'Remote: ', v]
+  }
+  ```
+
+  **Node failure:** When a node goes down (detected by the health
+  monitor), all remote channel proxies for that node are marked
+  closed. Subsequent operations return nil / false.
+
+  **Performance note:** Every remote channel operation is a network
+  round-trip. For high-throughput scenarios, use process mailboxes
+  instead — they are fire-and-forget with no blocking.
+  """
+  method: s10e_distributedChannels [
+      "Distributed channels use owner-proxy model with RPC forwarding."
+      ^nil
+  ]
+
+  """
   ## Security Model
 
   The security model is built on two principles: **never trust content,

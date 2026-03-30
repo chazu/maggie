@@ -26,6 +26,13 @@ Node subclass: Object
   ]
 
   """
+  Return the hex-encoded 32-byte public key (NodeID) of this node.
+  """
+  method: nodeID [
+      ^self primNodeID
+  ]
+
+  """
   Return a RemoteProcess targeting the named process on this node.
   The process must be registered with `registerAs:` on the remote side.
   """

@@ -63,6 +63,9 @@ const (
 	// ConstraintStore (Concurrent Constraint Programming)
 	constraintStoreMarker       uint32 = 54 << 24
 
+	// Distributed channels
+	remoteChannelMarker         uint32 = 55 << 24
+
 	// Distribution protocol (reserved for Phase 6)
 	chunkMarker                 uint32 = 42 << 24
 	remoteRefMarker             uint32 = 43 << 24

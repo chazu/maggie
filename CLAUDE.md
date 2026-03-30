@@ -154,6 +154,122 @@ future error.                            "Error message or nil"
 
 Messages are signed with Ed25519 (node identity from `.maggie/node.key`). Payloads are serialized with CBOR. Non-serializable types (Process, Channel, Mutex, etc.) raise errors at send time.
 
+### Remote Spawning (forkOn: / spawnOn:)
+
+```smalltalk
+"Fork a block on a remote node — returns a Future"
+node := Node connect: 'compute-host:9200'.
+future := [20 factorial] forkOn: node.
+result := future await.
+
+"Fork with an argument"
+future := [:n | n factorial] forkOn: node with: 100.
+result := future await: 30000.   "30 second timeout"
+
+"Spawn a long-lived process — returns a RemoteProcess"
+worker := [Process receive payload println. self repeat] spawnOn: node.
+worker cast: #compute: with: 42.
+```
+
+Blocks are serialized as content hash + captured variable values (CBOR tag 27013). The remote node resolves the method by hash, applies spawn restrictions from the trust policy, and executes in a restricted interpreter. If the method isn't available locally, code-on-demand pulls it via the sync protocol.
+
+Captured variables must be serializable — Processes, Mutexes, etc. fail eagerly at the call site. Channels are serializable and become `RemoteChannel` proxies on the receiving node.
+
+### Distributed Channels
+
+Channels can cross node boundaries. When serialized (e.g., as a spawn capture or message payload), a channel becomes a `RemoteChannel` proxy on the receiving node. All operations are forwarded to the owning node via RPC.
+
+```smalltalk
+"Create a channel and share it with a remote process"
+ch := Channel new: 10.
+node := Node connect: 'worker:9200'.
+
+"Block captures ch — becomes RemoteChannel on remote node"
+[:remoteCh |
+    remoteCh send: 'hello from remote'.
+] forkOn: node with: ch.
+
+ch receive.   "→ 'hello from remote'"
+```
+
+Operations supported on RemoteChannel: `send:`, `receive`, `trySend:`, `tryReceive`, `close`, `isClosed`, `isEmpty`, `size`, `capacity`. Channel select works with mixed local/remote channels (uses polling for remote cases). CBOR tag 27014 for wire format.
+
+### Cluster Membership
+
+```smalltalk
+"Create cluster from seed addresses"
+cluster := Cluster seeds: #('host1:8081' 'host2:8081').
+cluster start.
+
+"Query membership"
+cluster members.              "Array of live Node values"
+cluster size.                 "Number of live members"
+cluster isConnected: 'host1:8081'.  "true/false"
+
+"Event handlers"
+cluster onMemberUp: [:node | ('joined: ', node addr) println].
+cluster onMemberDown: [:addr | ('left: ', addr) println].
+
+"Configuration"
+cluster reconnectInterval: 15000.  "Retry failed seeds every 15s"
+cluster stop.                      "Stop and disconnect"
+```
+
+The cluster manager forks a process that connects to seeds, monitors sentinel processes (`__cluster__`), and retries failed connections periodically. Each node that joins a cluster registers itself as `__cluster__` via `registerAs:`. Node failure is detected by the existing `NodeHealthMonitor` heartbeat system. `Node>>nodeID` returns the hex-encoded Ed25519 public key.
+
+**Consistent hashing** is built in via `HashRing`:
+
+```smalltalk
+"Deterministic key-to-node mapping"
+node := cluster nodeFor: 'user-123'.   "Returns Node responsible for key"
+nodes := cluster nodesFor: 'user-123' count: 3.  "Top 3 nodes for replication"
+
+"Standalone HashRing"
+ring := HashRing new.      "150 virtual nodes per real node"
+ring := HashRing new: 50.  "Custom replica count"
+ring add: 'node-a'.
+ring add: 'node-b'.
+ring nodeFor: 'key'.       "Deterministic node for key"
+ring remove: 'node-a'.     "Minimal redistribution"
+```
+
+`String>>hashCode` provides FNV-1a content-based hashing for ring positions.
+
+### Supervisor Trees
+
+```smalltalk
+"Child specification"
+spec := ChildSpec id: 'worker' start: [Worker new run].
+spec := ChildSpec id: 'db' start: [DbPool new run] restart: #transient.
+spec := ChildSpec id: 'web' start: [WebServer new run] restart: #permanent shutdown: 10000.
+
+"Create and start supervisor"
+sup := Supervisor new: #oneForOne children: { spec1. spec2. spec3 }.
+sup start.
+
+"Dynamic children"
+sup startChild: (ChildSpec id: 'extra' start: [ExtraWorker new run]).
+sup terminateChild: 'extra'.
+sup runningChildren.       "Array of running child IDs"
+sup countChildren.         "Integer count"
+sup stop.                  "Stop supervisor and all children"
+```
+
+Strategies: `#oneForOne` (restart only crashed child), `#oneForAll` (restart all), `#restForOne` (restart crashed and all after it). Restart policies per child: `#permanent` (always), `#temporary` (never), `#transient` (on abnormal exit only). Default restart intensity: 3 restarts in 5 seconds — if exceeded, supervisor crashes upward. Supervisors can be children of other supervisors, forming a tree.
+
+**DynamicSupervisor** manages a pool of identical children from a template spec:
+
+```smalltalk
+template := ChildSpec id: 'worker' start: [:id | Worker new: id run] restart: #permanent.
+ds := DynamicSupervisor new: template.
+ds start.
+ds startChild: 'worker-1'.     "Start with ID"
+ds startChild: 'worker-2'.
+ds terminateChild: 'worker-1'. "Stop by ID"
+ds countChildren.              "Number of running children"
+ds stop.
+```
+
 ### Mutex (mutual exclusion)
 
 ```smalltalk

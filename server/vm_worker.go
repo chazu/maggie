@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/chazu/maggie/vm"
+	"github.com/chazu/maggie/vm/dist"
 )
 
 // vmRequest represents a unit of work to be executed on the VM goroutine.
@@ -25,6 +26,14 @@ type VMWorker struct {
 	vm       *vm.VM
 	requests chan vmRequest
 	quit     chan struct{}
+
+	// pullFunc pulls code from a remote node by content hash.
+	// Injected by the server wiring layer for code-on-demand.
+	pullFunc func(peerID dist.NodeID, hash [32]byte) error
+
+	// spawnResultFunc delivers the result of a forkOn: spawn back
+	// to the spawning node. Injected by the server wiring layer.
+	spawnResultFunc func(spawnerID dist.NodeID, futureID uint64, resultBytes []byte, errMsg error)
 }
 
 // NewVMWorker creates a VMWorker and starts the processing goroutine.

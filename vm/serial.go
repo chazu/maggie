@@ -39,6 +39,8 @@ const (
 	cborTagBackref        = 27010
 	cborTagBigIntPositive = 27011
 	cborTagBigIntNegative = 27012
+	cborTagSpawnBlock     = 27013
+	cborTagRemoteChannel  = 27014
 )
 
 // serializedObject is the CBOR representation of a Maggie object.
@@ -59,6 +61,12 @@ type dictEntry struct {
 }
 
 var cborSerialEncMode cbor.EncMode
+
+// CborSerialEncode marshals a value using the canonical CBOR encoding mode.
+// Exported for use by cmd/mag wiring layer.
+func CborSerialEncode(v interface{}) ([]byte, error) {
+	return cborSerialEncMode.Marshal(v)
+}
 
 func init() {
 	em, err := cbor.CanonicalEncOptions().EncMode()
@@ -162,7 +170,9 @@ func (s *valueSerializer) serializeSymbolEncoded(v Value) ([]byte, error) {
 	marker := id & markerMask
 	switch marker {
 	case channelMarker:
-		return nil, fmt.Errorf("serial: cannot serialize Channel (non-serializable type)")
+		return s.serializeChannel(v)
+	case remoteChannelMarker:
+		return s.serializeRemoteChannel(v)
 	case processMarker:
 		return nil, fmt.Errorf("serial: cannot serialize Process (non-serializable type)")
 	case mutexMarker:
@@ -302,6 +312,48 @@ func (s *valueSerializer) serializeCueValue(v Value) ([]byte, error) {
 		return nil, fmt.Errorf("serial: CueValue JSON: %w", err)
 	}
 	return cborSerialEncMode.Marshal(cbor.Tag{Number: cborTagCueValue, Content: string(data)})
+}
+
+// serializedChannel is the CBOR representation of a channel reference.
+type serializedChannel struct {
+	OwnerNode [32]byte `cbor:"1,keyasint"`
+	ChannelID uint64   `cbor:"2,keyasint"`
+	Capacity  int      `cbor:"3,keyasint"`
+}
+
+func (s *valueSerializer) serializeChannel(v Value) ([]byte, error) {
+	ch := s.vm.getChannel(v)
+	if ch == nil {
+		return nil, fmt.Errorf("serial: Channel registry miss")
+	}
+	// Export the channel for remote access
+	exportID := s.vm.ExportChannel(ch)
+
+	// Get the local node ID
+	var ownerNode [32]byte
+	if s.vm.localIdentity != nil {
+		copy(ownerNode[:], s.vm.localIdentity.pub)
+	}
+
+	sc := &serializedChannel{
+		OwnerNode: ownerNode,
+		ChannelID: exportID,
+		Capacity:  cap(ch.ch),
+	}
+	return cborSerialEncMode.Marshal(cbor.Tag{Number: cborTagRemoteChannel, Content: sc})
+}
+
+func (s *valueSerializer) serializeRemoteChannel(v Value) ([]byte, error) {
+	ref := s.vm.getRemoteChannel(v)
+	if ref == nil {
+		return nil, fmt.Errorf("serial: RemoteChannel registry miss")
+	}
+	sc := &serializedChannel{
+		OwnerNode: ref.OwnerNode,
+		ChannelID: ref.ChannelID,
+		Capacity:  ref.Capacity,
+	}
+	return cborSerialEncMode.Marshal(cbor.Tag{Number: cborTagRemoteChannel, Content: sc})
 }
 
 // objectPointer returns a stable identity for an Object (for cycle detection).
@@ -456,6 +508,9 @@ func (d *valueDeserializer) deserializeTag(tag cbor.Tag, rawData []byte) (Value,
 	case cborTagCueValue:
 		return d.deserializeCueValue(tag)
 
+	case cborTagRemoteChannel:
+		return d.deserializeChannel(tag)
+
 	default:
 		// Unknown tag — try to deserialize the content as a plain value
 		return d.fromInterface(tag.Content)
@@ -565,6 +620,49 @@ func (d *valueDeserializer) deserializeDictionary(tag cbor.Tag) (Value, error) {
 	}
 
 	return dictVal, nil
+}
+
+func (d *valueDeserializer) deserializeChannel(tag cbor.Tag) (Value, error) {
+	raw, err := cborSerialEncMode.Marshal(tag.Content)
+	if err != nil {
+		return Nil, fmt.Errorf("serial: Channel re-encode: %w", err)
+	}
+
+	var sc serializedChannel
+	if err := cbor.Unmarshal(raw, &sc); err != nil {
+		return Nil, fmt.Errorf("serial: Channel decode: %w", err)
+	}
+
+	// Check if this is a local channel (we are the owner)
+	var localNode [32]byte
+	if d.vm.localIdentity != nil {
+		copy(localNode[:], d.vm.localIdentity.pub)
+	}
+
+	if sc.OwnerNode == localNode && localNode != ([32]byte{}) {
+		// Local channel — look up by export ID
+		ch := d.vm.LookupExportedChannel(sc.ChannelID)
+		if ch != nil {
+			// Find the NaN-boxed value for this channel in the registry
+			// We need to return the existing channel Value
+			return d.vm.findChannelValue(ch), nil
+		}
+		return Nil, fmt.Errorf("serial: local channel export %d not found", sc.ChannelID)
+	}
+
+	// Remote channel — create a proxy
+	ref := &RemoteChannelRef{
+		OwnerNode: sc.OwnerNode,
+		ChannelID: sc.ChannelID,
+		Capacity:  sc.Capacity,
+	}
+
+	// Wire up RPC callbacks if we have a RemoteChannelFactory
+	if d.vm.RemoteChannelFactory != nil {
+		d.vm.RemoteChannelFactory(ref)
+	}
+
+	return d.vm.registerRemoteChannel(ref), nil
 }
 
 func (d *valueDeserializer) deserializeCueValue(tag cbor.Tag) (Value, error) {

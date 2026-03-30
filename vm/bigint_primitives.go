@@ -270,8 +270,8 @@ func (vm *VM) registerBigIntegerPrimitives() {
 		return FromSmallInt(int64(h & uint64(MaxSmallInt)))
 	})
 
-	// asFloat - convert BigInt to Float
-	c.AddMethod0(vm.Selectors, "asFloat", func(vmPtr interface{}, recv Value) Value {
+	// primAsFloat - convert BigInt to Float
+	c.AddMethod0(vm.Selectors, "primAsFloat", func(vmPtr interface{}, recv Value) Value {
 		v := vmPtr.(*VM)
 		obj := v.registry.GetBigInt(recv)
 		if obj == nil {
@@ -361,7 +361,7 @@ func (vm *VM) registerBigIntegerPrimitives() {
 	})
 
 	// sign - returns -1, 0, or 1
-	c.AddMethod0(vm.Selectors, "sign", func(vmPtr interface{}, recv Value) Value {
+	c.AddMethod0(vm.Selectors, "primSign", func(vmPtr interface{}, recv Value) Value {
 		v := vmPtr.(*VM)
 		obj := v.registry.GetBigInt(recv)
 		if obj == nil {

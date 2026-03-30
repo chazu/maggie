@@ -154,3 +154,59 @@ Block subclass: Object
   method: forkAt: priority [
       ^Process fork: self at: priority
   ]
+
+  """
+  Fork the block on a remote node. Returns a Future that resolves
+  when the block completes on the remote node. The block's captured
+  variables must be serializable (no Channels, Processes, Mutexes, etc.).
+
+  ```example
+  node := Node connect: 'localhost:9200'.
+  future := [42 factorial] forkOn: node.
+  result := future await
+  ```
+  """
+  method: forkOn: node [
+      ^self primForkOn: node
+  ]
+
+  """
+  Fork the block on a remote node with an argument. Returns a Future.
+
+  ```example
+  node := Node connect: 'localhost:9200'.
+  future := [:n | n factorial] forkOn: node with: 20.
+  result := future await
+  ```
+  """
+  method: forkOn: node with: arg [
+      ^self primForkOn: node with: arg
+  ]
+
+  """
+  Spawn a long-lived process on a remote node. Returns a RemoteProcess
+  that can receive messages via `cast:with:` and `asyncSend:with:`.
+
+  ```example
+  node := Node connect: 'localhost:9200'.
+  worker := [Process receive payload println. self repeat] spawnOn: node.
+  worker cast: #hello: with: 'world'
+  ```
+  """
+  method: spawnOn: node [
+      ^self primSpawnOn: node
+  ]
+
+  """
+  Spawn a long-lived process on a remote node with an initial argument.
+  Returns a RemoteProcess.
+
+  ```example
+  node := Node connect: 'localhost:9200'.
+  worker := [:config | self runWith: config] spawnOn: node with: myConfig.
+  worker cast: #status: with: nil
+  ```
+  """
+  method: spawnOn: node with: arg [
+      ^self primSpawnOn: node with: arg
+  ]

@@ -58,8 +58,8 @@ func (vm *VM) getStringLike(v Value) string {
 func (vm *VM) registerStringPrimitivesExtended() {
 	c := vm.StringClass
 
-	// lf - return a string containing a single newline character
-	c.AddClassMethod(vm.Selectors, "lf", &Method0{name: "lf", fn: func(vmPtr interface{}, recv Value) Value {
+	// primLf - return a string containing a single newline character
+	c.AddClassMethod(vm.Selectors, "primLf", &Method0{name: "primLf", fn: func(vmPtr interface{}, recv Value) Value {
 		v := vmPtr.(*VM)
 		return v.registry.NewStringValue("\n")
 	}})
@@ -282,6 +282,18 @@ func (vm *VM) registerStringPrimitivesExtended() {
 		s := v.registry.GetStringContent(recv)
 		fmt.Print(s)
 		return recv
+	})
+
+	// hashCode - FNV-1a content hash returning a bounded positive SmallInt
+	c.AddMethod0(vm.Selectors, "hashCode", func(vmPtr interface{}, recv Value) Value {
+		v := vmPtr.(*VM)
+		s := v.registry.GetStringContent(recv)
+		h := uint32(2166136261)
+		for i := 0; i < len(s); i++ {
+			h ^= uint32(s[i])
+			h *= 16777619
+		}
+		return FromSmallInt(int64(h))
 	})
 
 	// primSplit: - split string by separator, returns Array of strings
