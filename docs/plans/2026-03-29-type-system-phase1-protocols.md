@@ -374,9 +374,19 @@ mag typecheck --verbose        # show all checks, not just warnings
 
 Reports warnings to stderr, exits 0 regardless (types never block).
 
-### LSP integration (deferred to Phase 1b)
+### LSP update
 
-The LSP server could show type annotations on hover and protocol mismatches as diagnostics. Deferred until the checker is stable.
+The LSP server should recognize type annotations in the parsed AST for syntax awareness (e.g., not treating `<Integer>` as a broken less-than expression). Full type-on-hover and protocol mismatch diagnostics deferred to Phase 1b when the checker is stable.
+
+### Formatter update
+
+`mag fmt` must preserve type annotations in method signatures, temp declarations, ivar declarations, and protocol definitions. The formatter already handles the source text — it needs to recognize and format the new annotation positions.
+
+### Guide and documentation
+
+- Update Guide07 (classes) with typed method signature examples
+- Add a new guide chapter or section on protocols and type annotations
+- Update CLAUDE.md with protocol syntax and type annotation reference
 
 ### Typed hash (deferred to Phase 2)
 
@@ -414,32 +424,40 @@ Type annotations are on the AST, not on `CompiledMethod`. They're preserved in `
 |------|---------|-------------------|
 | `compiler/ast.go` | Add TypeExpr, ProtocolDef, ProtocolEntry; extend MethodDef, ClassDef, SourceFile | +60 |
 | `compiler/parser.go` | Parse type annotations, protocol defs, return types | +150-200 |
-| `compiler/token.go` | (possibly no changes — `<`, `>`, `->` already lex as binary selectors) | 0 |
-| `compiler/lexer.go` | (no changes) | 0 |
 | `compiler/parser_test.go` | Tests for parsing type annotations and protocols | +100-150 |
+| `compiler/token.go` | No changes (< and > already lex as binary selectors) | 0 |
+| `compiler/lexer.go` | No changes | 0 |
+| `cmd/mag/format.go` | Handle type annotations and protocol defs in formatter | +50-80 |
+| `server/lsp.go` | Syntax-aware handling of type annotations | +30-50 |
+| `lib/guide/Guide07Classes.mag` | Add typed method examples, protocol section | +30-50 |
+| `CLAUDE.md` | Protocol and type annotation reference | +30-40 |
 
-## Total estimated: ~1200-1600 new lines
+## Total estimated: ~1500-2000 new lines
 
 ---
 
-## Open Questions for Discussion
+## Resolved Decisions
 
-1. **Return type syntax:** `^<Type>` (Strongtalk style) vs `-> <Type>` (modern style). Recommendation: `^<Type>` to avoid `->` ambiguity.
+1. **Return type syntax:** `^<Type>` (Strongtalk style). Avoids `->` binary selector ambiguity. Caret already means "return" in Maggie.
 
-2. **Protocol entry syntax:** Use `^<Type>` for return types in protocol entries too?
+2. **Protocol entry syntax:** Yes, use `^<Type>` for return types in protocol entries:
    ```smalltalk
    Sizeable protocol
      size ^<Integer>.
      isEmpty ^<Boolean>.
    ```
 
-3. **Type parameters (generics):** Defer to Phase 2, or include simple one-parameter generics like `<Array <Integer>>`? The parser work is trivial but the checker work is not.
+3. **Type parameters (generics):** Deferred to Phase 2. Phase 1 uses only simple named types.
 
-4. **Where do protocol definitions live?** In `.mag` files alongside classes (like traits)? In separate `.mag` files? Both?
+4. **Protocol file placement:** In `.mag` files alongside classes, same as traits. Protocols participate in the namespace/import system — `import: 'MyApp'` makes `MyApp::Sizeable` available as `Sizeable`. A protocol and a class cannot share a name within the same namespace.
 
-5. **Should the formatter (`mag fmt`) preserve type annotations?** Yes — they're part of the source text, and the formatter should handle them.
+5. **Formatter (`mag fmt`):** Must handle type annotations from day one.
 
-6. **Should doctests be able to reference protocols?** E.g., `(#(1 2 3) satisfiesProtocol: Sizeable) >>> true`. This requires a runtime `satisfiesProtocol:` primitive, which is Phase 2 territory.
+6. **LSP:** Update to recognize type annotations for syntax awareness. Full type-on-hover deferred to Phase 1b when checker is stable.
+
+7. **Guide/docs:** Update relevant guide chapters and CLAUDE.md to document the type annotation syntax and protocol definitions.
+
+8. **Doctests referencing protocols:** Deferred to Phase 2 (requires runtime `satisfiesProtocol:` primitive).
 
 ---
 
@@ -449,9 +467,12 @@ Type annotations are on the AST, not on `CompiledMethod`. They're preserved in `
 2. **Parser: type annotations** — parse `<Type>` after params, `^<Type>` return types, typed temps/ivars
 3. **Parser: protocol definitions** — parse `Name protocol` with entries
 4. **Parser tests** — verify parsing roundtrips for all annotation positions
-5. **Type representation** — `types/types.go` with MaggieType interface
-6. **Protocol registry** — `types/protocol.go` with structural matching
-7. **Checker** — `types/checker.go` walking AST, checking annotations
-8. **Checker tests** — protocol satisfaction, class compatibility, undefined types
-9. **CLI** — `cmd/mag/typecheck.go` subcommand
-10. **Verify** — all existing tests still pass (codegen unchanged), doctests pass, Go tests pass
+5. **Formatter update** — `mag fmt` preserves type annotations and protocol definitions
+6. **Type representation** — `types/types.go` with MaggieType interface
+7. **Protocol registry** — `types/protocol.go` with structural matching
+8. **Checker** — `types/checker.go` walking AST, checking annotations
+9. **Checker tests** — protocol satisfaction, class compatibility, undefined types
+10. **CLI** — `cmd/mag/typecheck.go` subcommand
+11. **LSP update** — syntax-aware handling of type annotations
+12. **Guide/docs** — update Guide07 (classes), CLAUDE.md with protocol and type annotation syntax
+13. **Verify** — all existing tests still pass (codegen unchanged), doctests pass, Go tests pass
