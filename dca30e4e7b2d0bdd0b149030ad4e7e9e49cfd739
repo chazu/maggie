@@ -1,0 +1,23 @@
+mu.json
+  bdc79ac0908adadd 1-144
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.9",
+  "base_commit_sha": "dca30e4e7b2d0bdd0b149030ad4e7e9e49cfd739",
+  "prompts": {
+    "bdc79ac0908adadd": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fa10a031-40d7-42c5-80a1-221a76b4f2a0",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chaz Straney <chaz.straney@getgarner.com>",
+      "messages": [],
+      "total_additions": 164,
+      "total_deletions": 20,
+      "accepted_lines": 144,
+      "overriden_lines": 0
+    }
+  }
+}
