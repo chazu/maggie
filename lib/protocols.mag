@@ -1,0 +1,31 @@
+"""
+Core structural protocols for the Maggie standard library.
+
+Protocols define structural types — a set of message signatures that a class
+must respond to. They are checked by `mag typecheck` and have zero runtime cost.
+"""
+
+"""
+Any object that has a countable size.
+"""
+Sizeable protocol
+  size ^<Integer>.
+  isEmpty ^<Boolean>.
+  notEmpty ^<Boolean>.
+
+"""
+Any object whose elements can be accessed by integer index.
+"""
+Indexable protocol
+  includes: Sizeable.
+  at: <Integer> ^<Object>.
+
+"""
+Any object that supports ordering comparisons.
+"""
+Comparable protocol
+  < <Object> ^<Boolean>.
+  > <Object> ^<Boolean>.
+  <= <Object> ^<Boolean>.
+  >= <Object> ^<Boolean>.
+  = <Object> ^<Boolean>.

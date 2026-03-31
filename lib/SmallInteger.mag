@@ -19,7 +19,7 @@ operations built on those primitives.
 
 ```example
 "Smalltalk-style iteration"
-| sum |
+| sum <Integer> |
 sum := 0.
 1 to: 100 do: [:i | sum := sum + i].
 sum
@@ -36,7 +36,7 @@ SmallInteger subclass: Object
   0 negated >>> 0
   ```
   """
-  method: negated [
+  method: negated ^<Integer> [
       ^0 - self
   ]
 
@@ -49,7 +49,7 @@ SmallInteger subclass: Object
   0 abs >>> 0
   ```
   """
-  method: abs [
+  method: abs ^<Integer> [
       self < 0 ifTrue: [^self negated].
       ^self
   ]
@@ -63,7 +63,7 @@ SmallInteger subclass: Object
   17 sign >>> 1
   ```
   """
-  method: sign [
+  method: sign ^<Integer> [
       self < 0 ifTrue: [^-1].
       self > 0 ifTrue: [^1].
       ^0
@@ -78,7 +78,7 @@ SmallInteger subclass: Object
   4 max: 4 >>> 4
   ```
   """
-  method: max: other [
+  method: max: other <Integer> ^<Integer> [
       self > other ifTrue: [^self].
       ^other
   ]
@@ -92,7 +92,7 @@ SmallInteger subclass: Object
   4 min: 4 >>> 4
   ```
   """
-  method: min: other [
+  method: min: other <Integer> ^<Integer> [
       self < other ifTrue: [^self].
       ^other
   ]
@@ -107,7 +107,7 @@ SmallInteger subclass: Object
   0 between: 1 and: 10 >>> false
   ```
   """
-  method: between: min and: max [
+  method: between: min <Integer> and: max <Integer> ^<Boolean> [
       ^self >= min & (self <= max)
   ]
 
@@ -120,7 +120,7 @@ SmallInteger subclass: Object
   0 even >>> true
   ```
   """
-  method: even [
+  method: even ^<Boolean> [
       ^(self \\ 2) = 0
   ]
 
@@ -133,7 +133,7 @@ SmallInteger subclass: Object
   0 odd >>> false
   ```
   """
-  method: odd [
+  method: odd ^<Boolean> [
       ^self even not
   ]
 
@@ -146,7 +146,7 @@ SmallInteger subclass: Object
   0 positive >>> false
   ```
   """
-  method: positive [
+  method: positive ^<Boolean> [
       ^self > 0
   ]
 
@@ -159,7 +159,7 @@ SmallInteger subclass: Object
   0 negative >>> false
   ```
   """
-  method: negative [
+  method: negative ^<Boolean> [
       ^self < 0
   ]
 
@@ -172,7 +172,7 @@ SmallInteger subclass: Object
   -1 isZero >>> false
   ```
   """
-  method: isZero [
+  method: isZero ^<Boolean> [
       ^self = 0
   ]
 
@@ -199,7 +199,7 @@ SmallInteger subclass: Object
   ]
   ```
   """
-  method: factorial [
+  method: factorial ^<Integer> [
       self = 0 ifTrue: [^1].
       ^self * (self - 1) factorial
   ]
@@ -216,7 +216,7 @@ SmallInteger subclass: Object
   -12 gcd: 8 >>> 4
   ```
   """
-  method: gcd: other [
+  method: gcd: other <Integer> ^<Integer> [
       other = 0 ifTrue: [^self abs].
       ^other gcd: (self \\ other)
   ]
@@ -230,7 +230,7 @@ SmallInteger subclass: Object
   7 lcm: 7 >>> 7
   ```
   """
-  method: lcm: other [
+  method: lcm: other <Integer> ^<Integer> [
       ^(self * other) abs // (self gcd: other)
   ]
 
@@ -243,6 +243,6 @@ SmallInteger subclass: Object
   0 printString >>> '0'
   ```
   """
-  method: printString [
+  method: printString ^<String> [
       ^self primPrintString
   ]

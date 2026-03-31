@@ -31,7 +31,7 @@ Success subclass: Result
   (Success with: 1) isSuccess >>> true
   ```
   """
-  method: isSuccess [
+  method: isSuccess ^<Boolean> [
       ^true
   ]
 
@@ -42,7 +42,7 @@ Success subclass: Result
   (Success with: 1) isFailure >>> false
   ```
   """
-  method: isFailure [
+  method: isFailure ^<Boolean> [
       ^false
   ]
 
@@ -77,6 +77,6 @@ Success subclass: Result
   (Success with: 'hi') printString >>> 'Success(''hi'')'
   ```
   """
-  method: printString [
+  method: printString ^<String> [
       ^'Success(', self value printString, ')'
   ]

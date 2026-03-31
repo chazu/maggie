@@ -7,6 +7,7 @@ I/O and line-based protocols (ideal for JSON-RPC).
 
 ```example
 "Line-based JSON-RPC protocol"
+| conn <SocketConnection> response <String> |
 conn := UnixSocketClient connectTo: '/tmp/rpc.sock'.
 conn sendLine: '{"jsonrpc":"2.0","method":"ping","id":1}'.
 response := conn receiveLine.
@@ -15,6 +16,7 @@ conn close
 
 ```example
 "Raw send/receive"
+| conn <SocketConnection> data <String> |
 conn := UnixSocketClient connectTo: '/tmp/app.sock'.
 conn send: 'HELLO'.
 data := conn receive.
@@ -30,7 +32,7 @@ SocketConnection subclass: Object
   conn send: 'hello world'
   ```
   """
-  method: send: data [
+  method: send: data <String> ! <IO> [
       ^self primSend: data
   ]
 
@@ -42,7 +44,7 @@ SocketConnection subclass: Object
   conn sendLine: '{"method":"test"}'
   ```
   """
-  method: sendLine: data [
+  method: sendLine: data <String> ! <IO> [
       ^self primSendLine: data
   ]
 
@@ -51,10 +53,11 @@ SocketConnection subclass: Object
   is available.
 
   ```example
+  | data <String> |
   data := conn receive
   ```
   """
-  method: receive [
+  method: receive ^<String> ! <IO> [
       ^self primReceive
   ]
 
@@ -62,10 +65,11 @@ SocketConnection subclass: Object
   Read up to maxBytes bytes from the connection.
 
   ```example
+  | data <String> |
   data := conn receive: 1024
   ```
   """
-  method: receive: maxBytes [
+  method: receive: maxBytes <Integer> ^<String> ! <IO> [
       ^self primReceiveMax: maxBytes
   ]
 
@@ -74,10 +78,11 @@ SocketConnection subclass: Object
   Blocks until a full line is available.
 
   ```example
+  | line <String> |
   line := conn receiveLine
   ```
   """
-  method: receiveLine [
+  method: receiveLine ^<String> ! <IO> [
       ^self primReceiveLine
   ]
 
@@ -89,13 +94,13 @@ SocketConnection subclass: Object
   conn isClosed   "=> true"
   ```
   """
-  method: close [
+  method: close ! <IO> [
       ^self primClose
   ]
 
   """
   True if the connection has been closed.
   """
-  method: isClosed [
+  method: isClosed ^<Boolean> [
       ^self primIsClosed
   ]

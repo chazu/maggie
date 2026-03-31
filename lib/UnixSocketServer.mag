@@ -8,6 +8,7 @@ returning SocketConnection objects for each client.
 
 ```example
 "Basic server that echoes lines back to clients"
+| server <UnixSocketServer> conn <SocketConnection> line <String> |
 server := UnixSocketServer listenAt: '/tmp/echo.sock'.
 
 [server isRunning] whileTrue: [
@@ -21,6 +22,7 @@ server := UnixSocketServer listenAt: '/tmp/echo.sock'.
 
 ```example
 "Server with channel-based accept for concurrent handling"
+| server <UnixSocketServer> ch <Channel> conn <SocketConnection> |
 server := UnixSocketServer listenAt: '/tmp/app.sock'.
 ch := Channel new: 10.
 server acceptToChannel: ch.
@@ -33,6 +35,7 @@ server acceptToChannel: ch.
 
 ```example
 "Server with explicit permissions"
+| server <UnixSocketServer> |
 server := UnixSocketServer listenAt: '/tmp/secure.sock' mode: 8r660
 ```
 """
@@ -43,11 +46,12 @@ UnixSocketServer subclass: Object
   Removes stale socket files automatically.
 
   ```example
+  | server <UnixSocketServer> |
   server := UnixSocketServer listenAt: '/tmp/test.sock'.
   server isRunning   "=> true"
   ```
   """
-  class method: listenAt: path [
+  class method: listenAt: path <String> ^<UnixSocketServer> ! <IO> [
       ^self primListenAt: path
   ]
 
@@ -56,10 +60,11 @@ UnixSocketServer subclass: Object
   (permissions). Mode is an integer, e.g. 8r660.
 
   ```example
+  | server <UnixSocketServer> |
   server := UnixSocketServer listenAt: '/tmp/test.sock' mode: 8r660
   ```
   """
-  class method: listenAt: path mode: mode [
+  class method: listenAt: path <String> mode: mode <Integer> ^<UnixSocketServer> ! <IO> [
       ^self primListenAtMode: path mode: mode
   ]
 
@@ -68,12 +73,13 @@ UnixSocketServer subclass: Object
   Returns a SocketConnection.
 
   ```example
+  | conn <SocketConnection> line <String> |
   conn := server accept.
   line := conn receiveLine.
   conn close
   ```
   """
-  method: accept [
+  method: accept ^<SocketConnection> ! <IO> [
       ^self primAccept
   ]
 
@@ -82,12 +88,13 @@ UnixSocketServer subclass: Object
   them to the given Channel. Returns self immediately.
 
   ```example
+  | ch <Channel> conn <SocketConnection> |
   ch := Channel new: 10.
   server acceptToChannel: ch.
   conn := ch receive
   ```
   """
-  method: acceptToChannel: channel [
+  method: acceptToChannel: channel <Channel> ^<Self> ! <IO, Process> [
       ^self primAcceptToChannel: channel
   ]
 
@@ -99,7 +106,7 @@ UnixSocketServer subclass: Object
   server isClosed   "=> true"
   ```
   """
-  method: close [
+  method: close ! <IO> [
       ^self primClose
   ]
 
@@ -110,20 +117,20 @@ UnixSocketServer subclass: Object
   (UnixSocketServer listenAt: '/tmp/x.sock') path   "=> '/tmp/x.sock'"
   ```
   """
-  method: path [
+  method: path ^<String> [
       ^self primPath
   ]
 
   """
   True if the server is accepting connections.
   """
-  method: isRunning [
+  method: isRunning ^<Boolean> [
       ^self primIsRunning
   ]
 
   """
   True if the server has been closed.
   """
-  method: isClosed [
+  method: isClosed ^<Boolean> [
       ^self primIsClosed
   ]

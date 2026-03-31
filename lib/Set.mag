@@ -16,6 +16,7 @@ Set new isEmpty >>> true
 
 ```example
 "Build a set and check membership"
+| s <Set> |
 s := Set new.
 s add: 1.
 s add: 2.
@@ -37,8 +38,8 @@ Set subclass: Object
   evens includes: 4 >>> true
   ```
   """
-  method: select: aBlock [
-    | result |
+  method: select: aBlock ^<Set> [
+    | result <Set> |
     result := Set new.
     self do: [:each | (aBlock value: each) ifTrue: [result add: each]].
     ^result
@@ -55,8 +56,8 @@ Set subclass: Object
   odds includes: 3 >>> true
   ```
   """
-  method: reject: aBlock [
-    | result |
+  method: reject: aBlock ^<Set> [
+    | result <Set> |
     result := Set new.
     self do: [:each | (aBlock value: each) ifFalse: [result add: each]].
     ^result
@@ -70,8 +71,8 @@ Set subclass: Object
   (s collect: [:x | x * 10]) size >>> 2
   ```
   """
-  method: collect: aBlock [
-    | result |
+  method: collect: aBlock ^<Array> [
+    | result <Array> |
     result := Array new: 0.
     self do: [:each | result := result, (Array with: (aBlock value: each))].
     ^result
@@ -80,8 +81,8 @@ Set subclass: Object
   """
   Return a human-readable string representation.
   """
-  method: printString [
-    | items |
+  method: printString ^<String> [
+    | items <Array> |
     items := Array new: 0.
     self do: [:each | items := items, (Array with: each printString)].
     ^'Set(', (items join: ', '), ')'

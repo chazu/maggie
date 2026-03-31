@@ -6,6 +6,7 @@ prepared statements, migrations, and WAL mode support.
 
 ```example
 "Open an in-memory database, create a table, insert and query"
+| db <SqliteDatabase> row <Dictionary> |
 db := SqliteDatabase openMemory.
 db execute: 'CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT, age INTEGER)'.
 db execute: 'INSERT INTO users (name, age) VALUES (?, ?)' with: #('Alice' 30).
@@ -15,6 +16,7 @@ row at: 'name'
 
 ```example
 "File-based database with WAL mode"
+| db <SqliteDatabase> |
 db := SqliteDatabase open: '/tmp/app.db'.
 db enableWAL.
 db execute: 'CREATE TABLE IF NOT EXISTS config (key TEXT PRIMARY KEY, val TEXT)'.
@@ -30,11 +32,12 @@ SqliteDatabase subclass: Object
   it does not exist.
 
   ```example
+  | db <SqliteDatabase> |
   db := SqliteDatabase open: '/tmp/myapp.db'.
   db close
   ```
   """
-  classMethod: open: path [
+  classMethod: open: path <String> ^<SqliteDatabase> ! <IO> [
       ^self primOpen: path
   ]
 
@@ -43,11 +46,12 @@ SqliteDatabase subclass: Object
   is closed.
 
   ```example
+  | db <SqliteDatabase> |
   db := SqliteDatabase openMemory.
   db execute: 'SELECT sqlite_version()'
   ```
   """
-  classMethod: openMemory [
+  classMethod: openMemory ^<SqliteDatabase> ! <IO> [
       ^self primOpenMemory
   ]
 
@@ -58,12 +62,13 @@ SqliteDatabase subclass: Object
   Returns the number of rows affected.
 
   ```example
+  | db <SqliteDatabase> |
   db := SqliteDatabase openMemory.
   db execute: 'CREATE TABLE t (id INTEGER PRIMARY KEY, val TEXT)'.
   db execute: 'INSERT INTO t (val) VALUES (''hello'')'
   ```
   """
-  method: execute: sql [
+  method: execute: sql <String> ^<Integer> ! <IO> [
       ^self primExecute: sql
   ]
 
@@ -72,12 +77,13 @@ SqliteDatabase subclass: Object
   an Array and bound to `?` placeholders in order.
 
   ```example
+  | db <SqliteDatabase> |
   db := SqliteDatabase openMemory.
   db execute: 'CREATE TABLE t (id INTEGER PRIMARY KEY, name TEXT, age INTEGER)'.
   db execute: 'INSERT INTO t (name, age) VALUES (?, ?)' with: #('Alice' 30)
   ```
   """
-  method: execute: sql with: params [
+  method: execute: sql <String> with: params <Array> ^<Integer> ! <IO> [
       ^self primExecuteWith: sql params: params
   ]
 
@@ -87,6 +93,7 @@ SqliteDatabase subclass: Object
   Execute a SQL query and return a SqliteRows cursor for iteration.
 
   ```example
+  | db <SqliteDatabase> rows <SqliteRows> |
   db := SqliteDatabase openMemory.
   db execute: 'CREATE TABLE t (id INTEGER PRIMARY KEY, val TEXT)'.
   db execute: 'INSERT INTO t (val) VALUES (''a'')'.
@@ -95,7 +102,7 @@ SqliteDatabase subclass: Object
   rows close
   ```
   """
-  method: query: sql [
+  method: query: sql <String> ^<SqliteRows> ! <IO> [
       ^self primQuery: sql
   ]
 
@@ -103,12 +110,13 @@ SqliteDatabase subclass: Object
   Execute a SQL query with parameters, returning a SqliteRows cursor.
 
   ```example
+  | rows <SqliteRows> |
   rows := db query: 'SELECT * FROM users WHERE age > ?' with: #(25).
   [rows next] whileTrue: [rows asDict].
   rows close
   ```
   """
-  method: query: sql with: params [
+  method: query: sql <String> with: params <Array> ^<SqliteRows> ! <IO> [
       ^self primQueryWith: sql params: params
   ]
 
@@ -117,13 +125,14 @@ SqliteDatabase subclass: Object
   if no rows match.
 
   ```example
+  | db <SqliteDatabase> |
   db := SqliteDatabase openMemory.
   db execute: 'CREATE TABLE t (id INTEGER PRIMARY KEY, name TEXT)'.
   db execute: 'INSERT INTO t (name) VALUES (''Alice'')'.
   db queryRow: 'SELECT * FROM t WHERE id = 1'
   ```
   """
-  method: queryRow: sql [
+  method: queryRow: sql <String> ^<Dictionary> ! <IO> [
       ^self primQueryRow: sql
   ]
 
@@ -135,7 +144,7 @@ SqliteDatabase subclass: Object
   db queryRow: 'SELECT * FROM users WHERE name = ?' with: #('Alice')
   ```
   """
-  method: queryRow: sql with: params [
+  method: queryRow: sql <String> with: params <Array> ^<Dictionary> ! <IO> [
       ^self primQueryRowWith: sql params: params
   ]
 
@@ -146,7 +155,7 @@ SqliteDatabase subclass: Object
   db queryAll: 'SELECT * FROM users ORDER BY name'
   ```
   """
-  method: queryAll: sql [
+  method: queryAll: sql <String> ^<Array> ! <IO> [
       ^self primQueryAll: sql
   ]
 
@@ -158,7 +167,7 @@ SqliteDatabase subclass: Object
   db queryAll: 'SELECT * FROM users WHERE age > ?' with: #(25)
   ```
   """
-  method: queryAll: sql with: params [
+  method: queryAll: sql <String> with: params <Array> ^<Array> ! <IO> [
       ^self primQueryAllWith: sql params: params
   ]
 
@@ -169,13 +178,14 @@ SqliteDatabase subclass: Object
   SqliteStatement.
 
   ```example
+  | stmt <SqliteStatement> |
   stmt := db prepare: 'INSERT INTO users (name, age) VALUES (?, ?)'.
   stmt executeWith: #('Alice' 30).
   stmt executeWith: #('Bob' 25).
   stmt close
   ```
   """
-  method: prepare: sql [
+  method: prepare: sql <String> ^<SqliteStatement> ! <IO> [
       ^self primPrepare: sql
   ]
 
@@ -190,21 +200,21 @@ SqliteDatabase subclass: Object
   db commitTransaction
   ```
   """
-  method: beginTransaction [
+  method: beginTransaction ^<Self> ! <IO> [
       ^self primBeginTransaction
   ]
 
   """
   Commit the current transaction.
   """
-  method: commitTransaction [
+  method: commitTransaction ! <IO> [
       ^self primCommitTransaction
   ]
 
   """
   Rollback the current transaction.
   """
-  method: rollbackTransaction [
+  method: rollbackTransaction ! <IO> [
       ^self primRollbackTransaction
   ]
 
@@ -220,7 +230,7 @@ SqliteDatabase subclass: Object
   ]
   ```
   """
-  method: withTransaction: aBlock [
+  method: withTransaction: aBlock ! <IO> [
       self beginTransaction.
       [
           aBlock value.
@@ -240,7 +250,7 @@ SqliteDatabase subclass: Object
   db pragma: 'journal_mode'
   ```
   """
-  method: pragma: name [
+  method: pragma: name <String> ^<String> ! <IO> [
       ^self primPragma: name
   ]
 
@@ -251,7 +261,7 @@ SqliteDatabase subclass: Object
   db pragma: 'cache_size' set: '-2000'
   ```
   """
-  method: pragma: name set: value [
+  method: pragma: name <String> set: value <String> ! <IO> [
       ^self primPragmaSet: name value: value
   ]
 
@@ -260,11 +270,12 @@ SqliteDatabase subclass: Object
   concurrent read performance.
 
   ```example
+  | db <SqliteDatabase> |
   db := SqliteDatabase open: '/tmp/app.db'.
   db enableWAL
   ```
   """
-  method: enableWAL [
+  method: enableWAL ! <IO> [
       ^self primEnableWAL
   ]
 
@@ -277,7 +288,7 @@ SqliteDatabase subclass: Object
   db tableExists: 'users'
   ```
   """
-  method: tableExists: name [
+  method: tableExists: name <String> ^<Boolean> ! <IO> [
       ^self primTableExists: name
   ]
 
@@ -288,7 +299,7 @@ SqliteDatabase subclass: Object
   db tables
   ```
   """
-  method: tables [
+  method: tables ^<Array> ! <IO> [
       ^self primTables
   ]
 
@@ -303,7 +314,7 @@ SqliteDatabase subclass: Object
   db migrate: 'ALTER TABLE users ADD COLUMN age INTEGER' version: 2
   ```
   """
-  method: migrate: sql version: version [
+  method: migrate: sql <String> version: version <Integer> ^<Boolean> ! <IO> [
       ^self primMigrate: sql version: version
   ]
 
@@ -311,7 +322,7 @@ SqliteDatabase subclass: Object
   Get the highest applied migration version number. Returns 0 if
   no migrations have been applied.
   """
-  method: migrationVersion [
+  method: migrationVersion ^<Integer> ! <IO> [
       ^self primMigrationVersion
   ]
 
@@ -320,38 +331,38 @@ SqliteDatabase subclass: Object
   """
   Get the file path of this database, or ':memory:' for in-memory databases.
   """
-  method: path [
+  method: path ^<String> [
       ^self primPath
   ]
 
   """
   Get the SQLite version string.
   """
-  method: version [
+  method: version ^<String> [
       ^self primVersion
   ]
 
   """
   Get the last inserted row ID.
   """
-  method: lastInsertId [
+  method: lastInsertId ^<Integer> [
       ^self primLastInsertId
   ]
 
   """
   Check if the database connection is closed.
   """
-  method: isClosed [
+  method: isClosed ^<Boolean> [
       ^self primIsClosed
   ]
 
   """
   Close the database connection.
   """
-  method: close [
+  method: close ! <IO> [
       ^self primClose
   ]
 
-  method: printString [
+  method: printString ^<String> [
       ^'a SqliteDatabase (', self path, ')'
   ]

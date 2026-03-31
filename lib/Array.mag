@@ -27,7 +27,7 @@ Array subclass: Object
   (Array new: 0) size >>> 0
   ```
   """
-  method: size [
+  method: size ^<Integer> [
       ^self primSize
   ]
 
@@ -39,7 +39,7 @@ Array subclass: Object
   #(10 20 30) at: 2 >>> 30
   ```
   """
-  method: at: index [
+  method: at: index <Integer> [
       ^self primAt: index
   ]
 
@@ -52,7 +52,7 @@ Array subclass: Object
   a at: 1 >>> 42
   ```
   """
-  method: at: index put: value [
+  method: at: index <Integer> put: value [
       ^self primAt: index put: value
   ]
 
@@ -87,7 +87,7 @@ Array subclass: Object
   #(1) isEmpty >>> false
   ```
   """
-  method: isEmpty [
+  method: isEmpty ^<Boolean> [
       ^self size = 0
   ]
 
@@ -99,7 +99,7 @@ Array subclass: Object
   (Array new: 0) notEmpty >>> false
   ```
   """
-  method: notEmpty [
+  method: notEmpty ^<Boolean> [
       ^self isEmpty not
   ]
 
@@ -129,8 +129,8 @@ Array subclass: Object
   #(1 2 3) collect: [:n | n printString]
   ```
   """
-  method: collect: block [
-      | result |
+  method: collect: block ^<Array> [
+      | result <Array> |
       result := Array new: self size.
       0 to: self size - 1 do: [:i | result at: i put: (block value: (self at: i))].
       ^result
@@ -144,8 +144,8 @@ Array subclass: Object
   #(1 2 3 4) select: [:x | x even] >>> #(2 4 )
   ```
   """
-  method: select: block [
-      | result |
+  method: select: block ^<Array> [
+      | result <Array> |
       result := Array new: 0.
       self do: [:each | (block value: each) ifTrue: [result := result, (Array with: each)]].
       ^result
@@ -159,7 +159,7 @@ Array subclass: Object
   #(1 2 3 4) reject: [:x | x even] >>> #(1 3 )
   ```
   """
-  method: reject: block [
+  method: reject: block ^<Array> [
       ^self select: [:each | (block value: each) not]
   ]
 
@@ -221,7 +221,7 @@ Array subclass: Object
   #(1 2 3) includes: 5 >>> false
   ```
   """
-  method: includes: anObject [
+  method: includes: anObject ^<Boolean> [
       self do: [:each | each = anObject ifTrue: [^true]].
       ^false
   ]
@@ -234,7 +234,7 @@ Array subclass: Object
   #(10 20 30) indexOf: 99 >>> -1
   ```
   """
-  method: indexOf: anObject [
+  method: indexOf: anObject ^<Integer> [
       0 to: self size - 1 do: [:i | (self at: i) = anObject ifTrue: [^i]].
       ^-1
   ]
@@ -247,8 +247,8 @@ Array subclass: Object
   #(), #(1 2) >>> #(1 2 )
   ```
   """
-  method: , other [
-      | result |
+  method: , other <Array> ^<Array> [
+      | result <Array> |
       result := Array new: self size + other size.
       0 to: self size - 1 do: [:i | result at: i put: (self at: i)].
       0 to: other size - 1 do: [:i | result at: self size + i put: (other at: i)].
@@ -264,8 +264,8 @@ Array subclass: Object
   #(10 20 30) copyFrom: 0 to: 2 >>> #(10 20 )
   ```
   """
-  method: copyFrom: start to: end [
-      | result |
+  method: copyFrom: start <Integer> to: end <Integer> ^<Array> [
+      | result <Array> |
       result := Array new: end - start.
       start to: end - 1 do: [:i | result at: i - start put: (self at: i)].
       ^result
@@ -281,7 +281,7 @@ Array subclass: Object
   #(10 20 30) copyFrom: 3 >>> #()
   ```
   """
-  method: copyFrom: start [
+  method: copyFrom: start <Integer> ^<Array> [
       ^self copyFrom: start to: self size
   ]
 
@@ -293,7 +293,7 @@ Array subclass: Object
   #() copyWith: 42 >>> #(42 )
   ```
   """
-  method: copyWith: element [
+  method: copyWith: element ^<Array> [
       ^self, (Array with: element)
   ]
 
@@ -309,7 +309,7 @@ Array subclass: Object
   a >>> #(1 2 3 )
   ```
   """
-  method: sort: aBlock [
+  method: sort: aBlock ^<Self> [
       ^self primSort: aBlock
   ]
 
@@ -323,7 +323,7 @@ Array subclass: Object
   a >>> #(1 2 3 )
   ```
   """
-  method: sort [
+  method: sort ^<Self> [
       ^self primSortDefault
   ]
 
@@ -338,7 +338,7 @@ Array subclass: Object
   a >>> #(3 1 2 )
   ```
   """
-  method: sorted: aBlock [
+  method: sorted: aBlock ^<Array> [
       ^self primSorted: aBlock
   ]
 
@@ -351,7 +351,7 @@ Array subclass: Object
   a >>> #(3 1 2 )
   ```
   """
-  method: sorted [
+  method: sorted ^<Array> [
       ^self primSortedDefault
   ]
 
@@ -365,8 +365,8 @@ Array subclass: Object
   a at: 0 >>> 1
   ```
   """
-  method: copy [
-      | result |
+  method: copy ^<Array> [
+      | result <Array> |
       result := Array new: self size.
       0 to: self size - 1 do: [:i | result at: i put: (self at: i)].
       ^result
@@ -382,7 +382,7 @@ Array subclass: Object
   #('x') joinWith: ', ' >>> 'x'
   ```
   """
-  method: joinWith: separator [
+  method: joinWith: separator <String> ^<String> [
       ^self primJoinWith: separator
   ]
 
@@ -396,7 +396,7 @@ Array subclass: Object
   #('x') join: ', ' >>> 'x'
   ```
   """
-  method: join: separator [
+  method: join: separator <String> ^<String> [
       ^self primJoinWith: separator
   ]
 
@@ -408,8 +408,8 @@ Array subclass: Object
   #() printString >>> '#()'
   ```
   """
-  method: printString [
-      | s |
+  method: printString ^<String> [
+      | s <String> |
       s := '#('.
       self do: [:each | s := s, each printString, ' '].
       s := s, ')'.

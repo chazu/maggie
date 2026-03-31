@@ -5,17 +5,17 @@ Printable trait
 
   # Returns a developer-friendly description of the object.
   # Classes including this trait should override for better output.
-  method: description [
+  method: description ^<String> [
     ^'<', self class, '>'
   ]
 
   # Returns a bracketed description.
-  method: bracketedDescription [
+  method: bracketedDescription ^<String> [
     ^'[', self description, ']'
   ]
 
   # Print self and return self (for chaining).
-  method: printOn: aStream [
+  method: printOn: aStream ^<Self> [
     aStream nextPutAll: self description.
     ^self
   ]

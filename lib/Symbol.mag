@@ -3,20 +3,20 @@
 Symbol subclass: Object
 
   # Symbols are unique and immutable
-  method: asSymbol [
+  method: asSymbol ^<Symbol> [
       ^self
   ]
 
-  method: asString [
+  method: asString ^<String> [
       ^self primAsString
   ]
 
   # Comparison (identity for symbols)
-  method: = other [
+  method: = other <Object> ^<Boolean> [
       ^self == other
   ]
 
   # Printing
-  method: printString [
+  method: printString ^<String> [
       ^'#', self asString
   ]

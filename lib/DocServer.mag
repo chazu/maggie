@@ -14,7 +14,7 @@ DocServer subclass: Object
   Start the documentation server on the default port (8080).
   Serves static files from the given directory.
   """
-  classMethod: start: docDir [
+  classMethod: start: docDir <String> ! <IO, Network> [
     ^self start: docDir port: 8080
   ]
 
@@ -26,12 +26,12 @@ DocServer subclass: Object
   DocServer start: './docs/api' port: 3000
   ```
   """
-  classMethod: start: docDir port: port [
-    | server |
+  classMethod: start: docDir <String> port: port <Integer> ! <IO, Network> [
+    | server <HttpServer> |
     server := HttpServer new: port.
     server serveStatic: '/' from: docDir.
     server route: '/api/eval' method: 'POST' handler: [:req |
-      | expr result |
+      | expr <String> result |
       expr := req body.
       result := Compiler evaluate: expr.
       HttpResponse new: 200 body: result printString

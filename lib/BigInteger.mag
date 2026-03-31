@@ -26,12 +26,12 @@ BigInteger subclass: Object
   """
   Return the absolute value.
   """
-  method: abs [ ^self primAbs ]
+  method: abs ^<Integer> [ ^self primAbs ]
 
   """
   Return the negation of the receiver.
   """
-  method: negated [ ^self primNegated ]
+  method: negated ^<Integer> [ ^self primNegated ]
 
   """
   Return -1, 0, or 1 indicating the sign.
@@ -40,12 +40,12 @@ BigInteger subclass: Object
   20 factorial sign >>> 1
   ```
   """
-  method: sign [ ^self primSign ]
+  method: sign ^<Integer> [ ^self primSign ]
 
   """
   Return true if the receiver is zero.
   """
-  method: isZero [ ^self primIsZero ]
+  method: isZero ^<Boolean> [ ^self primIsZero ]
 
   """
   Convert to Float (may lose precision for very large values).
@@ -54,14 +54,14 @@ BigInteger subclass: Object
   20 factorial asFloat class name >>> #Float
   ```
   """
-  method: asFloat [ ^self primAsFloat ]
+  method: asFloat ^<Float> [ ^self primAsFloat ]
 
   """
   Convert to SmallInteger (truncates if too large).
   """
-  method: asSmallInt [ ^self primAsSmallInt ]
+  method: asSmallInt ^<Integer> [ ^self primAsSmallInt ]
 
   """
   Return a human-readable string representation.
   """
-  method: printString [ ^self primPrintString ]
+  method: printString ^<String> [ ^self primPrintString ]

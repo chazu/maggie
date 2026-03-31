@@ -17,7 +17,7 @@ primitive loop forms `whileTrue:`, `whileFalse:`, `whileTrue`, and
 
 ```example
 "Blocks close over their environment"
-| factor |
+| factor <Integer> |
 factor := 10.
 [:x | x * factor] value: 5
 ```
@@ -119,7 +119,7 @@ Block subclass: Object
   own exit (typically via a non-local return).
 
   ```example
-  | i |
+  | i <Integer> |
   i := 0.
   [i := i + 1. i > 10 ifTrue: [^i]] repeat
   ```
@@ -136,11 +136,12 @@ Block subclass: Object
   and will not escape the process boundary.
 
   ```example
+  | proc <Process> |
   proc := [self computeResult] fork.
   proc wait
   ```
   """
-  method: fork [
+  method: fork ^<Process> ! <Process> [
       ^Process fork: self
   ]
 
@@ -151,7 +152,7 @@ Block subclass: Object
   [self backgroundTask] forkAt: 1
   ```
   """
-  method: forkAt: priority [
+  method: forkAt: priority <Integer> ^<Process> ! <Process> [
       ^Process fork: self at: priority
   ]
 
@@ -161,12 +162,13 @@ Block subclass: Object
   variables must be serializable (no Channels, Processes, Mutexes, etc.).
 
   ```example
+  | node <Node> future <Future> |
   node := Node connect: 'localhost:9200'.
   future := [42 factorial] forkOn: node.
-  result := future await
+  future await
   ```
   """
-  method: forkOn: node [
+  method: forkOn: node <Node> ^<Future> ! <Process, Network> [
       ^self primForkOn: node
   ]
 
@@ -174,12 +176,13 @@ Block subclass: Object
   Fork the block on a remote node with an argument. Returns a Future.
 
   ```example
+  | node <Node> future <Future> |
   node := Node connect: 'localhost:9200'.
   future := [:n | n factorial] forkOn: node with: 20.
-  result := future await
+  future await
   ```
   """
-  method: forkOn: node with: arg [
+  method: forkOn: node <Node> with: arg ^<Future> ! <Process, Network> [
       ^self primForkOn: node with: arg
   ]
 
@@ -188,12 +191,13 @@ Block subclass: Object
   that can receive messages via `cast:with:` and `asyncSend:with:`.
 
   ```example
+  | node <Node> worker <RemoteProcess> |
   node := Node connect: 'localhost:9200'.
   worker := [Process receive payload println. self repeat] spawnOn: node.
   worker cast: #hello: with: 'world'
   ```
   """
-  method: spawnOn: node [
+  method: spawnOn: node <Node> ^<RemoteProcess> ! <Process, Network> [
       ^self primSpawnOn: node
   ]
 
@@ -202,11 +206,12 @@ Block subclass: Object
   Returns a RemoteProcess.
 
   ```example
+  | node <Node> worker <RemoteProcess> |
   node := Node connect: 'localhost:9200'.
   worker := [:config | self runWith: config] spawnOn: node with: myConfig.
   worker cast: #status: with: nil
   ```
   """
-  method: spawnOn: node with: arg [
+  method: spawnOn: node <Node> with: arg ^<RemoteProcess> ! <Process, Network> [
       ^self primSpawnOn: node with: arg
   ]

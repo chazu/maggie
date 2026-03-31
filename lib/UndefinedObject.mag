@@ -4,15 +4,15 @@
 UndefinedObject subclass: Object
 
   # Nil testing
-  method: isNil [
+  method: isNil ^<Boolean> [
       ^true
   ]
 
-  method: notNil [
+  method: notNil ^<Boolean> [
       ^false
   ]
 
   # Printing
-  method: printString [
+  method: printString ^<String> [
       ^'nil'
   ]

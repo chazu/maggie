@@ -21,6 +21,7 @@ Random nextInt: 6
 
 ```example
 "Reproducible sequence"
+| r <Random> |
 r := Random new: 42.
 r nextInt: 100
 ```
@@ -30,6 +31,6 @@ Random subclass: Object
   """
   Return a human-readable string representation.
   """
-  method: printString [
+  method: printString ^<String> [
     ^'a Random'
   ]

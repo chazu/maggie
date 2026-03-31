@@ -7,6 +7,7 @@ the `NodeHealthMonitor` heartbeat system.
 
 ```example
 "Create a cluster from seed addresses"
+| cluster <Cluster> |
 cluster := Cluster seeds: #('host1:8081' 'host2:8081').
 cluster start.
 
@@ -21,21 +22,21 @@ cluster stop
 ```
 """
 Cluster subclass: Object
-  instanceVars: seeds members process running
-                onUpBlock onDownBlock reconnectInterval
-                failedSeeds sentinelName ring
+  instanceVars: seeds <Array> members <Dictionary> process <Process> running <Boolean>
+                onUpBlock onDownBlock reconnectInterval <Integer>
+                failedSeeds <Array> sentinelName <String> ring <HashRing>
 
   """
   Create a cluster from an array of seed addresses (e.g., 'host:port').
   """
-  classMethod: seeds: anArray [
-      | cluster |
+  classMethod: seeds: anArray <Array> ^<Cluster> [
+      | cluster <Cluster> |
       cluster := self new.
       cluster primInit: anArray.
       ^cluster
   ]
 
-  method: primInit: seedArray [
+  method: primInit: seedArray <Array> [
       seeds := seedArray.
       members := Dictionary new.
       failedSeeds := Array new: 0.
@@ -48,7 +49,7 @@ Cluster subclass: Object
   ]
 
   """Start the cluster membership manager."""
-  method: start [
+  method: start ^<Process> ! <Process, Network> [
       "Register ourselves as a sentinel so peers can monitor us"
       Process current registerAs: sentinelName.
 
@@ -65,20 +66,20 @@ Cluster subclass: Object
   ]
 
   """Return an Array of currently live Node values."""
-  method: members [
-      | result |
+  method: members ^<Array> [
+      | result <Array> |
       result := Array new: 0.
       members keysAndValuesDo: [:k :v | result := result , (Array with: v)].
       ^result
   ]
 
   """Return the number of live members."""
-  method: size [
+  method: size ^<Integer> [
       ^self members size
   ]
 
   """Return true if the given address is a live member."""
-  method: isConnected: addr [
+  method: isConnected: addr <String> ^<Boolean> [
       ^(members at: addr ifAbsent: [nil]) notNil
   ]
 
@@ -97,11 +98,12 @@ Cluster subclass: Object
   Returns a Node, or nil if the cluster is empty.
 
   ```example
+  | cluster <Cluster> node <Node> |
   cluster := Cluster seeds: #('host1:8081' 'host2:8081').
   node := cluster nodeFor: 'user-123'.
   ```
   """
-  method: nodeFor: key [
+  method: nodeFor: key <String> ^<Node> [
       ^ring nodeFor: key
   ]
 
@@ -109,27 +111,27 @@ Cluster subclass: Object
   Return N nodes responsible for the given key (for replication).
   Returns an Array of Nodes.
   """
-  method: nodesFor: key count: n [
+  method: nodesFor: key <String> count: n <Integer> ^<Array> [
       ^ring nodesFor: key count: n
   ]
 
   """Return the underlying HashRing."""
-  method: ring [ ^ring ]
+  method: ring ^<HashRing> [ ^ring ]
 
   """Return the reconnect interval in milliseconds."""
-  method: reconnectInterval [
+  method: reconnectInterval ^<Integer> [
       ^reconnectInterval
   ]
 
   """Set the reconnect interval in milliseconds."""
-  method: reconnectInterval: ms [
+  method: reconnectInterval: ms <Integer> [
       reconnectInterval := ms
   ]
 
   "--- Private: cluster management loop ---"
 
-  method: runLoop [
-      | lastReconnect msg now |
+  method: runLoop ! <Process, Network> [
+      | lastReconnect <Integer> msg <MailboxMessage> now <Integer> |
       Process current trapExit: true.
 
       "Connect to all seeds"
@@ -156,8 +158,8 @@ Cluster subclass: Object
       ]
   ]
 
-  method: connectSeed: addr [
-      | node sentinel |
+  method: connectSeed: addr <String> ! <Network> [
+      | node <Node> sentinel <RemoteProcess> |
       [
           node := Node connect: addr.
           node ping ifTrue: [
@@ -181,9 +183,9 @@ Cluster subclass: Object
       ]
   ]
 
-  method: handleDown: info [
+  method: handleDown: info <Array> ! <Network> [
       "info is #(refID processValue reasonSymbol resultValue)"
-      | reason deadAddrs |
+      | reason <Symbol> deadAddrs <Array> |
       reason := info at: 3.
       deadAddrs := Array new: 0.
 
@@ -202,8 +204,8 @@ Cluster subclass: Object
       ]
   ]
 
-  method: reconnectFailed [
-      | toRetry |
+  method: reconnectFailed ! <Network> [
+      | toRetry <Array> |
       toRetry := failedSeeds copy.
       failedSeeds := Array new: 0.
       toRetry do: [:addr |
@@ -213,24 +215,24 @@ Cluster subclass: Object
       ]
   ]
 
-  method: addFailed: addr [
+  method: addFailed: addr <String> [
       (failedSeeds includes: addr) ifFalse: [
           failedSeeds := failedSeeds , (Array with: addr)
       ]
   ]
 
-  method: notifyUp: node [
+  method: notifyUp: node <Node> [
       ring add: node.
       onUpBlock notNil ifTrue: [onUpBlock value: node]
   ]
 
-  method: notifyDown: addr [
-      | node |
+  method: notifyDown: addr <String> [
+      | node <Node> |
       node := members at: addr ifAbsent: [nil].
       node notNil ifTrue: [ring remove: node].
       onDownBlock notNil ifTrue: [onDownBlock value: addr]
   ]
 
-  method: printString [
+  method: printString ^<String> [
       ^'a Cluster(', self size printString, ' members)'
   ]

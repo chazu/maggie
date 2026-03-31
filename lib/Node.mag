@@ -3,6 +3,7 @@ A connection to a remote Maggie node. Create with `Node connect:` and
 use to obtain references to remote processes for distributed messaging.
 
 ```example
+| node <Node> worker <RemoteProcess> |
 node := Node connect: 'localhost:8081'.
 node addr               "=> 'localhost:8081'"
 node ping               "=> true/false"
@@ -14,21 +15,21 @@ Node subclass: Object
   """
   Return the address string for this node connection.
   """
-  method: addr [
+  method: addr ^<String> [
       ^self primAddr
   ]
 
   """
   Check if the remote node is reachable. Returns true or false.
   """
-  method: ping [
+  method: ping ^<Boolean> ! <Network> [
       ^self primPing
   ]
 
   """
   Return the hex-encoded 32-byte public key (NodeID) of this node.
   """
-  method: nodeID [
+  method: nodeID ^<String> [
       ^self primNodeID
   ]
 
@@ -36,13 +37,13 @@ Node subclass: Object
   Return a RemoteProcess targeting the named process on this node.
   The process must be registered with `registerAs:` on the remote side.
   """
-  method: processNamed: name [
+  method: processNamed: name <String> ^<RemoteProcess> [
       ^self primProcessNamed: name
   ]
 
   """
   Return a string representation.
   """
-  method: printString [
+  method: printString ^<String> [
       ^'a Node(', self addr, ')'
   ]

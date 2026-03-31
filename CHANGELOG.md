@@ -1,5 +1,45 @@
 # Changelog
 
+## 2026-03-30 — Type Annotations for Standard Library
+
+Added type annotations, effect declarations, and typed examples across all 58
+`lib/*.mag` files. Annotations are gradual (zero runtime cost, checked by
+`mag typecheck`) and follow the Strongtalk model.
+
+### New file
+- `lib/protocols.mag` — structural protocol definitions for `Sizeable`,
+  `Indexable`, and `Comparable`
+
+### Annotations added to all library files
+- **Return types** (`^<Integer>`, `^<String>`, `^<Boolean>`, `^<Self>`,
+  `^<Array>`, `^<Result>`, `^<Process>`, `^<Future>`, etc.)
+- **Parameter types** (`<Integer>`, `<String>`, `<Symbol>`, `<Array>`,
+  `<Node>`, `<CueValue>`, etc.)
+- **Typed instance variables** (`instanceVars: name <String> age <Integer>`)
+- **Typed temporaries** in method bodies (`| result <Array> |`)
+- **Effect annotations** (`! <IO>`, `! <Network>`, `! <Process>`,
+  `! <IO, Network>`, `! <Process, Network>`)
+- **Typed examples** — `example` blocks use typed temporaries to showcase
+  idiomatic usage (e.g., `| db <SqliteDatabase> |`)
+
+### Files annotated by category
+- **Core types (15):** Object, Array, String, SmallInteger, Float, BigInteger,
+  Boolean, True, False, Character, Symbol, UndefinedObject, Block, Printable,
+  protocols
+- **Collections & utilities (11):** Dictionary, Set, Json/JsonReader/JsonWriter,
+  DateTime, Regex, Result, Success, Failure, Random, Message, Toml
+- **Concurrency (10):** Process, Channel, Mutex, Semaphore, WaitGroup, Future,
+  MailboxMessage, RemoteProcess, Node
+- **I/O & networking (14):** File, HttpClient, HttpServer, HttpRequest,
+  HttpResponse, SqliteDatabase, SqliteRows, SqliteStatement, ExternalProcess,
+  SocketConnection, UnixSocketClient, UnixSocketServer, DuckDatabase,
+  DuckAppender
+- **Distribution & specialty (9):** Supervisor/ChildSpec, DynamicSupervisor,
+  Cluster, HashRing, TupleSpace, CueValue, CueContext, ConstraintStore,
+  DocServer
+
+All 1015 doctests pass. All Go tests pass.
+
 ## 2026-03-30 — Distributed Computing Phase A: Remote Messaging
 
 Complete implementation of distributed messaging between Maggie VMs.

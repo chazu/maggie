@@ -5,6 +5,7 @@ filesystem path.
 Returns a SocketConnection for sending and receiving data.
 
 ```example
+| conn <SocketConnection> response <String> |
 conn := UnixSocketClient connectTo: '/tmp/echo.sock'.
 conn sendLine: 'hello'.
 response := conn receiveLine.
@@ -18,12 +19,13 @@ UnixSocketClient subclass: Object
   Returns a SocketConnection on success, or a Failure on error.
 
   ```example
+  | conn <SocketConnection> result <String> |
   conn := UnixSocketClient connectTo: '/tmp/app.sock'.
   conn sendLine: '{"method":"ping"}'.
   result := conn receiveLine.
   conn close
   ```
   """
-  class method: connectTo: path [
+  class method: connectTo: path <String> ^<SocketConnection> ! <IO> [
       ^self primConnectTo: path
   ]

@@ -4,6 +4,7 @@ A reference to a process on a remote Maggie node. Created via
 (`cast:with:`) and request-response (`asyncSend:with:`).
 
 ```example
+| node <Node> worker <RemoteProcess> future <Future> result <Integer> |
 node := Node connect: 'localhost:8081'.
 worker := node processNamed: 'compute'.
 
@@ -16,19 +17,19 @@ result := future await.
 ```
 """
 RemoteProcess subclass: Object
-  instanceVars: node name
+  instanceVars: node <Node> name <String>
 
   """
   The name of the remote process.
   """
-  method: name [
+  method: name ^<String> [
       ^name
   ]
 
   """
   The Node connection this process belongs to.
   """
-  method: node [
+  method: node ^<Node> [
       ^node
   ]
 
@@ -40,7 +41,7 @@ RemoteProcess subclass: Object
   worker cast: #log: with: 'hello'
   ```
   """
-  method: cast: selector with: payload [
+  method: cast: selector <Symbol> with: payload ^<Boolean> ! <Network> [
       ^self primCast: selector with: payload
   ]
 
@@ -50,17 +51,18 @@ RemoteProcess subclass: Object
   Future to block until the result is available.
 
   ```example
+  | future <Future> |
   future := worker asyncSend: #compute: with: 42.
   future await        "=> the result from the remote side"
   ```
   """
-  method: asyncSend: selector with: payload [
+  method: asyncSend: selector <Symbol> with: payload ^<Future> ! <Network> [
       ^self primAsyncSend: selector with: payload
   ]
 
   """
   Return a string representation.
   """
-  method: printString [
+  method: printString ^<String> [
       ^'a RemoteProcess(', name, ')'
   ]

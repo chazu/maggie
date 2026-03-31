@@ -12,6 +12,7 @@ Use the compiled Regex to match, find, replace, and split strings.
 
 ```example
 "Find all numbers in a string"
+| re <Regex> |
 re := (Regex compile: '[0-9]+') value.
 re findAllIn: 'abc 123 def 456'
 ```
@@ -28,7 +29,7 @@ Regex subclass: Object
   (Regex compile: '^\d+$') isSuccess >>> true
   ```
   """
-  classMethod: compile: pattern [
+  classMethod: compile: pattern <String> ^<Result> [
       <primitive>
   ]
 
@@ -42,7 +43,7 @@ Regex subclass: Object
   (Regex compile: '^\d+$') value matches: 'abc' >>> false
   ```
   """
-  method: matches: aString [
+  method: matches: aString <String> ^<Boolean> [
       <primitive>
   ]
 
@@ -55,7 +56,7 @@ Regex subclass: Object
   (Regex compile: 'xyz') value findIn: 'abc def' >>> nil
   ```
   """
-  method: findIn: aString [
+  method: findIn: aString <String> ^<String> [
       <primitive>
   ]
 
@@ -68,7 +69,7 @@ Regex subclass: Object
   ((Regex compile: 'x') value findAllIn: 'abc') size >>> 0
   ```
   """
-  method: findAllIn: aString [
+  method: findAllIn: aString <String> ^<Array> [
       <primitive>
   ]
 
@@ -80,7 +81,7 @@ Regex subclass: Object
   (Regex compile: '\s+') value replaceIn: 'hello   world' with: ' ' >>> 'hello world'
   ```
   """
-  method: replaceIn: aString with: replacement [
+  method: replaceIn: aString <String> with: replacement <String> ^<String> [
       <primitive>
   ]
 
@@ -92,7 +93,7 @@ Regex subclass: Object
   (Regex compile: '\d+') value split: 'a1b2c' >>> #('a' 'b' 'c')
   ```
   """
-  method: split: aString [
+  method: split: aString <String> ^<Array> [
       <primitive>
   ]
 
@@ -103,7 +104,7 @@ Regex subclass: Object
   (Regex compile: 'hello') value pattern >>> 'hello'
   ```
   """
-  method: pattern [
+  method: pattern ^<String> [
       <primitive>
   ]
 
@@ -114,6 +115,6 @@ Regex subclass: Object
   (Regex compile: '\d+') value printString >>> 'Regex(/\d+/)'
   ```
   """
-  method: printString [
+  method: printString ^<String> [
       <primitive>
   ]

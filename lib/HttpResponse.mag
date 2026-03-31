@@ -12,12 +12,14 @@ HttpResponse new: 200 body: 'Hello, world!'
 
 ```example
 "JSON response with content type"
+| response <HttpResponse> |
 response := HttpResponse new: 200 body: '{"status": "ok"}'.
 response contentType: 'application/json'
 ```
 
 ```example
 "Response with custom headers"
+| response <HttpResponse> |
 response := HttpResponse new: 201 body: 'Created'.
 response header: 'Location' value: '/api/items/42'.
 response contentType: 'application/json'
@@ -34,7 +36,7 @@ HttpResponse subclass: Object
   HttpResponse new: 500 body: 'Internal Server Error'
   ```
   """
-  class method: new: status body: body [
+  class method: new: status <Integer> body: body <String> ^<HttpResponse> [
       <primitive>
   ]
 
@@ -45,7 +47,7 @@ HttpResponse subclass: Object
   response header: 'X-Custom' value: 'my-value'
   ```
   """
-  method: header: name value: value [
+  method: header: name <String> value: value <String> ^<Self> [
       <primitive>
   ]
 
@@ -57,7 +59,7 @@ HttpResponse subclass: Object
   response contentType: 'application/json'
   ```
   """
-  method: contentType: mime [
+  method: contentType: mime <String> ^<Self> [
       <primitive>
   ]
 
@@ -68,7 +70,7 @@ HttpResponse subclass: Object
   (HttpResponse new: 200 body: 'OK') status   "=> 200"
   ```
   """
-  method: status [
+  method: status ^<Integer> [
       <primitive>
   ]
 
@@ -79,6 +81,6 @@ HttpResponse subclass: Object
   (HttpResponse new: 200 body: 'hello') body   "=> 'hello'"
   ```
   """
-  method: body [
+  method: body ^<String> [
       <primitive>
   ]

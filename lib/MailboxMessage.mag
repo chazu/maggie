@@ -9,6 +9,7 @@ MailboxMessages are created automatically by `Process>>send:` and
 `Process receiveMatching:`.
 
 ```example
+| p <Process> |
 p := [Process receive payload] fork.
 Process sleep: 10.
 p send: 42.
@@ -16,6 +17,7 @@ p wait
 ```
 
 ```example
+| p <Process> |
 p := [Process receive selector] fork.
 Process sleep: 10.
 p send: #doWork with: 'data'.
@@ -23,13 +25,13 @@ p wait
 ```
 """
 MailboxMessage subclass: Object
-  instanceVars: sender selector payload
+  instanceVars: sender <Process> selector <Symbol> payload
 
   """
   The process that sent this message, or `nil` for remote
   or system messages.
   """
-  method: sender [
+  method: sender ^<Process> [
       ^sender
   ]
 
@@ -37,7 +39,7 @@ MailboxMessage subclass: Object
   The message selector (a Symbol), or `nil` if none was
   specified (raw send).
   """
-  method: selector [
+  method: selector ^<Symbol> [
       ^selector
   ]
 
@@ -51,6 +53,6 @@ MailboxMessage subclass: Object
   """
   Return a string representation of the message.
   """
-  method: printString [
+  method: printString ^<String> [
       ^'a MailboxMessage(', (selector ifNil: ['(raw)'] ifNotNil: [selector]), ')'
   ]

@@ -8,6 +8,6 @@ True subclass: Boolean
   ]
 
   # Printing
-  method: printString [
+  method: printString ^<String> [
       ^'true'
   ]

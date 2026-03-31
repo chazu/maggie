@@ -62,7 +62,7 @@ ConstraintStore subclass: Object
 
   The argument must be a CueValue.
   """
-  method: tell: aCueValue [
+  method: tell: aCueValue <CueValue> ^<Result> ! <Process> [
       ^self primTell: aCueValue
   ]
 
@@ -72,7 +72,7 @@ ConstraintStore subclass: Object
 
   The argument must be a CueValue.
   """
-  method: ask: aCueValue [
+  method: ask: aCueValue <CueValue> ^<Boolean> ! <Process> [
       ^self primAsk: aCueValue
   ]
 
@@ -82,7 +82,7 @@ ConstraintStore subclass: Object
 
   The argument must be a CueValue.
   """
-  method: tryAsk: aCueValue [
+  method: tryAsk: aCueValue <CueValue> ^<Boolean> [
       ^self primTryAsk: aCueValue
   ]
 
@@ -92,28 +92,28 @@ ConstraintStore subclass: Object
   Otherwise, a goroutine waits and invokes the block when a future tell
   makes it entailed.
   """
-  method: watch: aCueValue do: aBlock [
+  method: watch: aCueValue <CueValue> do: aBlock ! <Process> [
       ^self primWatch: aCueValue do: aBlock
   ]
 
   """
   Return the current store state as a CueValue (snapshot).
   """
-  method: value [
+  method: value ^<CueValue> [
       ^self primValue
   ]
 
   """
   Return true if the store is consistent (not bottom).
   """
-  method: isConsistent [
+  method: isConsistent ^<Boolean> [
       ^self primIsConsistent
   ]
 
   """
   Return a human-readable description.
   """
-  method: printString [
+  method: printString ^<String> [
       ^self primPrintString
   ]
 
@@ -121,8 +121,8 @@ ConstraintStore subclass: Object
   Convenience: tell a CUE source string (compiles it first).
   Returns a Result.
   """
-  method: tellString: aString [
-      | ctx val |
+  method: tellString: aString <String> ^<Result> ! <Process> [
+      | ctx <CueContext> val <CueValue> |
       ctx := CueContext new.
       val := (ctx compileString: aString) value.
       ^self tell: val
@@ -132,8 +132,8 @@ ConstraintStore subclass: Object
   Convenience: non-blocking ask using a CUE source string.
   Returns true/false.
   """
-  method: tryAskString: aString [
-      | ctx val |
+  method: tryAskString: aString <String> ^<Boolean> [
+      | ctx <CueContext> val <CueValue> |
       ctx := CueContext new.
       val := (ctx compileString: aString) value.
       ^self tryAsk: val
@@ -143,8 +143,8 @@ ConstraintStore subclass: Object
   Convenience: blocking ask using a CUE source string.
   Returns true when entailed.
   """
-  method: askString: aString [
-      | ctx val |
+  method: askString: aString <String> ^<Boolean> ! <Process> [
+      | ctx <CueContext> val <CueValue> |
       ctx := CueContext new.
       val := (ctx compileString: aString) value.
       ^self ask: val

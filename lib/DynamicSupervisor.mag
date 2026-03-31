@@ -15,6 +15,7 @@ ds template id >>> 'worker'
 
 ```example
 "Create a pool of workers"
+| template <ChildSpec> ds <DynamicSupervisor> |
 template := ChildSpec id: 'worker' start: [:id | Worker new: id run] restart: #permanent.
 ds := DynamicSupervisor new: template.
 ds start.
@@ -35,22 +36,22 @@ ds stop
 ```
 """
 DynamicSupervisor subclass: Object
-  instanceVars: template children process running
-                maxRestarts maxSeconds restartTimes
+  instanceVars: template <ChildSpec> children <Dictionary> process <Process> running <Boolean>
+                maxRestarts <Integer> maxSeconds <Integer> restartTimes <Array>
 
   """Create a DynamicSupervisor with a template ChildSpec."""
-  classMethod: new: templateSpec [
+  classMethod: new: templateSpec <ChildSpec> ^<DynamicSupervisor> [
       ^self new: templateSpec maxRestarts: 3 maxSeconds: 5
   ]
 
-  classMethod: new: templateSpec maxRestarts: maxR maxSeconds: maxS [
-      | ds |
+  classMethod: new: templateSpec <ChildSpec> maxRestarts: maxR <Integer> maxSeconds: maxS <Integer> ^<DynamicSupervisor> [
+      | ds <DynamicSupervisor> |
       ds := super new.
       ds primInit: templateSpec maxR: maxR maxS: maxS.
       ^ds
   ]
 
-  method: primInit: templateSpec maxR: maxR maxS: maxS [
+  method: primInit: templateSpec <ChildSpec> maxR: maxR <Integer> maxS: maxS <Integer> [
       template := templateSpec.
       children := Dictionary new.
       maxRestarts := maxR.
@@ -60,10 +61,10 @@ DynamicSupervisor subclass: Object
   ]
 
   """Return the template spec."""
-  method: template [ ^template ]
+  method: template ^<ChildSpec> [ ^template ]
 
   """Start the dynamic supervisor process."""
-  method: start [
+  method: start ^<Process> ! <Process> [
       running := true.
       process := [self runLoop] fork.
       ^process
@@ -80,8 +81,8 @@ DynamicSupervisor subclass: Object
   Start a new child with the given ID. The template's start block
   is evaluated with the ID as argument.
   """
-  method: startChild: childId [
-      | childProc |
+  method: startChild: childId <String> ^<Process> ! <Process> [
+      | childProc <Process> |
       childProc := template startBlock forkWith: childId.
       Process current monitor: childProc.
       children at: childId put: childProc.
@@ -89,8 +90,8 @@ DynamicSupervisor subclass: Object
   ]
 
   """Terminate a child by ID."""
-  method: terminateChild: childId [
-      | proc |
+  method: terminateChild: childId <String> [
+      | proc <Process> |
       proc := children at: childId ifAbsent: [nil].
       proc notNil ifTrue: [
           proc primTerminate.
@@ -99,8 +100,8 @@ DynamicSupervisor subclass: Object
   ]
 
   """Return the IDs of currently running children."""
-  method: runningChildren [
-      | ids |
+  method: runningChildren ^<Array> [
+      | ids <Array> |
       ids := Array new: 0.
       children keysAndValuesDo: [:k :v |
           v isDone not ifTrue: [ids := ids , (Array with: k)]
@@ -109,20 +110,20 @@ DynamicSupervisor subclass: Object
   ]
 
   """Return the count of running children."""
-  method: countChildren [
+  method: countChildren ^<Integer> [
       ^self runningChildren size
   ]
 
   """Return the supervisor process."""
-  method: process [ ^process ]
+  method: process ^<Process> [ ^process ]
 
   "--- Private ---"
 
-  method: runLoop [
+  method: runLoop ! <Process> [
       Process current trapExit: true.
 
       [running] whileTrue: [
-          | msg |
+          | msg <MailboxMessage> |
           msg := Process receive: 1000.
           msg notNil ifTrue: [
               msg selector = #processDown: ifTrue: [
@@ -132,8 +133,8 @@ DynamicSupervisor subclass: Object
       ]
   ]
 
-  method: handleChildDown: info [
-      | reason childId |
+  method: handleChildDown: info <Array> [
+      | reason <Symbol> childId <String> |
       reason := info at: 3.
       childId := self findChildId: (info at: 2).
       childId isNil ifTrue: [^nil].
@@ -157,14 +158,14 @@ DynamicSupervisor subclass: Object
       self startChild: childId
   ]
 
-  method: findChildId: procValue [
+  method: findChildId: procValue ^<String> [
       children keysAndValuesDo: [:k :v |
           v = procValue ifTrue: [^k]
       ].
       ^nil
   ]
 
-  method: shouldRestart: reason [
+  method: shouldRestart: reason <Symbol> ^<Boolean> [
       template restart = #permanent ifTrue: [^true].
       template restart = #temporary ifTrue: [^false].
       template restart = #transient ifTrue: [^reason ~= #normal].
@@ -179,13 +180,13 @@ DynamicSupervisor subclass: Object
   ]
 
   method: recordRestart [
-      | now |
+      | now <Integer> |
       now := DateTime now epochMillis.
       restartTimes := restartTimes , (Array with: now)
   ]
 
-  method: restartIntensityExceeded [
-      | now windowStart count |
+  method: restartIntensityExceeded ^<Boolean> [
+      | now <Integer> windowStart <Integer> count <Integer> |
       restartTimes size < maxRestarts ifTrue: [^false].
       now := DateTime now epochMillis.
       windowStart := now - (maxSeconds * 1000).
@@ -194,6 +195,6 @@ DynamicSupervisor subclass: Object
       ^count > maxRestarts
   ]
 
-  method: printString [
+  method: printString ^<String> [
       ^'a DynamicSupervisor(', self countChildren printString, ' children)'
   ]

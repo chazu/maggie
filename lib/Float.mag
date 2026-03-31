@@ -26,7 +26,7 @@ Float subclass: Object
   (0.0 - 7.0) negated >>> 7
   ```
   """
-  method: negated [
+  method: negated ^<Float> [
       ^0.0 - self
   ]
 
@@ -39,7 +39,7 @@ Float subclass: Object
   0.0 abs >>> 0
   ```
   """
-  method: abs [
+  method: abs ^<Float> [
       self < 0.0 ifTrue: [^self negated].
       ^self
   ]
@@ -54,7 +54,7 @@ Float subclass: Object
   0.0 sign >>> 0
   ```
   """
-  method: sign [
+  method: sign ^<Float> [
       self < 0.0 ifTrue: [^-1.0].
       self > 0.0 ifTrue: [^1.0].
       ^0.0
@@ -68,7 +68,7 @@ Float subclass: Object
   5.0 max: 3.0 >>> 5
   ```
   """
-  method: max: other [
+  method: max: other <Float> ^<Float> [
       self > other ifTrue: [^self].
       ^other
   ]
@@ -81,7 +81,7 @@ Float subclass: Object
   5.0 min: 3.0 >>> 3
   ```
   """
-  method: min: other [
+  method: min: other <Float> ^<Float> [
       self < other ifTrue: [^self].
       ^other
   ]
@@ -95,7 +95,7 @@ Float subclass: Object
   (0.0 - 1.0) positive >>> false
   ```
   """
-  method: positive [
+  method: positive ^<Boolean> [
       ^self > 0.0
   ]
 
@@ -108,7 +108,7 @@ Float subclass: Object
   3.0 negative >>> false
   ```
   """
-  method: negative [
+  method: negative ^<Boolean> [
       ^self < 0.0
   ]
 
@@ -120,7 +120,7 @@ Float subclass: Object
   3.14 isZero >>> false
   ```
   """
-  method: isZero [
+  method: isZero ^<Boolean> [
       ^self = 0.0
   ]
 
@@ -132,7 +132,7 @@ Float subclass: Object
   3.7 floor    "=> 3"
   ```
   """
-  method: floor [
+  method: floor ^<Integer> [
       ^self primFloor
   ]
 
@@ -144,7 +144,7 @@ Float subclass: Object
   3.2 ceiling   "=> 4"
   ```
   """
-  method: ceiling [
+  method: ceiling ^<Integer> [
       ^self primCeiling
   ]
 
@@ -157,7 +157,7 @@ Float subclass: Object
   3.4 rounded    "=> 3"
   ```
   """
-  method: rounded [
+  method: rounded ^<Integer> [
       ^self primRounded
   ]
 
@@ -170,7 +170,7 @@ Float subclass: Object
   (0.0 - 3.9) truncated  "=> -3"
   ```
   """
-  method: truncated [
+  method: truncated ^<Integer> [
       ^self primTruncated
   ]
 
@@ -183,7 +183,7 @@ Float subclass: Object
   3.14 printString   "=> '3.14'"
   ```
   """
-  method: printString [
+  method: printString ^<String> [
       ^self primPrintString
   ]
 
@@ -197,7 +197,7 @@ Float subclass: Object
   Float pi sin rounded >>> 0
   ```
   """
-  method: sin [ <primitive> ]
+  method: sin ^<Float> [ <primitive> ]
 
   """
   Return the cosine of the receiver (in radians).
@@ -207,7 +207,7 @@ Float subclass: Object
   Float pi cos rounded >>> -1
   ```
   """
-  method: cos [ <primitive> ]
+  method: cos ^<Float> [ <primitive> ]
 
   """
   Return the tangent of the receiver (in radians).
@@ -216,7 +216,7 @@ Float subclass: Object
   0.0 tan >>> 0
   ```
   """
-  method: tan [ <primitive> ]
+  method: tan ^<Float> [ <primitive> ]
 
   """
   Return the arc sine of the receiver. Result in radians.
@@ -226,7 +226,7 @@ Float subclass: Object
   1.0 asin >>> 1.5707963267948966
   ```
   """
-  method: asin [ <primitive> ]
+  method: asin ^<Float> [ <primitive> ]
 
   """
   Return the arc cosine of the receiver. Result in radians.
@@ -236,7 +236,7 @@ Float subclass: Object
   0.0 acos >>> 1.5707963267948966
   ```
   """
-  method: acos [ <primitive> ]
+  method: acos ^<Float> [ <primitive> ]
 
   """
   Return the arc tangent of the receiver. Result in radians.
@@ -246,7 +246,7 @@ Float subclass: Object
   1.0 atan >>> 0.7853981633974483
   ```
   """
-  method: atan [ <primitive> ]
+  method: atan ^<Float> [ <primitive> ]
 
   """
   Return the arc tangent of y/x (receiver is y, argument is x),
@@ -257,7 +257,7 @@ Float subclass: Object
   0.0 atan2: 1.0 >>> 0
   ```
   """
-  method: atan2: x [ <primitive> ]
+  method: atan2: x <Float> ^<Float> [ <primitive> ]
 
   "--- Logarithmic / Exponential (VM primitives) ---"
 
@@ -269,7 +269,7 @@ Float subclass: Object
   Float e ln >>> 1
   ```
   """
-  method: ln [ <primitive> ]
+  method: ln ^<Float> [ <primitive> ]
 
   """
   Return the base-10 logarithm of the receiver.
@@ -279,7 +279,7 @@ Float subclass: Object
   100.0 log10 >>> 2
   ```
   """
-  method: log10 [ <primitive> ]
+  method: log10 ^<Float> [ <primitive> ]
 
   """
   Return the logarithm of the receiver in the given base.
@@ -289,7 +289,7 @@ Float subclass: Object
   1.0 log: 10.0 >>> 0
   ```
   """
-  method: log: base [ <primitive> ]
+  method: log: base <Float> ^<Float> [ <primitive> ]
 
   """
   Return e raised to the power of the receiver.
@@ -299,7 +299,7 @@ Float subclass: Object
   1.0 exp >>> 2.718281828459045
   ```
   """
-  method: exp [ <primitive> ]
+  method: exp ^<Float> [ <primitive> ]
 
   """
   Return the receiver raised to the given power.
@@ -309,4 +309,4 @@ Float subclass: Object
   9.0 pow: 0.5 >>> 3
   ```
   """
-  method: pow: exponent [ <primitive> ]
+  method: pow: exponent <Float> ^<Float> [ <primitive> ]

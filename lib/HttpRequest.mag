@@ -8,7 +8,7 @@ headers, query parameters, and body.
 ```example
 "Inspecting a request in a handler"
 server route: '/api/data' method: 'POST' handler: [:req |
-    | method path body |
+    | method <String> path <String> body <String> |
     method := req method.     "=> 'POST'"
     path := req path.         "=> '/api/data'"
     body := req body.         "=> request body string"
@@ -19,7 +19,7 @@ server route: '/api/data' method: 'POST' handler: [:req |
 ```example
 "Reading headers and query parameters"
 server route: '/search' method: 'GET' handler: [:req |
-    | auth query |
+    | auth <String> query <String> |
     auth := req header: 'Authorization'.
     query := req queryParam: 'q'.
     HttpResponse new: 200 body: 'Searching for: ', query
@@ -33,10 +33,11 @@ HttpRequest subclass: Object
   first access and cached for subsequent calls.
 
   ```example
+  | body <String> |
   body := request body
   ```
   """
-  method: body [
+  method: body ^<String> ! <Network> [
       <primitive>
   ]
 
@@ -47,7 +48,7 @@ HttpRequest subclass: Object
   request path   "=> '/api/data'"
   ```
   """
-  method: path [
+  method: path ^<String> [
       <primitive>
   ]
 
@@ -58,7 +59,7 @@ HttpRequest subclass: Object
   request method   "=> 'GET'"
   ```
   """
-  method: method [
+  method: method ^<String> [
       <primitive>
   ]
 
@@ -67,10 +68,11 @@ HttpRequest subclass: Object
   if the header is not present.
 
   ```example
+  | contentType <String> |
   contentType := request header: 'Content-Type'
   ```
   """
-  method: header: name [
+  method: header: name <String> ^<String> [
       <primitive>
   ]
 
@@ -83,6 +85,6 @@ HttpRequest subclass: Object
   request queryParam: 'q'   "=> 'hello'"
   ```
   """
-  method: queryParam: name [
+  method: queryParam: name <String> ^<String> [
       <primitive>
   ]

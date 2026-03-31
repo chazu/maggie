@@ -9,6 +9,7 @@ to block until the process completes and retrieve its result.
 [42] fork wait          "=> 42"
 [3 + 4] fork wait      "=> 7"
 
+| p <Process> |
 p := [100] fork.
 p wait.
 p isDone               "=> true"
@@ -16,6 +17,7 @@ p isDone               "=> true"
 
 ```example
 "Fan-out with channels"
+| ch <Channel> |
 ch := Channel new: 10.
 1 to: 5 do: [:i |
     [ch send: i * 10] fork
@@ -42,6 +44,7 @@ Process subclass: Object
   its result will be nil.
 
   ```example
+  | p <Process> |
   p := [Process sleep: 10000] fork.
   p terminate
   ```
@@ -66,12 +69,13 @@ Process subclass: Object
   Return `true` if the process is still running.
 
   ```example
+  | p <Process> |
   p := [1] fork.
   p wait.
   p isAlive  "=> false"
   ```
   """
-  method: isAlive [
+  method: isAlive ^<Boolean> [
       ^self primIsAlive
   ]
 
@@ -80,12 +84,13 @@ Process subclass: Object
   Opposite of `isAlive`.
 
   ```example
+  | p <Process> |
   p := [1] fork.
   p wait.
   p isTerminated  "=> true"
   ```
   """
-  method: isTerminated [
+  method: isTerminated ^<Boolean> [
       ^self isAlive not
   ]
 
@@ -94,6 +99,7 @@ Process subclass: Object
   yet completed.
 
   ```example
+  | p <Process> |
   p := ['hello'] fork.
   p wait.
   p result  "=> 'hello'"
@@ -107,11 +113,12 @@ Process subclass: Object
   Return the scheduling priority of this process.
 
   ```example
+  | p <Process> |
   p := [1] fork.
   p priority
   ```
   """
-  method: priority [
+  method: priority ^<Integer> [
       ^self primPriority
   ]
 
@@ -119,18 +126,19 @@ Process subclass: Object
   Set the scheduling priority of this process.
 
   ```example
+  | p <Process> |
   p := [Process sleep: 100] fork.
   p priority: 2
   ```
   """
-  method: priority: level [
+  method: priority: level <Integer> [
       ^self primPriority: level
   ]
 
   """
   Return a string representation of the process.
   """
-  method: printString [
+  method: printString ^<String> [
       ^'a Process'
   ]
 
@@ -142,12 +150,13 @@ Process subclass: Object
   process is dead or its mailbox is full.
 
   ```example
+  | p <Process> |
   p := [Process receive] fork.
   Process sleep: 10.
   p send: 42
   ```
   """
-  method: send: value [
+  method: send: value ^<Boolean> [
       ^self primSend: value
   ]
 
@@ -157,12 +166,13 @@ Process subclass: Object
   and payload.
 
   ```example
+  | p <Process> |
   p := [Process receive] fork.
   Process sleep: 10.
   p send: #doWork with: 42
   ```
   """
-  method: send: selector with: payload [
+  method: send: selector <Symbol> with: payload ^<Boolean> [
       ^self primSend: selector with: payload
   ]
 
@@ -172,12 +182,13 @@ Process subclass: Object
   name is already taken by a live process.
 
   ```example
+  | p <Process> |
   p := [Process receive] fork.
   Process sleep: 10.
   p registerAs: 'worker'
   ```
   """
-  method: registerAs: name [
+  method: registerAs: name <String> ^<Boolean> [
       ^self primRegisterAs: name
   ]
 
@@ -196,18 +207,19 @@ Process subclass: Object
   (unless it is trapping exits).
 
   ```example
+  | child <Process> |
   child := [Process sleep: 1000] fork.
   Process current link: child
   ```
   """
-  method: link: otherProcess [
+  method: link: otherProcess <Process> [
       ^self primLink: otherProcess
   ]
 
   """
   Remove a bidirectional link.
   """
-  method: unlink: otherProcess [
+  method: unlink: otherProcess <Process> [
       ^self primUnlink: otherProcess
   ]
 
@@ -222,6 +234,7 @@ Process subclass: Object
   and a `NodeHealthMonitor` heartbeat loop detects node failures.
 
   ```example
+  | worker <Process> ref <Integer> msg <MailboxMessage> |
   worker := [42] fork.
   ref := Process current monitor: worker.
   worker wait.
@@ -230,7 +243,7 @@ Process subclass: Object
   msg selector    "=> #processDown:"
   ```
   """
-  method: monitor: otherProcess [
+  method: monitor: otherProcess ^<Integer> [
       ^self primMonitor: otherProcess
   ]
 
@@ -238,12 +251,13 @@ Process subclass: Object
   Cancel a monitor by its reference ID.
 
   ```example
+  | worker <Process> ref <Integer> |
   worker := [Process sleep: 5000] fork.
   ref := Process current monitor: worker.
   Process current demonitor: ref
   ```
   """
-  method: demonitor: refID [
+  method: demonitor: refID <Integer> [
       ^self primDemonitor: refID
   ]
 
@@ -256,7 +270,7 @@ Process subclass: Object
   Process current trapExit: true >>> true
   ```
   """
-  method: trapExit: aBoolean [
+  method: trapExit: aBoolean <Boolean> ^<Boolean> [
       ^self primTrapExit: aBoolean
   ]
 
@@ -268,7 +282,7 @@ Process subclass: Object
   Process current trapExit >>> true
   ```
   """
-  method: trapExit [
+  method: trapExit ^<Boolean> [
       ^self primTrapExit
   ]
 
@@ -280,7 +294,7 @@ Process subclass: Object
   Process current exitReason >>> nil
   ```
   """
-  method: exitReason [
+  method: exitReason ^<Symbol> [
       ^self primExitReason
   ]
 
@@ -291,13 +305,14 @@ Process subclass: Object
   mailbox. Returns a MailboxMessage.
 
   ```example
+  | p <Process> |
   p := [Process receive payload] fork.
   Process sleep: 10.
   p send: 42.
   p wait
   ```
   """
-  classMethod: receive [
+  classMethod: receive ^<MailboxMessage> ! <Process> [
       ^self primReceive
   ]
 
@@ -307,11 +322,12 @@ Process subclass: Object
   on timeout.
 
   ```example
+  | p <Process> |
   p := [Process receive: 50] fork.
   p wait
   ```
   """
-  classMethod: receive: ms [
+  classMethod: receive: ms <Integer> ! <Process> [
       ^self primReceive: ms
   ]
 
@@ -328,7 +344,7 @@ Process subclass: Object
   Process tryReceive class name >>> #MailboxMessage
   ```
   """
-  classMethod: tryReceive [
+  classMethod: tryReceive ! <Process> [
       ^self primTryReceive
   ]
 
@@ -337,12 +353,13 @@ Process subclass: Object
   Returns the Process or `nil` if not found.
 
   ```example
+  | p <Process> |
   p := [Process receive] fork.
   Process sleep: 10.
   p registerAs: 'lookup-test'.
   Process named: 'lookup-test'
   ```
   """
-  classMethod: named: name [
+  classMethod: named: name <String> ^<Process> [
       ^self primNamed: name
   ]

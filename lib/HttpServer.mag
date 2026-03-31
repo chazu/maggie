@@ -7,6 +7,7 @@ receive an HttpRequest and should return an HttpResponse or a string.
 
 ```example
 "Basic web server"
+| server <HttpServer> |
 server := HttpServer new: 8080.
 server route: '/hello' method: 'GET' handler: [:req |
     HttpResponse new: 200 body: 'Hello, world!'
@@ -16,6 +17,7 @@ server start
 
 ```example
 "Static file server with API endpoint"
+| server <HttpServer> |
 server := HttpServer new: 3000.
 server serveStatic: '/assets/' from: './public'.
 server route: '/api/echo' method: 'POST' handler: [:req |
@@ -31,10 +33,11 @@ HttpServer subclass: Object
   The server is not started until `start` is called.
 
   ```example
+  | server <HttpServer> |
   server := HttpServer new: 8080
   ```
   """
-  class method: new: port [
+  class method: new: port <Integer> ^<HttpServer> [
       <primitive>
   ]
 
@@ -46,7 +49,7 @@ HttpServer subclass: Object
   server serveStatic: '/static/' from: './public'
   ```
   """
-  method: serveStatic: urlPath from: dirPath [
+  method: serveStatic: urlPath <String> from: dirPath <String> ^<Self> ! <IO> [
       <primitive>
   ]
 
@@ -61,7 +64,7 @@ HttpServer subclass: Object
   ]
   ```
   """
-  method: route: path method: httpMethod handler: block [
+  method: route: path <String> method: httpMethod <String> handler: block ^<Self> [
       <primitive>
   ]
 
@@ -70,12 +73,13 @@ HttpServer subclass: Object
   is stopped. Returns self on clean shutdown, or nil on error.
 
   ```example
+  | server <HttpServer> |
   server := HttpServer new: 8080.
   [server start] fork.
   "Server is now running in background"
   ```
   """
-  method: start [
+  method: start ^<Self> ! <Network> [
       <primitive>
   ]
 
@@ -87,7 +91,7 @@ HttpServer subclass: Object
   server stop
   ```
   """
-  method: stop [
+  method: stop ^<Self> ! <Network> [
       <primitive>
   ]
 
@@ -98,7 +102,7 @@ HttpServer subclass: Object
   (HttpServer new: 8080) port   "=> 8080"
   ```
   """
-  method: port [
+  method: port ^<Integer> [
       <primitive>
   ]
 
@@ -106,10 +110,11 @@ HttpServer subclass: Object
   Return true if the server is currently running.
 
   ```example
+  | server <HttpServer> |
   server := HttpServer new: 8080.
   server isRunning   "=> false"
   ```
   """
-  method: isRunning [
+  method: isRunning ^<Boolean> [
       <primitive>
   ]

@@ -21,7 +21,7 @@ Object subclass: nil
   'hello' yourself >>> 'hello'
   ```
   """
-  method: yourself [
+  method: yourself ^<Self> [
       ^self
   ]
 
@@ -36,7 +36,7 @@ Object subclass: nil
   nil == nil >>> true
   ```
   """
-  method: == other [
+  method: == other <Object> ^<Boolean> [
       ^self primIdentical: other
   ]
 
@@ -49,7 +49,7 @@ Object subclass: nil
   3 ~~ 3 >>> false
   ```
   """
-  method: ~~ other [
+  method: ~~ other <Object> ^<Boolean> [
       ^(self == other) not
   ]
 
@@ -64,7 +64,7 @@ Object subclass: nil
   'hello' = 'hello' >>> true
   ```
   """
-  method: = other [
+  method: = other <Object> ^<Boolean> [
       ^self == other
   ]
 
@@ -77,7 +77,7 @@ Object subclass: nil
   3 ~= 3 >>> false
   ```
   """
-  method: ~= other [
+  method: ~= other <Object> ^<Boolean> [
       ^(self = other) not
   ]
 
@@ -91,7 +91,7 @@ Object subclass: nil
   nil isNil >>> true
   ```
   """
-  method: isNil [
+  method: isNil ^<Boolean> [
       ^false
   ]
 
@@ -103,41 +103,41 @@ Object subclass: nil
   nil notNil >>> false
   ```
   """
-  method: notNil [
+  method: notNil ^<Boolean> [
       ^self isNil not
   ]
 
   """
   Return false. Used internally by the compiler to test AST node types.
   """
-  method: isReturn [
+  method: isReturn ^<Boolean> [
       ^false
   ]
 
   """
   Return false. Used internally by the compiler to test AST node types.
   """
-  method: isVariable [
+  method: isVariable ^<Boolean> [
       ^false
   ]
 
-  method: isAssignment [
+  method: isAssignment ^<Boolean> [
       ^false
   ]
 
-  method: isMessageSend [
+  method: isMessageSend ^<Boolean> [
       ^false
   ]
 
-  method: isCascade [
+  method: isCascade ^<Boolean> [
       ^false
   ]
 
-  method: isBlock [
+  method: isBlock ^<Boolean> [
       ^false
   ]
 
-  method: isLiteral [
+  method: isLiteral ^<Boolean> [
       ^false
   ]
 
@@ -162,7 +162,7 @@ Object subclass: nil
   3 isKindOf: SmallInteger
   ```
   """
-  method: isKindOf: aClass [
+  method: isKindOf: aClass ^<Boolean> [
       ^self primIsKindOf: aClass
   ]
 
@@ -171,12 +171,13 @@ Object subclass: nil
   shared (not deeply copied) between the original and the copy.
 
   ```example
+  | original <Array> copy <Array> |
   original := Array new: 3.
   copy := original shallowCopy.
   copy == original   "false -- different object"
   ```
   """
-  method: shallowCopy [
+  method: shallowCopy ^<Self> [
       ^self primShallowCopy
   ]
 
@@ -187,7 +188,7 @@ Object subclass: nil
   self error: 'something went wrong'
   ```
   """
-  method: error: message [
+  method: error: message <String> [
       ^self primError: message
   ]
 
@@ -200,7 +201,7 @@ Object subclass: nil
   3 frobnicate   "=> error: Message not understood: frobnicate"
   ```
   """
-  method: doesNotUnderstand: aMessage [
+  method: doesNotUnderstand: aMessage <Message> [
       ^self error: 'Message not understood: ', aMessage selector
   ]
 
@@ -213,7 +214,7 @@ Object subclass: nil
   3 respondsTo: #frobnicate >>> false
   ```
   """
-  method: respondsTo: aSelector [
+  method: respondsTo: aSelector <Symbol> ^<Boolean> [
       ^self class allMethodNames includes: aSelector
   ]
 
@@ -227,7 +228,7 @@ Object subclass: nil
   nil printString >>> 'nil'
   ```
   """
-  method: printString [
+  method: printString ^<String> [
       ^self class name
   ]
 
@@ -242,6 +243,6 @@ Object subclass: nil
   'hello' asCueValue kind >>> 'string'
   ```
   """
-  method: asCueValue [
+  method: asCueValue ^<CueValue> [
       ^self primAsCueValue
   ]

@@ -6,6 +6,7 @@ executed multiple times with different parameters. Always close statements
 when done.
 
 ```example
+| stmt <SqliteStatement> |
 stmt := db prepare: 'INSERT INTO users (name, age) VALUES (?, ?)'.
 stmt executeWith: #('Alice' 30).
 stmt executeWith: #('Bob' 25).
@@ -18,7 +19,7 @@ SqliteStatement subclass: Object
   Execute the prepared statement with no parameters. Returns the
   number of rows affected.
   """
-  method: execute [
+  method: execute ^<Integer> ! <IO> [
       ^self primExecute
   ]
 
@@ -30,7 +31,7 @@ SqliteStatement subclass: Object
   stmt executeWith: #('Alice' 30)
   ```
   """
-  method: executeWith: params [
+  method: executeWith: params <Array> ^<Integer> ! <IO> [
       ^self primExecuteWith: params
   ]
 
@@ -38,7 +39,7 @@ SqliteStatement subclass: Object
   Query with the prepared statement (no parameters). Returns a
   SqliteRows cursor.
   """
-  method: query [
+  method: query ^<SqliteRows> ! <IO> [
       ^self primQuery
   ]
 
@@ -47,29 +48,30 @@ SqliteStatement subclass: Object
   SqliteRows cursor.
 
   ```example
+  | rows <SqliteRows> |
   rows := stmt queryWith: #('Alice').
   [rows next] whileTrue: [rows asDict].
   rows close
   ```
   """
-  method: queryWith: params [
+  method: queryWith: params <Array> ^<SqliteRows> ! <IO> [
       ^self primQueryWith: params
   ]
 
   """
   Get the SQL string used to create this statement.
   """
-  method: sql [
+  method: sql ^<String> [
       ^self primSql
   ]
 
   """
   Close the prepared statement and release resources.
   """
-  method: close [
+  method: close ! <IO> [
       ^self primClose
   ]
 
-  method: printString [
+  method: printString ^<String> [
       ^'a SqliteStatement'
   ]

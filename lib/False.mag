@@ -8,6 +8,6 @@ False subclass: Boolean
   ]
 
   # Printing
-  method: printString [
+  method: printString ^<String> [
       ^'false'
   ]

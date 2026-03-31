@@ -209,6 +209,7 @@ ftPfxResult isSuccess >>> true
 
 ```example
 "Read a file, transform it, write it back"
+| contents <String> |
 contents := File readFileContents: '/tmp/example.txt'.
 File writeFileContents: '/tmp/example.txt' contents: contents, ' (updated)'
 ```

@@ -7,8 +7,10 @@ Call `next` to advance to the next row, then use `asDict`,
 cursor when done.
 
 ```example
+| rows <SqliteRows> |
 rows := db query: 'SELECT id, name FROM users ORDER BY id'.
 [rows next] whileTrue: [
+    | row <Dictionary> |
     row := rows asDict.
     row at: 'name'
 ].
@@ -22,11 +24,12 @@ SqliteRows subclass: Object
   false if all rows have been consumed.
 
   ```example
+  | rows <SqliteRows> |
   rows := db query: 'SELECT * FROM users'.
   [rows next] whileTrue: [rows asDict]
   ```
   """
-  method: next [
+  method: next ^<Boolean> ! <IO> [
       ^self primNext
   ]
 
@@ -34,12 +37,13 @@ SqliteRows subclass: Object
   Get the current row as a Dictionary with column names as keys.
 
   ```example
+  | row <Dictionary> |
   rows next.
   row := rows asDict.
   row at: 'name'
   ```
   """
-  method: asDict [
+  method: asDict ^<Dictionary> [
       ^self primAsDict
   ]
 
@@ -51,7 +55,7 @@ SqliteRows subclass: Object
   rows columnAt: 0
   ```
   """
-  method: columnAt: index [
+  method: columnAt: index <Integer> [
       ^self primColumnAt: index
   ]
 
@@ -63,28 +67,28 @@ SqliteRows subclass: Object
   rows columnNamed: 'name'
   ```
   """
-  method: columnNamed: name [
+  method: columnNamed: name <String> [
       ^self primColumnNamed: name
   ]
 
   """
   Get the column names as an Array of Strings.
   """
-  method: columns [
+  method: columns ^<Array> [
       ^self primColumns
   ]
 
   """
   Get the number of columns in the result set.
   """
-  method: columnCount [
+  method: columnCount ^<Integer> [
       ^self primColumnCount
   ]
 
   """
   Close the cursor and release resources.
   """
-  method: close [
+  method: close ! <IO> [
       ^self primClose
   ]
 
@@ -93,12 +97,13 @@ SqliteRows subclass: Object
   Closes the cursor when done.
 
   ```example
+  | rows <SqliteRows> allRows <Array> |
   rows := db query: 'SELECT * FROM users'.
   allRows := rows toArray
   ```
   """
-  method: toArray [
-      | result |
+  method: toArray ^<Array> ! <IO> [
+      | result <Array> |
       result := Array new: 0.
       [self next] whileTrue: [
           result := result copyWith: self asDict
@@ -107,6 +112,6 @@ SqliteRows subclass: Object
       ^result
   ]
 
-  method: printString [
+  method: printString ^<String> [
       ^'a SqliteRows'
   ]

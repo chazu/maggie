@@ -6,6 +6,7 @@ Use `await` to block until the result is available. Use `isResolved`
 to check without blocking. Use `result` to get the value if resolved.
 
 ```example
+| future <Future> result <Integer> |
 future := worker asyncSend: #compute: with: 42.
 future isResolved       "=> false (initially)"
 result := future await. "=> blocks until resolved"
@@ -23,7 +24,7 @@ Future subclass: Object
   future await    "=> the result value"
   ```
   """
-  method: await [
+  method: await ! <Process> [
       ^self primAwait
   ]
 
@@ -35,7 +36,7 @@ Future subclass: Object
   future await: 5000    "=> result or nil"
   ```
   """
-  method: await: ms [
+  method: await: ms <Integer> ! <Process> [
       ^self primAwait: ms
   ]
 
@@ -46,7 +47,7 @@ Future subclass: Object
   future isResolved    "=> true/false"
   ```
   """
-  method: isResolved [
+  method: isResolved ^<Boolean> [
       ^self primIsResolved
   ]
 
@@ -62,13 +63,13 @@ Future subclass: Object
   Return the error message string if the Future resolved with
   an error, or nil if successful or still pending.
   """
-  method: error [
+  method: error ^<String> [
       ^self primError
   ]
 
   """
   Return a string representation.
   """
-  method: printString [
+  method: printString ^<String> [
       ^self primPrintString
   ]

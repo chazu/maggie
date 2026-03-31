@@ -17,6 +17,7 @@ Malformed input raises `TomlParseError` with line/column info.
 
 ```example
 "Parse a TOML string"
+| config <Dictionary> |
 config := Toml decode: '[server]
 host = "localhost"
 port = 8080'.
@@ -25,6 +26,7 @@ port = 8080'.
 
 ```example
 "Encode a Dictionary as TOML"
+| d <Dictionary> |
 d := Dictionary new.
 d at: 'name' put: 'my-app'.
 d at: 'version' put: '1.0.0'.
@@ -33,6 +35,7 @@ Toml encode: d
 
 ```example
 "Read a TOML file"
+| config <Dictionary> |
 config := Toml decodeFile: 'config.toml'.
 config at: 'database'
 ```

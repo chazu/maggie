@@ -3,15 +3,15 @@
 Boolean subclass: Object
 
   # Logical operations (abstract - overridden in True/False)
-  method: not [
+  method: not ^<Boolean> [
       ^self subclassResponsibility
   ]
 
-  method: and: block [
+  method: and: block ^<Boolean> [
       ^self subclassResponsibility
   ]
 
-  method: or: block [
+  method: or: block ^<Boolean> [
       ^self subclassResponsibility
   ]
 

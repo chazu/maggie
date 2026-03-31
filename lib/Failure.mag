@@ -30,7 +30,7 @@ Failure subclass: Result
   (Failure with: 'err') isSuccess >>> false
   ```
   """
-  method: isSuccess [
+  method: isSuccess ^<Boolean> [
       ^false
   ]
 
@@ -41,7 +41,7 @@ Failure subclass: Result
   (Failure with: 'err') isFailure >>> true
   ```
   """
-  method: isFailure [
+  method: isFailure ^<Boolean> [
       ^true
   ]
 
@@ -76,6 +76,6 @@ Failure subclass: Result
   (Failure with: 404) printString >>> 'Failure(404)'
   ```
   """
-  method: printString [
+  method: printString ^<String> [
       ^'Failure(', self error printString, ')'
   ]

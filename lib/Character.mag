@@ -7,29 +7,29 @@ Character subclass: Object
 
   # Printing
   method: printOn: aStream [
-      aStream nextPutAll: self printString
+      aStream nextPutAll: self description
   ]
 
   # Conversion
-  method: asCharacter [
+  method: asCharacter ^<Character> [
       ^self
   ]
 
   # Testing
-  method: isCharacter [
+  method: isCharacter ^<Boolean> [
       ^true
   ]
 
-  method: isAlphaNumeric [
+  method: isAlphaNumeric ^<Boolean> [
       ^self isLetter or: [self isDigit]
   ]
 
-  method: isVowel [
-      | lower |
+  method: isVowel ^<Boolean> [
+      | lower <Character> |
       lower := self asLowercase.
       ^(lower = $a) or: [(lower = $e) or: [(lower = $i) or: [(lower = $o) or: [lower = $u]]]]
   ]
 
-  method: isSeparator [
+  method: isSeparator ^<Boolean> [
       ^self isWhitespace
   ]

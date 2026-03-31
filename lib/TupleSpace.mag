@@ -38,7 +38,7 @@ TupleSpace subclass: Object
   ts size >>> 2
   ```
   """
-  method: out: aTuple [
+  method: out: aTuple ! <Process> [
       ^self primOut: aTuple
   ]
 
@@ -58,7 +58,7 @@ TupleSpace subclass: Object
   ts size >>> 1
   ```
   """
-  method: outPersistent: aTuple [
+  method: outPersistent: aTuple ! <Process> [
       ^self primOutPersistent: aTuple
   ]
 
@@ -68,11 +68,12 @@ TupleSpace subclass: Object
   consumed first. Expired tuples are lazily cleaned during scans.
 
   ```example
+  | ts <TupleSpace> |
   ts := TupleSpace new.
   ts outAffine: 'ephemeral offer' ttl: 5000.
   ```
   """
-  method: outAffine: aTuple ttl: milliseconds [
+  method: outAffine: aTuple ttl: milliseconds <Integer> ! <Process> [
       ^self primOutAffine: aTuple ttl: milliseconds
   ]
 
@@ -82,13 +83,14 @@ TupleSpace subclass: Object
   until cancellation.
 
   ```example
+  | ts <TupleSpace> ctx <CancellationContext> |
   ts := TupleSpace new.
   ctx := CancellationContext withCancel.
   ts out: 'resource' withContext: ctx.
   ctx cancel.
   ```
   """
-  method: out: aTuple withContext: aContext [
+  method: out: aTuple withContext: aContext <CancellationContext> ! <Process> [
       ^self primOut: aTuple withContext: aContext
   ]
 
@@ -104,13 +106,14 @@ TupleSpace subclass: Object
   to create templates.
 
   ```example
+  | ts <TupleSpace> ctx <CueContext> |
   ts := TupleSpace new.
   ctx := CueContext new.
   [ts out: 42] fork.
   ts in: (ctx compileString: 'int') value
   ```
   """
-  method: in: aTemplate [
+  method: in: aTemplate <CueValue> ! <Process> [
       ^self primIn: aTemplate
   ]
 
@@ -120,13 +123,14 @@ TupleSpace subclass: Object
   (non-destructive read).
 
   ```example
+  | ts <TupleSpace> ctx <CueContext> |
   ts := TupleSpace new.
   ctx := CueContext new.
   ts out: 42.
   ts read: (ctx compileString: 'int') value
   ```
   """
-  method: read: aTemplate [
+  method: read: aTemplate <CueValue> ! <Process> [
       ^self primRead: aTemplate
   ]
 
@@ -144,7 +148,7 @@ TupleSpace subclass: Object
   ts size >>> 0
   ```
   """
-  method: tryIn: aTemplate [
+  method: tryIn: aTemplate <CueValue> [
       ^self primTryIn: aTemplate
   ]
 
@@ -162,7 +166,7 @@ TupleSpace subclass: Object
   ts size >>> 1
   ```
   """
-  method: tryRead: aTemplate [
+  method: tryRead: aTemplate <CueValue> [
       ^self primTryRead: aTemplate
   ]
 
@@ -178,6 +182,7 @@ TupleSpace subclass: Object
   Returns an Array of results in the same order as the templates.
 
   ```example
+  | ts <TupleSpace> ctx <CueContext> |
   ts := TupleSpace new.
   ctx := CueContext new.
   ts out: 42.
@@ -185,7 +190,7 @@ TupleSpace subclass: Object
   ts inAll: {(ctx compileString: 'int') value. (ctx compileString: 'string') value}
   ```
   """
-  method: inAll: templateArray [
+  method: inAll: templateArray <Array> ^<Array> ! <Process> [
       ^self primInAll: templateArray
   ]
 
@@ -198,13 +203,14 @@ TupleSpace subclass: Object
   Channel select: but for tuple templates.
 
   ```example
+  | ts <TupleSpace> ctx <CueContext> |
   ts := TupleSpace new.
   ctx := CueContext new.
   ts out: 42.
   ts inAny: {(ctx compileString: 'int') value. (ctx compileString: 'string') value}
   ```
   """
-  method: inAny: templateArray [
+  method: inAny: templateArray <Array> ! <Process> [
       ^self primInAny: templateArray
   ]
 
@@ -219,7 +225,7 @@ TupleSpace subclass: Object
   ts size >>> 2
   ```
   """
-  method: size [
+  method: size ^<Integer> [
       ^self primSize
   ]
 
@@ -233,13 +239,13 @@ TupleSpace subclass: Object
   ts isEmpty >>> false
   ```
   """
-  method: isEmpty [
+  method: isEmpty ^<Boolean> [
       ^self primIsEmpty
   ]
 
   """
   Return a human-readable description.
   """
-  method: printString [
+  method: printString ^<String> [
       ^self primPrintString
   ]

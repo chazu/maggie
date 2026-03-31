@@ -10,18 +10,18 @@ spec shutdown >>> 5000
 ```
 """
 ChildSpec subclass: Object
-  instanceVars: id startBlock restart shutdown
+  instanceVars: id <String> startBlock restart <Symbol> shutdown <Integer>
 
-  classMethod: id: anId start: aBlock [
+  classMethod: id: anId <String> start: aBlock ^<ChildSpec> [
       ^self id: anId start: aBlock restart: #permanent
   ]
 
-  classMethod: id: anId start: aBlock restart: aRestart [
+  classMethod: id: anId <String> start: aBlock restart: aRestart <Symbol> ^<ChildSpec> [
       ^self id: anId start: aBlock restart: aRestart shutdown: 5000
   ]
 
-  classMethod: id: anId start: aBlock restart: aRestart shutdown: aTimeout [
-      | spec |
+  classMethod: id: anId <String> start: aBlock restart: aRestart <Symbol> shutdown: aTimeout <Integer> ^<ChildSpec> [
+      | spec <ChildSpec> |
       spec := self new.
       spec primSetId: anId.
       spec primSetStartBlock: aBlock.
@@ -30,17 +30,17 @@ ChildSpec subclass: Object
       ^spec
   ]
 
-  method: id [ ^id ]
-  method: restart [ ^restart ]
-  method: shutdown [ ^shutdown ]
+  method: id ^<String> [ ^id ]
+  method: restart ^<Symbol> [ ^restart ]
+  method: shutdown ^<Integer> [ ^shutdown ]
   method: startBlock [ ^startBlock ]
 
-  method: primSetId: v [ id := v ]
+  method: primSetId: v <String> [ id := v ]
   method: primSetStartBlock: v [ startBlock := v ]
-  method: primSetRestart: v [ restart := v ]
-  method: primSetShutdown: v [ shutdown := v ]
+  method: primSetRestart: v <Symbol> [ restart := v ]
+  method: primSetShutdown: v <Integer> [ shutdown := v ]
 
-  method: printString [
+  method: printString ^<String> [
       ^'a ChildSpec(', id printString, ', ', restart printString, ')'
   ]
 
@@ -61,6 +61,7 @@ Restart types (per child):
 
 ```example
 "Create a supervisor with two workers"
+| sup <Supervisor> |
 sup := Supervisor
     new: #oneForOne
     children: {
@@ -77,25 +78,25 @@ sup stop
 ```
 """
 Supervisor subclass: Object
-  instanceVars: strategy childSpecs maxRestarts maxSeconds process
-                children restartTimes running
+  instanceVars: strategy <Symbol> childSpecs <Array> maxRestarts <Integer> maxSeconds <Integer> process <Process>
+                children <Dictionary> restartTimes <Array> running <Boolean>
 
   """
   Create a supervisor with the given strategy and child specifications.
   Default restart intensity: 3 restarts in 5 seconds.
   """
-  classMethod: new: aStrategy children: specArray [
+  classMethod: new: aStrategy <Symbol> children: specArray <Array> ^<Supervisor> [
       ^self new: aStrategy children: specArray maxRestarts: 3 maxSeconds: 5
   ]
 
-  classMethod: new: aStrategy children: specArray maxRestarts: maxR maxSeconds: maxS [
-      | sup |
+  classMethod: new: aStrategy <Symbol> children: specArray <Array> maxRestarts: maxR <Integer> maxSeconds: maxS <Integer> ^<Supervisor> [
+      | sup <Supervisor> |
       sup := self new.
       sup primInit: aStrategy specs: specArray maxR: maxR maxS: maxS.
       ^sup
   ]
 
-  method: primInit: aStrategy specs: specArray maxR: maxR maxS: maxS [
+  method: primInit: aStrategy <Symbol> specs: specArray <Array> maxR: maxR <Integer> maxS: maxS <Integer> [
       strategy := aStrategy.
       childSpecs := specArray.
       maxRestarts := maxR.
@@ -106,7 +107,7 @@ Supervisor subclass: Object
   ]
 
   """Start the supervisor. Spawns a supervisor process that manages children."""
-  method: start [
+  method: start ^<Process> ! <Process> [
       running := true.
       process := [self runLoop] fork.
       process registerAs: ('supervisor-', self hash printString).
@@ -121,19 +122,19 @@ Supervisor subclass: Object
   ]
 
   """Return the supervisor process."""
-  method: process [ ^process ]
+  method: process ^<Process> [ ^process ]
 
   """Return the strategy symbol."""
-  method: strategy [ ^strategy ]
+  method: strategy ^<Symbol> [ ^strategy ]
 
   """Return the child specs array."""
-  method: childSpecs [ ^childSpecs ]
+  method: childSpecs ^<Array> [ ^childSpecs ]
 
   """
   Start a new child dynamically. Adds the spec and starts the child process.
   Returns true if started successfully.
   """
-  method: startChild: aSpec [
+  method: startChild: aSpec <ChildSpec> ^<Boolean> [
       childSpecs := childSpecs , (Array with: aSpec).
       ^self startOneChild: aSpec
   ]
@@ -141,8 +142,8 @@ Supervisor subclass: Object
   """
   Terminate a child by ID. The child is stopped and its spec is removed.
   """
-  method: terminateChild: anId [
-      | proc |
+  method: terminateChild: anId <String> [
+      | proc <Process> |
       proc := children at: anId ifAbsent: [nil].
       proc notNil ifTrue: [
           proc primTerminate.
@@ -152,8 +153,8 @@ Supervisor subclass: Object
   ]
 
   """Return the IDs of currently running children."""
-  method: runningChildren [
-      | ids |
+  method: runningChildren ^<Array> [
+      | ids <Array> |
       ids := Array new: 0.
       children keysAndValuesDo: [:k :v |
           v isDone not ifTrue: [ids := ids , (Array with: k)]
@@ -162,20 +163,20 @@ Supervisor subclass: Object
   ]
 
   """Return the count of running children."""
-  method: countChildren [
+  method: countChildren ^<Integer> [
       ^self runningChildren size
   ]
 
   "--- Private: supervisor event loop ---"
 
-  method: runLoop [
+  method: runLoop ! <Process> [
       "Start all initial children"
       Process current trapExit: true.
       childSpecs do: [:spec | self startOneChild: spec].
 
       "Main loop: wait for exit signals and restart as needed"
       [running] whileTrue: [
-          | msg |
+          | msg <MailboxMessage> |
           msg := Process receive: 1000.
           msg notNil ifTrue: [
               msg selector = #processDown: ifTrue: [
@@ -185,17 +186,17 @@ Supervisor subclass: Object
       ]
   ]
 
-  method: startOneChild: aSpec [
-      | childProc |
+  method: startOneChild: aSpec <ChildSpec> ^<Boolean> [
+      | childProc <Process> |
       childProc := aSpec startBlock fork.
       Process current monitor: childProc.
       children at: aSpec id put: childProc.
       ^true
   ]
 
-  method: handleChildDown: info [
+  method: handleChildDown: info <Array> [
       "info is #(refID processValue reasonSymbol resultValue)"
-      | reason childId spec |
+      | reason <Symbol> childId <String> spec <ChildSpec> |
       reason := info at: 3.
       childId := self findChildId: (info at: 2).
       childId isNil ifTrue: [^nil].
@@ -224,26 +225,26 @@ Supervisor subclass: Object
       strategy = #restForOne ifTrue: [self restartFrom: childId]
   ]
 
-  method: findChildId: procValue [
+  method: findChildId: procValue ^<String> [
       children keysAndValuesDo: [:k :v |
           v = procValue ifTrue: [^k]
       ].
       ^nil
   ]
 
-  method: findSpec: anId [
+  method: findSpec: anId <String> ^<ChildSpec> [
       childSpecs do: [:s | s id = anId ifTrue: [^s]].
       ^nil
   ]
 
-  method: shouldRestart: aSpec reason: reason [
+  method: shouldRestart: aSpec <ChildSpec> reason: reason <Symbol> ^<Boolean> [
       aSpec restart = #permanent ifTrue: [^true].
       aSpec restart = #temporary ifTrue: [^false].
       aSpec restart = #transient ifTrue: [^reason ~= #normal].
       ^false
   ]
 
-  method: restartChild: aSpec [
+  method: restartChild: aSpec <ChildSpec> [
       self startOneChild: aSpec
   ]
 
@@ -252,9 +253,9 @@ Supervisor subclass: Object
       childSpecs do: [:spec | self startOneChild: spec]
   ]
 
-  method: restartFrom: childId [
+  method: restartFrom: childId <String> [
       "Terminate this child and all children started after it, then restart"
-      | found specsToRestart proc |
+      | found <Boolean> specsToRestart <Array> proc <Process> |
       found := false.
       specsToRestart := Array new: 0.
       childSpecs do: [:spec |
@@ -279,13 +280,13 @@ Supervisor subclass: Object
   ]
 
   method: recordRestart [
-      | now |
+      | now <Integer> |
       now := DateTime now epochMillis.
       restartTimes := restartTimes , (Array with: now)
   ]
 
-  method: restartIntensityExceeded [
-      | now windowStart count |
+  method: restartIntensityExceeded ^<Boolean> [
+      | now <Integer> windowStart <Integer> count <Integer> |
       restartTimes size < maxRestarts ifTrue: [^false].
       now := DateTime now epochMillis.
       windowStart := now - (maxSeconds * 1000).
@@ -294,6 +295,6 @@ Supervisor subclass: Object
       ^count > maxRestarts
   ]
 
-  method: printString [
+  method: printString ^<String> [
       ^'a Supervisor(', strategy printString, ', ', self countChildren printString, ' children)'
   ]

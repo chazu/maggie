@@ -29,21 +29,21 @@ ring size >>> 0
 ```
 """
 HashRing subclass: Object
-  instanceVars: nodes positions replicas
+  instanceVars: nodes <Array> positions <Array> replicas <Integer>
 
-  classMethod: new [
+  classMethod: new ^<HashRing> [
       ^self new: 150
   ]
 
   """Create a hash ring with the given number of virtual nodes per real node."""
-  classMethod: new: replicaCount [
-      | ring |
+  classMethod: new: replicaCount <Integer> ^<HashRing> [
+      | ring <HashRing> |
       ring := super new.
       ring primInit: replicaCount.
       ^ring
   ]
 
-  method: primInit: replicaCount [
+  method: primInit: replicaCount <Integer> [
       nodes := Array new: 0.
       positions := Array new: 0.
       replicas := replicaCount
@@ -51,11 +51,11 @@ HashRing subclass: Object
 
   """Add a node to the ring. The node can be any object (typically a Node or String)."""
   method: add: node [
-      | nodeKey |
+      | nodeKey <String> |
       nodes := nodes , (Array with: node).
       nodeKey := node printString.
       1 to: replicas do: [:i |
-          | vkey pos |
+          | vkey <String> pos <Integer> |
           vkey := nodeKey , '-', i printString.
           pos := self hashKey: vkey.
           positions := positions , (Array with: (Array with: pos with: node))
@@ -70,8 +70,8 @@ HashRing subclass: Object
   ]
 
   """Return the node responsible for the given key."""
-  method: nodeFor: key [
-      | keyHash |
+  method: nodeFor: key <String> [
+      | keyHash <Integer> |
       positions isEmpty ifTrue: [^nil].
       keyHash := self hashKey: key.
       "Find the first position >= keyHash (clockwise walk)"
@@ -83,8 +83,8 @@ HashRing subclass: Object
   ]
 
   """Return the N nodes responsible for the given key (for replication)."""
-  method: nodesFor: key count: n [
-      | result node seen candidate candidateKey |
+  method: nodesFor: key <String> count: n <Integer> ^<Array> [
+      | result <Array> node seen <Dictionary> candidate candidateKey <String> |
       positions isEmpty ifTrue: [^Array new: 0].
       result := Array new: 0.
       seen := Dictionary new.
@@ -108,15 +108,15 @@ HashRing subclass: Object
   ]
 
   """Return the number of real nodes in the ring."""
-  method: size [ ^nodes size ]
+  method: size ^<Integer> [ ^nodes size ]
 
   """Return true if the ring has no nodes."""
-  method: isEmpty [ ^nodes isEmpty ]
+  method: isEmpty ^<Boolean> [ ^nodes isEmpty ]
 
   """Return all real nodes in the ring."""
-  method: nodes [ ^nodes copy ]
+  method: nodes ^<Array> [ ^nodes copy ]
 
-  method: printString [
+  method: printString ^<String> [
       ^'a HashRing(', self size printString, ' nodes)'
   ]
 
@@ -131,7 +131,7 @@ HashRing subclass: Object
       ]
   ]
 
-  method: hashKey: key [
+  method: hashKey: key <String> ^<Integer> [
       "Content-based hash producing a bounded positive integer"
       ^key printString hashCode
   ]

@@ -8,6 +8,7 @@ add, fork, and done into a single call.
 ```example
 WaitGroup new count              "=> 0"
 
+| wg <WaitGroup> |
 wg := WaitGroup new.
 wg add: 3.
 wg count                         "=> 3"
@@ -25,6 +26,7 @@ wg count                         "=> 0"
 
 ```example
 "Fan-out / fan-in pattern"
+| results <Channel> wg <WaitGroup> |
 results := Channel new: 5.
 wg := WaitGroup new.
 1 to: 5 do: [:i |
@@ -43,7 +45,7 @@ WaitGroup subclass: Object
   WaitGroup new count  "=> 0"
   ```
   """
-  class method: new [
+  class method: new ^<WaitGroup> [
       ^self primNew
   ]
 
@@ -52,12 +54,13 @@ WaitGroup subclass: Object
   forking the corresponding work.
 
   ```example
+  | wg <WaitGroup> |
   wg := WaitGroup new.
   wg add: 5.
   wg count  "=> 5"
   ```
   """
-  method: add: count [
+  method: add: count <Integer> [
       ^self primAdd: count
   ]
 
@@ -65,6 +68,7 @@ WaitGroup subclass: Object
   Convenience method to add 1 to the counter.
 
   ```example
+  | wg <WaitGroup> |
   wg := WaitGroup new.
   wg add.
   wg count  "=> 1"
@@ -79,6 +83,7 @@ WaitGroup subclass: Object
   has finished. Panics if the counter goes below zero.
 
   ```example
+  | wg <WaitGroup> |
   wg := WaitGroup new.
   wg add: 2.
   wg done.
@@ -97,12 +102,13 @@ WaitGroup subclass: Object
   will deadlock.
 
   ```example
+  | wg <WaitGroup> |
   wg := WaitGroup new.
   wg wrap: [Process sleep: 100].
   wg wait
   ```
   """
-  method: wait [
+  method: wait ! <Process> [
       ^self primWait
   ]
 
@@ -113,7 +119,7 @@ WaitGroup subclass: Object
   WaitGroup new count  "=> 0"
   ```
   """
-  method: count [
+  method: count ^<Integer> [
       ^self primCount
   ]
 
@@ -123,13 +129,14 @@ WaitGroup subclass: Object
   the block completes. Returns the forked Process.
 
   ```example
+  | wg <WaitGroup> |
   wg := WaitGroup new.
   wg wrap: [42].
   wg wait.
   wg count  "=> 0"
   ```
   """
-  method: wrap: aBlock [
+  method: wrap: aBlock ^<Process> ! <Process> [
       ^self primWrap: aBlock
   ]
 
@@ -138,11 +145,12 @@ WaitGroup subclass: Object
   to complete.
 
   ```example
+  | wg <WaitGroup> |
   wg := WaitGroup new.
   wg forkAll: {[Process sleep: 50]. [Process sleep: 100]}
   ```
   """
-  method: forkAll: blocks [
+  method: forkAll: blocks <Array> ! <Process> [
       blocks do: [:block | self wrap: block].
       ^self wait
   ]
@@ -152,12 +160,13 @@ WaitGroup subclass: Object
   return an Array of their results in the original order.
 
   ```example
+  | wg <WaitGroup> |
   wg := WaitGroup new.
   wg forkAllCollect: {[1 + 1]. [2 + 2]. [3 + 3]}
   ```
   """
-  method: forkAllCollect: blocks [
-      | results channel |
+  method: forkAllCollect: blocks <Array> ^<Array> ! <Process> [
+      | results <Array> channel <Channel> |
       results := Array new: blocks size.
       channel := Channel new: blocks size.
 
@@ -172,7 +181,7 @@ WaitGroup subclass: Object
       self wait.
 
       blocks size timesRepeat: [
-          | pair |
+          | pair <Array> |
           pair := channel receive.
           results at: (pair at: 0) put: (pair at: 1)
       ].
@@ -187,6 +196,6 @@ WaitGroup subclass: Object
   WaitGroup new printString  "=> 'a WaitGroup (count: 0)'"
   ```
   """
-  method: printString [
+  method: printString ^<String> [
       ^'a WaitGroup (count: ', self count printString, ')'
   ]

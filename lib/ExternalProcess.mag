@@ -13,6 +13,7 @@ ExternalProcess run: 'echo' args: #('hello world')
 
 ```example
 "Run git status in a specific directory"
+| p <ExternalProcess> |
 p := (ExternalProcess command: 'git' args: #('status' '--short'))
     dir: '/path/to/repo'.
 p run.
@@ -22,6 +23,7 @@ p exitCode "=> 0"
 
 ```example
 "Async process with wait"
+| p <ExternalProcess> |
 p := (ExternalProcess command: 'sleep' args: #('1')) start.
 p isDone   "=> false"
 p wait.
@@ -30,6 +32,7 @@ p isDone   "=> true"
 
 ```example
 "Environment variable injection"
+| p <ExternalProcess> |
 p := (ExternalProcess command: 'env')
     env: (Dictionary new at: 'MY_VAR' put: 'hello'; yourself).
 p run.
@@ -38,6 +41,7 @@ p stdout   "=> '...MY_VAR=hello...'"
 
 ```example
 "Run with timeout (kills process after N ms)"
+| p <ExternalProcess> |
 p := (ExternalProcess command: 'sleep' args: #('60'))
     runWithTimeout: 100.
 p exitCode "=> -1 (killed)"

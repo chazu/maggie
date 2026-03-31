@@ -7,6 +7,7 @@ to native Maggie types. CueValues are immutable — operations like
 unify: and fillPath:with: return new CueValues.
 
 ```example
+| ctx <CueContext> val <CueValue> |
 ctx := CueContext new.
 val := (ctx compileString: 'x: 1, y: 2') value.
 val lookup: 'x'
@@ -14,6 +15,7 @@ val lookup: 'x'
 
 ```example
 "Convert CUE struct to Maggie Dictionary"
+| ctx <CueContext> val <CueValue> |
 ctx := CueContext new.
 val := (ctx compileString: 'a: 1, b: "hello"') value.
 val toMaggie
@@ -26,12 +28,13 @@ CueValue subclass: Object
   Failure with error details if the value has constraint violations.
 
   ```example
+  | ctx <CueContext> val <CueValue> |
   ctx := CueContext new.
   val := (ctx compileString: 'x: 42') value.
   val validate isSuccess >>> true
   ```
   """
-  method: validate [
+  method: validate ^<Result> [
       ^self primValidate
   ]
 
@@ -41,13 +44,14 @@ CueValue subclass: Object
   have conflicting constraints.
 
   ```example
+  | ctx <CueContext> schema <CueValue> data <CueValue> |
   ctx := CueContext new.
   schema := (ctx compileString: 'name: string') value.
   data := (ctx compileString: 'name: "Alice"') value.
   (schema unify: data) value toMaggie
   ```
   """
-  method: unify: other [
+  method: unify: other <CueValue> ^<Result> [
       ^self primUnify: other
   ]
 
@@ -56,12 +60,13 @@ CueValue subclass: Object
   wrapping the field's CueValue.
 
   ```example
+  | ctx <CueContext> val <CueValue> |
   ctx := CueContext new.
   val := (ctx compileString: 'a: {b: {c: 42}}') value.
   ((val lookup: 'a.b.c') value toMaggie) >>> 42
   ```
   """
-  method: lookup: path [
+  method: lookup: path <String> ^<Result> [
       ^self primLookup: path
   ]
 
@@ -70,13 +75,14 @@ CueValue subclass: Object
   injecting concrete values into CUE templates.
 
   ```example
+  | ctx <CueContext> val <CueValue> filled <CueValue> |
   ctx := CueContext new.
   val := (ctx compileString: 'x: _, result: x') value.
   filled := (val fillPath: 'x' with: 42) value.
   (filled lookup: 'result') value toMaggie
   ```
   """
-  method: fillPath: path with: value [
+  method: fillPath: path <String> with: value ^<Result> [
       ^self primFillPath: path with: value
   ]
 
@@ -85,12 +91,13 @@ CueValue subclass: Object
   Only works on struct-kinded values.
 
   ```example
+  | ctx <CueContext> val <CueValue> |
   ctx := CueContext new.
   val := (ctx compileString: 'a: 1, b: 2') value.
   val fields value
   ```
   """
-  method: fields [
+  method: fields ^<Result> [
       ^self primFields
   ]
 
@@ -106,6 +113,7 @@ CueValue subclass: Object
   - CUE constraint -> CueValue (unchanged)
 
   ```example
+  | ctx <CueContext> val <CueValue> |
   ctx := CueContext new.
   val := (ctx compileString: '42') value.
   val toMaggie >>> 42
@@ -120,12 +128,13 @@ CueValue subclass: Object
   wrapping the JSON string.
 
   ```example
+  | ctx <CueContext> val <CueValue> |
   ctx := CueContext new.
   val := (ctx compileString: 'x: 1, y: 2') value.
   val toJSON value
   ```
   """
-  method: toJSON [
+  method: toJSON ^<Result> [
       ^self primToJSON
   ]
 
@@ -133,7 +142,7 @@ CueValue subclass: Object
   Return the CUE kind of this value as a string symbol
   (e.g., 'struct', 'int', 'string', 'list', 'bool').
   """
-  method: kind [
+  method: kind ^<String> [
       ^self primKind
   ]
 
@@ -141,21 +150,21 @@ CueValue subclass: Object
   Return true if this CUE value is fully resolved (concrete),
   false if it still has constraints or placeholders.
   """
-  method: isConcrete [
+  method: isConcrete ^<Boolean> [
       ^self primIsConcrete
   ]
 
   """
   Return true if this value exists (is not a CUE bottom value).
   """
-  method: exists [
+  method: exists ^<Boolean> [
       ^self primExists
   ]
 
   """
   Return the error string if this value has an error, nil otherwise.
   """
-  method: error [
+  method: error ^<String> [
       ^self primError
   ]
 
@@ -174,7 +183,7 @@ CueValue subclass: Object
   strSchema matchesObject: 42 >>> false
   ```
   """
-  method: matchesObject: anObject [
+  method: matchesObject: anObject ^<Boolean> [
       ^self primMatchesObject: anObject
   ]
 
@@ -196,7 +205,7 @@ CueValue subclass: Object
   rangeType subsumes: twoHundred >>> false
   ```
   """
-  method: subsumes: other [
+  method: subsumes: other ^<Boolean> [
       ^self primSubsumes: other
   ]
 
@@ -212,13 +221,13 @@ CueValue subclass: Object
   intType subsumedBy: concrete >>> false
   ```
   """
-  method: subsumedBy: other [
+  method: subsumedBy: other ^<Boolean> [
       ^self primSubsumedBy: other
   ]
 
   """
   Return a human-readable string representation.
   """
-  method: printString [
+  method: printString ^<String> [
       ^self primPrintString
   ]

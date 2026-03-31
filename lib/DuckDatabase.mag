@@ -8,6 +8,7 @@ via DuckAppender.
 
 ```example
 "In-memory analytics on a Parquet file"
+| db <DuckDatabase> results <Array> |
 db := DuckDatabase new.
 results := db query: 'SELECT * FROM read_parquet(''data.parquet'') LIMIT 10'.
 db close
@@ -15,6 +16,7 @@ db close
 
 ```example
 "File-backed database with table creation"
+| db <DuckDatabase> results <Array> |
 db := DuckDatabase open: '/tmp/analytics.duckdb'.
 db execute: 'CREATE TABLE events (id INTEGER, name VARCHAR, value DOUBLE)'.
 db execute: 'INSERT INTO events VALUES (1, ''click'', 3.14)'.
@@ -24,6 +26,7 @@ db close
 
 ```example
 "Bulk insert with appender"
+| db <DuckDatabase> app <DuckAppender> |
 db := DuckDatabase new.
 db execute: 'CREATE TABLE metrics (ts INTEGER, name VARCHAR, val DOUBLE)'.
 app := db appender: 'metrics'.
@@ -35,6 +38,7 @@ db query: 'SELECT * FROM metrics'
 
 ```example
 "Export query results to Parquet"
+| db <DuckDatabase> |
 db := DuckDatabase new.
 db execute: 'CREATE TABLE data AS SELECT * FROM range(100) t(id)'.
 db execute: 'COPY data TO ''/tmp/output.parquet'' (FORMAT PARQUET)'.
@@ -43,6 +47,7 @@ db close
 
 ```example
 "Cross-database query from Parquet"
+| db <DuckDatabase> |
 db := DuckDatabase new.
 db query: 'SELECT count(*) as n FROM read_parquet(''/tmp/output.parquet'')'
 ```
@@ -52,6 +57,6 @@ DuckDatabase subclass: Object
   """
   Return a string representation.
   """
-  method: printString [
+  method: printString ^<String> [
       ^'a DuckDatabase'
   ]

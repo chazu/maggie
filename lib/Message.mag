@@ -3,12 +3,12 @@
 # It is passed to doesNotUnderstand: with the original selector and arguments.
 
 Message subclass: Object
-  instanceVars: selector arguments
+  instanceVars: selector <Symbol> arguments <Array>
 
   # Accessing
   # selector and arguments are primitives registered in the VM.
 
-  method: numArgs [
+  method: numArgs ^<Integer> [
       ^self arguments size
   ]
 

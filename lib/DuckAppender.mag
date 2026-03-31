@@ -6,6 +6,7 @@ Create an appender from a DuckDatabase, append rows as arrays,
 then flush or close to commit.
 
 ```example
+| db <DuckDatabase> app <DuckAppender> |
 db := DuckDatabase new.
 db execute: 'CREATE TABLE metrics (ts INTEGER, name VARCHAR, val DOUBLE)'.
 app := db appender: 'metrics'.
@@ -21,6 +22,6 @@ DuckAppender subclass: Object
   """
   Return a string representation.
   """
-  method: printString [
+  method: printString ^<String> [
       ^'a DuckAppender'
   ]

@@ -33,6 +33,7 @@ ch isClosed >>> true
 
 ```example
 "Producer-consumer with a buffered channel"
+| ch <Channel> |
 ch := Channel new: 10.
 [1 to: 10 do: [:i | ch send: i]. ch close] fork.
 [ch isClosed not] whileTrue: [ch receive]
@@ -45,12 +46,13 @@ Channel subclass: Object
   (unbuffered) or until buffer space is available (buffered).
 
   ```example
+  | ch <Channel> |
   ch := Channel new: 1.
   ch send: 'hello'.
   ch receive
   ```
   """
-  method: send: value [
+  method: send: value ! <Process> [
       ^self primSend: value
   ]
 
@@ -59,12 +61,13 @@ Channel subclass: Object
   available or the channel is closed.
 
   ```example
+  | ch <Channel> |
   ch := Channel new: 1.
   ch send: 42.
   ch receive
   ```
   """
-  method: receive [
+  method: receive ! <Process> [
       ^self primReceive
   ]
 
@@ -83,7 +86,7 @@ Channel subclass: Object
   ch trySend: 'b' >>> false
   ```
   """
-  method: trySend: value [
+  method: trySend: value ^<Boolean> [
       ^self primTrySend: value
   ]
 
@@ -126,7 +129,7 @@ Channel subclass: Object
   Channel new isClosed >>> false
   ```
   """
-  method: isClosed [
+  method: isClosed ^<Boolean> [
       ^self primIsClosed
   ]
 
@@ -134,12 +137,13 @@ Channel subclass: Object
   Stream-compatible alias for `send:`. Sends a value on the channel.
 
   ```example
+  | ch <Channel> |
   ch := Channel new: 1.
   ch nextPut: 'hello'.
   ch next
   ```
   """
-  method: nextPut: value [
+  method: nextPut: value ! <Process> [
       ^self send: value
   ]
 
@@ -148,12 +152,13 @@ Channel subclass: Object
   the channel.
 
   ```example
+  | ch <Channel> |
   ch := Channel new: 1.
   ch nextPut: 42.
   ch next
   ```
   """
-  method: next [
+  method: next ! <Process> [
       ^self receive
   ]
 
@@ -164,6 +169,6 @@ Channel subclass: Object
   Channel new printString >>> 'a Channel'
   ```
   """
-  method: printString [
+  method: printString ^<String> [
       ^'a Channel'
   ]

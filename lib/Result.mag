@@ -31,6 +31,6 @@ Result subclass: Object
   Result new printString >>> 'a Result'
   ```
   """
-  method: printString [
+  method: printString ^<String> [
       ^'a Result'
   ]

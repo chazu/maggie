@@ -6,6 +6,7 @@ All request methods return the response body as a string, or nil on error.
 
 ```example
 "Simple GET request"
+| client <HttpClient> body <String> |
 client := HttpClient new.
 body := client get: 'http://example.com/api/status'.
 body print
@@ -13,6 +14,7 @@ body print
 
 ```example
 "POST with JSON body"
+| client <HttpClient> response <String> |
 client := HttpClient new.
 response := client post: 'http://example.com/api/data'
                    body: '{"name": "Alice"}'
@@ -22,6 +24,7 @@ response print
 
 ```example
 "PUT and DELETE"
+| client <HttpClient> |
 client := HttpClient new.
 client put: 'http://example.com/api/items/1' body: '{"updated": true}'.
 client delete: 'http://example.com/api/items/1'
@@ -33,10 +36,11 @@ HttpClient subclass: Object
   Create a new HttpClient with a default 30-second timeout.
 
   ```example
+  | client <HttpClient> |
   client := HttpClient new
   ```
   """
-  class method: new [
+  class method: new ^<HttpClient> ! <Network> [
       <primitive>
   ]
 
@@ -45,10 +49,11 @@ HttpClient subclass: Object
   or nil on error.
 
   ```example
+  | body <String> |
   body := HttpClient new get: 'http://example.com/'
   ```
   """
-  method: get: url [
+  method: get: url <String> ^<String> ! <Network> [
       <primitive>
   ]
 
@@ -58,10 +63,11 @@ HttpClient subclass: Object
   Returns the response body as a string, or nil on error.
 
   ```example
+  | result <String> |
   result := HttpClient new post: 'http://example.com/api' body: 'hello'
   ```
   """
-  method: post: url body: body [
+  method: post: url <String> body: body <String> ^<String> ! <Network> [
       <primitive>
   ]
 
@@ -70,13 +76,14 @@ HttpClient subclass: Object
   Returns the response body as a string, or nil on error.
 
   ```example
+  | result <String> |
   result := HttpClient new
       post: 'http://example.com/api'
       body: '{"key": "value"}'
       contentType: 'application/json'
   ```
   """
-  method: post: url body: body contentType: contentType [
+  method: post: url <String> body: body <String> contentType: contentType <String> ^<String> ! <Network> [
       <primitive>
   ]
 
@@ -86,10 +93,11 @@ HttpClient subclass: Object
   Returns the response body as a string, or nil on error.
 
   ```example
+  | result <String> |
   result := HttpClient new put: 'http://example.com/api/item' body: 'data'
   ```
   """
-  method: put: url body: body [
+  method: put: url <String> body: body <String> ^<String> ! <Network> [
       <primitive>
   ]
 
@@ -98,9 +106,10 @@ HttpClient subclass: Object
   or nil on error.
 
   ```example
+  | result <String> |
   result := HttpClient new delete: 'http://example.com/api/item/1'
   ```
   """
-  method: delete: url [
+  method: delete: url <String> ^<String> ! <Network> [
       <primitive>
   ]

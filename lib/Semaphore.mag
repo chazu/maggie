@@ -15,6 +15,7 @@ Semaphore new capacity           "=> 1"
 Semaphore new hasAvailablePermits  "=> true"
 (Semaphore new: 2) isFull       "=> false"
 
+| s <Semaphore> |
 s := Semaphore new: 3.
 s tryAcquire.
 s available                      "=> 2"
@@ -36,6 +37,7 @@ s critical: [42]                 "=> 42"
 
 ```example
 "Rate-limiting concurrent work to 3 at a time"
+| sem <Semaphore> wg <WaitGroup> |
 sem := Semaphore new: 3.
 wg := WaitGroup new.
 1 to: 10 do: [:i |
@@ -54,7 +56,7 @@ Semaphore subclass: Object
   (Semaphore new: 5) available  "=> 5"
   ```
   """
-  class method: new: capacity [
+  class method: new: capacity <Integer> ^<Semaphore> [
       ^self primNew: capacity
   ]
 
@@ -66,7 +68,7 @@ Semaphore subclass: Object
   Semaphore new available  "=> 1"
   ```
   """
-  class method: new [
+  class method: new ^<Semaphore> [
       ^self primNew: 1
   ]
 
@@ -75,12 +77,13 @@ Semaphore subclass: Object
   `tryAcquire` for a non-blocking alternative.
 
   ```example
+  | sem <Semaphore> |
   sem := Semaphore new: 2.
   sem acquire.
   sem release
   ```
   """
-  method: acquire [
+  method: acquire ! <Process> [
       ^self primAcquire
   ]
 
@@ -89,6 +92,7 @@ Semaphore subclass: Object
   a waiting process.
 
   ```example
+  | s <Semaphore> |
   s := Semaphore new: 1.
   s tryAcquire.
   s available     "=> 0"
@@ -107,12 +111,13 @@ Semaphore subclass: Object
   ```example
   Semaphore new tryAcquire       "=> true"
 
+  | s <Semaphore> |
   s := Semaphore new.
   s tryAcquire.
   s tryAcquire                   "=> false"
   ```
   """
-  method: tryAcquire [
+  method: tryAcquire ^<Boolean> [
       ^self primTryAcquire
   ]
 
@@ -122,13 +127,14 @@ Semaphore subclass: Object
   ```example
   (Semaphore new: 3) available  "=> 3"
 
+  | s <Semaphore> |
   s := Semaphore new: 3.
   s tryAcquire.
   s tryAcquire.
   s available                    "=> 1"
   ```
   """
-  method: available [
+  method: available ^<Integer> [
       ^self primAvailable
   ]
 
@@ -140,7 +146,7 @@ Semaphore subclass: Object
   (Semaphore new: 10) capacity  "=> 10"
   ```
   """
-  method: capacity [
+  method: capacity ^<Integer> [
       ^self primCapacity
   ]
 
@@ -152,12 +158,13 @@ Semaphore subclass: Object
   ```example
   (Semaphore new: 2) critical: [42]  "=> 42"
 
+  | s <Semaphore> |
   s := Semaphore new: 1.
   s critical: ['done'].
   s available                         "=> 1"
   ```
   """
-  method: critical: aBlock [
+  method: critical: aBlock ! <Process> [
       ^self primCritical: aBlock
   ]
 
@@ -168,7 +175,7 @@ Semaphore subclass: Object
   Semaphore new withPermit: [42]  "=> 42"
   ```
   """
-  method: withPermit: aBlock [
+  method: withPermit: aBlock ! <Process> [
       ^self critical: aBlock
   ]
 
@@ -180,6 +187,7 @@ Semaphore subclass: Object
   ```example
   Semaphore new ifAvailable: [42]     "=> 42"
 
+  | s <Semaphore> |
   s := Semaphore new.
   s tryAcquire.
   s ifAvailable: [42]                 "=> nil"
@@ -198,12 +206,13 @@ Semaphore subclass: Object
   ```example
   Semaphore new hasAvailablePermits   "=> true"
 
+  | s <Semaphore> |
   s := Semaphore new.
   s tryAcquire.
   s hasAvailablePermits               "=> false"
   ```
   """
-  method: hasAvailablePermits [
+  method: hasAvailablePermits ^<Boolean> [
       ^self available > 0
   ]
 
@@ -213,12 +222,13 @@ Semaphore subclass: Object
   ```example
   (Semaphore new: 2) isFull          "=> false"
 
+  | s <Semaphore> |
   s := Semaphore new.
   s tryAcquire.
   s isFull                            "=> true"
   ```
   """
-  method: isFull [
+  method: isFull ^<Boolean> [
       ^self available = 0
   ]
 
@@ -233,6 +243,6 @@ Semaphore subclass: Object
   "=> 'a Semaphore (3/3 available)'"
   ```
   """
-  method: printString [
+  method: printString ^<String> [
       ^'a Semaphore (', self available printString, '/', self capacity printString, ' available)'
   ]
