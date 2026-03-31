@@ -1,5 +1,23 @@
 # Changelog
 
+## 2026-03-30 — Dictionary Literal Syntax
+
+Added `#{key -> value}` dictionary literal syntax, following GNU Smalltalk
+precedent. Keys and values are arbitrary expressions; pairs are separated
+by periods.
+
+```smalltalk
+d := #{#name -> 'Alice'. #age -> 30. #active -> true}.
+d at: #name   "=> 'Alice'"
+d size         "=> 3"
+```
+
+Full-stack implementation across 17 files: lexer (`#{` token), parser
+(primary-only keys so `->` isn't consumed as binary message), AST
+(`DictionaryLiteral`), codegen (`OpCreateDict` opcode 0x92), VM
+interpreter, AOT compiler, semantic analysis, content hash system
+(`TagDictLiteral` 0x1E), and `mag fmt` formatter support.
+
 ## 2026-03-30 — Type Annotations for Standard Library
 
 Added type annotations, effect declarations, and typed examples across all 58
