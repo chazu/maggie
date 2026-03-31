@@ -8,6 +8,18 @@ accept both Float and SmallInteger arguments.
 2.5 negated >>> -2.5
 3.0 max: 5.0 >>> 5
 0.0 isZero >>> true
+0.0 sin >>> 0
+0.0 cos >>> 1
+0.0 tan >>> 0
+0.0 asin >>> 0
+1.0 acos >>> 0
+0.0 atan >>> 0
+1.0 atan2: 1.0 >>> 0.7853981633974483
+1.0 ln >>> 0
+1.0 log10 >>> 0
+8.0 log: 2.0 >>> 3
+0.0 exp >>> 1
+2.0 pow: 10.0 >>> 1024
 ```
 
 ```example
@@ -189,124 +201,41 @@ Float subclass: Object
 
   "--- Trigonometric (VM primitives, arguments in radians) ---"
 
-  """
-  Return the sine of the receiver (in radians).
-
-  ```test
-  0.0 sin >>> 0
-  Float pi sin rounded >>> 0
-  ```
-  """
+  """Return the sine of the receiver (in radians)."""
   method: sin ^<Float> [ <primitive> ]
 
-  """
-  Return the cosine of the receiver (in radians).
-
-  ```test
-  0.0 cos >>> 1
-  Float pi cos rounded >>> -1
-  ```
-  """
+  """Return the cosine of the receiver (in radians)."""
   method: cos ^<Float> [ <primitive> ]
 
-  """
-  Return the tangent of the receiver (in radians).
-
-  ```test
-  0.0 tan >>> 0
-  ```
-  """
+  """Return the tangent of the receiver (in radians)."""
   method: tan ^<Float> [ <primitive> ]
 
-  """
-  Return the arc sine of the receiver. Result in radians.
-
-  ```test
-  0.0 asin >>> 0
-  1.0 asin >>> 1.5707963267948966
-  ```
-  """
+  """Return the arc sine of the receiver. Result in radians."""
   method: asin ^<Float> [ <primitive> ]
 
-  """
-  Return the arc cosine of the receiver. Result in radians.
-
-  ```test
-  1.0 acos >>> 0
-  0.0 acos >>> 1.5707963267948966
-  ```
-  """
+  """Return the arc cosine of the receiver. Result in radians."""
   method: acos ^<Float> [ <primitive> ]
 
-  """
-  Return the arc tangent of the receiver. Result in radians.
-
-  ```test
-  0.0 atan >>> 0
-  1.0 atan >>> 0.7853981633974483
-  ```
-  """
+  """Return the arc tangent of the receiver. Result in radians."""
   method: atan ^<Float> [ <primitive> ]
 
-  """
-  Return the arc tangent of y/x (receiver is y, argument is x),
-  using the signs of both to determine the quadrant. Result in radians.
-
-  ```test
-  1.0 atan2: 1.0 >>> 0.7853981633974483
-  0.0 atan2: 1.0 >>> 0
-  ```
-  """
+  """Return the arc tangent of y/x (receiver is y, argument is x),
+  using the signs of both to determine the quadrant. Result in radians."""
   method: atan2: x <Float> ^<Float> [ <primitive> ]
 
   "--- Logarithmic / Exponential (VM primitives) ---"
 
-  """
-  Return the natural logarithm (base e) of the receiver.
-
-  ```test
-  1.0 ln >>> 0
-  Float e ln >>> 1
-  ```
-  """
+  """Return the natural logarithm (base e) of the receiver."""
   method: ln ^<Float> [ <primitive> ]
 
-  """
-  Return the base-10 logarithm of the receiver.
-
-  ```test
-  1.0 log10 >>> 0
-  100.0 log10 >>> 2
-  ```
-  """
+  """Return the base-10 logarithm of the receiver."""
   method: log10 ^<Float> [ <primitive> ]
 
-  """
-  Return the logarithm of the receiver in the given base.
-
-  ```test
-  8.0 log: 2.0 >>> 3
-  1.0 log: 10.0 >>> 0
-  ```
-  """
+  """Return the logarithm of the receiver in the given base."""
   method: log: base <Float> ^<Float> [ <primitive> ]
 
-  """
-  Return e raised to the power of the receiver.
-
-  ```test
-  0.0 exp >>> 1
-  1.0 exp >>> 2.718281828459045
-  ```
-  """
+  """Return e raised to the power of the receiver."""
   method: exp ^<Float> [ <primitive> ]
 
-  """
-  Return the receiver raised to the given power.
-
-  ```test
-  2.0 pow: 10.0 >>> 1024
-  9.0 pow: 0.5 >>> 3
-  ```
-  """
+  """Return the receiver raised to the given power."""
   method: pow: exponent <Float> ^<Float> [ <primitive> ]

@@ -15,6 +15,21 @@ Common layouts:
 (DateTime fromEpoch: 0) epochSeconds >>> 0
 (DateTime fromEpoch: 1000) year >>> 1970
 (DateTime fromEpoch: 0) format: '2006' >>> '1970'
+(DateTime parse: '2025-06-15' format: '2006-01-02') month >>> 6
+(DateTime parse: '2025-06-15' format: '2006-01-02') day >>> 15
+(DateTime parse: '2025-06-15 14:30:00' format: '2006-01-02 15:04:05') hour >>> 14
+(DateTime parse: '2025-06-15 14:30:00' format: '2006-01-02 15:04:05') minute >>> 30
+(DateTime parse: '2025-06-15 14:30:45' format: '2006-01-02 15:04:05') second >>> 45
+(DateTime parse: '2025-03-14' format: '2006-01-02') format: '01/02/2006' >>> '03/14/2025'
+(DateTime fromEpoch: 0) epochMillis >>> 0
+(DateTime fromEpoch: 3600) epochSeconds >>> 3600
+((DateTime fromEpoch: 0) addSeconds: 60) epochSeconds >>> 60
+((DateTime fromEpoch: 0) addMinutes: 5) epochSeconds >>> 300
+((DateTime fromEpoch: 0) addHours: 2) epochSeconds >>> 7200
+((DateTime fromEpoch: 0) addDays: 1) epochSeconds >>> 86400
+(DateTime fromEpoch: 100) differenceFrom: (DateTime fromEpoch: 0) >>> 100
+(DateTime fromEpoch: 0) differenceFrom: (DateTime fromEpoch: 100) >>> -100
+(DateTime fromEpoch: 0) printString >>> '1970-01-01T00:00:00Z'
 ```
 
 ```example
@@ -41,141 +56,48 @@ later year  "=> 1971"
 """
 DateTime subclass: Object
 
-  """
-  Return the year component.
-
-  ```test
-  (DateTime fromEpoch: 0) year >>> 1970
-  ```
-  """
+  """Return the year component."""
   method: year ^<Integer> [ <primitive> ]
 
-  """
-  Return the month (1-12).
-
-  ```test
-  (DateTime parse: '2025-06-15' format: '2006-01-02') month >>> 6
-  ```
-  """
+  """Return the month (1-12)."""
   method: month ^<Integer> [ <primitive> ]
 
-  """
-  Return the day of month (1-31).
-
-  ```test
-  (DateTime parse: '2025-06-15' format: '2006-01-02') day >>> 15
-  ```
-  """
+  """Return the day of month (1-31)."""
   method: day ^<Integer> [ <primitive> ]
 
-  """
-  Return the hour (0-23).
-
-  ```test
-  (DateTime parse: '2025-06-15 14:30:00' format: '2006-01-02 15:04:05') hour >>> 14
-  ```
-  """
+  """Return the hour (0-23)."""
   method: hour ^<Integer> [ <primitive> ]
 
-  """
-  Return the minute (0-59).
-
-  ```test
-  (DateTime parse: '2025-06-15 14:30:00' format: '2006-01-02 15:04:05') minute >>> 30
-  ```
-  """
+  """Return the minute (0-59)."""
   method: minute ^<Integer> [ <primitive> ]
 
-  """
-  Return the second (0-59).
-
-  ```test
-  (DateTime parse: '2025-06-15 14:30:45' format: '2006-01-02 15:04:05') second >>> 45
-  ```
-  """
+  """Return the second (0-59)."""
   method: second ^<Integer> [ <primitive> ]
 
-  """
-  Format the receiver using a Go layout string.
-
-  ```test
-  (DateTime fromEpoch: 0) format: '2006' >>> '1970'
-  (DateTime parse: '2025-03-14' format: '2006-01-02') format: '01/02/2006' >>> '03/14/2025'
-  ```
-  """
+  """Format the receiver using a Go layout string."""
   method: format: layout <String> ^<String> [ <primitive> ]
 
-  """
-  Return the Unix epoch timestamp in seconds.
-
-  ```test
-  (DateTime fromEpoch: 0) epochSeconds >>> 0
-  (DateTime fromEpoch: 3600) epochSeconds >>> 3600
-  ```
-  """
+  """Return the Unix epoch timestamp in seconds."""
   method: epochSeconds ^<Integer> [ <primitive> ]
 
-  """
-  Return the Unix epoch timestamp in milliseconds.
-
-  ```test
-  (DateTime fromEpoch: 0) epochMillis >>> 0
-  ```
-  """
+  """Return the Unix epoch timestamp in milliseconds."""
   method: epochMillis ^<Integer> [ <primitive> ]
 
-  """
-  Return a new DateTime offset by the given number of seconds.
-
-  ```test
-  (DateTime fromEpoch: 0) addSeconds: 60 . epochSeconds >>> 60
-  ```
-  """
+  """Return a new DateTime offset by the given number of seconds."""
   method: addSeconds: n <Integer> ^<DateTime> [ <primitive> ]
 
-  """
-  Return a new DateTime offset by the given number of minutes.
-
-  ```test
-  (DateTime fromEpoch: 0) addMinutes: 5 . epochSeconds >>> 300
-  ```
-  """
+  """Return a new DateTime offset by the given number of minutes."""
   method: addMinutes: n <Integer> ^<DateTime> [ <primitive> ]
 
-  """
-  Return a new DateTime offset by the given number of hours.
-
-  ```test
-  (DateTime fromEpoch: 0) addHours: 2 . epochSeconds >>> 7200
-  ```
-  """
+  """Return a new DateTime offset by the given number of hours."""
   method: addHours: n <Integer> ^<DateTime> [ <primitive> ]
 
-  """
-  Return a new DateTime offset by the given number of days.
-
-  ```test
-  (DateTime fromEpoch: 0) addDays: 1 . epochSeconds >>> 86400
-  ```
-  """
+  """Return a new DateTime offset by the given number of days."""
   method: addDays: n <Integer> ^<DateTime> [ <primitive> ]
 
-  """
-  Return the difference in seconds between self and another DateTime
-  (self - other). Positive if self is later.
-
-  ```test
-  (DateTime fromEpoch: 100) differenceFrom: (DateTime fromEpoch: 0) >>> 100
-  (DateTime fromEpoch: 0) differenceFrom: (DateTime fromEpoch: 100) >>> -100
-  ```
-  """
+  """Return the difference in seconds between self and another DateTime
+  (self - other). Positive if self is later."""
   method: differenceFrom: other <DateTime> ^<Integer> [ <primitive> ]
 
-  """
-  Return an ISO 8601 (RFC3339) string representation.
-
-  ```test
-  (DateTime fromEpoch: 0) printString >>> '1970-01-01T00:00:00Z'
-  ```
-  """
+  """Return an ISO 8601 (RFC3339) string representation."""
   method: printString ^<String> [ <primitive> ]
