@@ -106,6 +106,11 @@ func main() {
 	}
 
 	fmt.Printf("Image saved to %s\n", *output)
+
+	// Generate primitive docstrings Go file for embedding in mag binary
+	if err := generatePrimDocstrings(allFiles, "cmd/mag/prim_docstrings_gen.go"); err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: failed to generate primitive docstrings: %v\n", err)
+	}
 }
 
 // compileAllFiles compiles all files using Trashtalk syntax.

@@ -262,6 +262,10 @@ func run() (exitCode int) {
 	}
 	// Re-register critical primitives that may have been overwritten by image methods
 	vmInst.ReRegisterNilPrimitives()
+
+	// Apply docstrings from .mag <primitive> stubs onto Go-registered primitives.
+	// These aren't persisted in the image, so we apply them from generated code.
+	applyPrimitiveDocstrings(vmInst)
 	vmInst.ReRegisterBooleanPrimitives()
 
 	// Load disk cache into ContentStore (restores previously synced content)
