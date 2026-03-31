@@ -1,5 +1,19 @@
 # Changelog
 
+## 2026-03-30 — Fix 34 Silently Skipped Doctests
+
+Tests in `<primitive>` method docstrings were never executed — the
+Go-registered primitive overwrites the compiled method's docstring at
+load time, so the doctest runner never sees them. Moved all affected
+tests to class-level docstrings where they are discovered and run.
+
+- **DateTime.mag** — 19 tests. Fixed 4 arithmetic tests that used `.`
+  (statement separator) instead of parentheses for message chaining.
+- **Float.mag** — 12 trig/log/exp tests.
+- **Regex.mag** — 19 tests covering compile, match, find, replace, split.
+
+Test count: 1019 → 1062 (+43 previously silent tests now running).
+
 ## 2026-03-30 — Dictionary Literal Syntax
 
 Added `#{key -> value}` dictionary literal syntax, following GNU Smalltalk
