@@ -1,5 +1,32 @@
 # Changelog
 
+## 2026-03-31 — Fix Concurrent Map Writes Race Condition (#2)
+
+Fixed `fatal error: concurrent map writes` crash when HTTP handlers run
+Maggie code in parallel goroutines.
+
+- **Bare keepAlive map writes** — 8 call sites across `array_primitives.go`,
+  `object_primitives.go`, `set_primitives.go`, `message.go`, and
+  `interpreter.go` were writing to `vm.keepAlive` without holding the
+  existing `keepAliveMu` mutex. Replaced with `vm.KeepAlive()`.
+- **VM dispatch queue** (`vm/dispatch.go`) — HTTP handlers now serialize
+  Maggie execution through a dedicated VM goroutine via `vm.Dispatch()`.
+  The calling HTTP goroutine blocks until the result is available. This
+  prevents concurrent access to VTable, Globals, and other non-thread-safe
+  VM internals. The dispatcher starts automatically when an HTTP server
+  starts; single-threaded code falls back to inline execution.
+
+## 2026-03-31 — Primitive Method Docstrings
+
+Added `<primitive>` stubs with docstrings for ~136 Go-registered primitive
+methods across 14 core library files, making them visible via `mag help`.
+Bootstrap now generates `cmd/mag/prim_docstrings_gen.go` to apply `.mag`
+docstrings onto Go primitives at startup (primitive methods are not
+persisted in the image format).
+
+Also fixed `mag help` to find primitive and class-side methods (was only
+searching CompiledMethods), and to filter `prim*` internals from listings.
+
 ## 2026-03-30 — Fix 34 Silently Skipped Doctests
 
 Tests in `<primitive>` method docstrings were never executed — the
