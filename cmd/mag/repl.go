@@ -154,15 +154,20 @@ func handleHelpLookup(vmInst *vm.VM, query string) {
 			return
 		}
 
-		cm := cls.MethodNamed(methodName)
-		if cm == nil {
+		m := cls.MethodByName(methodName)
+		if m == nil {
+			// Try class-side methods
+			m = cls.ClassMethodByName(methodName)
+		}
+		if m == nil {
 			fmt.Printf("%s does not define #%s\n", className, methodName)
 			return
 		}
 
 		fmt.Printf("%s>>%s\n", className, methodName)
-		if cm.DocString() != "" {
-			fmt.Printf("\n%s\n", cm.DocString())
+		doc := vm.MethodDocString(m)
+		if doc != "" {
+			fmt.Printf("\n%s\n", doc)
 		} else {
 			fmt.Println("\n(no documentation)")
 		}

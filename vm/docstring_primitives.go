@@ -1,6 +1,10 @@
 package vm
 
-import "fmt"
+import (
+	"fmt"
+	"sort"
+	"strings"
+)
 
 // ---------------------------------------------------------------------------
 // Docstring Primitives
@@ -128,25 +132,39 @@ func FormatClassHelp(cls *Class, selectors *SelectorTable) string {
 		s += "\n" + cls.DocString + "\n"
 	}
 
-	// List instance methods
+	// List instance methods (exclude prim* internals)
 	localMethods := cls.VTable.LocalMethods()
 	if len(localMethods) > 0 {
-		s += "\nInstance methods:\n"
+		var names []string
 		for selectorID := range localMethods {
 			name := selectors.Name(selectorID)
-			if name != "" {
+			if name != "" && !strings.HasPrefix(name, "prim") {
+				names = append(names, name)
+			}
+		}
+		sort.Strings(names)
+		if len(names) > 0 {
+			s += "\nInstance methods:\n"
+			for _, name := range names {
 				s += "  " + name + "\n"
 			}
 		}
 	}
 
-	// List class methods
+	// List class methods (exclude prim* internals)
 	classLocalMethods := cls.ClassVTable.LocalMethods()
 	if len(classLocalMethods) > 0 {
-		s += "\nClass methods:\n"
+		var classNames []string
 		for selectorID := range classLocalMethods {
 			name := selectors.Name(selectorID)
-			if name != "" {
+			if name != "" && !strings.HasPrefix(name, "prim") {
+				classNames = append(classNames, name)
+			}
+		}
+		sort.Strings(classNames)
+		if len(classNames) > 0 {
+			s += "\nClass methods:\n"
+			for _, name := range classNames {
 				s += "  " + name + "\n"
 			}
 		}

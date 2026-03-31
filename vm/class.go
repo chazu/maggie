@@ -547,6 +547,16 @@ func (c *Class) MethodByName(name string) Method {
 	return nil
 }
 
+// ClassMethodByName returns any class-side method with the given name, or nil.
+func (c *Class) ClassMethodByName(name string) Method {
+	for _, m := range c.ClassVTable.LocalMethods() {
+		if MethodName(m) == name {
+			return m
+		}
+	}
+	return nil
+}
+
 // AllMethodNames returns the names of all methods defined in this class (not inherited).
 func (c *Class) AllMethodNames() []string {
 	methods := c.VTable.LocalMethods()
