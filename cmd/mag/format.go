@@ -475,6 +475,18 @@ func (f *formatter) formatExpr(expr compiler.Expr) {
 		}
 		f.write("}")
 
+	case *compiler.DictionaryLiteral:
+		f.write("#{")
+		for i := range e.Keys {
+			if i > 0 {
+				f.write(". ")
+			}
+			f.formatExpr(e.Keys[i])
+			f.write(" -> ")
+			f.formatExpr(e.Values[i])
+		}
+		f.write("}")
+
 	case *compiler.Variable:
 		f.write(e.Name)
 

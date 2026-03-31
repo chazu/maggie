@@ -10,6 +10,15 @@ VM primitives. This file adds convenience methods on top.
 ```test
 Dictionary new size >>> 0
 Dictionary new isEmpty >>> true
+#{#x -> 1. #y -> 2} size >>> 2
+(#{#name -> 'Alice'} at: #name) >>> 'Alice'
+```
+
+```example
+"Dictionary literal syntax"
+| d <Dictionary> |
+d := #{#name -> 'Alice'. #age -> 30. #active -> true}.
+d at: #name
 ```
 
 ```example

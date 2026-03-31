@@ -110,6 +110,7 @@ const (
 const (
 	OpCreateArray  Opcode = 0x90 // create array from stack (8-bit size)
 	OpCreateObject Opcode = 0x91 // create object (16-bit class, 8-bit slot count)
+	OpCreateDict   Opcode = 0x92 // create dictionary from stack (8-bit pair count)
 )
 
 // ---------------------------------------------------------------------------
@@ -204,6 +205,7 @@ var opcodeTable = map[Opcode]OpcodeInfo{
 	// Object creation
 	OpCreateArray:  {"CREATE_ARRAY", 1, -1},  // variable: pops N items
 	OpCreateObject: {"CREATE_OBJECT", 3, -1}, // variable: pops N items
+	OpCreateDict:   {"CREATE_DICT", 1, -1},   // variable: pops 2*N items (key-value pairs)
 }
 
 // Info returns the metadata for an opcode.
@@ -501,6 +503,10 @@ func DisassembleInstruction(r *BytecodeReader) string {
 	case OpCreateArray:
 		size := r.ReadByte()
 		return fmt.Sprintf("%04d  %s %d", pos, info.Name, size)
+
+	case OpCreateDict:
+		pairs := r.ReadByte()
+		return fmt.Sprintf("%04d  %s %d", pos, info.Name, pairs)
 
 	// 16-bit operand
 	case OpPushLiteral, OpPushGlobal, OpStoreGlobal, OpPushClassVar, OpStoreClassVar:

@@ -30,6 +30,7 @@ type HSuperRef struct{}
 type HThisContext struct{}
 
 type HArrayLiteral struct{ Elements []HNode }
+type HDictLiteral struct{ Keys, Values []HNode }
 type HDynamicArray struct{ Elements []HNode }
 
 func (*HIntLiteral) hnode()    {}
@@ -43,6 +44,7 @@ func (*HSelfRef) hnode()       {}
 func (*HSuperRef) hnode()      {}
 func (*HThisContext) hnode()   {}
 func (*HArrayLiteral) hnode()  {}
+func (*HDictLiteral) hnode()   {}
 func (*HDynamicArray) hnode()  {}
 
 // ---------------------------------------------------------------------------

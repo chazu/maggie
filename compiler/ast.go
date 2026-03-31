@@ -93,6 +93,17 @@ func (n *ArrayLiteral) Span() Span { return n.SpanVal }
 func (n *ArrayLiteral) node()      {}
 func (n *ArrayLiteral) expr()      {}
 
+// DictionaryLiteral represents a literal dictionary #{key -> value. key2 -> value2}.
+type DictionaryLiteral struct {
+	SpanVal Span
+	Keys    []Expr
+	Values  []Expr
+}
+
+func (n *DictionaryLiteral) Span() Span { return n.SpanVal }
+func (n *DictionaryLiteral) node()      {}
+func (n *DictionaryLiteral) expr()      {}
+
 // DynamicArray represents a dynamic array {1. 2. 3}.
 type DynamicArray struct {
 	SpanVal  Span

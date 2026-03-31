@@ -367,6 +367,8 @@ func (c *Compiler) compileExpr(expr Expr) {
 		c.compileArrayLiteral(e)
 	case *DynamicArray:
 		c.compileDynamicArray(e)
+	case *DictionaryLiteral:
+		c.compileDictionaryLiteral(e)
 	case *Variable:
 		c.compileVariable(e.Name)
 	case *Assignment:
@@ -453,6 +455,15 @@ func (c *Compiler) compileDynamicArray(arr *DynamicArray) {
 		c.compileExpr(elem)
 	}
 	c.builder.EmitByte(vm.OpCreateArray, byte(len(arr.Elements)))
+}
+
+func (c *Compiler) compileDictionaryLiteral(dict *DictionaryLiteral) {
+	// Push key-value pairs interleaved: key1, val1, key2, val2, ...
+	for i := range dict.Keys {
+		c.compileExpr(dict.Keys[i])
+		c.compileExpr(dict.Values[i])
+	}
+	c.builder.EmitByte(vm.OpCreateDict, byte(len(dict.Keys)))
 }
 
 // addLiteral adds a literal to the literal table, returning its index.
@@ -1033,6 +1044,21 @@ func (c *Compiler) findCapturedVariables(block *Block, enclosingBlockVars map[st
 			for _, stmt := range e.Statements {
 				walkStmt(stmt)
 			}
+		case *ArrayLiteral:
+			for _, elem := range e.Elements {
+				walkExpr(elem)
+			}
+		case *DynamicArray:
+			for _, elem := range e.Elements {
+				walkExpr(elem)
+			}
+		case *DictionaryLiteral:
+			for _, k := range e.Keys {
+				walkExpr(k)
+			}
+			for _, v := range e.Values {
+				walkExpr(v)
+			}
 		}
 	}
 
@@ -1118,6 +1144,13 @@ func (c *Compiler) findCellVariables(method *MethodDef) map[string]bool {
 		case *ArrayLiteral:
 			for _, elem := range e.Elements {
 				walkExpr(elem, currentDepth, blockVars)
+			}
+		case *DictionaryLiteral:
+			for _, k := range e.Keys {
+				walkExpr(k, currentDepth, blockVars)
+			}
+			for _, v := range e.Values {
+				walkExpr(v, currentDepth, blockVars)
 			}
 		}
 	}

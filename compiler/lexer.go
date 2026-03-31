@@ -216,6 +216,10 @@ func (l *Lexer) readHashToken(pos Position) Token {
 		l.readChar()
 		return Token{Type: TokenHashLParen, Literal: "#(", Pos: pos}
 
+	case l.ch == '{':
+		l.readChar()
+		return Token{Type: TokenHashLBrace, Literal: "#{", Pos: pos}
+
 	case l.ch == '\'':
 		// Quoted symbol: #'hello world'
 		return l.readQuotedSymbol(pos)

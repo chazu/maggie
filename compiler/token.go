@@ -36,6 +36,7 @@ const (
 	TokenRBrace       // }
 	TokenHash         // #
 	TokenHashLParen   // #(
+	TokenHashLBrace   // #{
 	TokenCaret        // ^
 	TokenPeriod       // .
 	TokenSemicolon    // ;
@@ -72,6 +73,7 @@ var tokenNames = map[TokenType]string{
 	TokenRBrace:        "}",
 	TokenHash:          "#",
 	TokenHashLParen:    "#(",
+	TokenHashLBrace:    "#{",
 	TokenCaret:         "^",
 	TokenPeriod:        ".",
 	TokenSemicolon:     ";",

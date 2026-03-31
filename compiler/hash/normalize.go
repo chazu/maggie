@@ -133,6 +133,15 @@ func (n *normalizer) normalizeExpr(expr compiler.Expr) HNode {
 		}
 		return &HArrayLiteral{Elements: elems}
 
+	case *compiler.DictionaryLiteral:
+		keys := make([]HNode, len(e.Keys))
+		vals := make([]HNode, len(e.Values))
+		for i := range e.Keys {
+			keys[i] = n.normalizeExpr(e.Keys[i])
+			vals[i] = n.normalizeExpr(e.Values[i])
+		}
+		return &HDictLiteral{Keys: keys, Values: vals}
+
 	case *compiler.DynamicArray:
 		elems := make([]HNode, len(e.Elements))
 		for i, el := range e.Elements {

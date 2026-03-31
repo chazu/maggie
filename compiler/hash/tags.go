@@ -55,6 +55,7 @@ const (
 	TagDynamicArray byte = 0x1B
 	TagExprStmt    byte = 0x1C
 	TagThisContext byte = 0x1D
+	TagDictLiteral byte = 0x1E
 
 	// Reserved 0xFE-0xFF
 
@@ -81,6 +82,6 @@ var allTags = []byte{
 	TagUnaryMessage, TagBinaryMessage, TagKeywordMessage, TagCascade,
 	TagAssignment, TagReturn, TagBlock, TagMethodDef,
 	TagClassDef, TagTraitDef, TagPrimitive, TagDynamicArray,
-	TagExprStmt, TagThisContext,
+	TagExprStmt, TagThisContext, TagDictLiteral,
 	TagCascadeUnary, TagCascadeBinary, TagCascadeKeyword,
 }

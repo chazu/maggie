@@ -184,6 +184,13 @@ func (s *SemanticAnalyzer) analyzeExpr(expr Expr) {
 		for _, elem := range e.Elements {
 			s.analyzeExpr(elem)
 		}
+	case *DictionaryLiteral:
+		for _, k := range e.Keys {
+			s.analyzeExpr(k)
+		}
+		for _, v := range e.Values {
+			s.analyzeExpr(v)
+		}
 	// Literals and special values don't need checking
 	case *IntLiteral, *FloatLiteral, *StringLiteral, *SymbolLiteral, *CharLiteral:
 		// OK

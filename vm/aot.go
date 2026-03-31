@@ -503,6 +503,19 @@ func (c *AOTCompiler) compileBytecode(bc []byte, isBlock bool) {
 			c.writeLine("  sp++")
 			c.writeLine("}")
 
+		case OpCreateDict:
+			pairs := bc[pos]
+			pos++
+			c.writeLine("{ // CREATE_DICT")
+			c.writeLine("  dict := vm.NewDictionary()")
+			c.writeLine("  for j := 0; j < %d; j++ {", pairs)
+			c.writeLine("    sp -= 2")
+			c.writeLine("    vm.DictionaryAtPut(dict, stack[sp], stack[sp+1])")
+			c.writeLine("  }")
+			c.writeLine("  stack[sp] = dict")
+			c.writeLine("  sp++")
+			c.writeLine("}")
+
 		case OpCaptureTemp:
 			idx := bc[pos]
 			pos++

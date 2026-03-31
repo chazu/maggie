@@ -128,6 +128,14 @@ func (s *serializer) serializeNode(node HNode) {
 			s.serializeNode(el)
 		}
 
+	case *HDictLiteral:
+		s.writeByte(TagDictLiteral)
+		s.writeUint32(uint32(len(n.Keys)))
+		for i := range n.Keys {
+			s.serializeNode(n.Keys[i])
+			s.serializeNode(n.Values[i])
+		}
+
 	case *HDynamicArray:
 		s.writeByte(TagDynamicArray)
 		s.writeUint32(uint32(len(n.Elements)))

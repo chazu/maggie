@@ -1278,6 +1278,20 @@ func (i *Interpreter) runFrame() Value {
 			i.dropN(size)
 			i.push(arr)
 
+		case OpCreateDict:
+			pairs := int(bc[frame.IP])
+			frame.IP++
+			// Stack has interleaved key-value pairs: k1, v1, k2, v2, ...
+			items := i.peekN(pairs * 2)
+			dict := i.vm.registry.NewDictionaryValue()
+			for j := 0; j < pairs; j++ {
+				key := items[j*2]
+				val := items[j*2+1]
+				i.vm.DictionaryAtPut(dict, key, val)
+			}
+			i.dropN(pairs * 2)
+			i.push(dict)
+
 		case OpCreateObject:
 			classIdx := binary.LittleEndian.Uint16(bc[frame.IP:])
 			frame.IP += 2

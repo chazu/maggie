@@ -603,6 +603,8 @@ func (p *Parser) parsePrimary() Expr {
 		return p.parseHashLiteral()
 	case TokenHashLParen:
 		return p.parseLiteralArray()
+	case TokenHashLBrace:
+		return p.parseDictionaryLiteral()
 	case TokenLParen:
 		return p.parseParenExpr()
 	case TokenLBracket:
@@ -738,6 +740,54 @@ func (p *Parser) parseLiteralArray() *ArrayLiteral {
 	return &ArrayLiteral{
 		SpanVal:  MakeSpan(pos, p.curToken.Pos),
 		Elements: elements,
+	}
+}
+
+func (p *Parser) parseDictionaryLiteral() *DictionaryLiteral {
+	pos := p.curToken.Pos
+	p.nextToken() // consume #{
+
+	var keys []Expr
+	var values []Expr
+
+	for !p.curTokenIs(TokenRBrace) && !p.curTokenIs(TokenEOF) {
+		// Parse key as a primary expression (not full expression,
+		// so -> is not consumed as a binary message send)
+		key := p.parsePrimary()
+		if key == nil {
+			p.errorf("expected key expression in dictionary literal")
+			break
+		}
+
+		// Expect ->
+		if !p.curTokenIs(TokenBinarySelector) || p.curToken.Literal != "->" {
+			p.errorf("expected '->' in dictionary literal")
+			break
+		}
+		p.nextToken() // consume ->
+
+		// Parse value as a full expression
+		value := p.ParseExpression()
+		if value == nil {
+			p.errorf("expected value expression in dictionary literal")
+			break
+		}
+
+		keys = append(keys, key)
+		values = append(values, value)
+
+		// Consume optional period separator
+		if p.curTokenIs(TokenPeriod) {
+			p.nextToken()
+		}
+	}
+
+	p.expect(TokenRBrace)
+
+	return &DictionaryLiteral{
+		SpanVal: MakeSpan(pos, p.curToken.Pos),
+		Keys:    keys,
+		Values:  values,
 	}
 }
 
