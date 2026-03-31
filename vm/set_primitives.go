@@ -20,7 +20,7 @@ func (vm *VM) registerSetPrimitives() {
 			cls = v.SetClass
 		}
 		instance := cls.NewInstance()
-		v.keepAlive[instance] = struct{}{}
+		v.KeepAlive(instance)
 		// Initialize the dict instance variable (slot 0)
 		instance.SetSlot(0, v.NewDictionary())
 		return instance.ToValue()

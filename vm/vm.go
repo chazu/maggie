@@ -92,6 +92,11 @@ type VM struct {
 	keepAlive   map[*Object]struct{}
 	keepAliveMu sync.Mutex
 
+	// Work dispatch queue for serializing Maggie execution from
+	// external goroutines (HTTP handlers, gRPC handlers).
+	dispatchQueue chan workItem
+	dispatchOnce  sync.Once
+
 	// weakRefs tracks weak references for the GC to process.
 	weakRefs *WeakRegistry
 

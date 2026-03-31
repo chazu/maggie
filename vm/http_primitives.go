@@ -264,13 +264,20 @@ func (vm *VM) registerHttpPrimitives() {
 					http.Error(w, fmt.Sprintf("Internal server error: %v", rec), http.StatusInternalServerError)
 				}
 			}()
-			interp := v.newInterpreter()
-			v.registerInterpreter(interp)
-			defer v.unregisterInterpreter()
-			reqObj := &HttpRequestObject{request: r}
-			reqVal := v.vmRegisterHttpRequest(reqObj)
-			defer v.vmUnregisterHttpRequest(reqVal)
-			result := interp.ExecuteBlockDetached(block, captures, []Value{reqVal}, homeSelf, homeMethod)
+
+			// Dispatch Maggie execution to the VM goroutine.
+			// The HTTP request object is created inside the dispatch
+			// because the VM's registries are not thread-safe.
+			result := v.Dispatch(func() Value {
+				interp := v.newInterpreter()
+				v.registerInterpreter(interp)
+				defer v.unregisterInterpreter()
+				reqObj := &HttpRequestObject{request: r}
+				reqVal := v.vmRegisterHttpRequest(reqObj)
+				defer v.vmUnregisterHttpRequest(reqVal)
+				return interp.ExecuteBlockDetached(block, captures, []Value{reqVal}, homeSelf, homeMethod)
+			})
+
 			resp := v.vmGetHttpResponse(result)
 			if resp != nil {
 				for k, hv := range resp.headers {
@@ -301,6 +308,9 @@ func (vm *VM) registerHttpPrimitives() {
 		}
 		srv.running.Store(true)
 		srv.mu.Unlock()
+		// Start the VM dispatch queue so HTTP handlers can serialize
+		// Maggie execution through the VM goroutine.
+		v.StartDispatcher()
 		err := srv.server.ListenAndServe()
 		if err != nil && err != http.ErrServerClosed {
 			srv.running.Store(false)

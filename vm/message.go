@@ -24,6 +24,6 @@ func (vm *VM) createMessage(selector Value, args []Value) Value {
 	} else {
 		instance.SetSlot(1, vm.NewArray(0))
 	}
-	vm.keepAlive[instance] = struct{}{}
+	vm.KeepAlive(instance)
 	return instance.ToValue()
 }

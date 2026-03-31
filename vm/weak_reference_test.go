@@ -241,7 +241,7 @@ func TestVMWeakRefGCIntegration(t *testing.T) {
 	// Create an object and a weak reference to it
 	obj := NewObject(vm.ObjectClass.VTable, 2)
 	obj.SetSlot(0, FromSmallInt(42))
-	vm.keepAlive[obj] = struct{}{} // Register with keepAlive
+	vm.KeepAlive(obj) // Register with keepAlive
 
 	wr := vm.NewWeakRef(obj)
 
@@ -251,7 +251,7 @@ func TestVMWeakRefGCIntegration(t *testing.T) {
 	}
 
 	// Simulate object becoming unreachable by removing from keepAlive
-	delete(vm.keepAlive, obj)
+	vm.ReleaseKeepAlive(obj)
 
 	// Run GC
 	vm.CollectGarbage()
