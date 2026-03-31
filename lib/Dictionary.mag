@@ -3,6 +3,10 @@ A mutable collection of key-value pairs with hashed lookup. Keys can be
 any object that responds to `hash` and `=`; symbols and strings are the
 most common key types.
 
+Create dictionaries with the literal syntax `#{key -> value}` or
+incrementally with `Dictionary new` and `at:put:`. Pairs in the literal
+are separated by periods; keys and values can be any expression.
+
 Core operations (`at:`, `at:put:`, `includesKey:`, `size`, `keys`,
 `values`, `do:`, `keysAndValuesDo:`, `removeKey:`) are implemented as
 VM primitives. This file adds convenience methods on top.

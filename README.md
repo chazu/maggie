@@ -49,6 +49,16 @@ Counter subclass: Object
   method: value [ ^value ]
 ```
 
+Maggie has literal syntax for arrays and dictionaries:
+
+```smalltalk
+-- Array literal
+#(1 2 3)
+
+-- Dictionary literal (keys -> values, period-separated)
+#{#name -> 'Alice'. #age -> 30. #active -> true}
+```
+
 Files can also declare a namespace and imports:
 
 ```smalltalk

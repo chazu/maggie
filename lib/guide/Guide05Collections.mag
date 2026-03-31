@@ -272,13 +272,20 @@ Guide05Collections subclass: Object
   ]
 
   """
-  Dictionaries are mutable key-value maps. Create one with
-  Dictionary new, then add entries with at:put:. Keys can be symbols,
-  strings, numbers, or any object that supports equality. Symbols are
-  the most common key type.
+  Dictionaries are mutable key-value maps. The easiest way to create
+  one is with the literal syntax `#{key -> value}`, where pairs are
+  separated by periods:
 
-  The at: message retrieves a value by key, returning nil if the key
-  is not present. The size message returns the number of entries.
+  ```test
+  #{#name -> 'Alice'. #age -> 30} size >>> 2
+  (#{#x -> 10} at: #x) >>> 10
+  ```
+
+  Keys can be symbols, strings, numbers, or any object that supports
+  equality. Symbols are the most common key type.
+
+  You can also build dictionaries incrementally with `Dictionary new`
+  and `at:put:`:
 
   ```test
   d := Dictionary new.
@@ -290,12 +297,13 @@ Guide05Collections subclass: Object
   d at: #age >>> 30
   d at: #missing >>> nil
   ```
+
+  The at: message retrieves a value by key, returning nil if the key
+  is not present. The size message returns the number of entries.
   """
   method: s13_dictionaryBasics [
-      | d |
-      d := Dictionary new.
-      d at: #name put: 'Alice'.
-      d at: #age put: 30.
+      | d <Dictionary> |
+      d := #{#name -> 'Alice'. #age -> 30}.
       ^d
   ]
 
@@ -307,8 +315,7 @@ Guide05Collections subclass: Object
   than at: when you need a default value.
 
   ```test
-  d := Dictionary new.
-  d at: #x put: 42.
+  d := #{#x -> 42}.
   d includesKey: #x >>> true
   d includesKey: #y >>> false
   d at: #x ifAbsent: [0] >>> 42
@@ -316,9 +323,8 @@ Guide05Collections subclass: Object
   ```
   """
   method: s14_dictionaryLookup [
-      | d |
-      d := Dictionary new.
-      d at: #x put: 42.
+      | d <Dictionary> |
+      d := #{#x -> 42}.
       ^d at: #x ifAbsent: [0]
   ]
 
@@ -342,10 +348,8 @@ Guide05Collections subclass: Object
   ```
   """
   method: s15_keysAndValues [
-      | d |
-      d := Dictionary new.
-      d at: #a put: 1.
-      d at: #b put: 2.
+      | d <Dictionary> |
+      d := #{#a -> 1. #b -> 2}.
       ^d keys size
   ]
 
@@ -368,10 +372,8 @@ Guide05Collections subclass: Object
   ```
   """
   method: s16_dictionaryIteration [
-      | d total |
-      d := Dictionary new.
-      d at: #x put: 10.
-      d at: #y put: 20.
+      | d <Dictionary> total <Integer> |
+      d := #{#x -> 10. #y -> 20}.
       total := 0.
       d do: [:val | total := total + val].
       ^total
