@@ -20,3 +20,9 @@ Symbol subclass: Object
   method: printString ^<String> [
       ^'#', self asString
   ]
+
+  """Return a hash value for the symbol."""
+  method: hash ^<Integer> [ <primitive> ]
+
+  """Return the number of characters."""
+  method: size ^<Integer> [ <primitive> ]

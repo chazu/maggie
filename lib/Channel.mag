@@ -172,3 +172,31 @@ Channel subclass: Object
   method: printString ^<String> [
       ^'a Channel'
   ]
+
+  # --- Class-side primitives ---
+
+  """Create a new unbuffered channel."""
+  classMethod: new ^<Channel> [ <primitive> ]
+
+  """Create a buffered channel with the given capacity."""
+  classMethod: new: capacity <Integer> ^<Channel> [ <primitive> ]
+
+  """Wait on multiple channel operations. Returns the result of the first ready case."""
+  classMethod: select: cases <Array> [ <primitive> ]
+
+  """Non-blocking select. If no case is ready, evaluate block."""
+  classMethod: select: cases <Array> ifNone: block [ <primitive> ]
+
+  # --- Instance primitives ---
+
+  """Return the buffer capacity of the channel."""
+  method: capacity ^<Integer> [ <primitive> ]
+
+  """Return true if no values are buffered."""
+  method: isEmpty ^<Boolean> [ <primitive> ]
+
+  """Return the number of buffered values."""
+  method: size ^<Integer> [ <primitive> ]
+
+  """Create a select case that receives from this channel and evaluates block with the value."""
+  method: onReceive: block [ <primitive> ]

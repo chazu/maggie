@@ -11,3 +11,33 @@ False subclass: Boolean
   method: printString ^<String> [
       ^'false'
   ]
+
+  # --- Logical primitives ---
+
+  """Return true."""
+  method: not ^<Boolean> [ <primitive> ]
+
+  """Return false without evaluating block (short-circuit AND)."""
+  method: and: block ^<Boolean> [ <primitive> ]
+
+  """Evaluate block and return its result (short-circuit OR)."""
+  method: or: block ^<Boolean> [ <primitive> ]
+
+  # --- Conditional primitives ---
+
+  """Return nil without evaluating block."""
+  method: ifTrue: block [ <primitive> ]
+
+  """Evaluate block and return its result."""
+  method: ifFalse: block [ <primitive> ]
+
+  """Evaluate falseBlock and return its result."""
+  method: ifTrue: trueBlock ifFalse: falseBlock [ <primitive> ]
+
+  # --- Equivalence ---
+
+  """Return other."""
+  method: xor: other <Boolean> ^<Boolean> [ <primitive> ]
+
+  """Return true if both are the same boolean value."""
+  method: eqv: other <Boolean> ^<Boolean> [ <primitive> ]

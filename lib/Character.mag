@@ -33,3 +33,73 @@ Character subclass: Object
   method: isSeparator ^<Boolean> [
       ^self isWhitespace
   ]
+
+  # --- Comparison primitives ---
+
+  """Return true if the receiver sorts before other."""
+  method: < other <Character> ^<Boolean> [ <primitive> ]
+
+  """Return true if the receiver sorts after other."""
+  method: > other <Character> ^<Boolean> [ <primitive> ]
+
+  """Return true if the receiver equals other."""
+  method: = other <Object> ^<Boolean> [ <primitive> ]
+
+  """Return a hash value for the receiver."""
+  method: hash ^<Integer> [ <primitive> ]
+
+  # --- Conversion primitives ---
+
+  """Return a single-character string."""
+  method: asString ^<String> [ <primitive> ]
+
+  """Return the uppercase version of this character."""
+  method: asUppercase ^<Character> [ <primitive> ]
+
+  """Return the lowercase version of this character."""
+  method: asLowercase ^<Character> [ <primitive> ]
+
+  """Return the Unicode code point as an integer."""
+  method: value ^<Integer> [ <primitive> ]
+
+  # --- Testing primitives ---
+
+  """Return true if this character is a digit (0-9)."""
+  method: isDigit ^<Boolean> [ <primitive> ]
+
+  """Return true if this character is a letter."""
+  method: isLetter ^<Boolean> [ <primitive> ]
+
+  """Return true if this character is uppercase."""
+  method: isUppercase ^<Boolean> [ <primitive> ]
+
+  """Return true if this character is lowercase."""
+  method: isLowercase ^<Boolean> [ <primitive> ]
+
+  """Return true if this character is whitespace."""
+  method: isWhitespace ^<Boolean> [ <primitive> ]
+
+  # --- Printing ---
+
+  """Return a printable representation (e.g., '$a')."""
+  method: printString ^<String> [ <primitive> ]
+
+  # --- Class-side factory methods ---
+
+  """Create a character from a Unicode code point."""
+  classMethod: value: codePoint <Integer> ^<Character> [ <primitive> ]
+
+  """Return the space character."""
+  classMethod: space ^<Character> [ <primitive> ]
+
+  """Return the carriage return character."""
+  classMethod: cr ^<Character> [ <primitive> ]
+
+  """Return the line feed character."""
+  classMethod: lf ^<Character> [ <primitive> ]
+
+  """Return the tab character."""
+  classMethod: tab ^<Character> [ <primitive> ]
+
+  """Return the newline character (same as lf)."""
+  classMethod: newline ^<Character> [ <primitive> ]

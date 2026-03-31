@@ -65,3 +65,57 @@ BigInteger subclass: Object
   Return a human-readable string representation.
   """
   method: printString ^<String> [ ^self primPrintString ]
+
+  # --- Arithmetic primitives ---
+
+  """Return the sum of the receiver and the argument."""
+  method: + other ^<Integer> [ <primitive> ]
+
+  """Return the difference of the receiver and the argument."""
+  method: - other ^<Integer> [ <primitive> ]
+
+  """Return the product of the receiver and the argument."""
+  method: * other ^<Integer> [ <primitive> ]
+
+  """Return the integer quotient (truncated toward zero)."""
+  method: / other ^<Integer> [ <primitive> ]
+
+  """Return the integer quotient (truncated toward negative infinity)."""
+  method: // other ^<Integer> [ <primitive> ]
+
+  """Return the remainder."""
+  method: \\ other ^<Integer> [ <primitive> ]
+
+  # --- Comparison primitives ---
+
+  """Return true if the receiver is less than the argument."""
+  method: < other ^<Boolean> [ <primitive> ]
+
+  """Return true if the receiver is less than or equal to the argument."""
+  method: <= other ^<Boolean> [ <primitive> ]
+
+  """Return true if the receiver is greater than the argument."""
+  method: > other ^<Boolean> [ <primitive> ]
+
+  """Return true if the receiver is greater than or equal to the argument."""
+  method: >= other ^<Boolean> [ <primitive> ]
+
+  """Return true if the receiver equals the argument."""
+  method: = other ^<Boolean> [ <primitive> ]
+
+  # --- Bitwise primitives ---
+
+  """Return the bitwise AND."""
+  method: bitAnd: other ^<Integer> [ <primitive> ]
+
+  """Return the bitwise OR."""
+  method: bitOr: other ^<Integer> [ <primitive> ]
+
+  """Return the bitwise XOR."""
+  method: bitXor: other ^<Integer> [ <primitive> ]
+
+  """Shift left by count bits (negative shifts right)."""
+  method: bitShift: count <Integer> ^<Integer> [ <primitive> ]
+
+  """Return a hash value for the receiver."""
+  method: hash ^<Integer> [ <primitive> ]

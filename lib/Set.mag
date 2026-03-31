@@ -87,3 +87,26 @@ Set subclass: Object
     self do: [:each | items := items, (Array with: each printString)].
     ^'Set(', (items join: ', '), ')'
   ]
+
+  # --- Primitives ---
+
+  """Create a new empty set."""
+  classMethod: new ^<Set> [ <primitive> ]
+
+  """Add element to the set. Returns self."""
+  method: add: element ^<Self> [ <primitive> ]
+
+  """Remove element from the set."""
+  method: remove: element [ <primitive> ]
+
+  """Return true if the set contains element."""
+  method: includes: element ^<Boolean> [ <primitive> ]
+
+  """Return the number of elements."""
+  method: size ^<Integer> [ <primitive> ]
+
+  """Return true if the set is empty."""
+  method: isEmpty ^<Boolean> [ <primitive> ]
+
+  """Evaluate block once for each element."""
+  method: do: block [ <primitive> ]

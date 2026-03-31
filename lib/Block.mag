@@ -215,3 +215,28 @@ Block subclass: Object
   method: spawnOn: node <Node> with: arg ^<RemoteProcess> ! <Process, Network> [
       ^self primSpawnOn: node with: arg
   ]
+
+  # --- Loop primitives ---
+
+  """Evaluate the receiver; while it returns true, evaluate block. Returns nil."""
+  method: whileTrue: block [ <primitive> ]
+
+  """Evaluate the receiver; while it returns false, evaluate block. Returns nil."""
+  method: whileFalse: block [ <primitive> ]
+
+  """Evaluate the receiver repeatedly while it returns true. Returns nil."""
+  method: whileTrue [ <primitive> ]
+
+  """Evaluate the receiver repeatedly while it returns false. Returns nil."""
+  method: whileFalse [ <primitive> ]
+
+  # --- Fork primitives ---
+
+  """Fork the block with an argument, returns a Process."""
+  method: forkWith: arg ^<Process> ! <Process> [ <primitive> ]
+
+  """Fork the block with a cancellation context."""
+  method: forkWithContext: ctx <CancellationContext> ^<Process> ! <Process> [ <primitive> ]
+
+  """Fork the block with restricted global access."""
+  method: forkRestricted: restrictions <Array> ^<Process> ! <Process> [ <primitive> ]

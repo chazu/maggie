@@ -381,3 +381,22 @@ String subclass: Object
   ```
   """
   classMethod: lf ^<String> [ ^self primLf ]
+
+  # --- Conversion primitives ---
+
+  """Parse the receiver as an integer."""
+  method: asInteger ^<Integer> [ <primitive> ]
+
+  """Parse the receiver as a float."""
+  method: asFloat ^<Float> [ <primitive> ]
+
+  # --- Output primitives ---
+
+  """Print the receiver to stdout."""
+  method: print [ <primitive> ]
+
+  """Print the receiver to stdout followed by a newline."""
+  method: println [ <primitive> ]
+
+  """Return an FNV-1a hash of the string content."""
+  method: hashCode ^<Integer> [ <primitive> ]

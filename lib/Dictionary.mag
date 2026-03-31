@@ -127,3 +127,47 @@ Dictionary subclass: Object
       s := s, ')'.
       ^s
   ]
+
+  # --- Primitives ---
+
+  """Create a new empty dictionary."""
+  classMethod: new ^<Dictionary> [ <primitive> ]
+
+  """Return the value associated with key, or nil if not present."""
+  method: at: key [ <primitive> ]
+
+  """Associate value with key. Returns value."""
+  method: at: key put: value [ <primitive> ]
+
+  """Return the value at key, or evaluate block if absent."""
+  method: at: key ifAbsent: block [ <primitive> ]
+
+  """If key exists, evaluate block with its value; otherwise return nil."""
+  method: at: key ifPresent: block [ <primitive> ]
+
+  """Return true if the dictionary contains key."""
+  method: includesKey: key ^<Boolean> [ <primitive> ]
+
+  """Remove the entry for key. Raises an error if absent."""
+  method: removeKey: key [ <primitive> ]
+
+  """Remove the entry for key; if absent, evaluate block."""
+  method: removeKey: key ifAbsent: block [ <primitive> ]
+
+  """Return an array of all keys."""
+  method: keys ^<Array> [ <primitive> ]
+
+  """Return an array of all values."""
+  method: values ^<Array> [ <primitive> ]
+
+  """Return the number of entries."""
+  method: size ^<Integer> [ <primitive> ]
+
+  """Return true if the dictionary has no entries."""
+  method: isEmpty ^<Boolean> [ <primitive> ]
+
+  """Evaluate block once for each value."""
+  method: do: block [ <primitive> ]
+
+  """Evaluate block with each key-value pair."""
+  method: keysAndValuesDo: block [ <primitive> ]

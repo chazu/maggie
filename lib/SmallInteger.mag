@@ -246,3 +246,65 @@ SmallInteger subclass: Object
   method: printString ^<String> [
       ^self primPrintString
   ]
+
+  # --- Arithmetic primitives ---
+
+  """Return the sum of the receiver and the argument."""
+  method: + other <Integer> ^<Integer> [ <primitive> ]
+
+  """Return the difference of the receiver and the argument."""
+  method: - other <Integer> ^<Integer> [ <primitive> ]
+
+  """Return the product of the receiver and the argument."""
+  method: * other <Integer> ^<Integer> [ <primitive> ]
+
+  """Return the integer quotient of the receiver divided by the argument (truncated toward zero)."""
+  method: / other <Integer> ^<Integer> [ <primitive> ]
+
+  """Return the integer quotient of the receiver divided by the argument (truncated toward negative infinity)."""
+  method: // other <Integer> ^<Integer> [ <primitive> ]
+
+  """Return the remainder of the receiver divided by the argument."""
+  method: \\ other <Integer> ^<Integer> [ <primitive> ]
+
+  # --- Comparison primitives ---
+
+  """Return true if the receiver is less than the argument."""
+  method: < other <Integer> ^<Boolean> [ <primitive> ]
+
+  """Return true if the receiver is greater than the argument."""
+  method: > other <Integer> ^<Boolean> [ <primitive> ]
+
+  """Return true if the receiver is less than or equal to the argument."""
+  method: <= other <Integer> ^<Boolean> [ <primitive> ]
+
+  """Return true if the receiver is greater than or equal to the argument."""
+  method: >= other <Integer> ^<Boolean> [ <primitive> ]
+
+  """Return true if the receiver equals the argument."""
+  method: = other <Object> ^<Boolean> [ <primitive> ]
+
+  # --- Bitwise primitives ---
+
+  """Return the bitwise AND of the receiver and the argument."""
+  method: bitAnd: other <Integer> ^<Integer> [ <primitive> ]
+
+  """Return the bitwise OR of the receiver and the argument."""
+  method: bitOr: other <Integer> ^<Integer> [ <primitive> ]
+
+  """Return the bitwise XOR of the receiver and the argument."""
+  method: bitXor: other <Integer> ^<Integer> [ <primitive> ]
+
+  """Shift the receiver left by count bits (negative count shifts right)."""
+  method: bitShift: count <Integer> ^<Integer> [ <primitive> ]
+
+  # --- Iteration primitives ---
+
+  """Evaluate block the receiver number of times."""
+  method: timesRepeat: block [ <primitive> ]
+
+  """Evaluate block with each integer from the receiver to stop, inclusive."""
+  method: to: stop <Integer> do: block [ <primitive> ]
+
+  """Evaluate block with each integer from the receiver to stop, stepping by step."""
+  method: to: stop <Integer> by: step <Integer> do: block [ <primitive> ]

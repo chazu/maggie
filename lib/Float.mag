@@ -239,3 +239,42 @@ Float subclass: Object
 
   """Return the receiver raised to the given power."""
   method: pow: exponent <Float> ^<Float> [ <primitive> ]
+
+  # --- Arithmetic primitives ---
+
+  """Return the sum of the receiver and the argument."""
+  method: + other ^<Float> [ <primitive> ]
+
+  """Return the difference of the receiver and the argument."""
+  method: - other ^<Float> [ <primitive> ]
+
+  """Return the product of the receiver and the argument."""
+  method: * other ^<Float> [ <primitive> ]
+
+  """Return the receiver divided by the argument."""
+  method: / other ^<Float> [ <primitive> ]
+
+  # --- Comparison primitives ---
+
+  """Return true if the receiver is less than the argument."""
+  method: < other ^<Boolean> [ <primitive> ]
+
+  """Return true if the receiver is greater than the argument."""
+  method: > other ^<Boolean> [ <primitive> ]
+
+  # --- Other primitives ---
+
+  """Return the square root of the receiver."""
+  method: sqrt ^<Float> [ <primitive> ]
+
+  """Return the constant pi (3.14159...)."""
+  classMethod: pi ^<Float> [ <primitive> ]
+
+  """Return Euler's number e (2.71828...)."""
+  classMethod: e ^<Float> [ <primitive> ]
+
+  """Return positive infinity."""
+  classMethod: infinity ^<Float> [ <primitive> ]
+
+  """Return NaN (not a number)."""
+  classMethod: nan ^<Float> [ <primitive> ]

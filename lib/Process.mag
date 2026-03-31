@@ -363,3 +363,23 @@ Process subclass: Object
   classMethod: named: name <String> ^<Process> [
       ^self primNamed: name
   ]
+
+  # --- Class-side primitives ---
+
+  """Return the current process."""
+  classMethod: current ^<Process> [ <primitive> ]
+
+  """Fork block as a new process."""
+  classMethod: fork: block ^<Process> ! <Process> [ <primitive> ]
+
+  """Suspend the current process for ms milliseconds."""
+  classMethod: sleep: ms <Integer> ! <Process> [ <primitive> ]
+
+  """Yield the current process's time slice."""
+  classMethod: yield ! <Process> [ <primitive> ]
+
+  """Fork block with restricted global access."""
+  classMethod: forkWithout: restrictions <Array> do: block ^<Process> ! <Process> [ <primitive> ]
+
+  """Return true if the process has finished."""
+  method: isDone ^<Boolean> [ <primitive> ]

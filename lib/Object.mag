@@ -246,3 +246,29 @@ Object subclass: nil
   method: asCueValue ^<CueValue> [
       ^self primAsCueValue
   ]
+
+  # --- Primitives ---
+
+  """Return a hash value for the receiver."""
+  method: hash ^<Integer> [ <primitive> ]
+
+  """Send a message with the given selector to the receiver."""
+  method: perform: selector <Symbol> [ <primitive> ]
+
+  """Send a one-argument message to the receiver."""
+  method: perform: selector <Symbol> with: arg [ <primitive> ]
+
+  """If the receiver is nil, evaluate block; otherwise return self."""
+  method: ifNil: block [ <primitive> ]
+
+  """If the receiver is not nil, evaluate block with self; otherwise return nil."""
+  method: ifNotNil: block [ <primitive> ]
+
+  """Evaluate nilBlock if nil, notNilBlock with self otherwise."""
+  method: ifNil: nilBlock ifNotNil: notNilBlock [ <primitive> ]
+
+  """Create a new instance of this class."""
+  classMethod: new [ <primitive> ]
+
+  """Return an array of all classes in the system."""
+  classMethod: allClasses ^<Array> [ <primitive> ]
