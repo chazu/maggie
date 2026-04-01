@@ -92,21 +92,110 @@ Projects can be managed with a `maggie.toml` manifest:
 name = "my-app"
 namespace = "MyApp"
 version = "0.1.0"
+description = "A web app with admin tools"
+license = "MIT"
+authors = ["Alice <alice@example.com>"]
+repository = "https://github.com/example/my-app"
+maggie = ">=0.10.0"          # minimum Maggie version required
 
 [source]
-dirs = ["src"]
-entry = "Main.start"
+dirs = ["src"]               # source directories to compile (default: ["src"])
+entry = "Main.start"         # entry point (resolved relative to project namespace)
+exclude = ["*_scratch.mag"]  # glob patterns to exclude from compilation
 
 [dependencies]
 yutani = { git = "https://github.com/chazu/yutani-mag", tag = "v0.5.0" }
 helper = { path = "../helper" }
+bleeding = { git = "https://github.com/example/lib", branch = "main" }
+pinned = { git = "https://github.com/example/exact", commit = "abc123" }
+ui-toolkit = { path = "../ui-toolkit", namespace = "CustomUI" }  # namespace override
+
+[dev-dependencies]
+test-helpers = { path = "../test-helpers" }
 
 [image]
 output = "my-app.image"
-include-source = true
+include-source = true         # preserve method source in image for fileOut
+
+[test]
+dirs = ["test"]               # test source directories
+entry = "TestRunner.run"      # test entry point
+timeout = 30000               # timeout in milliseconds (0 = no timeout)
+exclude = ["*_slow.mag"]      # glob patterns to exclude from test sources
+
+[scripts]
+prebuild = "mag fmt --check"  # before compilation
+postbuild = "echo done"       # after binary is written
+pretest = "mag build"         # before test execution
+posttest = "echo done"        # after tests complete
+
+[go-wrap]
+output = ".maggie/wrap"       # output directory for generated wrappers
+
+  [[go-wrap.packages]]
+  import = "net/http"
+  include = ["ListenAndServe", "Get"]
+
+[sync]
+capabilities = ["File", "HTTP"]  # capabilities advertised to peers
+listen = ":8081"                 # address for sync server
+peers = ["localhost:8082"]       # peers to push/pull from
+
+[trust]
+default = "sync"                        # default perms for unknown peers
+ban-threshold = 3                       # hash mismatches before auto-ban
+spawn-restrictions = ["File", "ExternalProcess", "HTTP"]  # globals hidden from remote spawns
+
+  [[trust.peer]]
+  id = "a1b2c3..."                      # Ed25519 public key, hex-encoded
+  name = "build-farm"
+  perms = "sync,spawn"                  # comma-separated: sync, message, spawn, all
 ```
 
 When `mag` is invoked in a directory with `maggie.toml`, it automatically resolves dependencies, loads source directories, and runs the entry point.
+
+**Project metadata:** `description`, `license`, `authors`, and `repository` are informational. The `maggie` field is a version constraint — if the running `mag` version is too old, loading fails with a clear error. Supported constraint forms: `>=X.Y.Z`, `<X.Y.Z`, `>=X.Y.Z <A.B.C`, `~X.Y.Z` (pessimistic).
+
+**Dev-dependencies:** Same format as `[dependencies]` but only loaded for `mag test`, `mag -i` (REPL), and other development commands. Excluded from `mag build` production binaries.
+
+**Dependency refs:** Each git dependency uses exactly one of `tag`, `branch`, or `commit` (mutually exclusive). The lock file pins exact commit hashes regardless.
+
+### Multi-Target Builds
+
+Projects can declare multiple build targets using `[[target]]` array tables:
+
+```toml
+[[target]]
+name = "server"
+entry = "MyApp::Server.start"
+output = "my-server"
+full = true                    # full mag CLI with project baked in
+
+  [[target.go-wrap]]           # per-target Go package wrapping
+  import = "net/http"
+  include = ["ListenAndServe"]
+
+  [target.image]
+  output = "server.image"
+  include-source = false
+
+[[target]]
+name = "cli"
+entry = "MyApp::CLI.main"
+output = "my-cli"
+extra-dirs = ["tools"]         # additional source dirs
+exclude-dirs = ["admin"]       # dirs to remove from base source.dirs
+exclude = ["*_debug.mag"]      # additional file exclude patterns
+```
+
+Source composition per target: `source.dirs + target.extra-dirs - target.exclude-dirs`, filtered by `source.exclude + target.exclude`. Go-wrap packages are additive (top-level + target-specific). If no `[[target]]` sections exist, the project behaves as a single target from top-level config.
+
+```bash
+mag build               # build the default (first) target
+mag build -t server     # build a specific target
+mag build --all         # build all targets
+mag build -t cli -o /usr/local/bin/mycli  # -o overrides target output
+```
 
 ### Dependency Management
 
@@ -117,6 +206,16 @@ mag deps list         # Show resolved dependency tree
 ```
 
 Dependencies are stored in `.maggie/deps/` and locked in `.maggie/lock.toml`.
+
+### Test Configuration
+
+```bash
+mag test                    # run tests from [test] config
+mag test --timeout 5000     # override timeout
+mag test --entry CustomRunner.run  # override entry point
+```
+
+Test dirs are compiled in addition to source dirs. Dev-dependencies are loaded automatically. The test entry point should return a small integer exit code (0 = pass).
 
 ## Building Custom Binaries
 
