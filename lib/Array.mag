@@ -145,10 +145,10 @@ Array subclass: Object
   ```
   """
   method: select: block ^<Array> [
-      | result <Array> |
-      result := Array new: 0.
-      self do: [:each | (block value: each) ifTrue: [result := result, (Array with: each)]].
-      ^result
+      | buf <ArrayList> |
+      buf := ArrayList new.
+      self do: [:each | (block value: each) ifTrue: [buf add: each]].
+      ^buf asArray
   ]
 
   """

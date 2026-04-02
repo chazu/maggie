@@ -608,6 +608,49 @@ indexOf: anObject
 copyFrom: start to: end
 ```
 
+### ArrayList
+
+Growable, ordered collection backed by a Go slice. Use when building
+collections incrementally — `add:` is amortized O(1) vs Array's O(n)
+`copyWith:`.
+
+```smalltalk
+-- Creation
+ArrayList new                -- empty (default capacity)
+ArrayList new: 100           -- empty with capacity hint
+ArrayList withAll: #(1 2 3)  -- from existing Array
+
+-- Adding / removing
+add: element                 -- append (amortized O(1))
+addAll: collection           -- append all from Array or ArrayList
+removeLast                   -- O(1)
+removeAt: index              -- O(n) shift
+clear                        -- remove all, keep capacity
+
+-- Access (same protocol as Array)
+at: index
+at: index put: value
+first last
+size capacity
+isEmpty notEmpty
+includes: anObject
+indexOf: anObject
+
+-- Iteration (same protocol as Array)
+do: block
+collect: block               -- returns ArrayList
+select: block                -- returns ArrayList
+reject: block                -- returns ArrayList
+detect: block
+inject: initial into: block
+
+-- Conversion
+asArray                      -- snapshot to fixed-size Array
+
+-- Sorting
+sort: compareBlock           -- in-place
+```
+
 ### Block
 
 Closures / anonymous functions.

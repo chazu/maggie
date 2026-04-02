@@ -102,7 +102,7 @@ Supervisor subclass: Object
       maxRestarts := maxR.
       maxSeconds := maxS.
       children := Dictionary new.
-      restartTimes := Array new: 0.
+      restartTimes := ArrayList new.
       running := false
   ]
 
@@ -135,7 +135,7 @@ Supervisor subclass: Object
   Returns true if started successfully.
   """
   method: startChild: aSpec <ChildSpec> ^<Boolean> [
-      childSpecs := childSpecs , (Array with: aSpec).
+      childSpecs := childSpecs copyWith: aSpec.
       ^self startOneChild: aSpec
   ]
 
@@ -154,12 +154,12 @@ Supervisor subclass: Object
 
   """Return the IDs of currently running children."""
   method: runningChildren ^<Array> [
-      | ids <Array> |
-      ids := Array new: 0.
+      | ids <ArrayList> |
+      ids := ArrayList new.
       children keysAndValuesDo: [:k :v |
-          v isDone not ifTrue: [ids := ids , (Array with: k)]
+          v isDone not ifTrue: [ids add: k]
       ].
-      ^ids
+      ^ids asArray
   ]
 
   """Return the count of running children."""
@@ -255,13 +255,13 @@ Supervisor subclass: Object
 
   method: restartFrom: childId <String> [
       "Terminate this child and all children started after it, then restart"
-      | found <Boolean> specsToRestart <Array> proc <Process> |
+      | found <Boolean> specsToRestart <ArrayList> proc <Process> |
       found := false.
-      specsToRestart := Array new: 0.
+      specsToRestart := ArrayList new.
       childSpecs do: [:spec |
           spec id = childId ifTrue: [found := true].
           found ifTrue: [
-              specsToRestart := specsToRestart , (Array with: spec).
+              specsToRestart add: spec.
               proc := children at: spec id ifAbsent: [nil].
               proc notNil ifTrue: [
                   proc primTerminate.
@@ -282,7 +282,7 @@ Supervisor subclass: Object
   method: recordRestart [
       | now <Integer> |
       now := DateTime now epochMillis.
-      restartTimes := restartTimes , (Array with: now)
+      restartTimes add: now
   ]
 
   method: restartIntensityExceeded ^<Boolean> [

@@ -189,6 +189,8 @@ func (s *valueSerializer) serializeSymbolEncoded(v Value) ([]byte, error) {
 		return nil, fmt.Errorf("serial: cannot serialize Result (non-serializable type)")
 	case exceptionMarker:
 		return nil, fmt.Errorf("serial: cannot serialize Exception (non-serializable type)")
+	case arrayListMarker:
+		return nil, fmt.Errorf("serial: cannot serialize ArrayList (non-serializable type)")
 	}
 
 	// Regular symbol (interned name)

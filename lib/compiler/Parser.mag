@@ -95,13 +95,14 @@ Parser subclass: Object
       currentToken type = #semicolon ifFalse: [^receiver].
 
       "Collect cascaded messages"
-      messages := Array new.
-      messages := messages copyWith: receiver.  "First message"
+      messages := ArrayList new.
+      messages add: receiver.  "First message"
 
       [currentToken type = #semicolon] whileTrue: [
           self advance.  "Skip ;"
-          messages := messages copyWith: (self parseCascadedMessage: receiver)
+          messages add: (self parseCascadedMessage: receiver)
       ].
+      messages := messages asArray.
 
       ^CascadeNode receiver: (messages first receiver) messages: messages
   ]
@@ -149,13 +150,14 @@ Parser subclass: Object
       "Parse keyword message parts."
       | selector args |
       selector := String new.
-      args := Array new.
+      args := ArrayList new.
 
       [currentToken type = #keyword] whileTrue: [
           selector := selector , currentToken value.
           self advance.
-          args := args copyWith: self parseBinarySend
+          args add: self parseBinarySend
       ].
+      args := args asArray.
 
       ^MessageSendNode receiver: receiver selector: selector asSymbol arguments: args
   ]
@@ -291,14 +293,14 @@ Parser subclass: Object
       | params temps statements |
       self expect: #leftBracket.
 
-      params := Array new.
-      temps := Array new.
+      params := ArrayList new.
+      temps := ArrayList new.
       statements := Array new.
 
       "Parse block parameters :arg"
       [currentToken type = #colon] whileTrue: [
           self advance.  "Skip :"
-          params := params copyWith: (self expect: #identifier) value
+          params add: (self expect: #identifier) value
       ].
 
       "Skip | after parameters if present"
@@ -310,11 +312,13 @@ Parser subclass: Object
       currentToken type = #pipe ifTrue: [
           self advance.  "Skip opening |"
           [currentToken type = #identifier] whileTrue: [
-              temps := temps copyWith: currentToken value.
+              temps add: currentToken value.
               self advance
           ].
           self expect: #pipe  "Skip closing |"
       ].
+      params := params asArray.
+      temps := temps asArray.
 
       "Parse statements"
       statements := self parseStatements.
@@ -329,12 +333,13 @@ Parser subclass: Object
       "Parse literal array #(1 2 3)."
       | elements |
       self advance.  "Skip #("
-      elements := Array new.
+      elements := ArrayList new.
 
       [currentToken type = #rightParen] whileFalse: [
           currentToken isEOF ifTrue: [self error: 'Unterminated literal array'].
-          elements := elements copyWith: self parseLiteralArrayElement
+          elements add: self parseLiteralArrayElement
       ].
+      elements := elements asArray.
 
       self expect: #rightParen.
       ^LiteralNode value: elements type: #array
@@ -359,13 +364,14 @@ Parser subclass: Object
       "Parse dynamic array { expr. expr. expr }."
       | elements |
       self expect: #leftBrace.
-      elements := Array new.
+      elements := ArrayList new.
 
       [currentToken type = #rightBrace] whileFalse: [
           currentToken isEOF ifTrue: [self error: 'Unterminated dynamic array'].
-          elements := elements copyWith: self parseExpression.
+          elements add: self parseExpression.
           self accept: #period
       ].
+      elements := elements asArray.
 
       self expect: #rightBrace.
       ^MessageSendNode
@@ -378,14 +384,14 @@ Parser subclass: Object
   method: parseStatements [
       "Parse a sequence of statements."
       | statements |
-      statements := Array new.
+      statements := ArrayList new.
 
       [self atEnd not and: [currentToken type ~= #rightBracket and: [currentToken type ~= #rightBrace]]] whileTrue: [
-          statements := statements copyWith: self parseStatement.
+          statements add: self parseStatement.
           self accept: #period
       ].
 
-      ^statements
+      ^statements asArray
   ]
 
   method: parseStatement [
@@ -426,7 +432,7 @@ Parser subclass: Object
 
       "Parse selector and parameters"
       selector := String new.
-      params := Array new.
+      params := ArrayList new.
 
       "Unary selector"
       currentToken type = #identifier ifTrue: [
@@ -437,30 +443,32 @@ Parser subclass: Object
           currentToken type = #binary ifTrue: [
               selector := currentToken value.
               self advance.
-              params := params copyWith: (self expect: #identifier) value.
+              params add: (self expect: #identifier) value.
           ] ifFalse: [
               "Keyword selector"
               [currentToken type = #keyword] whileTrue: [
                   selector := selector , currentToken value.
                   self advance.
-                  params := params copyWith: (self expect: #identifier) value
+                  params add: (self expect: #identifier) value
               ]
           ]
       ].
+      params := params asArray.
 
       "Parse method body in brackets"
       self expect: #leftBracket.
 
       "Parse temporaries"
-      temps := Array new.
+      temps := ArrayList new.
       currentToken type = #pipe ifTrue: [
           self advance.
           [currentToken type = #identifier] whileTrue: [
-              temps := temps copyWith: currentToken value.
+              temps add: currentToken value.
               self advance
           ].
           self expect: #pipe
       ].
+      temps := temps asArray.
 
       "Parse statements"
       statements := self parseStatements.
@@ -494,10 +502,10 @@ Parser subclass: Object
           superName := 'Object'
       ].
 
-      ivars := Array new.
-      methods := Array new.
-      classMethods := Array new.
-      traits := Array new.
+      ivars := ArrayList new.
+      methods := ArrayList new.
+      classMethods := ArrayList new.
+      traits := ArrayList new.
 
       "Parse class body"
       [self atEnd not] whileTrue: [
@@ -506,7 +514,7 @@ Parser subclass: Object
               self advance.
               self expect: #colon.
               [currentToken type = #identifier] whileTrue: [
-                  ivars := ivars copyWith: currentToken value.
+                  ivars add: currentToken value.
                   self advance
               ].
           ] ifFalse: [
@@ -514,24 +522,24 @@ Parser subclass: Object
               (currentToken type = #identifier and: [currentToken value = 'include']) ifTrue: [
                   self advance.
                   self expect: #colon.
-                  traits := traits copyWith: (self expect: #identifier) value.
+                  traits add: (self expect: #identifier) value.
               ] ifFalse: [
                   "Instance method"
                   (currentToken type = #keyword and: [currentToken value = 'method:']) ifTrue: [
-                      methods := methods copyWith: self parseMethodDef.
+                      methods add: self parseMethodDef.
                   ] ifFalse: [
                       "Class method"
                       (currentToken type = #keyword and: [currentToken value = 'classMethod:']) ifTrue: [
-                          classMethods := classMethods copyWith: self parseMethodDef.
+                          classMethods add: self parseMethodDef.
                       ] ifFalse: [
                           "Unknown or end of class"
                           ^ClassNode
                               name: name
                               superclassName: superName
-                              instanceVariables: ivars
-                              methods: methods
-                              classMethods: classMethods
-                              traits: traits
+                              instanceVariables: ivars asArray
+                              methods: methods asArray
+                              classMethods: classMethods asArray
+                              traits: traits asArray
                       ]
                   ]
               ]
@@ -541,10 +549,10 @@ Parser subclass: Object
       ^ClassNode
           name: name
           superclassName: superName
-          instanceVariables: ivars
-          methods: methods
-          classMethods: classMethods
-          traits: traits
+          instanceVariables: ivars asArray
+          methods: methods asArray
+          classMethods: classMethods asArray
+          traits: traits asArray
   ]
 
   # ============================================
@@ -554,8 +562,8 @@ Parser subclass: Object
   method: parseSourceFile [
       "Parse an entire source file with classes and traits."
       | classes traits |
-      classes := Array new.
-      traits := Array new.
+      classes := ArrayList new.
+      traits := ArrayList new.
 
       [self atEnd] whileFalse: [
           "Skip comments at top level"
@@ -567,18 +575,18 @@ Parser subclass: Object
               "Check what follows the identifier"
               (currentToken type = #identifier and: [currentToken value = 'subclass']) ifTrue: [
                   "It's a class - re-parse with the name"
-                  classes := classes copyWith: (self parseClassDefWithName: name)
+                  classes add: (self parseClassDefWithName: name)
               ] ifFalse: [
                   (currentToken type = #identifier and: [currentToken value = 'trait']) ifTrue: [
                       "It's a trait"
                       self advance.
-                      traits := traits copyWith: (self parseTraitDefWithName: name)
+                      traits add: (self parseTraitDefWithName: name)
                   ]
               ]
           ]
       ].
 
-      ^Array with: classes with: traits
+      ^Array with: classes asArray with: traits asArray
   ]
 
   method: parseClassDefWithName: name [
@@ -590,64 +598,64 @@ Parser subclass: Object
       self expect: #colon.
       superName := (self expect: #identifier) value.
 
-      ivars := Array new.
-      methods := Array new.
-      classMethods := Array new.
-      traits := Array new.
+      ivars := ArrayList new.
+      methods := ArrayList new.
+      classMethods := ArrayList new.
+      traits := ArrayList new.
 
       "Parse class body (same as parseClassDef)"
       [self atEnd not] whileTrue: [
           (currentToken type = #identifier and: [currentToken value = 'instanceVars']) ifTrue: [
               self advance. self expect: #colon.
               [currentToken type = #identifier] whileTrue: [
-                  ivars := ivars copyWith: currentToken value.
+                  ivars add: currentToken value.
                   self advance
               ].
           ] ifFalse: [
               (currentToken type = #identifier and: [currentToken value = 'include']) ifTrue: [
                   self advance. self expect: #colon.
-                  traits := traits copyWith: (self expect: #identifier) value.
+                  traits add: (self expect: #identifier) value.
               ] ifFalse: [
                   (currentToken type = #keyword and: [currentToken value = 'method:']) ifTrue: [
-                      methods := methods copyWith: self parseMethodDef.
+                      methods add: self parseMethodDef.
                   ] ifFalse: [
                       (currentToken type = #keyword and: [currentToken value = 'classMethod:']) ifTrue: [
-                          classMethods := classMethods copyWith: self parseMethodDef.
+                          classMethods add: self parseMethodDef.
                       ] ifFalse: [
                           "End of class body"
-                          ^ClassNode name: name superclassName: superName instanceVariables: ivars
-                              methods: methods classMethods: classMethods traits: traits
+                          ^ClassNode name: name superclassName: superName instanceVariables: ivars asArray
+                              methods: methods asArray classMethods: classMethods asArray traits: traits asArray
                       ]
                   ]
               ]
           ]
       ].
 
-      ^ClassNode name: name superclassName: superName instanceVariables: ivars
-          methods: methods classMethods: classMethods traits: traits
+      ^ClassNode name: name superclassName: superName instanceVariables: ivars asArray
+          methods: methods asArray classMethods: classMethods asArray traits: traits asArray
   ]
 
   method: parseTraitDefWithName: name [
       "Parse trait definition when name is already consumed."
       | methods requires |
-      methods := Array new.
-      requires := Array new.
+      methods := ArrayList new.
+      requires := ArrayList new.
 
       [self atEnd not] whileTrue: [
           (currentToken type = #keyword and: [currentToken value = 'method:']) ifTrue: [
-              methods := methods copyWith: self parseMethodDef.
+              methods add: self parseMethodDef.
           ] ifFalse: [
               (currentToken type = #identifier and: [currentToken value = 'requires']) ifTrue: [
                   self advance. self expect: #colon.
-                  requires := requires copyWith: (self expect: #identifier) value.
+                  requires add: (self expect: #identifier) value.
               ] ifFalse: [
                   "End of trait"
-                  ^Array with: name with: methods with: requires
+                  ^Array with: name with: methods asArray with: requires asArray
               ]
           ]
       ].
 
-      ^Array with: name with: methods with: requires
+      ^Array with: name with: methods asArray with: requires asArray
   ]
 
   # Error handling

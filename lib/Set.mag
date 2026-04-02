@@ -72,20 +72,20 @@ Set subclass: Object
   ```
   """
   method: collect: aBlock ^<Array> [
-    | result <Array> |
-    result := Array new: 0.
-    self do: [:each | result := result, (Array with: (aBlock value: each))].
-    ^result
+    | buf <ArrayList> |
+    buf := ArrayList new.
+    self do: [:each | buf add: (aBlock value: each)].
+    ^buf asArray
   ]
 
   """
   Return a human-readable string representation.
   """
   method: printString ^<String> [
-    | items <Array> |
-    items := Array new: 0.
-    self do: [:each | items := items, (Array with: each printString)].
-    ^'Set(', (items join: ', '), ')'
+    | buf <ArrayList> |
+    buf := ArrayList new.
+    self do: [:each | buf add: each printString].
+    ^'Set(', (buf asArray join: ', '), ')'
   ]
 
   # --- Primitives ---

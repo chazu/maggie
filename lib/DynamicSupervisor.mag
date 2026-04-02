@@ -56,7 +56,7 @@ DynamicSupervisor subclass: Object
       children := Dictionary new.
       maxRestarts := maxR.
       maxSeconds := maxS.
-      restartTimes := Array new: 0.
+      restartTimes := ArrayList new.
       running := false
   ]
 
@@ -101,12 +101,12 @@ DynamicSupervisor subclass: Object
 
   """Return the IDs of currently running children."""
   method: runningChildren ^<Array> [
-      | ids <Array> |
-      ids := Array new: 0.
+      | ids <ArrayList> |
+      ids := ArrayList new.
       children keysAndValuesDo: [:k :v |
-          v isDone not ifTrue: [ids := ids , (Array with: k)]
+          v isDone not ifTrue: [ids add: k]
       ].
-      ^ids
+      ^ids asArray
   ]
 
   """Return the count of running children."""
@@ -182,7 +182,7 @@ DynamicSupervisor subclass: Object
   method: recordRestart [
       | now <Integer> |
       now := DateTime now epochMillis.
-      restartTimes := restartTimes , (Array with: now)
+      restartTimes add: now
   ]
 
   method: restartIntensityExceeded ^<Boolean> [

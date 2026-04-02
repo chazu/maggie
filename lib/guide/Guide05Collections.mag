@@ -1,18 +1,22 @@
 """
 Collections are how you group, search, and transform data in Maggie.
-The two core collection types are Array (an ordered, indexed sequence)
-and Dictionary (a mutable mapping from keys to values). Both support
-rich iteration protocols -- do:, collect:, select:, inject:into: --
-that let you write expressive, functional-style data pipelines without
-explicit loops.
+The three core collection types are Array (an ordered, fixed-size
+sequence), ArrayList (a growable ordered sequence), and Dictionary
+(a mutable mapping from keys to values). All support rich iteration
+protocols -- do:, collect:, select:, inject:into: -- that let you
+write expressive, functional-style data pipelines without explicit
+loops.
 
-Arrays use 0-based indexing: the first element is at index 0. They are
-fixed-size once created, but you can build new arrays with
-concatenation (,), copyWith:, and the filtering methods. Dictionaries
+Arrays use 0-based indexing and are fixed-size once created. When you
+need to build a collection incrementally, use ArrayList -- its add:
+method is amortized O(1), whereas Array's copyWith: copies the entire
+array each time (O(n) per append, O(n^2) total for n appends).
+Call asArray when you need a fixed-size Array at the end. Dictionaries
 grow automatically as you add entries and provide O(1) key lookup.
 
-This chapter walks through both collections, starting with creation and
-access, then building up to iteration, search, and transformation.
+This chapter walks through all three collections, starting with Array
+creation and access, then ArrayList for incremental building, and
+finally Dictionary.
 
 ```test
 #(10 20 30) size >>> 3
@@ -269,6 +273,77 @@ Guide05Collections subclass: Object
       squares := #(1 2 3 4 5) collect: [:n | n * n].
       sumOfSquares := squares inject: 0 into: [:s :x | s + x].
       ^sumOfSquares
+  ]
+
+  """
+  When you need to build up a collection element-by-element, use
+  ArrayList instead of Array. ArrayList is backed by a Go slice,
+  so add: is amortized O(1). Array's copyWith: copies the entire
+  array each time, making it O(n) per append -- a loop of n appends
+  becomes O(n^2). ArrayList avoids this entirely.
+
+  Create an ArrayList, add elements with add:, then call asArray
+  if you need a fixed-size Array at the end.
+
+  ```test
+  list := ArrayList new.
+  list add: 10.
+  list add: 20.
+  list add: 30.
+  list size >>> 3
+  list first >>> 10
+  list last >>> 30
+  list asArray >>> #(10 20 30 )
+  ```
+  """
+  method: s12b_arrayListBasics [
+      | list |
+      list := ArrayList new.
+      list add: 10.
+      list add: 20.
+      list add: 30.
+      ^list asArray
+  ]
+
+  """
+  ArrayList supports the same iteration protocol as Array: do:,
+  collect:, select:, reject:, detect:, and inject:into:. The
+  difference is that collect:, select:, and reject: return a new
+  ArrayList instead of an Array, so you can keep chaining add:
+  without penalty.
+
+  ```test
+  list := ArrayList withAll: #(1 2 3 4 5 6 7 8 9 10).
+  (list select: [:n | n even]) asArray >>> #(2 4 6 8 10 )
+  (list collect: [:n | n * n]) asArray >>> #(1 4 9 16 25 36 49 64 81 100 )
+  list inject: 0 into: [:sum :n | sum + n] >>> 55
+  ```
+  """
+  method: s12c_arrayListIteration [
+      | list evens |
+      list := ArrayList withAll: #(1 2 3 4 5).
+      evens := list select: [:n | n even].
+      ^evens asArray
+  ]
+
+  """
+  ArrayList also supports removeLast (O(1)), removeAt: (O(n) shift),
+  clear, indexOf:, includes:, and copy. Use withAll: to create an
+  ArrayList from an existing Array.
+
+  ```test
+  list := ArrayList withAll: #(10 20 30 40).
+  list removeLast >>> 40
+  list size >>> 3
+  list removeAt: 0 >>> 10
+  list asArray >>> #(20 30 )
+  ```
+  """
+  method: s12d_arrayListMutation [
+      | list |
+      list := ArrayList withAll: #(10 20 30 40).
+      list removeLast.
+      ^list asArray
   ]
 
   """

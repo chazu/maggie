@@ -66,6 +66,9 @@ const (
 	// Distributed channels
 	remoteChannelMarker         uint32 = 55 << 24
 
+	// Growable array (ArrayList)
+	arrayListMarker             uint32 = 56 << 24
+
 	// Distribution protocol (reserved for Phase 6)
 	chunkMarker                 uint32 = 42 << 24
 	remoteRefMarker             uint32 = 43 << 24

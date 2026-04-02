@@ -60,6 +60,7 @@ type VM struct {
 	CharacterClass         *Class
 	MessageClass           *Class
 	RandomClass            *Class
+	ArrayListClass         *Class
 
 	// Exception hierarchy
 	ExceptionClass             *Class
@@ -295,6 +296,7 @@ func (vm *VM) bootstrap() {
 	vm.AssociationClass = vm.createClassWithIvars("Association", vm.ObjectClass, []string{"key", "value"})
 	vm.DictionaryClass = vm.createClassWithIvars("Dictionary", vm.ObjectClass, []string{"table", "size"})
 	vm.SetClass = vm.createClassWithIvars("Set", vm.ObjectClass, []string{"dict"})
+	vm.ArrayListClass = vm.createClass("ArrayList", vm.ObjectClass)
 
 	// Phase 5: Create method/block classes
 	vm.BlockClass = vm.createClass("Block", vm.ObjectClass)
@@ -388,6 +390,7 @@ func (vm *VM) bootstrap() {
 	vm.registerSqlitePrimitives()
 	vm.registerSystemPrimitives()
 	vm.registerRandomPrimitives()
+	vm.registerArrayListPrimitives()
 	vm.registerSignalPrimitives()
 	vm.registerRegexPrimitives()
 	vm.registerDateTimePrimitives()
@@ -424,6 +427,7 @@ func (vm *VM) bootstrap() {
 	vm.Globals["WeakReference"] = vm.classValue(vm.WeakReferenceClass)
 	vm.Globals["Character"] = vm.classValue(vm.CharacterClass)
 	vm.Globals["Random"] = vm.classValue(vm.RandomClass)
+	vm.Globals["ArrayList"] = vm.classValue(vm.ArrayListClass)
 
 	// Well-known symbols
 	vm.Globals["nil"] = Nil
@@ -468,6 +472,9 @@ func (vm *VM) registerSymbolDispatch() {
 	sd.Register(waitGroupMarker, &SymbolTypeEntry{Class: vm.WaitGroupClass})
 	sd.Register(semaphoreMarker, &SymbolTypeEntry{Class: vm.SemaphoreClass})
 	sd.Register(cancellationContextMarker, &SymbolTypeEntry{Class: vm.CancellationContextClass})
+
+	// ArrayList
+	sd.Register(arrayListMarker, &SymbolTypeEntry{Class: vm.ArrayListClass})
 
 	// BigInteger
 	sd.Register(bigIntMarker, &SymbolTypeEntry{Class: vm.BigIntegerClass})
@@ -759,6 +766,16 @@ func (vm *VM) CreateMailboxMessage(sender Value, selector string, payload Value)
 	instance.SetSlot(2, payload)
 	vm.KeepAlive(instance)
 	return instance.ToValue()
+}
+
+// --- ArrayList helpers ---
+
+func (vm *VM) registerArrayList(al *ArrayListObject) Value {
+	return vm.registry.RegisterArrayList(al)
+}
+
+func (vm *VM) getArrayList(v Value) *ArrayListObject {
+	return vm.registry.GetArrayList(v)
 }
 
 // --- Mutex helpers ---

@@ -50,12 +50,12 @@ Lexer subclass: Object
   method: allTokens [
       "Return an array of all tokens."
       | tokens token |
-      tokens := Array new.
+      tokens := ArrayList new.
       [token := self nextToken. token isEOF] whileFalse: [
-          tokens := tokens copyWith: token
+          tokens add: token
       ].
-      tokens := tokens copyWith: token.  "Include EOF"
-      ^tokens
+      tokens add: token.  "Include EOF"
+      ^tokens asArray
   ]
 
   # Whitespace and comments

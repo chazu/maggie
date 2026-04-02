@@ -44,21 +44,21 @@ HashRing subclass: Object
   ]
 
   method: primInit: replicaCount <Integer> [
-      nodes := Array new: 0.
-      positions := Array new: 0.
+      nodes := ArrayList new.
+      positions := ArrayList new.
       replicas := replicaCount
   ]
 
   """Add a node to the ring. The node can be any object (typically a Node or String)."""
   method: add: node [
       | nodeKey <String> |
-      nodes := nodes , (Array with: node).
+      nodes add: node.
       nodeKey := node printString.
       1 to: replicas do: [:i |
           | vkey <String> pos <Integer> |
           vkey := nodeKey , '-', i printString.
           pos := self hashKey: vkey.
-          positions := positions , (Array with: (Array with: pos with: node))
+          positions add: (Array with: pos with: node)
       ].
       self sortPositions
   ]
@@ -84,13 +84,13 @@ HashRing subclass: Object
 
   """Return the N nodes responsible for the given key (for replication)."""
   method: nodesFor: key <String> count: n <Integer> ^<Array> [
-      | result <Array> node seen <Dictionary> candidate candidateKey <String> |
+      | result <ArrayList> node seen <Dictionary> candidate candidateKey <String> |
       positions isEmpty ifTrue: [^Array new: 0].
-      result := Array new: 0.
+      result := ArrayList new.
       seen := Dictionary new.
       node := self nodeFor: key.
       node notNil ifTrue: [
-          result := result , (Array with: node).
+          result add: node.
           seen at: node printString put: true
       ].
       "Walk clockwise collecting unique nodes"
@@ -99,12 +99,12 @@ HashRing subclass: Object
               candidate := pair at: 1.
               candidateKey := candidate printString.
               (seen at: candidateKey ifAbsent: [nil]) isNil ifTrue: [
-                  result := result , (Array with: candidate).
+                  result add: candidate.
                   seen at: candidateKey put: true
               ]
           ]
       ].
-      ^result
+      ^result asArray
   ]
 
   """Return the number of real nodes in the ring."""
@@ -114,7 +114,7 @@ HashRing subclass: Object
   method: isEmpty ^<Boolean> [ ^nodes isEmpty ]
 
   """Return all real nodes in the ring."""
-  method: nodes ^<Array> [ ^nodes copy ]
+  method: nodes ^<Array> [ ^nodes asArray ]
 
   method: printString ^<String> [
       ^'a HashRing(', self size printString, ' nodes)'
@@ -124,7 +124,7 @@ HashRing subclass: Object
 
   method: sortPositions [
       positions size <= 1 ifTrue: [^self].
-      positions := positions sorted: [:a :b |
+      positions sort: [:a :b |
           (a at: 0) < (b at: 0) ifTrue: [-1] ifFalse: [
               (a at: 0) > (b at: 0) ifTrue: [1] ifFalse: [0]
           ]

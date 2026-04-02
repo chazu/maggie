@@ -53,6 +53,11 @@ type ConcurrencyRegistry struct {
 	futuresMu sync.RWMutex
 	futureID  atomic.Int32
 
+	// ArrayList registry
+	arrayLists   map[int]*ArrayListObject
+	arrayListsMu sync.RWMutex
+	arrayListID  atomic.Int32
+
 	// Monitor ref ID counter
 	monitorRefID atomic.Uint64
 }
@@ -69,6 +74,7 @@ func NewConcurrencyRegistry() *ConcurrencyRegistry {
 		blocks:               make(map[int]*BlockValue),
 		blocksByHomeFrame:    make(map[int][]int),
 		futures:              make(map[int]*FutureObject),
+		arrayLists:           make(map[int]*ArrayListObject),
 	}
 	// Start IDs at 1 (0 could be confused with nil/uninitialized)
 	cr.channelID.Store(1)
@@ -79,6 +85,7 @@ func NewConcurrencyRegistry() *ConcurrencyRegistry {
 	cr.cancellationContextID.Store(1)
 	cr.blockID.Store(1)
 	cr.futureID.Store(1)
+	cr.arrayListID.Store(1)
 	cr.monitorRefID.Store(1)
 	return cr
 }
@@ -521,6 +528,40 @@ func (cr *ConcurrencyRegistry) SweepFutures() int {
 	return swept
 }
 
+// ---------------------------------------------------------------------------
+// ArrayList Registry Methods
+// ---------------------------------------------------------------------------
+
+// RegisterArrayList adds an array list to the registry and returns its Value.
+func (cr *ConcurrencyRegistry) RegisterArrayList(al *ArrayListObject) Value {
+	id := int(cr.arrayListID.Add(1) - 1)
+
+	cr.arrayListsMu.Lock()
+	cr.arrayLists[id] = al
+	cr.arrayListsMu.Unlock()
+
+	return arrayListToValue(id)
+}
+
+// GetArrayList retrieves an array list by its Value.
+func (cr *ConcurrencyRegistry) GetArrayList(v Value) *ArrayListObject {
+	if !isArrayListValue(v) {
+		return nil
+	}
+	id := int(v.SymbolID() & ^uint32(0xFF<<24))
+
+	cr.arrayListsMu.RLock()
+	defer cr.arrayListsMu.RUnlock()
+	return cr.arrayLists[id]
+}
+
+// ArrayListCount returns the number of registered array lists.
+func (cr *ConcurrencyRegistry) ArrayListCount() int {
+	cr.arrayListsMu.RLock()
+	defer cr.arrayListsMu.RUnlock()
+	return len(cr.arrayLists)
+}
+
 // Stats returns counts of all registered objects.
 func (cr *ConcurrencyRegistry) Stats() map[string]int {
 	return map[string]int{
@@ -532,5 +573,6 @@ func (cr *ConcurrencyRegistry) Stats() map[string]int {
 		"cancellationContexts": cr.CancellationContextCount(),
 		"blocks":               cr.BlockCount(),
 		"futures":              cr.FutureCount(),
+		"arrayLists":           cr.ArrayListCount(),
 	}
 }

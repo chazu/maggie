@@ -70,18 +70,18 @@ Compiler subclass: Object
       classes := result at: 0.
       traits := result at: 1.
 
-      compiledClasses := Array new.
-      compiledTraits := Array new.
+      compiledClasses := ArrayList new.
+      compiledTraits := ArrayList new.
 
       classes do: [:classNode |
-          compiledClasses := compiledClasses copyWith: (self compileClassNode: classNode)
+          compiledClasses add: (self compileClassNode: classNode)
       ].
 
       traits do: [:traitInfo |
-          compiledTraits := compiledTraits copyWith: (self compileTraitInfo: traitInfo)
+          compiledTraits add: (self compileTraitInfo: traitInfo)
       ].
 
-      ^Array with: compiledClasses with: compiledTraits
+      ^Array with: compiledClasses asArray with: compiledTraits asArray
   ]
 
   # ============================================
@@ -91,15 +91,15 @@ Compiler subclass: Object
   method: compileClassNode: classNode [
       "Compile a class definition node."
       | compiledMethods compiledClassMethods |
-      compiledMethods := Array new.
-      compiledClassMethods := Array new.
+      compiledMethods := ArrayList new.
+      compiledClassMethods := ArrayList new.
 
       "Compile instance methods"
       classNode methods do: [:methodNode |
           | generator |
           generator := BytecodeGenerator new.
           generator compileMethod: methodNode.
-          compiledMethods := compiledMethods copyWith: (self buildMethod: methodNode generator: generator)
+          compiledMethods add: (self buildMethod: methodNode generator: generator)
       ].
 
       "Compile class methods"
@@ -107,7 +107,7 @@ Compiler subclass: Object
           | generator |
           generator := BytecodeGenerator new.
           generator compileMethod: methodNode.
-          compiledClassMethods := compiledClassMethods copyWith: (self buildMethod: methodNode generator: generator)
+          compiledClassMethods add: (self buildMethod: methodNode generator: generator)
       ].
 
       ^Dictionary new
@@ -115,8 +115,8 @@ Compiler subclass: Object
           at: #superclass put: classNode superclassName;
           at: #instanceVariables put: classNode instanceVariables;
           at: #traits put: classNode traits;
-          at: #methods put: compiledMethods;
-          at: #classMethods put: compiledClassMethods;
+          at: #methods put: compiledMethods asArray;
+          at: #classMethods put: compiledClassMethods asArray;
           yourself
   ]
 
@@ -127,17 +127,17 @@ Compiler subclass: Object
       methods := traitInfo at: 1.
       requires := traitInfo at: 2.
 
-      compiledMethods := Array new.
+      compiledMethods := ArrayList new.
       methods do: [:methodNode |
           | generator |
           generator := BytecodeGenerator new.
           generator compileMethod: methodNode.
-          compiledMethods := compiledMethods copyWith: (self buildMethod: methodNode generator: generator)
+          compiledMethods add: (self buildMethod: methodNode generator: generator)
       ].
 
       ^Dictionary new
           at: #name put: name;
-          at: #methods put: compiledMethods;
+          at: #methods put: compiledMethods asArray;
           at: #requires put: requires;
           yourself
   ]

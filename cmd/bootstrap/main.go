@@ -35,6 +35,7 @@ var classMapping = map[string]func(*vm.VM) *vm.Class{
 	"Set":             func(v *vm.VM) *vm.Class { return v.SetClass },
 	"GrpcClient":      func(v *vm.VM) *vm.Class { return v.GrpcClientClass },
 	"GrpcStream":      func(v *vm.VM) *vm.Class { return v.GrpcStreamClass },
+	"ArrayList":       func(v *vm.VM) *vm.Class { return v.ArrayListClass },
 }
 
 func main() {

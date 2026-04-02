@@ -103,13 +103,13 @@ SqliteRows subclass: Object
   ```
   """
   method: toArray ^<Array> ! <IO> [
-      | result <Array> |
-      result := Array new: 0.
+      | result <ArrayList> |
+      result := ArrayList new.
       [self next] whileTrue: [
-          result := result copyWith: self asDict
+          result add: self asDict
       ].
       self close.
-      ^result
+      ^result asArray
   ]
 
   method: printString ^<String> [

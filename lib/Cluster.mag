@@ -39,7 +39,7 @@ Cluster subclass: Object
   method: primInit: seedArray <Array> [
       seeds := seedArray.
       members := Dictionary new.
-      failedSeeds := Array new: 0.
+      failedSeeds := ArrayList new.
       running := false.
       reconnectInterval := 10000.
       sentinelName := '__cluster__'.
@@ -67,10 +67,10 @@ Cluster subclass: Object
 
   """Return an Array of currently live Node values."""
   method: members ^<Array> [
-      | result <Array> |
-      result := Array new: 0.
-      members keysAndValuesDo: [:k :v | result := result , (Array with: v)].
-      ^result
+      | result <ArrayList> |
+      result := ArrayList new.
+      members keysAndValuesDo: [:k :v | result add: v].
+      ^result asArray
   ]
 
   """Return the number of live members."""
@@ -185,14 +185,14 @@ Cluster subclass: Object
 
   method: handleDown: info <Array> ! <Network> [
       "info is #(refID processValue reasonSymbol resultValue)"
-      | reason <Symbol> deadAddrs <Array> |
+      | reason <Symbol> deadAddrs <ArrayList> |
       reason := info at: 3.
-      deadAddrs := Array new: 0.
+      deadAddrs := ArrayList new.
 
       "Find members whose nodes are no longer reachable"
       members keysAndValuesDo: [:addr :node |
           node ping ifFalse: [
-              deadAddrs := deadAddrs , (Array with: addr)
+              deadAddrs add: addr
           ]
       ].
 
@@ -207,7 +207,7 @@ Cluster subclass: Object
   method: reconnectFailed ! <Network> [
       | toRetry <Array> |
       toRetry := failedSeeds copy.
-      failedSeeds := Array new: 0.
+      failedSeeds := ArrayList new.
       toRetry do: [:addr |
           (members at: addr ifAbsent: [nil]) isNil ifTrue: [
               self connectSeed: addr
@@ -217,7 +217,7 @@ Cluster subclass: Object
 
   method: addFailed: addr <String> [
       (failedSeeds includes: addr) ifFalse: [
-          failedSeeds := failedSeeds , (Array with: addr)
+          failedSeeds add: addr
       ]
   ]
 

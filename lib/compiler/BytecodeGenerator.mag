@@ -84,14 +84,14 @@ BytecodeGenerator subclass: Object
 
   # Initialization
   method: initialize [
-      bytecode := Array new.
-      literals := Array new.
-      selectors := Array new.
-      temps := Array new.
-      ivars := Array new.
-      captures := Array new.
-      blockMethods := Array new.
-      jumpPatches := Array new.
+      bytecode := ArrayList new.
+      literals := ArrayList new.
+      selectors := ArrayList new.
+      temps := ArrayList new.
+      ivars := ArrayList new.
+      captures := ArrayList new.
+      blockMethods := ArrayList new.
+      jumpPatches := ArrayList new.
       currentClass := nil.
       outerTemps := nil.
       inBlock := false.
@@ -113,12 +113,12 @@ BytecodeGenerator subclass: Object
   ]
 
   # Accessing
-  method: bytecode [^bytecode]
-  method: literals [^literals]
-  method: selectors [^selectors]
-  method: blockMethods [^blockMethods]
-  method: temps [^temps]
-  method: captures [^captures]
+  method: bytecode [^bytecode asArray]
+  method: literals [^literals asArray]
+  method: selectors [^selectors asArray]
+  method: blockMethods [^blockMethods asArray]
+  method: temps [^temps asArray]
+  method: captures [^captures asArray]
   method: capturedVars [^capturedVars]
   method: cellVars [^cellVars]
   method: blockArity [^blockArity]
@@ -133,7 +133,7 @@ BytecodeGenerator subclass: Object
       | index |
       index := literals indexOf: value.
       index >= 0 ifTrue: [^index].  "Already exists"
-      literals := literals copyWith: value.
+      literals add: value.
       ^literals size - 1
   ]
 
@@ -142,7 +142,7 @@ BytecodeGenerator subclass: Object
       | index |
       index := selectors indexOf: selector.
       index >= 0 ifTrue: [^index].
-      selectors := selectors copyWith: selector.
+      selectors add: selector.
       ^selectors size - 1
   ]
 
@@ -152,7 +152,7 @@ BytecodeGenerator subclass: Object
 
   method: addTemp: name [
       "Add a temporary variable, return its index."
-      temps := temps copyWith: name.
+      temps add: name.
       ^temps size - 1
   ]
 
@@ -171,7 +171,7 @@ BytecodeGenerator subclass: Object
       | index |
       index := captures indexOf: name.
       index >= 0 ifTrue: [^index].
-      captures := captures copyWith: name.
+      captures add: name.
       ^captures size - 1
   ]
 
@@ -238,29 +238,29 @@ BytecodeGenerator subclass: Object
 
   method: emit: opcode [
       "Emit a single byte."
-      bytecode := bytecode copyWith: opcode.
+      bytecode add: opcode.
       ^self
   ]
 
   method: emit: opcode byte: arg [
       "Emit opcode with 8-bit argument."
-      bytecode := bytecode copyWith: opcode.
-      bytecode := bytecode copyWith: (arg bitAnd: 16rFF).
+      bytecode add: opcode.
+      bytecode add: (arg bitAnd: 16rFF).
       ^self
   ]
 
   method: emit: opcode short: arg [
       "Emit opcode with 16-bit argument (little-endian, matching Go VM)."
-      bytecode := bytecode copyWith: opcode.
-      bytecode := bytecode copyWith: (arg bitAnd: 16rFF).
-      bytecode := bytecode copyWith: ((arg bitShift: -8) bitAnd: 16rFF).
+      bytecode add: opcode.
+      bytecode add: (arg bitAnd: 16rFF).
+      bytecode add: ((arg bitShift: -8) bitAnd: 16rFF).
       ^self
   ]
 
   method: emitShort: value [
       "Emit a 16-bit value (little-endian, matching Go VM)."
-      bytecode := bytecode copyWith: (value bitAnd: 16rFF).
-      bytecode := bytecode copyWith: ((value bitShift: -8) bitAnd: 16rFF).
+      bytecode add: (value bitAnd: 16rFF).
+      bytecode add: ((value bitShift: -8) bitAnd: 16rFF).
       ^self
   ]
 
@@ -510,7 +510,7 @@ BytecodeGenerator subclass: Object
 
   method: addBlockMethod: blockBytecodeGen [
       "Add a compiled block and return its index."
-      blockMethods := blockMethods copyWith: blockBytecodeGen.
+      blockMethods add: blockBytecodeGen.
       ^blockMethods size - 1
   ]
 

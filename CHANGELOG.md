@@ -1,5 +1,41 @@
 # Changelog
 
+## 2026-04-01 — ArrayList: Go-Backed Growable Collection
+
+Added `ArrayList`, a first-class VM type backed by a Go `[]Value` slice,
+with amortized O(1) `add:`, O(1) indexed access, and efficient `select:`,
+`reject:`, `collect:` — eliminating the O(n²) copying penalty of building
+Arrays incrementally with `copyWith:` or concatenation.
+
+- **New primitive type** — NaN-boxed marker `56 << 24`, registered in
+  `ConcurrencyRegistry`. Go struct in `vm/arraylist.go`, 30+ primitive
+  methods in `vm/arraylist_primitives.go`, Maggie wrapper in
+  `lib/ArrayList.mag` with 40 passing doctests.
+- **Full collection protocol** — `new`, `new:`, `withAll:`, `add:`,
+  `addAll:`, `at:`, `at:put:`, `size`, `capacity`, `removeLast`,
+  `removeAt:`, `clear`, `first`, `last`, `isEmpty`, `notEmpty`,
+  `includes:`, `indexOf:`, `asArray`, `do:`, `collect:`, `select:`,
+  `reject:`, `inject:into:`, `detect:`, `detect:ifNone:`, `copy`,
+  `sort:`, `printString`.
+- **Eliminated O(n²) patterns across 11 files:**
+  - `Array>>select:` / `Array>>reject:` — now O(n)
+  - `Set>>collect:` / `Set>>printString` — now O(n)
+  - `BytecodeGenerator` — all 6 accumulators (bytecode, literals,
+    selectors, temps, captures, blockMethods) + 14 emit methods
+  - `Lexer>>allTokens` — token accumulation
+  - `Parser` — all 7 collection sites (cascades, keyword args, params,
+    temps, arrays, statements, class bodies)
+  - `Compiler` — method/class/trait accumulation
+  - `Supervisor` / `DynamicSupervisor` — restartTimes, runningChildren
+  - `Cluster` — failedSeeds, members, deadAddrs
+  - `HashRing` — nodes, positions, nodesFor:count:
+  - `SqliteRows>>toArray` — row accumulation
+- **Documentation** — Guide chapter 5 (Collections) updated with 3 new
+  sections. USER_GUIDE.md API reference section added. CLAUDE.md section
+  added. HTML API docs regenerated.
+
+Test count: 1102 → 1113 (+11 new guide doctests).
+
 ## 2026-03-31 — Fix Concurrent Map Writes Race Condition (#2)
 
 Fixed `fatal error: concurrent map writes` crash when HTTP handlers run

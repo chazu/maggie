@@ -1,0 +1,326 @@
+"""
+A growable, ordered collection backed by a Go slice.
+
+ArrayList provides amortized O(1) append via `add:`, O(1) indexed access,
+and efficient `select:`, `reject:`, `collect:` operations — all without
+the O(n^2) copying penalty of building Arrays incrementally with `copyWith:`
+or concatenation.
+
+Use ArrayList when building up a collection element by element, then call
+`asArray` if you need a fixed-size Array at the end.
+
+```test
+ArrayList new size >>> 0
+ArrayList new isEmpty >>> true
+```
+
+```example
+"Build a list incrementally"
+| list |
+list := ArrayList new.
+list add: 1.
+list add: 2.
+list add: 3.
+list size
+```
+"""
+ArrayList subclass: Object
+  include: Printable
+
+  # --- Class methods ---
+
+  """
+  Create a new empty ArrayList with default capacity.
+
+  ```test
+  ArrayList new size >>> 0
+  ArrayList new isEmpty >>> true
+  ```
+  """
+  classMethod: new ^<ArrayList> [ <primitive> ]
+
+  """
+  Create a new empty ArrayList with the given initial capacity.
+  The capacity is a hint for how many elements will be added.
+
+  ```test
+  (ArrayList new: 100) size >>> 0
+  (ArrayList new: 100) capacity >= 100 >>> true
+  ```
+  """
+  classMethod: new: capacity <Integer> ^<ArrayList> [ <primitive> ]
+
+  """
+  Create a new ArrayList containing all elements of the given Array.
+
+  ```test
+  (ArrayList withAll: #(1 2 3)) size >>> 3
+  (ArrayList withAll: #(10 20)) first >>> 10
+  ```
+  """
+  classMethod: withAll: anArray <Array> ^<ArrayList> [ <primitive> ]
+
+  # --- Adding ---
+
+  """
+  Append an element to the end. Amortized O(1). Returns self.
+
+  ```test
+  (ArrayList new add: 42) size >>> 1
+  ```
+  """
+  method: add: element ^<Self> [ <primitive> ]
+
+  """
+  Append all elements from a collection (Array or ArrayList). Returns self.
+
+  ```test
+  (ArrayList withAll: #(1 2 3)) size >>> 3
+  ```
+  """
+  method: addAll: collection ^<Self> [ <primitive> ]
+
+  # --- Indexed access ---
+
+  """
+  Return the element at a 0-based index.
+
+  ```test
+  (ArrayList withAll: #(10 20 30)) at: 0 >>> 10
+  (ArrayList withAll: #(10 20 30)) at: 2 >>> 30
+  ```
+  """
+  method: at: index <Integer> [ <primitive> ]
+
+  """
+  Set the element at a 0-based index. Returns the value stored.
+
+  ```test
+  (ArrayList withAll: #(10 20 30)) at: 1 put: 99 >>> 99
+  ```
+  """
+  method: at: index <Integer> put: value [ <primitive> ]
+
+  # --- Size and capacity ---
+
+  """
+  Return the number of elements.
+
+  ```test
+  (ArrayList withAll: #(1 2 3)) size >>> 3
+  ArrayList new size >>> 0
+  ```
+  """
+  method: size ^<Integer> [ <primitive> ]
+
+  """
+  Return the current backing capacity.
+
+  ```test
+  (ArrayList new: 50) capacity >= 50 >>> true
+  ```
+  """
+  method: capacity ^<Integer> [ <primitive> ]
+
+  """
+  Return true if the list has no elements.
+
+  ```test
+  ArrayList new isEmpty >>> true
+  (ArrayList withAll: #(1)) isEmpty >>> false
+  ```
+  """
+  method: isEmpty ^<Boolean> [ <primitive> ]
+
+  """
+  Return true if the list has at least one element.
+
+  ```test
+  (ArrayList withAll: #(1)) notEmpty >>> true
+  ArrayList new notEmpty >>> false
+  ```
+  """
+  method: notEmpty ^<Boolean> [ <primitive> ]
+
+  # --- Access ---
+
+  """
+  Return the first element, or nil if empty.
+
+  ```test
+  (ArrayList withAll: #(10 20 30)) first >>> 10
+  ```
+  """
+  method: first [ <primitive> ]
+
+  """
+  Return the last element, or nil if empty.
+
+  ```test
+  (ArrayList withAll: #(10 20 30)) last >>> 30
+  ```
+  """
+  method: last [ <primitive> ]
+
+  """
+  Return true if the list contains an element equal to anObject.
+
+  ```test
+  (ArrayList withAll: #(1 2 3)) includes: 2 >>> true
+  (ArrayList withAll: #(1 2 3)) includes: 5 >>> false
+  ```
+  """
+  method: includes: anObject ^<Boolean> [ <primitive> ]
+
+  """
+  Return the 0-based index of anObject, or -1 if not found.
+
+  ```test
+  (ArrayList withAll: #(10 20 30)) indexOf: 20 >>> 1
+  (ArrayList withAll: #(10 20 30)) indexOf: 99 >>> -1
+  ```
+  """
+  method: indexOf: anObject ^<Integer> [ <primitive> ]
+
+  # --- Removing ---
+
+  """
+  Remove and return the last element. O(1).
+
+  ```test
+  (ArrayList withAll: #(1 2 3)) removeLast >>> 3
+  ```
+  """
+  method: removeLast [ <primitive> ]
+
+  """
+  Remove and return the element at index, shifting remaining elements.
+
+  ```test
+  (ArrayList withAll: #(10 20 30)) removeAt: 1 >>> 20
+  ```
+  """
+  method: removeAt: index <Integer> [ <primitive> ]
+
+  """
+  Remove all elements, keeping the backing capacity. Returns self.
+
+  ```test
+  (ArrayList withAll: #(1 2 3)) clear isEmpty >>> true
+  ```
+  """
+  method: clear ^<Self> [ <primitive> ]
+
+  # --- Conversion ---
+
+  """
+  Return a new fixed-size Array containing all elements.
+
+  ```test
+  (ArrayList withAll: #(1 2 3)) asArray >>> #(1 2 3 )
+  ArrayList new asArray >>> #()
+  ```
+  """
+  method: asArray ^<Array> [ <primitive> ]
+
+  # --- Iteration ---
+
+  """
+  Evaluate block once for each element.
+  """
+  method: do: block [ <primitive> ]
+
+  """
+  Return a new ArrayList with block applied to each element.
+
+  ```test
+  ((ArrayList withAll: #(1 2 3)) collect: [:x | x * 2]) asArray >>> #(2 4 6 )
+  ```
+  """
+  method: collect: block ^<ArrayList> [ <primitive> ]
+
+  """
+  Return a new ArrayList containing only elements for which block returns true.
+
+  ```test
+  ((ArrayList withAll: #(1 2 3 4 5)) select: [:x | x > 3]) asArray >>> #(4 5 )
+  ```
+  """
+  method: select: block ^<ArrayList> [ <primitive> ]
+
+  """
+  Return a new ArrayList excluding elements for which block returns true.
+
+  ```test
+  ((ArrayList withAll: #(1 2 3 4 5)) reject: [:x | x > 3]) asArray >>> #(1 2 3 )
+  ```
+  """
+  method: reject: block ^<ArrayList> [ <primitive> ]
+
+  """
+  Accumulate a value by applying block to each element in turn.
+
+  ```test
+  (ArrayList withAll: #(1 2 3 4)) inject: 0 into: [:sum :x | sum + x] >>> 10
+  ```
+  """
+  method: inject: initial into: block [ <primitive> ]
+
+  """
+  Return the first element for which block returns true, or nil if none.
+
+  ```test
+  (ArrayList withAll: #(1 2 3 4 5)) detect: [:x | x > 3] >>> 4
+  (ArrayList withAll: #(1 2 3)) detect: [:x | x > 10] >>> nil
+  ```
+  """
+  method: detect: block [ <primitive> ]
+
+  """
+  Return the first element for which block returns true.
+  If none found, evaluate noneBlock and return its result.
+
+  ```test
+  (ArrayList withAll: #(1 2 3)) detect: [:x | x > 10] ifNone: [0] >>> 0
+  ```
+  """
+  method: detect: block ifNone: noneBlock [ <primitive> ]
+
+  # --- Copying ---
+
+  """
+  Return a new ArrayList with the same elements.
+  """
+  method: copy ^<ArrayList> [ <primitive> ]
+
+  """
+  Return a new ArrayList that is the concatenation of self and other.
+  """
+  method: , other ^<ArrayList> [
+    | result |
+    result := ArrayList new: self size + other size.
+    self do: [:each | result add: each].
+    other do: [:each | result add: each].
+    ^result
+  ]
+
+  # --- Sorting ---
+
+  """
+  Sort the list in-place using a comparison block.
+  The block receives two elements and should return a negative number
+  (a < b), zero (a = b), or positive number (a > b). Returns self.
+  """
+  method: sort: aBlock ^<Self> [ <primitive> ]
+
+  # --- Printing ---
+
+  """
+  Return a string representation.
+
+  ```test
+  (ArrayList withAll: #(1 2 3)) printString >>> 'ArrayList(1 2 3)'
+  ArrayList new printString >>> 'ArrayList()'
+  ```
+  """
+  method: printString ^<String> [ <primitive> ]
