@@ -894,6 +894,24 @@ func (vm *VM) ClassFor(v Value) *Class {
 // Public execution API
 // ---------------------------------------------------------------------------
 
+// DebugCallStack returns the current call stack from the main interpreter.
+// Safe to call from another goroutine while the interpreter is paused.
+func (vm *VM) DebugCallStack() []StackFrame {
+	if vm.Debugger == nil {
+		return nil
+	}
+	return vm.Debugger.GetCallStack(vm.interpreter)
+}
+
+// DebugVariables returns the variables visible in the given stack frame.
+// Safe to call from another goroutine while the interpreter is paused.
+func (vm *VM) DebugVariables(frameID int) []Variable {
+	if vm.Debugger == nil {
+		return nil
+	}
+	return vm.Debugger.GetVariables(vm.interpreter, frameID)
+}
+
 // Execute runs a compiled method with the given receiver and arguments.
 func (vm *VM) Execute(method *CompiledMethod, receiver Value, args []Value) Value {
 	return vm.interpreter.Execute(method, receiver, args)
