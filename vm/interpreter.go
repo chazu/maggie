@@ -567,6 +567,36 @@ func (i *Interpreter) runFrame() Value {
 			return frame.Receiver // Methods return self implicitly
 		}
 
+		// --- Debugger hook ---
+		// Check for breakpoints / stepping when debugger is active.
+		if i.vm != nil && i.vm.Debugger != nil && i.vm.Debugger.IsActive() {
+			var loc *SourceLoc
+			className := ""
+			methodName := ""
+			if frame.Block != nil {
+				loc = frame.Block.SourceLocation(frame.IP)
+				// Blocks inherit class/method from their enclosing method
+				if frame.HomeMethod != nil {
+					if frame.HomeMethod.Class() != nil {
+						className = frame.HomeMethod.Class().Name
+					}
+					methodName = frame.HomeMethod.Name()
+				}
+			} else if frame.Method != nil {
+				loc = frame.Method.SourceLocation(frame.IP)
+				if frame.Method.Class() != nil {
+					className = frame.Method.Class().Name
+				}
+				methodName = frame.Method.Name()
+			}
+			if loc != nil {
+				shouldBreak, _ := i.vm.Debugger.ShouldBreak(className, methodName, loc.Line, i.fp)
+				if shouldBreak {
+					i.vm.Debugger.WaitForResume()
+				}
+			}
+		}
+
 		op := Opcode(bc[frame.IP])
 		frame.IP++
 
