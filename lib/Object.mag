@@ -247,6 +247,90 @@ Object subclass: nil
       ^self primAsCueValue
   ]
 
+  # --- Change / Update Notification Protocol ---
+
+  """
+  Register anObject as a dependent of the receiver. When the receiver
+  sends `changed` or `changed:`, anObject will receive `update:` with
+  the change aspect. Returns the dependent.
+
+  ```test
+  model := Object new. dep := Object new.
+  model addDependent: dep.
+  model dependents size >>> 1
+  ```
+  """
+  method: addDependent: anObject <Object> ^<Object> [
+      ^self primAddDependent: anObject
+  ]
+
+  """
+  Remove anObject from the receiver's dependents list. Returns the
+  dependent. No error if anObject was not a dependent.
+
+  ```test
+  model := Object new. dep := Object new.
+  model addDependent: dep.
+  model removeDependent: dep.
+  model dependents size >>> 0
+  ```
+  """
+  method: removeDependent: anObject <Object> ^<Object> [
+      ^self primRemoveDependent: anObject
+  ]
+
+  """
+  Return an Array of the receiver's dependents. Returns an empty
+  Array if there are no dependents.
+
+  ```test
+  Object new dependents size >>> 0
+  ```
+  """
+  method: dependents ^<Array> [
+      ^self primDependents
+  ]
+
+  """
+  Notify all dependents that the receiver has changed, passing
+  anAspect (typically a symbol) to each dependent's `update:` method.
+
+  ```test
+  model := Object new. dep := Object new.
+  model addDependent: dep.
+  model dependents size >>> 1
+  ```
+  """
+  method: changed: anAspect <Object> [
+      self dependents do: [:each |
+          each update: anAspect
+      ]
+  ]
+
+  """
+  Notify all dependents that the receiver has changed, with nil as the aspect.
+  """
+  method: changed [
+      self changed: nil
+  ]
+
+  """
+  Called when a dependent object receives a change notification.
+  Override this in subclasses to respond to model changes.
+  The default implementation does nothing.
+  """
+  method: update: anAspect <Object> [
+      "Default: do nothing"
+  ]
+
+  """
+  Remove all dependents from the receiver. Use this when an object
+  is being discarded to avoid stale references.
+  """
+  method: release [
+      self primReleaseDependents
+  ]
+
   # --- Primitives ---
 
   """Return a hash value for the receiver."""
@@ -266,6 +350,18 @@ Object subclass: nil
 
   """Evaluate nilBlock if nil, notNilBlock with self otherwise."""
   method: ifNil: nilBlock ifNotNil: notNilBlock [ <primitive> ]
+
+  """Add a dependent to the receiver's notification list."""
+  method: primAddDependent: anObject [ <primitive> ]
+
+  """Remove a dependent from the receiver's notification list."""
+  method: primRemoveDependent: anObject [ <primitive> ]
+
+  """Return an Array of the receiver's dependents."""
+  method: primDependents [ <primitive> ]
+
+  """Remove all dependents from the receiver."""
+  method: primReleaseDependents [ <primitive> ]
 
   """Create a new instance of this class."""
   classMethod: new [ <primitive> ]

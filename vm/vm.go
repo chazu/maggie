@@ -187,6 +187,11 @@ type VM struct {
 	// pendingSpawns tracks Futures for forkOn: calls awaiting results from
 	// remote nodes. Keyed by futureID embedded in the SpawnBlock.
 	pendingSpawns *pendingSpawnRegistry
+
+	// dependents maps objects to their dependent lists for the ST-80
+	// change/update notification protocol. Uses Value identity (==) as key.
+	dependents   map[Value][]Value
+	dependentsMu sync.RWMutex
 }
 
 // NewVM creates and bootstraps a new VM.
@@ -203,6 +208,7 @@ func NewVM() *VM {
 		symbolDispatch:   NewSymbolDispatch(),
 		processNames:     make(map[string]uint64),
 		processNamesByID: make(map[uint64]string),
+		dependents:       make(map[Value][]Value),
 		remoteChannels:   newRemoteChannelRegistry(),
 		channelExports:   newChannelExportRegistry(),
 		nodeRefs:         make(map[int]*NodeRefData),

@@ -417,4 +417,72 @@ func (vm *VM) registerObjectPrimitives() {
 		}
 		return FromSmallInt(int64(obj.NumSlots()))
 	})
+
+	// --- Dependency / Change-Notification Protocol ---
+
+	// primAddDependent: adds a dependent to the receiver's dependents list.
+	// Uses identity (Value ==) to avoid duplicates.
+	c.AddMethod1(vm.Selectors, "primAddDependent:", func(vmPtr interface{}, recv Value, dep Value) Value {
+		v := vmPtr.(*VM)
+		v.dependentsMu.Lock()
+		deps := v.dependents[recv]
+		// Check for duplicate by identity
+		for _, d := range deps {
+			if d == dep {
+				v.dependentsMu.Unlock()
+				return dep
+			}
+		}
+		v.dependents[recv] = append(deps, dep)
+		v.dependentsMu.Unlock()
+		return dep
+	})
+
+	// primRemoveDependent: removes a dependent from the receiver's dependents list.
+	c.AddMethod1(vm.Selectors, "primRemoveDependent:", func(vmPtr interface{}, recv Value, dep Value) Value {
+		v := vmPtr.(*VM)
+		v.dependentsMu.Lock()
+		deps := v.dependents[recv]
+		for i, d := range deps {
+			if d == dep {
+				// Remove by swapping with last element
+				deps[i] = deps[len(deps)-1]
+				deps[len(deps)-1] = Nil // clear for GC
+				deps = deps[:len(deps)-1]
+				if len(deps) == 0 {
+					delete(v.dependents, recv)
+				} else {
+					v.dependents[recv] = deps
+				}
+				v.dependentsMu.Unlock()
+				return dep
+			}
+		}
+		v.dependentsMu.Unlock()
+		return dep
+	})
+
+	// primDependents returns an Array of the receiver's dependents.
+	c.AddMethod0(vm.Selectors, "primDependents", func(vmPtr interface{}, recv Value) Value {
+		v := vmPtr.(*VM)
+		v.dependentsMu.RLock()
+		deps := v.dependents[recv]
+		v.dependentsMu.RUnlock()
+		if len(deps) == 0 {
+			return v.NewArray(0)
+		}
+		// Copy slice so caller doesn't hold a reference to internal storage
+		copied := make([]Value, len(deps))
+		copy(copied, deps)
+		return v.NewArrayWithElements(copied)
+	})
+
+	// primReleaseDependents removes all dependents for the receiver.
+	c.AddMethod0(vm.Selectors, "primReleaseDependents", func(vmPtr interface{}, recv Value) Value {
+		v := vmPtr.(*VM)
+		v.dependentsMu.Lock()
+		delete(v.dependents, recv)
+		v.dependentsMu.Unlock()
+		return recv
+	})
 }
