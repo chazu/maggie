@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 
 	"github.com/chazu/maggie/compiler"
 	"github.com/chazu/maggie/gowrap"
@@ -156,7 +157,7 @@ func buildTarget(m *manifest.Manifest, target *manifest.ResolvedTarget, verbose 
 	defer os.Remove(imagePath)
 
 	// Collect go-wrap packages from dependencies
-	depGoWrapPkgs, depGoModDirs, err := collectDepGoWrapPackages(m, verbose)
+	depGoWrapPkgs, depGoModDirs, depWrapDirs, err := collectDepGoWrapPackages(m, verbose)
 	if err != nil {
 		return fmt.Errorf("collecting dependency go-wrap packages: %w", err)
 	}
@@ -190,28 +191,48 @@ func buildTarget(m *manifest.Manifest, target *manifest.ResolvedTarget, verbose 
 			fmt.Fprintf(os.Stderr, "go-wrap: %d packages (%d from deps), wrapDir=%s\n",
 				len(allGoWrapPkgs), len(depGoWrapPkgs), wrapDir)
 		}
-		for _, pkg := range allGoWrapPkgs {
-			wt := wrapTarget{
-				ImportPath: pkg.Import,
-				Include:    pkg.Include,
-			}
-			if err := wrapPackage(wt, wrapDir, verbose); err != nil {
-				return fmt.Errorf("wrapping %s: %w", pkg.Import, err)
-			}
+
+		// Build set of dep-inherited imports for fast lookup
+		depImports := make(map[string]bool, len(depGoWrapPkgs))
+		for _, pkg := range depGoWrapPkgs {
+			depImports[pkg.Import] = true
 		}
+
 		for _, pkg := range allGoWrapPkgs {
-			model, err := gowrap.IntrospectPackage(pkg.Import, nil)
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "Warning: could not introspect %s: %v (skipping wrapper registration)\n", pkg.Import, err)
-				continue
+			if depImports[pkg.Import] {
+				// Dep-inherited: copy existing wrap files from the dependency
+				srcWrapDir, ok := depWrapDirs[pkg.Import]
+				if !ok {
+					fmt.Fprintf(os.Stderr, "Warning: no wrap dir found for dep package %s (skipping)\n", pkg.Import)
+					continue
+				}
+				pkgName, err := copyDepWrapFiles(srcWrapDir, wrapDir, pkg.Import, verbose)
+				if err != nil {
+					return fmt.Errorf("copying dep wrap for %s: %w", pkg.Import, err)
+				}
+				wrapperPkgs = append(wrapperPkgs, gowrap.WrapperPackageInfo{
+					ImportPath: pkg.Import,
+					PkgName:    pkgName,
+				})
+			} else {
+				// Project-local: wrap from scratch
+				wt := wrapTarget{
+					ImportPath: pkg.Import,
+					Include:    pkg.Include,
+				}
+				if err := wrapPackage(wt, wrapDir, verbose); err != nil {
+					return fmt.Errorf("wrapping %s: %w", pkg.Import, err)
+				}
+				model, err := gowrap.IntrospectPackage(pkg.Import, nil)
+				if err != nil {
+					fmt.Fprintf(os.Stderr, "Warning: could not introspect %s: %v (skipping wrapper registration)\n", pkg.Import, err)
+					continue
+				}
+				wrapperPkgs = append(wrapperPkgs, gowrap.WrapperPackageInfo{
+					ImportPath: pkg.Import,
+					PkgName:    model.Name,
+				})
 			}
-			if verbose {
-				fmt.Fprintf(os.Stderr, "go-wrap: registered %s (pkg=%s)\n", pkg.Import, model.Name)
-			}
-			wrapperPkgs = append(wrapperPkgs, gowrap.WrapperPackageInfo{
-				ImportPath: pkg.Import,
-				PkgName:    model.Name,
-			})
 		}
 	}
 
@@ -249,22 +270,24 @@ func buildTarget(m *manifest.Manifest, target *manifest.ResolvedTarget, verbose 
 }
 
 // collectDepGoWrapPackages resolves dependencies and collects any go-wrap
-// packages declared in their manifests. Returns the collected packages and
-// a list of dependency directories whose go.mod should be merged into the build.
-func collectDepGoWrapPackages(m *manifest.Manifest, verbose bool) ([]manifest.GoWrapPackage, []string, error) {
+// packages declared in their manifests. Returns the collected packages,
+// a list of dependency directories whose go.mod should be merged into the build,
+// and a map from import path to the dependency's wrap directory containing pre-built wrap files.
+func collectDepGoWrapPackages(m *manifest.Manifest, verbose bool) ([]manifest.GoWrapPackage, []string, map[string]string, error) {
 	if len(m.Dependencies) == 0 {
-		return nil, nil, nil
+		return nil, nil, nil, nil
 	}
 
 	resolver := manifest.NewResolver(m, verbose)
 	deps, err := resolver.Resolve()
 	if err != nil {
-		return nil, nil, fmt.Errorf("dependency resolution: %w", err)
+		return nil, nil, nil, fmt.Errorf("dependency resolution: %w", err)
 	}
 
 	var packages []manifest.GoWrapPackage
 	var depDirs []string
 	seen := make(map[string]bool)
+	wrapDirs := make(map[string]string)
 
 	for _, dep := range deps {
 		if dep.Manifest == nil || len(dep.Manifest.GoWrap.Packages) == 0 {
@@ -273,19 +296,123 @@ func collectDepGoWrapPackages(m *manifest.Manifest, verbose bool) ([]manifest.Go
 
 		depDirs = append(depDirs, dep.LocalPath)
 
+		// Determine the dep's wrap output dir
+		depWrapBase := dep.Manifest.WrapOutputDir()
+		if dep.Manifest.GoWrap.Output != "" {
+			depWrapBase = filepath.Join(dep.LocalPath, dep.Manifest.GoWrap.Output)
+		}
+
+		// Scan dep's wrap dir to build import-path → subdir mapping
+		depPkgDirs := mapWrapDirsToImports(depWrapBase)
+
 		for _, pkg := range dep.Manifest.GoWrap.Packages {
 			if seen[pkg.Import] {
 				continue
 			}
 			seen[pkg.Import] = true
 			packages = append(packages, pkg)
+
+			if dir, ok := depPkgDirs[pkg.Import]; ok {
+				wrapDirs[pkg.Import] = dir
+			}
+
 			if verbose {
 				fmt.Fprintf(os.Stderr, "go-wrap: inherited %s from dependency %s\n", pkg.Import, dep.Name)
 			}
 		}
 	}
 
-	return packages, depDirs, nil
+	return packages, depDirs, wrapDirs, nil
+}
+
+// mapWrapDirsToImports scans a wrap output directory and returns a map from
+// Go import path to the subdir containing its wrap files. It reads the
+// "Code generated by mag wrap <import>" comment from each wrap.go.
+func mapWrapDirsToImports(wrapBase string) map[string]string {
+	result := make(map[string]string)
+	entries, err := os.ReadDir(wrapBase)
+	if err != nil {
+		return result
+	}
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		wrapGo := filepath.Join(wrapBase, entry.Name(), "wrap.go")
+		data, err := os.ReadFile(wrapGo)
+		if err != nil {
+			continue
+		}
+		// First line: "// Code generated by mag wrap <import-path>. DO NOT EDIT."
+		for _, line := range strings.SplitN(string(data), "\n", 2) {
+			if strings.HasPrefix(line, "// Code generated by mag wrap ") {
+				importPath := strings.TrimPrefix(line, "// Code generated by mag wrap ")
+				importPath = strings.TrimSuffix(importPath, ". DO NOT EDIT.")
+				importPath = strings.TrimSpace(importPath)
+				if importPath != "" {
+					result[importPath] = filepath.Join(wrapBase, entry.Name())
+				}
+			}
+			break
+		}
+	}
+	return result
+}
+
+// copyDepWrapFiles copies pre-built wrap files (wrap.go, stubs.mag) from a
+// dependency's wrap directory into the project's wrap directory.
+// Returns the Go package name extracted from the wrap.go file.
+func copyDepWrapFiles(srcDir, dstBaseDir, importPath string, verbose bool) (string, error) {
+	// Read the wrap.go to extract the package name
+	wrapGoPath := filepath.Join(srcDir, "wrap.go")
+	wrapGoBytes, err := os.ReadFile(wrapGoPath)
+	if err != nil {
+		return "", fmt.Errorf("reading %s: %w", wrapGoPath, err)
+	}
+
+	// Extract package name from "package wrap_xxx" line
+	pkgName := ""
+	for _, line := range strings.Split(string(wrapGoBytes), "\n") {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, "package ") {
+			pkgName = strings.TrimPrefix(line, "package ")
+			break
+		}
+	}
+	if pkgName == "" {
+		return "", fmt.Errorf("could not find package declaration in %s", wrapGoPath)
+	}
+
+	// The Go package name after "wrap_" is the model name we need
+	modelName := strings.TrimPrefix(pkgName, "wrap_")
+
+	// Create destination directory
+	dstDir := filepath.Join(dstBaseDir, modelName)
+	if err := os.MkdirAll(dstDir, 0o755); err != nil {
+		return "", fmt.Errorf("creating %s: %w", dstDir, err)
+	}
+
+	// Copy wrap.go and stubs.mag
+	for _, fname := range []string{"wrap.go", "stubs.mag"} {
+		srcPath := filepath.Join(srcDir, fname)
+		srcBytes, err := os.ReadFile(srcPath)
+		if err != nil {
+			if fname == "stubs.mag" {
+				continue // stubs.mag is optional
+			}
+			return "", fmt.Errorf("reading %s: %w", srcPath, err)
+		}
+		dstPath := filepath.Join(dstDir, fname)
+		if err := os.WriteFile(dstPath, srcBytes, 0o644); err != nil {
+			return "", fmt.Errorf("writing %s: %w", dstPath, err)
+		}
+	}
+
+	if verbose {
+		fmt.Fprintf(os.Stderr, "go-wrap: copied dep wrap %s → %s\n", srcDir, dstDir)
+	}
+
+	return modelName, nil
 }
 
 // compileTargetImage creates a VM, compiles a target's sources, and saves the image.

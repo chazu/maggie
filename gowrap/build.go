@@ -79,6 +79,22 @@ func BuildEmbedded(opts EmbeddedBuildOptions) error {
 		return fmt.Errorf("writing main.go: %w", err)
 	}
 
+	// If there are wrapper packages and no project go.mod, copy wrap files into temp dir
+	if len(opts.WrapperPkgs) > 0 && opts.WrapDir != "" {
+		_, projModErr := detectModulePath(opts.ProjectDir)
+		if projModErr != nil {
+			// No project go.mod — copy wrap dir into temp build dir
+			wrapBase := filepath.Base(opts.WrapDir)
+			if wrapBase == "" {
+				wrapBase = "wrap"
+			}
+			destWrapDir := filepath.Join(tmpDir, wrapBase)
+			if err := copyDir(opts.WrapDir, destWrapDir); err != nil {
+				return fmt.Errorf("copying wrap dir to temp build: %w", err)
+			}
+		}
+	}
+
 	if opts.Verbose {
 		fmt.Printf("Build temp dir: %s\n", tmpDir)
 		fmt.Printf("Image size: %d bytes\n", len(imageData))
@@ -190,6 +206,21 @@ func BuildFullSystem(opts FullSystemBuildOptions) error {
 		return fmt.Errorf("writing go.mod: %w", err)
 	}
 
+	// If there are wrapper packages and no project go.mod, copy wrap files into temp dir
+	if len(opts.WrapperPkgs) > 0 && opts.WrapDir != "" {
+		_, projModErr := detectModulePath(opts.ProjectDir)
+		if projModErr != nil {
+			wrapBase := filepath.Base(opts.WrapDir)
+			if wrapBase == "" {
+				wrapBase = "wrap"
+			}
+			destWrapDir := filepath.Join(tmpDir, wrapBase)
+			if err := copyDir(opts.WrapDir, destWrapDir); err != nil {
+				return fmt.Errorf("copying wrap dir to temp build: %w", err)
+			}
+		}
+	}
+
 	if opts.Verbose {
 		fmt.Printf("Full-system build temp dir: %s\n", tmpDir)
 		fmt.Printf("Image size: %d bytes\n", len(imageData))
@@ -232,16 +263,21 @@ func generateProjectConfig(maggieModule, entryPoint, namespace, projectDir, wrap
 	fmt.Fprintf(&b, "package main\n\n")
 
 	// Import wrapper packages if needed
-	if len(wrapperPkgs) > 0 && projectDir != "" {
-		projectModule, _ := detectModulePath(projectDir)
+	if len(wrapperPkgs) > 0 {
+		wrapModule := "mag-embedded-build"
+		if projectDir != "" {
+			if pm, err := detectModulePath(projectDir); err == nil && pm != "" {
+				wrapModule = pm
+			}
+		}
 		wrapBase := filepath.Base(wrapDir)
 		if wrapBase == "" {
-			wrapBase = "gowrap"
+			wrapBase = "wrap"
 		}
 		fmt.Fprintf(&b, "import (\n")
 		for _, pkg := range wrapperPkgs {
 			alias := "wrap_" + sanitizePackageName(pkg.PkgName)
-			fmt.Fprintf(&b, "\t%s \"%s/%s/%s\"\n", alias, projectModule, wrapBase, sanitizePackageName(pkg.PkgName))
+			fmt.Fprintf(&b, "\t%s \"%s/%s/%s\"\n", alias, wrapModule, wrapBase, sanitizePackageName(pkg.PkgName))
 		}
 		fmt.Fprintf(&b, ")\n\n")
 	}
@@ -451,16 +487,21 @@ func generateEmbeddedMain(maggieModule, entryPoint, namespace, projectDir, wrapD
 	fmt.Fprintf(&b, "\t\"%s/compiler\"\n", maggieModule)
 	fmt.Fprintf(&b, "\t\"%s/vm\"\n", maggieModule)
 
-	// Import wrapper packages if any — they live under <projectModule>/gowrap/<pkgName>
-	if len(wrapperPkgs) > 0 && projectDir != "" {
-		projectModule, _ := detectModulePath(projectDir)
+	// Import wrapper packages if any
+	if len(wrapperPkgs) > 0 {
+		wrapModule := "mag-embedded-build"
+		if projectDir != "" {
+			if pm, err := detectModulePath(projectDir); err == nil && pm != "" {
+				wrapModule = pm
+			}
+		}
 		wrapBase := filepath.Base(wrapDir)
 		if wrapBase == "" {
-			wrapBase = "gowrap"
+			wrapBase = "wrap"
 		}
 		for _, pkg := range wrapperPkgs {
 			alias := "wrap_" + sanitizePackageName(pkg.PkgName)
-			fmt.Fprintf(&b, "\t%s \"%s/%s/%s\"\n", alias, projectModule, wrapBase, sanitizePackageName(pkg.PkgName))
+			fmt.Fprintf(&b, "\t%s \"%s/%s/%s\"\n", alias, wrapModule, wrapBase, sanitizePackageName(pkg.PkgName))
 		}
 	}
 
@@ -543,5 +584,27 @@ func generateEmbeddedMain(maggieModule, entryPoint, namespace, projectDir, wrapD
 	fmt.Fprintf(&b, "}\n")
 
 	return b.String()
+}
+
+// copyDir recursively copies src to dst, creating dst if needed.
+func copyDir(src, dst string) error {
+	return filepath.Walk(src, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		rel, err := filepath.Rel(src, path)
+		if err != nil {
+			return err
+		}
+		target := filepath.Join(dst, rel)
+		if info.IsDir() {
+			return os.MkdirAll(target, 0o755)
+		}
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		return os.WriteFile(target, data, info.Mode())
+	})
 }
 
