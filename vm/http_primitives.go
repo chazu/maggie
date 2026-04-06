@@ -183,6 +183,46 @@ func (vm *VM) vmRegisterHttpResponse(resp *HttpResponseObject) Value {
 }
 
 // ---------------------------------------------------------------------------
+// SSEConnection Registry
+// ---------------------------------------------------------------------------
+
+// SSEConnectionObject represents a Server-Sent Events connection.
+// Go holds the HTTP connection open; Maggie sends events via a channel.
+type SSEConnectionObject struct {
+	eventCh chan sseEvent
+	done    <-chan struct{} // r.Context().Done()
+	closed  atomic.Bool
+}
+
+type sseEvent struct {
+	event string // SSE event type (optional)
+	data  string // SSE data payload
+}
+
+func sseConnectionToValue(id uint32) Value {
+	return FromSymbolID(id | sseConnectionMarker)
+}
+
+func sseConnectionIDFromValue(v Value) uint32 {
+	return v.SymbolID() & ^uint32(0xFF<<24)
+}
+
+func (vm *VM) vmGetSSEConnection(v Value) *SSEConnectionObject {
+	if !v.IsSymbol() {
+		return nil
+	}
+	if (v.SymbolID() & markerMask) != sseConnectionMarker {
+		return nil
+	}
+	return vm.registry.GetSSEConnection(sseConnectionIDFromValue(v))
+}
+
+func (vm *VM) vmRegisterSSEConnection(c *SSEConnectionObject) Value {
+	id := vm.registry.RegisterSSEConnection(c)
+	return sseConnectionToValue(id)
+}
+
+// ---------------------------------------------------------------------------
 // HttpServer Primitives Registration
 // ---------------------------------------------------------------------------
 
@@ -235,6 +275,87 @@ func (vm *VM) registerHttpPrimitives() {
 		}
 		fileServer := http.FileServer(http.Dir(dirPath))
 		srv.mux.Handle(urlPath, http.StripPrefix(urlPath, fileServer))
+		return recv
+	})
+
+	// sseRoute:handler: — register an SSE endpoint. The handler block receives
+	// [:conn :req |] and runs briefly on the dispatch queue to let Maggie store
+	// the connection. The Go-side event loop then streams events to the client.
+	httpServerClass.AddMethod2(vm.Selectors, "sseRoute:handler:", func(vmPtr interface{}, recv Value, pathVal, handlerBlock Value) Value {
+		v := vmPtr.(*VM)
+		srv := v.vmGetHttpServer(recv)
+		if srv == nil {
+			return Nil
+		}
+		path := v.valueToString(pathVal)
+		bv := v.currentInterpreter().getBlockValue(handlerBlock)
+		if bv == nil {
+			return Nil
+		}
+		block := bv.Block
+		captures := bv.Captures
+		homeSelf := bv.HomeSelf
+		homeMethod := bv.HomeMethod
+
+		srv.mux.HandleFunc(path, func(w http.ResponseWriter, r *http.Request) {
+			if r.Method != http.MethodGet {
+				http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+				return
+			}
+			flusher, ok := w.(http.Flusher)
+			if !ok {
+				http.Error(w, "Streaming not supported", http.StatusInternalServerError)
+				return
+			}
+
+			// Disable WriteTimeout for this connection only.
+			rc := http.NewResponseController(w)
+			rc.SetWriteDeadline(time.Time{})
+
+			w.Header().Set("Content-Type", "text/event-stream")
+			w.Header().Set("Cache-Control", "no-cache")
+			w.Header().Set("Connection", "keep-alive")
+			w.WriteHeader(http.StatusOK)
+			flusher.Flush()
+
+			conn := &SSEConnectionObject{
+				eventCh: make(chan sseEvent, 16),
+				done:    r.Context().Done(),
+			}
+
+			// Dispatch briefly to run the Maggie handler block.
+			v.Dispatch(func() Value {
+				interp := v.newInterpreter()
+				v.registerInterpreter(interp)
+				defer v.unregisterInterpreter()
+				connVal := v.vmRegisterSSEConnection(conn)
+				reqObj := &HttpRequestObject{request: r}
+				reqVal := v.vmRegisterHttpRequest(reqObj)
+				interp.ExecuteBlockDetached(block, captures, []Value{connVal, reqVal}, homeSelf, homeMethod)
+				return Nil
+			})
+
+			// SSE event loop — runs on the HTTP handler goroutine, not the dispatch queue.
+			for {
+				select {
+				case evt, ok := <-conn.eventCh:
+					if !ok {
+						return // channel closed via conn close
+					}
+					if evt.event != "" {
+						fmt.Fprintf(w, "event: %s\n", evt.event)
+					}
+					for _, line := range strings.Split(evt.data, "\n") {
+						fmt.Fprintf(w, "data: %s\n", line)
+					}
+					fmt.Fprint(w, "\n")
+					flusher.Flush()
+				case <-r.Context().Done():
+					conn.closed.Store(true)
+					return
+				}
+			}
+		})
 		return recv
 	})
 
@@ -620,5 +741,71 @@ func (vm *VM) registerHttpPrimitives() {
 			return Nil
 		}
 		return v.registry.NewStringValue(string(body))
+	})
+
+	// -------------------------------------------------------------------
+	// SSEConnection Primitives
+	// -------------------------------------------------------------------
+
+	sseConnectionClass := vm.createClass("SSEConnection", vm.ObjectClass)
+	vm.Globals["SSEConnection"] = vm.classValue(sseConnectionClass)
+	vm.symbolDispatch.Register(sseConnectionMarker, &SymbolTypeEntry{Class: sseConnectionClass})
+
+	// send: data — send a data-only SSE event. Returns true/false.
+	sseConnectionClass.AddMethod1(vm.Selectors, "send:", func(vmPtr interface{}, recv Value, dataVal Value) Value {
+		v := vmPtr.(*VM)
+		conn := v.vmGetSSEConnection(recv)
+		if conn == nil || conn.closed.Load() {
+			return False
+		}
+		data := v.valueToString(dataVal)
+		select {
+		case conn.eventCh <- sseEvent{data: data}:
+			return True
+		case <-conn.done:
+			conn.closed.Store(true)
+			return False
+		}
+	})
+
+	// send:event: — send a named SSE event (e.g. for Datastar). Returns true/false.
+	sseConnectionClass.AddMethod2(vm.Selectors, "send:event:", func(vmPtr interface{}, recv Value, dataVal, eventVal Value) Value {
+		v := vmPtr.(*VM)
+		conn := v.vmGetSSEConnection(recv)
+		if conn == nil || conn.closed.Load() {
+			return False
+		}
+		data := v.valueToString(dataVal)
+		event := v.valueToString(eventVal)
+		select {
+		case conn.eventCh <- sseEvent{event: event, data: data}:
+			return True
+		case <-conn.done:
+			conn.closed.Store(true)
+			return False
+		}
+	})
+
+	// close — close the SSE connection from the server side.
+	sseConnectionClass.AddMethod0(vm.Selectors, "close", func(vmPtr interface{}, recv Value) Value {
+		v := vmPtr.(*VM)
+		conn := v.vmGetSSEConnection(recv)
+		if conn == nil {
+			return recv
+		}
+		if !conn.closed.Swap(true) {
+			close(conn.eventCh)
+		}
+		return recv
+	})
+
+	// isOpen — check if the client is still connected.
+	sseConnectionClass.AddMethod0(vm.Selectors, "isOpen", func(vmPtr interface{}, recv Value) Value {
+		v := vmPtr.(*VM)
+		conn := v.vmGetSSEConnection(recv)
+		if conn == nil || conn.closed.Load() {
+			return False
+		}
+		return True
 	})
 }

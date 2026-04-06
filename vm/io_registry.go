@@ -13,8 +13,9 @@ type IORegistry struct {
 	extProcesses  *AutoIDRegistry[*ExternalProcessObject]
 	unixListeners *AutoIDRegistry[*UnixListenerObject]
 	unixConns     *AutoIDRegistry[*UnixConnObject]
-	jsonReaders   *AutoIDRegistry[*JsonReaderObject]
-	jsonWriters   *AutoIDRegistry[*JsonWriterObject]
+	jsonReaders      *AutoIDRegistry[*JsonReaderObject]
+	jsonWriters      *AutoIDRegistry[*JsonWriterObject]
+	sseConnections   *AutoIDRegistry[*SSEConnectionObject]
 }
 
 // NewIORegistry creates an IORegistry with all sub-registries initialized.
@@ -29,8 +30,9 @@ func NewIORegistry() *IORegistry {
 		extProcesses:  NewAutoIDRegistry[*ExternalProcessObject](1),
 		unixListeners: NewAutoIDRegistry[*UnixListenerObject](1),
 		unixConns:     NewAutoIDRegistry[*UnixConnObject](1),
-		jsonReaders:   NewAutoIDRegistry[*JsonReaderObject](1),
-		jsonWriters:   NewAutoIDRegistry[*JsonWriterObject](1),
+		jsonReaders:      NewAutoIDRegistry[*JsonReaderObject](1),
+		jsonWriters:      NewAutoIDRegistry[*JsonWriterObject](1),
+		sseConnections:   NewAutoIDRegistry[*SSEConnectionObject](1),
 	}
 }
 
@@ -119,6 +121,22 @@ func (io *IORegistry) RegisterJsonWriter(w *JsonWriterObject) uint32 { return io
 func (io *IORegistry) GetJsonWriter(id uint32) *JsonWriterObject     { return io.jsonWriters.Get(id) }
 
 // ---------------------------------------------------------------------------
+// SSE Connections
+// ---------------------------------------------------------------------------
+
+func (io *IORegistry) RegisterSSEConnection(c *SSEConnectionObject) uint32 { return io.sseConnections.Register(c) }
+func (io *IORegistry) GetSSEConnection(id uint32) *SSEConnectionObject     { return io.sseConnections.Get(id) }
+func (io *IORegistry) UnregisterSSEConnection(id uint32)                   { io.sseConnections.Delete(id) }
+func (io *IORegistry) SSEConnectionCount() int                             { return io.sseConnections.Count() }
+
+// SweepSSEConnections removes closed SSE connections from the registry.
+func (io *IORegistry) SweepSSEConnections() int {
+	return io.sseConnections.Sweep(func(_ uint32, c *SSEConnectionObject) bool {
+		return !c.closed.Load()
+	})
+}
+
+// ---------------------------------------------------------------------------
 // Stats
 // ---------------------------------------------------------------------------
 
@@ -131,7 +149,8 @@ func (io *IORegistry) IOStats() map[string]int {
 		"httpClients":   io.HttpClientCount(),
 		"httpRequests":  io.HttpRequestCount(),
 		"httpResponses": io.HttpResponseCount(),
-		"unixListeners": io.UnixListenerCount(),
-		"unixConns":     io.UnixConnCount(),
+		"unixListeners":  io.UnixListenerCount(),
+		"unixConns":      io.UnixConnCount(),
+		"sseConnections": io.SSEConnectionCount(),
 	}
 }
