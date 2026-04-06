@@ -31,15 +31,16 @@ func detectModulePath(projectDir string) (string, error) {
 
 // EmbeddedBuildOptions configures a build that embeds a compiled image.
 type EmbeddedBuildOptions struct {
-	OutputBinary string
-	ImagePath    string // path to compiled .image file to embed
-	EntryPoint   string // e.g. "Main.start" — from maggie.toml [source] entry
-	Namespace    string // e.g. "ProcyonPark" — from maggie.toml [project] namespace
-	WrapDir      string // optional: directory containing gowrap packages
-	WrapperPkgs  []WrapperPackageInfo
-	ProjectDir   string // project root (must have go.mod if WrapperPkgs non-empty)
-	MaggieDir    string // path to maggie repo (for go.mod replace)
-	Verbose      bool
+	OutputBinary   string
+	ImagePath      string // path to compiled .image file to embed
+	EntryPoint     string // e.g. "Main.start" — from maggie.toml [source] entry
+	Namespace      string // e.g. "ProcyonPark" — from maggie.toml [project] namespace
+	WrapDir        string // optional: directory containing gowrap packages
+	WrapperPkgs    []WrapperPackageInfo
+	ProjectDir     string // project root (must have go.mod if WrapperPkgs non-empty)
+	MaggieDir      string // path to maggie repo (for go.mod replace)
+	ExtraGoModDirs []string // additional dirs whose go.mod should be merged (e.g., deps with go-wrap)
+	Verbose        bool
 }
 
 // BuildEmbedded creates a standalone binary with a compiled Maggie image embedded.
@@ -67,7 +68,7 @@ func BuildEmbedded(opts EmbeddedBuildOptions) error {
 	}
 
 	// Generate go.mod
-	goModContent := generateEmbeddedGoMod(maggieModule, opts.MaggieDir, opts.ProjectDir, opts.WrapDir, opts.WrapperPkgs)
+	goModContent := generateEmbeddedGoMod(maggieModule, opts.MaggieDir, opts.ProjectDir, opts.WrapDir, opts.WrapperPkgs, opts.ExtraGoModDirs)
 	if err := os.WriteFile(filepath.Join(tmpDir, "go.mod"), []byte(goModContent), 0o644); err != nil {
 		return fmt.Errorf("writing go.mod: %w", err)
 	}
@@ -117,15 +118,16 @@ func BuildEmbedded(opts EmbeddedBuildOptions) error {
 // image embedded instead of the stock maggie.image. When invoked with no
 // arguments, it runs the project's entry point.
 type FullSystemBuildOptions struct {
-	OutputBinary string
-	ImagePath    string              // compiled .image with project code baked in
-	EntryPoint   string              // default entry point (e.g., "Main.start")
-	Namespace    string              // project namespace
-	WrapDir      string              // optional: directory containing gowrap packages
-	WrapperPkgs  []WrapperPackageInfo
-	ProjectDir   string
-	MaggieDir    string // path to maggie repo root (source of cmd/mag/)
-	Verbose      bool
+	OutputBinary   string
+	ImagePath      string // compiled .image with project code baked in
+	EntryPoint     string // default entry point (e.g., "Main.start")
+	Namespace      string // project namespace
+	WrapDir        string // optional: directory containing gowrap packages
+	WrapperPkgs    []WrapperPackageInfo
+	ProjectDir     string
+	MaggieDir      string   // path to maggie repo root (source of cmd/mag/)
+	ExtraGoModDirs []string // additional dirs whose go.mod should be merged (e.g., deps with go-wrap)
+	Verbose        bool
 }
 
 // BuildFullSystem creates a binary that is a full mag CLI with the project's
@@ -183,7 +185,7 @@ func BuildFullSystem(opts FullSystemBuildOptions) error {
 
 	// Generate go.mod — same structure as embedded builds but using
 	// the full set of cmd/mag dependencies (maggie module provides all).
-	goModContent := generateEmbeddedGoMod(maggieModule, opts.MaggieDir, opts.ProjectDir, opts.WrapDir, opts.WrapperPkgs)
+	goModContent := generateEmbeddedGoMod(maggieModule, opts.MaggieDir, opts.ProjectDir, opts.WrapDir, opts.WrapperPkgs, opts.ExtraGoModDirs)
 	if err := os.WriteFile(filepath.Join(tmpDir, "go.mod"), []byte(goModContent), 0o644); err != nil {
 		return fmt.Errorf("writing go.mod: %w", err)
 	}
@@ -320,7 +322,7 @@ func parseGoModDirectives(projectDir string) (requires []string, replaces []stri
 	return requires, replaces
 }
 
-func generateEmbeddedGoMod(maggieModule, maggieDir, projectDir, wrapDir string, wrapperPkgs []WrapperPackageInfo) string {
+func generateEmbeddedGoMod(maggieModule, maggieDir, projectDir, wrapDir string, wrapperPkgs []WrapperPackageInfo, extraGoModDirs []string) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "module mag-embedded-build\n\n")
 	fmt.Fprintf(&b, "go 1.24\n\n")
@@ -331,6 +333,13 @@ func generateEmbeddedGoMod(maggieModule, maggieDir, projectDir, wrapDir string, 
 	// Build a set of modules we already handle so we don't duplicate
 	handledRequires := map[string]bool{maggieModule: true}
 	handledReplaces := map[string]bool{maggieModule: true}
+
+	// Collect deferred replace directives from extra dirs (written after require block)
+	type replaceEntry struct {
+		module string
+		target string
+	}
+	var extraReplaces []replaceEntry
 
 	fmt.Fprintf(&b, "require (\n")
 	fmt.Fprintf(&b, "\t%s v0.0.0\n", maggieModule)
@@ -351,6 +360,47 @@ func generateEmbeddedGoMod(maggieModule, maggieDir, projectDir, wrapDir string, 
 		if len(parts) >= 1 && !handledRequires[parts[0]] {
 			fmt.Fprintf(&b, "\t%s\n", req)
 			handledRequires[parts[0]] = true
+		}
+	}
+
+	// Propagate require/replace directives from dependency go.mod files
+	// (for dependencies that declare go-wrap packages)
+	for _, dir := range extraGoModDirs {
+		depModule, err := detectModulePath(dir)
+		if err != nil {
+			continue // skip deps without go.mod
+		}
+
+		// Add require + replace for the dependency module itself
+		if !handledRequires[depModule] {
+			fmt.Fprintf(&b, "\t%s v0.0.0\n", depModule)
+			handledRequires[depModule] = true
+		}
+		if !handledReplaces[depModule] {
+			absDir, _ := filepath.Abs(dir)
+			extraReplaces = append(extraReplaces, replaceEntry{depModule, absDir})
+			handledReplaces[depModule] = true
+		}
+
+		// Merge the dependency's own require/replace directives
+		depRequires, depReplacesRaw := parseGoModDirectives(dir)
+		for _, req := range depRequires {
+			parts := strings.Fields(req)
+			if len(parts) >= 1 && !handledRequires[parts[0]] {
+				fmt.Fprintf(&b, "\t%s\n", req)
+				handledRequires[parts[0]] = true
+			}
+		}
+		for _, rep := range depReplacesRaw {
+			parts := strings.Fields(rep)
+			if len(parts) >= 3 && parts[1] == "=>" && !handledReplaces[parts[0]] {
+				target := parts[2]
+				if !filepath.IsAbs(target) {
+					target = filepath.Join(dir, target)
+				}
+				extraReplaces = append(extraReplaces, replaceEntry{parts[0], target})
+				handledReplaces[parts[0]] = true
+			}
 		}
 	}
 
@@ -377,6 +427,11 @@ func generateEmbeddedGoMod(maggieModule, maggieDir, projectDir, wrapDir string, 
 			fmt.Fprintf(&b, "\t%s => %s\n", parts[0], target)
 			handledReplaces[parts[0]] = true
 		}
+	}
+
+	// Write deferred replace directives from dependency go.mod files
+	for _, r := range extraReplaces {
+		fmt.Fprintf(&b, "\t%s => %s\n", r.module, r.target)
 	}
 
 	fmt.Fprintf(&b, ")\n")

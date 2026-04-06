@@ -155,19 +155,42 @@ func buildTarget(m *manifest.Manifest, target *manifest.ResolvedTarget, verbose 
 	}
 	defer os.Remove(imagePath)
 
-	// Wrap Go packages if configured
+	// Collect go-wrap packages from dependencies
+	depGoWrapPkgs, depGoModDirs, err := collectDepGoWrapPackages(m, verbose)
+	if err != nil {
+		return fmt.Errorf("collecting dependency go-wrap packages: %w", err)
+	}
+
+	// Merge dependency go-wrap packages with target's own (dedup by import path)
+	allGoWrapPkgs := make([]manifest.GoWrapPackage, len(target.GoWrap.Packages))
+	copy(allGoWrapPkgs, target.GoWrap.Packages)
+	if len(depGoWrapPkgs) > 0 {
+		seen := make(map[string]bool, len(allGoWrapPkgs))
+		for _, pkg := range allGoWrapPkgs {
+			seen[pkg.Import] = true
+		}
+		for _, pkg := range depGoWrapPkgs {
+			if !seen[pkg.Import] {
+				allGoWrapPkgs = append(allGoWrapPkgs, pkg)
+				seen[pkg.Import] = true
+			}
+		}
+	}
+
+	// Wrap Go packages if configured (including inherited from deps)
 	var wrapperPkgs []gowrap.WrapperPackageInfo
 	var wrapDir string
 
-	if len(target.GoWrap.Packages) > 0 {
+	if len(allGoWrapPkgs) > 0 {
 		wrapDir = m.WrapOutputDir()
 		if target.GoWrap.Output != "" {
 			wrapDir = filepath.Join(m.Dir, target.GoWrap.Output)
 		}
 		if verbose {
-			fmt.Fprintf(os.Stderr, "go-wrap: %d packages, wrapDir=%s\n", len(target.GoWrap.Packages), wrapDir)
+			fmt.Fprintf(os.Stderr, "go-wrap: %d packages (%d from deps), wrapDir=%s\n",
+				len(allGoWrapPkgs), len(depGoWrapPkgs), wrapDir)
 		}
-		for _, pkg := range target.GoWrap.Packages {
+		for _, pkg := range allGoWrapPkgs {
 			wt := wrapTarget{
 				ImportPath: pkg.Import,
 				Include:    pkg.Include,
@@ -176,7 +199,7 @@ func buildTarget(m *manifest.Manifest, target *manifest.ResolvedTarget, verbose 
 				return fmt.Errorf("wrapping %s: %w", pkg.Import, err)
 			}
 		}
-		for _, pkg := range target.GoWrap.Packages {
+		for _, pkg := range allGoWrapPkgs {
 			model, err := gowrap.IntrospectPackage(pkg.Import, nil)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "Warning: could not introspect %s: %v (skipping wrapper registration)\n", pkg.Import, err)
@@ -196,31 +219,73 @@ func buildTarget(m *manifest.Manifest, target *manifest.ResolvedTarget, verbose 
 
 	if target.Full {
 		opts := gowrap.FullSystemBuildOptions{
-			OutputBinary: target.Output,
-			ImagePath:    imagePath,
-			EntryPoint:   target.Entry,
-			Namespace:    m.Project.Namespace,
-			WrapDir:      wrapDir,
-			WrapperPkgs:  wrapperPkgs,
-			ProjectDir:   m.Dir,
-			MaggieDir:    maggieDir,
-			Verbose:      verbose,
+			OutputBinary:   target.Output,
+			ImagePath:      imagePath,
+			EntryPoint:     target.Entry,
+			Namespace:      m.Project.Namespace,
+			WrapDir:        wrapDir,
+			WrapperPkgs:    wrapperPkgs,
+			ProjectDir:     m.Dir,
+			MaggieDir:      maggieDir,
+			ExtraGoModDirs: depGoModDirs,
+			Verbose:        verbose,
 		}
 		return gowrap.BuildFullSystem(opts)
 	}
 
 	opts := gowrap.EmbeddedBuildOptions{
-		OutputBinary: target.Output,
-		ImagePath:    imagePath,
-		EntryPoint:   target.Entry,
-		Namespace:    m.Project.Namespace,
-		WrapDir:      wrapDir,
-		WrapperPkgs:  wrapperPkgs,
-		ProjectDir:   m.Dir,
-		MaggieDir:    maggieDir,
-		Verbose:      verbose,
+		OutputBinary:   target.Output,
+		ImagePath:      imagePath,
+		EntryPoint:     target.Entry,
+		Namespace:      m.Project.Namespace,
+		WrapDir:        wrapDir,
+		WrapperPkgs:    wrapperPkgs,
+		ProjectDir:     m.Dir,
+		MaggieDir:      maggieDir,
+		ExtraGoModDirs: depGoModDirs,
+		Verbose:        verbose,
 	}
 	return gowrap.BuildEmbedded(opts)
+}
+
+// collectDepGoWrapPackages resolves dependencies and collects any go-wrap
+// packages declared in their manifests. Returns the collected packages and
+// a list of dependency directories whose go.mod should be merged into the build.
+func collectDepGoWrapPackages(m *manifest.Manifest, verbose bool) ([]manifest.GoWrapPackage, []string, error) {
+	if len(m.Dependencies) == 0 {
+		return nil, nil, nil
+	}
+
+	resolver := manifest.NewResolver(m, verbose)
+	deps, err := resolver.Resolve()
+	if err != nil {
+		return nil, nil, fmt.Errorf("dependency resolution: %w", err)
+	}
+
+	var packages []manifest.GoWrapPackage
+	var depDirs []string
+	seen := make(map[string]bool)
+
+	for _, dep := range deps {
+		if dep.Manifest == nil || len(dep.Manifest.GoWrap.Packages) == 0 {
+			continue
+		}
+
+		depDirs = append(depDirs, dep.LocalPath)
+
+		for _, pkg := range dep.Manifest.GoWrap.Packages {
+			if seen[pkg.Import] {
+				continue
+			}
+			seen[pkg.Import] = true
+			packages = append(packages, pkg)
+			if verbose {
+				fmt.Fprintf(os.Stderr, "go-wrap: inherited %s from dependency %s\n", pkg.Import, dep.Name)
+			}
+		}
+	}
+
+	return packages, depDirs, nil
 }
 
 // compileTargetImage creates a VM, compiles a target's sources, and saves the image.
