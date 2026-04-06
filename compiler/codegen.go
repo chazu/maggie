@@ -994,23 +994,29 @@ func (c *Compiler) compileBlock(block *Block) {
 			// Variable from an enclosing block - already captured
 			if oldCapturedVars != nil {
 				if captIdx, ok := oldCapturedVars[varName]; ok {
+					c.checkSlotIndex(captIdx, "captured variable", varName)
 					c.builder.EmitByte(vm.OpPushCaptured, byte(captIdx))
 					continue
 				}
 			}
 			// Variable from current block scope - use PushTemp
+			c.checkSlotIndex(idx, "block variable", varName)
 			c.builder.EmitByte(vm.OpPushTemp, byte(idx))
 		} else if idx, ok := c.temps[varName]; ok {
 			// Local temp in current scope
+			c.checkSlotIndex(idx, "temp", varName)
 			c.builder.EmitByte(vm.OpPushTemp, byte(idx))
 		} else if idx, ok := c.args[varName]; ok {
 			// Local arg in current scope
+			c.checkSlotIndex(idx, "argument", varName)
 			c.builder.EmitByte(vm.OpPushTemp, byte(idx))
 		} else if idx, ok := c.outerTemps[varName]; ok {
 			// Method-level temp
+			c.checkSlotIndex(idx, "outer temp", varName)
 			c.builder.EmitByte(vm.OpPushHomeTemp, byte(idx))
 		} else if idx, ok := c.outerArgs[varName]; ok {
 			// Method-level arg
+			c.checkSlotIndex(idx, "outer arg", varName)
 			c.builder.EmitByte(vm.OpPushHomeTemp, byte(idx))
 		}
 	}
