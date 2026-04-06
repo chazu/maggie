@@ -237,7 +237,8 @@ func (op Opcode) String() string {
 
 // BytecodeBuilder helps construct bytecode sequences.
 type BytecodeBuilder struct {
-	bytes []byte
+	bytes  []byte
+	Errors []string // accumulated errors (e.g., jump offset overflow)
 }
 
 // NewBytecodeBuilder creates a new bytecode builder.
@@ -340,6 +341,9 @@ func (b *BytecodeBuilder) Mark(label *Label) {
 	// Patch all forward references
 	for _, ref := range label.refs {
 		offset := label.position - (ref + 2) // offset from after the operand
+		if offset < -32768 || offset > 32767 {
+			b.Errors = append(b.Errors, fmt.Sprintf("jump offset overflow: offset %d exceeds int16 range (-32768..32767)", offset))
+		}
 		b.bytes[ref] = byte(offset)
 		b.bytes[ref+1] = byte(offset >> 8)
 	}
@@ -352,6 +356,9 @@ func (b *BytecodeBuilder) EmitJump(op Opcode, label *Label) {
 	if label.resolved {
 		// Backward jump: calculate offset
 		offset := label.position - (len(b.bytes) + 2)
+		if offset < -32768 || offset > 32767 {
+			b.Errors = append(b.Errors, fmt.Sprintf("jump offset overflow: offset %d exceeds int16 range (-32768..32767)", offset))
+		}
 		b.bytes = append(b.bytes, byte(offset), byte(offset>>8))
 	} else {
 		// Forward jump: record position for later patching
@@ -364,6 +371,9 @@ func (b *BytecodeBuilder) EmitJump(op Opcode, label *Label) {
 func (b *BytecodeBuilder) EmitJumpAbsolute(op Opcode, target int) {
 	b.bytes = append(b.bytes, byte(op))
 	offset := target - (len(b.bytes) + 2)
+	if offset < -32768 || offset > 32767 {
+		b.Errors = append(b.Errors, fmt.Sprintf("jump offset overflow: offset %d exceeds int16 range (-32768..32767)", offset))
+	}
 	b.bytes = append(b.bytes, byte(offset), byte(offset>>8))
 }
 

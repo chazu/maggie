@@ -106,6 +106,13 @@ func (c *Compiler) errorf(format string, args ...interface{}) {
 	c.errors = append(c.errors, fmt.Sprintf(format, args...))
 }
 
+// checkSlotIndex validates that a variable slot index fits in a uint8.
+func (c *Compiler) checkSlotIndex(idx int, kind string, name string) {
+	if idx > 0xFF {
+		c.errorf("%s slot overflow: %s has index %d, exceeds maximum of 255", kind, name, idx)
+	}
+}
+
 // errorAt records a compilation error with position information from a node.
 func (c *Compiler) errorAt(node Node, format string, args ...interface{}) {
 	pos := node.Span().Start
@@ -165,6 +172,7 @@ func (c *Compiler) CompileMethod(method *MethodDef) *vm.CompiledMethod {
 	// Method args that are cells: wrap existing arg value in a cell.
 	for name, idx := range c.args {
 		if c.cellVars[name] {
+			c.checkSlotIndex(idx, "argument", name)
 			c.builder.EmitByte(vm.OpPushTemp, byte(idx)) // Push current arg value
 			c.builder.Emit(vm.OpMakeCell)                 // Wrap in cell
 			c.builder.EmitByte(vm.OpStoreTemp, byte(idx)) // Store cell back
@@ -175,6 +183,7 @@ func (c *Compiler) CompileMethod(method *MethodDef) *vm.CompiledMethod {
 	// Method temps that are cells: wrap nil in a cell.
 	for name, idx := range c.temps {
 		if c.cellVars[name] {
+			c.checkSlotIndex(idx, "temp", name)
 			c.builder.Emit(vm.OpPushNil)
 			c.builder.Emit(vm.OpMakeCell)
 			c.builder.EmitByte(vm.OpStoreTemp, byte(idx))
@@ -191,6 +200,9 @@ func (c *Compiler) CompileMethod(method *MethodDef) *vm.CompiledMethod {
 		c.builder.Emit(vm.OpPushSelf)
 		c.builder.Emit(vm.OpReturnTop)
 	}
+
+	// Collect any builder errors (e.g., jump offset overflow)
+	c.errors = append(c.errors, c.builder.Errors...)
 
 	// Build the method
 	b := vm.NewCompiledMethodBuilder(method.Selector, c.numArgs)
@@ -236,6 +248,9 @@ func (c *Compiler) CompileExpression(expr Expr) *vm.CompiledMethod {
 
 	c.compileExpr(expr)
 	c.builder.Emit(vm.OpReturnTop)
+
+	// Collect any builder errors (e.g., jump offset overflow)
+	c.errors = append(c.errors, c.builder.Errors...)
 
 	b := vm.NewCompiledMethodBuilder("doIt", 0)
 	for _, code := range c.builder.Bytes() {
@@ -343,6 +358,12 @@ func (c *Compiler) compileTailCall(expr Expr) {
 
 func (c *Compiler) emitTailSend(selector string, numArgs int) {
 	selectorID := c.selectors.Intern(selector)
+	if selectorID > 0xFFFF {
+		c.errorf("selector table overflow: selector %q has ID %d, exceeds maximum of 65535", selector, selectorID)
+	}
+	if numArgs > 0xFF {
+		c.errorf("too many arguments: %d exceeds maximum of 255 for selector %q", numArgs, selector)
+	}
 	c.builder.EmitSend(vm.OpTailSend, uint16(selectorID), byte(numArgs))
 }
 
@@ -443,6 +464,9 @@ func (c *Compiler) compileChar(value rune) {
 }
 
 func (c *Compiler) compileArrayLiteral(arr *ArrayLiteral) {
+	if len(arr.Elements) > 0xFF {
+		c.errorAt(arr, "array literal too large: %d elements exceeds maximum of 255", len(arr.Elements))
+	}
 	// Push elements and create array
 	for _, elem := range arr.Elements {
 		c.compileExpr(elem)
@@ -451,6 +475,9 @@ func (c *Compiler) compileArrayLiteral(arr *ArrayLiteral) {
 }
 
 func (c *Compiler) compileDynamicArray(arr *DynamicArray) {
+	if len(arr.Elements) > 0xFF {
+		c.errorAt(arr, "dynamic array too large: %d elements exceeds maximum of 255", len(arr.Elements))
+	}
 	for _, elem := range arr.Elements {
 		c.compileExpr(elem)
 	}
@@ -458,6 +485,9 @@ func (c *Compiler) compileDynamicArray(arr *DynamicArray) {
 }
 
 func (c *Compiler) compileDictionaryLiteral(dict *DictionaryLiteral) {
+	if len(dict.Keys) > 0xFF {
+		c.errorAt(dict, "dictionary literal too large: %d keys exceeds maximum of 255", len(dict.Keys))
+	}
 	// Push key-value pairs interleaved: key1, val1, key2, val2, ...
 	for i := range dict.Keys {
 		c.compileExpr(dict.Keys[i])
@@ -475,6 +505,10 @@ func (c *Compiler) addLiteral(value vm.Value) int {
 	}
 
 	idx := len(c.literals)
+	if idx > 0xFFFF {
+		c.errorf("literal pool overflow: method has more than 65535 literals")
+		return 0
+	}
 	c.literals = append(c.literals, value)
 	c.literalMap[key] = idx
 	return idx
@@ -487,6 +521,7 @@ func (c *Compiler) addLiteral(value vm.Value) int {
 func (c *Compiler) compileVariable(name string) {
 	// Check if it's an argument
 	if idx, ok := c.args[name]; ok {
+		c.checkSlotIndex(idx, "argument", name)
 		c.builder.EmitByte(vm.OpPushTemp, byte(idx))
 		// If this is a cell variable, dereference the cell
 		if c.cellVars[name] {
@@ -496,6 +531,7 @@ func (c *Compiler) compileVariable(name string) {
 	}
 	// Check if it's a temp
 	if idx, ok := c.temps[name]; ok {
+		c.checkSlotIndex(idx, "temp", name)
 		c.builder.EmitByte(vm.OpPushTemp, byte(idx))
 		// If this is a cell variable, dereference the cell
 		if c.cellVars[name] {
@@ -505,12 +541,14 @@ func (c *Compiler) compileVariable(name string) {
 	}
 	// Check if it's an instance variable
 	if idx, ok := c.instVars[name]; ok {
+		c.checkSlotIndex(idx, "instance variable", name)
 		c.builder.EmitByte(vm.OpPushIvar, byte(idx))
 		return
 	}
 	// In a block: check captured variables first (for nested blocks)
 	if c.inBlock && c.capturedVars != nil {
 		if idx, ok := c.capturedVars[name]; ok {
+			c.checkSlotIndex(idx, "captured variable", name)
 			c.builder.EmitByte(vm.OpPushCaptured, byte(idx))
 			// If this is a cell variable, dereference the cell
 			if c.cellVars[name] {
@@ -523,10 +561,12 @@ func (c *Compiler) compileVariable(name string) {
 	// HomeBP is propagated to all nested blocks, so they can also access method temps
 	if c.inBlock {
 		if idx, ok := c.outerTemps[name]; ok {
+			c.checkSlotIndex(idx, "outer temp", name)
 			c.builder.EmitByte(vm.OpPushHomeTemp, byte(idx))
 			return
 		}
 		if idx, ok := c.outerArgs[name]; ok {
+			c.checkSlotIndex(idx, "outer arg", name)
 			c.builder.EmitByte(vm.OpPushHomeTemp, byte(idx))
 			return
 		}
@@ -551,6 +591,7 @@ func (c *Compiler) compileAssignment(assign *Assignment) {
 			localIdx = idx
 		}
 		if localIdx >= 0 {
+			c.checkSlotIndex(localIdx, "cell variable", name)
 			// Local cell variable in this scope (temp or arg)
 			if !c.cellInitialized[name] {
 				// First assignment: create the cell
@@ -571,6 +612,7 @@ func (c *Compiler) compileAssignment(assign *Assignment) {
 		// Captured cell variable from outer block
 		if c.inBlock && c.capturedVars != nil {
 			if idx, ok := c.capturedVars[name]; ok {
+				c.checkSlotIndex(idx, "captured cell variable", name)
 				c.builder.EmitByte(vm.OpPushCaptured, byte(idx)) // Get cell ref
 				c.compileExpr(assign.Value)                      // Value to store
 				c.builder.Emit(vm.OpCellSet)                     // Store and leave value on stack
@@ -584,6 +626,7 @@ func (c *Compiler) compileAssignment(assign *Assignment) {
 
 	// Check if it's a temp
 	if idx, ok := c.temps[name]; ok {
+		c.checkSlotIndex(idx, "temp", name)
 		c.builder.EmitByte(vm.OpStoreTemp, byte(idx))
 		c.builder.EmitByte(vm.OpPushTemp, byte(idx)) // Leave value on stack
 		return
@@ -591,6 +634,7 @@ func (c *Compiler) compileAssignment(assign *Assignment) {
 
 	// Check if it's an arg (can't assign to args in standard Smalltalk, but allow it)
 	if idx, ok := c.args[name]; ok {
+		c.checkSlotIndex(idx, "argument", name)
 		c.builder.EmitByte(vm.OpStoreTemp, byte(idx))
 		c.builder.EmitByte(vm.OpPushTemp, byte(idx))
 		return
@@ -598,6 +642,7 @@ func (c *Compiler) compileAssignment(assign *Assignment) {
 
 	// Check if it's an instance variable
 	if idx, ok := c.instVars[name]; ok {
+		c.checkSlotIndex(idx, "instance variable", name)
 		c.builder.EmitByte(vm.OpStoreIvar, byte(idx))
 		c.builder.EmitByte(vm.OpPushIvar, byte(idx)) // Leave value on stack
 		return
@@ -606,6 +651,7 @@ func (c *Compiler) compileAssignment(assign *Assignment) {
 	// In a block: check captured variables first (for nested blocks)
 	if c.inBlock && c.capturedVars != nil {
 		if idx, ok := c.capturedVars[name]; ok {
+			c.checkSlotIndex(idx, "captured variable", name)
 			c.builder.EmitByte(vm.OpStoreCaptured, byte(idx))
 			c.builder.EmitByte(vm.OpPushCaptured, byte(idx)) // Leave value on stack
 			return
@@ -615,6 +661,7 @@ func (c *Compiler) compileAssignment(assign *Assignment) {
 	// In a block: check outer scope temps (use home frame access)
 	if c.inBlock {
 		if idx, ok := c.outerTemps[name]; ok {
+			c.checkSlotIndex(idx, "outer temp", name)
 			c.builder.EmitByte(vm.OpStoreHomeTemp, byte(idx))
 			c.builder.EmitByte(vm.OpPushHomeTemp, byte(idx)) // Leave value on stack
 			return
@@ -713,11 +760,23 @@ func (c *Compiler) compileKeywordMessage(msg *KeywordMessage) {
 
 func (c *Compiler) emitSend(selector string, numArgs int) {
 	selectorID := c.selectors.Intern(selector)
+	if selectorID > 0xFFFF {
+		c.errorf("selector table overflow: selector %q has ID %d, exceeds maximum of 65535", selector, selectorID)
+	}
+	if numArgs > 0xFF {
+		c.errorf("too many arguments: %d exceeds maximum of 255 for selector %q", numArgs, selector)
+	}
 	c.builder.EmitSend(vm.OpSend, uint16(selectorID), byte(numArgs))
 }
 
 func (c *Compiler) emitSendSuper(selector string, numArgs int) {
 	selectorID := c.selectors.Intern(selector)
+	if selectorID > 0xFFFF {
+		c.errorf("selector table overflow: selector %q has ID %d, exceeds maximum of 65535", selector, selectorID)
+	}
+	if numArgs > 0xFF {
+		c.errorf("too many arguments: %d exceeds maximum of 255 for selector %q", numArgs, selector)
+	}
 	c.builder.EmitSend(vm.OpSendSuper, uint16(selectorID), byte(numArgs))
 }
 
@@ -823,6 +882,9 @@ func (c *Compiler) compileBlock(block *Block) {
 	// This requires analyzing the block's AST to find referenced variables
 	varsToCapture := c.findCapturedVariables(block, newEnclosingBlockVars)
 	numCaptures := len(varsToCapture)
+	if numCaptures > 0xFF {
+		c.errorf("block capture overflow: block captures %d variables, exceeds maximum of 255", numCaptures)
+	}
 
 	// Build capturedVars map for the inner block
 	newCapturedVars := make(map[string]int)
@@ -866,6 +928,7 @@ func (c *Compiler) compileBlock(block *Block) {
 	// happens in a nested block rather than in the defining scope.
 	for name, idx := range c.temps {
 		if c.cellVars[name] {
+			c.checkSlotIndex(idx, "block temp", name)
 			c.builder.Emit(vm.OpPushNil)
 			c.builder.Emit(vm.OpMakeCell)
 			c.builder.EmitByte(vm.OpStoreTemp, byte(idx))
@@ -875,6 +938,7 @@ func (c *Compiler) compileBlock(block *Block) {
 	}
 	for name, idx := range c.args {
 		if c.cellVars[name] {
+			c.checkSlotIndex(idx, "block arg", name)
 			c.builder.EmitByte(vm.OpPushTemp, byte(idx)) // Push current arg value
 			c.builder.Emit(vm.OpMakeCell)                 // Wrap in cell
 			c.builder.EmitByte(vm.OpStoreTemp, byte(idx)) // Store cell back
@@ -953,6 +1017,9 @@ func (c *Compiler) compileBlock(block *Block) {
 
 	// Add block to list
 	blockIdx := len(c.blocks)
+	if blockIdx > 0xFFFF {
+		c.errorf("block index overflow: method has more than 65535 blocks")
+	}
 	c.blocks = append(c.blocks, blockMethod)
 
 	// Emit create block instruction (16-bit index, 8-bit capture count)
