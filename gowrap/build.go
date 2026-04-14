@@ -594,7 +594,7 @@ func copyDir(src, dst string) error {
 		}
 		rel, err := filepath.Rel(src, path)
 		if err != nil {
-			return err
+			return fmt.Errorf("computing relative path for %q: %w", path, err)
 		}
 		target := filepath.Join(dst, rel)
 		if info.IsDir() {
@@ -602,7 +602,7 @@ func copyDir(src, dst string) error {
 		}
 		data, err := os.ReadFile(path)
 		if err != nil {
-			return err
+			return fmt.Errorf("reading %q: %w", path, err)
 		}
 		return os.WriteFile(target, data, info.Mode())
 	})

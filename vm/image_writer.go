@@ -2,6 +2,7 @@ package vm
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -925,7 +926,7 @@ func (w *ImageWriter) SetFlags(flags uint32) {
 func (vm *VM) SaveImage(path string) error {
 	f, err := os.Create(path)
 	if err != nil {
-		return err
+		return fmt.Errorf("creating image file %q: %w", path, err)
 	}
 	defer f.Close()
 
@@ -950,20 +951,20 @@ func (vm *VM) SaveImageAtomic(path string) error {
 	// Step 1: Write to temp file
 	f, err := os.Create(tmpPath)
 	if err != nil {
-		return err
+		return fmt.Errorf("creating temp image file %q: %w", tmpPath, err)
 	}
 
 	if err := vm.SaveImageTo(f); err != nil {
 		f.Close()
 		os.Remove(tmpPath)
-		return err
+		return fmt.Errorf("writing image to temp file: %w", err)
 	}
 
 	// Step 2: Fsync to ensure data is on disk
 	if err := f.Sync(); err != nil {
 		f.Close()
 		os.Remove(tmpPath)
-		return err
+		return fmt.Errorf("fsyncing temp image file: %w", err)
 	}
 	f.Close()
 
@@ -973,13 +974,13 @@ func (vm *VM) SaveImageAtomic(path string) error {
 		os.Remove(prevPath)
 		if err := os.Rename(path, prevPath); err != nil {
 			os.Remove(tmpPath)
-			return err
+			return fmt.Errorf("renaming previous image to %q: %w", prevPath, err)
 		}
 	}
 
 	// Step 4: Atomic rename of tmp to target
 	if err := os.Rename(tmpPath, path); err != nil {
-		return err
+		return fmt.Errorf("atomic rename of temp image to %q: %w", path, err)
 	}
 
 	// Step 5: Fsync parent directory for rename durability
@@ -1022,7 +1023,10 @@ func (vm *VM) SaveImageTo(w io.Writer) error {
 
 	// Write to output
 	_, err := writer.WriteTo(w)
-	return err
+	if err != nil {
+		return fmt.Errorf("writing image data: %w", err)
+	}
+	return nil
 }
 
 // CollectAllObjects traverses from roots and collects all reachable objects.

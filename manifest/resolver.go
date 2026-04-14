@@ -260,7 +260,7 @@ func (r *Resolver) writeLock(resolved map[string]*ResolvedDep) error {
 	// Ensure directory exists
 	lockDir := filepath.Dir(r.manifest.LockFilePath())
 	if err := os.MkdirAll(lockDir, 0755); err != nil {
-		return err
+		return fmt.Errorf("creating lock file directory %q: %w", lockDir, err)
 	}
 
 	return WriteLock(r.manifest.LockFilePath(), lf)

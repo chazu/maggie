@@ -125,7 +125,7 @@ func checkVersionConstraint(constraint, actual string) error {
 	parts := strings.Fields(constraint)
 	for _, part := range parts {
 		if err := checkSingleConstraint(part, actualVer); err != nil {
-			return err
+			return fmt.Errorf("checking version constraint %q: %w", part, err)
 		}
 	}
 	return nil
