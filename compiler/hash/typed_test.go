@@ -130,8 +130,8 @@ func TestTypedHashGoldenFiles(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			md := parseMethod(t, tc.src)
 
-			hm := NormalizeTypedMethod(md, nil, nil)
-			data := SerializeTyped(hm)
+			hm := normalizeTypedMethod(md, nil, nil)
+			data := serializeTyped(hm)
 			h := sha256.Sum256(data)
 
 			serializedHex := hex.EncodeToString(data)
@@ -164,12 +164,12 @@ func TestTypedHashGoldenFiles(t *testing.T) {
 	}
 }
 
-// TestNormalizeTypedMethodPopulatesTypes verifies that NormalizeTypedMethod
+// TestNormalizeTypedMethodPopulatesTypes verifies that normalizeTypedMethod
 // correctly populates type annotation fields from the AST.
 func TestNormalizeTypedMethodPopulatesTypes(t *testing.T) {
 	md := parseMethod(t, "add: x <Integer> to: y <Object> ^<Number> [ ^x + y ]")
 
-	hm := NormalizeTypedMethod(md, nil, nil)
+	hm := normalizeTypedMethod(md, nil, nil)
 
 	if len(hm.ParamTypes) != 2 {
 		t.Fatalf("expected 2 param types, got %d", len(hm.ParamTypes))
@@ -199,7 +199,7 @@ func TestTypedHashWithResolveGlobal(t *testing.T) {
 		return name
 	}
 
-	hm := NormalizeTypedMethod(md, nil, resolve)
+	hm := normalizeTypedMethod(md, nil, resolve)
 	if hm.ParamTypes[0].Name != "Widgets::Button" {
 		t.Errorf("param type = %q, want 'Widgets::Button'", hm.ParamTypes[0].Name)
 	}

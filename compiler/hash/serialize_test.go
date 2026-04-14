@@ -7,21 +7,21 @@ import (
 )
 
 func TestSerialize_Deterministic(t *testing.T) {
-	node := &HMethodDef{
+	node := &hMethodDef{
 		Selector: "foo:",
 		Arity:    1,
 		NumTemps: 2,
-		Statements: []HNode{
-			&HExprStmt{Expr: &HBinaryMessage{
-				Receiver: &HLocalVarRef{ScopeDepth: 0, SlotIndex: 0},
+		Statements: []hNode{
+			&hExprStmt{Expr: &hBinaryMessage{
+				Receiver: &hLocalVarRef{ScopeDepth: 0, SlotIndex: 0},
 				Selector: "+",
-				Argument: &HIntLiteral{Value: 42},
+				Argument: &hIntLiteral{Value: 42},
 			}},
 		},
 	}
 
-	data1 := Serialize(node)
-	data2 := Serialize(node)
+	data1 := serializeHash(node)
+	data2 := serializeHash(node)
 
 	if string(data1) != string(data2) {
 		t.Error("serialization is not deterministic")
@@ -29,8 +29,8 @@ func TestSerialize_Deterministic(t *testing.T) {
 }
 
 func TestSerialize_VersionPrefix(t *testing.T) {
-	node := &HNilLiteral{}
-	data := Serialize(node)
+	node := &hNilLiteral{}
+	data := serializeHash(node)
 
 	if len(data) < 1 {
 		t.Fatal("empty serialization")
@@ -41,8 +41,8 @@ func TestSerialize_VersionPrefix(t *testing.T) {
 }
 
 func TestSerialize_IntLiteral(t *testing.T) {
-	node := &HIntLiteral{Value: 12345}
-	data := Serialize(node)
+	node := &hIntLiteral{Value: 12345}
+	data := serializeHash(node)
 
 	// version(1) + tag(1) + int64(8) = 10
 	if len(data) != 10 {
@@ -58,8 +58,8 @@ func TestSerialize_IntLiteral(t *testing.T) {
 }
 
 func TestSerialize_FloatLiteral(t *testing.T) {
-	node := &HFloatLiteral{Value: 3.14}
-	data := Serialize(node)
+	node := &hFloatLiteral{Value: 3.14}
+	data := serializeHash(node)
 
 	// version(1) + tag(1) + float64(8) = 10
 	if len(data) != 10 {
@@ -73,8 +73,8 @@ func TestSerialize_FloatLiteral(t *testing.T) {
 }
 
 func TestSerialize_StringLiteral(t *testing.T) {
-	node := &HStringLiteral{Value: "hello"}
-	data := Serialize(node)
+	node := &hStringLiteral{Value: "hello"}
+	data := serializeHash(node)
 
 	// version(1) + tag(1) + len(4) + "hello"(5) = 11
 	if len(data) != 11 {
@@ -90,11 +90,11 @@ func TestSerialize_StringLiteral(t *testing.T) {
 }
 
 func TestSerialize_BoolLiteral(t *testing.T) {
-	nodeTrue := &HBoolLiteral{Value: true}
-	nodeFalse := &HBoolLiteral{Value: false}
+	nodeTrue := &hBoolLiteral{Value: true}
+	nodeFalse := &hBoolLiteral{Value: false}
 
-	dataTrue := Serialize(nodeTrue)
-	dataFalse := Serialize(nodeFalse)
+	dataTrue := serializeHash(nodeTrue)
+	dataFalse := serializeHash(nodeFalse)
 
 	// version(1) + tag(1) + bool(1) = 3
 	if len(dataTrue) != 3 || len(dataFalse) != 3 {
@@ -112,8 +112,8 @@ func TestSerialize_BoolLiteral(t *testing.T) {
 }
 
 func TestSerialize_LocalVarRef(t *testing.T) {
-	node := &HLocalVarRef{ScopeDepth: 2, SlotIndex: 3}
-	data := Serialize(node)
+	node := &hLocalVarRef{ScopeDepth: 2, SlotIndex: 3}
+	data := serializeHash(node)
 
 	// version(1) + tag(1) + depth(2) + slot(2) = 6
 	if len(data) != 6 {
@@ -127,23 +127,23 @@ func TestSerialize_LocalVarRef(t *testing.T) {
 }
 
 func TestSerialize_DifferentNodesDiffer(t *testing.T) {
-	nodes := []HNode{
-		&HIntLiteral{Value: 1},
-		&HFloatLiteral{Value: 1.0},
-		&HStringLiteral{Value: "1"},
-		&HSymbolLiteral{Value: "foo"},
-		&HNilLiteral{},
-		&HSelfRef{},
-		&HSuperRef{},
-		&HThisContext{},
-		&HLocalVarRef{ScopeDepth: 0, SlotIndex: 0},
-		&HInstanceVarRef{Index: 0},
-		&HGlobalRef{FQN: "Foo"},
+	nodes := []hNode{
+		&hIntLiteral{Value: 1},
+		&hFloatLiteral{Value: 1.0},
+		&hStringLiteral{Value: "1"},
+		&hSymbolLiteral{Value: "foo"},
+		&hNilLiteral{},
+		&hSelfRef{},
+		&hSuperRef{},
+		&hThisContext{},
+		&hLocalVarRef{ScopeDepth: 0, SlotIndex: 0},
+		&hInstanceVarRef{Index: 0},
+		&hGlobalRef{FQN: "Foo"},
 	}
 
 	seen := make(map[string]int)
 	for i, node := range nodes {
-		data := string(Serialize(node))
+		data := string(serializeHash(node))
 		if prev, ok := seen[data]; ok {
 			t.Errorf("node %d and %d produce identical serializations", prev, i)
 		}

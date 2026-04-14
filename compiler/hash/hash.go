@@ -16,7 +16,7 @@ import (
 // all-instance-variables list. resolveGlobal maps a bare class/global name
 // to its fully-qualified name.
 func HashMethod(method *compiler.MethodDef, instVars map[string]int, resolveGlobal func(string) string) [32]byte {
-	hm := NormalizeMethod(method, instVars, resolveGlobal)
-	data := Serialize(hm)
+	hm := normalizeMethod(method, instVars, resolveGlobal)
+	data := serializeHash(hm)
 	return sha256.Sum256(data)
 }

@@ -67,8 +67,8 @@ func TestGoldenFiles(t *testing.T) {
 			}
 			md := sf.Classes[0].Methods[0]
 
-			hm := NormalizeMethod(md, tc.instVars, nil)
-			data := Serialize(hm)
+			hm := normalizeMethod(md, tc.instVars, nil)
+			data := serializeHash(hm)
 			h := sha256.Sum256(data)
 
 			serializedHex := hex.EncodeToString(data)

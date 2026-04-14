@@ -24,12 +24,12 @@ type normalizer struct {
 	resolveGlobal func(string) string // bare name → FQN
 }
 
-// NormalizeMethod transforms a compiler MethodDef into a frozen HMethodDef.
+// normalizeMethod transforms a compiler MethodDef into a frozen hMethodDef.
 //
 // instVars maps instance variable names to their index in the class's
 // all-instance-variables list. resolveGlobal maps a bare class/global name
 // to its fully-qualified name (e.g., "Button" → "Widgets::Button").
-func NormalizeMethod(method *compiler.MethodDef, instVars map[string]int, resolveGlobal func(string) string) *HMethodDef {
+func normalizeMethod(method *compiler.MethodDef, instVars map[string]int, resolveGlobal func(string) string) *hMethodDef {
 	if resolveGlobal == nil {
 		resolveGlobal = func(name string) string { return name }
 	}
@@ -57,7 +57,7 @@ func NormalizeMethod(method *compiler.MethodDef, instVars map[string]int, resolv
 
 	// Handle primitive methods
 	if method.Primitive > 0 {
-		return &HMethodDef{
+		return &hMethodDef{
 			Selector:  method.Selector,
 			Arity:     len(method.Parameters),
 			NumTemps:  len(method.Parameters) + len(method.Temps),
@@ -66,12 +66,12 @@ func NormalizeMethod(method *compiler.MethodDef, instVars map[string]int, resolv
 		}
 	}
 
-	stmts := make([]HNode, len(method.Statements))
+	stmts := make([]hNode, len(method.Statements))
 	for i, s := range method.Statements {
 		stmts[i] = n.normalizeStmt(s)
 	}
 
-	return &HMethodDef{
+	return &hMethodDef{
 		Selector:   method.Selector,
 		Arity:      len(method.Parameters),
 		NumTemps:   len(method.Parameters) + len(method.Temps),
@@ -85,15 +85,15 @@ func NormalizeMethod(method *compiler.MethodDef, instVars map[string]int, resolv
 // Statement normalization
 // ---------------------------------------------------------------------------
 
-func (n *normalizer) normalizeStmt(stmt compiler.Stmt) HNode {
+func (n *normalizer) normalizeStmt(stmt compiler.Stmt) hNode {
 	switch s := stmt.(type) {
 	case *compiler.ExprStmt:
-		return &HExprStmt{Expr: n.normalizeExpr(s.Expr)}
+		return &hExprStmt{Expr: n.normalizeExpr(s.Expr)}
 	case *compiler.Return:
-		return &HReturn{Value: n.normalizeExpr(s.Value)}
+		return &hReturn{Value: n.normalizeExpr(s.Value)}
 	default:
 		// Unknown statement type — should not happen
-		return &HNilLiteral{}
+		return &hNilLiteral{}
 	}
 }
 
@@ -101,53 +101,53 @@ func (n *normalizer) normalizeStmt(stmt compiler.Stmt) HNode {
 // Expression normalization
 // ---------------------------------------------------------------------------
 
-func (n *normalizer) normalizeExpr(expr compiler.Expr) HNode {
+func (n *normalizer) normalizeExpr(expr compiler.Expr) hNode {
 	switch e := expr.(type) {
 	case *compiler.IntLiteral:
-		return &HIntLiteral{Value: e.Value}
+		return &hIntLiteral{Value: e.Value}
 	case *compiler.FloatLiteral:
-		return &HFloatLiteral{Value: e.Value}
+		return &hFloatLiteral{Value: e.Value}
 	case *compiler.StringLiteral:
-		return &HStringLiteral{Value: e.Value}
+		return &hStringLiteral{Value: e.Value}
 	case *compiler.SymbolLiteral:
-		return &HSymbolLiteral{Value: e.Value}
+		return &hSymbolLiteral{Value: e.Value}
 	case *compiler.CharLiteral:
-		return &HCharLiteral{Value: e.Value}
+		return &hCharLiteral{Value: e.Value}
 	case *compiler.NilLiteral:
-		return &HNilLiteral{}
+		return &hNilLiteral{}
 	case *compiler.TrueLiteral:
-		return &HBoolLiteral{Value: true}
+		return &hBoolLiteral{Value: true}
 	case *compiler.FalseLiteral:
-		return &HBoolLiteral{Value: false}
+		return &hBoolLiteral{Value: false}
 	case *compiler.Self:
-		return &HSelfRef{}
+		return &hSelfRef{}
 	case *compiler.Super:
-		return &HSuperRef{}
+		return &hSuperRef{}
 	case *compiler.ThisContext:
-		return &HThisContext{}
+		return &hThisContext{}
 
 	case *compiler.ArrayLiteral:
-		elems := make([]HNode, len(e.Elements))
+		elems := make([]hNode, len(e.Elements))
 		for i, el := range e.Elements {
 			elems[i] = n.normalizeExpr(el)
 		}
-		return &HArrayLiteral{Elements: elems}
+		return &hArrayLiteral{Elements: elems}
 
 	case *compiler.DictionaryLiteral:
-		keys := make([]HNode, len(e.Keys))
-		vals := make([]HNode, len(e.Values))
+		keys := make([]hNode, len(e.Keys))
+		vals := make([]hNode, len(e.Values))
 		for i := range e.Keys {
 			keys[i] = n.normalizeExpr(e.Keys[i])
 			vals[i] = n.normalizeExpr(e.Values[i])
 		}
-		return &HDictLiteral{Keys: keys, Values: vals}
+		return &hDictLiteral{Keys: keys, Values: vals}
 
 	case *compiler.DynamicArray:
-		elems := make([]HNode, len(e.Elements))
+		elems := make([]hNode, len(e.Elements))
 		for i, el := range e.Elements {
 			elems[i] = n.normalizeExpr(el)
 		}
-		return &HDynamicArray{Elements: elems}
+		return &hDynamicArray{Elements: elems}
 
 	case *compiler.Variable:
 		return n.resolveVariable(e.Name)
@@ -155,36 +155,36 @@ func (n *normalizer) normalizeExpr(expr compiler.Expr) HNode {
 	case *compiler.Assignment:
 		target := n.resolveVariable(e.Variable)
 		value := n.normalizeExpr(e.Value)
-		return &HAssignment{Target: target, Value: value}
+		return &hAssignment{Target: target, Value: value}
 
 	case *compiler.UnaryMessage:
-		return &HUnaryMessage{
+		return &hUnaryMessage{
 			Receiver: n.normalizeExpr(e.Receiver),
 			Selector: e.Selector,
 		}
 
 	case *compiler.BinaryMessage:
-		return &HBinaryMessage{
+		return &hBinaryMessage{
 			Receiver: n.normalizeExpr(e.Receiver),
 			Selector: e.Selector,
 			Argument: n.normalizeExpr(e.Argument),
 		}
 
 	case *compiler.KeywordMessage:
-		args := make([]HNode, len(e.Arguments))
+		args := make([]hNode, len(e.Arguments))
 		for i, a := range e.Arguments {
 			args[i] = n.normalizeExpr(a)
 		}
-		return &HKeywordMessage{
+		return &hKeywordMessage{
 			Receiver:  n.normalizeExpr(e.Receiver),
 			Selector:  e.Selector,
 			Arguments: args,
 		}
 
 	case *compiler.Cascade:
-		msgs := make([]HCascadedMessage, len(e.Messages))
+		msgs := make([]hCascadedMessage, len(e.Messages))
 		for i, m := range e.Messages {
-			args := make([]HNode, len(m.Arguments))
+			args := make([]hNode, len(m.Arguments))
 			for j, a := range m.Arguments {
 				args[j] = n.normalizeExpr(a)
 			}
@@ -197,13 +197,13 @@ func (n *normalizer) normalizeExpr(expr compiler.Expr) HNode {
 			case compiler.KeywordMsg:
 				msgType = TagCascadeKeyword
 			}
-			msgs[i] = HCascadedMessage{
+			msgs[i] = hCascadedMessage{
 				Type:      msgType,
 				Selector:  m.Selector,
 				Arguments: args,
 			}
 		}
-		return &HCascade{
+		return &hCascade{
 			Receiver: n.normalizeExpr(e.Receiver),
 			Messages: msgs,
 		}
@@ -212,7 +212,7 @@ func (n *normalizer) normalizeExpr(expr compiler.Expr) HNode {
 		return n.normalizeBlock(e)
 
 	default:
-		return &HNilLiteral{}
+		return &hNilLiteral{}
 	}
 }
 
@@ -220,13 +220,13 @@ func (n *normalizer) normalizeExpr(expr compiler.Expr) HNode {
 // Variable resolution → de Bruijn indices
 // ---------------------------------------------------------------------------
 
-// resolveVariable resolves a variable name to HLocalVarRef, HInstanceVarRef,
-// or HGlobalRef. This mirrors the resolution order in codegen.go:438-489.
-func (n *normalizer) resolveVariable(name string) HNode {
+// resolveVariable resolves a variable name to hLocalVarRef, hInstanceVarRef,
+// or hGlobalRef. This mirrors the resolution order in codegen.go:438-489.
+func (n *normalizer) resolveVariable(name string) hNode {
 	// 1. Search scopes from innermost to outermost
 	for depth := len(n.scopes) - 1; depth >= 0; depth-- {
 		if slot, ok := n.scopes[depth].vars[name]; ok {
-			return &HLocalVarRef{
+			return &hLocalVarRef{
 				ScopeDepth: uint16(len(n.scopes) - 1 - depth),
 				SlotIndex:  slot,
 			}
@@ -235,18 +235,18 @@ func (n *normalizer) resolveVariable(name string) HNode {
 
 	// 2. Instance variables
 	if idx, ok := n.instVars[name]; ok {
-		return &HInstanceVarRef{Index: uint16(idx)}
+		return &hInstanceVarRef{Index: uint16(idx)}
 	}
 
 	// 3. Global — resolve to FQN
-	return &HGlobalRef{FQN: n.resolveGlobal(name)}
+	return &hGlobalRef{FQN: n.resolveGlobal(name)}
 }
 
 // ---------------------------------------------------------------------------
 // Block normalization
 // ---------------------------------------------------------------------------
 
-func (n *normalizer) normalizeBlock(block *compiler.Block) *HBlock {
+func (n *normalizer) normalizeBlock(block *compiler.Block) *hBlock {
 	// Push a new scope for this block
 	blockVars := make(map[string]uint16)
 	slot := uint16(0)
@@ -260,7 +260,7 @@ func (n *normalizer) normalizeBlock(block *compiler.Block) *HBlock {
 	}
 	n.scopes = append(n.scopes, scope{vars: blockVars})
 
-	stmts := make([]HNode, len(block.Statements))
+	stmts := make([]hNode, len(block.Statements))
 	for i, s := range block.Statements {
 		stmts[i] = n.normalizeStmt(s)
 	}
@@ -268,7 +268,7 @@ func (n *normalizer) normalizeBlock(block *compiler.Block) *HBlock {
 	// Pop scope
 	n.scopes = n.scopes[:len(n.scopes)-1]
 
-	return &HBlock{
+	return &hBlock{
 		Arity:      len(block.Parameters),
 		NumTemps:   len(block.Parameters) + len(block.Temps),
 		Statements: stmts,

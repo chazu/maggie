@@ -17,20 +17,20 @@ import (
 //   - Child nodes: serialized inline (flat)
 // ---------------------------------------------------------------------------
 
-// Serialize produces a deterministic byte serialization of an HNode tree.
+// serializeHash produces a deterministic byte serialization of an hNode tree.
 // The returned bytes are suitable for hashing with SHA-256.
-func Serialize(node HNode) []byte {
+func serializeHash(node hNode) []byte {
 	s := &serializer{buf: make([]byte, 0, 256), includeTypes: false}
 	s.writeByte(HashVersion)
 	s.serializeNode(node)
 	return s.buf
 }
 
-// SerializeTyped produces a deterministic byte serialization that includes
-// type annotations. The format is a superset of Serialize — all semantic
+// serializeTyped produces a deterministic byte serialization that includes
+// type annotations. The format is a superset of serializeHash — all semantic
 // fields are written identically, with type annotation data appended after
 // each method/block node.
-func SerializeTyped(node HNode) []byte {
+func serializeTyped(node hNode) []byte {
 	s := &serializer{buf: make([]byte, 0, 256), includeTypes: true}
 	s.writeByte(HashVersion)
 	s.serializeNode(node)
@@ -79,29 +79,29 @@ func (s *serializer) writeInt(v int) {
 	s.writeInt64(int64(v))
 }
 
-func (s *serializer) serializeNode(node HNode) {
+func (s *serializer) serializeNode(node hNode) {
 	switch n := node.(type) {
-	case *HIntLiteral:
+	case *hIntLiteral:
 		s.writeByte(TagIntLiteral)
 		s.writeInt64(n.Value)
 
-	case *HFloatLiteral:
+	case *hFloatLiteral:
 		s.writeByte(TagFloatLiteral)
 		s.writeFloat64(n.Value)
 
-	case *HStringLiteral:
+	case *hStringLiteral:
 		s.writeByte(TagStringLiteral)
 		s.writeString(n.Value)
 
-	case *HSymbolLiteral:
+	case *hSymbolLiteral:
 		s.writeByte(TagSymbolLiteral)
 		s.writeString(n.Value)
 
-	case *HCharLiteral:
+	case *hCharLiteral:
 		s.writeByte(TagCharLiteral)
 		s.writeUint32(uint32(n.Value))
 
-	case *HBoolLiteral:
+	case *hBoolLiteral:
 		s.writeByte(TagBoolLiteral)
 		if n.Value {
 			s.writeByte(1)
@@ -109,26 +109,26 @@ func (s *serializer) serializeNode(node HNode) {
 			s.writeByte(0)
 		}
 
-	case *HNilLiteral:
+	case *hNilLiteral:
 		s.writeByte(TagNilLiteral)
 
-	case *HSelfRef:
+	case *hSelfRef:
 		s.writeByte(TagSelfRef)
 
-	case *HSuperRef:
+	case *hSuperRef:
 		s.writeByte(TagSuperRef)
 
-	case *HThisContext:
+	case *hThisContext:
 		s.writeByte(TagThisContext)
 
-	case *HArrayLiteral:
+	case *hArrayLiteral:
 		s.writeByte(TagArrayLiteral)
 		s.writeUint32(uint32(len(n.Elements)))
 		for _, el := range n.Elements {
 			s.serializeNode(el)
 		}
 
-	case *HDictLiteral:
+	case *hDictLiteral:
 		s.writeByte(TagDictLiteral)
 		s.writeUint32(uint32(len(n.Keys)))
 		for i := range n.Keys {
@@ -136,38 +136,38 @@ func (s *serializer) serializeNode(node HNode) {
 			s.serializeNode(n.Values[i])
 		}
 
-	case *HDynamicArray:
+	case *hDynamicArray:
 		s.writeByte(TagDynamicArray)
 		s.writeUint32(uint32(len(n.Elements)))
 		for _, el := range n.Elements {
 			s.serializeNode(el)
 		}
 
-	case *HLocalVarRef:
+	case *hLocalVarRef:
 		s.writeByte(TagLocalVarRef)
 		s.writeUint16(n.ScopeDepth)
 		s.writeUint16(n.SlotIndex)
 
-	case *HInstanceVarRef:
+	case *hInstanceVarRef:
 		s.writeByte(TagInstanceVarRef)
 		s.writeUint16(n.Index)
 
-	case *HGlobalRef:
+	case *hGlobalRef:
 		s.writeByte(TagGlobalRef)
 		s.writeString(n.FQN)
 
-	case *HUnaryMessage:
+	case *hUnaryMessage:
 		s.writeByte(TagUnaryMessage)
 		s.writeString(n.Selector)
 		s.serializeNode(n.Receiver)
 
-	case *HBinaryMessage:
+	case *hBinaryMessage:
 		s.writeByte(TagBinaryMessage)
 		s.writeString(n.Selector)
 		s.serializeNode(n.Receiver)
 		s.serializeNode(n.Argument)
 
-	case *HKeywordMessage:
+	case *hKeywordMessage:
 		s.writeByte(TagKeywordMessage)
 		s.writeString(n.Selector)
 		s.writeUint32(uint32(len(n.Arguments)))
@@ -176,7 +176,7 @@ func (s *serializer) serializeNode(node HNode) {
 			s.serializeNode(arg)
 		}
 
-	case *HCascade:
+	case *hCascade:
 		s.writeByte(TagCascade)
 		s.serializeNode(n.Receiver)
 		s.writeUint32(uint32(len(n.Messages)))
@@ -189,20 +189,20 @@ func (s *serializer) serializeNode(node HNode) {
 			}
 		}
 
-	case *HAssignment:
+	case *hAssignment:
 		s.writeByte(TagAssignment)
 		s.serializeNode(n.Target)
 		s.serializeNode(n.Value)
 
-	case *HReturn:
+	case *hReturn:
 		s.writeByte(TagReturn)
 		s.serializeNode(n.Value)
 
-	case *HExprStmt:
+	case *hExprStmt:
 		s.writeByte(TagExprStmt)
 		s.serializeNode(n.Expr)
 
-	case *HBlock:
+	case *hBlock:
 		s.writeByte(TagBlock)
 		s.writeInt(n.Arity)
 		s.writeInt(n.NumTemps)
@@ -214,11 +214,11 @@ func (s *serializer) serializeNode(node HNode) {
 			s.serializeBlockTypes(n)
 		}
 
-	case *HPrimitive:
+	case *hPrimitive:
 		s.writeByte(TagPrimitive)
 		s.writeInt(n.Number)
 
-	case *HMethodDef:
+	case *hMethodDef:
 		s.writeByte(TagMethodDef)
 		s.writeString(n.Selector)
 		s.writeInt(n.Arity)
@@ -240,10 +240,10 @@ func (s *serializer) serializeNode(node HNode) {
 	}
 }
 
-// serializeMethodTypes writes type annotation data for an HMethodDef.
+// serializeMethodTypes writes type annotation data for an hMethodDef.
 // If any type annotations are present, writes 0x01 followed by the data.
 // If none are present, writes 0x00.
-func (s *serializer) serializeMethodTypes(n *HMethodDef) {
+func (s *serializer) serializeMethodTypes(n *hMethodDef) {
 	if !hasMethodTypes(n) {
 		s.writeByte(TypesAbsent)
 		return
@@ -272,8 +272,8 @@ func (s *serializer) serializeMethodTypes(n *HMethodDef) {
 	}
 }
 
-// serializeBlockTypes writes type annotation data for an HBlock.
-func (s *serializer) serializeBlockTypes(n *HBlock) {
+// serializeBlockTypes writes type annotation data for an hBlock.
+func (s *serializer) serializeBlockTypes(n *hBlock) {
 	if !hasBlockTypes(n) {
 		s.writeByte(TypesAbsent)
 		return
@@ -287,7 +287,7 @@ func (s *serializer) serializeBlockTypes(n *HBlock) {
 }
 
 // hasMethodTypes returns true if the method has any type or effect annotations.
-func hasMethodTypes(n *HMethodDef) bool {
+func hasMethodTypes(n *hMethodDef) bool {
 	if n.ReturnType.Name != "" {
 		return true
 	}
@@ -308,7 +308,7 @@ func hasMethodTypes(n *HMethodDef) bool {
 }
 
 // hasBlockTypes returns true if the block has any type annotations.
-func hasBlockTypes(n *HBlock) bool {
+func hasBlockTypes(n *hBlock) bool {
 	for _, pt := range n.ParamTypes {
 		if pt.Name != "" {
 			return true
