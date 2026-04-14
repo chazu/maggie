@@ -695,91 +695,10 @@ func (i *Interpreter) runFrame() Value {
 			}
 
 		case OpPushGlobal:
-			idx := binary.LittleEndian.Uint16(bc[frame.IP:])
-			frame.IP += 2
-			if int(idx) < len(literals) {
-				// Get global name from literal
-				globalName := ""
-				lit := literals[idx]
-				if lit.IsSymbol() && i.Symbols != nil {
-					globalName = i.Symbols.Name(lit.SymbolID())
-				} else if IsStringValue(lit) {
-					globalName = i.vm.registry.GetStringContent(lit)
-				}
-				if globalName != "" {
-					if i.hidden != nil && i.hidden[globalName] {
-						i.push(Nil)
-					} else if i.localWrites != nil {
-						if val, ok := i.localWrites[globalName]; ok {
-							i.push(val)
-						} else {
-							if i.vm != nil {
-								i.vm.globalsMu.RLock()
-							}
-							val, ok := i.Globals[globalName]
-							if i.vm != nil {
-								i.vm.globalsMu.RUnlock()
-							}
-							if ok {
-								i.push(val)
-							} else {
-								i.push(Nil)
-							}
-						}
-					} else {
-						if i.vm != nil {
-							i.vm.globalsMu.RLock()
-						}
-						val, ok := i.Globals[globalName]
-						if i.vm != nil {
-							i.vm.globalsMu.RUnlock()
-						}
-						if ok {
-							i.push(val)
-						} else {
-							i.push(Nil)
-						}
-					}
-				} else {
-					i.push(Nil)
-				}
-			} else {
-				i.push(Nil)
-			}
+			i.execPushGlobal(frame, bc, literals)
 
 		case OpStoreGlobal:
-			idx := binary.LittleEndian.Uint16(bc[frame.IP:])
-			frame.IP += 2
-			if int(idx) < len(literals) {
-				// Get global name from literal
-				globalName := ""
-				lit := literals[idx]
-				if lit.IsSymbol() && i.Symbols != nil {
-					globalName = i.Symbols.Name(lit.SymbolID())
-				} else if IsStringValue(lit) {
-					globalName = i.vm.registry.GetStringContent(lit)
-				}
-				if globalName != "" {
-					if i.hidden != nil && i.hidden[globalName] {
-						// silently deny write to restricted name
-					} else if i.forked {
-						// Forked process: write to process-local overlay
-						if i.localWrites == nil {
-							i.localWrites = make(map[string]Value)
-						}
-						i.localWrites[globalName] = i.top()
-					} else {
-						// Main interpreter: write directly to shared Globals
-						if i.vm != nil {
-							i.vm.globalsMu.Lock()
-						}
-						i.Globals[globalName] = i.top()
-						if i.vm != nil {
-							i.vm.globalsMu.Unlock()
-						}
-					}
-				}
-			}
+			i.execStoreGlobal(frame, bc, literals)
 
 		case OpPushCaptured:
 			idx := bc[frame.IP]
@@ -829,48 +748,10 @@ func (i *Interpreter) runFrame() Value {
 			i.push(val)
 
 		case OpPushClassVar:
-			idx := binary.LittleEndian.Uint16(bc[frame.IP:])
-			frame.IP += 2
-			if int(idx) < len(literals) {
-				// Get class variable name from literal
-				varName := ""
-				lit := literals[idx]
-				if lit.IsSymbol() && i.Symbols != nil {
-					varName = i.Symbols.Name(lit.SymbolID())
-				}
-				if varName != "" {
-					// Get class from the method's defining class
-					class := frame.Method.Class()
-					if class != nil {
-						i.push(class.GetClassVar(i.vm.registry, varName))
-					} else {
-						i.push(Nil)
-					}
-				} else {
-					i.push(Nil)
-				}
-			} else {
-				i.push(Nil)
-			}
+			i.execPushClassVar(frame, bc, literals)
 
 		case OpStoreClassVar:
-			idx := binary.LittleEndian.Uint16(bc[frame.IP:])
-			frame.IP += 2
-			if int(idx) < len(literals) {
-				// Get class variable name from literal
-				varName := ""
-				lit := literals[idx]
-				if lit.IsSymbol() && i.Symbols != nil {
-					varName = i.Symbols.Name(lit.SymbolID())
-				}
-				if varName != "" {
-					// Get class from the method's defining class
-					class := frame.Method.Class()
-					if class != nil {
-						class.SetClassVar(i.vm.registry, varName, i.top())
-					}
-				}
-			}
+			i.execStoreClassVar(frame, bc, literals)
 
 		// --- Message sends ---
 		case OpSend:
@@ -886,221 +767,106 @@ func (i *Interpreter) runFrame() Value {
 			i.push(result)
 
 		case OpTailSend:
-			sel := int(binary.LittleEndian.Uint16(bc[frame.IP:]))
-			frame.IP += 2
-			argc := int(bc[frame.IP])
-			frame.IP++
-
-			// Copy args into a stack-local buffer to avoid allocation.
-			// Both the optimized path (resets SP) and the fallback path
-			// (re-pushes args) mutate the stack, so a copy is required.
-			var tailBuf [16]Value
-			var tailArgs []Value
-			if argc <= len(tailBuf) {
-				copy(tailBuf[:argc], i.peekN(argc))
-				tailArgs = tailBuf[:argc]
-				i.dropN(argc)
-			} else {
-				// >16 args is vanishingly rare; fall back to allocating popN.
-				tailArgs = i.popN(argc)
-			}
-			tailRcvr := i.pop()
-
-			// Only optimize if:
-			// 1. We're in a method frame (not a block)
-			// 2. The receiver is self (same as current frame's receiver)
-			// 3. The target method is the same CompiledMethod as the current one
-			tailOptimized := false
-			if !isBlock && tailRcvr == frame.Receiver {
-				// Look up the method for the receiver
-				vt := i.vtableFor(tailRcvr)
-				if vt != nil {
-					tailMethod := vt.Lookup(sel)
-					if cm, ok := tailMethod.(*CompiledMethod); ok && cm == frame.Method {
-						// Self-recursive tail call: reuse the current frame
-						// Reset SP to just above the base pointer (discard old temps)
-						i.sp = frame.BP
-
-						// Write new arguments into the temp slots
-						for _, arg := range tailArgs {
-							i.push(arg)
-						}
-						// Fill remaining temp slots with nil
-						for j := len(tailArgs); j < cm.NumTemps; j++ {
-							i.push(Nil)
-						}
-
-						// Reset instruction pointer to beginning of method
-						frame.IP = 0
-
-						tailOptimized = true
-					}
-				}
-			}
-
-			if tailOptimized {
-				// Continue the dispatch loop (no new frame pushed)
+			result, doContinue, doReturn := i.execTailSend(frame, bc, isBlock)
+			if doContinue {
 				continue
 			}
-
-			// Fallback: non-self-recursive or different method — do a normal send
-			// Re-push receiver and args onto the stack for i.send()
-			i.push(tailRcvr)
-			for _, arg := range tailArgs {
-				i.push(arg)
-			}
-			tailResult := i.send(sel, argc)
-			if i.unwinding {
-				i.popFrame()
+			if doReturn {
 				return Nil
 			}
-			i.push(tailResult)
+			i.push(result)
 
 		case OpSendSuper:
-			sel := int(binary.LittleEndian.Uint16(bc[frame.IP:]))
-			frame.IP += 2
-			argc := int(bc[frame.IP])
-			frame.IP++
-			// For blocks, we need to find the method from the home frame
-			var method *CompiledMethod
-			if isBlock {
-				if frame.HomeFrame >= 0 && frame.HomeFrame < len(i.frames) && i.frames[frame.HomeFrame] != nil {
-					method = i.frames[frame.HomeFrame].Method
-				}
-			} else {
-				method = frame.Method
+			result, doReturn := i.execSendSuper(frame, bc, isBlock)
+			if doReturn {
+				return Nil
 			}
-			if method != nil {
-				result := i.sendSuper(sel, argc, method)
-				if i.unwinding {
-					i.popFrame()
-					return Nil
-				}
-				i.push(result)
-			} else {
-				i.push(Nil)
-			}
+			i.push(result)
 
 		// --- Optimized sends ---
 		case OpSendPlus:
-			b := i.pop()
-			a := i.pop()
-			result := i.primitivePlus(a, b)
-			if i.unwinding {
-				i.popFrame()
+			if result, doReturn := i.execOptimizedBinarySend(i.primitivePlus); doReturn {
 				return Nil
+			} else {
+				i.push(result)
 			}
-			i.push(result)
 
 		case OpSendMinus:
-			b := i.pop()
-			a := i.pop()
-			result := i.primitiveMinus(a, b)
-			if i.unwinding {
-				i.popFrame()
+			if result, doReturn := i.execOptimizedBinarySend(i.primitiveMinus); doReturn {
 				return Nil
+			} else {
+				i.push(result)
 			}
-			i.push(result)
 
 		case OpSendTimes:
-			b := i.pop()
-			a := i.pop()
-			result := i.primitiveTimes(a, b)
-			if i.unwinding {
-				i.popFrame()
+			if result, doReturn := i.execOptimizedBinarySend(i.primitiveTimes); doReturn {
 				return Nil
+			} else {
+				i.push(result)
 			}
-			i.push(result)
 
 		case OpSendDiv:
-			b := i.pop()
-			a := i.pop()
-			result := i.primitiveDiv(a, b)
-			if i.unwinding {
-				i.popFrame()
+			if result, doReturn := i.execOptimizedBinarySend(i.primitiveDiv); doReturn {
 				return Nil
+			} else {
+				i.push(result)
 			}
-			i.push(result)
 
 		case OpSendMod:
-			b := i.pop()
-			a := i.pop()
-			result := i.primitiveMod(a, b)
-			if i.unwinding {
-				i.popFrame()
+			if result, doReturn := i.execOptimizedBinarySend(i.primitiveMod); doReturn {
 				return Nil
+			} else {
+				i.push(result)
 			}
-			i.push(result)
 
 		case OpSendLT:
-			b := i.pop()
-			a := i.pop()
-			result := i.primitiveLT(a, b)
-			if i.unwinding {
-				i.popFrame()
+			if result, doReturn := i.execOptimizedBinarySend(i.primitiveLT); doReturn {
 				return Nil
+			} else {
+				i.push(result)
 			}
-			i.push(result)
 
 		case OpSendGT:
-			b := i.pop()
-			a := i.pop()
-			result := i.primitiveGT(a, b)
-			if i.unwinding {
-				i.popFrame()
+			if result, doReturn := i.execOptimizedBinarySend(i.primitiveGT); doReturn {
 				return Nil
+			} else {
+				i.push(result)
 			}
-			i.push(result)
 
 		case OpSendLE:
-			b := i.pop()
-			a := i.pop()
-			result := i.primitiveLE(a, b)
-			if i.unwinding {
-				i.popFrame()
+			if result, doReturn := i.execOptimizedBinarySend(i.primitiveLE); doReturn {
 				return Nil
+			} else {
+				i.push(result)
 			}
-			i.push(result)
 
 		case OpSendGE:
-			b := i.pop()
-			a := i.pop()
-			result := i.primitiveGE(a, b)
-			if i.unwinding {
-				i.popFrame()
+			if result, doReturn := i.execOptimizedBinarySend(i.primitiveGE); doReturn {
 				return Nil
+			} else {
+				i.push(result)
 			}
-			i.push(result)
 
 		case OpSendEQ:
-			b := i.pop()
-			a := i.pop()
-			result := i.primitiveEQ(a, b)
-			if i.unwinding {
-				i.popFrame()
+			if result, doReturn := i.execOptimizedBinarySend(i.primitiveEQ); doReturn {
 				return Nil
+			} else {
+				i.push(result)
 			}
-			i.push(result)
 
 		case OpSendNE:
-			b := i.pop()
-			a := i.pop()
-			result := i.primitiveNE(a, b)
-			if i.unwinding {
-				i.popFrame()
+			if result, doReturn := i.execOptimizedBinarySend(i.primitiveNE); doReturn {
 				return Nil
+			} else {
+				i.push(result)
 			}
-			i.push(result)
 
 		case OpSendAt:
-			idx := i.pop()
-			rcvr := i.pop()
-			result := i.primitiveAt(rcvr, idx)
-			if i.unwinding {
-				i.popFrame()
+			if result, doReturn := i.execOptimizedBinarySend(i.primitiveAt); doReturn {
 				return Nil
+			} else {
+				i.push(result)
 			}
-			i.push(result)
 
 		case OpSendAtPut:
 			val := i.pop()
@@ -1114,22 +880,18 @@ func (i *Interpreter) runFrame() Value {
 			i.push(result)
 
 		case OpSendSize:
-			rcvr := i.pop()
-			result := i.primitiveSize(rcvr)
-			if i.unwinding {
-				i.popFrame()
+			if result, doReturn := i.execOptimizedUnarySend(i.primitiveSize); doReturn {
 				return Nil
+			} else {
+				i.push(result)
 			}
-			i.push(result)
 
 		case OpSendValue:
-			rcvr := i.pop()
-			result := i.primitiveValue(rcvr)
-			if i.unwinding {
-				i.popFrame()
+			if result, doReturn := i.execOptimizedUnarySend(i.primitiveValue); doReturn {
 				return Nil
+			} else {
+				i.push(result)
 			}
-			i.push(result)
 
 		case OpSendValue1:
 			arg := i.pop()
@@ -1153,22 +915,18 @@ func (i *Interpreter) runFrame() Value {
 			i.push(result)
 
 		case OpSendNew:
-			rcvr := i.pop()
-			result := i.primitiveNew(rcvr)
-			if i.unwinding {
-				i.popFrame()
+			if result, doReturn := i.execOptimizedUnarySend(i.primitiveNew); doReturn {
 				return Nil
+			} else {
+				i.push(result)
 			}
-			i.push(result)
 
 		case OpSendClass:
-			rcvr := i.pop()
-			result := i.primitiveClass(rcvr)
-			if i.unwinding {
-				i.popFrame()
+			if result, doReturn := i.execOptimizedUnarySend(i.primitiveClass); doReturn {
 				return Nil
+			} else {
+				i.push(result)
 			}
-			i.push(result)
 
 		// --- Control flow ---
 		case OpJump:
@@ -1210,26 +968,7 @@ func (i *Interpreter) runFrame() Value {
 
 		// --- Returns ---
 		case OpReturnTop:
-			result := i.pop()
-			if isBlock {
-				// Check if this is a detached block (HomeFrame == -1)
-				// Detached blocks treat ^ as local return instead of non-local return
-				// This is used for forked blocks where the home frame is unreachable
-				if frame.HomeFrame == -1 {
-					// Detached block: treat ^ as local return
-					i.popFrame()
-					return result
-				}
-				// Non-local return: set unwinding flag instead of panic
-				i.popFrame()
-				i.unwinding = true
-				i.unwindValue = result
-				i.unwindTarget = frame.HomeFrame
-				return Nil
-			}
-			// Method: local return
-			i.popFrame()
-			return result
+			return i.execReturnTop(frame, isBlock)
 
 		case OpReturnSelf:
 			result := frame.Self()
@@ -1248,39 +987,7 @@ func (i *Interpreter) runFrame() Value {
 
 		// --- Blocks ---
 		case OpCreateBlock:
-			methodIdx := binary.LittleEndian.Uint16(bc[frame.IP:])
-			frame.IP += 2
-			nCaptures := int(bc[frame.IP])
-			frame.IP++
-
-			// Get the block method from the appropriate source
-			var block *BlockMethod
-			if isBlock {
-				// For block frames, try HomeMethod first (set when executing blocks cross-interpreter)
-				// This handles the case where a block is executed in a different goroutine/interpreter
-				if frame.HomeMethod != nil && int(methodIdx) < len(frame.HomeMethod.Blocks) {
-					block = frame.HomeMethod.Blocks[methodIdx]
-				} else if frame.HomeFrame >= 0 && frame.HomeFrame < len(i.frames) && i.frames[frame.HomeFrame] != nil {
-					// Fall back to looking up from the home frame's method (same-interpreter case)
-					homeMethod := i.frames[frame.HomeFrame].Method
-					if homeMethod != nil && int(methodIdx) < len(homeMethod.Blocks) {
-						block = homeMethod.Blocks[methodIdx]
-					}
-				}
-			} else {
-				// Method frame: get block directly
-				block = frame.Method.GetBlock(int(methodIdx))
-			}
-
-			// Captures are retained by BlockValue, so a copy is required.
-			captures := i.popN(nCaptures)
-
-			if block != nil {
-				blockVal := i.createBlockValue(block, captures)
-				i.push(blockVal)
-			} else {
-				i.push(Nil)
-			}
+			i.execCreateBlock(frame, bc, isBlock)
 
 		case OpCaptureTemp:
 			idx := bc[frame.IP]
