@@ -36,7 +36,7 @@ Untracked files (`s01_definingAClass` through `s08_puttingItTogether`, `+`, `siz
 
 ## 9. Fix guide numbering collisions
 
-`Guide10Modules.mag` / `Guide10Supervisors.mag` and `Guide11Clustering.mag` / `Guide11Projects.mag` share numbers. While docs render correctly, this creates confusion in source and tooling. Renumber to a consistent sequence.
+DONE. Renumbered to: 10=Modules, 11=Projects, 12=Supervisors, 13=Clustering, 14=GoInterop, 15=Distribution, 16=Tooling, 17=CueIntegration, 18=TupleSpace.
 
 ## 10. Unexport internal hash package types
 

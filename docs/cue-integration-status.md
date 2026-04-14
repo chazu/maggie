@@ -200,8 +200,8 @@ Both describe structural expectations — "this thing must respond to these mess
 | CueValue doctests | `lib/CueValue.mag` | 13 | — |
 | TupleSpace doctests | `lib/TupleSpace.mag` | 18 | — |
 | ConstraintStore doctests | `lib/ConstraintStore.mag` | 8 | — |
-| Guide15 doctests | `lib/guide/Guide15CueIntegration.mag` | 26 | — |
-| Guide16 doctests | `lib/guide/Guide16TupleSpace.mag` | 13 | — |
+| Guide17 doctests | `lib/guide/Guide17CueIntegration.mag` | 26 | — |
+| Guide18 doctests | `lib/guide/Guide18TupleSpace.mag` | 13 | — |
 
 ---
 
@@ -216,6 +216,6 @@ Both describe structural expectations — "this thing must respond to these mess
 | `lib/CueValue.mag` | CueValue Maggie API |
 | `lib/TupleSpace.mag` | TupleSpace Maggie API |
 | `lib/ConstraintStore.mag` | ConstraintStore Maggie API |
-| `lib/guide/Guide15CueIntegration.mag` | CUE tutorial |
-| `lib/guide/Guide16TupleSpace.mag` | TupleSpace + ConstraintStore tutorial |
+| `lib/guide/Guide17CueIntegration.mag` | CUE tutorial |
+| `lib/guide/Guide18TupleSpace.mag` | TupleSpace + ConstraintStore tutorial |
 | `docs/constraint-programming-maggie-cue.md` | Architectural discussion + future roadmap |

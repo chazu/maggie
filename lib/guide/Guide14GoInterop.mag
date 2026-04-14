@@ -14,7 +14,7 @@ types transparently.
 This chapter explains how Go interop works, from running `mag wrap` to
 using wrapped types in your Maggie code.
 """
-Guide12GoInterop subclass: Object
+Guide14GoInterop subclass: Object
 
   """
   ## When and Why to Use Go Interop

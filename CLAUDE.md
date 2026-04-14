@@ -45,7 +45,7 @@ Maggie is a Smalltalk-family language VM written in Go. For full API docs:
 
 ### Concurrency Quick Reference
 
-All primitives are fully implemented. See `lib/guide/Guide09Concurrency.mag` and `lib/guide/Guide13Distribution.mag` for details.
+All primitives are fully implemented. See `lib/guide/Guide09Concurrency.mag` and `lib/guide/Guide15Distribution.mag` for details.
 
 | Primitive | Key files |
 |-----------|-----------|

@@ -20,7 +20,7 @@ val kind >>> 'struct'
 val isConcrete >>> true
 ```
 """
-Guide15CueIntegration subclass: Object
+Guide17CueIntegration subclass: Object
 
   """
   ## CUE Contexts and Values

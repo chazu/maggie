@@ -4,7 +4,7 @@ hashing for distributing work across nodes. The `Cluster` class automates
 seed-based peer discovery, failure detection, and reconnection. The
 `HashRing` class provides deterministic key-to-node mapping.
 """
-Guide11Clustering subclass: Object
+Guide13Clustering subclass: Object
 
   """
   ## Cluster Membership

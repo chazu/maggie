@@ -21,7 +21,7 @@ store := ConstraintStore new.
 store isConsistent >>> true
 ```
 """
-Guide16TupleSpace subclass: Object
+Guide18TupleSpace subclass: Object
 
   """
   ## TupleSpace Basics

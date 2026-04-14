@@ -260,18 +260,26 @@ Each chapter is an independent task. An agent writing a chapter must:
 **Read:** `manifest/manifest.go`, `CLAUDE.md` (manifest + dependency sections)
 **Cover:** `maggie.toml` format (`[project]`, `[source]`, `[dependencies]`, `[image]`), `mag deps`/`deps update`/`deps list`, git and path dependencies, lock file, dependency namespace mapping, reserved namespaces
 
-##### Ch 12 — Go Interop
-`lib/guide/Guide12GoInterop.mag`
+##### Ch 12 — Supervisors
+`lib/guide/Guide12Supervisors.mag`
+**Cover:** ChildSpec, Supervisor strategies (oneForOne, oneForAll, restForOne), restart policies, DynamicSupervisor
+
+##### Ch 13 — Clustering
+`lib/guide/Guide13Clustering.mag`
+**Cover:** Cluster seeds, membership events, HashRing, consistent hashing
+
+##### Ch 14 — Go Interop
+`lib/guide/Guide14GoInterop.mag`
 **Read:** `gowrap/gen_go.go`, `gowrap/gen_mag.go`, `cmd/mag/wrap.go`, `cmd/mag/build.go`, `vm/go_object.go`
 **Cover:** `mag wrap` (introspect Go packages, generate bindings), `mag build` (compile custom binary), GoObject wrapper, type marshaling (Go↔Maggie), generated glue code walkthrough, `[gowrap]` manifest config
 
-##### Ch 13 — Distributed Runtime
-`lib/guide/Guide13Distribution.mag`
+##### Ch 15 — Distributed Runtime
+`lib/guide/Guide15Distribution.mag`
 **Read:** `vm/dist/chunk.go`, `vm/dist/wire.go`, `vm/content_store.go`, `server/server.go`, `cmd/mag/sync.go`, `compiler/hash/nodes.go`
 **Cover:** Content addressing (method hashing, class digests), ContentStore, chunks (method/class/module), `mag sync push`/`pull`/`status`, reputation & capabilities, `[sync]` manifest config, peer networking
 
-##### Ch 14 — Tooling & IDE
-`lib/guide/Guide14Tooling.mag`
+##### Ch 16 — Tooling & IDE
+`lib/guide/Guide16Tooling.mag`
 **Read:** `cmd/mag/format.go`, `cmd/mag/docgen.go`, `cmd/mag/doctest.go`, `docs/lsp.md`
 **Cover:** `mag fmt` (formatting), `mag doc` (HTML generation), `mag doctest` (testing examples), `saveImage:`/`--image` (image persistence), LSP server (`--lsp`), REPL commands (`:help`, `:use-go`/`:use-maggie`), Yutani IDE overview (`--yutani`)
 

@@ -126,18 +126,26 @@ Each chapter lists the source files the writing agent must read before authoring
 **Sources:** `manifest/manifest.go`, `CLAUDE.md` (manifest + dependency sections)
 **Topics:** maggie.toml structure, source dirs, entry points, dependencies (git/path), lock file, mag deps subcommand, dependency namespace mapping
 
-### 12 — Go Interop
-**File:** `lib/guide/Guide12GoInterop.mag`
+### 12 — Supervisors
+**File:** `lib/guide/Guide12Supervisors.mag`
+**Topics:** ChildSpec, Supervisor strategies (oneForOne, oneForAll, restForOne), restart policies, DynamicSupervisor
+
+### 13 — Clustering
+**File:** `lib/guide/Guide13Clustering.mag`
+**Topics:** Cluster seeds, membership events, HashRing, consistent hashing
+
+### 14 — Go Interop
+**File:** `lib/guide/Guide14GoInterop.mag`
 **Sources:** `gowrap/`, `cmd/mag/wrap.go`, `cmd/mag/build.go`, `vm/go_object.go`
 **Topics:** mag wrap, mag build, GoObject wrapper, type marshaling, generated glue code, custom binaries
 
-### 13 — Distributed Runtime
-**File:** `lib/guide/Guide13Distribution.mag`
+### 15 — Distributed Runtime
+**File:** `lib/guide/Guide15Distribution.mag`
 **Sources:** `vm/dist/`, `vm/content_store.go`, `server/`, `cmd/mag/sync.go`, `compiler/hash/`
 **Topics:** Content addressing, content hashes, ContentStore, chunks (method/class/module), push/pull, reputation, capabilities, sync configuration
 
-### 14 — Tooling & IDE
-**File:** `lib/guide/Guide14Tooling.mag`
+### 16 — Tooling & IDE
+**File:** `lib/guide/Guide16Tooling.mag`
 **Sources:** `cmd/mag/docgen.go`, `cmd/mag/format.go`, `cmd/mag/doctest.go`, `docs/lsp.md`
 **Topics:** mag fmt, mag doc, mag doctest, LSP server, REPL commands, image save/load, Yutani IDE overview
 

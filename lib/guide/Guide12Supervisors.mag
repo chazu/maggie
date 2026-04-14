@@ -7,7 +7,7 @@ A supervisor manages a set of child processes according to a restart
 strategy. When a child dies, the supervisor decides which children
 to restart based on the strategy and the child's restart policy.
 """
-Guide10Supervisors subclass: Object
+Guide12Supervisors subclass: Object
 
   """
   ## Child Specifications

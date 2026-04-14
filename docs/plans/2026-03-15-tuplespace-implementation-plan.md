@@ -48,14 +48,14 @@ Go unit tests in `vm/cue_primitives_test.go`:
 - `{x: int}` subsumes `{x: "hello"}` → false
 - Reflexivity: A subsumes A → true
 
-Doctests on `CueValue>>subsumes:` and in Guide15.
+Doctests on `CueValue>>subsumes:` and in Guide17.
 
 ### Files
 
 - `vm/cue_primitives.go` — add two primitives
 - `vm/cue_primitives_test.go` — unit tests
 - `lib/CueValue.mag` — wrappers + docstrings
-- `lib/guide/Guide15CueIntegration.mag` — add subsumption section
+- `lib/guide/Guide17CueIntegration.mag` — add subsumption section
 
 ---
 
@@ -143,14 +143,14 @@ Go unit tests in `vm/tuplespace_test.go`:
 - Template with range constraints: `>0 & <100` matches 50, not 200
 - Struct template matches object with ivars
 
-Doctests and Guide15 update.
+Doctests and Guide17 update.
 
 ### Files
 
 - `vm/tuplespace_primitives.go` — new file, ~250 lines
 - `vm/tuplespace_test.go` — new file, ~300 lines
 - `lib/TupleSpace.mag` — new file
-- `lib/guide/Guide15CueIntegration.mag` — add tuplespace section (or create Guide16)
+- `lib/guide/Guide17CueIntegration.mag` — add tuplespace section (or create Guide18)
 - `vm/vm.go` — register in bootstrap
 - `vm/markers.go` — allocate NaN-boxing marker for TupleSpace
 - `vm/object_registry.go` — add TupleSpace registry methods

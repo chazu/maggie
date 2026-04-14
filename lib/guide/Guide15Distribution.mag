@@ -8,7 +8,7 @@ the sender is required; the content hash is the proof.
 This chapter explains how content addressing works, how the sync protocol
 exchanges code, and how to configure your project for distribution.
 """
-Guide13Distribution subclass: Object
+Guide15Distribution subclass: Object
 
   """
   ## Content Addressing

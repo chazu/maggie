@@ -9,7 +9,7 @@ IDE are all available out of the box -- no external tools required.
 This chapter walks through each tool and shows how they fit into a
 typical development workflow.
 """
-Guide14Tooling subclass: Object
+Guide16Tooling subclass: Object
 
   """
   ## Source Formatting
@@ -110,7 +110,7 @@ Guide14Tooling subclass: Object
 
   The documentation generator detects guide chapters automatically.
   Any class whose name matches the pattern `Guide\d{2}*` (for example,
-  `Guide01GettingStarted` or `Guide14Tooling`) is treated as a guide
+  `Guide01GettingStarted` or `Guide16Tooling`) is treated as a guide
   chapter rather than an API class. Guide chapters are rendered with
   their methods sorted by selector name (`s01_`, `s02_`, etc.) to
   preserve reading order.

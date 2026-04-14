@@ -197,7 +197,7 @@ message envelopes, process mailboxes, and registered process names.
 - CLAUDE.md: process mailboxes, registered names, remote messaging sections
 - README.md: distributed messaging section with code examples
 - Guide09Concurrency: mailbox and name registration sections with examples
-- Guide13Distribution: dual-hash, node identity, message delivery, remote
+- Guide15Distribution: dual-hash, node identity, message delivery, remote
   messaging API, updated security model
 - New lib files: Process.mag (8 new methods), MailboxMessage.mag, Node.mag,
   RemoteProcess.mag, Future.mag
@@ -347,11 +347,11 @@ concurrent constraint programming substrate with linear logic semantics.
 
 ### Documentation
 
-- **Guide15CueIntegration** — 8 sections: contexts/values, compiling,
+- **Guide17CueIntegration** — 8 sections: contexts/values, compiling,
   unification, schema validation, object projection, template matching,
   subsumption, fillPath. 28 doctests.
 
-- **Guide16TupleSpace** — 7 sections: basics, tuple modes, template
+- **Guide18TupleSpace** — 7 sections: basics, tuple modes, template
   matching, atomic multi-take, choice, constraint store, combining both.
   13 doctests.
 
@@ -380,8 +380,8 @@ concurrent constraint programming substrate with linear logic semantics.
 - `vm/constraint_store_test.go` — ConstraintStore tests
 - `lib/TupleSpace.mag` — Maggie wrapper with docstrings
 - `lib/ConstraintStore.mag` — Maggie wrapper with docstrings
-- `lib/guide/Guide15CueIntegration.mag` — CUE guide chapter
-- `lib/guide/Guide16TupleSpace.mag` — TupleSpace/CCP guide chapter
+- `lib/guide/Guide17CueIntegration.mag` — CUE guide chapter
+- `lib/guide/Guide18TupleSpace.mag` — TupleSpace/CCP guide chapter
 - `ROADMAP.md` — project roadmap
 - `docs/constraint-programming-maggie-cue.md` — design conversation
 - `docs/plans/2026-03-15-tuplespace-implementation-plan.md` — impl plan
