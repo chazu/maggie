@@ -1111,20 +1111,8 @@ func (i *Interpreter) send(selector int, argc int) (result Value) {
 		homeFrame := i.fp
 
 		result = i.runFrame()
-		if i.unwinding {
-			if i.unwindTarget == homeFrame {
-				for i.fp > homeFrame {
-					i.popFrame()
-				}
-				if i.fp == homeFrame {
-					i.popFrame()
-				}
-				result = i.unwindValue
-				i.unwinding = false
-				i.unwindValue = Nil
-				return result
-			}
-			return Nil // propagate
+		if v, handled := i.handleNLR(homeFrame, result); handled {
+			return v
 		}
 		return result
 	}
@@ -1148,6 +1136,31 @@ func (i *Interpreter) send(selector int, argc int) (result Value) {
 		return result
 	}
 	return method.Invoke(i.vm, rcvr, argsCopy)
+}
+
+// handleNLR checks whether the interpreter is unwinding due to a non-local
+// return after runFrame() completes. If the unwind targets homeFrame, it pops
+// frames back to (and including) homeFrame, captures the unwind value, clears
+// the unwinding state, and returns (value, true). If the unwind targets a
+// different frame, it returns (Nil, true) to propagate. When not unwinding it
+// returns (result, false) — the caller should use result as-is.
+func (i *Interpreter) handleNLR(homeFrame int, result Value) (Value, bool) {
+	if !i.unwinding {
+		return result, false
+	}
+	if i.unwindTarget == homeFrame {
+		for i.fp > homeFrame {
+			i.popFrame()
+		}
+		if i.fp == homeFrame {
+			i.popFrame()
+		}
+		val := i.unwindValue
+		i.unwinding = false
+		i.unwindValue = Nil
+		return val, true
+	}
+	return Nil, true // propagate
 }
 
 // sendDoesNotUnderstand dispatches doesNotUnderstand: with a reified Message.
@@ -1223,20 +1236,8 @@ func (i *Interpreter) sendSuper(selector int, argc int, callingMethod *CompiledM
 		homeFrame := i.fp
 
 		result = i.runFrame()
-		if i.unwinding {
-			if i.unwindTarget == homeFrame {
-				for i.fp > homeFrame {
-					i.popFrame()
-				}
-				if i.fp == homeFrame {
-					i.popFrame()
-				}
-				result = i.unwindValue
-				i.unwinding = false
-				i.unwindValue = Nil
-				return result
-			}
-			return Nil // propagate
+		if v, handled := i.handleNLR(homeFrame, result); handled {
+			return v
 		}
 		return result
 	}
@@ -1662,20 +1663,8 @@ func (i *Interpreter) sendUnaryFallback(rcvr Value, selectorID int) (result Valu
 		homeFrame := i.fp
 
 		result = i.runFrame()
-		if i.unwinding {
-			if i.unwindTarget == homeFrame {
-				for i.fp > homeFrame {
-					i.popFrame()
-				}
-				if i.fp == homeFrame {
-					i.popFrame()
-				}
-				result = i.unwindValue
-				i.unwinding = false
-				i.unwindValue = Nil
-				return result
-			}
-			return Nil // propagate
+		if v, handled := i.handleNLR(homeFrame, result); handled {
+			return v
 		}
 		return result
 	}
@@ -1711,20 +1700,8 @@ func (i *Interpreter) sendBinaryFallback(rcvr, arg Value, selectorID int) (resul
 		homeFrame := i.fp
 
 		result = i.runFrame()
-		if i.unwinding {
-			if i.unwindTarget == homeFrame {
-				for i.fp > homeFrame {
-					i.popFrame()
-				}
-				if i.fp == homeFrame {
-					i.popFrame()
-				}
-				result = i.unwindValue
-				i.unwinding = false
-				i.unwindValue = Nil
-				return result
-			}
-			return Nil // propagate
+		if v, handled := i.handleNLR(homeFrame, result); handled {
+			return v
 		}
 		return result
 	}
