@@ -721,15 +721,15 @@ func BenchmarkInterpreterLoop(b *testing.B) {
 func TestInterpreterStackGrowth(t *testing.T) {
 	interp := NewInterpreter()
 
-	// Verify initial stack size
+	// Verify initial stack size matches the default
 	initialStackSize := len(interp.stack)
-	if initialStackSize != 1024 {
-		t.Errorf("initial stack size = %d, want 1024", initialStackSize)
+	if initialStackSize != DefaultInitialStack {
+		t.Errorf("initial stack size = %d, want %d", initialStackSize, DefaultInitialStack)
 	}
 
 	// Push more values than initial capacity to trigger growth
-	// We'll push 1100 values, which exceeds the initial 1024
-	for i := 0; i < 1100; i++ {
+	pushCount := initialStackSize + 100
+	for i := 0; i < pushCount; i++ {
 		interp.push(FromSmallInt(int64(i)))
 	}
 
@@ -739,7 +739,7 @@ func TestInterpreterStackGrowth(t *testing.T) {
 	}
 
 	// Verify the values are correct
-	for i := 1099; i >= 0; i-- {
+	for i := pushCount - 1; i >= 0; i-- {
 		v := interp.pop()
 		if v.SmallInt() != int64(i) {
 			t.Errorf("popped value = %d, want %d", v.SmallInt(), i)
@@ -751,10 +751,10 @@ func TestInterpreterStackGrowth(t *testing.T) {
 func TestInterpreterFrameStackGrowth(t *testing.T) {
 	interp := NewInterpreter()
 
-	// Verify initial frame stack size
+	// Verify initial frame stack size matches the default
 	initialFrameSize := len(interp.frames)
-	if initialFrameSize != 256 {
-		t.Errorf("initial frame stack size = %d, want 256", initialFrameSize)
+	if initialFrameSize != DefaultInitialFrames {
+		t.Errorf("initial frame stack size = %d, want %d", initialFrameSize, DefaultInitialFrames)
 	}
 
 	// Create a simple method for frame pushing
@@ -764,8 +764,8 @@ func TestInterpreterFrameStackGrowth(t *testing.T) {
 	m := b.Build()
 
 	// Push more frames than initial capacity to trigger growth
-	// We'll push 300 frames, which exceeds the initial 256
-	for i := 0; i < 300; i++ {
+	pushCount := initialFrameSize + 100
+	for i := 0; i < pushCount; i++ {
 		interp.pushFrame(m, Nil, nil)
 	}
 
@@ -775,7 +775,7 @@ func TestInterpreterFrameStackGrowth(t *testing.T) {
 	}
 
 	// Clean up - pop all frames
-	for i := 0; i < 300; i++ {
+	for i := 0; i < pushCount; i++ {
 		interp.popFrame()
 	}
 }

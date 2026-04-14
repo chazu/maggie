@@ -10,6 +10,16 @@ import (
 	"github.com/chazu/maggie/version"
 )
 
+// RuntimeConfig configures VM runtime parameters.
+type RuntimeConfig struct {
+	MaxStackDepth   int    `toml:"max-stack-depth"`
+	MaxFrameDepth   int    `toml:"max-frame-depth"`
+	InitialStack    int    `toml:"initial-stack"`
+	InitialFrames   int    `toml:"initial-frames"`
+	MailboxCapacity int    `toml:"mailbox-capacity"`
+	GCInterval      string `toml:"gc-interval"` // e.g. "30s", "1m"
+}
+
 // Manifest represents a maggie.toml project configuration.
 type Manifest struct {
 	Project         Project                `toml:"project"`
@@ -23,6 +33,7 @@ type Manifest struct {
 	Test            TestConfig             `toml:"test"`
 	Scripts         ScriptsConfig          `toml:"scripts"`
 	Targets         []TargetConfig         `toml:"target"`
+	Runtime         RuntimeConfig          `toml:"runtime"`
 
 	// Dir is the directory containing the maggie.toml file (set at load time).
 	Dir string `toml:"-"`

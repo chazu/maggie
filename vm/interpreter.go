@@ -64,8 +64,10 @@ func (f *CallFrame) Self() Value {
 
 // Default limits for the interpreter stack and frame depth.
 const (
-	DefaultMaxStackDepth = 65536 // Maximum operand stack depth
-	DefaultMaxFrameDepth = 4096  // Maximum call frame depth
+	DefaultMaxStackDepth = 131072 // Maximum operand stack depth
+	DefaultMaxFrameDepth = 8192   // Maximum call frame depth
+	DefaultInitialStack  = 2048   // Initial stack allocation
+	DefaultInitialFrames = 512    // Initial frame allocation
 )
 
 // Interpreter executes Maggie bytecode.
@@ -140,9 +142,9 @@ func NewInterpreter() *Interpreter {
 		Selectors:     NewSelectorTable(),
 		Classes:       NewClassTable(),
 		Globals:       make(map[string]Value),
-		stack:         make([]Value, 1024), // Fixed-size stack
+		stack:         make([]Value, DefaultInitialStack),
 		sp:            0,
-		frames:        make([]*CallFrame, 256), // Fixed-size frame stack
+		frames:        make([]*CallFrame, DefaultInitialFrames),
 		fp:            -1,
 		MaxStackDepth: DefaultMaxStackDepth,
 		MaxFrameDepth: DefaultMaxFrameDepth,
@@ -154,19 +156,27 @@ func NewInterpreter() *Interpreter {
 	return interp
 }
 
-// newBareInterpreter allocates only per-goroutine execution state (stack, frames,
-// profiler). It does NOT allocate Selectors, Classes, or Globals — those must be
-// assigned by the caller (typically VM.newInterpreter or VM.newForkedInterpreter).
-func newBareInterpreter() *Interpreter {
+// newBareInterpreterWithConfig allocates per-goroutine execution state (stack, frames,
+// profiler) using the provided config. It does NOT allocate Selectors, Classes, or
+// Globals — those must be assigned by the caller (typically VM.newInterpreter or
+// VM.newForkedInterpreter).
+func newBareInterpreterWithConfig(cfg VMConfig) *Interpreter {
 	return &Interpreter{
-		stack:         make([]Value, 1024),
+		stack:         make([]Value, cfg.InitialStack),
 		sp:            0,
-		frames:        make([]*CallFrame, 256),
+		frames:        make([]*CallFrame, cfg.InitialFrames),
 		fp:            -1,
-		MaxStackDepth: DefaultMaxStackDepth,
-		MaxFrameDepth: DefaultMaxFrameDepth,
+		MaxStackDepth: cfg.MaxStackDepth,
+		MaxFrameDepth: cfg.MaxFrameDepth,
 		Profiler:      NewProfiler(),
 	}
+}
+
+// newBareInterpreter allocates only per-goroutine execution state (stack, frames,
+// profiler) using default config values. It does NOT allocate Selectors, Classes,
+// or Globals — those must be assigned by the caller.
+func newBareInterpreter() *Interpreter {
+	return newBareInterpreterWithConfig(DefaultVMConfig())
 }
 
 // internWellKnownSelectors populates the cached selector IDs from the current

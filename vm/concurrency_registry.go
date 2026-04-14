@@ -173,12 +173,16 @@ func (cr *ConcurrencyRegistry) GetProcessByID(id uint64) *ProcessObject {
 }
 
 // CreateProcess creates a new process with a unique ID and a mailbox.
-func (cr *ConcurrencyRegistry) CreateProcess() *ProcessObject {
+func (cr *ConcurrencyRegistry) CreateProcess(mailboxCapacity ...int) *ProcessObject {
+	cap := DefaultMailboxCapacity
+	if len(mailboxCapacity) > 0 && mailboxCapacity[0] > 0 {
+		cap = mailboxCapacity[0]
+	}
 	id := cr.processID.Add(1) - 1
 	proc := &ProcessObject{
 		id:      id,
 		done:    make(chan struct{}),
-		mailbox: NewMailbox(DefaultMailboxCapacity),
+		mailbox: NewMailbox(cap),
 	}
 	proc.state.Store(int32(ProcessRunning))
 	proc.waitGroup.Add(1)

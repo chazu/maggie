@@ -70,7 +70,7 @@ func handleRunCommand(args []string, verbose bool) {
 	}
 
 	// Create VM and load image
-	vmInst := vm.NewVM()
+	vmInst := vm.NewVM(vmConfigFromManifest(m))
 	defer vmInst.Shutdown()
 
 	if err := vmInst.LoadImageFromBytes(embeddedImage); err != nil {

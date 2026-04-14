@@ -417,7 +417,7 @@ func copyDepWrapFiles(srcDir, dstBaseDir, importPath string, verbose bool) (stri
 
 // compileTargetImage creates a VM, compiles a target's sources, and saves the image.
 func compileTargetImage(m *manifest.Manifest, target *manifest.ResolvedTarget, verbose bool) (string, error) {
-	vmInst := vm.NewVM()
+	vmInst := vm.NewVM(vmConfigFromManifest(m))
 	defer vmInst.Shutdown()
 
 	if err := vmInst.LoadImageFromBytes(embeddedImage); err != nil {

@@ -6,7 +6,7 @@ import (
 )
 
 // DefaultMailboxCapacity is the default bounded capacity for process mailboxes.
-const DefaultMailboxCapacity = 1024
+const DefaultMailboxCapacity = 4096
 
 // Mailbox is a bounded, mutex-protected FIFO with selective receive support.
 // Each process gets one mailbox. Senders enqueue messages with TrySend;

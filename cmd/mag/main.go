@@ -956,3 +956,24 @@ func loadTrustStore(m *manifest.Manifest) *dist.TrustStore {
 	}
 	return ts
 }
+
+// vmConfigFromManifest converts a manifest's [runtime] section into a vm.VMConfig.
+// Zero-valued fields are left at zero so that VMConfig.mergeDefaults() fills them.
+func vmConfigFromManifest(m *manifest.Manifest) vm.VMConfig {
+	if m == nil {
+		return vm.VMConfig{}
+	}
+	cfg := vm.VMConfig{
+		MaxStackDepth:   m.Runtime.MaxStackDepth,
+		MaxFrameDepth:   m.Runtime.MaxFrameDepth,
+		InitialStack:    m.Runtime.InitialStack,
+		InitialFrames:   m.Runtime.InitialFrames,
+		MailboxCapacity: m.Runtime.MailboxCapacity,
+	}
+	if m.Runtime.GCInterval != "" {
+		if d, err := time.ParseDuration(m.Runtime.GCInterval); err == nil {
+			cfg.GCInterval = d
+		}
+	}
+	return cfg
+}

@@ -891,16 +891,16 @@ func TestThreeWayMutualRecursionOverflows(t *testing.T) {
 }
 
 // TestDefaultMaxFrameDepthApplied verifies that when MaxFrameDepth is 0
-// (unset), the DefaultMaxFrameDepth constant (4096) is used.
+// (unset), the DefaultMaxFrameDepth constant (8192) is used.
 func TestDefaultMaxFrameDepthApplied(t *testing.T) {
 	vm := NewVM()
 
-	// The default should be 4096
+	// The default should be 8192
 	if vm.interpreter.MaxFrameDepth != DefaultMaxFrameDepth {
 		t.Errorf("default MaxFrameDepth = %d, want %d", vm.interpreter.MaxFrameDepth, DefaultMaxFrameDepth)
 	}
 
-	if DefaultMaxFrameDepth != 4096 {
-		t.Errorf("DefaultMaxFrameDepth = %d, want 4096", DefaultMaxFrameDepth)
+	if DefaultMaxFrameDepth != 8192 {
+		t.Errorf("DefaultMaxFrameDepth = %d, want 8192", DefaultMaxFrameDepth)
 	}
 }

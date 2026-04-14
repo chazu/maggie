@@ -11,6 +11,57 @@ import (
 )
 
 // ---------------------------------------------------------------------------
+// VMConfig: Configurable runtime parameters
+// ---------------------------------------------------------------------------
+
+// VMConfig holds configurable runtime parameters for the VM.
+// Zero values mean "use default".
+type VMConfig struct {
+	MaxStackDepth   int           // Operand stack depth limit (default: 131072)
+	MaxFrameDepth   int           // Call frame depth limit (default: 8192)
+	InitialStack    int           // Initial stack allocation (default: 2048)
+	InitialFrames   int           // Initial frame allocation (default: 512)
+	MailboxCapacity int           // Process mailbox capacity (default: 4096)
+	GCInterval      time.Duration // Registry GC sweep interval (default: 30s)
+}
+
+// DefaultVMConfig returns the default VM configuration.
+func DefaultVMConfig() VMConfig {
+	return VMConfig{
+		MaxStackDepth:   DefaultMaxStackDepth,
+		MaxFrameDepth:   DefaultMaxFrameDepth,
+		InitialStack:    DefaultInitialStack,
+		InitialFrames:   DefaultInitialFrames,
+		MailboxCapacity: DefaultMailboxCapacity,
+		GCInterval:      DefaultGCInterval,
+	}
+}
+
+// mergeDefaults fills zero-valued fields with defaults.
+func (c VMConfig) mergeDefaults() VMConfig {
+	d := DefaultVMConfig()
+	if c.MaxStackDepth == 0 {
+		c.MaxStackDepth = d.MaxStackDepth
+	}
+	if c.MaxFrameDepth == 0 {
+		c.MaxFrameDepth = d.MaxFrameDepth
+	}
+	if c.InitialStack == 0 {
+		c.InitialStack = d.InitialStack
+	}
+	if c.InitialFrames == 0 {
+		c.InitialFrames = d.InitialFrames
+	}
+	if c.MailboxCapacity == 0 {
+		c.MailboxCapacity = d.MailboxCapacity
+	}
+	if c.GCInterval == 0 {
+		c.GCInterval = d.GCInterval
+	}
+	return c
+}
+
+// ---------------------------------------------------------------------------
 // VM: The Maggie Virtual Machine
 // ---------------------------------------------------------------------------
 
@@ -192,11 +243,24 @@ type VM struct {
 	// change/update notification protocol. Uses Value identity (==) as key.
 	dependents   map[Value][]Value
 	dependentsMu sync.RWMutex
+
+	// Config holds the runtime configuration for this VM instance.
+	Config VMConfig
 }
 
-// NewVM creates and bootstraps a new VM.
-func NewVM() *VM {
+// NewVM creates and bootstraps a new VM. An optional VMConfig may be passed;
+// if omitted, DefaultVMConfig() is used. Zero-valued fields in a provided
+// config fall back to defaults.
+func NewVM(configs ...VMConfig) *VM {
+	var cfg VMConfig
+	if len(configs) > 0 {
+		cfg = configs[0].mergeDefaults()
+	} else {
+		cfg = DefaultVMConfig()
+	}
+
 	vm := &VM{
+		Config: cfg,
 		Selectors:      NewSelectorTable(),
 		Symbols:        NewSymbolTable(),
 		Classes:        NewClassTable(),
@@ -224,23 +288,23 @@ func NewVM() *VM {
 
 	// Create the main process (so Process current / Process receive work
 	// from the main goroutine)
-	vm.mainProcess = vm.registry.CreateProcess()
+	vm.mainProcess = vm.registry.CreateProcess(vm.Config.MailboxCapacity)
 	vm.registry.RegisterProcess(vm.mainProcess)
 
 	// Create debug server
 	vm.Debugger = NewDebugServer(vm)
 
 	// Start registry GC for automatic cleanup of stale concurrency objects
-	vm.registryGC = NewRegistryGC(vm, DefaultGCInterval)
+	vm.registryGC = NewRegistryGC(vm, vm.Config.GCInterval)
 	vm.registryGC.Start()
 
 	return vm
 }
 
 // newInterpreter creates an interpreter connected to this VM.
-// Uses newBareInterpreter to avoid allocating tables that are immediately replaced.
+// Uses newBareInterpreterWithConfig to allocate with the VM's config values.
 func (vm *VM) newInterpreter() *Interpreter {
-	interp := newBareInterpreter()
+	interp := newBareInterpreterWithConfig(vm.Config)
 	// Share tables with VM
 	interp.Selectors = vm.Selectors
 	interp.Symbols = vm.Symbols
@@ -257,7 +321,7 @@ func (vm *VM) newInterpreter() *Interpreter {
 // It shares VM tables but writes go to a process-local overlay.
 // Pass nil for hidden to create an unrestricted forked interpreter.
 func (vm *VM) newForkedInterpreter(hidden map[string]bool) *Interpreter {
-	interp := newBareInterpreter()
+	interp := newBareInterpreterWithConfig(vm.Config)
 	interp.Selectors = vm.Selectors
 	interp.Symbols = vm.Symbols
 	interp.Classes = vm.Classes
@@ -661,7 +725,7 @@ func (vm *VM) getChannel(v Value) *ChannelObject {
 // --- Process helpers ---
 
 func (vm *VM) createProcess() *ProcessObject {
-	return vm.registry.CreateProcess()
+	return vm.registry.CreateProcess(vm.Config.MailboxCapacity)
 }
 
 func (vm *VM) registerProcess(proc *ProcessObject) Value {
