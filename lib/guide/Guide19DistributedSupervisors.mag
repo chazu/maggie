@@ -1,0 +1,167 @@
+"""
+Distributed supervisors extend the Supervisor pattern to manage child
+processes across multiple cluster nodes. When a node goes down, its
+children are automatically restarted on surviving nodes.
+
+`DistributedSupervisor` reuses the same `ChildSpec`, restart strategies,
+and restart intensity semantics as the local `Supervisor` — the key
+difference is that children are spawned on remote nodes via `spawnOn:`
+and monitored with cross-node monitors.
+"""
+Guide19DistributedSupervisors subclass: Object
+
+  """
+  ## Creating a Distributed Supervisor
+
+  A `DistributedSupervisor` takes the same strategy and child specs as a
+  regular `Supervisor`, plus a `Cluster` for node discovery and placement.
+
+  Children are distributed across cluster members via round-robin. If no
+  cluster is provided (or the cluster has no live members), children are
+  spawned locally as a fallback.
+
+  ```example
+  "Set up a cluster and distributed supervisor"
+  | cluster sup |
+  cluster := Cluster seeds: #('worker1:8081' 'worker2:8081').
+  cluster start.
+
+  sup := DistributedSupervisor
+      new: #oneForOne
+      children: {
+          ChildSpec id: 'indexer' start: [Indexer new run].
+          ChildSpec id: 'crawler' start: [Crawler new run] restart: #transient
+      }
+      cluster: cluster.
+  sup start.
+
+  "Children are spread across cluster nodes"
+  sup countChildren.   "=> 2"
+  sup runningChildren. "=> #('indexer' 'crawler')"
+
+  "Check where a child is running"
+  sup nodeFor: 'indexer'.   "=> a Node or nil (local)"
+
+  sup stop.
+  cluster stop
+  ```
+
+  **Strategies** work the same as local Supervisor:
+  - `#oneForOne` — restart only the crashed child
+  - `#oneForAll` — restart all children
+  - `#restForOne` — restart the crashed child and those started after it
+
+  **Restart policies** per child spec:
+  - `#permanent` — always restart (default)
+  - `#temporary` — never restart
+  - `#transient` — restart only on abnormal exit
+  """
+  method: s01_creating [
+      "DistributedSupervisor distributes children across cluster nodes."
+      ^nil
+  ]
+
+  """
+  ## Node Failure Handling
+
+  When a node goes down, the `DistributedSupervisor` receives a
+  `#processDown:` notification (via cross-node monitors). It identifies
+  all children assigned to the dead node and restarts them on surviving
+  cluster members.
+
+  If remote spawning fails (e.g., no nodes available), children fall
+  back to local execution automatically.
+
+  ```example
+  "Supervisor with node failure handling"
+  | cluster sup |
+  cluster := Cluster seeds: #('node-a:8081' 'node-b:8081').
+  cluster start.
+
+  sup := DistributedSupervisor
+      new: #oneForOne
+      children: {
+          ChildSpec id: 'w1' start: [Worker new run].
+          ChildSpec id: 'w2' start: [Worker new run].
+          ChildSpec id: 'w3' start: [Worker new run]
+      }
+      cluster: cluster.
+  sup start.
+
+  "If node-a goes down, children on node-a are restarted on node-b"
+  "If node-b is also down, children fall back to local execution"
+  ```
+
+  **Restart intensity** is respected across node failures — if too many
+  restarts happen in the time window (default: 3 in 5 seconds), the
+  supervisor crashes upward, same as local Supervisor.
+  """
+  method: s02_nodeFailure [
+      "Dead-node children are restarted on surviving nodes."
+      ^nil
+  ]
+
+  """
+  ## Dynamic Children
+
+  Children can be added and removed at runtime, just like local Supervisor:
+
+  ```example
+  | cluster sup |
+  cluster := Cluster seeds: #('worker1:8081').
+  cluster start.
+
+  sup := DistributedSupervisor new: #oneForOne children: #() cluster: cluster.
+  sup start.
+
+  "Add children dynamically"
+  sup startChild: (ChildSpec id: 'task-1' start: [Task new run]).
+  sup startChild: (ChildSpec id: 'task-2' start: [Task new run]).
+
+  sup countChildren.   "=> 2"
+
+  "Remove a specific child"
+  sup terminateChild: 'task-1'.
+  sup countChildren.   "=> 1"
+
+  sup stop.
+  cluster stop
+  ```
+  """
+  method: s03_dynamicChildren [
+      "Children can be added/removed while the supervisor is running."
+      ^nil
+  ]
+
+  """
+  ## Combining with Local Supervisors
+
+  A common pattern is a top-level local `Supervisor` that manages both
+  local services and a `DistributedSupervisor` for remote work:
+
+  ```example
+  | cluster distSup localSup |
+  cluster := Cluster seeds: #('worker1:8081' 'worker2:8081').
+  cluster start.
+
+  "Distributed supervisor for compute workers"
+  distSup := DistributedSupervisor
+      new: #oneForOne
+      children: {
+          ChildSpec id: 'compute-1' start: [ComputeWorker new run].
+          ChildSpec id: 'compute-2' start: [ComputeWorker new run]
+      }
+      cluster: cluster.
+
+  "Local supervisor for the API server + distributed supervisor"
+  localSup := Supervisor new: #oneForOne children: {
+      ChildSpec id: 'api' start: [ApiServer new run].
+      ChildSpec id: 'dist' start: [distSup start. Process receive]
+  }.
+  localSup start
+  ```
+  """
+  method: s04_combining [
+      "Combine local and distributed supervisors in a supervision tree."
+      ^nil
+  ]

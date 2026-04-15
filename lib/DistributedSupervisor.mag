@@ -1,0 +1,365 @@
+"""
+A distributed supervisor that manages child processes across cluster nodes.
+Extends the Supervisor pattern to spawn children on remote nodes via `spawnOn:`,
+monitor them with cross-node monitors, and handle node failures by restarting
+affected children on surviving nodes.
+
+Children are assigned to nodes either explicitly (via `node` on the spec) or
+automatically via round-robin placement across cluster members.
+
+```test
+| ds <DistributedSupervisor> |
+ds := DistributedSupervisor new: #oneForOne children: #() cluster: nil.
+ds strategy >>> #oneForOne
+```
+
+```test
+| ds <DistributedSupervisor> |
+ds := DistributedSupervisor new: #oneForAll children: #() cluster: nil maxRestarts: 5 maxSeconds: 10.
+ds maxRestarts >>> 5
+```
+
+```example
+"Create a distributed supervisor across a 2-node cluster"
+| cluster sup spec1 spec2 |
+cluster := Cluster seeds: #('worker1:8081' 'worker2:8081').
+cluster start.
+
+spec1 := ChildSpec id: 'db' start: [DbPool new run].
+spec2 := ChildSpec id: 'web' start: [WebServer new run] restart: #transient.
+
+sup := DistributedSupervisor new: #oneForOne children: { spec1. spec2 } cluster: cluster.
+sup start.
+
+"Children are distributed across cluster members via round-robin"
+sup runningChildren.
+sup countChildren.
+
+sup stop.
+cluster stop
+```
+"""
+DistributedSupervisor subclass: Object
+  instanceVars: strategy <Symbol> childSpecs <Array> maxRestarts <Integer> maxSeconds <Integer>
+                restartTimes <ArrayList> running <Boolean> cluster <Cluster>
+                supervisorProcess <Process> children <Dictionary> nodeAssignments <Dictionary>
+                rrIndex <Integer>
+
+  """
+  Create a distributed supervisor with a strategy, child specs, and cluster.
+  Default restart intensity: 3 restarts in 5 seconds.
+  """
+  classMethod: new: aStrategy <Symbol> children: specArray <Array> cluster: aCluster <Cluster> ^<DistributedSupervisor> [
+      ^self new: aStrategy children: specArray cluster: aCluster maxRestarts: 3 maxSeconds: 5
+  ]
+
+  classMethod: new: aStrategy <Symbol> children: specArray <Array> cluster: aCluster <Cluster> maxRestarts: maxR <Integer> maxSeconds: maxS <Integer> ^<DistributedSupervisor> [
+      | ds <DistributedSupervisor> |
+      ds := self new.
+      ds primInit: aStrategy specs: specArray cluster: aCluster maxR: maxR maxS: maxS.
+      ^ds
+  ]
+
+  method: primInit: aStrategy <Symbol> specs: specArray <Array> cluster: aCluster <Cluster> maxR: maxR <Integer> maxS: maxS <Integer> [
+      strategy := aStrategy.
+      childSpecs := specArray.
+      cluster := aCluster.
+      maxRestarts := maxR.
+      maxSeconds := maxS.
+      children := Dictionary new.
+      nodeAssignments := Dictionary new.
+      restartTimes := ArrayList new.
+      running := false.
+      rrIndex := 0
+  ]
+
+  """Start the distributed supervisor. Spawns a supervisor process that manages children."""
+  method: start ^<Process> ! <Process, Network> [
+      running := true.
+      supervisorProcess := [self runLoop] fork.
+      supervisorProcess registerAs: ('dist-supervisor-', self hash printString).
+      ^supervisorProcess
+  ]
+
+  """Stop the distributed supervisor and all children."""
+  method: stop [
+      running := false.
+      self terminateAllChildren.
+      supervisorProcess notNil ifTrue: [supervisorProcess primTerminate]
+  ]
+
+  """Return the strategy symbol."""
+  method: strategy ^<Symbol> [ ^strategy ]
+
+  """Return the child specs array."""
+  method: childSpecs ^<Array> [ ^childSpecs ]
+
+  """Return the max restarts."""
+  method: maxRestarts ^<Integer> [ ^maxRestarts ]
+
+  """Return the supervisor process."""
+  method: process ^<Process> [ ^supervisorProcess ]
+
+  """Return the cluster."""
+  method: cluster ^<Cluster> [ ^cluster ]
+
+  """
+  Start a new child dynamically. The child is added to the spec list and
+  spawned on an available node.
+  """
+  method: startChild: aSpec <ChildSpec> ^<Boolean> [
+      childSpecs := childSpecs copyWith: aSpec.
+      ^self spawnChildSpec: aSpec
+  ]
+
+  """Terminate a child by ID. The child is stopped and its spec is removed."""
+  method: terminateChild: anId <String> [
+      | proc |
+      proc := children at: anId ifAbsent: [nil].
+      proc notNil ifTrue: [
+          proc primTerminate.
+          children removeKey: anId ifAbsent: [nil].
+          nodeAssignments removeKey: anId ifAbsent: [nil]
+      ].
+      childSpecs := childSpecs select: [:s | s id ~= anId]
+  ]
+
+  """Return the IDs of currently running children."""
+  method: runningChildren ^<Array> [
+      | ids <ArrayList> |
+      ids := ArrayList new.
+      children keysAndValuesDo: [:k :v |
+          v isDone not ifTrue: [ids add: k]
+      ].
+      ^ids asArray
+  ]
+
+  """Return the count of running children."""
+  method: countChildren ^<Integer> [
+      ^self runningChildren size
+  ]
+
+  """Return which node a child is assigned to (or nil for local)."""
+  method: nodeFor: childId <String> [
+      ^nodeAssignments at: childId ifAbsent: [nil]
+  ]
+
+  "--- Private: supervisor event loop ---"
+
+  method: runLoop ! <Process, Network> [
+      Process current trapExit: true.
+
+      "Start all initial children"
+      childSpecs do: [:spec | self spawnChildSpec: spec].
+
+      "Main loop: wait for exit signals"
+      [running] whileTrue: [
+          | msg <MailboxMessage> |
+          msg := Process receive: 1000.
+          msg notNil ifTrue: [
+              msg selector = #processDown: ifTrue: [
+                  self handleChildDown: msg payload
+              ]
+          ]
+      ]
+  ]
+
+  """
+  Spawn a child on an appropriate node. If the cluster is nil or has no
+  members, spawn locally. Otherwise use round-robin placement.
+  """
+  method: spawnChildSpec: aSpec <ChildSpec> ^<Boolean> ! <Process, Network> [
+      | node <Node> |
+      node := self selectNode: aSpec id.
+      node isNil ifTrue: [
+          ^self spawnLocal: aSpec
+      ] ifFalse: [
+          ^self spawnRemote: aSpec on: node
+      ]
+  ]
+
+  """Spawn a child locally (same as regular Supervisor)."""
+  method: spawnLocal: aSpec <ChildSpec> ^<Boolean> ! <Process> [
+      | childProc <Process> |
+      childProc := aSpec startBlock fork.
+      Process current monitor: childProc.
+      children at: aSpec id put: childProc.
+      nodeAssignments at: aSpec id put: nil.
+      ^true
+  ]
+
+  """Spawn a child on a remote node via spawnOn:."""
+  method: spawnRemote: aSpec <ChildSpec> on: node <Node> ^<Boolean> ! <Process, Network> [
+      | remoteProc |
+      [
+          remoteProc := aSpec startBlock spawnOn: node.
+          Process current monitor: remoteProc.
+          children at: aSpec id put: remoteProc.
+          nodeAssignments at: aSpec id put: node.
+          ^true
+      ] on: Error do: [:e |
+          "If remote spawn fails, fall back to local"
+          ^self spawnLocal: aSpec
+      ]
+  ]
+
+  """
+  Select a node for a child. Returns a Node from the cluster (round-robin),
+  or nil if no cluster / no live members.
+  """
+  method: selectNode: childId <String> ^<Node> [
+      | members <Array> node <Node> |
+      cluster isNil ifTrue: [^nil].
+      members := cluster members.
+      members size = 0 ifTrue: [^nil].
+      rrIndex := rrIndex \\ members size.
+      node := members at: rrIndex.
+      rrIndex := rrIndex + 1.
+      ^node
+  ]
+
+  """Handle a child going down. Applies restart strategy."""
+  method: handleChildDown: info <Array> ! <Process, Network> [
+      | reason <Symbol> childId <String> spec <ChildSpec> deadNode <Node> |
+      reason := info at: 3.
+      childId := self findChildId: (info at: 2).
+      childId isNil ifTrue: [
+          "Could be a node-down event — check for dead nodes"
+          reason = #nodeDown ifTrue: [self handleNodeDown: info].
+          ^nil
+      ].
+
+      spec := self findSpec: childId.
+      spec isNil ifTrue: [^nil].
+
+      "Check restart policy"
+      (self shouldRestart: spec reason: reason) ifFalse: [
+          children removeKey: childId ifAbsent: [nil].
+          nodeAssignments removeKey: childId ifAbsent: [nil].
+          ^nil
+      ].
+
+      "Check restart intensity"
+      self recordRestart.
+      self restartIntensityExceeded ifTrue: [
+          running := false.
+          self terminateAllChildren.
+          ^nil
+      ].
+
+      "Apply restart strategy"
+      strategy = #oneForOne ifTrue: [self restartChild: spec].
+      strategy = #oneForAll ifTrue: [self restartAllChildren].
+      strategy = #restForOne ifTrue: [self restartFrom: childId]
+  ]
+
+  """
+  Handle a node going down. Find all children assigned to that node
+  and restart them on surviving nodes.
+  """
+  method: handleNodeDown: info <Array> ! <Process, Network> [
+      | deadChildren <ArrayList> |
+      deadChildren := ArrayList new.
+
+      "Find children whose assigned node is no longer reachable"
+      nodeAssignments keysAndValuesDo: [:childId :node |
+          node notNil ifTrue: [
+              node ping ifFalse: [
+                  deadChildren add: childId
+              ]
+          ]
+      ].
+
+      "Restart each affected child on a surviving node"
+      deadChildren do: [:childId |
+          | spec <ChildSpec> |
+          children removeKey: childId ifAbsent: [nil].
+          nodeAssignments removeKey: childId ifAbsent: [nil].
+          spec := self findSpec: childId.
+          spec notNil ifTrue: [
+              (self shouldRestart: spec reason: #nodeDown) ifTrue: [
+                  self recordRestart.
+                  self restartIntensityExceeded ifFalse: [
+                      self spawnChildSpec: spec
+                  ]
+              ]
+          ]
+      ]
+  ]
+
+  method: restartChild: aSpec <ChildSpec> ! <Process, Network> [
+      children removeKey: aSpec id ifAbsent: [nil].
+      nodeAssignments removeKey: aSpec id ifAbsent: [nil].
+      self spawnChildSpec: aSpec
+  ]
+
+  method: restartAllChildren ! <Process, Network> [
+      self terminateAllChildren.
+      childSpecs do: [:spec | self spawnChildSpec: spec]
+  ]
+
+  method: restartFrom: childId <String> ! <Process, Network> [
+      | found <Boolean> specsToRestart <ArrayList> proc |
+      found := false.
+      specsToRestart := ArrayList new.
+      childSpecs do: [:spec |
+          spec id = childId ifTrue: [found := true].
+          found ifTrue: [
+              specsToRestart add: spec.
+              proc := children at: spec id ifAbsent: [nil].
+              proc notNil ifTrue: [
+                  proc primTerminate.
+                  children removeKey: spec id ifAbsent: [nil].
+                  nodeAssignments removeKey: spec id ifAbsent: [nil]
+              ]
+          ]
+      ].
+      specsToRestart do: [:spec | self spawnChildSpec: spec]
+  ]
+
+  method: findChildId: procValue ^<String> [
+      children keysAndValuesDo: [:k :v |
+          v = procValue ifTrue: [^k]
+      ].
+      ^nil
+  ]
+
+  method: findSpec: anId <String> ^<ChildSpec> [
+      childSpecs do: [:s | s id = anId ifTrue: [^s]].
+      ^nil
+  ]
+
+  method: shouldRestart: aSpec <ChildSpec> reason: reason <Symbol> ^<Boolean> [
+      aSpec restart = #permanent ifTrue: [^true].
+      aSpec restart = #temporary ifTrue: [^false].
+      aSpec restart = #transient ifTrue: [^reason ~= #normal].
+      ^false
+  ]
+
+  method: terminateAllChildren [
+      children keysAndValuesDo: [:k :v |
+          v isDone not ifTrue: [v primTerminate]
+      ].
+      children := Dictionary new.
+      nodeAssignments := Dictionary new
+  ]
+
+  method: recordRestart [
+      | now <Integer> |
+      now := DateTime now epochMillis.
+      restartTimes add: now
+  ]
+
+  method: restartIntensityExceeded ^<Boolean> [
+      | now <Integer> windowStart <Integer> count <Integer> |
+      restartTimes size < maxRestarts ifTrue: [^false].
+      now := DateTime now epochMillis.
+      windowStart := now - (maxSeconds * 1000).
+      count := 0.
+      restartTimes do: [:t | t >= windowStart ifTrue: [count := count + 1]].
+      ^count > maxRestarts
+  ]
+
+  method: printString ^<String> [
+      ^'a DistributedSupervisor(', strategy printString, ', ', self countChildren printString, ' children)'
+  ]
