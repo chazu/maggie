@@ -285,7 +285,7 @@ func run() (exitCode int) {
 	vmInst.UseGoCompiler(compiler.Compile)
 
 	// Wire NodeRefFactory for remote messaging
-	vmInst.NodeRefFactory = buildNodeRefFactory()
+	vmInst.NodeRefFactory = buildNodeRefFactory(vmInst)
 
 	// Wire RemoteChannelFactory for distributed channels
 	vmInst.RemoteChannelFactory = buildRemoteChannelFactory(vmInst)
@@ -465,6 +465,7 @@ func run() (exitCode int) {
 	// Start sync server if configured via manifest
 	if loadedManifest != nil && loadedManifest.Sync.Listen != "" {
 		syncAddr := loadedManifest.Sync.Listen
+		peerAddrs := &sync.Map{}
 		var syncOpts []server.ServerOption
 		syncOpts = append(syncOpts, server.WithCompileFunc(buildCompileFunc(vmInst)))
 		if diskCache != nil {
@@ -473,12 +474,15 @@ func run() (exitCode int) {
 		trustStore := loadTrustStore(loadedManifest)
 		syncOpts = append(syncOpts, server.WithTrustStore(trustStore))
 		syncOpts = append(syncOpts, server.WithSpawnResultFunc(buildSpawnResultFunc(vmInst)))
+		syncOpts = append(syncOpts, server.WithPullFunc(buildPullFunc(vmInst, peerAddrs)))
+		syncOpts = append(syncOpts, server.WithPeerAddrRegistry(peerAddrs))
 		srv := server.New(vmInst, syncOpts...)
 		go func() {
 			if err := srv.ListenAndServe(syncAddr); err != nil {
 				fmt.Fprintf(os.Stderr, "Sync server error: %v\n", err)
 			}
 		}()
+		vmInst.LocalListenAddr = syncAddr
 		if *verbose {
 			fmt.Printf("Sync server listening on %s\n", syncAddr)
 		}
@@ -522,12 +526,18 @@ func run() (exitCode int) {
 	// entry point so that the process can receive remote messages.
 	if *serveMode && *mainEntry != "" {
 		addr := fmt.Sprintf(":%d", *servePort)
-		srv := server.New(vmInst, server.WithCompileFunc(buildCompileFunc(vmInst)))
+		servePeerAddrs := &sync.Map{}
+		srv := server.New(vmInst,
+			server.WithCompileFunc(buildCompileFunc(vmInst)),
+			server.WithPullFunc(buildPullFunc(vmInst, servePeerAddrs)),
+			server.WithPeerAddrRegistry(servePeerAddrs),
+		)
 		go func() {
 			if err := srv.ListenAndServe(addr); err != nil {
 				fmt.Fprintf(os.Stderr, "Server error: %v\n", err)
 			}
 		}()
+		vmInst.LocalListenAddr = addr
 		time.Sleep(50 * time.Millisecond)
 		// The serve-only path below will be skipped since mainEntry is set
 	}
@@ -562,8 +572,14 @@ func run() (exitCode int) {
 	// foreground (blocking) operation.
 	if *serveMode {
 		addr := fmt.Sprintf(":%d", *servePort)
-		srv := server.New(vmInst, server.WithCompileFunc(buildCompileFunc(vmInst)))
+		servePeerAddrs2 := &sync.Map{}
+		srv := server.New(vmInst,
+			server.WithCompileFunc(buildCompileFunc(vmInst)),
+			server.WithPullFunc(buildPullFunc(vmInst, servePeerAddrs2)),
+			server.WithPeerAddrRegistry(servePeerAddrs2),
+		)
 		defer srv.Stop()
+		vmInst.LocalListenAddr = addr
 
 		if *mainEntry != "" {
 			// Both --serve and -m: start server in background, entry point is foreground
@@ -724,7 +740,7 @@ func buildCompileFunc(vmInst *vm.VM) func(string) (dist.CompileResult, error) {
 
 // buildNodeRefFactory creates a factory function that produces fully-wired
 // NodeRefData instances with gRPC SendFunc and PingFunc.
-func buildNodeRefFactory() vm.NodeRefFactory {
+func buildNodeRefFactory(vmInst *vm.VM) vm.NodeRefFactory {
 	return func(addr string, pub ed25519.PublicKey, priv ed25519.PrivateKey) *vm.NodeRefData {
 		ref := vm.NewNodeRefData(addr, pub, priv)
 
@@ -760,8 +776,13 @@ func buildNodeRefFactory() vm.NodeRefFactory {
 			}
 			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 			defer cancel()
-			resp, err := client.SpawnProcess(ctx, connect.NewRequest(
-				&maggiev1.SpawnProcessRequest{Envelope: envBytes}))
+			spawnReq := connect.NewRequest(
+				&maggiev1.SpawnProcessRequest{Envelope: envBytes})
+			// Send our listen address so the remote node can pull code back.
+			if vmInst.LocalListenAddr != "" {
+				spawnReq.Header().Set("X-Maggie-Return-Addr", vmInst.LocalListenAddr)
+			}
+			resp, err := client.SpawnProcess(ctx, spawnReq)
 			if err != nil {
 				return "", err
 			}

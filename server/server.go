@@ -3,6 +3,7 @@ package server
 import (
 	"fmt"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/chazu/maggie/gen/maggie/v1/maggiev1connect"
@@ -31,6 +32,7 @@ type serverConfig struct {
 	diskCache       *dist.DiskCache
 	pullFunc        func(peerID dist.NodeID, hash [32]byte) error
 	spawnResultFunc func(spawnerID dist.NodeID, futureID uint64, resultBytes []byte, errMsg error)
+	peerAddrs       *sync.Map // NodeID -> address registry for code-on-demand
 }
 
 // WithCompileFunc sets the compile function used by the sync service to
@@ -62,6 +64,14 @@ func WithSpawnResultFunc(fn func(spawnerID dist.NodeID, futureID uint64, resultB
 	return func(c *serverConfig) { c.spawnResultFunc = fn }
 }
 
+// WithPeerAddrRegistry sets a shared NodeID -> address registry. The
+// SpawnProcess handler records the spawning peer's return address here
+// (from the X-Maggie-Return-Addr header) so the pull function can call
+// back to the peer's Serve RPC for code-on-demand.
+func WithPeerAddrRegistry(m *sync.Map) ServerOption {
+	return func(c *serverConfig) { c.peerAddrs = m }
+}
+
 // New creates a MaggieServer wrapping the given VM.
 func New(v *vm.VM, opts ...ServerOption) *MaggieServer {
 	cfg := &serverConfig{
@@ -74,6 +84,7 @@ func New(v *vm.VM, opts ...ServerOption) *MaggieServer {
 	worker := NewVMWorker(v)
 	worker.pullFunc = cfg.pullFunc
 	worker.spawnResultFunc = cfg.spawnResultFunc
+	worker.peerAddrs = cfg.peerAddrs
 	handles := NewHandleStore(worker)
 	sessions := NewSessionStore(handles)
 

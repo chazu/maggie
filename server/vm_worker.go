@@ -2,6 +2,7 @@ package server
 
 import (
 	"fmt"
+	"sync"
 
 	"github.com/chazu/maggie/vm"
 	"github.com/chazu/maggie/vm/dist"
@@ -34,6 +35,11 @@ type VMWorker struct {
 	// spawnResultFunc delivers the result of a forkOn: spawn back
 	// to the spawning node. Injected by the server wiring layer.
 	spawnResultFunc func(spawnerID dist.NodeID, futureID uint64, resultBytes []byte, errMsg error)
+
+	// peerAddrs maps NodeID -> address for peers that have sent us
+	// requests. Used by code-on-demand to call back to the spawning
+	// node's Serve RPC. May be nil.
+	peerAddrs *sync.Map
 }
 
 // NewVMWorker creates a VMWorker and starts the processing goroutine.

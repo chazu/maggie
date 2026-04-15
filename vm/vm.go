@@ -186,6 +186,11 @@ type VM struct {
 	// Set by cmd/mag to inject gRPC client wiring.
 	NodeRefFactory NodeRefFactory
 
+	// LocalListenAddr is this node's listen address (e.g. ":8081").
+	// Set after the sync/serve server starts. Used to send a return
+	// address to remote nodes for code-on-demand pull-back.
+	LocalListenAddr string
+
 	// RemoteChannelFactory wires up RPC callbacks on a RemoteChannelRef.
 	// Set by cmd/mag to inject gRPC client wiring for channel operations.
 	RemoteChannelFactory func(ref *RemoteChannelRef)

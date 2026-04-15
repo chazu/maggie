@@ -7,6 +7,7 @@ import (
 	"os"
 	"sort"
 	"strings"
+	"sync"
 
 	"connectrpc.com/connect"
 
@@ -718,5 +719,103 @@ func hexNibble(c byte) (byte, error) {
 		return c - 'A' + 10, nil
 	default:
 		return 0, fmt.Errorf("invalid hex char: %c", c)
+	}
+}
+
+// buildPullFunc creates the code-on-demand pull function used by the
+// SpawnProcess handler. When a remote spawn request references a method
+// that does not exist locally, this function calls the spawning node's
+// Serve RPC to fetch the missing code, indexes it in the ContentStore,
+// and rehydrates it into runnable classes.
+//
+// peerAddrs is a shared registry that maps NodeID -> address strings.
+// The SpawnProcess handler populates it from the X-Maggie-Return-Addr
+// header when available.
+func buildPullFunc(vmInst *vm.VM, peerAddrs *sync.Map) func(peerID dist.NodeID, hash [32]byte) error {
+	return func(peerID dist.NodeID, hash [32]byte) error {
+		// Resolve peer address. Try the peer address registry first
+		// (populated from incoming RPC headers), then fall back to the
+		// VM's node ref table (works when nodes have bidirectional
+		// connections).
+		var peerAddr string
+		if v, ok := peerAddrs.Load(peerID); ok {
+			peerAddr = v.(string)
+		}
+		if peerAddr == "" {
+			ref := vmInst.FindNodeRefByPublicKey(peerID)
+			if ref != nil {
+				peerAddr = ref.Addr
+			}
+		}
+		if peerAddr == "" {
+			return fmt.Errorf("code-on-demand: cannot resolve address for peer %s", peerID)
+		}
+
+		store := vmInst.ContentStore()
+
+		// If we already have the hash, nothing to do.
+		if store.HasHash(hash) {
+			return nil
+		}
+
+		// Collect local hashes so we don't re-download content we have.
+		localHashes := store.AllHashes()
+		haveBytes := make([][]byte, len(localHashes))
+		for i, h := range localHashes {
+			hCopy := h
+			haveBytes[i] = hCopy[:]
+		}
+
+		baseURL := normalizeAddr(peerAddr)
+		client := maggiev1connect.NewSyncServiceClient(http.DefaultClient, baseURL)
+		ctx := context.Background()
+
+		serveResp, err := client.Serve(ctx, connect.NewRequest(&maggiev1.ServeRequest{
+			RootHash: hash[:],
+			Have:     haveBytes,
+		}))
+		if err != nil {
+			return fmt.Errorf("code-on-demand: Serve RPC to %s failed: %w", peerAddr, err)
+		}
+
+		// Index received chunks in the ContentStore.
+		var accepted int
+		for _, chunkBytes := range serveResp.Msg.Chunks {
+			chunk, unmarshalErr := dist.UnmarshalChunk(chunkBytes)
+			if unmarshalErr != nil {
+				continue
+			}
+
+			switch chunk.Type {
+			case dist.ChunkMethod:
+				m := &vm.CompiledMethod{Source: chunk.Content}
+				m.SetContentHash(chunk.Hash)
+				store.IndexMethod(m)
+				accepted++
+			case dist.ChunkClass:
+				if verifyErr := dist.VerifyChunkClass(chunk, store); verifyErr != nil {
+					continue
+				}
+				d, decErr := dist.DecodeClassContent(chunk.Content)
+				if decErr != nil {
+					d = &vm.ClassDigest{Name: chunk.Content}
+				}
+				d.Hash = chunk.Hash
+				d.MethodHashes = chunk.Dependencies
+				store.IndexClass(d)
+				accepted++
+			}
+		}
+
+		if accepted == 0 {
+			return fmt.Errorf("code-on-demand: peer %s returned no usable chunks for hash %x", peerAddr, hash[:8])
+		}
+
+		// Rehydrate: compile synced content into runnable classes.
+		if _, err := pipeline.RehydrateFromStore(vmInst); err != nil {
+			return fmt.Errorf("code-on-demand: rehydration failed: %w", err)
+		}
+
+		return nil
 	}
 }

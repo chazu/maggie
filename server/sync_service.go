@@ -585,6 +585,14 @@ func (s *SyncService) SpawnProcess(
 	// Derive peer ID and check permissions
 	peerID := peerNodeIDFromEnvelope(envelope)
 
+	// Record the peer's return address for code-on-demand pull-back.
+	// The spawning node sends its listen address via X-Maggie-Return-Addr.
+	if s.worker.peerAddrs != nil {
+		if retAddr := req.Header().Get("X-Maggie-Return-Addr"); retAddr != "" {
+			s.worker.peerAddrs.Store(peerID, retAddr)
+		}
+	}
+
 	if s.trust.IsBanned(peerID) {
 		return nil, connect.NewError(connect.CodePermissionDenied, fmt.Errorf("peer is banned"))
 	}
