@@ -1,0 +1,706 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>TupleSpace &mdash; Maggie API Reference</title>
+    <link rel="stylesheet" href="../css/style.css">
+</head>
+<body>
+<nav class="sidebar">
+    <div class="sidebar-title"><a href="../index.html">Maggie Docs</a></div>
+
+    <div class="sidebar-section">
+        <div class="sidebar-section-title">Guide</div>
+        <ul class="sidebar-list">
+
+            <li><a href="../guide/01-getting-started.html">Getting Started</a></li>
+
+            <li><a href="../guide/02-basics.html">Basics</a></li>
+
+            <li><a href="../guide/03-numbers.html">Numbers</a></li>
+
+            <li><a href="../guide/04-strings.html">Strings</a></li>
+
+            <li><a href="../guide/05-collections.html">Collections</a></li>
+
+            <li><a href="../guide/06-blocks.html">Blocks</a></li>
+
+            <li><a href="../guide/07-classes.html">Classes</a></li>
+
+            <li><a href="../guide/08-error-handling.html">Error Handling</a></li>
+
+            <li><a href="../guide/09-concurrency.html">Concurrency</a></li>
+
+            <li><a href="../guide/10-supervisors.html">Supervisors</a></li>
+
+            <li><a href="../guide/10-modules.html">Modules</a></li>
+
+            <li><a href="../guide/11-clustering.html">Clustering</a></li>
+
+            <li><a href="../guide/11-projects.html">Projects</a></li>
+
+            <li><a href="../guide/12-go-interop.html">Go Interop</a></li>
+
+            <li><a href="../guide/13-distribution.html">Distribution</a></li>
+
+            <li><a href="../guide/14-tooling-ide.html">Tooling &amp; IDE</a></li>
+
+            <li><a href="../guide/15-cue-integration.html">Cue Integration</a></li>
+
+            <li><a href="../guide/16-tuple-space.html">Tuple Space</a></li>
+
+        </ul>
+    </div>
+
+    <div class="sidebar-section">
+        <div class="sidebar-section-title">API Reference</div>
+
+        <details class="sidebar-ns-group" open>
+            <summary>(root)</summary>
+            <ul class="sidebar-list">
+
+                <li><a href="../classes/Array.html">Array</a></li>
+
+                <li><a href="../classes/ArrayList.html">ArrayList</a></li>
+
+                <li><a href="../classes/AssignmentNode.html">AssignmentNode</a></li>
+
+                <li><a href="../classes/Association.html">Association</a></li>
+
+                <li><a href="../classes/BigInteger.html">BigInteger</a></li>
+
+                <li><a href="../classes/Block.html">Block</a></li>
+
+                <li><a href="../classes/BlockNode.html">BlockNode</a></li>
+
+                <li><a href="../classes/Boolean.html">Boolean</a></li>
+
+                <li><a href="../classes/ByteArray.html">ByteArray</a></li>
+
+                <li><a href="../classes/BytecodeGenerator.html">BytecodeGenerator</a></li>
+
+                <li><a href="../classes/CancellationContext.html">CancellationContext</a></li>
+
+                <li><a href="../classes/CascadeNode.html">CascadeNode</a></li>
+
+                <li><a href="../classes/Channel.html">Channel</a></li>
+
+                <li><a href="../classes/Character.html">Character</a></li>
+
+                <li><a href="../classes/CharacterStream.html">CharacterStream</a></li>
+
+                <li><a href="../classes/ChildSpec.html">ChildSpec</a></li>
+
+                <li><a href="../classes/Class.html">Class</a></li>
+
+                <li><a href="../classes/ClassNode.html">ClassNode</a></li>
+
+                <li><a href="../classes/Cluster.html">Cluster</a></li>
+
+                <li><a href="../classes/CompiledMethod.html">CompiledMethod</a></li>
+
+                <li><a href="../classes/Compiler.html">Compiler</a></li>
+
+                <li><a href="../classes/ConstraintStore.html">ConstraintStore</a></li>
+
+                <li><a href="../classes/Context.html">Context</a></li>
+
+                <li><a href="../classes/CueContext.html">CueContext</a></li>
+
+                <li><a href="../classes/CueValue.html">CueValue</a></li>
+
+                <li><a href="../classes/DateTime.html">DateTime</a></li>
+
+                <li><a href="../classes/Debugger.html">Debugger</a></li>
+
+                <li><a href="../classes/Dictionary.html">Dictionary</a></li>
+
+                <li><a href="../classes/DocServer.html">DocServer</a></li>
+
+                <li><a href="../classes/DuckAppender.html">DuckAppender</a></li>
+
+                <li><a href="../classes/DuckDatabase.html">DuckDatabase</a></li>
+
+                <li><a href="../classes/DynamicSupervisor.html">DynamicSupervisor</a></li>
+
+                <li><a href="../classes/Error.html">Error</a></li>
+
+                <li><a href="../classes/Exception.html">Exception</a></li>
+
+                <li><a href="../classes/ExternalProcess.html">ExternalProcess</a></li>
+
+                <li><a href="../classes/Failure.html">Failure</a></li>
+
+                <li><a href="../classes/False.html">False</a></li>
+
+                <li><a href="../classes/File.html">File</a></li>
+
+                <li><a href="../classes/Float.html">Float</a></li>
+
+                <li><a href="../classes/Future.html">Future</a></li>
+
+                <li><a href="../classes/GrpcClient.html">GrpcClient</a></li>
+
+                <li><a href="../classes/GrpcStream.html">GrpcStream</a></li>
+
+                <li><a href="../classes/Halt.html">Halt</a></li>
+
+                <li><a href="../classes/HashRing.html">HashRing</a></li>
+
+                <li><a href="../classes/HttpClient.html">HttpClient</a></li>
+
+                <li><a href="../classes/HttpRequest.html">HttpRequest</a></li>
+
+                <li><a href="../classes/HttpResponse.html">HttpResponse</a></li>
+
+                <li><a href="../classes/HttpServer.html">HttpServer</a></li>
+
+                <li><a href="../classes/Json.html">Json</a></li>
+
+                <li><a href="../classes/JsonParseError.html">JsonParseError</a></li>
+
+                <li><a href="../classes/JsonReader.html">JsonReader</a></li>
+
+                <li><a href="../classes/JsonWriter.html">JsonWriter</a></li>
+
+                <li><a href="../classes/Lexer.html">Lexer</a></li>
+
+                <li><a href="../classes/LiteralNode.html">LiteralNode</a></li>
+
+                <li><a href="../classes/MailboxMessage.html">MailboxMessage</a></li>
+
+                <li><a href="../classes/Message.html">Message</a></li>
+
+                <li><a href="../classes/MessageNotUnderstood.html">MessageNotUnderstood</a></li>
+
+                <li><a href="../classes/MessageSendNode.html">MessageSendNode</a></li>
+
+                <li><a href="../classes/Metaclass.html">Metaclass</a></li>
+
+                <li><a href="../classes/MethodNode.html">MethodNode</a></li>
+
+                <li><a href="../classes/Mutex.html">Mutex</a></li>
+
+                <li><a href="../classes/Node.html">Node</a></li>
+
+                <li><a href="../classes/Notification.html">Notification</a></li>
+
+                <li><a href="../classes/Object.html">Object</a></li>
+
+                <li><a href="../classes/Parser.html">Parser</a></li>
+
+                <li><a href="../classes/Process.html">Process</a></li>
+
+                <li><a href="../classes/Proquint.html">Proquint</a></li>
+
+                <li><a href="../classes/Random.html">Random</a></li>
+
+                <li><a href="../classes/Regex.html">Regex</a></li>
+
+                <li><a href="../classes/RemoteChannel.html">RemoteChannel</a></li>
+
+                <li><a href="../classes/RemoteProcess.html">RemoteProcess</a></li>
+
+                <li><a href="../classes/Result.html">Result</a></li>
+
+                <li><a href="../classes/ReturnNode.html">ReturnNode</a></li>
+
+                <li><a href="../classes/SSEConnection.html">SSEConnection</a></li>
+
+                <li><a href="../classes/Sandbox.html">Sandbox</a></li>
+
+                <li><a href="../classes/Semaphore.html">Semaphore</a></li>
+
+                <li><a href="../classes/Set.html">Set</a></li>
+
+                <li><a href="../classes/Signal.html">Signal</a></li>
+
+                <li><a href="../classes/SmallInteger.html">SmallInteger</a></li>
+
+                <li><a href="../classes/SocketConnection.html">SocketConnection</a></li>
+
+                <li><a href="../classes/SqliteDatabase.html">SqliteDatabase</a></li>
+
+                <li><a href="../classes/SqliteRows.html">SqliteRows</a></li>
+
+                <li><a href="../classes/SqliteStatement.html">SqliteStatement</a></li>
+
+                <li><a href="../classes/StackOverflow.html">StackOverflow</a></li>
+
+                <li><a href="../classes/String.html">String</a></li>
+
+                <li><a href="../classes/SubscriptOutOfBounds.html">SubscriptOutOfBounds</a></li>
+
+                <li><a href="../classes/Success.html">Success</a></li>
+
+                <li><a href="../classes/Supervisor.html">Supervisor</a></li>
+
+                <li><a href="../classes/Symbol.html">Symbol</a></li>
+
+                <li><a href="../classes/System.html">System</a></li>
+
+                <li><a href="../classes/Token.html">Token</a></li>
+
+                <li><a href="../classes/Toml.html">Toml</a></li>
+
+                <li><a href="../classes/TomlParseError.html">TomlParseError</a></li>
+
+                <li><a href="../classes/True.html">True</a></li>
+
+                <li><a href="../classes/TupleSpace.html" class="active">TupleSpace</a></li>
+
+                <li><a href="../classes/UndefinedObject.html">UndefinedObject</a></li>
+
+                <li><a href="../classes/UnixSocketClient.html">UnixSocketClient</a></li>
+
+                <li><a href="../classes/UnixSocketServer.html">UnixSocketServer</a></li>
+
+                <li><a href="../classes/VariableNode.html">VariableNode</a></li>
+
+                <li><a href="../classes/WaitGroup.html">WaitGroup</a></li>
+
+                <li><a href="../classes/Warning.html">Warning</a></li>
+
+                <li><a href="../classes/WeakReference.html">WeakReference</a></li>
+
+                <li><a href="../classes/ZeroDivide.html">ZeroDivide</a></li>
+
+            </ul>
+        </details>
+
+    </div>
+</nav>
+<main class="content">
+    <div class="breadcrumb">
+        <a href="../index.html">Maggie API Reference</a>
+
+        &rsaquo; TupleSpace
+    </div>
+
+    <div class="class-header">
+        <h1>TupleSpace</h1>
+
+        <div class="superclass-chain">
+            Inherits from: Object
+        </div>
+
+
+    </div>
+
+
+    <div class="class-doc">
+        <p>A Linda-style shared tuple space for concurrent coordination.</p>
+<p>TupleSpace stores tuples (any Maggie objects) and retrieves them by
+matching against CUE templates. Operations can be blocking (in:, read:)
+or non-blocking (tryIn:, tryRead:). Blocking operations suspend the
+current process until a matching tuple is available.</p>
+<p>Tuples are matched using CUE unification: a template is a CueValue,
+and a tuple matches if projecting it into CUE and unifying with the
+template produces no error (no bottom).</p>
+<p>Tuples have three modes:
+  - Linear (default): consumed exactly once by in:
+  - Persistent: never consumed; in: returns a copy but keeps the original
+  - Affine: consumed at most once, can expire via TTL</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>ts := TupleSpace new.
+ts isEmpty &gt;&gt;&gt; true
+ts out: 42.
+ts size &gt;&gt;&gt; 1
+ts isEmpty &gt;&gt;&gt; false</code></pre>
+</div>
+
+    </div>
+
+
+
+    <h2>Class Methods</h2>
+
+    <div class="method-category">
+        <h3>primitives</h3>
+
+        <div class="method">
+            <div class="method-selector">
+                <span class="class-side-label">class </span>new
+            </div>
+
+
+        </div>
+
+    </div>
+
+
+
+
+    <h2>Instance Methods</h2>
+
+    <div class="method-category">
+        <h3>primitives</h3>
+
+        <div class="method">
+            <div class="method-selector">primIn:</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">primInAll:</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">primInAny:</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">primIsEmpty</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">primOut:</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">primOut:withContext:</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">primOutAffine:ttl:</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">primOutPersistent:</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">primPrintString</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">primRead:</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">primSize</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">primTryIn:</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">primTryRead:</div>
+
+
+        </div>
+
+    </div>
+
+    <div class="method-category">
+        <h3>uncategorized</h3>
+
+        <div class="method">
+            <div class="method-selector">in:</div>
+
+            <div class="method-doc">
+                <p>Take the first tuple matching the CUE template. Blocks until a
+matching tuple is available. The tuple is removed from the space
+(destructive read / linear consumption).</p>
+<p>For persistent tuples, the value is returned but the tuple stays
+in the space (non-destructive).</p>
+<p>The template must be a CueValue. Use CueContext&gt;&gt;compileString:
+to create templates.</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>| ts &lt;TupleSpace&gt; ctx &lt;CueContext&gt; |
+ts := TupleSpace new.
+ctx := CueContext new.
+[ts out: 42] fork.
+ts in: (ctx compileString: &#39;int&#39;) value</code></pre>
+</div>
+
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">inAll:</div>
+
+            <div class="method-doc">
+                <p>Atomically take ALL tuples matching an array of templates.
+Blocks until all templates are simultaneously satisfiable.
+Each template must match a DIFFERENT tuple.</p>
+<p>This is the tensor product from linear logic -- it prevents
+the classic coordination bug where an agent takes a task but
+the required resource was grabbed between two separate in: calls.</p>
+<p>Returns an Array of results in the same order as the templates.</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>| ts &lt;TupleSpace&gt; ctx &lt;CueContext&gt; |
+ts := TupleSpace new.
+ctx := CueContext new.
+ts out: 42.
+ts out: &#39;hello&#39;.
+ts inAll: {(ctx compileString: &#39;int&#39;) value. (ctx compileString: &#39;string&#39;) value}</code></pre>
+</div>
+
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">inAny:</div>
+
+            <div class="method-doc">
+                <p>Take whichever tuple matches first from an array of templates.
+Scans tuples and returns the first match from any template.
+If none match, blocks until any one does.</p>
+<p>This is the additive disjunction from linear logic -- like
+Channel select: but for tuple templates.</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>| ts &lt;TupleSpace&gt; ctx &lt;CueContext&gt; |
+ts := TupleSpace new.
+ctx := CueContext new.
+ts out: 42.
+ts inAny: {(ctx compileString: &#39;int&#39;) value. (ctx compileString: &#39;string&#39;) value}</code></pre>
+</div>
+
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">isEmpty</div>
+
+            <div class="method-doc">
+                <p>Return true if the space contains no tuples.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>ts := TupleSpace new.
+ts isEmpty &gt;&gt;&gt; true
+ts out: 1.
+ts isEmpty &gt;&gt;&gt; false</code></pre>
+</div>
+
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">out:</div>
+
+            <div class="method-doc">
+                <p>Publish a tuple into the space. Non-blocking. If a process is
+blocked waiting for a matching tuple (via in: or read:), it will
+be woken immediately. The tuple is stored in linear mode (consumed
+exactly once by in:).</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>ts := TupleSpace new.
+ts out: 42.
+ts out: &#39;hello&#39;.
+ts size &gt;&gt;&gt; 2</code></pre>
+</div>
+
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">out:withContext:</div>
+
+            <div class="method-doc">
+                <p>Publish a tuple that is automatically removed when the given
+CancellationContext is cancelled. The tuple behaves as linear
+until cancellation.</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>| ts &lt;TupleSpace&gt; ctx &lt;CancellationContext&gt; |
+ts := TupleSpace new.
+ctx := CancellationContext withCancel.
+ts out: &#39;resource&#39; withContext: ctx.
+ctx cancel.</code></pre>
+</div>
+
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">outAffine:ttl:</div>
+
+            <div class="method-doc">
+                <p>Publish an affine tuple with a time-to-live in milliseconds.
+The tuple is automatically removed after the TTL expires if not
+consumed first. Expired tuples are lazily cleaned during scans.</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>| ts &lt;TupleSpace&gt; |
+ts := TupleSpace new.
+ts outAffine: &#39;ephemeral offer&#39; ttl: 5000.</code></pre>
+</div>
+
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">outPersistent:</div>
+
+            <div class="method-doc">
+                <p>Publish a persistent tuple into the space. Persistent tuples are
+never consumed by in: -- reads return the value but the tuple
+stays in the space. Useful for shared facts and blackboard knowledge.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>ts := TupleSpace new.
+ctx := CueContext new.
+intTmpl := (ctx compileString: &#39;int&#39;) value.
+ts outPersistent: 42.
+ts tryIn: intTmpl &gt;&gt;&gt; 42
+ts size &gt;&gt;&gt; 1
+ts tryIn: intTmpl &gt;&gt;&gt; 42
+ts size &gt;&gt;&gt; 1</code></pre>
+</div>
+
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">printString</div>
+
+            <div class="method-doc">
+                <p>Return a human-readable description.</p>
+
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">read:</div>
+
+            <div class="method-doc">
+                <p>Read the first tuple matching the CUE template. Blocks until a
+matching tuple is available. The tuple remains in the space
+(non-destructive read).</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>| ts &lt;TupleSpace&gt; ctx &lt;CueContext&gt; |
+ts := TupleSpace new.
+ctx := CueContext new.
+ts out: 42.
+ts read: (ctx compileString: &#39;int&#39;) value</code></pre>
+</div>
+
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">size</div>
+
+            <div class="method-doc">
+                <p>Return the number of tuples currently stored.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>ts := TupleSpace new.
+ts size &gt;&gt;&gt; 0
+ts out: 1.
+ts out: 2.
+ts size &gt;&gt;&gt; 2</code></pre>
+</div>
+
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">tryIn:</div>
+
+            <div class="method-doc">
+                <p>Try to take a matching tuple without blocking. Returns the tuple
+if found (and removes it), or nil if no match.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>ts := TupleSpace new.
+ctx := CueContext new.
+intTmpl := (ctx compileString: &#39;int&#39;) value.
+ts tryIn: intTmpl &gt;&gt;&gt; nil
+ts out: 42.
+ts tryIn: intTmpl &gt;&gt;&gt; 42
+ts size &gt;&gt;&gt; 0</code></pre>
+</div>
+
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">tryRead:</div>
+
+            <div class="method-doc">
+                <p>Try to read a matching tuple without blocking. Returns the tuple
+if found (does not remove it), or nil if no match.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>ts := TupleSpace new.
+ctx := CueContext new.
+intTmpl := (ctx compileString: &#39;int&#39;) value.
+ts tryRead: intTmpl &gt;&gt;&gt; nil
+ts out: 42.
+ts tryRead: intTmpl &gt;&gt;&gt; 42
+ts size &gt;&gt;&gt; 1</code></pre>
+</div>
+
+            </div>
+
+
+        </div>
+
+    </div>
+
+
+
+    <div class="footer">
+        Generated by Maggie doc generator.
+    </div>
+</main>
+    <script src="../js/playground.js"></script>
+</body>
+</html>

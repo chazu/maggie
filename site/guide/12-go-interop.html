@@ -1,0 +1,850 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Go Interop &mdash; Maggie API Reference</title>
+    <link rel="stylesheet" href="../css/style.css">
+</head>
+<body>
+<nav class="sidebar">
+    <div class="sidebar-title"><a href="../index.html">Maggie Docs</a></div>
+
+    <div class="sidebar-section">
+        <div class="sidebar-section-title">Guide</div>
+        <ul class="sidebar-list">
+
+            <li><a href="../guide/01-getting-started.html">Getting Started</a></li>
+
+            <li><a href="../guide/02-basics.html">Basics</a></li>
+
+            <li><a href="../guide/03-numbers.html">Numbers</a></li>
+
+            <li><a href="../guide/04-strings.html">Strings</a></li>
+
+            <li><a href="../guide/05-collections.html">Collections</a></li>
+
+            <li><a href="../guide/06-blocks.html">Blocks</a></li>
+
+            <li><a href="../guide/07-classes.html">Classes</a></li>
+
+            <li><a href="../guide/08-error-handling.html">Error Handling</a></li>
+
+            <li><a href="../guide/09-concurrency.html">Concurrency</a></li>
+
+            <li><a href="../guide/10-supervisors.html">Supervisors</a></li>
+
+            <li><a href="../guide/10-modules.html">Modules</a></li>
+
+            <li><a href="../guide/11-clustering.html">Clustering</a></li>
+
+            <li><a href="../guide/11-projects.html">Projects</a></li>
+
+            <li><a href="../guide/12-go-interop.html" class="active">Go Interop</a></li>
+
+            <li><a href="../guide/13-distribution.html">Distribution</a></li>
+
+            <li><a href="../guide/14-tooling-ide.html">Tooling &amp; IDE</a></li>
+
+            <li><a href="../guide/15-cue-integration.html">Cue Integration</a></li>
+
+            <li><a href="../guide/16-tuple-space.html">Tuple Space</a></li>
+
+        </ul>
+    </div>
+
+    <div class="sidebar-section">
+        <div class="sidebar-section-title">API Reference</div>
+
+        <details class="sidebar-ns-group" open>
+            <summary>(root)</summary>
+            <ul class="sidebar-list">
+
+                <li><a href="../classes/Array.html">Array</a></li>
+
+                <li><a href="../classes/ArrayList.html">ArrayList</a></li>
+
+                <li><a href="../classes/AssignmentNode.html">AssignmentNode</a></li>
+
+                <li><a href="../classes/Association.html">Association</a></li>
+
+                <li><a href="../classes/BigInteger.html">BigInteger</a></li>
+
+                <li><a href="../classes/Block.html">Block</a></li>
+
+                <li><a href="../classes/BlockNode.html">BlockNode</a></li>
+
+                <li><a href="../classes/Boolean.html">Boolean</a></li>
+
+                <li><a href="../classes/ByteArray.html">ByteArray</a></li>
+
+                <li><a href="../classes/BytecodeGenerator.html">BytecodeGenerator</a></li>
+
+                <li><a href="../classes/CancellationContext.html">CancellationContext</a></li>
+
+                <li><a href="../classes/CascadeNode.html">CascadeNode</a></li>
+
+                <li><a href="../classes/Channel.html">Channel</a></li>
+
+                <li><a href="../classes/Character.html">Character</a></li>
+
+                <li><a href="../classes/CharacterStream.html">CharacterStream</a></li>
+
+                <li><a href="../classes/ChildSpec.html">ChildSpec</a></li>
+
+                <li><a href="../classes/Class.html">Class</a></li>
+
+                <li><a href="../classes/ClassNode.html">ClassNode</a></li>
+
+                <li><a href="../classes/Cluster.html">Cluster</a></li>
+
+                <li><a href="../classes/CompiledMethod.html">CompiledMethod</a></li>
+
+                <li><a href="../classes/Compiler.html">Compiler</a></li>
+
+                <li><a href="../classes/ConstraintStore.html">ConstraintStore</a></li>
+
+                <li><a href="../classes/Context.html">Context</a></li>
+
+                <li><a href="../classes/CueContext.html">CueContext</a></li>
+
+                <li><a href="../classes/CueValue.html">CueValue</a></li>
+
+                <li><a href="../classes/DateTime.html">DateTime</a></li>
+
+                <li><a href="../classes/Debugger.html">Debugger</a></li>
+
+                <li><a href="../classes/Dictionary.html">Dictionary</a></li>
+
+                <li><a href="../classes/DocServer.html">DocServer</a></li>
+
+                <li><a href="../classes/DuckAppender.html">DuckAppender</a></li>
+
+                <li><a href="../classes/DuckDatabase.html">DuckDatabase</a></li>
+
+                <li><a href="../classes/DynamicSupervisor.html">DynamicSupervisor</a></li>
+
+                <li><a href="../classes/Error.html">Error</a></li>
+
+                <li><a href="../classes/Exception.html">Exception</a></li>
+
+                <li><a href="../classes/ExternalProcess.html">ExternalProcess</a></li>
+
+                <li><a href="../classes/Failure.html">Failure</a></li>
+
+                <li><a href="../classes/False.html">False</a></li>
+
+                <li><a href="../classes/File.html">File</a></li>
+
+                <li><a href="../classes/Float.html">Float</a></li>
+
+                <li><a href="../classes/Future.html">Future</a></li>
+
+                <li><a href="../classes/GrpcClient.html">GrpcClient</a></li>
+
+                <li><a href="../classes/GrpcStream.html">GrpcStream</a></li>
+
+                <li><a href="../classes/Halt.html">Halt</a></li>
+
+                <li><a href="../classes/HashRing.html">HashRing</a></li>
+
+                <li><a href="../classes/HttpClient.html">HttpClient</a></li>
+
+                <li><a href="../classes/HttpRequest.html">HttpRequest</a></li>
+
+                <li><a href="../classes/HttpResponse.html">HttpResponse</a></li>
+
+                <li><a href="../classes/HttpServer.html">HttpServer</a></li>
+
+                <li><a href="../classes/Json.html">Json</a></li>
+
+                <li><a href="../classes/JsonParseError.html">JsonParseError</a></li>
+
+                <li><a href="../classes/JsonReader.html">JsonReader</a></li>
+
+                <li><a href="../classes/JsonWriter.html">JsonWriter</a></li>
+
+                <li><a href="../classes/Lexer.html">Lexer</a></li>
+
+                <li><a href="../classes/LiteralNode.html">LiteralNode</a></li>
+
+                <li><a href="../classes/MailboxMessage.html">MailboxMessage</a></li>
+
+                <li><a href="../classes/Message.html">Message</a></li>
+
+                <li><a href="../classes/MessageNotUnderstood.html">MessageNotUnderstood</a></li>
+
+                <li><a href="../classes/MessageSendNode.html">MessageSendNode</a></li>
+
+                <li><a href="../classes/Metaclass.html">Metaclass</a></li>
+
+                <li><a href="../classes/MethodNode.html">MethodNode</a></li>
+
+                <li><a href="../classes/Mutex.html">Mutex</a></li>
+
+                <li><a href="../classes/Node.html">Node</a></li>
+
+                <li><a href="../classes/Notification.html">Notification</a></li>
+
+                <li><a href="../classes/Object.html">Object</a></li>
+
+                <li><a href="../classes/Parser.html">Parser</a></li>
+
+                <li><a href="../classes/Process.html">Process</a></li>
+
+                <li><a href="../classes/Proquint.html">Proquint</a></li>
+
+                <li><a href="../classes/Random.html">Random</a></li>
+
+                <li><a href="../classes/Regex.html">Regex</a></li>
+
+                <li><a href="../classes/RemoteChannel.html">RemoteChannel</a></li>
+
+                <li><a href="../classes/RemoteProcess.html">RemoteProcess</a></li>
+
+                <li><a href="../classes/Result.html">Result</a></li>
+
+                <li><a href="../classes/ReturnNode.html">ReturnNode</a></li>
+
+                <li><a href="../classes/SSEConnection.html">SSEConnection</a></li>
+
+                <li><a href="../classes/Sandbox.html">Sandbox</a></li>
+
+                <li><a href="../classes/Semaphore.html">Semaphore</a></li>
+
+                <li><a href="../classes/Set.html">Set</a></li>
+
+                <li><a href="../classes/Signal.html">Signal</a></li>
+
+                <li><a href="../classes/SmallInteger.html">SmallInteger</a></li>
+
+                <li><a href="../classes/SocketConnection.html">SocketConnection</a></li>
+
+                <li><a href="../classes/SqliteDatabase.html">SqliteDatabase</a></li>
+
+                <li><a href="../classes/SqliteRows.html">SqliteRows</a></li>
+
+                <li><a href="../classes/SqliteStatement.html">SqliteStatement</a></li>
+
+                <li><a href="../classes/StackOverflow.html">StackOverflow</a></li>
+
+                <li><a href="../classes/String.html">String</a></li>
+
+                <li><a href="../classes/SubscriptOutOfBounds.html">SubscriptOutOfBounds</a></li>
+
+                <li><a href="../classes/Success.html">Success</a></li>
+
+                <li><a href="../classes/Supervisor.html">Supervisor</a></li>
+
+                <li><a href="../classes/Symbol.html">Symbol</a></li>
+
+                <li><a href="../classes/System.html">System</a></li>
+
+                <li><a href="../classes/Token.html">Token</a></li>
+
+                <li><a href="../classes/Toml.html">Toml</a></li>
+
+                <li><a href="../classes/TomlParseError.html">TomlParseError</a></li>
+
+                <li><a href="../classes/True.html">True</a></li>
+
+                <li><a href="../classes/TupleSpace.html">TupleSpace</a></li>
+
+                <li><a href="../classes/UndefinedObject.html">UndefinedObject</a></li>
+
+                <li><a href="../classes/UnixSocketClient.html">UnixSocketClient</a></li>
+
+                <li><a href="../classes/UnixSocketServer.html">UnixSocketServer</a></li>
+
+                <li><a href="../classes/VariableNode.html">VariableNode</a></li>
+
+                <li><a href="../classes/WaitGroup.html">WaitGroup</a></li>
+
+                <li><a href="../classes/Warning.html">Warning</a></li>
+
+                <li><a href="../classes/WeakReference.html">WeakReference</a></li>
+
+                <li><a href="../classes/ZeroDivide.html">ZeroDivide</a></li>
+
+            </ul>
+        </details>
+
+    </div>
+</nav>
+<main class="content">
+    <div class="breadcrumb">
+        <a href="../index.html">Maggie API Reference</a>
+        &rsaquo; Guide
+        &rsaquo; Go Interop
+    </div>
+
+    <h1>Go Interop</h1>
+
+
+    <div class="guide-intro">
+        <p>Maggie runs on a Go runtime, and Go interop lets you reach into the Go
+ecosystem directly from Maggie code. You can wrap any Go package --
+standard library or third-party -- to expose its types and functions as
+Maggie classes and methods. The toolchain handles introspection, code
+generation, and binary compilation automatically.</p>
+<p>Go interop is useful when you need performance-critical operations,
+access to operating system APIs, network protocols, or any of the
+thousands of packages in the Go ecosystem. The generated bindings
+are type-safe, and the marshaling layer converts between Go and Maggie
+types transparently.</p>
+<p>This chapter explains how Go interop works, from running <code>mag wrap</code> to
+using wrapped types in your Maggie code.</p>
+
+    </div>
+
+
+
+    <div class="guide-section">
+
+        <h2>When and Why to Use Go Interop</h2>
+<p>Maggie is a self-contained language -- you can build entire applications
+without ever touching Go. But there are situations where reaching into
+Go makes sense:</p>
+<p>- <strong>Performance</strong>: Go code runs as compiled native code. For CPU-bound
+  algorithms, cryptographic operations, or data compression, calling
+  into Go avoids interpreter overhead entirely.</p>
+<p>- <strong>Ecosystem access</strong>: The Go standard library and third-party packages
+  cover networking, file formats, databases, image processing, and much
+  more. Wrapping an existing Go package is faster than reimplementing
+  it in Maggie.</p>
+<p>- <strong>System APIs</strong>: Low-level OS operations (sockets, file descriptors,
+  process management) are best handled through Go&#39;s <code>os</code>, <code>net</code>, and
+  <code>syscall</code> packages.</p>
+<p>- <strong>Existing Go code</strong>: If your organization has Go libraries, you can
+  wrap them and call them from Maggie without rewriting anything.</p>
+<p>The tradeoff is that Go interop requires a custom binary build step.
+The standard <code>mag</code> binary does not include your wrapped packages --
+you use <code>mag build</code> to produce a custom binary that bakes in whatever
+Go packages you need. Once built, the custom binary works exactly like
+the standard <code>mag</code> command, with your Go types available as Maggie
+classes.</p>
+<p>A good rule of thumb: start in pure Maggie. When you find a bottleneck
+or need a capability that only Go provides, wrap that specific package.
+Keep the boundary narrow -- a thin Go layer with a rich Maggie layer
+on top.</p>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <h2>The GoObject Wrapper Concept</h2>
+<p>When a Go value crosses into Maggie, the VM wraps it in a GoObject.
+A GoObject is an opaque handle -- Maggie code cannot inspect the raw
+Go memory, but it can send messages to the object, and those messages
+dispatch to the generated Go glue code.</p>
+<p>Each Go type that you wrap gets a corresponding Maggie class. For
+example, wrapping <code>net/http</code> creates classes like <code>Go::Http::Server</code>
+and <code>Go::Http::Request</code>. Instances of these classes are GoObjects
+that hold a pointer to the underlying Go struct.</p>
+<p>The key pieces of the GoObject system:</p>
+<p>- <strong>GoObjectWrapper</strong>: Holds the Go value and a type ID that links
+  it to its registered Maggie class.</p>
+<p>- <strong>GoTypeRegistry</strong>: A thread-safe registry that maps Go
+  <code>reflect.Type</code> values to Maggie classes. Each Go type gets a unique
+  16-bit type ID.</p>
+<p>- <strong>ObjectRegistry</strong>: Stores live GoObjects and assigns each one a
+  NaN-boxed Value that Maggie code can pass around, store in
+  variables, and send messages to.</p>
+<p>When you call a method on a GoObject in Maggie, the VM looks up the
+primitive method on the class, extracts the Go value from the wrapper,
+and calls the generated Go function with the unwrapped value as the
+receiver. The return value is marshaled back into a Maggie Value.</p>
+<p>You never interact with GoObjectWrapper or GoTypeRegistry directly
+from Maggie code. They are internal VM machinery. From Maggie&#39;s
+perspective, a wrapped Go type is just another class with methods.</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>&#34;After wrapping encoding/json, you get a Go::Json class.&#34;
+&#34;Package-level functions become class methods:&#34;
+result := Go::Json marshal: myObject.
+
+&#34;Struct types become classes with instance methods:&#34;
+decoder := Go::Json::Decoder new: inputStream.
+value := decoder decode.</code></pre>
+</div>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <h2>Type Marshaling: Go Types to Maggie Values</h2>
+<p>The marshaling layer converts between Go types and Maggie values
+automatically. When a Go function returns a value, it is converted
+to a Maggie Value. When Maggie passes an argument to a Go function,
+it is converted to the expected Go type.</p>
+<p><strong>Go to Maggie (GoToValue):</strong></p>
+<p>| Go Type           | Maggie Type     |
+|-------------------|-----------------|
+| <code>nil</code>             | <code>nil</code>           |
+| <code>bool</code>            | <code>True</code> / <code>False</code>|
+| <code>int</code>, <code>int64</code>... | <code>SmallInteger</code>  |
+| <code>uint</code>, <code>uint64</code>  | <code>SmallInteger</code>  |
+| <code>float32/64</code>      | <code>Float</code>         |
+| <code>string</code>          | <code>String</code>        |
+| <code>[]byte</code>          | <code>String</code>        |
+| <code>[]T</code>             | <code>Array</code>         |
+| <code>map[string]T</code>    | <code>Dictionary</code>    |
+| <code>*SomeStruct</code>     | <code>GoObject</code>      |</p>
+<p><strong>Maggie to Go (ValueToGo):</strong></p>
+<p>| Maggie Value      | Go Type         |
+|-------------------|-----------------|
+| <code>nil</code>             | <code>nil</code>           |
+| <code>True</code> / <code>False</code>  | <code>bool</code>          |
+| <code>SmallInteger</code>    | <code>int64</code>         |
+| <code>Float</code>           | <code>float64</code>       |
+| <code>String</code>          | <code>string</code>        |
+| <code>GoObject</code>        | original Go ptr |</p>
+<p>For function parameters, the generated glue code uses more specific
+conversions based on the Go function signature. If a Go function
+expects an <code>int32</code>, the glue code calls <code>int32(args[0].SmallInt())</code>
+rather than going through the generic <code>ValueToGo</code> path. This means
+you do not need to worry about type widths -- the generated code
+handles the conversion.</p>
+<p><strong>Error handling</strong>: When a Go function returns an <code>error</code> as its last
+result, the generated glue checks the error. If non-nil, it raises a
+Maggie exception with the message <code>GoError: &lt;error text&gt;</code>. You can
+catch these with <code>on:do:</code> in Maggie:</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>[Go::Json marshal: badValue]
+    on: Error
+    do: [:ex | &#39;JSON encoding failed: &#39;, ex message].</code></pre>
+</div>
+<p><strong>Multiple return values</strong>: Go functions that return multiple values
+(other than the error convention) produce a Maggie Array. A Go
+function returning <code>(string, int)</code> yields a two-element Array in
+Maggie:</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>result := Go::SomePkg doWork.
+name := result at: 0.
+count := result at: 1.</code></pre>
+</div>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <h2>The mag wrap Command</h2>
+<p>The <code>mag wrap</code> command introspects a Go package and generates two
+files: a Go glue file (<code>wrap.go</code>) and a Maggie stub file
+(<code>stubs.mag</code>). These are the bridge between Go and Maggie.</p>
+<p><strong>Basic usage -- wrap a single Go package:</strong></p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>mag wrap encoding/json
+mag wrap strings
+mag wrap net/http</code></pre>
+</div>
+<p>This introspects the package using Go&#39;s <code>go/packages</code> API, discovers
+all exported types, functions, and constants, and writes output to
+<code>.maggie/wrap/&lt;package&gt;/</code>.</p>
+<p><strong>Custom output directory:</strong></p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>mag wrap encoding/json --output ./wrappers</code></pre>
+</div>
+<p><strong>Wrap all packages from the manifest:</strong></p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>mag wrap</code></pre>
+</div>
+<p>When run without arguments, <code>mag wrap</code> reads the <code>[go-wrap]</code> section
+from <code>maggie.toml</code> and wraps all configured packages.</p>
+<p><strong>What mag wrap generates:</strong></p>
+<p>For each wrapped package, two files are created:</p>
+<p>1. <code>wrap.go</code> -- Go source code that registers primitives with the VM.
+   Contains a <code>RegisterPrimitives(v *vm.VM)</code> function that creates
+   Maggie classes for each Go type and wires up method dispatch.</p>
+<p>2. <code>stubs.mag</code> -- Maggie class definitions with <code>&lt;primitive&gt;</code> method
+   bodies. These are loaded at startup so the Maggie compiler knows
+   the classes and selectors exist.</p>
+<p><strong>Naming conventions:</strong></p>
+<p>Go import paths map to Maggie namespaces under the <code>Go::</code> prefix:</p>
+<p>| Go Package       | Maggie Namespace |
+|------------------|------------------|
+| <code>strings</code>        | <code>Go::Strings</code>    |
+| <code>encoding/json</code>  | <code>Go::Json</code>       |
+| <code>net/http</code>       | <code>Go::Http</code>       |
+| <code>crypto/sha256</code>  | <code>Go::Sha256</code>     |</p>
+<p>Go function names become camelCase selectors. Go type names keep
+their PascalCase and are namespaced under the package:</p>
+<p>| Go Name              | Maggie Name              |
+|----------------------|--------------------------|
+| <code>json.Marshal(v)</code>    | <code>Go::Json marshal: v</code>    |
+| <code>strings.Contains()</code> | <code>Go::Strings contains:</code>  |
+| <code>http.Server</code>        | <code>Go::Http::Server</code>       |
+| <code>http.ListenAndServe</code>| <code>Go::Http listenAndServe:</code>|</p>
+<p><strong>Parameter limit</strong>: Functions with more than four parameters are
+skipped with a comment in the generated code. This is a practical
+limit -- Maggie keyword messages become unwieldy beyond four parts.
+If you need to call such a function, write a thin Go wrapper that
+accepts a struct or fewer arguments.</p>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <h2>The mag build Command</h2>
+<p>After wrapping, <code>mag build</code> compiles a custom Maggie binary that
+includes the wrapped Go packages.</p>
+<p><strong>Basic usage (entry-point-only binary):</strong></p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>mag build</code></pre>
+</div>
+<p>This reads <code>maggie.toml</code>, runs <code>mag wrap</code> for all configured
+packages (if not already generated), then creates a custom binary
+at <code>./mag-custom</code>. The binary loads the embedded image and runs
+your entry point.</p>
+<p><strong>Full-system binary:</strong></p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>mag build --full</code></pre>
+</div>
+<p>With <code>--full</code>, the resulting binary is a complete Maggie system --
+REPL, <code>fmt</code>, <code>doctest</code>, <code>help</code>, LSP, and all other <code>mag</code> subcommands
+work. Your project&#39;s classes are pre-loaded in the embedded image.
+When invoked with no arguments, it runs your entry point:</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>./myapp                  # Runs Main.start (your entry point)
+./myapp -i               # REPL with all your classes loaded
+./myapp fmt src/          # Format your source files
+./myapp doctest           # Run your docstring tests
+./myapp help MyClass      # Show help for your classes</code></pre>
+</div>
+<p>This is useful for distributing a self-contained Maggie system that
+includes your application code. The recipient gets a single binary
+that can run your app, explore it interactively, or use any of the
+standard Maggie development tools.</p>
+<p><strong>Custom output path:</strong></p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>mag build -o myapp
+mag build --full -o myapp</code></pre>
+</div>
+<p><strong>What happens under the hood:</strong></p>
+<p>1. <code>mag wrap</code> runs for each package in <code>[go-wrap.packages]</code>,
+   generating <code>wrap.go</code> and <code>stubs.mag</code> files.</p>
+<p>2. Project sources are compiled into an image (stdlib + your code).</p>
+<p>3. Without <code>--full</code>: a temporary Go module is created with a minimal
+   <code>main.go</code> that loads the image and runs the entry point.</p>
+<p>4. With <code>--full</code>: the actual <code>cmd/mag/</code> source files are copied into
+   a temporary module, with the project image replacing the stock
+   <code>maggie.image</code>. A generated <code>project_config.go</code> sets the default
+   entry point and registers any wrapped Go packages.</p>
+<p>5. <code>go build</code> compiles everything into a single binary.</p>
+<p>6. The temporary module is cleaned up.</p>
+<p><strong>Requirements:</strong></p>
+<ul>
+<li>A Go toolchain must be installed (the <code>go</code> command must be in PATH)</li>
+<li>A <code>maggie.toml</code> with <code>[source]</code> dirs</li>
+<li>A <code>go.mod</code> in the project directory (if using <code>[go-wrap]</code>)</li>
+</ul>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <h2>Generated Glue Code Walkthrough</h2>
+<p>Understanding the generated code helps when debugging or extending
+bindings. Here is what <code>mag wrap strings</code> produces (simplified).</p>
+<p><strong>The Go glue file (wrap.go):</strong></p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>&#34; -- Go side (wrap.go) -- simplified --&#34;
+
+&#34;The RegisterPrimitives function creates Maggie classes and methods:&#34;
+
+func RegisterPrimitives(v *vm.VM) {
+    &#34;Register the namespace class for package-level functions:&#34;
+    nsClass := v.RegisterGoType(&#34;Go::Strings&#34;, reflect.TypeOf((*struct{})(nil)))
+
+    &#34;Register a package function as a class method:&#34;
+    nsClass.AddClassMethod(v.Selectors, &#34;contains:substr:&#34;, ...)
+
+    &#34;The method body extracts Go args, calls the real function, and&#34;
+    &#34;marshals the result back to a Maggie Value:&#34;
+    func(vmPtr interface{}, receiver vm.Value, args []vm.Value) vm.Value {
+        v := vmPtr.(*vm.VM)
+        arg0 := v.ValueToGo(args[0]).(string)
+        arg1 := v.ValueToGo(args[1]).(string)
+        result := pkg.Contains(arg0, arg1)
+        return v.GoToValue(result)
+    }
+}</code></pre>
+</div>
+<p><strong>The Maggie stub file (stubs.mag):</strong></p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>&#34; -- Maggie side (stubs.mag) --&#34;
+
+namespace: &#39;Go&#39;
+
+Strings subclass: Object
+  classMethod: contains: s substr: t [ &lt;primitive&gt; ]
+  classMethod: hasPrefix: s prefix: t [ &lt;primitive&gt; ]
+  classMethod: hasSuffix: s suffix: t [ &lt;primitive&gt; ]
+  classMethod: join: elems sep: s [ &lt;primitive&gt; ]
+  classMethod: repeat: s count: c [ &lt;primitive&gt; ]
+  classMethod: replace: s old: o new: n [ &lt;primitive&gt; ]
+  classMethod: split: s sep: t [ &lt;primitive&gt; ]
+  classMethod: toLower: s [ &lt;primitive&gt; ]
+  classMethod: toUpper: s [ &lt;primitive&gt; ]
+  classMethod: trimSpace: s [ &lt;primitive&gt; ]</code></pre>
+</div>
+<p>The stubs declare <code>&lt;primitive&gt;</code> methods -- the compiler sees these as
+method definitions but the bodies are implemented in Go. At runtime,
+when Maggie sends <code>Go::Strings contains: &#39;hello world&#39; substr: &#39;world&#39;</code>,
+the VM dispatches to the registered Go function which calls
+<code>strings.Contains(&#34;hello world&#34;, &#34;world&#34;)</code> and returns <code>true</code>.</p>
+<p><strong>Struct type bindings</strong> work similarly but register instance methods
+instead of class methods. The generated code extracts the Go receiver
+from the GoObject wrapper:</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>&#34; -- Go side for a struct method --&#34;
+
+&#34;For a type like http.Server with a method ListenAndServe():&#34;
+serverClass.AddPrimitiveMethod(v.Selectors, &#34;listenAndServe&#34;, ...)
+
+func(vmPtr interface{}, receiver vm.Value, args []vm.Value) vm.Value {
+    v := vmPtr.(*vm.VM)
+    goVal, ok := v.GetGoObject(receiver)
+    if !ok { return vm.Nil }
+    self := goVal.(*pkg.Server)
+    err := self.ListenAndServe()
+    if err != nil {
+        panic(fmt.Sprintf(&#34;Maggie error: GoError: %v&#34;, err))
+    }
+    return vm.Nil
+}</code></pre>
+</div>
+<p>The pattern is consistent: unwrap the receiver, convert arguments,
+call the Go function, convert the result. Errors from Go become
+Maggie exceptions via <code>panic</code> with the <code>Maggie error:</code> prefix, which
+the VM catches and converts to a proper exception object.</p>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <h2>Manifest Configuration: [go-wrap]</h2>
+<p>The <code>[go-wrap]</code> section in <code>maggie.toml</code> configures which Go packages
+to wrap and where to put the generated code.</p>
+<p><strong>Minimal configuration:</strong></p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>[go-wrap]
+[[go-wrap.packages]]
+import = &#34;encoding/json&#34;
+
+[[go-wrap.packages]]
+import = &#34;strings&#34;</code></pre>
+</div>
+<p><strong>With include filters:</strong></p>
+<p>Most Go packages export more than you need. The <code>include</code> list lets
+you wrap only specific functions and types, keeping the generated code
+small and the API surface focused.</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>[[go-wrap.packages]]
+import = &#34;net/http&#34;
+include = [&#34;Get&#34;, &#34;Post&#34;, &#34;Server&#34;, &#34;ListenAndServe&#34;]
+
+[[go-wrap.packages]]
+import = &#34;encoding/json&#34;
+include = [&#34;Marshal&#34;, &#34;Unmarshal&#34;, &#34;Decoder&#34;, &#34;Encoder&#34;]</code></pre>
+</div>
+<p>Without <code>include</code>, all exported functions, types, and constants are
+wrapped.</p>
+<p><strong>Custom output directory:</strong></p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>[go-wrap]
+output = &#34;generated/wrappers&#34;
+
+[[go-wrap.packages]]
+import = &#34;strings&#34;</code></pre>
+</div>
+<p>The default output is <code>.maggie/wrap/</code>. The output directory structure
+is:</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>.maggie/wrap/
+  json/
+    wrap.go        &#34; Go glue code&#34;
+    stubs.mag      &#34; Maggie class stubs&#34;
+  strings/
+    wrap.go
+    stubs.mag
+  http/
+    wrap.go
+    stubs.mag</code></pre>
+</div>
+<p><strong>Full project example:</strong></p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>[project]
+name = &#34;web-app&#34;
+namespace = &#34;WebApp&#34;
+version = &#34;0.1.0&#34;
+
+[source]
+dirs = [&#34;src&#34;]
+entry = &#34;Main.start&#34;
+
+[go-wrap]
+output = &#34;.maggie/wrap&#34;
+
+[[go-wrap.packages]]
+import = &#34;net/http&#34;
+include = [&#34;Get&#34;, &#34;Post&#34;, &#34;Server&#34;, &#34;ListenAndServe&#34;, &#34;HandleFunc&#34;]
+
+[[go-wrap.packages]]
+import = &#34;encoding/json&#34;
+include = [&#34;Marshal&#34;, &#34;Unmarshal&#34;]
+
+[[go-wrap.packages]]
+import = &#34;strings&#34;</code></pre>
+</div>
+<p>With this manifest, running <code>mag build -o web-app</code> produces a custom
+binary with HTTP server, JSON encoding, and string utilities all
+available as Maggie classes.</p>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <h2>Putting It All Together</h2>
+<p>Here is a complete walkthrough of adding Go interop to a project,
+from manifest configuration to Maggie code.</p>
+<p><strong>Step 1: Configure maggie.toml</strong></p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>[project]
+name = &#34;my-app&#34;
+namespace = &#34;MyApp&#34;
+
+[source]
+dirs = [&#34;src&#34;]
+entry = &#34;Main.start&#34;
+
+[[go-wrap.packages]]
+import = &#34;strings&#34;
+
+[[go-wrap.packages]]
+import = &#34;encoding/json&#34;
+include = [&#34;Marshal&#34;, &#34;Unmarshal&#34;]</code></pre>
+</div>
+<p><strong>Step 2: Generate bindings</strong></p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>mag wrap</code></pre>
+</div>
+<p>This creates <code>.maggie/wrap/strings/</code> and <code>.maggie/wrap/json/</code> with
+the generated <code>wrap.go</code> and <code>stubs.mag</code> files.</p>
+<p><strong>Step 3: Build the custom binary</strong></p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>mag build -o my-app           # entry-point-only binary
+mag build --full -o my-app    # full mag system with your code</code></pre>
+</div>
+<p><strong>Step 4: Write Maggie code that uses the wrapped packages</strong></p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>&#34; src/Main.mag &#34;
+namespace: &#39;MyApp&#39;
+import: &#39;Go&#39;
+
+Main subclass: Object
+  classMethod: start [
+      &#34;Use Go strings library&#34;
+      result := Go::Strings toUpper: &#39;hello maggie&#39;.
+      result printString.
+
+      &#34;Use Go JSON encoding&#34;
+      data := Go::Json marshal: #(1 2 3).
+      data printString.
+  ]</code></pre>
+</div>
+<p><strong>Step 5: Run with the custom binary</strong></p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>./my-app -m Main.start</code></pre>
+</div>
+<p>The wrapped Go functions are called through the generated glue code.
+From the Maggie side, they look and feel like any other class methods.</p>
+<p><strong>Ad-hoc wrapping</strong> (without a manifest) is also supported. You can
+wrap a single package on the fly:</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>mag wrap crypto/sha256 --output ./wrappers</code></pre>
+</div>
+<p>This is handy for exploration -- see what a package looks like as
+Maggie classes before committing to a manifest entry.</p>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <h2>Limitations and Tips</h2>
+<p>Go interop is powerful but has constraints worth knowing about:</p>
+<p><strong>Functions with more than four parameters are skipped.</strong> Maggie
+keyword messages with many parts are hard to read. If you need a
+Go function with five or more parameters, write a thin Go wrapper
+function that accepts a struct or fewer arguments, and wrap that
+instead.</p>
+<p><strong>Only exported Go names are wrapped.</strong> Unexported functions, types,
+and fields (those starting with a lowercase letter in Go) are not
+visible to the introspection layer and cannot be wrapped.</p>
+<p><strong>Pointer receivers only.</strong> For struct methods, only pointer-receiver
+methods are wrapped. Value-receiver methods on large structs would
+require copying the entire struct on each call, so they are excluded.</p>
+<p><strong>No callback support yet.</strong> You cannot currently pass a Maggie block
+as a Go callback (e.g., <code>http.HandleFunc</code>). Go functions that expect
+function-typed parameters are skipped or require manual glue code.</p>
+<p><strong>Custom binary required.</strong> Unlike reflection-based FFI in some
+languages, Go interop works by generating and compiling Go code. You
+must run <code>mag build</code> to produce a binary that includes your wrapped
+packages. This is a one-time step per build -- the resulting binary
+is self-contained.</p>
+<p><strong>Debugging tips:</strong></p>
+<p>- Run <code>mag wrap</code> with <code>-v</code> (verbose) to see what was discovered:
+  number of functions, types, and constants found.</p>
+<p>- Read the generated <code>stubs.mag</code> to see what selectors are available.
+  This is the authoritative list of what you can call from Maggie.</p>
+<p>- If a wrapped method returns nil unexpectedly, check the Go glue
+  code -- the <code>GetGoObject</code> extraction may be failing because the
+  receiver is not a valid GoObject.</p>
+<p>- Go errors become <code>GoError</code> exceptions. Use <code>on:do:</code> to catch and
+  inspect them rather than letting them crash your program.</p>
+<p>- Use <code>include</code> filters in the manifest to keep the generated code
+  focused. Wrapping an entire large package like <code>net/http</code> produces
+  a lot of bindings, most of which you probably do not need.</p>
+
+
+    </div>
+
+
+    <div class="footer">
+        Generated by Maggie doc generator.
+    </div>
+</main>
+    <script src="../js/playground.js"></script>
+</body>
+</html>

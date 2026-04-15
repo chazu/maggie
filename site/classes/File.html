@@ -4,11 +4,276 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>File &mdash; Maggie API Reference</title>
-    <link rel="stylesheet" href="../../css/style.css">
+    <link rel="stylesheet" href="../css/style.css">
 </head>
 <body>
+<nav class="sidebar">
+    <div class="sidebar-title"><a href="../index.html">Maggie Docs</a></div>
+
+    <div class="sidebar-section">
+        <div class="sidebar-section-title">Guide</div>
+        <ul class="sidebar-list">
+
+            <li><a href="../guide/01-getting-started.html">Getting Started</a></li>
+
+            <li><a href="../guide/02-basics.html">Basics</a></li>
+
+            <li><a href="../guide/03-numbers.html">Numbers</a></li>
+
+            <li><a href="../guide/04-strings.html">Strings</a></li>
+
+            <li><a href="../guide/05-collections.html">Collections</a></li>
+
+            <li><a href="../guide/06-blocks.html">Blocks</a></li>
+
+            <li><a href="../guide/07-classes.html">Classes</a></li>
+
+            <li><a href="../guide/08-error-handling.html">Error Handling</a></li>
+
+            <li><a href="../guide/09-concurrency.html">Concurrency</a></li>
+
+            <li><a href="../guide/10-supervisors.html">Supervisors</a></li>
+
+            <li><a href="../guide/10-modules.html">Modules</a></li>
+
+            <li><a href="../guide/11-clustering.html">Clustering</a></li>
+
+            <li><a href="../guide/11-projects.html">Projects</a></li>
+
+            <li><a href="../guide/12-go-interop.html">Go Interop</a></li>
+
+            <li><a href="../guide/13-distribution.html">Distribution</a></li>
+
+            <li><a href="../guide/14-tooling-ide.html">Tooling &amp; IDE</a></li>
+
+            <li><a href="../guide/15-cue-integration.html">Cue Integration</a></li>
+
+            <li><a href="../guide/16-tuple-space.html">Tuple Space</a></li>
+
+        </ul>
+    </div>
+
+    <div class="sidebar-section">
+        <div class="sidebar-section-title">API Reference</div>
+
+        <details class="sidebar-ns-group" open>
+            <summary>(root)</summary>
+            <ul class="sidebar-list">
+
+                <li><a href="../classes/Array.html">Array</a></li>
+
+                <li><a href="../classes/ArrayList.html">ArrayList</a></li>
+
+                <li><a href="../classes/AssignmentNode.html">AssignmentNode</a></li>
+
+                <li><a href="../classes/Association.html">Association</a></li>
+
+                <li><a href="../classes/BigInteger.html">BigInteger</a></li>
+
+                <li><a href="../classes/Block.html">Block</a></li>
+
+                <li><a href="../classes/BlockNode.html">BlockNode</a></li>
+
+                <li><a href="../classes/Boolean.html">Boolean</a></li>
+
+                <li><a href="../classes/ByteArray.html">ByteArray</a></li>
+
+                <li><a href="../classes/BytecodeGenerator.html">BytecodeGenerator</a></li>
+
+                <li><a href="../classes/CancellationContext.html">CancellationContext</a></li>
+
+                <li><a href="../classes/CascadeNode.html">CascadeNode</a></li>
+
+                <li><a href="../classes/Channel.html">Channel</a></li>
+
+                <li><a href="../classes/Character.html">Character</a></li>
+
+                <li><a href="../classes/CharacterStream.html">CharacterStream</a></li>
+
+                <li><a href="../classes/ChildSpec.html">ChildSpec</a></li>
+
+                <li><a href="../classes/Class.html">Class</a></li>
+
+                <li><a href="../classes/ClassNode.html">ClassNode</a></li>
+
+                <li><a href="../classes/Cluster.html">Cluster</a></li>
+
+                <li><a href="../classes/CompiledMethod.html">CompiledMethod</a></li>
+
+                <li><a href="../classes/Compiler.html">Compiler</a></li>
+
+                <li><a href="../classes/ConstraintStore.html">ConstraintStore</a></li>
+
+                <li><a href="../classes/Context.html">Context</a></li>
+
+                <li><a href="../classes/CueContext.html">CueContext</a></li>
+
+                <li><a href="../classes/CueValue.html">CueValue</a></li>
+
+                <li><a href="../classes/DateTime.html">DateTime</a></li>
+
+                <li><a href="../classes/Debugger.html">Debugger</a></li>
+
+                <li><a href="../classes/Dictionary.html">Dictionary</a></li>
+
+                <li><a href="../classes/DocServer.html">DocServer</a></li>
+
+                <li><a href="../classes/DuckAppender.html">DuckAppender</a></li>
+
+                <li><a href="../classes/DuckDatabase.html">DuckDatabase</a></li>
+
+                <li><a href="../classes/DynamicSupervisor.html">DynamicSupervisor</a></li>
+
+                <li><a href="../classes/Error.html">Error</a></li>
+
+                <li><a href="../classes/Exception.html">Exception</a></li>
+
+                <li><a href="../classes/ExternalProcess.html">ExternalProcess</a></li>
+
+                <li><a href="../classes/Failure.html">Failure</a></li>
+
+                <li><a href="../classes/False.html">False</a></li>
+
+                <li><a href="../classes/File.html" class="active">File</a></li>
+
+                <li><a href="../classes/Float.html">Float</a></li>
+
+                <li><a href="../classes/Future.html">Future</a></li>
+
+                <li><a href="../classes/GrpcClient.html">GrpcClient</a></li>
+
+                <li><a href="../classes/GrpcStream.html">GrpcStream</a></li>
+
+                <li><a href="../classes/Halt.html">Halt</a></li>
+
+                <li><a href="../classes/HashRing.html">HashRing</a></li>
+
+                <li><a href="../classes/HttpClient.html">HttpClient</a></li>
+
+                <li><a href="../classes/HttpRequest.html">HttpRequest</a></li>
+
+                <li><a href="../classes/HttpResponse.html">HttpResponse</a></li>
+
+                <li><a href="../classes/HttpServer.html">HttpServer</a></li>
+
+                <li><a href="../classes/Json.html">Json</a></li>
+
+                <li><a href="../classes/JsonParseError.html">JsonParseError</a></li>
+
+                <li><a href="../classes/JsonReader.html">JsonReader</a></li>
+
+                <li><a href="../classes/JsonWriter.html">JsonWriter</a></li>
+
+                <li><a href="../classes/Lexer.html">Lexer</a></li>
+
+                <li><a href="../classes/LiteralNode.html">LiteralNode</a></li>
+
+                <li><a href="../classes/MailboxMessage.html">MailboxMessage</a></li>
+
+                <li><a href="../classes/Message.html">Message</a></li>
+
+                <li><a href="../classes/MessageNotUnderstood.html">MessageNotUnderstood</a></li>
+
+                <li><a href="../classes/MessageSendNode.html">MessageSendNode</a></li>
+
+                <li><a href="../classes/Metaclass.html">Metaclass</a></li>
+
+                <li><a href="../classes/MethodNode.html">MethodNode</a></li>
+
+                <li><a href="../classes/Mutex.html">Mutex</a></li>
+
+                <li><a href="../classes/Node.html">Node</a></li>
+
+                <li><a href="../classes/Notification.html">Notification</a></li>
+
+                <li><a href="../classes/Object.html">Object</a></li>
+
+                <li><a href="../classes/Parser.html">Parser</a></li>
+
+                <li><a href="../classes/Process.html">Process</a></li>
+
+                <li><a href="../classes/Proquint.html">Proquint</a></li>
+
+                <li><a href="../classes/Random.html">Random</a></li>
+
+                <li><a href="../classes/Regex.html">Regex</a></li>
+
+                <li><a href="../classes/RemoteChannel.html">RemoteChannel</a></li>
+
+                <li><a href="../classes/RemoteProcess.html">RemoteProcess</a></li>
+
+                <li><a href="../classes/Result.html">Result</a></li>
+
+                <li><a href="../classes/ReturnNode.html">ReturnNode</a></li>
+
+                <li><a href="../classes/SSEConnection.html">SSEConnection</a></li>
+
+                <li><a href="../classes/Sandbox.html">Sandbox</a></li>
+
+                <li><a href="../classes/Semaphore.html">Semaphore</a></li>
+
+                <li><a href="../classes/Set.html">Set</a></li>
+
+                <li><a href="../classes/Signal.html">Signal</a></li>
+
+                <li><a href="../classes/SmallInteger.html">SmallInteger</a></li>
+
+                <li><a href="../classes/SocketConnection.html">SocketConnection</a></li>
+
+                <li><a href="../classes/SqliteDatabase.html">SqliteDatabase</a></li>
+
+                <li><a href="../classes/SqliteRows.html">SqliteRows</a></li>
+
+                <li><a href="../classes/SqliteStatement.html">SqliteStatement</a></li>
+
+                <li><a href="../classes/StackOverflow.html">StackOverflow</a></li>
+
+                <li><a href="../classes/String.html">String</a></li>
+
+                <li><a href="../classes/SubscriptOutOfBounds.html">SubscriptOutOfBounds</a></li>
+
+                <li><a href="../classes/Success.html">Success</a></li>
+
+                <li><a href="../classes/Supervisor.html">Supervisor</a></li>
+
+                <li><a href="../classes/Symbol.html">Symbol</a></li>
+
+                <li><a href="../classes/System.html">System</a></li>
+
+                <li><a href="../classes/Token.html">Token</a></li>
+
+                <li><a href="../classes/Toml.html">Toml</a></li>
+
+                <li><a href="../classes/TomlParseError.html">TomlParseError</a></li>
+
+                <li><a href="../classes/True.html">True</a></li>
+
+                <li><a href="../classes/TupleSpace.html">TupleSpace</a></li>
+
+                <li><a href="../classes/UndefinedObject.html">UndefinedObject</a></li>
+
+                <li><a href="../classes/UnixSocketClient.html">UnixSocketClient</a></li>
+
+                <li><a href="../classes/UnixSocketServer.html">UnixSocketServer</a></li>
+
+                <li><a href="../classes/VariableNode.html">VariableNode</a></li>
+
+                <li><a href="../classes/WaitGroup.html">WaitGroup</a></li>
+
+                <li><a href="../classes/Warning.html">Warning</a></li>
+
+                <li><a href="../classes/WeakReference.html">WeakReference</a></li>
+
+                <li><a href="../classes/ZeroDivide.html">ZeroDivide</a></li>
+
+            </ul>
+        </details>
+
+    </div>
+</nav>
+<main class="content">
     <div class="breadcrumb">
-        <a href="../../index.html">Maggie API Reference</a>
+        <a href="../index.html">Maggie API Reference</a>
 
         &rsaquo; File
     </div>
@@ -23,6 +288,231 @@
 
     </div>
 
+
+    <div class="class-doc">
+        <p>File system operations for reading, writing, and manipulating files and paths.</p>
+<p>File provides class-side methods for all file I/O. Methods that can fail
+return a Result (Success or Failure). Path manipulation methods are pure
+and always return strings. All methods are primitives registered on the
+class side.</p>
+<h2>Reading</h2>
+<p>- <code>File readFileContents: path</code> -- Read entire file as a string. Returns
+  Failure if the file cannot be read.</p>
+<h2>Writing</h2>
+<p>- <code>File writeFileContents: path contents: string</code> -- Write string to file,
+  replacing existing content. Returns Success with path.
+- <code>File appendToFile: path contents: string</code> -- Append string to file,
+  creating it if needed. Returns Success with path.</p>
+<h2>Existence and info</h2>
+<ul>
+<li><code>File exists: path</code> -- Return true if a file or directory exists.</li>
+<li><code>File isDirectory: path</code> -- Return true if path is a directory.</li>
+<li><code>File isFile: path</code> -- Return true if path is a regular file.</li>
+</ul>
+<h2>Directory operations</h2>
+<ul>
+<li><code>File listDirectory: path</code> -- Return an Array of filenames in a directory.</li>
+<li><code>File createDirectory: path</code> -- Create directory and parents. Returns Success.</li>
+</ul>
+<h2>File manipulation</h2>
+<ul>
+<li><code>File delete: path</code> -- Delete a file or empty directory. Returns Success.</li>
+<li><code>File deleteAll: path</code> -- Recursively delete a file or directory tree.</li>
+<li><code>File rename: old to: new</code> -- Rename or move. Returns Success with new path.</li>
+<li><code>File copy: src to: dst</code> -- Copy a file. Returns Success with destination.</li>
+</ul>
+<h2>Path manipulation</h2>
+<ul>
+<li><code>File basename: path</code> -- Last path component (filename).</li>
+<li><code>File dirname: path</code> -- Directory portion of a path.</li>
+<li><code>File extension: path</code> -- File extension including the dot.</li>
+<li><code>File join: base with: name</code> -- Join two path components.</li>
+<li><code>File absolutePath: path</code> -- Convert to absolute path.</li>
+</ul>
+<h2>Directories</h2>
+<ul>
+<li><code>File workingDirectory</code> -- Current working directory.</li>
+<li><code>File homeDirectory</code> -- User home directory.</li>
+</ul>
+<h2>File metadata</h2>
+<ul>
+<li><code>File size: path</code> -- File size in bytes.</li>
+<li><code>File modificationTime: path</code> -- Modification time as Unix milliseconds.</li>
+</ul>
+<h2>Glob</h2>
+<ul>
+<li><code>File glob: pattern in: dir</code> -- Find files matching a glob pattern.</li>
+</ul>
+<h2>Temporary files</h2>
+<ul>
+<li><code>File tempFile</code> -- Create a temp file. Returns Success with path.</li>
+<li><code>File tempFileWithPrefix: prefix</code> -- Create a temp file with a prefix.</li>
+</ul>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>File basename: &#39;/home/user/file.txt&#39; &gt;&gt;&gt; &#39;file.txt&#39;
+File basename: &#39;/tmp/&#39; &gt;&gt;&gt; &#39;tmp&#39;
+File basename: &#39;file.mag&#39; &gt;&gt;&gt; &#39;file.mag&#39;</code></pre>
+</div>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>File dirname: &#39;/home/user/file.txt&#39; &gt;&gt;&gt; &#39;/home/user&#39;
+File dirname: &#39;file.mag&#39; &gt;&gt;&gt; &#39;.&#39;</code></pre>
+</div>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>File extension: &#39;readme.md&#39; &gt;&gt;&gt; &#39;.md&#39;
+File extension: &#39;archive.tar.gz&#39; &gt;&gt;&gt; &#39;.gz&#39;
+File extension: &#39;Makefile&#39; &gt;&gt;&gt; &#39;&#39;</code></pre>
+</div>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>File join: &#39;/home&#39; with: &#39;user&#39; &gt;&gt;&gt; &#39;/home/user&#39;
+File join: &#39;/tmp&#39; with: &#39;file.txt&#39; &gt;&gt;&gt; &#39;/tmp/file.txt&#39;</code></pre>
+</div>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>(File absolutePath: &#39;/tmp&#39;) &gt;&gt;&gt; &#39;/tmp&#39;</code></pre>
+</div>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>(File workingDirectory) class &gt;&gt;&gt; String</code></pre>
+</div>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>(File homeDirectory) class &gt;&gt;&gt; String</code></pre>
+</div>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>File isDirectory: &#39;/tmp&#39; &gt;&gt;&gt; true
+File isDirectory: &#39;/nonexistent/xyzzy&#39; &gt;&gt;&gt; false</code></pre>
+</div>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>File exists: &#39;/nonexistent/path/xyzzy&#39; &gt;&gt;&gt; false</code></pre>
+</div>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>ftResult := File tempFile.
+ftResult isSuccess &gt;&gt;&gt; true
+File exists: ftResult value &gt;&gt;&gt; true</code></pre>
+</div>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>ftPath1 := (File tempFile) value.
+File writeFileContents: ftPath1 contents: &#39;hello maggie&#39;.
+File readFileContents: ftPath1 &gt;&gt;&gt; &#39;hello maggie&#39;</code></pre>
+</div>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>ftPath2 := (File tempFile) value.
+(File writeFileContents: ftPath2 contents: &#39;test data&#39;) isSuccess &gt;&gt;&gt; true</code></pre>
+</div>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>ftPath3 := (File tempFile) value.
+File writeFileContents: ftPath3 contents: &#39;first&#39;.
+File appendToFile: ftPath3 contents: &#39; second&#39;.
+File readFileContents: ftPath3 &gt;&gt;&gt; &#39;first second&#39;</code></pre>
+</div>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>ftPath4 := (File tempFile) value.
+File exists: ftPath4 &gt;&gt;&gt; true
+File isFile: ftPath4 &gt;&gt;&gt; true
+File isFile: &#39;/tmp&#39; &gt;&gt;&gt; false</code></pre>
+</div>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>ftPath5 := (File tempFile) value.
+File writeFileContents: ftPath5 contents: &#39;hello&#39;.
+File size: ftPath5 &gt;&gt;&gt; 5</code></pre>
+</div>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>ftPath6 := (File tempFile) value.
+(File modificationTime: ftPath6) &gt; 0 &gt;&gt;&gt; true</code></pre>
+</div>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>ftPath7 := (File tempFile) value.
+File exists: ftPath7 &gt;&gt;&gt; true
+(File delete: ftPath7) isSuccess &gt;&gt;&gt; true
+File exists: ftPath7 &gt;&gt;&gt; false</code></pre>
+</div>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>ftPathA := (File tempFile) value.
+ftPathB := ftPathA, &#39;.renamed&#39;.
+File writeFileContents: ftPathA contents: &#39;data&#39;.
+(File rename: ftPathA to: ftPathB) isSuccess &gt;&gt;&gt; true
+File exists: ftPathA &gt;&gt;&gt; false
+File readFileContents: ftPathB &gt;&gt;&gt; &#39;data&#39;</code></pre>
+</div>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>ftSrc := (File tempFile) value.
+ftDst := ftSrc, &#39;.copy&#39;.
+File writeFileContents: ftSrc contents: &#39;original&#39;.
+(File copy: ftSrc to: ftDst) isSuccess &gt;&gt;&gt; true
+File readFileContents: ftDst &gt;&gt;&gt; &#39;original&#39;</code></pre>
+</div>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>ftDir1 := &#39;/tmp/maggie-test-mkdir&#39;.
+(File createDirectory: ftDir1) isSuccess &gt;&gt;&gt; true
+File isDirectory: ftDir1 &gt;&gt;&gt; true</code></pre>
+</div>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>ftDir2 := &#39;/tmp/maggie-test-listdir-dt&#39;.
+File createDirectory: ftDir2.
+File writeFileContents: (File join: ftDir2 with: &#39;a.txt&#39;) contents: &#39;a&#39;.
+(File listDirectory: ftDir2) class &gt;&gt;&gt; Array</code></pre>
+</div>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>ftDir3 := &#39;/tmp/maggie-test-deleteall-dt&#39;.
+File createDirectory: (File join: ftDir3 with: &#39;sub&#39;).
+File writeFileContents: (File join: ftDir3 with: &#39;sub/f.txt&#39;) contents: &#39;x&#39;.
+(File deleteAll: ftDir3) isSuccess &gt;&gt;&gt; true
+File exists: ftDir3 &gt;&gt;&gt; false</code></pre>
+</div>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>ftDir4 := &#39;/tmp/maggie-test-glob-dt&#39;.
+File createDirectory: ftDir4.
+File writeFileContents: (File join: ftDir4 with: &#39;a.txt&#39;) contents: &#39;a&#39;.
+File writeFileContents: (File join: ftDir4 with: &#39;b.txt&#39;) contents: &#39;b&#39;.
+(File glob: &#39;*.txt&#39; in: ftDir4) size &gt;&gt;&gt; 2</code></pre>
+</div>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>ftPfxResult := File tempFileWithPrefix: &#39;myapp&#39;.
+ftPfxResult isSuccess &gt;&gt;&gt; true
+(File basename: ftPfxResult value) includes: &#39;myapp&#39; &gt;&gt;&gt; true</code></pre>
+</div>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>&#34;Read a file, transform it, write it back&#34;
+| contents &lt;String&gt; |
+contents := File readFileContents: &#39;/tmp/example.txt&#39;.
+File writeFileContents: &#39;/tmp/example.txt&#39; contents: contents, &#39; (updated)&#39;</code></pre>
+</div>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>&#34;Check if a path exists before reading&#34;
+(File exists: &#39;/tmp/myfile.txt&#39;)
+    ifTrue:  [File readFileContents: &#39;/tmp/myfile.txt&#39;]
+    ifFalse: [&#39;File not found&#39;]</code></pre>
+</div>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>&#34;List .mag files in a directory&#34;
+File glob: &#39;*.mag&#39; in: &#39;lib/&#39;</code></pre>
+</div>
+
+    </div>
 
 
 
@@ -81,6 +571,14 @@
 
         <div class="method">
             <div class="method-selector">
+                <span class="class-side-label">class </span>deleteAll:
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">
                 <span class="class-side-label">class </span>dirname:
             </div>
 
@@ -98,6 +596,14 @@
         <div class="method">
             <div class="method-selector">
                 <span class="class-side-label">class </span>extension:
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">
+                <span class="class-side-label">class </span>glob:in:
             </div>
 
 
@@ -145,6 +651,14 @@
 
         <div class="method">
             <div class="method-selector">
+                <span class="class-side-label">class </span>modificationTime:
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">
                 <span class="class-side-label">class </span>readFileContents:
             </div>
 
@@ -154,6 +668,30 @@
         <div class="method">
             <div class="method-selector">
                 <span class="class-side-label">class </span>rename:to:
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">
+                <span class="class-side-label">class </span>size:
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">
+                <span class="class-side-label">class </span>tempFile
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">
+                <span class="class-side-label">class </span>tempFileWithPrefix:
             </div>
 
 
@@ -184,5 +722,7 @@
     <div class="footer">
         Generated by Maggie doc generator.
     </div>
+</main>
+    <script src="../js/playground.js"></script>
 </body>
 </html>

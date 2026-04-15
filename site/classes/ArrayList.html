@@ -1,0 +1,986 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>ArrayList &mdash; Maggie API Reference</title>
+    <link rel="stylesheet" href="../css/style.css">
+</head>
+<body>
+<nav class="sidebar">
+    <div class="sidebar-title"><a href="../index.html">Maggie Docs</a></div>
+
+    <div class="sidebar-section">
+        <div class="sidebar-section-title">Guide</div>
+        <ul class="sidebar-list">
+
+            <li><a href="../guide/01-getting-started.html">Getting Started</a></li>
+
+            <li><a href="../guide/02-basics.html">Basics</a></li>
+
+            <li><a href="../guide/03-numbers.html">Numbers</a></li>
+
+            <li><a href="../guide/04-strings.html">Strings</a></li>
+
+            <li><a href="../guide/05-collections.html">Collections</a></li>
+
+            <li><a href="../guide/06-blocks.html">Blocks</a></li>
+
+            <li><a href="../guide/07-classes.html">Classes</a></li>
+
+            <li><a href="../guide/08-error-handling.html">Error Handling</a></li>
+
+            <li><a href="../guide/09-concurrency.html">Concurrency</a></li>
+
+            <li><a href="../guide/10-supervisors.html">Supervisors</a></li>
+
+            <li><a href="../guide/10-modules.html">Modules</a></li>
+
+            <li><a href="../guide/11-clustering.html">Clustering</a></li>
+
+            <li><a href="../guide/11-projects.html">Projects</a></li>
+
+            <li><a href="../guide/12-go-interop.html">Go Interop</a></li>
+
+            <li><a href="../guide/13-distribution.html">Distribution</a></li>
+
+            <li><a href="../guide/14-tooling-ide.html">Tooling &amp; IDE</a></li>
+
+            <li><a href="../guide/15-cue-integration.html">Cue Integration</a></li>
+
+            <li><a href="../guide/16-tuple-space.html">Tuple Space</a></li>
+
+        </ul>
+    </div>
+
+    <div class="sidebar-section">
+        <div class="sidebar-section-title">API Reference</div>
+
+        <details class="sidebar-ns-group" open>
+            <summary>(root)</summary>
+            <ul class="sidebar-list">
+
+                <li><a href="../classes/Array.html">Array</a></li>
+
+                <li><a href="../classes/ArrayList.html" class="active">ArrayList</a></li>
+
+                <li><a href="../classes/AssignmentNode.html">AssignmentNode</a></li>
+
+                <li><a href="../classes/Association.html">Association</a></li>
+
+                <li><a href="../classes/BigInteger.html">BigInteger</a></li>
+
+                <li><a href="../classes/Block.html">Block</a></li>
+
+                <li><a href="../classes/BlockNode.html">BlockNode</a></li>
+
+                <li><a href="../classes/Boolean.html">Boolean</a></li>
+
+                <li><a href="../classes/ByteArray.html">ByteArray</a></li>
+
+                <li><a href="../classes/BytecodeGenerator.html">BytecodeGenerator</a></li>
+
+                <li><a href="../classes/CancellationContext.html">CancellationContext</a></li>
+
+                <li><a href="../classes/CascadeNode.html">CascadeNode</a></li>
+
+                <li><a href="../classes/Channel.html">Channel</a></li>
+
+                <li><a href="../classes/Character.html">Character</a></li>
+
+                <li><a href="../classes/CharacterStream.html">CharacterStream</a></li>
+
+                <li><a href="../classes/ChildSpec.html">ChildSpec</a></li>
+
+                <li><a href="../classes/Class.html">Class</a></li>
+
+                <li><a href="../classes/ClassNode.html">ClassNode</a></li>
+
+                <li><a href="../classes/Cluster.html">Cluster</a></li>
+
+                <li><a href="../classes/CompiledMethod.html">CompiledMethod</a></li>
+
+                <li><a href="../classes/Compiler.html">Compiler</a></li>
+
+                <li><a href="../classes/ConstraintStore.html">ConstraintStore</a></li>
+
+                <li><a href="../classes/Context.html">Context</a></li>
+
+                <li><a href="../classes/CueContext.html">CueContext</a></li>
+
+                <li><a href="../classes/CueValue.html">CueValue</a></li>
+
+                <li><a href="../classes/DateTime.html">DateTime</a></li>
+
+                <li><a href="../classes/Debugger.html">Debugger</a></li>
+
+                <li><a href="../classes/Dictionary.html">Dictionary</a></li>
+
+                <li><a href="../classes/DocServer.html">DocServer</a></li>
+
+                <li><a href="../classes/DuckAppender.html">DuckAppender</a></li>
+
+                <li><a href="../classes/DuckDatabase.html">DuckDatabase</a></li>
+
+                <li><a href="../classes/DynamicSupervisor.html">DynamicSupervisor</a></li>
+
+                <li><a href="../classes/Error.html">Error</a></li>
+
+                <li><a href="../classes/Exception.html">Exception</a></li>
+
+                <li><a href="../classes/ExternalProcess.html">ExternalProcess</a></li>
+
+                <li><a href="../classes/Failure.html">Failure</a></li>
+
+                <li><a href="../classes/False.html">False</a></li>
+
+                <li><a href="../classes/File.html">File</a></li>
+
+                <li><a href="../classes/Float.html">Float</a></li>
+
+                <li><a href="../classes/Future.html">Future</a></li>
+
+                <li><a href="../classes/GrpcClient.html">GrpcClient</a></li>
+
+                <li><a href="../classes/GrpcStream.html">GrpcStream</a></li>
+
+                <li><a href="../classes/Halt.html">Halt</a></li>
+
+                <li><a href="../classes/HashRing.html">HashRing</a></li>
+
+                <li><a href="../classes/HttpClient.html">HttpClient</a></li>
+
+                <li><a href="../classes/HttpRequest.html">HttpRequest</a></li>
+
+                <li><a href="../classes/HttpResponse.html">HttpResponse</a></li>
+
+                <li><a href="../classes/HttpServer.html">HttpServer</a></li>
+
+                <li><a href="../classes/Json.html">Json</a></li>
+
+                <li><a href="../classes/JsonParseError.html">JsonParseError</a></li>
+
+                <li><a href="../classes/JsonReader.html">JsonReader</a></li>
+
+                <li><a href="../classes/JsonWriter.html">JsonWriter</a></li>
+
+                <li><a href="../classes/Lexer.html">Lexer</a></li>
+
+                <li><a href="../classes/LiteralNode.html">LiteralNode</a></li>
+
+                <li><a href="../classes/MailboxMessage.html">MailboxMessage</a></li>
+
+                <li><a href="../classes/Message.html">Message</a></li>
+
+                <li><a href="../classes/MessageNotUnderstood.html">MessageNotUnderstood</a></li>
+
+                <li><a href="../classes/MessageSendNode.html">MessageSendNode</a></li>
+
+                <li><a href="../classes/Metaclass.html">Metaclass</a></li>
+
+                <li><a href="../classes/MethodNode.html">MethodNode</a></li>
+
+                <li><a href="../classes/Mutex.html">Mutex</a></li>
+
+                <li><a href="../classes/Node.html">Node</a></li>
+
+                <li><a href="../classes/Notification.html">Notification</a></li>
+
+                <li><a href="../classes/Object.html">Object</a></li>
+
+                <li><a href="../classes/Parser.html">Parser</a></li>
+
+                <li><a href="../classes/Process.html">Process</a></li>
+
+                <li><a href="../classes/Proquint.html">Proquint</a></li>
+
+                <li><a href="../classes/Random.html">Random</a></li>
+
+                <li><a href="../classes/Regex.html">Regex</a></li>
+
+                <li><a href="../classes/RemoteChannel.html">RemoteChannel</a></li>
+
+                <li><a href="../classes/RemoteProcess.html">RemoteProcess</a></li>
+
+                <li><a href="../classes/Result.html">Result</a></li>
+
+                <li><a href="../classes/ReturnNode.html">ReturnNode</a></li>
+
+                <li><a href="../classes/SSEConnection.html">SSEConnection</a></li>
+
+                <li><a href="../classes/Sandbox.html">Sandbox</a></li>
+
+                <li><a href="../classes/Semaphore.html">Semaphore</a></li>
+
+                <li><a href="../classes/Set.html">Set</a></li>
+
+                <li><a href="../classes/Signal.html">Signal</a></li>
+
+                <li><a href="../classes/SmallInteger.html">SmallInteger</a></li>
+
+                <li><a href="../classes/SocketConnection.html">SocketConnection</a></li>
+
+                <li><a href="../classes/SqliteDatabase.html">SqliteDatabase</a></li>
+
+                <li><a href="../classes/SqliteRows.html">SqliteRows</a></li>
+
+                <li><a href="../classes/SqliteStatement.html">SqliteStatement</a></li>
+
+                <li><a href="../classes/StackOverflow.html">StackOverflow</a></li>
+
+                <li><a href="../classes/String.html">String</a></li>
+
+                <li><a href="../classes/SubscriptOutOfBounds.html">SubscriptOutOfBounds</a></li>
+
+                <li><a href="../classes/Success.html">Success</a></li>
+
+                <li><a href="../classes/Supervisor.html">Supervisor</a></li>
+
+                <li><a href="../classes/Symbol.html">Symbol</a></li>
+
+                <li><a href="../classes/System.html">System</a></li>
+
+                <li><a href="../classes/Token.html">Token</a></li>
+
+                <li><a href="../classes/Toml.html">Toml</a></li>
+
+                <li><a href="../classes/TomlParseError.html">TomlParseError</a></li>
+
+                <li><a href="../classes/True.html">True</a></li>
+
+                <li><a href="../classes/TupleSpace.html">TupleSpace</a></li>
+
+                <li><a href="../classes/UndefinedObject.html">UndefinedObject</a></li>
+
+                <li><a href="../classes/UnixSocketClient.html">UnixSocketClient</a></li>
+
+                <li><a href="../classes/UnixSocketServer.html">UnixSocketServer</a></li>
+
+                <li><a href="../classes/VariableNode.html">VariableNode</a></li>
+
+                <li><a href="../classes/WaitGroup.html">WaitGroup</a></li>
+
+                <li><a href="../classes/Warning.html">Warning</a></li>
+
+                <li><a href="../classes/WeakReference.html">WeakReference</a></li>
+
+                <li><a href="../classes/ZeroDivide.html">ZeroDivide</a></li>
+
+            </ul>
+        </details>
+
+    </div>
+</nav>
+<main class="content">
+    <div class="breadcrumb">
+        <a href="../index.html">Maggie API Reference</a>
+
+        &rsaquo; ArrayList
+    </div>
+
+    <div class="class-header">
+        <h1>ArrayList</h1>
+
+        <div class="superclass-chain">
+            Inherits from: Object
+        </div>
+
+
+    </div>
+
+
+    <div class="class-doc">
+        <p>A growable, ordered collection backed by a Go slice.</p>
+<p>ArrayList provides amortized O(1) append via <code>add:</code>, O(1) indexed access,
+and efficient <code>select:</code>, <code>reject:</code>, <code>collect:</code> operations — all without
+the O(n^2) copying penalty of building Arrays incrementally with <code>copyWith:</code>
+or concatenation.</p>
+<p>Use ArrayList when building up a collection element by element, then call
+<code>asArray</code> if you need a fixed-size Array at the end.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>ArrayList new size &gt;&gt;&gt; 0
+ArrayList new isEmpty &gt;&gt;&gt; true</code></pre>
+</div>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>&#34;Build a list incrementally&#34;
+| list |
+list := ArrayList new.
+list add: 1.
+list add: 2.
+list add: 3.
+list size</code></pre>
+</div>
+
+    </div>
+
+
+
+    <h2>Class Methods</h2>
+
+    <div class="method-category">
+        <h3>primitives</h3>
+
+        <div class="method">
+            <div class="method-selector">
+                <span class="class-side-label">class </span>new
+            </div>
+
+            <div class="method-doc">
+                <p>Create a new empty ArrayList with default capacity.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>ArrayList new size &gt;&gt;&gt; 0
+ArrayList new isEmpty &gt;&gt;&gt; true</code></pre>
+</div>
+
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">
+                <span class="class-side-label">class </span>new:
+            </div>
+
+            <div class="method-doc">
+                <p>Create a new empty ArrayList with the given initial capacity.
+The capacity is a hint for how many elements will be added.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>(ArrayList new: 100) size &gt;&gt;&gt; 0
+(ArrayList new: 100) capacity &gt;= 100 &gt;&gt;&gt; true</code></pre>
+</div>
+
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">
+                <span class="class-side-label">class </span>primNew
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">
+                <span class="class-side-label">class </span>primNew:
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">
+                <span class="class-side-label">class </span>primWithAll:
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">
+                <span class="class-side-label">class </span>withAll:
+            </div>
+
+            <div class="method-doc">
+                <p>Create a new ArrayList containing all elements of the given Array.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>(ArrayList withAll: #(1 2 3)) size &gt;&gt;&gt; 3
+(ArrayList withAll: #(10 20)) first &gt;&gt;&gt; 10</code></pre>
+</div>
+
+            </div>
+
+
+        </div>
+
+    </div>
+
+
+
+
+    <h2>Instance Methods</h2>
+
+    <div class="method-category">
+        <h3>primitives</h3>
+
+        <div class="method">
+            <div class="method-selector">add:</div>
+
+            <div class="method-doc">
+                <p>Append an element to the end. Amortized O(1). Returns self.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>(ArrayList new add: 42) size &gt;&gt;&gt; 1</code></pre>
+</div>
+
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">addAll:</div>
+
+            <div class="method-doc">
+                <p>Append all elements from a collection (Array or ArrayList). Returns self.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>(ArrayList withAll: #(1 2 3)) size &gt;&gt;&gt; 3</code></pre>
+</div>
+
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">asArray</div>
+
+            <div class="method-doc">
+                <p>Return a new fixed-size Array containing all elements.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>(ArrayList withAll: #(1 2 3)) asArray &gt;&gt;&gt; #(1 2 3 )
+ArrayList new asArray &gt;&gt;&gt; #()</code></pre>
+</div>
+
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">at:</div>
+
+            <div class="method-doc">
+                <p>Return the element at a 0-based index.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>(ArrayList withAll: #(10 20 30)) at: 0 &gt;&gt;&gt; 10
+(ArrayList withAll: #(10 20 30)) at: 2 &gt;&gt;&gt; 30</code></pre>
+</div>
+
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">at:put:</div>
+
+            <div class="method-doc">
+                <p>Set the element at a 0-based index. Returns the value stored.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>(ArrayList withAll: #(10 20 30)) at: 1 put: 99 &gt;&gt;&gt; 99</code></pre>
+</div>
+
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">capacity</div>
+
+            <div class="method-doc">
+                <p>Return the current backing capacity.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>(ArrayList new: 50) capacity &gt;= 50 &gt;&gt;&gt; true</code></pre>
+</div>
+
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">clear</div>
+
+            <div class="method-doc">
+                <p>Remove all elements, keeping the backing capacity. Returns self.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>(ArrayList withAll: #(1 2 3)) clear isEmpty &gt;&gt;&gt; true</code></pre>
+</div>
+
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">collect:</div>
+
+            <div class="method-doc">
+                <p>Return a new ArrayList with block applied to each element.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>((ArrayList withAll: #(1 2 3)) collect: [:x | x * 2]) asArray &gt;&gt;&gt; #(2 4 6 )</code></pre>
+</div>
+
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">copy</div>
+
+            <div class="method-doc">
+                <p>Return a new ArrayList with the same elements.</p>
+
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">detect:</div>
+
+            <div class="method-doc">
+                <p>Return the first element for which block returns true, or nil if none.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>(ArrayList withAll: #(1 2 3 4 5)) detect: [:x | x &gt; 3] &gt;&gt;&gt; 4
+(ArrayList withAll: #(1 2 3)) detect: [:x | x &gt; 10] &gt;&gt;&gt; nil</code></pre>
+</div>
+
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">detect:ifNone:</div>
+
+            <div class="method-doc">
+                <p>Return the first element for which block returns true.
+If none found, evaluate noneBlock and return its result.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>(ArrayList withAll: #(1 2 3)) detect: [:x | x &gt; 10] ifNone: [0] &gt;&gt;&gt; 0</code></pre>
+</div>
+
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">do:</div>
+
+            <div class="method-doc">
+                <p>Evaluate block once for each element.</p>
+
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">first</div>
+
+            <div class="method-doc">
+                <p>Return the first element, or nil if empty.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>(ArrayList withAll: #(10 20 30)) first &gt;&gt;&gt; 10</code></pre>
+</div>
+
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">includes:</div>
+
+            <div class="method-doc">
+                <p>Return true if the list contains an element equal to anObject.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>(ArrayList withAll: #(1 2 3)) includes: 2 &gt;&gt;&gt; true
+(ArrayList withAll: #(1 2 3)) includes: 5 &gt;&gt;&gt; false</code></pre>
+</div>
+
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">indexOf:</div>
+
+            <div class="method-doc">
+                <p>Return the 0-based index of anObject, or -1 if not found.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>(ArrayList withAll: #(10 20 30)) indexOf: 20 &gt;&gt;&gt; 1
+(ArrayList withAll: #(10 20 30)) indexOf: 99 &gt;&gt;&gt; -1</code></pre>
+</div>
+
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">inject:into:</div>
+
+            <div class="method-doc">
+                <p>Accumulate a value by applying block to each element in turn.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>(ArrayList withAll: #(1 2 3 4)) inject: 0 into: [:sum :x | sum + x] &gt;&gt;&gt; 10</code></pre>
+</div>
+
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">isEmpty</div>
+
+            <div class="method-doc">
+                <p>Return true if the list has no elements.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>ArrayList new isEmpty &gt;&gt;&gt; true
+(ArrayList withAll: #(1)) isEmpty &gt;&gt;&gt; false</code></pre>
+</div>
+
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">last</div>
+
+            <div class="method-doc">
+                <p>Return the last element, or nil if empty.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>(ArrayList withAll: #(10 20 30)) last &gt;&gt;&gt; 30</code></pre>
+</div>
+
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">notEmpty</div>
+
+            <div class="method-doc">
+                <p>Return true if the list has at least one element.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>(ArrayList withAll: #(1)) notEmpty &gt;&gt;&gt; true
+ArrayList new notEmpty &gt;&gt;&gt; false</code></pre>
+</div>
+
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">primAdd:</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">primAddAll:</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">primAsArray</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">primAt:</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">primAt:put:</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">primCapacity</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">primClear</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">primCollect:</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">primCopy</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">primDetect:</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">primDetect:ifNone:</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">primDo:</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">primFirst</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">primIncludes:</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">primIndexOf:</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">primInject:into:</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">primIsEmpty</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">primLast</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">primNotEmpty</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">primPrintString</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">primReject:</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">primRemoveAt:</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">primRemoveLast</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">primSelect:</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">primSize</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">primSort:</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">printString</div>
+
+            <div class="method-doc">
+                <p>Return a string representation.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>(ArrayList withAll: #(1 2 3)) printString &gt;&gt;&gt; &#39;ArrayList(1 2 3)&#39;
+ArrayList new printString &gt;&gt;&gt; &#39;ArrayList()&#39;</code></pre>
+</div>
+
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">reject:</div>
+
+            <div class="method-doc">
+                <p>Return a new ArrayList excluding elements for which block returns true.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>((ArrayList withAll: #(1 2 3 4 5)) reject: [:x | x &gt; 3]) asArray &gt;&gt;&gt; #(1 2 3 )</code></pre>
+</div>
+
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">removeAt:</div>
+
+            <div class="method-doc">
+                <p>Remove and return the element at index, shifting remaining elements.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>(ArrayList withAll: #(10 20 30)) removeAt: 1 &gt;&gt;&gt; 20</code></pre>
+</div>
+
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">removeLast</div>
+
+            <div class="method-doc">
+                <p>Remove and return the last element. O(1).</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>(ArrayList withAll: #(1 2 3)) removeLast &gt;&gt;&gt; 3</code></pre>
+</div>
+
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">select:</div>
+
+            <div class="method-doc">
+                <p>Return a new ArrayList containing only elements for which block returns true.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>((ArrayList withAll: #(1 2 3 4 5)) select: [:x | x &gt; 3]) asArray &gt;&gt;&gt; #(4 5 )</code></pre>
+</div>
+
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">size</div>
+
+            <div class="method-doc">
+                <p>Return the number of elements.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>(ArrayList withAll: #(1 2 3)) size &gt;&gt;&gt; 3
+ArrayList new size &gt;&gt;&gt; 0</code></pre>
+</div>
+
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">sort:</div>
+
+            <div class="method-doc">
+                <p>Sort the list in-place using a comparison block.
+The block receives two elements and should return a negative number
+(a &lt; b), zero (a = b), or positive number (a &gt; b). Returns self.</p>
+
+            </div>
+
+
+        </div>
+
+    </div>
+
+    <div class="method-category">
+        <h3>uncategorized</h3>
+
+        <div class="method">
+            <div class="method-selector">,</div>
+
+            <div class="method-doc">
+                <p>Return a new ArrayList that is the concatenation of self and other.</p>
+
+            </div>
+
+
+        </div>
+
+    </div>
+
+
+
+    <div class="footer">
+        Generated by Maggie doc generator.
+    </div>
+</main>
+    <script src="../js/playground.js"></script>
+</body>
+</html>

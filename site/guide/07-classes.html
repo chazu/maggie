@@ -1,0 +1,1012 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Classes &mdash; Maggie API Reference</title>
+    <link rel="stylesheet" href="../css/style.css">
+</head>
+<body>
+<nav class="sidebar">
+    <div class="sidebar-title"><a href="../index.html">Maggie Docs</a></div>
+
+    <div class="sidebar-section">
+        <div class="sidebar-section-title">Guide</div>
+        <ul class="sidebar-list">
+
+            <li><a href="../guide/01-getting-started.html">Getting Started</a></li>
+
+            <li><a href="../guide/02-basics.html">Basics</a></li>
+
+            <li><a href="../guide/03-numbers.html">Numbers</a></li>
+
+            <li><a href="../guide/04-strings.html">Strings</a></li>
+
+            <li><a href="../guide/05-collections.html">Collections</a></li>
+
+            <li><a href="../guide/06-blocks.html">Blocks</a></li>
+
+            <li><a href="../guide/07-classes.html" class="active">Classes</a></li>
+
+            <li><a href="../guide/08-error-handling.html">Error Handling</a></li>
+
+            <li><a href="../guide/09-concurrency.html">Concurrency</a></li>
+
+            <li><a href="../guide/10-supervisors.html">Supervisors</a></li>
+
+            <li><a href="../guide/10-modules.html">Modules</a></li>
+
+            <li><a href="../guide/11-clustering.html">Clustering</a></li>
+
+            <li><a href="../guide/11-projects.html">Projects</a></li>
+
+            <li><a href="../guide/12-go-interop.html">Go Interop</a></li>
+
+            <li><a href="../guide/13-distribution.html">Distribution</a></li>
+
+            <li><a href="../guide/14-tooling-ide.html">Tooling &amp; IDE</a></li>
+
+            <li><a href="../guide/15-cue-integration.html">Cue Integration</a></li>
+
+            <li><a href="../guide/16-tuple-space.html">Tuple Space</a></li>
+
+        </ul>
+    </div>
+
+    <div class="sidebar-section">
+        <div class="sidebar-section-title">API Reference</div>
+
+        <details class="sidebar-ns-group" open>
+            <summary>(root)</summary>
+            <ul class="sidebar-list">
+
+                <li><a href="../classes/Array.html">Array</a></li>
+
+                <li><a href="../classes/ArrayList.html">ArrayList</a></li>
+
+                <li><a href="../classes/AssignmentNode.html">AssignmentNode</a></li>
+
+                <li><a href="../classes/Association.html">Association</a></li>
+
+                <li><a href="../classes/BigInteger.html">BigInteger</a></li>
+
+                <li><a href="../classes/Block.html">Block</a></li>
+
+                <li><a href="../classes/BlockNode.html">BlockNode</a></li>
+
+                <li><a href="../classes/Boolean.html">Boolean</a></li>
+
+                <li><a href="../classes/ByteArray.html">ByteArray</a></li>
+
+                <li><a href="../classes/BytecodeGenerator.html">BytecodeGenerator</a></li>
+
+                <li><a href="../classes/CancellationContext.html">CancellationContext</a></li>
+
+                <li><a href="../classes/CascadeNode.html">CascadeNode</a></li>
+
+                <li><a href="../classes/Channel.html">Channel</a></li>
+
+                <li><a href="../classes/Character.html">Character</a></li>
+
+                <li><a href="../classes/CharacterStream.html">CharacterStream</a></li>
+
+                <li><a href="../classes/ChildSpec.html">ChildSpec</a></li>
+
+                <li><a href="../classes/Class.html">Class</a></li>
+
+                <li><a href="../classes/ClassNode.html">ClassNode</a></li>
+
+                <li><a href="../classes/Cluster.html">Cluster</a></li>
+
+                <li><a href="../classes/CompiledMethod.html">CompiledMethod</a></li>
+
+                <li><a href="../classes/Compiler.html">Compiler</a></li>
+
+                <li><a href="../classes/ConstraintStore.html">ConstraintStore</a></li>
+
+                <li><a href="../classes/Context.html">Context</a></li>
+
+                <li><a href="../classes/CueContext.html">CueContext</a></li>
+
+                <li><a href="../classes/CueValue.html">CueValue</a></li>
+
+                <li><a href="../classes/DateTime.html">DateTime</a></li>
+
+                <li><a href="../classes/Debugger.html">Debugger</a></li>
+
+                <li><a href="../classes/Dictionary.html">Dictionary</a></li>
+
+                <li><a href="../classes/DocServer.html">DocServer</a></li>
+
+                <li><a href="../classes/DuckAppender.html">DuckAppender</a></li>
+
+                <li><a href="../classes/DuckDatabase.html">DuckDatabase</a></li>
+
+                <li><a href="../classes/DynamicSupervisor.html">DynamicSupervisor</a></li>
+
+                <li><a href="../classes/Error.html">Error</a></li>
+
+                <li><a href="../classes/Exception.html">Exception</a></li>
+
+                <li><a href="../classes/ExternalProcess.html">ExternalProcess</a></li>
+
+                <li><a href="../classes/Failure.html">Failure</a></li>
+
+                <li><a href="../classes/False.html">False</a></li>
+
+                <li><a href="../classes/File.html">File</a></li>
+
+                <li><a href="../classes/Float.html">Float</a></li>
+
+                <li><a href="../classes/Future.html">Future</a></li>
+
+                <li><a href="../classes/GrpcClient.html">GrpcClient</a></li>
+
+                <li><a href="../classes/GrpcStream.html">GrpcStream</a></li>
+
+                <li><a href="../classes/Halt.html">Halt</a></li>
+
+                <li><a href="../classes/HashRing.html">HashRing</a></li>
+
+                <li><a href="../classes/HttpClient.html">HttpClient</a></li>
+
+                <li><a href="../classes/HttpRequest.html">HttpRequest</a></li>
+
+                <li><a href="../classes/HttpResponse.html">HttpResponse</a></li>
+
+                <li><a href="../classes/HttpServer.html">HttpServer</a></li>
+
+                <li><a href="../classes/Json.html">Json</a></li>
+
+                <li><a href="../classes/JsonParseError.html">JsonParseError</a></li>
+
+                <li><a href="../classes/JsonReader.html">JsonReader</a></li>
+
+                <li><a href="../classes/JsonWriter.html">JsonWriter</a></li>
+
+                <li><a href="../classes/Lexer.html">Lexer</a></li>
+
+                <li><a href="../classes/LiteralNode.html">LiteralNode</a></li>
+
+                <li><a href="../classes/MailboxMessage.html">MailboxMessage</a></li>
+
+                <li><a href="../classes/Message.html">Message</a></li>
+
+                <li><a href="../classes/MessageNotUnderstood.html">MessageNotUnderstood</a></li>
+
+                <li><a href="../classes/MessageSendNode.html">MessageSendNode</a></li>
+
+                <li><a href="../classes/Metaclass.html">Metaclass</a></li>
+
+                <li><a href="../classes/MethodNode.html">MethodNode</a></li>
+
+                <li><a href="../classes/Mutex.html">Mutex</a></li>
+
+                <li><a href="../classes/Node.html">Node</a></li>
+
+                <li><a href="../classes/Notification.html">Notification</a></li>
+
+                <li><a href="../classes/Object.html">Object</a></li>
+
+                <li><a href="../classes/Parser.html">Parser</a></li>
+
+                <li><a href="../classes/Process.html">Process</a></li>
+
+                <li><a href="../classes/Proquint.html">Proquint</a></li>
+
+                <li><a href="../classes/Random.html">Random</a></li>
+
+                <li><a href="../classes/Regex.html">Regex</a></li>
+
+                <li><a href="../classes/RemoteChannel.html">RemoteChannel</a></li>
+
+                <li><a href="../classes/RemoteProcess.html">RemoteProcess</a></li>
+
+                <li><a href="../classes/Result.html">Result</a></li>
+
+                <li><a href="../classes/ReturnNode.html">ReturnNode</a></li>
+
+                <li><a href="../classes/SSEConnection.html">SSEConnection</a></li>
+
+                <li><a href="../classes/Sandbox.html">Sandbox</a></li>
+
+                <li><a href="../classes/Semaphore.html">Semaphore</a></li>
+
+                <li><a href="../classes/Set.html">Set</a></li>
+
+                <li><a href="../classes/Signal.html">Signal</a></li>
+
+                <li><a href="../classes/SmallInteger.html">SmallInteger</a></li>
+
+                <li><a href="../classes/SocketConnection.html">SocketConnection</a></li>
+
+                <li><a href="../classes/SqliteDatabase.html">SqliteDatabase</a></li>
+
+                <li><a href="../classes/SqliteRows.html">SqliteRows</a></li>
+
+                <li><a href="../classes/SqliteStatement.html">SqliteStatement</a></li>
+
+                <li><a href="../classes/StackOverflow.html">StackOverflow</a></li>
+
+                <li><a href="../classes/String.html">String</a></li>
+
+                <li><a href="../classes/SubscriptOutOfBounds.html">SubscriptOutOfBounds</a></li>
+
+                <li><a href="../classes/Success.html">Success</a></li>
+
+                <li><a href="../classes/Supervisor.html">Supervisor</a></li>
+
+                <li><a href="../classes/Symbol.html">Symbol</a></li>
+
+                <li><a href="../classes/System.html">System</a></li>
+
+                <li><a href="../classes/Token.html">Token</a></li>
+
+                <li><a href="../classes/Toml.html">Toml</a></li>
+
+                <li><a href="../classes/TomlParseError.html">TomlParseError</a></li>
+
+                <li><a href="../classes/True.html">True</a></li>
+
+                <li><a href="../classes/TupleSpace.html">TupleSpace</a></li>
+
+                <li><a href="../classes/UndefinedObject.html">UndefinedObject</a></li>
+
+                <li><a href="../classes/UnixSocketClient.html">UnixSocketClient</a></li>
+
+                <li><a href="../classes/UnixSocketServer.html">UnixSocketServer</a></li>
+
+                <li><a href="../classes/VariableNode.html">VariableNode</a></li>
+
+                <li><a href="../classes/WaitGroup.html">WaitGroup</a></li>
+
+                <li><a href="../classes/Warning.html">Warning</a></li>
+
+                <li><a href="../classes/WeakReference.html">WeakReference</a></li>
+
+                <li><a href="../classes/ZeroDivide.html">ZeroDivide</a></li>
+
+            </ul>
+        </details>
+
+    </div>
+</nav>
+<main class="content">
+    <div class="breadcrumb">
+        <a href="../index.html">Maggie API Reference</a>
+        &rsaquo; Guide
+        &rsaquo; Classes
+    </div>
+
+    <h1>Classes</h1>
+
+
+    <div class="guide-intro">
+        <p>Classes are the blueprints for objects in Maggie. Every object is an instance
+of a class, and every class (except Object) has a superclass it inherits from.
+Maggie classes define instance variables to hold per-object state, instance
+methods to act on that state, and class methods for factory operations and
+class-level behavior.</p>
+<p>Traits provide reusable method bundles that can be included into any class,
+giving you a form of multiple inheritance without the diamond problem.
+Docstrings attach documentation to classes, traits, and methods directly in
+the source, preserved at runtime.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>Object new class name &gt;&gt;&gt; #Object
+3 class name &gt;&gt;&gt; #SmallInteger
+&#39;hello&#39; class name &gt;&gt;&gt; #String
+true class name &gt;&gt;&gt; #True</code></pre>
+</div>
+
+    </div>
+
+
+
+    <div class="guide-section">
+
+        <h2>Defining a Class</h2>
+<p>A class is defined with the <code>subclass:</code> keyword. The receiver is the new
+class name, and the argument is the superclass. If you omit instance
+variables and methods, you get an empty class that inherits everything
+from its parent.</p>
+<p>The basic form is:</p>
+<pre><code>MyClass subclass: ParentClass</code></pre>
+<p>This creates a new class called <code>MyClass</code> that inherits all methods and
+behavior from <code>ParentClass</code>. Most classes inherit from <code>Object</code>, the root
+of the hierarchy.</p>
+<p>The class definition can contain instance variable declarations, method
+definitions, class method definitions, trait inclusions, and docstrings.
+Everything is indented inside the class body.</p>
+<p>For example, the standard library defines <code>Boolean</code> as a subclass of
+<code>Object</code>, and then <code>True</code> and <code>False</code> as subclasses of <code>Boolean</code>. Each
+level adds or overrides methods specific to that type.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>Object new isNil &gt;&gt;&gt; false
+Object new notNil &gt;&gt;&gt; true
+Object new class name &gt;&gt;&gt; #Object</code></pre>
+</div>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <h2>Instance Variables</h2>
+<p>Instance variables hold per-object state. Declare them with
+<code>instanceVars:</code> followed by a space-separated list of names:</p>
+<pre><code>MyClass subclass: Object
+  instanceVars: name age</code></pre>
+<p>Each instance of the class gets its own copy of these variables. They
+are initialized to <code>nil</code> and are only accessible from within the
+instance methods of the class (and its subclasses). There is no direct
+external access -- you must define accessor methods.</p>
+<p>Instance variable names start with a lowercase letter and use camelCase
+by convention. They are visible to all instance methods of the class
+and its subclasses, just like fields in Go or Java.</p>
+<p>Here is a complete class with instance variables and accessor methods.
+The <code>Message</code> class in the standard library uses exactly this pattern:</p>
+<pre><code>Message subclass: Object
+  instanceVars: selector arguments</code></pre>
+<p>The <code>compiler/Token</code> class stores three instance variables:</p>
+<pre><code>Token subclass: Object
+  instanceVars: type value position</code></pre>
+<p>Instance variables default to <code>nil</code> until explicitly set:</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>nil isNil &gt;&gt;&gt; true</code></pre>
+</div>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <h2>Instance Methods</h2>
+<p>Instance methods define the behavior of objects. They are declared with
+the <code>method:</code> keyword inside a class body. The method name (selector)
+follows the colon, and the method body is enclosed in square brackets.</p>
+<p>There are three forms, matching the three message types:</p>
+<p>Unary methods (no arguments):</p>
+<pre><code>method: name [
+    ^name
+]</code></pre>
+<p>Binary methods (one argument, operator selector):</p>
+<pre><code>method: + other [
+    ^self value + other value
+]</code></pre>
+<p>Keyword methods (one or more named arguments):</p>
+<pre><code>method: at: index put: value [
+    ^self primAtPut: index value: value
+]</code></pre>
+<p>Inside a method body, <code>self</code> refers to the receiver -- the object the
+message was sent to. Instance variables are accessed directly by name.
+The caret (<code>^</code>) returns a value from the method. Without an explicit
+return, the method returns the value of its last expression.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>&#39;hello&#39; size &gt;&gt;&gt; 5
+3 + 4 &gt;&gt;&gt; 7
+#(10 20 30) at: 1 &gt;&gt;&gt; 20</code></pre>
+</div>
+<p>Methods can call other methods on <code>self</code> to build complex behavior
+from simple pieces:</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>&#39;Maggie&#39; size &gt;&gt;&gt; 6
+&#39;Maggie&#39; asUppercase &gt;&gt;&gt; &#39;MAGGIE&#39;</code></pre>
+</div>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <h2>Class Methods</h2>
+<p>Class methods are defined with <code>classMethod:</code> instead of <code>method:</code>. They
+are sent to the class itself, not to instances. The most common use is
+factory methods that create and initialize new instances.</p>
+<p>The standard pattern is:</p>
+<pre><code>classMethod: with: aValue [
+    ^self new initialize: aValue
+]</code></pre>
+<p>Inside a class method, <code>self</code> refers to the class object, and <code>self new</code>
+creates a new instance. This is how the standard library defines factory
+methods like <code>Success with:</code> and <code>Failure with:</code>.</p>
+<p>Another common pattern is <code>classMethod: new</code> that calls <code>super new</code>
+and then sends an initialization message:</p>
+<pre><code>classMethod: new [
+    ^super new initialize
+]</code></pre>
+<p>Class methods are how you define the public API for creating instances.
+Rather than exposing raw <code>new</code> and then requiring callers to set up
+instance variables, you provide named constructors that guarantee the
+object is properly initialized.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>(Success with: 42) value &gt;&gt;&gt; 42
+(Success with: 42) isSuccess &gt;&gt;&gt; true
+(Failure with: &#39;oops&#39;) error &gt;&gt;&gt; &#39;oops&#39;
+(Failure with: &#39;oops&#39;) isFailure &gt;&gt;&gt; true</code></pre>
+</div>
+<p>Class methods can also be used for utility operations that don&#39;t need
+an instance:</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>Array new: 3 &gt;&gt;&gt; #(nil nil nil )
+Channel new isClosed &gt;&gt;&gt; false</code></pre>
+</div>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <h2>Accessor Methods</h2>
+<p>Maggie does not provide automatic getters or setters for instance
+variables. You write them explicitly as methods. This is deliberate --
+it keeps the protocol visible and lets you add validation or
+transformation logic to accessors.</p>
+<p>A getter simply returns the instance variable:</p>
+<pre><code>method: name [
+    ^name
+]</code></pre>
+<p>A setter typically uses a keyword message and returns <code>self</code> for
+chaining:</p>
+<pre><code>method: name: aString [
+    name := aString.
+    ^self
+]</code></pre>
+<p>Some classes use a combined initialization method that sets several
+variables at once. The <code>BlockNode</code> class in the compiler uses this
+pattern:</p>
+<pre><code>method: parameters: params temporaries: temps statements: stmts [
+    parameters := params.
+    temporaries := temps.
+    statements := stmts.
+    ^self
+]</code></pre>
+<p>The convention is to name getters the same as the variable and setters
+with a colon suffix. This makes usage read naturally:</p>
+<pre><code>person name.            &#34;Get the name&#34;
+person name: &#39;Alice&#39;.   &#34;Set the name&#34;</code></pre>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>(Success with: 99) value &gt;&gt;&gt; 99
+(Failure with: &#39;bad&#39;) error &gt;&gt;&gt; &#39;bad&#39;
+Result new printString &gt;&gt;&gt; &#39;a Result&#39;</code></pre>
+</div>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <h2>The self Keyword</h2>
+<p>Inside any instance method, <code>self</code> refers to the object that received
+the message. You use <code>self</code> to send other messages to the same object,
+to pass the current object as an argument to other methods, and to
+return the current object.</p>
+<p>A common idiom is <code>^self</code> at the end of a method that modifies the
+receiver -- this enables method chaining (also known as a fluent
+interface).</p>
+<p>The <code>yourself</code> method on Object simply returns <code>self</code>. It is useful at
+the end of a cascade to ensure the result is the original object rather
+than the return value of the last cascaded message:</p>
+<pre><code>a := Array new: 3.
+a at: 0 put: 1; at: 1 put: 2; at: 2 put: 3; yourself.</code></pre>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>3 yourself &gt;&gt;&gt; 3
+&#39;hello&#39; yourself &gt;&gt;&gt; &#39;hello&#39;
+nil yourself &gt;&gt;&gt; nil</code></pre>
+</div>
+<p>In class methods, <code>self</code> refers to the class object itself:</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>(Success with: 10) class name &gt;&gt;&gt; #Success</code></pre>
+</div>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <h2>The super Keyword</h2>
+<p><code>super</code> also refers to the current receiver, but when you send a
+message to <code>super</code>, method lookup starts from the superclass of the
+class where the method is defined. This lets a subclass extend or
+wrap inherited behavior rather than completely replacing it.</p>
+<p>The most common use of <code>super</code> is in initialization:</p>
+<pre><code>classMethod: new [
+    ^super new initialize
+]</code></pre>
+<p>Here, <code>super new</code> calls Object&#39;s <code>new</code> to allocate a fresh instance,
+and then <code>initialize</code> is sent to set up instance variables. Without
+<code>super</code>, sending <code>new</code> would call the same class method recursively.</p>
+<p>Another common pattern is in <code>printString</code> where a subclass wants to
+include the superclass representation:</p>
+<pre><code>method: printString [
+    ^&#39;Success(&#39;, self value printString, &#39;)&#39;
+]</code></pre>
+<p>The key distinction:
+- <code>self someMessage</code> -- lookup starts at the receiver&#39;s actual class
+- <code>super someMessage</code> -- lookup starts at the superclass of the
+  defining class</p>
+<p>This means <code>super</code> is resolved at compile time (based on where the
+method is defined), while <code>self</code> is resolved at runtime (based on
+the actual class of the receiver).</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>(Success with: 42) printString &gt;&gt;&gt; &#39;Success(42)&#39;
+(Failure with: &#39;oops&#39;) printString &gt;&gt;&gt; &#39;Failure(&#39;&#39;oops&#39;&#39;)&#39;</code></pre>
+</div>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <h2>Class Hierarchy</h2>
+<p>Every class has a superclass, forming a tree rooted at Object. When a
+message is sent to an object, the VM first looks for the method in the
+object&#39;s class. If not found, it checks the superclass, then the
+superclass of the superclass, all the way up to Object. If the method
+is still not found, <code>doesNotUnderstand:</code> is called.</p>
+<p>This inheritance chain means that every object inherits Object&#39;s
+methods: <code>yourself</code>, <code>==</code>, <code>=</code>, <code>isNil</code>, <code>notNil</code>, <code>printString</code>,
+<code>class</code>, <code>error:</code>, <code>doesNotUnderstand:</code>, and more.</p>
+<p>The standard library builds several useful hierarchies:</p>
+<ul>
+<li><code>Object</code> &gt; <code>Boolean</code> &gt; <code>True</code> / <code>False</code></li>
+<li><code>Object</code> &gt; <code>Result</code> &gt; <code>Success</code> / <code>Failure</code></li>
+<li><code>Object</code> &gt; <code>Number</code> &gt; <code>SmallInteger</code> / <code>Float</code></li>
+</ul>
+<p>You can inspect the hierarchy at runtime by sending <code>class</code> and <code>name</code>:</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>42 class name &gt;&gt;&gt; #SmallInteger
+true class name &gt;&gt;&gt; #True
+false class name &gt;&gt;&gt; #False
+nil class name &gt;&gt;&gt; #UndefinedObject
+(Success with: 1) class name &gt;&gt;&gt; #Success
+(Failure with: 1) class name &gt;&gt;&gt; #Failure</code></pre>
+</div>
+<p>Methods defined on a superclass are available to all its subclasses.
+For example, <code>isNil</code> is defined on Object (returns false) and
+overridden only in UndefinedObject (returns true). Every other class
+inherits Object&#39;s version:</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>42 isNil &gt;&gt;&gt; false
+&#39;hello&#39; isNil &gt;&gt;&gt; false
+nil isNil &gt;&gt;&gt; true
+42 notNil &gt;&gt;&gt; true
+nil notNil &gt;&gt;&gt; false</code></pre>
+</div>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <h2>Method Override</h2>
+<p>A subclass can override any method from its superclass by defining a
+method with the same selector. The overriding method completely
+replaces the inherited one for instances of that subclass.</p>
+<p>A good example is <code>printString</code>. Object defines a default version
+that returns the class name. Many subclasses override it for more
+useful output:</p>
+<ul>
+<li><code>SmallInteger</code> returns the number as a string: <code>42 printString</code> is <code>&#39;42&#39;</code></li>
+<li><code>String</code> returns the string wrapped in quotes: <code>&#39;hello&#39; printString</code> is <code>&#39;&#39;&#39;hello&#39;&#39;&#39;</code></li>
+<li><code>True</code> returns <code>&#39;true&#39;</code>, <code>False</code> returns <code>&#39;false&#39;</code></li>
+<li><code>UndefinedObject</code> returns <code>&#39;nil&#39;</code></li>
+<li><code>Success</code> returns <code>&#39;Success(value)&#39;</code></li>
+<li><code>Failure</code> returns <code>&#39;Failure(reason)&#39;</code></li>
+</ul>
+<p>Each class chooses the most informative representation for its type.
+The override completely replaces the parent version -- to include the
+parent behavior, you would use <code>super printString</code> and build on it.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>42 printString &gt;&gt;&gt; &#39;42&#39;
+true printString &gt;&gt;&gt; &#39;true&#39;
+false printString &gt;&gt;&gt; &#39;false&#39;
+nil printString &gt;&gt;&gt; &#39;nil&#39;
+(Success with: 7) printString &gt;&gt;&gt; &#39;Success(7)&#39;
+(Failure with: 404) printString &gt;&gt;&gt; &#39;Failure(404)&#39;</code></pre>
+</div>
+<p>Abstract methods are a convention, not a language feature. A superclass
+defines a method that calls <code>self subclassResponsibility</code>, signaling
+that subclasses must override it. Boolean uses this pattern for <code>not</code>,
+<code>and:</code>, <code>or:</code>, and the conditional methods, which True and False each
+implement differently.</p>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <h2>Traits</h2>
+<p>A trait is a reusable bundle of methods that can be included in any
+class. Traits are defined with the <code>trait</code> keyword instead of
+<code>subclass:</code>:</p>
+<pre><code>Printable trait</code></pre>
+<p>The trait body contains method definitions, just like a class. But a
+trait cannot be instantiated -- it exists only to be included in
+classes. Include a trait in a class with the <code>include:</code> keyword:</p>
+<pre><code>Array subclass: Object
+  include: Printable</code></pre>
+<p>When a class includes a trait, all of the trait&#39;s methods become
+available as if they were defined directly in the class. This is
+Maggie&#39;s approach to code reuse across unrelated classes -- instead
+of forcing them into a single inheritance chain, you factor shared
+behavior into a trait.</p>
+<p>The standard library&#39;s <code>Printable</code> trait provides <code>description</code>,
+<code>bracketedDescription</code>, and <code>printOn:</code> methods. The <code>Array</code> class
+includes it to gain these methods without duplicating code.</p>
+<p>A trait definition looks like this:</p>
+<pre><code>MyTrait trait
+  method: greet [
+      ^&#39;Hello from &#39;, self class name
+  ]</code></pre>
+<p>And including it:</p>
+<pre><code>MyClass subclass: Object
+  include: MyTrait
+  method: doSomething [
+      ^self greet
+  ]</code></pre>
+<p>Traits are defined at the top level, just like classes. They appear
+in source files with <code>.mag</code> extension and are loaded by the same
+pipeline.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>#(1 2 3) printString &gt;&gt;&gt; &#39;#(1 2 3 )&#39;</code></pre>
+</div>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <h2>Trait Method Resolution</h2>
+<p>When a class includes a trait, the trait&#39;s methods are copied into
+the class&#39;s method table. If the class defines a method with the
+same selector as a trait method, the class&#39;s version wins -- it
+overrides the trait method. This means you can include a trait for
+its default behavior and then selectively override specific methods.</p>
+<p>The resolution order is:
+1. Methods defined directly on the class
+2. Methods from included traits
+3. Methods inherited from the superclass</p>
+<p>A class can include multiple traits by listing multiple <code>include:</code>
+declarations:</p>
+<pre><code>MyClass subclass: Object
+  include: Printable
+  include: Comparable</code></pre>
+<p>If two traits define the same method, the last-included trait wins.
+But the best practice is to override the conflicting method in the
+class itself to make the intent explicit.</p>
+<p>Since Array includes Printable, it gets <code>description</code> and related
+methods. But Array also defines its own <code>printString</code>, which takes
+precedence over any <code>printString</code> that Printable might provide:</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>#(10 20) printString &gt;&gt;&gt; &#39;#(10 20 )&#39;</code></pre>
+</div>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <h2>Docstrings</h2>
+<p>Docstrings are triple-quoted strings that attach documentation directly
+to classes, traits, and methods. They are preserved in the compiled
+image and accessible at runtime for documentation tools, IDE
+introspection, and automated testing.</p>
+<p>A class docstring appears before the class declaration. A method
+docstring appears before the <code>method:</code> or <code>classMethod:</code> keyword.</p>
+<p>Docstrings support Markdown formatting. Code blocks fenced with
+<code> </code><code></code>test <code> are executable tests -- the </code>mag doctest<code> command extracts
+and runs them automatically. Code blocks fenced with </code> <code></code><code>example </code>
+are shown in documentation but not executed.</p>
+<p>Inside a test block, each line is evaluated independently. Lines
+containing <code>&gt;&gt;&gt;</code> are assertions: the left side is evaluated, and its
+<code>printString</code> output is compared to the <code>printString</code> of the right
+side. Lines without <code>&gt;&gt;&gt;</code> are setup lines executed for side effects.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>(Result success: 42) isSuccess &gt;&gt;&gt; true
+(Result failure: &#39;oops&#39;) isFailure &gt;&gt;&gt; true</code></pre>
+</div>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <h2>Complete Class Example</h2>
+<p>Here is a walkthrough of how all the pieces fit together, using the
+Result/Success/Failure hierarchy from the standard library as a
+concrete example.</p>
+<p><strong>Step 1: Define the base class with a docstring.</strong></p>
+<p>Result is an abstract base that defines the protocol. It subclasses
+Object and provides factory class methods:</p>
+<pre><code>Result subclass: Object
+  method: printString [
+      ^&#39;a Result&#39;
+  ]</code></pre>
+<p><strong>Step 2: Define subclasses with instance variables.</strong></p>
+<p>Success and Failure each subclass Result. They store their payload
+in an instance variable and override methods to provide type-specific
+behavior:</p>
+<pre><code>Success subclass: Result
+  method: isSuccess [ ^true ]
+  method: isFailure [ ^false ]
+  method: value [ ^self primValue ]
+  method: error [ ^nil ]
+  method: printString [
+      ^&#39;Success(&#39;, self value printString, &#39;)&#39;
+  ]</code></pre>
+<p><strong>Step 3: Use class methods as factories.</strong></p>
+<p>The <code>with:</code> class method creates and initializes instances:</p>
+<pre><code>classMethod: with: aValue [
+    ^self new initialize: aValue
+]</code></pre>
+<p><strong>Step 4: Use the class hierarchy polymorphically.</strong></p>
+<p>Client code creates Results via factory methods and branches on type:</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>(Result success: 42) value &gt;&gt;&gt; 42
+(Result success: 42) isSuccess &gt;&gt;&gt; true
+(Result failure: &#39;oops&#39;) error &gt;&gt;&gt; &#39;oops&#39;
+(Result failure: &#39;oops&#39;) isFailure &gt;&gt;&gt; true
+(Success with: 42) printString &gt;&gt;&gt; &#39;Success(42)&#39;
+(Failure with: &#39;oops&#39;) printString &gt;&gt;&gt; &#39;Failure(&#39;&#39;oops&#39;&#39;)&#39;</code></pre>
+</div>
+<p>The power of the class hierarchy is that you can treat all Results
+uniformly through the shared protocol (<code>isSuccess</code>, <code>isFailure</code>,
+<code>value</code>, <code>error</code>) while each subclass implements the behavior
+differently.</p>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <h2>Initialization Patterns</h2>
+<p>Maggie does not have constructors. Instead, initialization is done
+by convention using class methods and instance methods.</p>
+<p><strong>Pattern 1: <code>new</code> + <code>initialize</code></strong> -- Override the <code>new</code> class
+method to call <code>initialize</code> on the freshly allocated object:</p>
+<pre><code>classMethod: new [
+    ^super new initialize
+]</code></pre>
+<p><strong>Pattern 2: Named factory method</strong> -- Provide a class method that
+takes arguments and initializes the object in one step:</p>
+<pre><code>classMethod: variable: aVar value: aVal [
+    ^self new variable: aVar value: aVal
+]</code></pre>
+<p><strong>Pattern 3: Builder-style with cascades</strong> -- Return <code>self</code> from
+setters and chain with cascades, ending with <code>yourself</code>:</p>
+<pre><code>obj := MyClass new name: &#39;Alice&#39;; age: 30; yourself.</code></pre>
+<p>The standard library uses all three patterns. The Compiler class uses
+Pattern 1, AST nodes use Pattern 2, and widget configuration often
+uses Pattern 3.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>Object new isNil &gt;&gt;&gt; false
+Object new class name &gt;&gt;&gt; #Object
+(Success with: &#39;hello&#39;) value &gt;&gt;&gt; &#39;hello&#39;</code></pre>
+</div>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <h2>Abstract Classes and Subclass Responsibility</h2>
+<p>Maggie does not have a keyword for abstract classes or abstract
+methods. Instead, the convention is to define a method that calls
+<code>self subclassResponsibility</code>. This signals that concrete subclasses
+must override the method.</p>
+<p>The Boolean class uses this pattern extensively. It defines the
+protocol that True and False must implement:</p>
+<pre><code>Boolean subclass: Object
+  method: not [ ^self subclassResponsibility ]
+  method: and: block [ ^self subclassResponsibility ]
+  method: or: block [ ^self subclassResponsibility ]
+  method: ifTrue: block [ ^self subclassResponsibility ]
+  method: ifFalse: block [ ^self subclassResponsibility ]</code></pre>
+<p>Then True and False each provide concrete implementations:</p>
+<pre><code>True subclass: Boolean
+  method: not [ ^false ]
+  method: and: block [ ^block value ]
+  method: ifTrue: block [ ^block value ]</code></pre>
+<pre><code>False subclass: Boolean
+  method: not [ ^true ]
+  method: and: block [ ^false ]
+  method: ifTrue: block [ ^nil ]</code></pre>
+<p>The Result class is another example -- it defines the protocol for
+<code>isSuccess</code>, <code>isFailure</code>, <code>value</code>, and <code>error</code> that Success and
+Failure each implement differently.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>true not &gt;&gt;&gt; false
+false not &gt;&gt;&gt; true
+true and: [42] &gt;&gt;&gt; 42
+false and: [42] &gt;&gt;&gt; false
+true ifTrue: [&#39;yes&#39;] &gt;&gt;&gt; &#39;yes&#39;
+false ifTrue: [&#39;yes&#39;] &gt;&gt;&gt; nil</code></pre>
+</div>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <h2>Class Introspection</h2>
+<p>Every object knows its class. Send <code>class</code> to get the class object
+and <code>name</code> to get its name as a symbol. You can use this for
+debugging, logging, and runtime type checks.</p>
+<p>The <code>isKindOf:</code> method tests whether an object is an instance of a
+given class. The <code>respondsTo:</code> message checks whether an object
+understands a particular message.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>42 class name &gt;&gt;&gt; #SmallInteger
+3.14 class name &gt;&gt;&gt; #Float
+&#39;hello&#39; class name &gt;&gt;&gt; #String
+#hello class name &gt;&gt;&gt; #Symbol
+true class name &gt;&gt;&gt; #True
+false class name &gt;&gt;&gt; #False
+nil class name &gt;&gt;&gt; #UndefinedObject
+#(1 2 3) class name &gt;&gt;&gt; #Array</code></pre>
+</div>
+<p>The <code>allClasses</code> message on Object returns an array of all classes
+currently loaded in the VM. This is useful for documentation tools
+and IDE features that need to enumerate the class library.</p>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <h2>Putting It All Together</h2>
+<p>Here is a summary of the class system concepts covered in this
+chapter, with a final set of examples that demonstrate how they
+interact.</p>
+<ul>
+<li><code>subclass:</code> defines a new class inheriting from a parent</li>
+<li><code>instanceVars:</code> declares per-object state</li>
+<li><code>method:</code> defines instance behavior</li>
+<li><code>classMethod:</code> defines class-level behavior and factories</li>
+<li><code>include:</code> mixes in trait methods</li>
+<li><code>self</code> is the current receiver; <code>super</code> dispatches via the parent</li>
+<li>Docstrings (triple-quoted) attach preserved documentation</li>
+<li>Override methods to specialize behavior in subclasses</li>
+<li>Use <code>subclassResponsibility</code> for abstract method stubs</li>
+</ul>
+<h2>Metaclasses</h2>
+<p>Every class has a corresponding metaclass, accessible via the <code>class</code>
+message. Sending <code>class</code> to an instance returns its class; sending
+<code>class</code> to a class returns its metaclass. Metaclass inheritance
+mirrors class inheritance: <code>SmallInteger class</code> has <code>Object class</code>
+as its superclass.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>42 class name &gt;&gt;&gt; #SmallInteger
+SmallInteger class name &gt;&gt;&gt; #&#39;SmallInteger class&#39;</code></pre>
+</div>
+<h2>Type Annotations</h2>
+<p>Methods can carry optional type annotations for parameters and return
+values. These are checked by <code>mag typecheck</code> but do not affect
+compilation or runtime behavior — they are documentation that the
+type checker can verify.</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>&#34;Typed method signature&#34;
+method: at: index &lt;Integer&gt; ^&lt;Object&gt; [
+    ^items at: index
+]
+
+&#34;Typed instance variables&#34;
+Account subclass: Object
+  instanceVars: name &lt;String&gt; balance &lt;Integer&gt;</code></pre>
+</div>
+<h2>Protocols</h2>
+<p>Protocols define structural types — a set of message signatures.
+Any class that responds to all messages in a protocol satisfies it,
+without needing to declare that it does (like Go interfaces).</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>Sizeable protocol
+  size ^&lt;Integer&gt;.
+  isEmpty ^&lt;Boolean&gt;.
+
+&#34;Use a protocol as a parameter type&#34;
+method: measure: thing &lt;Sizeable&gt; ^&lt;Integer&gt; [
+    ^thing size
+]</code></pre>
+</div>
+<h2>Type Inference</h2>
+<p>The type checker can infer types from literals and assignments without
+any annotations. This catches common bugs like sending a message to
+the wrong type of object:</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>&#34;The checker infers x is SmallInteger from the literal 42&#34;
+method: example [
+    | x |
+    x := 42.
+    x isEmpty.   &#34;WARNING: SmallInteger does not understand #isEmpty&#34;
+]
+
+&#34;Chained sends track through return types&#34;
+method: example2 [
+    ^&#39;hello&#39; size asString   &#34;String → Integer → String&#34;
+]</code></pre>
+</div>
+<p>Inference works through assignments, message send return types, and
+chained sends. Untyped code produces <code>&lt;Dynamic&gt;</code> which suppresses
+warnings — you only get warnings when the checker positively
+determines an incompatibility.</p>
+<h2>Effect Annotations</h2>
+<p>Methods can declare their side effects using <code>! &lt;Effect&gt;</code> syntax
+after the return type annotation. The type checker verifies that the
+method body&#39;s inferred effects match the declaration.</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>&#34;Declare a pure method (no side effects)&#34;
+method: add: x &lt;Integer&gt; to: y &lt;Integer&gt; ^&lt;Integer&gt; ! &lt;Pure&gt; [
+    ^x + y
+]
+
+&#34;Declare IO and Network effects&#34;
+method: fetchUrl: url &lt;String&gt; ^&lt;String&gt; ! &lt;IO, Network&gt; [
+    ^HTTP get: url
+]
+
+&#34;Declare a single effect&#34;
+method: save: data &lt;String&gt; ! &lt;IO&gt; [
+    File write: data to: &#39;output.txt&#39;
+]</code></pre>
+</div>
+<p>The recognized effects are: <code>IO</code> (file and process operations),
+<code>Network</code> (HTTP, sockets, gRPC), <code>Process</code> (channels, mutexes,
+goroutines), <code>State</code> (global variable mutation, Compiler evaluate:),
+and <code>Pure</code> (assertion that the method has no effects).</p>
+<p>Effect annotations are gradual — methods without annotations produce
+no effect warnings. The checker only warns when a method declares
+effects but its body contains undeclared effects, or when a method
+declares <code>Pure</code> but its body has side effects.</p>
+<p>The class system is simple but expressive. Combined with blocks for
+control flow, traits for cross-cutting concerns, optional type
+annotations with inference, and effect annotations, it provides all
+the tools you need to structure programs of any size.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>Object new class name &gt;&gt;&gt; #Object
+Object new isNil &gt;&gt;&gt; false
+42 class name &gt;&gt;&gt; #SmallInteger
+&#39;hello&#39; size &gt;&gt;&gt; 5
+true not &gt;&gt;&gt; false
+(Success with: 42) value &gt;&gt;&gt; 42
+(Failure with: &#39;err&#39;) error &gt;&gt;&gt; &#39;err&#39;
+#(1 2 3) printString &gt;&gt;&gt; &#39;#(1 2 3 )&#39;</code></pre>
+</div>
+
+
+    </div>
+
+
+    <div class="footer">
+        Generated by Maggie doc generator.
+    </div>
+</main>
+    <script src="../js/playground.js"></script>
+</body>
+</html>

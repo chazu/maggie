@@ -4,11 +4,276 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Semaphore &mdash; Maggie API Reference</title>
-    <link rel="stylesheet" href="../../css/style.css">
+    <link rel="stylesheet" href="../css/style.css">
 </head>
 <body>
+<nav class="sidebar">
+    <div class="sidebar-title"><a href="../index.html">Maggie Docs</a></div>
+
+    <div class="sidebar-section">
+        <div class="sidebar-section-title">Guide</div>
+        <ul class="sidebar-list">
+
+            <li><a href="../guide/01-getting-started.html">Getting Started</a></li>
+
+            <li><a href="../guide/02-basics.html">Basics</a></li>
+
+            <li><a href="../guide/03-numbers.html">Numbers</a></li>
+
+            <li><a href="../guide/04-strings.html">Strings</a></li>
+
+            <li><a href="../guide/05-collections.html">Collections</a></li>
+
+            <li><a href="../guide/06-blocks.html">Blocks</a></li>
+
+            <li><a href="../guide/07-classes.html">Classes</a></li>
+
+            <li><a href="../guide/08-error-handling.html">Error Handling</a></li>
+
+            <li><a href="../guide/09-concurrency.html">Concurrency</a></li>
+
+            <li><a href="../guide/10-supervisors.html">Supervisors</a></li>
+
+            <li><a href="../guide/10-modules.html">Modules</a></li>
+
+            <li><a href="../guide/11-clustering.html">Clustering</a></li>
+
+            <li><a href="../guide/11-projects.html">Projects</a></li>
+
+            <li><a href="../guide/12-go-interop.html">Go Interop</a></li>
+
+            <li><a href="../guide/13-distribution.html">Distribution</a></li>
+
+            <li><a href="../guide/14-tooling-ide.html">Tooling &amp; IDE</a></li>
+
+            <li><a href="../guide/15-cue-integration.html">Cue Integration</a></li>
+
+            <li><a href="../guide/16-tuple-space.html">Tuple Space</a></li>
+
+        </ul>
+    </div>
+
+    <div class="sidebar-section">
+        <div class="sidebar-section-title">API Reference</div>
+
+        <details class="sidebar-ns-group" open>
+            <summary>(root)</summary>
+            <ul class="sidebar-list">
+
+                <li><a href="../classes/Array.html">Array</a></li>
+
+                <li><a href="../classes/ArrayList.html">ArrayList</a></li>
+
+                <li><a href="../classes/AssignmentNode.html">AssignmentNode</a></li>
+
+                <li><a href="../classes/Association.html">Association</a></li>
+
+                <li><a href="../classes/BigInteger.html">BigInteger</a></li>
+
+                <li><a href="../classes/Block.html">Block</a></li>
+
+                <li><a href="../classes/BlockNode.html">BlockNode</a></li>
+
+                <li><a href="../classes/Boolean.html">Boolean</a></li>
+
+                <li><a href="../classes/ByteArray.html">ByteArray</a></li>
+
+                <li><a href="../classes/BytecodeGenerator.html">BytecodeGenerator</a></li>
+
+                <li><a href="../classes/CancellationContext.html">CancellationContext</a></li>
+
+                <li><a href="../classes/CascadeNode.html">CascadeNode</a></li>
+
+                <li><a href="../classes/Channel.html">Channel</a></li>
+
+                <li><a href="../classes/Character.html">Character</a></li>
+
+                <li><a href="../classes/CharacterStream.html">CharacterStream</a></li>
+
+                <li><a href="../classes/ChildSpec.html">ChildSpec</a></li>
+
+                <li><a href="../classes/Class.html">Class</a></li>
+
+                <li><a href="../classes/ClassNode.html">ClassNode</a></li>
+
+                <li><a href="../classes/Cluster.html">Cluster</a></li>
+
+                <li><a href="../classes/CompiledMethod.html">CompiledMethod</a></li>
+
+                <li><a href="../classes/Compiler.html">Compiler</a></li>
+
+                <li><a href="../classes/ConstraintStore.html">ConstraintStore</a></li>
+
+                <li><a href="../classes/Context.html">Context</a></li>
+
+                <li><a href="../classes/CueContext.html">CueContext</a></li>
+
+                <li><a href="../classes/CueValue.html">CueValue</a></li>
+
+                <li><a href="../classes/DateTime.html">DateTime</a></li>
+
+                <li><a href="../classes/Debugger.html">Debugger</a></li>
+
+                <li><a href="../classes/Dictionary.html">Dictionary</a></li>
+
+                <li><a href="../classes/DocServer.html">DocServer</a></li>
+
+                <li><a href="../classes/DuckAppender.html">DuckAppender</a></li>
+
+                <li><a href="../classes/DuckDatabase.html">DuckDatabase</a></li>
+
+                <li><a href="../classes/DynamicSupervisor.html">DynamicSupervisor</a></li>
+
+                <li><a href="../classes/Error.html">Error</a></li>
+
+                <li><a href="../classes/Exception.html">Exception</a></li>
+
+                <li><a href="../classes/ExternalProcess.html">ExternalProcess</a></li>
+
+                <li><a href="../classes/Failure.html">Failure</a></li>
+
+                <li><a href="../classes/False.html">False</a></li>
+
+                <li><a href="../classes/File.html">File</a></li>
+
+                <li><a href="../classes/Float.html">Float</a></li>
+
+                <li><a href="../classes/Future.html">Future</a></li>
+
+                <li><a href="../classes/GrpcClient.html">GrpcClient</a></li>
+
+                <li><a href="../classes/GrpcStream.html">GrpcStream</a></li>
+
+                <li><a href="../classes/Halt.html">Halt</a></li>
+
+                <li><a href="../classes/HashRing.html">HashRing</a></li>
+
+                <li><a href="../classes/HttpClient.html">HttpClient</a></li>
+
+                <li><a href="../classes/HttpRequest.html">HttpRequest</a></li>
+
+                <li><a href="../classes/HttpResponse.html">HttpResponse</a></li>
+
+                <li><a href="../classes/HttpServer.html">HttpServer</a></li>
+
+                <li><a href="../classes/Json.html">Json</a></li>
+
+                <li><a href="../classes/JsonParseError.html">JsonParseError</a></li>
+
+                <li><a href="../classes/JsonReader.html">JsonReader</a></li>
+
+                <li><a href="../classes/JsonWriter.html">JsonWriter</a></li>
+
+                <li><a href="../classes/Lexer.html">Lexer</a></li>
+
+                <li><a href="../classes/LiteralNode.html">LiteralNode</a></li>
+
+                <li><a href="../classes/MailboxMessage.html">MailboxMessage</a></li>
+
+                <li><a href="../classes/Message.html">Message</a></li>
+
+                <li><a href="../classes/MessageNotUnderstood.html">MessageNotUnderstood</a></li>
+
+                <li><a href="../classes/MessageSendNode.html">MessageSendNode</a></li>
+
+                <li><a href="../classes/Metaclass.html">Metaclass</a></li>
+
+                <li><a href="../classes/MethodNode.html">MethodNode</a></li>
+
+                <li><a href="../classes/Mutex.html">Mutex</a></li>
+
+                <li><a href="../classes/Node.html">Node</a></li>
+
+                <li><a href="../classes/Notification.html">Notification</a></li>
+
+                <li><a href="../classes/Object.html">Object</a></li>
+
+                <li><a href="../classes/Parser.html">Parser</a></li>
+
+                <li><a href="../classes/Process.html">Process</a></li>
+
+                <li><a href="../classes/Proquint.html">Proquint</a></li>
+
+                <li><a href="../classes/Random.html">Random</a></li>
+
+                <li><a href="../classes/Regex.html">Regex</a></li>
+
+                <li><a href="../classes/RemoteChannel.html">RemoteChannel</a></li>
+
+                <li><a href="../classes/RemoteProcess.html">RemoteProcess</a></li>
+
+                <li><a href="../classes/Result.html">Result</a></li>
+
+                <li><a href="../classes/ReturnNode.html">ReturnNode</a></li>
+
+                <li><a href="../classes/SSEConnection.html">SSEConnection</a></li>
+
+                <li><a href="../classes/Sandbox.html">Sandbox</a></li>
+
+                <li><a href="../classes/Semaphore.html" class="active">Semaphore</a></li>
+
+                <li><a href="../classes/Set.html">Set</a></li>
+
+                <li><a href="../classes/Signal.html">Signal</a></li>
+
+                <li><a href="../classes/SmallInteger.html">SmallInteger</a></li>
+
+                <li><a href="../classes/SocketConnection.html">SocketConnection</a></li>
+
+                <li><a href="../classes/SqliteDatabase.html">SqliteDatabase</a></li>
+
+                <li><a href="../classes/SqliteRows.html">SqliteRows</a></li>
+
+                <li><a href="../classes/SqliteStatement.html">SqliteStatement</a></li>
+
+                <li><a href="../classes/StackOverflow.html">StackOverflow</a></li>
+
+                <li><a href="../classes/String.html">String</a></li>
+
+                <li><a href="../classes/SubscriptOutOfBounds.html">SubscriptOutOfBounds</a></li>
+
+                <li><a href="../classes/Success.html">Success</a></li>
+
+                <li><a href="../classes/Supervisor.html">Supervisor</a></li>
+
+                <li><a href="../classes/Symbol.html">Symbol</a></li>
+
+                <li><a href="../classes/System.html">System</a></li>
+
+                <li><a href="../classes/Token.html">Token</a></li>
+
+                <li><a href="../classes/Toml.html">Toml</a></li>
+
+                <li><a href="../classes/TomlParseError.html">TomlParseError</a></li>
+
+                <li><a href="../classes/True.html">True</a></li>
+
+                <li><a href="../classes/TupleSpace.html">TupleSpace</a></li>
+
+                <li><a href="../classes/UndefinedObject.html">UndefinedObject</a></li>
+
+                <li><a href="../classes/UnixSocketClient.html">UnixSocketClient</a></li>
+
+                <li><a href="../classes/UnixSocketServer.html">UnixSocketServer</a></li>
+
+                <li><a href="../classes/VariableNode.html">VariableNode</a></li>
+
+                <li><a href="../classes/WaitGroup.html">WaitGroup</a></li>
+
+                <li><a href="../classes/Warning.html">Warning</a></li>
+
+                <li><a href="../classes/WeakReference.html">WeakReference</a></li>
+
+                <li><a href="../classes/ZeroDivide.html">ZeroDivide</a></li>
+
+            </ul>
+        </details>
+
+    </div>
+</nav>
+<main class="content">
     <div class="breadcrumb">
-        <a href="../../index.html">Maggie API Reference</a>
+        <a href="../index.html">Maggie API Reference</a>
 
         &rsaquo; Semaphore
     </div>
@@ -24,6 +289,54 @@
     </div>
 
 
+    <div class="class-doc">
+        <p>A counting semaphore for limiting concurrent access to a resource pool.</p>
+<p>A semaphore manages a fixed number of permits. <code>acquire</code> blocks until
+a permit is available; <code>release</code> returns one. Use <code>critical:</code> to
+automatically acquire before and release after evaluating a block.</p>
+<p><code>Semaphore new</code> creates a binary semaphore (1 permit).
+<code>Semaphore new: n</code> creates a semaphore with <code>n</code> permits.</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>Semaphore new capacity           &#34;=&gt; 1&#34;
+(Semaphore new: 3) capacity     &#34;=&gt; 3&#34;
+(Semaphore new: 3) available    &#34;=&gt; 3&#34;
+Semaphore new hasAvailablePermits  &#34;=&gt; true&#34;
+(Semaphore new: 2) isFull       &#34;=&gt; false&#34;
+
+| s &lt;Semaphore&gt; |
+s := Semaphore new: 3.
+s tryAcquire.
+s available                      &#34;=&gt; 2&#34;
+
+s := Semaphore new.
+s tryAcquire                     &#34;=&gt; true&#34;
+
+s := Semaphore new.
+s tryAcquire.
+s tryAcquire                     &#34;=&gt; false&#34;
+
+s := Semaphore new.
+s tryAcquire.
+s isFull                         &#34;=&gt; true&#34;
+
+s := Semaphore new: 2.
+s critical: [42]                 &#34;=&gt; 42&#34;</code></pre>
+</div>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>&#34;Rate-limiting concurrent work to 3 at a time&#34;
+| sem &lt;Semaphore&gt; wg &lt;WaitGroup&gt; |
+sem := Semaphore new: 3.
+wg := WaitGroup new.
+1 to: 10 do: [:i |
+    wg wrap: [sem critical: [Process sleep: 100]]
+].
+wg wait</code></pre>
+</div>
+
+    </div>
+
 
 
     <h2>Class Methods</h2>
@@ -33,7 +346,30 @@
 
         <div class="method">
             <div class="method-selector">
+                <span class="class-side-label">class </span>primNew:
+            </div>
+
+
+        </div>
+
+    </div>
+
+    <div class="method-category">
+        <h3>uncategorized</h3>
+
+        <div class="method">
+            <div class="method-selector">
                 <span class="class-side-label">class </span>new
+            </div>
+
+            <div class="method-doc">
+                <p>Create a binary semaphore with a single permit.</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>Semaphore new capacity   &#34;=&gt; 1&#34;
+Semaphore new available  &#34;=&gt; 1&#34;</code></pre>
+</div>
+
             </div>
 
 
@@ -42,6 +378,16 @@
         <div class="method">
             <div class="method-selector">
                 <span class="class-side-label">class </span>new:
+            </div>
+
+            <div class="method-doc">
+                <p>Create a semaphore with the given number of permits.</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>(Semaphore new: 5) capacity   &#34;=&gt; 5&#34;
+(Semaphore new: 5) available  &#34;=&gt; 5&#34;</code></pre>
+</div>
+
             </div>
 
 
@@ -55,10 +401,64 @@
     <h2>Instance Methods</h2>
 
     <div class="method-category">
+        <h3>primitives</h3>
+
+        <div class="method">
+            <div class="method-selector">primAcquire</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">primAvailable</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">primCapacity</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">primCritical:</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">primRelease</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">primTryAcquire</div>
+
+
+        </div>
+
+    </div>
+
+    <div class="method-category">
         <h3>uncategorized</h3>
 
         <div class="method">
             <div class="method-selector">acquire</div>
+
+            <div class="method-doc">
+                <p>Acquire a permit, blocking if none are available. Use
+<code>tryAcquire</code> for a non-blocking alternative.</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>| sem &lt;Semaphore&gt; |
+sem := Semaphore new: 2.
+sem acquire.
+sem release</code></pre>
+</div>
+
+            </div>
 
 
         </div>
@@ -66,11 +466,36 @@
         <div class="method">
             <div class="method-selector">available</div>
 
+            <div class="method-doc">
+                <p>Return the number of currently available permits.</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>(Semaphore new: 3) available  &#34;=&gt; 3&#34;
+
+| s &lt;Semaphore&gt; |
+s := Semaphore new: 3.
+s tryAcquire.
+s tryAcquire.
+s available                    &#34;=&gt; 1&#34;</code></pre>
+</div>
+
+            </div>
+
 
         </div>
 
         <div class="method">
             <div class="method-selector">capacity</div>
+
+            <div class="method-doc">
+                <p>Return the total permit capacity of the semaphore.</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>Semaphore new capacity         &#34;=&gt; 1&#34;
+(Semaphore new: 10) capacity  &#34;=&gt; 10&#34;</code></pre>
+</div>
+
+            </div>
 
 
         </div>
@@ -78,11 +503,41 @@
         <div class="method">
             <div class="method-selector">critical:</div>
 
+            <div class="method-doc">
+                <p>Evaluate <code>aBlock</code> while holding a permit. The permit is
+automatically released when the block finishes, even if an
+error occurs.</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>(Semaphore new: 2) critical: [42]  &#34;=&gt; 42&#34;
+
+| s &lt;Semaphore&gt; |
+s := Semaphore new: 1.
+s critical: [&#39;done&#39;].
+s available                         &#34;=&gt; 1&#34;</code></pre>
+</div>
+
+            </div>
+
 
         </div>
 
         <div class="method">
             <div class="method-selector">hasAvailablePermits</div>
+
+            <div class="method-doc">
+                <p>Return <code>true</code> if the semaphore has at least one available permit.</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>Semaphore new hasAvailablePermits   &#34;=&gt; true&#34;
+
+| s &lt;Semaphore&gt; |
+s := Semaphore new.
+s tryAcquire.
+s hasAvailablePermits               &#34;=&gt; false&#34;</code></pre>
+</div>
+
+            </div>
 
 
         </div>
@@ -90,23 +545,41 @@
         <div class="method">
             <div class="method-selector">ifAvailable:</div>
 
+            <div class="method-doc">
+                <p>Execute <code>aBlock</code> only if a permit is immediately available.
+Returns the block&#39;s result if executed, or <code>nil</code> if no permit
+was available.</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>Semaphore new ifAvailable: [42]     &#34;=&gt; 42&#34;
+
+| s &lt;Semaphore&gt; |
+s := Semaphore new.
+s tryAcquire.
+s ifAvailable: [42]                 &#34;=&gt; nil&#34;</code></pre>
+</div>
+
+            </div>
+
 
         </div>
 
         <div class="method">
             <div class="method-selector">isFull</div>
 
+            <div class="method-doc">
+                <p>Return <code>true</code> if all permits are currently in use.</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>(Semaphore new: 2) isFull          &#34;=&gt; false&#34;
 
-        </div>
+| s &lt;Semaphore&gt; |
+s := Semaphore new.
+s tryAcquire.
+s isFull                            &#34;=&gt; true&#34;</code></pre>
+</div>
 
-        <div class="method">
-            <div class="method-selector">new</div>
-
-
-        </div>
-
-        <div class="method">
-            <div class="method-selector">new:</div>
+            </div>
 
 
         </div>
@@ -114,11 +587,39 @@
         <div class="method">
             <div class="method-selector">printString</div>
 
+            <div class="method-doc">
+                <p>Return a string describing the semaphore and its permit state.</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>Semaphore new printString
+&#34;=&gt; &#39;a Semaphore (1/1 available)&#39;&#34;
+
+(Semaphore new: 3) printString
+&#34;=&gt; &#39;a Semaphore (3/3 available)&#39;&#34;</code></pre>
+</div>
+
+            </div>
+
 
         </div>
 
         <div class="method">
             <div class="method-selector">release</div>
+
+            <div class="method-doc">
+                <p>Release a permit back to the semaphore, potentially unblocking
+a waiting process.</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>| s &lt;Semaphore&gt; |
+s := Semaphore new: 1.
+s tryAcquire.
+s available     &#34;=&gt; 0&#34;
+s release.
+s available     &#34;=&gt; 1&#34;</code></pre>
+</div>
+
+            </div>
 
 
         </div>
@@ -126,11 +627,35 @@
         <div class="method">
             <div class="method-selector">tryAcquire</div>
 
+            <div class="method-doc">
+                <p>Try to acquire a permit without blocking. Returns <code>true</code> if a
+permit was acquired, <code>false</code> if none were available.</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>Semaphore new tryAcquire       &#34;=&gt; true&#34;
+
+| s &lt;Semaphore&gt; |
+s := Semaphore new.
+s tryAcquire.
+s tryAcquire                   &#34;=&gt; false&#34;</code></pre>
+</div>
+
+            </div>
+
 
         </div>
 
         <div class="method">
             <div class="method-selector">withPermit:</div>
+
+            <div class="method-doc">
+                <p>Alias for <code>critical:</code>. Evaluate <code>aBlock</code> while holding a permit.</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>Semaphore new withPermit: [42]  &#34;=&gt; 42&#34;</code></pre>
+</div>
+
+            </div>
 
 
         </div>
@@ -142,5 +667,7 @@
     <div class="footer">
         Generated by Maggie doc generator.
     </div>
+</main>
+    <script src="../js/playground.js"></script>
 </body>
 </html>

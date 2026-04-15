@@ -1,0 +1,819 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Modules &mdash; Maggie API Reference</title>
+    <link rel="stylesheet" href="../css/style.css">
+</head>
+<body>
+<nav class="sidebar">
+    <div class="sidebar-title"><a href="../index.html">Maggie Docs</a></div>
+
+    <div class="sidebar-section">
+        <div class="sidebar-section-title">Guide</div>
+        <ul class="sidebar-list">
+
+            <li><a href="../guide/01-getting-started.html">Getting Started</a></li>
+
+            <li><a href="../guide/02-basics.html">Basics</a></li>
+
+            <li><a href="../guide/03-numbers.html">Numbers</a></li>
+
+            <li><a href="../guide/04-strings.html">Strings</a></li>
+
+            <li><a href="../guide/05-collections.html">Collections</a></li>
+
+            <li><a href="../guide/06-blocks.html">Blocks</a></li>
+
+            <li><a href="../guide/07-classes.html">Classes</a></li>
+
+            <li><a href="../guide/08-error-handling.html">Error Handling</a></li>
+
+            <li><a href="../guide/09-concurrency.html">Concurrency</a></li>
+
+            <li><a href="../guide/10-supervisors.html">Supervisors</a></li>
+
+            <li><a href="../guide/10-modules.html" class="active">Modules</a></li>
+
+            <li><a href="../guide/11-clustering.html">Clustering</a></li>
+
+            <li><a href="../guide/11-projects.html">Projects</a></li>
+
+            <li><a href="../guide/12-go-interop.html">Go Interop</a></li>
+
+            <li><a href="../guide/13-distribution.html">Distribution</a></li>
+
+            <li><a href="../guide/14-tooling-ide.html">Tooling &amp; IDE</a></li>
+
+            <li><a href="../guide/15-cue-integration.html">Cue Integration</a></li>
+
+            <li><a href="../guide/16-tuple-space.html">Tuple Space</a></li>
+
+        </ul>
+    </div>
+
+    <div class="sidebar-section">
+        <div class="sidebar-section-title">API Reference</div>
+
+        <details class="sidebar-ns-group" open>
+            <summary>(root)</summary>
+            <ul class="sidebar-list">
+
+                <li><a href="../classes/Array.html">Array</a></li>
+
+                <li><a href="../classes/ArrayList.html">ArrayList</a></li>
+
+                <li><a href="../classes/AssignmentNode.html">AssignmentNode</a></li>
+
+                <li><a href="../classes/Association.html">Association</a></li>
+
+                <li><a href="../classes/BigInteger.html">BigInteger</a></li>
+
+                <li><a href="../classes/Block.html">Block</a></li>
+
+                <li><a href="../classes/BlockNode.html">BlockNode</a></li>
+
+                <li><a href="../classes/Boolean.html">Boolean</a></li>
+
+                <li><a href="../classes/ByteArray.html">ByteArray</a></li>
+
+                <li><a href="../classes/BytecodeGenerator.html">BytecodeGenerator</a></li>
+
+                <li><a href="../classes/CancellationContext.html">CancellationContext</a></li>
+
+                <li><a href="../classes/CascadeNode.html">CascadeNode</a></li>
+
+                <li><a href="../classes/Channel.html">Channel</a></li>
+
+                <li><a href="../classes/Character.html">Character</a></li>
+
+                <li><a href="../classes/CharacterStream.html">CharacterStream</a></li>
+
+                <li><a href="../classes/ChildSpec.html">ChildSpec</a></li>
+
+                <li><a href="../classes/Class.html">Class</a></li>
+
+                <li><a href="../classes/ClassNode.html">ClassNode</a></li>
+
+                <li><a href="../classes/Cluster.html">Cluster</a></li>
+
+                <li><a href="../classes/CompiledMethod.html">CompiledMethod</a></li>
+
+                <li><a href="../classes/Compiler.html">Compiler</a></li>
+
+                <li><a href="../classes/ConstraintStore.html">ConstraintStore</a></li>
+
+                <li><a href="../classes/Context.html">Context</a></li>
+
+                <li><a href="../classes/CueContext.html">CueContext</a></li>
+
+                <li><a href="../classes/CueValue.html">CueValue</a></li>
+
+                <li><a href="../classes/DateTime.html">DateTime</a></li>
+
+                <li><a href="../classes/Debugger.html">Debugger</a></li>
+
+                <li><a href="../classes/Dictionary.html">Dictionary</a></li>
+
+                <li><a href="../classes/DocServer.html">DocServer</a></li>
+
+                <li><a href="../classes/DuckAppender.html">DuckAppender</a></li>
+
+                <li><a href="../classes/DuckDatabase.html">DuckDatabase</a></li>
+
+                <li><a href="../classes/DynamicSupervisor.html">DynamicSupervisor</a></li>
+
+                <li><a href="../classes/Error.html">Error</a></li>
+
+                <li><a href="../classes/Exception.html">Exception</a></li>
+
+                <li><a href="../classes/ExternalProcess.html">ExternalProcess</a></li>
+
+                <li><a href="../classes/Failure.html">Failure</a></li>
+
+                <li><a href="../classes/False.html">False</a></li>
+
+                <li><a href="../classes/File.html">File</a></li>
+
+                <li><a href="../classes/Float.html">Float</a></li>
+
+                <li><a href="../classes/Future.html">Future</a></li>
+
+                <li><a href="../classes/GrpcClient.html">GrpcClient</a></li>
+
+                <li><a href="../classes/GrpcStream.html">GrpcStream</a></li>
+
+                <li><a href="../classes/Halt.html">Halt</a></li>
+
+                <li><a href="../classes/HashRing.html">HashRing</a></li>
+
+                <li><a href="../classes/HttpClient.html">HttpClient</a></li>
+
+                <li><a href="../classes/HttpRequest.html">HttpRequest</a></li>
+
+                <li><a href="../classes/HttpResponse.html">HttpResponse</a></li>
+
+                <li><a href="../classes/HttpServer.html">HttpServer</a></li>
+
+                <li><a href="../classes/Json.html">Json</a></li>
+
+                <li><a href="../classes/JsonParseError.html">JsonParseError</a></li>
+
+                <li><a href="../classes/JsonReader.html">JsonReader</a></li>
+
+                <li><a href="../classes/JsonWriter.html">JsonWriter</a></li>
+
+                <li><a href="../classes/Lexer.html">Lexer</a></li>
+
+                <li><a href="../classes/LiteralNode.html">LiteralNode</a></li>
+
+                <li><a href="../classes/MailboxMessage.html">MailboxMessage</a></li>
+
+                <li><a href="../classes/Message.html">Message</a></li>
+
+                <li><a href="../classes/MessageNotUnderstood.html">MessageNotUnderstood</a></li>
+
+                <li><a href="../classes/MessageSendNode.html">MessageSendNode</a></li>
+
+                <li><a href="../classes/Metaclass.html">Metaclass</a></li>
+
+                <li><a href="../classes/MethodNode.html">MethodNode</a></li>
+
+                <li><a href="../classes/Mutex.html">Mutex</a></li>
+
+                <li><a href="../classes/Node.html">Node</a></li>
+
+                <li><a href="../classes/Notification.html">Notification</a></li>
+
+                <li><a href="../classes/Object.html">Object</a></li>
+
+                <li><a href="../classes/Parser.html">Parser</a></li>
+
+                <li><a href="../classes/Process.html">Process</a></li>
+
+                <li><a href="../classes/Proquint.html">Proquint</a></li>
+
+                <li><a href="../classes/Random.html">Random</a></li>
+
+                <li><a href="../classes/Regex.html">Regex</a></li>
+
+                <li><a href="../classes/RemoteChannel.html">RemoteChannel</a></li>
+
+                <li><a href="../classes/RemoteProcess.html">RemoteProcess</a></li>
+
+                <li><a href="../classes/Result.html">Result</a></li>
+
+                <li><a href="../classes/ReturnNode.html">ReturnNode</a></li>
+
+                <li><a href="../classes/SSEConnection.html">SSEConnection</a></li>
+
+                <li><a href="../classes/Sandbox.html">Sandbox</a></li>
+
+                <li><a href="../classes/Semaphore.html">Semaphore</a></li>
+
+                <li><a href="../classes/Set.html">Set</a></li>
+
+                <li><a href="../classes/Signal.html">Signal</a></li>
+
+                <li><a href="../classes/SmallInteger.html">SmallInteger</a></li>
+
+                <li><a href="../classes/SocketConnection.html">SocketConnection</a></li>
+
+                <li><a href="../classes/SqliteDatabase.html">SqliteDatabase</a></li>
+
+                <li><a href="../classes/SqliteRows.html">SqliteRows</a></li>
+
+                <li><a href="../classes/SqliteStatement.html">SqliteStatement</a></li>
+
+                <li><a href="../classes/StackOverflow.html">StackOverflow</a></li>
+
+                <li><a href="../classes/String.html">String</a></li>
+
+                <li><a href="../classes/SubscriptOutOfBounds.html">SubscriptOutOfBounds</a></li>
+
+                <li><a href="../classes/Success.html">Success</a></li>
+
+                <li><a href="../classes/Supervisor.html">Supervisor</a></li>
+
+                <li><a href="../classes/Symbol.html">Symbol</a></li>
+
+                <li><a href="../classes/System.html">System</a></li>
+
+                <li><a href="../classes/Token.html">Token</a></li>
+
+                <li><a href="../classes/Toml.html">Toml</a></li>
+
+                <li><a href="../classes/TomlParseError.html">TomlParseError</a></li>
+
+                <li><a href="../classes/True.html">True</a></li>
+
+                <li><a href="../classes/TupleSpace.html">TupleSpace</a></li>
+
+                <li><a href="../classes/UndefinedObject.html">UndefinedObject</a></li>
+
+                <li><a href="../classes/UnixSocketClient.html">UnixSocketClient</a></li>
+
+                <li><a href="../classes/UnixSocketServer.html">UnixSocketServer</a></li>
+
+                <li><a href="../classes/VariableNode.html">VariableNode</a></li>
+
+                <li><a href="../classes/WaitGroup.html">WaitGroup</a></li>
+
+                <li><a href="../classes/Warning.html">Warning</a></li>
+
+                <li><a href="../classes/WeakReference.html">WeakReference</a></li>
+
+                <li><a href="../classes/ZeroDivide.html">ZeroDivide</a></li>
+
+            </ul>
+        </details>
+
+    </div>
+</nav>
+<main class="content">
+    <div class="breadcrumb">
+        <a href="../index.html">Maggie API Reference</a>
+        &rsaquo; Guide
+        &rsaquo; Modules
+    </div>
+
+    <h1>Modules</h1>
+
+
+    <div class="guide-intro">
+        <p>As projects grow beyond a handful of files, you need a way to organize code
+into separate units that can coexist without name collisions. Maggie&#39;s module
+system is built on namespaces, file conventions, and a project manifest. It
+keeps small scripts simple -- a single file with no declarations works as it
+always has -- while giving larger projects the structure they need.</p>
+<p>This chapter covers namespace declarations, imports, fully-qualified names,
+the directory-as-namespace convention, file loading and serialization, and
+when to use (or skip) namespaces entirely.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>Object name &gt;&gt;&gt; #Object
+Array name &gt;&gt;&gt; #Array</code></pre>
+</div>
+
+    </div>
+
+
+
+    <div class="guide-section">
+
+        <h2>Namespace Declarations</h2>
+<p>A namespace groups related classes under a shared prefix. Declare a
+namespace at the top of a source file with the <code>namespace:</code> directive.
+It must appear before any class or trait definitions. Every class
+defined in that file is registered under the namespace prefix.</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>namespace: &#39;Widgets&#39;
+
+Button subclass: Object
+  instanceVars: label
+  method: label [ ^label ]</code></pre>
+</div>
+<p>In the example above, the class is registered in Globals as
+<code>Widgets::Button</code>, not as bare <code>Button</code>. This means another file
+can define its own <code>Button</code> in a different namespace without conflict.</p>
+<p>Rules for <code>namespace:</code>:
+- At most one per file.
+- Must appear before any class, trait, or method definitions.
+- The value is a string with <code>::</code> separating segments.
+- Files without <code>namespace:</code> define classes in the root namespace.</p>
+<p>Namespaces can be nested to any depth. Each <code>::</code> segment represents
+a level of nesting.</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>namespace: &#39;Yutani::Widgets::Forms&#39;
+
+FormField subclass: Object
+  instanceVars: name value
+  method: name [ ^name ]</code></pre>
+</div>
+<p>This registers the class as <code>Yutani::Widgets::Forms::FormField</code>.</p>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <h2>Import Directive</h2>
+<p>The <code>import:</code> directive lets you reference classes from another namespace
+without writing the full path every time. Place imports after the
+<code>namespace:</code> declaration (if any) and before class definitions.</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>namespace: &#39;Yutani::Widgets&#39;
+
+import: &#39;Yutani&#39;
+import: &#39;Yutani::Events&#39;
+
+YutaniButton subclass: YutaniWidget
+  instanceVars: label onClick
+  method: label [ ^label ]</code></pre>
+</div>
+<p>In the file above, <code>YutaniWidget</code> is resolved by searching:
+1. The current namespace (<code>Yutani::Widgets::YutaniWidget</code>)
+2. Each import in order (<code>Yutani::YutaniWidget</code>, then <code>Yutani::Events::YutaniWidget</code>)
+3. The root namespace (<code>YutaniWidget</code>)</p>
+<p>The first match wins. If no match is found, the compiler reports an error.</p>
+<p>You can have zero or more <code>import:</code> declarations per file. Import order
+matters when two imported namespaces define a class with the same short
+name -- the first import in file order takes priority.</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>import: &#39;Collections&#39;
+import: &#39;UI&#39;
+
+# If both Collections and UI define &#34;List&#34;, Collections::List wins
+# because its import appears first.</code></pre>
+</div>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <h2>Fully-Qualified Names</h2>
+<p>The <code>::</code> separator creates fully-qualified names (FQNs). You can always
+reference a class by its full path, whether or not you have imported its
+namespace. This is useful for disambiguation or one-off references.</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code># Explicit FQN -- no import needed
+btn := Widgets::Button new.
+evt := Yutani::Events::ClickEvent new.
+
+# Inside a method body, the compiler resolves FQNs at compile time.
+# There is no runtime cost compared to a bare class name.</code></pre>
+</div>
+<p>FQN syntax works everywhere a class name is valid: superclass references,
+<code>subclass:</code> declarations, message sends, and <code>Compiler evaluate:</code> strings.</p>
+<p>The <code>::</code> token is handled by the lexer as a single unit. <code>Widgets::Button</code>
+is one token, not three. This means you cannot have spaces around <code>::</code>.</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>&#39;Widgets::Button&#39; includes: &#39;::&#39;   &#34;=&gt; true&#34;</code></pre>
+</div>
+<p>When you use an FQN in a method body inside a file that has a namespace
+context, the compiler still resolves it correctly. FQN references take
+priority over the import resolution chain -- they are absolute paths.</p>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <h2>Resolution Order</h2>
+<p>When the compiler encounters a bare class name in a method body, it
+resolves it using a three-step search:</p>
+<p>1. <strong>Current namespace</strong> -- If the file declares <code>namespace: &#39;MyApp&#39;</code>,
+   the compiler first looks for <code>MyApp::ClassName</code>.</p>
+<p>2. <strong>Imports in order</strong> -- Each <code>import:</code> namespace is searched next,
+   in the order they appear in the file. The compiler looks for
+   <code>Import1::ClassName</code>, then <code>Import2::ClassName</code>, and so on.</p>
+<p>3. <strong>Root namespace</strong> -- Finally, the compiler looks for the bare name
+   in the root (global) namespace. Core classes like Object, Array,
+   String, and Channel live here.</p>
+<p>The first match wins and the compiler emits the resolved FQN directly
+in the bytecode. This means resolution happens once at compile time,
+not on every method call.</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>namespace: &#39;MyApp::Views&#39;
+
+import: &#39;MyApp::Models&#39;
+import: &#39;Widgets&#39;
+
+# When this method references &#34;User&#34;:
+#   1. Checks MyApp::Views::User  (current namespace)
+#   2. Checks MyApp::Models::User (first import)
+#   3. Checks Widgets::User       (second import)
+#   4. Checks User                (root namespace)
+#
+# If MyApp::Models::User exists, that is what the compiler uses.
+
+Dashboard subclass: Object
+  method: loadUser [
+    ^User find: 1   &#34;Resolves to MyApp::Models::User&#34;
+  ]</code></pre>
+</div>
+<p>Because core classes (Object, Array, String, etc.) live in the root
+namespace, they are always available as a fallback. You never need to
+import them.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>Object name &gt;&gt;&gt; #Object
+Array name &gt;&gt;&gt; #Array
+String name &gt;&gt;&gt; #String</code></pre>
+</div>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <h2>Directory-as-Namespace Convention</h2>
+<p>When loading files from a directory tree, Maggie derives namespaces
+automatically from the directory structure. Path segments relative to
+the base directory become PascalCase namespace segments joined by <code>::</code>.</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>src/
+  Helper.mag                -&gt; (root namespace, no prefix)
+  myapp/
+    Main.mag                -&gt; MyApp
+    models/
+      User.mag              -&gt; MyApp::Models
+      Account.mag           -&gt; MyApp::Models
+    views/
+      Dashboard.mag         -&gt; MyApp::Views
+      widgets/
+        Chart.mag           -&gt; MyApp::Views::Widgets</code></pre>
+</div>
+<p>Rules:
+- Directory names are converted to PascalCase (<code>my_app</code> -&gt; <code>MyApp</code>,
+  <code>http-client</code> -&gt; <code>HttpClient</code>).
+- Files directly in the base directory have no namespace (root).
+- An explicit <code>namespace:</code> declaration in a file always overrides
+  the directory-derived namespace.</p>
+<p>This convention means that well-organized directory structures
+automatically produce well-organized namespaces with no extra
+declarations needed.</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code># Given the layout above, loading the project:
+mag ./src/...
+
+# Registers:
+#   Helper           (root)
+#   MyApp::Main
+#   MyApp::Models::User
+#   MyApp::Models::Account
+#   MyApp::Views::Dashboard
+#   MyApp::Views::Widgets::Chart</code></pre>
+</div>
+<p>The two-pass loading pipeline ensures that all class skeletons are
+registered before any method bodies are compiled. This means classes
+can reference each other freely, regardless of file ordering on disk.
+Pass 1a registers skeletons, pass 1b resolves superclass pointers,
+and pass 2 compiles method bodies with full FQN resolution context.</p>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <h2>File Loading and Serialization</h2>
+<p>Maggie provides primitives for loading source files into a running
+VM and writing classes back out to files.</p>
+<p><code>Compiler fileIn:</code> loads a single <code>.mag</code> file (single-pass).
+<code>Compiler fileInAll:</code> loads all <code>.mag</code> files from a directory using
+the two-pass batch pipeline, so cross-file references just work.</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>Compiler fileIn: &#39;lib/helpers/StringUtils.mag&#39;.
+Compiler fileInAll: &#39;src/&#39;.</code></pre>
+</div>
+<p><code>Compiler fileOut:to:</code> reconstructs a class&#39;s source and writes it
+to a file. For namespaced classes, a <code>namespace:</code> declaration is
+included. <code>Compiler fileOutNamespace:to:</code> writes all classes in a
+namespace to a directory, one file per class.</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>Compiler fileOut: &#39;MyApp::Models::User&#39; to: &#39;/tmp/User.mag&#39;.
+Compiler fileOutNamespace: &#39;MyApp::Models&#39; to: &#39;/tmp/models/&#39;.</code></pre>
+</div>
+<p>Note: <code>fileOut</code> reconstructs from stored method text. Methods from
+<code>.mag</code> files preserve their source; methods from <code>evaluate:</code> produce
+a stub. Import declarations are not preserved.</p>
+<p>For faster startup, save the entire VM state to an image file:</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>Compiler saveImage: &#39;my-app.image&#39;.
+
+# CLI equivalents:
+#   mag ./src/... --save-image my-app.image
+#   mag --image my-app.image -m Main.start</code></pre>
+</div>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <h2>Project Manifest</h2>
+<p>A <code>maggie.toml</code> file in the project root configures the project name,
+namespace, source directories, entry point, dependencies, and image
+settings. When <code>mag</code> is invoked without explicit paths and a
+<code>maggie.toml</code> exists, the project is loaded automatically.</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code># maggie.toml
+[project]
+name = &#34;my-app&#34;
+namespace = &#34;MyApp&#34;
+version = &#34;0.1.0&#34;
+
+[source]
+dirs = [&#34;src&#34;]
+entry = &#34;Main.start&#34;
+
+[dependencies]
+yutani = { git = &#34;https://github.com/chazu/yutani-mag&#34;, tag = &#34;v0.5.0&#34; }
+local-lib = { path = &#34;../shared-lib&#34; }
+
+[image]
+output = &#34;my-app.image&#34;
+include-source = true</code></pre>
+</div>
+<p>Key sections:</p>
+<p>- <strong>[project]</strong> -- name, namespace, version, and optional metadata
+  (description, license, authors, repository, maggie version constraint).
+- <strong>[source]</strong> -- which directories to compile, entry point, and
+  exclude patterns for filtering files.
+- <strong>[dependencies]</strong> -- external libraries (git with tag/branch/commit,
+  or local paths).
+- <strong>[dev-dependencies]</strong> -- same format, loaded only for test/dev.
+- <strong>[image]</strong> -- output image file name and whether to preserve
+  method source text in the image.
+- <strong>[test]</strong> -- test directories, entry point, and timeout.
+- <strong>[scripts]</strong> -- lifecycle hooks (prebuild, postbuild, pretest, posttest).
+- <strong>[[target]]</strong> -- multiple build targets with per-target entry points,
+  source dirs, and go-wrap configuration.</p>
+<p>Running the project:</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code># Detects maggie.toml, resolves deps, loads src/, runs entry point
+mag -m Main.start
+
+# Same, but also saves an image for faster future startup
+mag --save-image app.image</code></pre>
+</div>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <h2>Dependencies</h2>
+<p>Dependencies are declared in <code>maggie.toml</code> and managed with the
+<code>mag deps</code> subcommand. Two types are supported: <code>git</code> (cloned to
+<code>.maggie/deps/&lt;name&gt;/</code>) and <code>path</code> (local filesystem reference).</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>[dependencies]
+yutani = { git = &#34;https://github.com/chazu/yutani-mag&#34;, tag = &#34;v0.5.0&#34; }
+local-lib = { path = &#34;../shared-lib&#34; }
+ui-toolkit = { path = &#34;../ui-toolkit&#34;, namespace = &#34;CustomUI&#34; }
+bleeding = { git = &#34;https://github.com/example/lib&#34;, branch = &#34;main&#34; }</code></pre>
+</div>
+<p>Git dependencies use exactly one ref specifier: <code>tag</code>, <code>branch</code>,
+or <code>commit</code> (mutually exclusive). The lock file always records the
+exact commit hash regardless of which specifier is used.</p>
+<p>Each dependency maps to a namespace, resolved in order:
+1. Consumer override -- explicit <code>namespace</code> in the dependency entry.
+2. Producer manifest -- the dep&#39;s own <code>maggie.toml</code> namespace.
+3. PascalCase fallback -- dep name as PascalCase (<code>my-lib</code> -&gt; <code>MyLib</code>).</p>
+<p>All classes from a dependency are prefixed with its namespace. A dep
+with namespace <code>Yutani</code> containing <code>src/widgets/Button.mag</code> registers
+as <code>Yutani::Widgets::Button</code>.</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>mag deps           # Resolve and fetch all dependencies
+mag deps update    # Re-resolve, ignoring the lock file
+mag deps list      # Show the dependency tree</code></pre>
+</div>
+<p>Dependencies load in topological order (transitive first). The lock
+file (<code>.maggie/lock.toml</code>) records exact commit hashes for reproducible
+builds. Two deps mapping to the same namespace cause a hard error.
+Core VM names (Object, Array, String, etc.) are reserved and cannot
+be used as a dependency&#39;s root namespace segment.</p>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <h2>Globals Registration</h2>
+<p>A class in a namespace is registered only under its FQN. A class
+<code>Button</code> in namespace <code>Widgets</code> is stored as <code>Globals[&#34;Widgets::Button&#34;]</code>
+-- there is no entry for bare <code>Button</code>. A root-namespace class is
+stored under its bare name.</p>
+<p>This means two namespaces can each define <code>Button</code> without conflict:</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code># File: src/widgets/Button.mag
+namespace: &#39;Widgets&#39;
+Button subclass: Object
+  method: render [ &#39;I am a UI button&#39; ]
+
+# File: src/controls/Button.mag
+namespace: &#39;Controls&#39;
+Button subclass: Object
+  method: render [ &#39;I am a form control&#39; ]
+
+# Globals[&#34;Widgets::Button&#34;] and Globals[&#34;Controls::Button&#34;] coexist.</code></pre>
+</div>
+<p>Core classes (Object, Array, String, etc.) live in the root namespace.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>Object name &gt;&gt;&gt; #Object
+SmallInteger name &gt;&gt;&gt; #SmallInteger</code></pre>
+</div>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <h2>When to Use Namespaces</h2>
+<p>Not every project needs namespaces. Here are guidelines for when
+they help and when they add unnecessary ceremony.</p>
+<p><strong>Skip namespaces when:</strong></p>
+<p>- Your project is a single file or a small collection of files.
+- You are writing a quick script or experiment.
+- All your class names are unique and unlikely to collide with
+  anything else.
+- You are working in the REPL.</p>
+<p>A file with no <code>namespace:</code> or <code>import:</code> declarations works exactly
+as it always has. The module system is fully backward compatible.</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code># simple-script.mag -- no namespace needed
+Counter subclass: Object
+  instanceVars: count
+  method: init [ count := 0 ]
+  method: increment [ count := count + 1 ]
+  method: count [ ^count ]</code></pre>
+</div>
+<p><strong>Use namespaces when:</strong></p>
+<ul>
+<li>Your project has multiple subsystems (models, views, controllers).</li>
+<li>You are publishing a library that others will depend on.</li>
+<li>You want to avoid collisions with other libraries.</li>
+<li>Your project has grown beyond one directory level.</li>
+<li>You are working on a team and want clear code ownership boundaries.</li>
+</ul>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code># A well-structured library
+namespace: &#39;HttpClient&#39;
+
+import: &#39;HttpClient::Parsers&#39;
+
+Client subclass: Object
+  instanceVars: baseUrl headers
+  method: get: path [
+    req := Request new: baseUrl , path.
+    req headers: headers.
+    ^req execute
+  ]</code></pre>
+</div>
+<p><strong>Naming conventions:</strong></p>
+<p>- Namespace segments use PascalCase: <code>MyApp</code>, <code>HttpClient</code>, <code>Yutani</code>.
+- Keep namespace depth reasonable -- two or three levels is typical.
+- The top-level namespace usually matches the project name.
+- Choose names that are unlikely to collide: <code>Yutani</code> is better
+  than <code>Utils</code>.</p>
+<p><strong>The directory convention reduces ceremony.</strong> If you organize your
+source tree into directories that match your desired namespace
+structure, you often do not need explicit <code>namespace:</code> declarations
+at all. The loading pipeline derives them automatically.</p>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <h2>Putting It Together</h2>
+<p>Here is a small multi-namespace project showing how the pieces fit.</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code># todo-app/
+#   maggie.toml          (namespace = &#34;TodoApp&#34;, entry = &#34;Main.start&#34;)
+#   src/
+#     Main.mag            -&gt; TodoApp
+#     models/
+#       Task.mag          -&gt; TodoApp::Models
+#     views/
+#       TaskView.mag      -&gt; TodoApp::Views
+
+# --- src/Main.mag ---
+import: &#39;TodoApp::Models&#39;
+import: &#39;TodoApp::Views&#39;
+
+Main subclass: Object
+  classMethod: start [
+    task := Task new: &#39;Write guide chapter&#39;.
+    TaskView render: task.
+  ]
+
+# --- src/models/Task.mag ---
+Task subclass: Object
+  instanceVars: title done
+  method: init: aTitle [ title := aTitle. done := false. ]
+  method: title [ ^title ]
+  method: complete [ done := true ]
+
+# --- src/views/TaskView.mag ---
+import: &#39;TodoApp::Models&#39;
+
+TaskView subclass: Object
+  classMethod: render: task [ task title printString ]</code></pre>
+</div>
+<p>Key observations:
+- No explicit <code>namespace:</code> needed -- directory structure handles it.
+- <code>Main</code> uses <code>Task</code> and <code>TaskView</code> by short name via imports.
+- <code>TaskView</code> imports <code>TodoApp::Models</code> to reference <code>Task</code>.
+- <code>mag -m Main.start</code> auto-detects the manifest and calls
+  <code>TodoApp::Main.start</code>.</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>&#39;TodoApp::Models::Task&#39; includes: &#39;Models&#39;   &#34;=&gt; true&#34;
+&#39;TodoApp::Views&#39; includes: &#39;::&#39;              &#34;=&gt; true&#34;</code></pre>
+</div>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <h2>Summary</h2>
+<p>Maggie&#39;s module system provides namespaces and imports without
+breaking backward compatibility. Files without declarations work
+as they always have. For larger projects, a few conventions and
+directives keep code organized.</p>
+<p>Key points:</p>
+<p>- <code>namespace:</code> sets the namespace for all classes in a file.
+- <code>import:</code> allows unqualified references to classes in other
+  namespaces.
+- FQN syntax (<code>Widgets::Button</code>) works anywhere a class name is
+  valid.
+- Resolution order: current namespace, imports (in order), root.
+- Directory names automatically map to PascalCase namespaces.
+- <code>fileIn:</code> / <code>fileInAll:</code> load source; <code>fileOut:to:</code> serializes.
+- <code>maggie.toml</code> configures projects, dependencies, and images.
+- Dependencies map to importable namespaces with collision detection.
+- Use namespaces when publishing libraries or working on larger
+  projects. Skip them for scripts and experiments.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>Object name &gt;&gt;&gt; #Object
+SmallInteger name &gt;&gt;&gt; #SmallInteger</code></pre>
+</div>
+
+
+    </div>
+
+
+    <div class="footer">
+        Generated by Maggie doc generator.
+    </div>
+</main>
+    <script src="../js/playground.js"></script>
+</body>
+</html>

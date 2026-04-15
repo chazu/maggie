@@ -1,0 +1,868 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Tooling &amp; IDE &mdash; Maggie API Reference</title>
+    <link rel="stylesheet" href="../css/style.css">
+</head>
+<body>
+<nav class="sidebar">
+    <div class="sidebar-title"><a href="../index.html">Maggie Docs</a></div>
+
+    <div class="sidebar-section">
+        <div class="sidebar-section-title">Guide</div>
+        <ul class="sidebar-list">
+
+            <li><a href="../guide/01-getting-started.html">Getting Started</a></li>
+
+            <li><a href="../guide/02-basics.html">Basics</a></li>
+
+            <li><a href="../guide/03-numbers.html">Numbers</a></li>
+
+            <li><a href="../guide/04-strings.html">Strings</a></li>
+
+            <li><a href="../guide/05-collections.html">Collections</a></li>
+
+            <li><a href="../guide/06-blocks.html">Blocks</a></li>
+
+            <li><a href="../guide/07-classes.html">Classes</a></li>
+
+            <li><a href="../guide/08-error-handling.html">Error Handling</a></li>
+
+            <li><a href="../guide/09-concurrency.html">Concurrency</a></li>
+
+            <li><a href="../guide/10-supervisors.html">Supervisors</a></li>
+
+            <li><a href="../guide/10-modules.html">Modules</a></li>
+
+            <li><a href="../guide/11-clustering.html">Clustering</a></li>
+
+            <li><a href="../guide/11-projects.html">Projects</a></li>
+
+            <li><a href="../guide/12-go-interop.html">Go Interop</a></li>
+
+            <li><a href="../guide/13-distribution.html">Distribution</a></li>
+
+            <li><a href="../guide/14-tooling-ide.html" class="active">Tooling &amp; IDE</a></li>
+
+            <li><a href="../guide/15-cue-integration.html">Cue Integration</a></li>
+
+            <li><a href="../guide/16-tuple-space.html">Tuple Space</a></li>
+
+        </ul>
+    </div>
+
+    <div class="sidebar-section">
+        <div class="sidebar-section-title">API Reference</div>
+
+        <details class="sidebar-ns-group" open>
+            <summary>(root)</summary>
+            <ul class="sidebar-list">
+
+                <li><a href="../classes/Array.html">Array</a></li>
+
+                <li><a href="../classes/ArrayList.html">ArrayList</a></li>
+
+                <li><a href="../classes/AssignmentNode.html">AssignmentNode</a></li>
+
+                <li><a href="../classes/Association.html">Association</a></li>
+
+                <li><a href="../classes/BigInteger.html">BigInteger</a></li>
+
+                <li><a href="../classes/Block.html">Block</a></li>
+
+                <li><a href="../classes/BlockNode.html">BlockNode</a></li>
+
+                <li><a href="../classes/Boolean.html">Boolean</a></li>
+
+                <li><a href="../classes/ByteArray.html">ByteArray</a></li>
+
+                <li><a href="../classes/BytecodeGenerator.html">BytecodeGenerator</a></li>
+
+                <li><a href="../classes/CancellationContext.html">CancellationContext</a></li>
+
+                <li><a href="../classes/CascadeNode.html">CascadeNode</a></li>
+
+                <li><a href="../classes/Channel.html">Channel</a></li>
+
+                <li><a href="../classes/Character.html">Character</a></li>
+
+                <li><a href="../classes/CharacterStream.html">CharacterStream</a></li>
+
+                <li><a href="../classes/ChildSpec.html">ChildSpec</a></li>
+
+                <li><a href="../classes/Class.html">Class</a></li>
+
+                <li><a href="../classes/ClassNode.html">ClassNode</a></li>
+
+                <li><a href="../classes/Cluster.html">Cluster</a></li>
+
+                <li><a href="../classes/CompiledMethod.html">CompiledMethod</a></li>
+
+                <li><a href="../classes/Compiler.html">Compiler</a></li>
+
+                <li><a href="../classes/ConstraintStore.html">ConstraintStore</a></li>
+
+                <li><a href="../classes/Context.html">Context</a></li>
+
+                <li><a href="../classes/CueContext.html">CueContext</a></li>
+
+                <li><a href="../classes/CueValue.html">CueValue</a></li>
+
+                <li><a href="../classes/DateTime.html">DateTime</a></li>
+
+                <li><a href="../classes/Debugger.html">Debugger</a></li>
+
+                <li><a href="../classes/Dictionary.html">Dictionary</a></li>
+
+                <li><a href="../classes/DocServer.html">DocServer</a></li>
+
+                <li><a href="../classes/DuckAppender.html">DuckAppender</a></li>
+
+                <li><a href="../classes/DuckDatabase.html">DuckDatabase</a></li>
+
+                <li><a href="../classes/DynamicSupervisor.html">DynamicSupervisor</a></li>
+
+                <li><a href="../classes/Error.html">Error</a></li>
+
+                <li><a href="../classes/Exception.html">Exception</a></li>
+
+                <li><a href="../classes/ExternalProcess.html">ExternalProcess</a></li>
+
+                <li><a href="../classes/Failure.html">Failure</a></li>
+
+                <li><a href="../classes/False.html">False</a></li>
+
+                <li><a href="../classes/File.html">File</a></li>
+
+                <li><a href="../classes/Float.html">Float</a></li>
+
+                <li><a href="../classes/Future.html">Future</a></li>
+
+                <li><a href="../classes/GrpcClient.html">GrpcClient</a></li>
+
+                <li><a href="../classes/GrpcStream.html">GrpcStream</a></li>
+
+                <li><a href="../classes/Halt.html">Halt</a></li>
+
+                <li><a href="../classes/HashRing.html">HashRing</a></li>
+
+                <li><a href="../classes/HttpClient.html">HttpClient</a></li>
+
+                <li><a href="../classes/HttpRequest.html">HttpRequest</a></li>
+
+                <li><a href="../classes/HttpResponse.html">HttpResponse</a></li>
+
+                <li><a href="../classes/HttpServer.html">HttpServer</a></li>
+
+                <li><a href="../classes/Json.html">Json</a></li>
+
+                <li><a href="../classes/JsonParseError.html">JsonParseError</a></li>
+
+                <li><a href="../classes/JsonReader.html">JsonReader</a></li>
+
+                <li><a href="../classes/JsonWriter.html">JsonWriter</a></li>
+
+                <li><a href="../classes/Lexer.html">Lexer</a></li>
+
+                <li><a href="../classes/LiteralNode.html">LiteralNode</a></li>
+
+                <li><a href="../classes/MailboxMessage.html">MailboxMessage</a></li>
+
+                <li><a href="../classes/Message.html">Message</a></li>
+
+                <li><a href="../classes/MessageNotUnderstood.html">MessageNotUnderstood</a></li>
+
+                <li><a href="../classes/MessageSendNode.html">MessageSendNode</a></li>
+
+                <li><a href="../classes/Metaclass.html">Metaclass</a></li>
+
+                <li><a href="../classes/MethodNode.html">MethodNode</a></li>
+
+                <li><a href="../classes/Mutex.html">Mutex</a></li>
+
+                <li><a href="../classes/Node.html">Node</a></li>
+
+                <li><a href="../classes/Notification.html">Notification</a></li>
+
+                <li><a href="../classes/Object.html">Object</a></li>
+
+                <li><a href="../classes/Parser.html">Parser</a></li>
+
+                <li><a href="../classes/Process.html">Process</a></li>
+
+                <li><a href="../classes/Proquint.html">Proquint</a></li>
+
+                <li><a href="../classes/Random.html">Random</a></li>
+
+                <li><a href="../classes/Regex.html">Regex</a></li>
+
+                <li><a href="../classes/RemoteChannel.html">RemoteChannel</a></li>
+
+                <li><a href="../classes/RemoteProcess.html">RemoteProcess</a></li>
+
+                <li><a href="../classes/Result.html">Result</a></li>
+
+                <li><a href="../classes/ReturnNode.html">ReturnNode</a></li>
+
+                <li><a href="../classes/SSEConnection.html">SSEConnection</a></li>
+
+                <li><a href="../classes/Sandbox.html">Sandbox</a></li>
+
+                <li><a href="../classes/Semaphore.html">Semaphore</a></li>
+
+                <li><a href="../classes/Set.html">Set</a></li>
+
+                <li><a href="../classes/Signal.html">Signal</a></li>
+
+                <li><a href="../classes/SmallInteger.html">SmallInteger</a></li>
+
+                <li><a href="../classes/SocketConnection.html">SocketConnection</a></li>
+
+                <li><a href="../classes/SqliteDatabase.html">SqliteDatabase</a></li>
+
+                <li><a href="../classes/SqliteRows.html">SqliteRows</a></li>
+
+                <li><a href="../classes/SqliteStatement.html">SqliteStatement</a></li>
+
+                <li><a href="../classes/StackOverflow.html">StackOverflow</a></li>
+
+                <li><a href="../classes/String.html">String</a></li>
+
+                <li><a href="../classes/SubscriptOutOfBounds.html">SubscriptOutOfBounds</a></li>
+
+                <li><a href="../classes/Success.html">Success</a></li>
+
+                <li><a href="../classes/Supervisor.html">Supervisor</a></li>
+
+                <li><a href="../classes/Symbol.html">Symbol</a></li>
+
+                <li><a href="../classes/System.html">System</a></li>
+
+                <li><a href="../classes/Token.html">Token</a></li>
+
+                <li><a href="../classes/Toml.html">Toml</a></li>
+
+                <li><a href="../classes/TomlParseError.html">TomlParseError</a></li>
+
+                <li><a href="../classes/True.html">True</a></li>
+
+                <li><a href="../classes/TupleSpace.html">TupleSpace</a></li>
+
+                <li><a href="../classes/UndefinedObject.html">UndefinedObject</a></li>
+
+                <li><a href="../classes/UnixSocketClient.html">UnixSocketClient</a></li>
+
+                <li><a href="../classes/UnixSocketServer.html">UnixSocketServer</a></li>
+
+                <li><a href="../classes/VariableNode.html">VariableNode</a></li>
+
+                <li><a href="../classes/WaitGroup.html">WaitGroup</a></li>
+
+                <li><a href="../classes/Warning.html">Warning</a></li>
+
+                <li><a href="../classes/WeakReference.html">WeakReference</a></li>
+
+                <li><a href="../classes/ZeroDivide.html">ZeroDivide</a></li>
+
+            </ul>
+        </details>
+
+    </div>
+</nav>
+<main class="content">
+    <div class="breadcrumb">
+        <a href="../index.html">Maggie API Reference</a>
+        &rsaquo; Guide
+        &rsaquo; Tooling &amp; IDE
+    </div>
+
+    <h1>Tooling &amp; IDE</h1>
+
+
+    <div class="guide-intro">
+        <p>Maggie ships with a complete development toolchain built into the <code>mag</code>
+command. Source formatting, documentation generation, docstring testing,
+image persistence, an LSP server, an interactive REPL, and a graphical
+IDE are all available out of the box -- no external tools required.</p>
+<p>This chapter walks through each tool and shows how they fit into a
+typical development workflow.</p>
+
+    </div>
+
+
+
+    <div class="guide-section">
+
+        <h2>Source Formatting</h2>
+<p>The <code>mag fmt</code> command formats Maggie source files to a canonical style.
+It parses each <code>.mag</code> file, walks the AST, and emits consistently
+formatted output -- canonical indentation, consistent spacing around
+operators, and normalized block layout. This is similar to <code>gofmt</code> for
+Go or <code>rustfmt</code> for Rust.</p>
+<p>By default, <code>mag fmt</code> formats all <code>.mag</code> files in the current directory
+recursively. You can also pass specific files or directories as arguments.</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code># Format all .mag files in the current directory
+mag fmt
+
+# Format specific files or directories
+mag fmt src/ lib/MyClass.mag
+
+# Format a single file
+mag fmt lib/models/User.mag</code></pre>
+</div>
+<p>The <code>--check</code> flag verifies formatting without modifying any files.
+It exits with code 1 if any file would be changed -- useful in CI
+pipelines to enforce consistent style.</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code># Check formatting without modifying files
+mag fmt --check
+
+# Use in CI: fail the build if formatting is off
+mag fmt --check src/ || echo &#34;Run &#39;mag fmt&#39; to fix formatting&#34;</code></pre>
+</div>
+<p>The formatter normalizes several aspects of the source:</p>
+<ul>
+<li>Indentation: two spaces per level</li>
+<li>Method signatures: canonical keyword/parameter layout</li>
+<li>Block formatting: single-line for short blocks, multi-line for long ones</li>
+<li>Docstrings: consistent triple-quote placement</li>
+<li>Trailing whitespace: removed</li>
+<li>File ending: exactly one trailing newline</li>
+</ul>
+<p>The formatter never changes the semantics of your code -- it only
+adjusts whitespace and layout. If a file is already canonical, it is
+left untouched (no spurious modification timestamps).</p>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <h2>Documentation Generation</h2>
+<p>The <code>mag doc</code> command generates HTML documentation from your classes,
+methods, and their docstrings. It reads all classes loaded in the VM
+and produces a browsable website with an API reference and guide pages.</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code># Generate HTML docs to the default directory (docs/api/)
+mag doc
+
+# Generate to a specific directory
+mag doc --output ./site
+
+# Set a custom title
+mag doc --title &#34;My Project API&#34;</code></pre>
+</div>
+<p>The generated site includes:</p>
+<ul>
+<li>An index page listing all classes grouped by namespace</li>
+<li>Individual pages for each class with method documentation</li>
+<li>Guide pages for any <code>Guide*</code> classes (like this one)</li>
+<li>Syntax-highlighted code blocks from docstrings</li>
+<li>A sidebar with navigation</li>
+</ul>
+<p>Docstrings support two kinds of fenced code blocks. A <code>test</code> block
+contains assertions (expressions with <code>&gt;&gt;&gt;</code> expected values) that
+can be verified by <code>mag doctest</code>. An <code>example</code> block contains
+illustrative code that appears in the docs with a &#34;Run&#34; button when
+served interactively.</p>
+<p>The <code>--serve</code> flag generates the docs and then starts a local HTTP
+server so you can browse them immediately. The server also provides
+an <code>/api/eval</code> endpoint that lets you run example code interactively
+from the browser.</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code># Generate docs and serve on the default port (8080)
+mag doc --serve
+
+# Serve on a custom port
+mag doc --serve --port 3000</code></pre>
+</div>
+<p>The documentation generator detects guide chapters automatically.
+Any class whose name matches the pattern <code>Guide\d{2}*</code> (for example,
+<code>Guide01GettingStarted</code> or <code>Guide14Tooling</code>) is treated as a guide
+chapter rather than an API class. Guide chapters are rendered with
+their methods sorted by selector name (<code>s01_</code>, <code>s02_</code>, etc.) to
+preserve reading order.</p>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <h2>Docstring Testing</h2>
+<p>The <code>mag doctest</code> command extracts <code>test</code> blocks from docstrings and
+runs them as assertions. This ensures that the examples in your
+documentation actually work and stay in sync with the code.</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code># Run all docstring tests
+mag doctest
+
+# Run with verbose output (shows each assertion)
+mag doctest --verbose
+
+# Run tests for a single class only
+mag doctest --class Array
+
+# Run tests for a namespaced class
+mag doctest --class &#34;Widgets::Button&#34;</code></pre>
+</div>
+<p>Inside a method docstring, a fenced test block contains lines with
+<code>&gt;&gt;&gt;</code> assertions. The expression before <code>&gt;&gt;&gt;</code> is evaluated, the
+expression after <code>&gt;&gt;&gt;</code> is evaluated, and their <code>printString</code> results
+are compared. Lines without <code>&gt;&gt;&gt;</code> are setup lines -- they run for
+side effects (like variable assignments) but do not count as assertions.</p>
+<p>For example, a docstring might contain a test block where the first
+line assigns a variable (setup) and the second line checks the result
+(assertion). Setup lines that fail are reported as errors.</p>
+<p>Important rules for doctest blocks:</p>
+<p>- Use <code>:=</code> for variable assignment -- <code>| var |</code> temporary declarations
+  are not supported inside test blocks
+- Each assertion is independent in terms of what counts as pass/fail,
+  but they share a global environment (earlier assignments persist)
+- Setup lines that cause a runtime error are reported as failures
+- The <code>--class</code> filter matches both short names and fully-qualified names</p>
+<p>The output shows results grouped by class and method, with green
+checkmarks for passing assertions and red crosses for failures.
+A summary line at the end reports total passed, failed, and elapsed time.</p>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <h2>Image Persistence</h2>
+<p>Maggie can save and restore the entire VM state -- all classes, methods,
+globals, and docstrings -- as a binary image file. This is much faster
+than recompiling from source on every startup.</p>
+<p>From Maggie code, use <code>Compiler saveImage:</code> to write the current state.
+The Compiler class is always available in the global namespace:</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>Compiler evaluate: &#39;1 + 1&#39; &gt;&gt;&gt; 2</code></pre>
+</div>
+<p>From the command line, use the <code>--save-image</code> flag to compile sources
+and then save the resulting state:</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code># Compile all source files and save an image
+mag ./src/... --save-image my-app.image
+
+# Load from a project manifest and save
+mag --save-image my-app.image</code></pre>
+</div>
+<p>To run from a previously saved image instead of recompiling from
+source, use the <code>--image</code> flag:</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code># Run from a custom image
+mag --image my-app.image -m Main.start
+
+# Start a REPL with a custom image
+mag --image my-app.image -i</code></pre>
+</div>
+<p>The default image (<code>maggie.image</code>) is embedded in the <code>mag</code> binary
+itself. It contains all the core library classes. When you run <code>mag</code>
+without <code>--image</code>, this embedded image is loaded automatically.</p>
+<p>Image files use a versioned binary format. The current format (v4)
+includes content hashes for each method, enabling the distribution
+protocol to verify code integrity. Images are forward-compatible:
+a v4 reader can load v3 images (methods will have zero hashes).</p>
+<p>Typical workflow:</p>
+<p>1. Develop with source files (<code>mag ./src -m Main.start</code>)
+2. When ready to deploy, save an image (<code>mag ./src --save-image app.image</code>)
+3. Distribute the image file (much smaller than source + compiler)
+4. Run in production from the image (<code>mag --image app.image -m Main.start</code>)</p>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <h2>LSP Server</h2>
+<p>Maggie includes a Language Server Protocol (LSP) server that provides
+editor integration for any LSP-compatible editor -- VS Code, Neovim,
+Emacs, Helix, Zed, and others.</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code># Start the LSP server on stdio
+mag --lsp
+
+# Subcommand form (equivalent)
+mag lsp</code></pre>
+</div>
+<p>The LSP server provides:</p>
+<p>- <strong>Completion</strong>: triggered by <code>.</code> and <code>:</code> characters, suggests method
+  names based on the classes loaded in the VM
+- <strong>Hover</strong>: shows docstrings and method signatures when you hover
+  over a selector or class name
+- <strong>Go to Definition</strong>: jumps to the source location of a class or method
+- <strong>Find References</strong>: finds all uses of a selector across loaded classes</p>
+<p>To configure your editor, point it at <code>mag --lsp</code> as the language
+server command for <code>.mag</code> files. For example, in VS Code&#39;s
+<code>settings.json</code>:</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>{
+  &#34;maggie.server.command&#34;: &#34;mag&#34;,
+  &#34;maggie.server.args&#34;: [&#34;--lsp&#34;]
+}</code></pre>
+</div>
+<p>The LSP server loads the default image on startup, so it knows about
+all core library classes. If you pass source paths before <code>--lsp</code>,
+those are compiled first, giving the server knowledge of your project
+classes as well:</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code># Start LSP with project sources loaded
+mag ./src/... --lsp</code></pre>
+</div>
+<p>There is also a <code>--serve</code> flag (distinct from LSP) that starts a
+gRPC + Connect language server for programmatic access:</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code># Start language server on default port 4567
+mag --serve
+
+# Start on a custom port
+mag --serve --port 8080</code></pre>
+</div>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <h2>REPL</h2>
+<p>The Maggie REPL (Read-Eval-Print Loop) is an interactive environment
+for exploring the language. Start it with <code>mag -i</code>, or just run <code>mag</code>
+with no arguments and no <code>maggie.toml</code> present.</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code># Start the REPL
+mag -i
+
+# Start the REPL with source files preloaded
+mag ./src -i</code></pre>
+</div>
+<p>Inside the REPL you can type any Maggie expression and see its result
+immediately. Multi-line input is supported -- the REPL detects
+incomplete expressions (unclosed brackets) and prompts for continuation
+lines.</p>
+<p>The REPL supports several meta-commands, all prefixed with <code>:</code>.</p>
+<p><code>:help</code> (also <code>:h</code> or <code>:?</code>) shows the list of available commands:</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>mag&gt; :help
+REPL Commands:
+  :help, :h, :?           Show this help
+  :help ClassName          Show class documentation
+  :help Class&gt;&gt;method      Show method documentation
+  :compiler                Show current compiler
+  :use-go                  Switch to Go compiler (default)
+  :use-maggie              Switch to Maggie compiler (experimental)
+  exit, quit               Exit REPL</code></pre>
+</div>
+<p><code>:help ClassName</code> displays the docstring and method list for any
+loaded class. <code>:help ClassName&gt;&gt;methodName</code> shows the docstring for
+a specific method. This is the same information that <code>mag doc</code>
+generates, but accessible interactively.</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>mag&gt; :help Array
+Array (subclass of Object)
+  Instance variables: none
+  ...methods listed...
+
+mag&gt; :help Array&gt;&gt;at:
+Array&gt;&gt;at:
+  Returns the element at the given index (0-based).</code></pre>
+</div>
+<p><code>:use-go</code> and <code>:use-maggie</code> switch between the Go-based compiler
+(the default, production-quality backend) and the experimental
+self-hosting Maggie compiler. The <code>:compiler</code> command shows which
+backend is currently active.</p>
+<p>The REPL also loads <code>~/.maggierc</code> on startup (unless <code>--no-rc</code> is
+passed). This file can contain any Maggie expressions to customize
+your REPL environment -- defining helper methods, loading libraries,
+or setting up variables.</p>
+<p>Variables assigned in the REPL persist across evaluations:</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>Compiler evaluate: &#39;x := 42&#39;.
+Compiler evaluate: &#39;x + 1&#39; &gt;&gt;&gt; 43</code></pre>
+</div>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <h2>Yutani IDE</h2>
+<p>Yutani is Maggie&#39;s graphical IDE, built as a TUI (terminal user
+interface) application. It connects to a Yutani server process and
+provides a desktop-like environment inside your terminal.</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code># Start the Yutani IDE launcher (connects to localhost:7755)
+mag --yutani
+
+# Connect to a specific server address
+mag --yutani --yutani-addr host:port
+
+# Start a specific IDE tool directly
+mag --yutani --ide-tool inspector
+mag --yutani --ide-tool repl</code></pre>
+</div>
+<p>Before starting the IDE, make sure the Yutani server is running:</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code># Start the Yutani server (in a separate terminal)
+yutani server</code></pre>
+</div>
+<p>The available IDE tools are:</p>
+<p>- <strong>launcher</strong> (default) -- the MaggieDesktop, a desktop-like
+  environment with a taskbar and window management
+- <strong>inspector</strong> -- an object inspector for exploring live objects,
+  their instance variables, and class hierarchies
+- <strong>repl</strong> -- a graphical REPL with syntax highlighting and
+  output history</p>
+<p>The Yutani IDE is written entirely in Maggie (the source is in
+<code>lib/yutani/</code>). It uses Yutani&#39;s widget toolkit for layout and
+event handling, communicating with the Yutani server over a
+network session. This means you can connect to a remote Yutani
+server and develop on a remote machine from your local terminal.</p>
+<p>The <code>--ide-tool</code> flag selects which tool to launch. Some tools
+(ClassBrowser, CodeEditor) are currently shelved and will return
+an error with a message pointing to their shelved location.</p>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <h2>Debugging Tools</h2>
+<p>Maggie provides several debugging facilities at different levels.</p>
+<h3>REPL-Based Debugging</h3>
+<p>The REPL itself is a powerful debugging tool. You can load your
+project sources and then interactively evaluate expressions to
+inspect state, call methods, and verify behavior:</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code># Load project and start REPL
+mag ./src -i
+
+# Then in the REPL:
+mag&gt; myObject inspect
+mag&gt; MyClass new doSomething
+mag&gt; :help MyClass&gt;&gt;suspiciousMethod</code></pre>
+</div>
+<h3>Docstring Tests as Regression Guards</h3>
+<p>Writing <code>test</code> blocks in your docstrings serves double duty: they
+document expected behavior and catch regressions. Run <code>mag doctest</code>
+after changes to verify nothing is broken:</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code># Quick regression check
+mag doctest --class MyClass</code></pre>
+</div>
+<h3>Stack Overflow Protection</h3>
+<p>The VM enforces a maximum call frame depth (default 4096). When
+exceeded, a <code>StackOverflow</code> exception is raised. This exception
+is catchable via <code>on:do:</code>, so runaway recursion does not crash
+the process. See the Blocks chapter for details on exception handling.</p>
+<h3>Yutani Debug Service</h3>
+<p>When debugging Yutani TUI applications, the Yutani server exposes
+a debug service that can dump screen state, inspect widget properties,
+and show event flow. This is especially useful when debugging layout
+or event handling issues in graphical applications.</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code># See what is on screen (ASCII dump with widget markers)
+yutani debug screen -s &lt;session-id&gt; --bounds --legend
+
+# Inspect a specific widget
+yutani debug widget -s &lt;session-id&gt; -w &lt;widget-id&gt;
+
+# List all widgets with positions
+yutani debug bounds -s &lt;session-id&gt;
+
+# JSON output for programmatic analysis
+yutani debug screen -s &lt;session-id&gt; --format json</code></pre>
+</div>
+<p>The session ID is printed when a Yutani application starts. Look
+for a line like:</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>YutaniSession: session created with ID: f1e6eb39-...</code></pre>
+</div>
+<h3>Process-Level Isolation</h3>
+<p>For sandboxing untrusted code, Maggie supports process-level
+restriction. A forked process can be denied access to specific
+globals (classes or modules), which simply resolve to <code>nil</code> in that
+process. This is useful for safely evaluating user-provided code.</p>
+<p>Restricted processes also get a copy-on-write overlay for globals,
+so any assignments they make do not affect the parent process.
+See the Concurrency chapter for full details on <code>forkRestricted:</code>
+and <code>Process forkWithout:do:</code>.</p>
+<h3>Compiler Evaluate for Ad-Hoc Inspection</h3>
+<p><code>Compiler evaluate:</code> can be used at any point to dynamically compile
+and run expressions. Combined with <code>Compiler getGlobal:</code> and
+<code>Compiler setGlobal:to:</code>, this gives you full programmatic access
+to the VM&#39;s global state:</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>Compiler evaluate: &#39;3 + 4&#39; &gt;&gt;&gt; 7</code></pre>
+</div>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>Compiler setGlobal: #debugFlag to: true.
+Compiler getGlobal: #debugFlag &gt;&gt;&gt; true</code></pre>
+</div>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <h2>Profiling</h2>
+<p>Maggie includes a wall-clock sampling profiler that periodically
+snapshots interpreter call stacks and produces flamegraph-compatible
+output. This helps identify performance bottlenecks across the
+Maggie, gowrap, and Go boundary.</p>
+<h3>CLI Usage</h3>
+<p>The simplest way to profile is with the <code>--profile</code> flag:</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code># Profile at 1000 Hz (default), write to profile.folded
+mag --profile -m Main.start
+
+# Profile at 500 Hz, write to a custom file
+mag --profile --profile-rate 500 --profile-output my.folded -m Main.start
+
+# Also enable Go pprof CPU profiler (writes cpu.pprof)
+mag --profile --pprof -m Main.start</code></pre>
+</div>
+<p>The output file (<code>profile.folded</code>) uses the folded-stack format:</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>ClassName&gt;&gt;method1;ClassName&gt;&gt;method2;[primitive sleep:] 42</code></pre>
+</div>
+<p>Each line is a semicolon-separated call stack followed by a sample
+count. This format is understood by:</p>
+<ul>
+<li>[flamegraph.pl](https://github.com/brendangregg/FlameGraph)</li>
+<li>[speedscope](https://www.speedscope.app/) (drag and drop the file)</li>
+<li>[inferno](https://github.com/jonhoo/inferno)</li>
+</ul>
+<h3>Maggie API</h3>
+<p>You can also control the profiler from Maggie code:</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>Compiler isProfiling &gt;&gt;&gt; false</code></pre>
+</div>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>&#34;Start profiling at 1000 Hz&#34;
+Compiler startProfiling.
+
+&#34;Start profiling at a custom rate (Hz)&#34;
+Compiler startProfiling: 500.
+
+&#34;Check if profiling is active&#34;
+Compiler isProfiling.    &#34;=&gt; true&#34;
+
+&#34;Stop and get folded-stack output as a String&#34;
+result := Compiler stopProfiling.</code></pre>
+</div>
+<p>The <code>stopProfiling</code> method returns the folded-stack data as a
+Maggie String, which you can write to a file or inspect in the REPL.</p>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <h2>Building Custom Binaries</h2>
+<p>The <code>mag build</code> command compiles your project into a standalone
+binary. There are two modes:</p>
+<p><strong>Entry-point-only</strong> (default): The binary loads the embedded image
+and runs the entry point. Smallest output, no CLI features.</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>mag build -o myapp
+./myapp                  # runs Main.start</code></pre>
+</div>
+<p><strong>Full system</strong> (<code>--full</code>): The binary is a complete Maggie system
+with your project&#39;s classes pre-loaded. All <code>mag</code> subcommands work.
+When invoked with no arguments, it runs your entry point.</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>mag build --full -o myapp
+./myapp                  # runs Main.start
+./myapp -i               # REPL with your classes loaded
+./myapp fmt src/          # format your source files
+./myapp doctest           # run your docstring tests
+./myapp help MyClass      # show help for your classes
+./myapp --lsp             # LSP server with your classes</code></pre>
+</div>
+<p><strong>Multi-target builds</strong>: When <code>[[target]]</code> sections are defined
+in <code>maggie.toml</code>, use <code>-t</code> to build a specific target or <code>--all</code>
+to build all of them:</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>mag build -t server          # build the &#39;server&#39; target
+mag build --all              # build all targets
+mag build -t cli -o /usr/local/bin/mycli</code></pre>
+</div>
+<p>Full-system builds are useful for distributing a self-contained
+Maggie environment. The recipient gets a single binary that can
+run your application, explore it interactively, and use all the
+standard development tools -- no separate <code>mag</code> install needed.</p>
+<p>Both modes support Go interop via <code>[go-wrap]</code> in <code>maggie.toml</code>.
+See the Go Interop chapter for details.</p>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <h2>Workflow Summary</h2>
+<p>Here is a typical development workflow using Maggie&#39;s tooling:</p>
+<p>1. <strong>Write code</strong> in <code>.mag</code> files organized by directory-as-namespace
+2. <strong>Format</strong> with <code>mag fmt</code> (or <code>mag fmt --check</code> in CI)
+3. <strong>Add docstrings</strong> with <code>test</code> and <code>example</code> blocks
+4. <strong>Run doctests</strong> with <code>mag doctest</code> to verify examples
+5. <strong>Run tests</strong> with <code>mag test</code> (uses <code>[test]</code> config from manifest)
+6. <strong>Browse docs</strong> with <code>mag doc --serve</code>
+7. <strong>Debug interactively</strong> in the REPL with <code>mag -i</code>
+8. <strong>Use your editor</strong> with LSP support via <code>mag --lsp</code>
+9. <strong>Run your app</strong> with <code>mag run</code> or <code>mag run -t &lt;target&gt;</code>
+10. <strong>Save images</strong> with <code>--save-image</code> for fast deployment
+11. <strong>Build binaries</strong> with <code>mag build</code>, <code>mag build -t &lt;target&gt;</code>, or <code>mag build --all</code>
+12. <strong>Inspect graphically</strong> with <code>mag --yutani</code> when needed</p>
+<p>All of these tools work together. Docstrings drive both the
+documentation site and the test suite. The REPL shares its
+evaluation pipeline with doctest and the doc server&#39;s playground.
+The LSP server uses the same VM introspection that powers <code>:help</code>
+in the REPL. Images capture the full state so that any tool
+can start from a pre-compiled baseline. And <code>mag build --full</code>
+packages the entire toolchain into a single distributable binary.</p>
+
+
+    </div>
+
+
+    <div class="footer">
+        Generated by Maggie doc generator.
+    </div>
+</main>
+    <script src="../js/playground.js"></script>
+</body>
+</html>

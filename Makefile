@@ -25,6 +25,9 @@ proto:
 serve: mag
 	./mag --serve --port 4567
 
+# Push docs to pgs.sh
+deploy-docs:
+	rsync -rv site/ pgs.sh:/maggie/
 # Run Go unit tests
 test:
 	go test ./...

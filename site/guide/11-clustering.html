@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Clustering &mdash; Maggie API Reference</title>
+    <link rel="stylesheet" href="../css/style.css">
+</head>
+<body>
+<nav class="sidebar">
+    <div class="sidebar-title"><a href="../index.html">Maggie Docs</a></div>
+
+    <div class="sidebar-section">
+        <div class="sidebar-section-title">Guide</div>
+        <ul class="sidebar-list">
+
+            <li><a href="../guide/01-getting-started.html">Getting Started</a></li>
+
+            <li><a href="../guide/02-basics.html">Basics</a></li>
+
+            <li><a href="../guide/03-numbers.html">Numbers</a></li>
+
+            <li><a href="../guide/04-strings.html">Strings</a></li>
+
+            <li><a href="../guide/05-collections.html">Collections</a></li>
+
+            <li><a href="../guide/06-blocks.html">Blocks</a></li>
+
+            <li><a href="../guide/07-classes.html">Classes</a></li>
+
+            <li><a href="../guide/08-error-handling.html">Error Handling</a></li>
+
+            <li><a href="../guide/09-concurrency.html">Concurrency</a></li>
+
+            <li><a href="../guide/10-supervisors.html">Supervisors</a></li>
+
+            <li><a href="../guide/10-modules.html">Modules</a></li>
+
+            <li><a href="../guide/11-clustering.html" class="active">Clustering</a></li>
+
+            <li><a href="../guide/11-projects.html">Projects</a></li>
+
+            <li><a href="../guide/12-go-interop.html">Go Interop</a></li>
+
+            <li><a href="../guide/13-distribution.html">Distribution</a></li>
+
+            <li><a href="../guide/14-tooling-ide.html">Tooling &amp; IDE</a></li>
+
+            <li><a href="../guide/15-cue-integration.html">Cue Integration</a></li>
+
+            <li><a href="../guide/16-tuple-space.html">Tuple Space</a></li>
+
+        </ul>
+    </div>
+
+    <div class="sidebar-section">
+        <div class="sidebar-section-title">API Reference</div>
+
+        <details class="sidebar-ns-group" open>
+            <summary>(root)</summary>
+            <ul class="sidebar-list">
+
+                <li><a href="../classes/Array.html">Array</a></li>
+
+                <li><a href="../classes/ArrayList.html">ArrayList</a></li>
+
+                <li><a href="../classes/AssignmentNode.html">AssignmentNode</a></li>
+
+                <li><a href="../classes/Association.html">Association</a></li>
+
+                <li><a href="../classes/BigInteger.html">BigInteger</a></li>
+
+                <li><a href="../classes/Block.html">Block</a></li>
+
+                <li><a href="../classes/BlockNode.html">BlockNode</a></li>
+
+                <li><a href="../classes/Boolean.html">Boolean</a></li>
+
+                <li><a href="../classes/ByteArray.html">ByteArray</a></li>
+
+                <li><a href="../classes/BytecodeGenerator.html">BytecodeGenerator</a></li>
+
+                <li><a href="../classes/CancellationContext.html">CancellationContext</a></li>
+
+                <li><a href="../classes/CascadeNode.html">CascadeNode</a></li>
+
+                <li><a href="../classes/Channel.html">Channel</a></li>
+
+                <li><a href="../classes/Character.html">Character</a></li>
+
+                <li><a href="../classes/CharacterStream.html">CharacterStream</a></li>
+
+                <li><a href="../classes/ChildSpec.html">ChildSpec</a></li>
+
+                <li><a href="../classes/Class.html">Class</a></li>
+
+                <li><a href="../classes/ClassNode.html">ClassNode</a></li>
+
+                <li><a href="../classes/Cluster.html">Cluster</a></li>
+
+                <li><a href="../classes/CompiledMethod.html">CompiledMethod</a></li>
+
+                <li><a href="../classes/Compiler.html">Compiler</a></li>
+
+                <li><a href="../classes/ConstraintStore.html">ConstraintStore</a></li>
+
+                <li><a href="../classes/Context.html">Context</a></li>
+
+                <li><a href="../classes/CueContext.html">CueContext</a></li>
+
+                <li><a href="../classes/CueValue.html">CueValue</a></li>
+
+                <li><a href="../classes/DateTime.html">DateTime</a></li>
+
+                <li><a href="../classes/Debugger.html">Debugger</a></li>
+
+                <li><a href="../classes/Dictionary.html">Dictionary</a></li>
+
+                <li><a href="../classes/DocServer.html">DocServer</a></li>
+
+                <li><a href="../classes/DuckAppender.html">DuckAppender</a></li>
+
+                <li><a href="../classes/DuckDatabase.html">DuckDatabase</a></li>
+
+                <li><a href="../classes/DynamicSupervisor.html">DynamicSupervisor</a></li>
+
+                <li><a href="../classes/Error.html">Error</a></li>
+
+                <li><a href="../classes/Exception.html">Exception</a></li>
+
+                <li><a href="../classes/ExternalProcess.html">ExternalProcess</a></li>
+
+                <li><a href="../classes/Failure.html">Failure</a></li>
+
+                <li><a href="../classes/False.html">False</a></li>
+
+                <li><a href="../classes/File.html">File</a></li>
+
+                <li><a href="../classes/Float.html">Float</a></li>
+
+                <li><a href="../classes/Future.html">Future</a></li>
+
+                <li><a href="../classes/GrpcClient.html">GrpcClient</a></li>
+
+                <li><a href="../classes/GrpcStream.html">GrpcStream</a></li>
+
+                <li><a href="../classes/Halt.html">Halt</a></li>
+
+                <li><a href="../classes/HashRing.html">HashRing</a></li>
+
+                <li><a href="../classes/HttpClient.html">HttpClient</a></li>
+
+                <li><a href="../classes/HttpRequest.html">HttpRequest</a></li>
+
+                <li><a href="../classes/HttpResponse.html">HttpResponse</a></li>
+
+                <li><a href="../classes/HttpServer.html">HttpServer</a></li>
+
+                <li><a href="../classes/Json.html">Json</a></li>
+
+                <li><a href="../classes/JsonParseError.html">JsonParseError</a></li>
+
+                <li><a href="../classes/JsonReader.html">JsonReader</a></li>
+
+                <li><a href="../classes/JsonWriter.html">JsonWriter</a></li>
+
+                <li><a href="../classes/Lexer.html">Lexer</a></li>
+
+                <li><a href="../classes/LiteralNode.html">LiteralNode</a></li>
+
+                <li><a href="../classes/MailboxMessage.html">MailboxMessage</a></li>
+
+                <li><a href="../classes/Message.html">Message</a></li>
+
+                <li><a href="../classes/MessageNotUnderstood.html">MessageNotUnderstood</a></li>
+
+                <li><a href="../classes/MessageSendNode.html">MessageSendNode</a></li>
+
+                <li><a href="../classes/Metaclass.html">Metaclass</a></li>
+
+                <li><a href="../classes/MethodNode.html">MethodNode</a></li>
+
+                <li><a href="../classes/Mutex.html">Mutex</a></li>
+
+                <li><a href="../classes/Node.html">Node</a></li>
+
+                <li><a href="../classes/Notification.html">Notification</a></li>
+
+                <li><a href="../classes/Object.html">Object</a></li>
+
+                <li><a href="../classes/Parser.html">Parser</a></li>
+
+                <li><a href="../classes/Process.html">Process</a></li>
+
+                <li><a href="../classes/Proquint.html">Proquint</a></li>
+
+                <li><a href="../classes/Random.html">Random</a></li>
+
+                <li><a href="../classes/Regex.html">Regex</a></li>
+
+                <li><a href="../classes/RemoteChannel.html">RemoteChannel</a></li>
+
+                <li><a href="../classes/RemoteProcess.html">RemoteProcess</a></li>
+
+                <li><a href="../classes/Result.html">Result</a></li>
+
+                <li><a href="../classes/ReturnNode.html">ReturnNode</a></li>
+
+                <li><a href="../classes/SSEConnection.html">SSEConnection</a></li>
+
+                <li><a href="../classes/Sandbox.html">Sandbox</a></li>
+
+                <li><a href="../classes/Semaphore.html">Semaphore</a></li>
+
+                <li><a href="../classes/Set.html">Set</a></li>
+
+                <li><a href="../classes/Signal.html">Signal</a></li>
+
+                <li><a href="../classes/SmallInteger.html">SmallInteger</a></li>
+
+                <li><a href="../classes/SocketConnection.html">SocketConnection</a></li>
+
+                <li><a href="../classes/SqliteDatabase.html">SqliteDatabase</a></li>
+
+                <li><a href="../classes/SqliteRows.html">SqliteRows</a></li>
+
+                <li><a href="../classes/SqliteStatement.html">SqliteStatement</a></li>
+
+                <li><a href="../classes/StackOverflow.html">StackOverflow</a></li>
+
+                <li><a href="../classes/String.html">String</a></li>
+
+                <li><a href="../classes/SubscriptOutOfBounds.html">SubscriptOutOfBounds</a></li>
+
+                <li><a href="../classes/Success.html">Success</a></li>
+
+                <li><a href="../classes/Supervisor.html">Supervisor</a></li>
+
+                <li><a href="../classes/Symbol.html">Symbol</a></li>
+
+                <li><a href="../classes/System.html">System</a></li>
+
+                <li><a href="../classes/Token.html">Token</a></li>
+
+                <li><a href="../classes/Toml.html">Toml</a></li>
+
+                <li><a href="../classes/TomlParseError.html">TomlParseError</a></li>
+
+                <li><a href="../classes/True.html">True</a></li>
+
+                <li><a href="../classes/TupleSpace.html">TupleSpace</a></li>
+
+                <li><a href="../classes/UndefinedObject.html">UndefinedObject</a></li>
+
+                <li><a href="../classes/UnixSocketClient.html">UnixSocketClient</a></li>
+
+                <li><a href="../classes/UnixSocketServer.html">UnixSocketServer</a></li>
+
+                <li><a href="../classes/VariableNode.html">VariableNode</a></li>
+
+                <li><a href="../classes/WaitGroup.html">WaitGroup</a></li>
+
+                <li><a href="../classes/Warning.html">Warning</a></li>
+
+                <li><a href="../classes/WeakReference.html">WeakReference</a></li>
+
+                <li><a href="../classes/ZeroDivide.html">ZeroDivide</a></li>
+
+            </ul>
+        </details>
+
+    </div>
+</nav>
+<main class="content">
+    <div class="breadcrumb">
+        <a href="../index.html">Maggie API Reference</a>
+        &rsaquo; Guide
+        &rsaquo; Clustering
+    </div>
+
+    <h1>Clustering</h1>
+
+
+    <div class="guide-intro">
+        <p>Maggie provides built-in cluster membership management and consistent
+hashing for distributing work across nodes. The <code>Cluster</code> class automates
+seed-based peer discovery, failure detection, and reconnection. The
+<code>HashRing</code> class provides deterministic key-to-node mapping.</p>
+
+    </div>
+
+
+
+    <div class="guide-section">
+
+        <h2>Cluster Membership</h2>
+<p>The <code>Cluster</code> class connects to seed nodes, monitors them for failure,
+and delivers membership events when nodes join or leave.</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>&#34;Create a cluster from seed addresses&#34;
+cluster := Cluster seeds: #(&#39;host1:8081&#39; &#39;host2:8081&#39; &#39;host3:8081&#39;).
+cluster start.
+
+&#34;Register handlers for membership changes&#34;
+cluster onMemberUp: [:node | (&#39;Node joined: &#39;, node addr) println].
+cluster onMemberDown: [:addr | (&#39;Node left: &#39;, addr) println].
+
+&#34;Query live membership&#34;
+cluster members.    &#34;Array of Node values&#34;
+cluster size.       &#34;Integer&#34;
+cluster isConnected: &#39;host1:8081&#39;.  &#34;true/false&#34;</code></pre>
+</div>
+<p><strong>How it works:</strong></p>
+<p>1. Each node that joins a cluster registers a sentinel process
+   under the name <code>__cluster__</code> (via <code>registerAs:</code>).
+2. The cluster manager connects to each seed, monitors the sentinel.
+3. When a sentinel&#39;s node goes down (detected by <code>NodeHealthMonitor</code>),
+   the manager receives <code>#processDown:</code> and removes the dead member.
+4. Failed seeds are retried periodically (default every 10 seconds).</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>&#34;Custom reconnect interval&#34;
+cluster := Cluster seeds: #(&#39;host1:8081&#39;).
+cluster reconnectInterval: 30000.  &#34;30 seconds&#34;
+cluster start</code></pre>
+</div>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <h2>Consistent Hashing</h2>
+<p>The <code>HashRing</code> class distributes keys across nodes with minimal
+redistribution when nodes join or leave. Each real node is placed
+at multiple virtual positions on the ring for even distribution.</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>&#34;Standalone HashRing&#34;
+ring := HashRing new.           &#34;150 virtual nodes per real node&#34;
+ring add: &#39;node-a&#39;.
+ring add: &#39;node-b&#39;.
+ring add: &#39;node-c&#39;.
+
+&#34;Deterministic key-to-node mapping&#34;
+ring nodeFor: &#39;user-123&#39;.       &#34;Always returns the same node&#34;
+ring nodeFor: &#39;order-456&#39;.      &#34;May return a different node&#34;
+
+&#34;Replication: get the top N nodes for a key&#34;
+ring nodesFor: &#39;user-123&#39; count: 2.  &#34;Array of 2 nodes&#34;
+
+&#34;When a node leaves, only its keys are redistributed&#34;
+ring remove: &#39;node-b&#39;.
+ring nodeFor: &#39;user-123&#39;.       &#34;Same node if it wasn&#39;t node-b&#34;</code></pre>
+</div>
+<p><strong>Integration with Cluster:</strong> The <code>Cluster</code> class maintains a
+<code>HashRing</code> internally. As members join and leave, the ring is
+updated automatically:</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>cluster := Cluster seeds: #(&#39;host1:8081&#39; &#39;host2:8081&#39;).
+cluster start.
+
+&#34;Route a key to its responsible node&#34;
+node := cluster nodeFor: &#39;user-123&#39;.
+[:data | self processUser: data] forkOn: node with: userData.
+
+&#34;Get multiple nodes for replication&#34;
+replicas := cluster nodesFor: &#39;user-123&#39; count: 3</code></pre>
+</div>
+<p><strong>Virtual nodes:</strong> By default, each real node gets 150 virtual
+positions on the ring. This ensures even distribution even with
+a small number of real nodes. Use <code>HashRing new: n</code> to customize
+the replica count.</p>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <h2>Putting It Together</h2>
+<p>A typical distributed application combines Cluster, Supervisor,
+and consistent hashing:</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>&#34;Application startup&#34;
+| cluster supervisor |
+
+&#34;1. Start the cluster&#34;
+cluster := Cluster seeds: #(&#39;worker1:8081&#39; &#39;worker2:8081&#39;).
+cluster start.
+
+&#34;2. Supervise local workers&#34;
+supervisor := Supervisor new: #oneForOne children: {
+    ChildSpec id: &#39;handler&#39; start: [RequestHandler new: cluster run]
+}.
+supervisor start.
+
+&#34;3. In the request handler, route work by key&#34;
+&#34;node := cluster nodeFor: requestKey.&#34;
+&#34;[:req | self handle: req] forkOn: node with: request&#34;</code></pre>
+</div>
+
+
+    </div>
+
+
+    <div class="footer">
+        Generated by Maggie doc generator.
+    </div>
+</main>
+    <script src="../js/playground.js"></script>
+</body>
+</html>

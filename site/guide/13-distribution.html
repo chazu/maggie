@@ -1,0 +1,1091 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Distribution &mdash; Maggie API Reference</title>
+    <link rel="stylesheet" href="../css/style.css">
+</head>
+<body>
+<nav class="sidebar">
+    <div class="sidebar-title"><a href="../index.html">Maggie Docs</a></div>
+
+    <div class="sidebar-section">
+        <div class="sidebar-section-title">Guide</div>
+        <ul class="sidebar-list">
+
+            <li><a href="../guide/01-getting-started.html">Getting Started</a></li>
+
+            <li><a href="../guide/02-basics.html">Basics</a></li>
+
+            <li><a href="../guide/03-numbers.html">Numbers</a></li>
+
+            <li><a href="../guide/04-strings.html">Strings</a></li>
+
+            <li><a href="../guide/05-collections.html">Collections</a></li>
+
+            <li><a href="../guide/06-blocks.html">Blocks</a></li>
+
+            <li><a href="../guide/07-classes.html">Classes</a></li>
+
+            <li><a href="../guide/08-error-handling.html">Error Handling</a></li>
+
+            <li><a href="../guide/09-concurrency.html">Concurrency</a></li>
+
+            <li><a href="../guide/10-supervisors.html">Supervisors</a></li>
+
+            <li><a href="../guide/10-modules.html">Modules</a></li>
+
+            <li><a href="../guide/11-clustering.html">Clustering</a></li>
+
+            <li><a href="../guide/11-projects.html">Projects</a></li>
+
+            <li><a href="../guide/12-go-interop.html">Go Interop</a></li>
+
+            <li><a href="../guide/13-distribution.html" class="active">Distribution</a></li>
+
+            <li><a href="../guide/14-tooling-ide.html">Tooling &amp; IDE</a></li>
+
+            <li><a href="../guide/15-cue-integration.html">Cue Integration</a></li>
+
+            <li><a href="../guide/16-tuple-space.html">Tuple Space</a></li>
+
+        </ul>
+    </div>
+
+    <div class="sidebar-section">
+        <div class="sidebar-section-title">API Reference</div>
+
+        <details class="sidebar-ns-group" open>
+            <summary>(root)</summary>
+            <ul class="sidebar-list">
+
+                <li><a href="../classes/Array.html">Array</a></li>
+
+                <li><a href="../classes/ArrayList.html">ArrayList</a></li>
+
+                <li><a href="../classes/AssignmentNode.html">AssignmentNode</a></li>
+
+                <li><a href="../classes/Association.html">Association</a></li>
+
+                <li><a href="../classes/BigInteger.html">BigInteger</a></li>
+
+                <li><a href="../classes/Block.html">Block</a></li>
+
+                <li><a href="../classes/BlockNode.html">BlockNode</a></li>
+
+                <li><a href="../classes/Boolean.html">Boolean</a></li>
+
+                <li><a href="../classes/ByteArray.html">ByteArray</a></li>
+
+                <li><a href="../classes/BytecodeGenerator.html">BytecodeGenerator</a></li>
+
+                <li><a href="../classes/CancellationContext.html">CancellationContext</a></li>
+
+                <li><a href="../classes/CascadeNode.html">CascadeNode</a></li>
+
+                <li><a href="../classes/Channel.html">Channel</a></li>
+
+                <li><a href="../classes/Character.html">Character</a></li>
+
+                <li><a href="../classes/CharacterStream.html">CharacterStream</a></li>
+
+                <li><a href="../classes/ChildSpec.html">ChildSpec</a></li>
+
+                <li><a href="../classes/Class.html">Class</a></li>
+
+                <li><a href="../classes/ClassNode.html">ClassNode</a></li>
+
+                <li><a href="../classes/Cluster.html">Cluster</a></li>
+
+                <li><a href="../classes/CompiledMethod.html">CompiledMethod</a></li>
+
+                <li><a href="../classes/Compiler.html">Compiler</a></li>
+
+                <li><a href="../classes/ConstraintStore.html">ConstraintStore</a></li>
+
+                <li><a href="../classes/Context.html">Context</a></li>
+
+                <li><a href="../classes/CueContext.html">CueContext</a></li>
+
+                <li><a href="../classes/CueValue.html">CueValue</a></li>
+
+                <li><a href="../classes/DateTime.html">DateTime</a></li>
+
+                <li><a href="../classes/Debugger.html">Debugger</a></li>
+
+                <li><a href="../classes/Dictionary.html">Dictionary</a></li>
+
+                <li><a href="../classes/DocServer.html">DocServer</a></li>
+
+                <li><a href="../classes/DuckAppender.html">DuckAppender</a></li>
+
+                <li><a href="../classes/DuckDatabase.html">DuckDatabase</a></li>
+
+                <li><a href="../classes/DynamicSupervisor.html">DynamicSupervisor</a></li>
+
+                <li><a href="../classes/Error.html">Error</a></li>
+
+                <li><a href="../classes/Exception.html">Exception</a></li>
+
+                <li><a href="../classes/ExternalProcess.html">ExternalProcess</a></li>
+
+                <li><a href="../classes/Failure.html">Failure</a></li>
+
+                <li><a href="../classes/False.html">False</a></li>
+
+                <li><a href="../classes/File.html">File</a></li>
+
+                <li><a href="../classes/Float.html">Float</a></li>
+
+                <li><a href="../classes/Future.html">Future</a></li>
+
+                <li><a href="../classes/GrpcClient.html">GrpcClient</a></li>
+
+                <li><a href="../classes/GrpcStream.html">GrpcStream</a></li>
+
+                <li><a href="../classes/Halt.html">Halt</a></li>
+
+                <li><a href="../classes/HashRing.html">HashRing</a></li>
+
+                <li><a href="../classes/HttpClient.html">HttpClient</a></li>
+
+                <li><a href="../classes/HttpRequest.html">HttpRequest</a></li>
+
+                <li><a href="../classes/HttpResponse.html">HttpResponse</a></li>
+
+                <li><a href="../classes/HttpServer.html">HttpServer</a></li>
+
+                <li><a href="../classes/Json.html">Json</a></li>
+
+                <li><a href="../classes/JsonParseError.html">JsonParseError</a></li>
+
+                <li><a href="../classes/JsonReader.html">JsonReader</a></li>
+
+                <li><a href="../classes/JsonWriter.html">JsonWriter</a></li>
+
+                <li><a href="../classes/Lexer.html">Lexer</a></li>
+
+                <li><a href="../classes/LiteralNode.html">LiteralNode</a></li>
+
+                <li><a href="../classes/MailboxMessage.html">MailboxMessage</a></li>
+
+                <li><a href="../classes/Message.html">Message</a></li>
+
+                <li><a href="../classes/MessageNotUnderstood.html">MessageNotUnderstood</a></li>
+
+                <li><a href="../classes/MessageSendNode.html">MessageSendNode</a></li>
+
+                <li><a href="../classes/Metaclass.html">Metaclass</a></li>
+
+                <li><a href="../classes/MethodNode.html">MethodNode</a></li>
+
+                <li><a href="../classes/Mutex.html">Mutex</a></li>
+
+                <li><a href="../classes/Node.html">Node</a></li>
+
+                <li><a href="../classes/Notification.html">Notification</a></li>
+
+                <li><a href="../classes/Object.html">Object</a></li>
+
+                <li><a href="../classes/Parser.html">Parser</a></li>
+
+                <li><a href="../classes/Process.html">Process</a></li>
+
+                <li><a href="../classes/Proquint.html">Proquint</a></li>
+
+                <li><a href="../classes/Random.html">Random</a></li>
+
+                <li><a href="../classes/Regex.html">Regex</a></li>
+
+                <li><a href="../classes/RemoteChannel.html">RemoteChannel</a></li>
+
+                <li><a href="../classes/RemoteProcess.html">RemoteProcess</a></li>
+
+                <li><a href="../classes/Result.html">Result</a></li>
+
+                <li><a href="../classes/ReturnNode.html">ReturnNode</a></li>
+
+                <li><a href="../classes/SSEConnection.html">SSEConnection</a></li>
+
+                <li><a href="../classes/Sandbox.html">Sandbox</a></li>
+
+                <li><a href="../classes/Semaphore.html">Semaphore</a></li>
+
+                <li><a href="../classes/Set.html">Set</a></li>
+
+                <li><a href="../classes/Signal.html">Signal</a></li>
+
+                <li><a href="../classes/SmallInteger.html">SmallInteger</a></li>
+
+                <li><a href="../classes/SocketConnection.html">SocketConnection</a></li>
+
+                <li><a href="../classes/SqliteDatabase.html">SqliteDatabase</a></li>
+
+                <li><a href="../classes/SqliteRows.html">SqliteRows</a></li>
+
+                <li><a href="../classes/SqliteStatement.html">SqliteStatement</a></li>
+
+                <li><a href="../classes/StackOverflow.html">StackOverflow</a></li>
+
+                <li><a href="../classes/String.html">String</a></li>
+
+                <li><a href="../classes/SubscriptOutOfBounds.html">SubscriptOutOfBounds</a></li>
+
+                <li><a href="../classes/Success.html">Success</a></li>
+
+                <li><a href="../classes/Supervisor.html">Supervisor</a></li>
+
+                <li><a href="../classes/Symbol.html">Symbol</a></li>
+
+                <li><a href="../classes/System.html">System</a></li>
+
+                <li><a href="../classes/Token.html">Token</a></li>
+
+                <li><a href="../classes/Toml.html">Toml</a></li>
+
+                <li><a href="../classes/TomlParseError.html">TomlParseError</a></li>
+
+                <li><a href="../classes/True.html">True</a></li>
+
+                <li><a href="../classes/TupleSpace.html">TupleSpace</a></li>
+
+                <li><a href="../classes/UndefinedObject.html">UndefinedObject</a></li>
+
+                <li><a href="../classes/UnixSocketClient.html">UnixSocketClient</a></li>
+
+                <li><a href="../classes/UnixSocketServer.html">UnixSocketServer</a></li>
+
+                <li><a href="../classes/VariableNode.html">VariableNode</a></li>
+
+                <li><a href="../classes/WaitGroup.html">WaitGroup</a></li>
+
+                <li><a href="../classes/Warning.html">Warning</a></li>
+
+                <li><a href="../classes/WeakReference.html">WeakReference</a></li>
+
+                <li><a href="../classes/ZeroDivide.html">ZeroDivide</a></li>
+
+            </ul>
+        </details>
+
+    </div>
+</nav>
+<main class="content">
+    <div class="breadcrumb">
+        <a href="../index.html">Maggie API Reference</a>
+        &rsaquo; Guide
+        &rsaquo; Distribution
+    </div>
+
+    <h1>Distribution</h1>
+
+
+    <div class="guide-intro">
+        <p>Maggie includes a distributed runtime for exchanging code between VMs. Code
+is content-addressed -- every method and class is identified by a SHA-256 hash
+of its normalized AST. Two VMs can push and pull code over HTTP/2, and the
+receiver independently verifies every chunk before accepting it. No trust in
+the sender is required; the content hash is the proof.</p>
+<p>This chapter explains how content addressing works, how the sync protocol
+exchanges code, and how to configure your project for distribution.</p>
+
+    </div>
+
+
+
+    <div class="guide-section">
+
+        <h2>Content Addressing</h2>
+<p>Every compiled method in Maggie has a content hash -- a 32-byte SHA-256
+digest computed from a normalized representation of the method&#39;s AST.
+The normalization process strips away surface differences that do not
+affect semantics:</p>
+<p>- Variable names are replaced with de Bruijn indices. A local variable
+  is identified by its scope depth and slot index, not its textual name.
+  Two methods that do the same thing with differently named variables
+  produce the same hash.</p>
+<ul>
+<li>Position information (line numbers, column offsets) is stripped.</li>
+</ul>
+<p>- Global references are resolved to their fully-qualified names before
+  hashing, so <code>Button</code> and <code>Widgets::Button</code> hash identically when
+  they refer to the same class.</p>
+<p>The hashing pipeline has three stages:</p>
+<p>1. <strong>Normalize</strong> -- the compiler AST is converted into a parallel
+   &#34;hashing AST&#34; with de Bruijn indices and no position data.</p>
+<p>2. <strong>Serialize</strong> -- the hashing AST is written to a deterministic byte
+   stream using frozen tag bytes. Each node type has a fixed tag, and
+   compound nodes write their children in a defined order.</p>
+<p>3. <strong>Hash</strong> -- the serialized bytes are fed to SHA-256, producing a
+   32-byte content hash stored on <code>CompiledMethod.ContentHash</code>.</p>
+<p>The hash format includes a version prefix byte so that future changes
+to the normalization rules can invalidate old hashes without silent
+mismatches. Because the hash depends only on semantics, two developers
+who write the same method independently will get the same hash.</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code># Hashing pipeline (Go-level):
+#   hash.NormalizeMethod(ast, instVars, resolveGlobal)
+#     -&gt; hash.Serialize(hMethodDef)
+#       -&gt; sha256.Sum256(bytes)
+#         -&gt; method.ContentHash = [32]byte{...}</code></pre>
+</div>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <h2>Class Digests</h2>
+<p>Methods are hashed individually, but classes also need a stable identity.
+A class digest captures the structural metadata of a class -- its name,
+namespace, superclass, instance variables, class variables, docstring --
+plus the sorted content hashes of all its methods.</p>
+<p>The class hash is computed by sorting method hashes lexicographically,
+sorting variable names, concatenating all fields into a length-prefixed
+byte buffer with a tag byte, then running SHA-256. This means a class
+hash changes if any method changes, or if the class structure changes.
+But reordering methods or variables does not affect the hash.</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code># ClassDigest fields:
+#   Name           -- &#34;Button&#34;
+#   Namespace      -- &#34;Widgets&#34;
+#   SuperclassName -- &#34;View&#34;
+#   InstVars       -- [&#34;label&#34;, &#34;onClick&#34;]
+#   MethodHashes   -- [&lt;sha256&gt;, &lt;sha256&gt;, ...]
+#   Hash           -- &lt;sha256 of the entire digest&gt;</code></pre>
+</div>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <h2>The ContentStore</h2>
+<p>The ContentStore is the VM-local index that maps content hashes to
+compiled methods and class digests. It is the backing store for the
+distribution protocol -- when a peer asks &#34;do you have hash X?&#34;,
+the ContentStore answers the question.</p>
+<p>Key operations:</p>
+<p>- <code>IndexMethod(method)</code> -- adds a compiled method, keyed by its
+  ContentHash. Methods with a zero hash are silently ignored.
+- <code>IndexClass(digest)</code> -- adds a class digest, keyed by its hash.
+- <code>LookupMethod(hash)</code> / <code>LookupClass(hash)</code> -- returns the item
+  for a given hash, or nil.
+- <code>HasHash(hash)</code> -- true if either a method or class with that
+  hash exists.
+- <code>AllHashes()</code> -- returns every hash in the store.</p>
+<p>The ContentStore is thread-safe and populated automatically after
+compilation. You can inspect it from the CLI:</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>$ mag sync status
+Content store:
+  Methods: 347
+  Classes: 42
+  Total:   389</code></pre>
+</div>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <h2>Chunks</h2>
+<p>A chunk is the atomic unit of code distribution. Each chunk carries:</p>
+<p>- <strong>Hash</strong> -- the 32-byte content hash identifying this piece of code.
+- <strong>Type</strong> -- one of three kinds:
+  - <code>ChunkMethod</code> (1) -- a single method with its source text.
+  - <code>ChunkClass</code> (2) -- a class digest with its name as content
+    and method hashes as dependencies.
+  - <code>ChunkModule</code> (3) -- a namespace grouping class hashes.
+- <strong>Content</strong> -- the source text (for methods) or the name (for
+  classes and modules).
+- <strong>Dependencies</strong> -- hashes this chunk depends on. A class chunk
+  lists its method hashes; a module chunk lists its class hashes.
+- <strong>Capabilities</strong> -- optional list of required capabilities
+  (e.g., &#34;File&#34;, &#34;HTTP&#34;, &#34;Network&#34;).</p>
+<p>Chunks are serialized with CBOR (Concise Binary Object Representation)
+in canonical mode for deterministic encoding. The dependency structure
+forms a DAG: modules depend on classes, classes depend on methods.
+During transfer, methods are always sent before classes so the
+receiver can verify dependencies before accepting.</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code># A method chunk carries source text:
+#   Hash:    abc123...
+#   Type:    ChunkMethod (1)
+#   Content: &#34;method: factorial [^self &lt;= 1 ifTrue: [1] ifFalse: [self * (self - 1) factorial]]&#34;
+#   Deps:    (none)
+
+# A class chunk references its methods:
+#   Hash:    def456...
+#   Type:    ChunkClass (2)
+#   Content: &#34;MathUtils&#34;
+#   Deps:    [abc123..., fff789...]</code></pre>
+</div>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <h2>Sync Protocol</h2>
+<p>The sync protocol has two directions: push (sender-initiated) and
+pull (requester-initiated). Both use the same Connect/gRPC service
+running over HTTP/2.</p>
+<p><strong>Push flow (Announce + Transfer):</strong></p>
+<p>1. The pusher sends an <code>Announce</code> RPC with the root hash, all
+   available hashes, and an optional capability manifest.
+2. The receiver checks capabilities against its policy, then
+   computes a &#34;want list&#34; -- hashes it does not already have.
+3. The receiver replies: <code>ACCEPTED</code> (with want list), <code>ALREADY_HAVE</code>,
+   or <code>REJECTED</code> (with reason).
+4. The pusher sends wanted chunks via <code>Transfer</code>. Methods first,
+   then classes, ensuring dependency order.
+5. The receiver verifies each chunk (compile and hash-check for
+   methods; dependency existence check for classes and modules).
+6. The receiver responds with accepted/rejected counts.</p>
+<p><strong>Pull flow (Serve):</strong></p>
+<p>1. The requester sends a <code>Serve</code> RPC with the root hash and all
+   hashes it already has (the &#34;have&#34; set).
+2. The server computes a transitive closure from the root hash,
+   following dependency links through the ContentStore.
+3. The server filters out hashes the requester already has and
+   returns the remaining chunks in dependency order.</p>
+<p>Both push and pull are idempotent -- repeating a sync is harmless
+because content is identified by hash, not by timestamp or sequence.</p>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <h2>CLI: mag sync</h2>
+<p>The <code>mag sync</code> command has three subcommands: <code>push</code>, <code>pull</code>, and
+<code>status</code>.</p>
+<p><strong>push</strong> sends your compiled project to a remote peer:</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code># Push to a specific peer
+$ mag sync push localhost:8081
+
+# Push to all peers configured in maggie.toml
+$ mag sync push
+
+# Verbose output
+$ mag -v sync push localhost:8081
+Announcing 389 hashes to http://localhost:8081
+Transferring 47 chunks
+Transfer complete: 47 accepted, 0 rejected</code></pre>
+</div>
+<p>Without an explicit address, push reads <code>[sync].peers</code> from
+<code>maggie.toml</code> and pushes to each peer in sequence.</p>
+<p><strong>pull</strong> fetches content from a remote peer by root hash:</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>$ mag sync pull localhost:8081 a1b2c3d4e5f6...  (64 hex chars)
+Pull complete: 86 accepted, 0 rejected
+Content store: 433 methods, 56 classes</code></pre>
+</div>
+<p>The root hash must be a 64-character hex string (32 bytes).
+If the root hash already exists locally, pull exits immediately.</p>
+<p><strong>status</strong> prints a summary of the local ContentStore:</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>$ mag sync status
+Content store:
+  Methods: 347
+  Classes: 42
+  Total:   389</code></pre>
+</div>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <h2>Dual-Hash Verification</h2>
+<p>Every method carries two content hashes:</p>
+<p>- <strong>Semantic hash</strong> -- computed from the normalized AST (de Bruijn
+  indexed, no position data). Identifies the method&#39;s behavior.
+  Two methods with the same logic produce the same semantic hash,
+  even if they have different type annotations or variable names.</p>
+<p>- <strong>Typed hash</strong> -- computed from the normalized AST plus type
+  annotations (parameter types, return type, effect annotations).
+  Identifies the method&#39;s behavior AND its type contract.</p>
+<p>The semantic hash is the primary identity used for negotiation
+between nodes. The typed hash is metadata for local verification --
+when receiving code from a peer, the sync service verifies both
+hashes if present.</p>
+<p>Class digests also carry both hash layers: a semantic class hash
+(using semantic method hashes) and a typed class hash (using typed
+method hashes). The ContentStore indexes by semantic hash and
+maintains a reverse index from typed hash to semantic hash.</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code># Two methods with the same logic but different type annotations
+# have the same semantic hash but different typed hashes:
+#
+# method: add: x to: y [ ^x + y ]
+# method: add: x &lt;Integer&gt; to: y &lt;Integer&gt; ^&lt;Integer&gt; [ ^x + y ]
+#
+#   Semantic hash: abc123...  (same)
+#   Typed hash:    def456... vs fff789...  (different)</code></pre>
+</div>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <h2>Node Identity</h2>
+<p>Each Maggie node has a stable Ed25519 keypair stored in
+<code>.maggie/node.key</code>. The 32-byte public key is the node ID.</p>
+<ul>
+<li>Generated automatically on first run (via <code>LoadOrCreateIdentity</code>)</li>
+<li>Displayed as a 4-segment proquint for human readability</li>
+<li>Used to sign outgoing messages (Ed25519 signatures)</li>
+<li>Used as the peer identifier in the trust system (<code>NodeID</code>)</li>
+</ul>
+<p>All inter-node messages are signed by the sender&#39;s private key.
+The receiver verifies the signature against the sender&#39;s public
+key before processing. This prevents message forgery and enables
+cryptographic peer identification.</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code># Node identity on disk:
+#   .maggie/node.key    (64 bytes: 32-byte seed + 32-byte public key)
+#
+# Node ID displayed as proquint:
+#   babab-dabab-babab-dabab.fidod-gutih-josij-kumol.
+#   nobop-qurur-sasit-tuvuv.waxay-zibab-dabab-fidod
+#
+# CLI commands (planned):
+#   mag node id           # display proquint node ID
+#   mag node init         # generate keypair if not present</code></pre>
+</div>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <h2>Message Delivery</h2>
+<p>The <code>DeliverMessage</code> RPC delivers a signed message to a process
+on the target node. Messages are wrapped in a <code>MessageEnvelope</code>
+containing:</p>
+<ul>
+<li><code>SenderNode</code> -- the sender&#39;s Ed25519 public key (32 bytes)</li>
+<li><code>TargetProcess</code> -- process ID on the target node</li>
+<li><code>TargetName</code> -- registered process name (alternative to ID)</li>
+<li><code>ReplyTo</code> -- optional reply address (node + process)</li>
+<li><code>Selector</code> -- message selector (method name)</li>
+<li><code>Payload</code> -- CBOR-encoded serialized Maggie value</li>
+<li><code>ClassHints</code> -- class hashes referenced in payload (for prefetch)</li>
+<li><code>Nonce</code> -- monotonic counter for replay prevention</li>
+<li><code>Signature</code> -- Ed25519 over (payload || nonce || targetProcess)</li>
+</ul>
+<p>The receiver:
+1. Decodes the CBOR envelope
+2. Checks if the sender peer is banned
+3. Verifies the Ed25519 signature
+4. Resolves the target process (by name or ID)
+5. Deserializes the payload
+6. Creates a MailboxMessage and delivers to the process&#39;s mailbox</p>
+<p>Error kinds returned on failure: <code>signatureInvalid</code>,
+<code>processNotFound</code>, <code>mailboxFull</code>, <code>deserializationError</code>.</p>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <h2>Trust and Peer Tracking</h2>
+<p>The <code>TrustStore</code> manages all peer trust decisions. Each peer is
+identified by its Ed25519 public key (<code>NodeID</code>, 32 bytes). The
+store tracks per-peer permission bits, operation counts, and ban
+status.</p>
+<p><strong>Permission bits</strong> (combinable):</p>
+<ul>
+<li><code>sync</code> -- push/pull code via Announce, Transfer, Serve RPCs</li>
+<li><code>message</code> -- send messages to registered processes via DeliverMessage</li>
+<li><code>spawn</code> -- remote process spawning via forkOn: (Phase B)</li>
+</ul>
+<p><strong>Auto-banning:</strong> After 3 hash mismatches (configurable), a peer
+is automatically banned. Banned peers are denied all operations.
+Explicitly adding a peer to <code>maggie.toml</code> un-bans it.</p>
+<p><strong>Default permissions</strong> for unknown peers are configured in the
+<code>[trust]</code> section of <code>maggie.toml</code>. The safe default is <code>sync</code>
+only -- messaging and spawning require explicit allowlisting.</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code># TrustStore per-peer record:
+#   NodeID         -- Ed25519 public key (32 bytes, displayed as hex)
+#   Perms          -- sync, message, spawn (bitmask)
+#   SuccessfulOps  -- 47
+#   HashMismatches -- 0
+#   Banned         -- false
+#   Configured     -- true (if declared in maggie.toml)</code></pre>
+</div>
+<p>Peer identity for sync RPCs is derived from the <code>X-Maggie-Node-ID</code>
+header (hex-encoded public key). For message delivery, it comes
+from the Ed25519 key in the signed <code>MessageEnvelope</code>.</p>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <h2>Capabilities and Spawn Restrictions</h2>
+<p>Each chunk can declare capabilities it requires (e.g., &#34;File&#34;,
+&#34;HTTP&#34;, &#34;Network&#34;) via a <code>CapabilityManifest</code>. This is
+informational metadata carried during code distribution.</p>
+<p>The trust model controls what peers can *do* (sync, message,
+spawn) via permission bits. Capabilities describe what the
+*code* needs. These are orthogonal:</p>
+<p>- <strong>Permission bits</strong> gate who can connect and what operations
+  they can perform (configured per-peer in <code>[trust]</code>).
+- <strong>Spawn restrictions</strong> gate what remotely-spawned code can
+  access (configured node-wide in <code>[trust].spawn-restrictions</code>).</p>
+<p>When a remote node spawns a process via <code>forkOn:</code>, the spawned
+process runs in a restricted sandbox. The <code>spawn-restrictions</code>
+list defines globals that are always hidden from remote code:</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>[trust]
+spawn-restrictions = [&#34;File&#34;, &#34;ExternalProcess&#34;, &#34;HTTP&#34;, &#34;HttpServer&#34;]</code></pre>
+</div>
+<p>The spawner can request *additional* restrictions, but cannot
+remove policy restrictions. The receiving node always has final say.</p>
+<p>Capabilities also integrate with process-level restriction locally.
+A VM that receives code requiring &#34;File&#34; access can fork a restricted
+process that hides the File class, regardless of trust settings.</p>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <h2>Manifest Configuration: [sync] and [trust]</h2>
+<p>The <code>[sync]</code> section configures code distribution:</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>[sync]
+capabilities = [&#34;File&#34;, &#34;HTTP&#34;]   # Capabilities this project declares
+listen = &#34;:8081&#34;                  # Start a sync server on this address
+peers = [&#34;localhost:8082&#34;]        # Default push targets</code></pre>
+</div>
+<p>The <code>[trust]</code> section configures the peer trust model:</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>[trust]
+default = &#34;sync&#34;                          # Permissions for unknown peers
+ban-threshold = 3                         # Mismatches before auto-ban
+spawn-restrictions = [&#34;File&#34;, &#34;HTTP&#34;]     # Hidden from remote spawns
+
+[[trust.peer]]
+id = &#34;a1b2c3d4e5f6...&#34;                   # Ed25519 public key (hex)
+name = &#34;build-farm&#34;                       # Human-readable label
+perms = &#34;sync,spawn&#34;                      # Allowed operations</code></pre>
+</div>
+<p><strong>[sync] fields:</strong></p>
+<ul>
+<li><code>capabilities</code> -- capability strings declared when pushing.</li>
+<li><code>listen</code> -- address for the sync server to bind to.</li>
+<li><code>peers</code> -- default push targets for <code>mag sync push</code>.</li>
+</ul>
+<p><strong>[trust] fields:</strong></p>
+<p>- <code>default</code> -- permissions for unknown peers (default: <code>&#34;sync&#34;</code>).
+  Options: <code>sync</code>, <code>message</code>, <code>spawn</code>, <code>all</code>, comma-separated.
+- <code>ban-threshold</code> -- hash mismatches before auto-ban (default: 3).
+- <code>spawn-restrictions</code> -- globals always hidden from remotely
+  spawned processes.
+- <code>[[trust.peer]]</code> -- explicitly configured peers with <code>id</code>
+  (hex public key), <code>name</code> (label), and <code>perms</code> (permissions).</p>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <h2>Peer Networking</h2>
+<p>The sync service runs as part of the Maggie language server, which
+serves both Connect (HTTP/JSON) and gRPC (binary protobuf) on the
+same port. The <code>SyncService</code> exposes four RPCs:</p>
+<ul>
+<li><code>Announce</code> -- receive a push announcement and return a want list.</li>
+<li><code>Transfer</code> -- receive and verify chunks from a pusher.</li>
+<li><code>Serve</code> -- respond to a pull request with available chunks.</li>
+<li><code>Ping</code> -- return the hash count in the local store (health check).</li>
+</ul>
+<p>When <code>[sync].listen</code> is set in <code>maggie.toml</code>, the sync server starts
+automatically. The server is configured with:</p>
+<ul>
+<li>A <code>CompileFunc</code> for verifying incoming method chunks.</li>
+<li>A <code>TrustStore</code> loaded from the <code>[trust]</code> section of the manifest.</li>
+<li>The VM&#39;s <code>ContentStore</code> for looking up and indexing content.</li>
+</ul>
+<p>All communication uses standard HTTP/2. There is no custom binary
+protocol, no UDP, and no peer discovery. Peers are configured
+explicitly in the manifest or specified on the command line.</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code># Server startup output:
+Maggie language server listening on :8081
+  Connect (HTTP/JSON): http://localhost:8081/maggie.v1.SyncService/Announce
+  gRPC (binary):       grpc://localhost:8081</code></pre>
+</div>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <h2>Remote Messaging</h2>
+<p>Maggie supports actor-style messaging between processes on different
+nodes. Connect to a remote node, get a reference to a named process,
+and send messages via fire-and-forget or request-response patterns.</p>
+<p><strong>Connecting to a remote node:</strong></p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>node := Node connect: &#39;localhost:8081&#39;.
+node ping.            &#34;=&gt; true if reachable&#34;
+node addr.            &#34;=&gt; &#39;localhost:8081&#39;&#34;</code></pre>
+</div>
+<p><strong>Getting a remote process reference:</strong></p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>worker := node processNamed: &#39;worker-1&#39;.</code></pre>
+</div>
+<p>The remote process must be registered with <code>registerAs:</code> on the
+remote node. <code>processNamed:</code> returns a RemoteProcess value that
+can send messages but cannot receive -- it is a one-way handle.</p>
+<p><strong>Fire-and-forget (cast):</strong></p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>&#34;Delivers to the remote process&#39;s mailbox. Does not wait.&#34;
+worker cast: #logEvent: with: eventData.</code></pre>
+</div>
+<p>Returns <code>true</code> immediately. The message is sent in a background
+goroutine. The remote process reads it with <code>Process receive</code>.</p>
+<p><strong>Request-response (asyncSend):</strong></p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>&#34;Returns a Future that resolves when the remote side responds.&#34;
+future := worker asyncSend: #compute: with: 42.
+result := future await.        &#34;Blocks until resolved&#34;
+result := future await: 5000.  &#34;With timeout in milliseconds&#34;
+future isResolved.             &#34;true/false (non-blocking)&#34;
+future error.                  &#34;Error message or nil&#34;</code></pre>
+</div>
+<p><strong>Value serialization:</strong></p>
+<p>All message payloads are serialized with CBOR. Supported types:
+SmallInt, BigInteger, Float, Boolean, Nil, String, Symbol,
+Character, Array, Dictionary, Object (with named ivars), and
+CueValue. Circular object references are handled via backreference
+tags. Non-serializable types (Process, Channel, Mutex, etc.)
+raise an error at send time.</p>
+<p><strong>Example: distributed counter</strong></p>
+<p>Server (registers a counter process):</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>&#34;On the server node:&#34;
+Process current registerAs: &#39;counter&#39;.
+total := 0.
+[true] whileTrue: [
+    msg := Process receive.
+    msg selector = #increment:
+        ifTrue: [total := total + msg payload]
+]</code></pre>
+</div>
+<p>Client (sends increment messages):</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>&#34;On the client node:&#34;
+node := Node connect: &#39;server:8081&#39;.
+counter := node processNamed: &#39;counter&#39;.
+1 to: 5 do: [:i |
+    counter cast: #increment: with: i * 10
+]</code></pre>
+</div>
+<p>See <code>examples/distributed-counter/</code> for a complete runnable example.</p>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <h2>Cross-Node Monitors and Links</h2>
+<p>Process monitors and links work transparently across nodes. When you
+monitor a <code>RemoteProcess</code>, the VM establishes the monitor via a
+<code>MonitorProcess</code> RPC. When the remote process dies, a <code>__down__</code>
+notification is sent back and delivered as a local <code>#processDown:</code>
+message.</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>&#34;Monitor a remote process&#34;
+node := Node connect: &#39;worker-host:9200&#39;.
+worker := node processNamed: &#39;compute-worker&#39;.
+ref := Process current monitor: worker.
+
+&#34;Wait for DOWN notification&#34;
+msg := Process receive.
+msg selector = #processDown:
+    ifTrue: [
+        info := msg payload.
+        &#34;info is #(refID processValue reason result)&#34;
+        (&#39;Worker died: &#39;, (info at: 3) printString) println
+    ]</code></pre>
+</div>
+<p><strong>Node failure detection:</strong></p>
+<p>When the first cross-node monitor or link is established, a
+<code>NodeHealthMonitor</code> starts sending periodic heartbeat pings to
+the remote node (every 5 seconds by default). If 3 consecutive
+pings fail, the node is declared dead and all monitors/links for
+that node receive synthetic <code>nodeDown</code> exit signals.</p>
+<p>This means monitors catch both individual process death (normal
+notification) and entire node failure (timeout-based detection).
+The watcher receives the same <code>#processDown:</code> message in both
+cases -- the exit reason is <code>#normal</code>, <code>#error</code>, <code>#linked</code>, or
+<code>#nodeDown</code>.</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>&#34;The watcher handles both process and node death the same way&#34;
+msg := Process receive.
+msg selector = #processDown: ifTrue: [
+    reason := msg payload at: 3.   &#34;Symbol: #normal, #error, or #nodeDown&#34;
+    reason = #nodeDown
+        ifTrue: [&#39;Entire node went down&#39; println]
+        ifFalse: [&#39;Process exited normally or crashed&#39; println]
+]</code></pre>
+</div>
+<p>Links also work across nodes: if a remote linked process dies
+abnormally, the local process is killed (or receives an <code>#exit</code>
+message if trapping exits).</p>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <h2>Remote Process Spawning</h2>
+<p>Blocks can be sent to remote nodes for execution using <code>forkOn:</code> and
+<code>spawnOn:</code>. The block is serialized as a content hash (identifying
+the block&#39;s compiled method) plus its captured variable values. The
+remote node resolves the method by hash, deserializes the upvalues,
+and executes the block in a restricted interpreter.</p>
+<p><strong><code>forkOn:</code></strong> returns a Future that resolves when the block completes:</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>node := Node connect: &#39;compute-host:9200&#39;.
+future := [20 factorial] forkOn: node.
+result := future await.
+result println</code></pre>
+</div>
+<p><strong><code>forkOn:with:</code></strong> passes an argument to the remote block:</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>node := Node connect: &#39;compute-host:9200&#39;.
+future := [:n | n factorial] forkOn: node with: 100.
+result := future await: 30000.  &#34;30 second timeout&#34;</code></pre>
+</div>
+<p><strong><code>spawnOn:</code></strong> starts a long-lived process and returns a RemoteProcess:</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>node := Node connect: &#39;worker-host:9200&#39;.
+worker := [
+    [true] whileTrue: [
+        | msg |
+        msg := Process receive.
+        msg selector = #compute: ifTrue: [
+            (msg payload factorial) println
+        ]
+    ]
+] spawnOn: node.
+worker cast: #compute: with: 42</code></pre>
+</div>
+<p><strong>Captured variables</strong> must be serializable. Channels, Processes,
+Mutexes, and other non-serializable types cause an immediate error
+at the call site. Communicate with remote processes via their
+mailbox instead.</p>
+<p><strong>Code-on-demand:</strong> If the remote node doesn&#39;t have the block&#39;s
+method (identified by content hash), it automatically pulls it
+from the spawning node via the sync protocol. This includes
+transitive dependencies.</p>
+<p><strong>Spawn restrictions:</strong> The trust policy&#39;s <code>spawn-restrictions</code>
+list specifies global names to hide from remotely-spawned
+processes. For example, <code>File</code> and <code>HTTP</code> can be hidden to
+prevent remote code from accessing the filesystem or network:</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code># maggie.toml
+[trust]
+spawn-restrictions = [&#34;File&#34;, &#34;ExternalProcess&#34;, &#34;HTTP&#34;]</code></pre>
+</div>
+<p>Remotely-spawned processes inherit these restrictions automatically.
+They see <code>nil</code> when looking up restricted globals rather than
+receiving a permission error.</p>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <h2>Distributed Channels</h2>
+<p>Channels can be passed across node boundaries. When a channel is
+serialized (e.g., as a captured variable in <code>forkOn:</code> or as a
+message payload), it becomes a <code>RemoteChannel</code> proxy on the
+receiving node. The proxy forwards all operations (send, receive,
+trySend, tryReceive, close) back to the owning node via RPC.</p>
+<p><strong>Owner-proxy model:</strong> A channel always lives on the node that
+created it. Remote nodes get lightweight proxies. All operations
+go through the owner, preserving FIFO ordering and backpressure.</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>&#34;Node A creates a channel and sends it to Node B via spawn&#34;
+| ch node |
+ch := Channel new: 10.
+node := Node connect: &#39;worker:9200&#39;.
+
+&#34;The block captures ch — it becomes a RemoteChannel on Node B&#34;
+[:remoteCh |
+    remoteCh send: &#39;hello from B&#39;.
+    remoteCh send: &#39;another message&#39;
+] forkOn: node with: ch.
+
+&#34;Node A receives from the local channel&#34;
+ch receive println.   &#34;&#39;hello from B&#39;&#34;
+ch receive println.   &#34;&#39;another message&#39;&#34;</code></pre>
+</div>
+<p><strong>Channel select</strong> works with remote channels. When a select
+includes remote channels, the VM uses a polling strategy instead
+of Go&#39;s <code>reflect.Select</code>:</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>localCh := Channel new.
+remoteCh := node processNamed: &#39;data-source&#39;.
+
+Channel select: {
+    localCh onReceive: [:v | &#39;Local: &#39;, v].
+    remoteCh onReceive: [:v | &#39;Remote: &#39;, v]
+}</code></pre>
+</div>
+<p><strong>Node failure:</strong> When a node goes down (detected by the health
+monitor), all remote channel proxies for that node are marked
+closed. Subsequent operations return nil / false.</p>
+<p><strong>Performance note:</strong> Every remote channel operation is a network
+round-trip. For high-throughput scenarios, use process mailboxes
+instead — they are fire-and-forget with no blocking.</p>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <h2>Security Model</h2>
+<p>The security model is built on two principles: <strong>never trust content,
+always verify</strong> and <strong>every message is signed</strong>.</p>
+<p><strong>Code verification:</strong> When a method chunk arrives from a peer, the
+receiver compiles it independently and verifies the content hash
+matches. A malicious peer cannot send arbitrary bytecode disguised
+as a known hash.</p>
+<p><strong>Message signing:</strong> Every inter-node message is signed with the
+sender&#39;s Ed25519 private key. The receiver verifies the signature
+before processing. The signature covers the payload, nonce, and
+target process ID -- preventing message forgery, replay attacks,
+and message redirection.</p>
+<p><strong>Security layers:</strong></p>
+<p>- <strong>Ed25519 message signing</strong> -- every message is cryptographically
+  authenticated. Bad signatures are rejected and count toward
+  the peer ban threshold.
+- <strong>Capability filtering</strong> -- reject content requiring unwanted
+  capabilities (e.g., File or Network access).
+- <strong>Peer banning</strong> -- auto-ban peers after repeated hash mismatches
+  or signature failures.
+- <strong>Process restriction</strong> -- sandbox received code in restricted
+  processes that hide sensitive globals.
+- <strong>No remote code execution</strong> -- the protocol transfers source
+  text, not bytecode. The receiver compiles everything itself.
+- <strong>Deterministic serialization</strong> -- CBOR canonical encoding ensures
+  identical messages produce identical bytes.</p>
+<p><strong>Not yet provided:</strong></p>
+<ul>
+<li>Encrypted transport (use a TLS reverse proxy for now)</li>
+<li>Peer discovery (peers are configured manually)</li>
+</ul>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code># Message security flow:
+#
+#   Sender:   serialize(value) -&gt; sign(payload || nonce || target) -&gt; send
+#   Receiver: verify(signature, sender_pubkey) -&gt; check_peer_reputation
+#             -&gt; deserialize(payload) -&gt; deliver_to_mailbox
+#
+#   If signature fails: reject, record mismatch, ban after 3 failures</code></pre>
+</div>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <h2>Putting It Together</h2>
+<p>A typical workflow for distributing a Maggie project:</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code># 1. Configure maggie.toml
+[project]
+name = &#34;my-app&#34;
+namespace = &#34;MyApp&#34;
+
+[source]
+dirs = [&#34;src&#34;]
+
+[sync]
+capabilities = [&#34;HTTP&#34;]
+listen = &#34;:8081&#34;
+peers = [&#34;staging.example.com:8081&#34;]
+
+# 2. Compile and check the content store
+$ mag ./src/...
+$ mag sync status
+Content store:
+  Methods: 127
+  Classes: 18
+  Total:   145
+
+# 3. Push to staging
+$ mag sync push
+Pushing to manifest peer: staging.example.com:8081
+Transfer complete: 145 accepted, 0 rejected
+
+# 4. On staging, pull from production
+$ mag sync pull prod.example.com:8081 a1b2c3d4...
+Pull complete: 89 accepted, 0 rejected
+
+# 5. Start a server that accepts pushes from CI
+$ mag -m Main.start
+# (sync server auto-starts on :8081 because listen is set)</code></pre>
+</div>
+<p>The content-addressed design means that:</p>
+<ul>
+<li>Pushes are incremental -- only new or changed methods transfer.</li>
+<li>Pulls are idempotent -- requesting the same root hash twice is a no-op.</li>
+<li>Verification is automatic -- every chunk is checked before acceptance.</li>
+<li>Rollback is trivial -- old content still has valid hashes in the store.</li>
+</ul>
+
+
+    </div>
+
+
+    <div class="footer">
+        Generated by Maggie doc generator.
+    </div>
+</main>
+    <script src="../js/playground.js"></script>
+</body>
+</html>

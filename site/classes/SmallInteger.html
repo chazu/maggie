@@ -4,11 +4,276 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>SmallInteger &mdash; Maggie API Reference</title>
-    <link rel="stylesheet" href="../../css/style.css">
+    <link rel="stylesheet" href="../css/style.css">
 </head>
 <body>
+<nav class="sidebar">
+    <div class="sidebar-title"><a href="../index.html">Maggie Docs</a></div>
+
+    <div class="sidebar-section">
+        <div class="sidebar-section-title">Guide</div>
+        <ul class="sidebar-list">
+
+            <li><a href="../guide/01-getting-started.html">Getting Started</a></li>
+
+            <li><a href="../guide/02-basics.html">Basics</a></li>
+
+            <li><a href="../guide/03-numbers.html">Numbers</a></li>
+
+            <li><a href="../guide/04-strings.html">Strings</a></li>
+
+            <li><a href="../guide/05-collections.html">Collections</a></li>
+
+            <li><a href="../guide/06-blocks.html">Blocks</a></li>
+
+            <li><a href="../guide/07-classes.html">Classes</a></li>
+
+            <li><a href="../guide/08-error-handling.html">Error Handling</a></li>
+
+            <li><a href="../guide/09-concurrency.html">Concurrency</a></li>
+
+            <li><a href="../guide/10-supervisors.html">Supervisors</a></li>
+
+            <li><a href="../guide/10-modules.html">Modules</a></li>
+
+            <li><a href="../guide/11-clustering.html">Clustering</a></li>
+
+            <li><a href="../guide/11-projects.html">Projects</a></li>
+
+            <li><a href="../guide/12-go-interop.html">Go Interop</a></li>
+
+            <li><a href="../guide/13-distribution.html">Distribution</a></li>
+
+            <li><a href="../guide/14-tooling-ide.html">Tooling &amp; IDE</a></li>
+
+            <li><a href="../guide/15-cue-integration.html">Cue Integration</a></li>
+
+            <li><a href="../guide/16-tuple-space.html">Tuple Space</a></li>
+
+        </ul>
+    </div>
+
+    <div class="sidebar-section">
+        <div class="sidebar-section-title">API Reference</div>
+
+        <details class="sidebar-ns-group" open>
+            <summary>(root)</summary>
+            <ul class="sidebar-list">
+
+                <li><a href="../classes/Array.html">Array</a></li>
+
+                <li><a href="../classes/ArrayList.html">ArrayList</a></li>
+
+                <li><a href="../classes/AssignmentNode.html">AssignmentNode</a></li>
+
+                <li><a href="../classes/Association.html">Association</a></li>
+
+                <li><a href="../classes/BigInteger.html">BigInteger</a></li>
+
+                <li><a href="../classes/Block.html">Block</a></li>
+
+                <li><a href="../classes/BlockNode.html">BlockNode</a></li>
+
+                <li><a href="../classes/Boolean.html">Boolean</a></li>
+
+                <li><a href="../classes/ByteArray.html">ByteArray</a></li>
+
+                <li><a href="../classes/BytecodeGenerator.html">BytecodeGenerator</a></li>
+
+                <li><a href="../classes/CancellationContext.html">CancellationContext</a></li>
+
+                <li><a href="../classes/CascadeNode.html">CascadeNode</a></li>
+
+                <li><a href="../classes/Channel.html">Channel</a></li>
+
+                <li><a href="../classes/Character.html">Character</a></li>
+
+                <li><a href="../classes/CharacterStream.html">CharacterStream</a></li>
+
+                <li><a href="../classes/ChildSpec.html">ChildSpec</a></li>
+
+                <li><a href="../classes/Class.html">Class</a></li>
+
+                <li><a href="../classes/ClassNode.html">ClassNode</a></li>
+
+                <li><a href="../classes/Cluster.html">Cluster</a></li>
+
+                <li><a href="../classes/CompiledMethod.html">CompiledMethod</a></li>
+
+                <li><a href="../classes/Compiler.html">Compiler</a></li>
+
+                <li><a href="../classes/ConstraintStore.html">ConstraintStore</a></li>
+
+                <li><a href="../classes/Context.html">Context</a></li>
+
+                <li><a href="../classes/CueContext.html">CueContext</a></li>
+
+                <li><a href="../classes/CueValue.html">CueValue</a></li>
+
+                <li><a href="../classes/DateTime.html">DateTime</a></li>
+
+                <li><a href="../classes/Debugger.html">Debugger</a></li>
+
+                <li><a href="../classes/Dictionary.html">Dictionary</a></li>
+
+                <li><a href="../classes/DocServer.html">DocServer</a></li>
+
+                <li><a href="../classes/DuckAppender.html">DuckAppender</a></li>
+
+                <li><a href="../classes/DuckDatabase.html">DuckDatabase</a></li>
+
+                <li><a href="../classes/DynamicSupervisor.html">DynamicSupervisor</a></li>
+
+                <li><a href="../classes/Error.html">Error</a></li>
+
+                <li><a href="../classes/Exception.html">Exception</a></li>
+
+                <li><a href="../classes/ExternalProcess.html">ExternalProcess</a></li>
+
+                <li><a href="../classes/Failure.html">Failure</a></li>
+
+                <li><a href="../classes/False.html">False</a></li>
+
+                <li><a href="../classes/File.html">File</a></li>
+
+                <li><a href="../classes/Float.html">Float</a></li>
+
+                <li><a href="../classes/Future.html">Future</a></li>
+
+                <li><a href="../classes/GrpcClient.html">GrpcClient</a></li>
+
+                <li><a href="../classes/GrpcStream.html">GrpcStream</a></li>
+
+                <li><a href="../classes/Halt.html">Halt</a></li>
+
+                <li><a href="../classes/HashRing.html">HashRing</a></li>
+
+                <li><a href="../classes/HttpClient.html">HttpClient</a></li>
+
+                <li><a href="../classes/HttpRequest.html">HttpRequest</a></li>
+
+                <li><a href="../classes/HttpResponse.html">HttpResponse</a></li>
+
+                <li><a href="../classes/HttpServer.html">HttpServer</a></li>
+
+                <li><a href="../classes/Json.html">Json</a></li>
+
+                <li><a href="../classes/JsonParseError.html">JsonParseError</a></li>
+
+                <li><a href="../classes/JsonReader.html">JsonReader</a></li>
+
+                <li><a href="../classes/JsonWriter.html">JsonWriter</a></li>
+
+                <li><a href="../classes/Lexer.html">Lexer</a></li>
+
+                <li><a href="../classes/LiteralNode.html">LiteralNode</a></li>
+
+                <li><a href="../classes/MailboxMessage.html">MailboxMessage</a></li>
+
+                <li><a href="../classes/Message.html">Message</a></li>
+
+                <li><a href="../classes/MessageNotUnderstood.html">MessageNotUnderstood</a></li>
+
+                <li><a href="../classes/MessageSendNode.html">MessageSendNode</a></li>
+
+                <li><a href="../classes/Metaclass.html">Metaclass</a></li>
+
+                <li><a href="../classes/MethodNode.html">MethodNode</a></li>
+
+                <li><a href="../classes/Mutex.html">Mutex</a></li>
+
+                <li><a href="../classes/Node.html">Node</a></li>
+
+                <li><a href="../classes/Notification.html">Notification</a></li>
+
+                <li><a href="../classes/Object.html">Object</a></li>
+
+                <li><a href="../classes/Parser.html">Parser</a></li>
+
+                <li><a href="../classes/Process.html">Process</a></li>
+
+                <li><a href="../classes/Proquint.html">Proquint</a></li>
+
+                <li><a href="../classes/Random.html">Random</a></li>
+
+                <li><a href="../classes/Regex.html">Regex</a></li>
+
+                <li><a href="../classes/RemoteChannel.html">RemoteChannel</a></li>
+
+                <li><a href="../classes/RemoteProcess.html">RemoteProcess</a></li>
+
+                <li><a href="../classes/Result.html">Result</a></li>
+
+                <li><a href="../classes/ReturnNode.html">ReturnNode</a></li>
+
+                <li><a href="../classes/SSEConnection.html">SSEConnection</a></li>
+
+                <li><a href="../classes/Sandbox.html">Sandbox</a></li>
+
+                <li><a href="../classes/Semaphore.html">Semaphore</a></li>
+
+                <li><a href="../classes/Set.html">Set</a></li>
+
+                <li><a href="../classes/Signal.html">Signal</a></li>
+
+                <li><a href="../classes/SmallInteger.html" class="active">SmallInteger</a></li>
+
+                <li><a href="../classes/SocketConnection.html">SocketConnection</a></li>
+
+                <li><a href="../classes/SqliteDatabase.html">SqliteDatabase</a></li>
+
+                <li><a href="../classes/SqliteRows.html">SqliteRows</a></li>
+
+                <li><a href="../classes/SqliteStatement.html">SqliteStatement</a></li>
+
+                <li><a href="../classes/StackOverflow.html">StackOverflow</a></li>
+
+                <li><a href="../classes/String.html">String</a></li>
+
+                <li><a href="../classes/SubscriptOutOfBounds.html">SubscriptOutOfBounds</a></li>
+
+                <li><a href="../classes/Success.html">Success</a></li>
+
+                <li><a href="../classes/Supervisor.html">Supervisor</a></li>
+
+                <li><a href="../classes/Symbol.html">Symbol</a></li>
+
+                <li><a href="../classes/System.html">System</a></li>
+
+                <li><a href="../classes/Token.html">Token</a></li>
+
+                <li><a href="../classes/Toml.html">Toml</a></li>
+
+                <li><a href="../classes/TomlParseError.html">TomlParseError</a></li>
+
+                <li><a href="../classes/True.html">True</a></li>
+
+                <li><a href="../classes/TupleSpace.html">TupleSpace</a></li>
+
+                <li><a href="../classes/UndefinedObject.html">UndefinedObject</a></li>
+
+                <li><a href="../classes/UnixSocketClient.html">UnixSocketClient</a></li>
+
+                <li><a href="../classes/UnixSocketServer.html">UnixSocketServer</a></li>
+
+                <li><a href="../classes/VariableNode.html">VariableNode</a></li>
+
+                <li><a href="../classes/WaitGroup.html">WaitGroup</a></li>
+
+                <li><a href="../classes/Warning.html">Warning</a></li>
+
+                <li><a href="../classes/WeakReference.html">WeakReference</a></li>
+
+                <li><a href="../classes/ZeroDivide.html">ZeroDivide</a></li>
+
+            </ul>
+        </details>
+
+    </div>
+</nav>
+<main class="content">
     <div class="breadcrumb">
-        <a href="../../index.html">Maggie API Reference</a>
+        <a href="../index.html">Maggie API Reference</a>
 
         &rsaquo; SmallInteger
     </div>
@@ -24,6 +289,34 @@
     </div>
 
 
+    <div class="class-doc">
+        <p>Integer values represented as tagged pointers for efficient arithmetic.</p>
+<p>SmallInteger is the primary numeric type in Maggie, storing exact
+integers in the 48-bit range. Arithmetic operators (+, -, *, /, \\, //),
+comparisons (&lt;, &gt;, &lt;=, &gt;=, =), and iteration (timesRepeat:, to:do:,
+to:by:do:) are implemented as primitives for performance. When
+arithmetic overflows SmallInteger range, the result is automatically
+promoted to BigInteger. The methods below provide higher-level numeric
+operations built on those primitives.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>3 + 4 &gt;&gt;&gt; 7
+10 - 3 &gt;&gt;&gt; 7
+6 * 7 &gt;&gt;&gt; 42
+10 / 3 &gt;&gt;&gt; 3
+10 \\ 3 &gt;&gt;&gt; 1</code></pre>
+</div>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>&#34;Smalltalk-style iteration&#34;
+| sum &lt;Integer&gt; |
+sum := 0.
+1 to: 100 do: [:i | sum := sum + i].
+sum</code></pre>
+</div>
+
+    </div>
+
 
 
 
@@ -36,11 +329,21 @@
         <div class="method">
             <div class="method-selector">*</div>
 
+            <div class="method-doc">
+                <p>Return the product of the receiver and the argument.</p>
+
+            </div>
+
 
         </div>
 
         <div class="method">
             <div class="method-selector">&#43;</div>
+
+            <div class="method-doc">
+                <p>Return the sum of the receiver and the argument.</p>
+
+            </div>
 
 
         </div>
@@ -48,11 +351,21 @@
         <div class="method">
             <div class="method-selector">-</div>
 
+            <div class="method-doc">
+                <p>Return the difference of the receiver and the argument.</p>
+
+            </div>
+
 
         </div>
 
         <div class="method">
             <div class="method-selector">/</div>
+
+            <div class="method-doc">
+                <p>Return the integer quotient of the receiver divided by the argument (truncated toward zero).</p>
+
+            </div>
 
 
         </div>
@@ -60,11 +373,21 @@
         <div class="method">
             <div class="method-selector">//</div>
 
+            <div class="method-doc">
+                <p>Return the integer quotient of the receiver divided by the argument (truncated toward negative infinity).</p>
+
+            </div>
+
 
         </div>
 
         <div class="method">
             <div class="method-selector">&lt;</div>
+
+            <div class="method-doc">
+                <p>Return true if the receiver is less than the argument.</p>
+
+            </div>
 
 
         </div>
@@ -72,11 +395,21 @@
         <div class="method">
             <div class="method-selector">&lt;=</div>
 
+            <div class="method-doc">
+                <p>Return true if the receiver is less than or equal to the argument.</p>
+
+            </div>
+
 
         </div>
 
         <div class="method">
             <div class="method-selector">=</div>
+
+            <div class="method-doc">
+                <p>Return true if the receiver equals the argument.</p>
+
+            </div>
 
 
         </div>
@@ -84,11 +417,21 @@
         <div class="method">
             <div class="method-selector">&gt;</div>
 
+            <div class="method-doc">
+                <p>Return true if the receiver is greater than the argument.</p>
+
+            </div>
+
 
         </div>
 
         <div class="method">
             <div class="method-selector">&gt;=</div>
+
+            <div class="method-doc">
+                <p>Return true if the receiver is greater than or equal to the argument.</p>
+
+            </div>
 
 
         </div>
@@ -96,11 +439,21 @@
         <div class="method">
             <div class="method-selector">\\</div>
 
+            <div class="method-doc">
+                <p>Return the remainder of the receiver divided by the argument.</p>
+
+            </div>
+
 
         </div>
 
         <div class="method">
             <div class="method-selector">bitAnd:</div>
+
+            <div class="method-doc">
+                <p>Return the bitwise AND of the receiver and the argument.</p>
+
+            </div>
 
 
         </div>
@@ -108,17 +461,32 @@
         <div class="method">
             <div class="method-selector">bitOr:</div>
 
+            <div class="method-doc">
+                <p>Return the bitwise OR of the receiver and the argument.</p>
+
+            </div>
+
 
         </div>
 
         <div class="method">
             <div class="method-selector">bitShift:</div>
 
+            <div class="method-doc">
+                <p>Shift the receiver left by count bits (negative count shifts right).</p>
+
+            </div>
+
 
         </div>
 
         <div class="method">
             <div class="method-selector">bitXor:</div>
+
+            <div class="method-doc">
+                <p>Return the bitwise XOR of the receiver and the argument.</p>
+
+            </div>
 
 
         </div>
@@ -132,17 +500,32 @@
         <div class="method">
             <div class="method-selector">timesRepeat:</div>
 
+            <div class="method-doc">
+                <p>Evaluate block the receiver number of times.</p>
+
+            </div>
+
 
         </div>
 
         <div class="method">
             <div class="method-selector">to:by:do:</div>
 
+            <div class="method-doc">
+                <p>Evaluate block with each integer from the receiver to stop, stepping by step.</p>
+
+            </div>
+
 
         </div>
 
         <div class="method">
             <div class="method-selector">to:do:</div>
+
+            <div class="method-doc">
+                <p>Evaluate block with each integer from the receiver to stop, inclusive.</p>
+
+            </div>
 
 
         </div>
@@ -155,11 +538,34 @@
         <div class="method">
             <div class="method-selector">abs</div>
 
+            <div class="method-doc">
+                <p>Return the absolute value of the receiver.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>-5 abs &gt;&gt;&gt; 5
+5 abs &gt;&gt;&gt; 5
+0 abs &gt;&gt;&gt; 0</code></pre>
+</div>
+
+            </div>
+
 
         </div>
 
         <div class="method">
             <div class="method-selector">between:and:</div>
+
+            <div class="method-doc">
+                <p>Return true if the receiver is between min and max, inclusive.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>5 between: 1 and: 10 &gt;&gt;&gt; true
+1 between: 1 and: 10 &gt;&gt;&gt; true
+10 between: 1 and: 10 &gt;&gt;&gt; true
+0 between: 1 and: 10 &gt;&gt;&gt; false</code></pre>
+</div>
+
+            </div>
 
 
         </div>
@@ -167,11 +573,42 @@
         <div class="method">
             <div class="method-selector">even</div>
 
+            <div class="method-doc">
+                <p>Return true if the receiver is divisible by 2.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>4 even &gt;&gt;&gt; true
+7 even &gt;&gt;&gt; false
+0 even &gt;&gt;&gt; true</code></pre>
+</div>
+
+            </div>
+
 
         </div>
 
         <div class="method">
             <div class="method-selector">factorial</div>
+
+            <div class="method-doc">
+                <p>Return the factorial of the receiver (n!).
+The receiver must be non-negative.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>0 factorial &gt;&gt;&gt; 1
+1 factorial &gt;&gt;&gt; 1
+5 factorial &gt;&gt;&gt; 120
+10 factorial &gt;&gt;&gt; 3628800</code></pre>
+</div>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>&#34;Build a table of factorials&#34;
+1 to: 8 do: [:n |
+    (n printString, &#39;! = &#39;, n factorial printString) print
+]</code></pre>
+</div>
+
+            </div>
 
 
         </div>
@@ -179,11 +616,36 @@
         <div class="method">
             <div class="method-selector">gcd:</div>
 
+            <div class="method-doc">
+                <p>Return the greatest common divisor of the receiver and the argument
+using Euclid&#39;s algorithm.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>12 gcd: 8 &gt;&gt;&gt; 4
+7 gcd: 5 &gt;&gt;&gt; 1
+100 gcd: 75 &gt;&gt;&gt; 25
+0 gcd: 5 &gt;&gt;&gt; 5
+-12 gcd: 8 &gt;&gt;&gt; 4</code></pre>
+</div>
+
+            </div>
+
 
         </div>
 
         <div class="method">
             <div class="method-selector">isZero</div>
+
+            <div class="method-doc">
+                <p>Return true if the receiver is zero.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>0 isZero &gt;&gt;&gt; true
+1 isZero &gt;&gt;&gt; false
+-1 isZero &gt;&gt;&gt; false</code></pre>
+</div>
+
+            </div>
 
 
         </div>
@@ -191,11 +653,33 @@
         <div class="method">
             <div class="method-selector">lcm:</div>
 
+            <div class="method-doc">
+                <p>Return the least common multiple of the receiver and the argument.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>4 lcm: 6 &gt;&gt;&gt; 12
+3 lcm: 5 &gt;&gt;&gt; 15
+7 lcm: 7 &gt;&gt;&gt; 7</code></pre>
+</div>
+
+            </div>
+
 
         </div>
 
         <div class="method">
             <div class="method-selector">max:</div>
+
+            <div class="method-doc">
+                <p>Return the larger of the receiver and the argument.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>3 max: 5 &gt;&gt;&gt; 5
+7 max: 2 &gt;&gt;&gt; 7
+4 max: 4 &gt;&gt;&gt; 4</code></pre>
+</div>
+
+            </div>
 
 
         </div>
@@ -203,11 +687,33 @@
         <div class="method">
             <div class="method-selector">min:</div>
 
+            <div class="method-doc">
+                <p>Return the smaller of the receiver and the argument.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>3 min: 5 &gt;&gt;&gt; 3
+7 min: 2 &gt;&gt;&gt; 2
+4 min: 4 &gt;&gt;&gt; 4</code></pre>
+</div>
+
+            </div>
+
 
         </div>
 
         <div class="method">
             <div class="method-selector">negated</div>
+
+            <div class="method-doc">
+                <p>Return the negation of the receiver.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>5 negated &gt;&gt;&gt; -5
+-3 negated &gt;&gt;&gt; 3
+0 negated &gt;&gt;&gt; 0</code></pre>
+</div>
+
+            </div>
 
 
         </div>
@@ -215,11 +721,33 @@
         <div class="method">
             <div class="method-selector">negative</div>
 
+            <div class="method-doc">
+                <p>Return true if the receiver is less than zero.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>-3 negative &gt;&gt;&gt; true
+5 negative &gt;&gt;&gt; false
+0 negative &gt;&gt;&gt; false</code></pre>
+</div>
+
+            </div>
+
 
         </div>
 
         <div class="method">
             <div class="method-selector">odd</div>
+
+            <div class="method-doc">
+                <p>Return true if the receiver is not divisible by 2.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>7 odd &gt;&gt;&gt; true
+4 odd &gt;&gt;&gt; false
+0 odd &gt;&gt;&gt; false</code></pre>
+</div>
+
+            </div>
 
 
         </div>
@@ -227,17 +755,50 @@
         <div class="method">
             <div class="method-selector">positive</div>
 
+            <div class="method-doc">
+                <p>Return true if the receiver is greater than zero.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>5 positive &gt;&gt;&gt; true
+-3 positive &gt;&gt;&gt; false
+0 positive &gt;&gt;&gt; false</code></pre>
+</div>
+
+            </div>
+
 
         </div>
 
         <div class="method">
             <div class="method-selector">printString</div>
 
+            <div class="method-doc">
+                <p>Return the decimal string representation of the receiver.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>42 printString &gt;&gt;&gt; &#39;42&#39;
+-7 printString &gt;&gt;&gt; &#39;-7&#39;
+0 printString &gt;&gt;&gt; &#39;0&#39;</code></pre>
+</div>
+
+            </div>
+
 
         </div>
 
         <div class="method">
             <div class="method-selector">sign</div>
+
+            <div class="method-doc">
+                <p>Return -1, 0, or 1 indicating the sign of the receiver.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>-42 sign &gt;&gt;&gt; -1
+0 sign &gt;&gt;&gt; 0
+17 sign &gt;&gt;&gt; 1</code></pre>
+</div>
+
+            </div>
 
 
         </div>
@@ -249,5 +810,7 @@
     <div class="footer">
         Generated by Maggie doc generator.
     </div>
+</main>
+    <script src="../js/playground.js"></script>
 </body>
 </html>
