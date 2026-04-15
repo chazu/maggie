@@ -398,9 +398,15 @@ func (vm *VM) ExecuteSpawnBlock(sb *SpawnBlock, restrictions []string, pullFunc 
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				if nlr, ok := r.(NonLocalReturn); ok {
-					vm.FinishProcess(proc, ExitNormal(nlr.Value))
-				} else {
+				switch ex := r.(type) {
+				case NonLocalReturn:
+					vm.FinishProcess(proc, ExitNormal(ex.Value))
+				case SignaledException:
+					vm.FinishProcess(proc, ExitException(
+						fmt.Errorf("spawn exception: %v", r),
+						ex.Exception,
+					))
+				default:
 					vm.FinishProcess(proc, ExitError(fmt.Errorf("spawn panic: %v", r)))
 				}
 			}

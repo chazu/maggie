@@ -10,11 +10,12 @@ import (
 // is available. Futures are created by asyncSend:with: on RemoteProcess
 // and can participate in Channel select: via their underlying Go channel.
 type FutureObject struct {
-	ch       chan Value   // capacity 1, receives the result exactly once
-	result   Value       // cached after first receive
-	err      string      // non-empty if the remote side returned an error
-	resolved atomic.Bool // true after result is available
-	mu       sync.Mutex  // protects result/err
+	ch             chan Value   // capacity 1, receives the result exactly once
+	result         Value       // cached after first receive
+	err            string      // non-empty if the remote side returned an error
+	exceptionValue Value       // typed exception value (if remote raised a Maggie exception)
+	resolved       atomic.Bool // true after result is available
+	mu             sync.Mutex  // protects result/err/exceptionValue
 }
 
 // NewFuture creates an unresolved Future.
@@ -38,9 +39,30 @@ func (f *FutureObject) ResolveError(errMsg string) {
 	f.mu.Lock()
 	f.err = errMsg
 	f.result = Nil
+	f.exceptionValue = Nil
 	f.resolved.Store(true)
 	f.mu.Unlock()
 	f.ch <- Nil
+}
+
+// ResolveException writes an error result with a typed exception value.
+// Must be called exactly once. The exVal should be a deserialized exception
+// Value that can be re-signaled on the receiving VM.
+func (f *FutureObject) ResolveException(exVal Value, errMsg string) {
+	f.mu.Lock()
+	f.err = errMsg
+	f.result = Nil
+	f.exceptionValue = exVal
+	f.resolved.Store(true)
+	f.mu.Unlock()
+	f.ch <- Nil
+}
+
+// ExceptionValue returns the typed exception value, or Nil if none.
+func (f *FutureObject) ExceptionValue() Value {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.exceptionValue
 }
 
 // GoChan returns the underlying Go channel for use with reflect.Select

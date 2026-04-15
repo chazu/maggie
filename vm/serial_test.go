@@ -664,3 +664,242 @@ func TestSerial_EmptyDictionary(t *testing.T) {
 		t.Errorf("empty dict: got %d entries, want 0", len(gotDict.Keys))
 	}
 }
+
+// ---------------------------------------------------------------------------
+// Exception round-trip serialization
+// ---------------------------------------------------------------------------
+
+func TestSerial_Exception_Error(t *testing.T) {
+	v := NewVM()
+	defer v.Shutdown()
+
+	// Create an Error exception with a message
+	exObj := &ExceptionObject{
+		ExceptionClass: v.ErrorClass,
+		MessageText:    v.registry.NewStringValue("something went wrong"),
+		Resumable:      false,
+	}
+	id := v.registry.RegisterException(exObj)
+	exVal := FromExceptionID(id)
+
+	data, err := v.SerializeValue(exVal)
+	if err != nil {
+		t.Fatalf("serialize exception: %v", err)
+	}
+
+	got, err := v.DeserializeValue(data)
+	if err != nil {
+		t.Fatalf("deserialize exception: %v", err)
+	}
+
+	if !got.IsException() {
+		t.Fatal("deserialized value is not an exception")
+	}
+
+	gotObj := v.registry.GetException(got.ExceptionID())
+	if gotObj == nil {
+		t.Fatal("deserialized exception not in registry")
+	}
+	if gotObj.ExceptionClass != v.ErrorClass {
+		t.Errorf("expected ErrorClass, got %v", gotObj.ExceptionClass)
+	}
+	if !IsStringValue(gotObj.MessageText) {
+		t.Fatal("message text is not a string")
+	}
+	msg := v.registry.GetStringContent(gotObj.MessageText)
+	if msg != "something went wrong" {
+		t.Errorf("message: got %q, want %q", msg, "something went wrong")
+	}
+}
+
+func TestSerial_Exception_ZeroDivide(t *testing.T) {
+	v := NewVM()
+	defer v.Shutdown()
+
+	exObj := &ExceptionObject{
+		ExceptionClass: v.ZeroDivideClass,
+		MessageText:    v.registry.NewStringValue("division by zero"),
+	}
+	id := v.registry.RegisterException(exObj)
+	exVal := FromExceptionID(id)
+
+	data, err := v.SerializeValue(exVal)
+	if err != nil {
+		t.Fatalf("serialize: %v", err)
+	}
+
+	got, err := v.DeserializeValue(data)
+	if err != nil {
+		t.Fatalf("deserialize: %v", err)
+	}
+
+	if !got.IsException() {
+		t.Fatal("not an exception")
+	}
+	gotObj := v.registry.GetException(got.ExceptionID())
+	if gotObj == nil {
+		t.Fatal("not in registry")
+	}
+	if gotObj.ExceptionClass != v.ZeroDivideClass {
+		t.Errorf("expected ZeroDivideClass, got %s", gotObj.ExceptionClass.Name)
+	}
+}
+
+func TestSerial_Exception_WithTag(t *testing.T) {
+	v := NewVM()
+	defer v.Shutdown()
+
+	tagSym := FromSymbolID(v.Symbols.Intern("myTag"))
+	exObj := &ExceptionObject{
+		ExceptionClass: v.ErrorClass,
+		MessageText:    v.registry.NewStringValue("tagged error"),
+		Tag:            tagSym,
+	}
+	id := v.registry.RegisterException(exObj)
+	exVal := FromExceptionID(id)
+
+	data, err := v.SerializeValue(exVal)
+	if err != nil {
+		t.Fatalf("serialize: %v", err)
+	}
+
+	got, err := v.DeserializeValue(data)
+	if err != nil {
+		t.Fatalf("deserialize: %v", err)
+	}
+
+	gotObj := v.registry.GetException(got.ExceptionID())
+	if gotObj == nil {
+		t.Fatal("not in registry")
+	}
+	if !gotObj.Tag.IsSymbol() {
+		t.Fatal("tag is not a symbol")
+	}
+	tagName := v.Symbols.Name(gotObj.Tag.SymbolID())
+	if tagName != "myTag" {
+		t.Errorf("tag: got %q, want %q", tagName, "myTag")
+	}
+}
+
+func TestSerial_Exception_NoMessage(t *testing.T) {
+	v := NewVM()
+	defer v.Shutdown()
+
+	exObj := &ExceptionObject{
+		ExceptionClass: v.ExceptionClass,
+		MessageText:    Nil,
+		Tag:            Nil,
+	}
+	id := v.registry.RegisterException(exObj)
+	exVal := FromExceptionID(id)
+
+	data, err := v.SerializeValue(exVal)
+	if err != nil {
+		t.Fatalf("serialize: %v", err)
+	}
+
+	got, err := v.DeserializeValue(data)
+	if err != nil {
+		t.Fatalf("deserialize: %v", err)
+	}
+
+	if !got.IsException() {
+		t.Fatal("not an exception")
+	}
+	gotObj := v.registry.GetException(got.ExceptionID())
+	if gotObj == nil {
+		t.Fatal("not in registry")
+	}
+	if gotObj.ExceptionClass != v.ExceptionClass {
+		t.Errorf("expected ExceptionClass, got %s", gotObj.ExceptionClass.Name)
+	}
+	if gotObj.MessageText != Nil {
+		t.Errorf("expected Nil message, got %v", gotObj.MessageText)
+	}
+}
+
+func TestSerial_Exception_UnknownClass(t *testing.T) {
+	v := NewVM()
+	defer v.Shutdown()
+
+	// Create an exception with a custom class not in the standard hierarchy
+	customClass := v.createClass("CustomError", v.ErrorClass)
+	// Do NOT register it in Globals — simulate a class unknown to the deserializer
+
+	exObj := &ExceptionObject{
+		ExceptionClass: customClass,
+		MessageText:    v.registry.NewStringValue("custom error"),
+	}
+	id := v.registry.RegisterException(exObj)
+	exVal := FromExceptionID(id)
+
+	data, err := v.SerializeValue(exVal)
+	if err != nil {
+		t.Fatalf("serialize: %v", err)
+	}
+
+	// Deserialize on a fresh VM where CustomError does not exist
+	v2 := NewVM()
+	defer v2.Shutdown()
+
+	got, err := v2.DeserializeValue(data)
+	if err != nil {
+		t.Fatalf("deserialize: %v", err)
+	}
+
+	if !got.IsException() {
+		t.Fatal("not an exception")
+	}
+	gotObj := v2.registry.GetException(got.ExceptionID())
+	if gotObj == nil {
+		t.Fatal("not in registry")
+	}
+	// Should fall back to ErrorClass since CustomError is unknown
+	if gotObj.ExceptionClass != v2.ErrorClass {
+		t.Errorf("expected ErrorClass fallback, got %s", gotObj.ExceptionClass.Name)
+	}
+	msg := v2.registry.GetStringContent(gotObj.MessageText)
+	if msg != "custom error" {
+		t.Errorf("message preserved: got %q, want %q", msg, "custom error")
+	}
+}
+
+func TestSerial_Exception_CrossVM(t *testing.T) {
+	// Simulate the full cross-node cycle: serialize on VM1, deserialize on VM2
+	v1 := NewVM()
+	defer v1.Shutdown()
+	v2 := NewVM()
+	defer v2.Shutdown()
+
+	exObj := &ExceptionObject{
+		ExceptionClass: v1.StackOverflowClass,
+		MessageText:    v1.registry.NewStringValue("stack overflow at depth 4096"),
+	}
+	id := v1.registry.RegisterException(exObj)
+	exVal := FromExceptionID(id)
+
+	data, err := v1.SerializeValue(exVal)
+	if err != nil {
+		t.Fatalf("serialize on VM1: %v", err)
+	}
+
+	got, err := v2.DeserializeValue(data)
+	if err != nil {
+		t.Fatalf("deserialize on VM2: %v", err)
+	}
+
+	if !got.IsException() {
+		t.Fatal("not an exception on VM2")
+	}
+	gotObj := v2.registry.GetException(got.ExceptionID())
+	if gotObj == nil {
+		t.Fatal("not in VM2 registry")
+	}
+	if gotObj.ExceptionClass != v2.StackOverflowClass {
+		t.Errorf("class: got %s, want StackOverflow", gotObj.ExceptionClass.Name)
+	}
+	msg := v2.registry.GetStringContent(gotObj.MessageText)
+	if msg != "stack overflow at depth 4096" {
+		t.Errorf("message: got %q, want %q", msg, "stack overflow at depth 4096")
+	}
+}

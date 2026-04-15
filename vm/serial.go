@@ -41,7 +41,15 @@ const (
 	cborTagBigIntNegative = 27012
 	cborTagSpawnBlock     = 27013
 	cborTagRemoteChannel  = 27014
+	cborTagException      = 27015
 )
+
+// serializedException is the CBOR representation of a Maggie exception.
+type serializedException struct {
+	ClassName   string `cbor:"1,keyasint"`           // e.g. "Error", "ZeroDivide"
+	MessageText []byte `cbor:"2,keyasint,omitempty"` // serialized message Value
+	TagValue    []byte `cbor:"3,keyasint,omitempty"` // serialized tag Value
+}
 
 // serializedObject is the CBOR representation of a Maggie object.
 type serializedObject struct {
@@ -188,7 +196,7 @@ func (s *valueSerializer) serializeSymbolEncoded(v Value) ([]byte, error) {
 	case resultMarker:
 		return nil, fmt.Errorf("serial: cannot serialize Result (non-serializable type)")
 	case exceptionMarker:
-		return nil, fmt.Errorf("serial: cannot serialize Exception (non-serializable type)")
+		return s.serializeException(v)
 	case arrayListMarker:
 		return nil, fmt.Errorf("serial: cannot serialize ArrayList (non-serializable type)")
 	}
@@ -358,6 +366,42 @@ func (s *valueSerializer) serializeRemoteChannel(v Value) ([]byte, error) {
 	return cborSerialEncMode.Marshal(cbor.Tag{Number: cborTagRemoteChannel, Content: sc})
 }
 
+func (s *valueSerializer) serializeException(v Value) ([]byte, error) {
+	exObj := s.vm.registry.GetException(v.ExceptionID())
+	if exObj == nil {
+		// Unknown exception — serialize as a generic Error with no message
+		se := &serializedException{ClassName: "Error"}
+		return cborSerialEncMode.Marshal(cbor.Tag{Number: cborTagException, Content: se})
+	}
+
+	className := "Exception"
+	if exObj.ExceptionClass != nil {
+		className = exObj.ExceptionClass.Name
+	}
+
+	se := &serializedException{ClassName: className}
+
+	// Serialize message text if present
+	if exObj.MessageText != Nil {
+		msgBytes, err := s.serialize(exObj.MessageText)
+		if err != nil {
+			return nil, fmt.Errorf("serial: exception messageText: %w", err)
+		}
+		se.MessageText = msgBytes
+	}
+
+	// Serialize tag if present
+	if exObj.Tag != Nil {
+		tagBytes, err := s.serialize(exObj.Tag)
+		if err != nil {
+			return nil, fmt.Errorf("serial: exception tag: %w", err)
+		}
+		se.TagValue = tagBytes
+	}
+
+	return cborSerialEncMode.Marshal(cbor.Tag{Number: cborTagException, Content: se})
+}
+
 // objectPointer returns a stable identity for an Object (for cycle detection).
 func objectPointer(obj *Object) uintptr {
 	return uintptr(obj.ToValue().ObjectPtr())
@@ -513,6 +557,9 @@ func (d *valueDeserializer) deserializeTag(tag cbor.Tag, rawData []byte) (Value,
 	case cborTagRemoteChannel:
 		return d.deserializeChannel(tag)
 
+	case cborTagException:
+		return d.deserializeException(tag)
+
 	default:
 		// Unknown tag — try to deserialize the content as a plain value
 		return d.fromInterface(tag.Content)
@@ -665,6 +712,71 @@ func (d *valueDeserializer) deserializeChannel(tag cbor.Tag) (Value, error) {
 	}
 
 	return d.vm.registerRemoteChannel(ref), nil
+}
+
+func (d *valueDeserializer) deserializeException(tag cbor.Tag) (Value, error) {
+	raw, err := cborSerialEncMode.Marshal(tag.Content)
+	if err != nil {
+		return Nil, fmt.Errorf("serial: Exception re-encode: %w", err)
+	}
+
+	var se serializedException
+	if err := cbor.Unmarshal(raw, &se); err != nil {
+		return Nil, fmt.Errorf("serial: Exception decode: %w", err)
+	}
+
+	// Look up the exception class by name; fall back to Error if not found
+	exClass := d.lookupExceptionClass(se.ClassName)
+	if exClass == nil {
+		exClass = d.vm.ErrorClass
+	}
+
+	// Deserialize message text
+	var messageText Value = Nil
+	if len(se.MessageText) > 0 {
+		messageText, err = d.deserialize(se.MessageText)
+		if err != nil {
+			return Nil, fmt.Errorf("serial: exception messageText: %w", err)
+		}
+	}
+
+	// Deserialize tag value
+	var tagVal Value = Nil
+	if len(se.TagValue) > 0 {
+		tagVal, err = d.deserialize(se.TagValue)
+		if err != nil {
+			return Nil, fmt.Errorf("serial: exception tag: %w", err)
+		}
+	}
+
+	// Create and register the exception object
+	exObj := &ExceptionObject{
+		ExceptionClass: exClass,
+		MessageText:    messageText,
+		Tag:            tagVal,
+		Resumable:      false, // remote exceptions are not resumable
+	}
+	id := d.vm.registry.RegisterException(exObj)
+	return FromExceptionID(id), nil
+}
+
+// lookupExceptionClass finds an exception class by name, checking the standard
+// exception hierarchy. Returns nil if not found.
+func (d *valueDeserializer) lookupExceptionClass(name string) *Class {
+	if name == "" {
+		return nil
+	}
+	// Try Globals first (covers all registered exception classes)
+	if gv, ok := d.vm.Globals[name]; ok {
+		if cls := d.vm.GetClassFromValue(gv); cls != nil {
+			return cls
+		}
+	}
+	// Try ClassTable
+	if cls := d.vm.Classes.Lookup(name); cls != nil {
+		return cls
+	}
+	return nil
 }
 
 func (d *valueDeserializer) deserializeCueValue(tag cbor.Tag) (Value, error) {

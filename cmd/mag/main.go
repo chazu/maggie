@@ -917,8 +917,8 @@ func buildRemoteChannelFactory(vmInst *vm.VM) func(ref *vm.RemoteChannelRef) {
 
 // buildSpawnResultFunc creates a callback that delivers forkOn: results
 // back to the spawning node via DeliverMessage with __spawn_result__ selector.
-func buildSpawnResultFunc(vmInst *vm.VM) func(spawnerID dist.NodeID, futureID uint64, resultBytes []byte, errMsg error) {
-	return func(spawnerID dist.NodeID, futureID uint64, resultBytes []byte, errMsg error) {
+func buildSpawnResultFunc(vmInst *vm.VM) func(spawnerID dist.NodeID, futureID uint64, resultBytes []byte, errMsg error, exceptionBytes []byte) {
+	return func(spawnerID dist.NodeID, futureID uint64, resultBytes []byte, errMsg error, exceptionBytes []byte) {
 		// Find the node ref for the spawner
 		ref := vmInst.FindNodeRefByPublicKey(spawnerID)
 		if ref == nil || ref.SendFunc == nil {
@@ -927,13 +927,17 @@ func buildSpawnResultFunc(vmInst *vm.VM) func(spawnerID dist.NodeID, futureID ui
 
 		// Build the spawn result payload
 		type spawnResultPayload struct {
-			FutureID    uint64 `cbor:"1,keyasint"`
-			ResultBytes []byte `cbor:"2,keyasint"`
-			ErrorMsg    string `cbor:"3,keyasint,omitempty"`
+			FutureID       uint64 `cbor:"1,keyasint"`
+			ResultBytes    []byte `cbor:"2,keyasint"`
+			ErrorMsg       string `cbor:"3,keyasint,omitempty"`
+			ExceptionBytes []byte `cbor:"4,keyasint,omitempty"`
 		}
 		payload := spawnResultPayload{FutureID: futureID, ResultBytes: resultBytes}
 		if errMsg != nil {
 			payload.ErrorMsg = errMsg.Error()
+		}
+		if len(exceptionBytes) > 0 {
+			payload.ExceptionBytes = exceptionBytes
 		}
 		payloadBytes, err := vm.CborSerialEncode(payload)
 		if err != nil {

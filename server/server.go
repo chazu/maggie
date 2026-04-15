@@ -31,7 +31,7 @@ type serverConfig struct {
 	trustStore      *dist.TrustStore
 	diskCache       *dist.DiskCache
 	pullFunc        func(peerID dist.NodeID, hash [32]byte) error
-	spawnResultFunc func(spawnerID dist.NodeID, futureID uint64, resultBytes []byte, errMsg error)
+	spawnResultFunc func(spawnerID dist.NodeID, futureID uint64, resultBytes []byte, errMsg error, exceptionBytes []byte)
 	peerAddrs       *sync.Map // NodeID -> address registry for code-on-demand
 }
 
@@ -60,7 +60,7 @@ func WithPullFunc(fn func(peerID dist.NodeID, hash [32]byte) error) ServerOption
 }
 
 // WithSpawnResultFunc sets the callback for delivering spawn results.
-func WithSpawnResultFunc(fn func(spawnerID dist.NodeID, futureID uint64, resultBytes []byte, errMsg error)) ServerOption {
+func WithSpawnResultFunc(fn func(spawnerID dist.NodeID, futureID uint64, resultBytes []byte, errMsg error, exceptionBytes []byte)) ServerOption {
 	return func(c *serverConfig) { c.spawnResultFunc = fn }
 }
 

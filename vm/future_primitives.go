@@ -20,7 +20,7 @@ func (vm *VM) registerFuturePrimitives() {
 
 	vm.symbolDispatch.Register(promiseMarker, &SymbolTypeEntry{Class: c})
 
-	// Future>>await — blocking, raises RemoteError on failure
+	// Future>>await — blocking, raises the remote exception on failure
 	c.AddMethod0(vm.Selectors, "await", func(vmPtr interface{}, recv Value) Value {
 		v := vmPtr.(*VM)
 		f := v.getFuture(recv)
@@ -30,6 +30,14 @@ func (vm *VM) registerFuturePrimitives() {
 		<-f.ch // block until resolved
 		f.mu.Lock()
 		defer f.mu.Unlock()
+		if f.exceptionValue != Nil && f.exceptionValue.IsException() {
+			// Re-signal the typed exception from the remote node
+			exObj := v.registry.GetException(f.exceptionValue.ExceptionID())
+			if exObj != nil {
+				v.signalExceptionObject(f.exceptionValue, exObj)
+				return Nil // unreachable — signalExceptionObject always panics
+			}
+		}
 		if f.err != "" {
 			return v.signalRemoteError(f.err)
 		}
@@ -51,6 +59,13 @@ func (vm *VM) registerFuturePrimitives() {
 		case <-f.ch:
 			f.mu.Lock()
 			defer f.mu.Unlock()
+			if f.exceptionValue != Nil && f.exceptionValue.IsException() {
+				exObj := v.registry.GetException(f.exceptionValue.ExceptionID())
+				if exObj != nil {
+					v.signalExceptionObject(f.exceptionValue, exObj)
+					return Nil
+				}
+			}
 			if f.err != "" {
 				return v.signalRemoteError(f.err)
 			}
@@ -82,6 +97,20 @@ func (vm *VM) registerFuturePrimitives() {
 			return Nil
 		}
 		return f.Result()
+	})
+
+	// Future>>exception — returns the typed exception value, or nil
+	c.AddMethod0(vm.Selectors, "exception", func(vmPtr interface{}, recv Value) Value {
+		v := vmPtr.(*VM)
+		f := v.getFuture(recv)
+		if f == nil {
+			return Nil
+		}
+		exVal := f.ExceptionValue()
+		if exVal == Nil {
+			return Nil
+		}
+		return exVal
 	})
 
 	// Future>>error — returns error string or nil

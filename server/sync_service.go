@@ -486,12 +486,13 @@ func (s *SyncService) handleRemoteDown(envelope *dist.MessageEnvelope) (*connect
 }
 
 // handleSpawnResult processes a spawn result delivery from a remote node.
-// The payload is a CBOR struct with futureID + result bytes.
+// The payload is a CBOR struct with futureID + result bytes + optional exception bytes.
 func (s *SyncService) handleSpawnResult(envelope *dist.MessageEnvelope) (*connect.Response[maggiev1.DeliverMessageResponse], error) {
 	type spawnResult struct {
-		FutureID    uint64 `cbor:"1,keyasint"`
-		ResultBytes []byte `cbor:"2,keyasint"`
-		ErrorMsg    string `cbor:"3,keyasint,omitempty"`
+		FutureID       uint64 `cbor:"1,keyasint"`
+		ResultBytes    []byte `cbor:"2,keyasint"`
+		ErrorMsg       string `cbor:"3,keyasint,omitempty"`
+		ExceptionBytes []byte `cbor:"4,keyasint,omitempty"`
 	}
 	var sr spawnResult
 	if err := dist.UnmarshalCBOR(envelope.Payload, &sr); err != nil {
@@ -507,7 +508,16 @@ func (s *SyncService) handleSpawnResult(envelope *dist.MessageEnvelope) (*connec
 		return connect.NewResponse(&maggiev1.DeliverMessageResponse{Success: true}), nil
 	}
 
-	if sr.ErrorMsg != "" {
+	if len(sr.ExceptionBytes) > 0 {
+		// Deserialize the typed exception and resolve with it
+		exVal, err := s.worker.vm.DeserializeValue(sr.ExceptionBytes)
+		if err != nil {
+			// Fall back to string error if exception deserialization fails
+			future.ResolveError(sr.ErrorMsg)
+		} else {
+			future.ResolveException(exVal, sr.ErrorMsg)
+		}
+	} else if sr.ErrorMsg != "" {
 		future.ResolveError(sr.ErrorMsg)
 	} else if len(sr.ResultBytes) > 0 {
 		result, err := s.worker.vm.DeserializeValue(sr.ResultBytes)
@@ -680,9 +690,16 @@ func (s *SyncService) setupResultDelivery(sb *vm.SpawnBlock, spawnerID dist.Node
 			resultBytes, _ = s.worker.vm.SerializeValue(vm.Nil)
 		}
 
+		// Serialize the exception value if present
+		exitReason := proc.ExitReason()
+		var exceptionBytes []byte
+		if exitReason.ExceptionValue != vm.Nil && exitReason.ExceptionValue.IsException() {
+			exceptionBytes, _ = s.worker.vm.SerializeValue(exitReason.ExceptionValue)
+		}
+
 		// Build a spawn-result envelope and deliver back to spawner
 		if s.worker.spawnResultFunc != nil {
-			s.worker.spawnResultFunc(spawnerID, sb.FutureID, resultBytes, proc.ExitReason().Error)
+			s.worker.spawnResultFunc(spawnerID, sb.FutureID, resultBytes, exitReason.Error, exceptionBytes)
 		}
 	}()
 }
