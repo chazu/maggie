@@ -293,3 +293,15 @@ func (vm *VM) registerResultPrimitives() {
 		return v.registry.RegisterResultValue(result)
 	})
 }
+
+// NewSuccessResult creates a Success result wrapping the given value.
+// Exported for use by generated Go glue code (gowrap).
+func (vm *VM) NewSuccessResult(val Value) Value {
+	return vm.newSuccessResult(val)
+}
+
+// NewFailureResult creates a Failure result with the given reason string.
+// Exported for use by generated Go glue code (gowrap).
+func (vm *VM) NewFailureResult(reason string) Value {
+	return vm.newFailureResult(reason)
+}
