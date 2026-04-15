@@ -140,7 +140,7 @@ func wrapPackage(target wrapTarget, outputDir string, verbose bool) error {
 	}
 
 	// Generate Maggie stubs
-	magCode, err := gowrap.GenerateMaggieStubs(model)
+	magFiles, err := gowrap.GenerateMaggieStubs(model)
 	if err != nil {
 		return fmt.Errorf("generating Maggie stubs: %w", err)
 	}
@@ -156,14 +156,18 @@ func wrapPackage(target wrapTarget, outputDir string, verbose bool) error {
 		return fmt.Errorf("writing %s: %w", goPath, err)
 	}
 
-	magPath := filepath.Join(pkgDir, "stubs.mag")
-	if err := os.WriteFile(magPath, []byte(magCode), 0o644); err != nil {
-		return fmt.Errorf("writing %s: %w", magPath, err)
+	for filename, content := range magFiles {
+		magPath := filepath.Join(pkgDir, filename)
+		if err := os.WriteFile(magPath, []byte(content), 0o644); err != nil {
+			return fmt.Errorf("writing %s: %w", magPath, err)
+		}
+		if verbose {
+			fmt.Printf("  Wrote %s\n", magPath)
+		}
 	}
 
 	if verbose {
 		fmt.Printf("  Wrote %s\n", goPath)
-		fmt.Printf("  Wrote %s\n", magPath)
 	}
 
 	return nil
