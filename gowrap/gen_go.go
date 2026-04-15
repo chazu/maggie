@@ -19,9 +19,6 @@ func GenerateGoGlue(model *PackageModel) (string, error) {
 	fmt.Fprintf(&b, "package wrap_%s\n\n", sanitizePackageName(model.Name))
 	fmt.Fprintf(&b, "import (\n")
 	fmt.Fprintf(&b, "\t\"reflect\"\n")
-	if hasErrorReturns(model) {
-		fmt.Fprintf(&b, "\t\"fmt\"\n")
-	}
 	fmt.Fprintf(&b, "\n")
 	fmt.Fprintf(&b, "\tpkg %q\n", model.ImportPath)
 	fmt.Fprintf(&b, "\t\"github.com/chazu/maggie/vm\"\n")
@@ -29,9 +26,6 @@ func GenerateGoGlue(model *PackageModel) (string, error) {
 
 	// Suppress unused import warnings
 	fmt.Fprintf(&b, "var _ = reflect.TypeOf\n")
-	if hasErrorReturns(model) {
-		fmt.Fprintf(&b, "var _ = fmt.Errorf\n")
-	}
 	fmt.Fprintf(&b, "\n")
 
 	// RegisterPrimitives function
@@ -98,12 +92,17 @@ func hasUnconvertibleParam(params []ParamModel, pkgPath string) (bool, string) {
 	return false, ""
 }
 
-func generateFunctionBinding(b *strings.Builder, fn FunctionModel, pkgPath string) {
-	selector := GoNameToMaggieSelector(fn.Name, len(fn.Params))
-	if len(fn.Params) > 4 {
-		fmt.Fprintf(b, "\t// Skipped: %s (too many parameters: %d)\n", fn.Name, len(fn.Params))
-		return
+// paramNames extracts the Name field from each ParamModel.
+func paramNames(params []ParamModel) []string {
+	names := make([]string, len(params))
+	for i, p := range params {
+		names[i] = p.Name
 	}
+	return names
+}
+
+func generateFunctionBinding(b *strings.Builder, fn FunctionModel, pkgPath string) {
+	selector := GoNameToMaggieSelector(fn.Name, paramNames(fn.Params))
 	if bad, typStr := hasUnconvertibleParam(fn.Params, pkgPath); bad {
 		fmt.Fprintf(b, "\t// Skipped: %s (unconvertible parameter type: %s)\n", fn.Name, typStr)
 		return
@@ -136,11 +135,7 @@ func generateFunctionBinding(b *strings.Builder, fn FunctionModel, pkgPath strin
 }
 
 func generateMethodBinding(b *strings.Builder, m FunctionModel, tp TypeModel, pkgPath string) {
-	selector := GoNameToMaggieSelector(m.Name, len(m.Params))
-	if len(m.Params) > 4 {
-		fmt.Fprintf(b, "\t// Skipped: %s.%s (too many parameters: %d)\n", tp.Name, m.Name, len(m.Params))
-		return
-	}
+	selector := GoNameToMaggieSelector(m.Name, paramNames(m.Params))
 	if bad, typStr := hasUnconvertibleParam(m.Params, pkgPath); bad {
 		fmt.Fprintf(b, "\t// Skipped: %s.%s (unconvertible parameter type: %s)\n", tp.Name, m.Name, typStr)
 		return
@@ -193,15 +188,15 @@ func writeReturnHandling(b *strings.Builder, callExpr string, results []ParamMod
 	} else if returnsErr && len(results) == 2 {
 		fmt.Fprintf(b, "\t\tresult, err := %s\n", callExpr)
 		fmt.Fprintf(b, "\t\tif err != nil {\n")
-		fmt.Fprintf(b, "\t\t\tpanic(fmt.Sprintf(\"Maggie error: GoError: %%v\", err))\n")
+		fmt.Fprintf(b, "\t\t\treturn v.NewFailureResult(err.Error())\n")
 		fmt.Fprintf(b, "\t\t}\n")
-		fmt.Fprintf(b, "\t\treturn v.GoToValue(result)\n")
+		fmt.Fprintf(b, "\t\treturn v.NewSuccessResult(v.GoToValue(result))\n")
 	} else if returnsErr && len(results) == 1 {
 		fmt.Fprintf(b, "\t\terr := %s\n", callExpr)
 		fmt.Fprintf(b, "\t\tif err != nil {\n")
-		fmt.Fprintf(b, "\t\t\tpanic(fmt.Sprintf(\"Maggie error: GoError: %%v\", err))\n")
+		fmt.Fprintf(b, "\t\t\treturn v.NewFailureResult(err.Error())\n")
 		fmt.Fprintf(b, "\t\t}\n")
-		fmt.Fprintf(b, "\t\treturn vm.Nil\n")
+		fmt.Fprintf(b, "\t\treturn v.NewSuccessResult(vm.Nil)\n")
 	} else if len(results) == 1 {
 		fmt.Fprintf(b, "\t\tresult := %s\n", callExpr)
 		fmt.Fprintf(b, "\t\treturn v.GoToValue(result)\n")
@@ -311,22 +306,6 @@ func goTypeConversion(t types.Type, valueExpr, wrappedPkgPath string) string {
 		}
 	}
 	return ""
-}
-
-func hasErrorReturns(model *PackageModel) bool {
-	for _, fn := range model.Functions {
-		if fn.ReturnsErr {
-			return true
-		}
-	}
-	for _, tp := range model.Types {
-		for _, m := range tp.Methods {
-			if m.ReturnsErr {
-				return true
-			}
-		}
-	}
-	return false
 }
 
 func sanitizePackageName(name string) string {

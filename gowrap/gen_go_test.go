@@ -32,11 +32,11 @@ func TestGenerateGoGlue_Strings(t *testing.T) {
 	if !strings.Contains(code, "RegisterPrimitives") {
 		t.Error("expected RegisterPrimitives function")
 	}
-	if !strings.Contains(code, `"contains:_:"`) {
-		t.Error("expected contains:_: selector")
+	if !strings.Contains(code, `"contains:substr:"`) {
+		t.Error("expected contains:substr: selector")
 	}
-	if !strings.Contains(code, `"hasPrefix:_:"`) {
-		t.Error("expected hasPrefix:_: selector")
+	if !strings.Contains(code, `"hasPrefix:prefix:"`) {
+		t.Error("expected hasPrefix:prefix: selector")
 	}
 	if !strings.Contains(code, "RegisterGoType") {
 		t.Error("expected RegisterGoType call for Builder")
@@ -61,9 +61,43 @@ func TestGenerateGoGlue_ErrorHandling(t *testing.T) {
 		t.Fatalf("GenerateGoGlue: %v", err)
 	}
 
-	// Should generate error handling
-	if !strings.Contains(code, "GoError") {
-		t.Error("expected GoError panic for error-returning function")
+	// Should use Failure results, not panic
+	if strings.Contains(code, "panic(") {
+		t.Error("generated code should NOT contain panic — errors must return Failure results")
+	}
+	if !strings.Contains(code, "NewFailureResult") {
+		t.Error("expected NewFailureResult for error-returning function")
+	}
+	if !strings.Contains(code, "NewSuccessResult") {
+		t.Error("expected NewSuccessResult for error-returning function's success path")
+	}
+}
+
+func TestGenerateGoGlue_ErrorOnlyReturn(t *testing.T) {
+	// Test functions that return only an error (no value), e.g., func Close() error
+	model, err := IntrospectPackage("strings", map[string]bool{
+		"Builder": true,
+	})
+	if err != nil {
+		t.Fatalf("IntrospectPackage: %v", err)
+	}
+
+	code, err := GenerateGoGlue(model)
+	if err != nil {
+		t.Fatalf("GenerateGoGlue: %v", err)
+	}
+
+	// Builder.WriteByte returns (error) — should use Failure result, not panic
+	if strings.Contains(code, "panic(") {
+		t.Error("generated code should NOT contain panic — errors must return Failure results")
+	}
+
+	// Verify both error-only and value+error patterns use the Result pattern
+	if !strings.Contains(code, "v.NewFailureResult(err.Error())") {
+		t.Error("expected v.NewFailureResult(err.Error()) for error handling")
+	}
+	if !strings.Contains(code, "v.NewSuccessResult(") {
+		t.Error("expected v.NewSuccessResult for success path")
 	}
 }
 

@@ -2,17 +2,6 @@
 namespace: 'Go'
 
 Strings subclass: Object
-  classMethod: contains: s _: substr [ <primitive> ]
-  classMethod: hasPrefix: s _: prefix [ <primitive> ]
-
-Builder subclass: Object
-  method: cap [ <primitive> ]
-  method: grow: n [ <primitive> ]
-  method: len [ <primitive> ]
-  method: reset [ <primitive> ]
-  method: string [ <primitive> ]
-  method: write: p [ <primitive> ]
-  method: writeByte: c [ <primitive> ]
-  method: writeRune: r [ <primitive> ]
-  method: writeString: s [ <primitive> ]
+  classMethod: contains: s substr: substr [ <primitive> ]
+  classMethod: hasPrefix: s prefix: prefix [ <primitive> ]
 

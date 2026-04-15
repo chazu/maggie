@@ -1,6 +1,7 @@
 package gowrap
 
 import (
+	"fmt"
 	"strings"
 	"unicode"
 )
@@ -21,13 +22,16 @@ func GoPackageToMaggieNamespace(importPath string) string {
 // e.g., "ReadAll" → "readAll", "NewDecoder" → "newDecoder"
 // For methods with a single parameter, appends ":"
 // e.g., "Marshal" with 1 param → "marshal:"
-func GoNameToMaggieSelector(name string, paramCount int) string {
+// For multi-param functions, parameter names become selector keywords:
+// e.g., "Replace" with params (s, old, new, n) → "replace:old:new:n:"
+func GoNameToMaggieSelector(name string, paramNames []string) string {
 	if len(name) == 0 {
 		return name
 	}
 	// Convert first character to lowercase
 	sel := strings.ToLower(name[:1]) + name[1:]
 
+	paramCount := len(paramNames)
 	if paramCount == 0 {
 		return sel
 	}
@@ -35,11 +39,21 @@ func GoNameToMaggieSelector(name string, paramCount int) string {
 		return sel + ":"
 	}
 
-	// Multi-param: use keyword-style
-	// For now, just append the right number of colons
-	// e.g., "replace" with 3 params → "replace:with:count:" won't work
-	// Without param names in Go, we use positional colons
-	return sel + ":" + strings.Repeat("_:", paramCount-1)
+	// Multi-param: use Go parameter names as keyword parts.
+	// First param is implicit (the base selector), remaining become keywords.
+	// e.g., Replace(s, old, new, n) → "replace:old:new:n:"
+	var b strings.Builder
+	b.WriteString(sel)
+	b.WriteByte(':')
+	for i := 1; i < paramCount; i++ {
+		pName := paramNames[i]
+		if pName == "" || pName == "_" {
+			pName = fmt.Sprintf("p%d", i)
+		}
+		b.WriteString(lcFirst(pName))
+		b.WriteByte(':')
+	}
+	return b.String()
 }
 
 // GoNameToMaggieClassName converts a Go type name to a Maggie class name

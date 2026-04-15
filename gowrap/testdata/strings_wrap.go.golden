@@ -3,14 +3,12 @@ package wrap_strings
 
 import (
 	"reflect"
-	"fmt"
 
 	pkg "strings"
 	"github.com/chazu/maggie/vm"
 )
 
 var _ = reflect.TypeOf
-var _ = fmt.Errorf
 
 // RegisterPrimitives registers all wrapped Go types and functions with the VM.
 func RegisterPrimitives(v *vm.VM) {
@@ -21,7 +19,7 @@ func RegisterPrimitives(v *vm.VM) {
 	nsClass := v.RegisterGoType("Go::Strings", reflect.TypeOf((*struct{})(nil)))
 	_ = nsClass
 
-	nsClass.AddClassMethod(v.Selectors, "contains:_:", vm.NewPrimitiveMethod("contains:_:", func(vmPtr interface{}, receiver vm.Value, args []vm.Value) vm.Value {
+	nsClass.AddClassMethod(v.Selectors, "contains:substr:", vm.NewPrimitiveMethod("contains:substr:", func(vmPtr interface{}, receiver vm.Value, args []vm.Value) vm.Value {
 		v := vmPtr.(*vm.VM)
 		arg0 := v.ValueToGo(args[0]).(string)
 		arg1 := v.ValueToGo(args[1]).(string)
@@ -29,7 +27,7 @@ func RegisterPrimitives(v *vm.VM) {
 		return v.GoToValue(result)
 	}))
 
-	nsClass.AddClassMethod(v.Selectors, "hasPrefix:_:", vm.NewPrimitiveMethod("hasPrefix:_:", func(vmPtr interface{}, receiver vm.Value, args []vm.Value) vm.Value {
+	nsClass.AddClassMethod(v.Selectors, "hasPrefix:prefix:", vm.NewPrimitiveMethod("hasPrefix:prefix:", func(vmPtr interface{}, receiver vm.Value, args []vm.Value) vm.Value {
 		v := vmPtr.(*vm.VM)
 		arg0 := v.ValueToGo(args[0]).(string)
 		arg1 := v.ValueToGo(args[1]).(string)
@@ -103,9 +101,9 @@ func RegisterPrimitives(v *vm.VM) {
 		arg0 := []byte(v.ValueToGo(args[0]).(string))
 		result, err := self.Write(arg0)
 		if err != nil {
-			panic(fmt.Sprintf("Maggie error: GoError: %v", err))
+			return v.NewFailureResult(err.Error())
 		}
-		return v.GoToValue(result)
+		return v.NewSuccessResult(v.GoToValue(result))
 	})
 
 	builderClass.AddPrimitiveMethod(v.Selectors, "writeByte:", func(vmPtr interface{}, receiver vm.Value, args []vm.Value) vm.Value {
@@ -118,9 +116,9 @@ func RegisterPrimitives(v *vm.VM) {
 		arg0 := byte(args[0].SmallInt())
 		err := self.WriteByte(arg0)
 		if err != nil {
-			panic(fmt.Sprintf("Maggie error: GoError: %v", err))
+			return v.NewFailureResult(err.Error())
 		}
-		return vm.Nil
+		return v.NewSuccessResult(vm.Nil)
 	})
 
 	builderClass.AddPrimitiveMethod(v.Selectors, "writeRune:", func(vmPtr interface{}, receiver vm.Value, args []vm.Value) vm.Value {
@@ -133,9 +131,9 @@ func RegisterPrimitives(v *vm.VM) {
 		arg0 := rune(args[0].SmallInt())
 		result, err := self.WriteRune(arg0)
 		if err != nil {
-			panic(fmt.Sprintf("Maggie error: GoError: %v", err))
+			return v.NewFailureResult(err.Error())
 		}
-		return v.GoToValue(result)
+		return v.NewSuccessResult(v.GoToValue(result))
 	})
 
 	builderClass.AddPrimitiveMethod(v.Selectors, "writeString:", func(vmPtr interface{}, receiver vm.Value, args []vm.Value) vm.Value {
@@ -148,9 +146,9 @@ func RegisterPrimitives(v *vm.VM) {
 		arg0 := v.ValueToGo(args[0]).(string)
 		result, err := self.WriteString(arg0)
 		if err != nil {
-			panic(fmt.Sprintf("Maggie error: GoError: %v", err))
+			return v.NewFailureResult(err.Error())
 		}
-		return v.GoToValue(result)
+		return v.NewSuccessResult(v.GoToValue(result))
 	})
 
 }

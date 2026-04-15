@@ -27,21 +27,34 @@ func TestGoPackageToMaggieNamespace(t *testing.T) {
 func TestGoNameToMaggieSelector(t *testing.T) {
 	tests := []struct {
 		name       string
-		paramCount int
+		paramNames []string
 		expected   string
 	}{
-		{"Contains", 0, "contains"},
-		{"ReadAll", 0, "readAll"},
-		{"NewDecoder", 1, "newDecoder:"},
-		{"Replace", 0, "replace"},
-		{"HasPrefix", 0, "hasPrefix"},
-		{"Write", 1, "write:"},
+		{"Contains", nil, "contains"},
+		{"ReadAll", nil, "readAll"},
+		{"NewDecoder", []string{"r"}, "newDecoder:"},
+		{"Replace", nil, "replace"},
+		{"HasPrefix", nil, "hasPrefix"},
+		{"Write", []string{"p"}, "write:"},
+		// Multi-param: Go param names become selector keywords
+		{"Contains", []string{"s", "substr"}, "contains:substr:"},
+		{"HasPrefix", []string{"s", "prefix"}, "hasPrefix:prefix:"},
+		{"Replace", []string{"s", "old", "new", "n"}, "replace:old:new:n:"},
+		// 5+ params work (no limit)
+		{"SomeFunc", []string{"a", "b", "c", "d", "e"}, "someFunc:b:c:d:e:"},
+		{"BigFunc", []string{"x", "y", "z", "w", "v", "u"}, "bigFunc:y:z:w:v:u:"},
+		// Unnamed/underscore params get positional fallback
+		{"Foo", []string{"x", "", "_"}, "foo:p1:p2:"},
 	}
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := GoNameToMaggieSelector(tt.name, tt.paramCount)
+		label := tt.name
+		if len(tt.paramNames) > 0 {
+			label += "_" + tt.expected
+		}
+		t.Run(label, func(t *testing.T) {
+			got := GoNameToMaggieSelector(tt.name, tt.paramNames)
 			if got != tt.expected {
-				t.Errorf("GoNameToMaggieSelector(%q, %d) = %q, want %q", tt.name, tt.paramCount, got, tt.expected)
+				t.Errorf("GoNameToMaggieSelector(%q, %v) = %q, want %q", tt.name, tt.paramNames, got, tt.expected)
 			}
 		})
 	}
