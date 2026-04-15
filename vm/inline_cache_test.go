@@ -228,6 +228,137 @@ func TestInlineCacheTableStats(t *testing.T) {
 	}
 }
 
+func TestInlineCacheResetClearsState(t *testing.T) {
+	ic := &InlineCache{State: CacheEmpty}
+
+	class := &Class{Name: "Test"}
+	method := &CompiledMethod{name: "test"}
+
+	// Populate cache to polymorphic state
+	ic.Update(class, method)
+	class2 := &Class{Name: "Test2"}
+	method2 := &CompiledMethod{name: "test2"}
+	ic.Update(class2, method2)
+
+	// Generate some hits/misses
+	ic.Lookup(class)
+	ic.Lookup(&Class{Name: "Unknown"})
+
+	if ic.State != CachePolymorphic {
+		t.Fatalf("Expected polymorphic, got %v", ic.State)
+	}
+
+	// Reset should clear everything
+	ic.Reset()
+
+	if ic.State != CacheEmpty {
+		t.Errorf("Expected empty state after reset, got %v", ic.State)
+	}
+	if ic.Count != 0 {
+		t.Errorf("Expected count 0 after reset, got %d", ic.Count)
+	}
+	if ic.Hits != 0 {
+		t.Errorf("Expected hits 0 after reset, got %d", ic.Hits)
+	}
+	if ic.Misses != 0 {
+		t.Errorf("Expected misses 0 after reset, got %d", ic.Misses)
+	}
+	// Verify entries are zeroed
+	for i := 0; i < MaxPICEntries; i++ {
+		if ic.Entries[i].Class != nil || ic.Entries[i].Method != nil {
+			t.Errorf("Expected entry %d to be zeroed after reset", i)
+		}
+	}
+}
+
+func TestInlineCacheResetForcesRemiss(t *testing.T) {
+	ic := &InlineCache{State: CacheEmpty}
+
+	class := &Class{Name: "Test"}
+	method := &CompiledMethod{name: "test"}
+
+	// Populate and verify hit
+	ic.Update(class, method)
+	if m := ic.Lookup(class); m != method {
+		t.Fatal("Expected cache hit before reset")
+	}
+
+	// Reset
+	ic.Reset()
+
+	// Same lookup should now miss
+	if m := ic.Lookup(class); m != nil {
+		t.Error("Expected cache miss after reset, got a hit")
+	}
+	if ic.Misses != 1 {
+		t.Errorf("Expected 1 miss after reset, got %d", ic.Misses)
+	}
+}
+
+func TestInvalidateAllCaches(t *testing.T) {
+	ct := NewClassTable()
+
+	// Create two classes with methods that have populated caches
+	class1 := &Class{Name: "Alpha"}
+	class1.VTable = NewVTable(class1, nil)
+	class1.ClassVTable = NewVTable(class1, nil)
+
+	method1 := &CompiledMethod{name: "m1"}
+	method1.InlineCaches = NewInlineCacheTable()
+	ic1 := method1.InlineCaches.GetOrCreate(10)
+	ic1.Update(class1, method1)
+	class1.VTable.AddMethod(1, method1)
+
+	classMethod := &CompiledMethod{name: "cm1"}
+	classMethod.InlineCaches = NewInlineCacheTable()
+	icCM := classMethod.InlineCaches.GetOrCreate(20)
+	icCM.Update(class1, classMethod)
+	class1.ClassVTable.AddMethod(2, classMethod)
+
+	class2 := &Class{Name: "Beta"}
+	class2.VTable = NewVTable(class2, nil)
+
+	method2 := &CompiledMethod{name: "m2"}
+	method2.InlineCaches = NewInlineCacheTable()
+	ic2 := method2.InlineCaches.GetOrCreate(30)
+	ic2.Update(class2, method2)
+	ic2.Update(class1, method1) // polymorphic
+	class2.VTable.AddMethod(3, method2)
+
+	ct.Register(class1)
+	ct.Register(class2)
+
+	// Verify caches are populated
+	if ic1.State != CacheMonomorphic {
+		t.Fatalf("Expected monomorphic, got %v", ic1.State)
+	}
+	if ic2.State != CachePolymorphic {
+		t.Fatalf("Expected polymorphic, got %v", ic2.State)
+	}
+
+	// Invalidate all
+	InvalidateAllCaches(ct)
+
+	// All caches should be empty
+	if ic1.State != CacheEmpty {
+		t.Errorf("ic1: expected empty after invalidation, got %v", ic1.State)
+	}
+	if icCM.State != CacheEmpty {
+		t.Errorf("icCM: expected empty after invalidation, got %v", icCM.State)
+	}
+	if ic2.State != CacheEmpty {
+		t.Errorf("ic2: expected empty after invalidation, got %v", ic2.State)
+	}
+
+	// Lookups should miss
+	if m := ic1.Lookup(class1); m != nil {
+		t.Error("Expected miss after invalidation")
+	}
+	if m := ic2.Lookup(class2); m != nil {
+		t.Error("Expected miss after invalidation")
+	}
+}
+
 // BenchmarkInlineCacheLookup measures the overhead of inline cache lookup.
 func BenchmarkInlineCacheLookup(b *testing.B) {
 	class := &Class{Name: "Test"}

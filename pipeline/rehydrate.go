@@ -198,6 +198,12 @@ func RehydrateFromStore(vmInst *vm.VM) (int, error) {
 		}
 	}
 
+	// Phase 6: Invalidate all inline caches. Rehydration may have installed
+	// new or updated methods on class VTables, leaving stale cache entries at
+	// call sites that previously dispatched to old (or nil) methods.
+	// Caches will repopulate on next dispatch — this is safe.
+	vm.InvalidateAllCaches(vmInst.Classes)
+
 	return compiled, nil
 }
 

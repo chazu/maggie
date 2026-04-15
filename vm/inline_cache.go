@@ -201,6 +201,33 @@ func (t *InlineCacheTable) Reset() {
 	}
 }
 
+// InvalidateAllCaches resets every inline cache across all classes in the table.
+// This is the safe "sledgehammer" approach: caches are just an optimization and
+// will repopulate on next dispatch. Call after rehydration or any bulk VTable update.
+func InvalidateAllCaches(ct *ClassTable) {
+	ct.mu.RLock()
+	defer ct.mu.RUnlock()
+
+	for _, class := range ct.classes {
+		if class.VTable != nil {
+			invalidateVTableCaches(class.VTable)
+		}
+		if class.ClassVTable != nil {
+			invalidateVTableCaches(class.ClassVTable)
+		}
+	}
+}
+
+func invalidateVTableCaches(vt *VTable) {
+	for _, method := range vt.methods {
+		if cm, ok := method.(*CompiledMethod); ok {
+			if cm.InlineCaches != nil {
+				cm.InlineCaches.Reset()
+			}
+		}
+	}
+}
+
 // ICStats holds aggregate inline cache statistics.
 type ICStats struct {
 	TotalCallSites  int     // Total number of call sites with caches
