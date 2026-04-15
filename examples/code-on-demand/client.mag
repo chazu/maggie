@@ -1,0 +1,53 @@
+"""
+Code-on-demand client. Defines a Calculator class with a factorial:
+method, then spawns a block on a remote node that uses Calculator.
+The remote node does not have Calculator -- it is pulled automatically.
+
+Run with:
+  mag --serve --port 9201 examples/code-on-demand/client.mag -m Client.run
+
+The server must be running on localhost:9200:
+  mag --serve --port 9200 examples/code-on-demand/server.mag -m Server.start
+"""
+Calculator subclass: Object
+
+  """Simple math utility class sent to remote nodes via code-on-demand."""
+
+  classMethod: factorial: n [
+      "Compute n factorial. This method will be pulled by the remote node."
+      n <= 1 ifTrue: [^1].
+      ^n * (self factorial: n - 1)
+  ]
+
+
+Client subclass: Object
+
+  classMethod: run [
+      | node future result |
+
+      'Connecting to server at localhost:9200...' println.
+      node := Node connect: 'localhost:9200'.
+
+      node ping ifFalse: [
+          'Cannot reach server at localhost:9200' println.
+          ^nil
+      ].
+
+      "Spawn a block on the remote node. The block references Calculator,
+       which only exists on this node. The remote node will automatically
+       pull Calculator's class definition and factorial: method before
+       executing the block."
+      'Spawning factorial computation on remote node...' println.
+      future := [:n | Calculator factorial: n] forkOn: node with: 20.
+
+      "Wait for the result (blocks until the remote computation finishes)"
+      result := future await: 30000.  "30 second timeout"
+
+      result ifNil: [
+          'Timed out waiting for remote result' println
+      ] ifNotNil: [
+          ('Remote result: ', result printString) println
+      ].
+
+      'Done.' println
+  ]

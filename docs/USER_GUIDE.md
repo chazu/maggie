@@ -1230,6 +1230,95 @@ mag deps list         # Show the resolved dependency tree
 
 Dependencies are cloned/fetched into `.maggie/deps/` and their resolved versions are recorded in `.maggie/lock.toml`. Transitive dependencies are resolved automatically.
 
+## Distribution
+
+Maggie includes a distributed runtime for exchanging code between VMs. Code is content-addressed -- every method and class is identified by a SHA-256 hash of its normalized AST. See `lib/guide/Guide15Distribution.mag` for full details, or run `mag doc --serve` and navigate to the Distribution chapter.
+
+### Manual Sync: push and pull
+
+Use `mag sync` to manually transfer code between nodes:
+
+```bash
+# Check what's in the local content store
+mag sync status
+
+# Push compiled code to a remote peer
+mag sync push localhost:8081
+
+# Push to all peers configured in maggie.toml
+mag sync push
+
+# Pull code from a remote peer by root hash
+mag sync pull localhost:8081 a1b2c3d4e5f6...
+```
+
+After `mag sync pull`, received code is automatically **rehydrated** -- compiled from source text into runnable classes. Inline caches are invalidated so existing call sites pick up the new methods.
+
+### Code-on-Demand (automatic)
+
+When `forkOn:` or `spawnOn:` sends a block to a remote node that does not have the code, it is automatically pulled and compiled. No manual sync is needed. The flow:
+
+1. Block is serialized as a content hash + captured variables
+2. Remote node receives `SpawnProcess` RPC, looks up hash
+3. If not found, pulls the missing method (and dependencies) via `Serve` RPC
+4. Compiles, verifies hashes, installs in ClassTable
+5. Executes the block and returns the result
+
+See `examples/code-on-demand/` for a complete runnable example.
+
+### Sandbox Safety
+
+Classes installed via rehydration (network sync or code-on-demand) are tracked:
+
+```smalltalk
+Sandbox isRehydrated: 'RemoteClass'.   "true if received from network"
+Sandbox run: [UntrustedCode new work]. "fork in restricted process"
+Sandbox restrictions.                  "current restriction list"
+```
+
+### Sync and Trust Configuration
+
+```toml
+[sync]
+listen = ":8081"                          # start sync server
+peers = ["staging.example.com:8081"]      # default push targets
+
+[trust]
+default = "sync"                          # permissions for unknown peers
+ban-threshold = 3                         # mismatches before auto-ban
+spawn-restrictions = ["File", "HTTP"]     # hidden from remote spawns
+
+[[trust.peer]]
+id = "a1b2c3..."                          # Ed25519 public key (hex)
+name = "build-farm"
+perms = "sync,spawn"
+```
+
+## Runtime Configuration
+
+The `[runtime]` section in `maggie.toml` tunes VM runtime parameters. All fields are optional -- zero values use defaults.
+
+```toml
+[runtime]
+max-stack-depth = 262144    # operand stack depth limit (default: 131072)
+max-frame-depth = 16384     # call frame depth limit (default: 8192)
+initial-stack = 4096        # initial stack allocation (default: 2048)
+initial-frames = 1024       # initial frame allocation (default: 512)
+mailbox-capacity = 8192     # process mailbox capacity (default: 4096)
+gc-interval = "60s"         # registry GC interval (default: "30s")
+```
+
+| Field | Default | Description |
+|-------|---------|-------------|
+| `max-stack-depth` | 131072 | Max operand stack depth before `StackOverflow` |
+| `max-frame-depth` | 8192 | Max call frame depth for non-tail-recursive methods |
+| `initial-stack` | 2048 | Initial operand stack allocation |
+| `initial-frames` | 512 | Initial call frame allocation |
+| `mailbox-capacity` | 4096 | Bounded capacity of each process mailbox |
+| `gc-interval` | `"30s"` | Registry GC sweep interval (Go duration string) |
+
+These are applied when the VM starts from a project with `maggie.toml`. Increase `max-frame-depth` for deep recursion, `mailbox-capacity` for high-throughput actor systems, or `gc-interval` for reduced GC overhead in long-running servers.
+
 ## Tips
 
 1. **Message chaining**: Messages return self by default, enabling fluent chains

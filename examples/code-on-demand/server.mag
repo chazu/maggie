@@ -1,0 +1,26 @@
+"""
+Code-on-demand server. This node defines NO application classes.
+It simply listens for incoming spawn requests. When a remote node
+sends a block that references classes not available locally, the
+server automatically pulls them via the sync protocol.
+
+Start with:
+  mag --serve --port 9200 examples/code-on-demand/server.mag -m Server.start
+
+Requires trust configuration that allows spawning:
+  [trust]
+  default = "sync,spawn"
+  spawn-restrictions = ["File", "ExternalProcess", "HTTP"]
+"""
+Server subclass: Object
+
+  classMethod: start [
+      'Server listening on :9200, waiting for spawn requests...' println.
+
+      "Keep the process alive so the sync server stays running.
+       Incoming SpawnProcess RPCs are handled by the server infrastructure
+       automatically -- no explicit receive loop needed for spawned blocks."
+      [true] whileTrue: [
+          Process sleep: 1000
+      ]
+  ]

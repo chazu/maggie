@@ -903,3 +903,228 @@ Guide15Distribution subclass: Object
       "This section is prose-only."
       ^nil
   ]
+
+  """
+  ## Code-on-Demand
+
+  When `forkOn:` or `spawnOn:` sends a block to a remote node, the remote
+  node may not have the block's compiled method (identified by content
+  hash). When this happens, the code is automatically fetched, compiled,
+  and installed -- a process called **code-on-demand**.
+
+  The flow is:
+
+  1. **Serialize** -- the spawning node serializes the block as a
+     `SpawnBlock`: a content hash (identifying the block's compiled
+     method), captured variable values (CBOR-encoded), and metadata.
+
+  2. **SpawnProcess RPC** -- the serialized block is sent to the remote
+     node via the `SpawnProcess` RPC. The remote node looks up the
+     content hash in its local ContentStore.
+
+  3. **Pull missing code** -- if the hash is not found locally, the
+     remote node calls back to the spawning node via the `Serve` RPC
+     (the same pull mechanism used by `mag sync pull`). The `pullFunc`
+     callback fetches the missing method and its transitive dependencies.
+
+  4. **Verify and index** -- each received chunk is compiled independently
+     and its hash is verified. Accepted chunks are indexed in the local
+     ContentStore.
+
+  5. **Rehydrate** -- `RehydrateFromStore` compiles the received source
+     text into runnable classes and methods, installs them in the VM's
+     ClassTable and Globals, and invalidates inline caches.
+
+  6. **Execute** -- the remote node resolves the block's method by hash,
+     deserializes the captured variables, and executes the block in a
+     restricted interpreter (respecting spawn restrictions from the trust
+     policy).
+
+  Code-on-demand is fully transparent -- no user action is required. The
+  remote node automatically pulls whatever it needs and compiles it
+  before execution begins.
+
+  ```example
+  # Code-on-demand flow:
+  #
+  #   Node A: [Calculator factorial: 20] forkOn: nodeB.
+  #
+  #   Node B receives SpawnProcess RPC
+  #     -> hash lookup: not found locally
+  #     -> pullFunc calls Node A's Serve RPC
+  #     -> receives Calculator class + factorial: method
+  #     -> compiles, verifies hashes, installs in ClassTable
+  #     -> executes the block
+  #     -> returns result via __spawn_result__ message
+  #
+  #   Node A: future await.  "=> 2432902008176640000"
+  ```
+
+  The spawning node's address is provided via the `X-Maggie-Return-Addr`
+  HTTP header in the SpawnProcess RPC, so the remote node knows where to
+  pull code from even if it has never communicated with the spawner before.
+  """
+  method: s13_codeOnDemand [
+      "Code-on-demand is automatic and transparent."
+      ^nil
+  ]
+
+  """
+  ## Rehydration
+
+  **Rehydration** is the process of compiling received source code from
+  the ContentStore into runnable classes and methods. It happens in two
+  contexts:
+
+  1. **After `mag sync pull`** -- when you manually pull code from a
+     remote peer, the received chunks are indexed in the ContentStore
+     as source text stubs. `RehydrateFromStore` then compiles them into
+     live classes.
+
+  2. **During code-on-demand** -- when a remote spawn discovers missing
+     code, the pull + rehydrate cycle runs automatically before the
+     spawned block executes.
+
+  The rehydration pipeline mirrors the normal two-pass compilation:
+
+  - **Phase 1: Skeleton creation** -- class digests are topologically
+    sorted by superclass dependency. Class skeletons are created with
+    the correct superclass chain, instance variables, and namespace.
+    Classes are registered in the ClassTable and Globals.
+
+  - **Phase 2: Method compilation** -- for each class, method source
+    text is parsed, compiled, and installed in the class VTable. Each
+    compiled method's content hash is recomputed and verified against
+    the stored hash. A mismatch aborts rehydration with an error.
+
+  - **Phase 3: Cache invalidation** -- after all methods are installed,
+    `InvalidateAllCaches` clears all inline caches across the VM. This
+    ensures that call sites which previously dispatched to old (or nil)
+    methods will re-resolve on next dispatch. Cache repopulation is
+    automatic and has no correctness impact.
+
+  Rehydrated classes are tracked by the VM. The `Sandbox isRehydrated:`
+  method can query whether a class was received from the network (see
+  the Sandbox Safety section below).
+
+  ```example
+  # After mag sync pull:
+  $ mag sync pull compute-host:9200 a1b2c3d4...
+  Pull complete: 86 accepted, 0 rejected
+  Rehydrated 42 methods into 6 classes
+  Content store: 433 methods, 56 classes
+  ```
+  """
+  method: s14_rehydration [
+      "Rehydration is automatic after pull and code-on-demand."
+      ^nil
+  ]
+
+  """
+  ## Sandbox Safety
+
+  When code arrives from the network (via push, pull, or code-on-demand),
+  the VM tracks which classes were installed through rehydration. This
+  allows applications to distinguish between locally-defined code and
+  remotely-loaded code.
+
+  **Querying rehydration status:**
+
+  ```example
+  "Check if a class was loaded from the network"
+  Sandbox isRehydrated: 'RemoteCalculator'.   "=> true or false"
+  Sandbox isRehydrated: 'Object'.             "=> false (core class)"
+  ```
+
+  **Running rehydrated code in a sandbox:**
+
+  The `Sandbox run:` method forks a block in a restricted process using
+  the VM's sync restrictions (from `[trust].spawn-restrictions` in
+  `maggie.toml`). This ensures that untrusted code cannot access
+  sensitive globals like `File`, `HTTP`, or `ExternalProcess`.
+
+  ```example
+  "Run untrusted code in a sandbox"
+  proc := Sandbox run: [RemoteCalculator new compute: 42].
+  result := proc wait.
+  ```
+
+  The sandbox inherits all restrictions from the calling process and
+  adds the node's sync restrictions on top. Restricted globals resolve
+  to `nil` -- there is no permission error, so the sandboxed code
+  fails gracefully rather than crashing.
+
+  **Inspecting restrictions:**
+
+  ```example
+  "See what globals are restricted in the sandbox"
+  Sandbox restrictions.
+  "=> #('File' 'ExternalProcess' 'HTTP' 'HttpServer')"
+  ```
+
+  **Combining sandbox with rehydration check:**
+
+  A common pattern is to check whether a class was rehydrated before
+  deciding how to run it:
+
+  ```example
+  | className proc |
+  className := 'RemoteWorker'.
+
+  (Sandbox isRehydrated: className)
+      ifTrue: [
+          "Came from the network -- run in sandbox"
+          proc := Sandbox run: [
+              (Compiler evaluate: className, ' new run')
+          ].
+          proc wait
+      ]
+      ifFalse: [
+          "Local code -- run directly"
+          RemoteWorker new run
+      ]
+  ```
+  """
+  method: s15_sandboxSafety [
+      "Sandbox provides isRehydrated: and run: for safe execution."
+      ^nil
+  ]
+
+  """
+  ## Runtime Configuration
+
+  The `[runtime]` section in `maggie.toml` controls VM runtime parameters.
+  All fields are optional -- zero values mean "use default".
+
+  ```example
+  [runtime]
+  max-stack-depth = 262144    # operand stack depth (default: 131072)
+  max-frame-depth = 16384     # call frame depth (default: 8192)
+  initial-stack = 4096        # initial stack allocation (default: 2048)
+  initial-frames = 1024       # initial frame allocation (default: 512)
+  mailbox-capacity = 8192     # process mailbox size (default: 4096)
+  gc-interval = "60s"         # registry GC interval (default: "30s")
+  ```
+
+  **Parameter descriptions:**
+
+  - `max-stack-depth` -- maximum operand stack depth before StackOverflow
+    is raised. Increase for deeply nested expressions.
+  - `max-frame-depth` -- maximum call frame depth. Increase for deep
+    recursion (non-tail-recursive methods).
+  - `initial-stack` / `initial-frames` -- initial allocation sizes.
+    Increase for applications that immediately use deep stacks to avoid
+    early resizing overhead.
+  - `mailbox-capacity` -- bounded capacity of each process's mailbox
+    ring buffer. Increase for high-throughput actor systems.
+  - `gc-interval` -- how often the VM sweeps the object registry for
+    unreachable values. Accepts Go duration strings like `"30s"`,
+    `"1m"`, `"500ms"`.
+
+  These settings are applied when the VM is created from a project with
+  a `maggie.toml`. They can be tuned without recompiling.
+  """
+  method: s16_runtimeConfig [
+      "Runtime configuration is set in maggie.toml under [runtime]."
+      ^nil
+  ]
