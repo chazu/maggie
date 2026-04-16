@@ -72,6 +72,9 @@ const (
 	// SSE (Server-Sent Events) connection
 	sseConnectionMarker         uint32 = 57 << 24
 
+	// Cli (cobra-backed CLI command wrapper)
+	cliCommandMarker            uint32 = 58 << 24
+
 	// Distribution protocol (reserved for Phase 6)
 	chunkMarker                 uint32 = 42 << 24
 	remoteRefMarker             uint32 = 43 << 24

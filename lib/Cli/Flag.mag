@@ -1,0 +1,310 @@
+namespace: 'Cli'
+
+"""
+A value object describing one command-line flag: its name, type symbol
+(`#string`, `#bool`, or `#int`), default value, documentation string,
+and whether the flag is required.
+
+`Cli::Flag` instances are consumed by `Cli::Command>>flag:` as an
+alternative to calling `flag:type:default:doc:` with four positional
+arguments. They are immutable after construction — treat them like
+tuples.
+
+```test
+spec := Cli::Flag name: 'name' type: #string default: 'world' doc: 'Who to greet'.
+spec name >>> 'name'
+spec type >>> #string
+spec default >>> 'world'
+spec doc >>> 'Who to greet'
+spec required >>> false
+```
+
+```test
+spec := Cli::Flag name: 'token' type: #string default: '' doc: 'API token' required: true.
+spec required >>> true
+```
+"""
+Flag subclass: Object
+  instanceVars: name type default doc required
+
+  # --- Class-side constructors ---------------------------------------------
+
+  """
+  Build an optional flag spec (non-required). Equivalent to calling the
+  five-keyword form with `required: false`.
+
+  ```test
+  spec := Cli::Flag name: 'count' type: #int default: 1 doc: 'How many'.
+  spec name >>> 'count'
+  spec type >>> #int
+  spec default >>> 1
+  spec required >>> false
+  ```
+  """
+  classMethod: name: aName <String> type: aType <Symbol> default: aDefault doc: aDoc <String> ^<Cli::Flag> [
+      ^self
+          name: aName
+          type: aType
+          default: aDefault
+          doc: aDoc
+          required: false
+  ]
+
+  """
+  Build a flag spec, explicitly choosing whether the flag is required.
+  Required flags still have a default value — the `required` bit is
+  advisory and consulted by higher-level validation code.
+
+  ```test
+  spec := Cli::Flag name: 'endpoint' type: #string default: '' doc: 'URL' required: true.
+  spec name >>> 'endpoint'
+  spec required >>> true
+  ```
+  """
+  classMethod: name: aName <String> type: aType <Symbol> default: aDefault doc: aDoc <String> required: aBool <Boolean> ^<Cli::Flag> [
+      | spec <Cli::Flag> |
+      spec := self new.
+      spec primInitName: aName type: aType default: aDefault doc: aDoc required: aBool.
+      ^spec
+  ]
+
+  # --- Private init --------------------------------------------------------
+
+  """Initialize all ivars in one shot. Called only by the class-side constructors."""
+  method: primInitName: aName <String> type: aType <Symbol> default: aDefault doc: aDoc <String> required: aBool <Boolean> [
+      name := aName.
+      type := aType.
+      default := aDefault.
+      doc := aDoc.
+      required := aBool
+  ]
+
+  # --- Accessors -----------------------------------------------------------
+
+  """
+  The flag's public name (used on the command line as `--name`).
+
+  ```test
+  spec := Cli::Flag name: 'verbose' type: #bool default: false doc: 'Chatty'.
+  spec name >>> 'verbose'
+  ```
+  """
+  method: name ^<String> [ ^name ]
+
+  """
+  The type symbol. One of `#string`, `#bool`, or `#int`.
+
+  ```test
+  (Cli::Flag name: 'f' type: #bool default: false doc: '') type >>> #bool
+  ```
+  """
+  method: type ^<Symbol> [ ^type ]
+
+  """
+  The flag's default value. Returned if the flag is omitted on the
+  command line.
+
+  ```test
+  (Cli::Flag name: 'n' type: #int default: 42 doc: '') default >>> 42
+  ```
+  """
+  method: default [ ^default ]
+
+  """
+  The human-readable documentation string displayed in help output.
+
+  ```test
+  (Cli::Flag name: 'n' type: #string default: '' doc: 'Who to greet') doc >>> 'Who to greet'
+  ```
+  """
+  method: doc ^<String> [ ^doc ]
+
+  """
+  True if the flag must be provided on the command line.
+
+  ```test
+  (Cli::Flag name: 'x' type: #string default: '' doc: '' required: true) required >>> true
+  ```
+
+  ```test
+  (Cli::Flag name: 'x' type: #string default: '' doc: '') required >>> false
+  ```
+  """
+  method: required ^<Boolean> [ ^required ]
+
+  # --- Printing ------------------------------------------------------------
+
+  """
+  Return a debug string for the flag in the form
+  `Flag name=foo type=#string default=bar`. Required flags get an
+  additional ` required=true` suffix.
+
+  ```test
+  s := (Cli::Flag name: 'foo' type: #string default: 'bar' doc: 'd') printString.
+  (s indexOf: 'Flag ') >= 0 >>> true
+  ```
+
+  ```test
+  s := (Cli::Flag name: 'foo' type: #string default: 'bar' doc: 'd') printString.
+  (s indexOf: 'name=') >= 0 >>> true
+  ```
+
+  ```test
+  s := (Cli::Flag name: 'foo' type: #string default: 'bar' doc: 'd') printString.
+  (s indexOf: 'type=') >= 0 >>> true
+  ```
+
+  ```test
+  s := (Cli::Flag name: 'foo' type: #string default: 'bar' doc: 'd') printString.
+  (s indexOf: 'default=') >= 0 >>> true
+  ```
+
+  ```test
+  s := (Cli::Flag name: 'x' type: #bool default: false doc: '' required: true) printString.
+  (s indexOf: 'required=true') >= 0 >>> true
+  ```
+
+  Non-required flags should NOT include the `required=` suffix:
+
+  ```test
+  s := (Cli::Flag name: 'foo' type: #string default: 'bar' doc: 'd') printString.
+  (s indexOf: 'required=') >>> -1
+  ```
+  """
+  method: printString ^<String> [
+      | base <String> |
+      base := 'Flag name=', name printString,
+              ' type=', type printString,
+              ' default=', default printString.
+      required ifTrue: [^base, ' required=true'].
+      ^base
+  ]
+
+  """
+  Emit the same debug representation as `printString` onto a
+  stream-style collector. The collector only needs to respond to
+  `nextPutAll:` — anything that behaves like an appending stream
+  works. `printOn:` is a trivial delegation to `printString`, so
+  the textual assertions on `printString` above cover its output
+  exhaustively.
+  """
+  method: printOn: aStream [
+      aStream nextPutAll: self printString
+  ]
+
+  # --- Equality -----------------------------------------------------------
+
+  """
+  Value-object equality. Two `Cli::Flag` specs are `equals:`-equal when
+  every ivar — name, type, default, doc, required — matches.
+
+  The binary `=` selector is reserved by the VM's optimized dispatch
+  and always uses identity comparison for user classes, so we expose
+  value equality via a keyword selector that routes through regular
+  method lookup.
+
+  Equal when all fields match:
+
+  ```test
+  a := Cli::Flag name: 'foo' type: #string default: 'bar' doc: 'd'.
+  b := Cli::Flag name: 'foo' type: #string default: 'bar' doc: 'd'.
+  (a equals: b) >>> true
+  ```
+
+  Reflexive — an instance is equal to itself:
+
+  ```test
+  a := Cli::Flag name: 'foo' type: #string default: 'bar' doc: 'd'.
+  (a equals: a) >>> true
+  ```
+
+  Symmetric — if `a equals: b` then `b equals: a`:
+
+  ```test
+  a := Cli::Flag name: 'foo' type: #string default: 'bar' doc: 'd'.
+  b := Cli::Flag name: 'foo' type: #string default: 'bar' doc: 'd'.
+  (a equals: b) = (b equals: a) >>> true
+  ```
+
+  Unequal when names differ:
+
+  ```test
+  a := Cli::Flag name: 'foo' type: #string default: 'bar' doc: 'd'.
+  b := Cli::Flag name: 'FOO' type: #string default: 'bar' doc: 'd'.
+  (a equals: b) >>> false
+  ```
+
+  Unequal when types differ:
+
+  ```test
+  a := Cli::Flag name: 'foo' type: #string default: 'bar' doc: 'd'.
+  b := Cli::Flag name: 'foo' type: #bool default: 'bar' doc: 'd'.
+  (a equals: b) >>> false
+  ```
+
+  Unequal when defaults differ:
+
+  ```test
+  a := Cli::Flag name: 'foo' type: #string default: 'bar' doc: 'd'.
+  b := Cli::Flag name: 'foo' type: #string default: 'baz' doc: 'd'.
+  (a equals: b) >>> false
+  ```
+
+  Unequal when docs differ:
+
+  ```test
+  a := Cli::Flag name: 'foo' type: #string default: 'bar' doc: 'd1'.
+  b := Cli::Flag name: 'foo' type: #string default: 'bar' doc: 'd2'.
+  (a equals: b) >>> false
+  ```
+
+  Unequal when required bits differ:
+
+  ```test
+  a := Cli::Flag name: 'foo' type: #string default: 'bar' doc: 'd'.
+  b := Cli::Flag name: 'foo' type: #string default: 'bar' doc: 'd' required: true.
+  (a equals: b) >>> false
+  ```
+
+  Comparing to non-`Cli::Flag` values answers false rather than raising:
+
+  ```test
+  a := Cli::Flag name: 'foo' type: #string default: 'bar' doc: 'd'.
+  (a equals: 'foo') >>> false
+  ```
+
+  ```test
+  a := Cli::Flag name: 'foo' type: #string default: 'bar' doc: 'd'.
+  (a equals: nil) >>> false
+  ```
+  """
+  method: equals: other ^<Boolean> [
+      other isNil ifTrue: [^false].
+      (other class name = self class name) ifFalse: [^false].
+      name = other name ifFalse: [^false].
+      type = other type ifFalse: [^false].
+      default = other default ifFalse: [^false].
+      doc = other doc ifFalse: [^false].
+      required = other required ifFalse: [^false].
+      ^true
+  ]
+
+  """
+  Hash consistent with `equals:`: derived from the flag's name.
+  Equal flags hash equal; unequal flags may also hash equal (the
+  standard Smalltalk convention — weaker than equality).
+
+  ```test
+  a := Cli::Flag name: 'foo' type: #string default: 'bar' doc: 'd'.
+  b := Cli::Flag name: 'foo' type: #string default: 'bar' doc: 'd'.
+  a hash = b hash >>> true
+  ```
+
+  ```test
+  a := Cli::Flag name: 'foo' type: #string default: 'bar' doc: 'd'.
+  a hash class name >>> #SmallInteger
+  ```
+  """
+  method: hash ^<Integer> [
+      ^name hashCode
+  ]

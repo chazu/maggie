@@ -1,0 +1,415 @@
+"""
+# Command-Line Apps
+
+Maggie ships a small namespace, `Cli`, for building Unix-style
+command-line tools from Smalltalk. Under the hood it is a thin bridge
+over [spf13/cobra](https://github.com/spf13/cobra) (`vm/cli_primitives.go`)
+with a pure-Maggie environment-variable layer and a shared output
+formatter.
+
+This chapter walks through the four classes the namespace exposes --
+`Cli::Command`, `Cli::Flag`, `Cli::EnvBinding`, and `Cli::Output` --
+and builds up a small `hello` CLI live, step by step. Every section is
+runnable: the code evaluates on load, with no side-effects beyond
+constructing in-memory command handles.
+
+See [`docs/cli.md`](../../docs/cli.md) for the reference-style
+treatment, including flag-type tables, coercion rules, and the current
+list of limitations.
+
+```test
+(Cli::Command named: 'guide-probe') class name >>> #Command
+```
+"""
+Guide20Cli subclass: Object
+
+  """
+  ## Defining a Command
+
+  `Cli::Command named:doc:run:` is the common three-part constructor:
+  a name (what cobra calls the `Use` field), a short documentation
+  string (cobra's `Short`), and a Maggie block to run when the
+  command is invoked.
+
+  The run block receives the positional args as an `Array<String>`
+  and should return a `SmallInteger` exit code. Any other return is
+  treated as exit 0; an unhandled exception is exit 1.
+
+  ```example
+  Cli::Command
+      named: 'greet'
+      doc:   'Say hello'
+      run:   [:args |
+          'Hello, world!' println.
+          0
+      ]
+  ```
+
+  ```test
+  cmd := Cli::Command named: 'greet' doc: 'Say hello' run: [:args | 0].
+  cmd class name >>> #Command
+  ```
+
+  If you want to configure the command progressively, use the shorter
+  forms and chain -- `Cli::Command named: 'greet'` or
+  `Cli::Command named: 'greet' doc: 'Say hello'` both return a
+  handle you can extend with `run:`, `flag:type:default:doc:`, and
+  `registerSubcommand:`.
+
+  ```test
+  cmd := Cli::Command named: 'greet' doc: 'Say hello'.
+  (cmd run: [:args | 0]) class name >>> #Command
+  ```
+  """
+  method: s01_definingACommand [
+      ^Cli::Command named: 'greet' doc: 'Say hello' run: [:args | 0]
+  ]
+
+  """
+  ## Flags
+
+  Declare flags before the run block with `flag:type:default:doc:`.
+  The type symbol picks which accessor cobra uses: `#string`, `#bool`,
+  or `#integer` (`#int` is accepted as an alias). Inside the run
+  block, read parsed values with `flagValue:`, which dispatches on the
+  registered type and returns `nil` if the flag was never declared.
+
+  ```example
+  cmd := Cli::Command named: 'greet' doc: 'Say hello'.
+  cmd flag: 'name'    type: #string  default: 'world' doc: 'Who to greet'.
+  cmd flag: 'verbose' type: #bool    default: false   doc: 'Chatty output'.
+  cmd flag: 'count'   type: #integer default: 1       doc: 'How many'.
+  cmd run: [:args |
+      1 to: (cmd flagValue: 'count') do: [:i |
+          ('Hello, ', (cmd flagValue: 'name'), '!') println
+      ].
+      0
+  ].
+  ```
+
+  The defaults come through even when the flag is never supplied on
+  the command line -- so doctests that read `flagValue:` immediately
+  after `flag:…default:` observe the declared default:
+
+  ```test
+  cmd := Cli::Command named: 'demo-flags'.
+  cmd flag: 'name' type: #string default: 'world' doc: 'Who to greet'.
+  cmd flagValue: 'name' >>> 'world'
+  ```
+
+  ```test
+  cmd := Cli::Command named: 'demo-flags'.
+  cmd flag: 'verbose' type: #bool default: false doc: 'Chatty'.
+  cmd flagValue: 'verbose' >>> false
+  ```
+
+  ```test
+  cmd := Cli::Command named: 'demo-flags'.
+  cmd flag: 'count' type: #integer default: 7 doc: 'How many'.
+  cmd flagValue: 'count' >>> 7
+  ```
+
+  ```test
+  cmd := Cli::Command named: 'demo-flags'.
+  cmd flagValue: 'nonexistent' >>> nil
+  ```
+  """
+  method: s02_flags [
+      | cmd |
+      cmd := Cli::Command named: 'demo-flags'.
+      cmd flag: 'name' type: #string default: 'world' doc: 'Who to greet'.
+      ^cmd flagValue: 'name'
+  ]
+
+  """
+  ## Subcommands
+
+  Build a multi-command tool by calling `registerSubcommand:` on the
+  parent. The tree can be arbitrarily deep; cobra takes care of
+  routing `mytool build`, `mytool test --verbose`, and so on.
+
+  ```example
+  root  := Cli::Command named: 'mytool' doc: 'My multi-command tool'.
+  build := Cli::Command named: 'build' doc: 'Build the project' run: [:args | 0].
+  test  := Cli::Command named: 'test'  doc: 'Run tests'          run: [:args | 0].
+  root registerSubcommand: build.
+  root registerSubcommand: test.
+  ```
+
+  ```test
+  root := Cli::Command named: 'guide-root' doc: 'Tree demo'.
+  leaf := Cli::Command named: 'guide-leaf' doc: 'Child command' run: [:args | 0].
+  root registerSubcommand: leaf.
+  root class name >>> #Command
+  ```
+  """
+  method: s03_subcommands [
+      | root build |
+      root := Cli::Command named: 'mytool' doc: 'Multi-command tool'.
+      build := Cli::Command named: 'build' doc: 'Build the project' run: [:args | 0].
+      ^root registerSubcommand: build
+  ]
+
+  """
+  ## Environment-Variable Binding
+
+  `Cli::EnvBinding` projects one environment variable onto a target
+  object via a one-argument setter. It is an immutable value object:
+  one binding per variable, coerced according to a `type` symbol
+  (`#string`, `#integer`, `#bool`, or `#duration`).
+
+  We deliberately do not wrap the Go `envconfig` library -- that
+  operates on Go struct tags via reflection, which has no Maggie
+  equivalent. `Cli::EnvBinding` is the pure-Maggie replacement.
+
+  ```example
+  | cfg binding |
+  cfg := Dictionary new.
+  binding := Cli::EnvBinding
+      envName: 'PP_DEMO'
+      setter:  #at:put:          "ignored here -- at:put: needs 2 args"
+      type:    #integer
+      default: 7.
+  "binding applyTo: cfg would call `cfg at:put: <value>` -- shown for shape only."
+  binding type            >>> #integer
+  binding default         >>> 7
+  binding envName         >>> 'PP_DEMO'
+  ```
+
+  The class method `coerce:type:` converts a raw string to a typed
+  value according to the same rules `applyTo:` uses, without needing a
+  target. This is how unit tests exercise the coercion logic
+  directly.
+
+  ```test
+  Cli::EnvBinding coerce: '42'   type: #integer >>> 42
+  ```
+
+  ```test
+  Cli::EnvBinding coerce: 'yes'  type: #bool    >>> true
+  ```
+
+  ```test
+  Cli::EnvBinding coerce: 'hello' type: #string >>> 'hello'
+  ```
+
+  ```test
+  Cli::EnvBinding coerce: '  hi  ' type: #string >>> 'hi'
+  ```
+
+  Attach bindings to a command with `envBinding:` and apply them
+  inside the run block (or from a subclass `execute` override) with
+  `applyEnvBindings:`. This pattern lets any command read its
+  environment without hand-rolling `System env:` calls for each
+  variable.
+
+  ```example
+  cmd := Cli::Command named: 'server'.
+  cmd envBinding: (Cli::EnvBinding envName: 'PP_PORT' setter: #port:  type: #integer default: 8080).
+  cmd envBinding: (Cli::EnvBinding envName: 'PP_DEBUG' setter: #debug: type: #bool    default: false).
+  cmd run: [:args |
+      | cfg |
+      cfg := AppConfig new.
+      cmd applyEnvBindings: cfg.
+      cfg startServer.
+      0
+  ].
+  ```
+  """
+  method: s04_envBinding [
+      ^Cli::EnvBinding
+          envName: 'PP_DEMO'
+          setter:  #value:
+          type:    #integer
+          default: 7
+  ]
+
+  """
+  ## Output Formatting
+
+  `Cli::Output` centralises the rendering of command results so every
+  tool built on top of Maggie agrees on formatting. It has two modes,
+  `'text'` and `'json'`, and renders Dictionaries as aligned
+  `key  value` lines or as pretty-printed JSON depending on which
+  mode is active.
+
+  ```example
+  "Class-side: pick format once, then render."
+  Cli::Output format: 'text'.
+  Cli::Output result: (Dictionary new at: 'ok' put: true; yourself).
+  "=> 'ok  true' on stdout"
+
+  Cli::Output format: 'json'.
+  Cli::Output result: (Dictionary new at: 'ok' put: true; yourself).
+  "=> pretty-printed { \"ok\": true } on stdout"
+  ```
+
+  The smart renderer `Cli::Output resultOrError:` branches on Result
+  shape: `Failures` print the wrapped error (plain text, or
+  `{\"error\": \"...\"}` in JSON mode) and answer `false`; successes
+  delegate to `result:` and answer `true`.
+
+  For tables, pass rows (as Dictionaries) plus parallel arrays of
+  header strings and row keys. Column widths are computed in text
+  mode; in JSON mode the row array is emitted unchanged.
+
+  ```example
+  rows := Array
+      with: (Dictionary new at: 'name' put: 'alice'; at: 'status' put: 'online'; yourself)
+      with: (Dictionary new at: 'name' put: 'bob'  ; at: 'status' put: 'away';   yourself).
+  Cli::Output format: 'text'.
+  Cli::Output table: rows headers: #('NAME' 'STATUS') keys: #('name' 'status').
+  "NAME   STATUS
+   alice  online
+   bob    away"
+  ```
+
+  ```test
+  Cli::Output format: 'json'.
+  Cli::Output format >>> 'json'
+  ```
+
+  ```test
+  Cli::Output format: 'text'.
+  Cli::Output format >>> 'text'
+  ```
+
+  Leave the mode as `'text'` at the end so subsequent guide chapters
+  that print values see the expected format. (Our doctest leaves the
+  class-side state set to whatever the last example used -- be
+  defensive in production code and set the format explicitly on entry
+  to each command.)
+  """
+  method: s05_output [
+      Cli::Output format: 'text'.
+      ^Cli::Output format
+  ]
+
+  """
+  ## Testing Your CLI
+
+  Every class in the `Cli` namespace ships doctests in its docstrings.
+  Run them all with:
+
+  ```
+  mag doctest --class Cli::Command
+  mag doctest --class Cli::Flag
+  mag doctest --class Cli::EnvBinding
+  mag doctest --class Cli::Output
+  ```
+
+  For integration-level testing (driving a command through its full
+  cobra lifecycle without touching `os.Args` or stdout), use
+  `setArgs:` and `setOutput:`. `setArgs:` accepts an
+  `Array<String>` and overrides cobra's default of parsing
+  `os.Args`. `setOutput:` accepts a `GoObject` wrapping an
+  `io.Writer` (typically a `*bytes.Buffer`) and redirects cobra's
+  `Out` and `Err` streams -- passing `nil` restores the defaults.
+
+  ```example
+  "Pseudocode — the real test wires a Go-side *bytes.Buffer."
+  cmd    := Cli::Command named: 'greet' doc: 'Say hello'.
+  cmd    flag: 'name' type: #string default: 'world' doc: 'Who to greet'.
+  cmd    run: [:args |
+      ('Hello, ', (cmd flagValue: 'name'), '!') println.
+      0
+  ].
+  buffer := BufferedStream new.                 "go-wrapped io.Writer"
+  cmd setOutput: buffer.                         "redirect Out + Err"
+  cmd setArgs:   #('--name' 'alice').            "skip os.Args"
+  cmd execute.                                   "=> 0"
+  buffer contents                                "=> 'Hello, alice!\\n'"
+  ```
+
+  End-to-end examples driving `Cli::Command` from Go live in
+  `vm/cli_primitives_test.go`. In Maggie-side tests you typically
+  stop at the `execute` return value and assert against whatever the
+  run block mutated -- a captured counter, a returned Dictionary, or
+  the exit code itself.
+  """
+  method: s06_testing [
+      "setOutput: and setArgs: need a Go-wrapped io.Writer; see examples above."
+      ^nil
+  ]
+
+  """
+  ## Help and Completion
+
+  Because `Cli::Command` is a thin cobra wrapper, the standard cobra
+  UX is inherited unchanged.
+
+  - `<cmd> --help` renders cobra's auto-generated help screen from
+    `named:` (the `Use` field), `doc:` (`Short`), any `longDoc:`
+    (`Long`), plus every flag and its default.
+  - `<cmd> <subcommand> --help` does the same for one subcommand.
+  - `<cmd> help <subcommand>` is the alternate syntax.
+  - `<cmd> completion bash` (and `zsh`, `fish`, `powershell`) prints a
+    shell completion script for the whole command tree. Redirect to a
+    file, source it from your shell rc, and tab completion works.
+
+  No Maggie code is needed for any of this beyond calling `execute`.
+  """
+  method: s07_helpAndCompletion [
+      "Help text is generated by cobra; see documentation above."
+      ^nil
+  ]
+
+  """
+  ## Putting It Together
+
+  Here is the minimal shape of a tool that declares a subcommand, a
+  flag, and an env binding, then wires them into cobra's dispatch:
+
+  ```example
+  | root greet |
+
+  root  := Cli::Command named: 'hello' doc: 'A minimal Maggie CLI'.
+
+  greet := Cli::Command named: 'greet' doc: 'Say hello'.
+  greet flag: 'name' type: #string default: 'world' doc: 'Who to greet'.
+  greet envBinding: (
+      Cli::EnvBinding
+          envName: 'HELLO_PREFIX'
+          setter:  #prefix:
+          type:    #string
+          default: 'Hello'
+  ).
+  greet run: [:args |
+      | cfg |
+      cfg := Dictionary new.
+      "Give the dictionary an at: prefix: accessor via a small facade
+      class in real code; here we call the setter directly."
+      greet applyEnvBindings: cfg.
+      ((cfg at: #prefix ifAbsent: ['Hello']),
+          ', ', (greet flagValue: 'name'), '!') println.
+      0
+  ].
+
+  root registerSubcommand: greet.
+
+  "root execute reads System args; in this guide we stop at wiring."
+  root
+  ```
+
+  Save as `app.mag`, then:
+
+  ```
+  mag run app.mag -- greet
+  mag run app.mag -- greet --name Alice
+  HELLO_PREFIX=Hi mag run app.mag -- greet --name Alice
+  mag run app.mag -- greet --help
+  mag run app.mag -- completion bash > ~/.hello-completion
+  ```
+
+  See `docs/cli.md` for the full reference and `lib/Cli/*.mag` for the
+  source of each class.
+  """
+  method: s08_puttingItTogether [
+      | root greet |
+      root := Cli::Command named: 'hello' doc: 'A minimal Maggie CLI'.
+      greet := Cli::Command named: 'greet' doc: 'Say hello'.
+      greet flag: 'name' type: #string default: 'world' doc: 'Who to greet'.
+      greet run: [:args | 0].
+      root registerSubcommand: greet.
+      ^root
+  ]
