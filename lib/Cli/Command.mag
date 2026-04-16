@@ -111,13 +111,24 @@ Command subclass: Object
 
   """
   Stash a short documentation string on the command (cobra's `Short`
-  field). Displayed in one-line help output.
+  field). Displayed in one-line help output. Returns the receiver
+  so call-sites can chain.
+
+  ```test
+  cmd := Cli::Command named: 'demo'.
+  (cmd shortDoc: 'short description') class name >>> #Command
+  ```
   """
   method: shortDoc: aString <String> ^<Cli::Command> [ <primitive> ]
 
   """
   Stash a long documentation string on the command (cobra's `Long`
   field). Displayed in per-command `--help` output.
+
+  ```test
+  cmd := Cli::Command named: 'demo'.
+  (cmd longDoc: 'a longer explanation') class name >>> #Command
+  ```
   """
   method: longDoc: aString <String> ^<Cli::Command> [ <primitive> ]
 
@@ -126,22 +137,81 @@ Command subclass: Object
   receives an `Array<String>` of positional arguments and should return
   a `SmallInteger` exit code (or non-integer for exit 0; unhandled
   exceptions become exit 1).
+
+  ```test
+  cmd := Cli::Command named: 'demo'.
+  (cmd run: [:args | 0]) class name >>> #Command
+  ```
   """
   method: run: aBlock ^<Cli::Command> [ <primitive> ]
 
   """
   Primitive hook for adding a subcommand. Prefer `registerSubcommand:`
   below — it reads more naturally from Maggie code.
+
+  ```test
+  root := Cli::Command named: 'root'.
+  leaf := Cli::Command named: 'leaf'.
+  (root addSubcommand: leaf) class name >>> #Command
+  ```
   """
   method: addSubcommand: aCommand <Cli::Command> ^<Cli::Command> [ <primitive> ]
 
-  """Register a string flag with a default and doc."""
+  """
+  Register a string flag with a default and doc.
+
+  ```test
+  cmd := Cli::Command named: 'demo'.
+  cmd addStringFlag: 'host' default: 'localhost' doc: 'Hostname'.
+  cmd flagTypeOf: 'host' >>> #string
+  ```
+
+  ```test
+  cmd := Cli::Command named: 'demo'.
+  cmd addStringFlag: 'host' default: 'localhost' doc: 'Hostname'.
+  cmd stringFlag: 'host' >>> 'localhost'
+  ```
+  """
   method: addStringFlag: aName <String> default: aDefault <String> doc: aDoc <String> ^<Cli::Command> [ <primitive> ]
 
-  """Register a boolean flag with a default and doc."""
+  """
+  Register a boolean flag with a default and doc.
+
+  ```test
+  cmd := Cli::Command named: 'demo'.
+  cmd addBoolFlag: 'verbose' default: false doc: 'Chatty'.
+  cmd flagTypeOf: 'verbose' >>> #bool
+  ```
+
+  ```test
+  cmd := Cli::Command named: 'demo'.
+  cmd addBoolFlag: 'verbose' default: false doc: 'Chatty'.
+  cmd boolFlag: 'verbose' >>> false
+  ```
+
+  ```test
+  cmd := Cli::Command named: 'demo'.
+  cmd addBoolFlag: 'on' default: true doc: 'Default on'.
+  cmd boolFlag: 'on' >>> true
+  ```
+  """
   method: addBoolFlag: aName <String> default: aDefault <Boolean> doc: aDoc <String> ^<Cli::Command> [ <primitive> ]
 
-  """Register an integer flag with a default and doc."""
+  """
+  Register an integer flag with a default and doc.
+
+  ```test
+  cmd := Cli::Command named: 'demo'.
+  cmd addIntFlag: 'port' default: 8080 doc: 'Listen port'.
+  cmd flagTypeOf: 'port' >>> #int
+  ```
+
+  ```test
+  cmd := Cli::Command named: 'demo'.
+  cmd addIntFlag: 'port' default: 8080 doc: 'Listen port'.
+  cmd intFlag: 'port' >>> 8080
+  ```
+  """
   method: addIntFlag: aName <String> default: aDefault <Integer> doc: aDoc <String> ^<Cli::Command> [ <primitive> ]
 
   """
@@ -151,19 +221,64 @@ Command subclass: Object
   """
   method: flagTypeOf: aName <String> [ <primitive> ]
 
-  """Read a declared string flag's parsed value. Intended to be called inside the run block."""
+  """
+  Read a declared string flag's parsed value. Intended to be called
+  inside the run block.
+
+  ```test
+  cmd := Cli::Command named: 'demo'.
+  cmd addStringFlag: 'host' default: 'example.com' doc: 'h'.
+  cmd stringFlag: 'host' >>> 'example.com'
+  ```
+  """
   method: stringFlag: aName <String> ^<String> [ <primitive> ]
 
-  """Read a declared bool flag's parsed value. Intended to be called inside the run block."""
+  """
+  Read a declared bool flag's parsed value. Intended to be called
+  inside the run block.
+
+  ```test
+  cmd := Cli::Command named: 'demo'.
+  cmd addBoolFlag: 'verbose' default: true doc: 'v'.
+  cmd boolFlag: 'verbose' >>> true
+  ```
+  """
   method: boolFlag: aName <String> ^<Boolean> [ <primitive> ]
 
-  """Read a declared int flag's parsed value. Intended to be called inside the run block."""
+  """
+  Read a declared int flag's parsed value. Intended to be called
+  inside the run block.
+
+  ```test
+  cmd := Cli::Command named: 'demo'.
+  cmd addIntFlag: 'count' default: 7 doc: 'n'.
+  cmd intFlag: 'count' >>> 7
+  ```
+  """
   method: intFlag: aName <String> ^<Integer> [ <primitive> ]
 
   """
   Invoke the command. Parses the arguments from `System args` (unless
   overridden with `setArgs:`), routes to the right subcommand, runs its
   block, and returns the exit code.
+
+  A zero-argument invocation of a leaf command with a run block that
+  returns a `SmallInteger` exit code produces the same `SmallInteger`
+  as `execute`'s answer:
+
+  ```test
+  cmd := Cli::Command named: 'returnSeven' doc: 'Leaf that exits with 7' run: [:args | 7].
+  cmd setArgs: #().
+  cmd execute >>> 7
+  ```
+
+  A block that returns a non-integer value collapses to exit code 0:
+
+  ```test
+  cmd := Cli::Command named: 'returnNil' doc: 'Leaf that exits with 0' run: [:args | nil].
+  cmd setArgs: #().
+  cmd execute >>> 0
+  ```
   """
   method: execute ^<Integer> [ <primitive> ]
 
@@ -171,12 +286,34 @@ Command subclass: Object
   Redirect cobra's output and error writers. Accepts a `GoObject`
   wrapping an `io.Writer` (e.g. a `*bytes.Buffer` from Go). Mainly
   useful in tests. Pass `nil` to restore the defaults.
+
+  Passing `nil` restores cobra's defaults and answers the receiver
+  unchanged:
+
+  ```test
+  cmd := Cli::Command named: 'demo'.
+  (cmd setOutput: nil) class name >>> #Command
+  ```
   """
   method: setOutput: aStream ^<Cli::Command> [ <primitive> ]
 
   """
   Override the argument list that cobra will parse, instead of reading
   `os.Args`. Mainly useful in tests.
+
+  ```test
+  cmd := Cli::Command named: 'demo'.
+  (cmd setArgs: #('--flag' 'value')) class name >>> #Command
+  ```
+
+  Returns the receiver so the configuration call can participate in a
+  cascade:
+
+  ```test
+  cmd := Cli::Command named: 'demo'.
+  cmd setArgs: #().
+  cmd class name >>> #Command
+  ```
   """
   method: setArgs: anArray <Array> ^<Cli::Command> [ <primitive> ]
 

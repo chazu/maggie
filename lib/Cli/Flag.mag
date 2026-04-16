@@ -155,8 +155,20 @@ Flag subclass: Object
   ```
 
   ```test
+  s := (Cli::Flag name: 'foo' type: #string default: 'bar' doc: 'd') printString.
+  (s indexOf: 'default=') >= 0 >>> true
+  ```
+
+  ```test
   s := (Cli::Flag name: 'x' type: #bool default: false doc: '' required: true) printString.
   (s indexOf: 'required=true') >= 0 >>> true
+  ```
+
+  Non-required flags should NOT include the `required=` suffix:
+
+  ```test
+  s := (Cli::Flag name: 'foo' type: #string default: 'bar' doc: 'd') printString.
+  (s indexOf: 'required=') >>> -1
   ```
   """
   method: printString ^<String> [
@@ -170,9 +182,129 @@ Flag subclass: Object
 
   """
   Emit the same debug representation as `printString` onto a
-  stream-style collector. Mirrors the stream protocol used elsewhere
-  in the image.
+  stream-style collector. The collector only needs to respond to
+  `nextPutAll:` — anything that behaves like an appending stream
+  works. `printOn:` is a trivial delegation to `printString`, so
+  the textual assertions on `printString` above cover its output
+  exhaustively.
   """
   method: printOn: aStream [
       aStream nextPutAll: self printString
+  ]
+
+  # --- Equality -----------------------------------------------------------
+
+  """
+  Value-object equality. Two `Cli::Flag` specs are `equals:`-equal when
+  every ivar — name, type, default, doc, required — matches.
+
+  The binary `=` selector is reserved by the VM's optimized dispatch
+  and always uses identity comparison for user classes, so we expose
+  value equality via a keyword selector that routes through regular
+  method lookup.
+
+  Equal when all fields match:
+
+  ```test
+  a := Cli::Flag name: 'foo' type: #string default: 'bar' doc: 'd'.
+  b := Cli::Flag name: 'foo' type: #string default: 'bar' doc: 'd'.
+  (a equals: b) >>> true
+  ```
+
+  Reflexive — an instance is equal to itself:
+
+  ```test
+  a := Cli::Flag name: 'foo' type: #string default: 'bar' doc: 'd'.
+  (a equals: a) >>> true
+  ```
+
+  Symmetric — if `a equals: b` then `b equals: a`:
+
+  ```test
+  a := Cli::Flag name: 'foo' type: #string default: 'bar' doc: 'd'.
+  b := Cli::Flag name: 'foo' type: #string default: 'bar' doc: 'd'.
+  (a equals: b) = (b equals: a) >>> true
+  ```
+
+  Unequal when names differ:
+
+  ```test
+  a := Cli::Flag name: 'foo' type: #string default: 'bar' doc: 'd'.
+  b := Cli::Flag name: 'FOO' type: #string default: 'bar' doc: 'd'.
+  (a equals: b) >>> false
+  ```
+
+  Unequal when types differ:
+
+  ```test
+  a := Cli::Flag name: 'foo' type: #string default: 'bar' doc: 'd'.
+  b := Cli::Flag name: 'foo' type: #bool default: 'bar' doc: 'd'.
+  (a equals: b) >>> false
+  ```
+
+  Unequal when defaults differ:
+
+  ```test
+  a := Cli::Flag name: 'foo' type: #string default: 'bar' doc: 'd'.
+  b := Cli::Flag name: 'foo' type: #string default: 'baz' doc: 'd'.
+  (a equals: b) >>> false
+  ```
+
+  Unequal when docs differ:
+
+  ```test
+  a := Cli::Flag name: 'foo' type: #string default: 'bar' doc: 'd1'.
+  b := Cli::Flag name: 'foo' type: #string default: 'bar' doc: 'd2'.
+  (a equals: b) >>> false
+  ```
+
+  Unequal when required bits differ:
+
+  ```test
+  a := Cli::Flag name: 'foo' type: #string default: 'bar' doc: 'd'.
+  b := Cli::Flag name: 'foo' type: #string default: 'bar' doc: 'd' required: true.
+  (a equals: b) >>> false
+  ```
+
+  Comparing to non-`Cli::Flag` values answers false rather than raising:
+
+  ```test
+  a := Cli::Flag name: 'foo' type: #string default: 'bar' doc: 'd'.
+  (a equals: 'foo') >>> false
+  ```
+
+  ```test
+  a := Cli::Flag name: 'foo' type: #string default: 'bar' doc: 'd'.
+  (a equals: nil) >>> false
+  ```
+  """
+  method: equals: other ^<Boolean> [
+      other isNil ifTrue: [^false].
+      (other class name = self class name) ifFalse: [^false].
+      name = other name ifFalse: [^false].
+      type = other type ifFalse: [^false].
+      default = other default ifFalse: [^false].
+      doc = other doc ifFalse: [^false].
+      required = other required ifFalse: [^false].
+      ^true
+  ]
+
+  """
+  Hash consistent with `equals:`: derived from the flag's name.
+  Equal flags hash equal; unequal flags may also hash equal (the
+  standard Smalltalk convention — weaker than equality).
+
+  ```test
+  a := Cli::Flag name: 'foo' type: #string default: 'bar' doc: 'd'.
+  b := Cli::Flag name: 'foo' type: #string default: 'bar' doc: 'd'.
+  a hash = b hash >>> true
+  ```
+
+  ```test
+  a := Cli::Flag name: 'foo' type: #string default: 'bar' doc: 'd'.
+  a hash class name >>> #SmallInteger
+  ```
+  """
+  method: hash ^<Integer> [
+      ^name hashCode
   ]
