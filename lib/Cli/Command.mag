@@ -1,0 +1,302 @@
+namespace: 'Cli'
+
+"""
+A command-line command. `Cli::Command` is the Smalltalk-idiomatic facade on
+top of the Go-side cobra bridge (see `vm/cli_primitives.go`). It provides
+Unix-style subcommands, flags, help text, and a Maggie block that runs when
+the command is invoked.
+
+Primitive-provided selectors are declared as `<primitive>` stubs so their
+documentation shows up in introspection; the real implementations live on
+the Go side. Methods without a primitive stub are pure-Maggie helpers that
+compose those primitives into higher-level selectors such as
+`named:doc:run:` and `flag:type:default:doc:`.
+
+### Lifecycle
+
+```example
+"A minimal command: one run block, no flags."
+(Cli::Command named: 'greet' doc: 'Say hello' run: [:args |
+    'Hello, world!' println.
+    0
+]) execute
+```
+
+### Flags
+
+```example
+"Declare flags, then read them from inside the run block."
+cmd := Cli::Command named: 'greet' doc: 'Say hello'.
+cmd flag: 'name' type: #string default: 'world' doc: 'Who to greet'.
+cmd run: [:args |
+    ('Hello, ', (cmd flagValue: 'name'), '!') println.
+    0
+].
+cmd execute
+```
+
+### Subcommands
+
+```example
+"Compose a parent command with children."
+root := Cli::Command named: 'mytool' doc: 'My multi-command tool'.
+build := Cli::Command named: 'build' doc: 'Build the project' run: [:args | 0].
+test := Cli::Command named: 'test' doc: 'Run tests' run: [:args | 0].
+root registerSubcommand: build.
+root registerSubcommand: test.
+root execute
+```
+
+Exit-code convention: a `SmallInteger` return from the run block becomes
+the process exit code. An unhandled exception yields exit code 1. Any
+other return value yields exit code 0. See the Go primitive for details.
+"""
+Command subclass: Object
+  instanceVars: name shortDoc longDoc runBlock flags envBindings children
+
+  # --- Class-side constructors ---------------------------------------------
+
+  """
+  Primitive constructor: build a bare command whose cobra `Use` field is
+  `aString`. Returns a `Cli::Command` handle ready for configuration via
+  the instance-side selectors. Prefer `named:`/`named:doc:`/`named:doc:run:`
+  below for idiomatic call-sites.
+
+  ```test
+  (Cli::Command new: 'demo') class name >>> #Command
+  ```
+  """
+  classMethod: new: aString <String> ^<Cli::Command> [ <primitive> ]
+
+  """
+  Create a command with the given name and no documentation. The spec
+  called for `^self new initWithName: aString`; the Go wrapper is created
+  in the primitive `new:` call itself, so there is no separate init step
+  and this method simply delegates to `self new: aString`.
+  `initWithName:` is kept below as a no-op for API symmetry.
+
+  ```test
+  (Cli::Command named: 'greet') class name >>> #Command
+  ```
+  """
+  classMethod: named: aString <String> ^<Cli::Command> [
+      ^(self new: aString) initWithName: aString
+  ]
+
+  """
+  Create a command with the given name and short documentation.
+
+  ```test
+  (Cli::Command named: 'greet' doc: 'Say hello') class name >>> #Command
+  ```
+  """
+  classMethod: named: aString <String> doc: docString <String> ^<Cli::Command> [
+      ^(self named: aString) shortDoc: docString
+  ]
+
+  """
+  Create a fully-wired command: name, documentation, and the block that
+  runs when cobra dispatches the command.
+
+  ```test
+  cmd := Cli::Command named: 'greet' doc: 'Say hello' run: [:args | 0].
+  cmd class name >>> #Command
+  ```
+  """
+  classMethod: named: aString <String> doc: docString <String> run: aBlock ^<Cli::Command> [
+      ^(self named: aString doc: docString) run: aBlock
+  ]
+
+  # --- Instance-side primitives (Go-backed) --------------------------------
+
+  """
+  Stash a short documentation string on the command (cobra's `Short`
+  field). Displayed in one-line help output.
+  """
+  method: shortDoc: aString <String> ^<Cli::Command> [ <primitive> ]
+
+  """
+  Stash a long documentation string on the command (cobra's `Long`
+  field). Displayed in per-command `--help` output.
+  """
+  method: longDoc: aString <String> ^<Cli::Command> [ <primitive> ]
+
+  """
+  Register the block that runs when this command is invoked. The block
+  receives an `Array<String>` of positional arguments and should return
+  a `SmallInteger` exit code (or non-integer for exit 0; unhandled
+  exceptions become exit 1).
+  """
+  method: run: aBlock ^<Cli::Command> [ <primitive> ]
+
+  """
+  Primitive hook for adding a subcommand. Prefer `registerSubcommand:`
+  below — it reads more naturally from Maggie code.
+  """
+  method: addSubcommand: aCommand <Cli::Command> ^<Cli::Command> [ <primitive> ]
+
+  """Register a string flag with a default and doc."""
+  method: addStringFlag: aName <String> default: aDefault <String> doc: aDoc <String> ^<Cli::Command> [ <primitive> ]
+
+  """Register a boolean flag with a default and doc."""
+  method: addBoolFlag: aName <String> default: aDefault <Boolean> doc: aDoc <String> ^<Cli::Command> [ <primitive> ]
+
+  """Register an integer flag with a default and doc."""
+  method: addIntFlag: aName <String> default: aDefault <Integer> doc: aDoc <String> ^<Cli::Command> [ <primitive> ]
+
+  """
+  Return the registered type of a previously declared flag
+  (`#string`, `#bool`, or `#int`), or `nil` if the flag was never
+  declared. Used by `flagValue:` to dispatch to the correct accessor.
+  """
+  method: flagTypeOf: aName <String> [ <primitive> ]
+
+  """Read a declared string flag's parsed value. Intended to be called inside the run block."""
+  method: stringFlag: aName <String> ^<String> [ <primitive> ]
+
+  """Read a declared bool flag's parsed value. Intended to be called inside the run block."""
+  method: boolFlag: aName <String> ^<Boolean> [ <primitive> ]
+
+  """Read a declared int flag's parsed value. Intended to be called inside the run block."""
+  method: intFlag: aName <String> ^<Integer> [ <primitive> ]
+
+  """
+  Invoke the command. Parses the arguments from `System args` (unless
+  overridden with `setArgs:`), routes to the right subcommand, runs its
+  block, and returns the exit code.
+  """
+  method: execute ^<Integer> [ <primitive> ]
+
+  """
+  Redirect cobra's output and error writers. Accepts a `GoObject`
+  wrapping an `io.Writer` (e.g. a `*bytes.Buffer` from Go). Mainly
+  useful in tests. Pass `nil` to restore the defaults.
+  """
+  method: setOutput: aStream ^<Cli::Command> [ <primitive> ]
+
+  """
+  Override the argument list that cobra will parse, instead of reading
+  `os.Args`. Mainly useful in tests.
+  """
+  method: setArgs: anArray <Array> ^<Cli::Command> [ <primitive> ]
+
+  # --- Instance-side pure-Maggie helpers -----------------------------------
+
+  """
+  No-op initializer kept for API symmetry with the story spec. The
+  cobra wrapper is fully built by the primitive `new:`, so there is
+  no separate init step to do. Returns `self` so chained call-sites
+  still work.
+
+  ```test
+  cmd := Cli::Command new: 'demo'.
+  (cmd initWithName: 'demo') class name >>> #Command
+  ```
+  """
+  method: initWithName: aString <String> ^<Cli::Command> [
+      ^self
+  ]
+
+  """
+  Register a flag by name, type (`#string`, `#bool`, or `#int`), default
+  value, and doc string. Dispatches to the correct primitive
+  `add*Flag:default:doc:` based on the type symbol.
+
+  ```test
+  cmd := Cli::Command named: 'demo'.
+  cmd flag: 'verbose' type: #bool default: false doc: 'Chatty output'.
+  cmd flagTypeOf: 'verbose' >>> #bool
+  ```
+
+  ```test
+  cmd := Cli::Command named: 'demo'.
+  cmd flag: 'name' type: #string default: 'world' doc: 'Who to greet'.
+  cmd flagTypeOf: 'name' >>> #string
+  ```
+
+  ```test
+  cmd := Cli::Command named: 'demo'.
+  cmd flag: 'count' type: #int default: 1 doc: 'How many'.
+  cmd flagTypeOf: 'count' >>> #int
+  ```
+  """
+  method: flag: aName <String> type: aType <Symbol> default: aDefault doc: aDoc <String> ^<Cli::Command> [
+      aType = #string ifTrue: [^self addStringFlag: aName default: aDefault doc: aDoc].
+      aType = #bool ifTrue: [^self addBoolFlag: aName default: aDefault doc: aDoc].
+      aType = #int ifTrue: [^self addIntFlag: aName default: aDefault doc: aDoc].
+      ^self error: 'Cli::Command flag: unknown flag type ', aType printString
+  ]
+
+  """
+  Register a flag from a `Cli::Flag` value object. Unpacks its
+  name/type/default/doc and delegates to `flag:type:default:doc:`.
+  The `required` bit on the spec is advisory and not enforced by the
+  primitive; higher-level validation code should consult it directly.
+
+  ```test
+  spec := Cli::Flag name: 'verbose' type: #bool default: false doc: 'Chatty'.
+  cmd := Cli::Command named: 'demo'.
+  cmd flag: spec.
+  cmd flagTypeOf: 'verbose' >>> #bool
+  ```
+  """
+  method: flag: aFlagSpec <Cli::Flag> ^<Cli::Command> [
+      ^self
+          flag: aFlagSpec name
+          type: aFlagSpec type
+          default: aFlagSpec default
+          doc: aFlagSpec doc
+  ]
+
+  """
+  Return the parsed value of a declared flag, dispatching to
+  `stringFlag:`, `boolFlag:`, or `intFlag:` based on how the flag was
+  registered. Returns `nil` if the flag was never declared.
+
+  ```test
+  cmd := Cli::Command named: 'demo'.
+  cmd flag: 'name' type: #string default: 'world' doc: 'Who to greet'.
+  cmd flagValue: 'name' >>> 'world'
+  ```
+
+  ```test
+  cmd := Cli::Command named: 'demo'.
+  cmd flag: 'verbose' type: #bool default: false doc: 'Chatty'.
+  cmd flagValue: 'verbose' >>> false
+  ```
+
+  ```test
+  cmd := Cli::Command named: 'demo'.
+  cmd flag: 'count' type: #int default: 7 doc: 'How many'.
+  cmd flagValue: 'count' >>> 7
+  ```
+
+  ```test
+  cmd := Cli::Command named: 'demo'.
+  cmd flagValue: 'nonexistent' >>> nil
+  ```
+  """
+  method: flagValue: aName <String> [
+      | kind |
+      kind := self flagTypeOf: aName.
+      kind isNil ifTrue: [^nil].
+      kind = #string ifTrue: [^self stringFlag: aName].
+      kind = #bool ifTrue: [^self boolFlag: aName].
+      kind = #int ifTrue: [^self intFlag: aName].
+      ^self error: 'Cli::Command flagValue: unknown flag type ', kind printString
+  ]
+
+  """
+  Attach `aCommand` as a subcommand of the receiver. Idiomatic alias
+  for the primitive `addSubcommand:`.
+
+  ```test
+  root := Cli::Command named: 'root'.
+  leaf := Cli::Command named: 'leaf'.
+  root registerSubcommand: leaf.
+  root class name >>> #Command
+  ```
+  """
+  method: registerSubcommand: aCommand <Cli::Command> ^<Cli::Command> [
+      ^self addSubcommand: aCommand
+  ]
