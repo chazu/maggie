@@ -372,21 +372,57 @@ func (vm *VM) runCliBlock(w *CliCommandWrapper, args []string) {
 
 	// Evaluate the block inside a defer/recover so unhandled exceptions
 	// become exit code 1 instead of taking down the process.
+	// Snapshot interpreter state so a panic from the run block can be
+	// recovered without leaving stray frames / exception handlers around.
+	// Without this, after the defer below catches the SignaledException the
+	// interpreter's frame pointer would still be pointing inside the block's
+	// frame, and the outer runFrame loop would resume reading bytecode from
+	// there — leading to "Error: X" appearing on stderr while the block
+	// keeps executing on stdout. See TestCliFramework/required_flag_missing
+	// for the regression this protects against.
+	interp := vm.currentInterpreter()
+	var savedFP int
+	var savedHandlers *ExceptionHandler
+	if interp != nil {
+		savedFP = interp.fp
+		savedHandlers = interp.exceptionHandlers
+	}
+
+	// Evaluate the block inside a defer/recover so unhandled exceptions
+	// become exit code 1 instead of taking down the process.
 	defer func() {
-		if r := recover(); r != nil {
-			if sigEx, ok := r.(SignaledException); ok {
-				reason := vm.valueToString(sigEx.Object.MessageText)
-				if reason == "" {
-					reason = "unhandled exception"
-				}
-				fmt.Fprintln(w.Cobra.ErrOrStderr(), "Error: "+reason)
-				w.exitCode = 1
-				return
-			}
-			// Raw panics surface as stderr messages too.
-			fmt.Fprintf(w.Cobra.ErrOrStderr(), "Error: %v\n", r)
-			w.exitCode = 1
+		r := recover()
+		if r == nil {
+			return
 		}
+		// Unwind the interpreter back to where the run block started so the
+		// outer dispatch loop doesn't try to continue executing block bytecode.
+		if interp != nil {
+			for interp.fp > savedFP {
+				interp.popFrame()
+			}
+			interp.exceptionHandlers = savedHandlers
+			interp.unwinding = false
+			interp.unwindValue = Nil
+		}
+		if sigEx, ok := r.(SignaledException); ok {
+			reason := vm.valueToString(sigEx.Object.MessageText)
+			if reason == "" {
+				reason = "unhandled exception"
+			}
+			fmt.Fprintln(w.Cobra.ErrOrStderr(), "Error: "+reason)
+			w.exitCode = 1
+			return
+		}
+		if _, ok := r.(NonLocalReturn); ok {
+			// A non-local return escaping the run block means the block's
+			// home method is still on the caller's stack — propagate so the
+			// interpreter's usual unwinding logic runs.
+			panic(r)
+		}
+		// Raw panics surface as stderr messages too.
+		fmt.Fprintf(w.Cobra.ErrOrStderr(), "Error: %v\n", r)
+		w.exitCode = 1
 	}()
 
 	result := vm.evaluateBlock(w.RunBlock, []Value{argsVal})

@@ -218,6 +218,8 @@ Output subclass: Object
   Cli::Output new printTable: rows columns: cols
   ```
 
+  The column spec decomposes cleanly into parallel header/key arrays:
+
   ```test
   cols := #(#('NAME' 'name') #('STATUS' 'status')).
   headers := cols collect: [:pair | pair at: 0].
@@ -227,10 +229,92 @@ Output subclass: Object
   (keys at: 0) >>> 'name'
   (keys at: 1) >>> 'status'
   ```
+
+  Row data indexed by the column keys survives a `Dictionary`
+  round-trip, which is the minimal contract the formatter relies on:
+
+  ```test
+  row := Dictionary new at: 'name' put: 'Alice'; at: 'status' put: 'ok'; yourself.
+  (row at: 'name') >>> 'Alice'
+  (row at: 'status') >>> 'ok'
+  ```
   """
   method: printTable: rows columns: aColumnSpec [
       | headers keys |
       headers := aColumnSpec collect: [:pair | pair at: 0].
       keys := aColumnSpec collect: [:pair | pair at: 1].
       Output table: rows headers: headers keys: keys
+  ]
+
+  # --- Round-trip regression tests ----------------------------------------
+
+  """
+  Class-side contract: the two supported formats round-trip through
+  `format:` / `format` without surprise.
+
+  ```test
+  Cli::Output format: 'json'.
+  Cli::Output format >>> 'json'
+  ```
+
+  ```test
+  Cli::Output format: 'json'.
+  Cli::Output isJson >>> true
+  ```
+
+  ```test
+  Cli::Output format: 'text'.
+  Cli::Output isJson >>> false
+  ```
+
+  Padding right-justifies strings up to the requested column width:
+
+  ```test
+  Cli::Output pad: 'hi' to: 5 >>> 'hi   '
+  ```
+
+  ```test
+  Cli::Output pad: 'hello' to: 3 >>> 'hello'
+  ```
+
+  `formatValue:` renders `nil` as the conventional `(nil)` placeholder,
+  strings verbatim, and non-strings via `printString`:
+
+  ```test
+  Cli::Output formatValue: nil >>> '(nil)'
+  Cli::Output formatValue: 'hi' >>> 'hi'
+  Cli::Output formatValue: 42 >>> '42'
+  ```
+
+  JSON round-trip: a Dictionary encoded via `Json encodePretty:` and
+  decoded via `Json decode:` preserves its contents. This is the
+  contract the instance-side `printJson:` relies on.
+
+  ```test
+  d := Dictionary new at: 'n' put: 1; at: 'name' put: 'ok'; yourself.
+  encoded := Json encodePretty: d.
+  decoded := Json decode: encoded.
+  (decoded at: 'n') >>> 1
+  ```
+
+  ```test
+  d := Dictionary new at: 'n' put: 1; at: 'name' put: 'ok'; yourself.
+  decoded := Json decode: (Json encodePretty: d).
+  (decoded at: 'name') >>> 'ok'
+  ```
+
+  JSON round-trip of an Array of Dictionaries — the shape the
+  `table:headers:keys:` method prints in JSON mode — preserves
+  keys and values:
+
+  ```test
+  rows := Array with: (Dictionary new at: 'name' put: 'Alice'; yourself).
+  decoded := Json decode: (Json encodePretty: rows).
+  decoded size >>> 1
+  ((decoded at: 0) at: 'name') >>> 'Alice'
+  ```
+  """
+  class method: roundTripExamples [
+      "Documentation anchor for the round-trip doctests above; no code path references it."
+      ^self
   ]

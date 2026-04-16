@@ -1,0 +1,91 @@
+namespace: 'CliDemo'
+
+"""
+A tiny demonstration CLI built on top of Cli::Command. Used by the
+integration test in `test/integration/cli_framework_test.go` to exercise
+the whole Cli stack from cobra parse through Maggie block invocation.
+
+The root command `demo` exposes three subcommands:
+
+- `greet --name X [--loud]` — prints a greeting to stdout. Reads the
+  optional `PP_DEMO_GREETING` environment variable to override the
+  `Hello` prefix. `--name` defaults to `World`.
+- `greet-strict --name X` — same as greet but treats `--name` as a
+  required flag. Missing `--name` raises an error (caught by the run
+  block and surfaced as exit code 1 with a message on stderr).
+- `count --n N` — prints N `line i` rows to stdout.
+
+Entry points:
+
+- `Main buildCommand` returns the fully-wired root command so a test
+  can drive it with `setArgs:` / `setOutput:` / `execute`.
+- `Main runWithArgs: anArray` builds the command, feeds it the given
+  arguments, and returns the exit code as a `SmallInteger`. Any
+  `Cli::CliError` raised by cobra (unknown subcommand, bad flags) is
+  caught and turned into exit code `1`.
+"""
+Main subclass: Object
+
+  classMethod: buildCommand ^<Cli::Command> [
+    | root greet greetStrict count |
+    root := Cli::Command named: 'demo' doc: 'Tiny demo CLI for integration tests'.
+
+    "--- greet subcommand: optional --name, optional --loud --------------"
+    greet := Cli::Command named: 'greet' doc: 'Say hello to someone'.
+    greet flag: 'name' type: #string default: 'World' doc: 'Who to greet'.
+    greet flag: 'loud' type: #bool default: false doc: 'Shout it in upper case'.
+    greet run: [:args |
+      | name greeting line |
+      greeting := System env: 'PP_DEMO_GREETING'.
+      (greeting isNil or: [greeting isEmpty]) ifTrue: [greeting := 'Hello'].
+      name := greet stringFlag: 'name'.
+      (greet boolFlag: 'loud')
+        ifTrue:  [line := greeting asUppercase , ', ' , name asUppercase]
+        ifFalse: [line := greeting , ', ' , name].
+      line println.
+      0
+    ].
+
+    "--- greet-strict subcommand: --name required ------------------------"
+    greetStrict := Cli::Command named: 'greet-strict' doc: 'Say hello (strict)'.
+    greetStrict flag: 'name' type: #string default: '' doc: 'Who to greet (required)'.
+    greetStrict run: [:args |
+      | name |
+      name := greetStrict stringFlag: 'name'.
+      name isEmpty ifTrue: [
+        Error signal: 'required flag(s) "name" not set'
+      ].
+      ('Hello, ' , name) println.
+      0
+    ].
+
+    "--- count subcommand: --n int ---------------------------------------"
+    count := Cli::Command named: 'count' doc: 'Print N sequential lines'.
+    count flag: 'n' type: #int default: 1 doc: 'How many lines to print'.
+    count run: [:args |
+      | n |
+      n := count intFlag: 'n'.
+      1 to: n do: [:i | ('line ' , i printString) println].
+      0
+    ].
+
+    root registerSubcommand: greet.
+    root registerSubcommand: greetStrict.
+    root registerSubcommand: count.
+    ^root
+  ]
+
+  classMethod: runWithArgs: anArray <Array> ^<Integer> [
+    | root |
+    root := self buildCommand.
+    root setArgs: anArray.
+    ^[root execute]
+        on: Cli::CliError
+        do: [:e | 1]
+  ]
+
+  classMethod: start ^<Integer> [
+    "Entry point used when running the demo via `mag run`. Reads the
+    process arguments from `System args`."
+    ^self runWithArgs: System args
+  ]
