@@ -10,6 +10,7 @@ require (
 	github.com/fxamacker/cbor/v2 v2.5.0
 	github.com/jhump/protoreflect v1.15.4
 	github.com/marcboeker/go-duckdb v1.8.5
+	github.com/spf13/cobra v1.10.2
 	github.com/tliron/commonlog v0.2.8
 	github.com/tliron/glsp v0.2.2
 	golang.org/x/tools v0.41.0
@@ -33,6 +34,7 @@ require (
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/gorilla/websocket v1.5.1 // indirect
 	github.com/iancoleman/strcase v0.3.0 // indirect
+	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/klauspost/compress v1.17.11 // indirect
 	github.com/klauspost/cpuid/v2 v2.2.9 // indirect
 	github.com/lucasb-eyer/go-colorful v1.2.0 // indirect
@@ -53,6 +55,7 @@ require (
 	github.com/rogpeppe/go-internal v1.14.1 // indirect
 	github.com/sasha-s/go-deadlock v0.3.1 // indirect
 	github.com/sourcegraph/jsonrpc2 v0.2.0 // indirect
+	github.com/spf13/pflag v1.0.10 // indirect
 	github.com/tliron/kutil v0.3.11 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
 	github.com/zeebo/xxh3 v1.0.2 // indirect
