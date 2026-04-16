@@ -1,0 +1,445 @@
+"""
+Environment-variable binding for CLI commands.
+
+`Cli::EnvBinding` is an immutable value object that describes how a single
+environment variable should be projected onto an object. It captures:
+
+- `envName`         -- the OS-level variable name (e.g., `'PP_AGENT_COMMAND'`)
+- `setterSelector`  -- the one-argument selector to invoke on the target
+                       (e.g., `#agentCommand:`)
+- `type`            -- a type symbol used for coercion (`#string`, `#integer`,
+                       `#bool`, `#duration`)
+- `default`         -- the value to apply when the variable is unset (ignored
+                       when `required` is true)
+- `required`        -- if true, a missing variable produces a `Failure`
+                       instead of the default being applied
+
+The object is wired into a `Cli::Command` via `envBinding:` (see the bottom
+of this file) and evaluated by `applyEnvBindings`, which the command calls
+before dispatching to the user's run block.
+
+This is a pure-Maggie generalisation of the ad-hoc `PP_*` pattern in
+procyon-park's `AppConfig` (see the `applyEnvOverrides:` method), lifted out
+of the app so any Maggie CLI can reuse it. We deliberately do not wrap the
+Go `envconfig` package -- it operates on struct tags via reflection and has
+no Maggie equivalent.
+
+### Coercion
+
+| `type`       | Behaviour                                                           |
+| ------------ | ------------------------------------------------------------------- |
+| `#string`    | value is passed through verbatim (after `trim`)                     |
+| `#integer`   | `asInteger`; raises an `Error` when the string does not parse       |
+| `#bool`      | `true`/`1`/`yes` (case-insensitive) → `true`; everything else → `false` |
+| `#duration`  | delegates to `Duration parse:` when the class is loaded, else returns the trimmed string |
+
+### Example
+
+```example
+"Bind PP_DEMO to a config object's #demo: setter. If the env var is unset,
+the default value 7 is used instead."
+| cfg binding |
+cfg := Dictionary new.
+binding := Cli::EnvBinding
+    envName: 'PP_DEMO'
+    setter: #at:put:
+    type: #integer
+    default: 7.
+"applyTo: reads the env var and invokes the setter with the coerced value"
+binding applyTo: cfg.
+```
+"""
+namespace: 'Cli'
+
+EnvBinding subclass: Object
+  classVars: commandBindings
+  instanceVars: envName setterSelector type default required
+
+  # --- Class-side construction --------------------------------------------
+
+  """
+  Initialise the class-side registry used by `Cli::Command` to associate
+  bindings with NaN-boxed command instances. Called automatically on first
+  class load.
+  """
+  class method: initialize [
+      commandBindings := Dictionary new
+  ]
+
+  """
+  Construct an env binding with no default and `required` defaulting to
+  false. A missing environment variable silently skips the setter.
+
+  ```test
+  b := Cli::EnvBinding envName: 'FOO' setter: #foo: type: #string.
+  b envName >>> 'FOO'
+  b setterSelector >>> #foo:
+  b type >>> #string
+  b default >>> nil
+  b required >>> false
+  ```
+  """
+  class method: envName: aName <String> setter: aSelector <Symbol> type: aType <Symbol>
+      ^<Cli::EnvBinding> [
+      ^self envName: aName setter: aSelector type: aType default: nil required: false
+  ]
+
+  """
+  Construct an env binding with a fallback default but without making the
+  variable required.
+
+  ```test
+  b := Cli::EnvBinding envName: 'FOO' setter: #foo: type: #integer default: 42.
+  b default >>> 42
+  b required >>> false
+  ```
+  """
+  class method: envName: aName <String> setter: aSelector <Symbol> type: aType <Symbol>
+      default: aDefault ^<Cli::EnvBinding> [
+      ^self envName: aName setter: aSelector type: aType default: aDefault required: false
+  ]
+
+  """
+  Full constructor. When `aBool` is true, `applyTo:` answers a `Failure`
+  if the environment variable is unset or empty.
+
+  ```test
+  b := Cli::EnvBinding envName: 'FOO' setter: #foo: type: #string default: 'fallback' required: true.
+  b envName >>> 'FOO'
+  b default >>> 'fallback'
+  b required >>> true
+  ```
+  """
+  class method: envName: aName <String> setter: aSelector <Symbol> type: aType <Symbol>
+      default: aDefault required: aBool <Boolean> ^<Cli::EnvBinding> [
+      | b <Cli::EnvBinding> |
+      b := self new.
+      b primSetEnvName: aName.
+      b primSetSetterSelector: aSelector.
+      b primSetType: aType.
+      b primSetDefault: aDefault.
+      b primSetRequired: aBool.
+      ^b
+  ]
+
+  # --- Class-side coercion (pure, reusable) -------------------------------
+
+  """
+  Convert a raw string to a typed value according to `aType`. The applyTo:
+  machinery dispatches through here; it is also exposed as a class method so
+  tests and callers can coerce without needing an env binding.
+
+  ```test
+  Cli::EnvBinding coerce: 'hello' type: #string >>> 'hello'
+  Cli::EnvBinding coerce: '  spaced  ' type: #string >>> 'spaced'
+  ```
+
+  ```test
+  Cli::EnvBinding coerce: '42' type: #integer >>> 42
+  Cli::EnvBinding coerce: '-7' type: #integer >>> -7
+  ```
+
+  ```test
+  Cli::EnvBinding coerce: 'true' type: #bool >>> true
+  Cli::EnvBinding coerce: 'TRUE' type: #bool >>> true
+  Cli::EnvBinding coerce: '1' type: #bool >>> true
+  Cli::EnvBinding coerce: 'yes' type: #bool >>> true
+  Cli::EnvBinding coerce: 'YES' type: #bool >>> true
+  Cli::EnvBinding coerce: 'false' type: #bool >>> false
+  Cli::EnvBinding coerce: '0' type: #bool >>> false
+  Cli::EnvBinding coerce: 'no' type: #bool >>> false
+  Cli::EnvBinding coerce: '' type: #bool >>> false
+  Cli::EnvBinding coerce: 'bogus' type: #bool >>> false
+  ```
+
+  Integer coercion raises on garbage input:
+
+  ```test
+  raised := false.
+  [Cli::EnvBinding coerce: 'not-a-number' type: #integer] on: Error do: [:e | raised := true].
+  raised >>> true
+  ```
+  """
+  class method: coerce: aString <String> type: aType <Symbol> [
+      | trimmed parsed |
+      aString isNil ifTrue: [^nil].
+      trimmed := aString trimBoth.
+
+      aType = #string ifTrue: [^trimmed].
+
+      aType = #integer ifTrue: [
+          parsed := trimmed asInteger.
+          parsed isNil ifTrue: [
+              Error signal: 'Cli::EnvBinding: cannot coerce ', trimmed printString, ' to #integer'
+          ].
+          ^parsed
+      ].
+
+      aType = #bool ifTrue: [
+          | lower |
+          lower := trimmed asLowercase.
+          ^(lower = 'true') or: [(lower = '1') or: [lower = 'yes']]
+      ].
+
+      aType = #duration ifTrue: [
+          "Delegate to Duration parse: when present; otherwise pass the trimmed
+          string through unchanged. Keeping this graceful lets EnvBinding land
+          before a Duration class is available without breaking callers."
+          Duration isNil ifTrue: [^trimmed].
+          ^Duration parse: trimmed
+      ].
+
+      Error signal: 'Cli::EnvBinding: unknown type ', aType printString
+  ]
+
+  # --- Class-side registry for Cli::Command integration -------------------
+
+  """
+  Associate `aBinding` with `aCommand`. `Cli::Command>>envBinding:` routes
+  here because NaN-boxed command instances cannot hold Maggie ivars of
+  their own.
+  """
+  class method: register: aBinding for: aCommand [
+      | list |
+      commandBindings isNil ifTrue: [ commandBindings := Dictionary new ].
+      list := commandBindings at: aCommand ifAbsent: [
+          | l |
+          l := ArrayList new.
+          commandBindings at: aCommand put: l.
+          l
+      ].
+      list add: aBinding.
+      ^aBinding
+  ]
+
+  """
+  Return the bindings registered for `aCommand`, or an empty ArrayList if
+  none were ever registered.
+  """
+  class method: bindingsFor: aCommand [
+      commandBindings isNil ifTrue: [ ^ArrayList new ].
+      ^commandBindings at: aCommand ifAbsent: [ ArrayList new ]
+  ]
+
+  """
+  Apply every binding registered for `aCommand` to `aTarget`. Answers the
+  first `Failure` encountered, or `aTarget` on success. Called from
+  `Cli::Command>>applyEnvBindings`.
+  """
+  class method: applyBindingsFor: aCommand to: aTarget [
+      | bindings result |
+      bindings := self bindingsFor: aCommand.
+      bindings do: [:b |
+          result := b applyTo: aTarget.
+          (result notNil and: [result isFailure]) ifTrue: [^result]
+      ].
+      ^aTarget
+  ]
+
+  # --- Instance-side accessors --------------------------------------------
+
+  """Return the environment variable name."""
+  method: envName ^<String> [ ^envName ]
+
+  """Return the selector invoked on the target when the binding fires."""
+  method: setterSelector ^<Symbol> [ ^setterSelector ]
+
+  """Return the coercion type symbol."""
+  method: type ^<Symbol> [ ^type ]
+
+  """Return the fallback value used when the environment variable is unset."""
+  method: default [ ^default ]
+
+  """Answer true when the binding refuses to apply without the env var set."""
+  method: required ^<Boolean> [ ^required ]
+
+  # --- Instance-side private setters (used by the constructor) ------------
+
+  method: primSetEnvName: v <String>          [ envName         := v ]
+  method: primSetSetterSelector: v <Symbol>   [ setterSelector  := v ]
+  method: primSetType: v <Symbol>             [ type            := v ]
+  method: primSetDefault: v                   [ default         := v ]
+  method: primSetRequired: v <Boolean>        [ required        := v ]
+
+  # --- Instance-side application ------------------------------------------
+
+  """
+  Apply the binding to `aTarget`:
+
+  - if the environment variable resolves to an empty string and `required`
+    is true, answer `Failure with: <reason>` without touching the target
+  - if the value is empty and the binding has a default, invoke
+    `aTarget perform: setterSelector with: default`
+  - otherwise coerce the raw value per `type` and invoke the setter
+
+  Separated from the env read so tests can drive the logic directly with
+  `applyRawValue:to:`.
+
+  Default fallback with an unset env var:
+
+  ```test
+  target := ArrayList new.
+  binding := Cli::EnvBinding envName: 'PP_ENVBINDING_MISSING_XYZ_9f2a' setter: #add: type: #string default: 'fallback'.
+  binding applyTo: target.
+  (target at: 0) >>> 'fallback'
+  ```
+
+  Required failure when the env var is unset:
+
+  ```test
+  target := ArrayList new.
+  binding := Cli::EnvBinding envName: 'PP_ENVBINDING_MISSING_XYZ_9f2a' setter: #add: type: #string default: nil required: true.
+  result := binding applyTo: target.
+  result isFailure >>> true
+  target size >>> 0
+  ```
+
+  Reading a present env var -- `HOME` is set by the OS on every supported
+  platform. We only assert structural properties of the result so the test
+  is stable across machines:
+
+  ```test
+  target := ArrayList new.
+  binding := Cli::EnvBinding envName: 'HOME' setter: #add: type: #string.
+  binding applyTo: target.
+  target size >>> 1
+  (target at: 0) class name >>> #String
+  ```
+  """
+  method: applyTo: aTarget [
+      ^self applyRawValue: (System env: envName) to: aTarget
+  ]
+
+  """
+  Apply a pre-fetched raw value to `aTarget`. Split out from `applyTo:`
+  so tests can drive the branching logic without touching the process
+  environment.
+
+  ```test
+  target := ArrayList new.
+  binding := Cli::EnvBinding envName: 'X' setter: #add: type: #string default: 'd'.
+  binding applyRawValue: 'present' to: target.
+  (target at: 0) >>> 'present'
+  ```
+
+  Empty raw value falls back to the default:
+
+  ```test
+  target := ArrayList new.
+  binding := Cli::EnvBinding envName: 'X' setter: #add: type: #string default: 'd'.
+  binding applyRawValue: '' to: target.
+  (target at: 0) >>> 'd'
+  ```
+
+  Empty raw value with `required: true` answers a Failure:
+
+  ```test
+  target := ArrayList new.
+  binding := Cli::EnvBinding envName: 'X' setter: #add: type: #string default: nil required: true.
+  result := binding applyRawValue: '' to: target.
+  result isFailure >>> true
+  result error >>> 'X is required but not set'
+  target size >>> 0
+  ```
+
+  Bool coercion on a present value:
+
+  ```test
+  target := ArrayList new.
+  binding := Cli::EnvBinding envName: 'X' setter: #add: type: #bool.
+  binding applyRawValue: 'yes' to: target.
+  (target at: 0) >>> true
+  ```
+
+  Integer coercion on a present value:
+
+  ```test
+  target := ArrayList new.
+  binding := Cli::EnvBinding envName: 'X' setter: #add: type: #integer.
+  binding applyRawValue: '42' to: target.
+  (target at: 0) >>> 42
+  ```
+  """
+  method: applyRawValue: aString to: aTarget [
+      | coerced |
+      (aString isNil or: [aString trimBoth isEmpty]) ifTrue: [
+          required ifTrue: [
+              ^Failure with: envName, ' is required but not set'
+          ].
+          default ifNotNil: [
+              aTarget perform: setterSelector with: default
+          ].
+          ^aTarget
+      ].
+      coerced := self class coerce: aString type: type.
+      aTarget perform: setterSelector with: coerced.
+      ^aTarget
+  ]
+
+  """
+  Return a human-readable representation.
+
+  ```test
+  (Cli::EnvBinding envName: 'PP_X' setter: #x: type: #string) printString >>> 'Cli::EnvBinding(PP_X #x: #string)'
+  ```
+  """
+  method: printString ^<String> [
+      ^'Cli::EnvBinding(', envName, ' ', setterSelector printString, ' ', type printString, ')'
+  ]
+
+
+# ===========================================================================
+# Cli::Command extensions
+# ---------------------------------------------------------------------------
+# `envBinding:` and `applyEnvBindings` live here (rather than in Command.mag)
+# because bindings cannot be stored on NaN-boxed Cli::Command instances
+# directly -- we keep them on the EnvBinding class-side in a Dictionary
+# keyed by the command value. `applyEnvBindings` is intended to be called
+# from a custom `execute` wrapper before the run block fires. In practice a
+# CLI application writes:
+#
+#     cmd := Cli::Command new: 'mycmd'.
+#     cmd envBinding: (Cli::EnvBinding envName: 'PP_DEMO' setter: #demo: type: #integer).
+#     cmd run: [:args | cmd applyEnvBindings to: cfg. ... ].
+#
+# A future refactor of `cli_primitives.go` may move bindings into the Go
+# wrapper and call `applyEnvBindings` inside `execute` automatically. Until
+# then, callers are responsible for invoking it.
+# ===========================================================================
+
+Command subclass: Object
+
+  """
+  Attach `aBinding` to the receiver. The binding is stored on the
+  `Cli::EnvBinding` class-side registry keyed by the command's identity.
+  Answers the command so calls chain.
+
+  ```test
+  cmd := Cli::Command new: 'envbind-demo-1'.
+  binding := Cli::EnvBinding envName: 'PP_FOO' setter: #add: type: #string default: 'hi'.
+  cmd envBinding: binding.
+  (Cli::EnvBinding bindingsFor: cmd) size >>> 1
+  ```
+  """
+  method: envBinding: aBinding <Cli::EnvBinding> ^<Cli::Command> [
+      Cli::EnvBinding register: aBinding for: self.
+      ^self
+  ]
+
+  """
+  Apply every registered binding to `aTarget`. Called by CLI applications
+  from inside their run block (or from a subclass override of `execute`)
+  before the user's logic fires. Answers the first `Failure` encountered
+  or `aTarget` on success.
+
+  ```test
+  cmd := Cli::Command new: 'envbind-demo-2'.
+  target := ArrayList new.
+  cmd envBinding: (Cli::EnvBinding envName: 'PP_ENVBINDING_MISSING_ABCDE_123' setter: #add: type: #string default: 'fallback').
+  cmd applyEnvBindings: target.
+  (target at: 0) >>> 'fallback'
+  ```
+  """
+  method: applyEnvBindings: aTarget [
+      ^Cli::EnvBinding applyBindingsFor: self to: aTarget
+  ]
