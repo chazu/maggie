@@ -16,6 +16,7 @@ type IORegistry struct {
 	jsonReaders      *AutoIDRegistry[*JsonReaderObject]
 	jsonWriters      *AutoIDRegistry[*JsonWriterObject]
 	sseConnections   *AutoIDRegistry[*SSEConnectionObject]
+	cliCommands      *AutoIDRegistry[*CliCommandWrapper]
 }
 
 // NewIORegistry creates an IORegistry with all sub-registries initialized.
@@ -33,6 +34,7 @@ func NewIORegistry() *IORegistry {
 		jsonReaders:      NewAutoIDRegistry[*JsonReaderObject](1),
 		jsonWriters:      NewAutoIDRegistry[*JsonWriterObject](1),
 		sseConnections:   NewAutoIDRegistry[*SSEConnectionObject](1),
+		cliCommands:      NewAutoIDRegistry[*CliCommandWrapper](1),
 	}
 }
 
@@ -135,6 +137,15 @@ func (io *IORegistry) SweepSSEConnections() int {
 		return !c.closed.Load()
 	})
 }
+
+// ---------------------------------------------------------------------------
+// Cli commands (cobra-backed)
+// ---------------------------------------------------------------------------
+
+func (io *IORegistry) RegisterCliCommand(w *CliCommandWrapper) uint32 { return io.cliCommands.Register(w) }
+func (io *IORegistry) GetCliCommand(id uint32) *CliCommandWrapper     { return io.cliCommands.Get(id) }
+func (io *IORegistry) UnregisterCliCommand(id uint32)                 { io.cliCommands.Delete(id) }
+func (io *IORegistry) CliCommandCount() int                           { return io.cliCommands.Count() }
 
 // ---------------------------------------------------------------------------
 // Stats

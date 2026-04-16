@@ -445,6 +445,7 @@ func (vm *VM) bootstrap() {
 	vm.registerExceptionBlockPrimitives()
 	vm.registerWeakReferencePrimitives()
 	vm.registerCharacterPrimitives()
+	vm.registerCliPrimitives()
 	vm.registerMessagePrimitives()
 	vm.registerClassReflectionPrimitives()
 	vm.registerDocstringPrimitives()
