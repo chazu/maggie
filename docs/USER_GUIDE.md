@@ -60,6 +60,8 @@ mag [options] [paths...]
 | `mag doctest` | Run doctest assertions from docstrings |
 | `mag lsp` | Start the Language Server Protocol server |
 
+> Building your own `mag`-style tool? See the [Command-Line Apps](#command-line-apps) section below for the `Cli` stdlib namespace.
+
 ### Examples
 
 ```bash
@@ -1293,6 +1295,10 @@ id = "a1b2c3..."                          # Ed25519 public key (hex)
 name = "build-farm"
 perms = "sync,spawn"
 ```
+
+## Command-Line Apps
+
+Maggie ships a `Cli` namespace (`lib/Cli/`) for building Unix-style command-line tools -- subcommands, flags, `--help` output, shell completion, and env-var binding are all first-class. Under the hood it is a thin, Smalltalk-idiomatic bridge over [spf13/cobra](https://github.com/spf13/cobra) (`vm/cli_primitives.go`), with a pure-Maggie `Cli::EnvBinding` replacing Go's `envconfig` and a shared `Cli::Output` formatter that renders text tables or pretty JSON from the same call sites. Exit-code convention: a `SmallInteger` returned from the run block becomes the process exit code; an unhandled exception yields exit code 1; anything else is 0. See [`docs/cli.md`](cli.md) for the full walk-through and [`lib/guide/Guide20Cli.mag`](../lib/guide/Guide20Cli.mag) for a runnable guide.
 
 ## Runtime Configuration
 
