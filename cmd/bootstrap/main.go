@@ -10,6 +10,7 @@ import (
 
 	"github.com/chazu/maggie/compiler"
 	"github.com/chazu/maggie/compiler/hash"
+	"github.com/chazu/maggie/pipeline"
 	"github.com/chazu/maggie/vm"
 )
 
@@ -99,6 +100,32 @@ func main() {
 	}
 
 	fmt.Printf("Compiled %d methods from %d files\n", methods, len(files))
+
+	// Compile namespaced stdlib directories (directory-as-namespace).
+	// These live in lib/<Namespace>/ and use the pipeline for namespace-aware
+	// compilation. Core (flat) lib files above are namespace-free and handled
+	// by compileAllFiles directly.
+	nsLibDirs := []string{"Cli"}
+	for _, sub := range nsLibDirs {
+		dir := filepath.Join(*libDir, sub)
+		info, statErr := os.Stat(dir)
+		if statErr != nil || !info.IsDir() {
+			continue
+		}
+		p := &pipeline.Pipeline{VM: vmInst}
+		if *verbose {
+			p.Verbose = os.Stdout
+		}
+		nsMethods, err := p.CompilePath(dir + "/...")
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error compiling lib/%s: %v\n", sub, err)
+			os.Exit(1)
+		}
+		if *verbose {
+			fmt.Printf("Compiled %d methods from lib/%s\n", nsMethods, sub)
+		}
+		methods += nsMethods
+	}
 
 	// Save the image
 	if err := vmInst.SaveImage(*output); err != nil {

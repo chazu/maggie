@@ -1,0 +1,236 @@
+"""
+Output formatting for CLI commands.
+
+`Cli::Output` centralises text/JSON rendering so any command-line tool
+built on top of Maggie gets consistent formatting. It exposes both a
+class-side API (stateful, respects the currently configured format) and
+an instance-side API (stateless, one-shot renderers with no global
+mode).
+
+```example
+"Class-side: pick a format once, then print results"
+Cli::Output format: 'json'.
+Cli::Output result: (Dictionary new at: 'ok' put: true; yourself).
+
+"Instance-side: single-shot helpers (no global mode)"
+Cli::Output new printJson: #{'name' -> 'Alice'. 'age' -> 30}.
+Cli::Output new
+    printTable: (Array with: (Dictionary new at: 'name' put: 'Alice'; yourself))
+    columns: #(#('NAME' 'name'))
+```
+"""
+namespace: 'Cli'
+
+Output subclass: Object
+  classVars: format
+
+  """
+  Initialise the default format to 'text'. Called automatically when
+  the class is first loaded.
+  """
+  class method: initialize [
+      format := 'text'
+  ]
+
+  """
+  Return the currently configured format (`'text'` or `'json'`).
+  """
+  class method: format [ ^format ]
+
+  """
+  Set the active output format. Accepts `'text'` or `'json'`.
+  """
+  class method: format: aFormat [ format := aFormat ]
+
+  """
+  Answer true if the current format is JSON.
+  """
+  class method: isJson [ ^format = 'json' ]
+
+  -- Simple output helpers (class-side)
+
+  """
+  Print `aString` followed by a newline.
+  """
+  class method: text: aString [
+      aString println
+  ]
+
+  """
+  Print `aString` prefixed with 'Error: '.
+  """
+  class method: error: aString [
+      ('Error: ', aString) println
+  ]
+
+  """
+  Pretty-print `aValue` as JSON.
+  """
+  class method: json: aValue [
+      (Json encodePretty: aValue) println
+  ]
+
+  -- Smart output (respects the configured format)
+
+  """
+  Render a result value using the active format. Dictionaries print as
+  aligned key/value lines in text mode; any value prints as JSON in
+  json mode.
+  """
+  class method: result: aValue [
+      self isJson
+          ifTrue: [self json: aValue]
+          ifFalse: [
+              (aValue class name = #Dictionary)
+                  ifTrue: [self dictText: aValue]
+                  ifFalse: [self text: aValue printString]
+          ]
+  ]
+
+  """
+  Print a Dictionary as aligned `key   value` lines.
+  """
+  class method: dictText: aDict [
+      | keys maxLen |
+      keys := aDict keys.
+      keys isEmpty ifTrue: [^self text: '(empty)'].
+      maxLen := 0.
+      keys do: [:k | k size > maxLen ifTrue: [maxLen := k size]].
+      keys do: [:k |
+          | line val |
+          val := aDict at: k.
+          line := (self pad: k to: maxLen), '  ', (self formatValue: val).
+          self text: line
+      ]
+  ]
+
+  """
+  Format a single value for text output. Strings render as-is, nil as
+  '(nil)', everything else via printString.
+  """
+  class method: formatValue: aValue [
+      aValue isNil ifTrue: [^'(nil)'].
+      (aValue class name = #String) ifTrue: [^aValue].
+      ^aValue printString
+  ]
+
+  """
+  Render a Result-like value: Failures print the wrapped error (via
+  `error`), Successes delegate to `result:`. Answers true on success,
+  false on failure so the caller can branch on the return.
+  """
+  class method: resultOrError: aValue [
+      (aValue isFailure) ifTrue: [
+          self isJson
+              ifTrue: [self json: (Dictionary new at: 'error' put: aValue error; yourself)]
+              ifFalse: [self error: aValue error printString].
+          ^false
+      ].
+      self result: aValue.
+      ^true
+  ]
+
+  -- Table output (class-side)
+
+  """
+  Print a table with the given headers. Each row is a Dictionary keyed
+  by `keys`; `headers` provides the display labels in the same order
+  as `keys`. In JSON mode the rows are printed directly.
+  """
+  class method: table: rows headers: headers keys: keys [
+      | widths headerLine |
+      self isJson ifTrue: [^self json: rows].
+
+      rows isEmpty ifTrue: [^self].
+
+      "Calculate column widths"
+      widths := headers collect: [:h | h size].
+      rows do: [:row |
+          0 to: keys size - 1 do: [:i |
+              | val |
+              val := (row at: (keys at: i) ifAbsent: ['']) printString.
+              (val size > (widths at: i)) ifTrue: [widths at: i put: val size]
+          ]
+      ].
+
+      "Print header"
+      headerLine := ''.
+      0 to: headers size - 1 do: [:i |
+          headerLine := headerLine, (self pad: (headers at: i) to: (widths at: i)), '  '
+      ].
+      self text: headerLine trimBoth.
+
+      "Print rows"
+      rows do: [:row |
+          | line |
+          line := ''.
+          0 to: keys size - 1 do: [:i |
+              line := line, (self pad: (row at: (keys at: i) ifAbsent: ['']) printString to: (widths at: i)), '  '
+          ].
+          self text: line trimBoth
+      ]
+  ]
+
+  """
+  Right-pad `str` with spaces until its length reaches `width`.
+  """
+  class method: pad: str to: width [
+      | result |
+      result := str.
+      [result size < width] whileTrue: [result := result, ' '].
+      ^result
+  ]
+
+  -- Instance-side API (stateless, one-shot helpers)
+
+  """
+  Print `anObject` as pretty-printed JSON to stdout.
+
+  Unlike the class-side `json:`, this helper ignores the currently
+  configured format -- it always emits JSON.
+
+  ```example
+  Cli::Output new printJson: (Dictionary new at: 'x' put: 1; yourself)
+  ```
+
+  ```test
+  d := Dictionary new at: 'x' put: 1; yourself.
+  encoded := Json encodePretty: d.
+  (Json decode: encoded) class >>> Dictionary
+  ((Json decode: encoded) at: 'x') >>> 1
+  ```
+  """
+  method: printJson: anObject [
+      (Json encodePretty: anObject) println
+  ]
+
+  """
+  Print a table.
+
+  `rows` is a sequence of Dictionaries. `aColumnSpec` is an Array of
+  two-element arrays `#(headerString rowKey)`; the header string is
+  the display label and the row key selects the value from each row.
+
+  ```example
+  | rows cols |
+  rows := Array with: (Dictionary new at: 'name' put: 'Alice'; yourself).
+  cols := #(#('NAME' 'name')).
+  Cli::Output new printTable: rows columns: cols
+  ```
+
+  ```test
+  cols := #(#('NAME' 'name') #('STATUS' 'status')).
+  headers := cols collect: [:pair | pair at: 0].
+  keys := cols collect: [:pair | pair at: 1].
+  (headers at: 0) >>> 'NAME'
+  (headers at: 1) >>> 'STATUS'
+  (keys at: 0) >>> 'name'
+  (keys at: 1) >>> 'status'
+  ```
+  """
+  method: printTable: rows columns: aColumnSpec [
+      | headers keys |
+      headers := aColumnSpec collect: [:pair | pair at: 0].
+      keys := aColumnSpec collect: [:pair | pair at: 1].
+      Output table: rows headers: headers keys: keys
+  ]
