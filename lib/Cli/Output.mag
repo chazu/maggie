@@ -88,19 +88,35 @@ Output subclass: Object
   ]
 
   """
-  Print a Dictionary as aligned `key   value` lines.
+  Print a Dictionary as aligned `key   value` lines. Iteration order
+  follows `Dictionary keys`, which Maggie does not guarantee — callers
+  that need a specific field order should use `dictText:keys:`.
   """
   class method: dictText: aDict [
-      | keys maxLen |
-      keys := aDict keys.
-      keys isEmpty ifTrue: [^self text: '(empty)'].
+      ^self dictText: aDict keys: aDict keys
+  ]
+
+  """
+  Print a Dictionary as aligned `key   value` lines in the order given
+  by `keyOrder`. Keys in `keyOrder` that the dict does not contain are
+  skipped; keys in the dict not in `keyOrder` are not printed.
+  """
+  class method: dictText: aDict keys: keyOrder [
+      | maxLen |
+      keyOrder isEmpty ifTrue: [^self text: '(empty)'].
       maxLen := 0.
-      keys do: [:k | k size > maxLen ifTrue: [maxLen := k size]].
-      keys do: [:k |
-          | line val |
-          val := aDict at: k.
-          line := (self pad: k to: maxLen), '  ', (self formatValue: val).
-          self text: line
+      keyOrder do: [:k |
+          (aDict includesKey: k) ifTrue: [
+              k size > maxLen ifTrue: [maxLen := k size]
+          ]
+      ].
+      keyOrder do: [:k |
+          (aDict includesKey: k) ifTrue: [
+              | line val |
+              val := aDict at: k.
+              line := (self pad: k to: maxLen), '  ', (self formatValue: val).
+              self text: line
+          ]
       ]
   ]
 
@@ -143,12 +159,13 @@ Output subclass: Object
 
       rows isEmpty ifTrue: [^self].
 
-      "Calculate column widths"
+      "Calculate column widths — route through formatValue: so strings
+       render without Smalltalk quotes"
       widths := headers collect: [:h | h size].
       rows do: [:row |
           0 to: keys size - 1 do: [:i |
               | val |
-              val := (row at: (keys at: i) ifAbsent: ['']) printString.
+              val := self formatValue: (row at: (keys at: i) ifAbsent: ['']).
               (val size > (widths at: i)) ifTrue: [widths at: i put: val size]
           ]
       ].
@@ -165,7 +182,7 @@ Output subclass: Object
           | line |
           line := ''.
           0 to: keys size - 1 do: [:i |
-              line := line, (self pad: (row at: (keys at: i) ifAbsent: ['']) printString to: (widths at: i)), '  '
+              line := line, (self pad: (self formatValue: (row at: (keys at: i) ifAbsent: [''])) to: (widths at: i)), '  '
           ].
           self text: line trimBoth
       ]
