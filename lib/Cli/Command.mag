@@ -360,7 +360,7 @@ Command subclass: Object
   method: flag: aName <String> type: aType <Symbol> default: aDefault doc: aDoc <String> ^<Cli::Command> [
       aType = #string ifTrue: [^self addStringFlag: aName default: aDefault doc: aDoc].
       aType = #bool ifTrue: [^self addBoolFlag: aName default: aDefault doc: aDoc].
-      aType = #int ifTrue: [^self addIntFlag: aName default: aDefault doc: aDoc].
+      (aType = #int or: [aType = #integer]) ifTrue: [^self addIntFlag: aName default: aDefault doc: aDoc].
       ^self error: 'Cli::Command flag: unknown flag type ', aType printString
   ]
 

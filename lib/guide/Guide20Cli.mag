@@ -110,7 +110,6 @@ Guide20Cli subclass: Object
   ```
 
   ```test
-  "Undeclared flag -> nil, not an error. Useful to guard against typos."
   cmd := Cli::Command named: 'demo-flags'.
   cmd flagValue: 'nonexistent' >>> nil
   ```
@@ -195,7 +194,6 @@ Guide20Cli subclass: Object
   ```
 
   ```test
-  "Whitespace is trimmed before coercion."
   Cli::EnvBinding coerce: '  hi  ' type: #string >>> 'hi'
   ```
 
@@ -267,7 +265,6 @@ Guide20Cli subclass: Object
   ```
 
   ```test
-  "format: is idempotent and the getter round-trips."
   Cli::Output format: 'json'.
   Cli::Output format >>> 'json'
   ```
