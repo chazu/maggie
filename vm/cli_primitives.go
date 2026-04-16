@@ -30,10 +30,21 @@ import (
 // CliCommandWrapper bundles a *cobra.Command with the VM state needed to run
 // its callback block from Go.
 type CliCommandWrapper struct {
-	Cobra    *cobra.Command
-	RunBlock Value // Maggie block, evaluated when cobra Run fires (Nil if unset)
-	VM       *VM   // back-pointer used to evaluate RunBlock
-	exitCode int   // set by run block, consumed by execute
+	Cobra     *cobra.Command
+	RunBlock  Value // Maggie block, evaluated when cobra Run fires (Nil if unset)
+	VM        *VM   // back-pointer used to evaluate RunBlock
+	exitCode  int   // set by run block, consumed by execute
+	flagTypes map[string]string
+}
+
+// recordFlagType stores the type ("string"|"bool"|"int") associated with a
+// declared flag. Used by the Maggie-side `flagValue:` facade to dispatch to
+// the correct accessor without asking cobra.
+func (w *CliCommandWrapper) recordFlagType(name, kind string) {
+	if w.flagTypes == nil {
+		w.flagTypes = make(map[string]string)
+	}
+	w.flagTypes[name] = kind
 }
 
 // ---------------------------------------------------------------------------
@@ -168,6 +179,7 @@ func (vm *VM) registerCliPrimitives() {
 			return v.signalException(cliErrorClass, v.registry.NewStringValue("addStringFlag: requires a non-empty name"))
 		}
 		w.Cobra.Flags().String(name, v.valueToString(defVal), v.valueToString(docVal))
+		w.recordFlagType(name, "string")
 		return recv
 	})
 
@@ -183,6 +195,7 @@ func (vm *VM) registerCliPrimitives() {
 		}
 		def := defVal == True
 		w.Cobra.Flags().Bool(name, def, v.valueToString(docVal))
+		w.recordFlagType(name, "bool")
 		return recv
 	})
 
@@ -201,7 +214,31 @@ func (vm *VM) registerCliPrimitives() {
 			def = int(defVal.SmallInt())
 		}
 		w.Cobra.Flags().Int(name, def, v.valueToString(docVal))
+		w.recordFlagType(name, "int")
 		return recv
+	})
+
+	// ---------------------------------------------------------------------
+	// flagTypeOf: name — returns a Symbol (#string | #bool | #int) for the
+	// flag's registered type, or Nil if no such flag has been declared. Used
+	// by the Maggie-side Cli::Command>>flagValue: facade to dispatch to the
+	// correct accessor.
+	// ---------------------------------------------------------------------
+	cliCommandClass.AddMethod1(vm.Selectors, "flagTypeOf:", func(vmPtr interface{}, recv Value, nameVal Value) Value {
+		v := vmPtr.(*VM)
+		w := v.vmGetCliCommand(recv)
+		if w == nil {
+			return Nil
+		}
+		name := v.valueToString(nameVal)
+		if w.flagTypes == nil {
+			return Nil
+		}
+		kind, ok := w.flagTypes[name]
+		if !ok {
+			return Nil
+		}
+		return v.Symbols.SymbolValue(kind)
 	})
 
 	// ---------------------------------------------------------------------
