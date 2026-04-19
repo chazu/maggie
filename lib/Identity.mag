@@ -52,6 +52,11 @@ Identity subclass: Object
       ^id
   ]
 
+  """Rebuild an identity from a hex-encoded 32-byte private seed."""
+  classMethod: fromPrivHex: hex <String> ^<Identity> [
+      ^self fromPrivKey: hex fromHex
+  ]
+
   """Verify a signature against data and a 32-byte public key."""
   classMethod: verify: sig <String> data: bytes <String> pub: pubkey <String> ^<Boolean> [
       ^Ed25519 verify: sig data: bytes pub: pubkey
@@ -75,6 +80,16 @@ Identity subclass: Object
   """The 32-byte private seed (byte-array as String). Treat as secret."""
   method: privateKey ^<String> [
       ^priv
+  ]
+
+  """Hex-encoded 32-byte public key."""
+  method: pubHex ^<String> [
+      ^pub asHex
+  ]
+
+  """Hex-encoded 32-byte private seed. Treat as secret."""
+  method: privHex ^<String> [
+      ^priv asHex
   ]
 
   """Human-readable proquint encoding of the public key."""
