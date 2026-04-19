@@ -1,0 +1,89 @@
+"""
+Ed25519-based identity, with a public key used as the stable node name
+and a private seed used to sign messages. Thin wrapper around the
+`Ed25519` and `Sha256` primitives.
+
+Byte arrays in Maggie are represented as Strings (which can hold
+arbitrary bytes). The `priv` field is the 32-byte Ed25519 seed; the
+`pub` field is the 32-byte public key.
+
+```test
+id := Identity generate.
+id publicKey size >>> 32
+id privateKey size >>> 32
+(Identity verify: (id sign: 'hello') data: 'hello' pub: id publicKey) >>> true
+```
+
+```test
+id := Identity generate.
+sig := id sign: 'message'.
+(Identity verify: sig data: 'tampered' pub: id publicKey) >>> false
+```
+
+```test
+(Sha256 hash: '') >>> 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855'
+(Sha256 hash: 'abc') >>> 'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad'
+```
+
+```test
+bytes := 'deadbeef' fromHex.
+bytes size >>> 4
+bytes asHex >>> 'deadbeef'
+```
+"""
+Identity subclass: Object
+  instanceVars: priv <String> pub <String>
+
+  """Generate a new random Ed25519 identity."""
+  classMethod: generate ^<Identity> [
+      | id <Identity> pair |
+      pair := Ed25519 generate.
+      id := super new.
+      id primSetPriv: (pair at: #priv) pub: (pair at: #pub).
+      ^id
+  ]
+
+  """Rebuild an identity from an existing 32-byte private seed."""
+  classMethod: fromPrivKey: seed <String> ^<Identity> [
+      | id <Identity> pair |
+      pair := Ed25519 generateFromSeed: seed.
+      id := super new.
+      id primSetPriv: (pair at: #priv) pub: (pair at: #pub).
+      ^id
+  ]
+
+  """Verify a signature against data and a 32-byte public key."""
+  classMethod: verify: sig <String> data: bytes <String> pub: pubkey <String> ^<Boolean> [
+      ^Ed25519 verify: sig data: bytes pub: pubkey
+  ]
+
+  method: primSetPriv: p <String> pub: q <String> [
+      priv := p.
+      pub := q
+  ]
+
+  """Produce an Ed25519 signature over the given bytes."""
+  method: sign: data <String> ^<String> [
+      ^Ed25519 sign: data key: priv
+  ]
+
+  """The 32-byte public key (byte-array as String)."""
+  method: publicKey ^<String> [
+      ^pub
+  ]
+
+  """The 32-byte private seed (byte-array as String). Treat as secret."""
+  method: privateKey ^<String> [
+      ^priv
+  ]
+
+  """Human-readable proquint encoding of the public key."""
+  method: proquint ^<String> [
+      ^Proquint encodeHex: pub asHex
+  ]
+
+  method: printOn: stream [
+      stream nextPutAll: 'Identity('.
+      stream nextPutAll: self proquint.
+      stream nextPutAll: ')'
+  ]
