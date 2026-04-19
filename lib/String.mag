@@ -307,6 +307,16 @@ String subclass: Object
       ^self primTrimBoth
   ]
 
+  """Alias for trimBoth — removes leading and trailing whitespace. Smalltalk-classic name."""
+  method: trimSeparators ^<String> [
+      ^self primTrimBoth
+  ]
+
+  """Type test — returns true for String instances. Override of Object>>isString which returns false."""
+  method: isString ^<Boolean> [
+      ^true
+  ]
+
   """
   Return a new string with all occurrences of old replaced by new.
 

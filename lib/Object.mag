@@ -336,6 +336,18 @@ Object subclass: nil
   """Return a hash value for the receiver."""
   method: hash ^<Integer> [ <primitive> ]
 
+  """Return an identity-based hash value. On Object this aliases hash (which is
+  already identity-based). Subclasses that override hash with content-based
+  hashing (e.g. String, Array) should NOT override identityHash — it must
+  remain stable across content equality."""
+  method: identityHash ^<Integer> [
+      ^self hash
+  ]
+
+  """Type test — returns false on generic Object. Override in String, Number,
+  Array, etc. to return true for their own instances."""
+  method: isString ^<Boolean> [ ^false ]
+
   """Send a message with the given selector to the receiver."""
   method: perform: selector <Symbol> [ <primitive> ]
 
