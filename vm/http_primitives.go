@@ -687,6 +687,51 @@ func (vm *VM) registerHttpPrimitives() {
 		return v.registry.NewStringValue(string(body))
 	})
 
+	// post:body:contentType:headers: — POST with explicit content type and a
+	// Dictionary of extra headers (string keys -> string values).
+	httpClientClass.AddMethod4(vm.Selectors, "post:body:contentType:headers:", func(vmPtr interface{}, recv Value, urlVal, bodyVal, ctVal, headersVal Value) Value {
+		v := vmPtr.(*VM)
+		c := v.vmGetHttpClient(recv)
+		if c == nil {
+			return Nil
+		}
+		url := v.valueToString(urlVal)
+		bodyStr := v.valueToString(bodyVal)
+		ct := v.valueToString(ctVal)
+		if url == "" {
+			return Nil
+		}
+		if ct == "" {
+			ct = "application/octet-stream"
+		}
+		req, err := http.NewRequest(http.MethodPost, url, strings.NewReader(bodyStr))
+		if err != nil {
+			return Nil
+		}
+		req.Header.Set("Content-Type", ct)
+		if dict := v.registry.GetDictionaryObject(headersVal); dict != nil {
+			for h, val := range dict.Data {
+				key := dict.Keys[h]
+				keyStr := v.valueToString(key)
+				valStr := v.valueToString(val)
+				if keyStr == "" {
+					continue
+				}
+				req.Header.Set(keyStr, valStr)
+			}
+		}
+		resp, err := c.client.Do(req)
+		if err != nil {
+			return Nil
+		}
+		defer resp.Body.Close()
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return Nil
+		}
+		return v.registry.NewStringValue(string(body))
+	})
+
 	// put:body: — HTTP PUT with string body, returns response body as string
 	httpClientClass.AddMethod2(vm.Selectors, "put:body:", func(vmPtr interface{}, recv Value, urlVal, bodyVal Value) Value {
 		v := vmPtr.(*VM)

@@ -60,6 +60,31 @@ func (vm *VM) registerFilePrimitives() {
 		return v.newSuccessResult(pathVal)
 	})
 
+	// writeFileContents:contents:mode: - Write string contents with explicit mode
+	// Returns Success with the path, or Failure if write fails
+	fileClass.AddClassMethod3(vm.Selectors, "writeFileContents:contents:mode:", func(vmPtr interface{}, recv Value, pathVal, contentsVal, modeVal Value) Value {
+		v := vmPtr.(*VM)
+
+		path := v.valueToString(pathVal)
+		if path == "" {
+			return v.newFailureResult("writeFileContents:contents:mode: requires a path string")
+		}
+		if !modeVal.IsSmallInt() {
+			return v.newFailureResult("writeFileContents:contents:mode: mode must be a SmallInteger")
+		}
+		mode := os.FileMode(uint32(modeVal.SmallInt()) & 0o7777)
+		contents := v.valueToString(contentsVal)
+
+		if err := os.WriteFile(path, []byte(contents), mode); err != nil {
+			return v.newFailureResult("Cannot write file: " + err.Error())
+		}
+		// os.WriteFile does not chmod an existing file — enforce requested mode.
+		if err := os.Chmod(path, mode); err != nil {
+			return v.newFailureResult("Cannot chmod file: " + err.Error())
+		}
+		return v.newSuccessResult(pathVal)
+	})
+
 	// appendToFile:contents: - Append string contents to a file
 	// Creates the file if it doesn't exist
 	fileClass.AddClassMethod2(vm.Selectors, "appendToFile:contents:", func(vmPtr interface{}, recv Value, pathVal, contentsVal Value) Value {
