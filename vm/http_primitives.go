@@ -359,6 +359,74 @@ func (vm *VM) registerHttpPrimitives() {
 		return recv
 	})
 
+	// asyncRoute:method:handler: — like route:method:handler: but runs the Maggie
+	// handler block in a forked goroutine (not the dispatch queue). Use for handlers
+	// that block inside Maggie (e.g. long-poll sleep loops) so they don't stall every
+	// other request waiting for the single dispatch goroutine to free up.
+	httpServerClass.AddMethod3(vm.Selectors, "asyncRoute:method:handler:", func(vmPtr interface{}, recv Value, pathVal, methodVal, handlerBlock Value) Value {
+		v := vmPtr.(*VM)
+		srv := v.vmGetHttpServer(recv)
+		if srv == nil {
+			return Nil
+		}
+		path := v.valueToString(pathVal)
+		httpMethod := strings.ToUpper(v.valueToString(methodVal))
+		bv := v.currentInterpreter().getBlockValue(handlerBlock)
+		if bv == nil {
+			return Nil
+		}
+		block := bv.Block
+		captures := bv.Captures
+		homeSelf := bv.HomeSelf
+		homeMethod := bv.HomeMethod
+
+		srv.mux.HandleFunc(path, func(w http.ResponseWriter, r *http.Request) {
+			if httpMethod != "" && r.Method != httpMethod {
+				http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+				return
+			}
+			defer func() {
+				if rec := recover(); rec != nil {
+					http.Error(w, fmt.Sprintf("Internal server error: %v", rec), http.StatusInternalServerError)
+				}
+			}()
+
+			resultCh := make(chan Value, 1)
+
+			go func() {
+				defer v.unregisterInterpreter()
+				defer func() {
+					if rec := recover(); rec != nil {
+						resultCh <- Nil
+					}
+				}()
+				interp := v.newForkedInterpreter(nil)
+				v.registerInterpreter(interp)
+				reqObj := &HttpRequestObject{request: r}
+				reqVal := v.vmRegisterHttpRequest(reqObj)
+				defer v.vmUnregisterHttpRequest(reqVal)
+				result := interp.ExecuteBlockDetached(block, captures, []Value{reqVal}, homeSelf, homeMethod)
+				resultCh <- result
+			}()
+
+			result := <-resultCh
+			resp := v.vmGetHttpResponse(result)
+			if resp != nil {
+				for k, hv := range resp.headers {
+					w.Header().Set(k, hv)
+				}
+				w.WriteHeader(resp.status)
+				w.Write([]byte(resp.body))
+			} else {
+				w.WriteHeader(http.StatusOK)
+				if IsStringValue(result) {
+					w.Write([]byte(v.registry.GetStringContent(result)))
+				}
+			}
+		})
+		return recv
+	})
+
 	httpServerClass.AddMethod3(vm.Selectors, "route:method:handler:", func(vmPtr interface{}, recv Value, pathVal, methodVal, handlerBlock Value) Value {
 		v := vmPtr.(*VM)
 		srv := v.vmGetHttpServer(recv)
