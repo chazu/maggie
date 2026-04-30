@@ -40,7 +40,7 @@ Mutex subclass: Object
   Mutex new isLocked  "=> false"
   ```
   """
-  class method: new ^<Mutex> [
+  classMethod: new ^<Mutex> [
       ^self primNew
   ]
 
