@@ -37,18 +37,6 @@ d size
 Dictionary subclass: Object
 
   """
-  Return the receiver. Useful at the end of a cascade to return the
-  dictionary itself rather than the last message result.
-
-  ```test
-  Dictionary new yourself class >>> #Dictionary
-  ```
-  """
-  method: yourself ^<Self> [
-      ^self
-  ]
-
-  """
   Return true if the dictionary contains at least one entry.
 
   ```test
