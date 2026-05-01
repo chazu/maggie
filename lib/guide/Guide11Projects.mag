@@ -11,7 +11,7 @@ the content here is configuration and tooling rather than Maggie expressions,
 so examples are shown as TOML snippets, directory trees, and shell commands.
 
 ```test
-'maggie.toml' includes: 'toml' >>> true
+'maggie.toml' includesSubstring: 'toml' >>> true
 ```
 """
 Guide11Projects subclass: Object

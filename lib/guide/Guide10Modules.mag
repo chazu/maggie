@@ -127,7 +127,7 @@ Guide10Modules subclass: Object
   is one token, not three. This means you cannot have spaces around `::`.
 
   ```example
-  'Widgets::Button' includes: '::'   "=> true"
+  'Widgets::Button' includesSubstring: '::'   "=> true"
   ```
 
   When you use an FQN in a method body inside a file that has a namespace
@@ -556,8 +556,8 @@ Guide10Modules subclass: Object
     `TodoApp::Main.start`.
 
   ```example
-  'TodoApp::Models::Task' includes: 'Models'   "=> true"
-  'TodoApp::Views' includes: '::'              "=> true"
+  'TodoApp::Models::Task' includesSubstring: 'Models'   "=> true"
+  'TodoApp::Views' includesSubstring: '::'              "=> true"
   ```
   """
   method: s11_puttingItTogether [

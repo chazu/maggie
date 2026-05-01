@@ -141,34 +141,34 @@ Flag subclass: Object
 
   ```test
   s := (Cli::Flag name: 'foo' type: #string default: 'bar' doc: 'd') printString.
-  (s indexOf: 'Flag ') >= 0 >>> true
+  (s indexOfSubstring: 'Flag ') >= 0 >>> true
   ```
 
   ```test
   s := (Cli::Flag name: 'foo' type: #string default: 'bar' doc: 'd') printString.
-  (s indexOf: 'name=') >= 0 >>> true
+  (s indexOfSubstring: 'name=') >= 0 >>> true
   ```
 
   ```test
   s := (Cli::Flag name: 'foo' type: #string default: 'bar' doc: 'd') printString.
-  (s indexOf: 'type=') >= 0 >>> true
+  (s indexOfSubstring: 'type=') >= 0 >>> true
   ```
 
   ```test
   s := (Cli::Flag name: 'foo' type: #string default: 'bar' doc: 'd') printString.
-  (s indexOf: 'default=') >= 0 >>> true
+  (s indexOfSubstring: 'default=') >= 0 >>> true
   ```
 
   ```test
   s := (Cli::Flag name: 'x' type: #bool default: false doc: '' required: true) printString.
-  (s indexOf: 'required=true') >= 0 >>> true
+  (s indexOfSubstring: 'required=true') >= 0 >>> true
   ```
 
   Non-required flags should NOT include the `required=` suffix:
 
   ```test
   s := (Cli::Flag name: 'foo' type: #string default: 'bar' doc: 'd') printString.
-  (s indexOf: 'required=') >>> -1
+  (s indexOfSubstring: 'required=') >>> -1
   ```
   """
   method: printString ^<String> [

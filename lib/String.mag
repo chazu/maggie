@@ -151,27 +151,66 @@ String subclass: Object
   ]
 
   """
-  Return true if the string contains the given substring or character.
+  Return true if the string contains the given character.
+
+  This uses element semantics, matching `String>>at:` which returns a
+  Character. To search for a multi-character substring, use
+  `includesSubstring:` instead.
 
   ```test
-  'hello' includes: 'ell' >>> true
-  'hello' includes: 'xyz' >>> false
+  'hello' includes: $l >>> true
+  'hello' includes: $z >>> false
+  'hello' includes: $h >>> true
   ```
   """
-  method: includes: char <String> ^<Boolean> [
+  method: includes: char <Character> ^<Boolean> [
       ^self primIncludes: char
   ]
 
   """
-  Return the 0-based index of the first occurrence, or -1 if not found.
+  Return the 0-based index of the first occurrence of the character,
+  or -1 if not found.
+
+  This uses element semantics, matching `String>>at:` which returns a
+  Character. To find a multi-character substring, use `indexOfSubstring:`.
 
   ```test
-  'hello' indexOf: 'l' >>> 2
-  'hello' indexOf: 'z' >>> -1
+  'hello' indexOf: $l >>> 2
+  'hello' indexOf: $z >>> -1
+  'hello' indexOf: $h >>> 0
   ```
   """
-  method: indexOf: char <String> ^<Integer> [
+  method: indexOf: char <Character> ^<Integer> [
       ^self primIndexOf: char
+  ]
+
+  """
+  Return true if the string contains the given substring.
+
+  ```test
+  'hello' includesSubstring: 'ell' >>> true
+  'hello' includesSubstring: 'xyz' >>> false
+  'hello' includesSubstring: 'hello' >>> true
+  'hello' includesSubstring: '' >>> false
+  ```
+  """
+  method: includesSubstring: substring <String> ^<Boolean> [
+      ^self primIncludes: substring
+  ]
+
+  """
+  Return the 0-based index of the first occurrence of the substring,
+  or -1 if not found.
+
+  ```test
+  'hello' indexOfSubstring: 'l' >>> 2
+  'hello' indexOfSubstring: 'lo' >>> 3
+  'hello' indexOfSubstring: 'z' >>> -1
+  'hello world' indexOfSubstring: 'world' >>> 6
+  ```
+  """
+  method: indexOfSubstring: substring <String> ^<Integer> [
+      ^self primIndexOf: substring
   ]
 
   """
@@ -333,7 +372,7 @@ String subclass: Object
       remaining := self.
       done := false.
       [remaining isEmpty or: [done]] whileFalse: [
-          idx := remaining indexOf: old.
+          idx := remaining indexOfSubstring: old.
           idx = -1
               ifTrue: [
                   result := result, remaining.

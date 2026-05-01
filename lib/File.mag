@@ -204,7 +204,7 @@ File writeFileContents: (File join: ftDir4 with: 'b.txt') contents: 'b'.
 ```test
 ftPfxResult := File tempFileWithPrefix: 'myapp'.
 ftPfxResult isSuccess >>> true
-(File basename: ftPfxResult value) includes: 'myapp' >>> true
+(File basename: ftPfxResult value) includesSubstring: 'myapp' >>> true
 ```
 
 ```example

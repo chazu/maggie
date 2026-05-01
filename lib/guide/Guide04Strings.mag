@@ -106,49 +106,51 @@ Guide04Strings subclass: Object
   ]
 
   """
-  Use includes: to test whether a string contains a given substring.
-  It returns true or false. The argument can be a string of any
-  length -- single character or multi-character.
+  Use includes: to test whether a string contains a given Character
+  (element semantics, matching at:). For substring search, use
+  includesSubstring: instead.
 
   ```test
-  'hello world' includes: 'world' >>> true
-  'hello world' includes: 'xyz' >>> false
-  'hello' includes: 'ell' >>> true
-  'hello' includes: 'hello' >>> true
-  'hello' includes: 'Hello' >>> false
+  'hello world' includes: $w >>> true
+  'hello world' includes: $z >>> false
+  'hello' includes: $e >>> true
+  'hello' includes: $H >>> false
+  'hello' includesSubstring: 'ell' >>> true
+  'hello' includesSubstring: 'hello' >>> true
+  'hello' includesSubstring: 'Hello' >>> false
   ```
 
-  Note that includes: is case-sensitive. The last example above
-  returns false because 'H' does not match 'h'.
+  Note that both are case-sensitive. The last example above returns
+  false because 'H' does not match 'h'.
   """
   method: s05_includesSearch [
       | s |
       s := 'hello world'.
-      s includes: 'world'.
-      s includes: 'xyz'.
-      ^'hello' includes: 'ell'
+      s includes: $w.
+      s includesSubstring: 'xyz'.
+      ^'hello' includesSubstring: 'ell'
   ]
 
   """
   The indexOf: message returns the 0-based position of the first
-  occurrence of a substring, or -1 if not found. Like includes:, it
-  accepts a string argument of any length.
+  occurrence of a Character (element semantics), or -1 if not found.
+  For substring search, use indexOfSubstring:.
 
-  Combine indexOf: with copyFrom:to: to extract text around a known
+  Combine these with copyFrom:to: to extract text around a known
   marker.
 
   ```test
-  'hello' indexOf: 'l' >>> 2
-  'hello' indexOf: 'lo' >>> 3
-  'hello' indexOf: 'z' >>> -1
-  'hello world' indexOf: 'world' >>> 6
-  'abcabc' indexOf: 'bc' >>> 1
+  'hello' indexOf: $l >>> 2
+  'hello' indexOf: $z >>> -1
+  'hello' indexOfSubstring: 'lo' >>> 3
+  'hello world' indexOfSubstring: 'world' >>> 6
+  'abcabc' indexOfSubstring: 'bc' >>> 1
   ```
   """
   method: s06_indexOfSearch [
-      'hello' indexOf: 'l'.
-      'hello' indexOf: 'lo'.
-      ^'hello' indexOf: 'z'
+      'hello' indexOf: $l.
+      'hello' indexOfSubstring: 'lo'.
+      ^'hello' indexOfSubstring: 'z'
   ]
 
   """
@@ -499,7 +501,7 @@ Guide04Strings subclass: Object
 
   ```test
   path := 'archive.tar.gz'.
-  dotPos := path indexOf: '.'.
+  dotPos := path indexOf: $..
   ext := path copyFrom: dotPos to: path size.
   ext >>> '.tar.gz'
   ```
@@ -515,7 +517,7 @@ Guide04Strings subclass: Object
   method: s22_puttingItTogether [
       | path dotPos ext name greeting |
       path := 'archive.tar.gz'.
-      dotPos := path indexOf: '.'.
+      dotPos := path indexOf: $..
       ext := path copyFrom: dotPos to: path size.
 
       name := 'maggie'.
