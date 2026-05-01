@@ -196,6 +196,29 @@ func (vm *VM) registerObjectPrimitives() {
 		return Nil
 	})
 
+	// respondsTo: - true if receiver's class (or any superclass) implements aSelector.
+	// Walks the receiver's vtable inheritance chain via the flat dispatch table
+	// without allocating an Array of method names.
+	c.AddMethod1(vm.Selectors, "respondsTo:", func(vmPtr interface{}, recv Value, selector Value) Value {
+		v := vmPtr.(*VM)
+		var selName string
+		if selector.IsSymbol() {
+			selName = v.Symbols.Name(selector.SymbolID())
+		} else if IsStringValue(selector) {
+			selName = v.registry.GetStringContent(selector)
+		} else {
+			return False
+		}
+		cls := v.ClassFor(recv)
+		if cls == nil {
+			return False
+		}
+		if cls.LookupMethod(v.Selectors, selName) != nil {
+			return True
+		}
+		return False
+	})
+
 	// doesNotUnderstand: - default error handler.
 	// Receives a Message object with selector and arguments.
 	// Panics with a "Maggie error: Message not understood: X" message

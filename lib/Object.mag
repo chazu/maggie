@@ -214,9 +214,7 @@ Object subclass: nil
   3 respondsTo: #frobnicate >>> false
   ```
   """
-  method: respondsTo: aSelector <Symbol> ^<Boolean> [
-      ^self class allMethodNames includes: aSelector
-  ]
+  method: respondsTo: aSelector <Symbol> ^<Boolean> [ <primitive> ]
 
   """
   Return a string representation of the receiver. The default

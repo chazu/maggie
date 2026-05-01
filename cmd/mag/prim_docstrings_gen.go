@@ -183,6 +183,7 @@ func applyPrimitiveDocstrings(vmInst *vm.VM) {
 	setPrimDoc(vmInst, "Object", "primDependents", false, "Return an Array of the receiver's dependents.")
 	setPrimDoc(vmInst, "Object", "primReleaseDependents", false, "Remove all dependents from the receiver.")
 	setPrimDoc(vmInst, "Object", "primRemoveDependent:", false, "Remove a dependent from the receiver's notification list.")
+	setPrimDoc(vmInst, "Object", "respondsTo:", false, "Return true if the receiver's class (or any superclass) implements\nthe given selector.\n\n```test\n3 respondsTo: #printString >>> true\n3 respondsTo: #frobnicate >>> false\n```")
 	setPrimDoc(vmInst, "Object", "allClasses", true, "Return an array of all classes in the system.")
 	setPrimDoc(vmInst, "Object", "new", true, "Create a new instance of this class.")
 	setPrimDoc(vmInst, "Process", "isDone", false, "Return true if the process has finished.")
