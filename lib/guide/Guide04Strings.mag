@@ -356,21 +356,21 @@ Guide04Strings subclass: Object
 
   """
   The Character class in lib/Character.mag adds a few convenience
-  methods on top of the VM primitives. The isAlphaNumeric method
+  methods on top of the VM primitives. The isAlphanumeric method
   returns true if a character is a letter or a digit. The isVowel
   method checks for vowels (a, e, i, o, u in either case).
 
   ```test
-  $a isAlphaNumeric >>> true
-  $5 isAlphaNumeric >>> true
+  $a isAlphanumeric >>> true
+  $5 isAlphanumeric >>> true
   $a isVowel >>> true
   $b isVowel >>> false
   $E isVowel >>> true
   ```
   """
   method: s16_characterConvenience [
-      $a isAlphaNumeric.
-      $5 isAlphaNumeric.
+      $a isAlphanumeric.
+      $5 isAlphanumeric.
       ^$a isVowel
   ]
 

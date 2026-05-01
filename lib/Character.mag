@@ -20,7 +20,7 @@ Character subclass: Object
       ^true
   ]
 
-  method: isAlphaNumeric ^<Boolean> [
+  method: isAlphanumeric ^<Boolean> [
       ^self isLetter or: [self isDigit]
   ]
 
