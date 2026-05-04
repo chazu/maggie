@@ -2,11 +2,12 @@ package vm
 
 import (
 	"fmt"
+	"runtime"
+	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
-
-	"github.com/petermattis/goid"
 )
 
 // ---------------------------------------------------------------------------
@@ -1430,19 +1431,20 @@ func (vm *VM) WeakRefCount() int {
 // Goroutine-Local Interpreter Tracking
 // ---------------------------------------------------------------------------
 
-// getGoroutineID returns the current goroutine's ID via the petermattis/goid
-// assembly trampoline (reads g.goid directly with no stack walk or allocation).
-//
-// The previous implementation called runtime.Stack(), which formats the full
-// stack trace into a buffer and converts it to a string just to extract the
-// numeric goroutine ID at the start. With currentInterpreter() invoked from
-// every block evaluation in every forked goroutine (the dispatcher tick is
-// always forked, so interpreterCount is always > 0 in real workloads), the
-// stack-walk + string allocation dominated CPU and triggered runaway memory
-// growth — observed >1GB RSS within 60s of an idle PP server doing nothing
-// but its 10s tick loop over ~1700 BBS tuples.
+// getGoroutineID returns the current goroutine's ID by parsing the stack.
+// This is a workaround since Go doesn't expose goroutine IDs directly.
 func getGoroutineID() int64 {
-	return goid.Get()
+	var buf [64]byte
+	n := runtime.Stack(buf[:], false)
+	// Stack starts with "goroutine <id> [...]"
+	s := string(buf[:n])
+	s = strings.TrimPrefix(s, "goroutine ")
+	idx := strings.Index(s, " ")
+	if idx > 0 {
+		s = s[:idx]
+	}
+	id, _ := strconv.ParseInt(s, 10, 64)
+	return id
 }
 
 // registerInterpreter registers an interpreter for the current goroutine.
