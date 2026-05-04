@@ -825,3 +825,137 @@ func assertFormatsExpr(t *testing.T, input, expectedExpr string) {
 		t.Errorf("expected %q in formatted output:\n%s", expectedExpr, formatted)
 	}
 }
+
+// ---------------------------------------------------------------------------
+// Comment-preservation tests
+// ---------------------------------------------------------------------------
+
+// TestFormat_PreservesFileLevelComment verifies that a "..."-style comment
+// before the first class header survives a format roundtrip.
+func TestFormat_PreservesFileLevelComment(t *testing.T) {
+	input := `"Top of file. Tells the reader what this file is for."
+
+Foo subclass: Object
+
+  method: x [
+      ^x
+  ]
+`
+	formatted, err := Format(input)
+	if err != nil {
+		t.Fatalf("format failed: %v", err)
+	}
+	if !strings.Contains(formatted, `"Top of file. Tells the reader what this file is for."`) {
+		t.Errorf("file-level comment was dropped:\n%s", formatted)
+	}
+	// Idempotent
+	formatted2, _ := Format(formatted)
+	if formatted != formatted2 {
+		t.Errorf("not idempotent.\nFirst:\n%s\nSecond:\n%s", formatted, formatted2)
+	}
+}
+
+// TestFormat_PreservesMethodBodyComment verifies that a "..."-style comment
+// inside a method body survives a format roundtrip.
+func TestFormat_PreservesMethodBodyComment(t *testing.T) {
+	input := `Foo subclass: Object
+
+  method: hello [
+      "Greet the user politely."
+      ^'hello'
+  ]
+`
+	formatted, err := Format(input)
+	if err != nil {
+		t.Fatalf("format failed: %v", err)
+	}
+	if !strings.Contains(formatted, `"Greet the user politely."`) {
+		t.Errorf("method body comment was dropped:\n%s", formatted)
+	}
+	formatted2, _ := Format(formatted)
+	if formatted != formatted2 {
+		t.Errorf("not idempotent.\nFirst:\n%s\nSecond:\n%s", formatted, formatted2)
+	}
+}
+
+// TestFormat_PreservesHashComment verifies that a "# ..."-style comment
+// survives a format roundtrip.
+func TestFormat_PreservesHashComment(t *testing.T) {
+	input := `# Section: utilities
+
+Foo subclass: Object
+
+  method: x [
+      ^x
+  ]
+`
+	formatted, err := Format(input)
+	if err != nil {
+		t.Fatalf("format failed: %v", err)
+	}
+	if !strings.Contains(formatted, "# Section: utilities") {
+		t.Errorf("hash comment was dropped:\n%s", formatted)
+	}
+	formatted2, _ := Format(formatted)
+	if formatted != formatted2 {
+		t.Errorf("not idempotent.\nFirst:\n%s\nSecond:\n%s", formatted, formatted2)
+	}
+}
+
+// TestFormat_PreservesCommentBetweenMethods verifies that a comment placed
+// between two method definitions survives.
+func TestFormat_PreservesCommentBetweenMethods(t *testing.T) {
+	input := `Foo subclass: Object
+
+  method: a [
+      ^1
+  ]
+
+  "Helper methods below."
+  method: b [
+      ^2
+  ]
+`
+	formatted, err := Format(input)
+	if err != nil {
+		t.Fatalf("format failed: %v", err)
+	}
+	if !strings.Contains(formatted, `"Helper methods below."`) {
+		t.Errorf("between-methods comment was dropped:\n%s", formatted)
+	}
+	formatted2, _ := Format(formatted)
+	if formatted != formatted2 {
+		t.Errorf("not idempotent.\nFirst:\n%s\nSecond:\n%s", formatted, formatted2)
+	}
+}
+
+// TestFormat_PreservesMultilineComment verifies that a multi-line "..."
+// comment retains its interior layout (continuation alignment).
+func TestFormat_PreservesMultilineComment(t *testing.T) {
+	input := `Foo subclass: Object
+
+  method: x [
+      "Line one of explanation.
+       Line two, indented to align under L.
+       Line three."
+      ^x
+  ]
+`
+	formatted, err := Format(input)
+	if err != nil {
+		t.Fatalf("format failed: %v", err)
+	}
+	for _, needle := range []string{
+		"Line one of explanation.",
+		"Line two, indented to align under L.",
+		"Line three.",
+	} {
+		if !strings.Contains(formatted, needle) {
+			t.Errorf("multi-line comment fragment %q missing:\n%s", needle, formatted)
+		}
+	}
+	formatted2, _ := Format(formatted)
+	if formatted != formatted2 {
+		t.Errorf("not idempotent.\nFirst:\n%s\nSecond:\n%s", formatted, formatted2)
+	}
+}

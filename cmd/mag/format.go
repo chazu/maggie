@@ -24,11 +24,13 @@ func Format(source string) (string, error) {
 	}
 
 	f := &formatter{
-		indent: 0,
-		buf:    &strings.Builder{},
+		indent:   0,
+		buf:      &strings.Builder{},
+		comments: sf.Comments,
 	}
 
 	f.formatSourceFile(sf)
+	f.flushRemainingComments()
 
 	result := f.buf.String()
 	// Ensure file ends with exactly one newline
@@ -40,6 +42,77 @@ func Format(source string) (string, error) {
 type formatter struct {
 	indent int
 	buf    *strings.Builder
+
+	// Comments collected by the lexer, sorted by source position. The
+	// formatter walks an AST and a comment cursor in lockstep, flushing
+	// any pending comments whose positions precede the next AST node.
+	comments []compiler.Comment
+	cursor   int
+}
+
+// flushCommentsBefore emits all pending comments whose source position
+// is strictly before pos. Comments are written at the current indent
+// level, each followed by a newline. A comment that was preceded by a
+// blank line in the source gets a blank line emitted before it (unless
+// it is the very first thing emitted). Returns true if any comments
+// were emitted.
+func (f *formatter) flushCommentsBefore(pos compiler.Position) bool {
+	emitted := false
+	for f.cursor < len(f.comments) && f.comments[f.cursor].Pos.Offset < pos.Offset {
+		c := f.comments[f.cursor]
+		f.cursor++
+		f.emitComment(c, false)
+		emitted = true
+	}
+	return emitted
+}
+
+// flushRemainingComments emits any comments left after the last AST
+// node has been formatted (e.g. a trailing comment at end of file).
+func (f *formatter) flushRemainingComments() {
+	for f.cursor < len(f.comments) {
+		c := f.comments[f.cursor]
+		f.cursor++
+		f.emitComment(c, true)
+	}
+}
+
+// emitComment writes a single comment at the current indent. If the
+// comment was preceded by a blank line in the source and we have already
+// emitted output, a blank line is inserted before it for paragraph-style
+// preservation.
+func (f *formatter) emitComment(c compiler.Comment, atFileEnd bool) {
+	// Preserve a blank line above the comment if the source had one,
+	// but only after we've written something (no leading blank line).
+	if c.PrecededByBlankLine && f.buf.Len() > 0 && !endsWithBlankLine(f.buf) {
+		f.newline()
+	}
+
+	switch c.Style {
+	case compiler.SmalltalkComment:
+		f.writeIndent()
+		// Preserve the inner text exactly, including any continuation-line
+		// alignment chosen by the author. Re-indenting risks breaking
+		// hand-aligned ASCII tables, code samples, etc. inside comments.
+		f.write(`"` + c.Text + `"`)
+		f.newline()
+	case compiler.HashComment:
+		f.writeIndent()
+		if c.Text == "" {
+			f.write("#")
+		} else {
+			f.write("# " + c.Text)
+		}
+		f.newline()
+	}
+}
+
+// endsWithBlankLine reports whether the buffer's tail is "\n\n", i.e. a
+// blank line is already present at the cursor.
+func endsWithBlankLine(b *strings.Builder) bool {
+	s := b.String()
+	n := len(s)
+	return n >= 2 && s[n-1] == '\n' && s[n-2] == '\n'
 }
 
 // write appends text to the output buffer.
@@ -94,12 +167,18 @@ func (f *formatter) formatSourceFile(sf *compiler.SourceFile) {
 		if i > 0 {
 			f.newline()
 		}
+		if f.flushCommentsBefore(cls.Span().Start) {
+			f.newline()
+		}
 		f.formatClassDef(cls)
 	}
 
 	// Protocols
 	for i, proto := range sf.Protocols {
 		if i > 0 || len(sf.Classes) > 0 {
+			f.newline()
+		}
+		if f.flushCommentsBefore(proto.Span().Start) {
 			f.newline()
 		}
 		f.formatProtocolDef(proto)
@@ -110,11 +189,15 @@ func (f *formatter) formatSourceFile(sf *compiler.SourceFile) {
 		if i > 0 || len(sf.Classes) > 0 || len(sf.Protocols) > 0 {
 			f.newline()
 		}
+		if f.flushCommentsBefore(trait.Span().Start) {
+			f.newline()
+		}
 		f.formatTraitDef(trait)
 	}
 
 	// Top-level statements (scripts/REPL)
 	for _, stmt := range sf.Statements {
+		f.flushCommentsBefore(stmt.Span().Start)
 		f.formatStmt(stmt)
 		f.writeln(".")
 	}
@@ -156,12 +239,18 @@ func (f *formatter) formatClassDef(cls *compiler.ClassDef) {
 	// Instance methods
 	for _, method := range cls.Methods {
 		f.newline()
+		f.indent = 1
+		f.flushCommentsBefore(method.Span().Start)
+		f.indent = 0
 		f.formatMethodDef(method, "method:", 1)
 	}
 
 	// Class methods
 	for _, method := range cls.ClassMethods {
 		f.newline()
+		f.indent = 1
+		f.flushCommentsBefore(method.Span().Start)
+		f.indent = 0
 		f.formatMethodDef(method, "classMethod:", 1)
 	}
 }
@@ -194,6 +283,9 @@ func (f *formatter) formatTraitDef(trait *compiler.TraitDef) {
 	// Methods
 	for _, method := range trait.Methods {
 		f.newline()
+		f.indent = 1
+		f.flushCommentsBefore(method.Span().Start)
+		f.indent = 0
 		f.formatMethodDef(method, "method:", 1)
 	}
 }
@@ -306,6 +398,7 @@ func (f *formatter) formatMethodDef(method *compiler.MethodDef, keyword string, 
 
 	// Statements
 	for i, stmt := range method.Statements {
+		f.flushCommentsBefore(stmt.Span().Start)
 		f.writeIndent()
 		f.formatStmt(stmt)
 		// Period after each statement except the last
@@ -656,6 +749,7 @@ func (f *formatter) formatBlock(block *compiler.Block) {
 		}
 
 		for i, stmt := range block.Statements {
+			f.flushCommentsBefore(stmt.Span().Start)
 			f.writeIndent()
 			f.formatStmt(stmt)
 			if i < len(block.Statements)-1 {

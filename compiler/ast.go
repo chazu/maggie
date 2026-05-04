@@ -388,6 +388,30 @@ type SourceFile struct {
 	Protocols  []*ProtocolDef
 	Methods    []*MethodDef // extension methods
 	Statements []Stmt       // top-level statements (for scripts/REPL)
+	Comments   []Comment    // free-floating comments, sorted by position
+}
+
+// CommentStyle indicates the syntactic style of a source comment.
+type CommentStyle int
+
+const (
+	// SmalltalkComment is a "..."-delimited Smalltalk comment.
+	SmalltalkComment CommentStyle = iota
+	// HashComment is a "# ..."-to-end-of-line comment.
+	HashComment
+)
+
+// Comment is a source comment captured by the lexer for the formatter
+// to re-emit. Comments are stripped from the token stream so that they
+// do not affect parsing, semantics, or codegen.
+type Comment struct {
+	Pos   Position     // start position of the comment
+	Text  string       // raw inner text (without the "" or # delimiters)
+	Style CommentStyle // syntactic style
+	// PrecededByBlankLine reports whether at least one blank line appeared
+	// between the previous token and this comment. Used by the formatter
+	// to preserve paragraph-style breaks.
+	PrecededByBlankLine bool
 }
 
 func (n *SourceFile) Span() Span { return n.SpanVal }

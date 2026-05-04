@@ -1068,6 +1068,7 @@ func (p *Parser) ParseSourceFile() *SourceFile {
 	}
 
 	sf.SpanVal = MakeSpan(startPos, p.curToken.Pos)
+	sf.Comments = p.lexer.Comments()
 	return sf
 }
 

@@ -20,6 +20,21 @@ type Lexer struct {
 	line    int  // current line (1-based)
 	col     int  // current column (1-based)
 	lineStart int // offset of current line start
+
+	// comments collected during skipWhitespaceAndComments. They are not
+	// emitted as tokens (so the parser is unaffected), but accumulate
+	// for later retrieval by Comments(). The formatter uses these to
+	// re-emit comments at the correct positions.
+	comments []Comment
+	// sawBlankLineBeforeNext is set when at least one blank line was
+	// encountered while skipping whitespace; the next collected comment
+	// records it via PrecededByBlankLine.
+	sawBlankLineBeforeNext bool
+}
+
+// Comments returns all comments encountered so far, in source order.
+func (l *Lexer) Comments() []Comment {
+	return l.comments
 }
 
 // NewLexer creates a new lexer for the given input.
@@ -163,15 +178,24 @@ func (l *Lexer) NextToken() Token {
 	}
 }
 
-// skipWhitespaceAndComments skips whitespace and comments.
+// skipWhitespaceAndComments skips whitespace and comments. Comments are
+// recorded into l.comments (with blank-line context) so the formatter can
+// re-emit them later; the token stream itself is unaffected.
 func (l *Lexer) skipWhitespaceAndComments() {
 	for {
-		// Skip whitespace
+		// Skip whitespace, tracking whether a blank line appeared.
+		newlineCount := 0
 		for l.ch == ' ' || l.ch == '\t' || l.ch == '\n' || l.ch == '\r' {
+			if l.ch == '\n' {
+				newlineCount++
+			}
 			l.readChar()
 		}
+		if newlineCount >= 2 {
+			l.sawBlankLineBeforeNext = true
+		}
 
-		// Skip Smalltalk-style comments: "..."
+		// Smalltalk-style comments: "..."
 		// But NOT triple-quote docstrings: """..."""
 		if l.ch == '"' {
 			// Peek ahead to check for triple-quote docstring
@@ -180,31 +204,64 @@ func (l *Lexer) skipWhitespaceAndComments() {
 				// This is """, break out and let NextToken handle it
 				break
 			}
-			l.readChar()
+			startPos := l.position()
+			l.readChar() // consume opening "
+			textStart := l.pos
 			for l.ch != '"' && l.ch != 0 {
 				l.readChar()
 			}
+			textEnd := l.pos
 			if l.ch == '"' {
 				l.readChar()
 			}
+			l.recordComment(Comment{
+				Pos:                 startPos,
+				Text:                l.input[textStart:textEnd],
+				Style:               SmalltalkComment,
+				PrecededByBlankLine: l.sawBlankLineBeforeNext,
+			})
+			l.sawBlankLineBeforeNext = false
 			continue
 		}
 
-		// Skip hash comments: # followed by space/tab/newline/EOF
+		// Hash comments: # followed by space/tab/newline/EOF
 		// (not symbols like #foo, arrays #(, or quoted symbols #')
 		if l.ch == '#' {
 			peek := l.peekChar()
 			if peek == ' ' || peek == '\t' || peek == '\n' || peek == '\r' || peek == 0 {
-				// Line comment - skip to end of line
+				startPos := l.position()
+				l.readChar() // consume #
+				// Skip the single delimiter space if present so the recorded
+				// text matches the convention of "# foo" -> "foo".
+				if l.ch == ' ' || l.ch == '\t' {
+					l.readChar()
+				}
+				textStart := l.pos
 				for l.ch != '\n' && l.ch != 0 {
 					l.readChar()
 				}
+				textEnd := l.pos
+				l.recordComment(Comment{
+					Pos:                 startPos,
+					Text:                l.input[textStart:textEnd],
+					Style:               HashComment,
+					PrecededByBlankLine: l.sawBlankLineBeforeNext,
+				})
+				l.sawBlankLineBeforeNext = false
 				continue
 			}
 		}
 
+		// Real token coming next — clear the pending blank-line marker so
+		// it does not erroneously attach to a future comment many tokens away.
+		l.sawBlankLineBeforeNext = false
 		break
 	}
+}
+
+// recordComment appends a comment to the lexer's comment buffer.
+func (l *Lexer) recordComment(c Comment) {
+	l.comments = append(l.comments, c)
 }
 
 // readHashToken reads a token starting with #.
