@@ -395,7 +395,7 @@ func (vm *VM) registerCancellationContextPrimitives() {
 
 // isCancellationContextValue checks if a Value represents a cancellation context.
 func isCancellationContextValue(v Value) bool {
-	if !v.IsSymbol() {
+	if !v.IsSymbolEncoded() {
 		return false
 	}
 	id := v.SymbolID()

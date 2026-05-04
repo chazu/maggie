@@ -937,7 +937,7 @@ func (vm *VM) ClassFor(v Value) *Class {
 		return vm.BlockClass
 	case v.IsContext():
 		return vm.ContextClass
-	case v.IsSymbol():
+	case v.IsSymbolEncoded():
 		// Use the central dispatch table for all symbol-encoded types
 		if cls, isClassSide := vm.symbolDispatch.ClassForSymbolVM(v, vm); cls != nil {
 			if isClassSide {
@@ -1014,6 +1014,11 @@ func (vm *VM) ExecuteSafe(method *CompiledMethod, receiver Value, args []Value) 
 					if className != "" {
 						msg = className + ": " + msg
 					}
+					// Append the captured stack trace if available so callers
+					// see where the exception was raised, not just what.
+					if len(sigEx.Object.CapturedFrames) > 0 {
+						msg = msg + "\n" + FormatCapturedTrace(sigEx.Object.CapturedFrames)
+					}
 				}
 				err = fmt.Errorf("%s", msg)
 				result = Nil
@@ -1039,7 +1044,7 @@ func (vm *VM) Send(receiver Value, selector string, args []Value) Value {
 	// Determine the class for method dispatch
 	var class *Class
 	isClassSide := false
-	if receiver.IsSymbol() {
+	if receiver.IsSymbolEncoded() {
 		// Use the central dispatch table for all symbol-encoded types
 		class, isClassSide = vm.symbolDispatch.ClassForSymbolVM(receiver, vm)
 		if class == nil {

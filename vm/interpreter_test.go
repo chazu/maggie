@@ -1554,8 +1554,9 @@ func TestStackOverflowConfigurable(t *testing.T) {
 }
 
 // TestStackOverflowStandaloneInterpreter verifies that the standalone
-// interpreter (without a VM) also handles overflow gracefully with a
-// descriptive string panic instead of an index-out-of-range crash.
+// interpreter handles overflow gracefully — either with a descriptive
+// string panic (when no StackOverflowClass is wired) or as a signaled
+// StackOverflow exception (when one is available).
 func TestStackOverflowStandaloneInterpreter(t *testing.T) {
 	interp := NewInterpreter()
 	interp.MaxFrameDepth = 30
@@ -1569,12 +1570,18 @@ func TestStackOverflowStandaloneInterpreter(t *testing.T) {
 	// Manually push frames past the limit
 	var caught bool
 	var panicMsg string
+	var sawSignaled bool
 	func() {
 		defer func() {
 			if r := recover(); r != nil {
 				caught = true
-				if msg, ok := r.(string); ok {
-					panicMsg = msg
+				switch v := r.(type) {
+				case string:
+					panicMsg = v
+				case SignaledException:
+					sawSignaled = v.Object != nil &&
+						v.Object.ExceptionClass != nil &&
+						v.Object.ExceptionClass == interp.vm.StackOverflowClass
 				}
 			}
 		}()
@@ -1587,8 +1594,12 @@ func TestStackOverflowStandaloneInterpreter(t *testing.T) {
 		t.Fatal("expected overflow panic from standalone interpreter")
 	}
 
+	if sawSignaled {
+		return
+	}
+
 	if !strings.Contains(panicMsg, "Stack overflow") {
-		t.Errorf("panic message = %q, want it to contain 'Stack overflow'", panicMsg)
+		t.Errorf("panic message = %q, want it to contain 'Stack overflow' or a StackOverflow SignaledException", panicMsg)
 	}
 }
 

@@ -34,7 +34,7 @@ type ObjectRegistry struct {
 
 	// Special registries (not suitable for AutoIDRegistry)
 	cells          map[*Cell]struct{} // set semantics
-	cellsMu        sync.Mutex
+	cellsMu        sync.RWMutex
 	weakRefCounter atomic.Uint32       // counter only
 	classVars      map[*Class]map[string]Value // nested map
 	classVarsMu    sync.RWMutex
@@ -47,18 +47,25 @@ func NewObjectRegistry() *ObjectRegistry {
 		IORegistry:          NewIORegistry(),
 
 		// Start IDs at 1 unless otherwise noted (0 = nil/uninitialized)
-		exceptions:       NewAutoIDRegistry[*ExceptionObject](1),
-		results:          NewAutoIDRegistry[*ResultObject](1),
-		contexts:         NewAutoIDRegistry[*ContextValue](1),
-		dictionaries:     NewAutoIDRegistry[*DictionaryObject](dictionaryIDOffset),
-		strings:          NewAutoIDRegistry[*StringObject](stringIDOffset),
-		goObjects:        NewAutoIDRegistry[*GoObjectWrapper](0),
-		bigInts:          NewAutoIDRegistry[*BigIntObject](0),
-		cueContexts:      NewAutoIDRegistry[*CueContextObject](1),
-		cueValues:        NewAutoIDRegistry[*CueValueObject](1),
-		tupleSpaces:      NewAutoIDRegistry[*TupleSpaceObject](1),
-		constraintStores: NewAutoIDRegistry[*ConstraintStoreObject](1),
-		classValues:      NewAutoIDRegistry[*Class](1),
+		exceptions:       NewAutoIDRegistry[*ExceptionObject](1, WithName("exceptions")),
+		results:          NewAutoIDRegistry[*ResultObject](1, WithName("results")),
+		contexts:         NewAutoIDRegistry[*ContextValue](1, WithName("contexts")),
+		// strings and dictionaries don't carry a marker byte — they use the
+		// high bit(s) of the symbol payload as their discriminator. Strings
+		// occupy [0x80000000, 0xC0000000), dictionaries [0xC0000000, 0xFFFFFFFF].
+		dictionaries:     NewAutoIDRegistry[*DictionaryObject](dictionaryIDOffset, WithMaxID(0xFFFFFFFF), WithName("dictionaries")),
+		strings:          NewAutoIDRegistry[*StringObject](stringIDOffset, WithMaxID(dictionaryIDOffset-1), WithName("strings")),
+		goObjects:        NewAutoIDRegistry[*GoObjectWrapper](0, WithName("goObjects")),
+		bigInts:          NewAutoIDRegistry[*BigIntObject](0, WithName("bigInts")),
+		cueContexts:      NewAutoIDRegistry[*CueContextObject](1, WithName("cueContexts")),
+		cueValues:        NewAutoIDRegistry[*CueValueObject](1, WithName("cueValues")),
+		tupleSpaces:      NewAutoIDRegistry[*TupleSpaceObject](1, WithName("tupleSpaces")),
+		constraintStores: NewAutoIDRegistry[*ConstraintStoreObject](1, WithName("constraintStores")),
+		// classValues is monotonic: *Class caches its assigned classValueID,
+		// so reusing an ID would create a stale cache on the prior owner.
+		// In practice classValues entries are never deleted, but we encode
+		// the invariant here so it can't regress.
+		classValues:      NewAutoIDRegistry[*Class](1, WithMonotonic(), WithName("classValues")),
 
 		cells:     make(map[*Cell]struct{}),
 		classVars: make(map[*Class]map[string]Value),
@@ -162,7 +169,7 @@ func (or *ObjectRegistry) NewDictionaryValue() Value {
 // GetDictionaryObject returns the DictionaryObject for a Value.
 // Returns nil if v is not a dictionary.
 func (or *ObjectRegistry) GetDictionaryObject(v Value) *DictionaryObject {
-	if !v.IsSymbol() {
+	if !v.IsSymbolEncoded() {
 		return nil
 	}
 	id := v.SymbolID()
@@ -193,7 +200,7 @@ func (or *ObjectRegistry) NewStringValue(s string) Value {
 // This is more efficient than two separate GetStringContent calls
 // because it only acquires the lock once instead of twice.
 func (or *ObjectRegistry) CompareStrings(a, b Value) bool {
-	if !a.IsSymbol() || !b.IsSymbol() {
+	if !a.IsSymbolEncoded() || !b.IsSymbolEncoded() {
 		return false
 	}
 	idA := a.SymbolID()
@@ -217,7 +224,7 @@ func (or *ObjectRegistry) CompareStrings(a, b Value) bool {
 // GetStringContent returns the Go string content of a string Value.
 // Returns empty string if v is not a string.
 func (or *ObjectRegistry) GetStringContent(v Value) string {
-	if !v.IsSymbol() {
+	if !v.IsSymbolEncoded() {
 		return ""
 	}
 	id := v.SymbolID()
@@ -225,24 +232,31 @@ func (or *ObjectRegistry) GetStringContent(v Value) string {
 		return "" // It's a regular symbol, not a string
 	}
 
-	obj := or.GetString(id)
-	if obj != nil {
-		return obj.Content
+	or.strings.RLock()
+	obj := or.strings.UnsafeGet(id)
+	if obj == nil {
+		or.strings.RUnlock()
+		return ""
 	}
-	return ""
+	s := obj.Content
+	or.strings.RUnlock()
+	return s
 }
 
 // GetStringObject returns the StringObject for a Value.
 // Returns nil if v is not a string.
 func (or *ObjectRegistry) GetStringObject(v Value) *StringObject {
-	if !v.IsSymbol() {
+	if !v.IsSymbolEncoded() {
 		return nil
 	}
 	id := v.SymbolID()
 	if id < stringIDOffset {
 		return nil
 	}
-	return or.GetString(id)
+	or.strings.RLock()
+	obj := or.strings.UnsafeGet(id)
+	or.strings.RUnlock()
+	return obj
 }
 
 // ---------------------------------------------------------------------------
@@ -265,16 +279,16 @@ func (or *ObjectRegistry) UnregisterCell(c *Cell) {
 
 // HasCell checks if a cell is in the registry.
 func (or *ObjectRegistry) HasCell(c *Cell) bool {
-	or.cellsMu.Lock()
-	defer or.cellsMu.Unlock()
+	or.cellsMu.RLock()
+	defer or.cellsMu.RUnlock()
 	_, exists := or.cells[c]
 	return exists
 }
 
 // CellCount returns the number of registered cells.
 func (or *ObjectRegistry) CellCount() int {
-	or.cellsMu.Lock()
-	defer or.cellsMu.Unlock()
+	or.cellsMu.RLock()
+	defer or.cellsMu.RUnlock()
 	return len(or.cells)
 }
 
@@ -282,9 +296,26 @@ func (or *ObjectRegistry) CellCount() int {
 // Weak Reference Counter Methods
 // ---------------------------------------------------------------------------
 
-// NextWeakRefID returns the next unique ID for a weak reference.
+// weakRefIDMax is the largest valid weak reference ID. WeakReference values
+// are NaN-boxed via the symbol tag with weakRefMarker in bits 24-31, leaving
+// 24 bits for the ID. Wrap-around past this point would alias new weak refs
+// to live ones in WeakRegistry.refs and silently corrupt finalizer dispatch
+// (see vm/weak_reference.go: WeakRegistry uses the ID as map key).
+//
+// Weak refs are intentionally append-only: `WeakRegistry.Unregister` exists
+// but is not invoked from the VM (the GC clears the target via Clear() but
+// keeps the entry around for Lookup). Recycling IDs would require auditing
+// every Lookup-after-Clear path, so we treat exhaustion as a fatal error.
+const weakRefIDMax uint32 = (1 << 24) - 1
+
+// NextWeakRefID returns the next unique ID for a weak reference. Panics on
+// exhaustion rather than silently wrapping (see weakRefIDMax docs).
 func (or *ObjectRegistry) NextWeakRefID() uint32 {
-	return or.weakRefCounter.Add(1)
+	id := or.weakRefCounter.Add(1)
+	if id > weakRefIDMax {
+		panic("ObjectRegistry: weak ref ID space exhausted (max 2^24-1 weak references)")
+	}
+	return id
 }
 
 // WeakRefCounterValue returns the current value of the weak reference counter.

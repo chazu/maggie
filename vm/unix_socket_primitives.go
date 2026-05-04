@@ -40,7 +40,7 @@ func unixListenerToValue(id uint32) Value {
 }
 
 func isUnixListenerValue(v Value) bool {
-	if !v.IsSymbol() {
+	if !v.IsSymbolEncoded() {
 		return false
 	}
 	return (v.SymbolID() & markerMask) == unixListenerMarker
@@ -55,7 +55,7 @@ func unixConnToValue(id uint32) Value {
 }
 
 func isUnixConnValue(v Value) bool {
-	if !v.IsSymbol() {
+	if !v.IsSymbolEncoded() {
 		return false
 	}
 	return (v.SymbolID() & markerMask) == unixConnMarker

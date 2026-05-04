@@ -1,6 +1,8 @@
 package vm
 
 import (
+	"sync"
+	"sync/atomic"
 	"unsafe"
 )
 
@@ -41,12 +43,50 @@ const NumInlineSlots = 4
 
 // VTable holds the method dispatch table for a class.
 // This is a forward declaration; full implementation is in vtable.go.
+//
+// Local methods are stored in a compact map keyed by selector ID, so the
+// per-class footprint is proportional to the number of methods actually
+// defined on the class (not to the global selector ID space).
+//
+// Lookups go through `flat`, an open-addressed (linear-probing) hash
+// table of (selector → method) entries that flattens the entire
+// inheritance chain. It is sized to the number of reachable methods,
+// rebuilt lazily on first Lookup after any structural mutation.
 type VTable struct {
-	class   *Class   // The class this vtable belongs to
-	parent  *VTable  // Parent vtable for inheritance lookup
-	methods []Method // Local methods indexed by selector ID
-	flat    []Method // Flattened: inherited + local (nil until first rebuild)
-	dirty   bool     // True when flat needs rebuild
+	class   *Class         // The class this vtable belongs to
+	parent  *VTable        // Parent vtable for inheritance lookup
+	methods map[int]Method // Local methods, keyed by selector ID
+
+	// snap holds the current lazily-built dispatch snapshot. A nil pointer
+	// means "needs rebuild" (the dirty signal) — there is no separate
+	// dirty bool. Lookup readers do one atomic load on the happy path,
+	// no locks. Writers (AddMethod/RemoveMethod/SetParent) take `mu`,
+	// mutate `methods`/`parent`, and store nil into `snap`. The next
+	// Lookup will rebuild under `mu` (double-checked locking).
+	snap atomic.Pointer[vtSnapshot]
+
+	// mu protects `methods`, `parent`, and serializes rebuilds of `snap`.
+	// It is NEVER held by readers on the dispatch hot path — they only
+	// touch `snap` atomically.
+	mu sync.Mutex
+}
+
+// vtSnapshot is an immutable, flattened dispatch table built from the
+// inheritance chain. Once published via VTable.snap atomic store, the
+// contents are read-only — readers may share it across goroutines
+// without locks.
+type vtSnapshot struct {
+	entries []vtEntry // Open-addressed hash table; empty iff method == nil
+	mask    uint32    // len(entries) - 1
+	shift   uint      // 32 - log2(len(entries)); precomputed for hot path
+}
+
+// vtEntry is one slot in the open-addressed dispatch hash table.
+// An entry is empty iff method == nil. Selector 0 is a valid symbol ID
+// (first symbol interned), so we cannot rely on selector == 0 alone.
+type vtEntry struct {
+	selector int
+	method   Method
 }
 
 // Class represents a Maggie class.

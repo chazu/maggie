@@ -521,6 +521,36 @@ Guide08ErrorHandling subclass: Object
   ]
 
   """
+  ## Stack Traces on Exceptions
+
+  When an exception is raised, Maggie captures a snapshot of the call
+  stack on the exception object. This trace is available even if the
+  exception is later caught and handled, so logging code can preserve
+  diagnostic context without re-raising.
+
+  - `Exception>>stackTrace` -- returns the trace as an Array of Strings,
+    one frame per element (innermost frame first).
+  - `Exception>>printStackTrace` -- prints the trace to standard output
+    in human-readable form.
+
+  ```example
+  [Error signal: 'oops'] on: Error do: [:e | e printStackTrace]
+  ```
+
+  In the REPL, an unhandled exception prints its class, message, AND
+  the captured trace automatically -- you no longer have to wrap
+  expressions in `on:do:` just to see where the error originated.
+
+  ```test
+  ([Error signal: 'fail'] on: Error do: [:e | e stackTrace size > 0]) >>> true
+  ```
+  """
+  method: s12c_stackTraces [
+      [Error signal: 'oops']
+          on: Error do: [:e | ^e stackTrace size > 0]
+  ]
+
+  """
   ## Summary
 
   Maggie provides two complementary approaches to error handling:
@@ -530,6 +560,7 @@ Guide08ErrorHandling subclass: Object
   - `[code] ensure: [cleanup]` -- guaranteed cleanup (try/finally)
   - `[code] ifCurtailed: [cleanup]` -- cleanup only on abnormal exit
   - `resume:`, `retry`, `pass` -- advanced handler control flow
+  - `stackTrace` / `printStackTrace` -- inspect captured call stack
   - Exception hierarchy: Exception > Error > ZeroDivide, StackOverflow, etc.
 
   **Results** -- for expected failure modes:

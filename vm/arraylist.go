@@ -25,7 +25,7 @@ func arrayListToValue(id int) Value {
 }
 
 func isArrayListValue(v Value) bool {
-	if !v.IsSymbol() {
+	if !v.IsSymbolEncoded() {
 		return false
 	}
 	id := v.SymbolID()

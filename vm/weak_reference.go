@@ -193,7 +193,7 @@ func FromWeakRef(wr *WeakReference) Value {
 
 // IsWeakRef returns true if v represents a weak reference.
 func (v Value) IsWeakRef() bool {
-	if !v.IsSymbol() {
+	if !v.IsSymbolEncoded() {
 		return false
 	}
 	id := v.SymbolID()

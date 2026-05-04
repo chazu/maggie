@@ -140,7 +140,7 @@ func nodeRefToValue(id int) Value {
 }
 
 func isNodeRefValue(v Value) bool {
-	if !v.IsSymbol() {
+	if !v.IsSymbolEncoded() {
 		return false
 	}
 	return (v.SymbolID() & markerMask) == remoteRefMarker
@@ -377,7 +377,7 @@ func (vm *VM) remoteSend(recv, selectorVal, payload Value, wantReply bool) Value
 	}
 
 	sel := ""
-	if selectorVal.IsSymbol() && !IsStringValue(selectorVal) {
+	if selectorVal.IsSymbol() {
 		sel = vm.Symbols.Name(selectorVal.SymbolID())
 	} else if IsStringValue(selectorVal) {
 		sel = vm.registry.GetStringContent(selectorVal)

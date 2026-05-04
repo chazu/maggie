@@ -26,7 +26,7 @@ func waitGroupToValue(id int) Value {
 }
 
 func isWaitGroupValue(v Value) bool {
-	if !v.IsSymbol() {
+	if !v.IsSymbolEncoded() {
 		return false
 	}
 	id := v.SymbolID()
@@ -175,13 +175,7 @@ func (vm *VM) registerWaitGroupPrimitives() {
 				w.counter.Add(-1)
 				w.wg.Done()
 
-				if r := recover(); r != nil {
-					if nlr, ok := r.(NonLocalReturn); ok {
-						proc.markDone(nlr.Value, nil)
-					} else {
-						proc.markDone(Nil, nil)
-					}
-				}
+				v.HandleForkedPanic(proc, recover())
 				v.unregisterInterpreter()
 			}()
 

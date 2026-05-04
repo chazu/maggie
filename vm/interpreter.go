@@ -135,25 +135,18 @@ type Interpreter struct {
 	selectorClass   int
 }
 
-// NewInterpreter creates a new standalone interpreter with its own tables.
-// Used by tests that need independent interpreters.
+// NewInterpreter creates a new standalone interpreter backed by a fresh VM.
+// Used by tests that need independent interpreters. The underlying VM is fully
+// bootstrapped (core classes, primitives, symbol dispatch) so that vtable
+// resolution always has a non-nil VM back-reference. The registry GC goroutine
+// is stopped because tests typically don't need background sweeping.
 func NewInterpreter() *Interpreter {
-	interp := &Interpreter{
-		Selectors:     NewSelectorTable(),
-		Classes:       NewClassTable(),
-		Globals:       make(map[string]Value),
-		stack:         make([]Value, DefaultInitialStack),
-		sp:            0,
-		frames:        make([]*CallFrame, DefaultInitialFrames),
-		fp:            -1,
-		MaxStackDepth: DefaultMaxStackDepth,
-		MaxFrameDepth: DefaultMaxFrameDepth,
-		Profiler:      NewProfiler(),
+	vm := NewVM()
+	// Tests don't need the background GC sweep goroutine.
+	if vm.registryGC != nil {
+		vm.registryGC.Stop()
 	}
-
-	interp.internWellKnownSelectors()
-
-	return interp
+	return vm.interpreter
 }
 
 // newBareInterpreterWithConfig allocates per-goroutine execution state (stack, frames,
@@ -391,6 +384,8 @@ func (i *Interpreter) checkFrameOverflow() {
 			MessageText:    i.vm.registry.NewStringValue(msg),
 			Resumable:      false,
 		}
+		// Capture the (overflowing) call stack for diagnostic value.
+		exObj.CapturedFrames = i.CaptureTrace(MaxCapturedTraceDepth)
 		id := i.vm.registry.RegisterException(exObj)
 		exVal := FromExceptionID(id)
 		panic(SignaledException{
@@ -1273,15 +1268,10 @@ func (i *Interpreter) sendSuper(selector int, argc int, callingMethod *CompiledM
 }
 
 // vtableFor returns the vtable for a value.
+// Every interpreter is backed by a VM (NewInterpreter() constructs one for
+// tests), so this always uses the VM's central dispatch table.
 func (i *Interpreter) vtableFor(v Value) *VTable {
-	// Fast path: when the interpreter has a VM back-reference, use the
-	// central dispatch table for symbol-encoded types.
-	if i.vm != nil {
-		return i.vtableForVM(v, i.vm)
-	}
-
-	// Legacy path: standalone interpreter without a VM (used by some tests).
-	return i.vtableForLegacy(v)
+	return i.vtableForVM(v, i.vm)
 }
 
 // vtableForVM uses the VM's direct class pointers and central symbol dispatch table.
@@ -1301,7 +1291,7 @@ func (i *Interpreter) vtableForVM(v Value, vm *VM) *VTable {
 		return vm.BlockClass.VTable
 	case v.IsContext():
 		return vm.ContextClass.VTable
-	case v.IsSymbol():
+	case v.IsSymbolEncoded():
 		cls, isClassSide := vm.symbolDispatch.ClassForSymbolVM(v, vm)
 		if cls != nil {
 			if isClassSide {
@@ -1323,118 +1313,6 @@ func (i *Interpreter) vtableForVM(v Value, vm *VM) *VTable {
 			}
 		}
 		return vm.SymbolClass.VTable
-	case v.IsObject():
-		obj := ObjectFromValue(v)
-		if obj != nil {
-			return obj.VTablePtr()
-		}
-	}
-	return nil
-}
-
-// vtableForLegacy is the fallback for interpreters without a VM (legacy tests).
-func (i *Interpreter) vtableForLegacy(v Value) *VTable {
-	switch {
-	case v == Nil:
-		if c := i.Classes.Lookup("UndefinedObject"); c != nil {
-			return c.VTable
-		}
-	case v == True:
-		if c := i.Classes.Lookup("True"); c != nil {
-			return c.VTable
-		}
-	case v == False:
-		if c := i.Classes.Lookup("False"); c != nil {
-			return c.VTable
-		}
-	case v.IsSmallInt():
-		if c := i.Classes.Lookup("SmallInteger"); c != nil {
-			return c.VTable
-		}
-	case v.IsFloat():
-		if c := i.Classes.Lookup("Float"); c != nil {
-			return c.VTable
-		}
-	case v.IsBlock():
-		if c := i.Classes.Lookup("Block"); c != nil {
-			return c.VTable
-		}
-	case v.IsContext():
-		if c := i.Classes.Lookup("Context"); c != nil {
-			return c.VTable
-		}
-	case v.IsSymbol():
-		if IsStringValue(v) {
-			if c := i.Classes.Lookup("String"); c != nil {
-				return c.VTable
-			}
-		}
-		if v.IsException() {
-			exObj := i.vm.registry.GetException(v.ExceptionID())
-			if exObj != nil && exObj.ExceptionClass != nil {
-				return exObj.ExceptionClass.VTable
-			}
-			if c := i.Classes.Lookup("Exception"); c != nil {
-				return c.VTable
-			}
-		}
-		if IsDictionaryValue(v) {
-			if c := i.Classes.Lookup("Dictionary"); c != nil {
-				return c.VTable
-			}
-		}
-		if isClassValue(v) {
-			cls := i.vm.registry.GetClassFromValue(v)
-			if cls != nil && cls.ClassVTable != nil {
-				return cls.ClassVTable
-			}
-		}
-		if isChannelValue(v) {
-			if c := i.Classes.Lookup("Channel"); c != nil {
-				return c.VTable
-			}
-		}
-		if isProcessValue(v) {
-			if c := i.Classes.Lookup("Process"); c != nil {
-				return c.VTable
-			}
-		}
-		if isGrpcClientValue(v) {
-			if c := i.Classes.Lookup("GrpcClient"); c != nil {
-				return c.VTable
-			}
-		}
-		if isGrpcStreamValue(v) {
-			if c := i.Classes.Lookup("GrpcStream"); c != nil {
-				return c.VTable
-			}
-		}
-		if isResultValue(v) {
-			r := i.vm.registry.GetResultFromValue(v)
-			if r != nil {
-				if r.resultType == ResultSuccess {
-					if c := i.Classes.Lookup("Success"); c != nil {
-						return c.VTable
-					}
-				} else {
-					if c := i.Classes.Lookup("Failure"); c != nil {
-						return c.VTable
-					}
-				}
-			}
-		}
-		if i.Symbols != nil {
-			symName := i.Symbols.Name(v.SymbolID())
-			if cls := i.Classes.Lookup(symName); cls != nil {
-				if cls.ClassVTable != nil {
-					return cls.ClassVTable
-				}
-				return cls.VTable
-			}
-		}
-		if c := i.Classes.Lookup("Symbol"); c != nil {
-			return c.VTable
-		}
 	case v.IsObject():
 		obj := ObjectFromValue(v)
 		if obj != nil {

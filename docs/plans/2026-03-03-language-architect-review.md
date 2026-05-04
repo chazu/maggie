@@ -250,3 +250,75 @@ For a Smalltalk-family language, these are notably absent:
 ---
 
 This is a substantial codebase with impressive breadth — concurrency, distribution, Go interop, content addressing, and image persistence are all well beyond what most hobby language implementations achieve. The core architecture (NaN-boxed values, inline caching, TCO, namespace-aware compilation, process isolation) demonstrates serious design thought. The most impactful improvements are the correctness fixes in the interpreter's binary fallback path and channel primitives, followed by eliminating the defer/recover overhead from the message send hot path.
+
+---
+
+## 11. Implementation Status & Follow-ups (as of 2026-05-03)
+
+### Closed
+
+- **1a** NLR via panic/recover — replaced with explicit `unwinding`/`unwindTarget`/`unwindValue` mechanism. Panic survives only as a safety valve at `vm/interpreter.go:536`.
+- **1b** O(N) VTable lookup — flattened, O(1) lookups with lazy rebuild.
+- **1c** Selector-id-indexed method array — replaced with per-class `map[int]Method` and a power-of-two open-addressed hash flat table (Fibonacci hashing). Memory now proportional to method count, not global selector ID space.
+- **1d** Stack/frame growth — initial sizes doubled (`DefaultInitialStack=2048`, `DefaultInitialFrames=512`), made configurable via `InterpreterConfig`.
+- **1e** `popN` allocations — added `peekN`/`dropN`; `popN` reserved for >16-arg fallback and block captures.
+- **1f** `sendBinaryFallback` NLR — addressed by 1a rework; verified correctly cooperates with the new unwinding mechanism via `handleNLR`.
+- **1g** Integer overflow — `primitivePlus`/`Minus`/`Times` promote to BigInt via `TryFromSmallInt`; `primitiveTimes` uses divide-check trick to detect int64 wrap before promotion.
+- **2a** Registry explosion — `TypedRegistry[K,V]` and `AutoIDRegistry[V]` extracted in `vm/typed_registry.go`. `ObjectRegistry` is now ~433 lines (down from 1071), a thin facade over per-kind registries. `ConcurrencyRegistry` and `IORegistry` extracted into their own files.
+- **2c** Time-based GC — pressure-aware triggering in `vm/registry_gc.go`. Per-registry `growthThreshold` and `absoluteCeiling` hooks via `AutoIDRegistry.SetPressureHook`; non-blocking trigger channel coalesces bursts; 60s wall-clock floor preserved as safety net.
+- **3a** `vtableForLegacy` deletion — `NewInterpreter()` now constructs a real minimal VM internally; `vtableForLegacy` deleted (-110 LOC). `SymbolDispatch.markers` map → `[256]*SymbolTypeEntry` array; symbol marker dispatch is one indexed load.
+- **3b** No BigInteger — already done; `bigInts` registry, `BigIntObject`, automatic promotion via `vm.registry.NewBigIntValue`.
+- **4b** `compileBlock` save/restore — addressed by commit `fe87f59` ("Refactor: extract compilationFrame from Compiler struct", Apr 14). `compileBlock` now uses atomic frame swap via `pushFrame`/`popFrame`.
+- **4d** Literal dedup uint64 key — comment added explaining why bit-comparison is sound (NaN-box uniqueness + interning of registry-backed values).
+- **4e** Source map / debug info — partially closed at the time of the review; remaining gap (exception stack capture) closed 2026-05-03. `ExceptionObject.CapturedFrames` snapshots stack at `signalExceptionObject`/`checkFrameOverflow`/raw-panic conversion. `Exception>>stackTrace` and `Exception>>printStackTrace` primitives added; `VM.ExecuteSafe` appends the trace to unhandled-exception messages.
+- **6c** Process error swallowing — closed 2026-05-03. Centralized recover handler `VM.HandleForkedPanic` (in `vm/process_lifecycle.go`) replaces 7 duplicated `recover()` blocks across `vm/concurrency.go`, `vm/waitgroup.go`, `vm/sandbox_primitives.go`. Non-NLR panics are now (a) logged to stderr (with `debug.Stack()` if `MAGGIE_DEBUG=1`) and (b) routed through `FinishProcess(ExitError(...))` so they correctly notify links/monitors and surface via `primExitReason`. Previously `waitgroup.go` and `sandbox_primitives.go` called `markDone(Nil, nil)` which literally dropped the error.
+- **2b** String registry contention — closed 2026-05-03. `GetStringContent` and `GetStringObject` now use the `RLock`+`UnsafeGet` single-lookup pattern (matching `CompareStrings` from earlier work).
+- **6a** Globals map race — closed 2026-05-03. `globalsMu sync.RWMutex` already guarded `Interpreter.LookupGlobal`/`SetGlobal` and `VM.LookupGlobal`/`SetGlobal`. The remaining gap was production callers writing `vmInst.Globals[name] = val` directly in `pipeline/pipeline.go` and `pipeline/rehydrate.go` (executes during `mag wrap`/`mag build` and `--serve` startup). Updated to use `VM.SetGlobal`. Init-time writes in `vm.go`/`exception.go`/etc. left as direct assignment (single-threaded by construction; locking would be wasted contention).
+- **REPL/compile error formatting** — closed 2026-05-03. `compiler.Compile`/`CompileExpr`/`ParseSourceFileFromString`/`CompileMethodDef*` previously rendered errors as `"parse errors: %v"` of a `[]string`, producing one-line `[err1 err2 err3]` output. Replaced with new `formatErrors(kind, errs)` helper in `compiler/codegen.go`: single error → `"<kind>: <msg>"`; multiple → `"<kind>:\n  <msg1>\n  <msg2>"`. Improves REPL UX and stack-trace readability everywhere.
+
+### New work driven by review (not in original list)
+
+- **`IsSymbol()` was lying** — returned true for every symbol-NaN-tagged value (channels, processes, mutexes, exceptions, strings, dictionaries, BigInts, GoObjects, RemoteRefs, etc.). Renamed to `IsSymbolEncoded()` (broad); added strict `IsSymbol()` that returns true only for actual interned Symbols (`marker==0 && id<stringIDOffset`). Audited 138 callers (53 broad / 53 narrow / 2 judgment); 3 latent printer/encoder bugs surfaced and silently fixed (REPL formatter, eval-service formatter, image encoder).
+- **`AutoIDRegistry` ID exhaustion / silent wrap** — `nextID atomic.Uint32.Add(1)` would silently wrap from `MaxUint32` → 0 producing collisions. Now panics with the registry's name when free-list is empty *and* `nextID > maxID`. Free-list reuses IDs from `Delete` and `Sweep`. Per-registry `WithMaxID`/`WithName`/`WithMonotonic` options. `classValues` opted-into monotonic mode (cached `*Class.classValueID` would alias if reused).
+- **`weakRefCounter` and `ConcurrencyRegistry` bespoke counters** — same silent-wrap bug class as AutoIDRegistry. Added panic-on-exhaustion via `allocConcurrencyID`/`allocConcurrencyID64` helpers for all 9 concurrency counters and `NextWeakRefID`. Free-list reuse intentionally not added — would conflict with `Sweep`'s nil-on-stale semantics.
+- **`Value.ObjectPtr` checkptr violation** — `unsafe.Pointer(uintptr(v) & payloadMask)` synthesized a uintptr from arithmetic and converted in a separate statement, violating `unsafe.Pointer` Pattern 5. Tripped `-race`'s checkptr and `TestAOTDispatchIntegration`. Fixed with single-expression conversion + `//go:nocheckptr`. Same bug at `CellPtr`, fixed too. Zero perf impact.
+- **`VTable.Lookup` / `rebuild` data race** — introduced (or surfaced) by 1c's open-addressed table. Lazy-rebuild without synchronization. Replaced `flat`/`flatMask`/`dirty` fields with `atomic.Pointer[vtSnapshot]` + `sync.Mutex` (DCL pattern). Hot path: one atomic load, no locks. 7 of 10 pre-existing race-test failures went green.
+
+### Outstanding follow-ups (not yet addressed)
+
+**Distribution / correctness:**
+- `vm/serial.go:753` — Remote-deserialized `ExceptionObject` arrives with empty `CapturedFrames` (frames not on the wire). For distributed debugging, serialize a pre-resolved string trace from the originating side.
+- ~~`vm/remote_channel.go:127` — `channelExportRegistry.Export` does an O(n) linear scan~~ — closed 2026-05-03. Added `byChan map[*ChannelObject]uint64` reverse index; export dedup is now O(1).
+
+**Test/race issues (pre-existing, exposed during this work):**
+- ~~`TestProfilerConcurrentAccess` — race on `Profiler.RecordMethodInvocation`~~ — closed 2026-05-03. `MethodProfile.IsHot` and `BlockProfile.IsHot` switched from `bool` to `atomic.Bool`; hot-transition uses `CompareAndSwap(false, true)` so the `hotMethodCount`/`hotBlockCount` increment fires exactly once per profile under contention. Reads through `IsMethodHot`/`IsBlockHot`/`Stats`/`HotMethods`/`HotBlocks` use `IsHot.Load()`. One test logger updated.
+- ~~`TestRemoteProcess_CastWithSendFunc`~~ — closed 2026-05-03. Replaced `var sentEnvelope []byte` + sleep+read with a buffered channel handoff and `select`-with-timeout for proper synchronization.
+- ~~`TestInterpreterIvarStore`~~ — closed 2026-05-03. No longer reproduces; passes 5/5 under `-race`. Likely silently fixed by intervening AutoIDRegistry/Class refactor work.
+- ~~`TestRegistryGCPostSweepBaselineReset`~~ — closed 2026-05-03. Root cause: seed phase used `growthThreshold=100` while allocating 200 entries, which fired an auto-sweep on alloc #101. That trigger queued in `gc.trigger`; the manual `SweepNow()` was synchronous but did not drain the queue, so a later loop iteration popped the queued trigger and incremented `SweepCount` after `startCount` was snapshotted. Fix: keep threshold at `1_000_000` during seed, drop to 100 only after `SweepNow()`. 20/20 green.
+- `TestRegistryGCCeilingTrigger` — flaky under `-race` with full vm suite (1 fail in 5); passes 100% in isolation. Scheduler-timing-sensitive 500ms wait. Same family as the post-sweep-baseline flake; the fix pattern (avoid seed-time auto-triggers) likely applies.
+
+**Doctest failures (pre-existing on `main`, not caused by this work):**
+- `DistributedSupervisor` doctests (2): `compile: parse errors: line 4: unexpected token: |` on the typed-temp setup line `| ds <DistributedSupervisor> |`. Confirmed 2026-05-03 to fail identically on a clean stash of `main`. Likely a doctest-harness issue handling `| name <Type> |` typed-temp syntax in setup blocks.
+
+**Code organization / leaky encapsulation:**
+- ~~`MonitorRef.ID` allocation reaches into `ConcurrencyRegistry.monitorRefID` directly~~ — closed 2026-05-03. `ConcurrencyRegistry.AllocMonitorRefID()` added; both call sites (`vm/monitor.go:83`, `vm/remote_lifecycle.go:41`) updated. Now uses `allocConcurrencyID64` like the other concurrency counters (panics on exhaustion instead of silent wrap).
+- ~~`cmd/mag/repl.go:203` calls `Execute` not `ExecuteSafe`~~ — closed 2026-05-03. REPL now calls `ExecuteSafe` and prints the captured trace on unhandled exceptions.
+- ~~`compiler/codegen.go` `compilationFrame.literals` initialized via append-to-nil~~ — reviewed 2026-05-03, kept as-is. Append-to-nil is idiomatic Go (slices don't need `make`, only maps do); not actually inconsistent with `literalMap: make(...)`.
+- `compiler/codegen.go` `compilationFrame.outerTemps`/`outerArgs` initialized as empty maps in `compileBlock` but never populated within `compileBlock` itself. Reviewed 2026-05-03: confirmed read in 4 places (`codegen.go:583,588,683,970,973`) but never written; lookups always return false (dead branches). Removal needs git archaeology to confirm intent — deferred until someone touches block compilation.
+
+**Performance:**
+- ~~`vm/object_registry.go` `GetStringContent` still does the unoptimized two-lookup path~~ — closed 2026-05-03. `GetStringContent` and `GetStringObject` now use the `RLock`/`UnsafeGet` single-lookup pattern.
+- ~~`vm/object_registry.go` `Cells` registry uses `sync.Mutex` for read methods~~ — closed 2026-05-03. Switched to `sync.RWMutex`; `HasCell`/`CellCount` now use `RLock`.
+
+**Naming / API hygiene flagged but not necessarily acted on:**
+- `ObjectRegistry.FullStats` returns the underlying map — callers could mutate it. Cosmetic.
+- `AutoIDRegistry.nextID` could be plain `uint32` now (only mutated under `freeMu`).
+- `Value.ObjectPtr` / `CellPtr` go vet still warns "possible misuse of unsafe.Pointer" — that's a static lint that fires on the pattern regardless of `//go:nocheckptr`. Not actionable without restructuring the encoding.
+
+### Deferred (large-scope or low-priority)
+
+- **1c-followup** Selector ID space pressure — 24-bit ceiling per kind. Free-list mitigates churn but doesn't widen the ceiling. Tag-scheme rework is its own multi-week project.
+- **3a-medium** Reserve more tag space for kinds (e.g., split symbol tag into "real symbol" vs "kinded object" sub-tags). Not started.
+- **3a-big** Widen per-kind payload to 32+ bits. Multi-week, separate decision.
+- **4a** No optimizer — multi-week. Constant folding alone is non-trivial because Smalltalk operators are overridable; only primitive ops on literal SmallInts/Floats are safely foldable.
+- **4c** Cell variable analysis O(method_size × nesting_depth) — not critical; defer until compile times bother someone.

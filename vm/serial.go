@@ -122,7 +122,7 @@ func (s *valueSerializer) serialize(v Value) ([]byte, error) {
 	case v.IsFloat():
 		return cborSerialEncMode.Marshal(v.Float64())
 
-	case v.IsSymbol():
+	case v.IsSymbolEncoded():
 		return s.serializeSymbolEncoded(v)
 
 	case v.IsObject():

@@ -18,7 +18,7 @@ func classToValue(id uint32) Value {
 
 // isClassValue returns true if this value is a class value.
 func isClassValue(v Value) bool {
-	if !v.IsSymbol() {
+	if !v.IsSymbolEncoded() {
 		return false
 	}
 	id := v.SymbolID()

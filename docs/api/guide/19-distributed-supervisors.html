@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Distributed Supervisors &mdash; Maggie API Reference</title>
+    <link rel="stylesheet" href="../css/style.css">
+</head>
+<body>
+<nav class="sidebar">
+    <div class="sidebar-title"><a href="../index.html">Maggie Docs</a></div>
+
+    <div class="sidebar-section">
+        <div class="sidebar-section-title">Guide</div>
+        <ul class="sidebar-list">
+
+            <li><a href="../guide/01-getting-started.html">Getting Started</a></li>
+
+            <li><a href="../guide/02-basics.html">Basics</a></li>
+
+            <li><a href="../guide/03-numbers.html">Numbers</a></li>
+
+            <li><a href="../guide/04-strings.html">Strings</a></li>
+
+            <li><a href="../guide/05-collections.html">Collections</a></li>
+
+            <li><a href="../guide/06-blocks.html">Blocks</a></li>
+
+            <li><a href="../guide/07-classes.html">Classes</a></li>
+
+            <li><a href="../guide/08-error-handling.html">Error Handling</a></li>
+
+            <li><a href="../guide/09-concurrency.html">Concurrency</a></li>
+
+            <li><a href="../guide/10-modules.html">Modules</a></li>
+
+            <li><a href="../guide/11-projects.html">Projects</a></li>
+
+            <li><a href="../guide/12-supervisors.html">Supervisors</a></li>
+
+            <li><a href="../guide/13-clustering.html">Clustering</a></li>
+
+            <li><a href="../guide/14-go-interop.html">Go Interop</a></li>
+
+            <li><a href="../guide/15-distribution.html">Distribution</a></li>
+
+            <li><a href="../guide/16-tooling-ide.html">Tooling &amp; IDE</a></li>
+
+            <li><a href="../guide/17-cue-integration.html">Cue Integration</a></li>
+
+            <li><a href="../guide/18-tuple-space.html">Tuple Space</a></li>
+
+            <li><a href="../guide/19-distributed-supervisors.html" class="active">Distributed Supervisors</a></li>
+
+            <li><a href="../guide/20-command-line-apps.html">Command-Line Apps</a></li>
+
+        </ul>
+    </div>
+
+    <div class="sidebar-section">
+        <div class="sidebar-section-title">API Reference</div>
+
+        <details class="sidebar-ns-group" open>
+            <summary>(root)</summary>
+            <ul class="sidebar-list">
+
+                <li><a href="../classes/Array.html">Array</a></li>
+
+                <li><a href="../classes/ArrayList.html">ArrayList</a></li>
+
+                <li><a href="../classes/AssignmentNode.html">AssignmentNode</a></li>
+
+                <li><a href="../classes/Association.html">Association</a></li>
+
+                <li><a href="../classes/BigInteger.html">BigInteger</a></li>
+
+                <li><a href="../classes/Block.html">Block</a></li>
+
+                <li><a href="../classes/BlockNode.html">BlockNode</a></li>
+
+                <li><a href="../classes/Boolean.html">Boolean</a></li>
+
+                <li><a href="../classes/ByteArray.html">ByteArray</a></li>
+
+                <li><a href="../classes/BytecodeGenerator.html">BytecodeGenerator</a></li>
+
+                <li><a href="../classes/CancellationContext.html">CancellationContext</a></li>
+
+                <li><a href="../classes/CascadeNode.html">CascadeNode</a></li>
+
+                <li><a href="../classes/Channel.html">Channel</a></li>
+
+                <li><a href="../classes/Character.html">Character</a></li>
+
+                <li><a href="../classes/CharacterStream.html">CharacterStream</a></li>
+
+                <li><a href="../classes/ChildSpec.html">ChildSpec</a></li>
+
+                <li><a href="../classes/Class.html">Class</a></li>
+
+                <li><a href="../classes/ClassNode.html">ClassNode</a></li>
+
+                <li><a href="../classes/Cluster.html">Cluster</a></li>
+
+                <li><a href="../classes/CompiledMethod.html">CompiledMethod</a></li>
+
+                <li><a href="../classes/Compiler.html">Compiler</a></li>
+
+                <li><a href="../classes/ConstraintStore.html">ConstraintStore</a></li>
+
+                <li><a href="../classes/Context.html">Context</a></li>
+
+                <li><a href="../classes/CueContext.html">CueContext</a></li>
+
+                <li><a href="../classes/CueValue.html">CueValue</a></li>
+
+                <li><a href="../classes/DateTime.html">DateTime</a></li>
+
+                <li><a href="../classes/Debugger.html">Debugger</a></li>
+
+                <li><a href="../classes/Dictionary.html">Dictionary</a></li>
+
+                <li><a href="../classes/DistributedSupervisor.html">DistributedSupervisor</a></li>
+
+                <li><a href="../classes/DocServer.html">DocServer</a></li>
+
+                <li><a href="../classes/DuckAppender.html">DuckAppender</a></li>
+
+                <li><a href="../classes/DuckDatabase.html">DuckDatabase</a></li>
+
+                <li><a href="../classes/DynamicSupervisor.html">DynamicSupervisor</a></li>
+
+                <li><a href="../classes/Ed25519.html">Ed25519</a></li>
+
+                <li><a href="../classes/Error.html">Error</a></li>
+
+                <li><a href="../classes/Exception.html">Exception</a></li>
+
+                <li><a href="../classes/ExternalProcess.html">ExternalProcess</a></li>
+
+                <li><a href="../classes/Failure.html">Failure</a></li>
+
+                <li><a href="../classes/False.html">False</a></li>
+
+                <li><a href="../classes/File.html">File</a></li>
+
+                <li><a href="../classes/Float.html">Float</a></li>
+
+                <li><a href="../classes/Future.html">Future</a></li>
+
+                <li><a href="../classes/GrpcClient.html">GrpcClient</a></li>
+
+                <li><a href="../classes/GrpcStream.html">GrpcStream</a></li>
+
+                <li><a href="../classes/Halt.html">Halt</a></li>
+
+                <li><a href="../classes/HashRing.html">HashRing</a></li>
+
+                <li><a href="../classes/HttpClient.html">HttpClient</a></li>
+
+                <li><a href="../classes/HttpRequest.html">HttpRequest</a></li>
+
+                <li><a href="../classes/HttpResponse.html">HttpResponse</a></li>
+
+                <li><a href="../classes/HttpServer.html">HttpServer</a></li>
+
+                <li><a href="../classes/Identity.html">Identity</a></li>
+
+                <li><a href="../classes/Json.html">Json</a></li>
+
+                <li><a href="../classes/JsonParseError.html">JsonParseError</a></li>
+
+                <li><a href="../classes/JsonReader.html">JsonReader</a></li>
+
+                <li><a href="../classes/JsonWriter.html">JsonWriter</a></li>
+
+                <li><a href="../classes/Lexer.html">Lexer</a></li>
+
+                <li><a href="../classes/LiteralNode.html">LiteralNode</a></li>
+
+                <li><a href="../classes/MailboxMessage.html">MailboxMessage</a></li>
+
+                <li><a href="../classes/Message.html">Message</a></li>
+
+                <li><a href="../classes/MessageNotUnderstood.html">MessageNotUnderstood</a></li>
+
+                <li><a href="../classes/MessageSendNode.html">MessageSendNode</a></li>
+
+                <li><a href="../classes/Metaclass.html">Metaclass</a></li>
+
+                <li><a href="../classes/MethodNode.html">MethodNode</a></li>
+
+                <li><a href="../classes/Mutex.html">Mutex</a></li>
+
+                <li><a href="../classes/Node.html">Node</a></li>
+
+                <li><a href="../classes/Notification.html">Notification</a></li>
+
+                <li><a href="../classes/Object.html">Object</a></li>
+
+                <li><a href="../classes/Parser.html">Parser</a></li>
+
+                <li><a href="../classes/Process.html">Process</a></li>
+
+                <li><a href="../classes/Proquint.html">Proquint</a></li>
+
+                <li><a href="../classes/Random.html">Random</a></li>
+
+                <li><a href="../classes/Regex.html">Regex</a></li>
+
+                <li><a href="../classes/RemoteChannel.html">RemoteChannel</a></li>
+
+                <li><a href="../classes/RemoteProcess.html">RemoteProcess</a></li>
+
+                <li><a href="../classes/Result.html">Result</a></li>
+
+                <li><a href="../classes/ReturnNode.html">ReturnNode</a></li>
+
+                <li><a href="../classes/SSEConnection.html">SSEConnection</a></li>
+
+                <li><a href="../classes/Sandbox.html">Sandbox</a></li>
+
+                <li><a href="../classes/Semaphore.html">Semaphore</a></li>
+
+                <li><a href="../classes/Set.html">Set</a></li>
+
+                <li><a href="../classes/Sha256.html">Sha256</a></li>
+
+                <li><a href="../classes/Signal.html">Signal</a></li>
+
+                <li><a href="../classes/SmallInteger.html">SmallInteger</a></li>
+
+                <li><a href="../classes/SocketConnection.html">SocketConnection</a></li>
+
+                <li><a href="../classes/SqliteDatabase.html">SqliteDatabase</a></li>
+
+                <li><a href="../classes/SqliteRows.html">SqliteRows</a></li>
+
+                <li><a href="../classes/SqliteStatement.html">SqliteStatement</a></li>
+
+                <li><a href="../classes/StackOverflow.html">StackOverflow</a></li>
+
+                <li><a href="../classes/String.html">String</a></li>
+
+                <li><a href="../classes/SubscriptOutOfBounds.html">SubscriptOutOfBounds</a></li>
+
+                <li><a href="../classes/Success.html">Success</a></li>
+
+                <li><a href="../classes/Supervisor.html">Supervisor</a></li>
+
+                <li><a href="../classes/Symbol.html">Symbol</a></li>
+
+                <li><a href="../classes/System.html">System</a></li>
+
+                <li><a href="../classes/Token.html">Token</a></li>
+
+                <li><a href="../classes/Toml.html">Toml</a></li>
+
+                <li><a href="../classes/TomlParseError.html">TomlParseError</a></li>
+
+                <li><a href="../classes/True.html">True</a></li>
+
+                <li><a href="../classes/TupleSpace.html">TupleSpace</a></li>
+
+                <li><a href="../classes/UndefinedObject.html">UndefinedObject</a></li>
+
+                <li><a href="../classes/UnixSocketClient.html">UnixSocketClient</a></li>
+
+                <li><a href="../classes/UnixSocketServer.html">UnixSocketServer</a></li>
+
+                <li><a href="../classes/VariableNode.html">VariableNode</a></li>
+
+                <li><a href="../classes/WaitGroup.html">WaitGroup</a></li>
+
+                <li><a href="../classes/Warning.html">Warning</a></li>
+
+                <li><a href="../classes/WeakReference.html">WeakReference</a></li>
+
+                <li><a href="../classes/ZeroDivide.html">ZeroDivide</a></li>
+
+            </ul>
+        </details>
+
+        <details class="sidebar-ns-group">
+            <summary>Cli</summary>
+            <ul class="sidebar-list">
+
+                <li><a href="../classes/Cli/CliError.html">CliError</a></li>
+
+                <li><a href="../classes/Cli/Command.html">Command</a></li>
+
+                <li><a href="../classes/Cli/EnvBinding.html">EnvBinding</a></li>
+
+                <li><a href="../classes/Cli/Flag.html">Flag</a></li>
+
+                <li><a href="../classes/Cli/Output.html">Output</a></li>
+
+            </ul>
+        </details>
+
+    </div>
+</nav>
+<main class="content">
+    <div class="breadcrumb">
+        <a href="../index.html">Maggie API Reference</a>
+        &rsaquo; Guide
+        &rsaquo; Distributed Supervisors
+    </div>
+
+    <h1>Distributed Supervisors</h1>
+
+
+    <div class="guide-intro">
+        <p>Distributed supervisors extend the Supervisor pattern to manage child
+processes across multiple cluster nodes. When a node goes down, its
+children are automatically restarted on surviving nodes.</p>
+<p><code>DistributedSupervisor</code> reuses the same <code>ChildSpec</code>, restart strategies,
+and restart intensity semantics as the local <code>Supervisor</code> — the key
+difference is that children are spawned on remote nodes via <code>spawnOn:</code>
+and monitored with cross-node monitors.</p>
+
+    </div>
+
+
+
+    <div class="guide-section">
+
+        <h2>Creating a Distributed Supervisor</h2>
+<p>A <code>DistributedSupervisor</code> takes the same strategy and child specs as a
+regular <code>Supervisor</code>, plus a <code>Cluster</code> for node discovery and placement.</p>
+<p>Children are distributed across cluster members via round-robin. If no
+cluster is provided (or the cluster has no live members), children are
+spawned locally as a fallback.</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>&#34;Set up a cluster and distributed supervisor&#34;
+| cluster sup |
+cluster := Cluster seeds: #(&#39;worker1:8081&#39; &#39;worker2:8081&#39;).
+cluster start.
+
+sup := DistributedSupervisor
+    new: #oneForOne
+    children: {
+        ChildSpec id: &#39;indexer&#39; start: [Indexer new run].
+        ChildSpec id: &#39;crawler&#39; start: [Crawler new run] restart: #transient
+    }
+    cluster: cluster.
+sup start.
+
+&#34;Children are spread across cluster nodes&#34;
+sup countChildren.   &#34;=&gt; 2&#34;
+sup runningChildren. &#34;=&gt; #(&#39;indexer&#39; &#39;crawler&#39;)&#34;
+
+&#34;Check where a child is running&#34;
+sup nodeFor: &#39;indexer&#39;.   &#34;=&gt; a Node or nil (local)&#34;
+
+sup stop.
+cluster stop</code></pre>
+</div>
+<p><strong>Strategies</strong> work the same as local Supervisor:
+- <code>#oneForOne</code> — restart only the crashed child
+- <code>#oneForAll</code> — restart all children
+- <code>#restForOne</code> — restart the crashed child and those started after it</p>
+<p><strong>Restart policies</strong> per child spec:
+- <code>#permanent</code> — always restart (default)
+- <code>#temporary</code> — never restart
+- <code>#transient</code> — restart only on abnormal exit</p>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <h2>Node Failure Handling</h2>
+<p>When a node goes down, the <code>DistributedSupervisor</code> receives a
+<code>#processDown:</code> notification (via cross-node monitors). It identifies
+all children assigned to the dead node and restarts them on surviving
+cluster members.</p>
+<p>If remote spawning fails (e.g., no nodes available), children fall
+back to local execution automatically.</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>&#34;Supervisor with node failure handling&#34;
+| cluster sup |
+cluster := Cluster seeds: #(&#39;node-a:8081&#39; &#39;node-b:8081&#39;).
+cluster start.
+
+sup := DistributedSupervisor
+    new: #oneForOne
+    children: {
+        ChildSpec id: &#39;w1&#39; start: [Worker new run].
+        ChildSpec id: &#39;w2&#39; start: [Worker new run].
+        ChildSpec id: &#39;w3&#39; start: [Worker new run]
+    }
+    cluster: cluster.
+sup start.
+
+&#34;If node-a goes down, children on node-a are restarted on node-b&#34;
+&#34;If node-b is also down, children fall back to local execution&#34;</code></pre>
+</div>
+<p><strong>Restart intensity</strong> is respected across node failures — if too many
+restarts happen in the time window (default: 3 in 5 seconds), the
+supervisor crashes upward, same as local Supervisor.</p>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <h2>Dynamic Children</h2>
+<p>Children can be added and removed at runtime, just like local Supervisor:</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>| cluster sup |
+cluster := Cluster seeds: #(&#39;worker1:8081&#39;).
+cluster start.
+
+sup := DistributedSupervisor new: #oneForOne children: #() cluster: cluster.
+sup start.
+
+&#34;Add children dynamically&#34;
+sup startChild: (ChildSpec id: &#39;task-1&#39; start: [Task new run]).
+sup startChild: (ChildSpec id: &#39;task-2&#39; start: [Task new run]).
+
+sup countChildren.   &#34;=&gt; 2&#34;
+
+&#34;Remove a specific child&#34;
+sup terminateChild: &#39;task-1&#39;.
+sup countChildren.   &#34;=&gt; 1&#34;
+
+sup stop.
+cluster stop</code></pre>
+</div>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <h2>Combining with Local Supervisors</h2>
+<p>A common pattern is a top-level local <code>Supervisor</code> that manages both
+local services and a <code>DistributedSupervisor</code> for remote work:</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>| cluster distSup localSup |
+cluster := Cluster seeds: #(&#39;worker1:8081&#39; &#39;worker2:8081&#39;).
+cluster start.
+
+&#34;Distributed supervisor for compute workers&#34;
+distSup := DistributedSupervisor
+    new: #oneForOne
+    children: {
+        ChildSpec id: &#39;compute-1&#39; start: [ComputeWorker new run].
+        ChildSpec id: &#39;compute-2&#39; start: [ComputeWorker new run]
+    }
+    cluster: cluster.
+
+&#34;Local supervisor for the API server + distributed supervisor&#34;
+localSup := Supervisor new: #oneForOne children: {
+    ChildSpec id: &#39;api&#39; start: [ApiServer new run].
+    ChildSpec id: &#39;dist&#39; start: [distSup start. Process receive]
+}.
+localSup start</code></pre>
+</div>
+
+
+    </div>
+
+
+    <div class="footer">
+        Generated by Maggie doc generator.
+    </div>
+</main>
+    <script src="../js/playground.js"></script>
+</body>
+</html>

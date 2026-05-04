@@ -24,7 +24,7 @@ const stringIDOffset uint32 = 0x80000000
 // IsStringValue returns true if the value is a string object (not a symbol).
 // String IDs are in the range [stringIDOffset, dictionaryIDOffset).
 func IsStringValue(v Value) bool {
-	if !v.IsSymbol() {
+	if !v.IsSymbolEncoded() {
 		return false
 	}
 	id := v.SymbolID()

@@ -200,7 +200,11 @@ func evalAndPrint(vmInst *vm.VM, input string) {
 		return
 	}
 
-	result := vmInst.Execute(method, vm.Nil, nil)
+	result, err := vmInst.ExecuteSafe(method, vm.Nil, nil)
+	if err != nil {
+		fmt.Printf("%v\n", err)
+		return
+	}
 	printValue(vmInst, result)
 }
 

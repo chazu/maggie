@@ -768,3 +768,246 @@ func BenchmarkFindHandler(b *testing.B) {
 		i.FindHandler(vm.ErrorClass)
 	}
 }
+
+// ---------------------------------------------------------------------------
+// Captured stack trace tests (review item 4e)
+// ---------------------------------------------------------------------------
+
+// buildSignalingHandlerSetup wires up a "signaler trigger" call inside an
+// on:do: handler. The handler captures the exception object so the test can
+// inspect ex.CapturedFrames after the protected block runs.
+//
+//	[signaler trigger] on: Error do: [:ex | caught := ex; nil]
+//
+// Returns the resulting outcome value plus the captured *ExceptionObject.
+func runSignalAndCapture(t *testing.T, exClass *Class) *ExceptionObject {
+	t.Helper()
+	vm := NewVM()
+
+	if exClass == nil {
+		exClass = vm.ErrorClass
+	}
+	triggerSelID := vm.Selectors.Intern("trigger")
+	deeperSelID := vm.Selectors.Intern("deeper")
+
+	signalerClass := NewClass("TraceCaptureSignaler", nil)
+	vm.Classes.Register(signalerClass)
+	signalerClass.AddMethod0(vm.Selectors, "trigger", func(vmPtr interface{}, recv Value) Value {
+		v := vmPtr.(*VM)
+		return v.signalException(v.ErrorClass, v.registry.NewStringValue("boom"))
+	})
+	// "deeper" calls "trigger" so we get at least two interesting frames.
+	signalerClass.AddMethod0(vm.Selectors, "deeper", func(vmPtr interface{}, recv Value) Value {
+		v := vmPtr.(*VM)
+		return v.Send(recv, "trigger", nil)
+	})
+	signalerObj := signalerClass.NewInstance()
+
+	// Protected block: [signaler deeper]
+	protectedBlock := &BlockMethod{
+		Arity: 0, NumTemps: 0, NumCaptures: 1,
+		Bytecode: func() []byte {
+			bb := NewBytecodeBuilder()
+			bb.EmitByte(OpPushCaptured, 0)
+			bb.EmitSend(OpSend, uint16(deeperSelID), 0)
+			bb.Emit(OpBlockReturn)
+			return bb.Bytes()
+		}(),
+	}
+	protectedBV := &BlockValue{
+		Block: protectedBlock, Captures: []Value{signalerObj.ToValue()},
+		HomeFrame: -1, HomeSelf: Nil, HomeMethod: nil,
+	}
+	protectedBlockVal := FromBlockID(uint32(vm.registry.RegisterBlock(protectedBV)))
+	_ = triggerSelID
+
+	// Handler block [:ex | ex]  -- returns the exception so we can inspect it
+	handlerBlock := &BlockMethod{
+		Arity: 1, NumTemps: 1,
+		Bytecode: func() []byte {
+			bb := NewBytecodeBuilder()
+			bb.EmitByte(OpPushTemp, 0)
+			bb.Emit(OpBlockReturn)
+			return bb.Bytes()
+		}(),
+	}
+	handlerBV := &BlockValue{
+		Block: handlerBlock, HomeFrame: -1, HomeSelf: Nil, HomeMethod: nil,
+	}
+	handlerVal := FromBlockID(uint32(vm.registry.RegisterBlock(handlerBV)))
+
+	result := vm.evaluateBlockWithHandler(protectedBlockVal, exClass, handlerVal)
+	if !result.IsException() {
+		t.Fatalf("handler block should have returned the exception value, got %v", result)
+	}
+	ex := vm.registry.GetException(result.ExceptionID())
+	if ex == nil {
+		t.Fatalf("exception object not retrievable from handler result")
+	}
+	return ex
+}
+
+func TestExceptionCapturesStackAtSignal(t *testing.T) {
+	ex := runSignalAndCapture(t, nil)
+
+	if len(ex.CapturedFrames) == 0 {
+		t.Fatalf("expected CapturedFrames to be populated, got empty slice")
+	}
+	// The signaling site uses a Go primitive (signalException) and thus the
+	// innermost interpreter frame at signal time is the caller of the
+	// primitive — i.e. the block that did `signaler deeper`. We just assert
+	// the trace has at least the protected block frame.
+	found := false
+	for _, f := range ex.CapturedFrames {
+		if f.Block != nil || f.Selector == "deeper" || f.Selector == "trigger" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("expected captured trace to include block or deeper/trigger frames, got %+v", ex.CapturedFrames)
+	}
+}
+
+func TestCapturedTracePreservedAcrossPass(t *testing.T) {
+	// First signal captures; pass should NOT re-capture (the original signal
+	// site is what matters to the user). We approximate by signaling, then
+	// re-signaling the same ExceptionObject and verifying the frame slice
+	// pointer is unchanged.
+	vm := NewVM()
+	ex := &ExceptionObject{
+		ExceptionClass: vm.ErrorClass,
+		MessageText:    vm.registry.NewStringValue("first"),
+		Resumable:      false,
+		CapturedFrames: []TraceFrame{{Selector: "preset"}},
+	}
+	id := vm.registry.RegisterException(ex)
+	exVal := FromExceptionID(id)
+	originalFrames := ex.CapturedFrames
+	defer func() {
+		_ = recover()
+		if &ex.CapturedFrames[0] != &originalFrames[0] {
+			t.Errorf("CapturedFrames was overwritten on re-signal")
+		}
+	}()
+	vm.signalExceptionObject(exVal, ex) // panics
+}
+
+func TestFormatCapturedTraceShape(t *testing.T) {
+	frames := []TraceFrame{
+		{ClassName: "Foo", Selector: "bar", IP: 0},
+		{Selector: "<block>", ClassName: "Foo", IP: 0},
+	}
+	out := FormatCapturedTrace(frames)
+	if !strings.Contains(out, "Foo>>bar") {
+		t.Errorf("expected 'Foo>>bar' in trace output, got:\n%s", out)
+	}
+	if !strings.Contains(out, "<block>") {
+		t.Errorf("expected '<block>' in trace output, got:\n%s", out)
+	}
+	if !strings.Contains(out, "[0]") || !strings.Contains(out, "[1]") {
+		t.Errorf("expected indexed frame markers, got:\n%s", out)
+	}
+}
+
+func TestStackTracePrimitiveReturnsString(t *testing.T) {
+	ex := runSignalAndCapture(t, nil)
+	// Re-register for primitive lookup
+	vm := NewVM()
+	id := vm.registry.RegisterException(ex)
+	exVal := FromExceptionID(id)
+	result := vm.Send(exVal, "stackTrace", nil)
+	if !IsStringValue(result) {
+		t.Fatalf("stackTrace primitive should return a string, got %v", result)
+	}
+	s := vm.registry.GetStringContent(result)
+	if s == "" {
+		t.Errorf("stackTrace returned empty string")
+	}
+}
+
+func TestExecuteSafeIncludesCapturedTrace(t *testing.T) {
+	// Build a CompiledMethod that signals. Use the same low-level scaffolding
+	// as the other tests in this file.
+	vm := NewVM()
+	signalSelID := vm.Selectors.Intern("trigger")
+
+	signalerClass := NewClass("ESafeSignaler", nil)
+	vm.Classes.Register(signalerClass)
+	signalerClass.AddMethod0(vm.Selectors, "trigger", func(vmPtr interface{}, recv Value) Value {
+		v := vmPtr.(*VM)
+		return v.signalException(v.ErrorClass, v.registry.NewStringValue("kapow"))
+	})
+	signalerObj := signalerClass.NewInstance()
+
+	method := &CompiledMethod{
+		Arity:    0,
+		NumTemps: 0,
+		Literals: []Value{signalerObj.ToValue()},
+		Bytecode: func() []byte {
+			bb := NewBytecodeBuilder()
+			bb.EmitUint16(OpPushLiteral, 0)
+			bb.EmitSend(OpSend, uint16(signalSelID), 0)
+			bb.Emit(OpReturnTop)
+			return bb.Bytes()
+		}(),
+	}
+
+	_, err := vm.ExecuteSafe(method, Nil, nil)
+	if err == nil {
+		t.Fatalf("expected error from unhandled exception, got nil")
+	}
+	msg := err.Error()
+	if !strings.Contains(msg, "kapow") {
+		t.Errorf("expected message text in error, got: %s", msg)
+	}
+	// The captured trace should be appended on a new line, with at least one
+	// frame marker like "[0]".
+	if !strings.Contains(msg, "[0]") {
+		t.Errorf("expected captured trace frames in error output, got:\n%s", msg)
+	}
+}
+
+func BenchmarkCaptureTrace(b *testing.B) {
+	vm := NewVM()
+	i := vm.interpreter
+	for d := 0; d < 32; d++ {
+		i.fp++
+		if i.fp >= len(i.frames) {
+			i.frames = append(i.frames, &CallFrame{IP: d})
+		} else {
+			i.frames[i.fp] = &CallFrame{IP: d}
+		}
+	}
+	b.ReportAllocs()
+	b.ResetTimer()
+	for n := 0; n < b.N; n++ {
+		_ = i.CaptureTrace(MaxCapturedTraceDepth)
+	}
+}
+
+func TestCaptureTraceRespectsMaxDepth(t *testing.T) {
+	vm := NewVM()
+	i := vm.interpreter
+
+	// Synthesize a deep frame stack manually by populating frames.
+	depth := 50
+	for i.fp+1 < depth {
+		i.fp++
+		if i.fp >= len(i.frames) {
+			i.frames = append(i.frames, &CallFrame{IP: i.fp})
+		} else {
+			i.frames[i.fp] = &CallFrame{IP: i.fp}
+		}
+	}
+
+	// Cap at 10 — should give back exactly 10 frames.
+	frames := i.CaptureTrace(10)
+	if len(frames) != 10 {
+		t.Errorf("expected 10 frames with cap=10, got %d", len(frames))
+	}
+	// First frame should be the innermost (highest IP).
+	if frames[0].IP != depth-1 {
+		t.Errorf("expected innermost-first ordering (IP=%d), got IP=%d", depth-1, frames[0].IP)
+	}
+}

@@ -33,7 +33,7 @@ func semaphoreToValue(id int) Value {
 }
 
 func isSemaphoreValue(v Value) bool {
-	if !v.IsSymbol() {
+	if !v.IsSymbolEncoded() {
 		return false
 	}
 	id := v.SymbolID()

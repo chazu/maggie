@@ -92,9 +92,9 @@ func RehydrateFromStore(vmInst *vm.VM) (int, error) {
 		vmInst.Classes.Register(class)
 		classVal := vmInst.ClassValue(class)
 		if d.Namespace != "" {
-			vmInst.Globals[fqn] = classVal
+			vmInst.SetGlobal(fqn, classVal)
 		} else {
-			vmInst.Globals[d.Name] = classVal
+			vmInst.SetGlobal(d.Name, classVal)
 		}
 
 		// Mark as received from network (not locally loaded)

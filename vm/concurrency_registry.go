@@ -1,9 +1,49 @@
 package vm
 
 import (
+	"fmt"
 	"sync"
 	"sync/atomic"
 )
+
+// concurrencyIDMax is the largest valid ID for any concurrency primitive whose
+// Value encoding shares the 24-bit symbol payload with a marker byte (see
+// vm/markers.go: channelMarker, processMarker, mutexMarker, etc.). Wrap-around
+// past this would alias a new primitive's ID to a live one and silently route
+// sends/receives/locks to the wrong object — a correctness disaster.
+//
+// We deliberately do NOT recycle IDs even after Sweep removes terminated
+// entries: a Value still referencing the swept primitive would resolve to a
+// different live primitive after recycling, changing semantics from "nil
+// lookup" to "wrong object". For 4G IDs to actually be exhausted in a single
+// VM lifetime, an application would need to allocate ~30k channels/sec for
+// 5 days straight without restart — at which point a panic is the right
+// failure mode (it's a leak, not a normal workload).
+const concurrencyIDMax int32 = (1 << 24) - 1
+
+// concurrencyIDMaxU64 mirrors concurrencyIDMax for uint64 counters (process,
+// monitorRef). Same rationale as concurrencyIDMax.
+const concurrencyIDMaxU64 uint64 = (1 << 24) - 1
+
+// allocConcurrencyID atomically bumps a uint32-sized counter and panics on
+// exhaustion. The shared helper guarantees identical overflow semantics for
+// every concurrency kind so future readers have one invariant to remember.
+func allocConcurrencyID(counter *atomic.Int32, kind string) int {
+	id := counter.Add(1) - 1
+	if id < 0 || id > concurrencyIDMax {
+		panic(fmt.Sprintf("ConcurrencyRegistry: %s ID space exhausted (max 2^24-1 live %s)", kind, kind))
+	}
+	return int(id)
+}
+
+// allocConcurrencyID64 is the uint64 counterpart for processes and monitors.
+func allocConcurrencyID64(counter *atomic.Uint64, kind string) uint64 {
+	id := counter.Add(1) - 1
+	if id > concurrencyIDMaxU64 {
+		panic(fmt.Sprintf("ConcurrencyRegistry: %s ID space exhausted (max 2^24-1 live %s)", kind, kind))
+	}
+	return id
+}
 
 // ---------------------------------------------------------------------------
 // ConcurrencyRegistry: Holds all concurrency-related registries
@@ -62,6 +102,11 @@ type ConcurrencyRegistry struct {
 	monitorRefID atomic.Uint64
 }
 
+// AllocMonitorRefID returns a fresh monitor ref ID. Panics on counter exhaustion.
+func (cr *ConcurrencyRegistry) AllocMonitorRefID() uint64 {
+	return allocConcurrencyID64(&cr.monitorRefID, "monitorRef")
+}
+
 // NewConcurrencyRegistry creates a new concurrency registry.
 func NewConcurrencyRegistry() *ConcurrencyRegistry {
 	cr := &ConcurrencyRegistry{
@@ -96,7 +141,7 @@ func NewConcurrencyRegistry() *ConcurrencyRegistry {
 
 // RegisterChannel adds a channel to the registry and returns its Value.
 func (cr *ConcurrencyRegistry) RegisterChannel(ch *ChannelObject) Value {
-	id := int(cr.channelID.Add(1) - 1)
+	id := allocConcurrencyID(&cr.channelID, "channel")
 
 	cr.channelsMu.Lock()
 	cr.channels[id] = ch
@@ -178,7 +223,7 @@ func (cr *ConcurrencyRegistry) CreateProcess(mailboxCapacity ...int) *ProcessObj
 	if len(mailboxCapacity) > 0 && mailboxCapacity[0] > 0 {
 		cap = mailboxCapacity[0]
 	}
-	id := cr.processID.Add(1) - 1
+	id := allocConcurrencyID64(&cr.processID, "process")
 	proc := &ProcessObject{
 		id:      id,
 		done:    make(chan struct{}),
@@ -218,7 +263,7 @@ func (cr *ConcurrencyRegistry) ProcessCount() int {
 
 // RegisterMutex adds a mutex to the registry and returns its Value.
 func (cr *ConcurrencyRegistry) RegisterMutex(mu *MutexObject) Value {
-	id := int(cr.mutexID.Add(1) - 1)
+	id := allocConcurrencyID(&cr.mutexID, "mutex")
 
 	cr.mutexesMu.Lock()
 	cr.mutexes[id] = mu
@@ -252,7 +297,7 @@ func (cr *ConcurrencyRegistry) MutexCount() int {
 
 // RegisterWaitGroup adds a wait group to the registry and returns its Value.
 func (cr *ConcurrencyRegistry) RegisterWaitGroup(wg *WaitGroupObject) Value {
-	id := int(cr.waitGroupID.Add(1) - 1)
+	id := allocConcurrencyID(&cr.waitGroupID, "waitGroup")
 
 	cr.waitGroupsMu.Lock()
 	cr.waitGroups[id] = wg
@@ -286,7 +331,7 @@ func (cr *ConcurrencyRegistry) WaitGroupCount() int {
 
 // RegisterSemaphore adds a semaphore to the registry and returns its Value.
 func (cr *ConcurrencyRegistry) RegisterSemaphore(sem *SemaphoreObject) Value {
-	id := int(cr.semaphoreID.Add(1) - 1)
+	id := allocConcurrencyID(&cr.semaphoreID, "semaphore")
 
 	cr.semaphoresMu.Lock()
 	cr.semaphores[id] = sem
@@ -320,7 +365,7 @@ func (cr *ConcurrencyRegistry) SemaphoreCount() int {
 
 // RegisterCancellationContext adds a cancellation context to the registry and returns its Value.
 func (cr *ConcurrencyRegistry) RegisterCancellationContext(ctx *CancellationContextObject) Value {
-	id := int(cr.cancellationContextID.Add(1) - 1)
+	id := allocConcurrencyID(&cr.cancellationContextID, "cancellationContext")
 
 	cr.cancellationContextsMu.Lock()
 	cr.cancellationContexts[id] = ctx
@@ -371,7 +416,7 @@ func (cr *ConcurrencyRegistry) CancellationContextCount() int {
 // RegisterBlock adds a block to the registry, records it in blocksByHomeFrame,
 // and returns its ID.
 func (cr *ConcurrencyRegistry) RegisterBlock(bv *BlockValue) int {
-	id := int(cr.blockID.Add(1) - 1)
+	id := allocConcurrencyID(&cr.blockID, "block")
 
 	cr.blocksMu.Lock()
 	cr.blocks[id] = bv
@@ -493,7 +538,7 @@ func (cr *ConcurrencyRegistry) Sweep() (channels, processes, blocks int) {
 
 // RegisterFuture adds a future to the registry and returns its Value.
 func (cr *ConcurrencyRegistry) RegisterFuture(f *FutureObject) Value {
-	id := int(cr.futureID.Add(1) - 1)
+	id := allocConcurrencyID(&cr.futureID, "future")
 	cr.futuresMu.Lock()
 	cr.futures[id] = f
 	cr.futuresMu.Unlock()
@@ -538,7 +583,7 @@ func (cr *ConcurrencyRegistry) SweepFutures() int {
 
 // RegisterArrayList adds an array list to the registry and returns its Value.
 func (cr *ConcurrencyRegistry) RegisterArrayList(al *ArrayListObject) Value {
-	id := int(cr.arrayListID.Add(1) - 1)
+	id := allocConcurrencyID(&cr.arrayListID, "arrayList")
 
 	cr.arrayListsMu.Lock()
 	cr.arrayLists[id] = al

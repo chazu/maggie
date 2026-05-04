@@ -613,3 +613,255 @@ func TestRegistryGCNoDanglingReferences(t *testing.T) {
 		t.Logf("isClosed on swept channel returned %v (expected True or graceful handling)", result)
 	}
 }
+
+// ---------------------------------------------------------------------------
+// Pressure-Aware Trigger Tests (recommendation 2c)
+// ---------------------------------------------------------------------------
+
+// waitForSweepCount polls until SweepCount reaches at least target or
+// the deadline elapses. Returns the final count.
+func waitForSweepCount(gc *RegistryGC, target uint64, deadline time.Duration) uint64 {
+	end := time.Now().Add(deadline)
+	for time.Now().Before(end) {
+		if c := gc.SweepCount(); c >= target {
+			return c
+		}
+		time.Sleep(2 * time.Millisecond)
+	}
+	return gc.SweepCount()
+}
+
+// TestRegistryGCGrowthTrigger verifies that allocating more than the
+// growth threshold worth of exceptions wakes the GC without waiting for
+// the wall-clock floor.
+func TestRegistryGCGrowthTrigger(t *testing.T) {
+	vm := NewVM()
+	defer vm.Shutdown()
+
+	// Tighten the GC for the test: 60s timer floor (won't fire),
+	// growth threshold of 100 on exceptions.
+	vm.registryGC.Stop()
+	gc := NewRegistryGC(vm, 60*time.Second)
+	vm.registryGC = gc
+	gc.Start()
+	defer gc.Stop()
+
+	// Override the exceptions threshold to a small value for the test.
+	for _, mr := range gc.monitored {
+		if mr.name == "exceptions" {
+			mr.growthThreshold = 100
+			mr.absoluteCeiling = 1_000_000 // disable ceiling path
+		}
+	}
+
+	startCount := gc.SweepCount()
+
+	// Register 200 exceptions (> threshold of 100). Mark them all handled
+	// so the sweep actually reclaims them.
+	for i := 0; i < 200; i++ {
+		ex := &ExceptionObject{Handled: true}
+		vm.registry.RegisterException(ex)
+	}
+
+	final := waitForSweepCount(gc, startCount+1, 500*time.Millisecond)
+	if final == startCount {
+		t.Fatalf("growth trigger did not fire within 500ms (sweepCount stuck at %d)", startCount)
+	}
+	_, growth, _, _ := gc.SweepCounts()
+	if growth == 0 {
+		t.Errorf("expected at least one growth-triggered sweep, got 0 (counts: %+v)", gc.LastStats())
+	}
+	if last := gc.LastStats(); last == nil || last.Reason != TriggerGrowth {
+		t.Errorf("expected last stats reason=growth, got %+v", last)
+	}
+}
+
+// TestRegistryGCCeilingTrigger verifies that crossing the absolute ceiling
+// fires a sweep even when growth-since-last-sweep is small (e.g., a slow
+// leak that never trips growth threshold).
+func TestRegistryGCCeilingTrigger(t *testing.T) {
+	vm := NewVM()
+	defer vm.Shutdown()
+
+	vm.registryGC.Stop()
+	gc := NewRegistryGC(vm, 60*time.Second)
+	vm.registryGC = gc
+	gc.Start()
+	defer gc.Stop()
+
+	// Configure exceptions: huge growth threshold (won't trip), small ceiling.
+	for _, mr := range gc.monitored {
+		if mr.name == "exceptions" {
+			mr.growthThreshold = 1_000_000
+			mr.absoluteCeiling = 50
+		}
+	}
+
+	startCount := gc.SweepCount()
+	// Register 60 unhandled exceptions (won't be swept, so live size stays > 50).
+	for i := 0; i < 60; i++ {
+		ex := &ExceptionObject{Handled: false}
+		vm.registry.RegisterException(ex)
+	}
+
+	final := waitForSweepCount(gc, startCount+1, 500*time.Millisecond)
+	if final == startCount {
+		t.Fatalf("ceiling trigger did not fire within 500ms")
+	}
+	_, _, ceiling, _ := gc.SweepCounts()
+	if ceiling == 0 {
+		t.Errorf("expected at least one ceiling-triggered sweep, got 0")
+	}
+}
+
+// TestRegistryGCTimerStillFires verifies that the wall-clock floor still
+// triggers sweeps for idle registries — the safety net for short-lived
+// programs and idle daemons.
+func TestRegistryGCTimerStillFires(t *testing.T) {
+	vm := NewVM()
+	defer vm.Shutdown()
+
+	vm.registryGC.Stop()
+	// 100ms floor — fast enough for a test, long enough that we won't see
+	// it fire in the first ~50ms.
+	gc := NewRegistryGC(vm, 100*time.Millisecond)
+	vm.registryGC = gc
+	gc.Start()
+	defer gc.Stop()
+
+	startCount := gc.SweepCount()
+
+	// Don't allocate anything — the only path to a sweep should be the timer.
+	final := waitForSweepCount(gc, startCount+1, 500*time.Millisecond)
+	if final == startCount {
+		t.Fatalf("timer did not fire within 500ms with 100ms floor")
+	}
+	timer, _, _, _ := gc.SweepCounts()
+	if timer == 0 {
+		t.Errorf("expected at least one timer-triggered sweep, got 0")
+	}
+}
+
+// TestRegistryGCCoalescingUnderBurst verifies that a single burst of
+// thousands of allocations does not cause N back-to-back sweeps. The
+// non-blocking trigger channel (capacity 1) should coalesce.
+func TestRegistryGCCoalescingUnderBurst(t *testing.T) {
+	vm := NewVM()
+	defer vm.Shutdown()
+
+	vm.registryGC.Stop()
+	gc := NewRegistryGC(vm, 60*time.Second)
+	vm.registryGC = gc
+	gc.Start()
+	defer gc.Stop()
+
+	for _, mr := range gc.monitored {
+		if mr.name == "exceptions" {
+			mr.growthThreshold = 1000
+		}
+	}
+
+	startCount := gc.SweepCount()
+
+	// Burst-allocate 5000 unhandled exceptions. With threshold=1000, a
+	// non-coalescing implementation that wakes per-Register-past-threshold
+	// would schedule thousands of sweeps. Non-blocking-send coalescing
+	// caps this near (allocations / threshold + scheduling slack).
+	for i := 0; i < 5000; i++ {
+		vm.registry.RegisterException(&ExceptionObject{Handled: false})
+	}
+	time.Sleep(150 * time.Millisecond)
+
+	swept := gc.SweepCount() - startCount
+	if swept == 0 {
+		t.Fatalf("no sweeps fired during burst — pressure trigger may be broken")
+	}
+	// Expected sweeps ~= 5000/1000 = 5 plus scheduling slack. Disaster
+	// case (no coalescing) would be hundreds-to-thousands.
+	if swept > 50 {
+		t.Errorf("burst caused %d sweeps; coalescing appears broken (expected ~5)", swept)
+	}
+	t.Logf("burst of 5000 allocations (threshold 1000) triggered %d sweeps", swept)
+}
+
+// TestRegistryGCNoSpuriousTriggers verifies that allocating well below the
+// threshold does NOT trigger a pressure sweep.
+func TestRegistryGCNoSpuriousTriggers(t *testing.T) {
+	vm := NewVM()
+	defer vm.Shutdown()
+
+	vm.registryGC.Stop()
+	gc := NewRegistryGC(vm, 60*time.Second) // long enough to not fire
+	vm.registryGC = gc
+	gc.Start()
+	defer gc.Stop()
+
+	for _, mr := range gc.monitored {
+		if mr.name == "exceptions" {
+			mr.growthThreshold = 10_000 // way above what we'll allocate
+			mr.absoluteCeiling = 10_000
+		}
+	}
+
+	startCount := gc.SweepCount()
+	for i := 0; i < 100; i++ {
+		vm.registry.RegisterException(&ExceptionObject{Handled: false})
+	}
+	time.Sleep(100 * time.Millisecond)
+
+	if got := gc.SweepCount(); got != startCount {
+		t.Errorf("expected no sweeps for sub-threshold allocation, got %d new sweeps", got-startCount)
+	}
+}
+
+// TestRegistryGCPostSweepBaselineReset verifies that after a sweep that
+// retains entries (e.g., unhandled exceptions can't be reclaimed), the
+// next pressure trigger fires only on NEW growth, not the residual count.
+func TestRegistryGCPostSweepBaselineReset(t *testing.T) {
+	vm := NewVM()
+	defer vm.Shutdown()
+
+	vm.registryGC.Stop()
+	gc := NewRegistryGC(vm, 60*time.Second)
+	vm.registryGC = gc
+	gc.Start()
+	defer gc.Stop()
+
+	var exMR *monitoredRegistry
+	for _, mr := range gc.monitored {
+		if mr.name == "exceptions" {
+			exMR = mr
+			break
+		}
+	}
+	if exMR == nil {
+		t.Fatal("exceptions registry not monitored")
+	}
+
+	// Seed phase: use a high threshold so the initial 200 allocations do
+	// NOT auto-trigger a growth sweep. Otherwise that pending trigger would
+	// race with our manual SweepNow and count against startCount.
+	exMR.growthThreshold = 1_000_000
+	exMR.absoluteCeiling = 1_000_000
+
+	// Allocate 200 unhandled exceptions, force a sweep. They survive (Handled=false).
+	for i := 0; i < 200; i++ {
+		vm.registry.RegisterException(&ExceptionObject{Handled: false})
+	}
+	gc.SweepNow()
+
+	// Now drop the threshold to 100. With baseline reset to 200 by the
+	// manual sweep, allocating 50 more should produce delta=50 < 100 and
+	// NOT trigger.
+	exMR.growthThreshold = 100
+
+	startCount := gc.SweepCount()
+	for i := 0; i < 50; i++ {
+		vm.registry.RegisterException(&ExceptionObject{Handled: false})
+	}
+	time.Sleep(50 * time.Millisecond)
+
+	if got := gc.SweepCount(); got != startCount {
+		t.Errorf("post-sweep baseline reset failed: got %d unexpected sweeps", got-startCount)
+	}
+}

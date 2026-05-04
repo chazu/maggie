@@ -28,12 +28,35 @@ type ExceptionObject struct {
 	Signaler       Value  // The object that signaled the exception
 	Resumable      bool   // Whether the exception can be resumed
 	Handled        bool   // Whether the exception has been handled
+
+	// CapturedFrames is the call stack at the moment of signaling.
+	// Captured lazily by signalException/signalExceptionObject (only on first
+	// signal — subsequent re-signals via pass do not overwrite). Source line/
+	// column are resolved on demand via the Method/Block reference + IP, so
+	// the snapshot itself is cheap and tolerant of later recompilation.
+	CapturedFrames []TraceFrame
 }
+
+// TraceFrame is one entry in a captured stack trace. Designed to be cheap to
+// snapshot at signal time: just three pointers, an int, and a small string.
+// Source location is resolved later from Method/Block + IP.
+type TraceFrame struct {
+	ClassName string          // class name, or "" for blocks
+	Selector  string          // selector name, or "<block>" for blocks
+	IP        int             // instruction pointer at frame
+	Method    *CompiledMethod // method ref (nil for pure blocks where Block is set)
+	Block     *BlockMethod    // block ref (nil for non-block frames)
+}
+
+// MaxCapturedTraceDepth bounds the number of frames captured at signal time.
+// The bottom of a long stack is rarely informative; this caps pathological
+// runaway-recursion cost.
+const MaxCapturedTraceDepth = 256
 
 
 // IsException returns true if this value is an exception.
 func (v Value) IsException() bool {
-	if !v.IsSymbol() {
+	if !v.IsSymbolEncoded() {
 		return false
 	}
 	id := v.SymbolID()
@@ -351,6 +374,34 @@ func (vm *VM) registerExceptionPrimitives() {
 		// Delegate to description
 		return v.Send(recv, "description", nil)
 	})
+
+	// Exception>>stackTrace - return the captured stack trace as a string.
+	// The trace is captured at signal time (not at the moment this primitive
+	// is invoked), so it reflects where the exception was raised.
+	ex.AddMethod0(vm.Selectors, "stackTrace", func(vmPtr interface{}, recv Value) Value {
+		v := vmPtr.(*VM)
+		exObj := v.registry.GetException(recv.ExceptionID())
+		if exObj == nil || len(exObj.CapturedFrames) == 0 {
+			return v.registry.NewStringValue("  (no captured stack)")
+		}
+		return v.registry.NewStringValue(FormatCapturedTrace(exObj.CapturedFrames))
+	})
+
+	// Exception>>printStackTrace - convenience: description + newline + trace.
+	ex.AddMethod0(vm.Selectors, "printStackTrace", func(vmPtr interface{}, recv Value) Value {
+		v := vmPtr.(*VM)
+		desc := v.Send(recv, "description", nil)
+		descStr := ""
+		if IsStringValue(desc) {
+			descStr = v.registry.GetStringContent(desc)
+		}
+		exObj := v.registry.GetException(recv.ExceptionID())
+		trace := "  (no captured stack)"
+		if exObj != nil && len(exObj.CapturedFrames) > 0 {
+			trace = FormatCapturedTrace(exObj.CapturedFrames)
+		}
+		return v.registry.NewStringValue(descStr + "\n" + trace)
+	})
 }
 
 // ---------------------------------------------------------------------------
@@ -410,8 +461,112 @@ func (vm *VM) signalException(exClass *Class, messageText Value) Value {
 // signalExceptionObject signals an existing exception.
 // It always panics with SignaledException; the nearest enclosing
 // evaluateBlockWithHandler defer/recover will catch it.
+//
+// On first signal, snapshots the call stack into ex.CapturedFrames so that
+// later trace formatting reflects where the exception was raised rather than
+// where it was handled. Re-signals (e.g. via pass) preserve the original
+// trace.
 func (vm *VM) signalExceptionObject(exVal Value, ex *ExceptionObject) Value {
+	if ex != nil && ex.CapturedFrames == nil {
+		if interp := vm.currentInterpreter(); interp != nil {
+			ex.CapturedFrames = interp.CaptureTrace(MaxCapturedTraceDepth)
+		}
+	}
 	panic(SignaledException{Exception: exVal, Object: ex})
+}
+
+// CaptureTrace snapshots the current call stack into a slice of TraceFrames.
+// Cost is one allocation plus min(fp+1, maxDepth) field copies — no operand
+// stack values are copied, no source lookups are performed (those are lazy).
+//
+// Frames are returned innermost-first (frame 0 = signal site).
+func (i *Interpreter) CaptureTrace(maxDepth int) []TraceFrame {
+	if i == nil || i.fp < 0 {
+		return nil
+	}
+	if maxDepth <= 0 {
+		maxDepth = MaxCapturedTraceDepth
+	}
+	depth := i.fp + 1
+	if depth > maxDepth {
+		depth = maxDepth
+	}
+	out := make([]TraceFrame, 0, depth)
+	for j := i.fp; j >= 0 && len(out) < depth; j-- {
+		frame := i.frames[j]
+		if frame == nil {
+			continue
+		}
+		tf := TraceFrame{IP: frame.IP}
+		if frame.Block != nil {
+			tf.Block = frame.Block
+			tf.Selector = "<block>"
+			// If the block has a home method, use its class name for context.
+			if frame.HomeMethod != nil && frame.HomeMethod.Class() != nil {
+				tf.ClassName = frame.HomeMethod.Class().Name
+			}
+		} else if frame.Method != nil {
+			tf.Method = frame.Method
+			tf.Selector = frame.Method.Name()
+			if frame.Method.Class() != nil {
+				tf.ClassName = frame.Method.Class().Name
+			}
+		}
+		out = append(out, tf)
+	}
+	return out
+}
+
+// FormatCapturedTrace renders captured frames in the same shape as
+// Interpreter.StackTrace — one line per frame with class>>selector and
+// resolved source location when available.
+func FormatCapturedTrace(frames []TraceFrame) string {
+	if len(frames) == 0 {
+		return "  (no captured stack)"
+	}
+	var b []byte
+	for j, f := range frames {
+		var line string
+		switch {
+		case f.Block != nil:
+			loc := f.Block.SourceLocation(f.IP)
+			ctx := ""
+			if f.ClassName != "" {
+				ctx = " in " + f.ClassName
+			}
+			if loc != nil {
+				line = fmt.Sprintf("  [%d] <block>%s at line %d, column %d", j, ctx, loc.Line, loc.Column)
+			} else {
+				line = fmt.Sprintf("  [%d] <block>%s at IP %d", j, ctx, f.IP)
+			}
+		case f.Method != nil:
+			cls := f.ClassName
+			if cls == "" {
+				cls = "<unknown>"
+			}
+			loc := f.Method.SourceLocation(f.IP)
+			if loc != nil {
+				line = fmt.Sprintf("  [%d] %s>>%s at line %d, column %d", j, cls, f.Selector, loc.Line, loc.Column)
+			} else {
+				line = fmt.Sprintf("  [%d] %s>>%s at IP %d", j, cls, f.Selector, f.IP)
+			}
+		default:
+			// No Method/Block ref (e.g. synthetic frame) — render whatever
+			// metadata we have.
+			cls := f.ClassName
+			if cls == "" {
+				cls = "<unknown>"
+			}
+			sel := f.Selector
+			if sel == "" {
+				sel = "<unknown>"
+			}
+			line = fmt.Sprintf("  [%d] %s>>%s", j, cls, sel)
+		}
+		b = append(b, line...)
+		b = append(b, '\n')
+	}
+	return string(b)
 }
 
 // handlerAction represents the outcome of evaluating a handler block.
@@ -538,6 +693,11 @@ func (vm *VM) executeProtectedBlock(
 						MessageText:    vm.registry.NewStringValue(msg),
 						Resumable:      false,
 					}
+					// Capture stack at the point the raw panic was converted.
+					// The handler has already unwound to its install point but
+					// the interpreter's frame state at this instant still
+					// reflects (approximately) where the panic surfaced.
+					ex.CapturedFrames = interp.CaptureTrace(MaxCapturedTraceDepth)
 					id := vm.registry.RegisterException(ex)
 					exVal := FromExceptionID(id)
 					outcome = vm.evaluateHandlerBlock(hbv, SignaledException{Exception: exVal, Object: ex})

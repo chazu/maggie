@@ -50,13 +50,7 @@ func (vm *VM) registerSandboxPrimitives() {
 
 		go func() {
 			defer func() {
-				if r := recover(); r != nil {
-					if nlr, ok := r.(NonLocalReturn); ok {
-						proc.markDone(nlr.Value, nil)
-					} else {
-						proc.markDone(Nil, nil)
-					}
-				}
+				v.HandleForkedPanic(proc, recover())
 				v.unregisterInterpreter()
 			}()
 

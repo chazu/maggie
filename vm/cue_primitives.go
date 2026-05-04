@@ -24,7 +24,7 @@ func cueContextToValue(id uint32) Value {
 }
 
 func isCueContextValue(v Value) bool {
-	if !v.IsSymbol() {
+	if !v.IsSymbolEncoded() {
 		return false
 	}
 	return (v.SymbolID() & markerMask) == cueContextMarker
@@ -59,7 +59,7 @@ func cueValueToValue(id uint32) Value {
 }
 
 func isCueValueValue(v Value) bool {
-	if !v.IsSymbol() {
+	if !v.IsSymbolEncoded() {
 		return false
 	}
 	return (v.SymbolID() & markerMask) == cueValueMarker

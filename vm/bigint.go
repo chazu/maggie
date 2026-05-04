@@ -28,7 +28,7 @@ func (or *ObjectRegistry) RegisterBigInt(obj *BigIntObject) Value {
 // GetBigInt retrieves a BigIntObject from a symbol-encoded Value.
 // Returns nil if the Value is not a BigInt.
 func (or *ObjectRegistry) GetBigInt(v Value) *BigIntObject {
-	if !v.IsSymbol() {
+	if !v.IsSymbolEncoded() {
 		return nil
 	}
 	id := v.SymbolID()
@@ -41,7 +41,7 @@ func (or *ObjectRegistry) GetBigInt(v Value) *BigIntObject {
 
 // UnregisterBigInt removes a BigInt from the registry.
 func (or *ObjectRegistry) UnregisterBigInt(v Value) {
-	if !v.IsSymbol() {
+	if !v.IsSymbolEncoded() {
 		return
 	}
 	id := v.SymbolID()
@@ -63,7 +63,7 @@ func (or *ObjectRegistry) BigIntCount() int {
 
 // IsBigIntValue returns true if v is a symbol-encoded BigInt.
 func IsBigIntValue(v Value) bool {
-	if !v.IsSymbol() {
+	if !v.IsSymbolEncoded() {
 		return false
 	}
 	return v.SymbolID()&markerMask == bigIntMarker

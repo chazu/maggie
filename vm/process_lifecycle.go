@@ -1,6 +1,32 @@
 package vm
 
-import "fmt"
+import (
+	"fmt"
+	"os"
+	"runtime/debug"
+)
+
+// HandleForkedPanic is the standard recover() handler for goroutines spawned
+// by fork primitives. If r is nil it is a no-op. NonLocalReturn panics are
+// converted to ExitNormal (matching ExecuteBlockDetached semantics). Any
+// other panic is logged to stderr (with stack trace if MAGGIE_DEBUG=1) and
+// converted to ExitError so callers of primExitReason can observe it.
+func (vm *VM) HandleForkedPanic(proc *ProcessObject, r interface{}) {
+	if r == nil {
+		return
+	}
+	if nlr, ok := r.(NonLocalReturn); ok {
+		vm.FinishProcess(proc, ExitNormal(nlr.Value))
+		return
+	}
+	stack := debug.Stack()
+	if os.Getenv("MAGGIE_DEBUG") == "1" {
+		fmt.Fprintf(os.Stderr, "process %d panic: %v\n%s\n", proc.id, r, stack)
+	} else {
+		fmt.Fprintf(os.Stderr, "process %d panic: %v (set MAGGIE_DEBUG=1 for stack)\n", proc.id, r)
+	}
+	vm.FinishProcess(proc, ExitError(fmt.Errorf("process panic: %v", r)))
+}
 
 // FinishProcess is called when a forked goroutine completes. It sets the
 // exit reason, notifies linked processes and monitors, and cleans up.

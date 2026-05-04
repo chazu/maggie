@@ -38,7 +38,7 @@ func grpcClientToValue(id uint32) Value {
 }
 
 func isGrpcClientValue(v Value) bool {
-	if !v.IsSymbol() {
+	if !v.IsSymbolEncoded() {
 		return false
 	}
 	id := v.SymbolID()
@@ -101,7 +101,7 @@ func grpcStreamToValue(id uint32) Value {
 }
 
 func isGrpcStreamValue(v Value) bool {
-	if !v.IsSymbol() {
+	if !v.IsSymbolEncoded() {
 		return false
 	}
 	id := v.SymbolID()

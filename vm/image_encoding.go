@@ -241,6 +241,12 @@ func (e *ImageEncoder) EncodeValueTo(v Value, buf []byte) {
 		}
 
 	case v.IsSymbol():
+		// Real interned Symbol only — strings, characters, and classes
+		// are matched in earlier cases above. Other marker-tagged kinds
+		// (channels, processes, mutexes, futures, GoObjects, etc.) are
+		// not serialisable into the image format and intentionally fall
+		// through to the default arm rather than being silently
+		// mis-encoded as symbols.
 		buf[0] = imageTagSymbol
 		symID := v.SymbolID()
 		// Register the symbol and store its image index

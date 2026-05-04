@@ -2,6 +2,7 @@ package compiler
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/chazu/maggie/vm"
 )
@@ -513,8 +514,12 @@ func (c *Compiler) compileDictionaryLiteral(dict *DictionaryLiteral) {
 }
 
 // addLiteral adds a literal to the literal table, returning its index.
+//
+// Dedup keys on the raw uint64 NaN-box bits, which is sound because Maggie
+// values are uniquely encoded: SmallInts/Floats/Chars are bit-equal iff
+// semantically equal, and registry-backed values (Strings/Symbols) are
+// interned at construction so equal payloads share an ID.
 func (c *Compiler) addLiteral(value vm.Value) int {
-	// Check for duplicate
 	key := uint64(value)
 	if idx, ok := c.frame.literalMap[key]; ok {
 		return idx
@@ -1251,12 +1256,23 @@ func (c *Compiler) findCellVariables(method *MethodDef) map[string]bool {
 // Compile helper for external use
 // ---------------------------------------------------------------------------
 
+// formatErrors renders accumulated parse/compile errors as a multi-line
+// message. With one error, the result reads "<kind>: <msg>"; with several
+// it reads "<kind>:\n  <msg1>\n  <msg2>". Either form is far more readable
+// than %v on a []string ("[line 1: foo line 1: bar]").
+func formatErrors(kind string, errs []string) error {
+	if len(errs) == 1 {
+		return fmt.Errorf("%s: %s", kind, errs[0])
+	}
+	return fmt.Errorf("%s:\n  %s", kind, strings.Join(errs, "\n  "))
+}
+
 // Compile parses and compiles source code to a method.
 func Compile(source string, selectors *vm.SelectorTable, symbols *vm.SymbolTable, registry *vm.ObjectRegistry) (*vm.CompiledMethod, error) {
 	parser := NewParser(source)
 	method := parser.ParseMethod()
 	if len(parser.Errors()) > 0 {
-		return nil, fmt.Errorf("parse errors: %v", parser.Errors())
+		return nil, formatErrors("parse errors", parser.Errors())
 	}
 
 	// Run semantic analysis (warnings only, don't fail)
@@ -1266,7 +1282,7 @@ func Compile(source string, selectors *vm.SelectorTable, symbols *vm.SymbolTable
 	compiler := NewCompiler(selectors, symbols, registry)
 	compiled := compiler.CompileMethod(method)
 	if len(compiler.Errors()) > 0 {
-		return nil, fmt.Errorf("compile errors: %v", compiler.Errors())
+		return nil, formatErrors("compile errors", compiler.Errors())
 	}
 
 	return compiled, nil
@@ -1277,13 +1293,13 @@ func CompileExpr(source string, selectors *vm.SelectorTable, symbols *vm.SymbolT
 	parser := NewParser(source)
 	expr := parser.ParseExpression()
 	if len(parser.Errors()) > 0 {
-		return nil, fmt.Errorf("parse errors: %v", parser.Errors())
+		return nil, formatErrors("parse errors", parser.Errors())
 	}
 
 	compiler := NewCompiler(selectors, symbols, registry)
 	compiled := compiler.CompileExpression(expr)
 	if len(compiler.Errors()) > 0 {
-		return nil, fmt.Errorf("compile errors: %v", compiler.Errors())
+		return nil, formatErrors("compile errors", compiler.Errors())
 	}
 
 	return compiled, nil
@@ -1294,7 +1310,7 @@ func ParseSourceFileFromString(source string) (*SourceFile, error) {
 	parser := NewParser(source)
 	sf := parser.ParseSourceFile()
 	if len(parser.Errors()) > 0 {
-		return nil, fmt.Errorf("parse errors: %v", parser.Errors())
+		return nil, formatErrors("parse errors", parser.Errors())
 	}
 	return sf, nil
 }
@@ -1317,7 +1333,7 @@ func CompileMethodDefWithIvars(method *MethodDef, selectors *vm.SelectorTable, s
 	}
 	compiled := compiler.CompileMethod(method)
 	if len(compiler.Errors()) > 0 {
-		return nil, fmt.Errorf("compile errors: %v", compiler.Errors())
+		return nil, formatErrors("compile errors", compiler.Errors())
 	}
 	return compiled, nil
 }
@@ -1336,7 +1352,7 @@ func CompileMethodDefWithContext(method *MethodDef, selectors *vm.SelectorTable,
 	comp.SetNamespaceContext(namespace, imports, classTable)
 	compiled := comp.CompileMethod(method)
 	if len(comp.Errors()) > 0 {
-		return nil, fmt.Errorf("compile errors: %v", comp.Errors())
+		return nil, formatErrors("compile errors", comp.Errors())
 	}
 	return compiled, nil
 }

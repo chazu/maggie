@@ -181,10 +181,11 @@ func TestRemoteProcess_CastWithSendFunc(t *testing.T) {
 	pub, priv := testKeys(t)
 	ref := NewNodeRefData("localhost:9090", pub, priv)
 
-	// Track sends
-	var sentEnvelope []byte
+	// Track sends. Use a channel for cross-goroutine handoff so the test
+	// observes the envelope under proper synchronization.
+	sentCh := make(chan []byte, 1)
 	ref.SendFunc = func(envelope []byte) ([]byte, string, string, error) {
-		sentEnvelope = envelope
+		sentCh <- envelope
 		return nil, "", "", nil
 	}
 
@@ -199,11 +200,13 @@ func TestRemoteProcess_CastWithSendFunc(t *testing.T) {
 		t.Error("cast should return true")
 	}
 
-	// Wait for the background goroutine
-	time.Sleep(50 * time.Millisecond)
-
-	if sentEnvelope == nil {
-		t.Fatal("SendFunc should have been called")
+	select {
+	case env := <-sentCh:
+		if env == nil {
+			t.Fatal("SendFunc received nil envelope")
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("SendFunc was not called within timeout")
 	}
 }
 

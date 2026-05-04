@@ -98,7 +98,7 @@ func futureToValue(id uint32) Value {
 }
 
 func isFutureValue(v Value) bool {
-	if !v.IsSymbol() {
+	if !v.IsSymbolEncoded() {
 		return false
 	}
 	return (v.SymbolID() & markerMask) == promiseMarker

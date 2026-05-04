@@ -1,0 +1,829 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Cli::Command &mdash; Maggie API Reference</title>
+    <link rel="stylesheet" href="../../css/style.css">
+</head>
+<body>
+<nav class="sidebar">
+    <div class="sidebar-title"><a href="../../index.html">Maggie Docs</a></div>
+
+    <div class="sidebar-section">
+        <div class="sidebar-section-title">Guide</div>
+        <ul class="sidebar-list">
+
+            <li><a href="../../guide/01-getting-started.html">Getting Started</a></li>
+
+            <li><a href="../../guide/02-basics.html">Basics</a></li>
+
+            <li><a href="../../guide/03-numbers.html">Numbers</a></li>
+
+            <li><a href="../../guide/04-strings.html">Strings</a></li>
+
+            <li><a href="../../guide/05-collections.html">Collections</a></li>
+
+            <li><a href="../../guide/06-blocks.html">Blocks</a></li>
+
+            <li><a href="../../guide/07-classes.html">Classes</a></li>
+
+            <li><a href="../../guide/08-error-handling.html">Error Handling</a></li>
+
+            <li><a href="../../guide/09-concurrency.html">Concurrency</a></li>
+
+            <li><a href="../../guide/10-modules.html">Modules</a></li>
+
+            <li><a href="../../guide/11-projects.html">Projects</a></li>
+
+            <li><a href="../../guide/12-supervisors.html">Supervisors</a></li>
+
+            <li><a href="../../guide/13-clustering.html">Clustering</a></li>
+
+            <li><a href="../../guide/14-go-interop.html">Go Interop</a></li>
+
+            <li><a href="../../guide/15-distribution.html">Distribution</a></li>
+
+            <li><a href="../../guide/16-tooling-ide.html">Tooling &amp; IDE</a></li>
+
+            <li><a href="../../guide/17-cue-integration.html">Cue Integration</a></li>
+
+            <li><a href="../../guide/18-tuple-space.html">Tuple Space</a></li>
+
+            <li><a href="../../guide/19-distributed-supervisors.html">Distributed Supervisors</a></li>
+
+            <li><a href="../../guide/20-command-line-apps.html">Command-Line Apps</a></li>
+
+        </ul>
+    </div>
+
+    <div class="sidebar-section">
+        <div class="sidebar-section-title">API Reference</div>
+
+        <details class="sidebar-ns-group" open>
+            <summary>(root)</summary>
+            <ul class="sidebar-list">
+
+                <li><a href="../../classes/Array.html">Array</a></li>
+
+                <li><a href="../../classes/ArrayList.html">ArrayList</a></li>
+
+                <li><a href="../../classes/AssignmentNode.html">AssignmentNode</a></li>
+
+                <li><a href="../../classes/Association.html">Association</a></li>
+
+                <li><a href="../../classes/BigInteger.html">BigInteger</a></li>
+
+                <li><a href="../../classes/Block.html">Block</a></li>
+
+                <li><a href="../../classes/BlockNode.html">BlockNode</a></li>
+
+                <li><a href="../../classes/Boolean.html">Boolean</a></li>
+
+                <li><a href="../../classes/ByteArray.html">ByteArray</a></li>
+
+                <li><a href="../../classes/BytecodeGenerator.html">BytecodeGenerator</a></li>
+
+                <li><a href="../../classes/CancellationContext.html">CancellationContext</a></li>
+
+                <li><a href="../../classes/CascadeNode.html">CascadeNode</a></li>
+
+                <li><a href="../../classes/Channel.html">Channel</a></li>
+
+                <li><a href="../../classes/Character.html">Character</a></li>
+
+                <li><a href="../../classes/CharacterStream.html">CharacterStream</a></li>
+
+                <li><a href="../../classes/ChildSpec.html">ChildSpec</a></li>
+
+                <li><a href="../../classes/Class.html">Class</a></li>
+
+                <li><a href="../../classes/ClassNode.html">ClassNode</a></li>
+
+                <li><a href="../../classes/Cluster.html">Cluster</a></li>
+
+                <li><a href="../../classes/CompiledMethod.html">CompiledMethod</a></li>
+
+                <li><a href="../../classes/Compiler.html">Compiler</a></li>
+
+                <li><a href="../../classes/ConstraintStore.html">ConstraintStore</a></li>
+
+                <li><a href="../../classes/Context.html">Context</a></li>
+
+                <li><a href="../../classes/CueContext.html">CueContext</a></li>
+
+                <li><a href="../../classes/CueValue.html">CueValue</a></li>
+
+                <li><a href="../../classes/DateTime.html">DateTime</a></li>
+
+                <li><a href="../../classes/Debugger.html">Debugger</a></li>
+
+                <li><a href="../../classes/Dictionary.html">Dictionary</a></li>
+
+                <li><a href="../../classes/DistributedSupervisor.html">DistributedSupervisor</a></li>
+
+                <li><a href="../../classes/DocServer.html">DocServer</a></li>
+
+                <li><a href="../../classes/DuckAppender.html">DuckAppender</a></li>
+
+                <li><a href="../../classes/DuckDatabase.html">DuckDatabase</a></li>
+
+                <li><a href="../../classes/DynamicSupervisor.html">DynamicSupervisor</a></li>
+
+                <li><a href="../../classes/Ed25519.html">Ed25519</a></li>
+
+                <li><a href="../../classes/Error.html">Error</a></li>
+
+                <li><a href="../../classes/Exception.html">Exception</a></li>
+
+                <li><a href="../../classes/ExternalProcess.html">ExternalProcess</a></li>
+
+                <li><a href="../../classes/Failure.html">Failure</a></li>
+
+                <li><a href="../../classes/False.html">False</a></li>
+
+                <li><a href="../../classes/File.html">File</a></li>
+
+                <li><a href="../../classes/Float.html">Float</a></li>
+
+                <li><a href="../../classes/Future.html">Future</a></li>
+
+                <li><a href="../../classes/GrpcClient.html">GrpcClient</a></li>
+
+                <li><a href="../../classes/GrpcStream.html">GrpcStream</a></li>
+
+                <li><a href="../../classes/Halt.html">Halt</a></li>
+
+                <li><a href="../../classes/HashRing.html">HashRing</a></li>
+
+                <li><a href="../../classes/HttpClient.html">HttpClient</a></li>
+
+                <li><a href="../../classes/HttpRequest.html">HttpRequest</a></li>
+
+                <li><a href="../../classes/HttpResponse.html">HttpResponse</a></li>
+
+                <li><a href="../../classes/HttpServer.html">HttpServer</a></li>
+
+                <li><a href="../../classes/Identity.html">Identity</a></li>
+
+                <li><a href="../../classes/Json.html">Json</a></li>
+
+                <li><a href="../../classes/JsonParseError.html">JsonParseError</a></li>
+
+                <li><a href="../../classes/JsonReader.html">JsonReader</a></li>
+
+                <li><a href="../../classes/JsonWriter.html">JsonWriter</a></li>
+
+                <li><a href="../../classes/Lexer.html">Lexer</a></li>
+
+                <li><a href="../../classes/LiteralNode.html">LiteralNode</a></li>
+
+                <li><a href="../../classes/MailboxMessage.html">MailboxMessage</a></li>
+
+                <li><a href="../../classes/Message.html">Message</a></li>
+
+                <li><a href="../../classes/MessageNotUnderstood.html">MessageNotUnderstood</a></li>
+
+                <li><a href="../../classes/MessageSendNode.html">MessageSendNode</a></li>
+
+                <li><a href="../../classes/Metaclass.html">Metaclass</a></li>
+
+                <li><a href="../../classes/MethodNode.html">MethodNode</a></li>
+
+                <li><a href="../../classes/Mutex.html">Mutex</a></li>
+
+                <li><a href="../../classes/Node.html">Node</a></li>
+
+                <li><a href="../../classes/Notification.html">Notification</a></li>
+
+                <li><a href="../../classes/Object.html">Object</a></li>
+
+                <li><a href="../../classes/Parser.html">Parser</a></li>
+
+                <li><a href="../../classes/Process.html">Process</a></li>
+
+                <li><a href="../../classes/Proquint.html">Proquint</a></li>
+
+                <li><a href="../../classes/Random.html">Random</a></li>
+
+                <li><a href="../../classes/Regex.html">Regex</a></li>
+
+                <li><a href="../../classes/RemoteChannel.html">RemoteChannel</a></li>
+
+                <li><a href="../../classes/RemoteProcess.html">RemoteProcess</a></li>
+
+                <li><a href="../../classes/Result.html">Result</a></li>
+
+                <li><a href="../../classes/ReturnNode.html">ReturnNode</a></li>
+
+                <li><a href="../../classes/SSEConnection.html">SSEConnection</a></li>
+
+                <li><a href="../../classes/Sandbox.html">Sandbox</a></li>
+
+                <li><a href="../../classes/Semaphore.html">Semaphore</a></li>
+
+                <li><a href="../../classes/Set.html">Set</a></li>
+
+                <li><a href="../../classes/Sha256.html">Sha256</a></li>
+
+                <li><a href="../../classes/Signal.html">Signal</a></li>
+
+                <li><a href="../../classes/SmallInteger.html">SmallInteger</a></li>
+
+                <li><a href="../../classes/SocketConnection.html">SocketConnection</a></li>
+
+                <li><a href="../../classes/SqliteDatabase.html">SqliteDatabase</a></li>
+
+                <li><a href="../../classes/SqliteRows.html">SqliteRows</a></li>
+
+                <li><a href="../../classes/SqliteStatement.html">SqliteStatement</a></li>
+
+                <li><a href="../../classes/StackOverflow.html">StackOverflow</a></li>
+
+                <li><a href="../../classes/String.html">String</a></li>
+
+                <li><a href="../../classes/SubscriptOutOfBounds.html">SubscriptOutOfBounds</a></li>
+
+                <li><a href="../../classes/Success.html">Success</a></li>
+
+                <li><a href="../../classes/Supervisor.html">Supervisor</a></li>
+
+                <li><a href="../../classes/Symbol.html">Symbol</a></li>
+
+                <li><a href="../../classes/System.html">System</a></li>
+
+                <li><a href="../../classes/Token.html">Token</a></li>
+
+                <li><a href="../../classes/Toml.html">Toml</a></li>
+
+                <li><a href="../../classes/TomlParseError.html">TomlParseError</a></li>
+
+                <li><a href="../../classes/True.html">True</a></li>
+
+                <li><a href="../../classes/TupleSpace.html">TupleSpace</a></li>
+
+                <li><a href="../../classes/UndefinedObject.html">UndefinedObject</a></li>
+
+                <li><a href="../../classes/UnixSocketClient.html">UnixSocketClient</a></li>
+
+                <li><a href="../../classes/UnixSocketServer.html">UnixSocketServer</a></li>
+
+                <li><a href="../../classes/VariableNode.html">VariableNode</a></li>
+
+                <li><a href="../../classes/WaitGroup.html">WaitGroup</a></li>
+
+                <li><a href="../../classes/Warning.html">Warning</a></li>
+
+                <li><a href="../../classes/WeakReference.html">WeakReference</a></li>
+
+                <li><a href="../../classes/ZeroDivide.html">ZeroDivide</a></li>
+
+            </ul>
+        </details>
+
+        <details class="sidebar-ns-group">
+            <summary>Cli</summary>
+            <ul class="sidebar-list">
+
+                <li><a href="../../classes/Cli/CliError.html">CliError</a></li>
+
+                <li><a href="../../classes/Cli/Command.html" class="active">Command</a></li>
+
+                <li><a href="../../classes/Cli/EnvBinding.html">EnvBinding</a></li>
+
+                <li><a href="../../classes/Cli/Flag.html">Flag</a></li>
+
+                <li><a href="../../classes/Cli/Output.html">Output</a></li>
+
+            </ul>
+        </details>
+
+    </div>
+</nav>
+<main class="content">
+    <div class="breadcrumb">
+        <a href="../../index.html">Maggie API Reference</a>
+
+        &rsaquo; Cli
+
+        &rsaquo; Command
+    </div>
+
+    <div class="class-header">
+        <h1>Command</h1>
+
+        <div class="superclass-chain">
+            Inherits from: Object
+        </div>
+
+
+    </div>
+
+
+    <div class="class-doc">
+        <p>A command-line command. <code>Cli::Command</code> is the Smalltalk-idiomatic facade on
+top of the Go-side cobra bridge (see <code>vm/cli_primitives.go</code>). It provides
+Unix-style subcommands, flags, help text, and a Maggie block that runs when
+the command is invoked.</p>
+<p>Primitive-provided selectors are declared as <code>&lt;primitive&gt;</code> stubs so their
+documentation shows up in introspection; the real implementations live on
+the Go side. Methods without a primitive stub are pure-Maggie helpers that
+compose those primitives into higher-level selectors such as
+<code>named:doc:run:</code> and <code>flag:type:default:doc:</code>.</p>
+<h3>Lifecycle</h3>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>&#34;A minimal command: one run block, no flags.&#34;
+(Cli::Command named: &#39;greet&#39; doc: &#39;Say hello&#39; run: [:args |
+    &#39;Hello, world!&#39; println.
+    0
+]) execute</code></pre>
+</div>
+<h3>Flags</h3>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>&#34;Declare flags, then read them from inside the run block.&#34;
+cmd := Cli::Command named: &#39;greet&#39; doc: &#39;Say hello&#39;.
+cmd flag: &#39;name&#39; type: #string default: &#39;world&#39; doc: &#39;Who to greet&#39;.
+cmd run: [:args |
+    (&#39;Hello, &#39;, (cmd flagValue: &#39;name&#39;), &#39;!&#39;) println.
+    0
+].
+cmd execute</code></pre>
+</div>
+<h3>Subcommands</h3>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>&#34;Compose a parent command with children.&#34;
+root := Cli::Command named: &#39;mytool&#39; doc: &#39;My multi-command tool&#39;.
+build := Cli::Command named: &#39;build&#39; doc: &#39;Build the project&#39; run: [:args | 0].
+test := Cli::Command named: &#39;test&#39; doc: &#39;Run tests&#39; run: [:args | 0].
+root registerSubcommand: build.
+root registerSubcommand: test.
+root execute</code></pre>
+</div>
+<p>Exit-code convention: a <code>SmallInteger</code> return from the run block becomes
+the process exit code. An unhandled exception yields exit code 1. Any
+other return value yields exit code 0. See the Go primitive for details.</p>
+
+    </div>
+
+
+
+    <h2>Class Methods</h2>
+
+    <div class="method-category">
+        <h3>primitives</h3>
+
+        <div class="method">
+            <div class="method-selector">
+                <span class="class-side-label">class </span>new:
+            </div>
+
+
+        </div>
+
+    </div>
+
+    <div class="method-category">
+        <h3>uncategorized</h3>
+
+        <div class="method">
+            <div class="method-selector">
+                <span class="class-side-label">class </span>named:
+            </div>
+
+            <div class="method-doc">
+                <p>Create a command with the given name and no documentation. The spec
+called for <code>^self new initWithName: aString</code>; the Go wrapper is created
+in the primitive <code>new:</code> call itself, so there is no separate init step
+and this method simply delegates to <code>self new: aString</code>.
+<code>initWithName:</code> is kept below as a no-op for API symmetry.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>(Cli::Command named: &#39;greet&#39;) class name &gt;&gt;&gt; #Command</code></pre>
+</div>
+
+            </div>
+
+
+            <details class="method-source">
+                <summary>Source</summary>
+                <pre><code>classMethod: named: aString &lt;String&gt; ^&lt;Cli::Command&gt; [
+      ^(self new: aString) initWithName: aString
+  ]
+
+  </code></pre>
+            </details>
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">
+                <span class="class-side-label">class </span>named:doc:
+            </div>
+
+            <div class="method-doc">
+                <p>Create a command with the given name and short documentation.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>(Cli::Command named: &#39;greet&#39; doc: &#39;Say hello&#39;) class name &gt;&gt;&gt; #Command</code></pre>
+</div>
+
+            </div>
+
+
+            <details class="method-source">
+                <summary>Source</summary>
+                <pre><code>classMethod: named: aString &lt;String&gt; doc: docString &lt;String&gt; ^&lt;Cli::Command&gt; [
+      ^(self named: aString) shortDoc: docString
+  ]
+
+  </code></pre>
+            </details>
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">
+                <span class="class-side-label">class </span>named:doc:run:
+            </div>
+
+            <div class="method-doc">
+                <p>Create a fully-wired command: name, documentation, and the block that
+runs when cobra dispatches the command.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>cmd := Cli::Command named: &#39;greet&#39; doc: &#39;Say hello&#39; run: [:args | 0].
+cmd class name &gt;&gt;&gt; #Command</code></pre>
+</div>
+
+            </div>
+
+
+            <details class="method-source">
+                <summary>Source</summary>
+                <pre><code>classMethod: named: aString &lt;String&gt; doc: docString &lt;String&gt; run: aBlock ^&lt;Cli::Command&gt; [
+      ^(self named: aString doc: docString) run: aBlock
+  ]
+
+  # --- Instance-side primitives (Go-backed) --------------------------------
+
+  </code></pre>
+            </details>
+
+        </div>
+
+    </div>
+
+
+
+
+    <h2>Instance Methods</h2>
+
+    <div class="method-category">
+        <h3>primitives</h3>
+
+        <div class="method">
+            <div class="method-selector">addBoolFlag:default:doc:</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">addIntFlag:default:doc:</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">addStringFlag:default:doc:</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">addSubcommand:</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">boolFlag:</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">execute</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">flagTypeOf:</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">intFlag:</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">longDoc:</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">run:</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">setArgs:</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">setOutput:</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">shortDoc:</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">stringFlag:</div>
+
+
+        </div>
+
+    </div>
+
+    <div class="method-category">
+        <h3>uncategorized</h3>
+
+        <div class="method">
+            <div class="method-selector">applyEnvBindings:</div>
+
+            <div class="method-doc">
+                <p>Apply every registered binding to <code>aTarget</code>. Called by CLI applications
+from inside their run block (or from a subclass override of <code>execute</code>)
+before the user&#39;s logic fires. Answers the first <code>Failure</code> encountered
+or <code>aTarget</code> on success.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>cmd := Cli::Command new: &#39;envbind-demo-2&#39;.
+target := ArrayList new.
+cmd envBinding: (Cli::EnvBinding envName: &#39;PP_ENVBINDING_MISSING_ABCDE_123&#39; setter: #add: type: #string default: &#39;fallback&#39;).
+cmd applyEnvBindings: target.
+(target at: 0) &gt;&gt;&gt; &#39;fallback&#39;</code></pre>
+</div>
+
+            </div>
+
+
+            <details class="method-source">
+                <summary>Source</summary>
+                <pre><code>method: applyEnvBindings: aTarget [
+      ^Cli::EnvBinding applyBindingsFor: self to: aTarget
+  ]
+</code></pre>
+            </details>
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">envBinding:</div>
+
+            <div class="method-doc">
+                <p>Attach <code>aBinding</code> to the receiver. The binding is stored on the
+<code>Cli::EnvBinding</code> class-side registry keyed by the command&#39;s identity.
+Answers the command so calls chain.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>cmd := Cli::Command new: &#39;envbind-demo-1&#39;.
+binding := Cli::EnvBinding envName: &#39;PP_FOO&#39; setter: #add: type: #string default: &#39;hi&#39;.
+cmd envBinding: binding.
+(Cli::EnvBinding bindingsFor: cmd) size &gt;&gt;&gt; 1</code></pre>
+</div>
+
+            </div>
+
+
+            <details class="method-source">
+                <summary>Source</summary>
+                <pre><code>method: envBinding: aBinding &lt;Cli::EnvBinding&gt; ^&lt;Cli::Command&gt; [
+      Cli::EnvBinding register: aBinding for: self.
+      ^self
+  ]
+
+  </code></pre>
+            </details>
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">flag:</div>
+
+            <div class="method-doc">
+                <p>Register a flag from a <code>Cli::Flag</code> value object. Unpacks its
+name/type/default/doc and delegates to <code>flag:type:default:doc:</code>.
+The <code>required</code> bit on the spec is advisory and not enforced by the
+primitive; higher-level validation code should consult it directly.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>spec := Cli::Flag name: &#39;verbose&#39; type: #bool default: false doc: &#39;Chatty&#39;.
+cmd := Cli::Command named: &#39;demo&#39;.
+cmd flag: spec.
+cmd flagTypeOf: &#39;verbose&#39; &gt;&gt;&gt; #bool</code></pre>
+</div>
+
+            </div>
+
+
+            <details class="method-source">
+                <summary>Source</summary>
+                <pre><code>method: flag: aFlagSpec &lt;Cli::Flag&gt; ^&lt;Cli::Command&gt; [
+      ^self
+          flag: aFlagSpec name
+          type: aFlagSpec type
+          default: aFlagSpec default
+          doc: aFlagSpec doc
+  ]
+
+  </code></pre>
+            </details>
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">flag:type:default:doc:</div>
+
+            <div class="method-doc">
+                <p>Register a flag by name, type (<code>#string</code>, <code>#bool</code>, or <code>#int</code>), default
+value, and doc string. Dispatches to the correct primitive
+<code>add*Flag:default:doc:</code> based on the type symbol.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>cmd := Cli::Command named: &#39;demo&#39;.
+cmd flag: &#39;verbose&#39; type: #bool default: false doc: &#39;Chatty output&#39;.
+cmd flagTypeOf: &#39;verbose&#39; &gt;&gt;&gt; #bool</code></pre>
+</div>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>cmd := Cli::Command named: &#39;demo&#39;.
+cmd flag: &#39;name&#39; type: #string default: &#39;world&#39; doc: &#39;Who to greet&#39;.
+cmd flagTypeOf: &#39;name&#39; &gt;&gt;&gt; #string</code></pre>
+</div>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>cmd := Cli::Command named: &#39;demo&#39;.
+cmd flag: &#39;count&#39; type: #int default: 1 doc: &#39;How many&#39;.
+cmd flagTypeOf: &#39;count&#39; &gt;&gt;&gt; #int</code></pre>
+</div>
+
+            </div>
+
+
+            <details class="method-source">
+                <summary>Source</summary>
+                <pre><code>method: flag: aName &lt;String&gt; type: aType &lt;Symbol&gt; default: aDefault doc: aDoc &lt;String&gt; ^&lt;Cli::Command&gt; [
+      aType = #string ifTrue: [^self addStringFlag: aName default: aDefault doc: aDoc].
+      aType = #bool ifTrue: [^self addBoolFlag: aName default: aDefault doc: aDoc].
+      (aType = #int or: [aType = #integer]) ifTrue: [^self addIntFlag: aName default: aDefault doc: aDoc].
+      ^self error: &#39;Cli::Command flag: unknown flag type &#39;, aType printString
+  ]
+
+  </code></pre>
+            </details>
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">flagValue:</div>
+
+            <div class="method-doc">
+                <p>Return the parsed value of a declared flag, dispatching to
+<code>stringFlag:</code>, <code>boolFlag:</code>, or <code>intFlag:</code> based on how the flag was
+registered. Returns <code>nil</code> if the flag was never declared.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>cmd := Cli::Command named: &#39;demo&#39;.
+cmd flag: &#39;name&#39; type: #string default: &#39;world&#39; doc: &#39;Who to greet&#39;.
+cmd flagValue: &#39;name&#39; &gt;&gt;&gt; &#39;world&#39;</code></pre>
+</div>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>cmd := Cli::Command named: &#39;demo&#39;.
+cmd flag: &#39;verbose&#39; type: #bool default: false doc: &#39;Chatty&#39;.
+cmd flagValue: &#39;verbose&#39; &gt;&gt;&gt; false</code></pre>
+</div>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>cmd := Cli::Command named: &#39;demo&#39;.
+cmd flag: &#39;count&#39; type: #int default: 7 doc: &#39;How many&#39;.
+cmd flagValue: &#39;count&#39; &gt;&gt;&gt; 7</code></pre>
+</div>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>cmd := Cli::Command named: &#39;demo&#39;.
+cmd flagValue: &#39;nonexistent&#39; &gt;&gt;&gt; nil</code></pre>
+</div>
+
+            </div>
+
+
+            <details class="method-source">
+                <summary>Source</summary>
+                <pre><code>method: flagValue: aName &lt;String&gt; [
+      | kind |
+      kind := self flagTypeOf: aName.
+      kind isNil ifTrue: [^nil].
+      kind = #string ifTrue: [^self stringFlag: aName].
+      kind = #bool ifTrue: [^self boolFlag: aName].
+      kind = #int ifTrue: [^self intFlag: aName].
+      ^self error: &#39;Cli::Command flagValue: unknown flag type &#39;, kind printString
+  ]
+
+  </code></pre>
+            </details>
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">initWithName:</div>
+
+            <div class="method-doc">
+                <p>No-op initializer kept for API symmetry with the story spec. The
+cobra wrapper is fully built by the primitive <code>new:</code>, so there is
+no separate init step to do. Returns <code>self</code> so chained call-sites
+still work.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>cmd := Cli::Command new: &#39;demo&#39;.
+(cmd initWithName: &#39;demo&#39;) class name &gt;&gt;&gt; #Command</code></pre>
+</div>
+
+            </div>
+
+
+            <details class="method-source">
+                <summary>Source</summary>
+                <pre><code>method: initWithName: aString &lt;String&gt; ^&lt;Cli::Command&gt; [
+      ^self
+  ]
+
+  </code></pre>
+            </details>
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">registerSubcommand:</div>
+
+            <div class="method-doc">
+                <p>Attach <code>aCommand</code> as a subcommand of the receiver. Idiomatic alias
+for the primitive <code>addSubcommand:</code>.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>root := Cli::Command named: &#39;root&#39;.
+leaf := Cli::Command named: &#39;leaf&#39;.
+root registerSubcommand: leaf.
+root class name &gt;&gt;&gt; #Command</code></pre>
+</div>
+
+            </div>
+
+
+            <details class="method-source">
+                <summary>Source</summary>
+                <pre><code>method: registerSubcommand: aCommand &lt;Cli::Command&gt; ^&lt;Cli::Command&gt; [
+      ^self addSubcommand: aCommand
+  ]
+</code></pre>
+            </details>
+
+        </div>
+
+    </div>
+
+
+
+    <div class="footer">
+        Generated by Maggie doc generator.
+    </div>
+</main>
+    <script src="../../js/playground.js"></script>
+</body>
+</html>

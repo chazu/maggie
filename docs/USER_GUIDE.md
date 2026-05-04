@@ -765,6 +765,16 @@ proc := [:context |
 ] forkWithContext: ctx.
 ```
 
+**Crashed processes**: when a forked process panics from an uncaught exception, the runtime logs the failure to stderr (set `MAGGIE_DEBUG=1` to also see the Go stack trace), records an error exit reason, and notifies any links/monitors. Inspect the reason after `wait`:
+
+```smalltalk
+proc := [Error signal: 'oops'] fork.
+proc wait.
+proc primExitReason   -- non-nil if the process crashed
+```
+
+Non-local returns (`^value` from a forked block) are NOT crashes — they complete normally with the returned value, since the home frame is unreachable in the new process.
+
 ### Mutex
 
 Mutual exclusion lock for protecting shared state.
@@ -964,6 +974,24 @@ ifNil: block
 ifNotNil: block
 ifNil: nilBlock ifNotNil: notNilBlock
 ```
+
+### Exception
+
+The root of the exception hierarchy. Use `[block] on: ExceptionClass do: [:ex | handler]` to catch. The exception object passed to the handler captures the call stack at the signal point:
+
+```smalltalk
+-- Inspecting the trace
+ex stackTrace          -- Array of String, innermost frame first
+ex printStackTrace     -- print the trace to standard output
+
+-- Control flow inside a handler
+ex resume: value       -- resume after the signal point with value
+ex retry               -- re-execute the protected block
+ex pass                -- forward to the next outer handler
+ex return: value       -- return value from the on:do: expression
+```
+
+When an unhandled exception escapes the top level, the REPL and `mag -m` runner both print the captured trace alongside the message — no need to wrap expressions in `on:do:` just to see where they came from.
 
 ### StackOverflow
 
@@ -1325,12 +1353,18 @@ gc-interval = "60s"         # registry GC interval (default: "30s")
 
 These are applied when the VM starts from a project with `maggie.toml`. Increase `max-frame-depth` for deep recursion, `mailbox-capacity` for high-throughput actor systems, or `gc-interval` for reduced GC overhead in long-running servers.
 
+### Environment Variables
+
+| Variable | Effect |
+|----------|--------|
+| `MAGGIE_DEBUG=1` | Print full Go stack traces alongside Maggie panic/exception messages. Useful for diagnosing crashed forked processes and unexpected runtime errors. |
+
 ## Tips
 
 1. **Message chaining**: Messages return self by default, enabling fluent chains
 2. **Blocks are closures**: They capture variables from enclosing scope
 3. **Everything is an object**: Including numbers, booleans, and nil
 4. **No operator precedence**: Binary messages evaluate left-to-right; use parentheses
-5. **1-based indexing**: Arrays and strings start at index 1, not 0
+5. **0-based indexing**: Arrays and strings start at index 0 (unlike Smalltalk-80's 1-based convention)
 6. **Tail-call optimization**: Self-recursive methods in tail position (ending with `^self selector: args`) are automatically optimized — no stack overflow for tail-recursive patterns
 7. **Stack overflow protection**: Non-tail-recursive deep recursion raises a catchable `StackOverflow` exception (subclass of `Error`) at 4096 frames by default

@@ -26,7 +26,7 @@ func mutexToValue(id int) Value {
 }
 
 func isMutexValue(v Value) bool {
-	if !v.IsSymbol() {
+	if !v.IsSymbolEncoded() {
 		return false
 	}
 	id := v.SymbolID()

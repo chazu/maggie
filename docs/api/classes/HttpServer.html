@@ -32,23 +32,27 @@
 
             <li><a href="../guide/09-concurrency.html">Concurrency</a></li>
 
-            <li><a href="../guide/10-supervisors.html">Supervisors</a></li>
-
             <li><a href="../guide/10-modules.html">Modules</a></li>
 
             <li><a href="../guide/11-projects.html">Projects</a></li>
 
-            <li><a href="../guide/11-clustering.html">Clustering</a></li>
+            <li><a href="../guide/12-supervisors.html">Supervisors</a></li>
 
-            <li><a href="../guide/12-go-interop.html">Go Interop</a></li>
+            <li><a href="../guide/13-clustering.html">Clustering</a></li>
 
-            <li><a href="../guide/13-distribution.html">Distribution</a></li>
+            <li><a href="../guide/14-go-interop.html">Go Interop</a></li>
 
-            <li><a href="../guide/14-tooling-ide.html">Tooling &amp; IDE</a></li>
+            <li><a href="../guide/15-distribution.html">Distribution</a></li>
 
-            <li><a href="../guide/15-cue-integration.html">Cue Integration</a></li>
+            <li><a href="../guide/16-tooling-ide.html">Tooling &amp; IDE</a></li>
 
-            <li><a href="../guide/16-tuple-space.html">Tuple Space</a></li>
+            <li><a href="../guide/17-cue-integration.html">Cue Integration</a></li>
+
+            <li><a href="../guide/18-tuple-space.html">Tuple Space</a></li>
+
+            <li><a href="../guide/19-distributed-supervisors.html">Distributed Supervisors</a></li>
+
+            <li><a href="../guide/20-command-line-apps.html">Command-Line Apps</a></li>
 
         </ul>
     </div>
@@ -116,6 +120,8 @@
 
                 <li><a href="../classes/Dictionary.html">Dictionary</a></li>
 
+                <li><a href="../classes/DistributedSupervisor.html">DistributedSupervisor</a></li>
+
                 <li><a href="../classes/DocServer.html">DocServer</a></li>
 
                 <li><a href="../classes/DuckAppender.html">DuckAppender</a></li>
@@ -123,6 +129,8 @@
                 <li><a href="../classes/DuckDatabase.html">DuckDatabase</a></li>
 
                 <li><a href="../classes/DynamicSupervisor.html">DynamicSupervisor</a></li>
+
+                <li><a href="../classes/Ed25519.html">Ed25519</a></li>
 
                 <li><a href="../classes/Error.html">Error</a></li>
 
@@ -155,6 +163,8 @@
                 <li><a href="../classes/HttpResponse.html">HttpResponse</a></li>
 
                 <li><a href="../classes/HttpServer.html" class="active">HttpServer</a></li>
+
+                <li><a href="../classes/Identity.html">Identity</a></li>
 
                 <li><a href="../classes/Json.html">Json</a></li>
 
@@ -206,11 +216,15 @@
 
                 <li><a href="../classes/ReturnNode.html">ReturnNode</a></li>
 
+                <li><a href="../classes/SSEConnection.html">SSEConnection</a></li>
+
                 <li><a href="../classes/Sandbox.html">Sandbox</a></li>
 
                 <li><a href="../classes/Semaphore.html">Semaphore</a></li>
 
                 <li><a href="../classes/Set.html">Set</a></li>
+
+                <li><a href="../classes/Sha256.html">Sha256</a></li>
 
                 <li><a href="../classes/Signal.html">Signal</a></li>
 
@@ -263,6 +277,23 @@
                 <li><a href="../classes/WeakReference.html">WeakReference</a></li>
 
                 <li><a href="../classes/ZeroDivide.html">ZeroDivide</a></li>
+
+            </ul>
+        </details>
+
+        <details class="sidebar-ns-group">
+            <summary>Cli</summary>
+            <ul class="sidebar-list">
+
+                <li><a href="../classes/Cli/CliError.html">CliError</a></li>
+
+                <li><a href="../classes/Cli/Command.html">Command</a></li>
+
+                <li><a href="../classes/Cli/EnvBinding.html">EnvBinding</a></li>
+
+                <li><a href="../classes/Cli/Flag.html">Flag</a></li>
+
+                <li><a href="../classes/Cli/Output.html">Output</a></li>
 
             </ul>
         </details>
@@ -353,6 +384,12 @@ server := HttpServer new: 8080</code></pre>
         <h3>primitives</h3>
 
         <div class="method">
+            <div class="method-selector">asyncRoute:method:handler:</div>
+
+
+        </div>
+
+        <div class="method">
             <div class="method-selector">isRunning</div>
 
             <div class="method-doc">
@@ -415,6 +452,12 @@ served from dirPath on the filesystem. Returns self for chaining.</p>
 </div>
 
             </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">sseRoute:handler:</div>
 
 
         </div>

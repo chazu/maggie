@@ -104,7 +104,7 @@ func (or *ObjectRegistry) RegisterGoObject(obj *GoObjectWrapper) Value {
 
 // GetGoObject retrieves a GoObjectWrapper from a symbol-encoded Value.
 func (or *ObjectRegistry) GetGoObject(v Value) *GoObjectWrapper {
-	if !v.IsSymbol() {
+	if !v.IsSymbolEncoded() {
 		return nil
 	}
 	id := v.SymbolID()
@@ -122,7 +122,7 @@ func (or *ObjectRegistry) GetGoObjectByID(id uint32) *GoObjectWrapper {
 
 // UnregisterGoObject removes a GoObject from the registry.
 func (or *ObjectRegistry) UnregisterGoObject(v Value) {
-	if !v.IsSymbol() {
+	if !v.IsSymbolEncoded() {
 		return
 	}
 	id := v.SymbolID()
@@ -303,7 +303,7 @@ func (vm *VM) ValueToGo(v Value) interface{} {
 		return v.SmallInt()
 	case v.IsFloat():
 		return v.Float64()
-	case v.IsSymbol():
+	case v.IsSymbolEncoded():
 		// Check GoObject first
 		if wrapper := vm.registry.GetGoObject(v); wrapper != nil {
 			return wrapper.Value

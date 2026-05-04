@@ -253,7 +253,7 @@ func (m *MaggieCompilerBackend) extractCompiledMethod(resultVal Value, class *Cl
 	// 	dict := GetDictionaryObject(resultVal)
 	// 	if dict != nil {
 	// 		for h, key := range dict.Keys {
-	// 			if key.IsSymbol() {
+	// 			if key.IsSymbolEncoded() {
 	// 				fmt.Printf(" (symbol: %s)", m.vm.Symbols.Name(key.SymbolID()))
 	// 			}
 	// 			fmt.Printf(", value=%v\n", dict.Data[h])

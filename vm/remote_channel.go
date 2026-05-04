@@ -43,7 +43,7 @@ func remoteChannelToValue(id int) Value {
 }
 
 func isRemoteChannelValue(v Value) bool {
-	if !v.IsSymbol() {
+	if !v.IsSymbolEncoded() {
 		return false
 	}
 	return (v.SymbolID() & markerMask) == remoteChannelMarker
@@ -104,14 +104,16 @@ func (r *remoteChannelRegistry) drainNode(nodeID [32]byte) {
 // ---------------------------------------------------------------------------
 
 type channelExportRegistry struct {
-	mu      sync.RWMutex
-	exports map[uint64]*ChannelObject
-	nextID  atomic.Uint64
+	mu       sync.RWMutex
+	exports  map[uint64]*ChannelObject
+	byChan   map[*ChannelObject]uint64 // reverse index for O(1) dedup
+	nextID   atomic.Uint64
 }
 
 func newChannelExportRegistry() *channelExportRegistry {
 	r := &channelExportRegistry{
 		exports: make(map[uint64]*ChannelObject),
+		byChan:  make(map[*ChannelObject]uint64),
 	}
 	r.nextID.Store(1)
 	return r
@@ -120,18 +122,21 @@ func newChannelExportRegistry() *channelExportRegistry {
 // Export registers a local channel for remote access and returns its export ID.
 // If the channel is already exported, returns the existing ID.
 func (r *channelExportRegistry) Export(ch *ChannelObject) uint64 {
+	r.mu.RLock()
+	if id, ok := r.byChan[ch]; ok {
+		r.mu.RUnlock()
+		return id
+	}
+	r.mu.RUnlock()
+
 	r.mu.Lock()
 	defer r.mu.Unlock()
-
-	// Dedup: check if already exported
-	for id, existing := range r.exports {
-		if existing == ch {
-			return id
-		}
+	if id, ok := r.byChan[ch]; ok {
+		return id
 	}
-
 	id := r.nextID.Add(1) - 1
 	r.exports[id] = ch
+	r.byChan[ch] = id
 	return id
 }
 

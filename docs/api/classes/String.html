@@ -32,23 +32,27 @@
 
             <li><a href="../guide/09-concurrency.html">Concurrency</a></li>
 
-            <li><a href="../guide/10-supervisors.html">Supervisors</a></li>
-
             <li><a href="../guide/10-modules.html">Modules</a></li>
 
             <li><a href="../guide/11-projects.html">Projects</a></li>
 
-            <li><a href="../guide/11-clustering.html">Clustering</a></li>
+            <li><a href="../guide/12-supervisors.html">Supervisors</a></li>
 
-            <li><a href="../guide/12-go-interop.html">Go Interop</a></li>
+            <li><a href="../guide/13-clustering.html">Clustering</a></li>
 
-            <li><a href="../guide/13-distribution.html">Distribution</a></li>
+            <li><a href="../guide/14-go-interop.html">Go Interop</a></li>
 
-            <li><a href="../guide/14-tooling-ide.html">Tooling &amp; IDE</a></li>
+            <li><a href="../guide/15-distribution.html">Distribution</a></li>
 
-            <li><a href="../guide/15-cue-integration.html">Cue Integration</a></li>
+            <li><a href="../guide/16-tooling-ide.html">Tooling &amp; IDE</a></li>
 
-            <li><a href="../guide/16-tuple-space.html">Tuple Space</a></li>
+            <li><a href="../guide/17-cue-integration.html">Cue Integration</a></li>
+
+            <li><a href="../guide/18-tuple-space.html">Tuple Space</a></li>
+
+            <li><a href="../guide/19-distributed-supervisors.html">Distributed Supervisors</a></li>
+
+            <li><a href="../guide/20-command-line-apps.html">Command-Line Apps</a></li>
 
         </ul>
     </div>
@@ -116,6 +120,8 @@
 
                 <li><a href="../classes/Dictionary.html">Dictionary</a></li>
 
+                <li><a href="../classes/DistributedSupervisor.html">DistributedSupervisor</a></li>
+
                 <li><a href="../classes/DocServer.html">DocServer</a></li>
 
                 <li><a href="../classes/DuckAppender.html">DuckAppender</a></li>
@@ -123,6 +129,8 @@
                 <li><a href="../classes/DuckDatabase.html">DuckDatabase</a></li>
 
                 <li><a href="../classes/DynamicSupervisor.html">DynamicSupervisor</a></li>
+
+                <li><a href="../classes/Ed25519.html">Ed25519</a></li>
 
                 <li><a href="../classes/Error.html">Error</a></li>
 
@@ -155,6 +163,8 @@
                 <li><a href="../classes/HttpResponse.html">HttpResponse</a></li>
 
                 <li><a href="../classes/HttpServer.html">HttpServer</a></li>
+
+                <li><a href="../classes/Identity.html">Identity</a></li>
 
                 <li><a href="../classes/Json.html">Json</a></li>
 
@@ -206,11 +216,15 @@
 
                 <li><a href="../classes/ReturnNode.html">ReturnNode</a></li>
 
+                <li><a href="../classes/SSEConnection.html">SSEConnection</a></li>
+
                 <li><a href="../classes/Sandbox.html">Sandbox</a></li>
 
                 <li><a href="../classes/Semaphore.html">Semaphore</a></li>
 
                 <li><a href="../classes/Set.html">Set</a></li>
+
+                <li><a href="../classes/Sha256.html">Sha256</a></li>
 
                 <li><a href="../classes/Signal.html">Signal</a></li>
 
@@ -263,6 +277,23 @@
                 <li><a href="../classes/WeakReference.html">WeakReference</a></li>
 
                 <li><a href="../classes/ZeroDivide.html">ZeroDivide</a></li>
+
+            </ul>
+        </details>
+
+        <details class="sidebar-ns-group">
+            <summary>Cli</summary>
+            <ul class="sidebar-list">
+
+                <li><a href="../classes/Cli/CliError.html">CliError</a></li>
+
+                <li><a href="../classes/Cli/Command.html">Command</a></li>
+
+                <li><a href="../classes/Cli/EnvBinding.html">EnvBinding</a></li>
+
+                <li><a href="../classes/Cli/Flag.html">Flag</a></li>
+
+                <li><a href="../classes/Cli/Output.html">Output</a></li>
 
             </ul>
         </details>
@@ -368,12 +399,24 @@ Class method — call as <code>String lf</code>.</p>
         </div>
 
         <div class="method">
+            <div class="method-selector">asHex</div>
+
+
+        </div>
+
+        <div class="method">
             <div class="method-selector">asInteger</div>
 
             <div class="method-doc">
                 <p>Parse the receiver as an integer.</p>
 
             </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">fromHex</div>
 
 
         </div>
@@ -754,11 +797,33 @@ result &gt;&gt;&gt; &#39;a-b-c-&#39;</code></pre>
             <div class="method-selector">includes:</div>
 
             <div class="method-doc">
-                <p>Return true if the string contains the given substring or character.</p>
+                <p>Return true if the string contains the given character.</p>
+<p>This uses element semantics, matching <code>String&gt;&gt;at:</code> which returns a
+Character. To search for a multi-character substring, use
+<code>includesSubstring:</code> instead.</p>
 <div class="doc-block doc-test">
 <span class="doc-block-label">Test</span>
-<pre><code>&#39;hello&#39; includes: &#39;ell&#39; &gt;&gt;&gt; true
-&#39;hello&#39; includes: &#39;xyz&#39; &gt;&gt;&gt; false</code></pre>
+<pre><code>&#39;hello&#39; includes: $l &gt;&gt;&gt; true
+&#39;hello&#39; includes: $z &gt;&gt;&gt; false
+&#39;hello&#39; includes: $h &gt;&gt;&gt; true</code></pre>
+</div>
+
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">includesSubstring:</div>
+
+            <div class="method-doc">
+                <p>Return true if the string contains the given substring.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>&#39;hello&#39; includesSubstring: &#39;ell&#39; &gt;&gt;&gt; true
+&#39;hello&#39; includesSubstring: &#39;xyz&#39; &gt;&gt;&gt; false
+&#39;hello&#39; includesSubstring: &#39;hello&#39; &gt;&gt;&gt; true
+&#39;hello&#39; includesSubstring: &#39;&#39; &gt;&gt;&gt; false</code></pre>
 </div>
 
             </div>
@@ -770,11 +835,34 @@ result &gt;&gt;&gt; &#39;a-b-c-&#39;</code></pre>
             <div class="method-selector">indexOf:</div>
 
             <div class="method-doc">
-                <p>Return the 0-based index of the first occurrence, or -1 if not found.</p>
+                <p>Return the 0-based index of the first occurrence of the character,
+or -1 if not found.</p>
+<p>This uses element semantics, matching <code>String&gt;&gt;at:</code> which returns a
+Character. To find a multi-character substring, use <code>indexOfSubstring:</code>.</p>
 <div class="doc-block doc-test">
 <span class="doc-block-label">Test</span>
-<pre><code>&#39;hello&#39; indexOf: &#39;l&#39; &gt;&gt;&gt; 2
-&#39;hello&#39; indexOf: &#39;z&#39; &gt;&gt;&gt; -1</code></pre>
+<pre><code>&#39;hello&#39; indexOf: $l &gt;&gt;&gt; 2
+&#39;hello&#39; indexOf: $z &gt;&gt;&gt; -1
+&#39;hello&#39; indexOf: $h &gt;&gt;&gt; 0</code></pre>
+</div>
+
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">indexOfSubstring:</div>
+
+            <div class="method-doc">
+                <p>Return the 0-based index of the first occurrence of the substring,
+or -1 if not found.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>&#39;hello&#39; indexOfSubstring: &#39;l&#39; &gt;&gt;&gt; 2
+&#39;hello&#39; indexOfSubstring: &#39;lo&#39; &gt;&gt;&gt; 3
+&#39;hello&#39; indexOfSubstring: &#39;z&#39; &gt;&gt;&gt; -1
+&#39;hello world&#39; indexOfSubstring: &#39;world&#39; &gt;&gt;&gt; 6</code></pre>
 </div>
 
             </div>
@@ -841,6 +929,17 @@ result &gt;&gt;&gt; &#39;a-b-c-&#39;</code></pre>
 <pre><code>&#39;a&#39; isLetter &gt;&gt;&gt; true
 &#39;5&#39; isLetter &gt;&gt;&gt; false</code></pre>
 </div>
+
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">isString</div>
+
+            <div class="method-doc">
+                <p>Type test — returns true for String instances. Override of Object&gt;&gt;isString which returns false.</p>
 
             </div>
 
@@ -972,6 +1071,17 @@ result &gt;&gt;&gt; &#39;a-b-c-&#39;</code></pre>
 <pre><code>&#39;  hello  &#39; trimBoth &gt;&gt;&gt; &#39;hello&#39;
 &#39;no spaces&#39; trimBoth &gt;&gt;&gt; &#39;no spaces&#39;</code></pre>
 </div>
+
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">trimSeparators</div>
+
+            <div class="method-doc">
+                <p>Alias for trimBoth — removes leading and trailing whitespace. Smalltalk-classic name.</p>
 
             </div>
 

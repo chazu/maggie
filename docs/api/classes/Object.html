@@ -32,23 +32,27 @@
 
             <li><a href="../guide/09-concurrency.html">Concurrency</a></li>
 
-            <li><a href="../guide/10-supervisors.html">Supervisors</a></li>
-
             <li><a href="../guide/10-modules.html">Modules</a></li>
 
             <li><a href="../guide/11-projects.html">Projects</a></li>
 
-            <li><a href="../guide/11-clustering.html">Clustering</a></li>
+            <li><a href="../guide/12-supervisors.html">Supervisors</a></li>
 
-            <li><a href="../guide/12-go-interop.html">Go Interop</a></li>
+            <li><a href="../guide/13-clustering.html">Clustering</a></li>
 
-            <li><a href="../guide/13-distribution.html">Distribution</a></li>
+            <li><a href="../guide/14-go-interop.html">Go Interop</a></li>
 
-            <li><a href="../guide/14-tooling-ide.html">Tooling &amp; IDE</a></li>
+            <li><a href="../guide/15-distribution.html">Distribution</a></li>
 
-            <li><a href="../guide/15-cue-integration.html">Cue Integration</a></li>
+            <li><a href="../guide/16-tooling-ide.html">Tooling &amp; IDE</a></li>
 
-            <li><a href="../guide/16-tuple-space.html">Tuple Space</a></li>
+            <li><a href="../guide/17-cue-integration.html">Cue Integration</a></li>
+
+            <li><a href="../guide/18-tuple-space.html">Tuple Space</a></li>
+
+            <li><a href="../guide/19-distributed-supervisors.html">Distributed Supervisors</a></li>
+
+            <li><a href="../guide/20-command-line-apps.html">Command-Line Apps</a></li>
 
         </ul>
     </div>
@@ -116,6 +120,8 @@
 
                 <li><a href="../classes/Dictionary.html">Dictionary</a></li>
 
+                <li><a href="../classes/DistributedSupervisor.html">DistributedSupervisor</a></li>
+
                 <li><a href="../classes/DocServer.html">DocServer</a></li>
 
                 <li><a href="../classes/DuckAppender.html">DuckAppender</a></li>
@@ -123,6 +129,8 @@
                 <li><a href="../classes/DuckDatabase.html">DuckDatabase</a></li>
 
                 <li><a href="../classes/DynamicSupervisor.html">DynamicSupervisor</a></li>
+
+                <li><a href="../classes/Ed25519.html">Ed25519</a></li>
 
                 <li><a href="../classes/Error.html">Error</a></li>
 
@@ -155,6 +163,8 @@
                 <li><a href="../classes/HttpResponse.html">HttpResponse</a></li>
 
                 <li><a href="../classes/HttpServer.html">HttpServer</a></li>
+
+                <li><a href="../classes/Identity.html">Identity</a></li>
 
                 <li><a href="../classes/Json.html">Json</a></li>
 
@@ -206,11 +216,15 @@
 
                 <li><a href="../classes/ReturnNode.html">ReturnNode</a></li>
 
+                <li><a href="../classes/SSEConnection.html">SSEConnection</a></li>
+
                 <li><a href="../classes/Sandbox.html">Sandbox</a></li>
 
                 <li><a href="../classes/Semaphore.html">Semaphore</a></li>
 
                 <li><a href="../classes/Set.html">Set</a></li>
+
+                <li><a href="../classes/Sha256.html">Sha256</a></li>
 
                 <li><a href="../classes/Signal.html">Signal</a></li>
 
@@ -263,6 +277,23 @@
                 <li><a href="../classes/WeakReference.html">WeakReference</a></li>
 
                 <li><a href="../classes/ZeroDivide.html">ZeroDivide</a></li>
+
+            </ul>
+        </details>
+
+        <details class="sidebar-ns-group">
+            <summary>Cli</summary>
+            <ul class="sidebar-list">
+
+                <li><a href="../classes/Cli/CliError.html">CliError</a></li>
+
+                <li><a href="../classes/Cli/Command.html">Command</a></li>
+
+                <li><a href="../classes/Cli/EnvBinding.html">EnvBinding</a></li>
+
+                <li><a href="../classes/Cli/Flag.html">Flag</a></li>
+
+                <li><a href="../classes/Cli/Output.html">Output</a></li>
 
             </ul>
         </details>
@@ -649,6 +680,17 @@ nil isNil &gt;&gt;&gt; true
         </div>
 
         <div class="method">
+            <div class="method-selector">primAddDependent:</div>
+
+            <div class="method-doc">
+                <p>Add a dependent to the receiver&#39;s notification list.</p>
+
+            </div>
+
+
+        </div>
+
+        <div class="method">
             <div class="method-selector">primAsCueValue</div>
 
 
@@ -656,6 +698,17 @@ nil isNil &gt;&gt;&gt; true
 
         <div class="method">
             <div class="method-selector">primClass</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">primDependents</div>
+
+            <div class="method-doc">
+                <p>Return an Array of the receiver&#39;s dependents.</p>
+
+            </div>
 
 
         </div>
@@ -679,7 +732,46 @@ nil isNil &gt;&gt;&gt; true
         </div>
 
         <div class="method">
+            <div class="method-selector">primReleaseDependents</div>
+
+            <div class="method-doc">
+                <p>Remove all dependents from the receiver.</p>
+
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">primRemoveDependent:</div>
+
+            <div class="method-doc">
+                <p>Remove a dependent from the receiver&#39;s notification list.</p>
+
+            </div>
+
+
+        </div>
+
+        <div class="method">
             <div class="method-selector">primShallowCopy</div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">respondsTo:</div>
+
+            <div class="method-doc">
+                <p>Return true if the receiver&#39;s class (or any superclass) implements
+the given selector.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>3 respondsTo: #printString &gt;&gt;&gt; true
+3 respondsTo: #frobnicate &gt;&gt;&gt; false</code></pre>
+</div>
+
+            </div>
 
 
         </div>
@@ -728,6 +820,25 @@ nil == nil &gt;&gt;&gt; true</code></pre>
         </div>
 
         <div class="method">
+            <div class="method-selector">addDependent:</div>
+
+            <div class="method-doc">
+                <p>Register anObject as a dependent of the receiver. When the receiver
+sends <code>changed</code> or <code>changed:</code>, anObject will receive <code>update:</code> with
+the change aspect. Returns the dependent.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>model := Object new. dep := Object new.
+model addDependent: dep.
+model dependents size &gt;&gt;&gt; 1</code></pre>
+</div>
+
+            </div>
+
+
+        </div>
+
+        <div class="method">
             <div class="method-selector">asCueValue</div>
 
             <div class="method-doc">
@@ -747,6 +858,35 @@ Objects with named ivars project as CUE structs.</p>
         </div>
 
         <div class="method">
+            <div class="method-selector">changed</div>
+
+            <div class="method-doc">
+                <p>Notify all dependents that the receiver has changed, with nil as the aspect.</p>
+
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">changed:</div>
+
+            <div class="method-doc">
+                <p>Notify all dependents that the receiver has changed, passing
+anAspect (typically a symbol) to each dependent&#39;s <code>update:</code> method.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>model := Object new. dep := Object new.
+model addDependent: dep.
+model dependents size &gt;&gt;&gt; 1</code></pre>
+</div>
+
+            </div>
+
+
+        </div>
+
+        <div class="method">
             <div class="method-selector">class</div>
 
             <div class="method-doc">
@@ -756,6 +896,22 @@ Objects with named ivars project as CUE structs.</p>
 <pre><code>3 class name &gt;&gt;&gt; #SmallInteger
 true class name &gt;&gt;&gt; #True
 nil class name &gt;&gt;&gt; #UndefinedObject</code></pre>
+</div>
+
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">dependents</div>
+
+            <div class="method-doc">
+                <p>Return an Array of the receiver&#39;s dependents. Returns an empty
+Array if there are no dependents.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>Object new dependents size &gt;&gt;&gt; 0</code></pre>
 </div>
 
             </div>
@@ -789,6 +945,20 @@ understand it. Signals an error with the unrecognized selector name.</p>
 <span class="doc-block-label">Example</span>
 <pre><code>self error: &#39;something went wrong&#39;</code></pre>
 </div>
+
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">identityHash</div>
+
+            <div class="method-doc">
+                <p>Return an identity-based hash value. On Object this aliases hash (which is
+already identity-based). Subclasses that override hash with content-based
+hashing (e.g. String, Array) should NOT override identityHash — it must
+remain stable across content equality.</p>
 
             </div>
 
@@ -871,6 +1041,18 @@ nil isNil &gt;&gt;&gt; true</code></pre>
         </div>
 
         <div class="method">
+            <div class="method-selector">isString</div>
+
+            <div class="method-doc">
+                <p>Type test — returns false on generic Object. Override in String, Number,
+Array, etc. to return true for their own instances.</p>
+
+            </div>
+
+
+        </div>
+
+        <div class="method">
             <div class="method-selector">isVariable</div>
 
             <div class="method-doc">
@@ -909,15 +1091,29 @@ nil notNil &gt;&gt;&gt; false</code></pre>
         </div>
 
         <div class="method">
-            <div class="method-selector">respondsTo:</div>
+            <div class="method-selector">release</div>
 
             <div class="method-doc">
-                <p>Return true if the receiver&#39;s class (or any superclass) implements
-the given selector.</p>
+                <p>Remove all dependents from the receiver. Use this when an object
+is being discarded to avoid stale references.</p>
+
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">removeDependent:</div>
+
+            <div class="method-doc">
+                <p>Remove anObject from the receiver&#39;s dependents list. Returns the
+dependent. No error if anObject was not a dependent.</p>
 <div class="doc-block doc-test">
 <span class="doc-block-label">Test</span>
-<pre><code>3 respondsTo: #printString &gt;&gt;&gt; true
-3 respondsTo: #frobnicate &gt;&gt;&gt; false</code></pre>
+<pre><code>model := Object new. dep := Object new.
+model addDependent: dep.
+model removeDependent: dep.
+model dependents size &gt;&gt;&gt; 0</code></pre>
 </div>
 
             </div>
@@ -938,6 +1134,19 @@ original := Array new: 3.
 copy := original shallowCopy.
 copy == original   &#34;false -- different object&#34;</code></pre>
 </div>
+
+            </div>
+
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">update:</div>
+
+            <div class="method-doc">
+                <p>Called when a dependent object receives a change notification.
+Override this in subclasses to respond to model changes.
+The default implementation does nothing.</p>
 
             </div>
 

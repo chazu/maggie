@@ -74,8 +74,8 @@ func TestGoObjectRegistry_RegisterAndGet(t *testing.T) {
 	wrapper := &GoObjectWrapper{TypeID: 1, Value: "hello"}
 	v := or.RegisterGoObject(wrapper)
 
-	if !v.IsSymbol() {
-		t.Fatal("expected symbol value")
+	if !v.IsSymbolEncoded() {
+		t.Fatal("expected symbol-encoded value")
 	}
 
 	got := or.GetGoObject(v)

@@ -12,15 +12,17 @@ import (
 // - Profile at method/block level, not call-site level
 
 // MethodProfile holds profiling data for a single method.
+// InvocationCount is updated with atomic.AddUint64; IsHot is an atomic.Bool
+// so the hot transition can be made exactly once via CompareAndSwap.
 type MethodProfile struct {
-	InvocationCount uint64 // Atomic counter for invocations
-	IsHot           bool   // True if threshold exceeded
+	InvocationCount uint64      // Atomic counter for invocations
+	IsHot           atomic.Bool // True if threshold exceeded
 }
 
 // BlockProfile holds profiling data for a single block.
 type BlockProfile struct {
 	InvocationCount uint64          // Atomic counter for invocations
-	IsHot           bool            // True if threshold exceeded
+	IsHot           atomic.Bool     // True if threshold exceeded
 	OwningMethod    *CompiledMethod // The method containing this block
 	BlockIndex      int             // Index within the method's Blocks slice
 }
@@ -63,9 +65,9 @@ func (p *Profiler) RecordMethodInvocation(method *CompiledMethod) bool {
 	// Atomic increment
 	count := atomic.AddUint64(&profile.InvocationCount, 1)
 
-	// Check if just became hot
-	if !profile.IsHot && count >= p.MethodHotThreshold {
-		profile.IsHot = true
+	// Check if just became hot. CAS ensures at most one goroutine fires the
+	// transition even when many threads race past the threshold.
+	if count >= p.MethodHotThreshold && profile.IsHot.CompareAndSwap(false, true) {
 		atomic.AddUint64(&p.hotMethodCount, 1)
 		return true
 	}
@@ -96,9 +98,8 @@ func (p *Profiler) RecordBlockInvocation(block *BlockMethod, owner *CompiledMeth
 	// Atomic increment
 	count := atomic.AddUint64(&profile.InvocationCount, 1)
 
-	// Check if just became hot
-	if !profile.IsHot && count >= p.BlockHotThreshold {
-		profile.IsHot = true
+	// Check if just became hot (see RecordMethodInvocation comment).
+	if count >= p.BlockHotThreshold && profile.IsHot.CompareAndSwap(false, true) {
 		atomic.AddUint64(&p.hotBlockCount, 1)
 		return true
 	}
@@ -125,13 +126,13 @@ func (p *Profiler) GetBlockProfile(block *BlockMethod) *BlockProfile {
 // IsMethodHot returns true if the method has exceeded the hot threshold.
 func (p *Profiler) IsMethodHot(method *CompiledMethod) bool {
 	profile := p.GetMethodProfile(method)
-	return profile != nil && profile.IsHot
+	return profile != nil && profile.IsHot.Load()
 }
 
 // IsBlockHot returns true if the block has exceeded the hot threshold.
 func (p *Profiler) IsBlockHot(block *BlockMethod) bool {
 	profile := p.GetBlockProfile(block)
-	return profile != nil && profile.IsHot
+	return profile != nil && profile.IsHot.Load()
 }
 
 // ProfilerStats holds aggregate profiling statistics.
@@ -153,7 +154,7 @@ func (p *Profiler) Stats() ProfilerStats {
 		profile := value.(*MethodProfile)
 		stats.TotalMethods++
 		stats.MethodInvocations += atomic.LoadUint64(&profile.InvocationCount)
-		if profile.IsHot {
+		if profile.IsHot.Load() {
 			stats.HotMethods++
 		}
 		return true
@@ -163,7 +164,7 @@ func (p *Profiler) Stats() ProfilerStats {
 		profile := value.(*BlockProfile)
 		stats.TotalBlocks++
 		stats.BlockInvocations += atomic.LoadUint64(&profile.InvocationCount)
-		if profile.IsHot {
+		if profile.IsHot.Load() {
 			stats.HotBlocks++
 		}
 		return true
@@ -179,7 +180,7 @@ func (p *Profiler) HotMethods() []*CompiledMethod {
 	p.methodProfiles.Range(func(key, value interface{}) bool {
 		method := key.(*CompiledMethod)
 		profile := value.(*MethodProfile)
-		if profile.IsHot {
+		if profile.IsHot.Load() {
 			hot = append(hot, method)
 		}
 		return true
@@ -193,7 +194,7 @@ func (p *Profiler) HotBlocks() []*BlockMethod {
 	p.blockProfiles.Range(func(key, value interface{}) bool {
 		block := key.(*BlockMethod)
 		profile := value.(*BlockProfile)
-		if profile.IsHot {
+		if profile.IsHot.Load() {
 			hot = append(hot, block)
 		}
 		return true

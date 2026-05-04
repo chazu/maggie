@@ -772,6 +772,43 @@ Guide09Concurrency subclass: Object
   ]
 
   """
+  ## Diagnosing Crashed Processes
+
+  When a forked process crashes from an uncaught exception or other
+  Go-level panic, Maggie does not silently swallow the failure:
+
+  - The panic is logged to standard error so it shows up in the terminal
+    or process log immediately. Set the `MAGGIE_DEBUG=1` environment
+    variable to also dump the full Go stack trace alongside the message.
+  - The process's exit reason is set to an error reason, observable
+    programmatically via `Process>>primExitReason`.
+  - Linked processes receive an exit signal; monitoring processes
+    receive a `#processDown:` message with the failure as the reason.
+    See the Process Links and Process Monitors sections above.
+
+  Non-local returns (`^expr` from a forked block) are NOT crashes --
+  the runtime treats them as normal completion with the returned value
+  (this matches `ExecuteBlockDetached` semantics; the home frame is
+  unreachable in the new process).
+
+  ```example
+  | proc reason |
+  proc := [Error signal: 'oops'] fork.
+  proc wait.
+  reason := proc primExitReason.
+  reason isNil ifFalse: [Transcript showLine: 'crashed: ', reason printString].
+  ```
+
+  In day-to-day development, `MAGGIE_DEBUG=1 mag -m App.start` is the
+  fastest way to see exactly where a forked process is crashing without
+  having to wire up your own logging.
+  """
+  method: s12f_diagnosingCrashes [
+      "Set MAGGIE_DEBUG=1 to see Go stack traces for crashed processes."
+      ^nil
+  ]
+
+  """
   ## Pattern: Producer-Consumer
 
   The producer-consumer pattern uses a channel as a bounded buffer

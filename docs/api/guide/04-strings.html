@@ -32,23 +32,27 @@
 
             <li><a href="../guide/09-concurrency.html">Concurrency</a></li>
 
-            <li><a href="../guide/10-supervisors.html">Supervisors</a></li>
-
             <li><a href="../guide/10-modules.html">Modules</a></li>
 
             <li><a href="../guide/11-projects.html">Projects</a></li>
 
-            <li><a href="../guide/11-clustering.html">Clustering</a></li>
+            <li><a href="../guide/12-supervisors.html">Supervisors</a></li>
 
-            <li><a href="../guide/12-go-interop.html">Go Interop</a></li>
+            <li><a href="../guide/13-clustering.html">Clustering</a></li>
 
-            <li><a href="../guide/13-distribution.html">Distribution</a></li>
+            <li><a href="../guide/14-go-interop.html">Go Interop</a></li>
 
-            <li><a href="../guide/14-tooling-ide.html">Tooling &amp; IDE</a></li>
+            <li><a href="../guide/15-distribution.html">Distribution</a></li>
 
-            <li><a href="../guide/15-cue-integration.html">Cue Integration</a></li>
+            <li><a href="../guide/16-tooling-ide.html">Tooling &amp; IDE</a></li>
 
-            <li><a href="../guide/16-tuple-space.html">Tuple Space</a></li>
+            <li><a href="../guide/17-cue-integration.html">Cue Integration</a></li>
+
+            <li><a href="../guide/18-tuple-space.html">Tuple Space</a></li>
+
+            <li><a href="../guide/19-distributed-supervisors.html">Distributed Supervisors</a></li>
+
+            <li><a href="../guide/20-command-line-apps.html">Command-Line Apps</a></li>
 
         </ul>
     </div>
@@ -116,6 +120,8 @@
 
                 <li><a href="../classes/Dictionary.html">Dictionary</a></li>
 
+                <li><a href="../classes/DistributedSupervisor.html">DistributedSupervisor</a></li>
+
                 <li><a href="../classes/DocServer.html">DocServer</a></li>
 
                 <li><a href="../classes/DuckAppender.html">DuckAppender</a></li>
@@ -123,6 +129,8 @@
                 <li><a href="../classes/DuckDatabase.html">DuckDatabase</a></li>
 
                 <li><a href="../classes/DynamicSupervisor.html">DynamicSupervisor</a></li>
+
+                <li><a href="../classes/Ed25519.html">Ed25519</a></li>
 
                 <li><a href="../classes/Error.html">Error</a></li>
 
@@ -155,6 +163,8 @@
                 <li><a href="../classes/HttpResponse.html">HttpResponse</a></li>
 
                 <li><a href="../classes/HttpServer.html">HttpServer</a></li>
+
+                <li><a href="../classes/Identity.html">Identity</a></li>
 
                 <li><a href="../classes/Json.html">Json</a></li>
 
@@ -206,11 +216,15 @@
 
                 <li><a href="../classes/ReturnNode.html">ReturnNode</a></li>
 
+                <li><a href="../classes/SSEConnection.html">SSEConnection</a></li>
+
                 <li><a href="../classes/Sandbox.html">Sandbox</a></li>
 
                 <li><a href="../classes/Semaphore.html">Semaphore</a></li>
 
                 <li><a href="../classes/Set.html">Set</a></li>
+
+                <li><a href="../classes/Sha256.html">Sha256</a></li>
 
                 <li><a href="../classes/Signal.html">Signal</a></li>
 
@@ -263,6 +277,23 @@
                 <li><a href="../classes/WeakReference.html">WeakReference</a></li>
 
                 <li><a href="../classes/ZeroDivide.html">ZeroDivide</a></li>
+
+            </ul>
+        </details>
+
+        <details class="sidebar-ns-group">
+            <summary>Cli</summary>
+            <ul class="sidebar-list">
+
+                <li><a href="../classes/Cli/CliError.html">CliError</a></li>
+
+                <li><a href="../classes/Cli/Command.html">Command</a></li>
+
+                <li><a href="../classes/Cli/EnvBinding.html">EnvBinding</a></li>
+
+                <li><a href="../classes/Cli/Flag.html">Flag</a></li>
+
+                <li><a href="../classes/Cli/Output.html">Output</a></li>
 
             </ul>
         </details>
@@ -377,19 +408,21 @@ directly.</p>
 
     <div class="guide-section">
 
-        <p>Use includes: to test whether a string contains a given substring.
-It returns true or false. The argument can be a string of any
-length -- single character or multi-character.</p>
+        <p>Use includes: to test whether a string contains a given Character
+(element semantics, matching at:). For substring search, use
+includesSubstring: instead.</p>
 <div class="doc-block doc-test">
 <span class="doc-block-label">Test</span>
-<pre><code>&#39;hello world&#39; includes: &#39;world&#39; &gt;&gt;&gt; true
-&#39;hello world&#39; includes: &#39;xyz&#39; &gt;&gt;&gt; false
-&#39;hello&#39; includes: &#39;ell&#39; &gt;&gt;&gt; true
-&#39;hello&#39; includes: &#39;hello&#39; &gt;&gt;&gt; true
-&#39;hello&#39; includes: &#39;Hello&#39; &gt;&gt;&gt; false</code></pre>
+<pre><code>&#39;hello world&#39; includes: $w &gt;&gt;&gt; true
+&#39;hello world&#39; includes: $z &gt;&gt;&gt; false
+&#39;hello&#39; includes: $e &gt;&gt;&gt; true
+&#39;hello&#39; includes: $H &gt;&gt;&gt; false
+&#39;hello&#39; includesSubstring: &#39;ell&#39; &gt;&gt;&gt; true
+&#39;hello&#39; includesSubstring: &#39;hello&#39; &gt;&gt;&gt; true
+&#39;hello&#39; includesSubstring: &#39;Hello&#39; &gt;&gt;&gt; false</code></pre>
 </div>
-<p>Note that includes: is case-sensitive. The last example above
-returns false because &#39;H&#39; does not match &#39;h&#39;.</p>
+<p>Note that both are case-sensitive. The last example above returns
+false because &#39;H&#39; does not match &#39;h&#39;.</p>
 
 
     </div>
@@ -397,17 +430,17 @@ returns false because &#39;H&#39; does not match &#39;h&#39;.</p>
     <div class="guide-section">
 
         <p>The indexOf: message returns the 0-based position of the first
-occurrence of a substring, or -1 if not found. Like includes:, it
-accepts a string argument of any length.</p>
-<p>Combine indexOf: with copyFrom:to: to extract text around a known
+occurrence of a Character (element semantics), or -1 if not found.
+For substring search, use indexOfSubstring:.</p>
+<p>Combine these with copyFrom:to: to extract text around a known
 marker.</p>
 <div class="doc-block doc-test">
 <span class="doc-block-label">Test</span>
-<pre><code>&#39;hello&#39; indexOf: &#39;l&#39; &gt;&gt;&gt; 2
-&#39;hello&#39; indexOf: &#39;lo&#39; &gt;&gt;&gt; 3
-&#39;hello&#39; indexOf: &#39;z&#39; &gt;&gt;&gt; -1
-&#39;hello world&#39; indexOf: &#39;world&#39; &gt;&gt;&gt; 6
-&#39;abcabc&#39; indexOf: &#39;bc&#39; &gt;&gt;&gt; 1</code></pre>
+<pre><code>&#39;hello&#39; indexOf: $l &gt;&gt;&gt; 2
+&#39;hello&#39; indexOf: $z &gt;&gt;&gt; -1
+&#39;hello&#39; indexOfSubstring: &#39;lo&#39; &gt;&gt;&gt; 3
+&#39;hello world&#39; indexOfSubstring: &#39;world&#39; &gt;&gt;&gt; 6
+&#39;abcabc&#39; indexOfSubstring: &#39;bc&#39; &gt;&gt;&gt; 1</code></pre>
 </div>
 
 
@@ -593,13 +626,13 @@ Character space isWhitespace &gt;&gt;&gt; true</code></pre>
     <div class="guide-section">
 
         <p>The Character class in lib/Character.mag adds a few convenience
-methods on top of the VM primitives. The isAlphaNumeric method
+methods on top of the VM primitives. The isAlphanumeric method
 returns true if a character is a letter or a digit. The isVowel
 method checks for vowels (a, e, i, o, u in either case).</p>
 <div class="doc-block doc-test">
 <span class="doc-block-label">Test</span>
-<pre><code>$a isAlphaNumeric &gt;&gt;&gt; true
-$5 isAlphaNumeric &gt;&gt;&gt; true
+<pre><code>$a isAlphanumeric &gt;&gt;&gt; true
+$5 isAlphanumeric &gt;&gt;&gt; true
 $a isVowel &gt;&gt;&gt; true
 $b isVowel &gt;&gt;&gt; false
 $E isVowel &gt;&gt;&gt; true</code></pre>
@@ -721,7 +754,7 @@ slicing the string.</p>
 <div class="doc-block doc-test">
 <span class="doc-block-label">Test</span>
 <pre><code>path := &#39;archive.tar.gz&#39;.
-dotPos := path indexOf: &#39;.&#39;.
+dotPos := path indexOf: $..
 ext := path copyFrom: dotPos to: path size.
 ext &gt;&gt;&gt; &#39;.tar.gz&#39;</code></pre>
 </div>

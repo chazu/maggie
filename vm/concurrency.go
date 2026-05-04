@@ -1,7 +1,6 @@
 package vm
 
 import (
-	"fmt"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -136,7 +135,7 @@ func channelToValue(id int) Value {
 }
 
 func isChannelValue(v Value) bool {
-	if !v.IsSymbol() {
+	if !v.IsSymbolEncoded() {
 		return false
 	}
 	id := v.SymbolID()
@@ -190,7 +189,7 @@ func processToValue(id uint64) Value {
 }
 
 func isProcessValue(v Value) bool {
-	if !v.IsSymbol() {
+	if !v.IsSymbolEncoded() {
 		return false
 	}
 	id := v.SymbolID()
@@ -498,15 +497,7 @@ func (vm *VM) registerProcessPrimitives() {
 
 		go func() {
 			defer func() {
-				if r := recover(); r != nil {
-					// If somehow a NonLocalReturn escapes, capture its value
-					if nlr, ok := r.(NonLocalReturn); ok {
-						v.FinishProcess(proc, ExitNormal(nlr.Value))
-					} else {
-						// Process crashed with other error
-						v.FinishProcess(proc, ExitError(fmt.Errorf("process panic: %v", r)))
-					}
-				}
+				v.HandleForkedPanic(proc, recover())
 				// Unregister the interpreter when done
 				v.unregisterInterpreter()
 			}()
@@ -538,13 +529,7 @@ func (vm *VM) registerProcessPrimitives() {
 
 		go func() {
 			defer func() {
-				if r := recover(); r != nil {
-					if nlr, ok := r.(NonLocalReturn); ok {
-						v.FinishProcess(proc, ExitNormal(nlr.Value))
-					} else {
-						v.FinishProcess(proc, ExitError(fmt.Errorf("process panic: %v", r)))
-					}
-				}
+				v.HandleForkedPanic(proc, recover())
 				v.unregisterInterpreter()
 			}()
 
@@ -578,13 +563,7 @@ func (vm *VM) registerProcessPrimitives() {
 
 		go func() {
 			defer func() {
-				if r := recover(); r != nil {
-					if nlr, ok := r.(NonLocalReturn); ok {
-						v.FinishProcess(proc, ExitNormal(nlr.Value))
-					} else {
-						v.FinishProcess(proc, ExitError(fmt.Errorf("process panic: %v", r)))
-					}
-				}
+				v.HandleForkedPanic(proc, recover())
 				v.unregisterInterpreter()
 			}()
 
@@ -629,13 +608,7 @@ func (vm *VM) registerProcessPrimitives() {
 
 		go func() {
 			defer func() {
-				if r := recover(); r != nil {
-					if nlr, ok := r.(NonLocalReturn); ok {
-						v.FinishProcess(proc, ExitNormal(nlr.Value))
-					} else {
-						v.FinishProcess(proc, ExitError(fmt.Errorf("process panic: %v", r)))
-					}
-				}
+				v.HandleForkedPanic(proc, recover())
 				v.unregisterInterpreter()
 			}()
 
@@ -799,13 +772,7 @@ func (vm *VM) registerProcessPrimitives() {
 
 		go func() {
 			defer func() {
-				if r := recover(); r != nil {
-					if nlr, ok := r.(NonLocalReturn); ok {
-						v.FinishProcess(proc, ExitNormal(nlr.Value))
-					} else {
-						v.FinishProcess(proc, ExitError(fmt.Errorf("process panic: %v", r)))
-					}
-				}
+				v.HandleForkedPanic(proc, recover())
 				v.unregisterInterpreter()
 			}()
 
@@ -846,13 +813,7 @@ func (vm *VM) registerProcessPrimitives() {
 
 		go func() {
 			defer func() {
-				if r := recover(); r != nil {
-					if nlr, ok := r.(NonLocalReturn); ok {
-						v.FinishProcess(proc, ExitNormal(nlr.Value))
-					} else {
-						v.FinishProcess(proc, ExitError(fmt.Errorf("process panic: %v", r)))
-					}
-				}
+				v.HandleForkedPanic(proc, recover())
 				v.unregisterInterpreter()
 			}()
 
@@ -881,12 +842,10 @@ func (vm *VM) extractHiddenMap(restrictionsVal Value) map[string]bool {
 	for i := 0; i < obj.NumSlots(); i++ {
 		elem := obj.GetSlot(i)
 		var name string
-		if elem.IsSymbol() {
-			if IsStringValue(elem) {
-				name = vm.registry.GetStringContent(elem)
-			} else {
-				name = vm.Symbols.Name(elem.SymbolID())
-			}
+		if IsStringValue(elem) {
+			name = vm.registry.GetStringContent(elem)
+		} else if elem.IsSymbol() {
+			name = vm.Symbols.Name(elem.SymbolID())
 		}
 		if name != "" {
 			hidden[name] = true
@@ -1061,7 +1020,7 @@ func (vm *VM) registerMailboxPrimitives() {
 			return False
 		}
 		sel := ""
-		if selectorVal.IsSymbol() && !IsStringValue(selectorVal) {
+		if selectorVal.IsSymbol() {
 			sel = v.Symbols.Name(selectorVal.SymbolID())
 		} else if IsStringValue(selectorVal) {
 			sel = v.registry.GetStringContent(selectorVal)

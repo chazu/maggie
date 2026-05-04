@@ -1,0 +1,690 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Command-Line Apps &mdash; Maggie API Reference</title>
+    <link rel="stylesheet" href="../css/style.css">
+</head>
+<body>
+<nav class="sidebar">
+    <div class="sidebar-title"><a href="../index.html">Maggie Docs</a></div>
+
+    <div class="sidebar-section">
+        <div class="sidebar-section-title">Guide</div>
+        <ul class="sidebar-list">
+
+            <li><a href="../guide/01-getting-started.html">Getting Started</a></li>
+
+            <li><a href="../guide/02-basics.html">Basics</a></li>
+
+            <li><a href="../guide/03-numbers.html">Numbers</a></li>
+
+            <li><a href="../guide/04-strings.html">Strings</a></li>
+
+            <li><a href="../guide/05-collections.html">Collections</a></li>
+
+            <li><a href="../guide/06-blocks.html">Blocks</a></li>
+
+            <li><a href="../guide/07-classes.html">Classes</a></li>
+
+            <li><a href="../guide/08-error-handling.html">Error Handling</a></li>
+
+            <li><a href="../guide/09-concurrency.html">Concurrency</a></li>
+
+            <li><a href="../guide/10-modules.html">Modules</a></li>
+
+            <li><a href="../guide/11-projects.html">Projects</a></li>
+
+            <li><a href="../guide/12-supervisors.html">Supervisors</a></li>
+
+            <li><a href="../guide/13-clustering.html">Clustering</a></li>
+
+            <li><a href="../guide/14-go-interop.html">Go Interop</a></li>
+
+            <li><a href="../guide/15-distribution.html">Distribution</a></li>
+
+            <li><a href="../guide/16-tooling-ide.html">Tooling &amp; IDE</a></li>
+
+            <li><a href="../guide/17-cue-integration.html">Cue Integration</a></li>
+
+            <li><a href="../guide/18-tuple-space.html">Tuple Space</a></li>
+
+            <li><a href="../guide/19-distributed-supervisors.html">Distributed Supervisors</a></li>
+
+            <li><a href="../guide/20-command-line-apps.html" class="active">Command-Line Apps</a></li>
+
+        </ul>
+    </div>
+
+    <div class="sidebar-section">
+        <div class="sidebar-section-title">API Reference</div>
+
+        <details class="sidebar-ns-group" open>
+            <summary>(root)</summary>
+            <ul class="sidebar-list">
+
+                <li><a href="../classes/Array.html">Array</a></li>
+
+                <li><a href="../classes/ArrayList.html">ArrayList</a></li>
+
+                <li><a href="../classes/AssignmentNode.html">AssignmentNode</a></li>
+
+                <li><a href="../classes/Association.html">Association</a></li>
+
+                <li><a href="../classes/BigInteger.html">BigInteger</a></li>
+
+                <li><a href="../classes/Block.html">Block</a></li>
+
+                <li><a href="../classes/BlockNode.html">BlockNode</a></li>
+
+                <li><a href="../classes/Boolean.html">Boolean</a></li>
+
+                <li><a href="../classes/ByteArray.html">ByteArray</a></li>
+
+                <li><a href="../classes/BytecodeGenerator.html">BytecodeGenerator</a></li>
+
+                <li><a href="../classes/CancellationContext.html">CancellationContext</a></li>
+
+                <li><a href="../classes/CascadeNode.html">CascadeNode</a></li>
+
+                <li><a href="../classes/Channel.html">Channel</a></li>
+
+                <li><a href="../classes/Character.html">Character</a></li>
+
+                <li><a href="../classes/CharacterStream.html">CharacterStream</a></li>
+
+                <li><a href="../classes/ChildSpec.html">ChildSpec</a></li>
+
+                <li><a href="../classes/Class.html">Class</a></li>
+
+                <li><a href="../classes/ClassNode.html">ClassNode</a></li>
+
+                <li><a href="../classes/Cluster.html">Cluster</a></li>
+
+                <li><a href="../classes/CompiledMethod.html">CompiledMethod</a></li>
+
+                <li><a href="../classes/Compiler.html">Compiler</a></li>
+
+                <li><a href="../classes/ConstraintStore.html">ConstraintStore</a></li>
+
+                <li><a href="../classes/Context.html">Context</a></li>
+
+                <li><a href="../classes/CueContext.html">CueContext</a></li>
+
+                <li><a href="../classes/CueValue.html">CueValue</a></li>
+
+                <li><a href="../classes/DateTime.html">DateTime</a></li>
+
+                <li><a href="../classes/Debugger.html">Debugger</a></li>
+
+                <li><a href="../classes/Dictionary.html">Dictionary</a></li>
+
+                <li><a href="../classes/DistributedSupervisor.html">DistributedSupervisor</a></li>
+
+                <li><a href="../classes/DocServer.html">DocServer</a></li>
+
+                <li><a href="../classes/DuckAppender.html">DuckAppender</a></li>
+
+                <li><a href="../classes/DuckDatabase.html">DuckDatabase</a></li>
+
+                <li><a href="../classes/DynamicSupervisor.html">DynamicSupervisor</a></li>
+
+                <li><a href="../classes/Ed25519.html">Ed25519</a></li>
+
+                <li><a href="../classes/Error.html">Error</a></li>
+
+                <li><a href="../classes/Exception.html">Exception</a></li>
+
+                <li><a href="../classes/ExternalProcess.html">ExternalProcess</a></li>
+
+                <li><a href="../classes/Failure.html">Failure</a></li>
+
+                <li><a href="../classes/False.html">False</a></li>
+
+                <li><a href="../classes/File.html">File</a></li>
+
+                <li><a href="../classes/Float.html">Float</a></li>
+
+                <li><a href="../classes/Future.html">Future</a></li>
+
+                <li><a href="../classes/GrpcClient.html">GrpcClient</a></li>
+
+                <li><a href="../classes/GrpcStream.html">GrpcStream</a></li>
+
+                <li><a href="../classes/Halt.html">Halt</a></li>
+
+                <li><a href="../classes/HashRing.html">HashRing</a></li>
+
+                <li><a href="../classes/HttpClient.html">HttpClient</a></li>
+
+                <li><a href="../classes/HttpRequest.html">HttpRequest</a></li>
+
+                <li><a href="../classes/HttpResponse.html">HttpResponse</a></li>
+
+                <li><a href="../classes/HttpServer.html">HttpServer</a></li>
+
+                <li><a href="../classes/Identity.html">Identity</a></li>
+
+                <li><a href="../classes/Json.html">Json</a></li>
+
+                <li><a href="../classes/JsonParseError.html">JsonParseError</a></li>
+
+                <li><a href="../classes/JsonReader.html">JsonReader</a></li>
+
+                <li><a href="../classes/JsonWriter.html">JsonWriter</a></li>
+
+                <li><a href="../classes/Lexer.html">Lexer</a></li>
+
+                <li><a href="../classes/LiteralNode.html">LiteralNode</a></li>
+
+                <li><a href="../classes/MailboxMessage.html">MailboxMessage</a></li>
+
+                <li><a href="../classes/Message.html">Message</a></li>
+
+                <li><a href="../classes/MessageNotUnderstood.html">MessageNotUnderstood</a></li>
+
+                <li><a href="../classes/MessageSendNode.html">MessageSendNode</a></li>
+
+                <li><a href="../classes/Metaclass.html">Metaclass</a></li>
+
+                <li><a href="../classes/MethodNode.html">MethodNode</a></li>
+
+                <li><a href="../classes/Mutex.html">Mutex</a></li>
+
+                <li><a href="../classes/Node.html">Node</a></li>
+
+                <li><a href="../classes/Notification.html">Notification</a></li>
+
+                <li><a href="../classes/Object.html">Object</a></li>
+
+                <li><a href="../classes/Parser.html">Parser</a></li>
+
+                <li><a href="../classes/Process.html">Process</a></li>
+
+                <li><a href="../classes/Proquint.html">Proquint</a></li>
+
+                <li><a href="../classes/Random.html">Random</a></li>
+
+                <li><a href="../classes/Regex.html">Regex</a></li>
+
+                <li><a href="../classes/RemoteChannel.html">RemoteChannel</a></li>
+
+                <li><a href="../classes/RemoteProcess.html">RemoteProcess</a></li>
+
+                <li><a href="../classes/Result.html">Result</a></li>
+
+                <li><a href="../classes/ReturnNode.html">ReturnNode</a></li>
+
+                <li><a href="../classes/SSEConnection.html">SSEConnection</a></li>
+
+                <li><a href="../classes/Sandbox.html">Sandbox</a></li>
+
+                <li><a href="../classes/Semaphore.html">Semaphore</a></li>
+
+                <li><a href="../classes/Set.html">Set</a></li>
+
+                <li><a href="../classes/Sha256.html">Sha256</a></li>
+
+                <li><a href="../classes/Signal.html">Signal</a></li>
+
+                <li><a href="../classes/SmallInteger.html">SmallInteger</a></li>
+
+                <li><a href="../classes/SocketConnection.html">SocketConnection</a></li>
+
+                <li><a href="../classes/SqliteDatabase.html">SqliteDatabase</a></li>
+
+                <li><a href="../classes/SqliteRows.html">SqliteRows</a></li>
+
+                <li><a href="../classes/SqliteStatement.html">SqliteStatement</a></li>
+
+                <li><a href="../classes/StackOverflow.html">StackOverflow</a></li>
+
+                <li><a href="../classes/String.html">String</a></li>
+
+                <li><a href="../classes/SubscriptOutOfBounds.html">SubscriptOutOfBounds</a></li>
+
+                <li><a href="../classes/Success.html">Success</a></li>
+
+                <li><a href="../classes/Supervisor.html">Supervisor</a></li>
+
+                <li><a href="../classes/Symbol.html">Symbol</a></li>
+
+                <li><a href="../classes/System.html">System</a></li>
+
+                <li><a href="../classes/Token.html">Token</a></li>
+
+                <li><a href="../classes/Toml.html">Toml</a></li>
+
+                <li><a href="../classes/TomlParseError.html">TomlParseError</a></li>
+
+                <li><a href="../classes/True.html">True</a></li>
+
+                <li><a href="../classes/TupleSpace.html">TupleSpace</a></li>
+
+                <li><a href="../classes/UndefinedObject.html">UndefinedObject</a></li>
+
+                <li><a href="../classes/UnixSocketClient.html">UnixSocketClient</a></li>
+
+                <li><a href="../classes/UnixSocketServer.html">UnixSocketServer</a></li>
+
+                <li><a href="../classes/VariableNode.html">VariableNode</a></li>
+
+                <li><a href="../classes/WaitGroup.html">WaitGroup</a></li>
+
+                <li><a href="../classes/Warning.html">Warning</a></li>
+
+                <li><a href="../classes/WeakReference.html">WeakReference</a></li>
+
+                <li><a href="../classes/ZeroDivide.html">ZeroDivide</a></li>
+
+            </ul>
+        </details>
+
+        <details class="sidebar-ns-group">
+            <summary>Cli</summary>
+            <ul class="sidebar-list">
+
+                <li><a href="../classes/Cli/CliError.html">CliError</a></li>
+
+                <li><a href="../classes/Cli/Command.html">Command</a></li>
+
+                <li><a href="../classes/Cli/EnvBinding.html">EnvBinding</a></li>
+
+                <li><a href="../classes/Cli/Flag.html">Flag</a></li>
+
+                <li><a href="../classes/Cli/Output.html">Output</a></li>
+
+            </ul>
+        </details>
+
+    </div>
+</nav>
+<main class="content">
+    <div class="breadcrumb">
+        <a href="../index.html">Maggie API Reference</a>
+        &rsaquo; Guide
+        &rsaquo; Command-Line Apps
+    </div>
+
+    <h1>Command-Line Apps</h1>
+
+
+    <div class="guide-intro">
+        <p>Maggie ships a small namespace, <code>Cli</code>, for building Unix-style
+command-line tools from Smalltalk. Under the hood it is a thin bridge
+over [spf13/cobra](https://github.com/spf13/cobra) (<code>vm/cli_primitives.go</code>)
+with a pure-Maggie environment-variable layer and a shared output
+formatter.</p>
+<p>This chapter walks through the four classes the namespace exposes --
+<code>Cli::Command</code>, <code>Cli::Flag</code>, <code>Cli::EnvBinding</code>, and <code>Cli::Output</code> --
+and builds up a small <code>hello</code> CLI live, step by step. Every section is
+runnable: the code evaluates on load, with no side-effects beyond
+constructing in-memory command handles.</p>
+<p>See [<code>docs/cli.md</code>](../../docs/cli.md) for the reference-style
+treatment, including flag-type tables, coercion rules, and the current
+list of limitations.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>(Cli::Command named: &#39;guide-probe&#39;) class name &gt;&gt;&gt; #Command</code></pre>
+</div>
+
+    </div>
+
+
+
+    <div class="guide-section">
+
+        <h2>Defining a Command</h2>
+<p><code>Cli::Command named:doc:run:</code> is the common three-part constructor:
+a name (what cobra calls the <code>Use</code> field), a short documentation
+string (cobra&#39;s <code>Short</code>), and a Maggie block to run when the
+command is invoked.</p>
+<p>The run block receives the positional args as an <code>Array&lt;String&gt;</code>
+and should return a <code>SmallInteger</code> exit code. Any other return is
+treated as exit 0; an unhandled exception is exit 1.</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>Cli::Command
+    named: &#39;greet&#39;
+    doc:   &#39;Say hello&#39;
+    run:   [:args |
+        &#39;Hello, world!&#39; println.
+        0
+    ]</code></pre>
+</div>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>cmd := Cli::Command named: &#39;greet&#39; doc: &#39;Say hello&#39; run: [:args | 0].
+cmd class name &gt;&gt;&gt; #Command</code></pre>
+</div>
+<p>If you want to configure the command progressively, use the shorter
+forms and chain -- <code>Cli::Command named: &#39;greet&#39;</code> or
+<code>Cli::Command named: &#39;greet&#39; doc: &#39;Say hello&#39;</code> both return a
+handle you can extend with <code>run:</code>, <code>flag:type:default:doc:</code>, and
+<code>registerSubcommand:</code>.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>cmd := Cli::Command named: &#39;greet&#39; doc: &#39;Say hello&#39;.
+(cmd run: [:args | 0]) class name &gt;&gt;&gt; #Command</code></pre>
+</div>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <h2>Flags</h2>
+<p>Declare flags before the run block with <code>flag:type:default:doc:</code>.
+The type symbol picks which accessor cobra uses: <code>#string</code>, <code>#bool</code>,
+or <code>#integer</code> (<code>#int</code> is accepted as an alias). Inside the run
+block, read parsed values with <code>flagValue:</code>, which dispatches on the
+registered type and returns <code>nil</code> if the flag was never declared.</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>cmd := Cli::Command named: &#39;greet&#39; doc: &#39;Say hello&#39;.
+cmd flag: &#39;name&#39;    type: #string  default: &#39;world&#39; doc: &#39;Who to greet&#39;.
+cmd flag: &#39;verbose&#39; type: #bool    default: false   doc: &#39;Chatty output&#39;.
+cmd flag: &#39;count&#39;   type: #integer default: 1       doc: &#39;How many&#39;.
+cmd run: [:args |
+    1 to: (cmd flagValue: &#39;count&#39;) do: [:i |
+        (&#39;Hello, &#39;, (cmd flagValue: &#39;name&#39;), &#39;!&#39;) println
+    ].
+    0
+].</code></pre>
+</div>
+<p>The defaults come through even when the flag is never supplied on
+the command line -- so doctests that read <code>flagValue:</code> immediately
+after <code>flag:…default:</code> observe the declared default:</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>cmd := Cli::Command named: &#39;demo-flags&#39;.
+cmd flag: &#39;name&#39; type: #string default: &#39;world&#39; doc: &#39;Who to greet&#39;.
+cmd flagValue: &#39;name&#39; &gt;&gt;&gt; &#39;world&#39;</code></pre>
+</div>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>cmd := Cli::Command named: &#39;demo-flags&#39;.
+cmd flag: &#39;verbose&#39; type: #bool default: false doc: &#39;Chatty&#39;.
+cmd flagValue: &#39;verbose&#39; &gt;&gt;&gt; false</code></pre>
+</div>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>cmd := Cli::Command named: &#39;demo-flags&#39;.
+cmd flag: &#39;count&#39; type: #integer default: 7 doc: &#39;How many&#39;.
+cmd flagValue: &#39;count&#39; &gt;&gt;&gt; 7</code></pre>
+</div>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>cmd := Cli::Command named: &#39;demo-flags&#39;.
+cmd flagValue: &#39;nonexistent&#39; &gt;&gt;&gt; nil</code></pre>
+</div>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <h2>Subcommands</h2>
+<p>Build a multi-command tool by calling <code>registerSubcommand:</code> on the
+parent. The tree can be arbitrarily deep; cobra takes care of
+routing <code>mytool build</code>, <code>mytool test --verbose</code>, and so on.</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>root  := Cli::Command named: &#39;mytool&#39; doc: &#39;My multi-command tool&#39;.
+build := Cli::Command named: &#39;build&#39; doc: &#39;Build the project&#39; run: [:args | 0].
+test  := Cli::Command named: &#39;test&#39;  doc: &#39;Run tests&#39;          run: [:args | 0].
+root registerSubcommand: build.
+root registerSubcommand: test.</code></pre>
+</div>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>root := Cli::Command named: &#39;guide-root&#39; doc: &#39;Tree demo&#39;.
+leaf := Cli::Command named: &#39;guide-leaf&#39; doc: &#39;Child command&#39; run: [:args | 0].
+root registerSubcommand: leaf.
+root class name &gt;&gt;&gt; #Command</code></pre>
+</div>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <h2>Environment-Variable Binding</h2>
+<p><code>Cli::EnvBinding</code> projects one environment variable onto a target
+object via a one-argument setter. It is an immutable value object:
+one binding per variable, coerced according to a <code>type</code> symbol
+(<code>#string</code>, <code>#integer</code>, <code>#bool</code>, or <code>#duration</code>).</p>
+<p>We deliberately do not wrap the Go <code>envconfig</code> library -- that
+operates on Go struct tags via reflection, which has no Maggie
+equivalent. <code>Cli::EnvBinding</code> is the pure-Maggie replacement.</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>| cfg binding |
+cfg := Dictionary new.
+binding := Cli::EnvBinding
+    envName: &#39;PP_DEMO&#39;
+    setter:  #at:put:          &#34;ignored here -- at:put: needs 2 args&#34;
+    type:    #integer
+    default: 7.
+&#34;binding applyTo: cfg would call `cfg at:put: &lt;value&gt;` -- shown for shape only.&#34;
+binding type            &gt;&gt;&gt; #integer
+binding default         &gt;&gt;&gt; 7
+binding envName         &gt;&gt;&gt; &#39;PP_DEMO&#39;</code></pre>
+</div>
+<p>The class method <code>coerce:type:</code> converts a raw string to a typed
+value according to the same rules <code>applyTo:</code> uses, without needing a
+target. This is how unit tests exercise the coercion logic
+directly.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>Cli::EnvBinding coerce: &#39;42&#39;   type: #integer &gt;&gt;&gt; 42</code></pre>
+</div>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>Cli::EnvBinding coerce: &#39;yes&#39;  type: #bool    &gt;&gt;&gt; true</code></pre>
+</div>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>Cli::EnvBinding coerce: &#39;hello&#39; type: #string &gt;&gt;&gt; &#39;hello&#39;</code></pre>
+</div>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>Cli::EnvBinding coerce: &#39;  hi  &#39; type: #string &gt;&gt;&gt; &#39;hi&#39;</code></pre>
+</div>
+<p>Attach bindings to a command with <code>envBinding:</code> and apply them
+inside the run block (or from a subclass <code>execute</code> override) with
+<code>applyEnvBindings:</code>. This pattern lets any command read its
+environment without hand-rolling <code>System env:</code> calls for each
+variable.</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>cmd := Cli::Command named: &#39;server&#39;.
+cmd envBinding: (Cli::EnvBinding envName: &#39;PP_PORT&#39; setter: #port:  type: #integer default: 8080).
+cmd envBinding: (Cli::EnvBinding envName: &#39;PP_DEBUG&#39; setter: #debug: type: #bool    default: false).
+cmd run: [:args |
+    | cfg |
+    cfg := AppConfig new.
+    cmd applyEnvBindings: cfg.
+    cfg startServer.
+    0
+].</code></pre>
+</div>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <h2>Output Formatting</h2>
+<p><code>Cli::Output</code> centralises the rendering of command results so every
+tool built on top of Maggie agrees on formatting. It has two modes,
+<code>&#39;text&#39;</code> and <code>&#39;json&#39;</code>, and renders Dictionaries as aligned
+<code>key  value</code> lines or as pretty-printed JSON depending on which
+mode is active.</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>&#34;Class-side: pick format once, then render.&#34;
+Cli::Output format: &#39;text&#39;.
+Cli::Output result: (Dictionary new at: &#39;ok&#39; put: true; yourself).
+&#34;=&gt; &#39;ok  true&#39; on stdout&#34;
+
+Cli::Output format: &#39;json&#39;.
+Cli::Output result: (Dictionary new at: &#39;ok&#39; put: true; yourself).
+&#34;=&gt; pretty-printed { \&#34;ok\&#34;: true } on stdout&#34;</code></pre>
+</div>
+<p>The smart renderer <code>Cli::Output resultOrError:</code> branches on Result
+shape: <code>Failures</code> print the wrapped error (plain text, or
+<code>{\&#34;error\&#34;: \&#34;...\&#34;}</code> in JSON mode) and answer <code>false</code>; successes
+delegate to <code>result:</code> and answer <code>true</code>.</p>
+<p>For tables, pass rows (as Dictionaries) plus parallel arrays of
+header strings and row keys. Column widths are computed in text
+mode; in JSON mode the row array is emitted unchanged.</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>rows := Array
+    with: (Dictionary new at: &#39;name&#39; put: &#39;alice&#39;; at: &#39;status&#39; put: &#39;online&#39;; yourself)
+    with: (Dictionary new at: &#39;name&#39; put: &#39;bob&#39;  ; at: &#39;status&#39; put: &#39;away&#39;;   yourself).
+Cli::Output format: &#39;text&#39;.
+Cli::Output table: rows headers: #(&#39;NAME&#39; &#39;STATUS&#39;) keys: #(&#39;name&#39; &#39;status&#39;).
+&#34;NAME   STATUS
+ alice  online
+ bob    away&#34;</code></pre>
+</div>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>Cli::Output format: &#39;json&#39;.
+Cli::Output format &gt;&gt;&gt; &#39;json&#39;</code></pre>
+</div>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>Cli::Output format: &#39;text&#39;.
+Cli::Output format &gt;&gt;&gt; &#39;text&#39;</code></pre>
+</div>
+<p>Leave the mode as <code>&#39;text&#39;</code> at the end so subsequent guide chapters
+that print values see the expected format. (Our doctest leaves the
+class-side state set to whatever the last example used -- be
+defensive in production code and set the format explicitly on entry
+to each command.)</p>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <h2>Testing Your CLI</h2>
+<p>Every class in the <code>Cli</code> namespace ships doctests in its docstrings.
+Run them all with:</p>
+<p><code></code><code>
+mag doctest --class Cli::Command
+mag doctest --class Cli::Flag
+mag doctest --class Cli::EnvBinding
+mag doctest --class Cli::Output
+</code><code></code></p>
+<p>For integration-level testing (driving a command through its full
+cobra lifecycle without touching <code>os.Args</code> or stdout), use
+<code>setArgs:</code> and <code>setOutput:</code>. <code>setArgs:</code> accepts an
+<code>Array&lt;String&gt;</code> and overrides cobra&#39;s default of parsing
+<code>os.Args</code>. <code>setOutput:</code> accepts a <code>GoObject</code> wrapping an
+<code>io.Writer</code> (typically a <code>*bytes.Buffer</code>) and redirects cobra&#39;s
+<code>Out</code> and <code>Err</code> streams -- passing <code>nil</code> restores the defaults.</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>&#34;Pseudocode — the real test wires a Go-side *bytes.Buffer.&#34;
+cmd    := Cli::Command named: &#39;greet&#39; doc: &#39;Say hello&#39;.
+cmd    flag: &#39;name&#39; type: #string default: &#39;world&#39; doc: &#39;Who to greet&#39;.
+cmd    run: [:args |
+    (&#39;Hello, &#39;, (cmd flagValue: &#39;name&#39;), &#39;!&#39;) println.
+    0
+].
+buffer := BufferedStream new.                 &#34;go-wrapped io.Writer&#34;
+cmd setOutput: buffer.                         &#34;redirect Out + Err&#34;
+cmd setArgs:   #(&#39;--name&#39; &#39;alice&#39;).            &#34;skip os.Args&#34;
+cmd execute.                                   &#34;=&gt; 0&#34;
+buffer contents                                &#34;=&gt; &#39;Hello, alice!\\n&#39;&#34;</code></pre>
+</div>
+<p>End-to-end examples driving <code>Cli::Command</code> from Go live in
+<code>vm/cli_primitives_test.go</code>. In Maggie-side tests you typically
+stop at the <code>execute</code> return value and assert against whatever the
+run block mutated -- a captured counter, a returned Dictionary, or
+the exit code itself.</p>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <h2>Help and Completion</h2>
+<p>Because <code>Cli::Command</code> is a thin cobra wrapper, the standard cobra
+UX is inherited unchanged.</p>
+<p>- <code>&lt;cmd&gt; --help</code> renders cobra&#39;s auto-generated help screen from
+  <code>named:</code> (the <code>Use</code> field), <code>doc:</code> (<code>Short</code>), any <code>longDoc:</code>
+  (<code>Long</code>), plus every flag and its default.
+- <code>&lt;cmd&gt; &lt;subcommand&gt; --help</code> does the same for one subcommand.
+- <code>&lt;cmd&gt; help &lt;subcommand&gt;</code> is the alternate syntax.
+- <code>&lt;cmd&gt; completion bash</code> (and <code>zsh</code>, <code>fish</code>, <code>powershell</code>) prints a
+  shell completion script for the whole command tree. Redirect to a
+  file, source it from your shell rc, and tab completion works.</p>
+<p>No Maggie code is needed for any of this beyond calling <code>execute</code>.</p>
+
+
+    </div>
+
+    <div class="guide-section">
+
+        <h2>Putting It Together</h2>
+<p>Here is the minimal shape of a tool that declares a subcommand, a
+flag, and an env binding, then wires them into cobra&#39;s dispatch:</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>| root greet |
+
+root  := Cli::Command named: &#39;hello&#39; doc: &#39;A minimal Maggie CLI&#39;.
+
+greet := Cli::Command named: &#39;greet&#39; doc: &#39;Say hello&#39;.
+greet flag: &#39;name&#39; type: #string default: &#39;world&#39; doc: &#39;Who to greet&#39;.
+greet envBinding: (
+    Cli::EnvBinding
+        envName: &#39;HELLO_PREFIX&#39;
+        setter:  #prefix:
+        type:    #string
+        default: &#39;Hello&#39;
+).
+greet run: [:args |
+    | cfg |
+    cfg := Dictionary new.
+    &#34;Give the dictionary an at: prefix: accessor via a small facade
+    class in real code; here we call the setter directly.&#34;
+    greet applyEnvBindings: cfg.
+    ((cfg at: #prefix ifAbsent: [&#39;Hello&#39;]),
+        &#39;, &#39;, (greet flagValue: &#39;name&#39;), &#39;!&#39;) println.
+    0
+].
+
+root registerSubcommand: greet.
+
+&#34;root execute reads System args; in this guide we stop at wiring.&#34;
+root</code></pre>
+</div>
+<p>Save as <code>app.mag</code>, then:</p>
+<p><code></code><code>
+mag run app.mag -- greet
+mag run app.mag -- greet --name Alice
+HELLO_PREFIX=Hi mag run app.mag -- greet --name Alice
+mag run app.mag -- greet --help
+mag run app.mag -- completion bash &gt; ~/.hello-completion
+</code><code></code></p>
+<p>See <code>docs/cli.md</code> for the full reference and <code>lib/Cli/*.mag</code> for the
+source of each class.</p>
+
+
+    </div>
+
+
+    <div class="footer">
+        Generated by Maggie doc generator.
+    </div>
+</main>
+    <script src="../js/playground.js"></script>
+</body>
+</html>

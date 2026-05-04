@@ -1,0 +1,896 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Cli::Output &mdash; Maggie API Reference</title>
+    <link rel="stylesheet" href="../../css/style.css">
+</head>
+<body>
+<nav class="sidebar">
+    <div class="sidebar-title"><a href="../../index.html">Maggie Docs</a></div>
+
+    <div class="sidebar-section">
+        <div class="sidebar-section-title">Guide</div>
+        <ul class="sidebar-list">
+
+            <li><a href="../../guide/01-getting-started.html">Getting Started</a></li>
+
+            <li><a href="../../guide/02-basics.html">Basics</a></li>
+
+            <li><a href="../../guide/03-numbers.html">Numbers</a></li>
+
+            <li><a href="../../guide/04-strings.html">Strings</a></li>
+
+            <li><a href="../../guide/05-collections.html">Collections</a></li>
+
+            <li><a href="../../guide/06-blocks.html">Blocks</a></li>
+
+            <li><a href="../../guide/07-classes.html">Classes</a></li>
+
+            <li><a href="../../guide/08-error-handling.html">Error Handling</a></li>
+
+            <li><a href="../../guide/09-concurrency.html">Concurrency</a></li>
+
+            <li><a href="../../guide/10-modules.html">Modules</a></li>
+
+            <li><a href="../../guide/11-projects.html">Projects</a></li>
+
+            <li><a href="../../guide/12-supervisors.html">Supervisors</a></li>
+
+            <li><a href="../../guide/13-clustering.html">Clustering</a></li>
+
+            <li><a href="../../guide/14-go-interop.html">Go Interop</a></li>
+
+            <li><a href="../../guide/15-distribution.html">Distribution</a></li>
+
+            <li><a href="../../guide/16-tooling-ide.html">Tooling &amp; IDE</a></li>
+
+            <li><a href="../../guide/17-cue-integration.html">Cue Integration</a></li>
+
+            <li><a href="../../guide/18-tuple-space.html">Tuple Space</a></li>
+
+            <li><a href="../../guide/19-distributed-supervisors.html">Distributed Supervisors</a></li>
+
+            <li><a href="../../guide/20-command-line-apps.html">Command-Line Apps</a></li>
+
+        </ul>
+    </div>
+
+    <div class="sidebar-section">
+        <div class="sidebar-section-title">API Reference</div>
+
+        <details class="sidebar-ns-group" open>
+            <summary>(root)</summary>
+            <ul class="sidebar-list">
+
+                <li><a href="../../classes/Array.html">Array</a></li>
+
+                <li><a href="../../classes/ArrayList.html">ArrayList</a></li>
+
+                <li><a href="../../classes/AssignmentNode.html">AssignmentNode</a></li>
+
+                <li><a href="../../classes/Association.html">Association</a></li>
+
+                <li><a href="../../classes/BigInteger.html">BigInteger</a></li>
+
+                <li><a href="../../classes/Block.html">Block</a></li>
+
+                <li><a href="../../classes/BlockNode.html">BlockNode</a></li>
+
+                <li><a href="../../classes/Boolean.html">Boolean</a></li>
+
+                <li><a href="../../classes/ByteArray.html">ByteArray</a></li>
+
+                <li><a href="../../classes/BytecodeGenerator.html">BytecodeGenerator</a></li>
+
+                <li><a href="../../classes/CancellationContext.html">CancellationContext</a></li>
+
+                <li><a href="../../classes/CascadeNode.html">CascadeNode</a></li>
+
+                <li><a href="../../classes/Channel.html">Channel</a></li>
+
+                <li><a href="../../classes/Character.html">Character</a></li>
+
+                <li><a href="../../classes/CharacterStream.html">CharacterStream</a></li>
+
+                <li><a href="../../classes/ChildSpec.html">ChildSpec</a></li>
+
+                <li><a href="../../classes/Class.html">Class</a></li>
+
+                <li><a href="../../classes/ClassNode.html">ClassNode</a></li>
+
+                <li><a href="../../classes/Cluster.html">Cluster</a></li>
+
+                <li><a href="../../classes/CompiledMethod.html">CompiledMethod</a></li>
+
+                <li><a href="../../classes/Compiler.html">Compiler</a></li>
+
+                <li><a href="../../classes/ConstraintStore.html">ConstraintStore</a></li>
+
+                <li><a href="../../classes/Context.html">Context</a></li>
+
+                <li><a href="../../classes/CueContext.html">CueContext</a></li>
+
+                <li><a href="../../classes/CueValue.html">CueValue</a></li>
+
+                <li><a href="../../classes/DateTime.html">DateTime</a></li>
+
+                <li><a href="../../classes/Debugger.html">Debugger</a></li>
+
+                <li><a href="../../classes/Dictionary.html">Dictionary</a></li>
+
+                <li><a href="../../classes/DistributedSupervisor.html">DistributedSupervisor</a></li>
+
+                <li><a href="../../classes/DocServer.html">DocServer</a></li>
+
+                <li><a href="../../classes/DuckAppender.html">DuckAppender</a></li>
+
+                <li><a href="../../classes/DuckDatabase.html">DuckDatabase</a></li>
+
+                <li><a href="../../classes/DynamicSupervisor.html">DynamicSupervisor</a></li>
+
+                <li><a href="../../classes/Ed25519.html">Ed25519</a></li>
+
+                <li><a href="../../classes/Error.html">Error</a></li>
+
+                <li><a href="../../classes/Exception.html">Exception</a></li>
+
+                <li><a href="../../classes/ExternalProcess.html">ExternalProcess</a></li>
+
+                <li><a href="../../classes/Failure.html">Failure</a></li>
+
+                <li><a href="../../classes/False.html">False</a></li>
+
+                <li><a href="../../classes/File.html">File</a></li>
+
+                <li><a href="../../classes/Float.html">Float</a></li>
+
+                <li><a href="../../classes/Future.html">Future</a></li>
+
+                <li><a href="../../classes/GrpcClient.html">GrpcClient</a></li>
+
+                <li><a href="../../classes/GrpcStream.html">GrpcStream</a></li>
+
+                <li><a href="../../classes/Halt.html">Halt</a></li>
+
+                <li><a href="../../classes/HashRing.html">HashRing</a></li>
+
+                <li><a href="../../classes/HttpClient.html">HttpClient</a></li>
+
+                <li><a href="../../classes/HttpRequest.html">HttpRequest</a></li>
+
+                <li><a href="../../classes/HttpResponse.html">HttpResponse</a></li>
+
+                <li><a href="../../classes/HttpServer.html">HttpServer</a></li>
+
+                <li><a href="../../classes/Identity.html">Identity</a></li>
+
+                <li><a href="../../classes/Json.html">Json</a></li>
+
+                <li><a href="../../classes/JsonParseError.html">JsonParseError</a></li>
+
+                <li><a href="../../classes/JsonReader.html">JsonReader</a></li>
+
+                <li><a href="../../classes/JsonWriter.html">JsonWriter</a></li>
+
+                <li><a href="../../classes/Lexer.html">Lexer</a></li>
+
+                <li><a href="../../classes/LiteralNode.html">LiteralNode</a></li>
+
+                <li><a href="../../classes/MailboxMessage.html">MailboxMessage</a></li>
+
+                <li><a href="../../classes/Message.html">Message</a></li>
+
+                <li><a href="../../classes/MessageNotUnderstood.html">MessageNotUnderstood</a></li>
+
+                <li><a href="../../classes/MessageSendNode.html">MessageSendNode</a></li>
+
+                <li><a href="../../classes/Metaclass.html">Metaclass</a></li>
+
+                <li><a href="../../classes/MethodNode.html">MethodNode</a></li>
+
+                <li><a href="../../classes/Mutex.html">Mutex</a></li>
+
+                <li><a href="../../classes/Node.html">Node</a></li>
+
+                <li><a href="../../classes/Notification.html">Notification</a></li>
+
+                <li><a href="../../classes/Object.html">Object</a></li>
+
+                <li><a href="../../classes/Parser.html">Parser</a></li>
+
+                <li><a href="../../classes/Process.html">Process</a></li>
+
+                <li><a href="../../classes/Proquint.html">Proquint</a></li>
+
+                <li><a href="../../classes/Random.html">Random</a></li>
+
+                <li><a href="../../classes/Regex.html">Regex</a></li>
+
+                <li><a href="../../classes/RemoteChannel.html">RemoteChannel</a></li>
+
+                <li><a href="../../classes/RemoteProcess.html">RemoteProcess</a></li>
+
+                <li><a href="../../classes/Result.html">Result</a></li>
+
+                <li><a href="../../classes/ReturnNode.html">ReturnNode</a></li>
+
+                <li><a href="../../classes/SSEConnection.html">SSEConnection</a></li>
+
+                <li><a href="../../classes/Sandbox.html">Sandbox</a></li>
+
+                <li><a href="../../classes/Semaphore.html">Semaphore</a></li>
+
+                <li><a href="../../classes/Set.html">Set</a></li>
+
+                <li><a href="../../classes/Sha256.html">Sha256</a></li>
+
+                <li><a href="../../classes/Signal.html">Signal</a></li>
+
+                <li><a href="../../classes/SmallInteger.html">SmallInteger</a></li>
+
+                <li><a href="../../classes/SocketConnection.html">SocketConnection</a></li>
+
+                <li><a href="../../classes/SqliteDatabase.html">SqliteDatabase</a></li>
+
+                <li><a href="../../classes/SqliteRows.html">SqliteRows</a></li>
+
+                <li><a href="../../classes/SqliteStatement.html">SqliteStatement</a></li>
+
+                <li><a href="../../classes/StackOverflow.html">StackOverflow</a></li>
+
+                <li><a href="../../classes/String.html">String</a></li>
+
+                <li><a href="../../classes/SubscriptOutOfBounds.html">SubscriptOutOfBounds</a></li>
+
+                <li><a href="../../classes/Success.html">Success</a></li>
+
+                <li><a href="../../classes/Supervisor.html">Supervisor</a></li>
+
+                <li><a href="../../classes/Symbol.html">Symbol</a></li>
+
+                <li><a href="../../classes/System.html">System</a></li>
+
+                <li><a href="../../classes/Token.html">Token</a></li>
+
+                <li><a href="../../classes/Toml.html">Toml</a></li>
+
+                <li><a href="../../classes/TomlParseError.html">TomlParseError</a></li>
+
+                <li><a href="../../classes/True.html">True</a></li>
+
+                <li><a href="../../classes/TupleSpace.html">TupleSpace</a></li>
+
+                <li><a href="../../classes/UndefinedObject.html">UndefinedObject</a></li>
+
+                <li><a href="../../classes/UnixSocketClient.html">UnixSocketClient</a></li>
+
+                <li><a href="../../classes/UnixSocketServer.html">UnixSocketServer</a></li>
+
+                <li><a href="../../classes/VariableNode.html">VariableNode</a></li>
+
+                <li><a href="../../classes/WaitGroup.html">WaitGroup</a></li>
+
+                <li><a href="../../classes/Warning.html">Warning</a></li>
+
+                <li><a href="../../classes/WeakReference.html">WeakReference</a></li>
+
+                <li><a href="../../classes/ZeroDivide.html">ZeroDivide</a></li>
+
+            </ul>
+        </details>
+
+        <details class="sidebar-ns-group">
+            <summary>Cli</summary>
+            <ul class="sidebar-list">
+
+                <li><a href="../../classes/Cli/CliError.html">CliError</a></li>
+
+                <li><a href="../../classes/Cli/Command.html">Command</a></li>
+
+                <li><a href="../../classes/Cli/EnvBinding.html">EnvBinding</a></li>
+
+                <li><a href="../../classes/Cli/Flag.html">Flag</a></li>
+
+                <li><a href="../../classes/Cli/Output.html" class="active">Output</a></li>
+
+            </ul>
+        </details>
+
+    </div>
+</nav>
+<main class="content">
+    <div class="breadcrumb">
+        <a href="../../index.html">Maggie API Reference</a>
+
+        &rsaquo; Cli
+
+        &rsaquo; Output
+    </div>
+
+    <div class="class-header">
+        <h1>Output</h1>
+
+        <div class="superclass-chain">
+            Inherits from: Object
+        </div>
+
+
+    </div>
+
+
+
+
+    <h2>Class Methods</h2>
+
+    <div class="method-category">
+        <h3>uncategorized</h3>
+
+        <div class="method">
+            <div class="method-selector">
+                <span class="class-side-label">class </span>dictText:
+            </div>
+
+            <div class="method-doc">
+                <p>Print a Dictionary as aligned <code>key   value</code> lines. Iteration order
+follows <code>Dictionary keys</code>, which Maggie does not guarantee — callers
+that need a specific field order should use <code>dictText:keys:</code>.</p>
+
+            </div>
+
+
+            <details class="method-source">
+                <summary>Source</summary>
+                <pre><code>method: dictText: aDict [
+      ^self dictText: aDict keys: aDict keys
+  ]
+
+  </code></pre>
+            </details>
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">
+                <span class="class-side-label">class </span>dictText:keys:
+            </div>
+
+            <div class="method-doc">
+                <p>Print a Dictionary as aligned <code>key   value</code> lines in the order given
+by <code>keyOrder</code>. Keys in <code>keyOrder</code> that the dict does not contain are
+skipped; keys in the dict not in <code>keyOrder</code> are not printed.</p>
+
+            </div>
+
+
+            <details class="method-source">
+                <summary>Source</summary>
+                <pre><code>method: dictText: aDict keys: keyOrder [
+      | maxLen |
+      keyOrder isEmpty ifTrue: [^self text: &#39;(empty)&#39;].
+      maxLen := 0.
+      keyOrder do: [:k |
+          (aDict includesKey: k) ifTrue: [
+              k size &gt; maxLen ifTrue: [maxLen := k size]
+          ]
+      ].
+      keyOrder do: [:k |
+          (aDict includesKey: k) ifTrue: [
+              | line val |
+              val := aDict at: k.
+              line := (self pad: k to: maxLen), &#39;  &#39;, (self formatValue: val).
+              self text: line
+          ]
+      ]
+  ]
+
+  </code></pre>
+            </details>
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">
+                <span class="class-side-label">class </span>error:
+            </div>
+
+            <div class="method-doc">
+                <p>Print <code>aString</code> prefixed with &#39;Error: &#39;.</p>
+
+            </div>
+
+
+            <details class="method-source">
+                <summary>Source</summary>
+                <pre><code>method: error: aString [
+      (&#39;Error: &#39;, aString) println
+  ]
+
+  </code></pre>
+            </details>
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">
+                <span class="class-side-label">class </span>format
+            </div>
+
+            <div class="method-doc">
+                <p>Return the currently configured format (<code>&#39;text&#39;</code> or <code>&#39;json&#39;</code>).</p>
+
+            </div>
+
+
+            <details class="method-source">
+                <summary>Source</summary>
+                <pre><code>method: format [ ^format ]
+
+  </code></pre>
+            </details>
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">
+                <span class="class-side-label">class </span>format:
+            </div>
+
+            <div class="method-doc">
+                <p>Set the active output format. Accepts <code>&#39;text&#39;</code> or <code>&#39;json&#39;</code>.</p>
+
+            </div>
+
+
+            <details class="method-source">
+                <summary>Source</summary>
+                <pre><code>method: format: aFormat [ format := aFormat ]
+
+  </code></pre>
+            </details>
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">
+                <span class="class-side-label">class </span>formatValue:
+            </div>
+
+            <div class="method-doc">
+                <p>Format a single value for text output. Strings render as-is, nil as
+&#39;(nil)&#39;, everything else via printString.</p>
+
+            </div>
+
+
+            <details class="method-source">
+                <summary>Source</summary>
+                <pre><code>method: formatValue: aValue [
+      aValue isNil ifTrue: [^&#39;(nil)&#39;].
+      (aValue class name = #String) ifTrue: [^aValue].
+      ^aValue printString
+  ]
+
+  </code></pre>
+            </details>
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">
+                <span class="class-side-label">class </span>initialize
+            </div>
+
+            <div class="method-doc">
+                <p>Initialise the default format to &#39;text&#39;. Called automatically when
+the class is first loaded.</p>
+
+            </div>
+
+
+            <details class="method-source">
+                <summary>Source</summary>
+                <pre><code>method: initialize [
+      format := &#39;text&#39;
+  ]
+
+  </code></pre>
+            </details>
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">
+                <span class="class-side-label">class </span>isJson
+            </div>
+
+            <div class="method-doc">
+                <p>Answer true if the current format is JSON.</p>
+
+            </div>
+
+
+            <details class="method-source">
+                <summary>Source</summary>
+                <pre><code>method: isJson [ ^format = &#39;json&#39; ]
+
+  </code></pre>
+            </details>
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">
+                <span class="class-side-label">class </span>json:
+            </div>
+
+            <div class="method-doc">
+                <p>Pretty-print <code>aValue</code> as JSON.</p>
+
+            </div>
+
+
+            <details class="method-source">
+                <summary>Source</summary>
+                <pre><code>method: json: aValue [
+      (Json encodePretty: aValue) println
+  ]
+
+  </code></pre>
+            </details>
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">
+                <span class="class-side-label">class </span>pad:to:
+            </div>
+
+            <div class="method-doc">
+                <p>Right-pad <code>str</code> with spaces until its length reaches <code>width</code>.</p>
+
+            </div>
+
+
+            <details class="method-source">
+                <summary>Source</summary>
+                <pre><code>method: pad: str to: width [
+      | result |
+      result := str.
+      [result size &lt; width] whileTrue: [result := result, &#39; &#39;].
+      ^result
+  ]
+
+  </code></pre>
+            </details>
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">
+                <span class="class-side-label">class </span>result:
+            </div>
+
+            <div class="method-doc">
+                <p>Render a result value using the active format. Dictionaries print as
+aligned key/value lines in text mode; any value prints as JSON in
+json mode.</p>
+
+            </div>
+
+
+            <details class="method-source">
+                <summary>Source</summary>
+                <pre><code>method: result: aValue [
+      self isJson
+          ifTrue: [self json: aValue]
+          ifFalse: [
+              (aValue class name = #Dictionary)
+                  ifTrue: [self dictText: aValue]
+                  ifFalse: [self text: aValue printString]
+          ]
+  ]
+
+  </code></pre>
+            </details>
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">
+                <span class="class-side-label">class </span>resultOrError:
+            </div>
+
+            <div class="method-doc">
+                <p>Render a Result-like value: Failures print the wrapped error (via
+<code>error</code>), Successes delegate to <code>result:</code>. Answers true on success,
+false on failure so the caller can branch on the return.</p>
+
+            </div>
+
+
+            <details class="method-source">
+                <summary>Source</summary>
+                <pre><code>method: resultOrError: aValue [
+      (aValue isFailure) ifTrue: [
+          self isJson
+              ifTrue: [self json: (Dictionary new at: &#39;error&#39; put: aValue error; yourself)]
+              ifFalse: [self error: aValue error printString].
+          ^false
+      ].
+      self result: aValue.
+      ^true
+  ]
+
+  </code></pre>
+            </details>
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">
+                <span class="class-side-label">class </span>roundTripExamples
+            </div>
+
+            <div class="method-doc">
+                <p>Class-side contract: the two supported formats round-trip through
+<code>format:</code> / <code>format</code> without surprise.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>Cli::Output format: &#39;json&#39;.
+Cli::Output format &gt;&gt;&gt; &#39;json&#39;</code></pre>
+</div>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>Cli::Output format: &#39;json&#39;.
+Cli::Output isJson &gt;&gt;&gt; true</code></pre>
+</div>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>Cli::Output format: &#39;text&#39;.
+Cli::Output isJson &gt;&gt;&gt; false</code></pre>
+</div>
+<p>Padding right-justifies strings up to the requested column width:</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>Cli::Output pad: &#39;hi&#39; to: 5 &gt;&gt;&gt; &#39;hi   &#39;</code></pre>
+</div>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>Cli::Output pad: &#39;hello&#39; to: 3 &gt;&gt;&gt; &#39;hello&#39;</code></pre>
+</div>
+<p><code>formatValue:</code> renders <code>nil</code> as the conventional <code>(nil)</code> placeholder,
+strings verbatim, and non-strings via <code>printString</code>:</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>Cli::Output formatValue: nil &gt;&gt;&gt; &#39;(nil)&#39;
+Cli::Output formatValue: &#39;hi&#39; &gt;&gt;&gt; &#39;hi&#39;
+Cli::Output formatValue: 42 &gt;&gt;&gt; &#39;42&#39;</code></pre>
+</div>
+<p>JSON round-trip: a Dictionary encoded via <code>Json encodePretty:</code> and
+decoded via <code>Json decode:</code> preserves its contents. This is the
+contract the instance-side <code>printJson:</code> relies on.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>d := Dictionary new at: &#39;n&#39; put: 1; at: &#39;name&#39; put: &#39;ok&#39;; yourself.
+encoded := Json encodePretty: d.
+decoded := Json decode: encoded.
+(decoded at: &#39;n&#39;) &gt;&gt;&gt; 1</code></pre>
+</div>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>d := Dictionary new at: &#39;n&#39; put: 1; at: &#39;name&#39; put: &#39;ok&#39;; yourself.
+decoded := Json decode: (Json encodePretty: d).
+(decoded at: &#39;name&#39;) &gt;&gt;&gt; &#39;ok&#39;</code></pre>
+</div>
+<p>JSON round-trip of an Array of Dictionaries — the shape the
+<code>table:headers:keys:</code> method prints in JSON mode — preserves
+keys and values:</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>rows := Array with: (Dictionary new at: &#39;name&#39; put: &#39;Alice&#39;; yourself).
+decoded := Json decode: (Json encodePretty: rows).
+decoded size &gt;&gt;&gt; 1
+((decoded at: 0) at: &#39;name&#39;) &gt;&gt;&gt; &#39;Alice&#39;</code></pre>
+</div>
+
+            </div>
+
+
+            <details class="method-source">
+                <summary>Source</summary>
+                <pre><code>method: roundTripExamples [
+      &#34;Documentation anchor for the round-trip doctests above; no code path references it.&#34;
+      ^self
+  ]
+</code></pre>
+            </details>
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">
+                <span class="class-side-label">class </span>table:headers:keys:
+            </div>
+
+            <div class="method-doc">
+                <p>Print a table with the given headers. Each row is a Dictionary keyed
+by <code>keys</code>; <code>headers</code> provides the display labels in the same order
+as <code>keys</code>. In JSON mode the rows are printed directly.</p>
+
+            </div>
+
+
+            <details class="method-source">
+                <summary>Source</summary>
+                <pre><code>method: table: rows headers: headers keys: keys [
+      | widths headerLine |
+      self isJson ifTrue: [^self json: rows].
+
+      rows isEmpty ifTrue: [^self].
+
+      &#34;Calculate column widths — route through formatValue: so strings
+       render without Smalltalk quotes&#34;
+      widths := headers collect: [:h | h size].
+      rows do: [:row |
+          0 to: keys size - 1 do: [:i |
+              | val |
+              val := self formatValue: (row at: (keys at: i) ifAbsent: [&#39;&#39;]).
+              (val size &gt; (widths at: i)) ifTrue: [widths at: i put: val size]
+          ]
+      ].
+
+      &#34;Print header&#34;
+      headerLine := &#39;&#39;.
+      0 to: headers size - 1 do: [:i |
+          headerLine := headerLine, (self pad: (headers at: i) to: (widths at: i)), &#39;  &#39;
+      ].
+      self text: headerLine trimBoth.
+
+      &#34;Print rows&#34;
+      rows do: [:row |
+          | line |
+          line := &#39;&#39;.
+          0 to: keys size - 1 do: [:i |
+              line := line, (self pad: (self formatValue: (row at: (keys at: i) ifAbsent: [&#39;&#39;])) to: (widths at: i)), &#39;  &#39;
+          ].
+          self text: line trimBoth
+      ]
+  ]
+
+  </code></pre>
+            </details>
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">
+                <span class="class-side-label">class </span>text:
+            </div>
+
+            <div class="method-doc">
+                <p>Print <code>aString</code> followed by a newline.</p>
+
+            </div>
+
+
+            <details class="method-source">
+                <summary>Source</summary>
+                <pre><code>method: text: aString [
+      aString println
+  ]
+
+  </code></pre>
+            </details>
+
+        </div>
+
+    </div>
+
+
+
+
+    <h2>Instance Methods</h2>
+
+    <div class="method-category">
+        <h3>uncategorized</h3>
+
+        <div class="method">
+            <div class="method-selector">printJson:</div>
+
+            <div class="method-doc">
+                <p>Print <code>anObject</code> as pretty-printed JSON to stdout.</p>
+<p>Unlike the class-side <code>json:</code>, this helper ignores the currently
+configured format -- it always emits JSON.</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>Cli::Output new printJson: (Dictionary new at: &#39;x&#39; put: 1; yourself)</code></pre>
+</div>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>d := Dictionary new at: &#39;x&#39; put: 1; yourself.
+encoded := Json encodePretty: d.
+(Json decode: encoded) class &gt;&gt;&gt; Dictionary
+((Json decode: encoded) at: &#39;x&#39;) &gt;&gt;&gt; 1</code></pre>
+</div>
+
+            </div>
+
+
+            <details class="method-source">
+                <summary>Source</summary>
+                <pre><code>method: printJson: anObject [
+      (Json encodePretty: anObject) println
+  ]
+
+  </code></pre>
+            </details>
+
+        </div>
+
+        <div class="method">
+            <div class="method-selector">printTable:columns:</div>
+
+            <div class="method-doc">
+                <p>Print a table.</p>
+<p><code>rows</code> is a sequence of Dictionaries. <code>aColumnSpec</code> is an Array of
+two-element arrays <code>#(headerString rowKey)</code>; the header string is
+the display label and the row key selects the value from each row.</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>| rows cols |
+rows := Array with: (Dictionary new at: &#39;name&#39; put: &#39;Alice&#39;; yourself).
+cols := #(#(&#39;NAME&#39; &#39;name&#39;)).
+Cli::Output new printTable: rows columns: cols</code></pre>
+</div>
+<p>The column spec decomposes cleanly into parallel header/key arrays:</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>cols := #(#(&#39;NAME&#39; &#39;name&#39;) #(&#39;STATUS&#39; &#39;status&#39;)).
+headers := cols collect: [:pair | pair at: 0].
+keys := cols collect: [:pair | pair at: 1].
+(headers at: 0) &gt;&gt;&gt; &#39;NAME&#39;
+(headers at: 1) &gt;&gt;&gt; &#39;STATUS&#39;
+(keys at: 0) &gt;&gt;&gt; &#39;name&#39;
+(keys at: 1) &gt;&gt;&gt; &#39;status&#39;</code></pre>
+</div>
+<p>Row data indexed by the column keys survives a <code>Dictionary</code>
+round-trip, which is the minimal contract the formatter relies on:</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>row := Dictionary new at: &#39;name&#39; put: &#39;Alice&#39;; at: &#39;status&#39; put: &#39;ok&#39;; yourself.
+(row at: &#39;name&#39;) &gt;&gt;&gt; &#39;Alice&#39;
+(row at: &#39;status&#39;) &gt;&gt;&gt; &#39;ok&#39;</code></pre>
+</div>
+
+            </div>
+
+
+            <details class="method-source">
+                <summary>Source</summary>
+                <pre><code>method: printTable: rows columns: aColumnSpec [
+      | headers keys |
+      headers := aColumnSpec collect: [:pair | pair at: 0].
+      keys := aColumnSpec collect: [:pair | pair at: 1].
+      Output table: rows headers: headers keys: keys
+  ]
+
+  # --- Round-trip regression tests ----------------------------------------
+
+  </code></pre>
+            </details>
+
+        </div>
+
+    </div>
+
+
+
+    <div class="footer">
+        Generated by Maggie doc generator.
+    </div>
+</main>
+    <script src="../../js/playground.js"></script>
+</body>
+</html>

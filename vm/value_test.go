@@ -241,18 +241,36 @@ func TestObjectTypeChecks(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestSymbolRoundTrip(t *testing.T) {
+	// FromSymbolID/SymbolID round-trips ANY 32-bit ID through the symbol
+	// NaN-box tag — this is the broad "symbol-encoded" property used for
+	// strings, dictionaries, marker-tagged kinds, etc.
 	tests := []uint32{0, 1, 100, 1000000, 0xFFFFFFFF}
 
 	for _, id := range tests {
 		v := FromSymbolID(id)
-		if !v.IsSymbol() {
-			t.Errorf("FromSymbolID(%d).IsSymbol() = false, want true", id)
+		if !v.IsSymbolEncoded() {
+			t.Errorf("FromSymbolID(%d).IsSymbolEncoded() = false, want true", id)
 			continue
 		}
 		got := v.SymbolID()
 		if got != id {
 			t.Errorf("FromSymbolID(%d).SymbolID() = %d, want %d", id, got, id)
 		}
+	}
+
+	// Strict IsSymbol() must distinguish real symbols (marker byte 0,
+	// id < stringIDOffset) from other symbol-encoded kinds.
+	realSymbol := FromSymbolID(42)
+	if !realSymbol.IsSymbol() {
+		t.Errorf("FromSymbolID(42).IsSymbol() = false, want true (real symbol)")
+	}
+	notRealSymbol := FromSymbolID(0xFFFFFFFF)
+	if notRealSymbol.IsSymbol() {
+		t.Errorf("FromSymbolID(0xFFFFFFFF).IsSymbol() = true, want false (marker byte 0xFF)")
+	}
+	stringTagged := FromSymbolID(0x80000000)
+	if stringTagged.IsSymbol() {
+		t.Errorf("FromSymbolID(0x80000000).IsSymbol() = true, want false (string ID range)")
 	}
 }
 
@@ -272,6 +290,63 @@ func TestSymbolTypeChecks(t *testing.T) {
 	}
 	if v.IsNil() {
 		t.Error("IsNil should be false for symbol")
+	}
+}
+
+// TestIsSymbolStrictVsEncoded documents the contract between IsSymbol()
+// (strict — actual interned Symbol) and IsSymbolEncoded() (broad — anything
+// using the symbol NaN-box tag, including strings, dictionaries, marker-
+// tagged kinds like channels/processes/mutexes, etc.).
+func TestIsSymbolStrictVsEncoded(t *testing.T) {
+	cases := []struct {
+		name        string
+		id          uint32
+		wantStrict  bool
+		wantEncoded bool
+	}{
+		{"real symbol (id=0)", 0, true, true},
+		{"real symbol (id=42)", 42, true, true},
+		{"real symbol (max marker-byte-0 id)", 0x00FFFFFF, true, true},
+		{"channel marker", 1 << 24, false, true},
+		{"process marker", 2 << 24, false, true},
+		{"mutex marker", 32 << 24, false, true},
+		{"character marker", 37 << 24, false, true},
+		{"goObject marker", 41 << 24, false, true},
+		{"remoteRef marker", 43 << 24, false, true},
+		{"string range start", 0x80000000, false, true},
+		{"string range mid", 0xA0000000, false, true},
+		{"dictionary range start", 0xC0000000, false, true},
+		{"dictionary range high", 0xFFFFFFFF, false, true},
+	}
+
+	for _, tc := range cases {
+		v := FromSymbolID(tc.id)
+		if got := v.IsSymbol(); got != tc.wantStrict {
+			t.Errorf("%s: IsSymbol() = %v, want %v", tc.name, got, tc.wantStrict)
+		}
+		if got := v.IsSymbolEncoded(); got != tc.wantEncoded {
+			t.Errorf("%s: IsSymbolEncoded() = %v, want %v", tc.name, got, tc.wantEncoded)
+		}
+	}
+
+	// Non-symbol-encoded values must report false for both.
+	other := []struct {
+		name string
+		v    Value
+	}{
+		{"nil", Nil},
+		{"true", True},
+		{"false", False},
+		{"smallint", FromSmallInt(7)},
+		{"float", FromFloat64(1.5)},
+	}
+	for _, tc := range other {
+		if tc.v.IsSymbol() {
+			t.Errorf("%s: IsSymbol() = true, want false", tc.name)
+		}
+		if tc.v.IsSymbolEncoded() {
+			t.Errorf("%s: IsSymbolEncoded() = true, want false", tc.name)
+		}
 	}
 }
 

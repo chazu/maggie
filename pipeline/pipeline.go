@@ -245,9 +245,9 @@ func (p *Pipeline) CompileAll(files []ParsedFile) (int, error) {
 				classVal := vmInst.ClassValue(class)
 				if pf.Namespace != "" {
 					fullName := pf.Namespace + "::" + classDef.Name
-					vmInst.Globals[fullName] = classVal
+					vmInst.SetGlobal(fullName, classVal)
 				} else {
-					vmInst.Globals[classDef.Name] = classVal
+					vmInst.SetGlobal(classDef.Name, classVal)
 				}
 
 				p.logf("  Created class %s (skeleton)\n", qualifiedName(pf.Namespace, classDef.Name))

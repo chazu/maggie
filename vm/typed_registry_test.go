@@ -170,6 +170,193 @@ func TestAutoIDRegistry_ConcurrentRegister(t *testing.T) {
 	}
 }
 
+func TestAutoIDRegistry_ReuseAfterDelete(t *testing.T) {
+	r := NewAutoIDRegistry[string](1, WithName("test"))
+	id1 := r.Register("a")
+	id2 := r.Register("b")
+	id3 := r.Register("c")
+	if id1 != 1 || id2 != 2 || id3 != 3 {
+		t.Fatalf("initial IDs = (%d,%d,%d), want (1,2,3)", id1, id2, id3)
+	}
+
+	r.Delete(id2)
+	if r.FreeListLen() != 1 {
+		t.Fatalf("free-list len after delete = %d, want 1", r.FreeListLen())
+	}
+
+	// Next Register should reuse id2 from the free-list, not bump to 4.
+	id4 := r.Register("d")
+	if id4 != id2 {
+		t.Errorf("reused ID = %d, want %d (the freed ID)", id4, id2)
+	}
+	if got := r.Get(id4); got != "d" {
+		t.Errorf("Get(reused) = %q, want %q", got, "d")
+	}
+	if r.FreeListLen() != 0 {
+		t.Errorf("free-list not drained: len=%d", r.FreeListLen())
+	}
+
+	// Another Register past the free-list bumps fresh.
+	id5 := r.Register("e")
+	if id5 != 4 {
+		t.Errorf("post-reuse ID = %d, want 4", id5)
+	}
+}
+
+func TestAutoIDRegistry_PanicOnExhaustion(t *testing.T) {
+	// startID=1, maxID=3 → IDs 1,2,3 succeed, 4th allocation panics.
+	r := NewAutoIDRegistry[int](1, WithMaxID(3), WithName("tiny"))
+	for i := 1; i <= 3; i++ {
+		got := r.Register(i * 10)
+		if got != uint32(i) {
+			t.Fatalf("alloc %d → ID %d, want %d", i, got, i)
+		}
+	}
+
+	defer func() {
+		rec := recover()
+		if rec == nil {
+			t.Fatal("expected panic on exhaustion, got none")
+		}
+		msg, ok := rec.(string)
+		if !ok {
+			t.Fatalf("panic value is not a string: %T %v", rec, rec)
+		}
+		if !contains(msg, "tiny") {
+			t.Errorf("panic message %q does not name registry", msg)
+		}
+	}()
+	r.Register(99) // should panic
+}
+
+func TestAutoIDRegistry_ExhaustionThenDeleteRecovers(t *testing.T) {
+	r := NewAutoIDRegistry[int](1, WithMaxID(2), WithName("two"))
+	id1 := r.Register(1)
+	id2 := r.Register(2)
+	if id1 != 1 || id2 != 2 {
+		t.Fatalf("IDs = (%d,%d), want (1,2)", id1, id2)
+	}
+
+	// Exhausted. Delete one and we should recover.
+	r.Delete(id1)
+	id3 := r.Register(3)
+	if id3 != id1 {
+		t.Errorf("recovered ID = %d, want %d", id3, id1)
+	}
+
+	// Exhausted again — should panic.
+	func() {
+		defer func() {
+			if recover() == nil {
+				t.Error("expected panic, got none")
+			}
+		}()
+		r.Register(4)
+	}()
+}
+
+func TestAutoIDRegistry_MonotonicNoReuse(t *testing.T) {
+	r := NewAutoIDRegistry[string](1, WithMonotonic(), WithName("monotonic"))
+	id1 := r.Register("a")
+	id2 := r.Register("b")
+	r.Delete(id1)
+	if r.FreeListLen() != 0 {
+		t.Errorf("monotonic registry free-list len = %d, want 0", r.FreeListLen())
+	}
+	id3 := r.Register("c")
+	if id3 != 3 {
+		t.Errorf("monotonic next ID = %d, want 3 (no reuse)", id3)
+	}
+	_ = id2
+}
+
+func TestAutoIDRegistry_SweepRecyclesIDs(t *testing.T) {
+	r := NewAutoIDRegistry[int](1, WithName("sweep"))
+	for i := 0; i < 10; i++ {
+		r.Register(i)
+	}
+	swept := r.Sweep(func(_ uint32, v int) bool { return v%2 == 0 })
+	if swept != 5 {
+		t.Errorf("swept = %d, want 5", swept)
+	}
+	if r.FreeListLen() != 5 {
+		t.Errorf("free-list len after sweep = %d, want 5", r.FreeListLen())
+	}
+	// Next 5 Registers reuse swept IDs; the 6th bumps fresh.
+	for i := 0; i < 5; i++ {
+		id := r.Register(100 + i)
+		if id > 10 {
+			t.Errorf("alloc #%d = %d, expected reuse (≤10)", i, id)
+		}
+	}
+	id := r.Register(999)
+	if id != 11 {
+		t.Errorf("post-reuse fresh ID = %d, want 11", id)
+	}
+}
+
+func TestAutoIDRegistry_NoCollisionUnderConcurrentRegisterDelete(t *testing.T) {
+	// Race-detector test: many goroutines Register/Delete concurrently;
+	// no two live entries should ever share an ID. Run with -race.
+	r := NewAutoIDRegistry[*int](1, WithName("race"))
+
+	const workers = 16
+	const iters = 2000
+	var wg sync.WaitGroup
+	wg.Add(workers)
+	for w := 0; w < workers; w++ {
+		go func() {
+			defer wg.Done()
+			ids := make([]uint32, 0, iters)
+			for i := 0; i < iters; i++ {
+				v := i
+				id := r.Register(&v)
+				ids = append(ids, id)
+				// Periodically delete an old one to feed the free-list.
+				if len(ids) > 4 && i%3 == 0 {
+					victim := ids[0]
+					ids = ids[1:]
+					r.Delete(victim)
+				}
+			}
+			// Verify all our remaining IDs still resolve to *our* values.
+			for _, id := range ids {
+				if got := r.Get(id); got == nil {
+					t.Errorf("ID %d returned nil — collision?", id)
+				}
+			}
+		}()
+	}
+	wg.Wait()
+}
+
+func TestAutoIDRegistry_DeleteOutOfRangeIgnored(t *testing.T) {
+	r := NewAutoIDRegistry[int](10, WithMaxID(20), WithName("range"))
+	r.Delete(5)  // below startID
+	r.Delete(99) // above maxID
+	if r.FreeListLen() != 0 {
+		t.Errorf("out-of-range deletes leaked into free-list: len=%d", r.FreeListLen())
+	}
+}
+
+func TestAutoIDRegistry_BadConfigPanics(t *testing.T) {
+	defer func() {
+		if recover() == nil {
+			t.Error("expected panic for maxID < startID")
+		}
+	}()
+	_ = NewAutoIDRegistry[int](100, WithMaxID(50))
+}
+
+func contains(s, substr string) bool {
+	for i := 0; i+len(substr) <= len(s); i++ {
+		if s[i:i+len(substr)] == substr {
+			return true
+		}
+	}
+	return false
+}
+
 func TestTypedRegistry_ConcurrentAccess(t *testing.T) {
 	r := NewTypedRegistry[int, int]()
 	var wg sync.WaitGroup

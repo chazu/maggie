@@ -16,7 +16,7 @@ const dictionaryIDOffset uint32 = 0xC0000000
 
 // IsDictionaryValue returns true if the value is a dictionary object.
 func IsDictionaryValue(v Value) bool {
-	if !v.IsSymbol() {
+	if !v.IsSymbolEncoded() {
 		return false
 	}
 	id := v.SymbolID()

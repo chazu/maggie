@@ -35,7 +35,7 @@ func resultToValue(id uint32) Value {
 }
 
 func isResultValue(v Value) bool {
-	if !v.IsSymbol() {
+	if !v.IsSymbolEncoded() {
 		return false
 	}
 	id := v.SymbolID()

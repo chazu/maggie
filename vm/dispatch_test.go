@@ -289,8 +289,12 @@ func TestVTableMethodCount(t *testing.T) {
 	}
 
 	vt.AddMethod(5, NewMethod0("m", func(vm interface{}, r Value) Value { return Nil }))
-	if vt.MethodCount() != 6 { // 0-5 = 6 slots
-		t.Errorf("MethodCount() = %d, want 6", vt.MethodCount())
+	if vt.MethodCount() != 1 { // one locally defined method
+		t.Errorf("MethodCount() = %d, want 1", vt.MethodCount())
+	}
+	vt.AddMethod(7, NewMethod0("n", func(vm interface{}, r Value) Value { return Nil }))
+	if vt.MethodCount() != 2 {
+		t.Errorf("MethodCount() = %d, want 2", vt.MethodCount())
 	}
 }
 
@@ -490,12 +494,9 @@ func TestVTableFlattenBasic(t *testing.T) {
 	if got != m {
 		t.Error("Lookup should return the method after flatten")
 	}
-	// flat should now be non-nil
-	if vt.flat == nil {
-		t.Error("flat should be populated after Lookup")
-	}
-	if vt.dirty {
-		t.Error("dirty should be false after rebuild")
+	// snapshot should now be published
+	if vt.snap.Load() == nil {
+		t.Error("snapshot should be populated after Lookup")
 	}
 }
 
@@ -550,15 +551,15 @@ func TestVTableFlattenAddMethodInvalidates(t *testing.T) {
 
 	// Force rebuild
 	_ = vt.Lookup(0)
-	if vt.flat == nil {
-		t.Fatal("flat should be populated")
+	if vt.snap.Load() == nil {
+		t.Fatal("snapshot should be populated")
 	}
 
 	// Add a new method — should invalidate
 	m2 := NewMethod0("m2", func(vm interface{}, r Value) Value { return FromSmallInt(2) })
 	vt.AddMethod(1, m2)
-	if vt.flat != nil {
-		t.Error("flat should be nil after AddMethod")
+	if vt.snap.Load() != nil {
+		t.Error("snapshot should be nil after AddMethod")
 	}
 
 	// Next lookup should rebuild and find both
@@ -586,8 +587,8 @@ func TestVTableFlattenSetParentInvalidates(t *testing.T) {
 
 	// Set parent — should invalidate
 	child.SetParent(parent)
-	if vt := child; vt.flat != nil {
-		t.Error("flat should be nil after SetParent")
+	if child.snap.Load() != nil {
+		t.Error("snapshot should be nil after SetParent")
 	}
 
 	// Now should find parent's method

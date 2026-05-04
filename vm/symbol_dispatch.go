@@ -17,26 +17,36 @@ type SymbolTypeEntry struct {
 }
 
 // SymbolDispatch is a registry keyed by the marker byte (bits 31-24 of the symbol ID).
+//
+// Lookup is an indexed load into a fixed [256]*SymbolTypeEntry array — one
+// load per dispatch — replacing what used to be a map lookup (and before that
+// a chain of equality comparisons).
 type SymbolDispatch struct {
-	markers map[uint32]*SymbolTypeEntry // keyed by full marker value (marker << 24)
+	// table is indexed by the marker byte (id >> 24). nil entries indicate
+	// "not a registered symbol-encoded type — fall through".
+	table [256]*SymbolTypeEntry
 }
 
 // NewSymbolDispatch creates an empty dispatch table.
 func NewSymbolDispatch() *SymbolDispatch {
-	return &SymbolDispatch{
-		markers: make(map[uint32]*SymbolTypeEntry),
-	}
+	return &SymbolDispatch{}
 }
 
 // Register adds a type entry for the given marker.
 // The marker should be the full marker value (e.g. 1 << 24 for channels).
+// The marker byte (bits 31-24) indexes the dispatch table.
 func (sd *SymbolDispatch) Register(marker uint32, entry *SymbolTypeEntry) {
-	sd.markers[marker] = entry
+	sd.table[byte(marker>>24)] = entry
 }
 
 // ClassForSymbol resolves the class for a symbol-encoded value.
 // Returns (class, isClassSide). If the value is not a registered
 // symbol-encoded type, returns (nil, false) to indicate fallthrough.
+//
+// Strings (0x80000000–0xBFFFFFFF) and dictionaries (0xC0000000+) use a
+// high-bit ID-space discriminator instead of a marker byte and are handled
+// as explicit cases. All other symbol-encoded types are dispatched via an
+// indexed load on the marker byte (one array load).
 func (sd *SymbolDispatch) ClassForSymbol(v Value, symbols *SymbolTable, classes *ClassTable) (*Class, bool) {
 	id := v.SymbolID()
 
@@ -56,20 +66,12 @@ func (sd *SymbolDispatch) ClassForSymbol(v Value, symbols *SymbolTable, classes 
 		return nil, false
 	}
 
-	// Extract marker byte and look up in registry
-	marker := id & (0xFF << 24)
-	if marker == 0 {
-		// No marker bits — not a registered type, fall through
-		return nil, false
-	}
-
-	entry := sd.markers[marker]
+	// Indexed marker-byte lookup (one array load).
+	entry := sd.table[byte(id>>24)]
 	if entry == nil {
-		// Unknown marker — fall through
 		return nil, false
 	}
 
-	// Dynamic resolution
 	if entry.Resolve != nil {
 		cls, ok := entry.Resolve(v, nil)
 		if ok {
@@ -82,6 +84,8 @@ func (sd *SymbolDispatch) ClassForSymbol(v Value, symbols *SymbolTable, classes 
 }
 
 // ClassForSymbolVM is the same as ClassForSymbol but passes the VM to resolvers.
+// Strings/dictionaries use the wider ID-space discriminator and stay as
+// explicit cases; all marker-tagged kinds are an indexed load.
 func (sd *SymbolDispatch) ClassForSymbolVM(v Value, vm *VM) (*Class, bool) {
 	id := v.SymbolID()
 
@@ -95,13 +99,8 @@ func (sd *SymbolDispatch) ClassForSymbolVM(v Value, vm *VM) (*Class, bool) {
 		return vm.DictionaryClass, false
 	}
 
-	// Extract marker byte and look up in registry
-	marker := id & (0xFF << 24)
-	if marker == 0 {
-		return nil, false
-	}
-
-	entry := sd.markers[marker]
+	// Indexed marker-byte lookup (one array load).
+	entry := sd.table[byte(id>>24)]
 	if entry == nil {
 		return nil, false
 	}

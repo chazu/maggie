@@ -46,7 +46,7 @@ func extProcessToValue(id uint32) Value {
 }
 
 func isExtProcessValue(v Value) bool {
-	if !v.IsSymbol() {
+	if !v.IsSymbolEncoded() {
 		return false
 	}
 	id := v.SymbolID()

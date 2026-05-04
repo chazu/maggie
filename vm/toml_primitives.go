@@ -189,12 +189,10 @@ func (vm *VM) maggieValueToGoValue(v Value) interface{} {
 	if IsStringValue(v) {
 		return vm.registry.GetStringContent(v)
 	}
+	if IsDictionaryValue(v) {
+		return vm.maggieDictionaryToGoMap(v)
+	}
 	if v.IsSymbol() {
-		// Check for dictionary
-		if IsDictionaryValue(v) {
-			return vm.maggieDictionaryToGoMap(v)
-		}
-		// Symbol as string
 		return vm.Symbols.Name(v.SymbolID())
 	}
 	// Check for array (object with slots)

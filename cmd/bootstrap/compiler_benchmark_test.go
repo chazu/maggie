@@ -510,7 +510,7 @@ func TestProfilerStatsDuringCompilation(t *testing.T) {
 	t.Logf("=== Top 5 Methods ===")
 	for i, m := range topMethods {
 		profile := profiler.GetMethodProfile(m)
-		t.Logf("  %d. %s (invocations: %d, hot: %v)", i+1, m.String(), profile.InvocationCount, profile.IsHot)
+		t.Logf("  %d. %s (invocations: %d, hot: %v)", i+1, m.String(), profile.InvocationCount, profile.IsHot.Load())
 	}
 
 	// Show top 5 blocks
@@ -522,7 +522,7 @@ func TestProfilerStatsDuringCompilation(t *testing.T) {
 		if profile.OwningMethod != nil {
 			ownerName = profile.OwningMethod.String()
 		}
-		t.Logf("  %d. block in %s (invocations: %d, hot: %v)", i+1, ownerName, profile.InvocationCount, profile.IsHot)
+		t.Logf("  %d. block in %s (invocations: %d, hot: %v)", i+1, ownerName, profile.InvocationCount, profile.IsHot.Load())
 	}
 
 	// Sanity checks

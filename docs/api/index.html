@@ -32,23 +32,27 @@
 
             <li><a href="./guide/09-concurrency.html">Concurrency</a></li>
 
-            <li><a href="./guide/10-supervisors.html">Supervisors</a></li>
-
             <li><a href="./guide/10-modules.html">Modules</a></li>
 
             <li><a href="./guide/11-projects.html">Projects</a></li>
 
-            <li><a href="./guide/11-clustering.html">Clustering</a></li>
+            <li><a href="./guide/12-supervisors.html">Supervisors</a></li>
 
-            <li><a href="./guide/12-go-interop.html">Go Interop</a></li>
+            <li><a href="./guide/13-clustering.html">Clustering</a></li>
 
-            <li><a href="./guide/13-distribution.html">Distribution</a></li>
+            <li><a href="./guide/14-go-interop.html">Go Interop</a></li>
 
-            <li><a href="./guide/14-tooling-ide.html">Tooling &amp; IDE</a></li>
+            <li><a href="./guide/15-distribution.html">Distribution</a></li>
 
-            <li><a href="./guide/15-cue-integration.html">Cue Integration</a></li>
+            <li><a href="./guide/16-tooling-ide.html">Tooling &amp; IDE</a></li>
 
-            <li><a href="./guide/16-tuple-space.html">Tuple Space</a></li>
+            <li><a href="./guide/17-cue-integration.html">Cue Integration</a></li>
+
+            <li><a href="./guide/18-tuple-space.html">Tuple Space</a></li>
+
+            <li><a href="./guide/19-distributed-supervisors.html">Distributed Supervisors</a></li>
+
+            <li><a href="./guide/20-command-line-apps.html">Command-Line Apps</a></li>
 
         </ul>
     </div>
@@ -116,6 +120,8 @@
 
                 <li><a href="./classes/Dictionary.html">Dictionary</a></li>
 
+                <li><a href="./classes/DistributedSupervisor.html">DistributedSupervisor</a></li>
+
                 <li><a href="./classes/DocServer.html">DocServer</a></li>
 
                 <li><a href="./classes/DuckAppender.html">DuckAppender</a></li>
@@ -123,6 +129,8 @@
                 <li><a href="./classes/DuckDatabase.html">DuckDatabase</a></li>
 
                 <li><a href="./classes/DynamicSupervisor.html">DynamicSupervisor</a></li>
+
+                <li><a href="./classes/Ed25519.html">Ed25519</a></li>
 
                 <li><a href="./classes/Error.html">Error</a></li>
 
@@ -155,6 +163,8 @@
                 <li><a href="./classes/HttpResponse.html">HttpResponse</a></li>
 
                 <li><a href="./classes/HttpServer.html">HttpServer</a></li>
+
+                <li><a href="./classes/Identity.html">Identity</a></li>
 
                 <li><a href="./classes/Json.html">Json</a></li>
 
@@ -206,11 +216,15 @@
 
                 <li><a href="./classes/ReturnNode.html">ReturnNode</a></li>
 
+                <li><a href="./classes/SSEConnection.html">SSEConnection</a></li>
+
                 <li><a href="./classes/Sandbox.html">Sandbox</a></li>
 
                 <li><a href="./classes/Semaphore.html">Semaphore</a></li>
 
                 <li><a href="./classes/Set.html">Set</a></li>
+
+                <li><a href="./classes/Sha256.html">Sha256</a></li>
 
                 <li><a href="./classes/Signal.html">Signal</a></li>
 
@@ -263,6 +277,23 @@
                 <li><a href="./classes/WeakReference.html">WeakReference</a></li>
 
                 <li><a href="./classes/ZeroDivide.html">ZeroDivide</a></li>
+
+            </ul>
+        </details>
+
+        <details class="sidebar-ns-group">
+            <summary>Cli</summary>
+            <ul class="sidebar-list">
+
+                <li><a href="./classes/Cli/CliError.html">CliError</a></li>
+
+                <li><a href="./classes/Cli/Command.html">Command</a></li>
+
+                <li><a href="./classes/Cli/EnvBinding.html">EnvBinding</a></li>
+
+                <li><a href="./classes/Cli/Flag.html">Flag</a></li>
+
+                <li><a href="./classes/Cli/Output.html">Output</a></li>
 
             </ul>
         </details>
@@ -442,6 +473,13 @@
             </li>
 
             <li>
+                <a href="classes/DistributedSupervisor.html" class="class-name">DistributedSupervisor</a>
+
+                <span class="class-brief">&mdash; A distributed supervisor that manages child processes across cluster nodes.</span>
+
+            </li>
+
+            <li>
                 <a href="classes/DocServer.html" class="class-name">DocServer</a>
 
                 <span class="class-brief">&mdash; A simple documentation server for Maggie.</span>
@@ -466,6 +504,11 @@
                 <a href="classes/DynamicSupervisor.html" class="class-name">DynamicSupervisor</a>
 
                 <span class="class-brief">&mdash; A dynamic supervisor that manages a pool of identical children started</span>
+
+            </li>
+
+            <li>
+                <a href="classes/Ed25519.html" class="class-name">Ed25519</a>
 
             </li>
 
@@ -566,6 +609,13 @@
                 <a href="classes/HttpServer.html" class="class-name">HttpServer</a>
 
                 <span class="class-brief">&mdash; An HTTP server for handling web requests.</span>
+
+            </li>
+
+            <li>
+                <a href="classes/Identity.html" class="class-name">Identity</a>
+
+                <span class="class-brief">&mdash; Ed25519-based identity, with a public key used as the stable node name</span>
 
             </li>
 
@@ -717,6 +767,11 @@
             </li>
 
             <li>
+                <a href="classes/SSEConnection.html" class="class-name">SSEConnection</a>
+
+            </li>
+
+            <li>
                 <a href="classes/Sandbox.html" class="class-name">Sandbox</a>
 
             </li>
@@ -732,6 +787,11 @@
                 <a href="classes/Set.html" class="class-name">Set</a>
 
                 <span class="class-brief">&mdash; An unordered collection of unique elements backed by a Dictionary.</span>
+
+            </li>
+
+            <li>
+                <a href="classes/Sha256.html" class="class-name">Sha256</a>
 
             </li>
 
@@ -886,6 +946,42 @@
 
             <li>
                 <a href="classes/ZeroDivide.html" class="class-name">ZeroDivide</a>
+
+            </li>
+
+        </ul>
+    </div>
+
+    <div class="namespace-group">
+        <h2>Cli</h2>
+        <ul class="class-list">
+
+            <li>
+                <a href="classes/Cli/CliError.html" class="class-name">CliError</a>
+
+            </li>
+
+            <li>
+                <a href="classes/Cli/Command.html" class="class-name">Command</a>
+
+                <span class="class-brief">&mdash; A command-line command.</span>
+
+            </li>
+
+            <li>
+                <a href="classes/Cli/EnvBinding.html" class="class-name">EnvBinding</a>
+
+            </li>
+
+            <li>
+                <a href="classes/Cli/Flag.html" class="class-name">Flag</a>
+
+                <span class="class-brief">&mdash; A value object describing one command-line flag: its name, type symbol</span>
+
+            </li>
+
+            <li>
+                <a href="classes/Cli/Output.html" class="class-name">Output</a>
 
             </li>
 

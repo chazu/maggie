@@ -35,7 +35,7 @@ func jsonReaderToValue(id uint32) Value {
 }
 
 func isJsonReaderValue(v Value) bool {
-	if !v.IsSymbol() {
+	if !v.IsSymbolEncoded() {
 		return false
 	}
 	return (v.SymbolID() & markerMask) == jsonReaderMarker
@@ -54,7 +54,7 @@ func jsonWriterToValue(id uint32) Value {
 }
 
 func isJsonWriterValue(v Value) bool {
-	if !v.IsSymbol() {
+	if !v.IsSymbolEncoded() {
 		return false
 	}
 	return (v.SymbolID() & markerMask) == jsonWriterMarker

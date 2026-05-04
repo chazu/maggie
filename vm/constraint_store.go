@@ -89,7 +89,7 @@ func constraintStoreToValue(id uint32) Value {
 }
 
 func isConstraintStoreValue(v Value) bool {
-	if !v.IsSymbol() {
+	if !v.IsSymbolEncoded() {
 		return false
 	}
 	return (v.SymbolID() & markerMask) == constraintStoreMarker

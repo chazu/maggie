@@ -16,7 +16,7 @@ func FromCharacter(codePoint rune) Value {
 
 // IsCharacterValue returns true if the value is a Character.
 func IsCharacterValue(v Value) bool {
-	if !v.IsSymbol() {
+	if !v.IsSymbolEncoded() {
 		return false
 	}
 	return (v.SymbolID() & (0xFF << 24)) == characterMarker

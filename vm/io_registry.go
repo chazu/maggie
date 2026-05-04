@@ -22,19 +22,19 @@ type IORegistry struct {
 // NewIORegistry creates an IORegistry with all sub-registries initialized.
 func NewIORegistry() *IORegistry {
 	return &IORegistry{
-		grpcClients:   NewAutoIDRegistry[*GrpcClientObject](1),
-		grpcStreams:   NewAutoIDRegistry[*GrpcStreamObject](1),
-		httpServers:   NewAutoIDRegistry[*HttpServerObject](1),
-		httpClients:   NewAutoIDRegistry[*HttpClientObject](1),
-		httpRequests:  NewAutoIDRegistry[*HttpRequestObject](1),
-		httpResponses: NewAutoIDRegistry[*HttpResponseObject](1),
-		extProcesses:  NewAutoIDRegistry[*ExternalProcessObject](1),
-		unixListeners: NewAutoIDRegistry[*UnixListenerObject](1),
-		unixConns:     NewAutoIDRegistry[*UnixConnObject](1),
-		jsonReaders:      NewAutoIDRegistry[*JsonReaderObject](1),
-		jsonWriters:      NewAutoIDRegistry[*JsonWriterObject](1),
-		sseConnections:   NewAutoIDRegistry[*SSEConnectionObject](1),
-		cliCommands:      NewAutoIDRegistry[*CliCommandWrapper](1),
+		grpcClients:   NewAutoIDRegistry[*GrpcClientObject](1, WithName("grpcClients")),
+		grpcStreams:   NewAutoIDRegistry[*GrpcStreamObject](1, WithName("grpcStreams")),
+		httpServers:   NewAutoIDRegistry[*HttpServerObject](1, WithName("httpServers")),
+		httpClients:   NewAutoIDRegistry[*HttpClientObject](1, WithName("httpClients")),
+		httpRequests:  NewAutoIDRegistry[*HttpRequestObject](1, WithName("httpRequests")),
+		httpResponses: NewAutoIDRegistry[*HttpResponseObject](1, WithName("httpResponses")),
+		extProcesses:  NewAutoIDRegistry[*ExternalProcessObject](1, WithName("externalProcesses")),
+		unixListeners: NewAutoIDRegistry[*UnixListenerObject](1, WithName("unixListeners")),
+		unixConns:     NewAutoIDRegistry[*UnixConnObject](1, WithName("unixConns")),
+		jsonReaders:      NewAutoIDRegistry[*JsonReaderObject](1, WithName("jsonReaders")),
+		jsonWriters:      NewAutoIDRegistry[*JsonWriterObject](1, WithName("jsonWriters")),
+		sseConnections:   NewAutoIDRegistry[*SSEConnectionObject](1, WithName("sseConnections")),
+		cliCommands:      NewAutoIDRegistry[*CliCommandWrapper](1, WithName("cliCommands")),
 	}
 }
 

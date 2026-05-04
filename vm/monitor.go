@@ -80,7 +80,7 @@ func (vm *VM) UnlinkProcesses(a, b *ProcessObject) {
 // Returns a MonitorRef. If watched is already dead, an immediate DOWN message
 // is delivered to the watcher's mailbox.
 func (vm *VM) MonitorProcess(watcher, watched *ProcessObject) *MonitorRef {
-	refID := vm.registry.ConcurrencyRegistry.monitorRefID.Add(1)
+	refID := vm.registry.ConcurrencyRegistry.AllocMonitorRefID()
 	ref := &MonitorRef{
 		ID:      refID,
 		Watcher: watcher.id,

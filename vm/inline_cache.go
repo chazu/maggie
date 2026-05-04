@@ -219,7 +219,7 @@ func InvalidateAllCaches(ct *ClassTable) {
 }
 
 func invalidateVTableCaches(vt *VTable) {
-	for _, method := range vt.methods {
+	for _, method := range vt.LocalMethods() {
 		if cm, ok := method.(*CompiledMethod); ok {
 			if cm.InlineCaches != nil {
 				cm.InlineCaches.Reset()
@@ -274,7 +274,7 @@ func CollectICStats(ct *ClassTable) ICStats {
 }
 
 func collectFromVTable(vt *VTable, stats *ICStats) {
-	for _, method := range vt.methods {
+	for _, method := range vt.LocalMethods() {
 		if cm, ok := method.(*CompiledMethod); ok {
 			if cm.InlineCaches != nil {
 				mono, poly, mega, empty, hits, misses := cm.InlineCaches.Stats()

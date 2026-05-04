@@ -123,9 +123,53 @@ func (v Value) IsObject() bool {
 	return (uint64(v) & (nanBits | tagMask)) == (nanBits | tagObject)
 }
 
-// IsSymbol returns true if v represents an interned symbol.
-func (v Value) IsSymbol() bool {
+// IsSymbolEncoded returns true if v carries the NaN-box symbol tag.
+//
+// This is the BROAD check: it is true for actual interned Symbol values AND
+// for every other value type that piggy-backs on the symbol tag space —
+// strings, dictionaries, channels, processes, characters, BigInt, exceptions,
+// classes, mutexes, futures, RemoteRefs, GoObjects, ArrayLists, and so on.
+// A real Symbol is distinguished from these by having marker byte 0 and
+// (id < stringIDOffset).
+//
+// Use this only as a fast pre-filter when the caller will then disambiguate
+// via the marker byte (see SymbolDispatch / vm/markers.go) or via the ID
+// range (see IsStringValue, IsDictionaryValue). For "is this an actual
+// Smalltalk Symbol I can pass to Symbols.Name() or use as a selector",
+// use IsSymbol() instead.
+func (v Value) IsSymbolEncoded() bool {
 	return (uint64(v) & (nanBits | tagMask)) == (nanBits | tagSymbol)
+}
+
+// IsSymbol returns true iff v is an actual interned Smalltalk Symbol.
+//
+// This is the STRICT check. It rejects every other value type that shares
+// the symbol NaN-box tag (strings, dictionaries, channels, processes,
+// characters, BigInt, classes, exceptions, mutexes, futures, RemoteRefs,
+// GoObjects, ArrayLists, etc.).
+//
+// A value is a real Symbol iff:
+//   - it carries the symbol NaN-box tag (IsSymbolEncoded), AND
+//   - its marker byte (id >> 24) is 0 — distinguishing it from every
+//     marker-tagged kind in vm/markers.go, AND
+//   - its ID is below stringIDOffset (0x80000000) — distinguishing it from
+//     strings and dictionaries which use ID-range discriminators rather
+//     than a marker byte.
+//
+// Marker byte 0 already implies id < 0x01000000 < stringIDOffset, so the
+// single marker-byte check is sufficient. The implementation expresses both
+// conditions for clarity at the cost of one redundant comparison the
+// compiler can fold.
+//
+// Use this for: passing to Symbols.Name(v.SymbolID()), selector identity
+// comparisons, printing with the '#' prefix, and anywhere a primitive
+// method on Symbol expects a Symbol receiver.
+func (v Value) IsSymbol() bool {
+	if (uint64(v) & (nanBits | tagMask)) != (nanBits | tagSymbol) {
+		return false
+	}
+	id := uint32(uint64(v) & payloadMask)
+	return id>>24 == 0 && id < stringIDOffset
 }
 
 // IsNil returns true if v is the nil value.
@@ -213,12 +257,27 @@ func TryFromSmallInt(n int64) (Value, bool) {
 
 // ObjectPtr returns v as an unsafe.Pointer to the heap object.
 // Panics if v is not an object.
+//
+// NaN-boxing stores the low 48 bits of a Go heap pointer in the payload.
+// On all supported architectures (darwin/arm64, linux/amd64, linux/arm64,
+// windows/amd64) user-space addresses fit in 48 bits with the upper 16
+// bits zero, so masking and recovering reproduces the exact original
+// pointer. Pointer liveness is maintained by ObjectRegistry (see
+// object_registry.go) — the NaN-boxed Value alone is not GC-visible.
+//
+// The //go:nocheckptr directive disables the runtime checkptr validator
+// for this function. checkptr cannot prove the recovered uintptr came
+// from a real allocation (the bits arrived via mask+cast, not via a
+// pointer round-trip), but the construction is well-defined for our
+// encoding. This is the same pattern Go's own runtime uses for
+// type-tagged pointer schemes.
+//
+//go:nocheckptr
 func (v Value) ObjectPtr() unsafe.Pointer {
 	if !v.IsObject() {
 		panic("Value.ObjectPtr: not an object")
 	}
-	ptr := uintptr(uint64(v) & payloadMask)
-	return unsafe.Pointer(ptr)
+	return unsafe.Pointer(uintptr(uint64(v) & payloadMask))
 }
 
 // FromObjectPtr creates a Value from an unsafe.Pointer.
@@ -231,11 +290,20 @@ func FromObjectPtr(ptr unsafe.Pointer) Value {
 // Symbol operations
 // ---------------------------------------------------------------------------
 
-// SymbolID returns the symbol ID encoded in v.
-// Panics if v is not a symbol.
+// SymbolID returns the raw 32-bit symbol-tag payload encoded in v.
+//
+// This works for ANY symbol-encoded value (real Symbols, strings,
+// dictionaries, channels, processes, characters, etc.) because all of them
+// store their discriminator in this same payload field. It is therefore
+// gated on IsSymbolEncoded(), not on IsSymbol().
+//
+// For a real Smalltalk Symbol, the returned ID is suitable for
+// Symbols.Name(); for other kinds, the ID is a marker-tagged or
+// range-tagged identifier whose meaning is private to the relevant
+// subsystem (see object_registry.go, string_primitives.go, etc.).
 func (v Value) SymbolID() uint32 {
-	if !v.IsSymbol() {
-		panic("Value.SymbolID: not a symbol")
+	if !v.IsSymbolEncoded() {
+		panic("Value.SymbolID: not a symbol-encoded value")
 	}
 	return uint32(uint64(v) & payloadMask)
 }
@@ -306,12 +374,16 @@ func (v Value) IsCell() bool {
 
 // CellPtr returns the Cell pointer from a cell value.
 // Panics if v is not a cell.
+//
+// See ObjectPtr for the rationale behind //go:nocheckptr — Cell pointers
+// are NaN-boxed identically and kept alive by ObjectRegistry.cells.
+//
+//go:nocheckptr
 func (v Value) CellPtr() *Cell {
 	if !v.IsCell() {
 		panic("Value.CellPtr: not a cell")
 	}
-	ptr := uint64(v) & payloadMask
-	return (*Cell)(unsafe.Pointer(uintptr(ptr)))
+	return (*Cell)(unsafe.Pointer(uintptr(uint64(v) & payloadMask)))
 }
 
 // FromCellPtr creates a Value from a Cell pointer.

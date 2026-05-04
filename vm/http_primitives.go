@@ -25,7 +25,7 @@ func httpClientToValue(id uint32) Value {
 }
 
 func isHttpClientValue(v Value) bool {
-	if !v.IsSymbol() {
+	if !v.IsSymbolEncoded() {
 		return false
 	}
 	id := v.SymbolID()
@@ -67,7 +67,7 @@ func httpServerToValue(id uint32) Value {
 }
 
 func isHttpServerValue(v Value) bool {
-	if !v.IsSymbol() {
+	if !v.IsSymbolEncoded() {
 		return false
 	}
 	id := v.SymbolID()
@@ -113,7 +113,7 @@ func httpRequestToValue(id uint32) Value {
 }
 
 func isHttpRequestValue(v Value) bool {
-	if !v.IsSymbol() {
+	if !v.IsSymbolEncoded() {
 		return false
 	}
 	id := v.SymbolID()
@@ -159,7 +159,7 @@ func httpResponseToValue(id uint32) Value {
 }
 
 func isHttpResponseValue(v Value) bool {
-	if !v.IsSymbol() {
+	if !v.IsSymbolEncoded() {
 		return false
 	}
 	id := v.SymbolID()
@@ -208,7 +208,7 @@ func sseConnectionIDFromValue(v Value) uint32 {
 }
 
 func (vm *VM) vmGetSSEConnection(v Value) *SSEConnectionObject {
-	if !v.IsSymbol() {
+	if !v.IsSymbolEncoded() {
 		return nil
 	}
 	if (v.SymbolID() & markerMask) != sseConnectionMarker {

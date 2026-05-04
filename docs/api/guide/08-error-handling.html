@@ -32,23 +32,27 @@
 
             <li><a href="../guide/09-concurrency.html">Concurrency</a></li>
 
-            <li><a href="../guide/10-supervisors.html">Supervisors</a></li>
-
             <li><a href="../guide/10-modules.html">Modules</a></li>
 
             <li><a href="../guide/11-projects.html">Projects</a></li>
 
-            <li><a href="../guide/11-clustering.html">Clustering</a></li>
+            <li><a href="../guide/12-supervisors.html">Supervisors</a></li>
 
-            <li><a href="../guide/12-go-interop.html">Go Interop</a></li>
+            <li><a href="../guide/13-clustering.html">Clustering</a></li>
 
-            <li><a href="../guide/13-distribution.html">Distribution</a></li>
+            <li><a href="../guide/14-go-interop.html">Go Interop</a></li>
 
-            <li><a href="../guide/14-tooling-ide.html">Tooling &amp; IDE</a></li>
+            <li><a href="../guide/15-distribution.html">Distribution</a></li>
 
-            <li><a href="../guide/15-cue-integration.html">Cue Integration</a></li>
+            <li><a href="../guide/16-tooling-ide.html">Tooling &amp; IDE</a></li>
 
-            <li><a href="../guide/16-tuple-space.html">Tuple Space</a></li>
+            <li><a href="../guide/17-cue-integration.html">Cue Integration</a></li>
+
+            <li><a href="../guide/18-tuple-space.html">Tuple Space</a></li>
+
+            <li><a href="../guide/19-distributed-supervisors.html">Distributed Supervisors</a></li>
+
+            <li><a href="../guide/20-command-line-apps.html">Command-Line Apps</a></li>
 
         </ul>
     </div>
@@ -116,6 +120,8 @@
 
                 <li><a href="../classes/Dictionary.html">Dictionary</a></li>
 
+                <li><a href="../classes/DistributedSupervisor.html">DistributedSupervisor</a></li>
+
                 <li><a href="../classes/DocServer.html">DocServer</a></li>
 
                 <li><a href="../classes/DuckAppender.html">DuckAppender</a></li>
@@ -123,6 +129,8 @@
                 <li><a href="../classes/DuckDatabase.html">DuckDatabase</a></li>
 
                 <li><a href="../classes/DynamicSupervisor.html">DynamicSupervisor</a></li>
+
+                <li><a href="../classes/Ed25519.html">Ed25519</a></li>
 
                 <li><a href="../classes/Error.html">Error</a></li>
 
@@ -155,6 +163,8 @@
                 <li><a href="../classes/HttpResponse.html">HttpResponse</a></li>
 
                 <li><a href="../classes/HttpServer.html">HttpServer</a></li>
+
+                <li><a href="../classes/Identity.html">Identity</a></li>
 
                 <li><a href="../classes/Json.html">Json</a></li>
 
@@ -206,11 +216,15 @@
 
                 <li><a href="../classes/ReturnNode.html">ReturnNode</a></li>
 
+                <li><a href="../classes/SSEConnection.html">SSEConnection</a></li>
+
                 <li><a href="../classes/Sandbox.html">Sandbox</a></li>
 
                 <li><a href="../classes/Semaphore.html">Semaphore</a></li>
 
                 <li><a href="../classes/Set.html">Set</a></li>
+
+                <li><a href="../classes/Sha256.html">Sha256</a></li>
 
                 <li><a href="../classes/Signal.html">Signal</a></li>
 
@@ -263,6 +277,23 @@
                 <li><a href="../classes/WeakReference.html">WeakReference</a></li>
 
                 <li><a href="../classes/ZeroDivide.html">ZeroDivide</a></li>
+
+            </ul>
+        </details>
+
+        <details class="sidebar-ns-group">
+            <summary>Cli</summary>
+            <ul class="sidebar-list">
+
+                <li><a href="../classes/Cli/CliError.html">CliError</a></li>
+
+                <li><a href="../classes/Cli/Command.html">Command</a></li>
+
+                <li><a href="../classes/Cli/EnvBinding.html">EnvBinding</a></li>
+
+                <li><a href="../classes/Cli/Flag.html">Flag</a></li>
+
+                <li><a href="../classes/Cli/Output.html">Output</a></li>
 
             </ul>
         </details>
@@ -724,6 +755,32 @@ control flow messages beyond simply returning a value:</p>
 
     <div class="guide-section">
 
+        <h2>Stack Traces on Exceptions</h2>
+<p>When an exception is raised, Maggie captures a snapshot of the call
+stack on the exception object. This trace is available even if the
+exception is later caught and handled, so logging code can preserve
+diagnostic context without re-raising.</p>
+<p>- <code>Exception&gt;&gt;stackTrace</code> -- returns the trace as an Array of Strings,
+  one frame per element (innermost frame first).
+- <code>Exception&gt;&gt;printStackTrace</code> -- prints the trace to standard output
+  in human-readable form.</p>
+<div class="doc-block doc-example">
+<span class="doc-block-label">Example</span>
+<pre><code>[Error signal: &#39;oops&#39;] on: Error do: [:e | e printStackTrace]</code></pre>
+</div>
+<p>In the REPL, an unhandled exception prints its class, message, AND
+the captured trace automatically -- you no longer have to wrap
+expressions in <code>on:do:</code> just to see where the error originated.</p>
+<div class="doc-block doc-test">
+<span class="doc-block-label">Test</span>
+<pre><code>([Error signal: &#39;fail&#39;] on: Error do: [:e | e stackTrace size &gt; 0]) &gt;&gt;&gt; true</code></pre>
+</div>
+
+
+    </div>
+
+    <div class="guide-section">
+
         <h2>Summary</h2>
 <p>Maggie provides two complementary approaches to error handling:</p>
 <p><strong>Exceptions</strong> -- for truly exceptional situations:
@@ -731,6 +788,7 @@ control flow messages beyond simply returning a value:</p>
 - <code>[code] ensure: [cleanup]</code> -- guaranteed cleanup (try/finally)
 - <code>[code] ifCurtailed: [cleanup]</code> -- cleanup only on abnormal exit
 - <code>resume:</code>, <code>retry</code>, <code>pass</code> -- advanced handler control flow
+- <code>stackTrace</code> / <code>printStackTrace</code> -- inspect captured call stack
 - Exception hierarchy: Exception &gt; Error &gt; ZeroDivide, StackOverflow, etc.</p>
 <p><strong>Results</strong> -- for expected failure modes:
 - <code>Success with: value</code> / <code>Failure with: reason</code> -- create results

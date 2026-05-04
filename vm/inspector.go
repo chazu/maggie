@@ -70,21 +70,56 @@ func (i *Inspector) InspectDepth(v Value, depth int) *InspectionResult {
 		result.Type = "Float"
 		result.Value = fmt.Sprintf("%g", v.Float64())
 
+	case IsStringValue(v):
+		result.Type = "String"
+		if i.vm != nil {
+			result.Value = fmt.Sprintf("'%s'", i.vm.registry.GetStringContent(v))
+		} else {
+			result.Value = fmt.Sprintf("<string:0x%016x>", uint64(v))
+		}
+
+	case IsDictionaryValue(v):
+		result.Type = "Dictionary"
+		result.Value = "a Dictionary"
+
+	case IsCharacterValue(v):
+		result.Type = "Character"
+		result.Value = fmt.Sprintf("$%c", GetCharacterCodePoint(v))
+
+	case IsBigIntValue(v):
+		result.Type = "BigInt"
+		if i.vm != nil {
+			if bi := i.vm.registry.GetBigInt(v); bi != nil {
+				result.Value = bi.Value.String()
+			} else {
+				result.Value = "<bigint>"
+			}
+		} else {
+			result.Value = "<bigint>"
+		}
+
+	case isClassValue(v):
+		return i.inspectClass(v, depth)
+	case isChannelValue(v):
+		return i.inspectChannel(v, depth)
+	case isProcessValue(v):
+		return i.inspectProcess(v, depth)
+	case isResultValue(v):
+		return i.inspectResult(v, depth)
+	case isMutexValue(v):
+		result.Type = "Mutex"
+		result.Value = "a Mutex"
+	case isWaitGroupValue(v):
+		result.Type = "WaitGroup"
+		result.Value = "a WaitGroup"
+	case isSemaphoreValue(v):
+		result.Type = "Semaphore"
+		result.Value = "a Semaphore"
+	case isFutureValue(v):
+		result.Type = "Future"
+		result.Value = "a Future"
+
 	case v.IsSymbol():
-		// Check for special symbol-encoded values first
-		if isClassValue(v) {
-			return i.inspectClass(v, depth)
-		}
-		if isChannelValue(v) {
-			return i.inspectChannel(v, depth)
-		}
-		if isProcessValue(v) {
-			return i.inspectProcess(v, depth)
-		}
-		if isResultValue(v) {
-			return i.inspectResult(v, depth)
-		}
-		// Regular symbol
 		result.Type = "Symbol"
 		if i.vm != nil {
 			name := i.vm.Symbols.Name(v.SymbolID())
