@@ -19,6 +19,11 @@ import (
 // VM lifetime, an application would need to allocate ~30k channels/sec for
 // 5 days straight without restart — at which point a panic is the right
 // failure mode (it's a leak, not a normal workload).
+//
+// NOTE: Blocks are an exception. They have their own tag (tagBlock) with a
+// 48-bit payload split into a 32-bit slot id + 16-bit generation, so they
+// do NOT use this 24-bit cap. See blockSlotMaxID and the gen-tagged
+// recycle scheme in RegisterBlock/ReleaseBlock.
 const concurrencyIDMax int32 = (1 << 24) - 1
 
 // concurrencyIDMaxU64 mirrors concurrencyIDMax for uint64 counters (process,
@@ -82,11 +87,17 @@ type ConcurrencyRegistry struct {
 	cancellationContextsMu sync.RWMutex
 	cancellationContextID  atomic.Int32
 
-	// Block registry
-	blocks           map[int]*BlockValue
-	blocksByHomeFrame map[int][]int // maps frameIndex → list of blockIDs
-	blocksMu         sync.RWMutex
-	blockID          atomic.Int32
+	// Block registry. Slots are recycled: when a block is released, its
+	// slot id is pushed onto freeBlockSlots and its generation in
+	// blockSlotGen is bumped. Stale Values pointing at the old (slot, gen)
+	// fail the gen check at lookup and resolve to nil instead of aliasing
+	// onto whatever block now lives in that slot.
+	blocks            map[int]*BlockValue
+	blockSlotGen      map[int]uint16  // current generation per slot id
+	freeBlockSlots    []int           // recycled slot ids waiting to be reused
+	blocksByHomeFrame map[int][]int   // maps frameIndex → list of blockIDs
+	blocksMu          sync.RWMutex
+	blockID           atomic.Int64    // grows only when no free slot available
 
 	// Future registry
 	futures   map[int]*FutureObject
@@ -117,6 +128,7 @@ func NewConcurrencyRegistry() *ConcurrencyRegistry {
 		semaphores:           make(map[int]*SemaphoreObject),
 		cancellationContexts: make(map[int]*CancellationContextObject),
 		blocks:               make(map[int]*BlockValue),
+		blockSlotGen:         make(map[int]uint16),
 		blocksByHomeFrame:    make(map[int][]int),
 		futures:              make(map[int]*FutureObject),
 		arrayLists:           make(map[int]*ArrayListObject),
@@ -413,78 +425,144 @@ func (cr *ConcurrencyRegistry) CancellationContextCount() int {
 // Block Registry Methods
 // ---------------------------------------------------------------------------
 
-// RegisterBlock adds a block to the registry, records it in blocksByHomeFrame,
-// and returns its ID.
-func (cr *ConcurrencyRegistry) RegisterBlock(bv *BlockValue) int {
-	id := allocConcurrencyID(&cr.blockID, "block")
+// blockSlotMaxID caps the slot id space to 2^32 - 1, matching the 32-bit
+// slot field in the block Value encoding. Steady-state usage is bounded by
+// peak live blocks, not cumulative allocations, because slots are recycled
+// on release. We only hit this cap if peak live blocks exceeds 4 billion,
+// which is far beyond any realistic workload.
+const blockSlotMaxID int64 = (1 << 32) - 1
 
-	cr.blocksMu.Lock()
-	cr.blocks[id] = bv
-	cr.blocksByHomeFrame[bv.HomeFrame] = append(cr.blocksByHomeFrame[bv.HomeFrame], id)
-	cr.blocksMu.Unlock()
-
-	return id
+// nextBlockGen advances a generation counter. Generation 0 is reserved for
+// "fresh slot, never recycled" so we skip it on wrap to keep that meaning.
+func nextBlockGen(g uint16) uint16 {
+	g++
+	if g == 0 {
+		g = 1
+	}
+	return g
 }
 
-// GetBlock retrieves a block by its ID.
-func (cr *ConcurrencyRegistry) GetBlock(id int) *BlockValue {
-	cr.blocksMu.RLock()
-	defer cr.blocksMu.RUnlock()
-	return cr.blocks[id]
-}
-
-// HasBlock checks if a block ID exists in the registry.
-func (cr *ConcurrencyRegistry) HasBlock(id int) bool {
-	cr.blocksMu.RLock()
-	defer cr.blocksMu.RUnlock()
-	_, exists := cr.blocks[id]
-	return exists
-}
-
-// ReleaseBlock removes a single block from the registry.
-// Note: this does NOT clean up the blocksByHomeFrame entry for efficiency;
-// use ReleaseBlocksForFrame for bulk cleanup when a frame is popped.
-func (cr *ConcurrencyRegistry) ReleaseBlock(id int) {
+// RegisterBlock adds a block to the registry and returns the encoded
+// Value (slot id + generation). Reuses a recycled slot if one is
+// available; otherwise grows the slot space.
+func (cr *ConcurrencyRegistry) RegisterBlock(bv *BlockValue) Value {
 	cr.blocksMu.Lock()
 	defer cr.blocksMu.Unlock()
-	delete(cr.blocks, id)
+
+	var slot int
+	if n := len(cr.freeBlockSlots); n > 0 {
+		slot = cr.freeBlockSlots[n-1]
+		cr.freeBlockSlots = cr.freeBlockSlots[:n-1]
+	} else {
+		next := cr.blockID.Add(1) - 1
+		if next < 0 || next > blockSlotMaxID {
+			panic(fmt.Sprintf("ConcurrencyRegistry: block slot id space exhausted (max %d live blocks)", blockSlotMaxID))
+		}
+		slot = int(next)
+	}
+
+	gen := cr.blockSlotGen[slot] // 0 for fresh slot, current gen for recycled
+	cr.blocks[slot] = bv
+	cr.blocksByHomeFrame[bv.HomeFrame] = append(cr.blocksByHomeFrame[bv.HomeFrame], slot)
+
+	return FromBlockSlotGen(uint32(slot), gen)
 }
 
-// ReleaseBlocksForFrame removes all blocks whose home frame matches frameIndex.
-// Blocks that need to outlive their home frame (e.g. forked processes) use
-// HomeFrame = -1 via ExecuteBlockDetached, so they are unaffected by this cleanup.
+// GetBlock retrieves a block by its Value. Returns nil if the slot has
+// been recycled (generation mismatch) or never registered.
+func (cr *ConcurrencyRegistry) GetBlock(v Value) *BlockValue {
+	if !v.IsBlock() {
+		return nil
+	}
+	slot := int(v.BlockID())
+	gen := v.BlockGen()
+
+	cr.blocksMu.RLock()
+	defer cr.blocksMu.RUnlock()
+	if cr.blockSlotGen[slot] != gen {
+		return nil
+	}
+	return cr.blocks[slot]
+}
+
+// HasBlock reports whether the Value still resolves to a live block.
+func (cr *ConcurrencyRegistry) HasBlock(v Value) bool {
+	return cr.GetBlock(v) != nil
+}
+
+// ReleaseBlock releases the slot referenced by v if (and only if) v's
+// generation still matches the slot's current generation. Bumps the
+// slot's generation and pushes it onto the free list for reuse. Stale
+// or already-released Values are no-ops.
+func (cr *ConcurrencyRegistry) ReleaseBlock(v Value) {
+	if !v.IsBlock() {
+		return
+	}
+	slot := int(v.BlockID())
+	gen := v.BlockGen()
+
+	cr.blocksMu.Lock()
+	defer cr.blocksMu.Unlock()
+	if cr.blockSlotGen[slot] != gen {
+		return // already released or recycled
+	}
+	if _, ok := cr.blocks[slot]; !ok {
+		return
+	}
+	delete(cr.blocks, slot)
+	cr.blockSlotGen[slot] = nextBlockGen(gen)
+	cr.freeBlockSlots = append(cr.freeBlockSlots, slot)
+}
+
+// ReleaseBlocksForFrame releases all blocks whose home frame matches
+// frameIndex. Each released slot's generation is bumped and the slot is
+// returned to the free list. Blocks with HomeFrame == -1 (detached, e.g.
+// forked) are not tracked here.
 func (cr *ConcurrencyRegistry) ReleaseBlocksForFrame(frameIndex int) {
 	cr.blocksMu.Lock()
-	if blockIDs, ok := cr.blocksByHomeFrame[frameIndex]; ok {
-		for _, id := range blockIDs {
-			delete(cr.blocks, id)
-		}
-		delete(cr.blocksByHomeFrame, frameIndex)
+	defer cr.blocksMu.Unlock()
+	slots, ok := cr.blocksByHomeFrame[frameIndex]
+	if !ok {
+		return
 	}
-	cr.blocksMu.Unlock()
+	for _, slot := range slots {
+		bv, present := cr.blocks[slot]
+		if !present {
+			continue
+		}
+		// Defensive: if the slot has since been recycled to a block with
+		// a different home frame, skip — the per-frame slice may carry
+		// stale entries.
+		if bv.HomeFrame != frameIndex {
+			continue
+		}
+		delete(cr.blocks, slot)
+		cr.blockSlotGen[slot] = nextBlockGen(cr.blockSlotGen[slot])
+		cr.freeBlockSlots = append(cr.freeBlockSlots, slot)
+	}
+	delete(cr.blocksByHomeFrame, frameIndex)
 }
 
-// SweepBlocks removes blocks whose home frame is no longer valid.
-// Also cleans up the corresponding blocksByHomeFrame entries.
-// Returns the number of blocks swept.
+// SweepBlocks releases blocks whose home frame is no longer valid.
+// Detached blocks (HomeFrame == -1) are unaffected. Returns the number
+// of blocks released.
 func (cr *ConcurrencyRegistry) SweepBlocks(validFrames map[int]bool) int {
 	cr.blocksMu.Lock()
 	defer cr.blocksMu.Unlock()
 
 	swept := 0
-	for id, bv := range cr.blocks {
-		// Detached blocks (HomeFrame == -1) are always valid
+	for slot, bv := range cr.blocks {
 		if bv.HomeFrame == -1 {
 			continue
 		}
-		// If home frame is no longer valid, sweep the block
 		if !validFrames[bv.HomeFrame] {
-			delete(cr.blocks, id)
+			delete(cr.blocks, slot)
+			cr.blockSlotGen[slot] = nextBlockGen(cr.blockSlotGen[slot])
+			cr.freeBlockSlots = append(cr.freeBlockSlots, slot)
 			swept++
 		}
 	}
 
-	// Clean up blocksByHomeFrame for invalid frames
 	for frame := range cr.blocksByHomeFrame {
 		if frame == -1 {
 			continue

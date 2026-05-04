@@ -359,10 +359,14 @@ func (gc *RegistryGC) sweep(reason triggerReason, registryName string) *Registry
 	}
 
 	// Note: We do NOT sweep the block registry here.
-	// Blocks are cleaned up by ReleaseBlocksForFrame on the VM-local registry
-	// when frames are popped. Detached blocks (HomeFrame == -1) are intentionally
-	// long-lived. Sweeping blocks based on home frame validity requires interpreter
-	// state that is not safely accessible from a background goroutine.
+	// Detached blocks (HomeFrame == -1, used by [block] fork and friends)
+	// release their slot in the fork goroutine's defer once the goroutine
+	// exits — see RegisterBlock/ReleaseBlock and the fork primitives in
+	// vm/concurrency.go. Frame-bound blocks (HomeFrame >= 0) are NOT
+	// currently released anywhere and accumulate in the registry; see
+	// popFrame in vm/interpreter.go. Reclaiming them would require a
+	// real reachability trace because blocks may legitimately escape
+	// their home frame as long-lived callbacks.
 
 	stats.TotalSwept = stats.Channels + stats.Processes +
 		stats.CancellationContexts + stats.Exceptions

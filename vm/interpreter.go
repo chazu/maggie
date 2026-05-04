@@ -1539,18 +1539,15 @@ func (i *Interpreter) createBlockValue(block *BlockMethod, captures []Value) Val
 	if i.vm == nil {
 		panic("createBlockValue: interpreter has no VM (use vm.newInterpreter())")
 	}
-	id := i.vm.registry.RegisterBlock(bv)
-
-	return FromBlockID(uint32(id))
+	return i.vm.registry.RegisterBlock(bv)
 }
 
 func (i *Interpreter) getBlockValue(v Value) *BlockValue {
 	if v.IsBlock() {
-		id := int(v.BlockID())
 		if i.vm == nil {
 			return nil
 		}
-		return i.vm.registry.GetBlock(id)
+		return i.vm.registry.GetBlock(v)
 	}
 	return nil
 }

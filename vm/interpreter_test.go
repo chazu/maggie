@@ -813,10 +813,9 @@ func TestBlockRegistryCleanup(t *testing.T) {
 
 	// Create several blocks with this home frame
 	numBlocks := 5
-	blockIDs := make([]int, numBlocks)
+	blockVals := make([]Value, numBlocks)
 	for i := 0; i < numBlocks; i++ {
-		blockVal := interp.createBlockValue(blockMethod, nil)
-		blockIDs[i] = int(blockVal.BlockID())
+		blockVals[i] = interp.createBlockValue(blockMethod, nil)
 	}
 
 	// Verify blocks were registered
@@ -833,9 +832,9 @@ func TestBlockRegistryCleanup(t *testing.T) {
 	interp.popFrame()
 
 	// Verify blocks are still alive after frame pop
-	for _, id := range blockIDs {
-		if !reg.HasBlock(id) {
-			t.Errorf("block %d was incorrectly cleaned up after home frame popped", id)
+	for i, bv := range blockVals {
+		if !reg.HasBlock(bv) {
+			t.Errorf("block %d was incorrectly cleaned up after home frame popped", i)
 		}
 	}
 }
@@ -864,18 +863,16 @@ func TestBlockRegistryMultipleFrames(t *testing.T) {
 	// Push first frame and create blocks
 	interp.pushFrame(m, Nil, nil)
 	block1 := interp.createBlockValue(blockMethod, nil)
-	block1ID := int(block1.BlockID())
 
 	// Push second frame and create blocks
 	interp.pushFrame(m, Nil, nil)
 	block2 := interp.createBlockValue(blockMethod, nil)
-	block2ID := int(block2.BlockID())
 
 	// Verify both blocks exist
-	if !reg.HasBlock(block1ID) {
+	if !reg.HasBlock(block1) {
 		t.Error("block1 not in registry")
 	}
-	if !reg.HasBlock(block2ID) {
+	if !reg.HasBlock(block2) {
 		t.Error("block2 not in registry")
 	}
 
@@ -883,20 +880,20 @@ func TestBlockRegistryMultipleFrames(t *testing.T) {
 	interp.popFrame()
 
 	// Both blocks should still exist after frame pop
-	if !reg.HasBlock(block1ID) {
+	if !reg.HasBlock(block1) {
 		t.Error("block1 was incorrectly cleaned up")
 	}
-	if !reg.HasBlock(block2ID) {
+	if !reg.HasBlock(block2) {
 		t.Error("block2 was incorrectly cleaned up after frame2 popped")
 	}
 
 	// Pop frame1 - blocks should still persist
 	interp.popFrame()
 
-	if !reg.HasBlock(block1ID) {
+	if !reg.HasBlock(block1) {
 		t.Error("block1 was incorrectly cleaned up after frame1 popped")
 	}
-	if !reg.HasBlock(block2ID) {
+	if !reg.HasBlock(block2) {
 		t.Error("block2 was incorrectly cleaned up after both frames popped")
 	}
 }
@@ -1357,8 +1354,8 @@ func TestStackOverflowCatchableWithOnDo(t *testing.T) {
 		HomeMethod: nil,
 	}
 
-	protectedBlockVal := FromBlockID(uint32(vm.registry.RegisterBlock(protectedBV)))
-	handlerBlockVal := FromBlockID(uint32(vm.registry.RegisterBlock(handlerBV)))
+	protectedBlockVal := vm.registry.RegisterBlock(protectedBV)
+	handlerBlockVal := vm.registry.RegisterBlock(handlerBV)
 
 	// Use evaluateBlockWithHandler (the mechanism behind on:do:) to catch the exception.
 	// Catch StackOverflow (which is a subclass of Error).
@@ -1430,8 +1427,8 @@ func TestStackOverflowCatchableWithErrorOnDo(t *testing.T) {
 		HomeSelf:  Nil,
 	}
 
-	protectedBlockVal := FromBlockID(uint32(vm.registry.RegisterBlock(protectedBV)))
-	handlerBlockVal := FromBlockID(uint32(vm.registry.RegisterBlock(handlerBV)))
+	protectedBlockVal := vm.registry.RegisterBlock(protectedBV)
+	handlerBlockVal := vm.registry.RegisterBlock(handlerBV)
 
 	// Catch with Error (superclass of StackOverflow) -- should also work
 	result := vm.evaluateBlockWithHandler(protectedBlockVal, vm.ErrorClass, handlerBlockVal)

@@ -318,17 +318,45 @@ func (v Value) IsBlock() bool {
 	return (uint64(v) & (nanBits | tagMask)) == (nanBits | tagBlock)
 }
 
-// BlockID returns the block registry ID.
+// Block payload layout: the 48-bit payload is split into a 32-bit slot id
+// (bits 0..31) and a 16-bit generation tag (bits 32..47). The generation
+// lets the registry safely recycle slot ids: when a slot is released, its
+// generation is bumped, so any stale Value pointing at the old (slot, gen)
+// pair will fail the gen check at lookup time and resolve to nil instead
+// of silently aliasing onto whatever block now occupies that slot.
+const (
+	blockSlotMask uint64 = 0x00000000FFFFFFFF
+	blockGenShift        = 32
+	blockGenMask  uint64 = 0x0000FFFF00000000
+)
+
+// BlockID returns the block registry slot id (low 32 bits of the payload).
 func (v Value) BlockID() uint32 {
 	if !v.IsBlock() {
 		panic("Value.BlockID: not a block")
 	}
-	return uint32(uint64(v) & payloadMask)
+	return uint32(uint64(v) & blockSlotMask)
 }
 
-// FromBlockID creates a Value from a block ID.
+// BlockGen returns the generation tag stored alongside the slot id.
+func (v Value) BlockGen() uint16 {
+	if !v.IsBlock() {
+		panic("Value.BlockGen: not a block")
+	}
+	return uint16((uint64(v) & blockGenMask) >> blockGenShift)
+}
+
+// FromBlockID creates a Value from a block slot id with generation 0.
+// Prefer FromBlockSlotGen at the registration site so the generation is
+// included; this helper exists for callers that genuinely don't need
+// generation tracking (none in production today).
 func FromBlockID(id uint32) Value {
 	return Value(nanBits | tagBlock | uint64(id))
+}
+
+// FromBlockSlotGen creates a Value from a slot id and generation.
+func FromBlockSlotGen(slot uint32, gen uint16) Value {
+	return Value(nanBits | tagBlock | (uint64(gen) << blockGenShift) | uint64(slot))
 }
 
 // ---------------------------------------------------------------------------

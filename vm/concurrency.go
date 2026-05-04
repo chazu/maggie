@@ -491,6 +491,7 @@ func (vm *VM) registerProcessPrimitives() {
 		if bv == nil {
 			return Nil
 		}
+		blockVal := recv
 
 		proc := v.createProcess()
 		procValue := v.registerProcess(proc)
@@ -500,6 +501,10 @@ func (vm *VM) registerProcessPrimitives() {
 				v.HandleForkedPanic(proc, recover())
 				// Unregister the interpreter when done
 				v.unregisterInterpreter()
+				// Release the block registry slot. The goroutine captured
+				// bv directly, so the registry entry serves no further
+				// purpose once the goroutine exits.
+				v.registry.ReleaseBlock(blockVal)
 			}()
 
 			// Create a forked interpreter for this goroutine
@@ -523,6 +528,7 @@ func (vm *VM) registerProcessPrimitives() {
 		if bv == nil {
 			return Nil
 		}
+		blockVal := recv
 
 		proc := v.createProcess()
 		procValue := v.registerProcess(proc)
@@ -531,6 +537,7 @@ func (vm *VM) registerProcessPrimitives() {
 			defer func() {
 				v.HandleForkedPanic(proc, recover())
 				v.unregisterInterpreter()
+				v.registry.ReleaseBlock(blockVal)
 			}()
 
 			interp := v.newForkedInterpreter(nil)
@@ -552,6 +559,7 @@ func (vm *VM) registerProcessPrimitives() {
 		if bv == nil {
 			return Nil
 		}
+		blockVal := recv
 
 		ctx := v.getCancellationContext(ctxArg)
 		if ctx == nil {
@@ -565,6 +573,7 @@ func (vm *VM) registerProcessPrimitives() {
 			defer func() {
 				v.HandleForkedPanic(proc, recover())
 				v.unregisterInterpreter()
+				v.registry.ReleaseBlock(blockVal)
 			}()
 
 			interp := v.newForkedInterpreter(nil)
@@ -602,6 +611,7 @@ func (vm *VM) registerProcessPrimitives() {
 		if bv == nil {
 			return Nil
 		}
+		blockVal := block
 
 		proc := v.createProcess()
 		procValue := v.registerProcess(proc)
@@ -610,6 +620,7 @@ func (vm *VM) registerProcessPrimitives() {
 			defer func() {
 				v.HandleForkedPanic(proc, recover())
 				v.unregisterInterpreter()
+				v.registry.ReleaseBlock(blockVal)
 			}()
 
 			interp := v.newForkedInterpreter(nil)
@@ -753,6 +764,7 @@ func (vm *VM) registerProcessPrimitives() {
 		if bv == nil {
 			return Nil
 		}
+		blockVal := recv
 
 		hidden := v.extractHiddenMap(restrictionsVal)
 		if hidden == nil {
@@ -774,6 +786,7 @@ func (vm *VM) registerProcessPrimitives() {
 			defer func() {
 				v.HandleForkedPanic(proc, recover())
 				v.unregisterInterpreter()
+				v.registry.ReleaseBlock(blockVal)
 			}()
 
 			interp := v.newForkedInterpreter(hidden)
@@ -794,6 +807,7 @@ func (vm *VM) registerProcessPrimitives() {
 		if bv == nil {
 			return Nil
 		}
+		// blockVal is the parameter — already a Value
 
 		hidden := v.extractHiddenMap(restrictionsVal)
 		if hidden == nil {
@@ -815,6 +829,7 @@ func (vm *VM) registerProcessPrimitives() {
 			defer func() {
 				v.HandleForkedPanic(proc, recover())
 				v.unregisterInterpreter()
+				v.registry.ReleaseBlock(blockVal)
 			}()
 
 			interp := v.newForkedInterpreter(hidden)

@@ -1,5 +1,36 @@
 # Changelog
 
+## 2026-05-04 — Block Registry: Slot Recycling + Generation Tags
+
+Bounded the block registry's growth so long-running fork-heavy workloads
+(notably `procyon-park`) no longer exhaust the block ID space and panic.
+
+- **Fork goroutines release their slot on exit** — every `[block] fork`,
+  `forkWith:`, `forkWithContext:`, `Process fork:`, `forkRestricted:`,
+  `forkWithout:do:`, and `Sandbox run:` now calls `ReleaseBlock` in the
+  goroutine's `defer`. Previously each fork permanently consumed a slot.
+- **Generation-tagged slot recycling** — block `Value`s now encode a
+  16-bit generation alongside the 32-bit slot id (bits 32-47 of the
+  `tagBlock` payload). `ReleaseBlock` bumps the slot's generation and
+  pushes it onto a free list; `RegisterBlock` reuses free slots before
+  growing. Stale `Value`s pointing at the old `(slot, gen)` resolve to
+  nil instead of silently aliasing onto whatever block now occupies
+  that slot — same failure mode as if the block had been GC'd.
+- **API change:** `RegisterBlock(*BlockValue)` now returns `Value` (not
+  `int`); `GetBlock`, `HasBlock`, and `ReleaseBlock` take `Value` (not
+  `int`). All in-tree callers updated.
+- **Slot ceiling raised** — block slot id space is now 2^32 - 1 (was
+  2^24 - 1). With recycling the practical bound is peak-live blocks,
+  not cumulative allocations.
+- **Known residual:** frame-bound blocks (every `[...]` literal that
+  isn't forked) still leak — `popFrame` does not call
+  `ReleaseBlocksForFrame`, and the registry GC explicitly skips the
+  block sweep. Eliminating that requires either changing `popFrame` to
+  release (and accepting that callbacks stored in long-lived
+  containers may break) or full reachability tracing. Not addressed
+  here. The generation tag added in this change makes the eventual
+  fix safer (over-eager release fails to nil rather than aliasing).
+
 ## 2026-04-01 — ArrayList: Go-Backed Growable Collection
 
 Added `ArrayList`, a first-class VM type backed by a Go `[]Value` slice,

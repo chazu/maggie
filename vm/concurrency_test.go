@@ -411,7 +411,7 @@ func TestConcurrentBlockRegistryReadWrite(t *testing.T) {
 	m := b.Build()
 
 	var wg sync.WaitGroup
-	blockIDsChan := make(chan int, numWriters*opsPerGoroutine)
+	blockValsChan := make(chan Value, numWriters*opsPerGoroutine)
 
 	// Writers create blocks
 	for w := 0; w < numWriters; w++ {
@@ -422,32 +422,43 @@ func TestConcurrentBlockRegistryReadWrite(t *testing.T) {
 			interp.pushFrame(m, Nil, nil)
 			for i := 0; i < opsPerGoroutine; i++ {
 				blockVal := interp.createBlockValue(blockMethod, nil)
-				blockIDsChan <- int(blockVal.BlockID())
+				blockValsChan <- blockVal
 			}
 			interp.popFrame()
 		}()
 	}
 
-	// Readers look up blocks
+	// Collect block Values as writers produce them, then readers exercise them.
+	// Pre-collect into a slice once writers are done so readers have a stable
+	// snapshot to index into.
+	go func() {
+		wg.Wait()
+		close(blockValsChan)
+	}()
+	var collected []Value
+	for v := range blockValsChan {
+		collected = append(collected, v)
+	}
+
+	var rwg sync.WaitGroup
 	readErrors := make(chan error, numReaders)
 	for r := 0; r < numReaders; r++ {
-		wg.Add(1)
+		rwg.Add(1)
 		go func() {
-			defer wg.Done()
+			defer rwg.Done()
 			interp := testVM.newInterpreter()
 			for i := 0; i < opsPerGoroutine*2; i++ {
-				// Try to read a block (may or may not exist yet)
-				id := i % (numWriters * opsPerGoroutine)
-				if reg.HasBlock(id) {
-					// Just verify we can read it without crash
-					_ = interp.getBlockValue(FromBlockID(uint32(id)))
+				if len(collected) == 0 {
+					return
+				}
+				bv := collected[i%len(collected)]
+				if reg.HasBlock(bv) {
+					_ = interp.getBlockValue(bv)
 				}
 			}
 		}()
 	}
-
-	wg.Wait()
-	close(blockIDsChan)
+	rwg.Wait()
 	close(readErrors)
 
 	// Check for any errors
@@ -455,11 +466,7 @@ func TestConcurrentBlockRegistryReadWrite(t *testing.T) {
 		t.Errorf("Reader error: %v", err)
 	}
 
-	// Count created blocks
-	var count int
-	for range blockIDsChan {
-		count++
-	}
+	count := len(collected)
 
 	t.Logf("Created %d blocks while %d readers accessed registry",
 		count, numReaders)
@@ -584,6 +591,116 @@ func TestForkedBlockWithNLRDoesNotCrash(t *testing.T) {
 
 	// Clean up
 	vm.Send(ch, "close", nil)
+}
+
+// TestForkReleasesBlockRegistrySlot verifies that fork-spawned goroutines
+// release their block registry slot when the goroutine exits, so
+// fork-heavy workloads don't exhaust the 2^24 block ID space.
+func TestForkReleasesBlockRegistrySlot(t *testing.T) {
+	testVM := NewVM()
+	defer testVM.Shutdown()
+	reg := testVM.registry
+
+	// A trivial block that just returns nil. We need an enclosing method
+	// frame so createBlockValue can stamp HomeSelf/HomeMethod sensibly.
+	blockMethod := &BlockMethod{
+		Arity:       0,
+		NumTemps:    0,
+		NumCaptures: 0,
+		Bytecode:    []byte{byte(OpPushNil), byte(OpBlockReturn)},
+	}
+	hb := NewCompiledMethodBuilder("forkHost", 0)
+	hb.Bytecode().Emit(OpPushNil)
+	hb.Bytecode().Emit(OpReturnTop)
+	hostMethod := hb.Build()
+
+	interp := testVM.newInterpreter()
+	testVM.registerInterpreter(interp)
+	defer testVM.unregisterInterpreter()
+	interp.pushFrame(hostMethod, Nil, nil)
+	defer interp.popFrame()
+
+	baseline := reg.BlockCount()
+
+	const forks = 200
+	procs := make([]Value, forks)
+	for i := 0; i < forks; i++ {
+		blockVal := interp.createBlockValue(blockMethod, nil)
+		procs[i] = testVM.Send(blockVal, "fork", nil)
+	}
+
+	// Wait for all forked processes to complete.
+	for i := 0; i < forks; i++ {
+		testVM.Send(procs[i], "wait", nil)
+	}
+
+	// Give defers a moment to run after wait returns. wait() returns when
+	// the result channel is closed, which happens before the defer's
+	// ReleaseBlock — so we poll briefly.
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if reg.BlockCount() <= baseline {
+			break
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+
+	leaked := reg.BlockCount() - baseline
+	if leaked > 0 {
+		t.Errorf("fork leaked %d block registry slots after %d forks (baseline=%d, current=%d)",
+			leaked, forks, baseline, reg.BlockCount())
+	}
+}
+
+// TestBlockRegistryRecyclesSlots verifies that releasing a block returns
+// its slot id to the free list and the next allocation reuses it.
+func TestBlockRegistryRecyclesSlots(t *testing.T) {
+	testVM := NewVM()
+	defer testVM.Shutdown()
+	reg := testVM.registry
+
+	blockMethod := &BlockMethod{
+		Bytecode: []byte{byte(OpPushNil), byte(OpBlockReturn)},
+	}
+	hb := NewCompiledMethodBuilder("recycle", 0)
+	hb.Bytecode().Emit(OpPushNil)
+	hb.Bytecode().Emit(OpReturnTop)
+	m := hb.Build()
+
+	interp := testVM.newInterpreter()
+	testVM.registerInterpreter(interp)
+	defer testVM.unregisterInterpreter()
+	interp.pushFrame(m, Nil, nil)
+	defer interp.popFrame()
+
+	first := interp.createBlockValue(blockMethod, nil)
+	firstSlot := first.BlockID()
+	firstGen := first.BlockGen()
+
+	reg.ReleaseBlock(first)
+
+	// Stale Value must resolve to nil after release.
+	if reg.GetBlock(first) != nil {
+		t.Fatal("released block still resolves")
+	}
+
+	second := interp.createBlockValue(blockMethod, nil)
+	if second.BlockID() != firstSlot {
+		t.Errorf("slot not recycled: first=%d second=%d", firstSlot, second.BlockID())
+	}
+	if second.BlockGen() == firstGen {
+		t.Errorf("generation not bumped on recycle: first.gen=%d second.gen=%d", firstGen, second.BlockGen())
+	}
+
+	// Stale (first) Value must STILL resolve to nil even though the slot
+	// is now occupied by `second` — this is the safety guarantee.
+	if reg.GetBlock(first) != nil {
+		t.Error("stale Value aliased onto recycled slot — generation check failed")
+	}
+	// The new Value resolves correctly.
+	if reg.GetBlock(second) == nil {
+		t.Error("recycled-slot Value does not resolve")
+	}
 }
 
 // TestNestedDetachedBlockNLR tests that nested blocks in detached mode

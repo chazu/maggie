@@ -1262,9 +1262,7 @@ func (vm *VM) CreateBlock(block *BlockMethod, captures []Value, homeSelf Value) 
 		bv.HomeMethod = block.Outer
 	}
 
-	id := vm.registry.RegisterBlock(bv)
-
-	return FromBlockID(uint32(id))
+	return vm.registry.RegisterBlock(bv)
 }
 
 // RegisterAOTMethods registers a dispatch table of AOT-compiled methods.
