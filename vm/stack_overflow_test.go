@@ -704,6 +704,17 @@ func TestStackOverflowExceptionMessage(t *testing.T) {
 	class.VTable.AddMethod(recurseSelID, m)
 
 	obj := class.NewInstance()
+	// Pin obj so the GC keeps it alive across the deep recursion below.
+	// Object pointers are stored in NaN-boxed Values on the operand
+	// stack and in CallFrame.Receiver — both invisible to Go's GC. Under
+	// -race + deep recursion, the Go local `obj` can be optimised out
+	// of the live range, causing GC to free the Object and the next
+	// vtable lookup to dereference a freed pointer (the
+	// "found bad pointer in Go heap" crash documented as Crash 5 in
+	// docs/vm-concurrency-audit-2026-05-03.md). Production code paths
+	// register every Object via vm.KeepAlive in the `new` primitive;
+	// tests using bare class.NewInstance must do the same.
+	vm.KeepAlive(obj)
 
 	// Test with different limits to verify the message reflects the actual limit
 	for _, limit := range []int{25, 50, 100} {
