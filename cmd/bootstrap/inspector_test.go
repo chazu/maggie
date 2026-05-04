@@ -19,7 +19,7 @@ func TestInspector_EvaluateInArray(t *testing.T) {
 	vmInst := vm.NewVM()
 	vmInst.UseGoCompiler(compiler.Compile)
 
-	compilerClass := vmInst.Globals["Compiler"]
+	compilerClass := vmInst.MustGlobal("Compiler")
 
 	arr := vmInst.NewArrayWithElements([]vm.Value{
 		vm.FromSmallInt(10), vm.FromSmallInt(20), vm.FromSmallInt(30),
@@ -55,7 +55,7 @@ func TestInspector_EvaluateInDictionary(t *testing.T) {
 	vmInst := vm.NewVM()
 	vmInst.UseGoCompiler(compiler.Compile)
 
-	compilerClass := vmInst.Globals["Compiler"]
+	compilerClass := vmInst.MustGlobal("Compiler")
 
 	// Create a dictionary
 	dict := vmInst.Registry().NewDictionaryValue()
@@ -93,7 +93,7 @@ func TestInspector_EvaluateInSmallInteger(t *testing.T) {
 	vmInst := vm.NewVM()
 	vmInst.UseGoCompiler(compiler.Compile)
 
-	compilerClass := vmInst.Globals["Compiler"]
+	compilerClass := vmInst.MustGlobal("Compiler")
 
 	// Evaluate 'self + 1' with 42 as receiver
 	result := vmInst.Send(compilerClass, "evaluate:in:", []vm.Value{
@@ -109,7 +109,7 @@ func TestInspector_EvaluateInNil(t *testing.T) {
 	vmInst := vm.NewVM()
 	vmInst.UseGoCompiler(compiler.Compile)
 
-	compilerClass := vmInst.Globals["Compiler"]
+	compilerClass := vmInst.MustGlobal("Compiler")
 
 	result := vmInst.Send(compilerClass, "evaluate:in:", []vm.Value{
 		vmInst.Registry().NewStringValue("self isNil"), vm.Nil,
@@ -151,7 +151,7 @@ func TestInspector_MiniEvaluator_ArithmeticOnSelf(t *testing.T) {
 	vmInst := vm.NewVM()
 	vmInst.UseGoCompiler(compiler.Compile)
 
-	compilerClass := vmInst.Globals["Compiler"]
+	compilerClass := vmInst.MustGlobal("Compiler")
 
 	arr := vmInst.NewArrayWithElements([]vm.Value{
 		vm.FromSmallInt(10), vm.FromSmallInt(20), vm.FromSmallInt(30),
@@ -171,7 +171,7 @@ func TestInspector_EvaluateInContext_ClassName(t *testing.T) {
 	vmInst := vm.NewVM()
 	vmInst.UseGoCompiler(compiler.Compile)
 
-	compilerClass := vmInst.Globals["Compiler"]
+	compilerClass := vmInst.MustGlobal("Compiler")
 
 	// Evaluate 'self className' on a SmallInteger
 	result := vmInst.Send(compilerClass, "evaluate:in:", []vm.Value{
@@ -192,7 +192,7 @@ func TestInspector_EvaluateInContext_Error(t *testing.T) {
 	vmInst := vm.NewVM()
 	vmInst.UseGoCompiler(compiler.Compile)
 
-	compilerClass := vmInst.Globals["Compiler"]
+	compilerClass := vmInst.MustGlobal("Compiler")
 
 	// Evaluate a syntax error
 	result := vmInst.Send(compilerClass, "evaluate:in:", []vm.Value{

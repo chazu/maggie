@@ -1,5 +1,10 @@
 package vm
 
+import (
+	"sync"
+	"sync/atomic"
+)
+
 // ---------------------------------------------------------------------------
 // CompiledMethod: Bytecode-based method implementation
 // ---------------------------------------------------------------------------
@@ -23,8 +28,18 @@ type CompiledMethod struct {
 	Literals []Value // constant pool (numbers, strings, symbols, classes)
 	Bytecode []byte  // the bytecode instructions
 
-	// Runtime optimization
-	InlineCaches *InlineCacheTable // inline caches for call sites (lazily created)
+	// Runtime optimization. The inline cache table is built lazily on
+	// first dispatch by scanning Bytecode for OpSend instructions. Once
+	// built, the table's site map is immutable, and individual
+	// InlineCache entries publish state via atomic.Pointer.
+	//
+	// inlineCachesOnce ensures the build runs exactly once. The result
+	// is also published via inlineCaches (atomic.Pointer) so readers
+	// that must not block on the build (Reset/Stats) can probe with a
+	// nil-tolerant load. Both fields together encode the "build once"
+	// contract race-free.
+	inlineCaches     atomic.Pointer[InlineCacheTable]
+	inlineCachesOnce sync.Once
 
 	// Nested blocks
 	Blocks []*BlockMethod // block methods referenced by CREATE_BLOCK
@@ -147,13 +162,24 @@ func (m *CompiledMethod) SetTypedHash(h [32]byte) {
 	m.TypedHash = h
 }
 
-// GetInlineCaches returns the inline cache table, creating it if needed.
-// This is thread-safe for concurrent reads but not concurrent writes.
+// GetInlineCaches returns the inline cache table, building it on first
+// call by scanning the bytecode for OpSend instructions. Safe for
+// concurrent use: sync.Once provides a happens-before edge from the
+// build to all subsequent loads, and the resulting table's site map is
+// never written after publication.
 func (m *CompiledMethod) GetInlineCaches() *InlineCacheTable {
-	if m.InlineCaches == nil {
-		m.InlineCaches = NewInlineCacheTable()
-	}
-	return m.InlineCaches
+	m.inlineCachesOnce.Do(func() {
+		m.inlineCaches.Store(BuildInlineCacheTable(m.Bytecode))
+	})
+	return m.inlineCaches.Load()
+}
+
+// getInlineCachesIfBuilt returns the table only if it has already been
+// built. Used by Reset/Stats paths that must not trigger a build (e.g.
+// during ClassTable iteration after rehydration). Returns nil if no
+// dispatch has occurred yet — callers must tolerate that.
+func (m *CompiledMethod) getInlineCachesIfBuilt() *InlineCacheTable {
+	return m.inlineCaches.Load()
 }
 
 // ---------------------------------------------------------------------------

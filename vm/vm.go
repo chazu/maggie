@@ -2,12 +2,11 @@ package vm
 
 import (
 	"fmt"
-	"runtime"
-	"strconv"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/petermattis/goid"
 )
 
 // ---------------------------------------------------------------------------
@@ -67,13 +66,23 @@ func (c VMConfig) mergeDefaults() VMConfig {
 
 // VM is the main Maggie virtual machine.
 type VM struct {
+	// Late-bound fields (atomics + freeze flag). Embedded as a value so
+	// every VM instance gets its own atomics — see late_bound.go.
+	lateBoundFields
+
 	// Global tables
 	Selectors *SelectorTable // selector name -> ID
 	Symbols   *SymbolTable   // symbol name -> ID
 	Classes   *ClassTable    // class name -> Class
 	Traits    *TraitTable    // trait name -> Trait
-	Globals   map[string]Value
-	globalsMu sync.RWMutex // protects Globals map for concurrent access
+	// globals is unexported to enforce all access through accessors that
+	// take globalsMu. Use Global / SetGlobal / DeleteGlobal /
+	// RangeGlobals / GlobalsSnapshot externally. Bootstrap writes from
+	// inside this package may use the bare map under the convention
+	// that bootstrap is single-threaded; new write sites should still
+	// prefer SetGlobal so the locking remains uniform.
+	globals   map[string]Value
+	globalsMu sync.RWMutex // protects globals for concurrent access
 
 	// Well-known classes (for fast-path checks and bootstrapping)
 	ObjectClass            *Class
@@ -182,18 +191,11 @@ type VM struct {
 	// Local node identity keys (loaded lazily)
 	localIdentity *nodeIdentityHolder
 
-	// NodeRefFactory creates fully-wired NodeRefData instances.
-	// Set by cmd/mag to inject gRPC client wiring.
-	NodeRefFactory NodeRefFactory
-
-	// LocalListenAddr is this node's listen address (e.g. ":8081").
-	// Set after the sync/serve server starts. Used to send a return
-	// address to remote nodes for code-on-demand pull-back.
-	LocalListenAddr string
-
-	// RemoteChannelFactory wires up RPC callbacks on a RemoteChannelRef.
-	// Set by cmd/mag to inject gRPC client wiring for channel operations.
-	RemoteChannelFactory func(ref *RemoteChannelRef)
+	// NodeRefFactory, LocalListenAddr, RemoteChannelFactory now live
+	// in lateBoundFields with atomic accessors. Use:
+	//   vm.GetNodeRefFactory() / SetNodeRefFactory()
+	//   vm.GetLocalListenAddr() / SetLocalListenAddr()
+	//   vm.GetRemoteChannelFactory() / SetRemoteChannelFactory()
 
 	// Cross-node monitor/link tracking and health monitoring
 	remoteWatches *RemoteWatchStore
@@ -206,20 +208,12 @@ type VM struct {
 	// symbolDispatch centralises marker-based class resolution for symbol-encoded types.
 	symbolDispatch *SymbolDispatch
 
-	// AOT compiled methods - maps (class, method) to AOT-compiled functions.
-	// When set, these are used instead of interpreting bytecode.
-	aotMethods AOTDispatchTable
+	// AOT compiled methods, fileInFunc, fileInBatchFunc now live in
+	// lateBoundFields with atomic CoW publishing. See accessors in
+	// late_bound.go and file_in.go.
 
 	// registryGC periodically sweeps concurrency and exception registries.
 	registryGC *RegistryGC
-
-	// fileInFunc compiles source text into the VM.
-	// Set by cmd/mag after compiler initialization to avoid circular imports.
-	fileInFunc FileInFunc
-
-	// fileInBatchFunc batch-compiles a directory using two-pass.
-	// Set by cmd/mag. When set, FileInAll uses this instead of per-file FileIn.
-	fileInBatchFunc FileInBatchFunc
 
 	// goTypeRegistry maps Go reflect.Types to Maggie classes for GoObject dispatch.
 	goTypeRegistry *GoTypeRegistry
@@ -228,17 +222,13 @@ type VM struct {
 	// for the distribution protocol.
 	contentStore *ContentStore
 
-	// RehydratedClasses tracks class names that were installed via the sync/
-	// rehydration pipeline (i.e., received from the network, not loaded locally).
-	RehydratedClasses map[string]bool
+	// RehydratedClasses, samplingProfiler now live in lateBoundFields
+	// (atomic CoW for the map; atomic.Pointer for the profiler).
 
 	// syncRestrictions is the default list of global names to hide when
 	// running received code in a sandbox. Populated from the manifest's
 	// [sync].capabilities at startup.
 	syncRestrictions []string
-
-	// samplingProfiler is the wall-clock sampling profiler (nil when disabled).
-	samplingProfiler *SamplingProfiler
 
 	// pendingSpawns tracks Futures for forkOn: calls awaiting results from
 	// remote nodes. Keyed by futureID embedded in the SpawnBlock.
@@ -270,7 +260,7 @@ func NewVM(configs ...VMConfig) *VM {
 		Symbols:        NewSymbolTable(),
 		Classes:        NewClassTable(),
 		Traits:         NewTraitTable(),
-		Globals:        make(map[string]Value),
+		globals:        make(map[string]Value),
 		keepAlive:        make(map[*Object]struct{}),
 		weakRefs:         NewWeakRegistry(),
 		registry:         NewObjectRegistry(),
@@ -314,7 +304,7 @@ func (vm *VM) newInterpreter() *Interpreter {
 	interp.Selectors = vm.Selectors
 	interp.Symbols = vm.Symbols
 	interp.Classes = vm.Classes
-	interp.Globals = vm.Globals
+	interp.globals = vm.globals
 	interp.vm = vm // Back-reference for primitives
 	// Intern well-known selectors against the VM's table so cached IDs
 	// match the IDs used by methods registered on the VM's classes.
@@ -330,7 +320,7 @@ func (vm *VM) newForkedInterpreter(hidden map[string]bool) *Interpreter {
 	interp.Selectors = vm.Selectors
 	interp.Symbols = vm.Symbols
 	interp.Classes = vm.Classes
-	interp.Globals = vm.Globals
+	interp.globals = vm.globals
 	interp.vm = vm
 	interp.forked = true
 	interp.hidden = hidden
@@ -473,43 +463,43 @@ func (vm *VM) bootstrap() {
 	vm.registerDateTimePrimitives()
 
 	// Phase 7: Set up globals
-	vm.Globals["Object"] = vm.classValue(vm.ObjectClass)
-	vm.Globals["Class"] = vm.classValue(vm.ClassClass)
-	vm.Globals["Metaclass"] = vm.classValue(vm.MetaclassClass)
-	vm.Globals["Boolean"] = vm.classValue(vm.BooleanClass)
-	vm.Globals["True"] = vm.classValue(vm.TrueClass)
-	vm.Globals["False"] = vm.classValue(vm.FalseClass)
-	vm.Globals["UndefinedObject"] = vm.classValue(vm.UndefinedObjectClass)
-	vm.Globals["SmallInteger"] = vm.classValue(vm.SmallIntegerClass)
-	vm.Globals["BigInteger"] = vm.classValue(vm.BigIntegerClass)
-	vm.Globals["Float"] = vm.classValue(vm.FloatClass)
-	vm.Globals["String"] = vm.classValue(vm.StringClass)
-	vm.Globals["Symbol"] = vm.classValue(vm.SymbolClass)
-	vm.Globals["Array"] = vm.classValue(vm.ArrayClass)
-	vm.Globals["Block"] = vm.classValue(vm.BlockClass)
-	vm.Globals["Channel"] = vm.classValue(vm.ChannelClass)
-	vm.Globals["Process"] = vm.classValue(vm.ProcessClass)
-	vm.Globals["Mutex"] = vm.classValue(vm.MutexClass)
-	vm.Globals["WaitGroup"] = vm.classValue(vm.WaitGroupClass)
-	vm.Globals["Semaphore"] = vm.classValue(vm.SemaphoreClass)
-	vm.Globals["CancellationContext"] = vm.classValue(vm.CancellationContextClass)
-	vm.Globals["Result"] = vm.classValue(vm.ResultClass)
-	vm.Globals["Success"] = vm.classValue(vm.SuccessClass)
-	vm.Globals["Failure"] = vm.classValue(vm.FailureClass)
-	vm.Globals["Dictionary"] = vm.classValue(vm.DictionaryClass)
-	vm.Globals["Set"] = vm.classValue(vm.SetClass)
-	vm.Globals["GrpcClient"] = vm.classValue(vm.GrpcClientClass)
-	vm.Globals["GrpcStream"] = vm.classValue(vm.GrpcStreamClass)
-	vm.Globals["Context"] = vm.classValue(vm.ContextClass)
-	vm.Globals["WeakReference"] = vm.classValue(vm.WeakReferenceClass)
-	vm.Globals["Character"] = vm.classValue(vm.CharacterClass)
-	vm.Globals["Random"] = vm.classValue(vm.RandomClass)
-	vm.Globals["ArrayList"] = vm.classValue(vm.ArrayListClass)
+	vm.globals["Object"] = vm.classValue(vm.ObjectClass)
+	vm.globals["Class"] = vm.classValue(vm.ClassClass)
+	vm.globals["Metaclass"] = vm.classValue(vm.MetaclassClass)
+	vm.globals["Boolean"] = vm.classValue(vm.BooleanClass)
+	vm.globals["True"] = vm.classValue(vm.TrueClass)
+	vm.globals["False"] = vm.classValue(vm.FalseClass)
+	vm.globals["UndefinedObject"] = vm.classValue(vm.UndefinedObjectClass)
+	vm.globals["SmallInteger"] = vm.classValue(vm.SmallIntegerClass)
+	vm.globals["BigInteger"] = vm.classValue(vm.BigIntegerClass)
+	vm.globals["Float"] = vm.classValue(vm.FloatClass)
+	vm.globals["String"] = vm.classValue(vm.StringClass)
+	vm.globals["Symbol"] = vm.classValue(vm.SymbolClass)
+	vm.globals["Array"] = vm.classValue(vm.ArrayClass)
+	vm.globals["Block"] = vm.classValue(vm.BlockClass)
+	vm.globals["Channel"] = vm.classValue(vm.ChannelClass)
+	vm.globals["Process"] = vm.classValue(vm.ProcessClass)
+	vm.globals["Mutex"] = vm.classValue(vm.MutexClass)
+	vm.globals["WaitGroup"] = vm.classValue(vm.WaitGroupClass)
+	vm.globals["Semaphore"] = vm.classValue(vm.SemaphoreClass)
+	vm.globals["CancellationContext"] = vm.classValue(vm.CancellationContextClass)
+	vm.globals["Result"] = vm.classValue(vm.ResultClass)
+	vm.globals["Success"] = vm.classValue(vm.SuccessClass)
+	vm.globals["Failure"] = vm.classValue(vm.FailureClass)
+	vm.globals["Dictionary"] = vm.classValue(vm.DictionaryClass)
+	vm.globals["Set"] = vm.classValue(vm.SetClass)
+	vm.globals["GrpcClient"] = vm.classValue(vm.GrpcClientClass)
+	vm.globals["GrpcStream"] = vm.classValue(vm.GrpcStreamClass)
+	vm.globals["Context"] = vm.classValue(vm.ContextClass)
+	vm.globals["WeakReference"] = vm.classValue(vm.WeakReferenceClass)
+	vm.globals["Character"] = vm.classValue(vm.CharacterClass)
+	vm.globals["Random"] = vm.classValue(vm.RandomClass)
+	vm.globals["ArrayList"] = vm.classValue(vm.ArrayListClass)
 
 	// Well-known symbols
-	vm.Globals["nil"] = Nil
-	vm.Globals["true"] = True
-	vm.Globals["false"] = False
+	vm.globals["nil"] = Nil
+	vm.globals["true"] = True
+	vm.globals["false"] = False
 
 	// Phase 8: Register symbol-encoded types in the central dispatch table
 	vm.registerSymbolDispatch()
@@ -984,8 +974,15 @@ func (vm *VM) DebugVariables(frameID int) []Variable {
 }
 
 // Execute runs a compiled method with the given receiver and arguments.
+//
+// Routes through currentInterpreter() so callers from forked goroutines
+// use their own interpreter instead of mutating the main interpreter's
+// stack/frames concurrently. Pre-Patch-5 this routed through
+// vm.interpreter unconditionally and only worked because the dispatch
+// queue serialised external Go callers — see Patch 5 in
+// docs/vm-concurrency-audit-2026-05-03.md.
 func (vm *VM) Execute(method *CompiledMethod, receiver Value, args []Value) Value {
-	return vm.interpreter.Execute(method, receiver, args)
+	return vm.currentInterpreter().Execute(method, receiver, args)
 }
 
 // ExecuteSafe runs a compiled method and catches Maggie errors, returning them as Go errors.
@@ -1028,7 +1025,7 @@ func (vm *VM) ExecuteSafe(method *CompiledMethod, receiver Value, args []Value) 
 			panic(r)
 		}
 	}()
-	result = vm.interpreter.Execute(method, receiver, args)
+	result = vm.currentInterpreter().Execute(method, receiver, args)
 	return result, nil
 }
 
@@ -1080,12 +1077,12 @@ func (vm *VM) Send(receiver Value, selector string, args []Value) Value {
 	// Check if it's a compiled method or primitive
 	if cm, ok := method.(*CompiledMethod); ok {
 		// Check for AOT-compiled version first
-		if vm.aotMethods != nil {
-			if aotMethod := vm.aotMethods[AOTDispatchKey{class.Name, selector}]; aotMethod != nil {
+		if aot := vm.getAOTMethods(); aot != nil {
+			if aotMethod := aot[AOTDispatchKey{class.Name, selector}]; aotMethod != nil {
 				return aotMethod(vm, receiver, args)
 			}
 		}
-		return vm.interpreter.Execute(cm, receiver, args)
+		return vm.currentInterpreter().Execute(cm, receiver, args)
 	}
 
 	// Primitive method - pass VM as the vm parameter
@@ -1126,19 +1123,79 @@ func (vm *VM) SymbolName(id uint32) string {
 	return vm.Symbols.Name(id)
 }
 
-// LookupGlobal returns a global value by name.
-func (vm *VM) LookupGlobal(name string) (Value, bool) {
+// Global returns a global value by name. Safe for concurrent use.
+func (vm *VM) Global(name string) (Value, bool) {
 	vm.globalsMu.RLock()
-	v, ok := vm.Globals[name]
+	v, ok := vm.globals[name]
 	vm.globalsMu.RUnlock()
 	return v, ok
 }
 
-// SetGlobal sets a global value.
+// LookupGlobal is a legacy alias for Global. Prefer Global in new code.
+func (vm *VM) LookupGlobal(name string) (Value, bool) {
+	return vm.Global(name)
+}
+
+// MustGlobal returns a global by name; returns Nil if not present.
+// Use only when the caller has already verified existence (e.g.,
+// during bootstrap or in tests with known fixtures).
+func (vm *VM) MustGlobal(name string) Value {
+	v, _ := vm.Global(name)
+	return v
+}
+
+// HasGlobal reports whether a global with the given name exists.
+func (vm *VM) HasGlobal(name string) bool {
+	_, ok := vm.Global(name)
+	return ok
+}
+
+// SetGlobal sets a global value. Safe for concurrent use.
 func (vm *VM) SetGlobal(name string, value Value) {
 	vm.globalsMu.Lock()
-	vm.Globals[name] = value
+	vm.globals[name] = value
 	vm.globalsMu.Unlock()
+}
+
+// DeleteGlobal removes a global by name. No-op if absent.
+func (vm *VM) DeleteGlobal(name string) {
+	vm.globalsMu.Lock()
+	delete(vm.globals, name)
+	vm.globalsMu.Unlock()
+}
+
+// GlobalsLen returns the number of globals.
+func (vm *VM) GlobalsLen() int {
+	vm.globalsMu.RLock()
+	n := len(vm.globals)
+	vm.globalsMu.RUnlock()
+	return n
+}
+
+// RangeGlobals iterates over all globals, calling fn for each
+// (name, value) pair. If fn returns false, iteration stops. The map is
+// held under read-lock for the duration of the call — fn must not
+// SetGlobal or otherwise re-enter the VM globals API.
+func (vm *VM) RangeGlobals(fn func(name string, value Value) bool) {
+	vm.globalsMu.RLock()
+	defer vm.globalsMu.RUnlock()
+	for name, v := range vm.globals {
+		if !fn(name, v) {
+			return
+		}
+	}
+}
+
+// GlobalsSnapshot returns a copy of the current globals map. Safe to
+// iterate without holding the VM globals lock.
+func (vm *VM) GlobalsSnapshot() map[string]Value {
+	vm.globalsMu.RLock()
+	defer vm.globalsMu.RUnlock()
+	out := make(map[string]Value, len(vm.globals))
+	for k, v := range vm.globals {
+		out[k] = v
+	}
+	return out
 }
 
 // LookupClass returns a class by name.
@@ -1176,12 +1233,12 @@ func (vm *VM) SendSuper(receiver Value, selector string, args []Value, definingC
 	// Execute the method with the original receiver (not the superclass)
 	if cm, ok := method.(*CompiledMethod); ok {
 		// Check for AOT-compiled version first
-		if vm.aotMethods != nil {
-			if aotMethod := vm.aotMethods[AOTDispatchKey{definingClass.Superclass.Name, selector}]; aotMethod != nil {
+		if aot := vm.getAOTMethods(); aot != nil {
+			if aotMethod := aot[AOTDispatchKey{definingClass.Superclass.Name, selector}]; aotMethod != nil {
 				return aotMethod(vm, receiver, args)
 			}
 		}
-		return vm.interpreter.Execute(cm, receiver, args)
+		return vm.currentInterpreter().Execute(cm, receiver, args)
 	}
 
 	// Primitive method
@@ -1212,28 +1269,25 @@ func (vm *VM) CreateBlock(block *BlockMethod, captures []Value, homeSelf Value) 
 
 // RegisterAOTMethods registers a dispatch table of AOT-compiled methods.
 // When a method is found in this table, the AOT-compiled version is used
-// instead of interpreting bytecode.
+// instead of interpreting bytecode. Must be called before Freeze().
 func (vm *VM) RegisterAOTMethods(methods AOTDispatchTable) {
-	if vm.aotMethods == nil {
-		vm.aotMethods = make(AOTDispatchTable)
-	}
-	for key, method := range methods {
-		vm.aotMethods[key] = method
-	}
+	vm.registerAOTMethods(methods)
 }
 
 // LookupAOT looks up an AOT-compiled method for a class and selector.
 // Returns nil if no AOT method is registered.
 func (vm *VM) LookupAOT(className, selector string) AOTMethod {
-	if vm.aotMethods == nil {
+	aot := vm.getAOTMethods()
+	if aot == nil {
 		return nil
 	}
-	return vm.aotMethods[AOTDispatchKey{className, selector}]
+	return aot[AOTDispatchKey{className, selector}]
 }
 
 // HasAOT returns true if AOT methods are registered.
 func (vm *VM) HasAOT() bool {
-	return vm.aotMethods != nil && len(vm.aotMethods) > 0
+	aot := vm.getAOTMethods()
+	return len(aot) > 0
 }
 
 // ContentStore returns the VM's content store, creating it lazily if needed.
@@ -1263,18 +1317,12 @@ func (vm *VM) SyncRestrictions() []string {
 // MarkRehydrated records a class name as having been installed via the
 // sync/rehydration pipeline (received from the network).
 func (vm *VM) MarkRehydrated(className string) {
-	if vm.RehydratedClasses == nil {
-		vm.RehydratedClasses = make(map[string]bool)
-	}
-	vm.RehydratedClasses[className] = true
+	vm.markRehydrated(className)
 }
 
 // IsRehydrated returns true if the class was installed via rehydration.
 func (vm *VM) IsRehydrated(className string) bool {
-	if vm.RehydratedClasses == nil {
-		return false
-	}
-	return vm.RehydratedClasses[className]
+	return vm.isRehydrated(className)
 }
 
 // GoTypeRegistry returns the VM's Go type registry, creating it if needed.
@@ -1307,7 +1355,7 @@ func (vm *VM) CollectGarbage() int {
 
 	// Mark objects reachable from globals
 	vm.globalsMu.RLock()
-	for _, v := range vm.Globals {
+	for _, v := range vm.globals {
 		vm.markValue(v, marked)
 	}
 	vm.globalsMu.RUnlock()
@@ -1431,20 +1479,15 @@ func (vm *VM) WeakRefCount() int {
 // Goroutine-Local Interpreter Tracking
 // ---------------------------------------------------------------------------
 
-// getGoroutineID returns the current goroutine's ID by parsing the stack.
-// This is a workaround since Go doesn't expose goroutine IDs directly.
+// getGoroutineID returns the current goroutine's ID via the
+// petermattis/goid trampoline. The previous implementation used
+// runtime.Stack(buf, false) which costs ~10µs per call and acquires a
+// runtime-internal lock that effectively serialised dispatch across
+// goroutines — masking the IC/Globals/late-bound races documented in
+// docs/vm-concurrency-audit-2026-05-03.md. With Patches 1-6 in place
+// those races are fixed, so we can re-land the fast lookup.
 func getGoroutineID() int64 {
-	var buf [64]byte
-	n := runtime.Stack(buf[:], false)
-	// Stack starts with "goroutine <id> [...]"
-	s := string(buf[:n])
-	s = strings.TrimPrefix(s, "goroutine ")
-	idx := strings.Index(s, " ")
-	if idx > 0 {
-		s = s[:idx]
-	}
-	id, _ := strconv.ParseInt(s, 10, 64)
-	return id
+	return goid.Get()
 }
 
 // registerInterpreter registers an interpreter for the current goroutine.
@@ -1488,8 +1531,8 @@ func (vm *VM) currentInterpreter() *Interpreter {
 // Shutdown stops background goroutines (registry GC, etc.) and releases
 // resources. Call this when the VM is no longer needed.
 func (vm *VM) Shutdown() {
-	if vm.samplingProfiler != nil {
-		vm.samplingProfiler.Stop()
+	if sp := vm.SamplingProfiler(); sp != nil {
+		sp.Stop()
 	}
 	if vm.registryGC != nil {
 		vm.registryGC.Stop()
@@ -1505,11 +1548,11 @@ func (vm *VM) RegistryGC() *RegistryGC {
 // StartSamplingProfiler creates and starts a wall-clock sampling profiler.
 // If one is already running, it is stopped first.
 func (vm *VM) StartSamplingProfiler(interval time.Duration) *SamplingProfiler {
-	if vm.samplingProfiler != nil {
-		vm.samplingProfiler.Stop()
+	if old := vm.SamplingProfiler(); old != nil {
+		old.Stop()
 	}
 	sp := NewSamplingProfiler(vm, interval)
-	vm.samplingProfiler = sp
+	vm.setSamplingProfiler(sp)
 	sp.Start()
 	return sp
 }
@@ -1517,15 +1560,10 @@ func (vm *VM) StartSamplingProfiler(interval time.Duration) *SamplingProfiler {
 // StopSamplingProfiler stops the sampling profiler and returns it
 // (so callers can write output). Returns nil if no profiler was running.
 func (vm *VM) StopSamplingProfiler() *SamplingProfiler {
-	sp := vm.samplingProfiler
+	sp := vm.SamplingProfiler()
 	if sp != nil {
 		sp.Stop()
-		vm.samplingProfiler = nil
+		vm.setSamplingProfiler(nil)
 	}
 	return sp
-}
-
-// SamplingProfiler returns the current sampling profiler, or nil.
-func (vm *VM) SamplingProfiler() *SamplingProfiler {
-	return vm.samplingProfiler
 }

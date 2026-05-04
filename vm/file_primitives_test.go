@@ -10,7 +10,7 @@ import (
 
 // fileClass returns the File class value from the VM globals.
 func fileClass(vm *VM) Value {
-	return vm.Globals["File"]
+	return vm.globals["File"]
 }
 
 // assertSuccess checks that a value is a Success result and returns the unwrapped value.

@@ -64,7 +64,7 @@ func TestCliMarkerUnique(t *testing.T) {
 func TestCliCommandNew(t *testing.T) {
 	vm := NewVM()
 
-	cls, ok := vm.Globals["Cli::Command"]
+	cls, ok := vm.globals["Cli::Command"]
 	if !ok {
 		t.Fatal("Cli::Command should be registered in Globals")
 	}
@@ -109,7 +109,7 @@ func TestCliCommandNew(t *testing.T) {
 func TestCliRunBlockInvoked(t *testing.T) {
 	vm := NewVM()
 
-	cls := vm.Globals["Cli::Command"]
+	cls := vm.globals["Cli::Command"]
 	cmdVal := vm.Send(cls, "new:", []Value{vm.registry.NewStringValue("echo")})
 
 	// Block: [:args | 7] — returns 7, expected as the exit code.
@@ -147,7 +147,7 @@ func TestCliRunBlockInvoked(t *testing.T) {
 // Block that returns non-integer values should collapse to exit code 0.
 func TestCliRunBlockNonIntReturnsZero(t *testing.T) {
 	vm := NewVM()
-	cls := vm.Globals["Cli::Command"]
+	cls := vm.globals["Cli::Command"]
 	cmdVal := vm.Send(cls, "new:", []Value{vm.registry.NewStringValue("noop")})
 
 	// Block: [:args | nil]
@@ -174,7 +174,7 @@ func TestCliRunBlockNonIntReturnsZero(t *testing.T) {
 
 func TestCliFlagsRoundTrip(t *testing.T) {
 	vm := NewVM()
-	cls := vm.Globals["Cli::Command"]
+	cls := vm.globals["Cli::Command"]
 	cmdVal := vm.Send(cls, "new:", []Value{vm.registry.NewStringValue("cfg")})
 
 	// addStringFlag: host default: 'localhost' doc: 'hostname'
@@ -268,7 +268,7 @@ func TestCliFlagsRoundTrip(t *testing.T) {
 
 func TestCliSubcommandDispatch(t *testing.T) {
 	vm := NewVM()
-	cls := vm.Globals["Cli::Command"]
+	cls := vm.globals["Cli::Command"]
 
 	// Parent: root
 	rootVal := vm.Send(cls, "new:", []Value{vm.registry.NewStringValue("root")})
@@ -322,7 +322,7 @@ func TestCliSubcommandDispatch(t *testing.T) {
 
 func TestCliUnhandledExceptionExitsOne(t *testing.T) {
 	vm := NewVM()
-	cls := vm.Globals["Cli::Command"]
+	cls := vm.globals["Cli::Command"]
 	cmdVal := vm.Send(cls, "new:", []Value{vm.registry.NewStringValue("boom")})
 
 	// Build a block that raises an unhandled error by calling a non-existent
@@ -387,7 +387,7 @@ func TestCliUnhandledExceptionExitsOne(t *testing.T) {
 
 func TestCliSetOutputRejectsBadValue(t *testing.T) {
 	vm := NewVM()
-	cls := vm.Globals["Cli::Command"]
+	cls := vm.globals["Cli::Command"]
 	cmdVal := vm.Send(cls, "new:", []Value{vm.registry.NewStringValue("bad")})
 
 	// We expect a SignaledException panic. Wrap in defer/recover.
@@ -401,7 +401,7 @@ func TestCliSetOutputRejectsBadValue(t *testing.T) {
 			if !ok {
 				t.Fatalf("expected SignaledException, got %T: %v", r, r)
 			}
-			cliErr := vm.Globals["Cli::CliError"]
+			cliErr := vm.globals["Cli::CliError"]
 			if cliErrCls := vm.classFromValue(cliErr); cliErrCls != sig.Object.ExceptionClass {
 				t.Errorf("exception class = %v, want Cli::CliError", sig.Object.ExceptionClass)
 			}

@@ -436,7 +436,7 @@ func TestEndToEnd_PushPullRehydrate(t *testing.T) {
 	if cls == nil {
 		t.Fatal("TestSyncGreeter not found in VM-C ClassTable")
 	}
-	if _, ok := vmC.Globals["TestSyncGreeter"]; !ok {
+	if _, ok := vmC.Global("TestSyncGreeter"); !ok {
 		t.Error("TestSyncGreeter not found in VM-C Globals")
 	}
 

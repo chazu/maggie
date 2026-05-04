@@ -116,9 +116,9 @@ func (vm *VM) registerUnixSocketPrimitives() {
 	clientClass := vm.createClass("UnixSocketClient", vm.ObjectClass)
 	connClass := vm.createClass("SocketConnection", vm.ObjectClass)
 
-	vm.Globals["UnixSocketServer"] = vm.classValue(serverClass)
-	vm.Globals["UnixSocketClient"] = vm.classValue(clientClass)
-	vm.Globals["SocketConnection"] = vm.classValue(connClass)
+	vm.globals["UnixSocketServer"] = vm.classValue(serverClass)
+	vm.globals["UnixSocketClient"] = vm.classValue(clientClass)
+	vm.globals["SocketConnection"] = vm.classValue(connClass)
 
 	vm.symbolDispatch.Register(unixListenerMarker, &SymbolTypeEntry{Class: serverClass})
 	vm.symbolDispatch.Register(unixConnMarker, &SymbolTypeEntry{Class: connClass})

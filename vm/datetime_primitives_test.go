@@ -6,7 +6,7 @@ import (
 )
 
 func getDateTimeClass(v *VM) Value {
-	return v.Globals["DateTime"]
+	return v.globals["DateTime"]
 }
 
 func TestDateTimeNow(t *testing.T) {

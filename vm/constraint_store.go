@@ -117,7 +117,7 @@ func (vm *VM) vmRegisterConstraintStore(cs *ConstraintStoreObject) Value {
 
 func (vm *VM) registerConstraintStorePrimitives() {
 	csClass := vm.createClass("ConstraintStore", vm.ObjectClass)
-	vm.Globals["ConstraintStore"] = vm.classValue(csClass)
+	vm.globals["ConstraintStore"] = vm.classValue(csClass)
 	vm.symbolDispatch.Register(constraintStoreMarker, &SymbolTypeEntry{Class: csClass})
 
 	// ConstraintStore new — create a new constraint store (starts as top/unconstrained)

@@ -231,9 +231,9 @@ func (vm *VM) registerHttpPrimitives() {
 	httpRequestClass := vm.createClass("HttpRequest", vm.ObjectClass)
 	httpResponseClass := vm.createClass("HttpResponse", vm.ObjectClass)
 
-	vm.Globals["HttpServer"] = vm.classValue(httpServerClass)
-	vm.Globals["HttpRequest"] = vm.classValue(httpRequestClass)
-	vm.Globals["HttpResponse"] = vm.classValue(httpResponseClass)
+	vm.globals["HttpServer"] = vm.classValue(httpServerClass)
+	vm.globals["HttpRequest"] = vm.classValue(httpRequestClass)
+	vm.globals["HttpResponse"] = vm.classValue(httpResponseClass)
 
 	vm.symbolDispatch.Register(httpServerMarker, &SymbolTypeEntry{Class: httpServerClass})
 	vm.symbolDispatch.Register(httpRequestMarker, &SymbolTypeEntry{Class: httpRequestClass})
@@ -666,7 +666,7 @@ func (vm *VM) registerHttpPrimitives() {
 	// -------------------------------------------------------------------
 
 	httpClientClass := vm.createClass("HttpClient", vm.ObjectClass)
-	vm.Globals["HttpClient"] = vm.classValue(httpClientClass)
+	vm.globals["HttpClient"] = vm.classValue(httpClientClass)
 	vm.symbolDispatch.Register(httpClientMarker, &SymbolTypeEntry{Class: httpClientClass})
 
 	// HttpClient new — creates a new client with a 30s timeout
@@ -861,7 +861,7 @@ func (vm *VM) registerHttpPrimitives() {
 	// -------------------------------------------------------------------
 
 	sseConnectionClass := vm.createClass("SSEConnection", vm.ObjectClass)
-	vm.Globals["SSEConnection"] = vm.classValue(sseConnectionClass)
+	vm.globals["SSEConnection"] = vm.classValue(sseConnectionClass)
 	vm.symbolDispatch.Register(sseConnectionMarker, &SymbolTypeEntry{Class: sseConnectionClass})
 
 	// send: data — send a data-only SSE event. Returns true/false.

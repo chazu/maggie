@@ -165,7 +165,7 @@ func TestVM_RegisterGoType(t *testing.T) {
 	}
 
 	// Should be in Globals
-	if _, ok := vmInst.Globals["Go::MyStruct"]; !ok {
+	if _, ok := vmInst.globals["Go::MyStruct"]; !ok {
 		t.Error("expected Go::MyStruct in Globals")
 	}
 

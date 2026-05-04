@@ -15,7 +15,7 @@ import (
 func eval(t *testing.T, vmInst *vm.VM, source string) vm.Value {
 	t.Helper()
 	vmInst.UseGoCompiler(compiler.Compile)
-	compilerClass := vmInst.Globals["Compiler"]
+	compilerClass := vmInst.MustGlobal("Compiler")
 	return vmInst.Send(compilerClass, "evaluate:", []vm.Value{vmInst.Registry().NewStringValue(source)})
 }
 
@@ -68,7 +68,7 @@ func defineClass(t *testing.T, vmInst *vm.VM, name string, superclass *vm.Class,
 	class := vm.NewClassWithInstVars(name, superclass, ivars)
 	vmInst.Classes.Register(class)
 	classVal := vmInst.ClassValue(class)
-	vmInst.Globals[name] = classVal
+	vmInst.SetGlobal(name, classVal)
 	return class
 }
 
@@ -92,7 +92,7 @@ func compileSourceFile(t *testing.T, vmInst *vm.VM, source string) {
 
 		class := vm.NewClassWithInstVars(classDef.Name, superclass, classDef.InstanceVariables)
 		vmInst.Classes.Register(class)
-		vmInst.Globals[classDef.Name] = vmInst.ClassValue(class)
+		vmInst.SetGlobal(classDef.Name, vmInst.ClassValue(class))
 
 		allIvars := class.AllInstVarNames()
 
@@ -204,7 +204,7 @@ func TestIntegrationE2E_ClassWithMethods(t *testing.T) {
 	p y: aY.
 	^p`)
 
-	pointClassVal := vmInst.Globals["Point"]
+	pointClassVal := vmInst.MustGlobal("Point")
 	point := vmInst.Send(pointClassVal, "x:y:", []vm.Value{vm.FromSmallInt(3), vm.FromSmallInt(4)})
 
 	xVal := vmInst.Send(point, "x", nil)
@@ -247,7 +247,7 @@ func TestIntegrationE2E_Inheritance(t *testing.T) {
 	^'Meow!'`)
 
 	// Dog inherits name from Animal and overrides speak
-	dogClassVal := vmInst.Globals["Dog"]
+	dogClassVal := vmInst.MustGlobal("Dog")
 	dog := vmInst.Send(dogClassVal, "new", nil)
 	vmInst.Send(dog, "name:", []vm.Value{vmInst.Registry().NewStringValue("Rex")})
 
@@ -262,7 +262,7 @@ func TestIntegrationE2E_Inheritance(t *testing.T) {
 	}
 
 	// Cat overrides speak
-	catClassVal := vmInst.Globals["Cat"]
+	catClassVal := vmInst.MustGlobal("Cat")
 	cat := vmInst.Send(catClassVal, "new", nil)
 	catSpeak := vmInst.Send(cat, "speak", nil)
 	if !vm.IsStringValue(catSpeak) || vmInst.Registry().GetStringContent(catSpeak) != "Meow!" {
@@ -270,7 +270,7 @@ func TestIntegrationE2E_Inheritance(t *testing.T) {
 	}
 
 	// Base Animal speak returns '...'
-	animalClassVal := vmInst.Globals["Animal"]
+	animalClassVal := vmInst.MustGlobal("Animal")
 	animal := vmInst.Send(animalClassVal, "new", nil)
 	animalSpeak := vmInst.Send(animal, "speak", nil)
 	if !vm.IsStringValue(animalSpeak) || vmInst.Registry().GetStringContent(animalSpeak) != "..." {
@@ -441,7 +441,7 @@ func TestIntegrationE2E_StringOps(t *testing.T) {
 	vmInst := vm.NewVM()
 	vmInst.UseGoCompiler(compiler.Compile)
 
-	compilerClass := vmInst.Globals["Compiler"]
+	compilerClass := vmInst.MustGlobal("Compiler")
 
 	// Concatenation via primConcat: (the , method requires loading .mag library)
 	result := vmInst.Send(compilerClass, "evaluate:", []vm.Value{vmInst.Registry().NewStringValue("('Hello' primConcat: ' ') primConcat: 'World'")})
@@ -470,7 +470,7 @@ func TestIntegrationE2E_Dictionary(t *testing.T) {
 	vmInst := vm.NewVM()
 	vmInst.UseGoCompiler(compiler.Compile)
 
-	compilerClass := vmInst.Globals["Compiler"]
+	compilerClass := vmInst.MustGlobal("Compiler")
 
 	vmInst.Send(compilerClass, "evaluate:", []vm.Value{vmInst.Registry().NewStringValue("d := Dictionary new")})
 	vmInst.Send(compilerClass, "evaluate:", []vm.Value{vmInst.Registry().NewStringValue("d at: #name put: 'Alice'")})
@@ -642,7 +642,7 @@ func TestIntegrationE2E_MultipleProcesses(t *testing.T) {
 func TestIntegrationE2E_EvalGlobalPersistence(t *testing.T) {
 	vmInst := vm.NewVM()
 	vmInst.UseGoCompiler(compiler.Compile)
-	compilerClass := vmInst.Globals["Compiler"]
+	compilerClass := vmInst.MustGlobal("Compiler")
 
 	result := vmInst.Send(compilerClass, "evaluate:", []vm.Value{vmInst.Registry().NewStringValue("x := 42")})
 	if !result.IsSmallInt() || result.SmallInt() != 42 {
@@ -672,7 +672,7 @@ func TestIntegrationE2E_EvalGlobalPersistence(t *testing.T) {
 func TestIntegrationE2E_EvalExpressions(t *testing.T) {
 	vmInst := vm.NewVM()
 	vmInst.UseGoCompiler(compiler.Compile)
-	compilerClass := vmInst.Globals["Compiler"]
+	compilerClass := vmInst.MustGlobal("Compiler")
 
 	intTests := []struct {
 		expr     string
@@ -773,7 +773,7 @@ func TestIntegrationE2E_InheritedInstanceVars(t *testing.T) {
 	compileMethodWithIvars(t, vmInst, carClass, `numDoors: n
 	numDoors := n`)
 
-	carClassVal := vmInst.Globals["Car"]
+	carClassVal := vmInst.MustGlobal("Car")
 	car := vmInst.Send(carClassVal, "new", nil)
 	vmInst.Send(car, "speed:", []vm.Value{vm.FromSmallInt(150)})
 	vmInst.Send(car, "numDoors:", []vm.Value{vm.FromSmallInt(4)})
@@ -817,7 +817,7 @@ func TestIntegrationE2E_LinkedList(t *testing.T) {
 	next isNil ifTrue: [^value].
 	^value + next sum`)
 
-	nodeClassVal := vmInst.Globals["LLNode"]
+	nodeClassVal := vmInst.MustGlobal("LLNode")
 
 	node3 := vmInst.Send(nodeClassVal, "new", nil)
 	vmInst.Send(node3, "value:", []vm.Value{vm.FromSmallInt(30)})
@@ -922,7 +922,7 @@ Counter subclass: Object
   ]
 `)
 
-	counterClassVal := vmInst.Globals["Counter"]
+	counterClassVal := vmInst.MustGlobal("Counter")
 	counter := vmInst.Send(counterClassVal, "startingAt:", []vm.Value{vm.FromSmallInt(10)})
 	if counter == vm.Nil {
 		t.Fatal("Counter startingAt: 10 returned nil")
@@ -1000,7 +1000,7 @@ func TestIntegrationE2E_Collatz(t *testing.T) {
 func TestIntegrationE2E_FloatArithmetic(t *testing.T) {
 	vmInst := vm.NewVM()
 	vmInst.UseGoCompiler(compiler.Compile)
-	compilerClass := vmInst.Globals["Compiler"]
+	compilerClass := vmInst.MustGlobal("Compiler")
 
 	result := vmInst.Send(compilerClass, "evaluate:", []vm.Value{vmInst.Registry().NewStringValue("1.5 + 2.5")})
 	if !result.IsFloat() || result.Float64() != 4.0 {
@@ -1091,7 +1091,7 @@ func TestIntegrationE2E_MethodChaining(t *testing.T) {
 func TestIntegrationE2E_EvalInContext(t *testing.T) {
 	vmInst := vm.NewVM()
 	vmInst.UseGoCompiler(compiler.Compile)
-	compilerClass := vmInst.Globals["Compiler"]
+	compilerClass := vmInst.MustGlobal("Compiler")
 
 	arr := vmInst.NewArrayWithElements([]vm.Value{vm.FromSmallInt(100), vm.FromSmallInt(200), vm.FromSmallInt(300)})
 

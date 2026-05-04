@@ -10,7 +10,7 @@ func TestSandboxRun_RestrictsGlobals(t *testing.T) {
 	v := NewVM()
 
 	// Set up a global that we want to restrict
-	v.Globals["File"] = FromSmallInt(999)
+	v.globals["File"] = FromSmallInt(999)
 
 	// Configure sync restrictions
 	v.SetSyncRestrictions([]string{"File"})
@@ -75,7 +75,7 @@ func TestSandboxRun_NoRestrictions(t *testing.T) {
 	v := NewVM()
 
 	// No sync restrictions set -- everything should be visible
-	v.Globals["File"] = FromSmallInt(999)
+	v.globals["File"] = FromSmallInt(999)
 
 	fileSym := v.Symbols.SymbolValue("File")
 	block := &BlockMethod{

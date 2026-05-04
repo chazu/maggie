@@ -15,7 +15,7 @@ func TestEvaluateWithLocals_ReadLocal(t *testing.T) {
 	vmInst := vm.NewVM()
 	vmInst.UseGoCompiler(compiler.Compile)
 
-	compilerClass := vmInst.Globals["Compiler"]
+	compilerClass := vmInst.MustGlobal("Compiler")
 
 	// Create a locals dictionary with x = 42
 	locals := vmInst.Registry().NewDictionaryValue()
@@ -41,7 +41,7 @@ func TestEvaluateWithLocals_WriteLocal(t *testing.T) {
 	vmInst := vm.NewVM()
 	vmInst.UseGoCompiler(compiler.Compile)
 
-	compilerClass := vmInst.Globals["Compiler"]
+	compilerClass := vmInst.MustGlobal("Compiler")
 
 	// Create empty locals dictionary
 	locals := vmInst.Registry().NewDictionaryValue()
@@ -67,7 +67,7 @@ func TestEvaluateWithLocals_WriteLocal(t *testing.T) {
 	}
 
 	// Verify y is NOT in globals
-	if _, exists := vmInst.Globals["y"]; exists {
+	if _, exists := vmInst.Global("y"); exists {
 		t.Error("y should NOT be in globals after evaluate:withLocals:")
 	}
 }
@@ -76,7 +76,7 @@ func TestEvaluateWithLocals_ModifyExistingLocal(t *testing.T) {
 	vmInst := vm.NewVM()
 	vmInst.UseGoCompiler(compiler.Compile)
 
-	compilerClass := vmInst.Globals["Compiler"]
+	compilerClass := vmInst.MustGlobal("Compiler")
 
 	// Create locals with x = 10
 	locals := vmInst.Registry().NewDictionaryValue()
@@ -101,7 +101,7 @@ func TestEvaluateWithLocals_GlobalFallthrough(t *testing.T) {
 	vmInst := vm.NewVM()
 	vmInst.UseGoCompiler(compiler.Compile)
 
-	compilerClass := vmInst.Globals["Compiler"]
+	compilerClass := vmInst.MustGlobal("Compiler")
 
 	// Set a global: g := 100
 	vmInst.Send(compilerClass, "evaluate:", []vm.Value{vmInst.Registry().NewStringValue("g := 100")})
@@ -122,7 +122,7 @@ func TestEvaluateWithLocals_LocalShadowsGlobal(t *testing.T) {
 	vmInst := vm.NewVM()
 	vmInst.UseGoCompiler(compiler.Compile)
 
-	compilerClass := vmInst.Globals["Compiler"]
+	compilerClass := vmInst.MustGlobal("Compiler")
 
 	// Set a global: x := 1000
 	vmInst.Send(compilerClass, "evaluate:", []vm.Value{vmInst.Registry().NewStringValue("x := 1000")})
@@ -144,7 +144,7 @@ func TestEvaluateWithLocals_LocalShadowsGlobal(t *testing.T) {
 	}
 
 	// Verify global x is still 1000 (restored)
-	globalX, ok := vmInst.Globals["x"]
+	globalX, ok := vmInst.Global("x")
 	if !ok {
 		t.Fatal("Global x should still exist")
 	}
@@ -157,7 +157,7 @@ func TestEvaluateWithLocals_ScopeIsolation(t *testing.T) {
 	vmInst := vm.NewVM()
 	vmInst.UseGoCompiler(compiler.Compile)
 
-	compilerClass := vmInst.Globals["Compiler"]
+	compilerClass := vmInst.MustGlobal("Compiler")
 
 	// Create two independent locals dictionaries
 	locals1 := vmInst.Registry().NewDictionaryValue()
@@ -186,7 +186,7 @@ func TestEvaluateWithLocals_ScopeIsolation(t *testing.T) {
 	}
 
 	// Verify x is NOT in globals
-	if _, exists := vmInst.Globals["x"]; exists {
+	if _, exists := vmInst.Global("x"); exists {
 		t.Error("x should NOT leak into globals from evaluate:withLocals:")
 	}
 }
@@ -195,7 +195,7 @@ func TestEvaluateWithLocals_ClassNamesStillAccessible(t *testing.T) {
 	vmInst := vm.NewVM()
 	vmInst.UseGoCompiler(compiler.Compile)
 
-	compilerClass := vmInst.Globals["Compiler"]
+	compilerClass := vmInst.MustGlobal("Compiler")
 
 	// Create empty locals
 	locals := vmInst.Registry().NewDictionaryValue()
@@ -213,7 +213,7 @@ func TestEvaluateWithLocals_MultipleLocals(t *testing.T) {
 	vmInst := vm.NewVM()
 	vmInst.UseGoCompiler(compiler.Compile)
 
-	compilerClass := vmInst.Globals["Compiler"]
+	compilerClass := vmInst.MustGlobal("Compiler")
 
 	// Create locals with a=10, b=20
 	locals := vmInst.Registry().NewDictionaryValue()
@@ -242,7 +242,7 @@ func TestEvaluateWithLocals_PersistAcrossEvaluations(t *testing.T) {
 	vmInst := vm.NewVM()
 	vmInst.UseGoCompiler(compiler.Compile)
 
-	compilerClass := vmInst.Globals["Compiler"]
+	compilerClass := vmInst.MustGlobal("Compiler")
 
 	// Same locals dictionary used across evaluations
 	locals := vmInst.Registry().NewDictionaryValue()

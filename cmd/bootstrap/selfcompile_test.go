@@ -168,7 +168,7 @@ func TestMaggieCompilerExists(t *testing.T) {
 	}
 
 	for _, className := range compilerClasses {
-		if _, ok := vmInst.Globals[className]; !ok {
+		if _, ok := vmInst.Global(className); !ok {
 			t.Errorf("Compiler class %q not found in globals", className)
 		}
 	}
@@ -187,7 +187,7 @@ func TestMaggieCompilerInstantiation(t *testing.T) {
 	}
 
 	// Get the Compiler class
-	compilerClass, ok := vmInst.Globals["Compiler"]
+	compilerClass, ok := vmInst.Global("Compiler")
 	if !ok {
 		t.Fatal("Compiler class not found")
 	}
@@ -218,7 +218,7 @@ func TestMaggieParserInstantiation(t *testing.T) {
 	}
 
 	// Get the Parser class
-	parserClass, ok := vmInst.Globals["Parser"]
+	parserClass, ok := vmInst.Global("Parser")
 	if !ok {
 		t.Fatal("Parser class not found")
 	}
@@ -244,7 +244,7 @@ func TestMaggieLexerTokenization(t *testing.T) {
 	}
 
 	// Get the Lexer class
-	lexerClass, ok := vmInst.Globals["Lexer"]
+	lexerClass, ok := vmInst.Global("Lexer")
 	if !ok {
 		t.Fatal("Lexer class not found")
 	}
@@ -307,7 +307,7 @@ func TestArrayIndexOf(t *testing.T) {
 	}
 
 	// Create an array with one element "x"
-	arrayClass, _ := vmInst.Globals["Array"]
+	arrayClass, _ := vmInst.Global("Array")
 	arr := vmInst.Send(arrayClass, "new", nil)
 
 	xStr := vmInst.Registry().NewStringValue("x")
@@ -356,7 +356,7 @@ func TestBytecodeGeneratorTemps(t *testing.T) {
 		t.Fatalf("Failed to load maggie.image: %v", err)
 	}
 
-	bcgenClass, ok := vmInst.Globals["BytecodeGenerator"]
+	bcgenClass, ok := vmInst.Global("BytecodeGenerator")
 	if !ok {
 		t.Fatal("BytecodeGenerator class not found")
 	}
@@ -418,7 +418,7 @@ func TestParserTemporaries(t *testing.T) {
 		t.Fatalf("Failed to load maggie.image: %v", err)
 	}
 
-	parserClass, ok := vmInst.Globals["Parser"]
+	parserClass, ok := vmInst.Global("Parser")
 	if !ok {
 		t.Fatal("Parser class not found")
 	}
@@ -464,7 +464,7 @@ func TestLexerPipeToken(t *testing.T) {
 		t.Fatalf("Failed to load maggie.image: %v", err)
 	}
 
-	lexerClass, ok := vmInst.Globals["Lexer"]
+	lexerClass, ok := vmInst.Global("Lexer")
 	if !ok {
 		t.Fatal("Lexer class not found")
 	}

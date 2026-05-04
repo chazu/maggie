@@ -10,13 +10,13 @@ func TestSignalTrapToChannel(t *testing.T) {
 	v := NewVM()
 	defer v.Shutdown()
 
-	sig := v.Globals["Signal"]
+	sig := v.globals["Signal"]
 	if sig == Nil {
 		t.Fatal("Signal class not in Globals")
 	}
 
 	// Create a buffered channel
-	chClass := v.Globals["Channel"]
+	chClass := v.globals["Channel"]
 	bufSize := FromSmallInt(1)
 	ch := v.Send(chClass, "new:", []Value{bufSize})
 
@@ -48,8 +48,8 @@ func TestSignalTrapAllToChannel(t *testing.T) {
 	v := NewVM()
 	defer v.Shutdown()
 
-	sig := v.Globals["Signal"]
-	chClass := v.Globals["Channel"]
+	sig := v.globals["Signal"]
+	chClass := v.globals["Channel"]
 	bufSize := FromSmallInt(2)
 	ch := v.Send(chClass, "new:", []Value{bufSize})
 
@@ -78,8 +78,8 @@ func TestSignalUnknownSignal(t *testing.T) {
 	v := NewVM()
 	defer v.Shutdown()
 
-	sig := v.Globals["Signal"]
-	chClass := v.Globals["Channel"]
+	sig := v.globals["Signal"]
+	chClass := v.globals["Channel"]
 	bufSize := FromSmallInt(1)
 	ch := v.Send(chClass, "new:", []Value{bufSize})
 

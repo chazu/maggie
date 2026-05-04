@@ -1,5 +1,9 @@
 package vm
 
+import (
+	"sync/atomic"
+)
+
 // Inline Caching for Method Dispatch
 //
 // Based on Cog VM's proven approach where:
@@ -9,6 +13,18 @@ package vm
 //
 // The cache is indexed by bytecode PC within a method, so each
 // call site has its own cache entry.
+//
+// Concurrency model:
+//   - InlineCacheTable is built once at CompiledMethod finalization by
+//     scanning the bytecode for OpSend instructions; the resulting map is
+//     immutable thereafter (concurrent reads on a never-written map are
+//     race-free per the Go memory model).
+//   - Each InlineCache holds an atomic.Pointer[icSnapshot]. Lookup is one
+//     atomic load followed by a read of an immutable snapshot. Update
+//     builds a fresh snapshot and CAS-publishes; on CAS failure the
+//     update is dropped (best-effort cache).
+//   - Hits / Misses counters are atomic.Uint64 — mildly racey reads of
+//     the pair are tolerated, drift is cosmetic.
 
 // CacheState represents the current state of an inline cache.
 type CacheState uint8
@@ -30,145 +46,220 @@ type InlineCacheEntry struct {
 	Method Method // Resolved method
 }
 
-// InlineCache represents the cache state for a single call site.
-// It progresses through states: Empty -> Monomorphic -> Polymorphic -> Megamorphic
-type InlineCache struct {
+// icSnapshot is an immutable, atomically-published view of an inline cache.
+// Every transition (Empty → Mono → Poly → Mega) creates a new snapshot;
+// readers see exactly one snapshot per atomic load.
+type icSnapshot struct {
 	State   CacheState
+	Count   int8
 	Entries [MaxPICEntries]InlineCacheEntry
-	Count   int // Number of valid entries (1 for mono, 2-6 for poly)
+}
 
-	// Statistics for profiling
-	Hits   uint64
-	Misses uint64
+// emptySnapshot is the canonical zero-state snapshot used after Reset.
+// Stored once and shared by all caches; callers must never mutate it.
+var emptySnapshot = &icSnapshot{State: CacheEmpty}
+
+// InlineCache represents the cache state for a single call site.
+// It progresses through states: Empty -> Monomorphic -> Polymorphic -> Megamorphic.
+type InlineCache struct {
+	snap atomic.Pointer[icSnapshot]
+
+	// Statistics for profiling. Best-effort; readers may observe drift.
+	Hits   atomic.Uint64
+	Misses atomic.Uint64
+}
+
+// State returns the current cache state (best-effort, atomic load).
+func (ic *InlineCache) State() CacheState {
+	if s := ic.snap.Load(); s != nil {
+		return s.State
+	}
+	return CacheEmpty
+}
+
+// Count returns the current entry count (best-effort, atomic load).
+func (ic *InlineCache) Count() int {
+	if s := ic.snap.Load(); s != nil {
+		return int(s.Count)
+	}
+	return 0
+}
+
+// Entries returns a copy of the current entries (best-effort, atomic load).
+// Returns a slice of length Count.
+func (ic *InlineCache) Entries() []InlineCacheEntry {
+	s := ic.snap.Load()
+	if s == nil || s.Count == 0 {
+		return nil
+	}
+	out := make([]InlineCacheEntry, s.Count)
+	copy(out, s.Entries[:s.Count])
+	return out
 }
 
 // Lookup checks the cache for a method matching the given class.
 // Returns the cached method on hit, nil on miss.
 func (ic *InlineCache) Lookup(class *Class) Method {
-	switch ic.State {
+	s := ic.snap.Load()
+	if s == nil {
+		ic.Misses.Add(1)
+		return nil
+	}
+	switch s.State {
 	case CacheMonomorphic:
-		if ic.Entries[0].Class == class {
-			ic.Hits++
-			return ic.Entries[0].Method
+		if s.Entries[0].Class == class {
+			ic.Hits.Add(1)
+			return s.Entries[0].Method
 		}
-
 	case CachePolymorphic:
-		// Linear search through entries (typically 2-6 entries)
-		for i := 0; i < ic.Count; i++ {
-			if ic.Entries[i].Class == class {
-				ic.Hits++
-				return ic.Entries[i].Method
+		// Linear search through entries (typically 2-6 entries).
+		for i := int8(0); i < s.Count; i++ {
+			if s.Entries[i].Class == class {
+				ic.Hits.Add(1)
+				return s.Entries[i].Method
 			}
 		}
-
 	case CacheMegamorphic, CacheEmpty:
-		// Always miss for megamorphic or empty
+		// Always miss.
 	}
-
-	ic.Misses++
+	ic.Misses.Add(1)
 	return nil
 }
 
-// Update records a new (class, method) pair, potentially upgrading the cache state.
+// Update records a new (class, method) pair, potentially upgrading the
+// cache state. Builds a fresh immutable snapshot and CAS-publishes; on
+// CAS failure (another goroutine raced), the update is dropped — caches
+// are best-effort and the racing goroutine's snapshot will satisfy the
+// next Lookup.
 func (ic *InlineCache) Update(class *Class, method Method) {
 	if method == nil {
-		return // Don't cache failed lookups
+		return // Don't cache failed lookups.
 	}
 
-	switch ic.State {
-	case CacheEmpty:
-		// First lookup - become monomorphic
-		ic.State = CacheMonomorphic
-		ic.Entries[0] = InlineCacheEntry{Class: class, Method: method}
-		ic.Count = 1
+	old := ic.snap.Load()
+	var next *icSnapshot
 
-	case CacheMonomorphic:
-		if ic.Entries[0].Class == class {
-			return // Already cached this class
+	switch {
+	case old == nil || old.State == CacheEmpty:
+		next = &icSnapshot{State: CacheMonomorphic, Count: 1}
+		next.Entries[0] = InlineCacheEntry{Class: class, Method: method}
+
+	case old.State == CacheMonomorphic:
+		if old.Entries[0].Class == class {
+			return // Already cached this class.
 		}
-		// Second different class - upgrade to polymorphic
-		ic.State = CachePolymorphic
-		ic.Entries[1] = InlineCacheEntry{Class: class, Method: method}
-		ic.Count = 2
+		next = &icSnapshot{State: CachePolymorphic, Count: 2}
+		next.Entries[0] = old.Entries[0]
+		next.Entries[1] = InlineCacheEntry{Class: class, Method: method}
 
-	case CachePolymorphic:
-		// Check if already present
-		for i := 0; i < ic.Count; i++ {
-			if ic.Entries[i].Class == class {
-				return // Already cached
+	case old.State == CachePolymorphic:
+		// Check if already present.
+		for i := int8(0); i < old.Count; i++ {
+			if old.Entries[i].Class == class {
+				return
 			}
 		}
-		// Add new entry if room
-		if ic.Count < MaxPICEntries {
-			ic.Entries[ic.Count] = InlineCacheEntry{Class: class, Method: method}
-			ic.Count++
+		if old.Count < MaxPICEntries {
+			next = &icSnapshot{State: CachePolymorphic, Count: old.Count + 1}
+			copy(next.Entries[:], old.Entries[:old.Count])
+			next.Entries[old.Count] = InlineCacheEntry{Class: class, Method: method}
 		} else {
-			// Too many types - go megamorphic
-			ic.State = CacheMegamorphic
-			// Clear entries to free memory (optional)
-			for i := range ic.Entries {
-				ic.Entries[i] = InlineCacheEntry{}
-			}
-			ic.Count = 0
+			// Promote to megamorphic; entries left zeroed.
+			next = &icSnapshot{State: CacheMegamorphic}
 		}
 
-	case CacheMegamorphic:
-		// Stay megamorphic, don't cache anything
+	case old.State == CacheMegamorphic:
+		return // Stay megamorphic.
 	}
-}
 
-// HitRate returns the cache hit rate as a percentage (0-100).
-func (ic *InlineCache) HitRate() float64 {
-	total := ic.Hits + ic.Misses
-	if total == 0 {
-		return 0
-	}
-	return float64(ic.Hits) * 100 / float64(total)
+	// Best-effort publish. CAS failure is acceptable: the winner's
+	// snapshot is at least as good as ours for future Lookups.
+	ic.snap.CompareAndSwap(old, next)
 }
 
 // Reset clears the cache back to empty state.
 func (ic *InlineCache) Reset() {
-	ic.State = CacheEmpty
-	ic.Count = 0
-	ic.Hits = 0
-	ic.Misses = 0
-	for i := range ic.Entries {
-		ic.Entries[i] = InlineCacheEntry{}
-	}
+	ic.snap.Store(emptySnapshot)
+	ic.Hits.Store(0)
+	ic.Misses.Store(0)
 }
 
-// InlineCacheTable manages inline caches for all call sites in a method.
-// It maps bytecode PC to cache entry.
+// HitRate returns the cache hit rate as a percentage (0-100).
+func (ic *InlineCache) HitRate() float64 {
+	hits := ic.Hits.Load()
+	misses := ic.Misses.Load()
+	total := hits + misses
+	if total == 0 {
+		return 0
+	}
+	return float64(hits) * 100 / float64(total)
+}
+
+// ---------------------------------------------------------------------------
+// InlineCacheTable: per-method index of call-site caches
+// ---------------------------------------------------------------------------
+
+// InlineCacheTable holds one InlineCache per OpSend call site in a
+// method's bytecode. Built once at CompiledMethod finalization; the
+// `sites` map is never written after publication.
 type InlineCacheTable struct {
-	caches map[int]*InlineCache
+	sites map[int]*InlineCache // PC of OpSend → cache; immutable after build
 }
 
-// NewInlineCacheTable creates a new inline cache table.
+// NewInlineCacheTable creates an empty inline cache table. Used by tests
+// and for methods with no bytecode. Production code should call
+// BuildInlineCacheTable to pre-populate the table from bytecode.
 func NewInlineCacheTable() *InlineCacheTable {
-	return &InlineCacheTable{
-		caches: make(map[int]*InlineCache),
-	}
+	return &InlineCacheTable{sites: make(map[int]*InlineCache)}
 }
 
-// GetOrCreate returns the cache for a given PC, creating one if needed.
-func (t *InlineCacheTable) GetOrCreate(pc int) *InlineCache {
-	if ic := t.caches[pc]; ic != nil {
-		return ic
+// BuildInlineCacheTable scans bytecode for OpSend instructions and
+// allocates one InlineCache per call site. The returned table's `sites`
+// map is never mutated afterward, so concurrent reads are race-free.
+func BuildInlineCacheTable(bytecode []byte) *InlineCacheTable {
+	sites := make(map[int]*InlineCache)
+	for pc := 0; pc < len(bytecode); {
+		op := Opcode(bytecode[pc])
+		// Only OpSend currently goes through the IC path. OpSendSuper
+		// and OpTailSend have separate dispatch paths that do not
+		// consult the cache (see interpreter.send / execSendSuper).
+		if op == OpSend {
+			sites[pc] = &InlineCache{}
+		}
+		// Advance by instruction width = 1 byte opcode + operand bytes.
+		operandBytes := 0
+		if info, ok := opcodeTable[op]; ok {
+			operandBytes = info.OperandBytes
+		}
+		pc += 1 + operandBytes
 	}
-	ic := &InlineCache{State: CacheEmpty}
-	t.caches[pc] = ic
-	return ic
+	return &InlineCacheTable{sites: sites}
 }
 
-// Get returns the cache for a given PC, or nil if none exists.
+// Get returns the cache for a given PC, or nil if no OpSend exists at
+// that PC. Safe for concurrent use because `sites` is immutable.
 func (t *InlineCacheTable) Get(pc int) *InlineCache {
-	return t.caches[pc]
+	if t == nil {
+		return nil
+	}
+	return t.sites[pc]
+}
+
+// GetOrCreate is preserved for legacy callers; it returns the
+// pre-allocated cache for the PC, or nil if no OpSend exists there.
+// (The "create" semantics from the old map-based table no longer apply
+// — the table is fully populated at finalization.)
+func (t *InlineCacheTable) GetOrCreate(pc int) *InlineCache {
+	return t.Get(pc)
 }
 
 // Stats returns aggregate statistics for all caches in the table.
 func (t *InlineCacheTable) Stats() (mono, poly, mega, empty int, totalHits, totalMisses uint64) {
-	for _, ic := range t.caches {
-		switch ic.State {
+	if t == nil {
+		return
+	}
+	for _, ic := range t.sites {
+		switch ic.State() {
 		case CacheMonomorphic:
 			mono++
 		case CachePolymorphic:
@@ -178,8 +269,8 @@ func (t *InlineCacheTable) Stats() (mono, poly, mega, empty int, totalHits, tota
 		case CacheEmpty:
 			empty++
 		}
-		totalHits += ic.Hits
-		totalMisses += ic.Misses
+		totalHits += ic.Hits.Load()
+		totalMisses += ic.Misses.Load()
 	}
 	return
 }
@@ -196,7 +287,10 @@ func (t *InlineCacheTable) HitRate() float64 {
 
 // Reset clears all caches in the table.
 func (t *InlineCacheTable) Reset() {
-	for _, ic := range t.caches {
+	if t == nil {
+		return
+	}
+	for _, ic := range t.sites {
 		ic.Reset()
 	}
 }
@@ -221,9 +315,7 @@ func InvalidateAllCaches(ct *ClassTable) {
 func invalidateVTableCaches(vt *VTable) {
 	for _, method := range vt.LocalMethods() {
 		if cm, ok := method.(*CompiledMethod); ok {
-			if cm.InlineCaches != nil {
-				cm.InlineCaches.Reset()
-			}
+			cm.getInlineCachesIfBuilt().Reset()
 		}
 	}
 }
@@ -249,17 +341,14 @@ func CollectICStats(ct *ClassTable) ICStats {
 	defer ct.mu.RUnlock()
 
 	for _, class := range ct.classes {
-		// Collect from instance methods
 		if class.VTable != nil {
 			collectFromVTable(class.VTable, &stats)
 		}
-		// Collect from class methods
 		if class.ClassVTable != nil {
 			collectFromVTable(class.ClassVTable, &stats)
 		}
 	}
 
-	// Calculate rates
 	total := stats.TotalHits + stats.TotalMisses
 	if total > 0 {
 		stats.HitRate = float64(stats.TotalHits) * 100 / float64(total)
@@ -276,16 +365,18 @@ func CollectICStats(ct *ClassTable) ICStats {
 func collectFromVTable(vt *VTable, stats *ICStats) {
 	for _, method := range vt.LocalMethods() {
 		if cm, ok := method.(*CompiledMethod); ok {
-			if cm.InlineCaches != nil {
-				mono, poly, mega, empty, hits, misses := cm.InlineCaches.Stats()
-				stats.Monomorphic += mono
-				stats.Polymorphic += poly
-				stats.Megamorphic += mega
-				stats.Empty += empty
-				stats.TotalHits += hits
-				stats.TotalMisses += misses
-				stats.TotalCallSites += mono + poly + mega + empty
+			t := cm.getInlineCachesIfBuilt()
+			if t == nil {
+				continue
 			}
+			mono, poly, mega, empty, hits, misses := t.Stats()
+			stats.Monomorphic += mono
+			stats.Polymorphic += poly
+			stats.Megamorphic += mega
+			stats.Empty += empty
+			stats.TotalHits += hits
+			stats.TotalMisses += misses
+			stats.TotalCallSites += mono + poly + mega + empty
 		}
 	}
 }

@@ -267,7 +267,7 @@ func BenchmarkMaggieLexer(b *testing.B) {
 	vmInst := benchmarkVMWithImage(b)
 	vmInst.UseGoCompiler(compiler.Compile)
 
-	lexerClass, ok := vmInst.Globals["Lexer"]
+	lexerClass, ok := vmInst.Global("Lexer")
 	if !ok {
 		b.Fatal("Lexer class not found")
 	}
@@ -315,7 +315,7 @@ func BenchmarkMaggieParser(b *testing.B) {
 	vmInst := benchmarkVMWithImage(b)
 	vmInst.UseGoCompiler(compiler.Compile)
 
-	parserClass, ok := vmInst.Globals["Parser"]
+	parserClass, ok := vmInst.Global("Parser")
 	if !ok {
 		b.Fatal("Parser class not found")
 	}

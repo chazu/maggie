@@ -80,7 +80,7 @@ func TestExceptionClassesRegistered(t *testing.T) {
 		}
 
 		// Check it's in globals
-		global := vm.Globals[tc.name]
+		global := vm.globals[tc.name]
 		if global == Nil {
 			t.Errorf("%s should be in globals", tc.name)
 		}

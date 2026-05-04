@@ -8,7 +8,7 @@ import (
 
 // duckDBClass returns the DuckDatabase class value from the VM globals.
 func duckDBClass(vm *VM) Value {
-	return vm.Globals["DuckDatabase"]
+	return vm.globals["DuckDatabase"]
 }
 
 // ---------------------------------------------------------------------------

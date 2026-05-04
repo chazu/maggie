@@ -972,7 +972,7 @@ func (vm *VM) registerMailboxPrimitives() {
 	vm.MailboxMessageClass = NewClassWithInstVars("MailboxMessage", vm.ObjectClass, []string{"sender", "selector", "payload"})
 	vm.MailboxMessageClass.NumSlots = 3
 	vm.Classes.Register(vm.MailboxMessageClass)
-	vm.Globals["MailboxMessage"] = vm.classValue(vm.MailboxMessageClass)
+	vm.globals["MailboxMessage"] = vm.classValue(vm.MailboxMessageClass)
 
 	// MailboxMessage accessors
 	vm.MailboxMessageClass.AddMethod0(vm.Selectors, "sender", func(_ interface{}, recv Value) Value {

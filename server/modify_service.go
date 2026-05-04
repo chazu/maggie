@@ -202,7 +202,7 @@ func (s *ModifyService) CreateClass(
 		v.Classes.Register(cls)
 
 		// Register as a global (so Maggie code can reference the class by name)
-		v.Globals[req.Msg.Name] = v.Symbols.SymbolValue(req.Msg.Name)
+		v.SetGlobal(req.Msg.Name, v.Symbols.SymbolValue(req.Msg.Name))
 
 		return &maggiev1.CreateClassResponse{
 			Success: true,
@@ -291,23 +291,24 @@ func (s *ModifyService) evaluateWithLocals(v *vm.VM, msg *maggiev1.EvaluateWithL
 		localNames[local.Name] = true
 
 		// Save existing global value for restoration
-		if existing, ok := v.Globals[local.Name]; ok {
+		if existing, ok := v.Global(local.Name); ok {
 			savedGlobals[local.Name] = existing
 		}
 
 		// Resolve the handle to get the actual value
 		if local.Handle != nil && local.Handle.Id != "" {
 			if val, ok := s.handles.Lookup(local.Handle.Id); ok {
-				v.Globals[local.Name] = val
+				v.SetGlobal(local.Name, val)
 			}
 		}
 	}
 
 	// Snapshot global keys before execution to detect new assignments
 	preExecGlobals := make(map[string]bool)
-	for k := range v.Globals {
+	v.RangeGlobals(func(k string, _ vm.Value) bool {
 		preExecGlobals[k] = true
-	}
+		return true
+	})
 
 	// Compile the expression. For multi-statement source, put ^ only before
 	// the last statement so all statements execute.
@@ -342,7 +343,7 @@ func (s *ModifyService) evaluateWithLocals(v *vm.VM, msg *maggiev1.EvaluateWithL
 
 	// Check existing locals for modifications
 	for name := range localNames {
-		if val, ok := v.Globals[name]; ok {
+		if val, ok := v.Global(name); ok {
 			display := formatValue(v, val)
 			className := classNameFor(v, val)
 			handleID := s.handles.Create(val, className, display, msg.SessionId)
@@ -360,7 +361,7 @@ func (s *ModifyService) evaluateWithLocals(v *vm.VM, msg *maggiev1.EvaluateWithL
 	}
 
 	// Capture new variables created during evaluation
-	for name, val := range v.Globals {
+	for name, val := range v.GlobalsSnapshot() {
 		if !preExecGlobals[name] && !localNames[name] {
 			display := formatValue(v, val)
 			className := classNameFor(v, val)
@@ -382,9 +383,9 @@ func (s *ModifyService) evaluateWithLocals(v *vm.VM, msg *maggiev1.EvaluateWithL
 	restoreGlobals(v, localNames, savedGlobals)
 
 	// Also clean up new globals that were created
-	for name := range v.Globals {
+	for name := range v.GlobalsSnapshot() {
 		if !preExecGlobals[name] {
-			delete(v.Globals, name)
+			v.DeleteGlobal(name)
 		}
 	}
 
@@ -408,9 +409,9 @@ func (s *ModifyService) evaluateWithLocals(v *vm.VM, msg *maggiev1.EvaluateWithL
 func restoreGlobals(v *vm.VM, localNames map[string]bool, saved map[string]vm.Value) {
 	for name := range localNames {
 		if savedVal, ok := saved[name]; ok {
-			v.Globals[name] = savedVal
+			v.SetGlobal(name, savedVal)
 		} else {
-			delete(v.Globals, name)
+			v.DeleteGlobal(name)
 		}
 	}
 }

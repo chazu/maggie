@@ -38,7 +38,7 @@ func TestSamplingProfilerBasic(t *testing.T) {
 		t.Fatalf("WriteFoldedStacks error: %v", err)
 	}
 
-	vmInst.samplingProfiler = nil
+	vmInst.setSamplingProfiler(nil)
 }
 
 // TestSamplingProfilerFoldedFormat verifies the folded-stack output format.
@@ -130,7 +130,7 @@ func TestSamplingProfilerIdleInterpreter(t *testing.T) {
 	if stats.Dropped > 0 {
 		t.Logf("Had %d dropped samples (torn reads)", stats.Dropped)
 	}
-	vmInst.samplingProfiler = nil
+	vmInst.setSamplingProfiler(nil)
 }
 
 // TestSamplingProfilerMultiInterpreter verifies that forked interpreters are sampled.
@@ -152,7 +152,7 @@ func TestSamplingProfilerMultiInterpreter(t *testing.T) {
 	_ = sp.Stats()
 
 	vmInst.interpreters.Delete(int64(99999))
-	vmInst.samplingProfiler = nil
+	vmInst.setSamplingProfiler(nil)
 }
 
 // TestSamplingProfilerReset verifies that Reset clears all data.
@@ -192,7 +192,7 @@ func TestSamplingProfilerMaggieAPI(t *testing.T) {
 		t.Fatal("Compiler class not found")
 	}
 
-	compilerVal := vmInst.Globals["Compiler"]
+	compilerVal := vmInst.globals["Compiler"]
 
 	// isProfiling should return false initially
 	isProfMethod := compilerClass.LookupClassMethod(vmInst.Selectors, "isProfiling")

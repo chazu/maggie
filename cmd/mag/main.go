@@ -285,10 +285,10 @@ func run() (exitCode int) {
 	vmInst.UseGoCompiler(compiler.Compile)
 
 	// Wire NodeRefFactory for remote messaging
-	vmInst.NodeRefFactory = buildNodeRefFactory(vmInst)
+	vmInst.SetNodeRefFactory(buildNodeRefFactory(vmInst))
 
 	// Wire RemoteChannelFactory for distributed channels
-	vmInst.RemoteChannelFactory = buildRemoteChannelFactory(vmInst)
+	vmInst.SetRemoteChannelFactory(buildRemoteChannelFactory(vmInst))
 
 	// Register wrapper packages from full-system builds
 	for _, register := range projectWrapperRegistrars {
@@ -482,7 +482,7 @@ func run() (exitCode int) {
 				fmt.Fprintf(os.Stderr, "Sync server error: %v\n", err)
 			}
 		}()
-		vmInst.LocalListenAddr = syncAddr
+		vmInst.SetLocalListenAddr(syncAddr)
 		if *verbose {
 			fmt.Printf("Sync server listening on %s\n", syncAddr)
 		}
@@ -537,10 +537,16 @@ func run() (exitCode int) {
 				fmt.Fprintf(os.Stderr, "Server error: %v\n", err)
 			}
 		}()
-		vmInst.LocalListenAddr = addr
+		vmInst.SetLocalListenAddr(addr)
 		time.Sleep(50 * time.Millisecond)
 		// The serve-only path below will be skipped since mainEntry is set
 	}
+
+	// Freeze "set once at boot" fields: AOT table, file-in hooks,
+	// node-ref / channel factories, listen address. Subsequent attempts
+	// to mutate these fields will panic — see vm/late_bound.go and
+	// docs/vm-concurrency-audit-2026-05-03.md.
+	vmInst.Freeze()
 
 	// Run main entry point if specified
 	if *mainEntry != "" {
@@ -579,7 +585,7 @@ func run() (exitCode int) {
 			server.WithPeerAddrRegistry(servePeerAddrs2),
 		)
 		defer srv.Stop()
-		vmInst.LocalListenAddr = addr
+		vmInst.SetLocalListenAddr(addr)
 
 		if *mainEntry != "" {
 			// Both --serve and -m: start server in background, entry point is foreground
@@ -779,8 +785,8 @@ func buildNodeRefFactory(vmInst *vm.VM) vm.NodeRefFactory {
 			spawnReq := connect.NewRequest(
 				&maggiev1.SpawnProcessRequest{Envelope: envBytes})
 			// Send our listen address so the remote node can pull code back.
-			if vmInst.LocalListenAddr != "" {
-				spawnReq.Header().Set("X-Maggie-Return-Addr", vmInst.LocalListenAddr)
+			if vmInst.GetLocalListenAddr() != "" {
+				spawnReq.Header().Set("X-Maggie-Return-Addr", vmInst.GetLocalListenAddr())
 			}
 			resp, err := client.SpawnProcess(ctx, spawnReq)
 			if err != nil {

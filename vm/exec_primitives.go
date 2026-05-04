@@ -75,7 +75,7 @@ func (vm *VM) vmRegisterExtProcess(p *ExternalProcessObject) Value {
 
 func (vm *VM) registerExecPrimitives() {
 	epClass := vm.createClass("ExternalProcess", vm.ObjectClass)
-	vm.Globals["ExternalProcess"] = vm.classValue(epClass)
+	vm.globals["ExternalProcess"] = vm.classValue(epClass)
 	vm.symbolDispatch.Register(externalProcessMarker, &SymbolTypeEntry{Class: epClass})
 
 	// -----------------------------------------------------------------------

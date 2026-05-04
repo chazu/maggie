@@ -89,8 +89,8 @@ func (vm *VM) registerCuePrimitives() {
 	cueContextClass := vm.createClass("CueContext", vm.ObjectClass)
 	cueValueClass := vm.createClass("CueValue", vm.ObjectClass)
 
-	vm.Globals["CueContext"] = vm.classValue(cueContextClass)
-	vm.Globals["CueValue"] = vm.classValue(cueValueClass)
+	vm.globals["CueContext"] = vm.classValue(cueContextClass)
+	vm.globals["CueValue"] = vm.classValue(cueValueClass)
 
 	vm.symbolDispatch.Register(cueContextMarker, &SymbolTypeEntry{Class: cueContextClass})
 	vm.symbolDispatch.Register(cueValueMarker, &SymbolTypeEntry{Class: cueValueClass})

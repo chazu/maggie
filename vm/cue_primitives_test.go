@@ -522,7 +522,7 @@ func TestObjectAsCueValueWithIvars(t *testing.T) {
 	pointClass := vm.createClass("Point", vm.ObjectClass)
 	pointClass.InstVars = []string{"x", "y"}
 	pointClass.NumSlots = 2
-	vm.Globals["Point"] = vm.classValue(pointClass)
+	vm.globals["Point"] = vm.classValue(pointClass)
 
 	// Create an instance with x=3, y=7
 	obj := NewObject(pointClass.VTable, 2)

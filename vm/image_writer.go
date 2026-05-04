@@ -107,8 +107,8 @@ func (w *ImageWriter) collectFromVM(vm *VM) {
 
 	// Collect strings from global names (sorted for deterministic output)
 	vm.globalsMu.RLock()
-	globalNames := make([]string, 0, len(vm.Globals))
-	for name := range vm.Globals {
+	globalNames := make([]string, 0, len(vm.globals))
+	for name := range vm.globals {
 		globalNames = append(globalNames, name)
 	}
 	vm.globalsMu.RUnlock()
@@ -1010,8 +1010,8 @@ func (vm *VM) SaveImageTo(w io.Writer) error {
 	writer.writeObjects()
 	// Snapshot globals under lock to avoid races with concurrent goroutines
 	vm.globalsMu.RLock()
-	globalsSnapshot := make(map[string]Value, len(vm.Globals))
-	for k, v := range vm.Globals {
+	globalsSnapshot := make(map[string]Value, len(vm.globals))
+	for k, v := range vm.globals {
 		globalsSnapshot[k] = v
 	}
 	vm.globalsMu.RUnlock()
@@ -1063,12 +1063,12 @@ func (vm *VM) CollectAllObjects() []*Object {
 
 	// Visit globals in sorted key order for deterministic output
 	vm.globalsMu.RLock()
-	globalNames := make([]string, 0, len(vm.Globals))
-	for name := range vm.Globals {
+	globalNames := make([]string, 0, len(vm.globals))
+	for name := range vm.globals {
 		globalNames = append(globalNames, name)
 	}
-	globalsCopy := make(map[string]Value, len(vm.Globals))
-	for k, v := range vm.Globals {
+	globalsCopy := make(map[string]Value, len(vm.globals))
+	for k, v := range vm.globals {
 		globalsCopy[k] = v
 	}
 	vm.globalsMu.RUnlock()

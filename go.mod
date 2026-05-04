@@ -10,6 +10,7 @@ require (
 	github.com/fxamacker/cbor/v2 v2.5.0
 	github.com/jhump/protoreflect v1.15.4
 	github.com/marcboeker/go-duckdb v1.8.5
+	github.com/petermattis/goid v0.0.0-20180202154549-b0b1615b78e5
 	github.com/spf13/cobra v1.10.2
 	github.com/tliron/commonlog v0.2.8
 	github.com/tliron/glsp v0.2.2
@@ -46,7 +47,6 @@ require (
 	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/opencontainers/image-spec v1.1.1 // indirect
 	github.com/pelletier/go-toml/v2 v2.2.4 // indirect
-	github.com/petermattis/goid v0.0.0-20180202154549-b0b1615b78e5 // indirect
 	github.com/pierrec/lz4/v4 v4.1.22 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/protocolbuffers/txtpbfmt v0.0.0-20251016062345-16587c79cd91 // indirect

@@ -19,7 +19,7 @@ func (vm *VM) registerCompilerPrimitives() {
 	}
 
 	// Register global
-	vm.Globals["Compiler"] = vm.classValue(compilerClass)
+	vm.globals["Compiler"] = vm.classValue(compilerClass)
 
 	// evaluate: - Compile and execute an expression string
 	// Returns the result of evaluation, or a Failure if compilation fails
@@ -154,7 +154,7 @@ func (vm *VM) registerCompilerPrimitives() {
 
 		// Get the calling process's interpreter (respects restrictions)
 		interp := v.currentInterpreter()
-		globals := interp.Globals
+		globals := interp.globals
 
 		// Extract local variable names and values from the dictionary
 		localNames := make(map[string]bool)

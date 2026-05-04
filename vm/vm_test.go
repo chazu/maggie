@@ -82,16 +82,16 @@ func TestVMBootstrapGlobals(t *testing.T) {
 	vm := NewVM()
 
 	// Check that globals are set
-	if _, ok := vm.Globals["Object"]; !ok {
+	if _, ok := vm.globals["Object"]; !ok {
 		t.Error("Object global should be set")
 	}
-	if _, ok := vm.Globals["nil"]; !ok {
+	if _, ok := vm.globals["nil"]; !ok {
 		t.Error("nil global should be set")
 	}
-	if _, ok := vm.Globals["true"]; !ok {
+	if _, ok := vm.globals["true"]; !ok {
 		t.Error("true global should be set")
 	}
-	if _, ok := vm.Globals["false"]; !ok {
+	if _, ok := vm.globals["false"]; !ok {
 		t.Error("false global should be set")
 	}
 }

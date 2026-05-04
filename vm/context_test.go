@@ -384,7 +384,7 @@ func TestContextClassRegistered(t *testing.T) {
 	}
 
 	// Check it's in globals
-	global := vm.Globals["Context"]
+	global := vm.globals["Context"]
 	if global == Nil {
 		t.Error("Context should be in globals")
 	}

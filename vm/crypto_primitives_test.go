@@ -10,7 +10,7 @@ import (
 // helper: invoke a class-side method on a class and return the result.
 func sendClass(t *testing.T, vm *VM, className, selector string, args ...Value) Value {
 	t.Helper()
-	cls, ok := vm.Globals[className]
+	cls, ok := vm.globals[className]
 	if !ok {
 		t.Fatalf("%s not registered", className)
 	}

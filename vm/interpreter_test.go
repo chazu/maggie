@@ -920,7 +920,7 @@ func TestGarbageCollection(t *testing.T) {
 	vm.interpreter.push(arr1)
 
 	// Store arr2 in globals (making it reachable)
-	vm.Globals["testArray"] = arr2
+	vm.globals["testArray"] = arr2
 
 	// arr3 is not reachable (not on stack, not in globals)
 
@@ -939,7 +939,7 @@ func TestGarbageCollection(t *testing.T) {
 
 	// Clean up
 	vm.interpreter.pop()
-	delete(vm.Globals, "testArray")
+	delete(vm.globals, "testArray")
 }
 
 // TestGarbageCollectionNestedObjects verifies that objects referenced by other objects are not collected.
@@ -1013,14 +1013,14 @@ func TestInterpreterStoreGlobal(t *testing.T) {
 	m := b.Build()
 
 	// Verify global doesn't exist before execution
-	if _, exists := interp.Globals["myGlobal"]; exists {
+	if _, exists := interp.globals["myGlobal"]; exists {
 		t.Fatal("global should not exist before execution")
 	}
 
 	result := interp.Execute(m, Nil, nil)
 
 	// Verify the global was stored
-	if val, exists := interp.Globals["myGlobal"]; !exists {
+	if val, exists := interp.globals["myGlobal"]; !exists {
 		t.Error("global 'myGlobal' was not stored")
 	} else if !val.IsSmallInt() || val.SmallInt() != 42 {
 		t.Errorf("global value = %v, want 42", val)
@@ -1610,14 +1610,14 @@ func TestStackOverflowStandaloneInterpreter(t *testing.T) {
 func TestProcessLocalWrites(t *testing.T) {
 	vm := NewVM()
 	// Set up a global on the VM
-	vm.Globals["x"] = FromSmallInt(42)
+	vm.globals["x"] = FromSmallInt(42)
 
 	// Create a forked interpreter
 	interp := newBareInterpreter()
 	interp.Selectors = vm.Selectors
 	interp.Symbols = vm.Symbols
 	interp.Classes = vm.Classes
-	interp.Globals = vm.Globals
+	interp.globals = vm.globals
 	interp.vm = vm
 	interp.forked = true
 	interp.internWellKnownSelectors()
@@ -1636,27 +1636,27 @@ func TestProcessLocalWrites(t *testing.T) {
 		t.Errorf("forked interp LookupGlobal(y) = %v, %v; want 7, true", val, ok)
 	}
 
-	// The shared VM.Globals should NOT be affected
-	if vm.Globals["x"].SmallInt() != 42 {
-		t.Errorf("VM.Globals[x] = %v, want 42", vm.Globals["x"])
+	// The shared VM.globals should NOT be affected
+	if vm.globals["x"].SmallInt() != 42 {
+		t.Errorf("VM.globals[x] = %v, want 42", vm.globals["x"])
 	}
-	if _, exists := vm.Globals["y"]; exists {
-		t.Error("VM.Globals[y] should not exist, but it does")
+	if _, exists := vm.globals["y"]; exists {
+		t.Error("VM.globals[y] should not exist, but it does")
 	}
 }
 
 func TestHiddenGlobals(t *testing.T) {
 	vm := NewVM()
 	// File and HTTP are classes that we want to hide
-	vm.Globals["File"] = FromSmallInt(1)
-	vm.Globals["HTTP"] = FromSmallInt(2)
-	vm.Globals["Array"] = FromSmallInt(3)
+	vm.globals["File"] = FromSmallInt(1)
+	vm.globals["HTTP"] = FromSmallInt(2)
+	vm.globals["Array"] = FromSmallInt(3)
 
 	interp := newBareInterpreter()
 	interp.Selectors = vm.Selectors
 	interp.Symbols = vm.Symbols
 	interp.Classes = vm.Classes
-	interp.Globals = vm.Globals
+	interp.globals = vm.globals
 	interp.vm = vm
 	interp.forked = true
 	interp.hidden = map[string]bool{"File": true, "HTTP": true}
@@ -1692,7 +1692,7 @@ func TestHiddenGlobals(t *testing.T) {
 
 func TestUnrestrictedFastPath(t *testing.T) {
 	vm := NewVM()
-	vm.Globals["x"] = FromSmallInt(42)
+	vm.globals["x"] = FromSmallInt(42)
 
 	// Main interpreter (not forked, no hidden, no localWrites)
 	interp := vm.newInterpreter()
@@ -1705,8 +1705,8 @@ func TestUnrestrictedFastPath(t *testing.T) {
 
 	// SetGlobal on main interpreter should write to shared Globals
 	interp.SetGlobal("z", FromSmallInt(100))
-	if vm.Globals["z"].SmallInt() != 100 {
-		t.Errorf("VM.Globals[z] = %v, want 100", vm.Globals["z"])
+	if vm.globals["z"].SmallInt() != 100 {
+		t.Errorf("VM.globals[z] = %v, want 100", vm.globals["z"])
 	}
 
 	// Verify fast path fields are nil

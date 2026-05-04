@@ -8,7 +8,7 @@ import (
 
 // tomlClass returns the Toml class value from the VM globals.
 func tomlClass(vm *VM) Value {
-	return vm.Globals["Toml"]
+	return vm.globals["Toml"]
 }
 
 // ---------------------------------------------------------------------------
@@ -331,7 +331,7 @@ func TestTomlDecodeMalformed(t *testing.T) {
 	}
 
 	// Verify the exception class name
-	tomlParseErrorClass := vm.Globals["TomlParseError"]
+	tomlParseErrorClass := vm.globals["TomlParseError"]
 	exClass := vm.classFromValue(tomlParseErrorClass)
 	if caught.Object.ExceptionClass != exClass {
 		t.Errorf("exception class = %v, want TomlParseError", caught.Object.ExceptionClass.Name)

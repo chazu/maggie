@@ -7,7 +7,7 @@ package vm
 func (vm *VM) registerDebuggerPrimitives() {
 	// Create Debugger class
 	debuggerClass := vm.createClass("Debugger", vm.ObjectClass)
-	vm.Globals["Debugger"] = vm.classValue(debuggerClass)
+	vm.globals["Debugger"] = vm.classValue(debuggerClass)
 
 	// ---------------------------------------------------------------------------
 	// Debugger activation

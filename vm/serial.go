@@ -619,7 +619,7 @@ func (d *valueDeserializer) lookupClass(hash [32]byte, name string) *Class {
 			return cls
 		}
 		// Try Globals
-		if gv, ok := d.vm.Globals[name]; ok {
+		if gv, ok := d.vm.Global(name); ok {
 			if cls := d.vm.GetClassFromValue(gv); cls != nil {
 				return cls
 			}
@@ -707,8 +707,8 @@ func (d *valueDeserializer) deserializeChannel(tag cbor.Tag) (Value, error) {
 	}
 
 	// Wire up RPC callbacks if we have a RemoteChannelFactory
-	if d.vm.RemoteChannelFactory != nil {
-		d.vm.RemoteChannelFactory(ref)
+	if fn := d.vm.GetRemoteChannelFactory(); fn != nil {
+		fn(ref)
 	}
 
 	return d.vm.registerRemoteChannel(ref), nil
@@ -767,7 +767,7 @@ func (d *valueDeserializer) lookupExceptionClass(name string) *Class {
 		return nil
 	}
 	// Try Globals first (covers all registered exception classes)
-	if gv, ok := d.vm.Globals[name]; ok {
+	if gv, ok := d.vm.globals[name]; ok {
 		if cls := d.vm.GetClassFromValue(gv); cls != nil {
 			return cls
 		}

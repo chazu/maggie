@@ -11,7 +11,7 @@ package vm
 // bootstrapMessageClass creates the Message class with ivars.
 func (vm *VM) bootstrapMessageClass() {
 	vm.MessageClass = vm.createClassWithIvars("Message", vm.ObjectClass, []string{"selector", "arguments"})
-	vm.Globals["Message"] = vm.classValue(vm.MessageClass)
+	vm.globals["Message"] = vm.classValue(vm.MessageClass)
 }
 
 // createMessage builds a Message instance for doesNotUnderstand:.

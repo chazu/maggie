@@ -6,7 +6,7 @@ import (
 )
 
 func getSystemClass(v *VM) Value {
-	return v.Globals["System"]
+	return v.globals["System"]
 }
 
 func TestSystemPid(t *testing.T) {

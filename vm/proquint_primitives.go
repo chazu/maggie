@@ -8,7 +8,7 @@ import (
 // Proquint is a utility class with only class-side methods (no instances).
 func (vm *VM) registerProquintPrimitives() {
 	c := vm.createClass("Proquint", vm.ObjectClass)
-	vm.Globals["Proquint"] = vm.classValue(c)
+	vm.globals["Proquint"] = vm.classValue(c)
 
 	// Proquint encode: anInteger — encode a 32-bit integer as proquint string
 	c.AddClassMethod1(vm.Selectors, "encode:", func(vmPtr interface{}, recv Value, arg Value) Value {

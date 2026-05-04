@@ -12,7 +12,7 @@ import (
 
 func (vm *VM) registerSystemPrimitives() {
 	sysClass := vm.createClass("System", vm.ObjectClass)
-	vm.Globals["System"] = vm.classValue(sysClass)
+	vm.globals["System"] = vm.classValue(sysClass)
 
 	// System pid — returns os.Getpid() as SmallInt
 	sysClass.AddClassMethod0(vm.Selectors, "pid", func(vmPtr interface{}, recv Value) Value {

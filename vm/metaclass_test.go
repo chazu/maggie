@@ -167,7 +167,7 @@ func TestMetaclassClassExists(t *testing.T) {
 func TestMetaclassGlobalRegistered(t *testing.T) {
 	vm := NewVM()
 
-	v, ok := vm.Globals["Metaclass"]
+	v, ok := vm.globals["Metaclass"]
 	if !ok {
 		t.Fatal("Metaclass should be registered in Globals")
 	}

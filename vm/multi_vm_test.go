@@ -295,21 +295,21 @@ func TestMultiVM_IndependentGlobals(t *testing.T) {
 	defer vm2.Shutdown()
 
 	// Set a global in VM1
-	vm1.Globals["myVar"] = FromSmallInt(123)
+	vm1.globals["myVar"] = FromSmallInt(123)
 
 	// VM2 should not see it
-	if val, ok := vm2.Globals["myVar"]; ok {
+	if val, ok := vm2.globals["myVar"]; ok {
 		t.Errorf("VM2 should not have 'myVar', got %v", val)
 	}
 
 	// Set a different value for the same name in VM2
-	vm2.Globals["myVar"] = FromSmallInt(456)
+	vm2.globals["myVar"] = FromSmallInt(456)
 
 	// VM1's value must be unchanged
-	if vm1.Globals["myVar"].SmallInt() != 123 {
-		t.Errorf("VM1 global 'myVar': got %d, want 123", vm1.Globals["myVar"].SmallInt())
+	if vm1.globals["myVar"].SmallInt() != 123 {
+		t.Errorf("VM1 global 'myVar': got %d, want 123", vm1.globals["myVar"].SmallInt())
 	}
-	if vm2.Globals["myVar"].SmallInt() != 456 {
-		t.Errorf("VM2 global 'myVar': got %d, want 456", vm2.Globals["myVar"].SmallInt())
+	if vm2.globals["myVar"].SmallInt() != 456 {
+		t.Errorf("VM2 global 'myVar': got %d, want 456", vm2.globals["myVar"].SmallInt())
 	}
 }

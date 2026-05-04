@@ -28,7 +28,7 @@ func TestUnixSocketServerListenAndClose(t *testing.T) {
 	sockPath := tempSockPath(t)
 
 	// listenAt:
-	serverClass := vm.Globals["UnixSocketServer"]
+	serverClass := vm.globals["UnixSocketServer"]
 	pathVal := vm.registry.NewStringValue(sockPath)
 	result := vm.Send(serverClass, "primListenAt:", []Value{pathVal})
 
@@ -105,7 +105,7 @@ func TestUnixSocketClientConnectAndSendReceive(t *testing.T) {
 	vm := NewVM()
 
 	// connectTo:
-	clientClass := vm.Globals["UnixSocketClient"]
+	clientClass := vm.globals["UnixSocketClient"]
 	pathVal := vm.registry.NewStringValue(sockPath)
 	connVal := vm.Send(clientClass, "primConnectTo:", []Value{pathVal})
 
@@ -181,7 +181,7 @@ func TestUnixSocketLineProtocol(t *testing.T) {
 
 	vm := NewVM()
 
-	clientClass := vm.Globals["UnixSocketClient"]
+	clientClass := vm.globals["UnixSocketClient"]
 	pathVal := vm.registry.NewStringValue(sockPath)
 	connVal := vm.Send(clientClass, "primConnectTo:", []Value{pathVal})
 	if !isUnixConnValue(connVal) {
@@ -220,7 +220,7 @@ func TestUnixSocketServerAccept(t *testing.T) {
 	vm := NewVM()
 	sockPath := tempSockPath(t)
 
-	serverClass := vm.Globals["UnixSocketServer"]
+	serverClass := vm.globals["UnixSocketServer"]
 	pathVal := vm.registry.NewStringValue(sockPath)
 	serverVal := vm.Send(serverClass, "primListenAt:", []Value{pathVal})
 	if !isUnixListenerValue(serverVal) {
@@ -275,7 +275,7 @@ func TestUnixSocketConcurrentConnections(t *testing.T) {
 	vm := NewVM()
 	sockPath := tempSockPath(t)
 
-	serverClass := vm.Globals["UnixSocketServer"]
+	serverClass := vm.globals["UnixSocketServer"]
 	pathVal := vm.registry.NewStringValue(sockPath)
 	serverVal := vm.Send(serverClass, "primListenAt:", []Value{pathVal})
 	if !isUnixListenerValue(serverVal) {
@@ -342,7 +342,7 @@ func TestUnixSocketStaleSocketCleanup(t *testing.T) {
 	vm := NewVM()
 
 	// listenAt: should detect the stale file (can't connect to it) and remove it
-	serverClass := vm.Globals["UnixSocketServer"]
+	serverClass := vm.globals["UnixSocketServer"]
 	pathVal := vm.registry.NewStringValue(sockPath)
 	result := vm.Send(serverClass, "primListenAt:", []Value{pathVal})
 
@@ -363,7 +363,7 @@ func TestUnixSocketServerListenAtMode(t *testing.T) {
 	vm := NewVM()
 	sockPath := tempSockPath(t)
 
-	serverClass := vm.Globals["UnixSocketServer"]
+	serverClass := vm.globals["UnixSocketServer"]
 	pathVal := vm.registry.NewStringValue(sockPath)
 	modeVal := FromSmallInt(0o660)
 	result := vm.Send(serverClass, "primListenAtMode:mode:", []Value{pathVal, modeVal})
@@ -393,7 +393,7 @@ func TestUnixSocketServerListenAtMode(t *testing.T) {
 func TestUnixSocketConnectToFailure(t *testing.T) {
 	vm := NewVM()
 
-	clientClass := vm.Globals["UnixSocketClient"]
+	clientClass := vm.globals["UnixSocketClient"]
 	pathVal := vm.registry.NewStringValue("/tmp/mag-nonexistent.sock")
 	result := vm.Send(clientClass, "primConnectTo:", []Value{pathVal})
 
@@ -410,7 +410,7 @@ func TestUnixSocketAcceptToChannel(t *testing.T) {
 	vm := NewVM()
 	sockPath := tempSockPath(t)
 
-	serverClass := vm.Globals["UnixSocketServer"]
+	serverClass := vm.globals["UnixSocketServer"]
 	pathVal := vm.registry.NewStringValue(sockPath)
 	serverVal := vm.Send(serverClass, "primListenAt:", []Value{pathVal})
 	if !isUnixListenerValue(serverVal) {

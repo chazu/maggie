@@ -16,7 +16,7 @@ func (vm *VM) getFuture(v Value) *FutureObject {
 func (vm *VM) registerFuturePrimitives() {
 	c := vm.createClass("Future", vm.ObjectClass)
 	vm.FutureClass = c
-	vm.Globals["Future"] = vm.classValue(c)
+	vm.globals["Future"] = vm.classValue(c)
 
 	vm.symbolDispatch.Register(promiseMarker, &SymbolTypeEntry{Class: c})
 

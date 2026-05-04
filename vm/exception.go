@@ -186,15 +186,15 @@ func (vm *VM) bootstrapExceptionClasses() {
 	vm.NotificationClass = vm.createClass("Notification", vm.ExceptionClass)
 
 	// Register in globals
-	vm.Globals["Exception"] = vm.classValue(vm.ExceptionClass)
-	vm.Globals["Error"] = vm.classValue(vm.ErrorClass)
-	vm.Globals["MessageNotUnderstood"] = vm.classValue(vm.MessageNotUnderstoodClass)
-	vm.Globals["ZeroDivide"] = vm.classValue(vm.ZeroDivideClass)
-	vm.Globals["SubscriptOutOfBounds"] = vm.classValue(vm.SubscriptOutOfBoundsClass)
-	vm.Globals["StackOverflow"] = vm.classValue(vm.StackOverflowClass)
-	vm.Globals["Warning"] = vm.classValue(vm.WarningClass)
-	vm.Globals["Halt"] = vm.classValue(vm.HaltClass)
-	vm.Globals["Notification"] = vm.classValue(vm.NotificationClass)
+	vm.globals["Exception"] = vm.classValue(vm.ExceptionClass)
+	vm.globals["Error"] = vm.classValue(vm.ErrorClass)
+	vm.globals["MessageNotUnderstood"] = vm.classValue(vm.MessageNotUnderstoodClass)
+	vm.globals["ZeroDivide"] = vm.classValue(vm.ZeroDivideClass)
+	vm.globals["SubscriptOutOfBounds"] = vm.classValue(vm.SubscriptOutOfBoundsClass)
+	vm.globals["StackOverflow"] = vm.classValue(vm.StackOverflowClass)
+	vm.globals["Warning"] = vm.classValue(vm.WarningClass)
+	vm.globals["Halt"] = vm.classValue(vm.HaltClass)
+	vm.globals["Notification"] = vm.classValue(vm.NotificationClass)
 }
 
 // ---------------------------------------------------------------------------

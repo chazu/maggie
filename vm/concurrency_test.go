@@ -2641,7 +2641,7 @@ func TestForkRestricted_HidesClasses(t *testing.T) {
 	vm := NewVM()
 
 	// Ensure File global exists
-	vm.Globals["File"] = FromSmallInt(999)
+	vm.globals["File"] = FromSmallInt(999)
 
 	// Create a block that pushes the "File" global and returns it
 	fileSym := vm.Symbols.SymbolValue("File")
@@ -2722,8 +2722,8 @@ func TestForkRestricted_WritesAreLocal(t *testing.T) {
 	vm.Send(proc, "wait", nil)
 
 	// testVar should NOT be in VM.Globals
-	if _, ok := vm.Globals["testVar"]; ok {
-		t.Error("forked process write leaked to VM.Globals")
+	if _, ok := vm.globals["testVar"]; ok {
+		t.Error("forked process write leaked to VM.globals")
 	}
 }
 
@@ -2731,7 +2731,7 @@ func TestForkWithoutDo_HidesClasses(t *testing.T) {
 	vm := NewVM()
 
 	// Ensure HTTP global exists
-	vm.Globals["HTTP"] = FromSmallInt(888)
+	vm.globals["HTTP"] = FromSmallInt(888)
 
 	// Create a block that tries to access "HTTP" global
 	httpSym := vm.Symbols.SymbolValue("HTTP")

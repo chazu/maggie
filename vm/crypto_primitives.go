@@ -21,7 +21,7 @@ func (vm *VM) registerCryptoPrimitives() {
 
 func (vm *VM) registerSha256Primitives() {
 	c := vm.createClass("Sha256", vm.ObjectClass)
-	vm.Globals["Sha256"] = vm.classValue(c)
+	vm.globals["Sha256"] = vm.classValue(c)
 
 	// Sha256 hash: aByteArrayOrString — returns lowercase hex string
 	c.AddClassMethod1(vm.Selectors, "hash:", func(vmPtr interface{}, recv Value, arg Value) Value {
@@ -42,7 +42,7 @@ func (vm *VM) registerSha256Primitives() {
 
 func (vm *VM) registerEd25519Primitives() {
 	c := vm.createClass("Ed25519", vm.ObjectClass)
-	vm.Globals["Ed25519"] = vm.classValue(c)
+	vm.globals["Ed25519"] = vm.classValue(c)
 
 	// Ed25519 generate — returns Dictionary {#priv -> 32-byte seed, #pub -> 32-byte pubkey}
 	c.AddClassMethod0(vm.Selectors, "generate", func(vmPtr interface{}, recv Value) Value {

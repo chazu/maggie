@@ -12,7 +12,7 @@ import (
 func (vm *VM) registerFilePrimitives() {
 	// Create File class
 	fileClass := vm.createClass("File", vm.ObjectClass)
-	vm.Globals["File"] = vm.classValue(fileClass)
+	vm.globals["File"] = vm.classValue(fileClass)
 
 	// ---------------------------------------------------------------------------
 	// Reading files

@@ -1339,7 +1339,7 @@ func (ir *ImageReader) ReadAll(vm *VM) error {
 	// Globals may contain class values with stale registry IDs from the
 	// image's original VM. We need to re-register each class so the new
 	// VM's registry can resolve them during dispatch.
-	for name, v := range vm.Globals {
+	for name, v := range vm.globals {
 		if !isClassValue(v) {
 			continue
 		}

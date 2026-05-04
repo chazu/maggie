@@ -197,7 +197,7 @@ func (vm *VM) SetNodeIdentityKeys(pub ed25519.PublicKey, priv ed25519.PrivateKey
 func (vm *VM) registerNodePrimitives() {
 	c := vm.createClass("Node", vm.ObjectClass)
 	vm.NodeClass = c
-	vm.Globals["Node"] = vm.classValue(c)
+	vm.globals["Node"] = vm.classValue(c)
 	vm.symbolDispatch.Register(remoteRefMarker, &SymbolTypeEntry{Class: c})
 
 	// Node class>>connect: addr
@@ -212,8 +212,8 @@ func (vm *VM) registerNodePrimitives() {
 			return Nil
 		}
 		var ref *NodeRefData
-		if v.NodeRefFactory != nil {
-			ref = v.NodeRefFactory(addrStr, pub, priv)
+		if fn := v.GetNodeRefFactory(); fn != nil {
+			ref = fn(addrStr, pub, priv)
 		} else {
 			ref = NewNodeRefData(addrStr, pub, priv)
 		}
@@ -296,7 +296,7 @@ func (vm *VM) registerRemoteProcessPrimitives() {
 	c.NumSlots = 2
 	vm.RemoteProcessClass = c
 	vm.Classes.Register(c)
-	vm.Globals["RemoteProcess"] = vm.classValue(c)
+	vm.globals["RemoteProcess"] = vm.classValue(c)
 
 	// RemoteProcess>>primName
 	c.AddMethod0(vm.Selectors, "primName", func(_ interface{}, recv Value) Value {

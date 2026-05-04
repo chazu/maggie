@@ -16,7 +16,7 @@ func TestCompilerEvaluateSimpleInteger(t *testing.T) {
 	vmInst.UseGoCompiler(compiler.Compile)
 
 	// Get the Compiler class
-	compilerClass, ok := vmInst.Globals["Compiler"]
+	compilerClass, ok := vmInst.Global("Compiler")
 	if !ok {
 		t.Fatal("Compiler global not found")
 	}
@@ -37,7 +37,7 @@ func TestCompilerEvaluateArithmetic(t *testing.T) {
 	vmInst := vm.NewVM()
 	vmInst.UseGoCompiler(compiler.Compile)
 
-	compilerClass := vmInst.Globals["Compiler"]
+	compilerClass := vmInst.MustGlobal("Compiler")
 	source := vmInst.Registry().NewStringValue("3 + 4")
 	result := vmInst.Send(compilerClass, "evaluate:", []vm.Value{source})
 
@@ -53,7 +53,7 @@ func TestCompilerEvaluateBoolean(t *testing.T) {
 	vmInst := vm.NewVM()
 	vmInst.UseGoCompiler(compiler.Compile)
 
-	compilerClass := vmInst.Globals["Compiler"]
+	compilerClass := vmInst.MustGlobal("Compiler")
 
 	// Test true
 	result := vmInst.Send(compilerClass, "evaluate:", []vm.Value{vmInst.Registry().NewStringValue("true")})
@@ -78,7 +78,7 @@ func TestCompilerEvaluateComparison(t *testing.T) {
 	vmInst := vm.NewVM()
 	vmInst.UseGoCompiler(compiler.Compile)
 
-	compilerClass := vmInst.Globals["Compiler"]
+	compilerClass := vmInst.MustGlobal("Compiler")
 
 	// Test 5 > 3
 	result := vmInst.Send(compilerClass, "evaluate:", []vm.Value{vmInst.Registry().NewStringValue("5 > 3")})
@@ -97,7 +97,7 @@ func TestCompilerEvaluateMessageSend(t *testing.T) {
 	vmInst := vm.NewVM()
 	vmInst.UseGoCompiler(compiler.Compile)
 
-	compilerClass := vmInst.Globals["Compiler"]
+	compilerClass := vmInst.MustGlobal("Compiler")
 
 	// Test negative
 	result := vmInst.Send(compilerClass, "evaluate:", []vm.Value{vmInst.Registry().NewStringValue("5 negated")})
@@ -113,7 +113,7 @@ func TestCompilerEvaluateArray(t *testing.T) {
 	vmInst := vm.NewVM()
 	vmInst.UseGoCompiler(compiler.Compile)
 
-	compilerClass := vmInst.Globals["Compiler"]
+	compilerClass := vmInst.MustGlobal("Compiler")
 
 	// Create an array and get its size
 	result := vmInst.Send(compilerClass, "evaluate:", []vm.Value{vmInst.Registry().NewStringValue("(Array new: 3) size")})
@@ -129,7 +129,7 @@ func TestCompilerEvaluateInContext(t *testing.T) {
 	vmInst := vm.NewVM()
 	vmInst.UseGoCompiler(compiler.Compile)
 
-	compilerClass := vmInst.Globals["Compiler"]
+	compilerClass := vmInst.MustGlobal("Compiler")
 
 	// Create an array to use as context
 	arr := vmInst.NewArrayWithElements([]vm.Value{vm.FromSmallInt(10), vm.FromSmallInt(20), vm.FromSmallInt(30)})
@@ -148,7 +148,7 @@ func TestCompilerSetGetGlobal(t *testing.T) {
 	vmInst := vm.NewVM()
 	vmInst.UseGoCompiler(compiler.Compile)
 
-	compilerClass := vmInst.Globals["Compiler"]
+	compilerClass := vmInst.MustGlobal("Compiler")
 
 	// Set a global using setGlobal:to:
 	nameVal := vmInst.Symbols.SymbolValue("testVar")
@@ -176,7 +176,7 @@ func TestCompilerEvaluatePersistentGlobals(t *testing.T) {
 	vmInst := vm.NewVM()
 	vmInst.UseGoCompiler(compiler.Compile)
 
-	compilerClass := vmInst.Globals["Compiler"]
+	compilerClass := vmInst.MustGlobal("Compiler")
 
 	// First evaluation: assign x := 42
 	result1 := vmInst.Send(compilerClass, "evaluate:", []vm.Value{vmInst.Registry().NewStringValue("x := 42")})
@@ -258,7 +258,7 @@ func TestBinaryOperatorFallbackToVTable(t *testing.T) {
 		return vm.False
 	})
 
-	compilerClass := vmInst.Globals["Compiler"]
+	compilerClass := vmInst.MustGlobal("Compiler")
 
 	tests := []struct {
 		expr     string

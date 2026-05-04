@@ -224,7 +224,7 @@ func (vm *VM) notifyWaiters(ts *TupleSpaceObject, tupleVal Value) bool {
 
 func (vm *VM) registerTupleSpacePrimitives() {
 	tsClass := vm.createClass("TupleSpace", vm.ObjectClass)
-	vm.Globals["TupleSpace"] = vm.classValue(tsClass)
+	vm.globals["TupleSpace"] = vm.classValue(tsClass)
 	vm.symbolDispatch.Register(tupleSpaceMarker, &SymbolTypeEntry{Class: tsClass})
 
 	// TupleSpace new — create a new tuple space

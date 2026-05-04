@@ -86,13 +86,13 @@ func (vm *VM) registerCliPrimitives() {
 	// Cli::Command — namespaced class, matches lib/Cli/Command.mag
 	cliCommandClass := NewClassInNamespace("Cli", "Command", vm.ObjectClass)
 	vm.Classes.Register(cliCommandClass)
-	vm.Globals["Cli::Command"] = vm.classValue(cliCommandClass)
+	vm.globals["Cli::Command"] = vm.classValue(cliCommandClass)
 	vm.symbolDispatch.Register(cliCommandMarker, &SymbolTypeEntry{Class: cliCommandClass})
 
 	// Cli::CliError exception class — raised by execute if cobra returns an error
 	cliErrorClass := NewClassInNamespace("Cli", "CliError", vm.ErrorClass)
 	vm.Classes.Register(cliErrorClass)
-	vm.Globals["Cli::CliError"] = vm.classValue(cliErrorClass)
+	vm.globals["Cli::CliError"] = vm.classValue(cliErrorClass)
 
 	// ---------------------------------------------------------------------
 	// Class-side constructor: Cli::Command new: useString

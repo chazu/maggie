@@ -96,7 +96,7 @@ func (s *SessionServiceImpl) complete(v *vm.VM, prefix string) *maggiev1.Complet
 	}
 
 	// Complete global names
-	for name := range v.Globals {
+	for name := range v.GlobalsSnapshot() {
 		if strings.HasPrefix(strings.ToLower(name), lowerPrefix) {
 			// Skip class names already added
 			if v.Classes.Lookup(name) != nil {

@@ -94,7 +94,7 @@ func TestRehydrateBasic(t *testing.T) {
 	}
 
 	// Verify the class is in Globals
-	if _, ok := vmInst.Globals["TestGreeter"]; !ok {
+	if _, ok := vmInst.Global("TestGreeter"); !ok {
 		t.Error("TestGreeter not found in Globals")
 	}
 
@@ -282,11 +282,11 @@ func TestRehydrateNamespaced(t *testing.T) {
 	if cls == nil {
 		t.Fatal("TestNS::Widget not found in ClassTable")
 	}
-	if _, ok := vmInst.Globals["TestNS::Widget"]; !ok {
+	if _, ok := vmInst.Global("TestNS::Widget"); !ok {
 		t.Error("TestNS::Widget not found in Globals")
 	}
 	// Should NOT be registered under bare name
-	if _, ok := vmInst.Globals["Widget"]; ok {
+	if _, ok := vmInst.Global("Widget"); ok {
 		t.Error("Widget should not be in Globals under bare name")
 	}
 }

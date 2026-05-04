@@ -55,7 +55,7 @@ func setupVMWithSet(t *testing.T) *vm.VM {
 
 // eval compiles and executes a Maggie expression via Compiler evaluate:.
 func eval(vmInst *vm.VM, code string) vm.Value {
-	compilerVal := vmInst.Globals["Compiler"]
+	compilerVal := vmInst.MustGlobal("Compiler")
 	return vmInst.Send(compilerVal, "evaluate:", []vm.Value{vmInst.Registry().NewStringValue(code)})
 }
 
@@ -72,7 +72,7 @@ func TestSetAddAndSize(t *testing.T) {
 func TestSetAddDirectly(t *testing.T) {
 	vmInst := setupVMWithSet(t)
 
-	setClassVal := vmInst.Globals["Set"]
+	setClassVal := vmInst.MustGlobal("Set")
 	s := vmInst.Send(setClassVal, "new", nil)
 	if !s.IsObject() {
 		t.Fatalf("Set new returned non-object: %v", s)

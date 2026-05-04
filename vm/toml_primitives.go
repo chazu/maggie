@@ -16,11 +16,11 @@ import (
 func (vm *VM) registerTomlPrimitives() {
 	// Create Toml class
 	tomlClass := vm.createClass("Toml", vm.ObjectClass)
-	vm.Globals["Toml"] = vm.classValue(tomlClass)
+	vm.globals["Toml"] = vm.classValue(tomlClass)
 
 	// Create TomlParseError exception class
 	tomlParseErrorClass := vm.createClass("TomlParseError", vm.ErrorClass)
-	vm.Globals["TomlParseError"] = vm.classValue(tomlParseErrorClass)
+	vm.globals["TomlParseError"] = vm.classValue(tomlParseErrorClass)
 
 	// ---------------------------------------------------------------------------
 	// decode: aString - Parse a TOML string into a Dictionary

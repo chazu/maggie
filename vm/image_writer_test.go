@@ -1509,7 +1509,7 @@ func TestSaveImageAtomicRoundTrip(t *testing.T) {
 	}
 
 	// Verify state
-	counterVal, ok := vm2.Globals["counter"]
+	counterVal, ok := vm2.globals["counter"]
 	if !ok || !counterVal.IsSmallInt() || counterVal.SmallInt() != 99 {
 		t.Errorf("counter = %v, want 99", counterVal)
 	}

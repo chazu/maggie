@@ -76,7 +76,11 @@ type Interpreter struct {
 	Selectors *SelectorTable
 	Symbols   *SymbolTable
 	Classes   *ClassTable
-	Globals   map[string]Value
+	// globals is a shared reference to vm.globals; renamed to lowercase
+	// to match the VM-side convention. Access from outside the vm
+	// package is blocked — use the VM accessors (Global / SetGlobal /
+	// RangeGlobals).
+	globals map[string]Value
 
 	// Process-level restriction fields (Phase 4: process isolation)
 	localWrites map[string]Value // process-local global writes (nil until first write)
@@ -209,11 +213,11 @@ func (i *Interpreter) LookupGlobal(name string) (Value, bool) {
 	}
 	if i.vm != nil {
 		i.vm.globalsMu.RLock()
-		val, ok := i.Globals[name]
+		val, ok := i.globals[name]
 		i.vm.globalsMu.RUnlock()
 		return val, ok
 	}
-	val, ok := i.Globals[name]
+	val, ok := i.globals[name]
 	return val, ok
 }
 
@@ -230,10 +234,10 @@ func (i *Interpreter) SetGlobal(name string, val Value) {
 	} else {
 		if i.vm != nil {
 			i.vm.globalsMu.Lock()
-			i.Globals[name] = val
+			i.globals[name] = val
 			i.vm.globalsMu.Unlock()
 		} else {
-			i.Globals[name] = val
+			i.globals[name] = val
 		}
 	}
 }
@@ -507,7 +511,25 @@ func (i *Interpreter) popFrame() {
 
 // Execute runs a compiled method with the given receiver and arguments.
 // Returns the result value.
+//
+// Always-on safety: panics if invoked on an interpreter that does not
+// belong to the calling goroutine. The interpreter's stack/frames are
+// non-shared mutable state; cross-goroutine reuse silently corrupts
+// dispatch (Issue A in docs/vm-concurrency-audit-2026-05-03.md).
 func (i *Interpreter) Execute(method *CompiledMethod, receiver Value, args []Value) (result Value) {
+	if i.vm != nil && i.vm.interpreter != nil {
+		// currentInterpreter() returns this interpreter when (a) the
+		// caller's goroutine is registered to it, or (b) no
+		// interpreters are registered and `i` is the main interpreter.
+		// Any other return value means we're being called from the
+		// wrong goroutine for this interpreter.
+		if cur := i.vm.currentInterpreter(); cur != i {
+			panic("vm.Interpreter.Execute called on interpreter not " +
+				"owned by current goroutine — call sites that span " +
+				"goroutines must use vm.currentInterpreter() (or route " +
+				"through vm.Execute / vm.Send, which do).")
+		}
+	}
 	// Record the home frame for this method
 	i.pushFrame(method, receiver, args)
 	homeFrame := i.fp
@@ -1085,12 +1107,16 @@ func (i *Interpreter) send(selector int, argc int) (result Value) {
 		// OpSend = 1 byte opcode + 2 byte selector + 1 byte argc = 4 bytes
 		callSitePC := callerFrame.IP - 4
 
-		// Get or create inline cache for this call site
-		ic = callerFrame.Method.GetInlineCaches().GetOrCreate(callSitePC)
+		// Look up the pre-built inline cache for this call site. The
+		// table is built once on first dispatch by scanning the method's
+		// bytecode for OpSend instructions; it is immutable thereafter,
+		// so the lookup is race-free under concurrent dispatch.
+		ic = callerFrame.Method.GetInlineCaches().Get(callSitePC)
 
-		// Check cache
-		if cachedMethod := ic.Lookup(receiverClass); cachedMethod != nil {
-			method = cachedMethod
+		if ic != nil {
+			if cachedMethod := ic.Lookup(receiverClass); cachedMethod != nil {
+				method = cachedMethod
+			}
 		}
 	}
 
@@ -1133,7 +1159,7 @@ func (i *Interpreter) send(selector int, argc int) (result Value) {
 		argsCopy = make([]Value, argc)
 		copy(argsCopy, args)
 	}
-	if i.vm != nil && i.vm.samplingProfiler != nil {
+	if i.vm != nil && i.vm.SamplingProfiler() != nil {
 		name := methodName(method)
 		atomic.StorePointer(&i.activePrimitiveName, unsafe.Pointer(&name))
 		result = method.Invoke(i.vm, rcvr, argsCopy)
@@ -1257,7 +1283,7 @@ func (i *Interpreter) sendSuper(selector int, argc int, callingMethod *CompiledM
 		argsCopy = make([]Value, argc)
 		copy(argsCopy, args)
 	}
-	if i.vm != nil && i.vm.samplingProfiler != nil {
+	if i.vm != nil && i.vm.SamplingProfiler() != nil {
 		name := methodName(method)
 		atomic.StorePointer(&i.activePrimitiveName, unsafe.Pointer(&name))
 		result = method.Invoke(i.vm, rcvr, argsCopy)
@@ -1556,7 +1582,7 @@ func (i *Interpreter) sendUnaryFallback(rcvr Value, selectorID int) (result Valu
 		}
 		return result
 	}
-	if i.vm != nil && i.vm.samplingProfiler != nil {
+	if i.vm != nil && i.vm.SamplingProfiler() != nil {
 		name := methodName(method)
 		atomic.StorePointer(&i.activePrimitiveName, unsafe.Pointer(&name))
 		result = method.Invoke(i.vm, rcvr, nil)
@@ -1593,7 +1619,7 @@ func (i *Interpreter) sendBinaryFallback(rcvr, arg Value, selectorID int) (resul
 		}
 		return result
 	}
-	if i.vm != nil && i.vm.samplingProfiler != nil {
+	if i.vm != nil && i.vm.SamplingProfiler() != nil {
 		name := methodName(method)
 		atomic.StorePointer(&i.activePrimitiveName, unsafe.Pointer(&name))
 		result = method.Invoke(i.vm, rcvr, args)

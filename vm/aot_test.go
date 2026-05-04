@@ -223,7 +223,7 @@ func BenchmarkAOTvsInterpreted(b *testing.B) {
 
 	b.Run("Interpreted", func(b *testing.B) {
 		// Make sure AOT is not registered
-		vmInst.aotMethods = nil
+		vmInst.resetAOTMethods()
 		b.ResetTimer()
 		for i := 0; i < b.N; i++ {
 			vmInst.Send(receiver, "compute", nil)

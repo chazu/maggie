@@ -304,7 +304,7 @@ func (s *LspServer) complete(v *vm.VM, prefix string) []protocol.CompletionItem 
 	}
 
 	// Global names
-	for name := range v.Globals {
+	for name := range v.GlobalsSnapshot() {
 		if strings.HasPrefix(strings.ToLower(name), lowerPrefix) {
 			if v.Classes.Lookup(name) != nil {
 				continue // already added as class

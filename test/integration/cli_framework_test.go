@@ -85,7 +85,7 @@ func newCliFrameworkVM(t *testing.T) *vm.VM {
 		t.Fatalf("CompileFile(%s): %v", demoPath, err)
 	}
 
-	if _, ok := vmInst.Globals["CliDemo::Main"]; !ok {
+	if _, ok := vmInst.Global("CliDemo::Main"); !ok {
 		t.Fatal("CliDemo::Main not registered after compiling demo.mag")
 	}
 	return vmInst
@@ -143,7 +143,7 @@ func runDemo(t *testing.T, vmInst *vm.VM, argv []string) (int, captured) {
 	}
 	argsVal := vmInst.NewArrayWithElements(elems)
 
-	mainVal, ok := vmInst.Globals["CliDemo::Main"]
+	mainVal, ok := vmInst.Global("CliDemo::Main")
 	if !ok {
 		restore()
 		t.Fatal("CliDemo::Main missing from globals")

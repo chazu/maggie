@@ -211,7 +211,7 @@ func (vm *VM) DrainRemoteChannels(nodeID [32]byte) {
 func (vm *VM) registerRemoteChannelPrimitives() {
 	c := vm.createClass("RemoteChannel", vm.ObjectClass)
 	vm.RemoteChannelClass = c
-	vm.Globals["RemoteChannel"] = vm.classValue(c)
+	vm.globals["RemoteChannel"] = vm.classValue(c)
 	vm.symbolDispatch.Register(remoteChannelMarker, &SymbolTypeEntry{Class: c})
 
 	// RemoteChannel>>send: value — blocking send to remote channel

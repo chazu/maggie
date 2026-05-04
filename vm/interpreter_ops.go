@@ -33,7 +33,7 @@ func (i *Interpreter) execPushGlobal(frame *CallFrame, bc []byte, literals []Val
 					if i.vm != nil {
 						i.vm.globalsMu.RLock()
 					}
-					val, ok := i.Globals[globalName]
+					val, ok := i.globals[globalName]
 					if i.vm != nil {
 						i.vm.globalsMu.RUnlock()
 					}
@@ -47,7 +47,7 @@ func (i *Interpreter) execPushGlobal(frame *CallFrame, bc []byte, literals []Val
 				if i.vm != nil {
 					i.vm.globalsMu.RLock()
 				}
-				val, ok := i.Globals[globalName]
+				val, ok := i.globals[globalName]
 				if i.vm != nil {
 					i.vm.globalsMu.RUnlock()
 				}
@@ -92,7 +92,7 @@ func (i *Interpreter) execStoreGlobal(frame *CallFrame, bc []byte, literals []Va
 				if i.vm != nil {
 					i.vm.globalsMu.Lock()
 				}
-				i.Globals[globalName] = i.top()
+				i.globals[globalName] = i.top()
 				if i.vm != nil {
 					i.vm.globalsMu.Unlock()
 				}

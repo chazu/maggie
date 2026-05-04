@@ -374,7 +374,7 @@ func TestGrpcGlobalsRegistered(t *testing.T) {
 	vm := NewVM()
 
 	for _, name := range []string{"GrpcClient", "GrpcStream"} {
-		if _, ok := vm.Globals[name]; !ok {
+		if _, ok := vm.globals[name]; !ok {
 			t.Errorf("global %q should be registered", name)
 		}
 	}
@@ -415,7 +415,7 @@ func TestGrpcStreamClassAssignment(t *testing.T) {
 func TestGrpcClientConnectToNonString(t *testing.T) {
 	vm := NewVM()
 
-	grpcClientClassVal := vm.Globals["GrpcClient"]
+	grpcClientClassVal := vm.globals["GrpcClient"]
 
 	// connectTo: with a non-string argument should return a Failure result
 	result := vm.Send(grpcClientClassVal, "connectTo:", []Value{FromSmallInt(12345)})
@@ -442,7 +442,7 @@ func TestGrpcClientConnectToNonString(t *testing.T) {
 func TestGrpcClientConnectToEmptyTarget(t *testing.T) {
 	vm := NewVM()
 
-	grpcClientClassVal := vm.Globals["GrpcClient"]
+	grpcClientClassVal := vm.globals["GrpcClient"]
 
 	// connectTo: with an empty string - gRPC dial is lazy so it may still succeed
 	// creating the client object. The actual connection failure would happen later.
@@ -457,7 +457,7 @@ func TestGrpcClientConnectToEmptyTarget(t *testing.T) {
 func TestGrpcClientConnectToTarget(t *testing.T) {
 	vm := NewVM()
 
-	grpcClientClassVal := vm.Globals["GrpcClient"]
+	grpcClientClassVal := vm.globals["GrpcClient"]
 
 	// Connect to a target - gRPC dial is lazy so this should succeed
 	result := vm.Send(grpcClientClassVal, "connectTo:", []Value{vm.registry.NewStringValue("localhost:50051")})
@@ -498,7 +498,7 @@ func TestGrpcClientConnectToTarget(t *testing.T) {
 func TestGrpcClientCloseIdempotent(t *testing.T) {
 	vm := NewVM()
 
-	grpcClientClassVal := vm.Globals["GrpcClient"]
+	grpcClientClassVal := vm.globals["GrpcClient"]
 
 	result := vm.Send(grpcClientClassVal, "connectTo:", []Value{vm.registry.NewStringValue("localhost:50051")})
 	clientVal := vm.Send(result, "value", nil)

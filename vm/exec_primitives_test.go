@@ -8,7 +8,7 @@ import (
 
 // epClass returns the ExternalProcess class value from the VM globals.
 func epClass(vm *VM) Value {
-	return vm.Globals["ExternalProcess"]
+	return vm.globals["ExternalProcess"]
 }
 
 // ---------------------------------------------------------------------------

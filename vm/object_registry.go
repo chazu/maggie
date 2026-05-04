@@ -378,14 +378,19 @@ func (or *ObjectRegistry) RegisterClassValue(c *Class) Value {
 		return Nil
 	}
 
-	// Fast path: already registered
-	if c.classValueID != 0 {
-		return classToValue(c.classValueID)
+	// Fast path: already registered.
+	if id := c.classValueID.Load(); id != 0 {
+		return classToValue(id)
 	}
 
-	// Slow path: register new
+	// Slow path: register new. CAS guards against concurrent first-time
+	// registrations: the class-value registry is monotonic so a losing
+	// goroutine simply discards its (unreferenced) ID and adopts the
+	// winner's. This is preferable to a per-Class lock on a hot path.
 	id := or.classValues.Register(c)
-	c.classValueID = id
+	if !c.classValueID.CompareAndSwap(0, id) {
+		id = c.classValueID.Load()
+	}
 	return classToValue(id)
 }
 

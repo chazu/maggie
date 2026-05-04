@@ -13,7 +13,7 @@ import (
 
 func (vm *VM) registerSignalPrimitives() {
 	sigClass := vm.createClass("Signal", vm.ObjectClass)
-	vm.Globals["Signal"] = vm.classValue(sigClass)
+	vm.globals["Signal"] = vm.classValue(sigClass)
 
 	// Signal trap: signalName do: aChannel
 	// Registers a handler that sends the signal name (as a Symbol) to the channel.

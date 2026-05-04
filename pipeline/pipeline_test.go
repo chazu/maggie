@@ -539,11 +539,11 @@ func TestNoShortNameGlobals_NamespacedClassOnlyFQN(t *testing.T) {
 	alphaFQN := "Alpha::Widget"
 	betaFQN := "Beta::Widget"
 
-	alphaVal, alphaOK := vmInst.Globals[alphaFQN]
+	alphaVal, alphaOK := vmInst.Global(alphaFQN)
 	if !alphaOK {
 		t.Errorf("Globals[%q] not found", alphaFQN)
 	}
-	betaVal, betaOK := vmInst.Globals[betaFQN]
+	betaVal, betaOK := vmInst.Global(betaFQN)
 	if !betaOK {
 		t.Errorf("Globals[%q] not found", betaFQN)
 	}
@@ -552,7 +552,7 @@ func TestNoShortNameGlobals_NamespacedClassOnlyFQN(t *testing.T) {
 		t.Error("Alpha::Widget and Beta::Widget should be different class values in Globals")
 	}
 
-	if _, bareOK := vmInst.Globals["Widget"]; bareOK {
+	if _, bareOK := vmInst.Global("Widget"); bareOK {
 		t.Error("Globals[\"Widget\"] should not exist — namespaced classes must only register under FQN")
 	}
 }
@@ -571,7 +571,7 @@ func TestNoShortNameGlobals_RootClassBareNameInGlobals(t *testing.T) {
 		t.Fatalf("CompilePath failed: %v", err)
 	}
 
-	if _, ok := vmInst.Globals["Helper"]; !ok {
+	if _, ok := vmInst.Global("Helper"); !ok {
 		t.Error("Globals[\"Helper\"] should exist for root-namespace class")
 	}
 }
@@ -614,10 +614,10 @@ Factory subclass: Object
 		t.Errorf("greet = %q, want %q", got, "hello")
 	}
 
-	if _, ok := vmInst.Globals["Greeter"]; ok {
+	if _, ok := vmInst.Global("Greeter"); ok {
 		t.Error("Globals[\"Greeter\"] should not exist — Greeter has namespace Lib")
 	}
-	if _, ok := vmInst.Globals["Lib::Greeter"]; !ok {
+	if _, ok := vmInst.Global("Lib::Greeter"); !ok {
 		t.Error("Globals[\"Lib::Greeter\"] should exist")
 	}
 }

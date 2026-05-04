@@ -20,19 +20,22 @@ type FileInFunc func(v *VM, source string, sourcePath string, nsOverride string,
 type FileInBatchFunc func(v *VM, dirPath string, verbose bool) (int, error)
 
 // SetFileInFunc sets the function used by FileIn to compile source text.
+// Must be called before Freeze().
 func (vm *VM) SetFileInFunc(fn FileInFunc) {
-	vm.fileInFunc = fn
+	vm.setFileInFunc(fn)
 }
 
 // SetFileInBatchFunc sets the function used by FileInAll for batch two-pass compilation.
+// Must be called before Freeze().
 func (vm *VM) SetFileInBatchFunc(fn FileInBatchFunc) {
-	vm.fileInBatchFunc = fn
+	vm.setFileInBatchFunc(fn)
 }
 
 // FileIn reads a .mag file and compiles it into the VM.
 // Returns the number of methods compiled.
 func (vm *VM) FileIn(path string) (int, error) {
-	if vm.fileInFunc == nil {
+	fn := vm.getFileInFunc()
+	if fn == nil {
 		return 0, fmt.Errorf("fileIn: compiler not available (fileInFunc not set)")
 	}
 
@@ -41,17 +44,18 @@ func (vm *VM) FileIn(path string) (int, error) {
 		return 0, fmt.Errorf("fileIn: cannot read %q: %w", path, err)
 	}
 
-	return vm.fileInFunc(vm, string(content), path, "", false)
+	return fn(vm, string(content), path, "", false)
 }
 
 // FileInSource compiles source text directly into the VM (for REPL use).
 // sourcePath is used for error messages and namespace derivation.
 func (vm *VM) FileInSource(source string, sourcePath string) (int, error) {
-	if vm.fileInFunc == nil {
+	fn := vm.getFileInFunc()
+	if fn == nil {
 		return 0, fmt.Errorf("fileInSource: compiler not available (fileInFunc not set)")
 	}
 
-	return vm.fileInFunc(vm, source, sourcePath, "", false)
+	return fn(vm, source, sourcePath, "", false)
 }
 
 // FileInAll recursively loads all .mag files from a directory.
@@ -59,11 +63,11 @@ func (vm *VM) FileInSource(source string, sourcePath string) (int, error) {
 // Returns the total number of methods compiled.
 func (vm *VM) FileInAll(dirPath string) (int, error) {
 	// Use batch two-pass if available
-	if vm.fileInBatchFunc != nil {
-		return vm.fileInBatchFunc(vm, dirPath, false)
+	if batch := vm.getFileInBatchFunc(); batch != nil {
+		return batch(vm, dirPath, false)
 	}
 
-	if vm.fileInFunc == nil {
+	if vm.getFileInFunc() == nil {
 		return 0, fmt.Errorf("fileInAll: compiler not available (fileInFunc not set)")
 	}
 

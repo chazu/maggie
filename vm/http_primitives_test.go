@@ -148,7 +148,7 @@ func TestHttpServerNewWithPort(t *testing.T) {
 	vm := NewVM()
 
 	// HttpServer new: 8080
-	httpServerClassVal := vm.Globals["HttpServer"]
+	httpServerClassVal := vm.globals["HttpServer"]
 	serverVal := vm.Send(httpServerClassVal, "new:", []Value{FromSmallInt(8080)})
 
 	if serverVal == Nil {
@@ -168,7 +168,7 @@ func TestHttpServerNewWithPort(t *testing.T) {
 func TestHttpServerNewInvalidPort(t *testing.T) {
 	vm := NewVM()
 
-	httpServerClassVal := vm.Globals["HttpServer"]
+	httpServerClassVal := vm.globals["HttpServer"]
 
 	// Non-integer argument should return Nil
 	result := vm.Send(httpServerClassVal, "new:", []Value{vm.registry.NewStringValue("abc")})
@@ -180,7 +180,7 @@ func TestHttpServerNewInvalidPort(t *testing.T) {
 func TestHttpServerIsRunning(t *testing.T) {
 	vm := NewVM()
 
-	httpServerClassVal := vm.Globals["HttpServer"]
+	httpServerClassVal := vm.globals["HttpServer"]
 	serverVal := vm.Send(httpServerClassVal, "new:", []Value{FromSmallInt(0)})
 	if serverVal == Nil {
 		t.Fatal("HttpServer new: returned Nil")
@@ -196,7 +196,7 @@ func TestHttpServerIsRunning(t *testing.T) {
 func TestHttpServerStopBeforeStart(t *testing.T) {
 	vm := NewVM()
 
-	httpServerClassVal := vm.Globals["HttpServer"]
+	httpServerClassVal := vm.globals["HttpServer"]
 	serverVal := vm.Send(httpServerClassVal, "new:", []Value{FromSmallInt(0)})
 	if serverVal == Nil {
 		t.Fatal("HttpServer new: returned Nil")
@@ -212,7 +212,7 @@ func TestHttpServerStopBeforeStart(t *testing.T) {
 func TestHttpServerPortRetrieval(t *testing.T) {
 	vm := NewVM()
 
-	httpServerClassVal := vm.Globals["HttpServer"]
+	httpServerClassVal := vm.globals["HttpServer"]
 
 	// Test various ports
 	for _, port := range []int64{80, 443, 3000, 8080, 50051} {
@@ -264,7 +264,7 @@ func TestHttpServerIsRunningOnNilServer(t *testing.T) {
 func TestHttpResponseNewBodyStatus(t *testing.T) {
 	vm := NewVM()
 
-	httpResponseClassVal := vm.Globals["HttpResponse"]
+	httpResponseClassVal := vm.globals["HttpResponse"]
 
 	// HttpResponse new: 200 body: 'Hello'
 	respVal := vm.Send(httpResponseClassVal, "new:body:", []Value{
@@ -295,7 +295,7 @@ func TestHttpResponseNewBodyStatus(t *testing.T) {
 func TestHttpResponseStatusCodes(t *testing.T) {
 	vm := NewVM()
 
-	httpResponseClassVal := vm.Globals["HttpResponse"]
+	httpResponseClassVal := vm.globals["HttpResponse"]
 
 	codes := []int64{200, 201, 301, 400, 403, 404, 500, 503}
 	for _, code := range codes {
@@ -313,7 +313,7 @@ func TestHttpResponseStatusCodes(t *testing.T) {
 func TestHttpResponseContentType(t *testing.T) {
 	vm := NewVM()
 
-	httpResponseClassVal := vm.Globals["HttpResponse"]
+	httpResponseClassVal := vm.globals["HttpResponse"]
 
 	respVal := vm.Send(httpResponseClassVal, "new:body:", []Value{
 		FromSmallInt(200),
@@ -339,7 +339,7 @@ func TestHttpResponseContentType(t *testing.T) {
 func TestHttpResponseHeaderValue(t *testing.T) {
 	vm := NewVM()
 
-	httpResponseClassVal := vm.Globals["HttpResponse"]
+	httpResponseClassVal := vm.globals["HttpResponse"]
 
 	respVal := vm.Send(httpResponseClassVal, "new:body:", []Value{
 		FromSmallInt(200),
@@ -364,7 +364,7 @@ func TestHttpResponseHeaderValue(t *testing.T) {
 func TestHttpResponseMultipleHeaders(t *testing.T) {
 	vm := NewVM()
 
-	httpResponseClassVal := vm.Globals["HttpResponse"]
+	httpResponseClassVal := vm.globals["HttpResponse"]
 
 	respVal := vm.Send(httpResponseClassVal, "new:body:", []Value{
 		FromSmallInt(200),
@@ -391,7 +391,7 @@ func TestHttpResponseMultipleHeaders(t *testing.T) {
 func TestHttpResponseDefaultStatus(t *testing.T) {
 	vm := NewVM()
 
-	httpResponseClassVal := vm.Globals["HttpResponse"]
+	httpResponseClassVal := vm.globals["HttpResponse"]
 
 	// Non-integer status should default to 200
 	respVal := vm.Send(httpResponseClassVal, "new:body:", []Value{
@@ -428,7 +428,7 @@ func TestHttpResponseStatusOnNil(t *testing.T) {
 func TestHttpResponseEmptyBody(t *testing.T) {
 	vm := NewVM()
 
-	httpResponseClassVal := vm.Globals["HttpResponse"]
+	httpResponseClassVal := vm.globals["HttpResponse"]
 
 	respVal := vm.Send(httpResponseClassVal, "new:body:", []Value{
 		FromSmallInt(204),
@@ -631,7 +631,7 @@ func TestHttpRequestMethodOnNil(t *testing.T) {
 func TestHttpServerClassAssignment(t *testing.T) {
 	vm := NewVM()
 
-	httpServerClassVal := vm.Globals["HttpServer"]
+	httpServerClassVal := vm.globals["HttpServer"]
 	serverVal := vm.Send(httpServerClassVal, "new:", []Value{FromSmallInt(8080)})
 	if serverVal == Nil {
 		t.Fatal("HttpServer new: returned Nil")
@@ -650,7 +650,7 @@ func TestHttpServerClassAssignment(t *testing.T) {
 func TestHttpResponseClassAssignment(t *testing.T) {
 	vm := NewVM()
 
-	httpResponseClassVal := vm.Globals["HttpResponse"]
+	httpResponseClassVal := vm.globals["HttpResponse"]
 	respVal := vm.Send(httpResponseClassVal, "new:body:", []Value{
 		FromSmallInt(200),
 		vm.registry.NewStringValue("test"),
@@ -689,7 +689,7 @@ func TestHttpRequestClassAssignment(t *testing.T) {
 func TestHttpServerStartAndStop(t *testing.T) {
 	vm := NewVM()
 
-	httpServerClassVal := vm.Globals["HttpServer"]
+	httpServerClassVal := vm.globals["HttpServer"]
 	// Use port 0 to let the OS assign a free port - but the server object
 	// records the requested port, and ListenAndServe needs a real port.
 	// We will test start/stop with a real high port.
@@ -723,7 +723,7 @@ func TestHttpServerStartAndStop(t *testing.T) {
 func TestHttpServerDoubleStart(t *testing.T) {
 	vm := NewVM()
 
-	httpServerClassVal := vm.Globals["HttpServer"]
+	httpServerClassVal := vm.globals["HttpServer"]
 	serverVal := vm.Send(httpServerClassVal, "new:", []Value{FromSmallInt(0)})
 
 	// Start in goroutine
@@ -758,7 +758,7 @@ func TestHttpServerMuxDirectRoundtrip(t *testing.T) {
 	// through httptest, without starting a real TCP listener.
 	vm := NewVM()
 
-	httpServerClassVal := vm.Globals["HttpServer"]
+	httpServerClassVal := vm.globals["HttpServer"]
 	serverVal := vm.Send(httpServerClassVal, "new:", []Value{FromSmallInt(0)})
 
 	srv := vm.vmGetHttpServer(serverVal)
@@ -800,7 +800,7 @@ func TestHttpServerMuxDirectRoundtrip(t *testing.T) {
 func TestHttpServerMuxMethodFiltering(t *testing.T) {
 	vm := NewVM()
 
-	httpServerClassVal := vm.Globals["HttpServer"]
+	httpServerClassVal := vm.globals["HttpServer"]
 	serverVal := vm.Send(httpServerClassVal, "new:", []Value{FromSmallInt(0)})
 
 	srv := vm.vmGetHttpServer(serverVal)
@@ -851,7 +851,7 @@ func TestHttpServerMuxMethodFiltering(t *testing.T) {
 func TestHttpServerMuxJSONResponse(t *testing.T) {
 	vm := NewVM()
 
-	httpServerClassVal := vm.Globals["HttpServer"]
+	httpServerClassVal := vm.globals["HttpServer"]
 	serverVal := vm.Send(httpServerClassVal, "new:", []Value{FromSmallInt(0)})
 
 	srv := vm.vmGetHttpServer(serverVal)
@@ -888,7 +888,7 @@ func TestHttpServerMuxJSONResponse(t *testing.T) {
 func TestHttpServerMuxMultipleRoutes(t *testing.T) {
 	vm := NewVM()
 
-	httpServerClassVal := vm.Globals["HttpServer"]
+	httpServerClassVal := vm.globals["HttpServer"]
 	serverVal := vm.Send(httpServerClassVal, "new:", []Value{FromSmallInt(0)})
 
 	srv := vm.vmGetHttpServer(serverVal)
@@ -928,7 +928,7 @@ func TestHttpServerMuxMultipleRoutes(t *testing.T) {
 func TestHttpServerMuxRequestQueryParams(t *testing.T) {
 	vm := NewVM()
 
-	httpServerClassVal := vm.Globals["HttpServer"]
+	httpServerClassVal := vm.globals["HttpServer"]
 	serverVal := vm.Send(httpServerClassVal, "new:", []Value{FromSmallInt(0)})
 
 	srv := vm.vmGetHttpServer(serverVal)
@@ -961,7 +961,7 @@ func TestHttpServerMuxRequestQueryParams(t *testing.T) {
 func TestHttpServerMuxRequestHeaders(t *testing.T) {
 	vm := NewVM()
 
-	httpServerClassVal := vm.Globals["HttpServer"]
+	httpServerClassVal := vm.globals["HttpServer"]
 	serverVal := vm.Send(httpServerClassVal, "new:", []Value{FromSmallInt(0)})
 
 	srv := vm.vmGetHttpServer(serverVal)
@@ -1002,7 +1002,7 @@ func TestHttpGlobalsRegistered(t *testing.T) {
 	vm := NewVM()
 
 	for _, name := range []string{"HttpServer", "HttpRequest", "HttpResponse"} {
-		if _, ok := vm.Globals[name]; !ok {
+		if _, ok := vm.globals[name]; !ok {
 			t.Errorf("global %q should be registered", name)
 		}
 	}

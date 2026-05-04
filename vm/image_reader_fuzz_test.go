@@ -40,7 +40,7 @@ func buildMinimalValidImage(t testing.TB) []byte {
 	cls.VTable.AddMethod(sel, method)
 
 	// Add a global
-	vm.Globals["testVar"] = FromSmallInt(99)
+	vm.globals["testVar"] = FromSmallInt(99)
 
 	// Save to bytes
 	var buf bytes.Buffer

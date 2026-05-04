@@ -19,7 +19,7 @@ func (vm *VM) registerSandboxPrimitives() {
 	if sandboxClass == nil {
 		sandboxClass = vm.createClass("Sandbox", vm.ObjectClass)
 	}
-	vm.Globals["Sandbox"] = vm.classValue(sandboxClass)
+	vm.globals["Sandbox"] = vm.classValue(sandboxClass)
 
 	// Sandbox class>>run: aBlock
 	// Forks the block in a restricted process using the VM's sync restrictions.

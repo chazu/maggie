@@ -12,7 +12,7 @@ import (
 
 func TestSqliteOpenMemory(t *testing.T) {
 	vm := NewVM()
-	dbClassVal := vm.Globals["SqliteDatabase"]
+	dbClassVal := vm.globals["SqliteDatabase"]
 	if dbClassVal == Nil {
 		t.Fatal("SqliteDatabase class not in Globals")
 	}
@@ -36,7 +36,7 @@ func TestSqliteOpenMemory(t *testing.T) {
 
 func TestSqliteOpenFile(t *testing.T) {
 	vm := NewVM()
-	dbClassVal := vm.Globals["SqliteDatabase"]
+	dbClassVal := vm.globals["SqliteDatabase"]
 
 	tmpDir := t.TempDir()
 	dbPath := filepath.Join(tmpDir, "test.db")
@@ -547,7 +547,7 @@ func TestSqliteStmtSQL(t *testing.T) {
 
 func sqliteOpenMemory(t *testing.T, vm *VM) Value {
 	t.Helper()
-	dbClassVal := vm.Globals["SqliteDatabase"]
+	dbClassVal := vm.globals["SqliteDatabase"]
 	if dbClassVal == Nil {
 		t.Fatal("SqliteDatabase class not in Globals")
 	}

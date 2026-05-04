@@ -70,16 +70,16 @@ func jsonWriterIDFromValue(v Value) uint32 {
 
 func (vm *VM) registerJSONPrimitives() {
 	jsonClass := vm.createClass("Json", vm.ObjectClass)
-	vm.Globals["Json"] = vm.classValue(jsonClass)
+	vm.globals["Json"] = vm.classValue(jsonClass)
 
 	jsonParseErrorClass := vm.createClass("JsonParseError", vm.ErrorClass)
-	vm.Globals["JsonParseError"] = vm.classValue(jsonParseErrorClass)
+	vm.globals["JsonParseError"] = vm.classValue(jsonParseErrorClass)
 
 	jsonReaderClass := vm.createClass("JsonReader", vm.ObjectClass)
-	vm.Globals["JsonReader"] = vm.classValue(jsonReaderClass)
+	vm.globals["JsonReader"] = vm.classValue(jsonReaderClass)
 
 	jsonWriterClass := vm.createClass("JsonWriter", vm.ObjectClass)
-	vm.Globals["JsonWriter"] = vm.classValue(jsonWriterClass)
+	vm.globals["JsonWriter"] = vm.classValue(jsonWriterClass)
 
 	vm.symbolDispatch.Register(jsonReaderMarker, &SymbolTypeEntry{Class: jsonReaderClass})
 	vm.symbolDispatch.Register(jsonWriterMarker, &SymbolTypeEntry{Class: jsonWriterClass})
