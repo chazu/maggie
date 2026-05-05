@@ -1,5 +1,32 @@
 # Changelog
 
+## 2026-05-05 — petermattis/goid arm64 fast path
+
+Upgraded `github.com/petermattis/goid` from the 2018 pin
+(`b0b1615b78e5`) to `v0.0.0-20260330135022-df67b199bc81`. The old version
+lacked an `arm64` build tag, so on Apple Silicon every
+`currentInterpreter()` call fell into `getSlow()` →
+`runtime.Stack(buf, false)` — roughly 10 µs per call plus a
+runtime-internal lock that effectively serialised goroutine dispatch.
+
+In long-running fork-heavy hosts (notably `procyon-park` `pp serve`)
+this dominated idle CPU: the dispatcher, SSE drainer, notification hub,
+and per-request HTTP handlers each register an interpreter, so the
+`interpreterCount == 0` fast path is never hit and `goid.Get()` runs
+on the hot path of every `Mutex critical:`, `[block] fork`,
+`ExecuteBlockDetached`, exception handler, and channel op. A 4-minute
+profile showed call stacks dominated by `vm.currentInterpreter →
+goid.getSlow → runtime.Stack → runtime.traceback`.
+
+The upgraded package selects an arm64 ASM trampoline (`getg().goid` via
+one instruction). On the survey host pp serve idle CPU dropped from
+~200% to ~0% and macOS top-mem from 32 G of committed pages to 1.5 G
+once paired with downstream procyon-park fixes.
+
+This effectively re-lands the work reverted in `0d9b60e` ("Revert
+perf(vm): use petermattis/goid"), with the dependency upgrade that
+makes it actually fast on arm64.
+
 ## 2026-05-04 — Block Registry: Slot Recycling + Generation Tags
 
 Bounded the block registry's growth so long-running fork-heavy workloads

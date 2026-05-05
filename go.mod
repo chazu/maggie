@@ -10,7 +10,7 @@ require (
 	github.com/fxamacker/cbor/v2 v2.5.0
 	github.com/jhump/protoreflect v1.15.4
 	github.com/marcboeker/go-duckdb v1.8.5
-	github.com/petermattis/goid v0.0.0-20180202154549-b0b1615b78e5
+	github.com/petermattis/goid v0.0.0-20260330135022-df67b199bc81
 	github.com/spf13/cobra v1.10.2
 	github.com/tliron/commonlog v0.2.8
 	github.com/tliron/glsp v0.2.2
