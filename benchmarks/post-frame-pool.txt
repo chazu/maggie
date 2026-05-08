@@ -1,0 +1,86 @@
+goos: darwin
+goarch: arm64
+pkg: github.com/chazu/maggie/vm
+cpu: Apple M3
+BenchmarkHotPath_UnaryDispatch-8               	96750465	        11.97 ns/op	       0 B/op	       0 allocs/op
+BenchmarkHotPath_UnaryDispatch-8               	96557133	        12.00 ns/op	       0 B/op	       0 allocs/op
+BenchmarkHotPath_UnaryDispatch-8               	98934393	        12.04 ns/op	       0 B/op	       0 allocs/op
+BenchmarkHotPath_UnaryDispatch-8               	95783528	        12.50 ns/op	       0 B/op	       0 allocs/op
+BenchmarkHotPath_UnaryDispatch-8               	96829510	        12.38 ns/op	       0 B/op	       0 allocs/op
+BenchmarkHotPath_BinaryDispatch-8              	58236409	        20.59 ns/op	       8 B/op	       1 allocs/op
+BenchmarkHotPath_BinaryDispatch-8              	58421640	        20.53 ns/op	       8 B/op	       1 allocs/op
+BenchmarkHotPath_BinaryDispatch-8              	58212982	        20.56 ns/op	       8 B/op	       1 allocs/op
+BenchmarkHotPath_BinaryDispatch-8              	58395580	        20.75 ns/op	       8 B/op	       1 allocs/op
+BenchmarkHotPath_BinaryDispatch-8              	56806862	        20.52 ns/op	       8 B/op	       1 allocs/op
+BenchmarkHotPath_KeywordDispatch-8             	17046028	        69.43 ns/op	      48 B/op	       2 allocs/op
+BenchmarkHotPath_KeywordDispatch-8             	16485921	        71.35 ns/op	      48 B/op	       2 allocs/op
+BenchmarkHotPath_KeywordDispatch-8             	16388824	        71.44 ns/op	      48 B/op	       2 allocs/op
+BenchmarkHotPath_KeywordDispatch-8             	16123089	        71.85 ns/op	      48 B/op	       2 allocs/op
+BenchmarkHotPath_KeywordDispatch-8             	16029885	        71.33 ns/op	      48 B/op	       2 allocs/op
+BenchmarkHotPath_BlockEvalSimple-8             	19024378	        59.29 ns/op	      32 B/op	       1 allocs/op
+BenchmarkHotPath_BlockEvalSimple-8             	18459064	        55.85 ns/op	      32 B/op	       1 allocs/op
+BenchmarkHotPath_BlockEvalSimple-8             	20112728	        55.18 ns/op	      32 B/op	       1 allocs/op
+BenchmarkHotPath_BlockEvalSimple-8             	19665092	        55.32 ns/op	      32 B/op	       1 allocs/op
+BenchmarkHotPath_BlockEvalSimple-8             	19773157	        55.46 ns/op	      32 B/op	       1 allocs/op
+BenchmarkHotPath_BlockEvalClosure-8            	15691650	        70.96 ns/op	      32 B/op	       1 allocs/op
+BenchmarkHotPath_BlockEvalClosure-8            	15541918	        71.07 ns/op	      32 B/op	       1 allocs/op
+BenchmarkHotPath_BlockEvalClosure-8            	15784168	        70.95 ns/op	      32 B/op	       1 allocs/op
+BenchmarkHotPath_BlockEvalClosure-8            	15795248	        70.98 ns/op	      32 B/op	       1 allocs/op
+BenchmarkHotPath_BlockEvalClosure-8            	15711698	        70.62 ns/op	      32 B/op	       1 allocs/op
+BenchmarkHotPath_BufferedChannelThroughput-8   	18069306	        65.17 ns/op	       8 B/op	       1 allocs/op
+BenchmarkHotPath_BufferedChannelThroughput-8   	18195384	        66.40 ns/op	       8 B/op	       1 allocs/op
+BenchmarkHotPath_BufferedChannelThroughput-8   	18290406	        65.99 ns/op	       8 B/op	       1 allocs/op
+BenchmarkHotPath_BufferedChannelThroughput-8   	18375573	        65.95 ns/op	       8 B/op	       1 allocs/op
+BenchmarkHotPath_BufferedChannelThroughput-8   	18369080	        65.16 ns/op	       8 B/op	       1 allocs/op
+BenchmarkHotPath_ClassInstantiation-8          	 7372178	       235.9 ns/op	     143 B/op	       1 allocs/op
+BenchmarkHotPath_ClassInstantiation-8          	 8858067	       254.4 ns/op	     148 B/op	       1 allocs/op
+BenchmarkHotPath_ClassInstantiation-8          	 8629903	       223.4 ns/op	     150 B/op	       1 allocs/op
+BenchmarkHotPath_ClassInstantiation-8          	 9076789	       222.2 ns/op	     146 B/op	       1 allocs/op
+BenchmarkHotPath_ClassInstantiation-8          	 9596215	       222.5 ns/op	     143 B/op	       1 allocs/op
+BenchmarkHotPath_ExceptionSignalCatch-8        	15220779	        76.80 ns/op	     112 B/op	       2 allocs/op
+BenchmarkHotPath_ExceptionSignalCatch-8        	14399517	        93.73 ns/op	     112 B/op	       2 allocs/op
+BenchmarkHotPath_ExceptionSignalCatch-8        	14238837	        91.48 ns/op	     112 B/op	       2 allocs/op
+BenchmarkHotPath_ExceptionSignalCatch-8        	13541706	        89.57 ns/op	     112 B/op	       2 allocs/op
+BenchmarkHotPath_ExceptionSignalCatch-8        	11590702	        92.76 ns/op	     112 B/op	       2 allocs/op
+BenchmarkHotPath_IntArithmeticLoop-8           	  174813	      6885 ns/op	      16 B/op	       1 allocs/op
+BenchmarkHotPath_IntArithmeticLoop-8           	  175622	      6800 ns/op	      16 B/op	       1 allocs/op
+BenchmarkHotPath_IntArithmeticLoop-8           	  173232	      6802 ns/op	      16 B/op	       1 allocs/op
+BenchmarkHotPath_IntArithmeticLoop-8           	  175189	      6801 ns/op	      16 B/op	       1 allocs/op
+BenchmarkHotPath_IntArithmeticLoop-8           	  176846	      6807 ns/op	      16 B/op	       1 allocs/op
+BenchmarkHotPath_ArrayAtPut-8                  	47236732	        28.19 ns/op	      16 B/op	       1 allocs/op
+BenchmarkHotPath_ArrayAtPut-8                  	32083773	        32.56 ns/op	      16 B/op	       1 allocs/op
+BenchmarkHotPath_ArrayAtPut-8                  	34136731	        34.55 ns/op	      16 B/op	       1 allocs/op
+BenchmarkHotPath_ArrayAtPut-8                  	32386806	        34.03 ns/op	      16 B/op	       1 allocs/op
+BenchmarkHotPath_ArrayAtPut-8                  	33642816	        33.93 ns/op	      16 B/op	       1 allocs/op
+BenchmarkHotPath_StringConcat-8                	 3079975	       392.1 ns/op	     141 B/op	       3 allocs/op
+BenchmarkHotPath_StringConcat-8                	 3128857	       407.1 ns/op	     146 B/op	       3 allocs/op
+BenchmarkHotPath_StringConcat-8                	 2683568	       432.1 ns/op	     148 B/op	       3 allocs/op
+BenchmarkHotPath_StringConcat-8                	 2679531	       428.5 ns/op	     146 B/op	       3 allocs/op
+BenchmarkHotPath_StringConcat-8                	 5409931	       321.0 ns/op	     195 B/op	       4 allocs/op
+BenchmarkHotPath_ProcessForkWait-8             	       0	               NaN ns/op	       0 B/op	       0 allocs/op
+BenchmarkHotPath_ProcessForkWait-8             	panic: (vm.SignaledException) 0x141c6ffce00
+
+goroutine 438 [running]:
+github.com/chazu/maggie/vm.(*VM).signalExceptionObject(0x14188959800?, 0x7ffc000008000001?, 0x1412db96140?)
+	/Users/chazu/dev/go/maggie/vm/exception.go:475 +0x48
+github.com/chazu/maggie/vm.(*VM).signalException(0x1418896e808, 0x141d0af5cb0, 0x7ffc000080000000)
+	/Users/chazu/dev/go/maggie/vm/exception.go:458 +0xa4
+github.com/chazu/maggie/vm.(*VM).registerObjectPrimitives.func22({0x105a7af40?, 0x1418896e808}, 0x7ffb000000000000, 0x1412167eaa0?)
+	/Users/chazu/dev/go/maggie/vm/object_primitives.go:268 +0x270
+github.com/chazu/maggie/vm.(*Method1).Invoke(0x1418896e808?, {0x105a7af40?, 0x1418896e808?}, 0x0?, {0x1417134e100?, 0x140ede8f338?, 0x140d6326d98?})
+	/Users/chazu/dev/go/maggie/vm/method.go:75 +0x4c
+github.com/chazu/maggie/vm.(*VM).sendDoesNotUnderstand(0x1418896e808, 0x7ffb000000000000, {0x105167013, 0x4}, {0x0, 0x0, 0x0})
+	/Users/chazu/dev/go/maggie/vm/vm.go:1113 +0xec
+github.com/chazu/maggie/vm.(*VM).Send(0x1418896e808, 0x7ffb000000000000, {0x105167013, 0x4}, {0x0, 0x0, 0x0})
+	/Users/chazu/dev/go/maggie/vm/vm.go:1074 +0x238
+github.com/chazu/maggie/vm.BenchmarkHotPath_ProcessForkWait(0x140001acdc8)
+	/Users/chazu/dev/go/maggie/vm/benchmark_test.go:1033 +0xa0
+testing.(*B).runN(0x140001acdc8, 0x64)
+	/Users/chazu/.local/share/mise/installs/go/1.25.8/src/testing/benchmark.go:219 +0x184
+testing.(*B).launch(0x140001acdc8)
+	/Users/chazu/.local/share/mise/installs/go/1.25.8/src/testing/benchmark.go:354 +0x174
+created by testing.(*B).doBench in goroutine 1
+	/Users/chazu/.local/share/mise/installs/go/1.25.8/src/testing/benchmark.go:296 +0x68
+exit status 2
+FAIL	github.com/chazu/maggie/vm	311.362s
+FAIL

@@ -974,9 +974,9 @@ func BenchmarkCaptureTrace(b *testing.B) {
 	for d := 0; d < 32; d++ {
 		i.fp++
 		if i.fp >= len(i.frames) {
-			i.frames = append(i.frames, &CallFrame{IP: d})
+			i.frames = append(i.frames, CallFrame{IP: d})
 		} else {
-			i.frames[i.fp] = &CallFrame{IP: d}
+			i.frames[i.fp] = CallFrame{IP: d}
 		}
 	}
 	b.ReportAllocs()
@@ -995,9 +995,9 @@ func TestCaptureTraceRespectsMaxDepth(t *testing.T) {
 	for i.fp+1 < depth {
 		i.fp++
 		if i.fp >= len(i.frames) {
-			i.frames = append(i.frames, &CallFrame{IP: i.fp})
+			i.frames = append(i.frames, CallFrame{IP: i.fp})
 		} else {
-			i.frames[i.fp] = &CallFrame{IP: i.fp}
+			i.frames[i.fp] = CallFrame{IP: i.fp}
 		}
 	}
 
