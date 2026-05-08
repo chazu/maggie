@@ -98,10 +98,10 @@ type Interpreter struct {
 	vm *VM
 
 	// Execution state
-	stack  []Value      // operand stack
-	sp     int          // stack pointer (points to next free slot)
-	frames []*CallFrame // call stack
-	fp     int          // frame pointer (current frame index)
+	stack  []Value     // operand stack
+	sp     int         // stack pointer (points to next free slot)
+	frames []CallFrame // call stack (value-type pool, no heap alloc per frame)
+	fp     int         // frame pointer (current frame index)
 
 	// Configurable limits (0 means use defaults)
 	MaxStackDepth int // Maximum operand stack depth before overflow
@@ -161,7 +161,7 @@ func newBareInterpreterWithConfig(cfg VMConfig) *Interpreter {
 	return &Interpreter{
 		stack:         make([]Value, cfg.InitialStack),
 		sp:            0,
-		frames:        make([]*CallFrame, cfg.InitialFrames),
+		frames:        make([]CallFrame, cfg.InitialFrames),
 		fp:            -1,
 		MaxStackDepth: cfg.MaxStackDepth,
 		MaxFrameDepth: cfg.MaxFrameDepth,
@@ -255,10 +255,7 @@ func (i *Interpreter) StackTrace() string {
 
 	var result string
 	for j := i.fp; j >= 0; j-- {
-		frame := i.frames[j]
-		if frame == nil {
-			continue
-		}
+		frame := &i.frames[j]
 
 		var location string
 		if frame.Block != nil {
@@ -348,14 +345,12 @@ func (i *Interpreter) dropN(n int) {
 
 // getTemp returns a temporary variable relative to the current frame's base pointer.
 func (i *Interpreter) getTemp(index int) Value {
-	frame := i.frames[i.fp]
-	return i.stack[frame.BP+index]
+	return i.stack[i.frames[i.fp].BP+index]
 }
 
 // setTemp sets a temporary variable relative to the current frame's base pointer.
 func (i *Interpreter) setTemp(index int, v Value) {
-	frame := i.frames[i.fp]
-	i.stack[frame.BP+index] = v
+	i.stack[i.frames[i.fp].BP+index] = v
 }
 
 // ---------------------------------------------------------------------------
@@ -410,7 +405,7 @@ func (i *Interpreter) pushFrame(method *CompiledMethod, receiver Value, args []V
 	i.fp++
 	if i.fp >= len(i.frames) {
 		// Grow the frame stack dynamically instead of panicking
-		newFrames := make([]*CallFrame, len(i.frames)*2)
+		newFrames := make([]CallFrame, len(i.frames)*2)
 		copy(newFrames, i.frames)
 		i.frames = newFrames
 	}
@@ -426,12 +421,17 @@ func (i *Interpreter) pushFrame(method *CompiledMethod, receiver Value, args []V
 		i.push(Nil)
 	}
 
-	i.frames[i.fp] = &CallFrame{
-		Method:   method,
-		Receiver: receiver,
-		IP:       0,
-		BP:       bp,
-	}
+	f := &i.frames[i.fp]
+	f.Method = method
+	f.Receiver = receiver
+	f.IP = 0
+	f.BP = bp
+	f.Block = nil
+	f.Captures = nil
+	f.HomeFrame = 0
+	f.HomeBP = 0
+	f.HomeSelf = Nil
+	f.HomeMethod = nil
 
 	// Profile method invocation
 	if i.Profiler != nil {
@@ -445,7 +445,7 @@ func (i *Interpreter) pushBlockFrame(block *BlockMethod, captures []Value, args 
 	i.fp++
 	if i.fp >= len(i.frames) {
 		// Grow the frame stack dynamically instead of panicking
-		newFrames := make([]*CallFrame, len(i.frames)*2)
+		newFrames := make([]CallFrame, len(i.frames)*2)
 		copy(newFrames, i.frames)
 		i.frames = newFrames
 	}
@@ -460,25 +460,24 @@ func (i *Interpreter) pushBlockFrame(block *BlockMethod, captures []Value, args 
 		i.push(Nil)
 	}
 
-	i.frames[i.fp] = &CallFrame{
-		Method:     nil, // block frame
-		Receiver:   Nil, // blocks don't have a receiver
-		IP:         0,
-		BP:         bp,
-		Block:      block,
-		Captures:   captures,
-		HomeFrame:  homeFrame,
-		HomeBP:     homeBP,
-		HomeSelf:   homeSelf,
-		HomeMethod: homeMethod, // method containing nested blocks
-	}
+	f := &i.frames[i.fp]
+	f.Method = nil // block frame
+	f.Receiver = Nil // blocks don't have a receiver
+	f.IP = 0
+	f.BP = bp
+	f.Block = block
+	f.Captures = captures
+	f.HomeFrame = homeFrame
+	f.HomeBP = homeBP
+	f.HomeSelf = homeSelf
+	f.HomeMethod = homeMethod // method containing nested blocks
 
 	// Profile block invocation
 	if i.Profiler != nil {
 		// Try to get the owning method from the home frame
 		var ownerMethod *CompiledMethod
 		blockIndex := -1
-		if homeFrame >= 0 && homeFrame < len(i.frames) && i.frames[homeFrame] != nil {
+		if homeFrame >= 0 && homeFrame < len(i.frames) {
 			ownerMethod = i.frames[homeFrame].Method
 			// Find block index in owner method
 			if ownerMethod != nil {
@@ -495,9 +494,10 @@ func (i *Interpreter) pushBlockFrame(block *BlockMethod, captures []Value, args 
 }
 
 func (i *Interpreter) popFrame() {
-	frame := i.frames[i.fp]
+	frame := &i.frames[i.fp]
 	i.sp = frame.BP // Discard temps
-	i.frames[i.fp] = nil
+	// Zero the frame to release GC-visible references (Receiver, Captures, etc.)
+	*frame = CallFrame{}
 	i.fp--
 	// NOTE: We intentionally do NOT release blocks when frames are popped.
 	// Blocks may escape their home frame (stored in Dictionaries, instance vars, etc.)
@@ -559,7 +559,7 @@ func (i *Interpreter) Execute(method *CompiledMethod, receiver Value, args []Val
 func (i *Interpreter) ExecuteBlock(block *BlockMethod, captures []Value, args []Value, homeFrame int, homeSelf Value, homeMethod *CompiledMethod) Value {
 	// Get the home frame's BP for OpPushHomeTemp/OpStoreHomeTemp
 	homeBP := 0
-	if homeFrame >= 0 && homeFrame < len(i.frames) && i.frames[homeFrame] != nil {
+	if homeFrame >= 0 && homeFrame <= i.fp {
 		homeBP = i.frames[homeFrame].BP
 	}
 	i.pushBlockFrame(block, captures, args, homeFrame, homeBP, homeSelf, homeMethod)
@@ -580,7 +580,7 @@ func (i *Interpreter) ExecuteBlockDetached(block *BlockMethod, captures []Value,
 // runFrame is the unified interpreter loop for both methods and blocks.
 func (i *Interpreter) runFrame() Value {
 	for {
-		frame := i.frames[i.fp]
+		frame := &i.frames[i.fp]
 		bc := frame.Bytecode()
 		literals := frame.Literals()
 		isBlock := frame.IsBlock()
@@ -1101,8 +1101,8 @@ func (i *Interpreter) send(selector int, argc int) (result Value) {
 	var method Method
 	var ic *InlineCache
 
-	callerFrame := i.frames[i.fp]
-	if callerFrame != nil && callerFrame.Method != nil && !callerFrame.IsBlock() {
+	callerFrame := &i.frames[i.fp]
+	if callerFrame.Method != nil && !callerFrame.IsBlock() {
 		// Calculate call site PC (IP is past the SEND instruction)
 		// OpSend = 1 byte opcode + 2 byte selector + 1 byte argc = 4 bytes
 		callSitePC := callerFrame.IP - 4
@@ -1422,10 +1422,7 @@ func (i *Interpreter) createContextForFrame(frameIdx int) *ContextValue {
 	if frameIdx < 0 || frameIdx > i.fp {
 		return nil
 	}
-	frame := i.frames[frameIdx]
-	if frame == nil {
-		return nil
-	}
+	frame := &i.frames[frameIdx]
 
 	ctx := &ContextValue{
 		Receiver:   frame.Self(),
@@ -1501,29 +1498,27 @@ func (i *Interpreter) createBlockValue(block *BlockMethod, captures []Value) Val
 	var homeSelf Value = Nil
 	var homeMethod *CompiledMethod
 	if i.fp >= 0 {
-		frame := i.frames[i.fp]
-		if frame != nil {
-			homeMethod = frame.Method // capture the method (may be nil for block frames)
-			if frame.Block != nil {
-				// We're inside a block. Use HomeSelf which was captured when
-				// this block was created (correct for both same-interpreter
-				// and detached/forked blocks).
-				homeSelf = frame.HomeSelf
-				if frame.HomeFrame >= 0 {
-					homeFrame = frame.HomeFrame
-					// Also get homeMethod from the actual home frame
-					if homeFrame < len(i.frames) && i.frames[homeFrame] != nil {
-						homeMethod = i.frames[homeFrame].Method
-					}
+		frame := &i.frames[i.fp]
+		homeMethod = frame.Method // capture the method (may be nil for block frames)
+		if frame.Block != nil {
+			// We're inside a block. Use HomeSelf which was captured when
+			// this block was created (correct for both same-interpreter
+			// and detached/forked blocks).
+			homeSelf = frame.HomeSelf
+			if frame.HomeFrame >= 0 {
+				homeFrame = frame.HomeFrame
+				// Also get homeMethod from the actual home frame
+				if homeFrame <= i.fp {
+					homeMethod = i.frames[homeFrame].Method
 				}
-			} else {
-				// We're in a method frame. The receiver is self.
-				homeSelf = frame.Receiver
 			}
-			// If frame has a HomeMethod set (e.g., from ExecuteBlock), use that
-			if frame.HomeMethod != nil {
-				homeMethod = frame.HomeMethod
-			}
+		} else {
+			// We're in a method frame. The receiver is self.
+			homeSelf = frame.Receiver
+		}
+		// If frame has a HomeMethod set (e.g., from ExecuteBlock), use that
+		if frame.HomeMethod != nil {
+			homeMethod = frame.HomeMethod
 		}
 	}
 

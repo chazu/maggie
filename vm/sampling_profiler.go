@@ -179,10 +179,7 @@ func (sp *SamplingProfiler) sampleInterpreter(interp *Interpreter) {
 	// Build stack from bottom to top (root of call tree first)
 	stack := make([]string, 0, fp+1)
 	for i := 0; i <= fp; i++ {
-		frame := interp.frames[i]
-		if frame == nil {
-			continue
-		}
+		frame := &interp.frames[i]
 		label := sp.frameLabel(frame)
 		if label != "" {
 			stack = append(stack, label)

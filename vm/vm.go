@@ -1373,11 +1373,9 @@ func (vm *VM) CollectGarbage() int {
 	// Mark objects reachable from frames (temps on stack are already covered,
 	// but Receiver values need marking)
 	for i := 0; i <= vm.interpreter.fp; i++ {
-		if vm.interpreter.frames[i] != nil {
-			vm.markValue(vm.interpreter.frames[i].Receiver, marked)
-			if vm.interpreter.frames[i].HomeSelf != Nil {
-				vm.markValue(vm.interpreter.frames[i].HomeSelf, marked)
-			}
+		vm.markValue(vm.interpreter.frames[i].Receiver, marked)
+		if vm.interpreter.frames[i].HomeSelf != Nil {
+			vm.markValue(vm.interpreter.frames[i].HomeSelf, marked)
 		}
 	}
 

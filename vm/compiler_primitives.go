@@ -425,10 +425,7 @@ func (vm *VM) registerCompilerPrimitives() {
 		}
 		var frames []Value
 		for j := interp.fp; j >= 0; j-- {
-			frame := interp.frames[j]
-			if frame == nil {
-				continue
-			}
+			frame := &interp.frames[j]
 			dict := v.NewDictionary()
 			v.DictionaryAtPut(dict, v.registry.NewStringValue("id"), FromSmallInt(int64(j)))
 

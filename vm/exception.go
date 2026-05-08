@@ -493,10 +493,7 @@ func (i *Interpreter) CaptureTrace(maxDepth int) []TraceFrame {
 	}
 	out := make([]TraceFrame, 0, depth)
 	for j := i.fp; j >= 0 && len(out) < depth; j-- {
-		frame := i.frames[j]
-		if frame == nil {
-			continue
-		}
+		frame := &i.frames[j]
 		tf := TraceFrame{IP: frame.IP}
 		if frame.Block != nil {
 			tf.Block = frame.Block

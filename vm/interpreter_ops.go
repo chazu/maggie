@@ -236,7 +236,7 @@ func (i *Interpreter) execSendSuper(frame *CallFrame, bc []byte, isBlock bool) (
 	// For blocks, we need to find the method from the home frame
 	var method *CompiledMethod
 	if isBlock {
-		if frame.HomeFrame >= 0 && frame.HomeFrame < len(i.frames) && i.frames[frame.HomeFrame] != nil {
+		if frame.HomeFrame >= 0 && frame.HomeFrame <= i.fp {
 			method = i.frames[frame.HomeFrame].Method
 		}
 	} else {
@@ -317,7 +317,7 @@ func (i *Interpreter) execCreateBlock(frame *CallFrame, bc []byte, isBlock bool)
 		// This handles the case where a block is executed in a different goroutine/interpreter
 		if frame.HomeMethod != nil && int(methodIdx) < len(frame.HomeMethod.Blocks) {
 			block = frame.HomeMethod.Blocks[methodIdx]
-		} else if frame.HomeFrame >= 0 && frame.HomeFrame < len(i.frames) && i.frames[frame.HomeFrame] != nil {
+		} else if frame.HomeFrame >= 0 && frame.HomeFrame <= i.fp {
 			// Fall back to looking up from the home frame's method (same-interpreter case)
 			homeMethod := i.frames[frame.HomeFrame].Method
 			if homeMethod != nil && int(methodIdx) < len(homeMethod.Blocks) {

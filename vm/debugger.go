@@ -369,10 +369,7 @@ func (d *DebugServer) GetCallStack(interp *Interpreter) []StackFrame {
 	frames := make([]StackFrame, 0, interp.fp+1)
 
 	for i := interp.fp; i >= 0; i-- {
-		frame := interp.frames[i]
-		if frame == nil {
-			continue
-		}
+		frame := &interp.frames[i]
 
 		sf := StackFrame{
 			ID: i,
@@ -427,10 +424,7 @@ func (d *DebugServer) GetVariables(interp *Interpreter, frameID int) []Variable 
 		return nil
 	}
 
-	frame := interp.frames[frameID]
-	if frame == nil {
-		return nil
-	}
+	frame := &interp.frames[frameID]
 
 	var variables []Variable
 
@@ -523,10 +517,7 @@ func (d *DebugServer) GetVariableValue(interp *Interpreter, frameID int, name st
 		return Nil, false
 	}
 
-	frame := interp.frames[frameID]
-	if frame == nil {
-		return Nil, false
-	}
+	frame := &interp.frames[frameID]
 
 	// Check for "self"
 	if name == "self" {
