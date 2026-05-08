@@ -1017,57 +1017,6 @@ func (ir *ImageReader) remapBytecodeSelectors(bytecode []byte) {
 // Object Reading
 // ---------------------------------------------------------------------------
 
-// ReadObjects reads objects from the image.
-func (ir *ImageReader) ReadObjects(vm *VM) ([]*Object, error) {
-	// Read count
-	count, err := ir.readUint32()
-	if err != nil {
-		return nil, fmt.Errorf("failed to read object count: %w", err)
-	}
-
-	// Each object needs at least classIdx(4)+slotCount(4) = 8 bytes
-	if err := ir.validateAllocation(count, 8, "object table"); err != nil {
-		return nil, err
-	}
-
-	ir.objects = make([]*Object, count)
-
-	// First pass: create all objects with nil slots
-	for i := uint32(0); i < count; i++ {
-		// Read class index
-		classIdx, err := ir.readUint32()
-		if err != nil {
-			return nil, fmt.Errorf("failed to read object %d class index: %w", i, err)
-		}
-
-		if int(classIdx) >= len(ir.classes) {
-			return nil, fmt.Errorf("%w: object %d references class %d", ErrInvalidClassIndex, i, classIdx)
-		}
-
-		class := ir.classes[classIdx]
-
-		// Read slot count
-		slotCount, err := ir.readUint32()
-		if err != nil {
-			return nil, fmt.Errorf("failed to read object %d slot count: %w", i, err)
-		}
-
-		// Create object
-		obj := NewObject(class.VTable, int(slotCount))
-		ir.objects[i] = obj
-		ir.decoder.AddObject(obj)
-	}
-
-	// Second pass: read slot values (now that all objects exist for cross-references)
-	ir.offset = ir.offset // Continue from current position
-
-	// We need to re-read to get slot data - reset and skip to slot data
-	// Actually, we should read slots inline with object creation
-	// Let me restructure this...
-
-	return ir.objects, nil
-}
-
 // ReadObjectsWithSlots reads objects and their slot values.
 func (ir *ImageReader) ReadObjectsWithSlots(vm *VM) ([]*Object, error) {
 	// Read count

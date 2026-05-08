@@ -412,8 +412,8 @@ func (r *BytecodeReader) ReadOpcode() Opcode {
 	return op
 }
 
-// ReadByte reads a single byte operand.
-func (r *BytecodeReader) ReadByte() byte {
+// ReadOperandByte reads a single byte operand.
+func (r *BytecodeReader) ReadOperandByte() byte {
 	if r.pos >= len(r.bytes) {
 		panic("bytecode underflow")
 	}
@@ -424,7 +424,7 @@ func (r *BytecodeReader) ReadByte() byte {
 
 // ReadInt8 reads a signed 8-bit operand.
 func (r *BytecodeReader) ReadInt8() int8 {
-	return int8(r.ReadByte())
+	return int8(r.ReadOperandByte())
 }
 
 // ReadUint16 reads a 16-bit operand (little-endian).
@@ -503,19 +503,19 @@ func DisassembleInstruction(r *BytecodeReader) string {
 		return fmt.Sprintf("%04d  %s %d", pos, info.Name, v)
 
 	case OpPushTemp, OpPushIvar, OpStoreTemp, OpStoreIvar, OpPushCaptured, OpStoreCaptured, OpPushHomeTemp, OpStoreHomeTemp:
-		idx := r.ReadByte()
+		idx := r.ReadOperandByte()
 		return fmt.Sprintf("%04d  %s %d", pos, info.Name, idx)
 
 	case OpCaptureTemp, OpCaptureIvar:
-		idx := r.ReadByte()
+		idx := r.ReadOperandByte()
 		return fmt.Sprintf("%04d  %s %d", pos, info.Name, idx)
 
 	case OpCreateArray:
-		size := r.ReadByte()
+		size := r.ReadOperandByte()
 		return fmt.Sprintf("%04d  %s %d", pos, info.Name, size)
 
 	case OpCreateDict:
-		pairs := r.ReadByte()
+		pairs := r.ReadOperandByte()
 		return fmt.Sprintf("%04d  %s %d", pos, info.Name, pairs)
 
 	// 16-bit operand
@@ -541,17 +541,17 @@ func DisassembleInstruction(r *BytecodeReader) string {
 	// Complex operands
 	case OpSend, OpSendSuper, OpTailSend:
 		selector := r.ReadUint16()
-		argc := r.ReadByte()
+		argc := r.ReadOperandByte()
 		return fmt.Sprintf("%04d  %s selector=%d argc=%d", pos, info.Name, selector, argc)
 
 	case OpCreateBlock:
 		methodIdx := r.ReadUint16()
-		nCaptures := r.ReadByte()
+		nCaptures := r.ReadOperandByte()
 		return fmt.Sprintf("%04d  %s method=%d captures=%d", pos, info.Name, methodIdx, nCaptures)
 
 	case OpCreateObject:
 		classIdx := r.ReadUint16()
-		nSlots := r.ReadByte()
+		nSlots := r.ReadOperandByte()
 		return fmt.Sprintf("%04d  %s class=%d slots=%d", pos, info.Name, classIdx, nSlots)
 
 	default:

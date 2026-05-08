@@ -3,6 +3,7 @@ package vm
 import (
 	"fmt"
 	"sync"
+	"sync/atomic"
 )
 
 // ---------------------------------------------------------------------------
@@ -13,7 +14,7 @@ import (
 // It supports breakpoints, pause/resume, stepping, and variable inspection.
 type DebugServer struct {
 	vm          *VM
-	active      bool
+	active      atomic.Bool
 	breakpoints map[breakpointKey]bool
 	pauseChan   chan pauseRequest
 	resumeChan  chan struct{}
@@ -107,7 +108,6 @@ type Breakpoint struct {
 func NewDebugServer(vm *VM) *DebugServer {
 	return &DebugServer{
 		vm:          vm,
-		active:      false,
 		breakpoints: make(map[breakpointKey]bool),
 		pauseChan:   make(chan pauseRequest, 1),
 		resumeChan:  make(chan struct{}, 1),
@@ -120,23 +120,21 @@ func NewDebugServer(vm *VM) *DebugServer {
 func (d *DebugServer) Activate() {
 	d.mu.Lock()
 	defer d.mu.Unlock()
-	d.active = true
+	d.active.Store(true)
 }
 
 // Deactivate disables the debug server.
 func (d *DebugServer) Deactivate() {
 	d.mu.Lock()
 	defer d.mu.Unlock()
-	d.active = false
+	d.active.Store(false)
 	// Clear all breakpoints
 	d.breakpoints = make(map[breakpointKey]bool)
 }
 
 // IsActive returns whether the debug server is enabled.
 func (d *DebugServer) IsActive() bool {
-	d.mu.Lock()
-	defer d.mu.Unlock()
-	return d.active
+	return d.active.Load()
 }
 
 // Events returns the event channel for receiving debug events.
@@ -275,7 +273,7 @@ func (d *DebugServer) Pause() {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
-	if !d.active {
+	if !d.active.Load() {
 		return
 	}
 
@@ -635,7 +633,7 @@ func (d *DebugServer) ShouldBreak(class, method string, line, framePtr int) (boo
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
-	if !d.active {
+	if !d.active.Load() {
 		return false, ""
 	}
 
