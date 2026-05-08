@@ -165,7 +165,8 @@ func newBareInterpreterWithConfig(cfg VMConfig) *Interpreter {
 		fp:            -1,
 		MaxStackDepth: cfg.MaxStackDepth,
 		MaxFrameDepth: cfg.MaxFrameDepth,
-		Profiler:      NewProfiler(),
+		// Profiler is nil by default; create with NewProfiler() when needed.
+		// This avoids sync.Map and block-index scanning on every frame push.
 	}
 }
 
