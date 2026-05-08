@@ -20,7 +20,7 @@ func TestNewDebugServer(t *testing.T) {
 		t.Error("DebugServer.vm not set correctly")
 	}
 
-	if ds.active {
+	if ds.active.Load() {
 		t.Error("DebugServer should not be active by default")
 	}
 

@@ -2,6 +2,8 @@ module github.com/chazu/maggie
 
 go 1.25.7
 
+toolchain go1.25.8
+
 require (
 	connectrpc.com/connect v1.19.1
 	cuelang.org/go v0.15.4
