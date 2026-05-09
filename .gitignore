@@ -9,6 +9,7 @@
 
 # Test artifacts
 *.native
+*.prof
 /tmp/
 
 # Go
