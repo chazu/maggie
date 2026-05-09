@@ -291,11 +291,12 @@ func (i *Interpreter) execReturnTop(frame *CallFrame, isBlock bool) Value {
 			i.popFrame()
 			return result
 		}
-		// Non-local return: set unwinding flag instead of panic
+	// Non-local return: set unwinding flag instead of panic
+		homeFrame := frame.HomeFrame // save before popFrame zeroes the frame
 		i.popFrame()
 		i.unwinding = true
 		i.unwindValue = result
-		i.unwindTarget = frame.HomeFrame
+		i.unwindTarget = homeFrame
 		return Nil
 	}
 	// Method: local return

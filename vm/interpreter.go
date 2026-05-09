@@ -588,11 +588,12 @@ func (i *Interpreter) runFrame() Value {
 
 		if frame.IP >= len(bc) {
 			// Implicit return at end of frame
+			receiver := frame.Receiver // save before popFrame zeroes the frame
 			i.popFrame()
 			if isBlock {
 				return Nil // Blocks return nil implicitly
 			}
-			return frame.Receiver // Methods return self implicitly
+			return receiver // Methods return self implicitly
 		}
 
 		// --- Debugger hook ---
@@ -1165,9 +1166,18 @@ func (i *Interpreter) send(selector int, argc int) (result Value) {
 		atomic.StorePointer(&i.activePrimitiveName, unsafe.Pointer(&name))
 		result = method.Invoke(i.vm, rcvr, argsCopy)
 		atomic.StorePointer(&i.activePrimitiveName, nil)
-		return result
+	} else {
+		result = method.Invoke(i.vm, rcvr, argsCopy)
 	}
-	return method.Invoke(i.vm, rcvr, argsCopy)
+
+	// Primitives that evaluate blocks (e.g. ifTrue:, whileTrue:) can
+	// trigger a non-local return, setting i.unwinding.  Propagate the
+	// unwind value so the caller's runFrame loop handles it correctly
+	// instead of pushing the primitive's own return value.
+	if i.unwinding {
+		return i.unwindValue
+	}
+	return result
 }
 
 // handleNLR checks whether the interpreter is unwinding due to a non-local
@@ -1289,9 +1299,15 @@ func (i *Interpreter) sendSuper(selector int, argc int, callingMethod *CompiledM
 		atomic.StorePointer(&i.activePrimitiveName, unsafe.Pointer(&name))
 		result = method.Invoke(i.vm, rcvr, argsCopy)
 		atomic.StorePointer(&i.activePrimitiveName, nil)
-		return result
+	} else {
+		result = method.Invoke(i.vm, rcvr, argsCopy)
 	}
-	return method.Invoke(i.vm, rcvr, argsCopy)
+
+	// Primitives that evaluate blocks can trigger NLR (see send()).
+	if i.unwinding {
+		return i.unwindValue
+	}
+	return result
 }
 
 // vtableFor returns the vtable for a value.
