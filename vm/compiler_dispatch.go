@@ -192,19 +192,8 @@ func (m *MaggieCompilerBackend) Compile(source string, class *Class) (*CompiledM
 	sourceVal := m.vm.registry.NewStringValue(source)
 	resultVal := m.vm.Send(compilerInstance, "compile:", []Value{sourceVal})
 
-	// Debug: what did compile: return?
-	// fmt.Printf("DEBUG compile: resultVal = %v (IsNil: %v, IsDictionary: %v)\n",
-	// 	resultVal, resultVal == Nil, IsDictionaryValue(resultVal))
-	if IsDictionaryValue(resultVal) {
-		dict := m.vm.registry.GetDictionaryObject(resultVal)
-		if dict != nil {
-// 			fmt.Printf("DEBUG compile: dictionary entries: %d\n", len(dict.Data))
-		}
-	}
-
-	// Extract the CompiledMethod from the result
 	// The Maggie compiler returns a Dictionary with bytecode, literals, etc.
-	// We need to convert it to a CompiledMethod
+	// Convert it to a CompiledMethod.
 	return m.extractCompiledMethod(resultVal, class, source)
 }
 
@@ -248,24 +237,9 @@ func (m *MaggieCompilerBackend) extractCompiledMethod(resultVal Value, class *Cl
 		return nil, nil
 	}
 
-	// Debug: print dictionary keys
-	// if IsDictionaryValue(resultVal) {
-	// 	dict := GetDictionaryObject(resultVal)
-	// 	if dict != nil {
-	// 		for h, key := range dict.Keys {
-	// 			if key.IsSymbolEncoded() {
-	// 				fmt.Printf(" (symbol: %s)", m.vm.Symbols.Name(key.SymbolID()))
-	// 			}
-	// 			fmt.Printf(", value=%v\n", dict.Data[h])
-	// 		}
-	// 	}
-	// }
-
 	// Extract selector
 	selectorKey := m.vm.Symbols.SymbolValue("selector")
-// 	fmt.Printf("DEBUG extractCompiledMethod: looking for 'selector' key=%v (hash=%d)\n", selectorKey, hashValue(selectorKey))
 	selectorVal := m.vm.Send(resultVal, "at:", []Value{selectorKey})
-// 	fmt.Printf("DEBUG extractCompiledMethod: selectorVal=%v\n", selectorVal)
 	selector := ""
 	if selectorVal.IsSymbol() {
 		selector = m.vm.Symbols.Name(selectorVal.SymbolID())
