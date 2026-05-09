@@ -92,12 +92,17 @@ type ConcurrencyRegistry struct {
 	// blockSlotGen is bumped. Stale Values pointing at the old (slot, gen)
 	// fail the gen check at lookup and resolve to nil instead of aliasing
 	// onto whatever block now lives in that slot.
-	blocks            map[int]*BlockValue
-	blockSlotGen      map[int]uint16  // current generation per slot id
+	//
+	// blocks and blockSlotGen are slices indexed by slot id (much faster
+	// than map[int] for the hot GetBlock path). They grow on demand under
+	// blocksMu.
+	blocks            []*BlockValue   // slot id -> *BlockValue (nil = empty)
+	blockSlotGen      []uint16        // slot id -> current generation
 	freeBlockSlots    []int           // recycled slot ids waiting to be reused
-	blocksByHomeFrame map[int][]int   // maps frameIndex → list of blockIDs
+	blocksByHomeFrame map[int][]int   // maps frameIndex -> list of blockIDs
 	blocksMu          sync.RWMutex
 	blockID           atomic.Int64    // grows only when no free slot available
+	blockLiveCount    int             // number of non-nil entries in blocks
 
 	// Future registry
 	futures   map[int]*FutureObject
@@ -127,8 +132,8 @@ func NewConcurrencyRegistry() *ConcurrencyRegistry {
 		waitGroups:           make(map[int]*WaitGroupObject),
 		semaphores:           make(map[int]*SemaphoreObject),
 		cancellationContexts: make(map[int]*CancellationContextObject),
-		blocks:               make(map[int]*BlockValue),
-		blockSlotGen:         make(map[int]uint16),
+		blocks:               make([]*BlockValue, 0, 256),
+		blockSlotGen:         make([]uint16, 0, 256),
 		blocksByHomeFrame:    make(map[int][]int),
 		futures:              make(map[int]*FutureObject),
 		arrayLists:           make(map[int]*ArrayListObject),
@@ -459,10 +464,27 @@ func (cr *ConcurrencyRegistry) RegisterBlock(bv *BlockValue) Value {
 			panic(fmt.Sprintf("ConcurrencyRegistry: block slot id space exhausted (max %d live blocks)", blockSlotMaxID))
 		}
 		slot = int(next)
+		// Grow slices to accommodate the new slot
+		for slot >= len(cr.blocks) {
+			newCap := len(cr.blocks) * 2
+			if newCap == 0 {
+				newCap = 256
+			}
+			if newCap <= slot {
+				newCap = slot + 1
+			}
+			newBlocks := make([]*BlockValue, newCap)
+			copy(newBlocks, cr.blocks)
+			cr.blocks = newBlocks
+			newGens := make([]uint16, newCap)
+			copy(newGens, cr.blockSlotGen)
+			cr.blockSlotGen = newGens
+		}
 	}
 
 	gen := cr.blockSlotGen[slot] // 0 for fresh slot, current gen for recycled
 	cr.blocks[slot] = bv
+	cr.blockLiveCount++
 	cr.blocksByHomeFrame[bv.HomeFrame] = append(cr.blocksByHomeFrame[bv.HomeFrame], slot)
 
 	return FromBlockSlotGen(uint32(slot), gen)
@@ -478,11 +500,17 @@ func (cr *ConcurrencyRegistry) GetBlock(v Value) *BlockValue {
 	gen := v.BlockGen()
 
 	cr.blocksMu.RLock()
-	defer cr.blocksMu.RUnlock()
-	if cr.blockSlotGen[slot] != gen {
+	if slot >= len(cr.blocks) {
+		cr.blocksMu.RUnlock()
 		return nil
 	}
-	return cr.blocks[slot]
+	if cr.blockSlotGen[slot] != gen {
+		cr.blocksMu.RUnlock()
+		return nil
+	}
+	bv := cr.blocks[slot]
+	cr.blocksMu.RUnlock()
+	return bv
 }
 
 // HasBlock reports whether the Value still resolves to a live block.
@@ -503,13 +531,14 @@ func (cr *ConcurrencyRegistry) ReleaseBlock(v Value) {
 
 	cr.blocksMu.Lock()
 	defer cr.blocksMu.Unlock()
-	if cr.blockSlotGen[slot] != gen {
+	if slot >= len(cr.blocks) || cr.blockSlotGen[slot] != gen {
 		return // already released or recycled
 	}
-	if _, ok := cr.blocks[slot]; !ok {
+	if cr.blocks[slot] == nil {
 		return
 	}
-	delete(cr.blocks, slot)
+	cr.blocks[slot] = nil
+	cr.blockLiveCount--
 	cr.blockSlotGen[slot] = nextBlockGen(gen)
 	cr.freeBlockSlots = append(cr.freeBlockSlots, slot)
 }
@@ -526,17 +555,21 @@ func (cr *ConcurrencyRegistry) ReleaseBlocksForFrame(frameIndex int) {
 		return
 	}
 	for _, slot := range slots {
-		bv, present := cr.blocks[slot]
-		if !present {
+		if slot >= len(cr.blocks) {
+			continue
+		}
+		bv := cr.blocks[slot]
+		if bv == nil {
 			continue
 		}
 		// Defensive: if the slot has since been recycled to a block with
-		// a different home frame, skip — the per-frame slice may carry
+		// a different home frame, skip - the per-frame slice may carry
 		// stale entries.
 		if bv.HomeFrame != frameIndex {
 			continue
 		}
-		delete(cr.blocks, slot)
+		cr.blocks[slot] = nil
+		cr.blockLiveCount--
 		cr.blockSlotGen[slot] = nextBlockGen(cr.blockSlotGen[slot])
 		cr.freeBlockSlots = append(cr.freeBlockSlots, slot)
 	}
@@ -552,11 +585,15 @@ func (cr *ConcurrencyRegistry) SweepBlocks(validFrames map[int]bool) int {
 
 	swept := 0
 	for slot, bv := range cr.blocks {
+		if bv == nil {
+			continue
+		}
 		if bv.HomeFrame == -1 {
 			continue
 		}
 		if !validFrames[bv.HomeFrame] {
-			delete(cr.blocks, slot)
+			cr.blocks[slot] = nil
+			cr.blockLiveCount--
 			cr.blockSlotGen[slot] = nextBlockGen(cr.blockSlotGen[slot])
 			cr.freeBlockSlots = append(cr.freeBlockSlots, slot)
 			swept++
@@ -575,11 +612,11 @@ func (cr *ConcurrencyRegistry) SweepBlocks(validFrames map[int]bool) int {
 	return swept
 }
 
-// BlockCount returns the number of registered blocks.
+// BlockCount returns the number of live (non-nil) registered blocks.
 func (cr *ConcurrencyRegistry) BlockCount() int {
 	cr.blocksMu.RLock()
 	defer cr.blocksMu.RUnlock()
-	return len(cr.blocks)
+	return cr.blockLiveCount
 }
 
 // BlocksByHomeFrameCount returns the number of blocks tracked for a given home frame.
