@@ -469,6 +469,7 @@ func TestProfilerStatsDuringCompilation(t *testing.T) {
 	if err := vmInst.LoadImage(imagePath); err != nil {
 		t.Fatalf("Failed to load maggie.image: %v", err)
 	}
+	vmInst.EnableProfiler() // profiler is nil by default; enable for this test
 	vmInst.UseGoCompiler(compiler.Compile)
 	vmInst.UseMaggieCompiler()
 

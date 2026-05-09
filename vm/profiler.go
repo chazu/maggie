@@ -149,6 +149,9 @@ type ProfilerStats struct {
 // Stats returns aggregate profiling statistics.
 func (p *Profiler) Stats() ProfilerStats {
 	var stats ProfilerStats
+	if p == nil {
+		return stats
+	}
 
 	p.methodProfiles.Range(func(key, value interface{}) bool {
 		profile := value.(*MethodProfile)
@@ -176,6 +179,9 @@ func (p *Profiler) Stats() ProfilerStats {
 
 // HotMethods returns all methods that have exceeded the hot threshold.
 func (p *Profiler) HotMethods() []*CompiledMethod {
+	if p == nil {
+		return nil
+	}
 	var hot []*CompiledMethod
 	p.methodProfiles.Range(func(key, value interface{}) bool {
 		method := key.(*CompiledMethod)
@@ -190,6 +196,9 @@ func (p *Profiler) HotMethods() []*CompiledMethod {
 
 // HotBlocks returns all blocks that have exceeded the hot threshold.
 func (p *Profiler) HotBlocks() []*BlockMethod {
+	if p == nil {
+		return nil
+	}
 	var hot []*BlockMethod
 	p.blockProfiles.Range(func(key, value interface{}) bool {
 		block := key.(*BlockMethod)
@@ -204,6 +213,9 @@ func (p *Profiler) HotBlocks() []*BlockMethod {
 
 // TopMethods returns the N most frequently invoked methods.
 func (p *Profiler) TopMethods(n int) []*CompiledMethod {
+	if p == nil {
+		return nil
+	}
 	type methodCount struct {
 		method *CompiledMethod
 		count  uint64
@@ -237,6 +249,9 @@ func (p *Profiler) TopMethods(n int) []*CompiledMethod {
 
 // TopBlocks returns the N most frequently invoked blocks.
 func (p *Profiler) TopBlocks(n int) []*BlockMethod {
+	if p == nil {
+		return nil
+	}
 	type blockCount struct {
 		block *BlockMethod
 		count uint64
@@ -270,6 +285,9 @@ func (p *Profiler) TopBlocks(n int) []*BlockMethod {
 
 // Reset clears all profiling data.
 func (p *Profiler) Reset() {
+	if p == nil {
+		return
+	}
 	p.methodProfiles = sync.Map{}
 	p.blockProfiles = sync.Map{}
 	atomic.StoreUint64(&p.hotMethodCount, 0)

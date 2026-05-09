@@ -1034,6 +1034,15 @@ func (vm *VM) GetProfiler() *Profiler {
 	return vm.interpreter.Profiler
 }
 
+// EnableProfiler creates and attaches a Profiler to the VM's interpreter.
+// The profiler is nil by default; call this to start recording invocation
+// counts for hot-code detection.
+func (vm *VM) EnableProfiler() {
+	if vm.interpreter.Profiler == nil {
+		vm.interpreter.Profiler = NewProfiler()
+	}
+}
+
 // Send sends a message to a receiver.
 func (vm *VM) Send(receiver Value, selector string, args []Value) Value {
 	selectorID := vm.Selectors.Intern(selector)
