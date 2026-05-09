@@ -277,7 +277,8 @@ func (v Value) ObjectPtr() unsafe.Pointer {
 	if !v.IsObject() {
 		panic("Value.ObjectPtr: not an object")
 	}
-	return unsafe.Pointer(uintptr(uint64(v) & payloadMask))
+	bits := uintptr(uint64(v) & payloadMask)
+	return *(*unsafe.Pointer)(unsafe.Pointer(&bits))
 }
 
 // FromObjectPtr creates a Value from an unsafe.Pointer.
@@ -411,7 +412,8 @@ func (v Value) CellPtr() *Cell {
 	if !v.IsCell() {
 		panic("Value.CellPtr: not a cell")
 	}
-	return (*Cell)(unsafe.Pointer(uintptr(uint64(v) & payloadMask)))
+	bits := uintptr(uint64(v) & payloadMask)
+	return (*Cell)(*(*unsafe.Pointer)(unsafe.Pointer(&bits)))
 }
 
 // FromCellPtr creates a Value from a Cell pointer.
