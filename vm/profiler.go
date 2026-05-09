@@ -58,8 +58,11 @@ func (p *Profiler) RecordMethodInvocation(method *CompiledMethod) bool {
 		return false
 	}
 
-	// Get or create profile
-	val, _ := p.methodProfiles.LoadOrStore(method, &MethodProfile{})
+	// Fast path: Load first to avoid allocating a MethodProfile on every call.
+	val, ok := p.methodProfiles.Load(method)
+	if !ok {
+		val, _ = p.methodProfiles.LoadOrStore(method, &MethodProfile{})
+	}
 	profile := val.(*MethodProfile)
 
 	// Atomic increment
@@ -82,15 +85,19 @@ func (p *Profiler) RecordBlockInvocation(block *BlockMethod, owner *CompiledMeth
 		return false
 	}
 
-	// Get or create profile
-	val, loaded := p.blockProfiles.LoadOrStore(block, &BlockProfile{
-		OwningMethod: owner,
-		BlockIndex:   blockIndex,
-	})
+	// Fast path: Load first to avoid allocating a BlockProfile on every call.
+	val, ok := p.blockProfiles.Load(block)
+	if !ok {
+		// Slow path: first invocation for this block.
+		val, _ = p.blockProfiles.LoadOrStore(block, &BlockProfile{
+			OwningMethod: owner,
+			BlockIndex:   blockIndex,
+		})
+	}
 	profile := val.(*BlockProfile)
 
 	// Update owner info if this is an existing profile without it
-	if loaded && profile.OwningMethod == nil {
+	if profile.OwningMethod == nil && owner != nil {
 		profile.OwningMethod = owner
 		profile.BlockIndex = blockIndex
 	}
