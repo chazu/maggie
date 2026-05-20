@@ -1,5 +1,5 @@
 """
-An ordered, fixed-size collection of elements accessed by 0-based index.
+An ordered, fixed-size collection of elements accessed by 1-based index.
 
 Arrays are created with `Array new: size` (all elements nil) or with the
 literal syntax `#(1 2 3)`. Elements can be any object. Use collect:,
@@ -32,11 +32,11 @@ Array subclass: Object
   ]
 
   """
-  Return the element at a 0-based index.
+  Return the element at a 1-based index.
 
   ```test
-  #(10 20 30) at: 0 >>> 10
-  #(10 20 30) at: 2 >>> 30
+  #(10 20 30) at: 1 >>> 10
+  #(10 20 30) at: 3 >>> 30
   ```
   """
   method: at: index <Integer> [
@@ -44,12 +44,12 @@ Array subclass: Object
   ]
 
   """
-  Set the element at a 0-based index. Returns the value stored.
+  Set the element at a 1-based index. Returns the value stored.
 
   ```test
   a := Array new: 3.
-  a at: 1 put: 42.
-  a at: 1 >>> 42
+  a at: 2 put: 42.
+  a at: 2 >>> 42
   ```
   """
   method: at: index <Integer> put: value [
@@ -64,7 +64,7 @@ Array subclass: Object
   ```
   """
   method: first [
-      ^self at: 0
+      ^self at: 1
   ]
 
   """
@@ -76,7 +76,7 @@ Array subclass: Object
   ```
   """
   method: last [
-      ^self at: self size - 1
+      ^self at: self size
   ]
 
   """
@@ -113,7 +113,7 @@ Array subclass: Object
   ```
   """
   method: do: block [
-      0 to: self size - 1 do: [:i | block value: (self at: i)]
+      1 to: self size do: [:i | block value: (self at: i)]
   ]
 
   """
@@ -132,7 +132,7 @@ Array subclass: Object
   method: collect: block ^<Array> [
       | result <Array> |
       result := Array new: self size.
-      0 to: self size - 1 do: [:i | result at: i put: (block value: (self at: i))].
+      1 to: self size do: [:i | result at: i put: (block value: (self at: i))].
       ^result
   ]
 
@@ -227,16 +227,16 @@ Array subclass: Object
   ]
 
   """
-  Return the 0-based index of anObject, or -1 if not found.
+  Return the 1-based index of anObject, or 0 if not found.
 
   ```test
-  #(10 20 30) indexOf: 20 >>> 1
-  #(10 20 30) indexOf: 99 >>> -1
+  #(10 20 30) indexOf: 20 >>> 2
+  #(10 20 30) indexOf: 99 >>> 0
   ```
   """
   method: indexOf: anObject ^<Integer> [
-      0 to: self size - 1 do: [:i | (self at: i) = anObject ifTrue: [^i]].
-      ^-1
+      1 to: self size do: [:i | (self at: i) = anObject ifTrue: [^i]].
+      ^0
   ]
 
   """
@@ -250,38 +250,38 @@ Array subclass: Object
   method: , other <Array> ^<Array> [
       | result <Array> |
       result := Array new: self size + other size.
-      0 to: self size - 1 do: [:i | result at: i put: (self at: i)].
-      0 to: other size - 1 do: [:i | result at: self size + i put: (other at: i)].
+      1 to: self size do: [:i | result at: i put: (self at: i)].
+      1 to: other size do: [:i | result at: self size + i put: (other at: i)].
       ^result
   ]
 
   """
-  Return a new array with elements from start (inclusive) to end (exclusive).
-  Indices are 0-based.
+  Return a new array with elements from start to end (both inclusive, 1-based).
 
   ```test
-  #(10 20 30 40 50) copyFrom: 1 to: 4 >>> #(20 30 40 )
-  #(10 20 30) copyFrom: 0 to: 2 >>> #(10 20 )
+  #(10 20 30 40 50) copyFrom: 2 to: 4 >>> #(20 30 40 )
+  #(10 20 30) copyFrom: 1 to: 2 >>> #(10 20 )
   ```
   """
   method: copyFrom: start <Integer> to: end <Integer> ^<Array> [
       | result <Array> |
-      result := Array new: end - start.
-      start to: end - 1 do: [:i | result at: i - start put: (self at: i)].
+      result := Array new: end - start + 1.
+      start to: end do: [:i | result at: i - start + 1 put: (self at: i)].
       ^result
   ]
 
   """
   Return a new array containing elements from start index to the end.
-  0-based indexing.
+  1-based indexing.
 
   ```test
-  #(10 20 30 40 50) copyFrom: 2 >>> #(30 40 50 )
-  #(10 20 30) copyFrom: 0 >>> #(10 20 30 )
-  #(10 20 30) copyFrom: 3 >>> #()
+  #(10 20 30 40 50) copyFrom: 3 >>> #(30 40 50 )
+  #(10 20 30) copyFrom: 1 >>> #(10 20 30 )
+  #(10 20 30) copyFrom: 4 >>> #()
   ```
   """
   method: copyFrom: start <Integer> ^<Array> [
+      start > self size ifTrue: [^Array new: 0].
       ^self copyFrom: start to: self size
   ]
 
@@ -361,14 +361,14 @@ Array subclass: Object
   ```test
   a := #(1 2 3).
   b := a copy.
-  b at: 0 put: 99.
-  a at: 0 >>> 1
+  b at: 1 put: 99.
+  a at: 1 >>> 1
   ```
   """
   method: copy ^<Array> [
       | result <Array> |
       result := Array new: self size.
-      0 to: self size - 1 do: [:i | result at: i put: (self at: i)].
+      1 to: self size do: [:i | result at: i put: (self at: i)].
       ^result
   ]
 

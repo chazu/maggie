@@ -135,8 +135,8 @@ DynamicSupervisor subclass: Object
 
   method: handleChildDown: info <Array> [
       | reason <Symbol> childId <String> |
-      reason := info at: 3.
-      childId := self findChildId: (info at: 2).
+      reason := info at: 4.
+      childId := self findChildId: (info at: 3).
       childId isNil ifTrue: [^nil].
 
       "Check restart policy from template"

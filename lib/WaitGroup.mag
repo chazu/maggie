@@ -183,7 +183,7 @@ WaitGroup subclass: Object
       blocks size timesRepeat: [
           | pair <Array> |
           pair := channel receive.
-          results at: (pair at: 0) put: (pair at: 1)
+          results at: (pair at: 1) put: (pair at: 2)
       ].
 
       ^results

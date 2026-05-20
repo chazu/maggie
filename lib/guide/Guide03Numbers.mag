@@ -382,9 +382,9 @@ Guide03Numbers subclass: Object
 
   ```test
   table := Array new: 6.
-  1 to: 6 do: [:n | table at: n - 1 put: n factorial].
-  table at: 0 >>> 1
-  table at: 5 >>> 720
+  1 to: 6 do: [:n | table at: n put: n factorial].
+  table at: 1 >>> 1
+  table at: 6 >>> 720
   ```
   """
   method: s12_puttingItTogether [

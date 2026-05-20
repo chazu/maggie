@@ -221,8 +221,8 @@ DistributedSupervisor subclass: Object
   """Handle a child going down. Applies restart strategy."""
   method: handleChildDown: info <Array> ! <Process, Network> [
       | reason <Symbol> childId <String> spec <ChildSpec> deadNode <Node> |
-      reason := info at: 3.
-      childId := self findChildId: (info at: 2).
+      reason := info at: 4.
+      childId := self findChildId: (info at: 3).
       childId isNil ifTrue: [
           "Could be a node-down event — check for dead nodes"
           reason = #nodeDown ifTrue: [self handleNodeDown: info].

@@ -3,12 +3,12 @@ An immutable sequence of characters.
 
 Strings are created with single-quote literals: 'hello'. Concatenate
 with the comma operator. Compare with =, <, >, <=, >=. Indices are
-0-based.
+1-based.
 
 ```test
 'hello' size >>> 5
 'hello', ' world' >>> 'hello world'
-'hello' at: 0 >>> $h
+'hello' at: 1 >>> $h
 ```
 
 ```example
@@ -33,11 +33,11 @@ String subclass: Object
   ]
 
   """
-  Return the Character at a 0-based index.
+  Return the Character at a 1-based index.
 
   ```test
-  'hello' at: 0 >>> $h
-  'hello' at: 4 >>> $o
+  'hello' at: 1 >>> $h
+  'hello' at: 5 >>> $o
   ```
   """
   method: at: index <Integer> ^<Character> [
@@ -133,7 +133,7 @@ String subclass: Object
   method: startsWith: prefix <String> ^<Boolean> [
       ^prefix size > self size
           ifTrue: [false]
-          ifFalse: [(self copyFrom: 0 to: prefix size) = prefix]
+          ifFalse: [(self copyFrom: 1 to: prefix size) = prefix]
   ]
 
   """
@@ -147,7 +147,7 @@ String subclass: Object
   method: endsWith: suffix <String> ^<Boolean> [
       ^suffix size > self size
           ifTrue: [false]
-          ifFalse: [(self copyFrom: self size - suffix size to: self size) = suffix]
+          ifFalse: [(self copyFrom: self size - suffix size + 1 to: self size) = suffix]
   ]
 
   """
@@ -168,16 +168,16 @@ String subclass: Object
   ]
 
   """
-  Return the 0-based index of the first occurrence of the character,
-  or -1 if not found.
+  Return the 1-based index of the first occurrence of the character,
+  or 0 if not found.
 
   This uses element semantics, matching `String>>at:` which returns a
   Character. To find a multi-character substring, use `indexOfSubstring:`.
 
   ```test
-  'hello' indexOf: $l >>> 2
-  'hello' indexOf: $z >>> -1
-  'hello' indexOf: $h >>> 0
+  'hello' indexOf: $l >>> 3
+  'hello' indexOf: $z >>> 0
+  'hello' indexOf: $h >>> 1
   ```
   """
   method: indexOf: char <Character> ^<Integer> [
@@ -199,14 +199,14 @@ String subclass: Object
   ]
 
   """
-  Return the 0-based index of the first occurrence of the substring,
-  or -1 if not found.
+  Return the 1-based index of the first occurrence of the substring,
+  or 0 if not found.
 
   ```test
-  'hello' indexOfSubstring: 'l' >>> 2
-  'hello' indexOfSubstring: 'lo' >>> 3
-  'hello' indexOfSubstring: 'z' >>> -1
-  'hello world' indexOfSubstring: 'world' >>> 6
+  'hello' indexOfSubstring: 'l' >>> 3
+  'hello' indexOfSubstring: 'lo' >>> 4
+  'hello' indexOfSubstring: 'z' >>> 0
+  'hello world' indexOfSubstring: 'world' >>> 7
   ```
   """
   method: indexOfSubstring: substring <String> ^<Integer> [
@@ -249,11 +249,11 @@ String subclass: Object
   ]
 
   """
-  Return a substring from start (inclusive) to end (exclusive), 0-based.
+  Return a substring from start to end (both inclusive, 1-based).
 
   ```test
-  'hello' copyFrom: 1 to: 4 >>> 'ell'
-  'hello' copyFrom: 0 to: 5 >>> 'hello'
+  'hello' copyFrom: 2 to: 4 >>> 'ell'
+  'hello' copyFrom: 1 to: 5 >>> 'hello'
   ```
   """
   method: copyFrom: start <Integer> to: end <Integer> ^<String> [
@@ -261,11 +261,11 @@ String subclass: Object
   ]
 
   """
-  Return a substring from start index to the end, 0-based.
+  Return a substring from start index to the end, 1-based.
 
   ```test
-  'hello' copyFrom: 2 >>> 'llo'
-  'hello' copyFrom: 0 >>> 'hello'
+  'hello' copyFrom: 3 >>> 'llo'
+  'hello' copyFrom: 1 >>> 'hello'
   ```
   """
   method: copyFrom: start <Integer> ^<String> [
@@ -373,13 +373,13 @@ String subclass: Object
       done := false.
       [remaining isEmpty or: [done]] whileFalse: [
           idx := remaining indexOfSubstring: old.
-          idx = -1
+          idx = 0
               ifTrue: [
                   result := result, remaining.
                   done := true
               ]
               ifFalse: [
-                  result := result, (remaining copyFrom: 0 to: idx), new.
+                  result := result, (remaining copyFrom: 1 to: idx - 1), new.
                   remaining := remaining copyFrom: idx + old size to: remaining size
               ]
       ].

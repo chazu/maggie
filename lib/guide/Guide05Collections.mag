@@ -7,7 +7,7 @@ protocols -- do:, collect:, select:, inject:into: -- that let you
 write expressive, functional-style data pipelines without explicit
 loops.
 
-Arrays use 0-based indexing and are fixed-size once created. When you
+Arrays use 1-based indexing and are fixed-size once created. When you
 need to build a collection incrementally, use ArrayList -- its add:
 method is amortized O(1), whereas Array's copyWith: copies the entire
 array each time (O(n) per append, O(n^2) total for n appends).
@@ -40,7 +40,7 @@ Guide05Collections subclass: Object
   #(1 2 3) size >>> 3
   #() size >>> 0
   (Array new: 4) size >>> 4
-  (Array new: 3) at: 0 >>> nil
+  (Array new: 3) at: 1 >>> nil
   ```
   """
   method: s01_creatingArrays [
@@ -50,7 +50,7 @@ Guide05Collections subclass: Object
   ]
 
   """
-  Access individual elements with at: using a 0-based index. Set
+  Access individual elements with at: using a 1-based index. Set
   elements with at:put:, which returns the stored value. The
   convenience methods first and last give you the endpoints without
   needing to know the size.
@@ -59,8 +59,8 @@ Guide05Collections subclass: Object
   notEmpty test whether the array contains anything.
 
   ```test
-  #(10 20 30) at: 0 >>> 10
-  #(10 20 30) at: 2 >>> 30
+  #(10 20 30) at: 1 >>> 10
+  #(10 20 30) at: 3 >>> 30
   #(10 20 30) first >>> 10
   #(10 20 30) last >>> 30
   #(10 20 30) size >>> 3
@@ -77,26 +77,26 @@ Guide05Collections subclass: Object
   ]
 
   """
-  The at:put: message stores a value at a given 0-based index and
+  The at:put: message stores a value at a given 1-based index and
   returns the value that was stored. This mutates the array in place.
   You typically use this to fill in arrays created with Array new:.
 
   ```test
   a := Array new: 3.
-  a at: 0 put: 'x'.
-  a at: 1 put: 'y'.
-  a at: 2 put: 'z'.
-  a at: 0 >>> 'x'
-  a at: 2 >>> 'z'
+  a at: 1 put: 'x'.
+  a at: 2 put: 'y'.
+  a at: 3 put: 'z'.
+  a at: 1 >>> 'x'
+  a at: 3 >>> 'z'
   a size >>> 3
   ```
   """
   method: s03_atPut [
       | a |
       a := Array new: 3.
-      a at: 0 put: 'x'.
-      a at: 1 put: 'y'.
-      a at: 2 put: 'z'.
+      a at: 1 put: 'x'.
+      a at: 2 put: 'y'.
+      a at: 3 put: 'z'.
       ^a
   ]
 
@@ -199,14 +199,14 @@ Guide05Collections subclass: Object
   """
   The includes: message tests whether any element in the array is
   equal to the argument, returning true or false. The indexOf: message
-  returns the 0-based index of the first match, or -1 if the element
+  returns the 1-based index of the first match, or 0 if the element
   is not found.
 
   ```test
   #(1 2 3) includes: 2 >>> true
   #(1 2 3) includes: 5 >>> false
-  #(10 20 30) indexOf: 20 >>> 1
-  #(10 20 30) indexOf: 99 >>> -1
+  #(10 20 30) indexOf: 20 >>> 2
+  #(10 20 30) indexOf: 99 >>> 0
   ```
   """
   method: s09_membership [
@@ -239,21 +239,21 @@ Guide05Collections subclass: Object
   ]
 
   """
-  The copyFrom:to: message extracts a slice of the array. The first
-  argument is the start index (inclusive) and the second is the end
-  index (exclusive), both 0-based. The result is a new array.
+  The copyFrom:to: message extracts a slice of the array. Both the
+  start and end indices are 1-based and inclusive (closed interval).
+  The result is a new array.
 
   This is useful for splitting arrays, taking prefixes or suffixes, or
   working with windows of data.
 
   ```test
-  #(10 20 30 40 50) copyFrom: 1 to: 4 >>> #(20 30 40 )
-  #(10 20 30) copyFrom: 0 to: 2 >>> #(10 20 )
-  #(10 20 30 40 50) copyFrom: 0 to: 5 >>> #(10 20 30 40 50 )
+  #(10 20 30 40 50) copyFrom: 2 to: 4 >>> #(20 30 40 )
+  #(10 20 30) copyFrom: 1 to: 2 >>> #(10 20 )
+  #(10 20 30 40 50) copyFrom: 1 to: 5 >>> #(10 20 30 40 50 )
   ```
   """
   method: s11_slicing [
-      ^#(10 20 30 40 50) copyFrom: 1 to: 4
+      ^#(10 20 30 40 50) copyFrom: 2 to: 4
   ]
 
   """
@@ -335,7 +335,7 @@ Guide05Collections subclass: Object
   list := ArrayList withAll: #(10 20 30 40).
   list removeLast >>> 40
   list size >>> 3
-  list removeAt: 0 >>> 10
+  list removeAt: 1 >>> 10
   list asArray >>> #(20 30 )
   ```
   """

@@ -1042,31 +1042,31 @@ func TestPrimitiveAtArray(t *testing.T) {
 	obj.SetSlot(1, FromSmallInt(20))
 	obj.SetSlot(2, FromSmallInt(30))
 
-	// Test valid access
-	result := vm.interpreter.primitiveAt(arr, FromSmallInt(0))
+	// Test valid access (1-based indexing)
+	result := vm.interpreter.primitiveAt(arr, FromSmallInt(1))
 	if !result.IsSmallInt() || result.SmallInt() != 10 {
-		t.Errorf("arr[0] = %v, want 10", result)
-	}
-
-	result = vm.interpreter.primitiveAt(arr, FromSmallInt(1))
-	if !result.IsSmallInt() || result.SmallInt() != 20 {
-		t.Errorf("arr[1] = %v, want 20", result)
+		t.Errorf("arr[1] = %v, want 10", result)
 	}
 
 	result = vm.interpreter.primitiveAt(arr, FromSmallInt(2))
+	if !result.IsSmallInt() || result.SmallInt() != 20 {
+		t.Errorf("arr[2] = %v, want 20", result)
+	}
+
+	result = vm.interpreter.primitiveAt(arr, FromSmallInt(3))
 	if !result.IsSmallInt() || result.SmallInt() != 30 {
-		t.Errorf("arr[2] = %v, want 30", result)
+		t.Errorf("arr[3] = %v, want 30", result)
 	}
 
 	// Test out of bounds
-	result = vm.interpreter.primitiveAt(arr, FromSmallInt(3))
+	result = vm.interpreter.primitiveAt(arr, FromSmallInt(4))
 	if result != Nil {
-		t.Errorf("arr[3] = %v, want nil (out of bounds)", result)
+		t.Errorf("arr[4] = %v, want nil (out of bounds)", result)
 	}
 
-	result = vm.interpreter.primitiveAt(arr, FromSmallInt(-1))
+	result = vm.interpreter.primitiveAt(arr, FromSmallInt(0))
 	if result != Nil {
-		t.Errorf("arr[-1] = %v, want nil (negative index)", result)
+		t.Errorf("arr[0] = %v, want nil (0 is out of bounds in 1-based)", result)
 	}
 }
 
@@ -1077,10 +1077,10 @@ func TestPrimitiveAtPutArray(t *testing.T) {
 	// Create an array with elements [0, 0, 0]
 	arr := vm.NewArray(3)
 
-	// Set values
-	vm.interpreter.primitiveAtPut(arr, FromSmallInt(0), FromSmallInt(100))
-	vm.interpreter.primitiveAtPut(arr, FromSmallInt(1), FromSmallInt(200))
-	vm.interpreter.primitiveAtPut(arr, FromSmallInt(2), FromSmallInt(300))
+	// Set values (1-based indexing)
+	vm.interpreter.primitiveAtPut(arr, FromSmallInt(1), FromSmallInt(100))
+	vm.interpreter.primitiveAtPut(arr, FromSmallInt(2), FromSmallInt(200))
+	vm.interpreter.primitiveAtPut(arr, FromSmallInt(3), FromSmallInt(300))
 
 	// Verify values were set
 	obj := ObjectFromValue(arr)
@@ -1127,21 +1127,21 @@ func TestPrimitiveAtString(t *testing.T) {
 
 	str := vm.registry.NewStringValue("ABC")
 
-	// Test valid access (returns ASCII code)
-	result := vm.interpreter.primitiveAt(str, FromSmallInt(0))
+	// Test valid access (1-based, returns ASCII code)
+	result := vm.interpreter.primitiveAt(str, FromSmallInt(1))
 	if !result.IsSmallInt() || result.SmallInt() != 65 { // 'A' = 65
-		t.Errorf("str[0] = %v, want 65 ('A')", result)
+		t.Errorf("str[1] = %v, want 65 ('A')", result)
 	}
 
-	result = vm.interpreter.primitiveAt(str, FromSmallInt(1))
+	result = vm.interpreter.primitiveAt(str, FromSmallInt(2))
 	if !result.IsSmallInt() || result.SmallInt() != 66 { // 'B' = 66
-		t.Errorf("str[1] = %v, want 66 ('B')", result)
+		t.Errorf("str[2] = %v, want 66 ('B')", result)
 	}
 
 	// Test out of bounds
-	result = vm.interpreter.primitiveAt(str, FromSmallInt(3))
+	result = vm.interpreter.primitiveAt(str, FromSmallInt(4))
 	if result != Nil {
-		t.Errorf("str[3] = %v, want nil (out of bounds)", result)
+		t.Errorf("str[4] = %v, want nil (out of bounds)", result)
 	}
 }
 

@@ -281,7 +281,7 @@ EnvBinding subclass: Object
   target := ArrayList new.
   binding := Cli::EnvBinding envName: 'PP_ENVBINDING_MISSING_XYZ_9f2a' setter: #add: type: #string default: 'fallback'.
   binding applyTo: target.
-  (target at: 0) >>> 'fallback'
+  (target at: 1) >>> 'fallback'
   ```
 
   Required failure when the env var is unset:
@@ -303,7 +303,7 @@ EnvBinding subclass: Object
   binding := Cli::EnvBinding envName: 'HOME' setter: #add: type: #string.
   binding applyTo: target.
   target size >>> 1
-  (target at: 0) class name >>> #String
+  (target at: 1) class name >>> #String
   ```
   """
   method: applyTo: aTarget [
@@ -319,7 +319,7 @@ EnvBinding subclass: Object
   target := ArrayList new.
   binding := Cli::EnvBinding envName: 'X' setter: #add: type: #string default: 'd'.
   binding applyRawValue: 'present' to: target.
-  (target at: 0) >>> 'present'
+  (target at: 1) >>> 'present'
   ```
 
   Empty raw value falls back to the default:
@@ -328,7 +328,7 @@ EnvBinding subclass: Object
   target := ArrayList new.
   binding := Cli::EnvBinding envName: 'X' setter: #add: type: #string default: 'd'.
   binding applyRawValue: '' to: target.
-  (target at: 0) >>> 'd'
+  (target at: 1) >>> 'd'
   ```
 
   Empty raw value with `required: true` answers a Failure:
@@ -348,7 +348,7 @@ EnvBinding subclass: Object
   target := ArrayList new.
   binding := Cli::EnvBinding envName: 'X' setter: #add: type: #bool.
   binding applyRawValue: 'yes' to: target.
-  (target at: 0) >>> true
+  (target at: 1) >>> true
   ```
 
   Integer coercion on a present value:
@@ -357,7 +357,7 @@ EnvBinding subclass: Object
   target := ArrayList new.
   binding := Cli::EnvBinding envName: 'X' setter: #add: type: #integer.
   binding applyRawValue: '42' to: target.
-  (target at: 0) >>> 42
+  (target at: 1) >>> 42
   ```
   """
   method: applyRawValue: aString to: aTarget [
@@ -437,7 +437,7 @@ Command subclass: Object
   target := ArrayList new.
   cmd envBinding: (Cli::EnvBinding envName: 'PP_ENVBINDING_MISSING_ABCDE_123' setter: #add: type: #string default: 'fallback').
   cmd applyEnvBindings: target.
-  (target at: 0) >>> 'fallback'
+  (target at: 1) >>> 'fallback'
   ```
   """
   method: applyEnvBindings: aTarget [

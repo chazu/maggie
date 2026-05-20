@@ -94,7 +94,7 @@ InspectorWindow subclass: Object
   method: truncate: aString [
       "Truncate display strings for the secondary text column."
       aString size > 60 ifTrue: [
-          ^(aString copyFrom: 0 to: 57), '...'
+          ^(aString copyFrom: 1 to: 57), '...'
       ].
       ^aString
   ]
@@ -104,10 +104,10 @@ InspectorWindow subclass: Object
   method: drillDown [
       | selectedIndex value |
       selectedIndex := slotList selectedIndex.
-      selectedIndex < 0 ifTrue: [^self].
+      selectedIndex < 1 ifTrue: [^self].
 
-      "Index 0 = self, don't drill into self"
-      selectedIndex = 0 ifTrue: [^self].
+      "Index 1 = self, don't drill into self"
+      selectedIndex = 1 ifTrue: [^self].
 
       value := slotValues at: selectedIndex.
 
@@ -125,7 +125,7 @@ InspectorWindow subclass: Object
       objectStack isEmpty ifTrue: [^self].
 
       currentObject := objectStack last.
-      objectStack := objectStack copyFrom: 0 to: objectStack size - 1.
+      objectStack := objectStack copyFrom: 1 to: objectStack size - 1.
       self populateSlots.
       self notifyTitleChange
   ]

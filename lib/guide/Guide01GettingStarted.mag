@@ -47,18 +47,18 @@ Guide01GettingStarted subclass: Object
 
   - Unary: no arguments, like `size` or `factorial`
   - Binary: one argument with an operator, like `+ 4` or `= other`
-  - Keyword: named arguments, like `at: 0` or `from: 1 to: 5`
+  - Keyword: named arguments, like `at: 1` or `from: 1 to: 5`
 
   ```test
   'hello' size >>> 5
   3 + 4 >>> 7
-  #(10 20 30) at: 0 >>> 10
+  #(10 20 30) at: 1 >>> 10
   ```
   """
   method: s02_expressions [
       'hello' size.
       3 + 4.
-      #(10 20 30) at: 0
+      #(10 20 30) at: 1
   ]
 
   """

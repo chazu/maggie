@@ -337,7 +337,7 @@ func runDoctestBlockSharedScope(vmInst *vm.VM, assertions []doctestAssertion, ve
 			bodyLines = append(bodyLines, expr)
 		} else {
 			// Assertion: store result
-			bodyLines = append(bodyLines, fmt.Sprintf("__dtResults at: %d put: (%s)", ia.resultIdx, expr))
+			bodyLines = append(bodyLines, fmt.Sprintf("__dtResults at: %d put: (%s)", ia.resultIdx+1, expr))
 		}
 	}
 	bodyLines = append(bodyLines, "^__dtResults")
@@ -385,7 +385,7 @@ func runDoctestBlockSharedScope(vmInst *vm.VM, assertions []doctestAssertion, ve
 		}
 
 		// Get actual value from results array
-		actual := vmInst.Send(resultsArray, "at:", []vm.Value{vm.FromSmallInt(int64(ia.resultIdx))})
+		actual := vmInst.Send(resultsArray, "at:", []vm.Value{vm.FromSmallInt(int64(ia.resultIdx + 1))})
 
 		// Evaluate expected
 		expected, err := doctestEvalExpression(vmInst, ia.asrt.Expected)

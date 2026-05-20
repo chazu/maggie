@@ -34,7 +34,7 @@ func (vm *VM) registerArrayPrimitives() {
 		return FromSmallInt(0)
 	})
 
-	// primAt: - array access (0-based indexing)
+	// primAt: - array access (1-based indexing)
 	c.AddMethod1(vm.Selectors, "primAt:", func(_ interface{}, recv Value, index Value) Value {
 		if !recv.IsObject() || !index.IsSmallInt() {
 			return Nil
@@ -44,10 +44,10 @@ func (vm *VM) registerArrayPrimitives() {
 			return Nil
 		}
 		idx := index.SmallInt()
-		if idx < 0 || idx >= int64(obj.NumSlots()) {
+		if idx < 1 || idx > int64(obj.NumSlots()) {
 			return Nil // Bounds error - would raise in full implementation
 		}
-		return obj.GetSlot(int(idx))
+		return obj.GetSlot(int(idx - 1))
 	})
 
 	// at: - alias for primAt: for direct calls
@@ -60,13 +60,13 @@ func (vm *VM) registerArrayPrimitives() {
 			return Nil
 		}
 		idx := index.SmallInt()
-		if idx < 0 || idx >= int64(obj.NumSlots()) {
+		if idx < 1 || idx > int64(obj.NumSlots()) {
 			return Nil // Bounds error - would raise in full implementation
 		}
-		return obj.GetSlot(int(idx))
+		return obj.GetSlot(int(idx - 1))
 	})
 
-	// primAt:put: - array modification (0-based indexing)
+	// primAt:put: - array modification (1-based indexing)
 	c.AddMethod2(vm.Selectors, "primAt:put:", func(_ interface{}, recv Value, index, value Value) Value {
 		if !recv.IsObject() || !index.IsSmallInt() {
 			return value
@@ -76,10 +76,10 @@ func (vm *VM) registerArrayPrimitives() {
 			return value
 		}
 		idx := index.SmallInt()
-		if idx < 0 || idx >= int64(obj.NumSlots()) {
+		if idx < 1 || idx > int64(obj.NumSlots()) {
 			return value // Bounds error - would raise in full implementation
 		}
-		obj.SetSlot(int(idx), value)
+		obj.SetSlot(int(idx-1), value)
 		return value
 	})
 
@@ -93,10 +93,10 @@ func (vm *VM) registerArrayPrimitives() {
 			return value
 		}
 		idx := index.SmallInt()
-		if idx < 0 || idx >= int64(obj.NumSlots()) {
+		if idx < 1 || idx > int64(obj.NumSlots()) {
 			return value // Bounds error - would raise in full implementation
 		}
-		obj.SetSlot(int(idx), value)
+		obj.SetSlot(int(idx-1), value)
 		return value
 	})
 

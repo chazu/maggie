@@ -83,20 +83,20 @@ ArrayList subclass: Object
   # --- Indexed access ---
 
   """
-  Return the element at a 0-based index.
+  Return the element at a 1-based index.
 
   ```test
-  (ArrayList withAll: #(10 20 30)) at: 0 >>> 10
-  (ArrayList withAll: #(10 20 30)) at: 2 >>> 30
+  (ArrayList withAll: #(10 20 30)) at: 1 >>> 10
+  (ArrayList withAll: #(10 20 30)) at: 3 >>> 30
   ```
   """
   method: at: index <Integer> [ <primitive> ]
 
   """
-  Set the element at a 0-based index. Returns the value stored.
+  Set the element at a 1-based index. Returns the value stored.
 
   ```test
-  (ArrayList withAll: #(10 20 30)) at: 1 put: 99 >>> 99
+  (ArrayList withAll: #(10 20 30)) at: 2 put: 99 >>> 99
   ```
   """
   method: at: index <Integer> put: value [ <primitive> ]
@@ -173,11 +173,11 @@ ArrayList subclass: Object
   method: includes: anObject ^<Boolean> [ <primitive> ]
 
   """
-  Return the 0-based index of anObject, or -1 if not found.
+  Return the 1-based index of anObject, or 0 if not found.
 
   ```test
-  (ArrayList withAll: #(10 20 30)) indexOf: 20 >>> 1
-  (ArrayList withAll: #(10 20 30)) indexOf: 99 >>> -1
+  (ArrayList withAll: #(10 20 30)) indexOf: 20 >>> 2
+  (ArrayList withAll: #(10 20 30)) indexOf: 99 >>> 0
   ```
   """
   method: indexOf: anObject ^<Integer> [ <primitive> ]
@@ -197,7 +197,7 @@ ArrayList subclass: Object
   Remove and return the element at index, shifting remaining elements.
 
   ```test
-  (ArrayList withAll: #(10 20 30)) removeAt: 1 >>> 20
+  (ArrayList withAll: #(10 20 30)) removeAt: 2 >>> 20
   ```
   """
   method: removeAt: index <Integer> [ <primitive> ]

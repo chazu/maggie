@@ -20,7 +20,7 @@ Maggie is a Smalltalk-family language VM written in Go. For full API docs:
 
 ### Key Non-Obvious Facts
 
-- **0-based indexing** — Maggie arrays are 0-based, not 1-based like Smalltalk-80
+- **1-based indexing** — Maggie uses 1-based indexing (Smalltalk-80 convention). `indexOf:` returns 0 for not-found. `copyFrom:to:` uses closed intervals `[from, to]`.
 - **NaN-boxed values** — all values are 64-bit NaN-boxed; markers defined in `vm/markers.go`
 - **`fork` vs `forkWithResult`** — `fork` treats non-local returns (^) as local within the forked process to prevent NLR crashes across goroutines
 - **Process-level restriction** — `forkRestricted:` hides globals (resolve to nil, no error). Restrictions inherited by child forks. `Compiler evaluate:` and `Object allClasses` respect restrictions.

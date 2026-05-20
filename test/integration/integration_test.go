@@ -410,9 +410,9 @@ func TestIntegrationE2E_ArrayAtPut(t *testing.T) {
 	compileMethod(t, vmInst, vmInst.SmallIntegerClass, `makeSquaresArray
 	| arr i |
 	arr := Array new: self.
-	i := 0.
-	[i < self] whileTrue: [
-		arr at: i put: (i * i).
+	i := 1.
+	[i <= self] whileTrue: [
+		arr at: i put: ((i - 1) * (i - 1)).
 		i := i + 1
 	].
 	^arr`)
@@ -426,7 +426,7 @@ func TestIntegrationE2E_ArrayAtPut(t *testing.T) {
 
 	expected := []int64{0, 1, 4, 9, 16}
 	for i, exp := range expected {
-		val := vmInst.Send(arr, "at:", []vm.Value{vm.FromSmallInt(int64(i))})
+		val := vmInst.Send(arr, "at:", []vm.Value{vm.FromSmallInt(int64(i + 1))})
 		if !val.IsSmallInt() || val.SmallInt() != exp {
 			t.Errorf("array at: %d = %v, want %d", i, val, exp)
 		}
@@ -456,7 +456,7 @@ func TestIntegrationE2E_StringOps(t *testing.T) {
 	}
 
 	// primAt:
-	result = vmInst.Send(compilerClass, "evaluate:", []vm.Value{vmInst.Registry().NewStringValue("'Hello' primAt: 0")})
+	result = vmInst.Send(compilerClass, "evaluate:", []vm.Value{vmInst.Registry().NewStringValue("'Hello' primAt: 1")})
 	if result == vm.Nil {
 		t.Errorf("'Hello' primAt: 0 should not be nil")
 	}
@@ -502,26 +502,26 @@ func TestIntegrationE2E_Cascade(t *testing.T) {
 	compileMethod(t, vmInst, vmInst.SmallIntegerClass, `testCascade
 	| arr |
 	arr := Array new: 3.
-	arr at: 0 put: 10;
-		at: 1 put: 20;
-		at: 2 put: 30.
+	arr at: 1 put: 10;
+		at: 2 put: 20;
+		at: 3 put: 30.
 	^arr`)
 
 	arr := vmInst.Send(vm.FromSmallInt(0), "testCascade", nil)
 
-	val0 := vmInst.Send(arr, "at:", []vm.Value{vm.FromSmallInt(0)})
+	val0 := vmInst.Send(arr, "at:", []vm.Value{vm.FromSmallInt(1)})
 	if !val0.IsSmallInt() || val0.SmallInt() != 10 {
-		t.Errorf("cascade arr at: 0 = %v, want 10", val0)
+		t.Errorf("cascade arr at: 1 = %v, want 10", val0)
 	}
 
-	val1 := vmInst.Send(arr, "at:", []vm.Value{vm.FromSmallInt(1)})
+	val1 := vmInst.Send(arr, "at:", []vm.Value{vm.FromSmallInt(2)})
 	if !val1.IsSmallInt() || val1.SmallInt() != 20 {
-		t.Errorf("cascade arr at: 1 = %v, want 20", val1)
+		t.Errorf("cascade arr at: 2 = %v, want 20", val1)
 	}
 
-	val2 := vmInst.Send(arr, "at:", []vm.Value{vm.FromSmallInt(2)})
+	val2 := vmInst.Send(arr, "at:", []vm.Value{vm.FromSmallInt(3)})
 	if !val2.IsSmallInt() || val2.SmallInt() != 30 {
-		t.Errorf("cascade arr at: 2 = %v, want 30", val2)
+		t.Errorf("cascade arr at: 3 = %v, want 30", val2)
 	}
 }
 
@@ -851,22 +851,22 @@ func TestIntegrationE2E_NonLocalReturn(t *testing.T) {
 	compileMethod(t, vmInst, vmInst.SmallIntegerClass, `findInFixed
 	| arr |
 	arr := Array new: 3.
-	arr at: 0 put: 10.
-	arr at: 1 put: 20.
-	arr at: 2 put: 30.
-	0 to: 2 do: [:i |
+	arr at: 1 put: 10.
+	arr at: 2 put: 20.
+	arr at: 3 put: 30.
+	1 to: 3 do: [:i |
 		(arr at: i) = self ifTrue: [^i]
 	].
-	^-1`)
+	^0`)
 
 	result := vmInst.Send(vm.FromSmallInt(20), "findInFixed", nil)
-	if !result.IsSmallInt() || result.SmallInt() != 1 {
-		t.Errorf("20 findInFixed = %v, want 1", result)
+	if !result.IsSmallInt() || result.SmallInt() != 2 {
+		t.Errorf("20 findInFixed = %v, want 2", result)
 	}
 
 	result = vmInst.Send(vm.FromSmallInt(99), "findInFixed", nil)
-	if !result.IsSmallInt() || result.SmallInt() != -1 {
-		t.Errorf("99 findInFixed = %v, want -1 (not found)", result)
+	if !result.IsSmallInt() || result.SmallInt() != 0 {
+		t.Errorf("99 findInFixed = %v, want 0 (not found)", result)
 	}
 }
 
@@ -1100,9 +1100,9 @@ func TestIntegrationE2E_EvalInContext(t *testing.T) {
 		t.Errorf("evaluate: 'self size' in array = %v, want 3", result)
 	}
 
-	result = vmInst.Send(compilerClass, "evaluate:in:", []vm.Value{vmInst.Registry().NewStringValue("self at: 1"), arr})
+	result = vmInst.Send(compilerClass, "evaluate:in:", []vm.Value{vmInst.Registry().NewStringValue("self at: 2"), arr})
 	if !result.IsSmallInt() || result.SmallInt() != 200 {
-		t.Errorf("evaluate: 'self at: 1' in array = %v, want 200", result)
+		t.Errorf("evaluate: 'self at: 2' in array = %v, want 200", result)
 	}
 }
 

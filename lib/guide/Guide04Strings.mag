@@ -45,7 +45,7 @@ Guide04Strings subclass: Object
 
   """
   The size message returns the number of characters in a string.
-  Use at: with a 0-based index to retrieve a single character.
+  Use at: with a 1-based index to retrieve a single character.
   Indexing returns a Character value (like $h), not a one-character
   string. Out-of-bounds access returns nil rather than raising an
   error.
@@ -54,38 +54,37 @@ Guide04Strings subclass: Object
   'hello' size >>> 5
   '' size >>> 0
   'Maggie' size >>> 6
-  'hello' at: 0 >>> $h
-  'hello' at: 4 >>> $o
+  'hello' at: 1 >>> $h
+  'hello' at: 5 >>> $o
   ```
   """
   method: s02_sizeAndIndexing [
       | s |
       s := 'hello'.
       s size.
-      s at: 0.
-      ^s at: 4
+      s at: 1.
+      ^s at: 5
   ]
 
   """
-  The copyFrom:to: message extracts a substring. The start index is
-  inclusive and the end index is exclusive, following the same
-  convention as Go slices. Both indices are 0-based.
+  The copyFrom:to: message extracts a substring. Both the start and
+  end indices are inclusive (closed interval) and 1-based.
 
-  If you want a prefix, start from 0. If you want a suffix, end at
+  If you want a prefix, start from 1. If you want a suffix, end at
   the string's size. The returned value is always a new string.
 
   ```test
-  'hello' copyFrom: 1 to: 4 >>> 'ell'
-  'hello' copyFrom: 0 to: 5 >>> 'hello'
-  'abcdef' copyFrom: 2 to: 4 >>> 'cd'
-  'abcdef' copyFrom: 0 to: 3 >>> 'abc'
-  'abcdef' copyFrom: 4 to: 6 >>> 'ef'
+  'hello' copyFrom: 2 to: 4 >>> 'ell'
+  'hello' copyFrom: 1 to: 5 >>> 'hello'
+  'abcdef' copyFrom: 3 to: 4 >>> 'cd'
+  'abcdef' copyFrom: 1 to: 3 >>> 'abc'
+  'abcdef' copyFrom: 5 to: 6 >>> 'ef'
   ```
   """
   method: s03_slicing [
-      'hello' copyFrom: 1 to: 4.
-      'hello' copyFrom: 0 to: 5.
-      ^'abcdef' copyFrom: 2 to: 4
+      'hello' copyFrom: 2 to: 4.
+      'hello' copyFrom: 1 to: 5.
+      ^'abcdef' copyFrom: 3 to: 4
   ]
 
   """
@@ -132,19 +131,19 @@ Guide04Strings subclass: Object
   ]
 
   """
-  The indexOf: message returns the 0-based position of the first
-  occurrence of a Character (element semantics), or -1 if not found.
+  The indexOf: message returns the 1-based position of the first
+  occurrence of a Character (element semantics), or 0 if not found.
   For substring search, use indexOfSubstring:.
 
   Combine these with copyFrom:to: to extract text around a known
   marker.
 
   ```test
-  'hello' indexOf: $l >>> 2
-  'hello' indexOf: $z >>> -1
-  'hello' indexOfSubstring: 'lo' >>> 3
-  'hello world' indexOfSubstring: 'world' >>> 6
-  'abcabc' indexOfSubstring: 'bc' >>> 1
+  'hello' indexOf: $l >>> 3
+  'hello' indexOf: $z >>> 0
+  'hello' indexOfSubstring: 'lo' >>> 4
+  'hello world' indexOfSubstring: 'world' >>> 7
+  'abcabc' indexOfSubstring: 'bc' >>> 2
   ```
   """
   method: s06_indexOfSearch [
@@ -510,7 +509,7 @@ Guide04Strings subclass: Object
 
   ```test
   name := 'maggie'.
-  greeting := 'Hello, ', (name copyFrom: 0 to: 1) asUppercase, (name copyFrom: 1 to: name size), '!'.
+  greeting := 'Hello, ', (name copyFrom: 1 to: 1) asUppercase, (name copyFrom: 2 to: name size), '!'.
   greeting >>> 'Hello, Maggie!'
   ```
   """
@@ -521,6 +520,6 @@ Guide04Strings subclass: Object
       ext := path copyFrom: dotPos to: path size.
 
       name := 'maggie'.
-      greeting := 'Hello, ', (name copyFrom: 0 to: 1) asUppercase, (name copyFrom: 1 to: name size), '!'.
+      greeting := 'Hello, ', (name copyFrom: 1 to: 1) asUppercase, (name copyFrom: 2 to: name size), '!'.
       ^greeting
   ]

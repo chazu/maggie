@@ -66,7 +66,7 @@ HashRing subclass: Object
   """Remove a node from the ring."""
   method: remove: node [
       nodes := nodes reject: [:n | n = node].
-      positions := positions reject: [:pair | (pair at: 1) = node]
+      positions := positions reject: [:pair | (pair at: 2) = node]
   ]
 
   """Return the node responsible for the given key."""
@@ -76,10 +76,10 @@ HashRing subclass: Object
       keyHash := self hashKey: key.
       "Find the first position >= keyHash (clockwise walk)"
       positions do: [:pair |
-          (pair at: 0) >= keyHash ifTrue: [^pair at: 1]
+          (pair at: 1) >= keyHash ifTrue: [^pair at: 2]
       ].
       "Wrap around to first node"
-      ^(positions at: 0) at: 1
+      ^(positions at: 1) at: 2
   ]
 
   """Return the N nodes responsible for the given key (for replication)."""
@@ -96,7 +96,7 @@ HashRing subclass: Object
       "Walk clockwise collecting unique nodes"
       positions do: [:pair |
           result size < n ifTrue: [
-              candidate := pair at: 1.
+              candidate := pair at: 2.
               candidateKey := candidate printString.
               (seen at: candidateKey ifAbsent: [nil]) isNil ifTrue: [
                   result add: candidate.
@@ -125,8 +125,8 @@ HashRing subclass: Object
   method: sortPositions [
       positions size <= 1 ifTrue: [^self].
       positions sort: [:a :b |
-          (a at: 0) < (b at: 0) ifTrue: [-1] ifFalse: [
-              (a at: 0) > (b at: 0) ifTrue: [1] ifFalse: [0]
+          (a at: 1) < (b at: 1) ifTrue: [-1] ifFalse: [
+              (a at: 1) > (b at: 1) ifTrue: [1] ifFalse: [0]
           ]
       ]
   ]

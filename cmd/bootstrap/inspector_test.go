@@ -33,20 +33,20 @@ func TestInspector_EvaluateInArray(t *testing.T) {
 		t.Errorf("Array 'self size' expected 3, got: %v", result)
 	}
 
-	// self at: 0 (0-based indexing — Go primitives, no library loaded)
+	// self at: 1 (1-based indexing)
 	result = vmInst.Send(compilerClass, "evaluate:in:", []vm.Value{
-		vmInst.Registry().NewStringValue("self at: 0"), arr,
+		vmInst.Registry().NewStringValue("self at: 1"), arr,
 	})
 	if !result.IsSmallInt() || result.SmallInt() != 10 {
-		t.Errorf("Array 'self at: 0' expected 10, got: %v", result)
+		t.Errorf("Array 'self at: 1' expected 10, got: %v", result)
 	}
 
-	// self at: 2
+	// self at: 3
 	result = vmInst.Send(compilerClass, "evaluate:in:", []vm.Value{
-		vmInst.Registry().NewStringValue("self at: 2"), arr,
+		vmInst.Registry().NewStringValue("self at: 3"), arr,
 	})
 	if !result.IsSmallInt() || result.SmallInt() != 30 {
-		t.Errorf("Array 'self at: 2' expected 30, got: %v", result)
+		t.Errorf("Array 'self at: 3' expected 30, got: %v", result)
 	}
 }
 

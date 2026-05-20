@@ -217,7 +217,7 @@ Guide09Concurrency subclass: Object
   ch := Channel new: 10.
   [1 to: 5 do: [:i | ch send: i * 10]. ch close] fork.
   results := Array new: 5.
-  0 to: 4 do: [:i | results at: i put: ch receive].
+  1 to: 5 do: [:i | results at: i put: ch receive].
   results            "=> #(10 20 30 40 50)"
   ```
 
@@ -830,7 +830,7 @@ Guide09Concurrency subclass: Object
 
   "Consumer: collect results until channel closes"
   results := Array new: 10.
-  0 to: 9 do: [:i |
+  1 to: 10 do: [:i |
       results at: i put: ch receive
   ].
   results   "=> #(1 4 9 16 25 36 49 64 81 100)"
@@ -852,7 +852,7 @@ Guide09Concurrency subclass: Object
 
   "Collect all 20 results"
   results := Array new: 20.
-  0 to: 19 do: [:i | results at: i put: ch receive].
+  1 to: 20 do: [:i | results at: i put: ch receive].
   results size   "=> 20"
   ```
   """

@@ -165,8 +165,8 @@ Guide14GoInterop subclass: Object
 
   ```example
   result := Go::SomePkg doWork.
-  name := result at: 0.
-  count := result at: 1.
+  name := result at: 1.
+  count := result at: 2.
   ```
   """
   method: s03_typeMarshaling [

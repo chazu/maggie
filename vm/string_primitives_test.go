@@ -65,22 +65,22 @@ func TestStringPrimAt(t *testing.T) {
 
 	s := vm.registry.NewStringValue("hello")
 
-	// Test getting character at index 0 (0-based) — now returns a Character value
-	result := vm.Send(s, "primAt:", []Value{FromSmallInt(0)})
+	// Test getting character at index 1 (1-based) — returns a Character value
+	result := vm.Send(s, "primAt:", []Value{FromSmallInt(1)})
 	if !IsCharacterValue(result) {
-		t.Fatalf("primAt: 0 returned non-Character value")
+		t.Fatalf("primAt: 1 returned non-Character value")
 	}
 	if GetCharacterCodePoint(result) != 'h' {
-		t.Errorf("primAt: 0 returned %c, want 'h'", GetCharacterCodePoint(result))
+		t.Errorf("primAt: 1 returned %c, want 'h'", GetCharacterCodePoint(result))
 	}
 
-	// Test getting character at index 2
-	result = vm.Send(s, "primAt:", []Value{FromSmallInt(2)})
+	// Test getting character at index 3
+	result = vm.Send(s, "primAt:", []Value{FromSmallInt(3)})
 	if !IsCharacterValue(result) {
-		t.Fatalf("primAt: 2 returned non-Character value")
+		t.Fatalf("primAt: 3 returned non-Character value")
 	}
 	if GetCharacterCodePoint(result) != 'l' {
-		t.Errorf("primAt: 2 returned %c, want 'l'", GetCharacterCodePoint(result))
+		t.Errorf("primAt: 3 returned %c, want 'l'", GetCharacterCodePoint(result))
 	}
 
 	// Test out of bounds (positive)
@@ -89,10 +89,10 @@ func TestStringPrimAt(t *testing.T) {
 		t.Errorf("primAt: 10 returned %v, want Nil", result)
 	}
 
-	// Test out of bounds (negative)
-	result = vm.Send(s, "primAt:", []Value{FromSmallInt(-1)})
+	// Test out of bounds (zero is invalid in 1-based)
+	result = vm.Send(s, "primAt:", []Value{FromSmallInt(0)})
 	if result != Nil {
-		t.Errorf("primAt: -1 returned %v, want Nil", result)
+		t.Errorf("primAt: 0 returned %v, want Nil", result)
 	}
 }
 
@@ -183,22 +183,22 @@ func TestStringPrimIndexOf(t *testing.T) {
 
 	s := vm.registry.NewStringValue("hello")
 
-	// Find existing character (0-based index)
+	// Find existing character (1-based index)
 	result := vm.Send(s, "primIndexOf:", []Value{vm.registry.NewStringValue("e")})
-	if !result.IsSmallInt() || result.SmallInt() != 1 {
-		t.Errorf("primIndexOf: 'e' returned %v, want 1", result)
+	if !result.IsSmallInt() || result.SmallInt() != 2 {
+		t.Errorf("primIndexOf: 'e' returned %v, want 2", result)
 	}
 
 	// Find first occurrence of duplicate
 	result = vm.Send(s, "primIndexOf:", []Value{vm.registry.NewStringValue("l")})
-	if !result.IsSmallInt() || result.SmallInt() != 2 {
-		t.Errorf("primIndexOf: 'l' returned %v, want 2", result)
+	if !result.IsSmallInt() || result.SmallInt() != 3 {
+		t.Errorf("primIndexOf: 'l' returned %v, want 3", result)
 	}
 
-	// Character not found returns -1
+	// Character not found returns 0
 	result = vm.Send(s, "primIndexOf:", []Value{vm.registry.NewStringValue("x")})
-	if !result.IsSmallInt() || result.SmallInt() != -1 {
-		t.Errorf("primIndexOf: 'x' returned %v, want -1", result)
+	if !result.IsSmallInt() || result.SmallInt() != 0 {
+		t.Errorf("primIndexOf: 'x' returned %v, want 0", result)
 	}
 }
 
@@ -251,28 +251,28 @@ func TestStringPrimCopyFromTo(t *testing.T) {
 
 	s := vm.registry.NewStringValue("hello world")
 
-	// Copy substring (0-based, exclusive end like Go slices)
-	result := vm.Send(s, "primCopyFrom:to:", []Value{FromSmallInt(0), FromSmallInt(5)})
+	// Copy substring (1-based, closed interval)
+	result := vm.Send(s, "primCopyFrom:to:", []Value{FromSmallInt(1), FromSmallInt(5)})
 	if vm.registry.GetStringContent(result) != "hello" {
-		t.Errorf("primCopyFrom:0 to:5 returned %q, want %q", vm.registry.GetStringContent(result), "hello")
+		t.Errorf("primCopyFrom:1 to:5 returned %q, want %q", vm.registry.GetStringContent(result), "hello")
 	}
 
 	// Copy middle
-	result = vm.Send(s, "primCopyFrom:to:", []Value{FromSmallInt(6), FromSmallInt(11)})
+	result = vm.Send(s, "primCopyFrom:to:", []Value{FromSmallInt(7), FromSmallInt(11)})
 	if vm.registry.GetStringContent(result) != "world" {
-		t.Errorf("primCopyFrom:6 to:11 returned %q, want %q", vm.registry.GetStringContent(result), "world")
+		t.Errorf("primCopyFrom:7 to:11 returned %q, want %q", vm.registry.GetStringContent(result), "world")
 	}
 
 	// End exceeds string length (clamped)
-	result = vm.Send(s, "primCopyFrom:to:", []Value{FromSmallInt(6), FromSmallInt(100)})
+	result = vm.Send(s, "primCopyFrom:to:", []Value{FromSmallInt(7), FromSmallInt(100)})
 	if vm.registry.GetStringContent(result) != "world" {
-		t.Errorf("primCopyFrom:6 to:100 returned %q, want %q", vm.registry.GetStringContent(result), "world")
+		t.Errorf("primCopyFrom:7 to:100 returned %q, want %q", vm.registry.GetStringContent(result), "world")
 	}
 
 	// Start exceeds end
-	result = vm.Send(s, "primCopyFrom:to:", []Value{FromSmallInt(5), FromSmallInt(3)})
+	result = vm.Send(s, "primCopyFrom:to:", []Value{FromSmallInt(6), FromSmallInt(3)})
 	if vm.registry.GetStringContent(result) != "" {
-		t.Errorf("primCopyFrom:5 to:3 returned %q, want empty string", vm.registry.GetStringContent(result))
+		t.Errorf("primCopyFrom:6 to:3 returned %q, want empty string", vm.registry.GetStringContent(result))
 	}
 }
 

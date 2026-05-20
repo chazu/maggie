@@ -16,11 +16,11 @@ func TestArraySortWithBlock(t *testing.T) {
 	vmInst.UseGoCompiler(compiler.Compile)
 
 	eval(t, vmInst, `arr := Array new: 5`)
-	eval(t, vmInst, `arr at: 0 put: 3`)
-	eval(t, vmInst, `arr at: 1 put: 1`)
-	eval(t, vmInst, `arr at: 2 put: 4`)
-	eval(t, vmInst, `arr at: 3 put: 1`)
-	eval(t, vmInst, `arr at: 4 put: 5`)
+	eval(t, vmInst, `arr at: 1 put: 3`)
+	eval(t, vmInst, `arr at: 2 put: 1`)
+	eval(t, vmInst, `arr at: 3 put: 4`)
+	eval(t, vmInst, `arr at: 4 put: 1`)
+	eval(t, vmInst, `arr at: 5 put: 5`)
 	eval(t, vmInst, `arr primSort: [:a :b | a - b]`)
 
 	result := eval(t, vmInst, `arr`)
@@ -43,10 +43,10 @@ func TestArraySortWithBlockDescending(t *testing.T) {
 	vmInst.UseGoCompiler(compiler.Compile)
 
 	eval(t, vmInst, `arr := Array new: 4`)
-	eval(t, vmInst, `arr at: 0 put: 1`)
-	eval(t, vmInst, `arr at: 1 put: 4`)
-	eval(t, vmInst, `arr at: 2 put: 2`)
-	eval(t, vmInst, `arr at: 3 put: 3`)
+	eval(t, vmInst, `arr at: 1 put: 1`)
+	eval(t, vmInst, `arr at: 2 put: 4`)
+	eval(t, vmInst, `arr at: 3 put: 2`)
+	eval(t, vmInst, `arr at: 4 put: 3`)
 	eval(t, vmInst, `arr primSort: [:a :b | b - a]`)
 
 	result := eval(t, vmInst, `arr`)
@@ -65,11 +65,11 @@ func TestArraySortDefault(t *testing.T) {
 	vmInst.UseGoCompiler(compiler.Compile)
 
 	eval(t, vmInst, `arr := Array new: 5`)
-	eval(t, vmInst, `arr at: 0 put: 5`)
-	eval(t, vmInst, `arr at: 1 put: 3`)
-	eval(t, vmInst, `arr at: 2 put: 1`)
-	eval(t, vmInst, `arr at: 3 put: 4`)
-	eval(t, vmInst, `arr at: 4 put: 2`)
+	eval(t, vmInst, `arr at: 1 put: 5`)
+	eval(t, vmInst, `arr at: 2 put: 3`)
+	eval(t, vmInst, `arr at: 3 put: 1`)
+	eval(t, vmInst, `arr at: 4 put: 4`)
+	eval(t, vmInst, `arr at: 5 put: 2`)
 	eval(t, vmInst, `arr primSortDefault`)
 
 	result := eval(t, vmInst, `arr`)
@@ -88,9 +88,9 @@ func TestArraySortedWithBlockReturnsNewArray(t *testing.T) {
 	vmInst.UseGoCompiler(compiler.Compile)
 
 	eval(t, vmInst, `original := Array new: 3`)
-	eval(t, vmInst, `original at: 0 put: 3`)
-	eval(t, vmInst, `original at: 1 put: 1`)
-	eval(t, vmInst, `original at: 2 put: 2`)
+	eval(t, vmInst, `original at: 1 put: 3`)
+	eval(t, vmInst, `original at: 2 put: 1`)
+	eval(t, vmInst, `original at: 3 put: 2`)
 	eval(t, vmInst, `sorted := original primSorted: [:a :b | a - b]`)
 
 	// Check sorted result
@@ -121,9 +121,9 @@ func TestArraySortedDefaultReturnsNewArray(t *testing.T) {
 	vmInst.UseGoCompiler(compiler.Compile)
 
 	eval(t, vmInst, `original := Array new: 3`)
-	eval(t, vmInst, `original at: 0 put: 3`)
-	eval(t, vmInst, `original at: 1 put: 1`)
-	eval(t, vmInst, `original at: 2 put: 2`)
+	eval(t, vmInst, `original at: 1 put: 3`)
+	eval(t, vmInst, `original at: 2 put: 1`)
+	eval(t, vmInst, `original at: 3 put: 2`)
 	eval(t, vmInst, `sorted := original primSortedDefault`)
 
 	// Check sorted

@@ -132,7 +132,7 @@ BytecodeGenerator subclass: Object
       "Add a literal to the table, return its index. Reuse if duplicate."
       | index |
       index := literals indexOf: value.
-      index >= 0 ifTrue: [^index].  "Already exists"
+      index > 0 ifTrue: [^index - 1].  "Already exists — return 0-based operand"
       literals add: value.
       ^literals size - 1
   ]
@@ -141,7 +141,7 @@ BytecodeGenerator subclass: Object
       "Add a selector, return its index."
       | index |
       index := selectors indexOf: selector.
-      index >= 0 ifTrue: [^index].
+      index > 0 ifTrue: [^index - 1].
       selectors add: selector.
       ^selectors size - 1
   ]
@@ -157,20 +157,20 @@ BytecodeGenerator subclass: Object
   ]
 
   method: tempIndex: name [
-      "Get index of a temp variable, or -1 if not found."
-      ^temps indexOf: name
+      "Get 0-based index of a temp variable, or -1 if not found."
+      ^(temps indexOf: name) - 1
   ]
 
   method: ivarIndex: name [
-      "Get index of an instance variable, or -1 if not found."
-      ^ivars indexOf: name
+      "Get 0-based index of an instance variable, or -1 if not found."
+      ^(ivars indexOf: name) - 1
   ]
 
   method: captureIndex: name [
       "Get or create capture index for a variable."
       | index |
       index := captures indexOf: name.
-      index >= 0 ifTrue: [^index].
+      index > 0 ifTrue: [^index - 1].
       captures add: name.
       ^captures size - 1
   ]
@@ -440,7 +440,7 @@ BytecodeGenerator subclass: Object
       "Emit a forward jump with placeholder offset. Return patch location."
       | patchLoc |
       self emit: BytecodeGenerator opJUMP.
-      patchLoc := bytecode size.
+      patchLoc := bytecode size + 1.
       self emitShort: 0.  "Placeholder"
       ^patchLoc
   ]
@@ -449,7 +449,7 @@ BytecodeGenerator subclass: Object
       "Emit a conditional forward jump. Return patch location."
       | patchLoc |
       self emit: BytecodeGenerator opJUMP_FALSE.
-      patchLoc := bytecode size.
+      patchLoc := bytecode size + 1.
       self emitShort: 0.
       ^patchLoc
   ]
@@ -458,15 +458,16 @@ BytecodeGenerator subclass: Object
       "Emit a conditional forward jump. Return patch location."
       | patchLoc |
       self emit: BytecodeGenerator opJUMP_TRUE.
-      patchLoc := bytecode size.
+      patchLoc := bytecode size + 1.
       self emitShort: 0.
       ^patchLoc
   ]
 
   method: patchJumpAt: location [
-      "Patch a forward jump to point to current location (little-endian)."
+      "Patch a forward jump to point to current location (little-endian).
+       location points to the first of the two placeholder bytes."
       | offset |
-      offset := bytecode size - location - 2.  "Offset from after the jump operand"
+      offset := bytecode size - location - 1.
       bytecode at: location put: (offset bitAnd: 16rFF).
       bytecode at: location + 1 put: ((offset bitShift: -8) bitAnd: 16rFF)
   ]
@@ -664,7 +665,7 @@ BytecodeGenerator subclass: Object
        of the right size and place each name at its index."
       result := Array new: seen size.
       seen keysAndValuesDo: [:name :idx |
-          result at: idx put: name
+          result at: idx + 1 put: name
       ].
       ^result
   ]
@@ -916,13 +917,13 @@ BytecodeGenerator subclass: Object
       self compile: node receiver.
 
       messages := node messages.
-      0 to: messages size - 1 do: [:i |
+      1 to: messages size do: [:i |
           | msg |
           msg := messages at: i.
-          i < (messages size - 1) ifTrue: [self emitDup].  "Keep receiver for next message"
+          i < messages size ifTrue: [self emitDup].
           msg arguments do: [:arg | self compile: arg].
           self emitSend: msg selector argc: msg arguments size.
-          i < (messages size - 1) ifTrue: [self emitPop]  "Discard result except last"
+          i < messages size ifTrue: [self emitPop]
       ]
   ]
 
@@ -947,14 +948,14 @@ BytecodeGenerator subclass: Object
       ].
       newNestingDepth = 1 ifTrue: [
           "First-level block: method-level temps are enclosing scope"
-          0 to: temps size - 1 do: [:i |
-              newEnclosingVars at: (temps at: i) put: i
+          1 to: temps size do: [:i |
+              newEnclosingVars at: (temps at: i) put: i - 1
           ]
       ] ifFalse: [
           "Nested block: current block's temps become enclosing"
           inBlock ifTrue: [
-              0 to: temps size - 1 do: [:i |
-                  newEnclosingVars at: (temps at: i) put: i
+              1 to: temps size do: [:i |
+                  newEnclosingVars at: (temps at: i) put: i - 1
               ]
           ]
       ].
@@ -966,8 +967,8 @@ BytecodeGenerator subclass: Object
 
       "Build captured vars map for the block"
       newCapturedVars := Dictionary new.
-      0 to: varsToCapture size - 1 do: [:i |
-          newCapturedVars at: (varsToCapture at: i) put: i
+      1 to: varsToCapture size do: [:i |
+          newCapturedVars at: (varsToCapture at: i) put: i - 1
       ].
       blockGen setCapturedVars: newCapturedVars.
 
@@ -984,13 +985,13 @@ BytecodeGenerator subclass: Object
       blockGen setBlockNumTemps: params size + node temporaries size.
 
       "Pre-initialize cell variables in block scope"
-      0 to: blockGen temps size - 1 do: [:idx |
+      1 to: blockGen temps size do: [:idx |
           | tName |
           tName := blockGen temps at: idx.
           (blockGen isCellVar: tName) ifTrue: [
               blockGen emitPushNil.
               blockGen emitMakeCell.
-              blockGen emitStoreTemp: idx.
+              blockGen emitStoreTemp: idx - 1.
               blockGen emitPop.
               blockGen markCellInitialized: tName
           ]
@@ -1000,12 +1001,12 @@ BytecodeGenerator subclass: Object
       statements := node statements.
       statements size > 0 ifTrue: [
           "Compile all but last statement with pop"
-          0 to: statements size - 2 do: [:i |
+          1 to: statements size - 1 do: [:i |
               blockGen compile: (statements at: i).
               blockGen emitPop
           ].
           "Compile last statement without pop, then return"
-          blockGen compile: (statements at: statements size - 1).
+          blockGen compile: (statements at: statements size).
           blockGen emitBlockReturn
       ] ifFalse: [
           "Empty block returns nil"
@@ -1106,11 +1107,11 @@ BytecodeGenerator subclass: Object
 
       statements size > 0 ifTrue: [
           "Check if last statement is a return"
-          lastStmt := statements at: statements size - 1.
+          lastStmt := statements at: statements size.
           hasExplicitReturn := lastStmt isReturn.
 
           "Compile all but last statement with pop"
-          0 to: statements size - 2 do: [:i |
+          1 to: statements size - 1 do: [:i |
               self compile: (statements at: i).
               self emitPop
           ].

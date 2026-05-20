@@ -71,7 +71,7 @@ func (vm *VM) registerStringPrimitivesExtended() {
 		return FromSmallInt(int64(len(s)))
 	})
 
-	// primAt: - return the Character at the given 0-based index
+	// primAt: - return the Character at the given 1-based index
 	c.AddMethod1(vm.Selectors, "primAt:", func(vmPtr interface{}, recv Value, index Value) Value {
 		v := vmPtr.(*VM)
 		if !index.IsSmallInt() {
@@ -79,10 +79,10 @@ func (vm *VM) registerStringPrimitivesExtended() {
 		}
 		s := v.registry.GetStringContent(recv)
 		idx := int(index.SmallInt())
-		if idx < 0 || idx >= len(s) {
+		if idx < 1 || idx > len(s) {
 			return Nil // Index out of bounds
 		}
-		return FromCharacter(rune(s[idx]))
+		return FromCharacter(rune(s[idx-1]))
 	})
 
 	// primConcat: - concatenate two strings (also accepts Characters)
@@ -129,17 +129,19 @@ func (vm *VM) registerStringPrimitivesExtended() {
 		return False
 	})
 
-	// primIndexOf: - return the 0-based index of a substring or character, or -1 if not found
+	// primIndexOf: - return the 1-based index of a substring or character, or 0 if not found
 	c.AddMethod1(vm.Selectors, "primIndexOf:", func(vmPtr interface{}, recv Value, char Value) Value {
 		v := vmPtr.(*VM)
 		s := v.registry.GetStringContent(recv)
 		ch := v.getStringLike(char)
 		if len(ch) == 0 {
-			return FromSmallInt(-1)
+			return FromSmallInt(0)
 		}
 		idx := strings.Index(s, ch)
-		// Return 0-based index, or -1 if not found
-		return FromSmallInt(int64(idx))
+		if idx < 0 {
+			return FromSmallInt(0)
+		}
+		return FromSmallInt(int64(idx + 1))
 	})
 
 	// primAsSymbol - convert string to symbol
@@ -163,7 +165,7 @@ func (vm *VM) registerStringPrimitivesExtended() {
 		return v.registry.NewStringValue(strings.ToLower(s))
 	})
 
-	// primCopyFrom:to: - return substring (0-based, exclusive end like Go slices)
+	// primCopyFrom:to: - return substring (1-based, inclusive (closed interval))
 	c.AddMethod2(vm.Selectors, "primCopyFrom:to:", func(vmPtr interface{}, recv Value, start, end Value) Value {
 		v := vmPtr.(*VM)
 		if !start.IsSmallInt() || !end.IsSmallInt() {
@@ -173,16 +175,16 @@ func (vm *VM) registerStringPrimitivesExtended() {
 		startIdx := int(start.SmallInt())
 		endIdx := int(end.SmallInt())
 
-		if startIdx < 0 {
-			startIdx = 0
+		if startIdx < 1 {
+			startIdx = 1
 		}
 		if endIdx > len(s) {
 			endIdx = len(s)
 		}
-		if startIdx >= endIdx || startIdx >= len(s) {
+		if startIdx > endIdx || startIdx > len(s) {
 			return v.registry.NewStringValue("")
 		}
-		return v.registry.NewStringValue(s[startIdx:endIdx])
+		return v.registry.NewStringValue(s[startIdx-1 : endIdx])
 	})
 
 	// asInteger - convert string to integer

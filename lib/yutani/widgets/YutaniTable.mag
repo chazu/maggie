@@ -100,13 +100,13 @@ YutaniTable subclass: YutaniWidget
   method: selectedRow [
       | sel |
       sel := self selection.
-      ^sel ifNotNil: [sel at: #row ifAbsent: [-1]] ifNil: [-1]
+      ^sel ifNotNil: [sel at: #row ifAbsent: [0]] ifNil: [0]
   ]
 
   method: selectedColumn [
       | sel |
       sel := self selection.
-      ^sel ifNotNil: [sel at: #column ifAbsent: [-1]] ifNil: [-1]
+      ^sel ifNotNil: [sel at: #column ifAbsent: [0]] ifNil: [0]
   ]
 
   method: selectRow: row col: col [
@@ -156,7 +156,7 @@ YutaniTable subclass: YutaniWidget
   # Convenience method to set a row of data
   method: setRow: rowIndex data: dataArray [
       dataArray doWithIndex: [:text :colIndex |
-          self setCell: rowIndex col: colIndex - 1 text: text
+          self setCell: rowIndex col: colIndex text: text
       ]
   ]
 

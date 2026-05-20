@@ -111,7 +111,7 @@ func (vm *VM) registerArrayListPrimitives() {
 		if al == nil || !index.IsSmallInt() {
 			return Nil
 		}
-		return al.At(int(index.SmallInt()))
+		return al.At(int(index.SmallInt() - 1))
 	}
 	c.AddMethod1(vm.Selectors, "at:", atFn)
 	c.AddMethod1(vm.Selectors, "primAt:", atFn)
@@ -123,7 +123,7 @@ func (vm *VM) registerArrayListPrimitives() {
 		if al == nil || !index.IsSmallInt() {
 			return value
 		}
-		al.AtPut(int(index.SmallInt()), value)
+		al.AtPut(int(index.SmallInt()-1), value)
 		return value
 	}
 	c.AddMethod2(vm.Selectors, "at:put:", atPutFn)
@@ -172,7 +172,7 @@ func (vm *VM) registerArrayListPrimitives() {
 		if al == nil || !index.IsSmallInt() {
 			return Nil
 		}
-		return al.RemoveAt(int(index.SmallInt()))
+		return al.RemoveAt(int(index.SmallInt() - 1))
 	}
 	c.AddMethod1(vm.Selectors, "removeAt:", removeAtFn)
 	c.AddMethod1(vm.Selectors, "primRemoveAt:", removeAtFn)
@@ -260,14 +260,14 @@ func (vm *VM) registerArrayListPrimitives() {
 		v := vmPtr.(*VM)
 		al := v.getArrayList(recv)
 		if al == nil {
-			return FromSmallInt(-1)
+			return FromSmallInt(0)
 		}
 		for i, e := range al.elements {
 			if v.Send(e, "=", []Value{elem}) == True {
-				return FromSmallInt(int64(i))
+				return FromSmallInt(int64(i + 1))
 			}
 		}
-		return FromSmallInt(-1)
+		return FromSmallInt(0)
 	}
 	c.AddMethod1(vm.Selectors, "indexOf:", indexOfFn)
 	c.AddMethod1(vm.Selectors, "primIndexOf:", indexOfFn)

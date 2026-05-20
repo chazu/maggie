@@ -186,7 +186,7 @@ Cluster subclass: Object
   method: handleDown: info <Array> ! <Network> [
       "info is #(refID processValue reasonSymbol resultValue)"
       | reason <Symbol> deadAddrs <ArrayList> |
-      reason := info at: 3.
+      reason := info at: 4.
       deadAddrs := ArrayList new.
 
       "Find members whose nodes are no longer reachable"

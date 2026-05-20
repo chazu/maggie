@@ -500,19 +500,19 @@ func TestVMArrayPrimitives(t *testing.T) {
 		t.Errorf("Array size should be 5, got %v", size)
 	}
 
-	// Test at:put: and at: (0-based indexing)
-	// Store value 42 at index 0
-	v.Send(arr, "at:put:", []Value{FromSmallInt(0), FromSmallInt(42)})
-	val := v.Send(arr, "at:", []Value{FromSmallInt(0)})
+	// Test at:put: and at: (1-based indexing)
+	// Store value 42 at index 1
+	v.Send(arr, "at:put:", []Value{FromSmallInt(1), FromSmallInt(42)})
+	val := v.Send(arr, "at:", []Value{FromSmallInt(1)})
 	if !val.IsSmallInt() || val.SmallInt() != 42 {
-		t.Errorf("Array at: 0 should be 42, got %v", val)
+		t.Errorf("Array at: 1 should be 42, got %v", val)
 	}
 
-	// Store value 100 at index 2
-	v.Send(arr, "at:put:", []Value{FromSmallInt(2), FromSmallInt(100)})
-	val = v.Send(arr, "at:", []Value{FromSmallInt(2)})
+	// Store value 100 at index 3
+	v.Send(arr, "at:put:", []Value{FromSmallInt(3), FromSmallInt(100)})
+	val = v.Send(arr, "at:", []Value{FromSmallInt(3)})
 	if !val.IsSmallInt() || val.SmallInt() != 100 {
-		t.Errorf("Array at: 2 should be 100, got %v", val)
+		t.Errorf("Array at: 3 should be 100, got %v", val)
 	}
 
 	// Test primSize
@@ -522,21 +522,21 @@ func TestVMArrayPrimitives(t *testing.T) {
 	}
 
 	// Test primAt: and primAt:put:
-	v.Send(arr, "primAt:put:", []Value{FromSmallInt(4), FromSmallInt(999)})
-	val = v.Send(arr, "primAt:", []Value{FromSmallInt(4)})
+	v.Send(arr, "primAt:put:", []Value{FromSmallInt(5), FromSmallInt(999)})
+	val = v.Send(arr, "primAt:", []Value{FromSmallInt(5)})
 	if !val.IsSmallInt() || val.SmallInt() != 999 {
-		t.Errorf("Array primAt: 4 should be 999, got %v", val)
+		t.Errorf("Array primAt: 5 should be 999, got %v", val)
 	}
 
 	// Test out of bounds access returns Nil
-	val = v.Send(arr, "at:", []Value{FromSmallInt(-1)}) // -1 is out of bounds
+	val = v.Send(arr, "at:", []Value{FromSmallInt(0)}) // 0 is out of bounds (1-based)
 	if val != Nil {
-		t.Errorf("Array at: -1 should return nil, got %v", val)
+		t.Errorf("Array at: 0 should return nil, got %v", val)
 	}
 
-	val = v.Send(arr, "at:", []Value{FromSmallInt(5)}) // 5 is out of bounds for size 5 (0-4 valid)
+	val = v.Send(arr, "at:", []Value{FromSmallInt(6)}) // 6 is out of bounds for size 5 (1-5 valid)
 	if val != Nil {
-		t.Errorf("Array at: 5 should return nil, got %v", val)
+		t.Errorf("Array at: 6 should return nil, got %v", val)
 	}
 }
 
@@ -556,7 +556,7 @@ func TestVMArrayWithFactoryMethods(t *testing.T) {
 		t.Errorf("Array with: size should be 1, got %v", size)
 	}
 
-	val := v.Send(arr, "at:", []Value{FromSmallInt(0)})
+	val := v.Send(arr, "at:", []Value{FromSmallInt(1)})
 	if !val.IsSmallInt() || val.SmallInt() != 42 {
 		t.Errorf("Array with: element should be 42, got %v", val)
 	}
@@ -572,12 +572,12 @@ func TestVMArrayWithFactoryMethods(t *testing.T) {
 		t.Errorf("Array with:with: size should be 2, got %v", size)
 	}
 
-	val = v.Send(arr, "at:", []Value{FromSmallInt(0)})
+	val = v.Send(arr, "at:", []Value{FromSmallInt(1)})
 	if !val.IsSmallInt() || val.SmallInt() != 10 {
 		t.Errorf("Array first element should be 10, got %v", val)
 	}
 
-	val = v.Send(arr, "at:", []Value{FromSmallInt(1)})
+	val = v.Send(arr, "at:", []Value{FromSmallInt(2)})
 	if !val.IsSmallInt() || val.SmallInt() != 20 {
 		t.Errorf("Array second element should be 20, got %v", val)
 	}
@@ -592,8 +592,8 @@ func TestVMNewArrayHelper(t *testing.T) {
 		t.Fatalf("NewArray should return an object")
 	}
 
-	// All slots should be Nil initially (0-based indexing)
-	for i := 0; i < 3; i++ {
+	// All slots should be Nil initially (1-based indexing)
+	for i := 1; i <= 3; i++ {
 		val := v.Send(arr, "at:", []Value{FromSmallInt(int64(i))})
 		if val != Nil {
 			t.Errorf("NewArray slot %d should be nil, got %v", i, val)
@@ -608,10 +608,10 @@ func TestVMNewArrayHelper(t *testing.T) {
 	}
 
 	expected := []int64{10, 20, 30}
-	for i := 0; i < 3; i++ {
+	for i := 1; i <= 3; i++ {
 		val := v.Send(arr, "at:", []Value{FromSmallInt(int64(i))})
-		if !val.IsSmallInt() || val.SmallInt() != expected[i] {
-			t.Errorf("NewArrayWithElements slot %d should be %d, got %v", i, expected[i], val)
+		if !val.IsSmallInt() || val.SmallInt() != expected[i-1] {
+			t.Errorf("NewArrayWithElements slot %d should be %d, got %v", i, expected[i-1], val)
 		}
 	}
 }

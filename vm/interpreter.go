@@ -1846,25 +1846,25 @@ func (i *Interpreter) primitiveAt(rcvr, idx Value) Value {
 	}
 	index := idx.SmallInt()
 
-	// Handle arrays/objects
+	// Handle arrays/objects (1-based indexing)
 	if rcvr.IsObject() {
 		obj := ObjectFromValue(rcvr)
 		if obj != nil {
-			if index < 0 || index >= int64(obj.NumSlots()) {
+			if index < 1 || index > int64(obj.NumSlots()) {
 				return Nil // Bounds error
 			}
-			return obj.GetSlot(int(index))
+			return obj.GetSlot(int(index - 1))
 		}
 	}
 
-	// Handle strings
+	// Handle strings (1-based indexing)
 	if IsStringValue(rcvr) {
 		str := i.vm.registry.GetStringContent(rcvr)
-		if index < 0 || index >= int64(len(str)) {
+		if index < 1 || index > int64(len(str)) {
 			return Nil // Bounds error
 		}
 		// Return character as small integer (ASCII/Unicode code point)
-		return FromSmallInt(int64(str[index]))
+		return FromSmallInt(int64(str[index-1]))
 	}
 
 	return Nil
@@ -1876,14 +1876,14 @@ func (i *Interpreter) primitiveAtPut(rcvr, idx, val Value) Value {
 	}
 	index := idx.SmallInt()
 
-	// Handle arrays/objects
+	// Handle arrays/objects (1-based indexing)
 	if rcvr.IsObject() {
 		obj := ObjectFromValue(rcvr)
 		if obj != nil {
-			if index < 0 || index >= int64(obj.NumSlots()) {
+			if index < 1 || index > int64(obj.NumSlots()) {
 				return val // Bounds error - return value anyway
 			}
-			obj.SetSlot(int(index), val)
+			obj.SetSlot(int(index-1), val)
 		}
 	}
 

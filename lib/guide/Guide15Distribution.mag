@@ -631,7 +631,7 @@ Guide15Distribution subclass: Object
       ifTrue: [
           info := msg payload.
           "info is #(refID processValue reason result)"
-          ('Worker died: ', (info at: 3) printString) println
+          ('Worker died: ', (info at: 4) printString) println
       ]
   ```
 
@@ -653,7 +653,7 @@ Guide15Distribution subclass: Object
   "The watcher handles both process and node death the same way"
   msg := Process receive.
   msg selector = #processDown: ifTrue: [
-      reason := msg payload at: 3.   "Symbol: #normal, #error, or #nodeDown"
+      reason := msg payload at: 4.   "Symbol: #normal, #error, or #nodeDown"
       reason = #nodeDown
           ifTrue: ['Entire node went down' println]
           ifFalse: ['Process exited normally or crashed' println]
