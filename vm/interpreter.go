@@ -1842,7 +1842,7 @@ func (i *Interpreter) primitiveNE(a, b Value) Value {
 
 func (i *Interpreter) primitiveAt(rcvr, idx Value) Value {
 	if !idx.IsSmallInt() {
-		return Nil
+		return i.vm.SignalPrimitiveError("at:", "index must be an integer")
 	}
 	index := idx.SmallInt()
 
@@ -1851,7 +1851,7 @@ func (i *Interpreter) primitiveAt(rcvr, idx Value) Value {
 		obj := ObjectFromValue(rcvr)
 		if obj != nil {
 			if index < 1 || index > int64(obj.NumSlots()) {
-				return Nil // Bounds error
+				return i.vm.SignalSubscriptOutOfBounds("at:", index, obj.NumSlots())
 			}
 			return obj.GetSlot(int(index - 1))
 		}
@@ -1861,18 +1861,18 @@ func (i *Interpreter) primitiveAt(rcvr, idx Value) Value {
 	if IsStringValue(rcvr) {
 		str := i.vm.registry.GetStringContent(rcvr)
 		if index < 1 || index > int64(len(str)) {
-			return Nil // Bounds error
+			return i.vm.SignalSubscriptOutOfBounds("at:", index, len(str))
 		}
 		// Return character as small integer (ASCII/Unicode code point)
 		return FromSmallInt(int64(str[index-1]))
 	}
 
-	return Nil
+	return i.vm.SignalPrimitiveError("at:", "receiver must be an indexable object")
 }
 
 func (i *Interpreter) primitiveAtPut(rcvr, idx, val Value) Value {
 	if !idx.IsSmallInt() {
-		return val
+		return i.vm.SignalPrimitiveError("at:put:", "index must be an integer")
 	}
 	index := idx.SmallInt()
 
@@ -1881,7 +1881,7 @@ func (i *Interpreter) primitiveAtPut(rcvr, idx, val Value) Value {
 		obj := ObjectFromValue(rcvr)
 		if obj != nil {
 			if index < 1 || index > int64(obj.NumSlots()) {
-				return val // Bounds error - return value anyway
+				return i.vm.SignalSubscriptOutOfBounds("at:put:", index, obj.NumSlots())
 			}
 			obj.SetSlot(int(index-1), val)
 		}

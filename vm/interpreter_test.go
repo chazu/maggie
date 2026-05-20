@@ -1058,16 +1058,31 @@ func TestPrimitiveAtArray(t *testing.T) {
 		t.Errorf("arr[3] = %v, want 30", result)
 	}
 
-	// Test out of bounds
-	result = vm.interpreter.primitiveAt(arr, FromSmallInt(4))
-	if result != Nil {
-		t.Errorf("arr[4] = %v, want nil (out of bounds)", result)
-	}
+	// Test out of bounds — should signal SubscriptOutOfBounds
+	func() {
+		defer func() {
+			r := recover()
+			if r == nil {
+				t.Error("arr[4] should signal SubscriptOutOfBounds")
+			}
+			if se, ok := r.(SignaledException); ok {
+				if se.Object == nil || se.Object.ExceptionClass != vm.SubscriptOutOfBoundsClass {
+					t.Errorf("arr[4] signaled wrong exception class: %v", se)
+				}
+			}
+		}()
+		vm.interpreter.primitiveAt(arr, FromSmallInt(4))
+	}()
 
-	result = vm.interpreter.primitiveAt(arr, FromSmallInt(0))
-	if result != Nil {
-		t.Errorf("arr[0] = %v, want nil (0 is out of bounds in 1-based)", result)
-	}
+	func() {
+		defer func() {
+			r := recover()
+			if r == nil {
+				t.Error("arr[0] should signal SubscriptOutOfBounds")
+			}
+		}()
+		vm.interpreter.primitiveAt(arr, FromSmallInt(0))
+	}()
 }
 
 // TestPrimitiveAtPutArray verifies primitiveAtPut works for array modification.
@@ -1138,11 +1153,15 @@ func TestPrimitiveAtString(t *testing.T) {
 		t.Errorf("str[2] = %v, want 66 ('B')", result)
 	}
 
-	// Test out of bounds
-	result = vm.interpreter.primitiveAt(str, FromSmallInt(4))
-	if result != Nil {
-		t.Errorf("str[4] = %v, want nil (out of bounds)", result)
-	}
+	// Test out of bounds — should signal SubscriptOutOfBounds
+	func() {
+		defer func() {
+			if r := recover(); r == nil {
+				t.Error("str[4] should signal SubscriptOutOfBounds")
+			}
+		}()
+		vm.interpreter.primitiveAt(str, FromSmallInt(4))
+	}()
 }
 
 // TestCellOperations verifies the basic Cell type operations.

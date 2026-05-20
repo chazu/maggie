@@ -32,7 +32,7 @@ func (vm *VM) registerSmallIntegerPrimitives() {
 		if arg.IsFloat() {
 			return FromFloat64(float64(recv.SmallInt()) + arg.Float64())
 		}
-		return Nil
+		return v.SignalPrimitiveError("+", "argument must be a number")
 	})
 
 	c.AddMethod1(vm.Selectors, "-", func(vmPtr interface{}, recv Value, arg Value) Value {
@@ -54,7 +54,7 @@ func (vm *VM) registerSmallIntegerPrimitives() {
 		if arg.IsFloat() {
 			return FromFloat64(float64(recv.SmallInt()) - arg.Float64())
 		}
-		return Nil
+		return v.SignalPrimitiveError("-", "argument must be a number")
 	})
 
 	c.AddMethod1(vm.Selectors, "*", func(vmPtr interface{}, recv Value, arg Value) Value {
@@ -73,14 +73,14 @@ func (vm *VM) registerSmallIntegerPrimitives() {
 		if arg.IsFloat() {
 			return FromFloat64(float64(recv.SmallInt()) * arg.Float64())
 		}
-		return Nil
+		return v.SignalPrimitiveError("*", "argument must be a number")
 	})
 
 	c.AddMethod1(vm.Selectors, "/", func(vmPtr interface{}, recv Value, arg Value) Value {
 		v := vmPtr.(*VM)
 		if arg.IsSmallInt() {
 			if arg.SmallInt() == 0 {
-				return Nil // Division by zero
+				return v.SignalZeroDivide()
 			}
 			return FromSmallInt(recv.SmallInt() / arg.SmallInt())
 		}
@@ -90,19 +90,19 @@ func (vm *VM) registerSmallIntegerPrimitives() {
 			if b != nil && b.Sign() != 0 {
 				return v.registry.NewBigIntValue(new(big.Int).Quo(a, b))
 			}
-			return Nil
+			return v.SignalZeroDivide()
 		}
 		if arg.IsFloat() {
 			return FromFloat64(float64(recv.SmallInt()) / arg.Float64())
 		}
-		return Nil
+		return v.SignalPrimitiveError("/", "argument must be a number")
 	})
 
 	c.AddMethod1(vm.Selectors, "\\\\", func(vmPtr interface{}, recv Value, arg Value) Value {
 		v := vmPtr.(*VM)
 		if arg.IsSmallInt() {
 			if arg.SmallInt() == 0 {
-				return Nil
+				return v.SignalZeroDivide()
 			}
 			return FromSmallInt(recv.SmallInt() % arg.SmallInt())
 		}
@@ -112,15 +112,17 @@ func (vm *VM) registerSmallIntegerPrimitives() {
 			if b != nil && b.Sign() != 0 {
 				return v.registry.NewBigIntValue(new(big.Int).Rem(a, b))
 			}
+			return v.SignalZeroDivide()
 		}
-		return Nil
+		return v.SignalPrimitiveError("\\\\", "argument must be a number")
 	})
 
 	// // - truncated integer division (floor division)
-	c.AddMethod1(vm.Selectors, "//", func(_ interface{}, recv Value, arg Value) Value {
+	c.AddMethod1(vm.Selectors, "//", func(vmPtr interface{}, recv Value, arg Value) Value {
+		v := vmPtr.(*VM)
 		if arg.IsSmallInt() {
 			if arg.SmallInt() == 0 {
-				return Nil
+				return v.SignalZeroDivide()
 			}
 			// Smalltalk // is floor division
 			a, b := recv.SmallInt(), arg.SmallInt()
@@ -131,83 +133,83 @@ func (vm *VM) registerSmallIntegerPrimitives() {
 			}
 			return FromSmallInt(result)
 		}
-		return Nil
+		return v.SignalPrimitiveError("//", "argument must be a number")
 	})
 
 	// Comparisons
 	c.AddMethod1(vm.Selectors, "<", func(vmPtr interface{}, recv Value, arg Value) Value {
+		v := vmPtr.(*VM)
 		if arg.IsSmallInt() {
 			return FromBool(recv.SmallInt() < arg.SmallInt())
 		}
 		if IsBigIntValue(arg) {
-			v := vmPtr.(*VM)
 			a := big.NewInt(recv.SmallInt())
 			b := getBigIntOperand(v, arg)
 			if b != nil {
 				return FromBool(a.Cmp(b) < 0)
 			}
 		}
-		return Nil
+		return v.SignalPrimitiveError("<", "argument must be a number")
 	})
 
 	c.AddMethod1(vm.Selectors, ">", func(vmPtr interface{}, recv Value, arg Value) Value {
+		v := vmPtr.(*VM)
 		if arg.IsSmallInt() {
 			return FromBool(recv.SmallInt() > arg.SmallInt())
 		}
 		if IsBigIntValue(arg) {
-			v := vmPtr.(*VM)
 			a := big.NewInt(recv.SmallInt())
 			b := getBigIntOperand(v, arg)
 			if b != nil {
 				return FromBool(a.Cmp(b) > 0)
 			}
 		}
-		return Nil
+		return v.SignalPrimitiveError(">", "argument must be a number")
 	})
 
 	c.AddMethod1(vm.Selectors, "<=", func(vmPtr interface{}, recv Value, arg Value) Value {
+		v := vmPtr.(*VM)
 		if arg.IsSmallInt() {
 			return FromBool(recv.SmallInt() <= arg.SmallInt())
 		}
 		if IsBigIntValue(arg) {
-			v := vmPtr.(*VM)
 			a := big.NewInt(recv.SmallInt())
 			b := getBigIntOperand(v, arg)
 			if b != nil {
 				return FromBool(a.Cmp(b) <= 0)
 			}
 		}
-		return Nil
+		return v.SignalPrimitiveError("<=", "argument must be a number")
 	})
 
 	c.AddMethod1(vm.Selectors, ">=", func(vmPtr interface{}, recv Value, arg Value) Value {
+		v := vmPtr.(*VM)
 		if arg.IsSmallInt() {
 			return FromBool(recv.SmallInt() >= arg.SmallInt())
 		}
 		if IsBigIntValue(arg) {
-			v := vmPtr.(*VM)
 			a := big.NewInt(recv.SmallInt())
 			b := getBigIntOperand(v, arg)
 			if b != nil {
 				return FromBool(a.Cmp(b) >= 0)
 			}
 		}
-		return Nil
+		return v.SignalPrimitiveError(">=", "argument must be a number")
 	})
 
 	c.AddMethod1(vm.Selectors, "=", func(vmPtr interface{}, recv Value, arg Value) Value {
+		v := vmPtr.(*VM)
 		if arg.IsSmallInt() {
 			return FromBool(recv.SmallInt() == arg.SmallInt())
 		}
 		if IsBigIntValue(arg) {
-			v := vmPtr.(*VM)
 			a := big.NewInt(recv.SmallInt())
 			b := getBigIntOperand(v, arg)
 			if b != nil {
 				return FromBool(a.Cmp(b) == 0)
 			}
 		}
-		return Nil
+		return v.SignalPrimitiveError("=", "argument must be a number")
 	})
 
 	// Bit operations

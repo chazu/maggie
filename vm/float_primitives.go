@@ -12,54 +12,54 @@ import (
 func (vm *VM) registerFloatPrimitives() {
 	c := vm.FloatClass
 
-	c.AddMethod1(vm.Selectors, "+", func(_ interface{}, recv Value, arg Value) Value {
+	c.AddMethod1(vm.Selectors, "+", func(vmPtr interface{}, recv Value, arg Value) Value {
 		if arg.IsFloat() {
 			return FromFloat64(recv.Float64() + arg.Float64())
 		}
 		if arg.IsSmallInt() {
 			return FromFloat64(recv.Float64() + float64(arg.SmallInt()))
 		}
-		return Nil
+		return vmPtr.(*VM).SignalPrimitiveError("+", "argument must be a number")
 	})
 
-	c.AddMethod1(vm.Selectors, "-", func(_ interface{}, recv Value, arg Value) Value {
+	c.AddMethod1(vm.Selectors, "-", func(vmPtr interface{}, recv Value, arg Value) Value {
 		if arg.IsFloat() {
 			return FromFloat64(recv.Float64() - arg.Float64())
 		}
 		if arg.IsSmallInt() {
 			return FromFloat64(recv.Float64() - float64(arg.SmallInt()))
 		}
-		return Nil
+		return vmPtr.(*VM).SignalPrimitiveError("-", "argument must be a number")
 	})
 
-	c.AddMethod1(vm.Selectors, "*", func(_ interface{}, recv Value, arg Value) Value {
+	c.AddMethod1(vm.Selectors, "*", func(vmPtr interface{}, recv Value, arg Value) Value {
 		if arg.IsFloat() {
 			return FromFloat64(recv.Float64() * arg.Float64())
 		}
 		if arg.IsSmallInt() {
 			return FromFloat64(recv.Float64() * float64(arg.SmallInt()))
 		}
-		return Nil
+		return vmPtr.(*VM).SignalPrimitiveError("*", "argument must be a number")
 	})
 
-	c.AddMethod1(vm.Selectors, "/", func(_ interface{}, recv Value, arg Value) Value {
+	c.AddMethod1(vm.Selectors, "/", func(vmPtr interface{}, recv Value, arg Value) Value {
 		if arg.IsFloat() {
 			return FromFloat64(recv.Float64() / arg.Float64())
 		}
 		if arg.IsSmallInt() {
 			return FromFloat64(recv.Float64() / float64(arg.SmallInt()))
 		}
-		return Nil
+		return vmPtr.(*VM).SignalPrimitiveError("/", "argument must be a number")
 	})
 
-	c.AddMethod1(vm.Selectors, "<", func(_ interface{}, recv Value, arg Value) Value {
+	c.AddMethod1(vm.Selectors, "<", func(vmPtr interface{}, recv Value, arg Value) Value {
 		var other float64
 		if arg.IsFloat() {
 			other = arg.Float64()
 		} else if arg.IsSmallInt() {
 			other = float64(arg.SmallInt())
 		} else {
-			return Nil
+			return vmPtr.(*VM).SignalPrimitiveError("<", "argument must be a number")
 		}
 		if recv.Float64() < other {
 			return True
@@ -67,14 +67,14 @@ func (vm *VM) registerFloatPrimitives() {
 		return False
 	})
 
-	c.AddMethod1(vm.Selectors, ">", func(_ interface{}, recv Value, arg Value) Value {
+	c.AddMethod1(vm.Selectors, ">", func(vmPtr interface{}, recv Value, arg Value) Value {
 		var other float64
 		if arg.IsFloat() {
 			other = arg.Float64()
 		} else if arg.IsSmallInt() {
 			other = float64(arg.SmallInt())
 		} else {
-			return Nil
+			return vmPtr.(*VM).SignalPrimitiveError(">", "argument must be a number")
 		}
 		if recv.Float64() > other {
 			return True
@@ -176,14 +176,14 @@ func (vm *VM) registerFloatPrimitives() {
 		return FromFloat64(math.Atan(recv.Float64()))
 	})
 
-	c.AddMethod1(vm.Selectors, "atan2:", func(_ interface{}, recv Value, arg Value) Value {
+	c.AddMethod1(vm.Selectors, "atan2:", func(vmPtr interface{}, recv Value, arg Value) Value {
 		var x float64
 		if arg.IsFloat() {
 			x = arg.Float64()
 		} else if arg.IsSmallInt() {
 			x = float64(arg.SmallInt())
 		} else {
-			return Nil
+			return vmPtr.(*VM).SignalPrimitiveError("atan2:", "argument must be a number")
 		}
 		return FromFloat64(math.Atan2(recv.Float64(), x))
 	})
@@ -198,14 +198,14 @@ func (vm *VM) registerFloatPrimitives() {
 		return FromFloat64(math.Log10(recv.Float64()))
 	})
 
-	c.AddMethod1(vm.Selectors, "log:", func(_ interface{}, recv Value, arg Value) Value {
+	c.AddMethod1(vm.Selectors, "log:", func(vmPtr interface{}, recv Value, arg Value) Value {
 		var base float64
 		if arg.IsFloat() {
 			base = arg.Float64()
 		} else if arg.IsSmallInt() {
 			base = float64(arg.SmallInt())
 		} else {
-			return Nil
+			return vmPtr.(*VM).SignalPrimitiveError("log:", "argument must be a number")
 		}
 		return FromFloat64(math.Log(recv.Float64()) / math.Log(base))
 	})
@@ -214,14 +214,14 @@ func (vm *VM) registerFloatPrimitives() {
 		return FromFloat64(math.Exp(recv.Float64()))
 	})
 
-	c.AddMethod1(vm.Selectors, "pow:", func(_ interface{}, recv Value, arg Value) Value {
+	c.AddMethod1(vm.Selectors, "pow:", func(vmPtr interface{}, recv Value, arg Value) Value {
 		var exp float64
 		if arg.IsFloat() {
 			exp = arg.Float64()
 		} else if arg.IsSmallInt() {
 			exp = float64(arg.SmallInt())
 		} else {
-			return Nil
+			return vmPtr.(*VM).SignalPrimitiveError("pow:", "argument must be a number")
 		}
 		return FromFloat64(math.Pow(recv.Float64(), exp))
 	})

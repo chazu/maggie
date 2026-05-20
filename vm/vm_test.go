@@ -464,11 +464,15 @@ func TestVMSendFloorDivision(t *testing.T) {
 		t.Errorf("-10 // -3 = %d, want 3", result.SmallInt())
 	}
 
-	// Division by zero
-	result = vm.Send(FromSmallInt(10), "//", []Value{FromSmallInt(0)})
-	if result != Nil {
-		t.Errorf("10 // 0 should return nil")
-	}
+	// Division by zero — should signal ZeroDivide
+	func() {
+		defer func() {
+			if r := recover(); r == nil {
+				t.Error("10 // 0 should signal ZeroDivide")
+			}
+		}()
+		vm.Send(FromSmallInt(10), "//", []Value{FromSmallInt(0)})
+	}()
 }
 
 func TestVMArrayPrimitives(t *testing.T) {
@@ -528,16 +532,24 @@ func TestVMArrayPrimitives(t *testing.T) {
 		t.Errorf("Array primAt: 5 should be 999, got %v", val)
 	}
 
-	// Test out of bounds access returns Nil
-	val = v.Send(arr, "at:", []Value{FromSmallInt(0)}) // 0 is out of bounds (1-based)
-	if val != Nil {
-		t.Errorf("Array at: 0 should return nil, got %v", val)
-	}
+	// Test out of bounds access — should signal SubscriptOutOfBounds
+	func() {
+		defer func() {
+			if r := recover(); r == nil {
+				t.Error("Array at: 0 should signal SubscriptOutOfBounds")
+			}
+		}()
+		v.Send(arr, "at:", []Value{FromSmallInt(0)})
+	}()
 
-	val = v.Send(arr, "at:", []Value{FromSmallInt(6)}) // 6 is out of bounds for size 5 (1-5 valid)
-	if val != Nil {
-		t.Errorf("Array at: 6 should return nil, got %v", val)
-	}
+	func() {
+		defer func() {
+			if r := recover(); r == nil {
+				t.Error("Array at: 6 should signal SubscriptOutOfBounds")
+			}
+		}()
+		v.Send(arr, "at:", []Value{FromSmallInt(6)})
+	}()
 }
 
 func TestVMArrayWithFactoryMethods(t *testing.T) {

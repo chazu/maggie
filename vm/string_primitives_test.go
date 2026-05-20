@@ -83,17 +83,25 @@ func TestStringPrimAt(t *testing.T) {
 		t.Errorf("primAt: 3 returned %c, want 'l'", GetCharacterCodePoint(result))
 	}
 
-	// Test out of bounds (positive)
-	result = vm.Send(s, "primAt:", []Value{FromSmallInt(10)})
-	if result != Nil {
-		t.Errorf("primAt: 10 returned %v, want Nil", result)
-	}
+	// Test out of bounds (positive) — should signal SubscriptOutOfBounds
+	func() {
+		defer func() {
+			if r := recover(); r == nil {
+				t.Error("primAt: 10 should signal SubscriptOutOfBounds")
+			}
+		}()
+		vm.Send(s, "primAt:", []Value{FromSmallInt(10)})
+	}()
 
 	// Test out of bounds (zero is invalid in 1-based)
-	result = vm.Send(s, "primAt:", []Value{FromSmallInt(0)})
-	if result != Nil {
-		t.Errorf("primAt: 0 returned %v, want Nil", result)
-	}
+	func() {
+		defer func() {
+			if r := recover(); r == nil {
+				t.Error("primAt: 0 should signal SubscriptOutOfBounds")
+			}
+		}()
+		vm.Send(s, "primAt:", []Value{FromSmallInt(0)})
+	}()
 }
 
 func TestStringPrimConcat(t *testing.T) {

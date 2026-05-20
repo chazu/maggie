@@ -35,66 +35,70 @@ func (vm *VM) registerArrayPrimitives() {
 	})
 
 	// primAt: - array access (1-based indexing)
-	c.AddMethod1(vm.Selectors, "primAt:", func(_ interface{}, recv Value, index Value) Value {
+	c.AddMethod1(vm.Selectors, "primAt:", func(vmPtr interface{}, recv Value, index Value) Value {
+		v := vmPtr.(*VM)
 		if !recv.IsObject() || !index.IsSmallInt() {
-			return Nil
+			return v.SignalPrimitiveError("primAt:", "receiver must be an object and index must be an integer")
 		}
 		obj := ObjectFromValue(recv)
 		if obj == nil {
-			return Nil
+			return v.SignalPrimitiveError("primAt:", "receiver must be an object and index must be an integer")
 		}
 		idx := index.SmallInt()
 		if idx < 1 || idx > int64(obj.NumSlots()) {
-			return Nil // Bounds error - would raise in full implementation
+			return v.SignalSubscriptOutOfBounds("primAt:", idx, obj.NumSlots())
 		}
 		return obj.GetSlot(int(idx - 1))
 	})
 
 	// at: - alias for primAt: for direct calls
-	c.AddMethod1(vm.Selectors, "at:", func(_ interface{}, recv Value, index Value) Value {
+	c.AddMethod1(vm.Selectors, "at:", func(vmPtr interface{}, recv Value, index Value) Value {
+		v := vmPtr.(*VM)
 		if !recv.IsObject() || !index.IsSmallInt() {
-			return Nil
+			return v.SignalPrimitiveError("at:", "receiver must be an object and index must be an integer")
 		}
 		obj := ObjectFromValue(recv)
 		if obj == nil {
-			return Nil
+			return v.SignalPrimitiveError("at:", "receiver must be an object and index must be an integer")
 		}
 		idx := index.SmallInt()
 		if idx < 1 || idx > int64(obj.NumSlots()) {
-			return Nil // Bounds error - would raise in full implementation
+			return v.SignalSubscriptOutOfBounds("at:", idx, obj.NumSlots())
 		}
 		return obj.GetSlot(int(idx - 1))
 	})
 
 	// primAt:put: - array modification (1-based indexing)
-	c.AddMethod2(vm.Selectors, "primAt:put:", func(_ interface{}, recv Value, index, value Value) Value {
+	c.AddMethod2(vm.Selectors, "primAt:put:", func(vmPtr interface{}, recv Value, index, value Value) Value {
+		v := vmPtr.(*VM)
 		if !recv.IsObject() || !index.IsSmallInt() {
-			return value
+			return v.SignalPrimitiveError("primAt:put:", "receiver must be an object and index must be an integer")
 		}
 		obj := ObjectFromValue(recv)
 		if obj == nil {
-			return value
+			return v.SignalPrimitiveError("primAt:put:", "receiver must be an object and index must be an integer")
 		}
 		idx := index.SmallInt()
 		if idx < 1 || idx > int64(obj.NumSlots()) {
-			return value // Bounds error - would raise in full implementation
+			return v.SignalSubscriptOutOfBounds("primAt:put:", idx, obj.NumSlots())
 		}
 		obj.SetSlot(int(idx-1), value)
 		return value
 	})
 
 	// at:put: - alias for primAt:put: for direct calls
-	c.AddMethod2(vm.Selectors, "at:put:", func(_ interface{}, recv Value, index, value Value) Value {
+	c.AddMethod2(vm.Selectors, "at:put:", func(vmPtr interface{}, recv Value, index, value Value) Value {
+		v := vmPtr.(*VM)
 		if !recv.IsObject() || !index.IsSmallInt() {
-			return value
+			return v.SignalPrimitiveError("at:put:", "receiver must be an object and index must be an integer")
 		}
 		obj := ObjectFromValue(recv)
 		if obj == nil {
-			return value
+			return v.SignalPrimitiveError("at:put:", "receiver must be an object and index must be an integer")
 		}
 		idx := index.SmallInt()
 		if idx < 1 || idx > int64(obj.NumSlots()) {
-			return value // Bounds error - would raise in full implementation
+			return v.SignalSubscriptOutOfBounds("at:put:", idx, obj.NumSlots())
 		}
 		obj.SetSlot(int(idx-1), value)
 		return value

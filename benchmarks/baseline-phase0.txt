@@ -1,0 +1,60 @@
+Go test: 0 passed, 1 failed in 1 packages
+═══════════════════════════════════════
+
+vm [FAIL]
+  goos: darwin
+  goarch: arm64
+  pkg: github.com/chazu/maggie/vm
+  cpu: Apple M3
+  BenchmarkOpPushNil-8                           	 2393115	       500.7 ns/op	       0 B/op	       0 allocs/op
+  BenchmarkOpPushNil-8                           	 2392112	       501.1 ns/op	       0 B/op	       0 allocs/op
+  BenchmarkOpPushInt8-8                          	 2371141	       502.1 ns/op	       0 B/op	       0 allocs/op
+  BenchmarkOpPushInt8-8                          	 2387822	       501.5 ns/op	       0 B/op	       0 allocs/op
+  BenchmarkOpPushTemp-8                          	 2266090	       529.9 ns/op	       0 B/op	       0 allocs/op
+  BenchmarkOpPushTemp-8                          	 2269746	       530.0 ns/op	       0 B/op	       0 allocs/op
+  BenchmarkOpJump-8                              	66054135	        18.12 ns/op	       0 B/op	       0 allocs/op
+  BenchmarkOpJump-8                              	63558901	        18.15 ns/op	       0 B/op	       0 allocs/op
+  BenchmarkStackOperations-8                     	21373166	        56.13 ns/op	       0 B/op	       0 allocs/op
+  BenchmarkStackOperations-8                     	21421557	        56.11 ns/op	       0 B/op	       0 allocs/op
+  BenchmarkSmallIntAdd-8                         	60867103	        21.57 ns/op	       8 B/op	       1 allocs/op
+  BenchmarkSmallIntAdd-8                         	60516532	        19.87 ns/op	       8 B/op	       1 allocs/op
+  BenchmarkSmallIntAddNative-8                   	1000000000	         0.2655 ns/op	       0 B/op	       0 allocs/op
+  BenchmarkSmallIntAddNative-8                   	1000000000	         0.2659 ns/op	       0 B/op	       0 allocs/op
+  BenchmarkSmallIntMultiply-8                    	27510474	        42.61 ns/op	      56 B/op	       2 allocs/op
+  BenchmarkSmallIntMultiply-8                    	27753204	        43.57 ns/op	      56 B/op	       2 allocs/op
+  BenchmarkSmallIntCompare-8                     	61223577	        19.42 ns/op	       8 B/op	       1 allocs/op
+  BenchmarkSmallIntCompare-8                     	60734122	        19.90 ns/op	       8 B/op	       1 allocs/op
+  BenchmarkFloatAdd-8                            	60685620	        19.64 ns/op	       8 B/op	       1 allocs/op
+  BenchmarkFloatAdd-8                            	60328918	        19.60 ns/op	       8 B/op	       1 allocs/op
+  BenchmarkFloatAddNative-8                      	1000000000	         0.2662 ns/op	       0 B/op	       0 allocs/op
+  BenchmarkFloatAddNative-8                      	1000000000	         0.2657 ns/op	       0 B/op	       0 allocs/op
+  BenchmarkUnaryMessageSend-8                    	99731630	        12.08 ns/op	       0 B/op	       0 allocs/op
+  BenchmarkUnaryMessageSend-8                    	98910272	        12.13 ns/op	       0 B/op	       0 allocs/op
+  BenchmarkBinaryMessageSend-8                   	59946296	        19.81 ns/op	       8 B/op	       1 allocs/op
+  BenchmarkBinaryMessageSend-8                   	61858191	        19.80 ns/op	       8 B/op	       1 allocs/op
+  BenchmarkKeywordMessageSend-8                  	29621614	        39.93 ns/op	      16 B/op	       1 allocs/op
+  BenchmarkKeywordMessageSend-8                  	29327364	        39.87 ns/op	      16 B/op	       1 allocs/op
+  BenchmarkSelectorTableIntern-8                 	180772644	         6.644 ns/op	       0 B/op	       0 allocs/op
+  BenchmarkSelectorTableIntern-8                 	180151900	         6.652 ns/op	       0 B/op	       0 allocs/op
+  BenchmarkSelectorTableLookup-8                 	160952048	         7.439 ns/op	       0 B/op	       0 allocs/op
+  BenchmarkSelectorTableLookup-8                 	161265566	         7.446 ns/op	       0 B/op	       0 allocs/op
+  BenchmarkVTableLookup-8                        	848435286	         1.476 ns/op	       0 B/op	       0 allocs/op
+  BenchmarkVTableLookup-8                        	857797693	         1.405 ns/op	       0 B/op	       0 allocs/op
+  BenchmarkObjectNew-8                           	 8746017	       269.3 ns/op	     149 B/op	       1 allocs/op
+  BenchmarkObjectNew-8                           	 7503518	       239.4 ns/op	     150 B/op	       1 allocs/op
+  BenchmarkObjectSlotAccess-8                    	1000000000	         0.2684 ns/op	       0 B/op	       0 allocs/op
+  BenchmarkObjectSlotAccess-8                    	1000000000	         0.2688 ns/op	       0 B/op	       0 allocs/op
+  BenchmarkGarbageCollection-8                   	 2098648	       545.1 ns/op	       0 B/op	       0 allocs/op
+  BenchmarkGarbageCollection-8                   	 2170233	       518.9 ns/op	       0 B/op	       0 allocs/op
+  BenchmarkKeepAliveGrowth-8                     	 8927052	       115.3 ns/op	      80 B/op	       1 allocs/op
+  BenchmarkKeepAliveGrowth-8                     	 9979288	       113.6 ns/op	      80 B/op	       1 allocs/op
+  BenchmarkBlockValue-8                          	38864560	        30.82 ns/op	       0 B/op	       0 allocs/op
+  BenchmarkBlockValue-8                          	39570386	        31.27 ns/op	       0 B/op	       0 allocs/op
+  BenchmarkBlockValueWithArg-8                   	28021315	        43.89 ns/op	       8 B/op	       1 allocs/op
+  BenchmarkBlockValueWithArg-8                   	30331753	        41.74 ns/op	       8 B/op	       1 allocs/op
+  BenchmarkBlockCreation-8                       	25250859	        48.44 ns/op	     138 B/op	       1 allocs/op
+  BenchmarkBlockCreation-8                       	22569586	        51.86 ns/op	     136 B/op	       1 allocs/op
+  BenchmarkBlockWithCaptures-8                   	19430929	        52.76 ns/op	     148 B/op	       1 allocs/op
+  BenchmarkBlockWithCaptures-8                   	23340690	        51.85 ns/op	     133 B/op	       1 allocs/op
+  FAIL	github.com/chazu/maggie/vm	292.310s
+[full output: ~/Library/Application Support/rtk/tee/1779317952_go_test.log]

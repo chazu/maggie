@@ -168,7 +168,7 @@ Flag subclass: Object
 
   ```test
   s := (Cli::Flag name: 'foo' type: #string default: 'bar' doc: 'd') printString.
-  (s indexOfSubstring: 'required=') >>> -1
+  (s indexOfSubstring: 'required=') >>> 0
   ```
   """
   method: printString ^<String> [

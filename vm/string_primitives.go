@@ -75,12 +75,12 @@ func (vm *VM) registerStringPrimitivesExtended() {
 	c.AddMethod1(vm.Selectors, "primAt:", func(vmPtr interface{}, recv Value, index Value) Value {
 		v := vmPtr.(*VM)
 		if !index.IsSmallInt() {
-			return Nil
+			return v.SignalPrimitiveError("primAt:", "index must be an integer")
 		}
 		s := v.registry.GetStringContent(recv)
 		idx := int(index.SmallInt())
 		if idx < 1 || idx > len(s) {
-			return Nil // Index out of bounds
+			return v.SignalSubscriptOutOfBounds("primAt:", int64(idx), len(s))
 		}
 		return FromCharacter(rune(s[idx-1]))
 	})
@@ -88,6 +88,9 @@ func (vm *VM) registerStringPrimitivesExtended() {
 	// primConcat: - concatenate two strings (also accepts Characters)
 	c.AddMethod1(vm.Selectors, "primConcat:", func(vmPtr interface{}, recv Value, other Value) Value {
 		v := vmPtr.(*VM)
+		if !IsStringValue(other) && !IsCharacterValue(other) && !other.IsSymbol() {
+			return v.SignalPrimitiveError("primConcat:", "argument must be a string")
+		}
 		s1 := v.registry.GetStringContent(recv)
 		s2 := v.getStringLike(other)
 		return v.registry.NewStringValue(s1 + s2)
@@ -96,6 +99,9 @@ func (vm *VM) registerStringPrimitivesExtended() {
 	// primEquals: - compare two strings for equality
 	c.AddMethod1(vm.Selectors, "primEquals:", func(vmPtr interface{}, recv Value, other Value) Value {
 		v := vmPtr.(*VM)
+		if !IsStringValue(other) {
+			return v.SignalPrimitiveError("primEquals:", "argument must be a string")
+		}
 		s1 := v.registry.GetStringContent(recv)
 		s2 := v.registry.GetStringContent(other)
 		if s1 == s2 {
@@ -107,6 +113,9 @@ func (vm *VM) registerStringPrimitivesExtended() {
 	// primLessThan: - lexicographic comparison
 	c.AddMethod1(vm.Selectors, "primLessThan:", func(vmPtr interface{}, recv Value, other Value) Value {
 		v := vmPtr.(*VM)
+		if !IsStringValue(other) {
+			return v.SignalPrimitiveError("primLessThan:", "argument must be a string")
+		}
 		s1 := v.registry.GetStringContent(recv)
 		s2 := v.registry.GetStringContent(other)
 		if s1 < s2 {
@@ -118,6 +127,9 @@ func (vm *VM) registerStringPrimitivesExtended() {
 	// primIncludes: - check if string contains a character or substring
 	c.AddMethod1(vm.Selectors, "primIncludes:", func(vmPtr interface{}, recv Value, char Value) Value {
 		v := vmPtr.(*VM)
+		if !IsStringValue(char) && !IsCharacterValue(char) && !char.IsSymbol() {
+			return v.SignalPrimitiveError("primIncludes:", "argument must be a string")
+		}
 		s := v.registry.GetStringContent(recv)
 		ch := v.getStringLike(char)
 		if len(ch) == 0 {
@@ -132,6 +144,9 @@ func (vm *VM) registerStringPrimitivesExtended() {
 	// primIndexOf: - return the 1-based index of a substring or character, or 0 if not found
 	c.AddMethod1(vm.Selectors, "primIndexOf:", func(vmPtr interface{}, recv Value, char Value) Value {
 		v := vmPtr.(*VM)
+		if !IsStringValue(char) && !IsCharacterValue(char) && !char.IsSymbol() {
+			return v.SignalPrimitiveError("primIndexOf:", "argument must be a string")
+		}
 		s := v.registry.GetStringContent(recv)
 		ch := v.getStringLike(char)
 		if len(ch) == 0 {
@@ -169,7 +184,7 @@ func (vm *VM) registerStringPrimitivesExtended() {
 	c.AddMethod2(vm.Selectors, "primCopyFrom:to:", func(vmPtr interface{}, recv Value, start, end Value) Value {
 		v := vmPtr.(*VM)
 		if !start.IsSmallInt() || !end.IsSmallInt() {
-			return Nil
+			return v.SignalPrimitiveError("primCopyFrom:to:", "arguments must be integers")
 		}
 		s := v.registry.GetStringContent(recv)
 		startIdx := int(start.SmallInt())

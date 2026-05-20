@@ -173,6 +173,9 @@ func (vm *VM) bootstrapExceptionClasses() {
 	// SubscriptOutOfBounds - array index out of bounds
 	vm.SubscriptOutOfBoundsClass = vm.createClass("SubscriptOutOfBounds", vm.ErrorClass)
 
+	// PrimitiveError - type mismatch or invalid argument in a primitive
+	vm.PrimitiveErrorClass = vm.createClass("PrimitiveError", vm.ErrorClass)
+
 	// StackOverflow - call stack depth exceeded
 	vm.StackOverflowClass = vm.createClass("StackOverflow", vm.ErrorClass)
 
@@ -191,6 +194,7 @@ func (vm *VM) bootstrapExceptionClasses() {
 	vm.globals["MessageNotUnderstood"] = vm.classValue(vm.MessageNotUnderstoodClass)
 	vm.globals["ZeroDivide"] = vm.classValue(vm.ZeroDivideClass)
 	vm.globals["SubscriptOutOfBounds"] = vm.classValue(vm.SubscriptOutOfBoundsClass)
+	vm.globals["PrimitiveError"] = vm.classValue(vm.PrimitiveErrorClass)
 	vm.globals["StackOverflow"] = vm.classValue(vm.StackOverflowClass)
 	vm.globals["Warning"] = vm.classValue(vm.WarningClass)
 	vm.globals["Halt"] = vm.classValue(vm.HaltClass)
@@ -473,6 +477,24 @@ func (vm *VM) signalExceptionObject(exVal Value, ex *ExceptionObject) Value {
 		}
 	}
 	panic(SignaledException{Exception: exVal, Object: ex})
+}
+
+// SignalPrimitiveError signals a PrimitiveError with a formatted message.
+func (vm *VM) SignalPrimitiveError(selector string, msg string) Value {
+	return vm.signalException(vm.PrimitiveErrorClass,
+		vm.registry.NewStringValue(selector+": "+msg))
+}
+
+// SignalSubscriptOutOfBounds signals a SubscriptOutOfBounds error.
+func (vm *VM) SignalSubscriptOutOfBounds(selector string, index int64, size int) Value {
+	return vm.signalException(vm.SubscriptOutOfBoundsClass,
+		vm.registry.NewStringValue(fmt.Sprintf("%s: index %d is out of bounds for size %d", selector, index, size)))
+}
+
+// SignalZeroDivide signals a ZeroDivide error.
+func (vm *VM) SignalZeroDivide() Value {
+	return vm.signalException(vm.ZeroDivideClass,
+		vm.registry.NewStringValue("division by zero"))
 }
 
 // CaptureTrace snapshots the current call stack into a slice of TraceFrames.
