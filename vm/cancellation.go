@@ -399,7 +399,7 @@ func isCancellationContextValue(v Value) bool {
 		return false
 	}
 	id := v.SymbolID()
-	return (id & (0xFF << 24)) == cancellationContextMarker
+	return (id & markerMask) == cancellationContextMarker
 }
 
 // cancellationContextToValue converts a context ID to a Value.

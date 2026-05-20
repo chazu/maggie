@@ -105,5 +105,5 @@ func isFutureValue(v Value) bool {
 }
 
 func futureIDFromValue(v Value) uint32 {
-	return v.SymbolID() & ^uint32(0xFF<<24)
+	return markedIDFromValue(v)
 }

@@ -108,7 +108,7 @@ func (or *ObjectRegistry) GetGoObject(v Value) *GoObjectWrapper {
 		return nil
 	}
 	id := v.SymbolID()
-	if id&(0xFF<<24) != goObjectMarker {
+	if id&markerMask != goObjectMarker {
 		return nil
 	}
 	rawID := id & 0x00FFFFFF
@@ -126,7 +126,7 @@ func (or *ObjectRegistry) UnregisterGoObject(v Value) {
 		return
 	}
 	id := v.SymbolID()
-	if id&(0xFF<<24) != goObjectMarker {
+	if id&markerMask != goObjectMarker {
 		return
 	}
 	rawID := id & 0x00FFFFFF

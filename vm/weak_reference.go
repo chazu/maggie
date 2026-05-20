@@ -197,7 +197,7 @@ func (v Value) IsWeakRef() bool {
 		return false
 	}
 	id := v.SymbolID()
-	return (id & (0xFF << 24)) == weakRefMarker
+	return (id & markerMask) == weakRefMarker
 }
 
 // WeakRefID extracts the weak reference ID from a Value.

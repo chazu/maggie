@@ -50,11 +50,11 @@ func isExtProcessValue(v Value) bool {
 		return false
 	}
 	id := v.SymbolID()
-	return (id & (0xFF << 24)) == externalProcessMarker
+	return (id & markerMask) == externalProcessMarker
 }
 
 func extProcessIDFromValue(v Value) uint32 {
-	return v.SymbolID() & ^uint32(0xFF<<24)
+	return markedIDFromValue(v)
 }
 
 func (vm *VM) vmGetExtProcess(v Value) *ExternalProcessObject {

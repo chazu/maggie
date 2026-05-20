@@ -37,7 +37,7 @@ func isSemaphoreValue(v Value) bool {
 		return false
 	}
 	id := v.SymbolID()
-	return (id & (0xFF << 24)) == semaphoreMarker
+	return (id & markerMask) == semaphoreMarker
 }
 
 // ---------------------------------------------------------------------------

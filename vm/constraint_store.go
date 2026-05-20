@@ -96,7 +96,7 @@ func isConstraintStoreValue(v Value) bool {
 }
 
 func constraintStoreIDFromValue(v Value) uint32 {
-	return v.SymbolID() & ^uint32(0xFF<<24)
+	return markedIDFromValue(v)
 }
 
 func (vm *VM) vmGetConstraintStore(v Value) *ConstraintStoreObject {

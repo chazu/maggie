@@ -31,7 +31,7 @@ func isCueContextValue(v Value) bool {
 }
 
 func cueContextIDFromValue(v Value) uint32 {
-	return v.SymbolID() & ^uint32(0xFF<<24)
+	return markedIDFromValue(v)
 }
 
 func (vm *VM) vmGetCueContext(v Value) *CueContextObject {
@@ -66,7 +66,7 @@ func isCueValueValue(v Value) bool {
 }
 
 func cueValueIDFromValue(v Value) uint32 {
-	return v.SymbolID() & ^uint32(0xFF<<24)
+	return markedIDFromValue(v)
 }
 
 func (vm *VM) vmGetCueValue(v Value) *CueValueObject {

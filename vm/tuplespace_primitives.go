@@ -65,7 +65,7 @@ func isTupleSpaceValue(v Value) bool {
 }
 
 func tupleSpaceIDFromValue(v Value) uint32 {
-	return v.SymbolID() & ^uint32(0xFF<<24)
+	return markedIDFromValue(v)
 }
 
 func (vm *VM) vmGetTupleSpace(v Value) *TupleSpaceObject {

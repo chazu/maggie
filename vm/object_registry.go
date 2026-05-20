@@ -111,7 +111,7 @@ func (or *ObjectRegistry) GetResultFromValue(v Value) *ResultObject {
 	if !isResultValue(v) {
 		return nil
 	}
-	id := v.SymbolID() & ^uint32(4<<24)
+	id := markedIDFromValue(v)
 	return or.GetResult(id)
 }
 

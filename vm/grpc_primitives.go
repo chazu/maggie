@@ -42,11 +42,11 @@ func isGrpcClientValue(v Value) bool {
 		return false
 	}
 	id := v.SymbolID()
-	return (id & (0xFF << 24)) == grpcClientMarker
+	return (id & markerMask) == grpcClientMarker
 }
 
 func grpcClientIDFromValue(v Value) uint32 {
-	return v.SymbolID() & ^uint32(0xFF<<24)
+	return markedIDFromValue(v)
 }
 
 // vmGetGrpcClient retrieves a gRPC client from the VM-local registry.
@@ -105,11 +105,11 @@ func isGrpcStreamValue(v Value) bool {
 		return false
 	}
 	id := v.SymbolID()
-	return (id & (0xFF << 24)) == grpcStreamMarker
+	return (id & markerMask) == grpcStreamMarker
 }
 
 func grpcStreamIDFromValue(v Value) uint32 {
-	return v.SymbolID() & ^uint32(0xFF<<24)
+	return markedIDFromValue(v)
 }
 
 // vmGetGrpcStream retrieves a gRPC stream from the VM-local registry.

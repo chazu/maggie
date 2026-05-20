@@ -63,7 +63,7 @@ func isCliCommandValue(v Value) bool {
 }
 
 func cliCommandIDFromValue(v Value) uint32 {
-	return v.SymbolID() & ^uint32(0xFF<<24)
+	return markedIDFromValue(v)
 }
 
 func (vm *VM) vmGetCliCommand(v Value) *CliCommandWrapper {

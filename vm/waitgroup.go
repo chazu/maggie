@@ -30,7 +30,7 @@ func isWaitGroupValue(v Value) bool {
 		return false
 	}
 	id := v.SymbolID()
-	return (id & (0xFF << 24)) == waitGroupMarker
+	return (id & markerMask) == waitGroupMarker
 }
 
 // ---------------------------------------------------------------------------

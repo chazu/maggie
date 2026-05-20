@@ -30,7 +30,7 @@ func isMutexValue(v Value) bool {
 		return false
 	}
 	id := v.SymbolID()
-	return (id & (0xFF << 24)) == mutexMarker
+	return (id & markerMask) == mutexMarker
 }
 
 // ---------------------------------------------------------------------------

@@ -60,7 +60,7 @@ func (v Value) IsException() bool {
 		return false
 	}
 	id := v.SymbolID()
-	return (id & (0xFF << 24)) == exceptionMarker
+	return (id & markerMask) == exceptionMarker
 }
 
 // ExceptionID returns the exception ID for an exception value.

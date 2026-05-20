@@ -29,11 +29,11 @@ func isHttpClientValue(v Value) bool {
 		return false
 	}
 	id := v.SymbolID()
-	return (id & (0xFF << 24)) == httpClientMarker
+	return (id & markerMask) == httpClientMarker
 }
 
 func httpClientIDFromValue(v Value) uint32 {
-	return v.SymbolID() & ^uint32(0xFF<<24)
+	return markedIDFromValue(v)
 }
 
 func (vm *VM) vmGetHttpClient(v Value) *HttpClientObject {
@@ -71,11 +71,11 @@ func isHttpServerValue(v Value) bool {
 		return false
 	}
 	id := v.SymbolID()
-	return (id & (0xFF << 24)) == httpServerMarker
+	return (id & markerMask) == httpServerMarker
 }
 
 func httpServerIDFromValue(v Value) uint32 {
-	return v.SymbolID() & ^uint32(0xFF<<24)
+	return markedIDFromValue(v)
 }
 
 func (vm *VM) vmGetHttpServer(v Value) *HttpServerObject {
@@ -117,11 +117,11 @@ func isHttpRequestValue(v Value) bool {
 		return false
 	}
 	id := v.SymbolID()
-	return (id & (0xFF << 24)) == httpRequestMarker
+	return (id & markerMask) == httpRequestMarker
 }
 
 func httpRequestIDFromValue(v Value) uint32 {
-	return v.SymbolID() & ^uint32(0xFF<<24)
+	return markedIDFromValue(v)
 }
 
 func (vm *VM) vmGetHttpRequest(v Value) *HttpRequestObject {
@@ -163,11 +163,11 @@ func isHttpResponseValue(v Value) bool {
 		return false
 	}
 	id := v.SymbolID()
-	return (id & (0xFF << 24)) == httpResponseMarker
+	return (id & markerMask) == httpResponseMarker
 }
 
 func httpResponseIDFromValue(v Value) uint32 {
-	return v.SymbolID() & ^uint32(0xFF<<24)
+	return markedIDFromValue(v)
 }
 
 func (vm *VM) vmGetHttpResponse(v Value) *HttpResponseObject {
@@ -204,7 +204,7 @@ func sseConnectionToValue(id uint32) Value {
 }
 
 func sseConnectionIDFromValue(v Value) uint32 {
-	return v.SymbolID() & ^uint32(0xFF<<24)
+	return markedIDFromValue(v)
 }
 
 func (vm *VM) vmGetSSEConnection(v Value) *SSEConnectionObject {

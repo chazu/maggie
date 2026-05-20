@@ -108,7 +108,7 @@ func (vm *VM) HandleInboundMonitor(refID, watcherID uint64, remoteNode [32]byte,
 	if targetName != "" {
 		procVal := vm.LookupProcessName(targetName)
 		if procVal != Nil {
-			pid := uint64(procVal.SymbolID() & ^uint32(0xFF<<24))
+			pid := uint64(markedIDFromValue(procVal))
 			proc = vm.GetProcessByID(pid)
 		}
 	} else {

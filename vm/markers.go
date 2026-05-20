@@ -83,3 +83,9 @@ const (
 
 // markerMask extracts the marker byte from a symbol ID.
 const markerMask uint32 = 0xFF << 24
+
+func markedToValue(marker uint32, id uint32) Value  { return FromSymbolID(id | marker) }
+func markedIDFromValue(v Value) uint32               { return v.SymbolID() & ^markerMask }
+func isMarkedValue(marker uint32, v Value) bool {
+	return v.IsSymbolEncoded() && (v.SymbolID()&markerMask) == marker
+}

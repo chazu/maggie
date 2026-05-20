@@ -19,7 +19,7 @@ func IsCharacterValue(v Value) bool {
 	if !v.IsSymbolEncoded() {
 		return false
 	}
-	return (v.SymbolID() & (0xFF << 24)) == characterMarker
+	return (v.SymbolID() & markerMask) == characterMarker
 }
 
 // GetCharacterCodePoint extracts the Unicode code point from a Character value.

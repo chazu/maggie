@@ -50,7 +50,7 @@ func isRemoteChannelValue(v Value) bool {
 }
 
 func remoteChannelIDFromValue(v Value) int {
-	return int(v.SymbolID() & ^uint32(0xFF<<24))
+	return int(markedIDFromValue(v))
 }
 
 // IsRemoteChannelValue returns true if v is a remote channel reference.

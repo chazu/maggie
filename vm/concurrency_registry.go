@@ -172,7 +172,7 @@ func (cr *ConcurrencyRegistry) GetChannel(v Value) *ChannelObject {
 	if !isChannelValue(v) {
 		return nil
 	}
-	id := int(v.SymbolID() & ^uint32(0xFF<<24))
+	id := int(markedIDFromValue(v))
 
 	cr.channelsMu.RLock()
 	defer cr.channelsMu.RUnlock()
@@ -220,7 +220,7 @@ func (cr *ConcurrencyRegistry) GetProcess(v Value) *ProcessObject {
 	if !isProcessValue(v) {
 		return nil
 	}
-	id := uint64(v.SymbolID() & ^uint32(0xFF<<24))
+	id := uint64(markedIDFromValue(v))
 
 	cr.processesMu.RLock()
 	defer cr.processesMu.RUnlock()
@@ -294,7 +294,7 @@ func (cr *ConcurrencyRegistry) GetMutex(v Value) *MutexObject {
 	if !isMutexValue(v) {
 		return nil
 	}
-	id := int(v.SymbolID() & ^uint32(0xFF<<24))
+	id := int(markedIDFromValue(v))
 
 	cr.mutexesMu.RLock()
 	defer cr.mutexesMu.RUnlock()
@@ -328,7 +328,7 @@ func (cr *ConcurrencyRegistry) GetWaitGroup(v Value) *WaitGroupObject {
 	if !isWaitGroupValue(v) {
 		return nil
 	}
-	id := int(v.SymbolID() & ^uint32(0xFF<<24))
+	id := int(markedIDFromValue(v))
 
 	cr.waitGroupsMu.RLock()
 	defer cr.waitGroupsMu.RUnlock()
@@ -362,7 +362,7 @@ func (cr *ConcurrencyRegistry) GetSemaphore(v Value) *SemaphoreObject {
 	if !isSemaphoreValue(v) {
 		return nil
 	}
-	id := int(v.SymbolID() & ^uint32(0xFF<<24))
+	id := int(markedIDFromValue(v))
 
 	cr.semaphoresMu.RLock()
 	defer cr.semaphoresMu.RUnlock()
@@ -396,7 +396,7 @@ func (cr *ConcurrencyRegistry) GetCancellationContext(v Value) *CancellationCont
 	if !isCancellationContextValue(v) {
 		return nil
 	}
-	id := int(v.SymbolID() & ^uint32(0xFF<<24))
+	id := int(markedIDFromValue(v))
 
 	cr.cancellationContextsMu.RLock()
 	defer cr.cancellationContextsMu.RUnlock()
@@ -712,7 +712,7 @@ func (cr *ConcurrencyRegistry) GetArrayList(v Value) *ArrayListObject {
 	if !isArrayListValue(v) {
 		return nil
 	}
-	id := int(v.SymbolID() & ^uint32(0xFF<<24))
+	id := int(markedIDFromValue(v))
 
 	cr.arrayListsMu.RLock()
 	defer cr.arrayListsMu.RUnlock()

@@ -139,7 +139,7 @@ func isChannelValue(v Value) bool {
 		return false
 	}
 	id := v.SymbolID()
-	return (id & (0xFF << 24)) == channelMarker
+	return (id & markerMask) == channelMarker
 }
 
 // ---------------------------------------------------------------------------
@@ -193,7 +193,7 @@ func isProcessValue(v Value) bool {
 		return false
 	}
 	id := v.SymbolID()
-	return (id & (0xFF << 24)) == processMarker
+	return (id & markerMask) == processMarker
 }
 
 // markDone is the legacy termination method. New code should use

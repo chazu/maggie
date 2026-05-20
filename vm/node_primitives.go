@@ -147,7 +147,7 @@ func isNodeRefValue(v Value) bool {
 }
 
 func nodeRefIDFromValue(v Value) int {
-	return int(v.SymbolID() & ^uint32(0xFF<<24))
+	return int(markedIDFromValue(v))
 }
 
 // ---------------------------------------------------------------------------

@@ -13,7 +13,7 @@ package vm
 
 // classToValue creates a Value from a class registry ID.
 func classToValue(id uint32) Value {
-	return FromSymbolID(id | classValueMarker)
+	return markedToValue(classValueMarker, id)
 }
 
 // isClassValue returns true if this value is a class value.
@@ -27,7 +27,7 @@ func isClassValue(v Value) bool {
 
 // classValueIDFromValue extracts the registry ID from a class value.
 func classValueIDFromValue(v Value) uint32 {
-	return v.SymbolID() & ^markerMask
+	return markedIDFromValue(v)
 }
 
 // ---------------------------------------------------------------------------
