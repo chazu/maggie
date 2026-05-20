@@ -36,19 +36,7 @@ d size
 """
 Dictionary subclass: Object
 
-  """
-  Return true if the dictionary contains at least one entry.
-
-  ```test
-  d := Dictionary new.
-  d notEmpty >>> false
-  d at: #x put: 1.
-  d notEmpty >>> true
-  ```
-  """
-  method: notEmpty ^<Boolean> [
-      ^self isEmpty not
-  ]
+  # notEmpty inherited from Collection
 
   """
   Return the value at key. If the key is absent, evaluate block,

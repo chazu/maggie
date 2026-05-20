@@ -1,5 +1,11 @@
 """
 Collections are how you group, search, and transform data in Maggie.
+All collection types inherit from an abstract Collection superclass,
+which provides shared iteration methods: detect:, detect:ifNone:,
+inject:into:, includes:, reject:, isEmpty, notEmpty, anySatisfy:,
+allSatisfy:, and count:. Subclasses only need to implement do: and
+size for the full iteration protocol to work.
+
 The three core collection types are Array (an ordered, fixed-size
 sequence), ArrayList (a growable ordered sequence), and Dictionary
 (a mutable mapping from keys to values). All support rich iteration

@@ -93,9 +93,12 @@ type VM struct {
 	TrueClass              *Class
 	FalseClass             *Class
 	UndefinedObjectClass   *Class
+	MagnitudeClass         *Class
+	NumberClass            *Class
 	SmallIntegerClass      *Class
 	BigIntegerClass        *Class
 	FloatClass             *Class
+	CollectionClass        *Class
 	StringClass            *Class
 	SymbolClass            *Class
 	ArrayClass             *Class
@@ -349,20 +352,23 @@ func (vm *VM) bootstrap() {
 	vm.FalseClass = vm.createClass("False", vm.BooleanClass)
 	vm.UndefinedObjectClass = vm.createClass("UndefinedObject", vm.ObjectClass)
 
-	// Phase 3: Create magnitude classes
-	vm.SmallIntegerClass = vm.createClass("SmallInteger", vm.ObjectClass)
-	vm.BigIntegerClass = vm.createClass("BigInteger", vm.ObjectClass)
-	vm.FloatClass = vm.createClass("Float", vm.ObjectClass)
+	// Phase 3: Create magnitude/number hierarchy
+	vm.MagnitudeClass = vm.createClass("Magnitude", vm.ObjectClass)
+	vm.NumberClass = vm.createClass("Number", vm.MagnitudeClass)
+	vm.SmallIntegerClass = vm.createClass("SmallInteger", vm.NumberClass)
+	vm.BigIntegerClass = vm.createClass("BigInteger", vm.NumberClass)
+	vm.FloatClass = vm.createClass("Float", vm.NumberClass)
 
-	// Phase 4: Create collection classes
-	vm.StringClass = vm.createClass("String", vm.ObjectClass)
+	// Phase 4: Create collection hierarchy
+	vm.CollectionClass = vm.createClass("Collection", vm.ObjectClass)
+	vm.StringClass = vm.createClass("String", vm.CollectionClass)
 	vm.SymbolClass = vm.createClass("Symbol", vm.StringClass)
-	vm.ArrayClass = vm.createClass("Array", vm.ObjectClass)
-	vm.ByteArrayClass = vm.createClass("ByteArray", vm.ObjectClass)
+	vm.ArrayClass = vm.createClass("Array", vm.CollectionClass)
+	vm.ByteArrayClass = vm.createClass("ByteArray", vm.CollectionClass)
 	vm.AssociationClass = vm.createClassWithIvars("Association", vm.ObjectClass, []string{"key", "value"})
-	vm.DictionaryClass = vm.createClassWithIvars("Dictionary", vm.ObjectClass, []string{"table", "size"})
-	vm.SetClass = vm.createClassWithIvars("Set", vm.ObjectClass, []string{"dict"})
-	vm.ArrayListClass = vm.createClass("ArrayList", vm.ObjectClass)
+	vm.DictionaryClass = vm.createClassWithIvars("Dictionary", vm.CollectionClass, []string{"table", "size"})
+	vm.SetClass = vm.createClassWithIvars("Set", vm.CollectionClass, []string{"dict"})
+	vm.ArrayListClass = vm.createClass("ArrayList", vm.CollectionClass)
 
 	// Phase 5: Create method/block classes
 	vm.BlockClass = vm.createClass("Block", vm.ObjectClass)
@@ -471,9 +477,12 @@ func (vm *VM) bootstrap() {
 	vm.globals["True"] = vm.classValue(vm.TrueClass)
 	vm.globals["False"] = vm.classValue(vm.FalseClass)
 	vm.globals["UndefinedObject"] = vm.classValue(vm.UndefinedObjectClass)
+	vm.globals["Magnitude"] = vm.classValue(vm.MagnitudeClass)
+	vm.globals["Number"] = vm.classValue(vm.NumberClass)
 	vm.globals["SmallInteger"] = vm.classValue(vm.SmallIntegerClass)
 	vm.globals["BigInteger"] = vm.classValue(vm.BigIntegerClass)
 	vm.globals["Float"] = vm.classValue(vm.FloatClass)
+	vm.globals["Collection"] = vm.classValue(vm.CollectionClass)
 	vm.globals["String"] = vm.classValue(vm.StringClass)
 	vm.globals["Symbol"] = vm.classValue(vm.SymbolClass)
 	vm.globals["Array"] = vm.classValue(vm.ArrayClass)

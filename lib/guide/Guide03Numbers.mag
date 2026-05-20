@@ -1,12 +1,16 @@
 """
 Maggie has three numeric types: SmallInteger for exact whole numbers (48-bit),
 BigInteger for arbitrary-precision integers, and Float for IEEE 754 double-
-precision decimals. SmallIntegers are stored as tagged pointers inside
-the NaN-boxed value representation, so integer arithmetic never allocates
-heap memory. When arithmetic overflows SmallInteger range, values are
-automatically promoted to BigInteger and demoted back when results fit.
-Floats are used whenever a literal contains a decimal point or when an
-integer operation involves a Float operand.
+precision decimals. All three inherit from Number (which inherits from
+Magnitude), so comparison-derived methods like max:, min:, and between:and:
+are shared across all numeric types.
+
+SmallIntegers are stored as tagged pointers inside the NaN-boxed value
+representation, so integer arithmetic never allocates heap memory. When
+arithmetic overflows SmallInteger range, values are automatically promoted
+to BigInteger and demoted back when results fit. Floats are used whenever
+a literal contains a decimal point or when an integer operation involves
+a Float operand.
 
 All arithmetic and comparison operators are messages sent to the receiver.
 There is no special syntax for math -- 3 + 4 sends the message + with

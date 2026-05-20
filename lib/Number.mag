@@ -1,0 +1,7 @@
+"""
+Abstract superclass of all numeric types (SmallInteger, BigInteger, Float).
+Concrete arithmetic and comparison operations are defined by subclasses.
+Number inherits comparison-derived methods (`max:`, `min:`, `between:and:`)
+from Magnitude.
+"""
+Number subclass: Magnitude

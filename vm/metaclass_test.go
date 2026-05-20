@@ -55,13 +55,14 @@ func TestMetaclassIsSameObject(t *testing.T) {
 func TestMetaclassInheritance(t *testing.T) {
 	vm := NewVM()
 
-	// SmallInteger's metaclass should have Object's metaclass as ancestor
-	// SmallInteger -> Object, so SmallInteger class -> Object class
+	// SmallInteger -> Number -> Magnitude -> Object
+	// SmallInteger class -> Number class
 	siMeta := vm.MetaclassFor(vm.SmallIntegerClass)
+	numMeta := vm.MetaclassFor(vm.NumberClass)
 	objMeta := vm.MetaclassFor(vm.ObjectClass)
 
-	if siMeta.Superclass != objMeta {
-		t.Errorf("Expected SmallInteger class superclass to be Object class, got %v",
+	if siMeta.Superclass != numMeta {
+		t.Errorf("Expected SmallInteger class superclass to be Number class, got %v",
 			siMeta.Superclass)
 	}
 

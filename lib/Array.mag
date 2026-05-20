@@ -79,29 +79,7 @@ Array subclass: Object
       ^self at: self size
   ]
 
-  """
-  Return true if the array has no elements.
-
-  ```test
-  (Array new: 0) isEmpty >>> true
-  #(1) isEmpty >>> false
-  ```
-  """
-  method: isEmpty ^<Boolean> [
-      ^self size = 0
-  ]
-
-  """
-  Return true if the array has at least one element.
-
-  ```test
-  #(1 2) notEmpty >>> true
-  (Array new: 0) notEmpty >>> false
-  ```
-  """
-  method: notEmpty ^<Boolean> [
-      ^self isEmpty not
-  ]
+  # isEmpty, notEmpty inherited from Collection
 
   """
   Evaluate block once for each element in the array.
@@ -151,80 +129,7 @@ Array subclass: Object
       ^buf asArray
   ]
 
-  """
-  Return a new array excluding elements for which block returns true.
-
-  ```test
-  #(1 2 3 4 5) reject: [:x | x > 3] >>> #(1 2 3 )
-  #(1 2 3 4) reject: [:x | x even] >>> #(1 3 )
-  ```
-  """
-  method: reject: block ^<Array> [
-      ^self select: [:each | (block value: each) not]
-  ]
-
-  """
-  Return the first element for which block returns true, or nil if none.
-
-  ```test
-  #(1 2 3 4 5) detect: [:x | x > 3] >>> 4
-  #(1 2 3) detect: [:x | x > 10] >>> nil
-  ```
-  """
-  method: detect: block [
-      self do: [:each | (block value: each) ifTrue: [^each]].
-      ^nil
-  ]
-
-  """
-  Return the first element for which block returns true.
-  If none found, evaluate noneBlock and return its result.
-
-  ```test
-  #(1 2 3) detect: [:x | x > 10] ifNone: [0] >>> 0
-  #(1 2 3) detect: [:x | x > 1] ifNone: [0] >>> 2
-  ```
-  """
-  method: detect: block ifNone: noneBlock [
-      self do: [:each | (block value: each) ifTrue: [^each]].
-      ^noneBlock value
-  ]
-
-  """
-  Accumulate a value by applying block to each element in turn.
-  Block receives the accumulator and the current element.
-
-  ```test
-  #(1 2 3 4) inject: 0 into: [:sum :x | sum + x] >>> 10
-  #(1 2 3 4) inject: 1 into: [:prod :x | prod * x] >>> 24
-  ```
-
-  ```example
-  "Find the longest string"
-  #('cat' 'elephant' 'dog') inject: '' into: [:longest :s |
-      s size > longest size ifTrue: [s] ifFalse: [longest]
-  ]
-  ```
-  """
-  method: inject: initial into: block [
-      | result |
-      result := initial.
-      self do: [:each | result := block value: result value: each].
-      ^result
-  ]
-
-  """
-  Return true if the array contains an element equal to anObject.
-
-  ```test
-  #(1 2 3) includes: 2 >>> true
-  #(1 2 3) includes: 5 >>> false
-  ```
-  """
-  method: includes: anObject ^<Boolean> [
-      self do: [:each | each = anObject ifTrue: [^true]].
-      ^false
-  ]
+  # reject:, detect:, detect:ifNone:, inject:into:, includes: inherited from Collection
 
   """
   Return the 1-based index of anObject, or 0 if not found.
