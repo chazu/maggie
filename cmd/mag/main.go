@@ -247,148 +247,32 @@ func run() (exitCode int) {
 		}
 	}
 
-	// Create VM and load image
-	vmInst := vm.NewVM()
-	if *customImagePath != "" {
-		if err := vmInst.LoadImage(*customImagePath); err != nil {
-			fmt.Fprintf(os.Stderr, "Error loading image %s: %v\n", *customImagePath, err)
-			return 1
-		}
-	} else {
-		if err := vmInst.LoadImageFromBytes(embeddedImage); err != nil {
-			fmt.Fprintf(os.Stderr, "Error loading embedded image: %v\n", err)
-			return 1
-		}
+	vmInst, diskCache, err := loadVM(*customImagePath, *verbose)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		return 1
 	}
-	// Re-register critical primitives that may have been overwritten by image methods
-	vmInst.ReRegisterNilPrimitives()
+	wireVM(vmInst, *useMaggieCompiler, *verbose)
 
-	// Apply docstrings from .mag <primitive> stubs onto Go-registered primitives.
-	// These aren't persisted in the image, so we apply them from generated code.
-	applyPrimitiveDocstrings(vmInst)
-	vmInst.ReRegisterBooleanPrimitives()
+	pipe := newPipeline(vmInst, *verbose)
 
-	// Load disk cache into ContentStore (restores previously synced content)
-	var diskCache *dist.DiskCache
-	cacheDir := ".maggie/cache"
-	if dc, err := dist.NewDiskCache(cacheDir); err == nil {
-		diskCache = dc
-		loaded, loadErr := dc.LoadInto(vmInst.ContentStore())
-		if loadErr != nil {
-			fmt.Fprintf(os.Stderr, "Warning: failed to load disk cache: %v\n", loadErr)
-		} else if *verbose && loaded > 0 {
-			fmt.Printf("Loaded %d chunks from disk cache\n", loaded)
-		}
-	}
-
-	// Set up compiler backend (Go compiler by default)
-	vmInst.UseGoCompiler(compiler.Compile)
-
-	// Wire NodeRefFactory for remote messaging
-	vmInst.SetNodeRefFactory(buildNodeRefFactory(vmInst))
-
-	// Wire RemoteChannelFactory for distributed channels
-	vmInst.SetRemoteChannelFactory(buildRemoteChannelFactory(vmInst))
-
-	// Register wrapper packages from full-system builds
-	for _, register := range projectWrapperRegistrars {
-		register(vmInst)
-	}
-
-	// Switch to experimental Maggie compiler if requested
-	if *useMaggieCompiler {
-		vmInst.UseMaggieCompiler()
-		if *verbose {
-			fmt.Println("Using experimental Maggie self-hosting compiler")
-		}
-	}
-
-	// Set up pipeline for compilation
-	var verboseWriter io.Writer
-	if *verbose {
-		verboseWriter = os.Stdout
-	}
-	pipe := &pipeline.Pipeline{VM: vmInst, Verbose: verboseWriter}
-
-	// Wire up fileIn support so Compiler fileIn: primitives work
-	vmInst.SetFileInFunc(func(v *vm.VM, source string, sourcePath string, nsOverride string, verbose bool) (int, error) {
-		p := &pipeline.Pipeline{VM: v}
-		if verbose {
-			p.Verbose = os.Stdout
-		}
-		return p.CompileSourceFile(source, sourcePath, nsOverride)
-	})
-
-	// Wire up batch fileIn for two-pass directory loading (Compiler fileInAll:)
-	vmInst.SetFileInBatchFunc(func(v *vm.VM, dirPath string, verbose bool) (int, error) {
-		p := &pipeline.Pipeline{VM: v}
-		if verbose {
-			p.Verbose = os.Stdout
-		}
-		return p.CompilePath(dirPath + "/...")
-	})
-
-	if *verbose {
-		fmt.Printf("Loaded default image (%d bytes)\n", len(embeddedImage))
-		fmt.Printf("Compiler: %s\n", vmInst.CompilerName())
-	}
-
-	// Load ~/.maggierc if it exists
 	if !*noRC {
 		if err := loadRC(vmInst, *verbose); err != nil {
 			fmt.Fprintf(os.Stderr, "Warning: error loading ~/.maggierc: %v\n", err)
 		}
 	}
 
-	// Start Go pprof CPU profiler if requested
 	if *pprofMode {
-		f, err := os.Create("cpu.pprof")
+		stop, err := startPprof(*verbose)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error creating cpu.pprof: %v\n", err)
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 			return 1
 		}
-		if err := pprof.StartCPUProfile(f); err != nil {
-			fmt.Fprintf(os.Stderr, "Error starting pprof: %v\n", err)
-			return 1
-		}
-		defer func() {
-			pprof.StopCPUProfile()
-			f.Close()
-			if *verbose {
-				fmt.Println("Go CPU profile written to cpu.pprof")
-			}
-		}()
+		defer stop()
 	}
-
-	// Start wall-clock sampling profiler if requested
 	if *profileMode {
-		interval := time.Second / time.Duration(*profileRate)
-		vmInst.StartSamplingProfiler(interval)
-		if *verbose {
-			fmt.Printf("Sampling profiler started at %d Hz\n", *profileRate)
-		}
-		defer func() {
-			sp := vmInst.StopSamplingProfiler()
-			if sp != nil {
-				f, err := os.Create(*profileOutput)
-				if err != nil {
-					fmt.Fprintf(os.Stderr, "Error creating profile output: %v\n", err)
-					return
-				}
-				defer f.Close()
-				if err := sp.WriteFoldedStacks(f); err != nil {
-					fmt.Fprintf(os.Stderr, "Error writing profile: %v\n", err)
-					return
-				}
-				stats := sp.Stats()
-				if *verbose {
-					fmt.Printf("Profile written to %s (%d samples, %d dropped)\n",
-						*profileOutput, stats.TotalSamples, stats.Dropped)
-				} else {
-					fmt.Printf("Profile written to %s\n", *profileOutput)
-				}
-			}
-		}()
+		stop := startSamplingProfiler(vmInst, *profileRate, *profileOutput, *verbose)
+		defer stop()
 	}
 
 	// Compile paths from command line or project manifest
@@ -522,47 +406,37 @@ func run() (exitCode int) {
 		return 0
 	}
 
-	// If --serve and -m are both specified, start the server before the
-	// entry point so that the process can receive remote messages.
-	if *serveMode && *mainEntry != "" {
-		addr := fmt.Sprintf(":%d", *servePort)
-		servePeerAddrs := &sync.Map{}
-		srv := server.New(vmInst,
-			server.WithCompileFunc(buildCompileFunc(vmInst)),
-			server.WithPullFunc(buildPullFunc(vmInst, servePeerAddrs)),
-			server.WithPeerAddrRegistry(servePeerAddrs),
-		)
-		go func() {
+	// Start language server if --serve is set (background if -m also set)
+	if *serveMode {
+		srv := newLanguageServer(vmInst, *servePort)
+		defer srv.Stop()
+		if *mainEntry != "" {
+			startServerBackground(srv, *servePort)
+		} else {
+			addr := fmt.Sprintf(":%d", *servePort)
+			vmInst.Freeze()
 			if err := srv.ListenAndServe(addr); err != nil {
 				fmt.Fprintf(os.Stderr, "Server error: %v\n", err)
+				return 1
 			}
-		}()
-		vmInst.SetLocalListenAddr(addr)
-		time.Sleep(50 * time.Millisecond)
-		// The serve-only path below will be skipped since mainEntry is set
+			return 0
+		}
 	}
 
-	// Freeze "set once at boot" fields: AOT table, file-in hooks,
-	// node-ref / channel factories, listen address. Subsequent attempts
-	// to mutate these fields will panic — see vm/late_bound.go and
-	// docs/vm-concurrency-audit-2026-05-03.md.
 	vmInst.Freeze()
 
-	// Run main entry point if specified
 	if *mainEntry != "" {
 		result, err := runMain(vmInst, *mainEntry, *verbose)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 			return 1
 		}
-		// If main returns a small integer, use it as exit code
 		if result.IsSmallInt() {
 			return int(result.SmallInt())
 		}
 		return 0
 	}
 
-	// Start LSP server if requested
 	if *lspMode {
 		lsp := server.NewLSP(vmInst)
 		if err := lsp.Run(); err != nil {
@@ -570,41 +444,6 @@ func run() (exitCode int) {
 			return 1
 		}
 		return 0
-	}
-
-	// Start language server if requested.
-	// If -m is also specified, the server runs in the background and the
-	// entry point runs in the foreground. Otherwise, the server is the
-	// foreground (blocking) operation.
-	if *serveMode {
-		addr := fmt.Sprintf(":%d", *servePort)
-		servePeerAddrs2 := &sync.Map{}
-		srv := server.New(vmInst,
-			server.WithCompileFunc(buildCompileFunc(vmInst)),
-			server.WithPullFunc(buildPullFunc(vmInst, servePeerAddrs2)),
-			server.WithPeerAddrRegistry(servePeerAddrs2),
-		)
-		defer srv.Stop()
-		vmInst.SetLocalListenAddr(addr)
-
-		if *mainEntry != "" {
-			// Both --serve and -m: start server in background, entry point is foreground
-			go func() {
-				if err := srv.ListenAndServe(addr); err != nil {
-					fmt.Fprintf(os.Stderr, "Server error: %v\n", err)
-				}
-			}()
-			// Small delay to ensure server is listening before entry point runs
-			time.Sleep(50 * time.Millisecond)
-			// Fall through to entry point execution below
-		} else {
-			// Serve-only mode (no -m)
-			if err := srv.ListenAndServe(addr); err != nil {
-				fmt.Fprintf(os.Stderr, "Server error: %v\n", err)
-				return 1
-			}
-			return 0
-		}
 	}
 
 	// Start Yutani IDE mode if requested
@@ -638,6 +477,150 @@ func run() (exitCode int) {
 }
 
 // loadRC loads ~/.maggierc if it exists
+func loadVM(customImagePath string, verbose bool) (*vm.VM, *dist.DiskCache, error) {
+	vmInst := vm.NewVM()
+	if customImagePath != "" {
+		if err := vmInst.LoadImage(customImagePath); err != nil {
+			return nil, nil, fmt.Errorf("loading image %s: %w", customImagePath, err)
+		}
+	} else {
+		if err := vmInst.LoadImageFromBytes(embeddedImage); err != nil {
+			return nil, nil, fmt.Errorf("loading embedded image: %w", err)
+		}
+	}
+	vmInst.ReRegisterNilPrimitives()
+	applyPrimitiveDocstrings(vmInst)
+	vmInst.ReRegisterBooleanPrimitives()
+
+	var diskCache *dist.DiskCache
+	if dc, err := dist.NewDiskCache(".maggie/cache"); err == nil {
+		diskCache = dc
+		loaded, loadErr := dc.LoadInto(vmInst.ContentStore())
+		if loadErr != nil {
+			fmt.Fprintf(os.Stderr, "Warning: failed to load disk cache: %v\n", loadErr)
+		} else if verbose && loaded > 0 {
+			fmt.Printf("Loaded %d chunks from disk cache\n", loaded)
+		}
+	}
+
+	if verbose {
+		fmt.Printf("Loaded default image (%d bytes)\n", len(embeddedImage))
+	}
+	return vmInst, diskCache, nil
+}
+
+func wireVM(vmInst *vm.VM, useMaggieCompiler bool, verbose bool) {
+	vmInst.UseGoCompiler(compiler.Compile)
+	vmInst.SetNodeRefFactory(buildNodeRefFactory(vmInst))
+	vmInst.SetRemoteChannelFactory(buildRemoteChannelFactory(vmInst))
+	for _, register := range projectWrapperRegistrars {
+		register(vmInst)
+	}
+	if useMaggieCompiler {
+		vmInst.UseMaggieCompiler()
+		if verbose {
+			fmt.Println("Using experimental Maggie self-hosting compiler")
+		}
+	}
+
+	vmInst.SetFileInFunc(func(v *vm.VM, source string, sourcePath string, nsOverride string, verbose bool) (int, error) {
+		p := &pipeline.Pipeline{VM: v}
+		if verbose {
+			p.Verbose = os.Stdout
+		}
+		return p.CompileSourceFile(source, sourcePath, nsOverride)
+	})
+	vmInst.SetFileInBatchFunc(func(v *vm.VM, dirPath string, verbose bool) (int, error) {
+		p := &pipeline.Pipeline{VM: v}
+		if verbose {
+			p.Verbose = os.Stdout
+		}
+		return p.CompilePath(dirPath + "/...")
+	})
+
+	if verbose {
+		fmt.Printf("Compiler: %s\n", vmInst.CompilerName())
+	}
+}
+
+func newPipeline(vmInst *vm.VM, verbose bool) *pipeline.Pipeline {
+	var verboseWriter io.Writer
+	if verbose {
+		verboseWriter = os.Stdout
+	}
+	return &pipeline.Pipeline{VM: vmInst, Verbose: verboseWriter}
+}
+
+func startPprof(verbose bool) (func(), error) {
+	f, err := os.Create("cpu.pprof")
+	if err != nil {
+		return nil, fmt.Errorf("creating cpu.pprof: %w", err)
+	}
+	if err := pprof.StartCPUProfile(f); err != nil {
+		f.Close()
+		return nil, fmt.Errorf("starting pprof: %w", err)
+	}
+	return func() {
+		pprof.StopCPUProfile()
+		f.Close()
+		if verbose {
+			fmt.Println("Go CPU profile written to cpu.pprof")
+		}
+	}, nil
+}
+
+func startSamplingProfiler(vmInst *vm.VM, rate int, output string, verbose bool) func() {
+	interval := time.Second / time.Duration(rate)
+	vmInst.StartSamplingProfiler(interval)
+	if verbose {
+		fmt.Printf("Sampling profiler started at %d Hz\n", rate)
+	}
+	return func() {
+		sp := vmInst.StopSamplingProfiler()
+		if sp == nil {
+			return
+		}
+		f, err := os.Create(output)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error creating profile output: %v\n", err)
+			return
+		}
+		defer f.Close()
+		if err := sp.WriteFoldedStacks(f); err != nil {
+			fmt.Fprintf(os.Stderr, "Error writing profile: %v\n", err)
+			return
+		}
+		stats := sp.Stats()
+		if verbose {
+			fmt.Printf("Profile written to %s (%d samples, %d dropped)\n",
+				output, stats.TotalSamples, stats.Dropped)
+		} else {
+			fmt.Printf("Profile written to %s\n", output)
+		}
+	}
+}
+
+func newLanguageServer(vmInst *vm.VM, port int) *server.MaggieServer {
+	peerAddrs := &sync.Map{}
+	addr := fmt.Sprintf(":%d", port)
+	vmInst.SetLocalListenAddr(addr)
+	return server.New(vmInst,
+		server.WithCompileFunc(buildCompileFunc(vmInst)),
+		server.WithPullFunc(buildPullFunc(vmInst, peerAddrs)),
+		server.WithPeerAddrRegistry(peerAddrs),
+	)
+}
+
+func startServerBackground(srv *server.MaggieServer, port int) {
+	addr := fmt.Sprintf(":%d", port)
+	go func() {
+		if err := srv.ListenAndServe(addr); err != nil {
+			fmt.Fprintf(os.Stderr, "Server error: %v\n", err)
+		}
+	}()
+	time.Sleep(50 * time.Millisecond)
+}
+
 func loadRC(vmInst *vm.VM, verbose bool) error {
 	home, err := os.UserHomeDir()
 	if err != nil {
