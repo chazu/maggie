@@ -1,4 +1,4 @@
-package vm
+package cue
 
 import (
 	"sync"
@@ -7,6 +7,8 @@ import (
 
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/cuecontext"
+
+	vm "github.com/chazu/maggie/vm"
 )
 
 func newTestConstraintStore() *ConstraintStoreObject {
@@ -293,7 +295,7 @@ func TestConstraintStoreValue(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestConstraintStoreNaNBoxing(t *testing.T) {
-	vm := NewVM()
+	vmInst := vm.NewVM()
 
 	ctx := cuecontext.New()
 	cs := &ConstraintStoreObject{
@@ -301,13 +303,13 @@ func TestConstraintStoreNaNBoxing(t *testing.T) {
 		store: ctx.CompileString("_"),
 	}
 
-	val := vm.vmRegisterConstraintStore(cs)
+	val := vmRegisterConstraintStore(vmInst, cs)
 
 	if !isConstraintStoreValue(val) {
 		t.Fatal("should be recognized as constraint store value")
 	}
 
-	retrieved := vm.vmGetConstraintStore(val)
+	retrieved := vmGetConstraintStore(vmInst, val)
 	if retrieved != cs {
 		t.Fatal("round-trip should return same object")
 	}

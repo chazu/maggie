@@ -1,10 +1,12 @@
-package vm
+package cue
 
 import (
 	"sync"
 	"time"
 
 	"cuelang.org/go/cue/cuecontext"
+
+	vm "github.com/chazu/maggie/vm"
 )
 
 // ---------------------------------------------------------------------------
@@ -22,7 +24,7 @@ const (
 
 // TupleEntry holds a tuple value and its mode/deadline metadata.
 type TupleEntry struct {
-	value    Value
+	value    vm.Value
 	mode     TupleMode
 	deadline int64 // unix milliseconds, 0 = no expiry (only for affine)
 }
@@ -46,44 +48,48 @@ type TupleSpaceObject struct {
 type tupleWaiter struct {
 	template  *CueValueObject   // CUE template to match against (nil if compound)
 	templates []*CueValueObject  // compound templates (for inAll:)
-	ch        chan Value          // wake channel — send matched tuple here (single)
-	chArray   chan []Value        // compound result channel (for inAll:)
+	ch        chan vm.Value       // wake channel — send matched tuple here (single)
+	chArray   chan []vm.Value     // compound result channel (for inAll:)
 	consume   bool               // true = in (destructive), false = read (copy)
 }
 
 // NaN-boxing helpers for TupleSpace values.
 
-func tupleSpaceToValue(id uint32) Value {
-	return FromSymbolID(id | tupleSpaceMarker)
+func tupleSpaceToValue(id uint32) vm.Value {
+	return vm.MarkedToValue(vm.TupleSpaceMarker, id)
 }
 
-func isTupleSpaceValue(v Value) bool {
+func isTupleSpaceValue(v vm.Value) bool {
 	if !v.IsSymbolEncoded() {
 		return false
 	}
-	return (v.SymbolID() & markerMask) == tupleSpaceMarker
+	return (v.SymbolID() & vm.MarkerMask) == vm.TupleSpaceMarker
 }
 
-func tupleSpaceIDFromValue(v Value) uint32 {
-	return markedIDFromValue(v)
+func tupleSpaceIDFromValue(v vm.Value) uint32 {
+	return vm.MarkedIDFromValue(v)
 }
 
-func (vm *VM) vmGetTupleSpace(v Value) *TupleSpaceObject {
-	if !isTupleSpaceValue(v) {
+func vmGetTupleSpace(v *vm.VM, val vm.Value) *TupleSpaceObject {
+	if !isTupleSpaceValue(val) {
 		return nil
 	}
-	return vm.registry.GetTupleSpace(tupleSpaceIDFromValue(v))
+	entry := v.Registry().ExtensionRegistry(vm.TupleSpaceMarker).Get(tupleSpaceIDFromValue(val))
+	if entry == nil {
+		return nil
+	}
+	return entry.(*TupleSpaceObject)
 }
 
-func (vm *VM) vmRegisterTupleSpace(ts *TupleSpaceObject) Value {
-	id := vm.registry.RegisterTupleSpace(ts)
+func vmRegisterTupleSpace(v *vm.VM, ts *TupleSpaceObject) vm.Value {
+	id := v.Registry().ExtensionRegistry(vm.TupleSpaceMarker).Register(ts)
 	return tupleSpaceToValue(id)
 }
 
 // matchTuple checks if a tuple matches a CUE template using unification.
-func (vm *VM) matchTuple(template *CueValueObject, tuple Value) bool {
+func matchTuple(v *vm.VM, template *CueValueObject, tuple vm.Value) bool {
 	ctx := cuecontext.New()
-	goVal := vm.cueExportValue(tuple)
+	goVal := cueExportValue(v, tuple)
 	projection := ctx.Encode(goVal)
 	unified := template.val.Unify(projection)
 	return unified.Err() == nil
@@ -107,10 +113,10 @@ func (ts *TupleSpaceObject) sweepExpired() {
 // tryMatchAll attempts to find a distinct matching tuple for each template.
 // Returns the matched entries and their indices, or nil if not all matched.
 // Must be called with ts.mu held. Skips expired affine tuples.
-func (vm *VM) tryMatchAll(ts *TupleSpaceObject, templates []*CueValueObject) ([]Value, []int, bool) {
+func tryMatchAll(v *vm.VM, ts *TupleSpaceObject, templates []*CueValueObject) ([]vm.Value, []int, bool) {
 	now := time.Now().UnixMilli()
 	used := make(map[int]bool) // indices already claimed
-	results := make([]Value, len(templates))
+	results := make([]vm.Value, len(templates))
 	indices := make([]int, len(templates))
 
 	for ti, tmpl := range templates {
@@ -123,7 +129,7 @@ func (vm *VM) tryMatchAll(ts *TupleSpaceObject, templates []*CueValueObject) ([]
 			if entry.mode == TupleModeAffine && entry.deadline > 0 && now > entry.deadline {
 				continue
 			}
-			if vm.matchTuple(tmpl, entry.value) {
+			if matchTuple(v, tmpl, entry.value) {
 				results[ti] = entry.value
 				indices[ti] = i
 				used[i] = true
@@ -165,11 +171,11 @@ func (ts *TupleSpaceObject) removeIndices(indices []int) {
 // notifyWaiters checks all waiters against current tuples after an out:.
 // Handles single, compound (inAll:), and choice (inAny:) waiters.
 // Must be called with ts.mu held. May unlock/relock ts.mu to send on channels.
-func (vm *VM) notifyWaiters(ts *TupleSpaceObject, tupleVal Value) bool {
+func notifyWaiters(v *vm.VM, ts *TupleSpaceObject, tupleVal vm.Value) bool {
 	for i, w := range ts.waiters {
 		if w.template != nil && w.templates == nil && w.chArray == nil {
 			// Single-template waiter (in: or read: or inAny: single)
-			if vm.matchTuple(w.template, tupleVal) {
+			if matchTuple(v, w.template, tupleVal) {
 				ts.waiters = append(ts.waiters[:i], ts.waiters[i+1:]...)
 				ts.mu.Unlock()
 
@@ -185,7 +191,7 @@ func (vm *VM) notifyWaiters(ts *TupleSpaceObject, tupleVal Value) bool {
 			}
 		} else if w.templates != nil && w.chArray != nil {
 			// Compound waiter (inAll:) — check if ALL templates now satisfiable
-			results, indices, ok := vm.tryMatchAll(ts, w.templates)
+			results, indices, ok := tryMatchAll(v, ts, w.templates)
 			if ok {
 				ts.waiters = append(ts.waiters[:i], ts.waiters[i+1:]...)
 				ts.removeIndices(indices)
@@ -201,7 +207,7 @@ func (vm *VM) notifyWaiters(ts *TupleSpaceObject, tupleVal Value) bool {
 					if entry.mode == TupleModeAffine && entry.deadline > 0 && now > entry.deadline {
 						continue
 					}
-					if vm.matchTuple(tmpl, entry.value) {
+					if matchTuple(v, tmpl, entry.value) {
 						ts.waiters = append(ts.waiters[:i], ts.waiters[i+1:]...)
 						matched := entry.value
 						if entry.mode != TupleModePersistent {
@@ -222,28 +228,28 @@ func (vm *VM) notifyWaiters(ts *TupleSpaceObject, tupleVal Value) bool {
 // TupleSpace Primitives Registration
 // ---------------------------------------------------------------------------
 
-func (vm *VM) registerTupleSpacePrimitives() {
-	tsClass := vm.createClass("TupleSpace", vm.ObjectClass)
-	vm.globals["TupleSpace"] = vm.classValue(tsClass)
-	vm.symbolDispatch.Register(tupleSpaceMarker, &SymbolTypeEntry{Class: tsClass})
+func registerTupleSpacePrimitives(v *vm.VM) {
+	tsClass := v.CreateClass("TupleSpace", v.ObjectClass)
+	v.SetGlobal("TupleSpace", v.ClassValue(tsClass))
+	v.RegisterSymbolDispatchEntry(vm.TupleSpaceMarker, &vm.SymbolTypeEntry{Class: tsClass})
 
 	// TupleSpace new — create a new tuple space
-	tsClass.AddClassMethod0(vm.Selectors, "new", func(v *VM, recv Value) Value {
+	tsClass.AddClassMethod0(v.Selectors, "new", func(v *vm.VM, recv vm.Value) vm.Value {
 		ts := &TupleSpaceObject{}
-		return v.vmRegisterTupleSpace(ts)
+		return vmRegisterTupleSpace(v, ts)
 	})
 
 	// TupleSpace>>primOut: — publish a tuple (non-blocking, linear mode)
-	tsClass.AddMethod1(vm.Selectors, "primOut:", func(v *VM, recv Value, tupleVal Value) Value {
-		ts := v.vmGetTupleSpace(recv)
+	tsClass.AddMethod1(v.Selectors, "primOut:", func(v *vm.VM, recv vm.Value, tupleVal vm.Value) vm.Value {
+		ts := vmGetTupleSpace(v, recv)
 		if ts == nil {
-			return Nil
+			return vm.Nil
 		}
 
 		ts.mu.Lock()
 
 		// Check if any waiter matches this tuple
-		if v.notifyWaiters(ts, tupleVal) {
+		if notifyWaiters(v, ts, tupleVal) {
 			// notifyWaiters unlocked ts.mu
 			return tupleVal
 		}
@@ -255,10 +261,10 @@ func (vm *VM) registerTupleSpacePrimitives() {
 	})
 
 	// TupleSpace>>primOutPersistent: — publish a persistent tuple (never consumed)
-	tsClass.AddMethod1(vm.Selectors, "primOutPersistent:", func(v *VM, recv Value, tupleVal Value) Value {
-		ts := v.vmGetTupleSpace(recv)
+	tsClass.AddMethod1(v.Selectors, "primOutPersistent:", func(v *vm.VM, recv vm.Value, tupleVal vm.Value) vm.Value {
+		ts := vmGetTupleSpace(v, recv)
 		if ts == nil {
-			return Nil
+			return vm.Nil
 		}
 
 		ts.mu.Lock()
@@ -273,7 +279,7 @@ func (vm *VM) registerTupleSpacePrimitives() {
 		// For single waiters, check directly:
 		for i, w := range ts.waiters {
 			if w.template != nil && w.templates == nil && w.chArray == nil {
-				if v.matchTuple(w.template, tupleVal) {
+				if matchTuple(v, w.template, tupleVal) {
 					ts.waiters = append(ts.waiters[:i], ts.waiters[i+1:]...)
 					ts.mu.Unlock()
 					w.ch <- tupleVal
@@ -281,7 +287,7 @@ func (vm *VM) registerTupleSpacePrimitives() {
 				}
 			} else if w.templates != nil && w.chArray != nil {
 				// Compound waiter
-				results, indices, ok := v.tryMatchAll(ts, w.templates)
+				results, indices, ok := tryMatchAll(v, ts, w.templates)
 				if ok {
 					ts.waiters = append(ts.waiters[:i], ts.waiters[i+1:]...)
 					ts.removeIndices(indices) // persistent ones won't be removed
@@ -297,7 +303,7 @@ func (vm *VM) registerTupleSpacePrimitives() {
 						if entry.mode == TupleModeAffine && entry.deadline > 0 && now > entry.deadline {
 							continue
 						}
-						if v.matchTuple(tmpl, entry.value) {
+						if matchTuple(v, tmpl, entry.value) {
 							ts.waiters = append(ts.waiters[:i], ts.waiters[i+1:]...)
 							matched := entry.value
 							if entry.mode != TupleModePersistent {
@@ -317,10 +323,10 @@ func (vm *VM) registerTupleSpacePrimitives() {
 	})
 
 	// TupleSpace>>primOutAffine:ttl: — publish with TTL in milliseconds
-	tsClass.AddMethod2(vm.Selectors, "primOutAffine:ttl:", func(v *VM, recv Value, tupleVal Value, ttlVal Value) Value {
-		ts := v.vmGetTupleSpace(recv)
+	tsClass.AddMethod2(v.Selectors, "primOutAffine:ttl:", func(v *vm.VM, recv vm.Value, tupleVal vm.Value, ttlVal vm.Value) vm.Value {
+		ts := vmGetTupleSpace(v, recv)
 		if ts == nil {
-			return Nil
+			return vm.Nil
 		}
 
 		ttlMs := int64(0)
@@ -336,7 +342,7 @@ func (vm *VM) registerTupleSpacePrimitives() {
 		ts.mu.Lock()
 
 		// Check waiters first (tuple might be consumed before TTL matters)
-		if v.notifyWaiters(ts, tupleVal) {
+		if notifyWaiters(v, ts, tupleVal) {
 			return tupleVal
 		}
 
@@ -350,21 +356,21 @@ func (vm *VM) registerTupleSpacePrimitives() {
 	})
 
 	// TupleSpace>>primOutWithContext: — tuple removed when CancellationContext cancelled
-	tsClass.AddMethod2(vm.Selectors, "primOut:withContext:", func(v *VM, recv Value, tupleVal Value, ctxVal Value) Value {
-		ts := v.vmGetTupleSpace(recv)
+	tsClass.AddMethod2(v.Selectors, "primOut:withContext:", func(v *vm.VM, recv vm.Value, tupleVal vm.Value, ctxVal vm.Value) vm.Value {
+		ts := vmGetTupleSpace(v, recv)
 		if ts == nil {
-			return Nil
+			return vm.Nil
 		}
 
-		cancCtx := v.getCancellationContext(ctxVal)
+		cancCtx := v.GetCancellationContext(ctxVal)
 		if cancCtx == nil {
-			return Nil
+			return vm.Nil
 		}
 
 		ts.mu.Lock()
 
 		// Check waiters first
-		if v.notifyWaiters(ts, tupleVal) {
+		if notifyWaiters(v, ts, tupleVal) {
 			return tupleVal
 		}
 
@@ -392,15 +398,15 @@ func (vm *VM) registerTupleSpacePrimitives() {
 
 	// TupleSpace>>primIn: — blocking destructive read (linear consumption)
 	// For persistent tuples, returns value but does not remove.
-	tsClass.AddMethod1(vm.Selectors, "primIn:", func(v *VM, recv Value, templateVal Value) Value {
-		ts := v.vmGetTupleSpace(recv)
+	tsClass.AddMethod1(v.Selectors, "primIn:", func(v *vm.VM, recv vm.Value, templateVal vm.Value) vm.Value {
+		ts := vmGetTupleSpace(v, recv)
 		if ts == nil {
-			return Nil
+			return vm.Nil
 		}
 
-		template := v.vmGetCueValue(templateVal)
+		template := vmGetCueValue(v, templateVal)
 		if template == nil {
-			return Nil
+			return vm.Nil
 		}
 
 		ts.mu.Lock()
@@ -410,7 +416,7 @@ func (vm *VM) registerTupleSpacePrimitives() {
 
 		// Scan stored tuples for a match
 		for i, entry := range ts.tuples {
-			if v.matchTuple(template, entry.value) {
+			if matchTuple(v, template, entry.value) {
 				result := entry.value
 				if entry.mode == TupleModePersistent {
 					// Persistent: return value but don't remove
@@ -427,7 +433,7 @@ func (vm *VM) registerTupleSpacePrimitives() {
 		// No match — park goroutine
 		w := &tupleWaiter{
 			template: template,
-			ch:       make(chan Value, 1),
+			ch:       make(chan vm.Value, 1),
 			consume:  true,
 		}
 		ts.waiters = append(ts.waiters, w)
@@ -438,15 +444,15 @@ func (vm *VM) registerTupleSpacePrimitives() {
 	})
 
 	// TupleSpace>>primRead: — blocking non-destructive read
-	tsClass.AddMethod1(vm.Selectors, "primRead:", func(v *VM, recv Value, templateVal Value) Value {
-		ts := v.vmGetTupleSpace(recv)
+	tsClass.AddMethod1(v.Selectors, "primRead:", func(v *vm.VM, recv vm.Value, templateVal vm.Value) vm.Value {
+		ts := vmGetTupleSpace(v, recv)
 		if ts == nil {
-			return Nil
+			return vm.Nil
 		}
 
-		template := v.vmGetCueValue(templateVal)
+		template := vmGetCueValue(v, templateVal)
 		if template == nil {
-			return Nil
+			return vm.Nil
 		}
 
 		ts.mu.Lock()
@@ -456,7 +462,7 @@ func (vm *VM) registerTupleSpacePrimitives() {
 
 		// Scan stored tuples for a match (don't remove)
 		for _, entry := range ts.tuples {
-			if v.matchTuple(template, entry.value) {
+			if matchTuple(v, template, entry.value) {
 				ts.mu.Unlock()
 				return entry.value
 			}
@@ -465,7 +471,7 @@ func (vm *VM) registerTupleSpacePrimitives() {
 		// No match — park goroutine
 		w := &tupleWaiter{
 			template: template,
-			ch:       make(chan Value, 1),
+			ch:       make(chan vm.Value, 1),
 			consume:  false,
 		}
 		ts.waiters = append(ts.waiters, w)
@@ -475,15 +481,15 @@ func (vm *VM) registerTupleSpacePrimitives() {
 	})
 
 	// TupleSpace>>primTryIn: — non-blocking destructive read
-	tsClass.AddMethod1(vm.Selectors, "primTryIn:", func(v *VM, recv Value, templateVal Value) Value {
-		ts := v.vmGetTupleSpace(recv)
+	tsClass.AddMethod1(v.Selectors, "primTryIn:", func(v *vm.VM, recv vm.Value, templateVal vm.Value) vm.Value {
+		ts := vmGetTupleSpace(v, recv)
 		if ts == nil {
-			return Nil
+			return vm.Nil
 		}
 
-		template := v.vmGetCueValue(templateVal)
+		template := vmGetCueValue(v, templateVal)
 		if template == nil {
-			return Nil
+			return vm.Nil
 		}
 
 		ts.mu.Lock()
@@ -493,7 +499,7 @@ func (vm *VM) registerTupleSpacePrimitives() {
 		ts.sweepExpired()
 
 		for i, entry := range ts.tuples {
-			if v.matchTuple(template, entry.value) {
+			if matchTuple(v, template, entry.value) {
 				result := entry.value
 				if entry.mode == TupleModePersistent {
 					return result // don't remove persistent tuples
@@ -503,19 +509,19 @@ func (vm *VM) registerTupleSpacePrimitives() {
 			}
 		}
 
-		return Nil
+		return vm.Nil
 	})
 
 	// TupleSpace>>primTryRead: — non-blocking non-destructive read
-	tsClass.AddMethod1(vm.Selectors, "primTryRead:", func(v *VM, recv Value, templateVal Value) Value {
-		ts := v.vmGetTupleSpace(recv)
+	tsClass.AddMethod1(v.Selectors, "primTryRead:", func(v *vm.VM, recv vm.Value, templateVal vm.Value) vm.Value {
+		ts := vmGetTupleSpace(v, recv)
 		if ts == nil {
-			return Nil
+			return vm.Nil
 		}
 
-		template := v.vmGetCueValue(templateVal)
+		template := vmGetCueValue(v, templateVal)
 		if template == nil {
-			return Nil
+			return vm.Nil
 		}
 
 		ts.mu.Lock()
@@ -525,27 +531,27 @@ func (vm *VM) registerTupleSpacePrimitives() {
 		ts.sweepExpired()
 
 		for _, entry := range ts.tuples {
-			if v.matchTuple(template, entry.value) {
+			if matchTuple(v, template, entry.value) {
 				return entry.value
 			}
 		}
 
-		return Nil
+		return vm.Nil
 	})
 
 	// TupleSpace>>primInAll: — atomic multi-take (tensor product)
 	// Argument is a Maggie Array of CueValue templates.
 	// Atomically takes ALL matching tuples, or blocks until all satisfiable.
-	tsClass.AddMethod1(vm.Selectors, "primInAll:", func(v *VM, recv Value, templatesVal Value) Value {
-		ts := v.vmGetTupleSpace(recv)
+	tsClass.AddMethod1(v.Selectors, "primInAll:", func(v *vm.VM, recv vm.Value, templatesVal vm.Value) vm.Value {
+		ts := vmGetTupleSpace(v, recv)
 		if ts == nil {
-			return Nil
+			return vm.Nil
 		}
 
 		// Extract array of CueValue templates
-		obj := ObjectFromValue(templatesVal)
+		obj := vm.ObjectFromValue(templatesVal)
 		if obj == nil {
-			return Nil
+			return vm.Nil
 		}
 		n := obj.NumSlots()
 		if n == 0 {
@@ -555,9 +561,9 @@ func (vm *VM) registerTupleSpacePrimitives() {
 		templates := make([]*CueValueObject, n)
 		for i := 0; i < n; i++ {
 			slot := obj.GetSlot(i)
-			tmpl := v.vmGetCueValue(slot)
+			tmpl := vmGetCueValue(v, slot)
 			if tmpl == nil {
-				return Nil
+				return vm.Nil
 			}
 			templates[i] = tmpl
 		}
@@ -566,7 +572,7 @@ func (vm *VM) registerTupleSpacePrimitives() {
 		ts.sweepExpired()
 
 		// Try to match all templates atomically
-		results, indices, ok := v.tryMatchAll(ts, templates)
+		results, indices, ok := tryMatchAll(v, ts, templates)
 		if ok {
 			ts.removeIndices(indices)
 			ts.mu.Unlock()
@@ -576,7 +582,7 @@ func (vm *VM) registerTupleSpacePrimitives() {
 		// Not all matched — register compound waiter
 		w := &tupleWaiter{
 			templates: templates,
-			chArray:   make(chan []Value, 1),
+			chArray:   make(chan []vm.Value, 1),
 			consume:   true,
 		}
 		ts.waiters = append(ts.waiters, w)
@@ -590,27 +596,27 @@ func (vm *VM) registerTupleSpacePrimitives() {
 	// TupleSpace>>primInAny: — choice (additive disjunction)
 	// Argument is a Maggie Array of CueValue templates.
 	// Returns the first tuple matching any template.
-	tsClass.AddMethod1(vm.Selectors, "primInAny:", func(v *VM, recv Value, templatesVal Value) Value {
-		ts := v.vmGetTupleSpace(recv)
+	tsClass.AddMethod1(v.Selectors, "primInAny:", func(v *vm.VM, recv vm.Value, templatesVal vm.Value) vm.Value {
+		ts := vmGetTupleSpace(v, recv)
 		if ts == nil {
-			return Nil
+			return vm.Nil
 		}
 
-		obj := ObjectFromValue(templatesVal)
+		obj := vm.ObjectFromValue(templatesVal)
 		if obj == nil {
-			return Nil
+			return vm.Nil
 		}
 		n := obj.NumSlots()
 		if n == 0 {
-			return Nil
+			return vm.Nil
 		}
 
 		templates := make([]*CueValueObject, n)
 		for i := 0; i < n; i++ {
 			slot := obj.GetSlot(i)
-			tmpl := v.vmGetCueValue(slot)
+			tmpl := vmGetCueValue(v, slot)
 			if tmpl == nil {
-				return Nil
+				return vm.Nil
 			}
 			templates[i] = tmpl
 		}
@@ -625,7 +631,7 @@ func (vm *VM) registerTupleSpacePrimitives() {
 				if entry.mode == TupleModeAffine && entry.deadline > 0 && now > entry.deadline {
 					continue
 				}
-				if v.matchTuple(tmpl, entry.value) {
+				if matchTuple(v, tmpl, entry.value) {
 					result := entry.value
 					if entry.mode != TupleModePersistent {
 						ts.tuples = append(ts.tuples[:i], ts.tuples[i+1:]...)
@@ -639,7 +645,7 @@ func (vm *VM) registerTupleSpacePrimitives() {
 		// No match — register choice waiter
 		w := &tupleWaiter{
 			templates: templates,
-			ch:        make(chan Value, 1),
+			ch:        make(chan vm.Value, 1),
 			consume:   true,
 		}
 		ts.waiters = append(ts.waiters, w)
@@ -649,40 +655,40 @@ func (vm *VM) registerTupleSpacePrimitives() {
 	})
 
 	// TupleSpace>>primSize — number of stored tuples
-	tsClass.AddMethod0(vm.Selectors, "primSize", func(v *VM, recv Value) Value {
-		ts := v.vmGetTupleSpace(recv)
+	tsClass.AddMethod0(v.Selectors, "primSize", func(v *vm.VM, recv vm.Value) vm.Value {
+		ts := vmGetTupleSpace(v, recv)
 		if ts == nil {
-			return FromSmallInt(0)
+			return vm.FromSmallInt(0)
 		}
 		ts.mu.Lock()
 		defer ts.mu.Unlock()
-		return FromSmallInt(int64(len(ts.tuples)))
+		return vm.FromSmallInt(int64(len(ts.tuples)))
 	})
 
 	// TupleSpace>>primIsEmpty — true if no tuples stored
-	tsClass.AddMethod0(vm.Selectors, "primIsEmpty", func(v *VM, recv Value) Value {
-		ts := v.vmGetTupleSpace(recv)
+	tsClass.AddMethod0(v.Selectors, "primIsEmpty", func(v *vm.VM, recv vm.Value) vm.Value {
+		ts := vmGetTupleSpace(v, recv)
 		if ts == nil {
-			return True
+			return vm.True
 		}
 		ts.mu.Lock()
 		defer ts.mu.Unlock()
 		if len(ts.tuples) == 0 {
-			return True
+			return vm.True
 		}
-		return False
+		return vm.False
 	})
 
 	// TupleSpace>>printString
-	tsClass.AddMethod0(vm.Selectors, "primPrintString", func(v *VM, recv Value) Value {
-		ts := v.vmGetTupleSpace(recv)
+	tsClass.AddMethod0(v.Selectors, "primPrintString", func(v *vm.VM, recv vm.Value) vm.Value {
+		ts := vmGetTupleSpace(v, recv)
 		if ts == nil {
-			return v.registry.NewStringValue("a TupleSpace (invalid)")
+			return v.Registry().NewStringValue("a TupleSpace (invalid)")
 		}
 		ts.mu.Lock()
 		n := len(ts.tuples)
 		ts.mu.Unlock()
-		return v.registry.NewStringValue("a TupleSpace (" + itoa(n) + " tuples)")
+		return v.Registry().NewStringValue("a TupleSpace (" + itoa(n) + " tuples)")
 	})
 }
 

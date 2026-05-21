@@ -1,12 +1,14 @@
-package vm
+package cue
 
 import (
 	"os"
 	"path/filepath"
 	"testing"
 
-	"cuelang.org/go/cue"
+	cuelang "cuelang.org/go/cue"
 	"cuelang.org/go/cue/cuecontext"
+
+	vm "github.com/chazu/maggie/vm"
 )
 
 // ---------------------------------------------------------------------------
@@ -14,16 +16,16 @@ import (
 // ---------------------------------------------------------------------------
 
 func TestCueContextRegistration(t *testing.T) {
-	vm := NewVM()
+	vmInst := vm.NewVM()
 	ctx := cuecontext.New()
 	obj := &CueContextObject{ctx: ctx}
-	val := vm.vmRegisterCueContext(obj)
+	val := vmRegisterCueContext(vmInst, obj)
 
 	if !isCueContextValue(val) {
 		t.Fatal("vmRegisterCueContext should produce a CueContext value")
 	}
 
-	got := vm.vmGetCueContext(val)
+	got := vmGetCueContext(vmInst, val)
 	if got == nil {
 		t.Fatal("vmGetCueContext returned nil for registered context")
 	}
@@ -33,16 +35,16 @@ func TestCueContextRegistration(t *testing.T) {
 }
 
 func TestIsCueContextValueFalse(t *testing.T) {
-	vm := NewVM()
-	_ = vm
+	vmInst := vm.NewVM()
+	_ = vmInst
 
-	if isCueContextValue(Nil) {
+	if isCueContextValue(vm.Nil) {
 		t.Error("Nil should not be a CueContext value")
 	}
-	if isCueContextValue(FromSmallInt(42)) {
+	if isCueContextValue(vm.FromSmallInt(42)) {
 		t.Error("SmallInt should not be a CueContext value")
 	}
-	if isCueContextValue(True) {
+	if isCueContextValue(vm.True) {
 		t.Error("True should not be a CueContext value")
 	}
 }
@@ -52,30 +54,30 @@ func TestIsCueContextValueFalse(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestCueValueRegistration(t *testing.T) {
-	vm := NewVM()
+	vmInst := vm.NewVM()
 	ctx := cuecontext.New()
 	cueVal := ctx.CompileString(`x: 42`)
 	obj := &CueValueObject{val: cueVal}
-	val := vm.vmRegisterCueValue(obj)
+	val := vmRegisterCueValue(vmInst, obj)
 
 	if !isCueValueValue(val) {
 		t.Fatal("vmRegisterCueValue should produce a CueValue value")
 	}
 
-	got := vm.vmGetCueValue(val)
+	got := vmGetCueValue(vmInst, val)
 	if got == nil {
 		t.Fatal("vmGetCueValue returned nil for registered value")
 	}
 }
 
 func TestIsCueValueValueFalse(t *testing.T) {
-	if isCueValueValue(Nil) {
+	if isCueValueValue(vm.Nil) {
 		t.Error("Nil should not be a CueValue value")
 	}
-	if isCueValueValue(FromSmallInt(99)) {
+	if isCueValueValue(vm.FromSmallInt(99)) {
 		t.Error("SmallInt should not be a CueValue value")
 	}
-	if isCueValueValue(False) {
+	if isCueValueValue(vm.False) {
 		t.Error("False should not be a CueValue value")
 	}
 }
@@ -85,7 +87,7 @@ func TestIsCueValueValueFalse(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestCueContextCompileStringSuccess(t *testing.T) {
-	vm := NewVM()
+	vmInst := vm.NewVM()
 	ctx := cuecontext.New()
 	cctx := &CueContextObject{ctx: ctx}
 	val := cctx.ctx.CompileString(`a: 1, b: "hello"`)
@@ -93,8 +95,8 @@ func TestCueContextCompileStringSuccess(t *testing.T) {
 		t.Fatalf("compile failed: %v", err)
 	}
 	obj := &CueValueObject{val: val}
-	registered := vm.vmRegisterCueValue(obj)
-	got := vm.vmGetCueValue(registered)
+	registered := vmRegisterCueValue(vmInst, obj)
+	got := vmGetCueValue(vmInst, registered)
 	if got == nil {
 		t.Fatal("should retrieve registered CueValue")
 	}
@@ -207,10 +209,10 @@ func TestCueValueFields(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestCueToMaggieInt(t *testing.T) {
-	vm := NewVM()
+	vmInst := vm.NewVM()
 	ctx := cuecontext.New()
 	val := ctx.CompileString(`42`)
-	result := vm.cueToMaggie(val)
+	result := cueToMaggie(vmInst, val)
 	if !result.IsSmallInt() {
 		t.Fatalf("expected SmallInt, got something else")
 	}
@@ -220,42 +222,42 @@ func TestCueToMaggieInt(t *testing.T) {
 }
 
 func TestCueToMaggieString(t *testing.T) {
-	vm := NewVM()
+	vmInst := vm.NewVM()
 	ctx := cuecontext.New()
 	val := ctx.CompileString(`"hello"`)
-	result := vm.cueToMaggie(val)
-	s := vm.registry.GetStringContent(result)
+	result := cueToMaggie(vmInst, val)
+	s := vmInst.Registry().GetStringContent(result)
 	if s != "hello" {
 		t.Errorf("expected 'hello', got %q", s)
 	}
 }
 
 func TestCueToMaggieBool(t *testing.T) {
-	vm := NewVM()
+	vmInst := vm.NewVM()
 	ctx := cuecontext.New()
 	val := ctx.CompileString(`true`)
-	result := vm.cueToMaggie(val)
-	if result != True {
+	result := cueToMaggie(vmInst, val)
+	if result != vm.True {
 		t.Error("expected True")
 	}
 }
 
 func TestCueToMaggieNull(t *testing.T) {
-	vm := NewVM()
+	vmInst := vm.NewVM()
 	ctx := cuecontext.New()
 	val := ctx.CompileString(`null`)
-	result := vm.cueToMaggie(val)
-	if result != Nil {
+	result := cueToMaggie(vmInst, val)
+	if result != vm.Nil {
 		t.Error("expected Nil")
 	}
 }
 
 func TestCueToMaggieStruct(t *testing.T) {
-	vm := NewVM()
+	vmInst := vm.NewVM()
 	ctx := cuecontext.New()
 	val := ctx.CompileString(`a: 1, b: "two"`)
-	result := vm.cueToMaggie(val)
-	dict := vm.registry.GetDictionaryObject(result)
+	result := cueToMaggie(vmInst, val)
+	dict := vmInst.Registry().GetDictionaryObject(result)
 	if dict == nil {
 		t.Fatal("expected Dictionary for struct conversion")
 	}
@@ -265,14 +267,14 @@ func TestCueToMaggieStruct(t *testing.T) {
 }
 
 func TestCueToMaggieList(t *testing.T) {
-	vm := NewVM()
+	vmInst := vm.NewVM()
 	ctx := cuecontext.New()
 	val := ctx.CompileString(`[1, 2, 3]`)
-	result := vm.cueToMaggie(val)
+	result := cueToMaggie(vmInst, val)
 	if !result.IsObject() {
 		t.Fatal("expected Object (Array) for list conversion")
 	}
-	obj := ObjectFromValue(result)
+	obj := vm.ObjectFromValue(result)
 	if obj == nil {
 		t.Fatal("expected non-nil object")
 	}
@@ -286,23 +288,23 @@ func TestCueToMaggieList(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestCueExportValuePrimitives(t *testing.T) {
-	vm := NewVM()
+	vmInst := vm.NewVM()
 
-	if vm.cueExportValue(Nil) != nil {
+	if cueExportValue(vmInst, vm.Nil) != nil {
 		t.Error("Nil should export as nil")
 	}
-	if vm.cueExportValue(True) != true {
+	if cueExportValue(vmInst, vm.True) != true {
 		t.Error("True should export as true")
 	}
-	if vm.cueExportValue(False) != false {
+	if cueExportValue(vmInst, vm.False) != false {
 		t.Error("False should export as false")
 	}
-	if vm.cueExportValue(FromSmallInt(99)).(int64) != 99 {
+	if cueExportValue(vmInst, vm.FromSmallInt(99)).(int64) != 99 {
 		t.Error("SmallInt 99 should export as int64(99)")
 	}
 
-	s := vm.registry.NewStringValue("test")
-	if vm.cueExportValue(s).(string) != "test" {
+	s := vmInst.Registry().NewStringValue("test")
+	if cueExportValue(vmInst, s).(string) != "test" {
 		t.Error("String 'test' should export as 'test'")
 	}
 }
@@ -332,7 +334,7 @@ func TestCueValueFillPath(t *testing.T) {
 func TestCueValueFillPathHidden(t *testing.T) {
 	ctx := cuecontext.New()
 	val := ctx.CompileString(`_input: _, output: _input`)
-	hiddenPath := cue.MakePath(cue.Hid("_input", "_"))
+	hiddenPath := cuelang.MakePath(cuelang.Hid("_input", "_"))
 	filled := val.FillPath(hiddenPath, "hello")
 	if err := filled.Err(); err != nil {
 		t.Fatalf("FillPath error: %v", err)
@@ -413,7 +415,7 @@ func TestCueSchemaValidationFail(t *testing.T) {
 func TestCueHiddenFieldInjection(t *testing.T) {
 	ctx := cuecontext.New()
 	val := ctx.CompileString(`_input: _, result: _input`)
-	hiddenPath := cue.MakePath(cue.Hid("_input", "_"))
+	hiddenPath := cuelang.MakePath(cuelang.Hid("_input", "_"))
 	filled := val.FillPath(hiddenPath, "injected")
 	if err := filled.Err(); err != nil {
 		t.Fatalf("FillPath error: %v", err)
@@ -439,7 +441,7 @@ func TestCueRecompilationWithContext(t *testing.T) {
 	// Phase 1: compile with stub
 	step := ctx.CompileString(`_ctx: _, greeting: "Hello " + _ctx.name`)
 	// Phase 2: fill with concrete params
-	hiddenPath := cue.MakePath(cue.Hid("_ctx", "_"))
+	hiddenPath := cuelang.MakePath(cuelang.Hid("_ctx", "_"))
 	filled := step.FillPath(hiddenPath, map[string]interface{}{
 		"name": "World",
 	})
@@ -494,19 +496,22 @@ func TestCueValidationErrorPath(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestCueContextMarkerDistinct(t *testing.T) {
-	if cueContextMarker == cueValueMarker {
+	if vm.CueContextMarker == vm.CueValueMarker {
 		t.Error("CueContext and CueValue markers must be distinct")
 	}
-	if cueContextMarker == httpServerMarker {
+	// httpServerMarker = 38 << 24 (unexported from vm)
+	if vm.CueContextMarker == 38<<24 {
 		t.Error("CueContext marker must not collide with httpServer")
 	}
 }
 
 func TestCueValueMarkerDistinct(t *testing.T) {
-	if cueValueMarker == channelMarker {
+	// channelMarker = 1 << 24 (unexported from vm)
+	if vm.CueValueMarker == 1<<24 {
 		t.Error("CueValue marker must not collide with channel")
 	}
-	if cueValueMarker == resultMarker {
+	// resultMarker = 4 << 24 (unexported from vm)
+	if vm.CueValueMarker == 4<<24 {
 		t.Error("CueValue marker must not collide with result")
 	}
 }
@@ -516,26 +521,26 @@ func TestCueValueMarkerDistinct(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestObjectAsCueValueWithIvars(t *testing.T) {
-	vm := NewVM()
+	vmInst := vm.NewVM()
 
 	// Create a Point class with x and y ivars
-	pointClass := vm.createClass("Point", vm.ObjectClass)
+	pointClass := vmInst.CreateClass("Point", vmInst.ObjectClass)
 	pointClass.InstVars = []string{"x", "y"}
 	pointClass.NumSlots = 2
-	vm.globals["Point"] = vm.classValue(pointClass)
+	vmInst.SetGlobal("Point", vmInst.ClassValue(pointClass))
 
 	// Create an instance with x=3, y=7
-	obj := NewObject(pointClass.VTable, 2)
-	obj.SetSlot(0, FromSmallInt(3))
-	obj.SetSlot(1, FromSmallInt(7))
+	obj := vm.NewObject(pointClass.VTable, 2)
+	obj.SetSlot(0, vm.FromSmallInt(3))
+	obj.SetSlot(1, vm.FromSmallInt(7))
 
-	cueObj := vm.objectAsCueValue(obj.ToValue())
+	cueObj := objectAsCueValue(vmInst, obj.ToValue())
 	if cueObj == nil {
 		t.Fatal("objectAsCueValue returned nil")
 	}
 
 	// Check that the CUE value has the right fields
-	xVal := cueObj.val.LookupPath(cue.ParsePath("x"))
+	xVal := cueObj.val.LookupPath(cuelang.ParsePath("x"))
 	if !xVal.Exists() {
 		t.Fatal("CUE value should have field 'x'")
 	}
@@ -547,7 +552,7 @@ func TestObjectAsCueValueWithIvars(t *testing.T) {
 		t.Errorf("expected x=3, got %d", n)
 	}
 
-	yVal := cueObj.val.LookupPath(cue.ParsePath("y"))
+	yVal := cueObj.val.LookupPath(cuelang.ParsePath("y"))
 	if !yVal.Exists() {
 		t.Fatal("CUE value should have field 'y'")
 	}
@@ -561,10 +566,10 @@ func TestObjectAsCueValueWithIvars(t *testing.T) {
 }
 
 func TestObjectAsCueValueScalar(t *testing.T) {
-	vm := NewVM()
+	vmInst := vm.NewVM()
 
 	// SmallInt should project as a scalar
-	cueObj := vm.objectAsCueValue(FromSmallInt(42))
+	cueObj := objectAsCueValue(vmInst, vm.FromSmallInt(42))
 	if cueObj == nil {
 		t.Fatal("objectAsCueValue returned nil for SmallInt")
 	}
@@ -578,10 +583,10 @@ func TestObjectAsCueValueScalar(t *testing.T) {
 }
 
 func TestObjectAsCueValueString(t *testing.T) {
-	vm := NewVM()
+	vmInst := vm.NewVM()
 
-	strVal := vm.registry.NewStringValue("hello")
-	cueObj := vm.objectAsCueValue(strVal)
+	strVal := vmInst.Registry().NewStringValue("hello")
+	cueObj := objectAsCueValue(vmInst, strVal)
 	if cueObj == nil {
 		t.Fatal("objectAsCueValue returned nil for String")
 	}
@@ -595,11 +600,11 @@ func TestObjectAsCueValueString(t *testing.T) {
 }
 
 func TestObjectAsCueValueNoIvars(t *testing.T) {
-	vm := NewVM()
+	vmInst := vm.NewVM()
 
 	// Object with no ivars should produce an empty struct
-	obj := NewObject(vm.ObjectClass.VTable, 0)
-	cueObj := vm.objectAsCueValue(obj.ToValue())
+	obj := vm.NewObject(vmInst.ObjectClass.VTable, 0)
+	cueObj := objectAsCueValue(vmInst, obj.ToValue())
 	if cueObj == nil {
 		t.Fatal("objectAsCueValue returned nil")
 	}
@@ -609,25 +614,25 @@ func TestObjectAsCueValueNoIvars(t *testing.T) {
 }
 
 func TestObjectAsCueValueInheritedIvars(t *testing.T) {
-	vm := NewVM()
+	vmInst := vm.NewVM()
 
 	// Parent class with 'name'
-	personClass := vm.createClass("Person", vm.ObjectClass)
+	personClass := vmInst.CreateClass("Person", vmInst.ObjectClass)
 	personClass.InstVars = []string{"name"}
 	personClass.NumSlots = 1
 
 	// Child class with 'age' (inherits 'name')
-	studentClass := vm.createClass("Student", personClass)
+	studentClass := vmInst.CreateClass("Student", personClass)
 	studentClass.InstVars = []string{"age"}
 	studentClass.NumSlots = 2
 
-	obj := NewObject(studentClass.VTable, 2)
-	obj.SetSlot(0, vm.registry.NewStringValue("Alice"))
-	obj.SetSlot(1, FromSmallInt(20))
+	obj := vm.NewObject(studentClass.VTable, 2)
+	obj.SetSlot(0, vmInst.Registry().NewStringValue("Alice"))
+	obj.SetSlot(1, vm.FromSmallInt(20))
 
-	cueObj := vm.objectAsCueValue(obj.ToValue())
+	cueObj := objectAsCueValue(vmInst, obj.ToValue())
 
-	nameVal := cueObj.val.LookupPath(cue.ParsePath("name"))
+	nameVal := cueObj.val.LookupPath(cuelang.ParsePath("name"))
 	if !nameVal.Exists() {
 		t.Fatal("should have inherited field 'name'")
 	}
@@ -639,7 +644,7 @@ func TestObjectAsCueValueInheritedIvars(t *testing.T) {
 		t.Errorf("expected 'Alice', got %q", s)
 	}
 
-	ageVal := cueObj.val.LookupPath(cue.ParsePath("age"))
+	ageVal := cueObj.val.LookupPath(cuelang.ParsePath("age"))
 	if !ageVal.Exists() {
 		t.Fatal("should have field 'age'")
 	}
@@ -653,34 +658,34 @@ func TestObjectAsCueValueInheritedIvars(t *testing.T) {
 }
 
 func TestObjectAsCueValueNestedObject(t *testing.T) {
-	vm := NewVM()
+	vmInst := vm.NewVM()
 
 	// Inner class: Point with x, y
-	pointClass := vm.createClass("Point", vm.ObjectClass)
+	pointClass := vmInst.CreateClass("Point", vmInst.ObjectClass)
 	pointClass.InstVars = []string{"x", "y"}
 	pointClass.NumSlots = 2
 
 	// Outer class: Line with start, end
-	lineClass := vm.createClass("Line", vm.ObjectClass)
+	lineClass := vmInst.CreateClass("Line", vmInst.ObjectClass)
 	lineClass.InstVars = []string{"start", "end"}
 	lineClass.NumSlots = 2
 
-	p1 := NewObject(pointClass.VTable, 2)
-	p1.SetSlot(0, FromSmallInt(1))
-	p1.SetSlot(1, FromSmallInt(2))
+	p1 := vm.NewObject(pointClass.VTable, 2)
+	p1.SetSlot(0, vm.FromSmallInt(1))
+	p1.SetSlot(1, vm.FromSmallInt(2))
 
-	p2 := NewObject(pointClass.VTable, 2)
-	p2.SetSlot(0, FromSmallInt(10))
-	p2.SetSlot(1, FromSmallInt(20))
+	p2 := vm.NewObject(pointClass.VTable, 2)
+	p2.SetSlot(0, vm.FromSmallInt(10))
+	p2.SetSlot(1, vm.FromSmallInt(20))
 
-	line := NewObject(lineClass.VTable, 2)
+	line := vm.NewObject(lineClass.VTable, 2)
 	line.SetSlot(0, p1.ToValue())
 	line.SetSlot(1, p2.ToValue())
 
-	cueObj := vm.objectAsCueValue(line.ToValue())
+	cueObj := objectAsCueValue(vmInst, line.ToValue())
 
 	// start.x should be 1
-	startX := cueObj.val.LookupPath(cue.ParsePath("start.x"))
+	startX := cueObj.val.LookupPath(cuelang.ParsePath("start.x"))
 	if !startX.Exists() {
 		t.Fatal("should have nested field start.x")
 	}
@@ -693,7 +698,7 @@ func TestObjectAsCueValueNestedObject(t *testing.T) {
 	}
 
 	// end.y should be 20
-	endY := cueObj.val.LookupPath(cue.ParsePath("end.y"))
+	endY := cueObj.val.LookupPath(cuelang.ParsePath("end.y"))
 	if !endY.Exists() {
 		t.Fatal("should have nested field end.y")
 	}
@@ -707,16 +712,16 @@ func TestObjectAsCueValueNestedObject(t *testing.T) {
 }
 
 func TestObjectAsCueValueNilSlots(t *testing.T) {
-	vm := NewVM()
+	vmInst := vm.NewVM()
 
-	pointClass := vm.createClass("Point", vm.ObjectClass)
+	pointClass := vmInst.CreateClass("Point", vmInst.ObjectClass)
 	pointClass.InstVars = []string{"x", "y"}
 	pointClass.NumSlots = 2
 
 	// Create with default nil slots
-	obj := NewObject(pointClass.VTable, 2)
+	obj := vm.NewObject(pointClass.VTable, 2)
 
-	cueObj := vm.objectAsCueValue(obj.ToValue())
+	cueObj := objectAsCueValue(vmInst, obj.ToValue())
 	if cueObj == nil {
 		t.Fatal("objectAsCueValue returned nil")
 	}
@@ -725,7 +730,7 @@ func TestObjectAsCueValueNilSlots(t *testing.T) {
 	}
 
 	// x should be null (nil maps to null in CUE)
-	xVal := cueObj.val.LookupPath(cue.ParsePath("x"))
+	xVal := cueObj.val.LookupPath(cuelang.ParsePath("x"))
 	if !xVal.Exists() {
 		t.Fatal("should have field 'x' even if nil")
 	}
@@ -736,17 +741,17 @@ func TestObjectAsCueValueNilSlots(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestMatchesObjectSuccess(t *testing.T) {
-	vm := NewVM()
+	vmInst := vm.NewVM()
 
 	// Create Point class
-	pointClass := vm.createClass("Point", vm.ObjectClass)
+	pointClass := vmInst.CreateClass("Point", vmInst.ObjectClass)
 	pointClass.InstVars = []string{"x", "y"}
 	pointClass.NumSlots = 2
 
 	// Create instance x=3, y=7
-	obj := NewObject(pointClass.VTable, 2)
-	obj.SetSlot(0, FromSmallInt(3))
-	obj.SetSlot(1, FromSmallInt(7))
+	obj := vm.NewObject(pointClass.VTable, 2)
+	obj.SetSlot(0, vm.FromSmallInt(3))
+	obj.SetSlot(1, vm.FromSmallInt(7))
 
 	// Schema: x and y must be numbers
 	ctx := cuecontext.New()
@@ -756,7 +761,7 @@ func TestMatchesObjectSuccess(t *testing.T) {
 	}
 
 	cv := &CueValueObject{val: schema}
-	projection := vm.objectAsCueValue(obj.ToValue())
+	projection := objectAsCueValue(vmInst, obj.ToValue())
 	unified := cv.val.Unify(projection.val)
 	if unified.Err() != nil {
 		t.Errorf("expected match, got error: %v", unified.Err())
@@ -764,17 +769,17 @@ func TestMatchesObjectSuccess(t *testing.T) {
 }
 
 func TestMatchesObjectFailure(t *testing.T) {
-	vm := NewVM()
+	vmInst := vm.NewVM()
 
 	// Create Point class
-	pointClass := vm.createClass("Point", vm.ObjectClass)
+	pointClass := vmInst.CreateClass("Point", vmInst.ObjectClass)
 	pointClass.InstVars = []string{"x", "y"}
 	pointClass.NumSlots = 2
 
 	// Create instance x=3, y=7
-	obj := NewObject(pointClass.VTable, 2)
-	obj.SetSlot(0, FromSmallInt(3))
-	obj.SetSlot(1, FromSmallInt(7))
+	obj := vm.NewObject(pointClass.VTable, 2)
+	obj.SetSlot(0, vm.FromSmallInt(3))
+	obj.SetSlot(1, vm.FromSmallInt(7))
 
 	// Schema: x must be a string (should fail)
 	ctx := cuecontext.New()
@@ -784,7 +789,7 @@ func TestMatchesObjectFailure(t *testing.T) {
 	}
 
 	cv := &CueValueObject{val: schema}
-	projection := vm.objectAsCueValue(obj.ToValue())
+	projection := objectAsCueValue(vmInst, obj.ToValue())
 	unified := cv.val.Unify(projection.val)
 	if unified.Err() == nil {
 		t.Error("expected unification failure for string vs int")
@@ -792,24 +797,24 @@ func TestMatchesObjectFailure(t *testing.T) {
 }
 
 func TestMatchesObjectWithConstraint(t *testing.T) {
-	vm := NewVM()
+	vmInst := vm.NewVM()
 
 	// Create Point class
-	pointClass := vm.createClass("Point", vm.ObjectClass)
+	pointClass := vmInst.CreateClass("Point", vmInst.ObjectClass)
 	pointClass.InstVars = []string{"x", "y"}
 	pointClass.NumSlots = 2
 
 	// x=50, y=200
-	obj := NewObject(pointClass.VTable, 2)
-	obj.SetSlot(0, FromSmallInt(50))
-	obj.SetSlot(1, FromSmallInt(200))
+	obj := vm.NewObject(pointClass.VTable, 2)
+	obj.SetSlot(0, vm.FromSmallInt(50))
+	obj.SetSlot(1, vm.FromSmallInt(200))
 
 	ctx := cuecontext.New()
 
 	// Schema: x > 0 & < 100 — should match
 	schema1 := ctx.CompileString(`x: >0 & <100, y: number`)
 	cv1 := &CueValueObject{val: schema1}
-	p1 := vm.objectAsCueValue(obj.ToValue())
+	p1 := objectAsCueValue(vmInst, obj.ToValue())
 	u1 := cv1.val.Unify(p1.val)
 	if u1.Err() != nil {
 		t.Errorf("x=50 should satisfy >0 & <100: %v", u1.Err())
@@ -818,7 +823,7 @@ func TestMatchesObjectWithConstraint(t *testing.T) {
 	// Schema: x > 100 — should fail (x=50)
 	schema2 := ctx.CompileString(`x: >100, y: number`)
 	cv2 := &CueValueObject{val: schema2}
-	p2 := vm.objectAsCueValue(obj.ToValue())
+	p2 := objectAsCueValue(vmInst, obj.ToValue())
 	u2 := cv2.val.Unify(p2.val)
 	if u2.Err() == nil {
 		t.Error("x=50 should not satisfy >100")
@@ -835,11 +840,11 @@ func TestSubsumesIntType(t *testing.T) {
 	concrete := &CueValueObject{val: ctx.CompileString("42")}
 
 	// int subsumes 42
-	if intType.val.Subsume(concrete.val, cue.Final()) != nil {
+	if intType.val.Subsume(concrete.val, cuelang.Final()) != nil {
 		t.Error("int should subsume 42")
 	}
 	// 42 does not subsume int
-	if concrete.val.Subsume(intType.val, cue.Final()) == nil {
+	if concrete.val.Subsume(intType.val, cuelang.Final()) == nil {
 		t.Error("42 should not subsume int")
 	}
 }
@@ -850,10 +855,10 @@ func TestSubsumesRange(t *testing.T) {
 	fifty := &CueValueObject{val: ctx.CompileString("50")}
 	twoHundred := &CueValueObject{val: ctx.CompileString("200")}
 
-	if rangeType.val.Subsume(fifty.val, cue.Final()) != nil {
+	if rangeType.val.Subsume(fifty.val, cuelang.Final()) != nil {
 		t.Error(">0 & <100 should subsume 50")
 	}
-	if rangeType.val.Subsume(twoHundred.val, cue.Final()) == nil {
+	if rangeType.val.Subsume(twoHundred.val, cuelang.Final()) == nil {
 		t.Error(">0 & <100 should not subsume 200")
 	}
 }
@@ -864,10 +869,10 @@ func TestSubsumesStruct(t *testing.T) {
 	concrete := &CueValueObject{val: ctx.CompileString("{x: 3, y: 7}")}
 	wrong := &CueValueObject{val: ctx.CompileString(`{x: "hello", y: 7}`)}
 
-	if schema.val.Subsume(concrete.val, cue.Final()) != nil {
+	if schema.val.Subsume(concrete.val, cuelang.Final()) != nil {
 		t.Error("{x:int,y:int} should subsume {x:3,y:7}")
 	}
-	if schema.val.Subsume(wrong.val, cue.Final()) == nil {
+	if schema.val.Subsume(wrong.val, cuelang.Final()) == nil {
 		t.Error("{x:int,y:int} should not subsume {x:\"hello\",y:7}")
 	}
 }
@@ -875,28 +880,28 @@ func TestSubsumesStruct(t *testing.T) {
 func TestSubsumesReflexive(t *testing.T) {
 	ctx := cuecontext.New()
 	v := &CueValueObject{val: ctx.CompileString("42")}
-	if v.val.Subsume(v.val, cue.Final()) != nil {
+	if v.val.Subsume(v.val, cuelang.Final()) != nil {
 		t.Error("a value should subsume itself")
 	}
 }
 
 func TestSubsumesWithMaggieObject(t *testing.T) {
-	vm := NewVM()
+	vmInst := vm.NewVM()
 
-	pointClass := vm.createClass("Point", vm.ObjectClass)
+	pointClass := vmInst.CreateClass("Point", vmInst.ObjectClass)
 	pointClass.InstVars = []string{"x", "y"}
 	pointClass.NumSlots = 2
 
-	obj := NewObject(pointClass.VTable, 2)
-	obj.SetSlot(0, FromSmallInt(3))
-	obj.SetSlot(1, FromSmallInt(7))
+	obj := vm.NewObject(pointClass.VTable, 2)
+	obj.SetSlot(0, vm.FromSmallInt(3))
+	obj.SetSlot(1, vm.FromSmallInt(7))
 
 	ctx := cuecontext.New()
 	schema := &CueValueObject{val: ctx.CompileString("{x: int, y: int}")}
 
 	// Project object and check subsumption
-	projection := vm.objectAsCueValue(obj.ToValue())
-	if schema.val.Subsume(projection.val, cue.Final()) != nil {
+	projection := objectAsCueValue(vmInst, obj.ToValue())
+	if schema.val.Subsume(projection.val, cuelang.Final()) != nil {
 		t.Error("{x:int,y:int} should subsume Point(3,7)")
 	}
 }
@@ -905,6 +910,6 @@ func TestSubsumesWithMaggieObject(t *testing.T) {
 // Helper to avoid importing cue in test file signatures
 // ---------------------------------------------------------------------------
 
-func cuePathParse(s string) cue.Path {
-	return cue.ParsePath(s)
+func cuePathParse(s string) cuelang.Path {
+	return cuelang.ParsePath(s)
 }

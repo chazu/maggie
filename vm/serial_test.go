@@ -4,8 +4,6 @@ import (
 	"math"
 	"math/big"
 	"testing"
-
-	"cuelang.org/go/cue/cuecontext"
 )
 
 // ---------------------------------------------------------------------------
@@ -369,40 +367,7 @@ func TestSerial_Object(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// CUE value
-// ---------------------------------------------------------------------------
-
-func TestSerial_CueValue(t *testing.T) {
-	vm := NewVM()
-	defer vm.Shutdown()
-	vm.registerCuePrimitives()
-
-	ctx := cuecontext.New()
-	cueVal := ctx.CompileString(`{"name": "Alice", "age": 30}`)
-	obj := &CueValueObject{val: cueVal}
-	val := vm.vmRegisterCueValue(obj)
-
-	data, err := vm.SerializeValue(val)
-	if err != nil {
-		t.Fatalf("serialize CueValue: %v", err)
-	}
-	got, err := vm.DeserializeValue(data)
-	if err != nil {
-		t.Fatalf("deserialize CueValue: %v", err)
-	}
-	if !isCueValueValue(got) {
-		t.Fatal("deserialized value is not a CueValue")
-	}
-	// Verify the CUE value round-tripped correctly
-	gotCv := vm.vmGetCueValue(got)
-	if gotCv == nil {
-		t.Fatal("CueValue registry miss after deserialization")
-	}
-	if gotCv.val.Err() != nil {
-		t.Fatalf("deserialized CueValue has error: %v", gotCv.val.Err())
-	}
-}
+// CUE value serialization tests are in vm/contrib/cue/serial_test.go
 
 // ---------------------------------------------------------------------------
 // Non-serializable types

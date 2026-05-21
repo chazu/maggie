@@ -463,9 +463,8 @@ func (vm *VM) bootstrap() {
 	vm.registerUnixSocketPrimitives()
 	vm.registerDuckDBPrimitives()
 	vm.registerJSONPrimitives()
-	vm.registerCuePrimitives()
-	vm.registerTupleSpacePrimitives()
-	vm.registerConstraintStorePrimitives()
+	// CUE, TupleSpace, ConstraintStore are registered via contrib plugins
+	initContribPlugins(vm)
 	vm.registerProquintPrimitives()
 	vm.registerCryptoPrimitives()
 	vm.registerSqlitePrimitives()

@@ -77,11 +77,7 @@ func (vm *VM) registerObjectPrimitives() {
 		return vm.primitiveClass(recv)
 	})
 
-	// primAsCueValue - project this object's instance variables into a CUE value
-	c.AddMethod0(vm.Selectors, "primAsCueValue", func(v *VM, recv Value) Value {
-		cueObj := v.objectAsCueValue(recv)
-		return v.vmRegisterCueValue(cueObj)
-	})
+	// primAsCueValue is registered by the CUE contrib plugin
 
 	// primIsKindOf: - check if receiver is an instance of aClass or a subclass
 	c.AddMethod1(vm.Selectors, "primIsKindOf:", func(v *VM, recv Value, aClass Value) Value {

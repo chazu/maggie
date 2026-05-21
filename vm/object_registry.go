@@ -1,6 +1,7 @@
 package vm
 
 import (
+	"fmt"
 	"sync"
 	"sync/atomic"
 )
@@ -26,10 +27,6 @@ type ObjectRegistry struct {
 	strings          *AutoIDRegistry[*StringObject]
 	goObjects        *AutoIDRegistry[*GoObjectWrapper]
 	bigInts          *AutoIDRegistry[*BigIntObject]
-	cueContexts      *AutoIDRegistry[*CueContextObject]
-	cueValues        *AutoIDRegistry[*CueValueObject]
-	tupleSpaces      *AutoIDRegistry[*TupleSpaceObject]
-	constraintStores *AutoIDRegistry[*ConstraintStoreObject]
 	classValues      *AutoIDRegistry[*Class]
 
 	// Special registries (not suitable for AutoIDRegistry)
@@ -38,6 +35,10 @@ type ObjectRegistry struct {
 	weakRefCounter atomic.Uint32       // counter only
 	classVars      map[*Class]map[string]Value // nested map
 	classVarsMu    sync.RWMutex
+
+	// Extension registries for contrib plugins (keyed by marker constant)
+	extensions   map[uint32]*AutoIDRegistry[any]
+	extensionsMu sync.RWMutex
 }
 
 // NewObjectRegistry creates a new ObjectRegistry with all maps initialized.
@@ -57,18 +58,15 @@ func NewObjectRegistry() *ObjectRegistry {
 		strings:          NewAutoIDRegistry[*StringObject](stringIDOffset, WithMaxID(dictionaryIDOffset-1), WithName("strings")),
 		goObjects:        NewAutoIDRegistry[*GoObjectWrapper](0, WithName("goObjects")),
 		bigInts:          NewAutoIDRegistry[*BigIntObject](0, WithName("bigInts")),
-		cueContexts:      NewAutoIDRegistry[*CueContextObject](1, WithName("cueContexts")),
-		cueValues:        NewAutoIDRegistry[*CueValueObject](1, WithName("cueValues")),
-		tupleSpaces:      NewAutoIDRegistry[*TupleSpaceObject](1, WithName("tupleSpaces")),
-		constraintStores: NewAutoIDRegistry[*ConstraintStoreObject](1, WithName("constraintStores")),
 		// classValues is monotonic: *Class caches its assigned classValueID,
 		// so reusing an ID would create a stale cache on the prior owner.
 		// In practice classValues entries are never deleted, but we encode
 		// the invariant here so it can't regress.
 		classValues:      NewAutoIDRegistry[*Class](1, WithMonotonic(), WithName("classValues")),
 
-		cells:     make(map[*Cell]struct{}),
-		classVars: make(map[*Class]map[string]Value),
+		cells:      make(map[*Cell]struct{}),
+		classVars:  make(map[*Class]map[string]Value),
+		extensions: make(map[uint32]*AutoIDRegistry[any]),
 	}
 
 	return or
@@ -410,37 +408,38 @@ func (or *ObjectRegistry) ClassValueCount() int {
 }
 
 // ---------------------------------------------------------------------------
-// CUE Context Registry Methods (delegates to AutoIDRegistry)
+// Extension Registry Methods (for contrib plugins)
 // ---------------------------------------------------------------------------
 
-func (or *ObjectRegistry) RegisterCueContext(c *CueContextObject) uint32 { return or.cueContexts.Register(c) }
-func (or *ObjectRegistry) GetCueContext(id uint32) *CueContextObject     { return or.cueContexts.Get(id) }
-func (or *ObjectRegistry) UnregisterCueContext(id uint32)                { or.cueContexts.Delete(id) }
-func (or *ObjectRegistry) CueContextCount() int                         { return or.cueContexts.Count() }
+// ExtensionRegistry returns (or lazily creates) a generic AutoIDRegistry for
+// the given marker. Contrib plugins use this to store their custom types.
+func (or *ObjectRegistry) ExtensionRegistry(marker uint32) *AutoIDRegistry[any] {
+	or.extensionsMu.RLock()
+	reg := or.extensions[marker]
+	or.extensionsMu.RUnlock()
+	if reg != nil {
+		return reg
+	}
+	or.extensionsMu.Lock()
+	defer or.extensionsMu.Unlock()
+	if reg = or.extensions[marker]; reg != nil {
+		return reg
+	}
+	reg = NewAutoIDRegistry[any](1)
+	or.extensions[marker] = reg
+	return reg
+}
 
-// ---------------------------------------------------------------------------
-// CUE Value Registry Methods (delegates to AutoIDRegistry)
-// ---------------------------------------------------------------------------
-
-func (or *ObjectRegistry) RegisterCueValue(c *CueValueObject) uint32 { return or.cueValues.Register(c) }
-func (or *ObjectRegistry) GetCueValue(id uint32) *CueValueObject     { return or.cueValues.Get(id) }
-func (or *ObjectRegistry) UnregisterCueValue(id uint32)              { or.cueValues.Delete(id) }
-func (or *ObjectRegistry) CueValueCount() int                        { return or.cueValues.Count() }
-
-// ---------------------------------------------------------------------------
-// TupleSpace Registry Methods (delegates to AutoIDRegistry)
-// ---------------------------------------------------------------------------
-
-func (or *ObjectRegistry) RegisterTupleSpace(ts *TupleSpaceObject) uint32 { return or.tupleSpaces.Register(ts) }
-func (or *ObjectRegistry) GetTupleSpace(id uint32) *TupleSpaceObject      { return or.tupleSpaces.Get(id) }
-
-// ---------------------------------------------------------------------------
-// ConstraintStore Registry Methods (delegates to AutoIDRegistry)
-// ---------------------------------------------------------------------------
-
-func (or *ObjectRegistry) RegisterConstraintStore(cs *ConstraintStoreObject) uint32 { return or.constraintStores.Register(cs) }
-func (or *ObjectRegistry) GetConstraintStore(id uint32) *ConstraintStoreObject      { return or.constraintStores.Get(id) }
-func (or *ObjectRegistry) ConstraintStoreCount() int                                { return or.constraintStores.Count() }
+// ExtensionStats returns counts for all extension registries.
+func (or *ObjectRegistry) ExtensionStats() map[uint32]int {
+	or.extensionsMu.RLock()
+	defer or.extensionsMu.RUnlock()
+	stats := make(map[uint32]int, len(or.extensions))
+	for marker, reg := range or.extensions {
+		stats[marker] = reg.Count()
+	}
+	return stats
+}
 
 // ---------------------------------------------------------------------------
 // Extended Stats
@@ -462,8 +461,8 @@ func (or *ObjectRegistry) FullStats() map[string]int {
 	stats["goObjects"] = or.GoObjectCount()
 	stats["bigInts"] = or.BigIntCount()
 	stats["classValues"] = or.ClassValueCount()
-	stats["cueContexts"] = or.CueContextCount()
-	stats["cueValues"] = or.CueValueCount()
-	stats["constraintStores"] = or.ConstraintStoreCount()
+	for marker, count := range or.ExtensionStats() {
+		stats[fmt.Sprintf("ext_%d", marker>>24)] = count
+	}
 	return stats
 }

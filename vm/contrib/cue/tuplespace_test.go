@@ -1,4 +1,4 @@
-package vm
+package cue
 
 import (
 	"sync"
@@ -6,6 +6,8 @@ import (
 	"time"
 
 	"cuelang.org/go/cue/cuecontext"
+
+	vm "github.com/chazu/maggie/vm"
 )
 
 func compileCueTemplate(src string) *CueValueObject {
@@ -19,26 +21,26 @@ func compileCueTemplate(src string) *CueValueObject {
 // ---------------------------------------------------------------------------
 
 func TestTupleSpaceOutAndTryIn(t *testing.T) {
-	vm := NewVM()
+	vmInst := vm.NewVM()
 	ts := &TupleSpaceObject{}
 
 	// Empty space
 	tmpl := compileCueTemplate("int")
-	if vm.matchTuple(tmpl, FromSmallInt(42)) != true {
+	if matchTuple(vmInst, tmpl, vm.FromSmallInt(42)) != true {
 		t.Fatal("int template should match 42")
 	}
 
 	// Out then tryIn
-	ts.tuples = append(ts.tuples, TupleEntry{value: FromSmallInt(42), mode: TupleModeLinear})
+	ts.tuples = append(ts.tuples, TupleEntry{value: vm.FromSmallInt(42), mode: TupleModeLinear})
 	if len(ts.tuples) != 1 {
 		t.Fatal("expected 1 tuple")
 	}
 
 	// Manual tryIn logic
 	for i, entry := range ts.tuples {
-		if vm.matchTuple(tmpl, entry.value) {
+		if matchTuple(vmInst, tmpl, entry.value) {
 			ts.tuples = append(ts.tuples[:i], ts.tuples[i+1:]...)
-			if entry.value != FromSmallInt(42) {
+			if entry.value != vm.FromSmallInt(42) {
 				t.Errorf("expected 42, got something else")
 			}
 			break
@@ -50,16 +52,16 @@ func TestTupleSpaceOutAndTryIn(t *testing.T) {
 }
 
 func TestTupleSpaceTryReadDoesNotConsume(t *testing.T) {
-	vm := NewVM()
+	vmInst := vm.NewVM()
 	ts := &TupleSpaceObject{}
-	ts.tuples = append(ts.tuples, TupleEntry{value: FromSmallInt(42), mode: TupleModeLinear})
+	ts.tuples = append(ts.tuples, TupleEntry{value: vm.FromSmallInt(42), mode: TupleModeLinear})
 
 	tmpl := compileCueTemplate("int")
 
 	// tryRead should find it but not remove
 	found := false
 	for _, entry := range ts.tuples {
-		if vm.matchTuple(tmpl, entry.value) {
+		if matchTuple(vmInst, tmpl, entry.value) {
 			found = true
 			break
 		}
@@ -73,17 +75,17 @@ func TestTupleSpaceTryReadDoesNotConsume(t *testing.T) {
 }
 
 func TestTupleSpaceTemplateSelectsCorrectTuple(t *testing.T) {
-	vm := NewVM()
+	vmInst := vm.NewVM()
 	ts := &TupleSpaceObject{}
-	ts.tuples = append(ts.tuples, TupleEntry{value: vm.registry.NewStringValue("hello"), mode: TupleModeLinear})
-	ts.tuples = append(ts.tuples, TupleEntry{value: FromSmallInt(42), mode: TupleModeLinear})
-	ts.tuples = append(ts.tuples, TupleEntry{value: vm.registry.NewStringValue("world"), mode: TupleModeLinear})
+	ts.tuples = append(ts.tuples, TupleEntry{value: vmInst.Registry().NewStringValue("hello"), mode: TupleModeLinear})
+	ts.tuples = append(ts.tuples, TupleEntry{value: vm.FromSmallInt(42), mode: TupleModeLinear})
+	ts.tuples = append(ts.tuples, TupleEntry{value: vmInst.Registry().NewStringValue("world"), mode: TupleModeLinear})
 
 	// int template should match 42, not the strings
 	tmpl := compileCueTemplate("int")
 	for i, entry := range ts.tuples {
-		if vm.matchTuple(tmpl, entry.value) {
-			if entry.value != FromSmallInt(42) {
+		if matchTuple(vmInst, tmpl, entry.value) {
+			if entry.value != vm.FromSmallInt(42) {
 				t.Error("int template should match 42")
 			}
 			ts.tuples = append(ts.tuples[:i], ts.tuples[i+1:]...)
@@ -96,28 +98,28 @@ func TestTupleSpaceTemplateSelectsCorrectTuple(t *testing.T) {
 }
 
 func TestTupleSpaceRangeTemplate(t *testing.T) {
-	vm := NewVM()
+	vmInst := vm.NewVM()
 
 	tmpl := compileCueTemplate(">0 & <100")
-	if !vm.matchTuple(tmpl, FromSmallInt(50)) {
+	if !matchTuple(vmInst, tmpl, vm.FromSmallInt(50)) {
 		t.Error(">0 & <100 should match 50")
 	}
-	if vm.matchTuple(tmpl, FromSmallInt(200)) {
+	if matchTuple(vmInst, tmpl, vm.FromSmallInt(200)) {
 		t.Error(">0 & <100 should not match 200")
 	}
-	if vm.matchTuple(tmpl, FromSmallInt(0)) {
+	if matchTuple(vmInst, tmpl, vm.FromSmallInt(0)) {
 		t.Error(">0 & <100 should not match 0")
 	}
 }
 
 func TestTupleSpaceStringTemplate(t *testing.T) {
-	vm := NewVM()
+	vmInst := vm.NewVM()
 
 	tmpl := compileCueTemplate("string")
-	if !vm.matchTuple(tmpl, vm.registry.NewStringValue("hello")) {
+	if !matchTuple(vmInst, tmpl, vmInst.Registry().NewStringValue("hello")) {
 		t.Error("string template should match 'hello'")
 	}
-	if vm.matchTuple(tmpl, FromSmallInt(42)) {
+	if matchTuple(vmInst, tmpl, vm.FromSmallInt(42)) {
 		t.Error("string template should not match 42")
 	}
 }
@@ -127,13 +129,13 @@ func TestTupleSpaceStringTemplate(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestTupleSpaceBlockingIn(t *testing.T) {
-	vm := NewVM()
+	vmInst := vm.NewVM()
 	ts := &TupleSpaceObject{}
-	tsVal := vm.vmRegisterTupleSpace(ts)
+	tsVal := vmRegisterTupleSpace(vmInst, ts)
 	_ = tsVal
 
 	tmpl := compileCueTemplate("int")
-	var result Value
+	var result vm.Value
 	var wg sync.WaitGroup
 
 	wg.Add(1)
@@ -142,7 +144,7 @@ func TestTupleSpaceBlockingIn(t *testing.T) {
 		// Block until an int tuple appears
 		ts.mu.Lock()
 		for i, entry := range ts.tuples {
-			if vm.matchTuple(tmpl, entry.value) {
+			if matchTuple(vmInst, tmpl, entry.value) {
 				result = entry.value
 				ts.tuples = append(ts.tuples[:i], ts.tuples[i+1:]...)
 				ts.mu.Unlock()
@@ -150,7 +152,7 @@ func TestTupleSpaceBlockingIn(t *testing.T) {
 			}
 		}
 		// Not found — register waiter
-		w := &tupleWaiter{template: tmpl, ch: make(chan Value, 1), consume: true}
+		w := &tupleWaiter{template: tmpl, ch: make(chan vm.Value, 1), consume: true}
 		ts.waiters = append(ts.waiters, w)
 		ts.mu.Unlock()
 		result = <-w.ch
@@ -162,19 +164,19 @@ func TestTupleSpaceBlockingIn(t *testing.T) {
 	// Now out: a value — should wake the waiter
 	ts.mu.Lock()
 	for i, w := range ts.waiters {
-		if vm.matchTuple(w.template, FromSmallInt(99)) {
+		if matchTuple(vmInst, w.template, vm.FromSmallInt(99)) {
 			ts.waiters = append(ts.waiters[:i], ts.waiters[i+1:]...)
 			ts.mu.Unlock()
-			w.ch <- FromSmallInt(99)
+			w.ch <- vm.FromSmallInt(99)
 			goto done
 		}
 	}
-	ts.tuples = append(ts.tuples, TupleEntry{value: FromSmallInt(99), mode: TupleModeLinear})
+	ts.tuples = append(ts.tuples, TupleEntry{value: vm.FromSmallInt(99), mode: TupleModeLinear})
 	ts.mu.Unlock()
 done:
 	wg.Wait()
 
-	if result != FromSmallInt(99) {
+	if result != vm.FromSmallInt(99) {
 		t.Errorf("expected 99 from blocked in:, got %v", result)
 	}
 }
@@ -184,36 +186,36 @@ done:
 // ---------------------------------------------------------------------------
 
 func TestTupleSpaceStructTemplate(t *testing.T) {
-	vm := NewVM()
+	vmInst := vm.NewVM()
 
-	pointClass := vm.createClass("Point", vm.ObjectClass)
+	pointClass := vmInst.CreateClass("Point", vmInst.ObjectClass)
 	pointClass.InstVars = []string{"x", "y"}
 	pointClass.NumSlots = 2
 
-	obj := NewObject(pointClass.VTable, 2)
-	obj.SetSlot(0, FromSmallInt(3))
-	obj.SetSlot(1, FromSmallInt(7))
+	obj := vm.NewObject(pointClass.VTable, 2)
+	obj.SetSlot(0, vm.FromSmallInt(3))
+	obj.SetSlot(1, vm.FromSmallInt(7))
 
 	// Should match {x: int, y: int}
 	tmpl := compileCueTemplate("{x: int, y: int}")
-	if !vm.matchTuple(tmpl, obj.ToValue()) {
+	if !matchTuple(vmInst, tmpl, obj.ToValue()) {
 		t.Error("struct template should match Point(3, 7)")
 	}
 
 	// Should NOT match {x: string}
 	tmpl2 := compileCueTemplate("{x: string}")
-	if vm.matchTuple(tmpl2, obj.ToValue()) {
+	if matchTuple(vmInst, tmpl2, obj.ToValue()) {
 		t.Error("string template should not match Point(3, 7)")
 	}
 
 	// Range template on field
 	tmpl3 := compileCueTemplate("{x: >0, y: >5}")
-	if !vm.matchTuple(tmpl3, obj.ToValue()) {
+	if !matchTuple(vmInst, tmpl3, obj.ToValue()) {
 		t.Error("{x: >0, y: >5} should match Point(3, 7)")
 	}
 
 	tmpl4 := compileCueTemplate("{x: >0, y: >10}")
-	if vm.matchTuple(tmpl4, obj.ToValue()) {
+	if matchTuple(vmInst, tmpl4, obj.ToValue()) {
 		t.Error("{x: >0, y: >10} should not match Point(3, 7)")
 	}
 }
@@ -223,30 +225,30 @@ func TestTupleSpaceStructTemplate(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestTupleSpacePrimitivesIntegration(t *testing.T) {
-	vm := NewVM()
+	vmInst := vm.NewVM()
 
 	// Register and create a TupleSpace
 	ts := &TupleSpaceObject{}
-	tsVal := vm.vmRegisterTupleSpace(ts)
+	tsVal := vmRegisterTupleSpace(vmInst, ts)
 
 	if !isTupleSpaceValue(tsVal) {
 		t.Fatal("should be a tuple space value")
 	}
 
-	got := vm.vmGetTupleSpace(tsVal)
+	got := vmGetTupleSpace(vmInst, tsVal)
 	if got != ts {
 		t.Fatal("should retrieve the same tuple space")
 	}
 }
 
 func TestTupleSpaceMarkerDistinct(t *testing.T) {
-	if tupleSpaceMarker == channelMarker {
+	if vm.TupleSpaceMarker == vm.ChannelMarkerValue() {
 		t.Error("tupleSpace marker should not collide with channel")
 	}
-	if tupleSpaceMarker == cueValueMarker {
+	if vm.TupleSpaceMarker == vm.CueValueMarker {
 		t.Error("tupleSpace marker should not collide with cueValue")
 	}
-	if tupleSpaceMarker == cueContextMarker {
+	if vm.TupleSpaceMarker == vm.CueContextMarker {
 		t.Error("tupleSpace marker should not collide with cueContext")
 	}
 }
@@ -256,12 +258,12 @@ func TestTupleSpaceMarkerDistinct(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestTupleSpacePersistentNotConsumedByIn(t *testing.T) {
-	vm := NewVM()
+	vmInst := vm.NewVM()
 	ts := &TupleSpaceObject{}
 
 	// Add a persistent tuple
 	ts.tuples = append(ts.tuples, TupleEntry{
-		value: FromSmallInt(42),
+		value: vm.FromSmallInt(42),
 		mode:  TupleModePersistent,
 	})
 
@@ -270,11 +272,11 @@ func TestTupleSpacePersistentNotConsumedByIn(t *testing.T) {
 	// "in:" on persistent tuple: should return value but NOT remove
 	ts.mu.Lock()
 	for _, entry := range ts.tuples {
-		if vm.matchTuple(tmpl, entry.value) {
+		if matchTuple(vmInst, tmpl, entry.value) {
 			if entry.mode == TupleModePersistent {
 				// Return value, don't remove
 				ts.mu.Unlock()
-				if entry.value != FromSmallInt(42) {
+				if entry.value != vm.FromSmallInt(42) {
 					t.Error("expected 42")
 				}
 				goto checkSize
@@ -291,11 +293,11 @@ checkSize:
 }
 
 func TestTupleSpacePersistentMultipleReads(t *testing.T) {
-	vm := NewVM()
+	vmInst := vm.NewVM()
 	ts := &TupleSpaceObject{}
 
 	ts.tuples = append(ts.tuples, TupleEntry{
-		value: FromSmallInt(42),
+		value: vm.FromSmallInt(42),
 		mode:  TupleModePersistent,
 	})
 
@@ -306,8 +308,8 @@ func TestTupleSpacePersistentMultipleReads(t *testing.T) {
 		ts.mu.Lock()
 		found := false
 		for _, entry := range ts.tuples {
-			if vm.matchTuple(tmpl, entry.value) {
-				if entry.value != FromSmallInt(42) {
+			if matchTuple(vmInst, tmpl, entry.value) {
+				if entry.value != vm.FromSmallInt(42) {
 					t.Errorf("attempt %d: expected 42", attempt)
 				}
 				found = true
@@ -326,13 +328,13 @@ func TestTupleSpacePersistentMultipleReads(t *testing.T) {
 }
 
 func TestTupleSpaceAffineWithTTL(t *testing.T) {
-	vm := NewVM()
+	vmInst := vm.NewVM()
 	ts := &TupleSpaceObject{}
 
 	// Add an affine tuple with 50ms TTL
 	deadline := time.Now().UnixMilli() + 50
 	ts.tuples = append(ts.tuples, TupleEntry{
-		value:    FromSmallInt(99),
+		value:    vm.FromSmallInt(99),
 		mode:     TupleModeAffine,
 		deadline: deadline,
 	})
@@ -343,7 +345,7 @@ func TestTupleSpaceAffineWithTTL(t *testing.T) {
 	ts.mu.Lock()
 	found := false
 	for _, entry := range ts.tuples {
-		if !entry.isExpired() && vm.matchTuple(tmpl, entry.value) {
+		if !entry.isExpired() && matchTuple(vmInst, tmpl, entry.value) {
 			found = true
 			break
 		}
@@ -368,19 +370,19 @@ func TestTupleSpaceAffineWithTTL(t *testing.T) {
 }
 
 func TestTupleSpaceExpiredAffineSkippedDuringMatch(t *testing.T) {
-	vm := NewVM()
+	vmInst := vm.NewVM()
 	ts := &TupleSpaceObject{}
 
 	// Add an already-expired affine tuple
 	ts.tuples = append(ts.tuples, TupleEntry{
-		value:    FromSmallInt(42),
+		value:    vm.FromSmallInt(42),
 		mode:     TupleModeAffine,
 		deadline: time.Now().UnixMilli() - 100, // expired 100ms ago
 	})
 
 	// Add a valid linear tuple
 	ts.tuples = append(ts.tuples, TupleEntry{
-		value: FromSmallInt(99),
+		value: vm.FromSmallInt(99),
 		mode:  TupleModeLinear,
 	})
 
@@ -389,9 +391,9 @@ func TestTupleSpaceExpiredAffineSkippedDuringMatch(t *testing.T) {
 	// Sweep + match should skip the expired one and find 99
 	ts.mu.Lock()
 	ts.sweepExpired()
-	var matched Value
+	var matched vm.Value
 	for i, entry := range ts.tuples {
-		if vm.matchTuple(tmpl, entry.value) {
+		if matchTuple(vmInst, tmpl, entry.value) {
 			matched = entry.value
 			ts.tuples = append(ts.tuples[:i], ts.tuples[i+1:]...)
 			break
@@ -399,38 +401,38 @@ func TestTupleSpaceExpiredAffineSkippedDuringMatch(t *testing.T) {
 	}
 	ts.mu.Unlock()
 
-	if matched != FromSmallInt(99) {
+	if matched != vm.FromSmallInt(99) {
 		t.Errorf("should have matched 99 (skipping expired), got %v", matched)
 	}
 }
 
 func TestTupleSpaceTupleEntryIsExpired(t *testing.T) {
 	// Linear tuple never expires
-	e1 := TupleEntry{value: FromSmallInt(1), mode: TupleModeLinear}
+	e1 := TupleEntry{value: vm.FromSmallInt(1), mode: TupleModeLinear}
 	if e1.isExpired() {
 		t.Error("linear tuple should never be expired")
 	}
 
 	// Persistent tuple never expires
-	e2 := TupleEntry{value: FromSmallInt(1), mode: TupleModePersistent}
+	e2 := TupleEntry{value: vm.FromSmallInt(1), mode: TupleModePersistent}
 	if e2.isExpired() {
 		t.Error("persistent tuple should never be expired")
 	}
 
 	// Affine with no deadline never expires
-	e3 := TupleEntry{value: FromSmallInt(1), mode: TupleModeAffine, deadline: 0}
+	e3 := TupleEntry{value: vm.FromSmallInt(1), mode: TupleModeAffine, deadline: 0}
 	if e3.isExpired() {
 		t.Error("affine tuple with no deadline should not be expired")
 	}
 
 	// Affine with future deadline not expired
-	e4 := TupleEntry{value: FromSmallInt(1), mode: TupleModeAffine, deadline: time.Now().UnixMilli() + 10000}
+	e4 := TupleEntry{value: vm.FromSmallInt(1), mode: TupleModeAffine, deadline: time.Now().UnixMilli() + 10000}
 	if e4.isExpired() {
 		t.Error("affine tuple with future deadline should not be expired")
 	}
 
 	// Affine with past deadline is expired
-	e5 := TupleEntry{value: FromSmallInt(1), mode: TupleModeAffine, deadline: time.Now().UnixMilli() - 100}
+	e5 := TupleEntry{value: vm.FromSmallInt(1), mode: TupleModeAffine, deadline: time.Now().UnixMilli() - 100}
 	if !e5.isExpired() {
 		t.Error("affine tuple with past deadline should be expired")
 	}
@@ -441,26 +443,26 @@ func TestTupleSpaceTupleEntryIsExpired(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestTupleSpaceInAllAtomicTake(t *testing.T) {
-	vm := NewVM()
+	vmInst := vm.NewVM()
 	ts := &TupleSpaceObject{}
 
 	// Store an int and a string tuple
-	ts.tuples = append(ts.tuples, TupleEntry{value: FromSmallInt(42), mode: TupleModeLinear})
-	ts.tuples = append(ts.tuples, TupleEntry{value: vm.registry.NewStringValue("hello"), mode: TupleModeLinear})
+	ts.tuples = append(ts.tuples, TupleEntry{value: vm.FromSmallInt(42), mode: TupleModeLinear})
+	ts.tuples = append(ts.tuples, TupleEntry{value: vmInst.Registry().NewStringValue("hello"), mode: TupleModeLinear})
 
 	intTmpl := compileCueTemplate("int")
 	strTmpl := compileCueTemplate("string")
 
 	templates := []*CueValueObject{intTmpl, strTmpl}
 
-	results, indices, ok := vm.tryMatchAll(ts, templates)
+	results, indices, ok := tryMatchAll(vmInst, ts, templates)
 	if !ok {
 		t.Fatal("should match both templates")
 	}
 	if len(results) != 2 {
 		t.Fatalf("expected 2 results, got %d", len(results))
 	}
-	if results[0] != FromSmallInt(42) {
+	if results[0] != vm.FromSmallInt(42) {
 		t.Error("first result should be 42")
 	}
 	if len(indices) != 2 {
@@ -475,18 +477,18 @@ func TestTupleSpaceInAllAtomicTake(t *testing.T) {
 }
 
 func TestTupleSpaceInAllBlocksWhenNotAllSatisfiable(t *testing.T) {
-	vm := NewVM()
+	vmInst := vm.NewVM()
 	ts := &TupleSpaceObject{}
 
 	// Only an int, no string
-	ts.tuples = append(ts.tuples, TupleEntry{value: FromSmallInt(42), mode: TupleModeLinear})
+	ts.tuples = append(ts.tuples, TupleEntry{value: vm.FromSmallInt(42), mode: TupleModeLinear})
 
 	intTmpl := compileCueTemplate("int")
 	strTmpl := compileCueTemplate("string")
 
 	templates := []*CueValueObject{intTmpl, strTmpl}
 
-	_, _, ok := vm.tryMatchAll(ts, templates)
+	_, _, ok := tryMatchAll(vmInst, ts, templates)
 	if ok {
 		t.Error("should NOT match when string tuple is missing")
 	}
@@ -498,19 +500,19 @@ func TestTupleSpaceInAllBlocksWhenNotAllSatisfiable(t *testing.T) {
 }
 
 func TestTupleSpaceInAllDistinctMatches(t *testing.T) {
-	vm := NewVM()
+	vmInst := vm.NewVM()
 	ts := &TupleSpaceObject{}
 
 	// Two int tuples — inAll with two int templates should match DIFFERENT tuples
-	ts.tuples = append(ts.tuples, TupleEntry{value: FromSmallInt(1), mode: TupleModeLinear})
-	ts.tuples = append(ts.tuples, TupleEntry{value: FromSmallInt(2), mode: TupleModeLinear})
+	ts.tuples = append(ts.tuples, TupleEntry{value: vm.FromSmallInt(1), mode: TupleModeLinear})
+	ts.tuples = append(ts.tuples, TupleEntry{value: vm.FromSmallInt(2), mode: TupleModeLinear})
 
 	intTmpl1 := compileCueTemplate("int")
 	intTmpl2 := compileCueTemplate("int")
 
 	templates := []*CueValueObject{intTmpl1, intTmpl2}
 
-	results, indices, ok := vm.tryMatchAll(ts, templates)
+	results, indices, ok := tryMatchAll(vmInst, ts, templates)
 	if !ok {
 		t.Fatal("should match both int templates against two int tuples")
 	}
@@ -523,38 +525,38 @@ func TestTupleSpaceInAllDistinctMatches(t *testing.T) {
 }
 
 func TestTupleSpaceInAllNotEnoughDistinct(t *testing.T) {
-	vm := NewVM()
+	vmInst := vm.NewVM()
 	ts := &TupleSpaceObject{}
 
 	// Only one int tuple — two int templates should fail
-	ts.tuples = append(ts.tuples, TupleEntry{value: FromSmallInt(1), mode: TupleModeLinear})
+	ts.tuples = append(ts.tuples, TupleEntry{value: vm.FromSmallInt(1), mode: TupleModeLinear})
 
 	intTmpl1 := compileCueTemplate("int")
 	intTmpl2 := compileCueTemplate("int")
 
 	templates := []*CueValueObject{intTmpl1, intTmpl2}
 
-	_, _, ok := vm.tryMatchAll(ts, templates)
+	_, _, ok := tryMatchAll(vmInst, ts, templates)
 	if ok {
 		t.Error("should NOT match two int templates with only one int tuple")
 	}
 }
 
 func TestTupleSpaceInAllCompoundWaiterWakes(t *testing.T) {
-	vm := NewVM()
+	vmInst := vm.NewVM()
 	ts := &TupleSpaceObject{}
 
 	intTmpl := compileCueTemplate("int")
 	strTmpl := compileCueTemplate("string")
 
 	var wg sync.WaitGroup
-	var results []Value
+	var results []vm.Value
 
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
 		ts.mu.Lock()
-		_, _, ok := vm.tryMatchAll(ts, []*CueValueObject{intTmpl, strTmpl})
+		_, _, ok := tryMatchAll(vmInst, ts, []*CueValueObject{intTmpl, strTmpl})
 		if ok {
 			t.Error("should not match yet")
 			ts.mu.Unlock()
@@ -563,7 +565,7 @@ func TestTupleSpaceInAllCompoundWaiterWakes(t *testing.T) {
 		// Register compound waiter
 		w := &tupleWaiter{
 			templates: []*CueValueObject{intTmpl, strTmpl},
-			chArray:   make(chan []Value, 1),
+			chArray:   make(chan []vm.Value, 1),
 			consume:   true,
 		}
 		ts.waiters = append(ts.waiters, w)
@@ -575,19 +577,19 @@ func TestTupleSpaceInAllCompoundWaiterWakes(t *testing.T) {
 
 	// Add int tuple first
 	ts.mu.Lock()
-	ts.tuples = append(ts.tuples, TupleEntry{value: FromSmallInt(42), mode: TupleModeLinear})
+	ts.tuples = append(ts.tuples, TupleEntry{value: vm.FromSmallInt(42), mode: TupleModeLinear})
 	ts.mu.Unlock()
 
 	time.Sleep(5 * time.Millisecond)
 
 	// Add string tuple — now both should be satisfiable
 	ts.mu.Lock()
-	ts.tuples = append(ts.tuples, TupleEntry{value: vm.registry.NewStringValue("hello"), mode: TupleModeLinear})
+	ts.tuples = append(ts.tuples, TupleEntry{value: vmInst.Registry().NewStringValue("hello"), mode: TupleModeLinear})
 
 	// Check compound waiters
 	for i, w := range ts.waiters {
 		if w.templates != nil && w.chArray != nil {
-			matched, indices, ok := vm.tryMatchAll(ts, w.templates)
+			matched, indices, ok := tryMatchAll(vmInst, ts, w.templates)
 			if ok {
 				ts.waiters = append(ts.waiters[:i], ts.waiters[i+1:]...)
 				ts.removeIndices(indices)
@@ -612,21 +614,21 @@ waitDone:
 // ---------------------------------------------------------------------------
 
 func TestTupleSpaceInAnyReturnsFirstMatch(t *testing.T) {
-	vm := NewVM()
+	vmInst := vm.NewVM()
 	ts := &TupleSpaceObject{}
 
 	// Only a string tuple
-	ts.tuples = append(ts.tuples, TupleEntry{value: vm.registry.NewStringValue("hello"), mode: TupleModeLinear})
+	ts.tuples = append(ts.tuples, TupleEntry{value: vmInst.Registry().NewStringValue("hello"), mode: TupleModeLinear})
 
 	intTmpl := compileCueTemplate("int")
 	strTmpl := compileCueTemplate("string")
 
 	// inAny with int and string templates — should match the string
 	ts.mu.Lock()
-	matched := Nil
+	matched := vm.Nil
 	for _, tmpl := range []*CueValueObject{intTmpl, strTmpl} {
 		for i, entry := range ts.tuples {
-			if vm.matchTuple(tmpl, entry.value) {
+			if matchTuple(vmInst, tmpl, entry.value) {
 				matched = entry.value
 				ts.tuples = append(ts.tuples[:i], ts.tuples[i+1:]...)
 				goto found
@@ -636,7 +638,7 @@ func TestTupleSpaceInAnyReturnsFirstMatch(t *testing.T) {
 found:
 	ts.mu.Unlock()
 
-	if matched == Nil {
+	if matched == vm.Nil {
 		t.Fatal("should have matched the string tuple")
 	}
 	if len(ts.tuples) != 0 {
@@ -645,14 +647,14 @@ found:
 }
 
 func TestTupleSpaceInAnyBlocksThenWakes(t *testing.T) {
-	vm := NewVM()
+	vmInst := vm.NewVM()
 	ts := &TupleSpaceObject{}
 
 	intTmpl := compileCueTemplate("int")
 	strTmpl := compileCueTemplate("string")
 
 	var wg sync.WaitGroup
-	var result Value
+	var result vm.Value
 
 	wg.Add(1)
 	go func() {
@@ -661,7 +663,7 @@ func TestTupleSpaceInAnyBlocksThenWakes(t *testing.T) {
 		// Check for any match
 		for _, tmpl := range []*CueValueObject{intTmpl, strTmpl} {
 			for _, entry := range ts.tuples {
-				if vm.matchTuple(tmpl, entry.value) {
+				if matchTuple(vmInst, tmpl, entry.value) {
 					// should not happen — space is empty
 					ts.mu.Unlock()
 					return
@@ -671,7 +673,7 @@ func TestTupleSpaceInAnyBlocksThenWakes(t *testing.T) {
 		// No match — register choice waiter
 		w := &tupleWaiter{
 			templates: []*CueValueObject{intTmpl, strTmpl},
-			ch:        make(chan Value, 1),
+			ch:        make(chan vm.Value, 1),
 			consume:   true,
 		}
 		ts.waiters = append(ts.waiters, w)
@@ -683,7 +685,7 @@ func TestTupleSpaceInAnyBlocksThenWakes(t *testing.T) {
 
 	// Add an int tuple — should wake the choice waiter
 	ts.mu.Lock()
-	tupleVal := FromSmallInt(77)
+	tupleVal := vm.FromSmallInt(77)
 	ts.tuples = append(ts.tuples, TupleEntry{value: tupleVal, mode: TupleModeLinear})
 
 	// Check choice waiters
@@ -691,12 +693,12 @@ func TestTupleSpaceInAnyBlocksThenWakes(t *testing.T) {
 		if w.templates != nil && w.ch != nil {
 			for _, tmpl := range w.templates {
 				for j, entry := range ts.tuples {
-					if vm.matchTuple(tmpl, entry.value) {
+					if matchTuple(vmInst, tmpl, entry.value) {
 						ts.waiters = append(ts.waiters[:i], ts.waiters[i+1:]...)
-						matched := entry.value
+						matchedVal := entry.value
 						ts.tuples = append(ts.tuples[:j], ts.tuples[j+1:]...)
 						ts.mu.Unlock()
-						w.ch <- matched
+						w.ch <- matchedVal
 						goto done
 					}
 				}
@@ -708,7 +710,7 @@ func TestTupleSpaceInAnyBlocksThenWakes(t *testing.T) {
 done:
 	wg.Wait()
 
-	if result != FromSmallInt(77) {
+	if result != vm.FromSmallInt(77) {
 		t.Errorf("expected 77 from choice waiter, got %v", result)
 	}
 }
@@ -720,11 +722,11 @@ done:
 func TestTupleSpaceContextExpiry(t *testing.T) {
 	ts := &TupleSpaceObject{}
 
-	tupleVal := FromSmallInt(42)
+	tupleVal := vm.FromSmallInt(42)
 	ts.tuples = append(ts.tuples, TupleEntry{value: tupleVal, mode: TupleModeLinear})
 
 	// Create a cancellable context
-	ctx := createCancellationContextWithCancel(nil)
+	ctx := vm.CreateCancellationContextWithCancel(nil)
 
 	// Start a goroutine that watches for cancellation
 	go func() {
@@ -762,17 +764,17 @@ func TestTupleSpaceContextExpiry(t *testing.T) {
 }
 
 func TestTupleSpacePersistentWithInAll(t *testing.T) {
-	vm := NewVM()
+	vmInst := vm.NewVM()
 	ts := &TupleSpaceObject{}
 
 	// Persistent int tuple + linear string tuple
-	ts.tuples = append(ts.tuples, TupleEntry{value: FromSmallInt(42), mode: TupleModePersistent})
-	ts.tuples = append(ts.tuples, TupleEntry{value: vm.registry.NewStringValue("hello"), mode: TupleModeLinear})
+	ts.tuples = append(ts.tuples, TupleEntry{value: vm.FromSmallInt(42), mode: TupleModePersistent})
+	ts.tuples = append(ts.tuples, TupleEntry{value: vmInst.Registry().NewStringValue("hello"), mode: TupleModeLinear})
 
 	intTmpl := compileCueTemplate("int")
 	strTmpl := compileCueTemplate("string")
 
-	results, indices, ok := vm.tryMatchAll(ts, []*CueValueObject{intTmpl, strTmpl})
+	results, indices, ok := tryMatchAll(vmInst, ts, []*CueValueObject{intTmpl, strTmpl})
 	if !ok {
 		t.Fatal("should match both templates")
 	}
@@ -797,24 +799,24 @@ func TestTupleSpaceSweepExpiredKeepsValid(t *testing.T) {
 
 	// Expired
 	ts.tuples = append(ts.tuples, TupleEntry{
-		value:    FromSmallInt(1),
+		value:    vm.FromSmallInt(1),
 		mode:     TupleModeAffine,
 		deadline: now - 100,
 	})
 	// Valid affine (far future)
 	ts.tuples = append(ts.tuples, TupleEntry{
-		value:    FromSmallInt(2),
+		value:    vm.FromSmallInt(2),
 		mode:     TupleModeAffine,
 		deadline: now + 100000,
 	})
 	// Linear (no deadline)
 	ts.tuples = append(ts.tuples, TupleEntry{
-		value: FromSmallInt(3),
+		value: vm.FromSmallInt(3),
 		mode:  TupleModeLinear,
 	})
 	// Persistent
 	ts.tuples = append(ts.tuples, TupleEntry{
-		value: FromSmallInt(4),
+		value: vm.FromSmallInt(4),
 		mode:  TupleModePersistent,
 	})
 
@@ -838,36 +840,36 @@ func TestTupleSpaceSweepExpiredKeepsValid(t *testing.T) {
 }
 
 func TestTupleSpaceInAllSkipsExpiredAffine(t *testing.T) {
-	vm := NewVM()
+	vmInst := vm.NewVM()
 	ts := &TupleSpaceObject{}
 
 	now := time.Now().UnixMilli()
 
 	// Expired int tuple
 	ts.tuples = append(ts.tuples, TupleEntry{
-		value:    FromSmallInt(1),
+		value:    vm.FromSmallInt(1),
 		mode:     TupleModeAffine,
 		deadline: now - 100,
 	})
 	// Valid int tuple
 	ts.tuples = append(ts.tuples, TupleEntry{
-		value: FromSmallInt(2),
+		value: vm.FromSmallInt(2),
 		mode:  TupleModeLinear,
 	})
 	// String tuple
 	ts.tuples = append(ts.tuples, TupleEntry{
-		value: vm.registry.NewStringValue("hello"),
+		value: vmInst.Registry().NewStringValue("hello"),
 		mode:  TupleModeLinear,
 	})
 
 	intTmpl := compileCueTemplate("int")
 	strTmpl := compileCueTemplate("string")
 
-	results, _, ok := vm.tryMatchAll(ts, []*CueValueObject{intTmpl, strTmpl})
+	results, _, ok := tryMatchAll(vmInst, ts, []*CueValueObject{intTmpl, strTmpl})
 	if !ok {
 		t.Fatal("should match (skipping expired, using valid int)")
 	}
-	if results[0] != FromSmallInt(2) {
+	if results[0] != vm.FromSmallInt(2) {
 		t.Errorf("should have matched the valid int tuple (2), got %v", results[0])
 	}
 }

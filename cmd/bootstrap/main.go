@@ -12,6 +12,7 @@ import (
 	"github.com/chazu/maggie/compiler/hash"
 	"github.com/chazu/maggie/pipeline"
 	"github.com/chazu/maggie/vm"
+	_ "github.com/chazu/maggie/vm/contrib/cue"
 )
 
 // classMapping maps class names to VM classes (for core classes pre-created in Go)

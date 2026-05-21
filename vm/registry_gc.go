@@ -218,10 +218,6 @@ func (gc *RegistryGC) installHooks() {
 	// Default thresholds are fine.
 	add("goObjects", defaultGrowthThreshold, defaultAbsoluteCeiling, or.goObjects)
 	add("bigInts", defaultGrowthThreshold, defaultAbsoluteCeiling, or.bigInts)
-	add("cueContexts", defaultGrowthThreshold, defaultAbsoluteCeiling, or.cueContexts)
-	add("cueValues", defaultGrowthThreshold, defaultAbsoluteCeiling, or.cueValues)
-	add("tupleSpaces", defaultGrowthThreshold, defaultAbsoluteCeiling, or.tupleSpaces)
-	add("constraintStores", defaultGrowthThreshold, defaultAbsoluteCeiling, or.constraintStores)
 	// classValues is monotonic and intentionally append-only — no point
 	// installing pressure hooks since sweeping won't reclaim anything.
 }

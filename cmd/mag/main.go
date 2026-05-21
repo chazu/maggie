@@ -27,6 +27,7 @@ import (
 	"github.com/chazu/maggie/pipeline"
 	"github.com/chazu/maggie/server"
 	"github.com/chazu/maggie/vm"
+	_ "github.com/chazu/maggie/vm/contrib/cue"
 	"github.com/chazu/maggie/vm/dist"
 )
 

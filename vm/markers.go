@@ -50,18 +50,18 @@ const (
 	jsonReaderMarker            uint32 = 48 << 24
 	jsonWriterMarker            uint32 = 49 << 24
 
-	// CUE evaluation primitives
-	cueContextMarker            uint32 = 50 << 24
-	cueValueMarker              uint32 = 51 << 24
+	// CUE evaluation primitives (exported for vm/contrib/cue)
+	CueContextMarker            uint32 = 50 << 24
+	CueValueMarker              uint32 = 51 << 24
 
 	// HTTP client
 	httpClientMarker            uint32 = 52 << 24
 
-	// TupleSpace
-	tupleSpaceMarker            uint32 = 53 << 24
+	// TupleSpace (exported for vm/contrib/cue)
+	TupleSpaceMarker            uint32 = 53 << 24
 
-	// ConstraintStore (Concurrent Constraint Programming)
-	constraintStoreMarker       uint32 = 54 << 24
+	// ConstraintStore (exported for vm/contrib/cue)
+	ConstraintStoreMarker       uint32 = 54 << 24
 
 	// Distributed channels
 	remoteChannelMarker         uint32 = 55 << 24
@@ -84,8 +84,20 @@ const (
 // markerMask extracts the marker byte from a symbol ID.
 const markerMask uint32 = 0xFF << 24
 
+// MarkerMask is the exported version for contrib packages.
+const MarkerMask = markerMask
+
 func markedToValue(marker uint32, id uint32) Value  { return FromSymbolID(id | marker) }
 func markedIDFromValue(v Value) uint32               { return v.SymbolID() & ^markerMask }
 func isMarkedValue(marker uint32, v Value) bool {
 	return v.IsSymbolEncoded() && (v.SymbolID()&markerMask) == marker
 }
+
+// MarkedToValue is the exported version for contrib packages.
+func MarkedToValue(marker uint32, id uint32) Value { return markedToValue(marker, id) }
+
+// MarkedIDFromValue is the exported version for contrib packages.
+func MarkedIDFromValue(v Value) uint32 { return markedIDFromValue(v) }
+
+// IsMarkedValue is the exported version for contrib packages.
+func IsMarkedValue(marker uint32, v Value) bool { return isMarkedValue(marker, v) }

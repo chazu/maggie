@@ -1,11 +1,9 @@
 package vm
 
 import (
-	"encoding/json"
 	"fmt"
 	"math/big"
 
-	"cuelang.org/go/cue/cuecontext"
 	"github.com/fxamacker/cbor/v2"
 )
 
@@ -169,8 +167,9 @@ func (s *valueSerializer) serializeSymbolEncoded(v Value) ([]byte, error) {
 		return s.serializeDictionary(v)
 	}
 
-	if isCueValueValue(v) {
-		return s.serializeCueValue(v)
+	// Try contrib plugin serialization hooks
+	if data, handled, err := trySerializeHooks(s.vm, v); handled {
+		return data, err
 	}
 
 	// Check for non-serializable marker types
@@ -309,19 +308,6 @@ func (s *valueSerializer) serializeDictionary(v Value) ([]byte, error) {
 
 	sd := &serializedDictionary{Entries: entries}
 	return cborSerialEncMode.Marshal(cbor.Tag{Number: cborTagDictionary, Content: sd})
-}
-
-func (s *valueSerializer) serializeCueValue(v Value) ([]byte, error) {
-	cv := s.vm.vmGetCueValue(v)
-	if cv == nil {
-		return nil, fmt.Errorf("serial: CueValue registry miss")
-	}
-	// Serialize as JSON text (canonical, round-trippable via CompileString)
-	data, err := json.Marshal(cueToInterface(cv.val))
-	if err != nil {
-		return nil, fmt.Errorf("serial: CueValue JSON: %w", err)
-	}
-	return cborSerialEncMode.Marshal(cbor.Tag{Number: cborTagCueValue, Content: string(data)})
 }
 
 // serializedChannel is the CBOR representation of a channel reference.
@@ -551,9 +537,6 @@ func (d *valueDeserializer) deserializeTag(tag cbor.Tag, rawData []byte) (Value,
 	case cborTagDictionary:
 		return d.deserializeDictionary(tag)
 
-	case cborTagCueValue:
-		return d.deserializeCueValue(tag)
-
 	case cborTagRemoteChannel:
 		return d.deserializeChannel(tag)
 
@@ -561,6 +544,10 @@ func (d *valueDeserializer) deserializeTag(tag cbor.Tag, rawData []byte) (Value,
 		return d.deserializeException(tag)
 
 	default:
+		// Try contrib plugin deserialization hooks
+		if val, handled, err := tryDeserializeHook(d.vm, tag); handled {
+			return val, err
+		}
 		// Unknown tag — try to deserialize the content as a plain value
 		return d.fromInterface(tag.Content)
 	}
@@ -779,16 +766,3 @@ func (d *valueDeserializer) lookupExceptionClass(name string) *Class {
 	return nil
 }
 
-func (d *valueDeserializer) deserializeCueValue(tag cbor.Tag) (Value, error) {
-	jsonText, ok := tag.Content.(string)
-	if !ok {
-		return Nil, fmt.Errorf("serial: CueValue tag content not string")
-	}
-	ctx := cuecontext.New()
-	cueVal := ctx.CompileString(jsonText)
-	if cueVal.Err() != nil {
-		return Nil, fmt.Errorf("serial: CueValue compile: %w", cueVal.Err())
-	}
-	obj := &CueValueObject{val: cueVal}
-	return d.vm.vmRegisterCueValue(obj), nil
-}
