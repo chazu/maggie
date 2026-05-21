@@ -135,7 +135,7 @@ func main() {
 	}
 
 	// Save the image (CBOR format)
-	if err := vmInst.SaveImageCbor(*output); err != nil {
+	if err := vmInst.SaveImage(*output); err != nil {
 		fmt.Fprintf(os.Stderr, "Error saving image: %v\n", err)
 		os.Exit(1)
 	}

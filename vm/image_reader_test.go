@@ -9,10 +9,10 @@ import (
 )
 
 // ---------------------------------------------------------------------------
-// TestCborDecodeImageValue: subtests for all value types
+// TestDecodeImageValue: subtests for all value types
 // ---------------------------------------------------------------------------
 
-func TestCborDecodeImageValue(t *testing.T) {
+func TestDecodeImageValue(t *testing.T) {
 	vm := NewVM()
 	dec := NewImageDecoder()
 	dec.registry = vm.registry
@@ -191,10 +191,10 @@ func TestCborDecodeImageValue(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// TestCborRoundTrip: write VM to CBOR, load into fresh VM, verify state
+// TestRoundTrip: write VM to CBOR, load into fresh VM, verify state
 // ---------------------------------------------------------------------------
 
-func TestCborRoundTrip(t *testing.T) {
+func TestRoundTrip(t *testing.T) {
 	vm1 := NewVM()
 
 	// Add a custom class with methods
@@ -208,9 +208,9 @@ func TestCborRoundTrip(t *testing.T) {
 	vm1.SetGlobal("testTrue", True)
 	vm1.SetGlobal("testNil", Nil)
 
-	data, err := vm1.SaveImageCborBytes()
+	data, err := vm1.SaveImageBytes()
 	if err != nil {
-		t.Fatalf("SaveImageCborBytes: %v", err)
+		t.Fatalf("SaveImageBytes: %v", err)
 	}
 
 	vm2 := NewVM()
@@ -243,10 +243,10 @@ func TestCborRoundTrip(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// TestCborRoundTripClasses: verify class hierarchy preserved
+// TestRoundTripClasses: verify class hierarchy preserved
 // ---------------------------------------------------------------------------
 
-func TestCborRoundTripClasses(t *testing.T) {
+func TestRoundTripClasses(t *testing.T) {
 	vm1 := NewVM()
 
 	parent := NewClass("ParentC", vm1.ObjectClass)
@@ -257,9 +257,9 @@ func TestCborRoundTripClasses(t *testing.T) {
 	vm1.SetGlobal("ParentC", vm1.ClassValue(parent))
 	vm1.SetGlobal("ChildC", vm1.ClassValue(child))
 
-	data, err := vm1.SaveImageCborBytes()
+	data, err := vm1.SaveImageBytes()
 	if err != nil {
-		t.Fatalf("SaveImageCborBytes: %v", err)
+		t.Fatalf("SaveImageBytes: %v", err)
 	}
 
 	vm2 := NewVM()
@@ -283,10 +283,10 @@ func TestCborRoundTripClasses(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// TestCborRoundTripMethods: verify methods installed, can be looked up
+// TestRoundTripMethods: verify methods installed, can be looked up
 // ---------------------------------------------------------------------------
 
-func TestCborRoundTripMethods(t *testing.T) {
+func TestRoundTripMethods(t *testing.T) {
 	vm1 := NewVM()
 
 	cls := NewClass("MethodTestClass", vm1.ObjectClass)
@@ -307,9 +307,9 @@ func TestCborRoundTripMethods(t *testing.T) {
 	}
 	cls.VTable.AddMethod(selID, method)
 
-	data, err := vm1.SaveImageCborBytes()
+	data, err := vm1.SaveImageBytes()
 	if err != nil {
-		t.Fatalf("SaveImageCborBytes: %v", err)
+		t.Fatalf("SaveImageBytes: %v", err)
 	}
 
 	vm2 := NewVM()
@@ -345,10 +345,10 @@ func TestCborRoundTripMethods(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// TestCborRoundTripObjects: verify objects and slot values
+// TestRoundTripObjects: verify objects and slot values
 // ---------------------------------------------------------------------------
 
-func TestCborRoundTripObjects(t *testing.T) {
+func TestRoundTripObjects(t *testing.T) {
 	vm1 := NewVM()
 
 	cls := NewClassWithInstVars("SlotObj", vm1.ObjectClass, []string{"a", "b"})
@@ -360,9 +360,9 @@ func TestCborRoundTripObjects(t *testing.T) {
 	obj.SetSlot(1, FromSmallInt(20))
 	vm1.SetGlobal("myObj", obj.ToValue())
 
-	data, err := vm1.SaveImageCborBytes()
+	data, err := vm1.SaveImageBytes()
 	if err != nil {
-		t.Fatalf("SaveImageCborBytes: %v", err)
+		t.Fatalf("SaveImageBytes: %v", err)
 	}
 
 	vm2 := NewVM()
@@ -386,10 +386,10 @@ func TestCborRoundTripObjects(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// TestCborRoundTripObjectCycles: two objects referencing each other
+// TestRoundTripObjectCycles: two objects referencing each other
 // ---------------------------------------------------------------------------
 
-func TestCborRoundTripObjectCycles(t *testing.T) {
+func TestRoundTripObjectCycles(t *testing.T) {
 	vm1 := NewVM()
 
 	cls := NewClassWithInstVars("CycleObj", vm1.ObjectClass, []string{"ref"})
@@ -403,9 +403,9 @@ func TestCborRoundTripObjectCycles(t *testing.T) {
 	vm1.SetGlobal("cycleA", objA.ToValue())
 	vm1.SetGlobal("cycleB", objB.ToValue())
 
-	data, err := vm1.SaveImageCborBytes()
+	data, err := vm1.SaveImageBytes()
 	if err != nil {
-		t.Fatalf("SaveImageCborBytes: %v", err)
+		t.Fatalf("SaveImageBytes: %v", err)
 	}
 
 	vm2 := NewVM()
@@ -442,10 +442,10 @@ func TestCborRoundTripObjectCycles(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// TestCborRoundTripObjectIdentity: same object in two globals
+// TestRoundTripObjectIdentity: same object in two globals
 // ---------------------------------------------------------------------------
 
-func TestCborRoundTripObjectIdentity(t *testing.T) {
+func TestRoundTripObjectIdentity(t *testing.T) {
 	vm1 := NewVM()
 
 	cls := NewClass("IdObj", vm1.ObjectClass)
@@ -457,9 +457,9 @@ func TestCborRoundTripObjectIdentity(t *testing.T) {
 	vm1.SetGlobal("ref1", obj.ToValue())
 	vm1.SetGlobal("ref2", obj.ToValue())
 
-	data, err := vm1.SaveImageCborBytes()
+	data, err := vm1.SaveImageBytes()
 	if err != nil {
-		t.Fatalf("SaveImageCborBytes: %v", err)
+		t.Fatalf("SaveImageBytes: %v", err)
 	}
 
 	vm2 := NewVM()
@@ -480,10 +480,10 @@ func TestCborRoundTripObjectIdentity(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// TestCborRoundTripGlobals: various value types in globals
+// TestRoundTripGlobals: various value types in globals
 // ---------------------------------------------------------------------------
 
-func TestCborRoundTripGlobals(t *testing.T) {
+func TestRoundTripGlobals(t *testing.T) {
 	vm1 := NewVM()
 
 	symID := vm1.Symbols.Intern("testSym")
@@ -497,9 +497,9 @@ func TestCborRoundTripGlobals(t *testing.T) {
 	vm1.SetGlobal("gChar", FromCharacter('Z'))
 	vm1.SetGlobal("gString", vm1.registry.NewStringValue("hello"))
 
-	data, err := vm1.SaveImageCborBytes()
+	data, err := vm1.SaveImageBytes()
 	if err != nil {
-		t.Fatalf("SaveImageCborBytes: %v", err)
+		t.Fatalf("SaveImageBytes: %v", err)
 	}
 
 	vm2 := NewVM()
@@ -539,10 +539,10 @@ func TestCborRoundTripGlobals(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// TestCborRoundTripClassVars: class variables preserved
+// TestRoundTripClassVars: class variables preserved
 // ---------------------------------------------------------------------------
 
-func TestCborRoundTripClassVars(t *testing.T) {
+func TestRoundTripClassVars(t *testing.T) {
 	vm1 := NewVM()
 
 	cls := NewClass("CVClass", vm1.ObjectClass)
@@ -552,9 +552,9 @@ func TestCborRoundTripClassVars(t *testing.T) {
 
 	vm1.registry.SetClassVar(cls, "count", FromSmallInt(42))
 
-	data, err := vm1.SaveImageCborBytes()
+	data, err := vm1.SaveImageBytes()
 	if err != nil {
-		t.Fatalf("SaveImageCborBytes: %v", err)
+		t.Fatalf("SaveImageBytes: %v", err)
 	}
 
 	vm2 := NewVM()
@@ -574,10 +574,10 @@ func TestCborRoundTripClassVars(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// TestCborRoundTripSelectorRemapping: selector IDs may differ between VMs
+// TestRoundTripSelectorRemapping: selector IDs may differ between VMs
 // ---------------------------------------------------------------------------
 
-func TestCborRoundTripSelectorRemapping(t *testing.T) {
+func TestRoundTripSelectorRemapping(t *testing.T) {
 	vm1 := NewVM()
 
 	cls := NewClass("RemapClass", vm1.ObjectClass)
@@ -597,9 +597,9 @@ func TestCborRoundTripSelectorRemapping(t *testing.T) {
 	}
 	cls.VTable.AddMethod(selID, method)
 
-	data, err := vm1.SaveImageCborBytes()
+	data, err := vm1.SaveImageBytes()
 	if err != nil {
-		t.Fatalf("SaveImageCborBytes: %v", err)
+		t.Fatalf("SaveImageBytes: %v", err)
 	}
 
 	// Load into a fresh VM where selector IDs may differ
@@ -626,10 +626,10 @@ func TestCborRoundTripSelectorRemapping(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// TestCborRoundTripContentHash: non-zero hashes preserved
+// TestRoundTripContentHash: non-zero hashes preserved
 // ---------------------------------------------------------------------------
 
-func TestCborRoundTripContentHash(t *testing.T) {
+func TestRoundTripContentHash(t *testing.T) {
 	vm1 := NewVM()
 
 	cls := NewClass("HashClass", vm1.ObjectClass)
@@ -655,9 +655,9 @@ func TestCborRoundTripContentHash(t *testing.T) {
 	}
 	cls.VTable.AddMethod(selID, method)
 
-	data, err := vm1.SaveImageCborBytes()
+	data, err := vm1.SaveImageBytes()
 	if err != nil {
-		t.Fatalf("SaveImageCborBytes: %v", err)
+		t.Fatalf("SaveImageBytes: %v", err)
 	}
 
 	vm2 := NewVM()
@@ -688,10 +688,10 @@ func TestCborRoundTripContentHash(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// TestCborRoundTripLiteralTypes: method with all literal types
+// TestRoundTripLiteralTypes: method with all literal types
 // ---------------------------------------------------------------------------
 
-func TestCborRoundTripLiteralTypes(t *testing.T) {
+func TestRoundTripLiteralTypes(t *testing.T) {
 	vm1 := NewVM()
 
 	cls := NewClass("LitClass", vm1.ObjectClass)
@@ -721,9 +721,9 @@ func TestCborRoundTripLiteralTypes(t *testing.T) {
 	}
 	cls.VTable.AddMethod(selID, method)
 
-	data, err := vm1.SaveImageCborBytes()
+	data, err := vm1.SaveImageBytes()
 	if err != nil {
-		t.Fatalf("SaveImageCborBytes: %v", err)
+		t.Fatalf("SaveImageBytes: %v", err)
 	}
 
 	vm2 := NewVM()
@@ -773,13 +773,13 @@ func TestCborRoundTripLiteralTypes(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// TestCborFormatAutoDetection: binary vs CBOR routing
+// TestFormatAutoDetection: CBOR routing
 // ---------------------------------------------------------------------------
 
-func TestCborFormatAutoDetection(t *testing.T) {
+func TestFormatAutoDetection(t *testing.T) {
 	t.Run("cbor_format", func(t *testing.T) {
 		vm1 := NewVM()
-		data, err := vm1.SaveImageCborBytes()
+		data, err := vm1.SaveImageBytes()
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -823,10 +823,10 @@ func TestCborFormatAutoDetection(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// TestCborCrossFormatEquivalence: binary and CBOR produce same VM state
+// TestCrossFormatEquivalence: CBOR via SaveImageTo and SaveImageBytes produce same VM state
 // ---------------------------------------------------------------------------
 
-func TestCborCrossFormatEquivalence(t *testing.T) {
+func TestCrossFormatEquivalence(t *testing.T) {
 	vm1 := NewVM()
 
 	// Set up some state
@@ -849,96 +849,96 @@ func TestCborCrossFormatEquivalence(t *testing.T) {
 	}
 	cls.VTable.AddMethod(selID, method)
 
-	// Save as binary
-	var binBuf bytes.Buffer
-	if err := vm1.SaveImageTo(&binBuf); err != nil {
+	// Save via SaveImageTo (writer path)
+	var buf1 bytes.Buffer
+	if err := vm1.SaveImageTo(&buf1); err != nil {
 		t.Fatalf("SaveImageTo: %v", err)
 	}
 
-	// Save as CBOR
-	cborData, err := vm1.SaveImageCborBytes()
+	// Save via SaveImageBytes (direct path)
+	data2, err := vm1.SaveImageBytes()
 	if err != nil {
-		t.Fatalf("SaveImageCborBytes: %v", err)
+		t.Fatalf("SaveImageBytes: %v", err)
 	}
 
-	// Load binary
-	vmBin := NewVM()
-	if err := vmBin.LoadImageFromBytes(binBuf.Bytes()); err != nil {
-		t.Fatalf("load binary: %v", err)
+	// Load from SaveImageTo
+	vmA := NewVM()
+	if err := vmA.LoadImageFromBytes(buf1.Bytes()); err != nil {
+		t.Fatalf("load from SaveImageTo: %v", err)
 	}
 
-	// Load CBOR
-	vmCbor := NewVM()
-	if err := vmCbor.LoadImageFromBytes(cborData); err != nil {
-		t.Fatalf("load CBOR: %v", err)
+	// Load from SaveImageBytes
+	vmB := NewVM()
+	if err := vmB.LoadImageFromBytes(data2); err != nil {
+		t.Fatalf("load from SaveImageBytes: %v", err)
 	}
 
 	// Compare: both should have the same globals
 	for _, name := range []string{"testVal", "testStr"} {
-		vBin := vmBin.MustGlobal(name)
-		vCbor := vmCbor.MustGlobal(name)
-		if vBin != vCbor {
+		vA := vmA.MustGlobal(name)
+		vB := vmB.MustGlobal(name)
+		if vA != vB {
 			// For strings, compare content
-			if IsStringValue(vBin) && IsStringValue(vCbor) {
-				sBin := vmBin.registry.GetStringContent(vBin)
-				sCbor := vmCbor.registry.GetStringContent(vCbor)
-				if sBin != sCbor {
-					t.Fatalf("global %q string mismatch: %q vs %q", name, sBin, sCbor)
+			if IsStringValue(vA) && IsStringValue(vB) {
+				sA := vmA.registry.GetStringContent(vA)
+				sB := vmB.registry.GetStringContent(vB)
+				if sA != sB {
+					t.Fatalf("global %q string mismatch: %q vs %q", name, sA, sB)
 				}
 			} else {
-				t.Fatalf("global %q mismatch: %v vs %v", name, vBin, vCbor)
+				t.Fatalf("global %q mismatch: %v vs %v", name, vA, vB)
 			}
 		}
 	}
 
 	// Compare: both should have CrossFmtClass
-	binCls := vmBin.Classes.Lookup("CrossFmtClass")
-	cborCls := vmCbor.Classes.Lookup("CrossFmtClass")
-	if binCls == nil || cborCls == nil {
+	clsA := vmA.Classes.Lookup("CrossFmtClass")
+	clsB := vmB.Classes.Lookup("CrossFmtClass")
+	if clsA == nil || clsB == nil {
 		t.Fatal("CrossFmtClass missing from one of the loaded VMs")
 	}
-	if binCls.Name != cborCls.Name {
-		t.Fatalf("class name mismatch: %s vs %s", binCls.Name, cborCls.Name)
+	if clsA.Name != clsB.Name {
+		t.Fatalf("class name mismatch: %s vs %s", clsA.Name, clsB.Name)
 	}
-	if len(binCls.InstVars) != len(cborCls.InstVars) {
+	if len(clsA.InstVars) != len(clsB.InstVars) {
 		t.Fatalf("instVars length mismatch")
 	}
 
 	// Compare: both should have getValue method
-	binSelID := vmBin.Selectors.Intern("getValue")
-	cborSelID := vmCbor.Selectors.Intern("getValue")
-	binM := binCls.VTable.Lookup(binSelID)
-	cborM := cborCls.VTable.Lookup(cborSelID)
-	if binM == nil || cborM == nil {
+	selIDA := vmA.Selectors.Intern("getValue")
+	selIDB := vmB.Selectors.Intern("getValue")
+	mA := clsA.VTable.Lookup(selIDA)
+	mB := clsB.VTable.Lookup(selIDB)
+	if mA == nil || mB == nil {
 		t.Fatal("getValue method missing")
 	}
-	binCM := binM.(*CompiledMethod)
-	cborCM := cborM.(*CompiledMethod)
-	if binCM.name != cborCM.name {
-		t.Fatalf("method name mismatch: %s vs %s", binCM.name, cborCM.name)
+	cmA := mA.(*CompiledMethod)
+	cmB := mB.(*CompiledMethod)
+	if cmA.name != cmB.name {
+		t.Fatalf("method name mismatch: %s vs %s", cmA.name, cmB.name)
 	}
-	if binCM.Source != cborCM.Source {
-		t.Fatalf("method source mismatch: %q vs %q", binCM.Source, cborCM.Source)
+	if cmA.Source != cmB.Source {
+		t.Fatalf("method source mismatch: %q vs %q", cmA.Source, cmB.Source)
 	}
-	if binCM.Arity != cborCM.Arity {
-		t.Fatalf("method arity mismatch: %d vs %d", binCM.Arity, cborCM.Arity)
+	if cmA.Arity != cmB.Arity {
+		t.Fatalf("method arity mismatch: %d vs %d", cmA.Arity, cmB.Arity)
 	}
 }
 
 // ---------------------------------------------------------------------------
-// TestCborRoundTripNamespacedClass: namespaced class preserved
+// TestRoundTripNamespacedClass: namespaced class preserved
 // ---------------------------------------------------------------------------
 
-func TestCborRoundTripNamespacedClass(t *testing.T) {
+func TestRoundTripNamespacedClass(t *testing.T) {
 	vm1 := NewVM()
 
 	cls := NewClassInNamespace("MyNS", "Widget", vm1.ObjectClass)
 	vm1.Classes.Register(cls)
 	vm1.SetGlobal("MyNS::Widget", vm1.ClassValue(cls))
 
-	data, err := vm1.SaveImageCborBytes()
+	data, err := vm1.SaveImageBytes()
 	if err != nil {
-		t.Fatalf("SaveImageCborBytes: %v", err)
+		t.Fatalf("SaveImageBytes: %v", err)
 	}
 
 	vm2 := NewVM()
@@ -959,10 +959,10 @@ func TestCborRoundTripNamespacedClass(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// TestCborRoundTripDocString: class and method docstrings
+// TestRoundTripDocString: class and method docstrings
 // ---------------------------------------------------------------------------
 
-func TestCborRoundTripDocString(t *testing.T) {
+func TestRoundTripDocString(t *testing.T) {
 	vm1 := NewVM()
 
 	cls := NewClass("DocClass", vm1.ObjectClass)
@@ -983,9 +983,9 @@ func TestCborRoundTripDocString(t *testing.T) {
 	}
 	cls.VTable.AddMethod(selID, method)
 
-	data, err := vm1.SaveImageCborBytes()
+	data, err := vm1.SaveImageBytes()
 	if err != nil {
-		t.Fatalf("SaveImageCborBytes: %v", err)
+		t.Fatalf("SaveImageBytes: %v", err)
 	}
 
 	vm2 := NewVM()
@@ -1010,10 +1010,10 @@ func TestCborRoundTripDocString(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// TestCborRoundTripBlocks: blocks with literals and source maps
+// TestRoundTripBlocks: blocks with literals and source maps
 // ---------------------------------------------------------------------------
 
-func TestCborRoundTripBlocks(t *testing.T) {
+func TestRoundTripBlocks(t *testing.T) {
 	vm1 := NewVM()
 
 	cls := NewClass("BlockClass", vm1.ObjectClass)
@@ -1045,9 +1045,9 @@ func TestCborRoundTripBlocks(t *testing.T) {
 	block.Outer = method
 	cls.VTable.AddMethod(selID, method)
 
-	data, err := vm1.SaveImageCborBytes()
+	data, err := vm1.SaveImageBytes()
 	if err != nil {
-		t.Fatalf("SaveImageCborBytes: %v", err)
+		t.Fatalf("SaveImageBytes: %v", err)
 	}
 
 	vm2 := NewVM()
@@ -1089,19 +1089,19 @@ func TestCborRoundTripBlocks(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// TestNewCborImageReaderInvalid: error cases for reader construction
+// TestNewImageReaderInvalid: error cases for reader construction
 // ---------------------------------------------------------------------------
 
-func TestNewCborImageReaderInvalid(t *testing.T) {
+func TestNewImageReaderInvalid(t *testing.T) {
 	t.Run("empty_data", func(t *testing.T) {
-		_, err := NewCborImageReader([]byte{})
+		_, err := NewImageReader([]byte{})
 		if err == nil {
 			t.Fatal("expected error for empty data")
 		}
 	})
 
 	t.Run("garbage_data", func(t *testing.T) {
-		_, err := NewCborImageReader([]byte{0xFF, 0xFF, 0xFF, 0xFF})
+		_, err := NewImageReader([]byte{0xFF, 0xFF, 0xFF, 0xFF})
 		if err == nil {
 			t.Fatal("expected error for garbage data")
 		}
@@ -1109,7 +1109,7 @@ func TestNewCborImageReaderInvalid(t *testing.T) {
 
 	t.Run("wrong_tag", func(t *testing.T) {
 		data, _ := cborSerialEncMode.Marshal(cbor.Tag{Number: 99999, Content: "hello"})
-		_, err := NewCborImageReader(data)
+		_, err := NewImageReader(data)
 		if err == nil {
 			t.Fatal("expected error for wrong tag number")
 		}
@@ -1117,10 +1117,10 @@ func TestNewCborImageReaderInvalid(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// TestCborRoundTripSourceMap: source map entries preserved
+// TestRoundTripSourceMap: source map entries preserved
 // ---------------------------------------------------------------------------
 
-func TestCborRoundTripSourceMap(t *testing.T) {
+func TestRoundTripSourceMap(t *testing.T) {
 	vm1 := NewVM()
 
 	cls := NewClass("SrcMapClass", vm1.ObjectClass)
@@ -1143,7 +1143,7 @@ func TestCborRoundTripSourceMap(t *testing.T) {
 	}
 	cls.VTable.AddMethod(selID, method)
 
-	data, err := vm1.SaveImageCborBytes()
+	data, err := vm1.SaveImageBytes()
 	if err != nil {
 		t.Fatal(err)
 	}

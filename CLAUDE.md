@@ -28,7 +28,7 @@ Maggie is a Smalltalk-family language VM written in Go. For full API docs:
 - **Stack overflow** at 4096 frames → catchable `StackOverflow` exception
 - **BigInteger** auto-promotion when SmallInteger overflows 48-bit range
 - **Type annotations** are optional, Strongtalk-model — checked by `mag typecheck`, never affect runtime
-- **Image format** is v4 (includes content hashes); v3 backward compat on load
+- **Image format** is CBOR-based (tagged envelope with string/symbol/class/method/object tables)
 - **`CompiledMethod.Source`** is the source text field (not `SourceText`)
 - **`vm` cannot import `vm/dist`** (cycle) — envelope building duplicated in vm package
 - **Image rebuild after lib changes:** `go run ./cmd/bootstrap/ && cp maggie.image cmd/mag/`

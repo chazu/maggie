@@ -2,9 +2,9 @@ package vm
 
 import "testing"
 
-func FuzzCborImageReader(f *testing.F) {
+func FuzzImageReader(f *testing.F) {
 	vm := NewVM()
-	validImage, _ := vm.SaveImageCborBytes()
+	validImage, _ := vm.SaveImageBytes()
 	f.Add(validImage)
 
 	f.Fuzz(func(t *testing.T, data []byte) {
