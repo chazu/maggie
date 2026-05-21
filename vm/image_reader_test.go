@@ -2,6 +2,7 @@ package vm
 
 import (
 	"bytes"
+	"encoding/binary"
 	"errors"
 	"testing"
 )
@@ -58,10 +59,23 @@ func (b *testImageBuilder) writeHeader(objectCount, entryPoint uint32) {
 	b.writeUint32(entryPoint)
 }
 
-// writeValue writes an encoded value.
+// writeValue writes an encoded value in the binary image format.
+// Supports the value types used by the binary reader tests: SmallInt, True, False, Nil.
 func (b *testImageBuilder) writeValue(v Value) {
-	enc := NewImageEncoder()
-	data := enc.EncodeValue(v)
+	data := make([]byte, EncodedValueSize)
+	switch {
+	case v == Nil:
+		data[0] = imageTagNil
+	case v == True:
+		data[0] = imageTagTrue
+	case v == False:
+		data[0] = imageTagFalse
+	case v.IsSmallInt():
+		data[0] = imageTagSmallInt
+		binary.LittleEndian.PutUint64(data[1:], uint64(v.SmallInt()))
+	default:
+		data[0] = imageTagNil
+	}
 	b.buf.Write(data)
 }
 

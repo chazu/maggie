@@ -1,6 +1,7 @@
 package vm
 
 import (
+	"encoding/binary"
 	"math"
 	"testing"
 )
@@ -145,182 +146,6 @@ func TestImageEncoderRegisterMethod(t *testing.T) {
 	idx2 := enc.RegisterMethod(m2)
 	if idx2 != 1 {
 		t.Errorf("Second method index = %d, want 1", idx2)
-	}
-}
-
-// ---------------------------------------------------------------------------
-// Encode/Decode roundtrip tests for basic values
-// ---------------------------------------------------------------------------
-
-func TestEncodeDecodeNil(t *testing.T) {
-	enc := NewImageEncoder()
-	dec := NewImageDecoder()
-
-	data := enc.EncodeValue(Nil)
-	if len(data) != EncodedValueSize {
-		t.Errorf("Encoded size = %d, want %d", len(data), EncodedValueSize)
-	}
-
-	result := dec.DecodeValue(data)
-	if result != Nil {
-		t.Errorf("Decoded value = %v, want Nil", result)
-	}
-}
-
-func TestEncodeDecodeTrue(t *testing.T) {
-	enc := NewImageEncoder()
-	dec := NewImageDecoder()
-
-	data := enc.EncodeValue(True)
-	result := dec.DecodeValue(data)
-	if result != True {
-		t.Errorf("Decoded value = %v, want True", result)
-	}
-}
-
-func TestEncodeDecodeFalse(t *testing.T) {
-	enc := NewImageEncoder()
-	dec := NewImageDecoder()
-
-	data := enc.EncodeValue(False)
-	result := dec.DecodeValue(data)
-	if result != False {
-		t.Errorf("Decoded value = %v, want False", result)
-	}
-}
-
-func TestEncodeDecodeSmallInt(t *testing.T) {
-	tests := []int64{
-		0, 1, -1, 42, -42,
-		1000000, -1000000,
-		MaxSmallInt, MinSmallInt,
-		MaxSmallInt - 1, MinSmallInt + 1,
-	}
-
-	for _, n := range tests {
-		enc := NewImageEncoder()
-		dec := NewImageDecoder()
-
-		v := FromSmallInt(n)
-		data := enc.EncodeValue(v)
-		result := dec.DecodeValue(data)
-
-		if !result.IsSmallInt() {
-			t.Errorf("For %d: result is not SmallInt", n)
-			continue
-		}
-		if result.SmallInt() != n {
-			t.Errorf("For %d: got %d", n, result.SmallInt())
-		}
-	}
-}
-
-func TestEncodeDecodeFloat(t *testing.T) {
-	tests := []float64{
-		0.0, -0.0, 1.0, -1.0,
-		3.14159265358979,
-		-3.14159265358979,
-		math.MaxFloat64,
-		math.SmallestNonzeroFloat64,
-		-math.MaxFloat64,
-		math.Inf(1),
-		math.Inf(-1),
-	}
-
-	for _, f := range tests {
-		enc := NewImageEncoder()
-		dec := NewImageDecoder()
-
-		v := FromFloat64(f)
-		data := enc.EncodeValue(v)
-		result := dec.DecodeValue(data)
-
-		if !result.IsFloat() {
-			t.Errorf("For %v: result is not Float", f)
-			continue
-		}
-
-		got := result.Float64()
-		// Handle -0.0 comparison
-		if math.IsInf(f, 1) && !math.IsInf(got, 1) {
-			t.Errorf("For +Inf: got %v", got)
-		} else if math.IsInf(f, -1) && !math.IsInf(got, -1) {
-			t.Errorf("For -Inf: got %v", got)
-		} else if !math.IsInf(f, 0) && got != f {
-			t.Errorf("For %v: got %v", f, got)
-		}
-	}
-}
-
-func TestEncodeDecodeFloatNaN(t *testing.T) {
-	enc := NewImageEncoder()
-	dec := NewImageDecoder()
-
-	v := FromFloat64(math.NaN())
-	data := enc.EncodeValue(v)
-	result := dec.DecodeValue(data)
-
-	if !result.IsFloat() {
-		t.Error("NaN result is not Float")
-	}
-	if !math.IsNaN(result.Float64()) {
-		t.Errorf("Expected NaN, got %v", result.Float64())
-	}
-}
-
-func TestEncodeDecodeSymbol(t *testing.T) {
-	enc := NewImageEncoder()
-	dec := NewImageDecoder()
-
-	symID := uint32(42)
-	v := FromSymbolID(symID)
-
-	data := enc.EncodeValue(v)
-
-	// Set up decoder with the symbol mapping
-	idx, _ := enc.LookupSymbol(symID)
-	dec.SetSymbol(idx, symID)
-
-	result := dec.DecodeValue(data)
-
-	if !result.IsSymbol() {
-		t.Error("Result is not Symbol")
-	}
-	if result.SymbolID() != symID {
-		t.Errorf("Symbol ID = %d, want %d", result.SymbolID(), symID)
-	}
-}
-
-func TestEncodeDecodeObject(t *testing.T) {
-	enc := NewImageEncoder()
-	dec := NewImageDecoder()
-
-	// Create an object
-	c := NewClass("Test", nil)
-	obj := NewObject(c.VTable, 2)
-	obj.SetSlot(0, FromSmallInt(42))
-	obj.SetSlot(1, True)
-
-	v := obj.ToValue()
-	data := enc.EncodeValue(v)
-
-	// Set up decoder with the object mapping
-	ptr := uintptr(v.ObjectPtr())
-	idx, _ := enc.LookupObject(ptr)
-	dec.SetObject(idx, obj)
-
-	result := dec.DecodeValue(data)
-
-	if !result.IsObject() {
-		t.Error("Result is not Object")
-	}
-
-	resObj := ObjectFromValue(result)
-	if resObj != obj {
-		t.Error("Object pointer doesn't match")
-	}
-	if resObj.GetSlot(0).SmallInt() != 42 {
-		t.Error("Object slot 0 value incorrect")
 	}
 }
 
@@ -705,114 +530,16 @@ func TestDecodeObjectNotFound(t *testing.T) {
 	}
 }
 
-func TestEncodeValueTo(t *testing.T) {
-	enc := NewImageEncoder()
-	buf := make([]byte, EncodedValueSize)
-
-	enc.EncodeValueTo(FromSmallInt(42), buf)
-
-	dec := NewImageDecoder()
-	result := dec.DecodeValue(buf)
-
-	if !result.IsSmallInt() || result.SmallInt() != 42 {
-		t.Errorf("EncodeValueTo/DecodeValue failed: got %v", result)
-	}
-}
-
-// ---------------------------------------------------------------------------
-// Full encode/decode cycle with multiple values
-// ---------------------------------------------------------------------------
-
-func TestFullEncodeDecode(t *testing.T) {
-	enc := NewImageEncoder()
-
-	// Create test values
-	values := []Value{
-		Nil,
-		True,
-		False,
-		FromSmallInt(0),
-		FromSmallInt(42),
-		FromSmallInt(-42),
-		FromSmallInt(MaxSmallInt),
-		FromSmallInt(MinSmallInt),
-		FromFloat64(0.0),
-		FromFloat64(3.14159),
-		FromFloat64(-273.15),
-		FromSymbolID(0),
-		FromSymbolID(100),
-	}
-
-	// Encode all values
-	encoded := make([][]byte, len(values))
-	for i, v := range values {
-		encoded[i] = enc.EncodeValue(v)
-	}
-
-	// Create decoder with symbol mappings that match the encoder's assignments
-	// The encoder assigns image indices sequentially: symbol 0 -> index 0, symbol 100 -> index 1
-	dec := NewImageDecoder()
-	// Map image index 0 to symbol ID 0, and image index 1 to symbol ID 100
-	dec.AddSymbol(0)   // Image index 0 -> Symbol ID 0
-	dec.AddSymbol(100) // Image index 1 -> Symbol ID 100
-
-	// Decode and verify
-	for i, data := range encoded {
-		result := dec.DecodeValue(data)
-
-		original := values[i]
-		switch {
-		case original == Nil:
-			if result != Nil {
-				t.Errorf("Value[%d]: expected Nil, got %v", i, result)
-			}
-		case original == True:
-			if result != True {
-				t.Errorf("Value[%d]: expected True, got %v", i, result)
-			}
-		case original == False:
-			if result != False {
-				t.Errorf("Value[%d]: expected False, got %v", i, result)
-			}
-		case original.IsSmallInt():
-			if !result.IsSmallInt() || result.SmallInt() != original.SmallInt() {
-				t.Errorf("Value[%d]: SmallInt mismatch, got %v", i, result)
-			}
-		case original.IsFloat():
-			if !result.IsFloat() {
-				t.Errorf("Value[%d]: expected Float, got %v", i, result)
-			}
-			// Float comparison with tolerance for representation
-			if math.Abs(result.Float64()-original.Float64()) > 1e-15 {
-				t.Errorf("Value[%d]: Float mismatch, want %v got %v", i, original.Float64(), result.Float64())
-			}
-		case original.IsSymbol():
-			if !result.IsSymbol() || result.SymbolID() != original.SymbolID() {
-				t.Errorf("Value[%d]: Symbol mismatch, got %v", i, result)
-			}
-		}
-	}
-}
 
 // ---------------------------------------------------------------------------
 // Benchmarks
 // ---------------------------------------------------------------------------
 
-func BenchmarkEncodeSmallInt(b *testing.B) {
-	enc := NewImageEncoder()
-	v := FromSmallInt(42)
-	buf := make([]byte, EncodedValueSize)
-
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		enc.EncodeValueTo(v, buf)
-	}
-}
-
 func BenchmarkDecodeSmallInt(b *testing.B) {
-	enc := NewImageEncoder()
 	dec := NewImageDecoder()
-	data := enc.EncodeValue(FromSmallInt(42))
+	data := make([]byte, EncodedValueSize)
+	data[0] = imageTagSmallInt
+	binary.LittleEndian.PutUint64(data[1:], uint64(42))
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -820,21 +547,11 @@ func BenchmarkDecodeSmallInt(b *testing.B) {
 	}
 }
 
-func BenchmarkEncodeFloat(b *testing.B) {
-	enc := NewImageEncoder()
-	v := FromFloat64(3.14159)
-	buf := make([]byte, EncodedValueSize)
-
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		enc.EncodeValueTo(v, buf)
-	}
-}
-
 func BenchmarkDecodeFloat(b *testing.B) {
-	enc := NewImageEncoder()
 	dec := NewImageDecoder()
-	data := enc.EncodeValue(FromFloat64(3.14159))
+	data := make([]byte, EncodedValueSize)
+	data[0] = imageTagFloat
+	binary.LittleEndian.PutUint64(data[1:], math.Float64bits(3.14159))
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {

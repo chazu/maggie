@@ -8,42 +8,6 @@ import (
 )
 
 // ---------------------------------------------------------------------------
-// ImageWriter basic tests
-// ---------------------------------------------------------------------------
-
-func TestNewImageWriter(t *testing.T) {
-	w := NewImageWriter()
-	if w == nil {
-		t.Fatal("NewImageWriter returned nil")
-	}
-	if w.buf == nil {
-		t.Error("ImageWriter buffer is nil")
-	}
-	if w.encoder == nil {
-		t.Error("ImageWriter encoder is nil")
-	}
-	if w.flags != ImageFlagNone {
-		t.Errorf("ImageWriter flags = %d, want %d", w.flags, ImageFlagNone)
-	}
-}
-
-func TestImageWriterSetFlags(t *testing.T) {
-	w := NewImageWriter()
-	w.SetFlags(ImageFlagDebugInfo)
-	if w.flags != ImageFlagDebugInfo {
-		t.Errorf("SetFlags: got %d, want %d", w.flags, ImageFlagDebugInfo)
-	}
-}
-
-func TestImageWriterSetEntryPoint(t *testing.T) {
-	w := NewImageWriter()
-	w.SetEntryPoint(42)
-	if w.entryPoint != 42 {
-		t.Errorf("SetEntryPoint: got %d, want 42", w.entryPoint)
-	}
-}
-
-// ---------------------------------------------------------------------------
 // Header format tests
 // ---------------------------------------------------------------------------
 
@@ -1368,12 +1332,6 @@ func TestImageRoundTrip_ClassVariables(t *testing.T) {
 // ---------------------------------------------------------------------------
 // Benchmarks
 // ---------------------------------------------------------------------------
-
-func BenchmarkImageWriterCreate(b *testing.B) {
-	for i := 0; i < b.N; i++ {
-		_ = NewImageWriter()
-	}
-}
 
 // ---------------------------------------------------------------------------
 // SaveImageAtomic tests
