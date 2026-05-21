@@ -132,6 +132,7 @@ type VM struct {
 	ZeroDivideClass            *Class
 	SubscriptOutOfBoundsClass  *Class
 	PrimitiveErrorClass        *Class
+	TypeErrorClass             *Class
 	StackOverflowClass         *Class
 	WarningClass               *Class
 	HaltClass                  *Class

@@ -176,6 +176,9 @@ func (vm *VM) bootstrapExceptionClasses() {
 	// PrimitiveError - type mismatch or invalid argument in a primitive
 	vm.PrimitiveErrorClass = vm.createClass("PrimitiveError", vm.ErrorClass)
 
+	// TypeError - wrong argument type in a primitive
+	vm.TypeErrorClass = vm.createClass("TypeError", vm.PrimitiveErrorClass)
+
 	// StackOverflow - call stack depth exceeded
 	vm.StackOverflowClass = vm.createClass("StackOverflow", vm.ErrorClass)
 
@@ -195,6 +198,7 @@ func (vm *VM) bootstrapExceptionClasses() {
 	vm.globals["ZeroDivide"] = vm.classValue(vm.ZeroDivideClass)
 	vm.globals["SubscriptOutOfBounds"] = vm.classValue(vm.SubscriptOutOfBoundsClass)
 	vm.globals["PrimitiveError"] = vm.classValue(vm.PrimitiveErrorClass)
+	vm.globals["TypeError"] = vm.classValue(vm.TypeErrorClass)
 	vm.globals["StackOverflow"] = vm.classValue(vm.StackOverflowClass)
 	vm.globals["Warning"] = vm.classValue(vm.WarningClass)
 	vm.globals["Halt"] = vm.classValue(vm.HaltClass)
@@ -475,6 +479,37 @@ func (vm *VM) SignalSubscriptOutOfBounds(selector string, index int64, size int)
 func (vm *VM) SignalZeroDivide() Value {
 	return vm.signalException(vm.ZeroDivideClass,
 		vm.registry.NewStringValue("division by zero"))
+}
+
+// SignalTypeError signals a TypeError with a message describing expected vs actual type.
+func (vm *VM) SignalTypeError(selector string, argPos int, expected string, actual Value) Value {
+	typeName := vm.valueTypeName(actual)
+	msg := fmt.Sprintf("%s: argument %d must be %s, got %s", selector, argPos, expected, typeName)
+	return vm.signalException(vm.TypeErrorClass, vm.registry.NewStringValue(msg))
+}
+
+// valueTypeName returns a human-readable type name for a Value.
+func (vm *VM) valueTypeName(v Value) string {
+	if v == Nil {
+		return "nil"
+	}
+	if v == True || v == False {
+		return "Boolean"
+	}
+	if v.IsSmallInt() {
+		return "SmallInteger"
+	}
+	if v.IsFloat() {
+		return "Float"
+	}
+	if v.IsSymbol() {
+		return "Symbol"
+	}
+	cls := vm.GetClassFromValue(v)
+	if cls != nil {
+		return cls.Name
+	}
+	return "unknown"
 }
 
 // CaptureTrace snapshots the current call stack into a slice of TraceFrames.

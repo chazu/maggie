@@ -202,38 +202,37 @@ func (vm *VM) registerSmallIntegerPrimitives() {
 	})
 
 	// Bit operations
-	c.AddMethod1(vm.Selectors, "bitAnd:", func(_ *VM, recv Value, arg Value) Value {
+	c.AddMethod1(vm.Selectors, "bitAnd:", func(v *VM, recv Value, arg Value) Value {
 		if arg.IsSmallInt() {
 			return FromSmallInt(recv.SmallInt() & arg.SmallInt())
 		}
-		return Nil
+		return v.SignalTypeError("bitAnd:", 1, "SmallInteger", arg)
 	})
 
-	c.AddMethod1(vm.Selectors, "bitOr:", func(_ *VM, recv Value, arg Value) Value {
+	c.AddMethod1(vm.Selectors, "bitOr:", func(v *VM, recv Value, arg Value) Value {
 		if arg.IsSmallInt() {
 			return FromSmallInt(recv.SmallInt() | arg.SmallInt())
 		}
-		return Nil
+		return v.SignalTypeError("bitOr:", 1, "SmallInteger", arg)
 	})
 
-	c.AddMethod1(vm.Selectors, "bitXor:", func(_ *VM, recv Value, arg Value) Value {
+	c.AddMethod1(vm.Selectors, "bitXor:", func(v *VM, recv Value, arg Value) Value {
 		if arg.IsSmallInt() {
 			return FromSmallInt(recv.SmallInt() ^ arg.SmallInt())
 		}
-		return Nil
+		return v.SignalTypeError("bitXor:", 1, "SmallInteger", arg)
 	})
 
 	c.AddMethod1(vm.Selectors, "bitShift:", func(v *VM, recv Value, arg Value) Value {
 		if arg.IsSmallInt() {
 			shift := arg.SmallInt()
 			if shift >= 0 {
-				// Use big.Int for left shifts to avoid overflow
 				result := new(big.Int).Lsh(big.NewInt(recv.SmallInt()), uint(shift))
 				return v.registry.NewBigIntValue(result)
 			}
 			return FromSmallInt(recv.SmallInt() >> uint(-shift))
 		}
-		return Nil
+		return v.SignalTypeError("bitShift:", 1, "SmallInteger", arg)
 	})
 
 	c.AddMethod0(vm.Selectors, "negated", func(v *VM, recv Value) Value {

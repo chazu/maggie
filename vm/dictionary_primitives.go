@@ -61,7 +61,7 @@ func (vm *VM) registerDictionaryPrimitives() {
 	c.AddMethod1(vm.Selectors, "at:", func(v *VM, recv Value, key Value) Value {
 		dict := v.registry.GetDictionaryObject(recv)
 		if dict == nil {
-			return Nil
+			return v.SignalPrimitiveError("at:", "receiver is not a Dictionary")
 		}
 		h := hashValue(v.registry, key)
 		if val, ok := dict.Data[h]; ok {
@@ -86,7 +86,7 @@ func (vm *VM) registerDictionaryPrimitives() {
 	c.AddMethod2(vm.Selectors, "at:ifAbsent:", func(v *VM, recv Value, key, block Value) Value {
 		dict := v.registry.GetDictionaryObject(recv)
 		if dict == nil {
-			return Nil
+			return v.SignalPrimitiveError("at:ifAbsent:", "receiver is not a Dictionary")
 		}
 		h := hashValue(v.registry, key)
 		if val, ok := dict.Data[h]; ok {
@@ -100,7 +100,7 @@ func (vm *VM) registerDictionaryPrimitives() {
 	c.AddMethod2(vm.Selectors, "at:ifPresent:", func(v *VM, recv Value, key, block Value) Value {
 		dict := v.registry.GetDictionaryObject(recv)
 		if dict == nil {
-			return Nil
+			return v.SignalPrimitiveError("at:ifPresent:", "receiver is not a Dictionary")
 		}
 		h := hashValue(v.registry, key)
 		if val, ok := dict.Data[h]; ok {
@@ -199,7 +199,7 @@ func (vm *VM) registerDictionaryPrimitives() {
 	c.AddMethod1(vm.Selectors, "removeKey:", func(v *VM, recv Value, key Value) Value {
 		dict := v.registry.GetDictionaryObject(recv)
 		if dict == nil {
-			return Nil
+			return v.SignalPrimitiveError("removeKey:", "receiver is not a Dictionary")
 		}
 		h := hashValue(v.registry, key)
 		if val, ok := dict.Data[h]; ok {

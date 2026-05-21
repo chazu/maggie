@@ -188,9 +188,8 @@ func TestAOTDispatchIntegration(t *testing.T) {
 
 // BenchmarkAOTvsInterpreted compares AOT execution to interpreted execution.
 func BenchmarkAOTvsInterpreted(b *testing.B) {
-	// Setup: create a VM with a simple arithmetic method
+	// Setup: create a VM with a simple arithmetic method on SmallInteger
 	vmInst := NewVM()
-	class := vmInst.createClass("Calculator", vmInst.ObjectClass)
 
 	// Create a method that does some computation: ^self + self * 2
 	selectors := vmInst.Selectors
@@ -204,9 +203,8 @@ func BenchmarkAOTvsInterpreted(b *testing.B) {
 	method := builder.Build()
 
 	computeSelID := selectors.Intern("compute")
-	class.VTable.AddMethod(computeSelID, method)
+	vmInst.SmallIntegerClass.VTable.AddMethod(computeSelID, method)
 
-	// Create a numeric receiver (SmallInt)
 	receiver := FromSmallInt(10)
 
 	// AOT version of the same method
@@ -233,7 +231,7 @@ func BenchmarkAOTvsInterpreted(b *testing.B) {
 	b.Run("AOT", func(b *testing.B) {
 		// Register AOT method
 		vmInst.RegisterAOTMethods(AOTDispatchTable{
-			AOTDispatchKey{"Calculator", "compute"}: aotCompute,
+			AOTDispatchKey{"SmallInteger", "compute"}: aotCompute,
 		})
 		b.ResetTimer()
 		for i := 0; i < b.N; i++ {

@@ -122,8 +122,11 @@ func (vm *VM) registerArrayListPrimitives() {
 	// at: index
 	atFn := func(v *VM, recv Value, index Value) Value {
 		al := v.getArrayList(recv)
-		if al == nil || !index.IsSmallInt() {
-			return Nil
+		if al == nil {
+			return v.SignalPrimitiveError("at:", "receiver is not an ArrayList")
+		}
+		if !index.IsSmallInt() {
+			return v.SignalTypeError("at:", 1, "SmallInteger", index)
 		}
 		return al.At(int(index.SmallInt() - 1))
 	}
@@ -168,7 +171,7 @@ func (vm *VM) registerArrayListPrimitives() {
 	removeLastFn := func(v *VM, recv Value) Value {
 		al := v.getArrayList(recv)
 		if al == nil {
-			return Nil
+			return v.SignalPrimitiveError("removeLast", "receiver is not an ArrayList")
 		}
 		return al.RemoveLast()
 	}
@@ -178,8 +181,11 @@ func (vm *VM) registerArrayListPrimitives() {
 	// removeAt: index
 	removeAtFn := func(v *VM, recv Value, index Value) Value {
 		al := v.getArrayList(recv)
-		if al == nil || !index.IsSmallInt() {
-			return Nil
+		if al == nil {
+			return v.SignalPrimitiveError("removeAt:", "receiver is not an ArrayList")
+		}
+		if !index.IsSmallInt() {
+			return v.SignalTypeError("removeAt:", 1, "SmallInteger", index)
 		}
 		return al.RemoveAt(int(index.SmallInt() - 1))
 	}
@@ -292,7 +298,7 @@ func (vm *VM) registerArrayListPrimitives() {
 	doFn := func(v *VM, recv Value, block Value) Value {
 		al := v.getArrayList(recv)
 		if al == nil {
-			return Nil
+			return v.SignalPrimitiveError("do:", "receiver is not an ArrayList")
 		}
 		// Snapshot length — safe if elements are added during iteration
 		n := al.Size()
@@ -399,7 +405,7 @@ func (vm *VM) registerArrayListPrimitives() {
 	detectFn := func(v *VM, recv Value, block Value) Value {
 		al := v.getArrayList(recv)
 		if al == nil {
-			return Nil
+			return v.SignalPrimitiveError("detect:", "receiver is not an ArrayList")
 		}
 		for i := 0; i < al.Size(); i++ {
 			elem := al.elements[i]

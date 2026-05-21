@@ -109,24 +109,23 @@ func (vm *VM) registerArrayPrimitives() {
 	// This is a class method - registered on ClassVTable
 	c.AddClassMethod1(vm.Selectors, "new:", func(v *VM, recv Value, size Value) Value {
 		if !size.IsSmallInt() {
-			return Nil
+			return v.SignalTypeError("new:", 1, "SmallInteger", size)
 		}
 		n := size.SmallInt()
 		if n < 0 {
-			return Nil
+			return v.SignalPrimitiveError("new:", "size must be non-negative")
 		}
-		// Create array object with n slots
 		return v.NewArray(int(n))
 	})
 
 	// new:withAll: - create array of given size, all elements set to value
 	c.AddClassMethod(vm.Selectors, "new:withAll:", NewPrimitiveMethod("new:withAll:", func(v *VM, recv Value, args []Value) Value {
 		if len(args) < 2 || !args[0].IsSmallInt() {
-			return Nil
+			return v.SignalTypeError("new:withAll:", 1, "SmallInteger", args[0])
 		}
 		n := int(args[0].SmallInt())
 		if n < 0 {
-			return Nil
+			return v.SignalPrimitiveError("new:withAll:", "size must be non-negative")
 		}
 		fill := args[1]
 		arr := v.NewArray(n)
