@@ -21,12 +21,12 @@ func (vm *VM) registerRandomPrimitives() {
 	// --- Class methods (use global rand source) ---
 
 	// Random next → float [0.0, 1.0)
-	c.AddClassMethod0(vm.Selectors, "next", func(_ interface{}, _ Value) Value {
+	c.AddClassMethod0(vm.Selectors, "next", func(_ *VM, _ Value) Value {
 		return FromFloat64(rand.Float64())
 	})
 
 	// Random nextInt: n → int [0, n)
-	c.AddClassMethod1(vm.Selectors, "nextInt:", func(_ interface{}, _ Value, arg Value) Value {
+	c.AddClassMethod1(vm.Selectors, "nextInt:", func(_ *VM, _ Value, arg Value) Value {
 		n := int64(0)
 		if arg.IsSmallInt() {
 			n = arg.SmallInt()
@@ -40,7 +40,7 @@ func (vm *VM) registerRandomPrimitives() {
 	})
 
 	// Random nextBetween: lo and: hi → int in [lo, hi]
-	c.AddClassMethod2(vm.Selectors, "nextBetween:and:", func(_ interface{}, _ Value, loVal, hiVal Value) Value {
+	c.AddClassMethod2(vm.Selectors, "nextBetween:and:", func(_ *VM, _ Value, loVal, hiVal Value) Value {
 		if !loVal.IsSmallInt() || !hiVal.IsSmallInt() {
 			return Nil
 		}
@@ -59,15 +59,13 @@ func (vm *VM) registerRandomPrimitives() {
 	// --- Instance creation ---
 
 	// Random new → auto-seeded instance
-	c.AddClassMethod0(vm.Selectors, "new", func(vmPtr interface{}, _ Value) Value {
-		v := vmPtr.(*VM)
+	c.AddClassMethod0(vm.Selectors, "new", func(v *VM, _ Value) Value {
 		rng := rand.New(rand.NewPCG(rand.Uint64(), rand.Uint64()))
 		return v.wrapRandom(rng)
 	})
 
 	// Random new: seed → reproducible instance
-	c.AddClassMethod1(vm.Selectors, "new:", func(vmPtr interface{}, _ Value, seedVal Value) Value {
-		v := vmPtr.(*VM)
+	c.AddClassMethod1(vm.Selectors, "new:", func(v *VM, _ Value, seedVal Value) Value {
 		seed := uint64(0)
 		if seedVal.IsSmallInt() {
 			seed = uint64(seedVal.SmallInt())
@@ -81,8 +79,7 @@ func (vm *VM) registerRandomPrimitives() {
 	// --- Instance methods ---
 
 	// next → float [0.0, 1.0)
-	c.AddMethod0(vm.Selectors, "next", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod0(vm.Selectors, "next", func(v *VM, recv Value) Value {
 		rng := v.unwrapRandom(recv)
 		if rng == nil {
 			return Nil
@@ -91,8 +88,7 @@ func (vm *VM) registerRandomPrimitives() {
 	})
 
 	// nextInt: n → int [0, n)
-	c.AddMethod1(vm.Selectors, "nextInt:", func(vmPtr interface{}, recv Value, arg Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod1(vm.Selectors, "nextInt:", func(v *VM, recv Value, arg Value) Value {
 		rng := v.unwrapRandom(recv)
 		if rng == nil {
 			return Nil
@@ -110,8 +106,7 @@ func (vm *VM) registerRandomPrimitives() {
 	})
 
 	// nextBetween: lo and: hi → int in [lo, hi]
-	c.AddMethod2(vm.Selectors, "nextBetween:and:", func(vmPtr interface{}, recv Value, loVal, hiVal Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod2(vm.Selectors, "nextBetween:and:", func(v *VM, recv Value, loVal, hiVal Value) Value {
 		rng := v.unwrapRandom(recv)
 		if rng == nil {
 			return Nil

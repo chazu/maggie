@@ -23,8 +23,7 @@ func (vm *VM) registerCompilerPrimitives() {
 
 	// evaluate: - Compile and execute an expression string
 	// Returns the result of evaluation, or a Failure if compilation fails
-	compilerClass.AddClassMethod1(vm.Selectors, "evaluate:", func(vmPtr interface{}, recv Value, sourceVal Value) Value {
-		v := vmPtr.(*VM)
+	compilerClass.AddClassMethod1(vm.Selectors, "evaluate:", func(v *VM, recv Value, sourceVal Value) Value {
 
 		// Get the source string
 		var source string
@@ -54,8 +53,7 @@ func (vm *VM) registerCompilerPrimitives() {
 
 	// evaluateFor:in: - Compile and execute an expression with a receiver
 	// Useful for evaluating code in the context of an object
-	compilerClass.AddClassMethod2(vm.Selectors, "evaluate:in:", func(vmPtr interface{}, recv Value, sourceVal, contextVal Value) Value {
-		v := vmPtr.(*VM)
+	compilerClass.AddClassMethod2(vm.Selectors, "evaluate:in:", func(v *VM, recv Value, sourceVal, contextVal Value) Value {
 
 		// Get the source string
 		var source string
@@ -85,8 +83,7 @@ func (vm *VM) registerCompilerPrimitives() {
 
 	// setGlobal:to: - Set a global variable directly
 	// Useful for REPL bindings like 'it'
-	compilerClass.AddClassMethod2(vm.Selectors, "setGlobal:to:", func(vmPtr interface{}, recv Value, nameVal, valueVal Value) Value {
-		v := vmPtr.(*VM)
+	compilerClass.AddClassMethod2(vm.Selectors, "setGlobal:to:", func(v *VM, recv Value, nameVal, valueVal Value) Value {
 
 		// Get the global name
 		var name string
@@ -107,8 +104,7 @@ func (vm *VM) registerCompilerPrimitives() {
 
 	// getGlobal: - Get a global variable directly
 	// Returns nil if not found
-	compilerClass.AddClassMethod1(vm.Selectors, "getGlobal:", func(vmPtr interface{}, recv Value, nameVal Value) Value {
-		v := vmPtr.(*VM)
+	compilerClass.AddClassMethod1(vm.Selectors, "getGlobal:", func(v *VM, recv Value, nameVal Value) Value {
 
 		// Get the global name
 		var name string
@@ -133,8 +129,7 @@ func (vm *VM) registerCompilerPrimitives() {
 	// The locals parameter is a Maggie Dictionary mapping variable names (symbols/strings) to values.
 	// Locals are overlaid onto globals during evaluation. Assignments write to local scope.
 	// After execution, new/modified variables are written back to the locals dictionary.
-	compilerClass.AddClassMethod2(vm.Selectors, "evaluate:withLocals:", func(vmPtr interface{}, recv Value, sourceVal, localsVal Value) Value {
-		v := vmPtr.(*VM)
+	compilerClass.AddClassMethod2(vm.Selectors, "evaluate:withLocals:", func(v *VM, recv Value, sourceVal, localsVal Value) Value {
 
 		// Get the source string
 		var source string
@@ -237,8 +232,7 @@ func (vm *VM) registerCompilerPrimitives() {
 	// compileMethod: - Compile a method definition and return the CompiledMethod info
 	// Returns a Dictionary with bytecode, literals, etc. (same as Maggie Compiler.compile:)
 	// This is mainly for tooling/IDE use
-	compilerClass.AddClassMethod1(vm.Selectors, "compileMethod:", func(vmPtr interface{}, recv Value, sourceVal Value) Value {
-		v := vmPtr.(*VM)
+	compilerClass.AddClassMethod1(vm.Selectors, "compileMethod:", func(v *VM, recv Value, sourceVal Value) Value {
 
 		var source string
 		if IsStringValue(sourceVal) {
@@ -261,8 +255,7 @@ func (vm *VM) registerCompilerPrimitives() {
 
 	// fileIn: - Load and compile a .mag file into the VM
 	// Returns the number of methods compiled, or a Failure
-	compilerClass.AddClassMethod1(vm.Selectors, "fileIn:", func(vmPtr interface{}, recv Value, pathVal Value) Value {
-		v := vmPtr.(*VM)
+	compilerClass.AddClassMethod1(vm.Selectors, "fileIn:", func(v *VM, recv Value, pathVal Value) Value {
 
 		var path string
 		if IsStringValue(pathVal) {
@@ -281,8 +274,7 @@ func (vm *VM) registerCompilerPrimitives() {
 
 	// fileInAll: - Recursively load all .mag files from a directory
 	// Returns the total number of methods compiled, or a Failure
-	compilerClass.AddClassMethod1(vm.Selectors, "fileInAll:", func(vmPtr interface{}, recv Value, pathVal Value) Value {
-		v := vmPtr.(*VM)
+	compilerClass.AddClassMethod1(vm.Selectors, "fileInAll:", func(v *VM, recv Value, pathVal Value) Value {
 
 		var path string
 		if IsStringValue(pathVal) {
@@ -301,8 +293,7 @@ func (vm *VM) registerCompilerPrimitives() {
 
 	// fileOut:to: - Write a class to a .mag file
 	// Returns the path written, or a Failure
-	compilerClass.AddClassMethod2(vm.Selectors, "fileOut:to:", func(vmPtr interface{}, recv Value, classNameVal, pathVal Value) Value {
-		v := vmPtr.(*VM)
+	compilerClass.AddClassMethod2(vm.Selectors, "fileOut:to:", func(v *VM, recv Value, classNameVal, pathVal Value) Value {
 
 		var className, path string
 		if IsStringValue(classNameVal) {
@@ -334,8 +325,7 @@ func (vm *VM) registerCompilerPrimitives() {
 
 	// fileOutNamespace:to: - Write all classes in a namespace to a directory
 	// One file per class. Returns the number of files written, or a Failure.
-	compilerClass.AddClassMethod2(vm.Selectors, "fileOutNamespace:to:", func(vmPtr interface{}, recv Value, nsVal, dirVal Value) Value {
-		v := vmPtr.(*VM)
+	compilerClass.AddClassMethod2(vm.Selectors, "fileOutNamespace:to:", func(v *VM, recv Value, nsVal, dirVal Value) Value {
 
 		var namespace, dir string
 		if IsStringValue(nsVal) {
@@ -373,8 +363,7 @@ func (vm *VM) registerCompilerPrimitives() {
 
 	// saveImage: - Save the current VM state as an image file
 	// Returns the path written, or a Failure
-	compilerClass.AddClassMethod1(vm.Selectors, "saveImage:", func(vmPtr interface{}, recv Value, pathVal Value) Value {
-		v := vmPtr.(*VM)
+	compilerClass.AddClassMethod1(vm.Selectors, "saveImage:", func(v *VM, recv Value, pathVal Value) Value {
 
 		var path string
 		if IsStringValue(pathVal) {
@@ -393,8 +382,7 @@ func (vm *VM) registerCompilerPrimitives() {
 	// saveImageAtomic: - Save the current VM state using crash-safe atomic writes
 	// Writes to .tmp, fsyncs, renames .prev as rollback, renames .tmp to target.
 	// Returns the path written, or a Failure
-	compilerClass.AddClassMethod1(vm.Selectors, "saveImageAtomic:", func(vmPtr interface{}, recv Value, pathVal Value) Value {
-		v := vmPtr.(*VM)
+	compilerClass.AddClassMethod1(vm.Selectors, "saveImageAtomic:", func(v *VM, recv Value, pathVal Value) Value {
 
 		var path string
 		if IsStringValue(pathVal) {
@@ -417,8 +405,7 @@ func (vm *VM) registerCompilerPrimitives() {
 	// captureCallStack - returns current call stack as array of dictionaries.
 	// Each dict has: 'id', 'class', 'method', 'line', 'column', 'isBlock'.
 	// Works without Debugger being active.
-	compilerClass.AddClassMethod0(vm.Selectors, "captureCallStack", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	compilerClass.AddClassMethod0(vm.Selectors, "captureCallStack", func(v *VM, recv Value) Value {
 		interp := v.currentInterpreter()
 		if interp == nil || interp.fp < 0 {
 			return v.NewArrayWithElements(nil)
@@ -482,8 +469,7 @@ func (vm *VM) registerCompilerPrimitives() {
 	// the rest of the file (imports, comments, other methods, ordering).
 	// Returns the file path on success, or a Failure.
 	compilerClass.AddClassMethod3(vm.Selectors, "updateMethodInFile:selector:source:",
-		func(vmPtr interface{}, recv Value, fileVal, selectorVal, sourceVal Value) Value {
-			v := vmPtr.(*VM)
+		func(v *VM, recv Value, fileVal, selectorVal, sourceVal Value) Value {
 			var filePath, selector, source string
 
 			if IsStringValue(fileVal) {
@@ -521,8 +507,7 @@ func (vm *VM) registerCompilerPrimitives() {
 	// ---------------------------------------------------------------------------
 
 	// startProfiling - Start wall-clock sampling profiler at 1000 Hz
-	startProf := &Method0{name: "startProfiling", fn: func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	startProf := &Method0{name: "startProfiling", fn: func(v *VM, recv Value) Value {
 		v.StartSamplingProfiler(time.Millisecond) // 1000 Hz
 		return True
 	}}
@@ -530,8 +515,7 @@ func (vm *VM) registerCompilerPrimitives() {
 	compilerClass.AddClassMethod(vm.Selectors, "startProfiling", startProf)
 
 	// startProfiling: - Start profiler at custom Hz
-	startProfHz := &Method1{name: "startProfiling:", fn: func(vmPtr interface{}, recv Value, hzVal Value) Value {
-		v := vmPtr.(*VM)
+	startProfHz := &Method1{name: "startProfiling:", fn: func(v *VM, recv Value, hzVal Value) Value {
 		hz := int64(1000)
 		if hzVal.IsSmallInt() {
 			hz = hzVal.SmallInt()
@@ -547,8 +531,7 @@ func (vm *VM) registerCompilerPrimitives() {
 	compilerClass.AddClassMethod(vm.Selectors, "startProfiling:", startProfHz)
 
 	// stopProfiling - Stop profiler and return folded-stacks string
-	stopProf := &Method0{name: "stopProfiling", fn: func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	stopProf := &Method0{name: "stopProfiling", fn: func(v *VM, recv Value) Value {
 		sp := v.StopSamplingProfiler()
 		if sp == nil {
 			return Nil
@@ -563,8 +546,7 @@ func (vm *VM) registerCompilerPrimitives() {
 	compilerClass.AddClassMethod(vm.Selectors, "stopProfiling", stopProf)
 
 	// isProfiling - Check if profiler is running
-	isProf := &Method0{name: "isProfiling", fn: func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	isProf := &Method0{name: "isProfiling", fn: func(v *VM, recv Value) Value {
 		if v.SamplingProfiler() != nil {
 			return True
 		}

@@ -14,8 +14,7 @@ func (vm *VM) registerArrayListPrimitives() {
 	// --- Class methods ---
 
 	// ArrayList class>>new - create empty with default capacity (8)
-	newFn := func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	newFn := func(v *VM, recv Value) Value {
 		al := createArrayList(8)
 		return v.registerArrayList(al)
 	}
@@ -23,8 +22,7 @@ func (vm *VM) registerArrayListPrimitives() {
 	c.AddClassMethod0(vm.Selectors, "primNew", newFn)
 
 	// ArrayList class>>new: capacity - create empty with given capacity
-	newCapFn := func(vmPtr interface{}, recv Value, cap Value) Value {
-		v := vmPtr.(*VM)
+	newCapFn := func(v *VM, recv Value, cap Value) Value {
 		capacity := 8
 		if cap.IsSmallInt() {
 			capacity = int(cap.SmallInt())
@@ -39,8 +37,7 @@ func (vm *VM) registerArrayListPrimitives() {
 	c.AddClassMethod1(vm.Selectors, "primNew:", newCapFn)
 
 	// ArrayList class>>withAll: anArray - create from existing array
-	withAllFn := func(vmPtr interface{}, recv Value, arr Value) Value {
-		v := vmPtr.(*VM)
+	withAllFn := func(v *VM, recv Value, arr Value) Value {
 		if !arr.IsObject() {
 			al := createArrayList(0)
 			return v.registerArrayList(al)
@@ -63,8 +60,7 @@ func (vm *VM) registerArrayListPrimitives() {
 	// --- Instance methods ---
 
 	// add: element - append, returns self
-	addFn := func(vmPtr interface{}, recv Value, elem Value) Value {
-		v := vmPtr.(*VM)
+	addFn := func(v *VM, recv Value, elem Value) Value {
 		al := v.getArrayList(recv)
 		if al == nil {
 			return recv
@@ -76,8 +72,7 @@ func (vm *VM) registerArrayListPrimitives() {
 	c.AddMethod1(vm.Selectors, "primAdd:", addFn)
 
 	// addAll: collection - append all elements from an Array or ArrayList
-	addAllFn := func(vmPtr interface{}, recv Value, coll Value) Value {
-		v := vmPtr.(*VM)
+	addAllFn := func(v *VM, recv Value, coll Value) Value {
 		al := v.getArrayList(recv)
 		if al == nil {
 			return recv
@@ -105,8 +100,7 @@ func (vm *VM) registerArrayListPrimitives() {
 	c.AddMethod1(vm.Selectors, "primAddAll:", addAllFn)
 
 	// at: index
-	atFn := func(vmPtr interface{}, recv Value, index Value) Value {
-		v := vmPtr.(*VM)
+	atFn := func(v *VM, recv Value, index Value) Value {
 		al := v.getArrayList(recv)
 		if al == nil || !index.IsSmallInt() {
 			return Nil
@@ -117,8 +111,7 @@ func (vm *VM) registerArrayListPrimitives() {
 	c.AddMethod1(vm.Selectors, "primAt:", atFn)
 
 	// at:put: - indexed set, returns value
-	atPutFn := func(vmPtr interface{}, recv Value, index, value Value) Value {
-		v := vmPtr.(*VM)
+	atPutFn := func(v *VM, recv Value, index, value Value) Value {
 		al := v.getArrayList(recv)
 		if al == nil || !index.IsSmallInt() {
 			return value
@@ -130,8 +123,7 @@ func (vm *VM) registerArrayListPrimitives() {
 	c.AddMethod2(vm.Selectors, "primAt:put:", atPutFn)
 
 	// size
-	sizeFn := func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	sizeFn := func(v *VM, recv Value) Value {
 		al := v.getArrayList(recv)
 		if al == nil {
 			return FromSmallInt(0)
@@ -142,8 +134,7 @@ func (vm *VM) registerArrayListPrimitives() {
 	c.AddMethod0(vm.Selectors, "primSize", sizeFn)
 
 	// capacity
-	capFn := func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	capFn := func(v *VM, recv Value) Value {
 		al := v.getArrayList(recv)
 		if al == nil {
 			return FromSmallInt(0)
@@ -154,8 +145,7 @@ func (vm *VM) registerArrayListPrimitives() {
 	c.AddMethod0(vm.Selectors, "primCapacity", capFn)
 
 	// removeLast
-	removeLastFn := func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	removeLastFn := func(v *VM, recv Value) Value {
 		al := v.getArrayList(recv)
 		if al == nil {
 			return Nil
@@ -166,8 +156,7 @@ func (vm *VM) registerArrayListPrimitives() {
 	c.AddMethod0(vm.Selectors, "primRemoveLast", removeLastFn)
 
 	// removeAt: index
-	removeAtFn := func(vmPtr interface{}, recv Value, index Value) Value {
-		v := vmPtr.(*VM)
+	removeAtFn := func(v *VM, recv Value, index Value) Value {
 		al := v.getArrayList(recv)
 		if al == nil || !index.IsSmallInt() {
 			return Nil
@@ -178,8 +167,7 @@ func (vm *VM) registerArrayListPrimitives() {
 	c.AddMethod1(vm.Selectors, "primRemoveAt:", removeAtFn)
 
 	// clear - returns self
-	clearFn := func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	clearFn := func(v *VM, recv Value) Value {
 		al := v.getArrayList(recv)
 		if al == nil {
 			return recv
@@ -191,8 +179,7 @@ func (vm *VM) registerArrayListPrimitives() {
 	c.AddMethod0(vm.Selectors, "primClear", clearFn)
 
 	// first
-	firstFn := func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	firstFn := func(v *VM, recv Value) Value {
 		al := v.getArrayList(recv)
 		if al == nil || al.Size() == 0 {
 			return Nil
@@ -203,8 +190,7 @@ func (vm *VM) registerArrayListPrimitives() {
 	c.AddMethod0(vm.Selectors, "primFirst", firstFn)
 
 	// last
-	lastFn := func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	lastFn := func(v *VM, recv Value) Value {
 		al := v.getArrayList(recv)
 		if al == nil || al.Size() == 0 {
 			return Nil
@@ -215,8 +201,7 @@ func (vm *VM) registerArrayListPrimitives() {
 	c.AddMethod0(vm.Selectors, "primLast", lastFn)
 
 	// isEmpty
-	isEmptyFn := func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	isEmptyFn := func(v *VM, recv Value) Value {
 		al := v.getArrayList(recv)
 		if al == nil || al.Size() == 0 {
 			return True
@@ -227,8 +212,7 @@ func (vm *VM) registerArrayListPrimitives() {
 	c.AddMethod0(vm.Selectors, "primIsEmpty", isEmptyFn)
 
 	// notEmpty
-	notEmptyFn := func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	notEmptyFn := func(v *VM, recv Value) Value {
 		al := v.getArrayList(recv)
 		if al == nil || al.Size() == 0 {
 			return False
@@ -239,8 +223,7 @@ func (vm *VM) registerArrayListPrimitives() {
 	c.AddMethod0(vm.Selectors, "primNotEmpty", notEmptyFn)
 
 	// includes: element
-	includesFn := func(vmPtr interface{}, recv Value, elem Value) Value {
-		v := vmPtr.(*VM)
+	includesFn := func(v *VM, recv Value, elem Value) Value {
 		al := v.getArrayList(recv)
 		if al == nil {
 			return False
@@ -256,8 +239,7 @@ func (vm *VM) registerArrayListPrimitives() {
 	c.AddMethod1(vm.Selectors, "primIncludes:", includesFn)
 
 	// indexOf: element
-	indexOfFn := func(vmPtr interface{}, recv Value, elem Value) Value {
-		v := vmPtr.(*VM)
+	indexOfFn := func(v *VM, recv Value, elem Value) Value {
 		al := v.getArrayList(recv)
 		if al == nil {
 			return FromSmallInt(0)
@@ -273,8 +255,7 @@ func (vm *VM) registerArrayListPrimitives() {
 	c.AddMethod1(vm.Selectors, "primIndexOf:", indexOfFn)
 
 	// asArray - convert to fixed-size Array
-	asArrayFn := func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	asArrayFn := func(v *VM, recv Value) Value {
 		al := v.getArrayList(recv)
 		if al == nil {
 			return v.NewArray(0)
@@ -288,8 +269,7 @@ func (vm *VM) registerArrayListPrimitives() {
 	c.AddMethod0(vm.Selectors, "primAsArray", asArrayFn)
 
 	// do: block - iterate calling block with each element
-	doFn := func(vmPtr interface{}, recv Value, block Value) Value {
-		v := vmPtr.(*VM)
+	doFn := func(v *VM, recv Value, block Value) Value {
 		al := v.getArrayList(recv)
 		if al == nil {
 			return Nil
@@ -305,8 +285,7 @@ func (vm *VM) registerArrayListPrimitives() {
 	c.AddMethod1(vm.Selectors, "primDo:", doFn)
 
 	// collect: block - return new ArrayList with transformed elements
-	collectFn := func(vmPtr interface{}, recv Value, block Value) Value {
-		v := vmPtr.(*VM)
+	collectFn := func(v *VM, recv Value, block Value) Value {
 		al := v.getArrayList(recv)
 		if al == nil {
 			return v.registerArrayList(createArrayList(0))
@@ -322,8 +301,7 @@ func (vm *VM) registerArrayListPrimitives() {
 	c.AddMethod1(vm.Selectors, "primCollect:", collectFn)
 
 	// select: block - return new ArrayList with matching elements
-	selectFn := func(vmPtr interface{}, recv Value, block Value) Value {
-		v := vmPtr.(*VM)
+	selectFn := func(v *VM, recv Value, block Value) Value {
 		al := v.getArrayList(recv)
 		if al == nil {
 			return v.registerArrayList(createArrayList(0))
@@ -341,8 +319,7 @@ func (vm *VM) registerArrayListPrimitives() {
 	c.AddMethod1(vm.Selectors, "primSelect:", selectFn)
 
 	// reject: block - return new ArrayList excluding matching elements
-	rejectFn := func(vmPtr interface{}, recv Value, block Value) Value {
-		v := vmPtr.(*VM)
+	rejectFn := func(v *VM, recv Value, block Value) Value {
 		al := v.getArrayList(recv)
 		if al == nil {
 			return v.registerArrayList(createArrayList(0))
@@ -360,8 +337,7 @@ func (vm *VM) registerArrayListPrimitives() {
 	c.AddMethod1(vm.Selectors, "primReject:", rejectFn)
 
 	// inject:into: - accumulate
-	injectIntoFn := func(vmPtr interface{}, recv Value, initial, block Value) Value {
-		v := vmPtr.(*VM)
+	injectIntoFn := func(v *VM, recv Value, initial, block Value) Value {
 		al := v.getArrayList(recv)
 		if al == nil {
 			return initial
@@ -376,8 +352,7 @@ func (vm *VM) registerArrayListPrimitives() {
 	c.AddMethod2(vm.Selectors, "primInject:into:", injectIntoFn)
 
 	// detect: block
-	detectFn := func(vmPtr interface{}, recv Value, block Value) Value {
-		v := vmPtr.(*VM)
+	detectFn := func(v *VM, recv Value, block Value) Value {
 		al := v.getArrayList(recv)
 		if al == nil {
 			return Nil
@@ -394,8 +369,7 @@ func (vm *VM) registerArrayListPrimitives() {
 	c.AddMethod1(vm.Selectors, "primDetect:", detectFn)
 
 	// detect:ifNone:
-	detectIfNoneFn := func(vmPtr interface{}, recv Value, block, noneBlock Value) Value {
-		v := vmPtr.(*VM)
+	detectIfNoneFn := func(v *VM, recv Value, block, noneBlock Value) Value {
 		al := v.getArrayList(recv)
 		if al == nil {
 			return v.evaluateBlock(noneBlock, nil)
@@ -412,8 +386,7 @@ func (vm *VM) registerArrayListPrimitives() {
 	c.AddMethod2(vm.Selectors, "primDetect:ifNone:", detectIfNoneFn)
 
 	// printString
-	printStringFn := func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	printStringFn := func(v *VM, recv Value) Value {
 		al := v.getArrayList(recv)
 		if al == nil {
 			return v.registry.NewStringValue("ArrayList()")
@@ -434,8 +407,7 @@ func (vm *VM) registerArrayListPrimitives() {
 	c.AddMethod0(vm.Selectors, "primPrintString", printStringFn)
 
 	// copy - return a new ArrayList with the same elements
-	copyFn := func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	copyFn := func(v *VM, recv Value) Value {
 		al := v.getArrayList(recv)
 		if al == nil {
 			return v.registerArrayList(createArrayList(0))
@@ -448,8 +420,7 @@ func (vm *VM) registerArrayListPrimitives() {
 	c.AddMethod0(vm.Selectors, "primCopy", copyFn)
 
 	// sort: aBlock - in-place sort using comparison block
-	sortFn := func(vmPtr interface{}, recv Value, block Value) Value {
-		v := vmPtr.(*VM)
+	sortFn := func(v *VM, recv Value, block Value) Value {
 		al := v.getArrayList(recv)
 		if al == nil || al.Size() <= 1 {
 			return recv

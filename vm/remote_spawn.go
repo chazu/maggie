@@ -238,26 +238,22 @@ type SpawnFunc func(spawnBlockBytes []byte) (string, error)
 
 func (vm *VM) registerSpawnPrimitives() {
 	// Block>>primForkOn: node — returns Future
-	vm.BlockClass.AddMethod1(vm.Selectors, "primForkOn:", func(vmPtr interface{}, recv, nodeVal Value) Value {
-		v := vmPtr.(*VM)
+	vm.BlockClass.AddMethod1(vm.Selectors, "primForkOn:", func(v *VM, recv, nodeVal Value) Value {
 		return v.doRemoteSpawn(recv, nodeVal, Nil, "fork")
 	})
 
 	// Block>>primForkOn:with: node arg — returns Future
-	vm.BlockClass.AddMethod2(vm.Selectors, "primForkOn:with:", func(vmPtr interface{}, recv, nodeVal, argVal Value) Value {
-		v := vmPtr.(*VM)
+	vm.BlockClass.AddMethod2(vm.Selectors, "primForkOn:with:", func(v *VM, recv, nodeVal, argVal Value) Value {
 		return v.doRemoteSpawn(recv, nodeVal, argVal, "fork")
 	})
 
 	// Block>>primSpawnOn: node — returns RemoteProcess
-	vm.BlockClass.AddMethod1(vm.Selectors, "primSpawnOn:", func(vmPtr interface{}, recv, nodeVal Value) Value {
-		v := vmPtr.(*VM)
+	vm.BlockClass.AddMethod1(vm.Selectors, "primSpawnOn:", func(v *VM, recv, nodeVal Value) Value {
 		return v.doRemoteSpawn(recv, nodeVal, Nil, "spawn")
 	})
 
 	// Block>>primSpawnOn:with: node arg — returns RemoteProcess
-	vm.BlockClass.AddMethod2(vm.Selectors, "primSpawnOn:with:", func(vmPtr interface{}, recv, nodeVal, argVal Value) Value {
-		v := vmPtr.(*VM)
+	vm.BlockClass.AddMethod2(vm.Selectors, "primSpawnOn:with:", func(v *VM, recv, nodeVal, argVal Value) Value {
 		return v.doRemoteSpawn(recv, nodeVal, argVal, "spawn")
 	})
 }

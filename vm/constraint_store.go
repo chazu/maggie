@@ -121,8 +121,7 @@ func (vm *VM) registerConstraintStorePrimitives() {
 	vm.symbolDispatch.Register(constraintStoreMarker, &SymbolTypeEntry{Class: csClass})
 
 	// ConstraintStore new — create a new constraint store (starts as top/unconstrained)
-	csClass.AddClassMethod0(vm.Selectors, "new", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	csClass.AddClassMethod0(vm.Selectors, "new", func(v *VM, recv Value) Value {
 		ctx := cuecontext.New()
 		cs := &ConstraintStoreObject{
 			ctx:   ctx,
@@ -132,8 +131,7 @@ func (vm *VM) registerConstraintStorePrimitives() {
 	})
 
 	// ConstraintStore>>primTell: — unify a CueValue constraint into the store
-	csClass.AddMethod1(vm.Selectors, "primTell:", func(vmPtr interface{}, recv Value, constraintVal Value) Value {
-		v := vmPtr.(*VM)
+	csClass.AddMethod1(vm.Selectors, "primTell:", func(v *VM, recv Value, constraintVal Value) Value {
 		cs := v.vmGetConstraintStore(recv)
 		if cs == nil {
 			return v.newFailureResult("invalid ConstraintStore")
@@ -151,8 +149,7 @@ func (vm *VM) registerConstraintStorePrimitives() {
 	})
 
 	// ConstraintStore>>primAsk: — block until the store subsumes the query CueValue
-	csClass.AddMethod1(vm.Selectors, "primAsk:", func(vmPtr interface{}, recv Value, queryVal Value) Value {
-		v := vmPtr.(*VM)
+	csClass.AddMethod1(vm.Selectors, "primAsk:", func(v *VM, recv Value, queryVal Value) Value {
 		cs := v.vmGetConstraintStore(recv)
 		if cs == nil {
 			return Nil
@@ -168,8 +165,7 @@ func (vm *VM) registerConstraintStorePrimitives() {
 	})
 
 	// ConstraintStore>>primTryAsk: — non-blocking entailment check
-	csClass.AddMethod1(vm.Selectors, "primTryAsk:", func(vmPtr interface{}, recv Value, queryVal Value) Value {
-		v := vmPtr.(*VM)
+	csClass.AddMethod1(vm.Selectors, "primTryAsk:", func(v *VM, recv Value, queryVal Value) Value {
 		cs := v.vmGetConstraintStore(recv)
 		if cs == nil {
 			return False
@@ -187,8 +183,7 @@ func (vm *VM) registerConstraintStorePrimitives() {
 	})
 
 	// ConstraintStore>>primWatch:do: — register callback for entailment
-	csClass.AddMethod2(vm.Selectors, "primWatch:do:", func(vmPtr interface{}, recv Value, queryVal Value, blockVal Value) Value {
-		v := vmPtr.(*VM)
+	csClass.AddMethod2(vm.Selectors, "primWatch:do:", func(v *VM, recv Value, queryVal Value, blockVal Value) Value {
 		cs := v.vmGetConstraintStore(recv)
 		if cs == nil {
 			return Nil
@@ -222,8 +217,7 @@ func (vm *VM) registerConstraintStorePrimitives() {
 	})
 
 	// ConstraintStore>>primValue — return current store state as a CueValue
-	csClass.AddMethod0(vm.Selectors, "primValue", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	csClass.AddMethod0(vm.Selectors, "primValue", func(v *VM, recv Value) Value {
 		cs := v.vmGetConstraintStore(recv)
 		if cs == nil {
 			return Nil
@@ -238,8 +232,7 @@ func (vm *VM) registerConstraintStorePrimitives() {
 	})
 
 	// ConstraintStore>>primIsConsistent — true if store is not bottom
-	csClass.AddMethod0(vm.Selectors, "primIsConsistent", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	csClass.AddMethod0(vm.Selectors, "primIsConsistent", func(v *VM, recv Value) Value {
 		cs := v.vmGetConstraintStore(recv)
 		if cs == nil {
 			return False
@@ -252,8 +245,7 @@ func (vm *VM) registerConstraintStorePrimitives() {
 	})
 
 	// ConstraintStore>>primPrintString — human-readable description
-	csClass.AddMethod0(vm.Selectors, "primPrintString", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	csClass.AddMethod0(vm.Selectors, "primPrintString", func(v *VM, recv Value) Value {
 		cs := v.vmGetConstraintStore(recv)
 		if cs == nil {
 			return v.registry.NewStringValue("a ConstraintStore (invalid)")

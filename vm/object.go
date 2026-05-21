@@ -118,7 +118,7 @@ type Class struct {
 // Method represents a compiled or primitive method.
 // This is a forward declaration; full implementation is in method.go.
 type Method interface {
-	Invoke(vm interface{}, receiver Value, args []Value) Value
+	Invoke(vm *VM, receiver Value, args []Value) Value
 }
 
 // ---------------------------------------------------------------------------

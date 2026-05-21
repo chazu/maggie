@@ -201,8 +201,7 @@ func (vm *VM) registerNodePrimitives() {
 	vm.symbolDispatch.Register(remoteRefMarker, &SymbolTypeEntry{Class: c})
 
 	// Node class>>connect: addr
-	c.AddClassMethod1(vm.Selectors, "connect:", func(vmPtr interface{}, recv, addr Value) Value {
-		v := vmPtr.(*VM)
+	c.AddClassMethod1(vm.Selectors, "connect:", func(v *VM, recv, addr Value) Value {
 		addrStr := v.registry.GetStringContent(addr)
 		if addrStr == "" {
 			return Nil
@@ -221,8 +220,7 @@ func (vm *VM) registerNodePrimitives() {
 	})
 
 	// Node>>primAddr
-	c.AddMethod0(vm.Selectors, "primAddr", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod0(vm.Selectors, "primAddr", func(v *VM, recv Value) Value {
 		ref := v.getNodeRef(recv)
 		if ref == nil {
 			return Nil
@@ -231,8 +229,7 @@ func (vm *VM) registerNodePrimitives() {
 	})
 
 	// Node>>primPing
-	c.AddMethod0(vm.Selectors, "primPing", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod0(vm.Selectors, "primPing", func(v *VM, recv Value) Value {
 		ref := v.getNodeRef(recv)
 		if ref == nil || ref.PingFunc == nil {
 			return False
@@ -244,8 +241,7 @@ func (vm *VM) registerNodePrimitives() {
 	})
 
 	// Node>>primProcessNamed: name
-	c.AddMethod1(vm.Selectors, "primProcessNamed:", func(vmPtr interface{}, recv, name Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod1(vm.Selectors, "primProcessNamed:", func(v *VM, recv, name Value) Value {
 		ref := v.getNodeRef(recv)
 		if ref == nil {
 			return Nil
@@ -258,8 +254,7 @@ func (vm *VM) registerNodePrimitives() {
 	})
 
 	// Node>>primNodeID — hex-encoded 32-byte public key
-	c.AddMethod0(vm.Selectors, "primNodeID", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod0(vm.Selectors, "primNodeID", func(v *VM, recv Value) Value {
 		ref := v.getNodeRef(recv)
 		if ref == nil {
 			return Nil
@@ -269,8 +264,7 @@ func (vm *VM) registerNodePrimitives() {
 	})
 
 	// Node>>printString
-	c.AddMethod0(vm.Selectors, "printString", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod0(vm.Selectors, "printString", func(v *VM, recv Value) Value {
 		ref := v.getNodeRef(recv)
 		if ref == nil {
 			return v.registry.NewStringValue("a Node (invalid)")
@@ -299,7 +293,7 @@ func (vm *VM) registerRemoteProcessPrimitives() {
 	vm.globals["RemoteProcess"] = vm.classValue(c)
 
 	// RemoteProcess>>primName
-	c.AddMethod0(vm.Selectors, "primName", func(_ interface{}, recv Value) Value {
+	c.AddMethod0(vm.Selectors, "primName", func(_ *VM, recv Value) Value {
 		obj := ObjectFromValue(recv)
 		if obj == nil {
 			return Nil
@@ -308,7 +302,7 @@ func (vm *VM) registerRemoteProcessPrimitives() {
 	})
 
 	// RemoteProcess>>primNode
-	c.AddMethod0(vm.Selectors, "primNode", func(_ interface{}, recv Value) Value {
+	c.AddMethod0(vm.Selectors, "primNode", func(_ *VM, recv Value) Value {
 		obj := ObjectFromValue(recv)
 		if obj == nil {
 			return Nil
@@ -317,20 +311,17 @@ func (vm *VM) registerRemoteProcessPrimitives() {
 	})
 
 	// RemoteProcess>>primCast:with: — fire-and-forget
-	c.AddMethod2(vm.Selectors, "primCast:with:", func(vmPtr interface{}, recv, selectorVal, payload Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod2(vm.Selectors, "primCast:with:", func(v *VM, recv, selectorVal, payload Value) Value {
 		return v.remoteSend(recv, selectorVal, payload, false)
 	})
 
 	// RemoteProcess>>primAsyncSend:with: — returns Future
-	c.AddMethod2(vm.Selectors, "primAsyncSend:with:", func(vmPtr interface{}, recv, selectorVal, payload Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod2(vm.Selectors, "primAsyncSend:with:", func(v *VM, recv, selectorVal, payload Value) Value {
 		return v.remoteSend(recv, selectorVal, payload, true)
 	})
 
 	// RemoteProcess>>printString
-	c.AddMethod0(vm.Selectors, "printString", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod0(vm.Selectors, "printString", func(v *VM, recv Value) Value {
 		obj := ObjectFromValue(recv)
 		if obj == nil {
 			return v.registry.NewStringValue("a RemoteProcess (invalid)")

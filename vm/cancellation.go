@@ -144,29 +144,25 @@ func (vm *VM) registerCancellationContextPrimitives() {
 	c := vm.CancellationContextClass
 
 	// CancellationContext class>>background - returns the background context (never cancelled)
-	c.AddClassMethod0(vm.Selectors, "background", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	c.AddClassMethod0(vm.Selectors, "background", func(v *VM, recv Value) Value {
 		ctx := createBackgroundCancellationContext()
 		return v.registerCancellationContext(ctx)
 	})
 
 	// CancellationContext class>>todo - returns a TODO context (placeholder)
-	c.AddClassMethod0(vm.Selectors, "todo", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	c.AddClassMethod0(vm.Selectors, "todo", func(v *VM, recv Value) Value {
 		ctx := createTodoCancellationContext()
 		return v.registerCancellationContext(ctx)
 	})
 
 	// CancellationContext class>>withCancel - create a cancellable context from background
-	c.AddClassMethod0(vm.Selectors, "withCancel", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	c.AddClassMethod0(vm.Selectors, "withCancel", func(v *VM, recv Value) Value {
 		ctx := createCancellationContextWithCancel(nil)
 		return v.registerCancellationContext(ctx)
 	})
 
 	// CancellationContext class>>withTimeout: milliseconds - create a context with timeout
-	c.AddClassMethod1(vm.Selectors, "withTimeout:", func(vmPtr interface{}, recv Value, msValue Value) Value {
-		v := vmPtr.(*VM)
+	c.AddClassMethod1(vm.Selectors, "withTimeout:", func(v *VM, recv Value, msValue Value) Value {
 		if !msValue.IsSmallInt() {
 			return Nil
 		}
@@ -177,8 +173,7 @@ func (vm *VM) registerCancellationContextPrimitives() {
 	})
 
 	// CancellationContext>>withCancel - create a child context with cancellation
-	c.AddMethod0(vm.Selectors, "withCancel", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod0(vm.Selectors, "withCancel", func(v *VM, recv Value) Value {
 		parent := v.getCancellationContext(recv)
 		if parent == nil {
 			return Nil
@@ -188,8 +183,7 @@ func (vm *VM) registerCancellationContextPrimitives() {
 	})
 
 	// CancellationContext>>withTimeout: milliseconds - create a child context with timeout
-	c.AddMethod1(vm.Selectors, "withTimeout:", func(vmPtr interface{}, recv Value, msValue Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod1(vm.Selectors, "withTimeout:", func(v *VM, recv Value, msValue Value) Value {
 		parent := v.getCancellationContext(recv)
 		if parent == nil {
 			return Nil
@@ -204,8 +198,7 @@ func (vm *VM) registerCancellationContextPrimitives() {
 	})
 
 	// CancellationContext>>cancel - cancel this context
-	c.AddMethod0(vm.Selectors, "cancel", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod0(vm.Selectors, "cancel", func(v *VM, recv Value) Value {
 		ctx := v.getCancellationContext(recv)
 		if ctx == nil {
 			return Nil
@@ -215,8 +208,7 @@ func (vm *VM) registerCancellationContextPrimitives() {
 	})
 
 	// CancellationContext>>isCancelled - check if context is cancelled
-	c.AddMethod0(vm.Selectors, "isCancelled", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod0(vm.Selectors, "isCancelled", func(v *VM, recv Value) Value {
 		ctx := v.getCancellationContext(recv)
 		if ctx == nil {
 			return True // nil context is considered cancelled
@@ -228,8 +220,7 @@ func (vm *VM) registerCancellationContextPrimitives() {
 	})
 
 	// CancellationContext>>isDone - alias for isCancelled
-	c.AddMethod0(vm.Selectors, "isDone", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod0(vm.Selectors, "isDone", func(v *VM, recv Value) Value {
 		ctx := v.getCancellationContext(recv)
 		if ctx == nil {
 			return True
@@ -241,8 +232,7 @@ func (vm *VM) registerCancellationContextPrimitives() {
 	})
 
 	// CancellationContext>>deadline - returns deadline as milliseconds since epoch, or nil
-	c.AddMethod0(vm.Selectors, "deadline", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod0(vm.Selectors, "deadline", func(v *VM, recv Value) Value {
 		ctx := v.getCancellationContext(recv)
 		if ctx == nil {
 			return Nil
@@ -256,8 +246,7 @@ func (vm *VM) registerCancellationContextPrimitives() {
 	})
 
 	// CancellationContext>>hasDeadline - check if context has a deadline
-	c.AddMethod0(vm.Selectors, "hasDeadline", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod0(vm.Selectors, "hasDeadline", func(v *VM, recv Value) Value {
 		ctx := v.getCancellationContext(recv)
 		if ctx == nil {
 			return False
@@ -270,8 +259,7 @@ func (vm *VM) registerCancellationContextPrimitives() {
 	})
 
 	// CancellationContext>>remainingTime - milliseconds until deadline, or nil if no deadline
-	c.AddMethod0(vm.Selectors, "remainingTime", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod0(vm.Selectors, "remainingTime", func(v *VM, recv Value) Value {
 		ctx := v.getCancellationContext(recv)
 		if ctx == nil {
 			return Nil
@@ -288,8 +276,7 @@ func (vm *VM) registerCancellationContextPrimitives() {
 	})
 
 	// CancellationContext>>wait - block until context is cancelled
-	c.AddMethod0(vm.Selectors, "wait", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod0(vm.Selectors, "wait", func(v *VM, recv Value) Value {
 		ctx := v.getCancellationContext(recv)
 		if ctx == nil {
 			return Nil
@@ -300,8 +287,7 @@ func (vm *VM) registerCancellationContextPrimitives() {
 
 	// CancellationContext>>do: aBlock - execute block, cancel context when done
 	// Returns the result of the block
-	c.AddMethod1(vm.Selectors, "do:", func(vmPtr interface{}, recv Value, block Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod1(vm.Selectors, "do:", func(v *VM, recv Value, block Value) Value {
 		ctx := v.getCancellationContext(recv)
 		if ctx == nil {
 			return Nil
@@ -322,8 +308,7 @@ func (vm *VM) registerCancellationContextPrimitives() {
 	})
 
 	// CancellationContext>>ifCancelled: aBlock - execute block if context is cancelled
-	c.AddMethod1(vm.Selectors, "ifCancelled:", func(vmPtr interface{}, recv Value, block Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod1(vm.Selectors, "ifCancelled:", func(v *VM, recv Value, block Value) Value {
 		ctx := v.getCancellationContext(recv)
 		if ctx == nil || !ctx.IsCancelled() {
 			return recv
@@ -341,8 +326,7 @@ func (vm *VM) registerCancellationContextPrimitives() {
 	})
 
 	// CancellationContext>>parent - returns parent context or nil
-	c.AddMethod0(vm.Selectors, "parent", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod0(vm.Selectors, "parent", func(v *VM, recv Value) Value {
 		ctx := v.getCancellationContext(recv)
 		if ctx == nil || ctx.parent == nil {
 			return Nil
@@ -352,8 +336,7 @@ func (vm *VM) registerCancellationContextPrimitives() {
 
 	// CancellationContext>>doneChannel - returns a channel that closes when context is done
 	// Useful for select statements
-	c.AddMethod0(vm.Selectors, "doneChannel", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod0(vm.Selectors, "doneChannel", func(v *VM, recv Value) Value {
 		ctx := v.getCancellationContext(recv)
 		if ctx == nil {
 			return Nil

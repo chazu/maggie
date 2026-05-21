@@ -570,8 +570,7 @@ func (vm *VM) registerGrpcPrimitives() {
 	c := vm.GrpcClientClass
 
 	// GrpcClient class>>connectTo: target - connect to gRPC server
-	c.AddClassMethod1(vm.Selectors, "connectTo:", func(vmPtr interface{}, recv Value, target Value) Value {
-		v := vmPtr.(*VM)
+	c.AddClassMethod1(vm.Selectors, "connectTo:", func(v *VM, recv Value, target Value) Value {
 		if !IsStringValue(target) {
 			return v.grpcFailure("target must be a string")
 		}
@@ -595,8 +594,7 @@ func (vm *VM) registerGrpcPrimitives() {
 	})
 
 	// GrpcClient>>close - close connection
-	c.AddMethod0(vm.Selectors, "close", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod0(vm.Selectors, "close", func(v *VM, recv Value) Value {
 		client := v.vmGetGrpcClient(recv)
 		if client == nil {
 			return recv
@@ -613,8 +611,7 @@ func (vm *VM) registerGrpcPrimitives() {
 	})
 
 	// GrpcClient>>isConnected - check if connected
-	c.AddMethod0(vm.Selectors, "isConnected", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod0(vm.Selectors, "isConnected", func(v *VM, recv Value) Value {
 		client := v.vmGetGrpcClient(recv)
 		if client == nil || client.closed.Load() {
 			return False
@@ -623,8 +620,7 @@ func (vm *VM) registerGrpcPrimitives() {
 	})
 
 	// GrpcClient>>listServices - list available services via reflection
-	c.AddMethod0(vm.Selectors, "listServices", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod0(vm.Selectors, "listServices", func(v *VM, recv Value) Value {
 		client := v.vmGetGrpcClient(recv)
 		if client == nil || client.closed.Load() {
 			return v.NewArray(0)
@@ -647,8 +643,7 @@ func (vm *VM) registerGrpcPrimitives() {
 	})
 
 	// GrpcClient>>methodsForService: serviceName - list methods for a service
-	c.AddMethod1(vm.Selectors, "methodsForService:", func(vmPtr interface{}, recv Value, serviceName Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod1(vm.Selectors, "methodsForService:", func(v *VM, recv Value, serviceName Value) Value {
 		client := v.vmGetGrpcClient(recv)
 		if client == nil || !IsStringValue(serviceName) {
 			return v.NewArray(0)
@@ -669,8 +664,7 @@ func (vm *VM) registerGrpcPrimitives() {
 	})
 
 	// GrpcClient>>methodDescriptor: methodName - get method metadata
-	c.AddMethod1(vm.Selectors, "methodDescriptor:", func(vmPtr interface{}, recv Value, methodName Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod1(vm.Selectors, "methodDescriptor:", func(v *VM, recv Value, methodName Value) Value {
 		client := v.vmGetGrpcClient(recv)
 		if client == nil || !IsStringValue(methodName) {
 			return Nil
@@ -701,8 +695,7 @@ func (vm *VM) registerGrpcPrimitives() {
 	})
 
 	// GrpcClient>>call:with: - make a unary RPC call
-	c.AddMethod2(vm.Selectors, "call:with:", func(vmPtr interface{}, recv Value, methodName Value, requestDict Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod2(vm.Selectors, "call:with:", func(v *VM, recv Value, methodName Value, requestDict Value) Value {
 		client := v.vmGetGrpcClient(recv)
 		if client == nil {
 			return v.grpcFailure("invalid client")
@@ -745,8 +738,7 @@ func (vm *VM) registerGrpcPrimitives() {
 	})
 
 	// GrpcClient>>serverStream:with: - create a server streaming call
-	c.AddMethod2(vm.Selectors, "serverStream:with:", func(vmPtr interface{}, recv Value, methodName Value, requestDict Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod2(vm.Selectors, "serverStream:with:", func(v *VM, recv Value, methodName Value, requestDict Value) Value {
 		client := v.vmGetGrpcClient(recv)
 		if client == nil {
 			return v.grpcFailure("invalid client")
@@ -800,8 +792,7 @@ func (vm *VM) registerGrpcPrimitives() {
 	})
 
 	// GrpcClient>>clientStream: - create a client streaming call
-	c.AddMethod1(vm.Selectors, "clientStream:", func(vmPtr interface{}, recv Value, methodName Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod1(vm.Selectors, "clientStream:", func(v *VM, recv Value, methodName Value) Value {
 		client := v.vmGetGrpcClient(recv)
 		if client == nil {
 			return v.grpcFailure("invalid client")
@@ -837,8 +828,7 @@ func (vm *VM) registerGrpcPrimitives() {
 	})
 
 	// GrpcClient>>bidiStream: - create a bidirectional streaming call
-	c.AddMethod1(vm.Selectors, "bidiStream:", func(vmPtr interface{}, recv Value, methodName Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod1(vm.Selectors, "bidiStream:", func(v *VM, recv Value, methodName Value) Value {
 		client := v.vmGetGrpcClient(recv)
 		if client == nil {
 			return v.grpcFailure("invalid client")
@@ -881,8 +871,7 @@ func (vm *VM) registerGrpcPrimitives() {
 	s := vm.GrpcStreamClass
 
 	// GrpcStream>>send: messageDict - send a message on the stream
-	s.AddMethod1(vm.Selectors, "send:", func(vmPtr interface{}, recv Value, messageDict Value) Value {
-		v := vmPtr.(*VM)
+	s.AddMethod1(vm.Selectors, "send:", func(v *VM, recv Value, messageDict Value) Value {
 		stream := v.vmGetGrpcStream(recv)
 		if stream == nil {
 			return v.grpcFailure("invalid stream")
@@ -907,8 +896,7 @@ func (vm *VM) registerGrpcPrimitives() {
 	})
 
 	// GrpcStream>>receive - receive a message from the stream
-	s.AddMethod0(vm.Selectors, "receive", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	s.AddMethod0(vm.Selectors, "receive", func(v *VM, recv Value) Value {
 		stream := v.vmGetGrpcStream(recv)
 		if stream == nil {
 			return v.grpcFailure("invalid stream")
@@ -946,8 +934,7 @@ func (vm *VM) registerGrpcPrimitives() {
 	})
 
 	// GrpcStream>>hasNext - check if more messages are available
-	s.AddMethod0(vm.Selectors, "hasNext", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	s.AddMethod0(vm.Selectors, "hasNext", func(v *VM, recv Value) Value {
 		stream := v.vmGetGrpcStream(recv)
 		if stream == nil || stream.recvClosed.Load() {
 			return False
@@ -956,8 +943,7 @@ func (vm *VM) registerGrpcPrimitives() {
 	})
 
 	// GrpcStream>>close - close the send side of the stream
-	s.AddMethod0(vm.Selectors, "close", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	s.AddMethod0(vm.Selectors, "close", func(v *VM, recv Value) Value {
 		stream := v.vmGetGrpcStream(recv)
 		if stream == nil {
 			return recv
@@ -972,8 +958,7 @@ func (vm *VM) registerGrpcPrimitives() {
 	})
 
 	// GrpcStream>>closeAndReceive - close send and receive final response (for client streaming)
-	s.AddMethod0(vm.Selectors, "closeAndReceive", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	s.AddMethod0(vm.Selectors, "closeAndReceive", func(v *VM, recv Value) Value {
 		stream := v.vmGetGrpcStream(recv)
 		if stream == nil {
 			return v.grpcFailure("invalid stream")
@@ -1005,8 +990,7 @@ func (vm *VM) registerGrpcPrimitives() {
 	})
 
 	// GrpcStream>>streamType - return the stream type as a symbol
-	s.AddMethod0(vm.Selectors, "streamType", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	s.AddMethod0(vm.Selectors, "streamType", func(v *VM, recv Value) Value {
 		stream := v.vmGetGrpcStream(recv)
 		if stream == nil {
 			return Nil

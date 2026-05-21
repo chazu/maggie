@@ -7,7 +7,7 @@ func (vm *VM) registerMessagePrimitives() {
 	c := vm.MessageClass
 
 	// selector - return slot 0 (Symbol)
-	c.AddMethod0(vm.Selectors, "selector", func(_ interface{}, recv Value) Value {
+	c.AddMethod0(vm.Selectors, "selector", func(_ *VM, recv Value) Value {
 		obj := ObjectFromValue(recv)
 		if obj == nil {
 			return Nil
@@ -16,7 +16,7 @@ func (vm *VM) registerMessagePrimitives() {
 	})
 
 	// arguments - return slot 1 (Array)
-	c.AddMethod0(vm.Selectors, "arguments", func(_ interface{}, recv Value) Value {
+	c.AddMethod0(vm.Selectors, "arguments", func(_ *VM, recv Value) Value {
 		obj := ObjectFromValue(recv)
 		if obj == nil {
 			return Nil
@@ -25,8 +25,7 @@ func (vm *VM) registerMessagePrimitives() {
 	})
 
 	// sendTo: anObject - re-send the message to another object
-	c.AddMethod1(vm.Selectors, "sendTo:", func(vmPtr interface{}, recv Value, target Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod1(vm.Selectors, "sendTo:", func(v *VM, recv Value, target Value) Value {
 		obj := ObjectFromValue(recv)
 		if obj == nil {
 			return Nil
@@ -58,8 +57,7 @@ func (vm *VM) registerMessagePrimitives() {
 	})
 
 	// printString - "a Message(selectorName)"
-	c.AddMethod0(vm.Selectors, "printString", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod0(vm.Selectors, "printString", func(v *VM, recv Value) Value {
 		obj := ObjectFromValue(recv)
 		if obj == nil {
 			return v.registry.NewStringValue("a Message")

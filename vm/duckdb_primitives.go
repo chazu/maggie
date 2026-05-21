@@ -42,14 +42,12 @@ func (vm *VM) registerDuckDBPrimitives() {
 	// -----------------------------------------------------------------------
 
 	// new — Open an in-memory DuckDB database
-	duckDBClass.AddClassMethod0(vm.Selectors, "new", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	duckDBClass.AddClassMethod0(vm.Selectors, "new", func(v *VM, recv Value) Value {
 		return v.openDuckDB("")
 	})
 
 	// open: path — Open a file-backed DuckDB database
-	duckDBClass.AddClassMethod1(vm.Selectors, "open:", func(vmPtr interface{}, recv Value, pathVal Value) Value {
-		v := vmPtr.(*VM)
+	duckDBClass.AddClassMethod1(vm.Selectors, "open:", func(v *VM, recv Value, pathVal Value) Value {
 		path := v.valueToString(pathVal)
 		if path == "" {
 			return v.newFailureResult("open: requires a path string")
@@ -62,8 +60,7 @@ func (vm *VM) registerDuckDBPrimitives() {
 	// -----------------------------------------------------------------------
 
 	// query: sql — Execute a SELECT and return results as an array of dictionaries
-	duckDBClass.AddMethod1(vm.Selectors, "query:", func(vmPtr interface{}, recv Value, sqlVal Value) Value {
-		v := vmPtr.(*VM)
+	duckDBClass.AddMethod1(vm.Selectors, "query:", func(v *VM, recv Value, sqlVal Value) Value {
 		dbObj := v.getDuckDB(recv)
 		if dbObj == nil {
 			return v.newFailureResult("query: receiver is not a DuckDatabase")
@@ -92,8 +89,7 @@ func (vm *VM) registerDuckDBPrimitives() {
 	})
 
 	// execute: sql — Execute DDL/DML with no result set
-	duckDBClass.AddMethod1(vm.Selectors, "execute:", func(vmPtr interface{}, recv Value, sqlVal Value) Value {
-		v := vmPtr.(*VM)
+	duckDBClass.AddMethod1(vm.Selectors, "execute:", func(v *VM, recv Value, sqlVal Value) Value {
 		dbObj := v.getDuckDB(recv)
 		if dbObj == nil {
 			return v.newFailureResult("execute: receiver is not a DuckDatabase")
@@ -122,8 +118,7 @@ func (vm *VM) registerDuckDBPrimitives() {
 	})
 
 	// close — Close the database
-	duckDBClass.AddMethod0(vm.Selectors, "close", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	duckDBClass.AddMethod0(vm.Selectors, "close", func(v *VM, recv Value) Value {
 		dbObj := v.getDuckDB(recv)
 		if dbObj == nil {
 			return v.newFailureResult("close: receiver is not a DuckDatabase")
@@ -156,8 +151,7 @@ func (vm *VM) registerDuckDBPrimitives() {
 	})
 
 	// isClosed — Check if database is closed
-	duckDBClass.AddMethod0(vm.Selectors, "isClosed", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	duckDBClass.AddMethod0(vm.Selectors, "isClosed", func(v *VM, recv Value) Value {
 		dbObj := v.getDuckDB(recv)
 		if dbObj == nil {
 			return True
@@ -171,8 +165,7 @@ func (vm *VM) registerDuckDBPrimitives() {
 	})
 
 	// appender: tableName — Create an appender for bulk inserts
-	duckDBClass.AddMethod1(vm.Selectors, "appender:", func(vmPtr interface{}, recv Value, tableVal Value) Value {
-		v := vmPtr.(*VM)
+	duckDBClass.AddMethod1(vm.Selectors, "appender:", func(v *VM, recv Value, tableVal Value) Value {
 		dbObj := v.getDuckDB(recv)
 		if dbObj == nil {
 			return v.newFailureResult("appender: receiver is not a DuckDatabase")
@@ -216,8 +209,7 @@ func (vm *VM) registerDuckDBPrimitives() {
 	// -----------------------------------------------------------------------
 
 	// appendRow: anArray — Append a row of values
-	appenderClass.AddMethod1(vm.Selectors, "appendRow:", func(vmPtr interface{}, recv Value, rowVal Value) Value {
-		v := vmPtr.(*VM)
+	appenderClass.AddMethod1(vm.Selectors, "appendRow:", func(v *VM, recv Value, rowVal Value) Value {
 		appObj := v.getDuckAppender(recv)
 		if appObj == nil {
 			return v.newFailureResult("appendRow: receiver is not a DuckAppender")
@@ -244,8 +236,7 @@ func (vm *VM) registerDuckDBPrimitives() {
 	})
 
 	// flush — Flush buffered rows to the table
-	appenderClass.AddMethod0(vm.Selectors, "flush", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	appenderClass.AddMethod0(vm.Selectors, "flush", func(v *VM, recv Value) Value {
 		appObj := v.getDuckAppender(recv)
 		if appObj == nil {
 			return v.newFailureResult("flush: receiver is not a DuckAppender")
@@ -266,8 +257,7 @@ func (vm *VM) registerDuckDBPrimitives() {
 	})
 
 	// close — Close the appender (flushes remaining rows)
-	appenderClass.AddMethod0(vm.Selectors, "close", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	appenderClass.AddMethod0(vm.Selectors, "close", func(v *VM, recv Value) Value {
 		appObj := v.getDuckAppender(recv)
 		if appObj == nil {
 			return v.newFailureResult("close: receiver is not a DuckAppender")
@@ -290,8 +280,7 @@ func (vm *VM) registerDuckDBPrimitives() {
 	})
 
 	// isClosed — Check if appender is closed
-	appenderClass.AddMethod0(vm.Selectors, "isClosed", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	appenderClass.AddMethod0(vm.Selectors, "isClosed", func(v *VM, recv Value) Value {
 		appObj := v.getDuckAppender(recv)
 		if appObj == nil {
 			return True

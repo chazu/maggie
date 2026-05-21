@@ -8,8 +8,7 @@ func (vm *VM) registerSymbolPrimitives() {
 	c := vm.SymbolClass
 
 	// asString - convert symbol to string (returns actual string)
-	c.AddMethod0(vm.Selectors, "asString", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod0(vm.Selectors, "asString", func(v *VM, recv Value) Value {
 		if recv.IsSymbol() {
 			name := v.Symbols.Name(recv.SymbolID())
 			return v.registry.NewStringValue(name)
@@ -18,8 +17,7 @@ func (vm *VM) registerSymbolPrimitives() {
 	})
 
 	// primAsString - same as asString, for compatibility with Symbol.mag
-	c.AddMethod0(vm.Selectors, "primAsString", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod0(vm.Selectors, "primAsString", func(v *VM, recv Value) Value {
 		if recv.IsSymbol() {
 			name := v.Symbols.Name(recv.SymbolID())
 			return v.registry.NewStringValue(name)
@@ -28,7 +26,7 @@ func (vm *VM) registerSymbolPrimitives() {
 	})
 
 	// = - symbol equality (identity since symbols are interned)
-	c.AddMethod1(vm.Selectors, "=", func(_ interface{}, recv Value, arg Value) Value {
+	c.AddMethod1(vm.Selectors, "=", func(_ *VM, recv Value, arg Value) Value {
 		if recv == arg {
 			return True
 		}
@@ -36,7 +34,7 @@ func (vm *VM) registerSymbolPrimitives() {
 	})
 
 	// hash - symbol hash (use symbol ID)
-	c.AddMethod0(vm.Selectors, "hash", func(_ interface{}, recv Value) Value {
+	c.AddMethod0(vm.Selectors, "hash", func(_ *VM, recv Value) Value {
 		if recv.IsSymbol() {
 			return FromSmallInt(int64(recv.SymbolID()))
 		}
@@ -44,8 +42,7 @@ func (vm *VM) registerSymbolPrimitives() {
 	})
 
 	// size - length of symbol name
-	c.AddMethod0(vm.Selectors, "size", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod0(vm.Selectors, "size", func(v *VM, recv Value) Value {
 		if recv.IsSymbol() {
 			name := v.Symbols.Name(recv.SymbolID())
 			return FromSmallInt(int64(len(name)))
@@ -54,7 +51,7 @@ func (vm *VM) registerSymbolPrimitives() {
 	})
 
 	// asSymbol - return self
-	c.AddMethod0(vm.Selectors, "asSymbol", func(_ interface{}, recv Value) Value {
+	c.AddMethod0(vm.Selectors, "asSymbol", func(_ *VM, recv Value) Value {
 		return recv
 	})
 }

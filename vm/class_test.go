@@ -245,7 +245,7 @@ func TestAddMethod(t *testing.T) {
 	point := NewClass("Point", nil)
 
 	// Add a method
-	point.AddMethod0(selectors, "x", func(_ interface{}, recv Value) Value {
+	point.AddMethod0(selectors, "x", func(_ *VM, recv Value) Value {
 		return FromSmallInt(42)
 	})
 
@@ -266,7 +266,7 @@ func TestAddMethodWithArgs(t *testing.T) {
 	selectors := NewSelectorTable()
 	point := NewClass("Point", nil)
 
-	point.AddMethod2(selectors, "at:put:", func(_ interface{}, recv Value, key, val Value) Value {
+	point.AddMethod2(selectors, "at:put:", func(_ *VM, recv Value, key, val Value) Value {
 		return val // Return the value for testing
 	})
 
@@ -286,7 +286,7 @@ func TestHasMethod(t *testing.T) {
 	object := NewClass("Object", nil)
 	point := NewClass("Point", object)
 
-	object.AddMethod0(selectors, "class", func(_ interface{}, recv Value) Value {
+	object.AddMethod0(selectors, "class", func(_ *VM, recv Value) Value {
 		return Nil
 	})
 
@@ -309,7 +309,7 @@ func TestMethodInheritance(t *testing.T) {
 	colorPoint := NewClass("ColorPoint", point)
 
 	// Add method on Object
-	object.AddMethod0(selectors, "isNil", func(_ interface{}, recv Value) Value {
+	object.AddMethod0(selectors, "isNil", func(_ *VM, recv Value) Value {
 		return False
 	})
 
@@ -328,12 +328,12 @@ func TestMethodOverride(t *testing.T) {
 	point := NewClass("Point", object)
 
 	// Add method on Object
-	object.AddMethod0(selectors, "name", func(_ interface{}, recv Value) Value {
+	object.AddMethod0(selectors, "name", func(_ *VM, recv Value) Value {
 		return FromSmallInt(1)
 	})
 
 	// Override on Point
-	point.AddMethod0(selectors, "name", func(_ interface{}, recv Value) Value {
+	point.AddMethod0(selectors, "name", func(_ *VM, recv Value) Value {
 		return FromSmallInt(2)
 	})
 
@@ -554,7 +554,7 @@ func BenchmarkClassTableLookup(b *testing.B) {
 func BenchmarkMethodLookup(b *testing.B) {
 	selectors := NewSelectorTable()
 	object := NewClass("Object", nil)
-	object.AddMethod0(selectors, "class", func(_ interface{}, recv Value) Value {
+	object.AddMethod0(selectors, "class", func(_ *VM, recv Value) Value {
 		return Nil
 	})
 
@@ -938,7 +938,7 @@ func TestClassAllCompiledMethods(t *testing.T) {
 	point.VTable.AddMethod(method2.Selector(), method2)
 
 	// Add a primitive method (not compiled)
-	point.AddMethod0(selectors, "primMethod", func(_ interface{}, recv Value) Value {
+	point.AddMethod0(selectors, "primMethod", func(_ *VM, recv Value) Value {
 		return Nil
 	})
 
@@ -956,7 +956,7 @@ func TestClassAllMethodNames(t *testing.T) {
 	method.SetSelector(selectors.Intern("x"))
 	point.VTable.AddMethod(method.Selector(), method)
 
-	point.AddMethod0(selectors, "primMethod", func(_ interface{}, recv Value) Value {
+	point.AddMethod0(selectors, "primMethod", func(_ *VM, recv Value) Value {
 		return Nil
 	})
 

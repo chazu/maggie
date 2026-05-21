@@ -209,8 +209,7 @@ func (vm *VM) registerExceptionPrimitives() {
 	ex := vm.ExceptionClass
 
 	// Exception class>>signal - create and signal a new exception
-	ex.AddClassMethod0(vm.Selectors, "signal", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	ex.AddClassMethod0(vm.Selectors, "signal", func(v *VM, recv Value) Value {
 		// Get the class from the receiver (class-side)
 		exClass := v.classFromValue(recv)
 		if exClass == nil {
@@ -220,8 +219,7 @@ func (vm *VM) registerExceptionPrimitives() {
 	})
 
 	// Exception class>>signal: messageText - create and signal with message
-	ex.AddClassMethod1(vm.Selectors, "signal:", func(vmPtr interface{}, recv Value, msg Value) Value {
-		v := vmPtr.(*VM)
+	ex.AddClassMethod1(vm.Selectors, "signal:", func(v *VM, recv Value, msg Value) Value {
 		exClass := v.classFromValue(recv)
 		if exClass == nil {
 			exClass = v.ExceptionClass
@@ -230,8 +228,7 @@ func (vm *VM) registerExceptionPrimitives() {
 	})
 
 	// Exception>>signal - signal this exception instance
-	ex.AddMethod0(vm.Selectors, "signal", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	ex.AddMethod0(vm.Selectors, "signal", func(v *VM, recv Value) Value {
 		exObj := v.registry.GetException(recv.ExceptionID())
 		if exObj == nil {
 			// Not a registered exception, create one
@@ -241,8 +238,7 @@ func (vm *VM) registerExceptionPrimitives() {
 	})
 
 	// Exception>>messageText - return the exception message
-	ex.AddMethod0(vm.Selectors, "messageText", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	ex.AddMethod0(vm.Selectors, "messageText", func(v *VM, recv Value) Value {
 		exObj := v.registry.GetException(recv.ExceptionID())
 		if exObj == nil {
 			return Nil
@@ -251,8 +247,7 @@ func (vm *VM) registerExceptionPrimitives() {
 	})
 
 	// Exception>>messageText: - set the exception message
-	ex.AddMethod1(vm.Selectors, "messageText:", func(vmPtr interface{}, recv Value, msg Value) Value {
-		v := vmPtr.(*VM)
+	ex.AddMethod1(vm.Selectors, "messageText:", func(v *VM, recv Value, msg Value) Value {
 		exObj := v.registry.GetException(recv.ExceptionID())
 		if exObj != nil {
 			exObj.MessageText = msg
@@ -261,8 +256,7 @@ func (vm *VM) registerExceptionPrimitives() {
 	})
 
 	// Exception>>tag - return the exception tag
-	ex.AddMethod0(vm.Selectors, "tag", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	ex.AddMethod0(vm.Selectors, "tag", func(v *VM, recv Value) Value {
 		exObj := v.registry.GetException(recv.ExceptionID())
 		if exObj == nil {
 			return Nil
@@ -271,8 +265,7 @@ func (vm *VM) registerExceptionPrimitives() {
 	})
 
 	// Exception>>tag: - set the exception tag
-	ex.AddMethod1(vm.Selectors, "tag:", func(vmPtr interface{}, recv Value, tag Value) Value {
-		v := vmPtr.(*VM)
+	ex.AddMethod1(vm.Selectors, "tag:", func(v *VM, recv Value, tag Value) Value {
 		exObj := v.registry.GetException(recv.ExceptionID())
 		if exObj != nil {
 			exObj.Tag = tag
@@ -281,8 +274,7 @@ func (vm *VM) registerExceptionPrimitives() {
 	})
 
 	// Exception>>resume - resume execution after the signal point
-	ex.AddMethod0(vm.Selectors, "resume", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	ex.AddMethod0(vm.Selectors, "resume", func(v *VM, recv Value) Value {
 		exObj := v.registry.GetException(recv.ExceptionID())
 		if exObj == nil || !exObj.Resumable {
 			return Nil
@@ -293,8 +285,7 @@ func (vm *VM) registerExceptionPrimitives() {
 	})
 
 	// Exception>>resume: value - resume with a specific value
-	ex.AddMethod1(vm.Selectors, "resume:", func(vmPtr interface{}, recv Value, val Value) Value {
-		v := vmPtr.(*VM)
+	ex.AddMethod1(vm.Selectors, "resume:", func(v *VM, recv Value, val Value) Value {
 		exObj := v.registry.GetException(recv.ExceptionID())
 		if exObj == nil || !exObj.Resumable {
 			return Nil
@@ -305,8 +296,7 @@ func (vm *VM) registerExceptionPrimitives() {
 	})
 
 	// Exception>>pass - pass the exception to the next handler
-	ex.AddMethod0(vm.Selectors, "pass", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	ex.AddMethod0(vm.Selectors, "pass", func(v *VM, recv Value) Value {
 		exObj := v.registry.GetException(recv.ExceptionID())
 		if exObj == nil {
 			return Nil
@@ -318,15 +308,14 @@ func (vm *VM) registerExceptionPrimitives() {
 	})
 
 	// Exception>>retry - retry the protected block
-	ex.AddMethod0(vm.Selectors, "retry", func(_ interface{}, recv Value) Value {
+	ex.AddMethod0(vm.Selectors, "retry", func(_ *VM, recv Value) Value {
 		// Panic with RetryException; the enclosing evaluateBlockWithHandler
 		// defer will catch this and re-execute the protected block.
 		panic(RetryException{})
 	})
 
 	// Exception>>return - return nil from the protected block
-	ex.AddMethod0(vm.Selectors, "return", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	ex.AddMethod0(vm.Selectors, "return", func(v *VM, recv Value) Value {
 		exObj := v.registry.GetException(recv.ExceptionID())
 		if exObj != nil {
 			exObj.Handled = true
@@ -335,8 +324,7 @@ func (vm *VM) registerExceptionPrimitives() {
 	})
 
 	// Exception>>return: value - return a specific value from the protected block
-	ex.AddMethod1(vm.Selectors, "return:", func(vmPtr interface{}, recv Value, val Value) Value {
-		v := vmPtr.(*VM)
+	ex.AddMethod1(vm.Selectors, "return:", func(v *VM, recv Value, val Value) Value {
 		exObj := v.registry.GetException(recv.ExceptionID())
 		if exObj != nil {
 			exObj.Handled = true
@@ -345,8 +333,7 @@ func (vm *VM) registerExceptionPrimitives() {
 	})
 
 	// Exception>>isResumable
-	ex.AddMethod0(vm.Selectors, "isResumable", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	ex.AddMethod0(vm.Selectors, "isResumable", func(v *VM, recv Value) Value {
 		exObj := v.registry.GetException(recv.ExceptionID())
 		if exObj == nil {
 			return False
@@ -355,8 +342,7 @@ func (vm *VM) registerExceptionPrimitives() {
 	})
 
 	// Exception>>description - return a description string
-	ex.AddMethod0(vm.Selectors, "description", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	ex.AddMethod0(vm.Selectors, "description", func(v *VM, recv Value) Value {
 		exObj := v.registry.GetException(recv.ExceptionID())
 		if exObj == nil {
 			return v.registry.NewStringValue("an Exception")
@@ -373,8 +359,7 @@ func (vm *VM) registerExceptionPrimitives() {
 	})
 
 	// Exception>>printString
-	ex.AddMethod0(vm.Selectors, "printString", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	ex.AddMethod0(vm.Selectors, "printString", func(v *VM, recv Value) Value {
 		// Delegate to description
 		return v.Send(recv, "description", nil)
 	})
@@ -382,8 +367,7 @@ func (vm *VM) registerExceptionPrimitives() {
 	// Exception>>stackTrace - return the captured stack trace as a string.
 	// The trace is captured at signal time (not at the moment this primitive
 	// is invoked), so it reflects where the exception was raised.
-	ex.AddMethod0(vm.Selectors, "stackTrace", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	ex.AddMethod0(vm.Selectors, "stackTrace", func(v *VM, recv Value) Value {
 		exObj := v.registry.GetException(recv.ExceptionID())
 		if exObj == nil || len(exObj.CapturedFrames) == 0 {
 			return v.registry.NewStringValue("  (no captured stack)")
@@ -392,8 +376,7 @@ func (vm *VM) registerExceptionPrimitives() {
 	})
 
 	// Exception>>printStackTrace - convenience: description + newline + trace.
-	ex.AddMethod0(vm.Selectors, "printStackTrace", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	ex.AddMethod0(vm.Selectors, "printStackTrace", func(v *VM, recv Value) Value {
 		desc := v.Send(recv, "description", nil)
 		descStr := ""
 		if IsStringValue(desc) {
@@ -416,8 +399,7 @@ func (vm *VM) registerExceptionBlockPrimitives() {
 	b := vm.BlockClass
 
 	// Block>>on:do: - evaluate block with exception handler
-	onDoFn := func(vmPtr interface{}, recv Value, exceptionClassVal Value, handlerBlock Value) Value {
-		v := vmPtr.(*VM)
+	onDoFn := func(v *VM, recv Value, exceptionClassVal Value, handlerBlock Value) Value {
 
 		// Get the exception class
 		exceptionClass := v.classFromValue(exceptionClassVal)
@@ -432,14 +414,12 @@ func (vm *VM) registerExceptionBlockPrimitives() {
 	b.AddMethod2(vm.Selectors, "primOn:do:", onDoFn)
 
 	// Block>>ensure: - evaluate block, then always evaluate ensureBlock
-	b.AddMethod1(vm.Selectors, "ensure:", func(vmPtr interface{}, recv Value, ensureBlock Value) Value {
-		v := vmPtr.(*VM)
+	b.AddMethod1(vm.Selectors, "ensure:", func(v *VM, recv Value, ensureBlock Value) Value {
 		return v.evaluateBlockWithEnsure(recv, ensureBlock)
 	})
 
 	// Block>>ifCurtailed: - evaluate block, run curtailBlock only if exception occurs
-	ifCurtailedFn := func(vmPtr interface{}, recv Value, curtailBlock Value) Value {
-		v := vmPtr.(*VM)
+	ifCurtailedFn := func(v *VM, recv Value, curtailBlock Value) Value {
 		return v.evaluateBlockIfCurtailed(recv, curtailBlock)
 	}
 	b.AddMethod1(vm.Selectors, "ifCurtailed:", ifCurtailedFn)

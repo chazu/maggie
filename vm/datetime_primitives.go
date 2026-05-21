@@ -20,15 +20,13 @@ func (vm *VM) registerDateTimePrimitives() {
 	// -------------------------------------------------------------------
 
 	// DateTime now — current time
-	dtClass.AddClassMethod0(vm.Selectors, "now", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	dtClass.AddClassMethod0(vm.Selectors, "now", func(v *VM, recv Value) Value {
 		now := time.Now()
 		return v.wrapDateTime(&now)
 	})
 
 	// DateTime parse: str format: fmt — parse a time string
-	dtClass.AddClassMethod2(vm.Selectors, "parse:format:", func(vmPtr interface{}, recv Value, strVal Value, fmtVal Value) Value {
-		v := vmPtr.(*VM)
+	dtClass.AddClassMethod2(vm.Selectors, "parse:format:", func(v *VM, recv Value, strVal Value, fmtVal Value) Value {
 		str := v.valueToString(strVal)
 		format := v.valueToString(fmtVal)
 		if str == "" || format == "" {
@@ -42,8 +40,7 @@ func (vm *VM) registerDateTimePrimitives() {
 	})
 
 	// DateTime fromEpoch: seconds — from Unix epoch seconds
-	dtClass.AddClassMethod1(vm.Selectors, "fromEpoch:", func(vmPtr interface{}, recv Value, epochVal Value) Value {
-		v := vmPtr.(*VM)
+	dtClass.AddClassMethod1(vm.Selectors, "fromEpoch:", func(v *VM, recv Value, epochVal Value) Value {
 		var secs int64
 		if epochVal.IsSmallInt() {
 			secs = epochVal.SmallInt()
@@ -61,8 +58,8 @@ func (vm *VM) registerDateTimePrimitives() {
 	// -------------------------------------------------------------------
 
 	// year
-	dtClass.AddMethod0(vm.Selectors, "year", func(vmPtr interface{}, recv Value) Value {
-		t := vmPtr.(*VM).unwrapDateTime(recv)
+	dtClass.AddMethod0(vm.Selectors, "year", func(v *VM, recv Value) Value {
+		t := v.unwrapDateTime(recv)
 		if t == nil {
 			return Nil
 		}
@@ -70,8 +67,8 @@ func (vm *VM) registerDateTimePrimitives() {
 	})
 
 	// month (1-12)
-	dtClass.AddMethod0(vm.Selectors, "month", func(vmPtr interface{}, recv Value) Value {
-		t := vmPtr.(*VM).unwrapDateTime(recv)
+	dtClass.AddMethod0(vm.Selectors, "month", func(v *VM, recv Value) Value {
+		t := v.unwrapDateTime(recv)
 		if t == nil {
 			return Nil
 		}
@@ -79,8 +76,8 @@ func (vm *VM) registerDateTimePrimitives() {
 	})
 
 	// day (1-31)
-	dtClass.AddMethod0(vm.Selectors, "day", func(vmPtr interface{}, recv Value) Value {
-		t := vmPtr.(*VM).unwrapDateTime(recv)
+	dtClass.AddMethod0(vm.Selectors, "day", func(v *VM, recv Value) Value {
+		t := v.unwrapDateTime(recv)
 		if t == nil {
 			return Nil
 		}
@@ -88,8 +85,8 @@ func (vm *VM) registerDateTimePrimitives() {
 	})
 
 	// hour (0-23)
-	dtClass.AddMethod0(vm.Selectors, "hour", func(vmPtr interface{}, recv Value) Value {
-		t := vmPtr.(*VM).unwrapDateTime(recv)
+	dtClass.AddMethod0(vm.Selectors, "hour", func(v *VM, recv Value) Value {
+		t := v.unwrapDateTime(recv)
 		if t == nil {
 			return Nil
 		}
@@ -97,8 +94,8 @@ func (vm *VM) registerDateTimePrimitives() {
 	})
 
 	// minute (0-59)
-	dtClass.AddMethod0(vm.Selectors, "minute", func(vmPtr interface{}, recv Value) Value {
-		t := vmPtr.(*VM).unwrapDateTime(recv)
+	dtClass.AddMethod0(vm.Selectors, "minute", func(v *VM, recv Value) Value {
+		t := v.unwrapDateTime(recv)
 		if t == nil {
 			return Nil
 		}
@@ -106,8 +103,8 @@ func (vm *VM) registerDateTimePrimitives() {
 	})
 
 	// second (0-59)
-	dtClass.AddMethod0(vm.Selectors, "second", func(vmPtr interface{}, recv Value) Value {
-		t := vmPtr.(*VM).unwrapDateTime(recv)
+	dtClass.AddMethod0(vm.Selectors, "second", func(v *VM, recv Value) Value {
+		t := v.unwrapDateTime(recv)
 		if t == nil {
 			return Nil
 		}
@@ -115,8 +112,7 @@ func (vm *VM) registerDateTimePrimitives() {
 	})
 
 	// format: layoutStr — format using Go layout string
-	dtClass.AddMethod1(vm.Selectors, "format:", func(vmPtr interface{}, recv Value, fmtVal Value) Value {
-		v := vmPtr.(*VM)
+	dtClass.AddMethod1(vm.Selectors, "format:", func(v *VM, recv Value, fmtVal Value) Value {
 		t := v.unwrapDateTime(recv)
 		if t == nil {
 			return Nil
@@ -129,8 +125,8 @@ func (vm *VM) registerDateTimePrimitives() {
 	})
 
 	// epochSeconds — Unix timestamp in seconds
-	dtClass.AddMethod0(vm.Selectors, "epochSeconds", func(vmPtr interface{}, recv Value) Value {
-		t := vmPtr.(*VM).unwrapDateTime(recv)
+	dtClass.AddMethod0(vm.Selectors, "epochSeconds", func(v *VM, recv Value) Value {
+		t := v.unwrapDateTime(recv)
 		if t == nil {
 			return Nil
 		}
@@ -138,8 +134,8 @@ func (vm *VM) registerDateTimePrimitives() {
 	})
 
 	// epochMillis — Unix timestamp in milliseconds
-	dtClass.AddMethod0(vm.Selectors, "epochMillis", func(vmPtr interface{}, recv Value) Value {
-		t := vmPtr.(*VM).unwrapDateTime(recv)
+	dtClass.AddMethod0(vm.Selectors, "epochMillis", func(v *VM, recv Value) Value {
+		t := v.unwrapDateTime(recv)
 		if t == nil {
 			return Nil
 		}
@@ -147,8 +143,7 @@ func (vm *VM) registerDateTimePrimitives() {
 	})
 
 	// addSeconds: n — return new DateTime offset by n seconds
-	dtClass.AddMethod1(vm.Selectors, "addSeconds:", func(vmPtr interface{}, recv Value, nVal Value) Value {
-		v := vmPtr.(*VM)
+	dtClass.AddMethod1(vm.Selectors, "addSeconds:", func(v *VM, recv Value, nVal Value) Value {
 		t := v.unwrapDateTime(recv)
 		if t == nil {
 			return Nil
@@ -159,8 +154,7 @@ func (vm *VM) registerDateTimePrimitives() {
 	})
 
 	// addMinutes: n — return new DateTime offset by n minutes
-	dtClass.AddMethod1(vm.Selectors, "addMinutes:", func(vmPtr interface{}, recv Value, nVal Value) Value {
-		v := vmPtr.(*VM)
+	dtClass.AddMethod1(vm.Selectors, "addMinutes:", func(v *VM, recv Value, nVal Value) Value {
 		t := v.unwrapDateTime(recv)
 		if t == nil {
 			return Nil
@@ -171,8 +165,7 @@ func (vm *VM) registerDateTimePrimitives() {
 	})
 
 	// addHours: n — return new DateTime offset by n hours
-	dtClass.AddMethod1(vm.Selectors, "addHours:", func(vmPtr interface{}, recv Value, nVal Value) Value {
-		v := vmPtr.(*VM)
+	dtClass.AddMethod1(vm.Selectors, "addHours:", func(v *VM, recv Value, nVal Value) Value {
 		t := v.unwrapDateTime(recv)
 		if t == nil {
 			return Nil
@@ -183,8 +176,7 @@ func (vm *VM) registerDateTimePrimitives() {
 	})
 
 	// addDays: n — return new DateTime offset by n days
-	dtClass.AddMethod1(vm.Selectors, "addDays:", func(vmPtr interface{}, recv Value, nVal Value) Value {
-		v := vmPtr.(*VM)
+	dtClass.AddMethod1(vm.Selectors, "addDays:", func(v *VM, recv Value, nVal Value) Value {
 		t := v.unwrapDateTime(recv)
 		if t == nil {
 			return Nil
@@ -195,8 +187,7 @@ func (vm *VM) registerDateTimePrimitives() {
 	})
 
 	// differenceFrom: other — returns difference in seconds (self - other)
-	dtClass.AddMethod1(vm.Selectors, "differenceFrom:", func(vmPtr interface{}, recv Value, otherVal Value) Value {
-		v := vmPtr.(*VM)
+	dtClass.AddMethod1(vm.Selectors, "differenceFrom:", func(v *VM, recv Value, otherVal Value) Value {
 		t := v.unwrapDateTime(recv)
 		other := v.unwrapDateTime(otherVal)
 		if t == nil || other == nil {
@@ -207,8 +198,7 @@ func (vm *VM) registerDateTimePrimitives() {
 	})
 
 	// printString — ISO 8601 representation
-	dtClass.AddMethod0(vm.Selectors, "printString", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	dtClass.AddMethod0(vm.Selectors, "printString", func(v *VM, recv Value) Value {
 		t := v.unwrapDateTime(recv)
 		if t == nil {
 			return v.registry.NewStringValue("a DateTime")

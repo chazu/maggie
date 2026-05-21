@@ -34,8 +34,7 @@ func (vm *VM) registerRegexPrimitives() {
 
 func (vm *VM) registerRegexClassMethods(regexClass *Class) {
 	// Regex compile: pattern — compile a regex pattern, returns Success(Regex) or Failure
-	regexClass.AddClassMethod1(vm.Selectors, "compile:", func(vmPtr interface{}, recv Value, patternVal Value) Value {
-		v := vmPtr.(*VM)
+	regexClass.AddClassMethod1(vm.Selectors, "compile:", func(v *VM, recv Value, patternVal Value) Value {
 		pattern := v.valueToString(patternVal)
 		if pattern == "" {
 			return v.newFailureResult("Regex compile: requires a non-empty pattern string")
@@ -74,8 +73,7 @@ func (vm *VM) registerRegexInstanceMethods(regexClass *Class) {
 	}
 
 	// matches: string — test if string matches the pattern
-	regexClass.AddMethod1(vm.Selectors, "matches:", func(vmPtr interface{}, recv Value, strVal Value) Value {
-		v := vmPtr.(*VM)
+	regexClass.AddMethod1(vm.Selectors, "matches:", func(v *VM, recv Value, strVal Value) Value {
 		ro := getRegex(v, recv)
 		if ro == nil {
 			return False
@@ -88,8 +86,7 @@ func (vm *VM) registerRegexInstanceMethods(regexClass *Class) {
 	})
 
 	// findIn: string — find first match, returns string or nil
-	regexClass.AddMethod1(vm.Selectors, "findIn:", func(vmPtr interface{}, recv Value, strVal Value) Value {
-		v := vmPtr.(*VM)
+	regexClass.AddMethod1(vm.Selectors, "findIn:", func(v *VM, recv Value, strVal Value) Value {
 		ro := getRegex(v, recv)
 		if ro == nil {
 			return Nil
@@ -103,8 +100,7 @@ func (vm *VM) registerRegexInstanceMethods(regexClass *Class) {
 	})
 
 	// findAllIn: string — find all matches, returns Array of strings
-	regexClass.AddMethod1(vm.Selectors, "findAllIn:", func(vmPtr interface{}, recv Value, strVal Value) Value {
-		v := vmPtr.(*VM)
+	regexClass.AddMethod1(vm.Selectors, "findAllIn:", func(v *VM, recv Value, strVal Value) Value {
 		ro := getRegex(v, recv)
 		if ro == nil {
 			return v.NewArrayWithElements(nil)
@@ -122,8 +118,7 @@ func (vm *VM) registerRegexInstanceMethods(regexClass *Class) {
 	})
 
 	// replaceIn:with: string replacement — replace all matches
-	regexClass.AddMethod2(vm.Selectors, "replaceIn:with:", func(vmPtr interface{}, recv Value, strVal Value, replVal Value) Value {
-		v := vmPtr.(*VM)
+	regexClass.AddMethod2(vm.Selectors, "replaceIn:with:", func(v *VM, recv Value, strVal Value, replVal Value) Value {
 		ro := getRegex(v, recv)
 		if ro == nil {
 			return strVal
@@ -135,8 +130,7 @@ func (vm *VM) registerRegexInstanceMethods(regexClass *Class) {
 	})
 
 	// split: string — split string by pattern, returns Array of strings
-	regexClass.AddMethod1(vm.Selectors, "split:", func(vmPtr interface{}, recv Value, strVal Value) Value {
-		v := vmPtr.(*VM)
+	regexClass.AddMethod1(vm.Selectors, "split:", func(v *VM, recv Value, strVal Value) Value {
 		ro := getRegex(v, recv)
 		if ro == nil {
 			return v.NewArrayWithElements(nil)
@@ -151,8 +145,7 @@ func (vm *VM) registerRegexInstanceMethods(regexClass *Class) {
 	})
 
 	// pattern — return the original pattern string
-	regexClass.AddMethod0(vm.Selectors, "pattern", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	regexClass.AddMethod0(vm.Selectors, "pattern", func(v *VM, recv Value) Value {
 		ro := getRegex(v, recv)
 		if ro == nil {
 			return Nil
@@ -161,8 +154,7 @@ func (vm *VM) registerRegexInstanceMethods(regexClass *Class) {
 	})
 
 	// printString — human-readable representation
-	regexClass.AddMethod0(vm.Selectors, "printString", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	regexClass.AddMethod0(vm.Selectors, "printString", func(v *VM, recv Value) Value {
 		ro := getRegex(v, recv)
 		if ro == nil {
 			return v.registry.NewStringValue("a Regex")
@@ -179,8 +171,7 @@ func (vm *VM) registerStringRegexMethods() {
 	c := vm.StringClass
 
 	// matchesRegex: pattern — test if string matches a regex pattern string
-	c.AddMethod1(vm.Selectors, "matchesRegex:", func(vmPtr interface{}, recv Value, patternVal Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod1(vm.Selectors, "matchesRegex:", func(v *VM, recv Value, patternVal Value) Value {
 		s := v.valueToString(recv)
 		pattern := v.valueToString(patternVal)
 		if pattern == "" {
@@ -197,8 +188,7 @@ func (vm *VM) registerStringRegexMethods() {
 	})
 
 	// splitRegex: pattern — split string by regex pattern
-	c.AddMethod1(vm.Selectors, "splitRegex:", func(vmPtr interface{}, recv Value, patternVal Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod1(vm.Selectors, "splitRegex:", func(v *VM, recv Value, patternVal Value) Value {
 		s := v.valueToString(recv)
 		pattern := v.valueToString(patternVal)
 		if pattern == "" {

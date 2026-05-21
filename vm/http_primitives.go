@@ -239,8 +239,7 @@ func (vm *VM) registerHttpPrimitives() {
 	vm.symbolDispatch.Register(httpRequestMarker, &SymbolTypeEntry{Class: httpRequestClass})
 	vm.symbolDispatch.Register(httpResponseMarker, &SymbolTypeEntry{Class: httpResponseClass})
 
-	httpServerClass.AddClassMethod1(vm.Selectors, "new:", func(vmPtr interface{}, recv Value, portVal Value) Value {
-		v := vmPtr.(*VM)
+	httpServerClass.AddClassMethod1(vm.Selectors, "new:", func(v *VM, recv Value, portVal Value) Value {
 		if !portVal.IsSmallInt() {
 			return Nil
 		}
@@ -259,8 +258,7 @@ func (vm *VM) registerHttpPrimitives() {
 		return v.vmRegisterHttpServer(srv)
 	})
 
-	httpServerClass.AddMethod2(vm.Selectors, "serveStatic:from:", func(vmPtr interface{}, recv Value, urlPathVal, dirPathVal Value) Value {
-		v := vmPtr.(*VM)
+	httpServerClass.AddMethod2(vm.Selectors, "serveStatic:from:", func(v *VM, recv Value, urlPathVal, dirPathVal Value) Value {
 		srv := v.vmGetHttpServer(recv)
 		if srv == nil {
 			return Nil
@@ -281,8 +279,7 @@ func (vm *VM) registerHttpPrimitives() {
 	// sseRoute:handler: — register an SSE endpoint. The handler block receives
 	// [:conn :req |] and runs briefly on the dispatch queue to let Maggie store
 	// the connection. The Go-side event loop then streams events to the client.
-	httpServerClass.AddMethod2(vm.Selectors, "sseRoute:handler:", func(vmPtr interface{}, recv Value, pathVal, handlerBlock Value) Value {
-		v := vmPtr.(*VM)
+	httpServerClass.AddMethod2(vm.Selectors, "sseRoute:handler:", func(v *VM, recv Value, pathVal, handlerBlock Value) Value {
 		srv := v.vmGetHttpServer(recv)
 		if srv == nil {
 			return Nil
@@ -363,8 +360,7 @@ func (vm *VM) registerHttpPrimitives() {
 	// handler block in a forked goroutine (not the dispatch queue). Use for handlers
 	// that block inside Maggie (e.g. long-poll sleep loops) so they don't stall every
 	// other request waiting for the single dispatch goroutine to free up.
-	httpServerClass.AddMethod3(vm.Selectors, "asyncRoute:method:handler:", func(vmPtr interface{}, recv Value, pathVal, methodVal, handlerBlock Value) Value {
-		v := vmPtr.(*VM)
+	httpServerClass.AddMethod3(vm.Selectors, "asyncRoute:method:handler:", func(v *VM, recv Value, pathVal, methodVal, handlerBlock Value) Value {
 		srv := v.vmGetHttpServer(recv)
 		if srv == nil {
 			return Nil
@@ -427,8 +423,7 @@ func (vm *VM) registerHttpPrimitives() {
 		return recv
 	})
 
-	httpServerClass.AddMethod3(vm.Selectors, "route:method:handler:", func(vmPtr interface{}, recv Value, pathVal, methodVal, handlerBlock Value) Value {
-		v := vmPtr.(*VM)
+	httpServerClass.AddMethod3(vm.Selectors, "route:method:handler:", func(v *VM, recv Value, pathVal, methodVal, handlerBlock Value) Value {
 		srv := v.vmGetHttpServer(recv)
 		if srv == nil {
 			return Nil
@@ -484,8 +479,7 @@ func (vm *VM) registerHttpPrimitives() {
 		return recv
 	})
 
-	httpServerClass.AddMethod0(vm.Selectors, "start", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	httpServerClass.AddMethod0(vm.Selectors, "start", func(v *VM, recv Value) Value {
 		srv := v.vmGetHttpServer(recv)
 		if srv == nil {
 			return Nil
@@ -508,8 +502,7 @@ func (vm *VM) registerHttpPrimitives() {
 		return recv
 	})
 
-	httpServerClass.AddMethod0(vm.Selectors, "stop", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	httpServerClass.AddMethod0(vm.Selectors, "stop", func(v *VM, recv Value) Value {
 		srv := v.vmGetHttpServer(recv)
 		if srv == nil {
 			return recv
@@ -527,8 +520,7 @@ func (vm *VM) registerHttpPrimitives() {
 		return recv
 	})
 
-	httpServerClass.AddMethod0(vm.Selectors, "port", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	httpServerClass.AddMethod0(vm.Selectors, "port", func(v *VM, recv Value) Value {
 		srv := v.vmGetHttpServer(recv)
 		if srv == nil {
 			return Nil
@@ -536,8 +528,7 @@ func (vm *VM) registerHttpPrimitives() {
 		return FromSmallInt(int64(srv.port))
 	})
 
-	httpServerClass.AddMethod0(vm.Selectors, "isRunning", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	httpServerClass.AddMethod0(vm.Selectors, "isRunning", func(v *VM, recv Value) Value {
 		srv := v.vmGetHttpServer(recv)
 		if srv == nil {
 			return False
@@ -548,8 +539,7 @@ func (vm *VM) registerHttpPrimitives() {
 		return False
 	})
 
-	httpRequestClass.AddMethod0(vm.Selectors, "body", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	httpRequestClass.AddMethod0(vm.Selectors, "body", func(v *VM, recv Value) Value {
 		req := v.vmGetHttpRequest(recv)
 		if req == nil {
 			return v.registry.NewStringValue("")
@@ -567,8 +557,7 @@ func (vm *VM) registerHttpPrimitives() {
 		return v.registry.NewStringValue(req.body)
 	})
 
-	httpRequestClass.AddMethod0(vm.Selectors, "path", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	httpRequestClass.AddMethod0(vm.Selectors, "path", func(v *VM, recv Value) Value {
 		req := v.vmGetHttpRequest(recv)
 		if req == nil {
 			return v.registry.NewStringValue("")
@@ -576,8 +565,7 @@ func (vm *VM) registerHttpPrimitives() {
 		return v.registry.NewStringValue(req.request.URL.Path)
 	})
 
-	httpRequestClass.AddMethod0(vm.Selectors, "method", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	httpRequestClass.AddMethod0(vm.Selectors, "method", func(v *VM, recv Value) Value {
 		req := v.vmGetHttpRequest(recv)
 		if req == nil {
 			return v.registry.NewStringValue("")
@@ -585,8 +573,7 @@ func (vm *VM) registerHttpPrimitives() {
 		return v.registry.NewStringValue(req.request.Method)
 	})
 
-	httpRequestClass.AddMethod1(vm.Selectors, "header:", func(vmPtr interface{}, recv Value, nameVal Value) Value {
-		v := vmPtr.(*VM)
+	httpRequestClass.AddMethod1(vm.Selectors, "header:", func(v *VM, recv Value, nameVal Value) Value {
 		req := v.vmGetHttpRequest(recv)
 		if req == nil {
 			return v.registry.NewStringValue("")
@@ -595,8 +582,7 @@ func (vm *VM) registerHttpPrimitives() {
 		return v.registry.NewStringValue(req.request.Header.Get(name))
 	})
 
-	httpRequestClass.AddMethod1(vm.Selectors, "queryParam:", func(vmPtr interface{}, recv Value, nameVal Value) Value {
-		v := vmPtr.(*VM)
+	httpRequestClass.AddMethod1(vm.Selectors, "queryParam:", func(v *VM, recv Value, nameVal Value) Value {
 		req := v.vmGetHttpRequest(recv)
 		if req == nil {
 			return v.registry.NewStringValue("")
@@ -605,8 +591,7 @@ func (vm *VM) registerHttpPrimitives() {
 		return v.registry.NewStringValue(req.request.URL.Query().Get(name))
 	})
 
-	httpResponseClass.AddClassMethod2(vm.Selectors, "new:body:", func(vmPtr interface{}, recv Value, statusVal, bodyVal Value) Value {
-		v := vmPtr.(*VM)
+	httpResponseClass.AddClassMethod2(vm.Selectors, "new:body:", func(v *VM, recv Value, statusVal, bodyVal Value) Value {
 		status := http.StatusOK
 		if statusVal.IsSmallInt() {
 			status = int(statusVal.SmallInt())
@@ -620,8 +605,7 @@ func (vm *VM) registerHttpPrimitives() {
 		return v.vmRegisterHttpResponse(resp)
 	})
 
-	httpResponseClass.AddMethod2(vm.Selectors, "header:value:", func(vmPtr interface{}, recv Value, nameVal, valueVal Value) Value {
-		v := vmPtr.(*VM)
+	httpResponseClass.AddMethod2(vm.Selectors, "header:value:", func(v *VM, recv Value, nameVal, valueVal Value) Value {
 		resp := v.vmGetHttpResponse(recv)
 		if resp == nil {
 			return recv
@@ -632,8 +616,7 @@ func (vm *VM) registerHttpPrimitives() {
 		return recv
 	})
 
-	httpResponseClass.AddMethod1(vm.Selectors, "contentType:", func(vmPtr interface{}, recv Value, mimeVal Value) Value {
-		v := vmPtr.(*VM)
+	httpResponseClass.AddMethod1(vm.Selectors, "contentType:", func(v *VM, recv Value, mimeVal Value) Value {
 		resp := v.vmGetHttpResponse(recv)
 		if resp == nil {
 			return recv
@@ -643,8 +626,7 @@ func (vm *VM) registerHttpPrimitives() {
 		return recv
 	})
 
-	httpResponseClass.AddMethod0(vm.Selectors, "status", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	httpResponseClass.AddMethod0(vm.Selectors, "status", func(v *VM, recv Value) Value {
 		resp := v.vmGetHttpResponse(recv)
 		if resp == nil {
 			return Nil
@@ -652,8 +634,7 @@ func (vm *VM) registerHttpPrimitives() {
 		return FromSmallInt(int64(resp.status))
 	})
 
-	httpResponseClass.AddMethod0(vm.Selectors, "body", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	httpResponseClass.AddMethod0(vm.Selectors, "body", func(v *VM, recv Value) Value {
 		resp := v.vmGetHttpResponse(recv)
 		if resp == nil {
 			return v.registry.NewStringValue("")
@@ -670,8 +651,7 @@ func (vm *VM) registerHttpPrimitives() {
 	vm.symbolDispatch.Register(httpClientMarker, &SymbolTypeEntry{Class: httpClientClass})
 
 	// HttpClient new — creates a new client with a 30s timeout
-	httpClientClass.AddClassMethod0(vm.Selectors, "new", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	httpClientClass.AddClassMethod0(vm.Selectors, "new", func(v *VM, recv Value) Value {
 		c := &HttpClientObject{
 			client: &http.Client{
 				Timeout: 30 * time.Second,
@@ -681,8 +661,7 @@ func (vm *VM) registerHttpPrimitives() {
 	})
 
 	// get: url — HTTP GET, returns response body as string
-	httpClientClass.AddMethod1(vm.Selectors, "get:", func(vmPtr interface{}, recv Value, urlVal Value) Value {
-		v := vmPtr.(*VM)
+	httpClientClass.AddMethod1(vm.Selectors, "get:", func(v *VM, recv Value, urlVal Value) Value {
 		c := v.vmGetHttpClient(recv)
 		if c == nil {
 			return Nil
@@ -704,8 +683,7 @@ func (vm *VM) registerHttpPrimitives() {
 	})
 
 	// post:body: — HTTP POST with string body, returns response body as string
-	httpClientClass.AddMethod2(vm.Selectors, "post:body:", func(vmPtr interface{}, recv Value, urlVal, bodyVal Value) Value {
-		v := vmPtr.(*VM)
+	httpClientClass.AddMethod2(vm.Selectors, "post:body:", func(v *VM, recv Value, urlVal, bodyVal Value) Value {
 		c := v.vmGetHttpClient(recv)
 		if c == nil {
 			return Nil
@@ -728,8 +706,7 @@ func (vm *VM) registerHttpPrimitives() {
 	})
 
 	// post:body:contentType: — HTTP POST with explicit content type
-	httpClientClass.AddMethod3(vm.Selectors, "post:body:contentType:", func(vmPtr interface{}, recv Value, urlVal, bodyVal, ctVal Value) Value {
-		v := vmPtr.(*VM)
+	httpClientClass.AddMethod3(vm.Selectors, "post:body:contentType:", func(v *VM, recv Value, urlVal, bodyVal, ctVal Value) Value {
 		c := v.vmGetHttpClient(recv)
 		if c == nil {
 			return Nil
@@ -757,8 +734,7 @@ func (vm *VM) registerHttpPrimitives() {
 
 	// post:body:contentType:headers: — POST with explicit content type and a
 	// Dictionary of extra headers (string keys -> string values).
-	httpClientClass.AddMethod4(vm.Selectors, "post:body:contentType:headers:", func(vmPtr interface{}, recv Value, urlVal, bodyVal, ctVal, headersVal Value) Value {
-		v := vmPtr.(*VM)
+	httpClientClass.AddMethod4(vm.Selectors, "post:body:contentType:headers:", func(v *VM, recv Value, urlVal, bodyVal, ctVal, headersVal Value) Value {
 		c := v.vmGetHttpClient(recv)
 		if c == nil {
 			return Nil
@@ -801,8 +777,7 @@ func (vm *VM) registerHttpPrimitives() {
 	})
 
 	// put:body: — HTTP PUT with string body, returns response body as string
-	httpClientClass.AddMethod2(vm.Selectors, "put:body:", func(vmPtr interface{}, recv Value, urlVal, bodyVal Value) Value {
-		v := vmPtr.(*VM)
+	httpClientClass.AddMethod2(vm.Selectors, "put:body:", func(v *VM, recv Value, urlVal, bodyVal Value) Value {
 		c := v.vmGetHttpClient(recv)
 		if c == nil {
 			return Nil
@@ -830,8 +805,7 @@ func (vm *VM) registerHttpPrimitives() {
 	})
 
 	// delete: url — HTTP DELETE, returns response body as string
-	httpClientClass.AddMethod1(vm.Selectors, "delete:", func(vmPtr interface{}, recv Value, urlVal Value) Value {
-		v := vmPtr.(*VM)
+	httpClientClass.AddMethod1(vm.Selectors, "delete:", func(v *VM, recv Value, urlVal Value) Value {
 		c := v.vmGetHttpClient(recv)
 		if c == nil {
 			return Nil
@@ -865,8 +839,7 @@ func (vm *VM) registerHttpPrimitives() {
 	vm.symbolDispatch.Register(sseConnectionMarker, &SymbolTypeEntry{Class: sseConnectionClass})
 
 	// send: data — send a data-only SSE event. Returns true/false.
-	sseConnectionClass.AddMethod1(vm.Selectors, "send:", func(vmPtr interface{}, recv Value, dataVal Value) Value {
-		v := vmPtr.(*VM)
+	sseConnectionClass.AddMethod1(vm.Selectors, "send:", func(v *VM, recv Value, dataVal Value) Value {
 		conn := v.vmGetSSEConnection(recv)
 		if conn == nil || conn.closed.Load() {
 			return False
@@ -882,8 +855,7 @@ func (vm *VM) registerHttpPrimitives() {
 	})
 
 	// send:event: — send a named SSE event (e.g. for Datastar). Returns true/false.
-	sseConnectionClass.AddMethod2(vm.Selectors, "send:event:", func(vmPtr interface{}, recv Value, dataVal, eventVal Value) Value {
-		v := vmPtr.(*VM)
+	sseConnectionClass.AddMethod2(vm.Selectors, "send:event:", func(v *VM, recv Value, dataVal, eventVal Value) Value {
 		conn := v.vmGetSSEConnection(recv)
 		if conn == nil || conn.closed.Load() {
 			return False
@@ -900,8 +872,7 @@ func (vm *VM) registerHttpPrimitives() {
 	})
 
 	// close — close the SSE connection from the server side.
-	sseConnectionClass.AddMethod0(vm.Selectors, "close", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	sseConnectionClass.AddMethod0(vm.Selectors, "close", func(v *VM, recv Value) Value {
 		conn := v.vmGetSSEConnection(recv)
 		if conn == nil {
 			return recv
@@ -913,8 +884,7 @@ func (vm *VM) registerHttpPrimitives() {
 	})
 
 	// isOpen — check if the client is still connected.
-	sseConnectionClass.AddMethod0(vm.Selectors, "isOpen", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	sseConnectionClass.AddMethod0(vm.Selectors, "isOpen", func(v *VM, recv Value) Value {
 		conn := v.vmGetSSEConnection(recv)
 		if conn == nil || conn.closed.Load() {
 			return False

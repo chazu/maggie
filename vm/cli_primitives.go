@@ -97,8 +97,7 @@ func (vm *VM) registerCliPrimitives() {
 	// ---------------------------------------------------------------------
 	// Class-side constructor: Cli::Command new: useString
 	// ---------------------------------------------------------------------
-	cliCommandClass.AddClassMethod1(vm.Selectors, "new:", func(vmPtr interface{}, recv Value, useVal Value) Value {
-		v := vmPtr.(*VM)
+	cliCommandClass.AddClassMethod1(vm.Selectors, "new:", func(v *VM, recv Value, useVal Value) Value {
 		use := v.valueToString(useVal)
 		w := &CliCommandWrapper{
 			Cobra:    &cobra.Command{Use: use},
@@ -111,8 +110,7 @@ func (vm *VM) registerCliPrimitives() {
 	// ---------------------------------------------------------------------
 	// Documentation setters
 	// ---------------------------------------------------------------------
-	cliCommandClass.AddMethod1(vm.Selectors, "shortDoc:", func(vmPtr interface{}, recv Value, sVal Value) Value {
-		v := vmPtr.(*VM)
+	cliCommandClass.AddMethod1(vm.Selectors, "shortDoc:", func(v *VM, recv Value, sVal Value) Value {
 		w := v.vmGetCliCommand(recv)
 		if w == nil {
 			return Nil
@@ -121,8 +119,7 @@ func (vm *VM) registerCliPrimitives() {
 		return recv
 	})
 
-	cliCommandClass.AddMethod1(vm.Selectors, "longDoc:", func(vmPtr interface{}, recv Value, sVal Value) Value {
-		v := vmPtr.(*VM)
+	cliCommandClass.AddMethod1(vm.Selectors, "longDoc:", func(v *VM, recv Value, sVal Value) Value {
 		w := v.vmGetCliCommand(recv)
 		if w == nil {
 			return Nil
@@ -135,8 +132,7 @@ func (vm *VM) registerCliPrimitives() {
 	// run: aBlock — stores the block; wires cobra.Run to call it.
 	// Runs synchronously on the goroutine that invoked Execute.
 	// ---------------------------------------------------------------------
-	cliCommandClass.AddMethod1(vm.Selectors, "run:", func(vmPtr interface{}, recv Value, blockVal Value) Value {
-		v := vmPtr.(*VM)
+	cliCommandClass.AddMethod1(vm.Selectors, "run:", func(v *VM, recv Value, blockVal Value) Value {
 		w := v.vmGetCliCommand(recv)
 		if w == nil {
 			return Nil
@@ -153,8 +149,7 @@ func (vm *VM) registerCliPrimitives() {
 	// ---------------------------------------------------------------------
 	// addSubcommand: aCommand
 	// ---------------------------------------------------------------------
-	cliCommandClass.AddMethod1(vm.Selectors, "addSubcommand:", func(vmPtr interface{}, recv Value, childVal Value) Value {
-		v := vmPtr.(*VM)
+	cliCommandClass.AddMethod1(vm.Selectors, "addSubcommand:", func(v *VM, recv Value, childVal Value) Value {
 		parent := v.vmGetCliCommand(recv)
 		child := v.vmGetCliCommand(childVal)
 		if parent == nil || child == nil {
@@ -168,8 +163,7 @@ func (vm *VM) registerCliPrimitives() {
 	// Flag declarations: addStringFlag:default:doc:, addBoolFlag:default:doc:,
 	// addIntFlag:default:doc:
 	// ---------------------------------------------------------------------
-	cliCommandClass.AddMethod3(vm.Selectors, "addStringFlag:default:doc:", func(vmPtr interface{}, recv Value, nameVal, defVal, docVal Value) Value {
-		v := vmPtr.(*VM)
+	cliCommandClass.AddMethod3(vm.Selectors, "addStringFlag:default:doc:", func(v *VM, recv Value, nameVal, defVal, docVal Value) Value {
 		w := v.vmGetCliCommand(recv)
 		if w == nil {
 			return Nil
@@ -183,8 +177,7 @@ func (vm *VM) registerCliPrimitives() {
 		return recv
 	})
 
-	cliCommandClass.AddMethod3(vm.Selectors, "addBoolFlag:default:doc:", func(vmPtr interface{}, recv Value, nameVal, defVal, docVal Value) Value {
-		v := vmPtr.(*VM)
+	cliCommandClass.AddMethod3(vm.Selectors, "addBoolFlag:default:doc:", func(v *VM, recv Value, nameVal, defVal, docVal Value) Value {
 		w := v.vmGetCliCommand(recv)
 		if w == nil {
 			return Nil
@@ -199,8 +192,7 @@ func (vm *VM) registerCliPrimitives() {
 		return recv
 	})
 
-	cliCommandClass.AddMethod3(vm.Selectors, "addIntFlag:default:doc:", func(vmPtr interface{}, recv Value, nameVal, defVal, docVal Value) Value {
-		v := vmPtr.(*VM)
+	cliCommandClass.AddMethod3(vm.Selectors, "addIntFlag:default:doc:", func(v *VM, recv Value, nameVal, defVal, docVal Value) Value {
 		w := v.vmGetCliCommand(recv)
 		if w == nil {
 			return Nil
@@ -224,8 +216,7 @@ func (vm *VM) registerCliPrimitives() {
 	// by the Maggie-side Cli::Command>>flagValue: facade to dispatch to the
 	// correct accessor.
 	// ---------------------------------------------------------------------
-	cliCommandClass.AddMethod1(vm.Selectors, "flagTypeOf:", func(vmPtr interface{}, recv Value, nameVal Value) Value {
-		v := vmPtr.(*VM)
+	cliCommandClass.AddMethod1(vm.Selectors, "flagTypeOf:", func(v *VM, recv Value, nameVal Value) Value {
 		w := v.vmGetCliCommand(recv)
 		if w == nil {
 			return Nil
@@ -245,8 +236,7 @@ func (vm *VM) registerCliPrimitives() {
 	// Flag accessors: stringFlag:, boolFlag:, intFlag:
 	// Intended to be called from within the run block.
 	// ---------------------------------------------------------------------
-	cliCommandClass.AddMethod1(vm.Selectors, "stringFlag:", func(vmPtr interface{}, recv Value, nameVal Value) Value {
-		v := vmPtr.(*VM)
+	cliCommandClass.AddMethod1(vm.Selectors, "stringFlag:", func(v *VM, recv Value, nameVal Value) Value {
 		w := v.vmGetCliCommand(recv)
 		if w == nil {
 			return Nil
@@ -259,8 +249,7 @@ func (vm *VM) registerCliPrimitives() {
 		return v.registry.NewStringValue(val)
 	})
 
-	cliCommandClass.AddMethod1(vm.Selectors, "boolFlag:", func(vmPtr interface{}, recv Value, nameVal Value) Value {
-		v := vmPtr.(*VM)
+	cliCommandClass.AddMethod1(vm.Selectors, "boolFlag:", func(v *VM, recv Value, nameVal Value) Value {
 		w := v.vmGetCliCommand(recv)
 		if w == nil {
 			return Nil
@@ -276,8 +265,7 @@ func (vm *VM) registerCliPrimitives() {
 		return False
 	})
 
-	cliCommandClass.AddMethod1(vm.Selectors, "intFlag:", func(vmPtr interface{}, recv Value, nameVal Value) Value {
-		v := vmPtr.(*VM)
+	cliCommandClass.AddMethod1(vm.Selectors, "intFlag:", func(v *VM, recv Value, nameVal Value) Value {
 		w := v.vmGetCliCommand(recv)
 		if w == nil {
 			return Nil
@@ -295,8 +283,7 @@ func (vm *VM) registerCliPrimitives() {
 	// Returns the exit code as a SmallInteger. Raises Cli::CliError on
 	// cobra parsing/routing errors.
 	// ---------------------------------------------------------------------
-	cliCommandClass.AddMethod0(vm.Selectors, "execute", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	cliCommandClass.AddMethod0(vm.Selectors, "execute", func(v *VM, recv Value) Value {
 		w := v.vmGetCliCommand(recv)
 		if w == nil {
 			return Nil
@@ -313,8 +300,7 @@ func (vm *VM) registerCliPrimitives() {
 	// Accepts a GoObject wrapping an io.Writer (e.g. a *bytes.Buffer) for
 	// tests. Passing Nil restores the defaults.
 	// ---------------------------------------------------------------------
-	cliCommandClass.AddMethod1(vm.Selectors, "setOutput:", func(vmPtr interface{}, recv Value, streamVal Value) Value {
-		v := vmPtr.(*VM)
+	cliCommandClass.AddMethod1(vm.Selectors, "setOutput:", func(v *VM, recv Value, streamVal Value) Value {
 		w := v.vmGetCliCommand(recv)
 		if w == nil {
 			return Nil
@@ -338,8 +324,7 @@ func (vm *VM) registerCliPrimitives() {
 	// setArgs: anArray — primarily for tests to simulate command-line
 	// invocation without touching os.Args.
 	// ---------------------------------------------------------------------
-	cliCommandClass.AddMethod1(vm.Selectors, "setArgs:", func(vmPtr interface{}, recv Value, arrVal Value) Value {
-		v := vmPtr.(*VM)
+	cliCommandClass.AddMethod1(vm.Selectors, "setArgs:", func(v *VM, recv Value, arrVal Value) Value {
 		w := v.vmGetCliCommand(recv)
 		if w == nil {
 			return Nil

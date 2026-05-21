@@ -21,8 +21,7 @@ func (vm *VM) registerFuturePrimitives() {
 	vm.symbolDispatch.Register(promiseMarker, &SymbolTypeEntry{Class: c})
 
 	// Future>>await — blocking, raises the remote exception on failure
-	c.AddMethod0(vm.Selectors, "await", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod0(vm.Selectors, "await", func(v *VM, recv Value) Value {
 		f := v.getFuture(recv)
 		if f == nil {
 			return Nil
@@ -45,8 +44,7 @@ func (vm *VM) registerFuturePrimitives() {
 	})
 
 	// Future>>await: timeoutMs — blocking with timeout
-	c.AddMethod1(vm.Selectors, "await:", func(vmPtr interface{}, recv, timeoutVal Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod1(vm.Selectors, "await:", func(v *VM, recv, timeoutVal Value) Value {
 		f := v.getFuture(recv)
 		if f == nil {
 			return Nil
@@ -77,8 +75,7 @@ func (vm *VM) registerFuturePrimitives() {
 	})
 
 	// Future>>isResolved
-	c.AddMethod0(vm.Selectors, "isResolved", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod0(vm.Selectors, "isResolved", func(v *VM, recv Value) Value {
 		f := v.getFuture(recv)
 		if f == nil {
 			return False
@@ -90,8 +87,7 @@ func (vm *VM) registerFuturePrimitives() {
 	})
 
 	// Future>>result — non-blocking, returns nil if not resolved
-	c.AddMethod0(vm.Selectors, "result", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod0(vm.Selectors, "result", func(v *VM, recv Value) Value {
 		f := v.getFuture(recv)
 		if f == nil {
 			return Nil
@@ -100,8 +96,7 @@ func (vm *VM) registerFuturePrimitives() {
 	})
 
 	// Future>>exception — returns the typed exception value, or nil
-	c.AddMethod0(vm.Selectors, "exception", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod0(vm.Selectors, "exception", func(v *VM, recv Value) Value {
 		f := v.getFuture(recv)
 		if f == nil {
 			return Nil
@@ -114,8 +109,7 @@ func (vm *VM) registerFuturePrimitives() {
 	})
 
 	// Future>>error — returns error string or nil
-	c.AddMethod0(vm.Selectors, "error", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod0(vm.Selectors, "error", func(v *VM, recv Value) Value {
 		f := v.getFuture(recv)
 		if f == nil {
 			return Nil
@@ -128,8 +122,7 @@ func (vm *VM) registerFuturePrimitives() {
 	})
 
 	// Future>>printString
-	c.AddMethod0(vm.Selectors, "printString", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod0(vm.Selectors, "printString", func(v *VM, recv Value) Value {
 		f := v.getFuture(recv)
 		if f == nil {
 			return v.registry.NewStringValue("a Future (invalid)")

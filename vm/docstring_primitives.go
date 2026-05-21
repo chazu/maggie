@@ -18,8 +18,7 @@ func (vm *VM) registerDocstringPrimitives() {
 	// ---------------------------------------------------------------------------
 
 	// help - prints the class docstring and method list to stdout, returns receiver
-	c.AddMethod0(vm.Selectors, "help", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod0(vm.Selectors, "help", func(v *VM, recv Value) Value {
 		cls := v.ClassFor(recv)
 		if cls == nil {
 			return Nil
@@ -29,8 +28,7 @@ func (vm *VM) registerDocstringPrimitives() {
 	})
 
 	// docString - returns the class docstring as a string (or nil)
-	c.AddMethod0(vm.Selectors, "docString", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod0(vm.Selectors, "docString", func(v *VM, recv Value) Value {
 		cls := v.ClassFor(recv)
 		if cls == nil {
 			return Nil
@@ -46,8 +44,7 @@ func (vm *VM) registerDocstringPrimitives() {
 	// ---------------------------------------------------------------------------
 
 	// help - prints the class docstring and method list to stdout, returns receiver
-	c.AddClassMethod0(vm.Selectors, "help", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	c.AddClassMethod0(vm.Selectors, "help", func(v *VM, recv Value) Value {
 		cls := v.classFromValue(recv)
 		if cls == nil {
 			return Nil
@@ -57,8 +54,7 @@ func (vm *VM) registerDocstringPrimitives() {
 	})
 
 	// docString - returns the class docstring as a string (or nil)
-	c.AddClassMethod0(vm.Selectors, "docString", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	c.AddClassMethod0(vm.Selectors, "docString", func(v *VM, recv Value) Value {
 		cls := v.classFromValue(recv)
 		if cls == nil {
 			return Nil
@@ -70,8 +66,7 @@ func (vm *VM) registerDocstringPrimitives() {
 	})
 
 	// help: aSymbol - prints the docstring for a specific method
-	c.AddClassMethod1(vm.Selectors, "help:", func(vmPtr interface{}, recv Value, selector Value) Value {
-		v := vmPtr.(*VM)
+	c.AddClassMethod1(vm.Selectors, "help:", func(v *VM, recv Value, selector Value) Value {
 		cls := v.classFromValue(recv)
 		if cls == nil {
 			return Nil
@@ -93,8 +88,7 @@ func (vm *VM) registerDocstringPrimitives() {
 	})
 
 	// methodDocFor: aSymbol - returns the docstring of a method as a string (or nil)
-	c.AddClassMethod1(vm.Selectors, "methodDocFor:", func(vmPtr interface{}, recv Value, selector Value) Value {
-		v := vmPtr.(*VM)
+	c.AddClassMethod1(vm.Selectors, "methodDocFor:", func(v *VM, recv Value, selector Value) Value {
 		cls := v.classFromValue(recv)
 		if cls == nil {
 			return Nil

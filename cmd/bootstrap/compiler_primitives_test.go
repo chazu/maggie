@@ -225,7 +225,7 @@ func TestBinaryOperatorFallbackToVTable(t *testing.T) {
 
 	// Add comparison methods to String class (simulating what String.mag does)
 	strClass := vmInst.StringClass
-	strClass.AddMethod1(vmInst.Selectors, "<", func(_ interface{}, recv vm.Value, other vm.Value) vm.Value {
+	strClass.AddMethod1(vmInst.Selectors, "<", func(_ *vm.VM, recv vm.Value, other vm.Value) vm.Value {
 		s1 := vmInst.Registry().GetStringContent(recv)
 		s2 := vmInst.Registry().GetStringContent(other)
 		if s1 < s2 {
@@ -233,7 +233,7 @@ func TestBinaryOperatorFallbackToVTable(t *testing.T) {
 		}
 		return vm.False
 	})
-	strClass.AddMethod1(vmInst.Selectors, ">", func(_ interface{}, recv vm.Value, other vm.Value) vm.Value {
+	strClass.AddMethod1(vmInst.Selectors, ">", func(_ *vm.VM, recv vm.Value, other vm.Value) vm.Value {
 		s1 := vmInst.Registry().GetStringContent(recv)
 		s2 := vmInst.Registry().GetStringContent(other)
 		if s1 > s2 {
@@ -241,7 +241,7 @@ func TestBinaryOperatorFallbackToVTable(t *testing.T) {
 		}
 		return vm.False
 	})
-	strClass.AddMethod1(vmInst.Selectors, "<=", func(_ interface{}, recv vm.Value, other vm.Value) vm.Value {
+	strClass.AddMethod1(vmInst.Selectors, "<=", func(_ *vm.VM, recv vm.Value, other vm.Value) vm.Value {
 		s1 := vmInst.Registry().GetStringContent(recv)
 		s2 := vmInst.Registry().GetStringContent(other)
 		if s1 <= s2 {
@@ -249,7 +249,7 @@ func TestBinaryOperatorFallbackToVTable(t *testing.T) {
 		}
 		return vm.False
 	})
-	strClass.AddMethod1(vmInst.Selectors, ">=", func(_ interface{}, recv vm.Value, other vm.Value) vm.Value {
+	strClass.AddMethod1(vmInst.Selectors, ">=", func(_ *vm.VM, recv vm.Value, other vm.Value) vm.Value {
 		s1 := vmInst.Registry().GetStringContent(recv)
 		s2 := vmInst.Registry().GetStringContent(other)
 		if s1 >= s2 {

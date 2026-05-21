@@ -8,25 +8,25 @@ package vm
 
 // PrimitiveFunc is a Go function that implements a primitive method.
 // The vm parameter will be *VM once that's implemented.
-type PrimitiveFunc func(vm interface{}, receiver Value, args []Value) Value
+type PrimitiveFunc func(vm *VM, receiver Value, args []Value) Value
 
 // Method0Func is a primitive taking no arguments.
-type Method0Func func(vm interface{}, receiver Value) Value
+type Method0Func func(vm *VM, receiver Value) Value
 
 // Method1Func is a primitive taking one argument.
-type Method1Func func(vm interface{}, receiver Value, arg1 Value) Value
+type Method1Func func(vm *VM, receiver Value, arg1 Value) Value
 
 // Method2Func is a primitive taking two arguments.
-type Method2Func func(vm interface{}, receiver Value, arg1, arg2 Value) Value
+type Method2Func func(vm *VM, receiver Value, arg1, arg2 Value) Value
 
 // Method3Func is a primitive taking three arguments.
-type Method3Func func(vm interface{}, receiver Value, arg1, arg2, arg3 Value) Value
+type Method3Func func(vm *VM, receiver Value, arg1, arg2, arg3 Value) Value
 
 // Method4Func is a primitive taking four arguments.
-type Method4Func func(vm interface{}, receiver Value, arg1, arg2, arg3, arg4 Value) Value
+type Method4Func func(vm *VM, receiver Value, arg1, arg2, arg3, arg4 Value) Value
 
 // Method8Func is a primitive taking eight arguments.
-type Method8Func func(vm interface{}, receiver Value, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8 Value) Value
+type Method8Func func(vm *VM, receiver Value, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8 Value) Value
 
 // ---------------------------------------------------------------------------
 // Arity-specialized method wrappers
@@ -39,7 +39,7 @@ type PrimitiveMethod struct {
 	docString string
 }
 
-func (m *PrimitiveMethod) Invoke(vm interface{}, receiver Value, args []Value) Value {
+func (m *PrimitiveMethod) Invoke(vm *VM, receiver Value, args []Value) Value {
 	return m.fn(vm, receiver, args)
 }
 
@@ -55,7 +55,7 @@ type Method0 struct {
 	docString string
 }
 
-func (m *Method0) Invoke(vm interface{}, receiver Value, args []Value) Value {
+func (m *Method0) Invoke(vm *VM, receiver Value, args []Value) Value {
 	return m.fn(vm, receiver)
 }
 
@@ -71,7 +71,7 @@ type Method1 struct {
 	docString string
 }
 
-func (m *Method1) Invoke(vm interface{}, receiver Value, args []Value) Value {
+func (m *Method1) Invoke(vm *VM, receiver Value, args []Value) Value {
 	return m.fn(vm, receiver, args[0])
 }
 
@@ -87,7 +87,7 @@ type Method2 struct {
 	docString string
 }
 
-func (m *Method2) Invoke(vm interface{}, receiver Value, args []Value) Value {
+func (m *Method2) Invoke(vm *VM, receiver Value, args []Value) Value {
 	return m.fn(vm, receiver, args[0], args[1])
 }
 
@@ -103,7 +103,7 @@ type Method3 struct {
 	docString string
 }
 
-func (m *Method3) Invoke(vm interface{}, receiver Value, args []Value) Value {
+func (m *Method3) Invoke(vm *VM, receiver Value, args []Value) Value {
 	return m.fn(vm, receiver, args[0], args[1], args[2])
 }
 
@@ -119,7 +119,7 @@ type Method4 struct {
 	docString string
 }
 
-func (m *Method4) Invoke(vm interface{}, receiver Value, args []Value) Value {
+func (m *Method4) Invoke(vm *VM, receiver Value, args []Value) Value {
 	return m.fn(vm, receiver, args[0], args[1], args[2], args[3])
 }
 
@@ -135,7 +135,7 @@ type Method8 struct {
 	docString string
 }
 
-func (m *Method8) Invoke(vm interface{}, receiver Value, args []Value) Value {
+func (m *Method8) Invoke(vm *VM, receiver Value, args []Value) Value {
 	return m.fn(vm, receiver, args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7])
 }
 

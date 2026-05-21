@@ -14,8 +14,7 @@ func (vm *VM) registerDebuggerPrimitives() {
 	// ---------------------------------------------------------------------------
 
 	// activate - Enable the debug server
-	debuggerClass.AddClassMethod0(vm.Selectors, "activate", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	debuggerClass.AddClassMethod0(vm.Selectors, "activate", func(v *VM, recv Value) Value {
 		if v.Debugger != nil {
 			v.Debugger.Activate()
 			return True
@@ -24,8 +23,7 @@ func (vm *VM) registerDebuggerPrimitives() {
 	})
 
 	// deactivate - Disable the debug server
-	debuggerClass.AddClassMethod0(vm.Selectors, "deactivate", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	debuggerClass.AddClassMethod0(vm.Selectors, "deactivate", func(v *VM, recv Value) Value {
 		if v.Debugger != nil {
 			v.Debugger.Deactivate()
 			return True
@@ -34,8 +32,7 @@ func (vm *VM) registerDebuggerPrimitives() {
 	})
 
 	// isActive - Check if debug server is enabled
-	debuggerClass.AddClassMethod0(vm.Selectors, "isActive", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	debuggerClass.AddClassMethod0(vm.Selectors, "isActive", func(v *VM, recv Value) Value {
 		if v.Debugger != nil && v.Debugger.IsActive() {
 			return True
 		}
@@ -48,8 +45,7 @@ func (vm *VM) registerDebuggerPrimitives() {
 
 	// setBreakpoint:method:line: - Set a breakpoint
 	// Returns Success or Failure
-	debuggerClass.AddClassMethod3(vm.Selectors, "setBreakpoint:method:line:", func(vmPtr interface{}, recv Value, classArg, methodArg, lineArg Value) Value {
-		v := vmPtr.(*VM)
+	debuggerClass.AddClassMethod3(vm.Selectors, "setBreakpoint:method:line:", func(v *VM, recv Value, classArg, methodArg, lineArg Value) Value {
 		if v.Debugger == nil {
 			return v.newFailureResult("Debugger not available")
 		}
@@ -73,8 +69,7 @@ func (vm *VM) registerDebuggerPrimitives() {
 	})
 
 	// removeBreakpoint:method:line: - Remove a breakpoint
-	debuggerClass.AddClassMethod3(vm.Selectors, "removeBreakpoint:method:line:", func(vmPtr interface{}, recv Value, classArg, methodArg, lineArg Value) Value {
-		v := vmPtr.(*VM)
+	debuggerClass.AddClassMethod3(vm.Selectors, "removeBreakpoint:method:line:", func(v *VM, recv Value, classArg, methodArg, lineArg Value) Value {
 		if v.Debugger == nil {
 			return v.newFailureResult("Debugger not available")
 		}
@@ -98,8 +93,7 @@ func (vm *VM) registerDebuggerPrimitives() {
 	})
 
 	// listBreakpoints - Return array of breakpoint dictionaries
-	debuggerClass.AddClassMethod0(vm.Selectors, "listBreakpoints", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	debuggerClass.AddClassMethod0(vm.Selectors, "listBreakpoints", func(v *VM, recv Value) Value {
 		if v.Debugger == nil {
 			return v.NewArrayWithElements(nil)
 		}
@@ -125,8 +119,7 @@ func (vm *VM) registerDebuggerPrimitives() {
 	})
 
 	// clearAllBreakpoints - Remove all breakpoints
-	debuggerClass.AddClassMethod0(vm.Selectors, "clearAllBreakpoints", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	debuggerClass.AddClassMethod0(vm.Selectors, "clearAllBreakpoints", func(v *VM, recv Value) Value {
 		if v.Debugger != nil {
 			v.Debugger.ClearAllBreakpoints()
 		}
@@ -134,8 +127,7 @@ func (vm *VM) registerDebuggerPrimitives() {
 	})
 
 	// enableBreakpoint:method:line: - Enable a disabled breakpoint
-	debuggerClass.AddClassMethod3(vm.Selectors, "enableBreakpoint:method:line:", func(vmPtr interface{}, recv Value, classArg, methodArg, lineArg Value) Value {
-		v := vmPtr.(*VM)
+	debuggerClass.AddClassMethod3(vm.Selectors, "enableBreakpoint:method:line:", func(v *VM, recv Value, classArg, methodArg, lineArg Value) Value {
 		if v.Debugger == nil {
 			return v.newFailureResult("Debugger not available")
 		}
@@ -152,8 +144,7 @@ func (vm *VM) registerDebuggerPrimitives() {
 	})
 
 	// disableBreakpoint:method:line: - Disable a breakpoint without removing
-	debuggerClass.AddClassMethod3(vm.Selectors, "disableBreakpoint:method:line:", func(vmPtr interface{}, recv Value, classArg, methodArg, lineArg Value) Value {
-		v := vmPtr.(*VM)
+	debuggerClass.AddClassMethod3(vm.Selectors, "disableBreakpoint:method:line:", func(v *VM, recv Value, classArg, methodArg, lineArg Value) Value {
 		if v.Debugger == nil {
 			return v.newFailureResult("Debugger not available")
 		}
@@ -174,8 +165,7 @@ func (vm *VM) registerDebuggerPrimitives() {
 	// ---------------------------------------------------------------------------
 
 	// pause - Request the interpreter to pause
-	debuggerClass.AddClassMethod0(vm.Selectors, "pause", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	debuggerClass.AddClassMethod0(vm.Selectors, "pause", func(v *VM, recv Value) Value {
 		if v.Debugger != nil {
 			v.Debugger.Pause()
 			return True
@@ -184,8 +174,7 @@ func (vm *VM) registerDebuggerPrimitives() {
 	})
 
 	// resume - Continue execution after a pause
-	debuggerClass.AddClassMethod0(vm.Selectors, "resume", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	debuggerClass.AddClassMethod0(vm.Selectors, "resume", func(v *VM, recv Value) Value {
 		if v.Debugger != nil {
 			v.Debugger.Resume()
 			return True
@@ -194,8 +183,7 @@ func (vm *VM) registerDebuggerPrimitives() {
 	})
 
 	// stepOver - Step to next line, over method calls
-	debuggerClass.AddClassMethod0(vm.Selectors, "stepOver", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	debuggerClass.AddClassMethod0(vm.Selectors, "stepOver", func(v *VM, recv Value) Value {
 		if v.Debugger != nil && v.interpreter != nil {
 			v.Debugger.StepOver(v.interpreter.fp, 0)
 			return True
@@ -204,8 +192,7 @@ func (vm *VM) registerDebuggerPrimitives() {
 	})
 
 	// stepInto - Step into the next method call
-	debuggerClass.AddClassMethod0(vm.Selectors, "stepInto", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	debuggerClass.AddClassMethod0(vm.Selectors, "stepInto", func(v *VM, recv Value) Value {
 		if v.Debugger != nil {
 			v.Debugger.StepInto()
 			return True
@@ -214,8 +201,7 @@ func (vm *VM) registerDebuggerPrimitives() {
 	})
 
 	// stepOut - Step out of the current method
-	debuggerClass.AddClassMethod0(vm.Selectors, "stepOut", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	debuggerClass.AddClassMethod0(vm.Selectors, "stepOut", func(v *VM, recv Value) Value {
 		if v.Debugger != nil && v.interpreter != nil {
 			v.Debugger.StepOut(v.interpreter.fp)
 			return True
@@ -224,8 +210,7 @@ func (vm *VM) registerDebuggerPrimitives() {
 	})
 
 	// isPaused - Check if execution is paused
-	debuggerClass.AddClassMethod0(vm.Selectors, "isPaused", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	debuggerClass.AddClassMethod0(vm.Selectors, "isPaused", func(v *VM, recv Value) Value {
 		if v.Debugger != nil && v.Debugger.IsPaused() {
 			return True
 		}
@@ -237,8 +222,7 @@ func (vm *VM) registerDebuggerPrimitives() {
 	// ---------------------------------------------------------------------------
 
 	// getCallStack - Return array of stack frame dictionaries
-	debuggerClass.AddClassMethod0(vm.Selectors, "getCallStack", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	debuggerClass.AddClassMethod0(vm.Selectors, "getCallStack", func(v *VM, recv Value) Value {
 		if v.Debugger == nil || v.interpreter == nil {
 			return v.NewArrayWithElements(nil)
 		}
@@ -265,8 +249,7 @@ func (vm *VM) registerDebuggerPrimitives() {
 	})
 
 	// getVariables: frameId - Return array of variable dictionaries for a frame
-	debuggerClass.AddClassMethod1(vm.Selectors, "getVariables:", func(vmPtr interface{}, recv Value, frameIdArg Value) Value {
-		v := vmPtr.(*VM)
+	debuggerClass.AddClassMethod1(vm.Selectors, "getVariables:", func(v *VM, recv Value, frameIdArg Value) Value {
 		if v.Debugger == nil || v.interpreter == nil {
 			return v.NewArrayWithElements(nil)
 		}

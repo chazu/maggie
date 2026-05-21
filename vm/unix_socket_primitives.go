@@ -128,8 +128,7 @@ func (vm *VM) registerUnixSocketPrimitives() {
 	// -----------------------------------------------------------------------
 
 	// UnixSocketServer primListenAt: path
-	serverClass.AddClassMethod1(vm.Selectors, "primListenAt:", func(vmPtr interface{}, recv Value, pathVal Value) Value {
-		v := vmPtr.(*VM)
+	serverClass.AddClassMethod1(vm.Selectors, "primListenAt:", func(v *VM, recv Value, pathVal Value) Value {
 		path := v.valueToString(pathVal)
 		if path == "" {
 			return v.newFailureResult("UnixSocketServer.listenAt: requires a path string")
@@ -162,8 +161,7 @@ func (vm *VM) registerUnixSocketPrimitives() {
 	})
 
 	// UnixSocketServer primListenAtMode:mode:
-	serverClass.AddClassMethod2(vm.Selectors, "primListenAtMode:mode:", func(vmPtr interface{}, recv Value, pathVal, modeVal Value) Value {
-		v := vmPtr.(*VM)
+	serverClass.AddClassMethod2(vm.Selectors, "primListenAtMode:mode:", func(v *VM, recv Value, pathVal, modeVal Value) Value {
 		path := v.valueToString(pathVal)
 		if path == "" {
 			return v.newFailureResult("UnixSocketServer.listenAt:mode: requires a path string")
@@ -209,8 +207,7 @@ func (vm *VM) registerUnixSocketPrimitives() {
 	// -----------------------------------------------------------------------
 
 	// primAccept — blocking accept, returns a SocketConnection
-	serverClass.AddMethod0(vm.Selectors, "primAccept", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	serverClass.AddMethod0(vm.Selectors, "primAccept", func(v *VM, recv Value) Value {
 		srv := v.vmGetUnixListener(recv)
 		if srv == nil {
 			return v.newFailureResult("Invalid UnixSocketServer")
@@ -232,8 +229,7 @@ func (vm *VM) registerUnixSocketPrimitives() {
 	})
 
 	// primAcceptToChannel: ch — spawn goroutine that sends new connections to channel
-	serverClass.AddMethod1(vm.Selectors, "primAcceptToChannel:", func(vmPtr interface{}, recv Value, chVal Value) Value {
-		v := vmPtr.(*VM)
+	serverClass.AddMethod1(vm.Selectors, "primAcceptToChannel:", func(v *VM, recv Value, chVal Value) Value {
 		srv := v.vmGetUnixListener(recv)
 		if srv == nil {
 			return v.newFailureResult("Invalid UnixSocketServer")
@@ -266,8 +262,7 @@ func (vm *VM) registerUnixSocketPrimitives() {
 	})
 
 	// primClose — stop accepting, remove socket file
-	serverClass.AddMethod0(vm.Selectors, "primClose", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	serverClass.AddMethod0(vm.Selectors, "primClose", func(v *VM, recv Value) Value {
 		srv := v.vmGetUnixListener(recv)
 		if srv == nil {
 			return recv
@@ -289,8 +284,7 @@ func (vm *VM) registerUnixSocketPrimitives() {
 	})
 
 	// primPath — returns the socket file path
-	serverClass.AddMethod0(vm.Selectors, "primPath", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	serverClass.AddMethod0(vm.Selectors, "primPath", func(v *VM, recv Value) Value {
 		srv := v.vmGetUnixListener(recv)
 		if srv == nil {
 			return Nil
@@ -299,8 +293,7 @@ func (vm *VM) registerUnixSocketPrimitives() {
 	})
 
 	// primIsRunning
-	serverClass.AddMethod0(vm.Selectors, "primIsRunning", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	serverClass.AddMethod0(vm.Selectors, "primIsRunning", func(v *VM, recv Value) Value {
 		srv := v.vmGetUnixListener(recv)
 		if srv == nil {
 			return False
@@ -312,8 +305,7 @@ func (vm *VM) registerUnixSocketPrimitives() {
 	})
 
 	// primIsClosed
-	serverClass.AddMethod0(vm.Selectors, "primIsClosed", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	serverClass.AddMethod0(vm.Selectors, "primIsClosed", func(v *VM, recv Value) Value {
 		srv := v.vmGetUnixListener(recv)
 		if srv == nil {
 			return True
@@ -329,8 +321,7 @@ func (vm *VM) registerUnixSocketPrimitives() {
 	// -----------------------------------------------------------------------
 
 	// UnixSocketClient primConnectTo: path
-	clientClass.AddClassMethod1(vm.Selectors, "primConnectTo:", func(vmPtr interface{}, recv Value, pathVal Value) Value {
-		v := vmPtr.(*VM)
+	clientClass.AddClassMethod1(vm.Selectors, "primConnectTo:", func(v *VM, recv Value, pathVal Value) Value {
 		path := v.valueToString(pathVal)
 		if path == "" {
 			return v.newFailureResult("UnixSocketClient.connectTo: requires a path string")
@@ -353,8 +344,7 @@ func (vm *VM) registerUnixSocketPrimitives() {
 	// -----------------------------------------------------------------------
 
 	// primSend: data — write string data to connection
-	connClass.AddMethod1(vm.Selectors, "primSend:", func(vmPtr interface{}, recv Value, dataVal Value) Value {
-		v := vmPtr.(*VM)
+	connClass.AddMethod1(vm.Selectors, "primSend:", func(v *VM, recv Value, dataVal Value) Value {
 		c := v.vmGetUnixConn(recv)
 		if c == nil {
 			return v.newFailureResult("Invalid SocketConnection")
@@ -372,8 +362,7 @@ func (vm *VM) registerUnixSocketPrimitives() {
 	})
 
 	// primSendLine: data — write string data followed by newline
-	connClass.AddMethod1(vm.Selectors, "primSendLine:", func(vmPtr interface{}, recv Value, dataVal Value) Value {
-		v := vmPtr.(*VM)
+	connClass.AddMethod1(vm.Selectors, "primSendLine:", func(v *VM, recv Value, dataVal Value) Value {
 		c := v.vmGetUnixConn(recv)
 		if c == nil {
 			return v.newFailureResult("Invalid SocketConnection")
@@ -391,8 +380,7 @@ func (vm *VM) registerUnixSocketPrimitives() {
 	})
 
 	// primReceive — read up to 4096 bytes
-	connClass.AddMethod0(vm.Selectors, "primReceive", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	connClass.AddMethod0(vm.Selectors, "primReceive", func(v *VM, recv Value) Value {
 		c := v.vmGetUnixConn(recv)
 		if c == nil {
 			return v.newFailureResult("Invalid SocketConnection")
@@ -410,8 +398,7 @@ func (vm *VM) registerUnixSocketPrimitives() {
 	})
 
 	// primReceiveMax: maxBytes — read up to maxBytes
-	connClass.AddMethod1(vm.Selectors, "primReceiveMax:", func(vmPtr interface{}, recv Value, maxVal Value) Value {
-		v := vmPtr.(*VM)
+	connClass.AddMethod1(vm.Selectors, "primReceiveMax:", func(v *VM, recv Value, maxVal Value) Value {
 		c := v.vmGetUnixConn(recv)
 		if c == nil {
 			return v.newFailureResult("Invalid SocketConnection")
@@ -436,8 +423,7 @@ func (vm *VM) registerUnixSocketPrimitives() {
 	})
 
 	// primReceiveLine — read one newline-delimited line (for JSON-RPC)
-	connClass.AddMethod0(vm.Selectors, "primReceiveLine", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	connClass.AddMethod0(vm.Selectors, "primReceiveLine", func(v *VM, recv Value) Value {
 		c := v.vmGetUnixConn(recv)
 		if c == nil {
 			return v.newFailureResult("Invalid SocketConnection")
@@ -465,8 +451,7 @@ func (vm *VM) registerUnixSocketPrimitives() {
 	})
 
 	// primClose
-	connClass.AddMethod0(vm.Selectors, "primClose", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	connClass.AddMethod0(vm.Selectors, "primClose", func(v *VM, recv Value) Value {
 		c := v.vmGetUnixConn(recv)
 		if c == nil {
 			return recv
@@ -485,8 +470,7 @@ func (vm *VM) registerUnixSocketPrimitives() {
 	})
 
 	// primIsClosed
-	connClass.AddMethod0(vm.Selectors, "primIsClosed", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	connClass.AddMethod0(vm.Selectors, "primIsClosed", func(v *VM, recv Value) Value {
 		c := v.vmGetUnixConn(recv)
 		if c == nil {
 			return True

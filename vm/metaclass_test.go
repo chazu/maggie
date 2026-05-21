@@ -111,7 +111,7 @@ func TestClassSideMethodInheritanceThroughMetaclass(t *testing.T) {
 	// Create a custom class and add a class-side method
 	customClass := NewClass("MyCustomClass", vm.ObjectClass)
 	vm.Classes.Register(customClass)
-	customClass.AddClassMethod0(vm.Selectors, "customFactory", func(_ interface{}, recv Value) Value {
+	customClass.AddClassMethod0(vm.Selectors, "customFactory", func(_ *VM, recv Value) Value {
 		return FromSmallInt(99)
 	})
 

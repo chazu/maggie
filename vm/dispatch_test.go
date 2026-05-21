@@ -146,10 +146,10 @@ func TestVTableLookup(t *testing.T) {
 	vt := NewVTable(class, nil)
 
 	// Add some methods
-	m1 := NewMethod0("method1", func(vm interface{}, receiver Value) Value {
+	m1 := NewMethod0("method1", func(vm *VM, receiver Value) Value {
 		return FromSmallInt(1)
 	})
-	m2 := NewMethod1("method2", func(vm interface{}, receiver, arg1 Value) Value {
+	m2 := NewMethod1("method2", func(vm *VM, receiver, arg1 Value) Value {
 		return FromSmallInt(2)
 	})
 
@@ -180,7 +180,7 @@ func TestVTableInheritance(t *testing.T) {
 	// Create parent class with a method
 	parentClass := &Class{Name: "Parent"}
 	parentVT := NewVTable(parentClass, nil)
-	parentMethod := NewMethod0("parentMethod", func(vm interface{}, receiver Value) Value {
+	parentMethod := NewMethod0("parentMethod", func(vm *VM, receiver Value) Value {
 		return FromSmallInt(100)
 	})
 	parentVT.AddMethod(0, parentMethod)
@@ -188,7 +188,7 @@ func TestVTableInheritance(t *testing.T) {
 	// Create child class that inherits from parent
 	childClass := &Class{Name: "Child", Superclass: parentClass}
 	childVT := NewVTable(childClass, parentVT)
-	childMethod := NewMethod0("childMethod", func(vm interface{}, receiver Value) Value {
+	childMethod := NewMethod0("childMethod", func(vm *VM, receiver Value) Value {
 		return FromSmallInt(200)
 	})
 	childVT.AddMethod(1, childMethod)
@@ -212,14 +212,14 @@ func TestVTableInheritance(t *testing.T) {
 func TestVTableOverride(t *testing.T) {
 	parentClass := &Class{Name: "Parent"}
 	parentVT := NewVTable(parentClass, nil)
-	parentMethod := NewMethod0("shared", func(vm interface{}, receiver Value) Value {
+	parentMethod := NewMethod0("shared", func(vm *VM, receiver Value) Value {
 		return FromSmallInt(1)
 	})
 	parentVT.AddMethod(0, parentMethod)
 
 	childClass := &Class{Name: "Child"}
 	childVT := NewVTable(childClass, parentVT)
-	childMethod := NewMethod0("shared", func(vm interface{}, receiver Value) Value {
+	childMethod := NewMethod0("shared", func(vm *VM, receiver Value) Value {
 		return FromSmallInt(2)
 	})
 	childVT.AddMethod(0, childMethod) // Override parent's method
@@ -237,7 +237,7 @@ func TestVTableOverride(t *testing.T) {
 
 func TestVTableLookupLocal(t *testing.T) {
 	parentVT := NewVTable(&Class{Name: "Parent"}, nil)
-	parentVT.AddMethod(0, NewMethod0("m", func(vm interface{}, r Value) Value { return Nil }))
+	parentVT.AddMethod(0, NewMethod0("m", func(vm *VM, r Value) Value { return Nil }))
 
 	childVT := NewVTable(&Class{Name: "Child"}, parentVT)
 
@@ -254,7 +254,7 @@ func TestVTableLookupLocal(t *testing.T) {
 
 func TestVTableRemoveMethod(t *testing.T) {
 	vt := NewVTable(&Class{Name: "Test"}, nil)
-	m := NewMethod0("test", func(vm interface{}, r Value) Value { return Nil })
+	m := NewMethod0("test", func(vm *VM, r Value) Value { return Nil })
 	vt.AddMethod(0, m)
 
 	if vt.Lookup(0) == nil {
@@ -269,7 +269,7 @@ func TestVTableRemoveMethod(t *testing.T) {
 
 func TestVTableHasMethod(t *testing.T) {
 	parentVT := NewVTable(&Class{Name: "Parent"}, nil)
-	parentVT.AddMethod(0, NewMethod0("m", func(vm interface{}, r Value) Value { return Nil }))
+	parentVT.AddMethod(0, NewMethod0("m", func(vm *VM, r Value) Value { return Nil }))
 
 	childVT := NewVTable(&Class{Name: "Child"}, parentVT)
 
@@ -288,11 +288,11 @@ func TestVTableMethodCount(t *testing.T) {
 		t.Error("empty vtable should have 0 method slots")
 	}
 
-	vt.AddMethod(5, NewMethod0("m", func(vm interface{}, r Value) Value { return Nil }))
+	vt.AddMethod(5, NewMethod0("m", func(vm *VM, r Value) Value { return Nil }))
 	if vt.MethodCount() != 1 { // one locally defined method
 		t.Errorf("MethodCount() = %d, want 1", vt.MethodCount())
 	}
-	vt.AddMethod(7, NewMethod0("n", func(vm interface{}, r Value) Value { return Nil }))
+	vt.AddMethod(7, NewMethod0("n", func(vm *VM, r Value) Value { return Nil }))
 	if vt.MethodCount() != 2 {
 		t.Errorf("MethodCount() = %d, want 2", vt.MethodCount())
 	}
@@ -300,8 +300,8 @@ func TestVTableMethodCount(t *testing.T) {
 
 func TestVTableLocalMethods(t *testing.T) {
 	vt := NewVTable(&Class{Name: "Test"}, nil)
-	m1 := NewMethod0("m1", func(vm interface{}, r Value) Value { return Nil })
-	m2 := NewMethod0("m2", func(vm interface{}, r Value) Value { return Nil })
+	m1 := NewMethod0("m1", func(vm *VM, r Value) Value { return Nil })
+	m2 := NewMethod0("m2", func(vm *VM, r Value) Value { return Nil })
 	vt.AddMethod(0, m1)
 	vt.AddMethod(5, m2)
 
@@ -320,7 +320,7 @@ func TestVTableLocalMethods(t *testing.T) {
 
 func TestMethod0(t *testing.T) {
 	called := false
-	m := NewMethod0("test", func(vm interface{}, receiver Value) Value {
+	m := NewMethod0("test", func(vm *VM, receiver Value) Value {
 		called = true
 		return FromSmallInt(42)
 	})
@@ -341,7 +341,7 @@ func TestMethod0(t *testing.T) {
 }
 
 func TestMethod1(t *testing.T) {
-	m := NewMethod1("add1", func(vm interface{}, receiver, arg1 Value) Value {
+	m := NewMethod1("add1", func(vm *VM, receiver, arg1 Value) Value {
 		return FromSmallInt(arg1.SmallInt() + 1)
 	})
 
@@ -356,7 +356,7 @@ func TestMethod1(t *testing.T) {
 }
 
 func TestMethod2(t *testing.T) {
-	m := NewMethod2("add", func(vm interface{}, receiver, arg1, arg2 Value) Value {
+	m := NewMethod2("add", func(vm *VM, receiver, arg1, arg2 Value) Value {
 		return FromSmallInt(arg1.SmallInt() + arg2.SmallInt())
 	})
 
@@ -371,7 +371,7 @@ func TestMethod2(t *testing.T) {
 }
 
 func TestMethod3(t *testing.T) {
-	m := NewMethod3("sum3", func(vm interface{}, receiver, arg1, arg2, arg3 Value) Value {
+	m := NewMethod3("sum3", func(vm *VM, receiver, arg1, arg2, arg3 Value) Value {
 		return FromSmallInt(arg1.SmallInt() + arg2.SmallInt() + arg3.SmallInt())
 	})
 
@@ -386,7 +386,7 @@ func TestMethod3(t *testing.T) {
 }
 
 func TestPrimitiveMethod(t *testing.T) {
-	m := NewPrimitiveMethod("varargs", func(vm interface{}, receiver Value, args []Value) Value {
+	m := NewPrimitiveMethod("varargs", func(vm *VM, receiver Value, args []Value) Value {
 		sum := int64(0)
 		for _, a := range args {
 			sum += a.SmallInt()
@@ -409,7 +409,7 @@ func TestMethodWithReceiver(t *testing.T) {
 	obj := NewObject(nil, 2)
 	obj.SetSlot(0, FromSmallInt(100))
 
-	m := NewMethod0("getValue", func(vm interface{}, receiver Value) Value {
+	m := NewMethod0("getValue", func(vm *VM, receiver Value) Value {
 		o := MustObjectFromValue(receiver)
 		return o.GetSlot(0)
 	})
@@ -436,17 +436,17 @@ func TestFullDispatchSimulation(t *testing.T) {
 	arrayVT := NewVTable(arrayClass, nil)
 
 	// Add methods
-	arrayVT.AddMethod(sizeSelector, NewMethod0("size", func(vm interface{}, receiver Value) Value {
+	arrayVT.AddMethod(sizeSelector, NewMethod0("size", func(vm *VM, receiver Value) Value {
 		obj := MustObjectFromValue(receiver)
 		return obj.GetSlot(0) // Return size from slot 0
 	}))
 
-	arrayVT.AddMethod(atSelector, NewMethod1("at:", func(vm interface{}, receiver, index Value) Value {
+	arrayVT.AddMethod(atSelector, NewMethod1("at:", func(vm *VM, receiver, index Value) Value {
 		// Simplified: just return the index + 1 for testing
 		return FromSmallInt(index.SmallInt() + 1)
 	}))
 
-	arrayVT.AddMethod(atPutSelector, NewMethod2("at:put:", func(vm interface{}, receiver, index, value Value) Value {
+	arrayVT.AddMethod(atPutSelector, NewMethod2("at:put:", func(vm *VM, receiver, index, value Value) Value {
 		// Simplified: return the value
 		return value
 	}))
@@ -486,7 +486,7 @@ func TestFullDispatchSimulation(t *testing.T) {
 func TestVTableFlattenBasic(t *testing.T) {
 	// After Lookup, flat array should be populated
 	vt := NewVTable(&Class{Name: "Test"}, nil)
-	m := NewMethod0("m", func(vm interface{}, r Value) Value { return Nil })
+	m := NewMethod0("m", func(vm *VM, r Value) Value { return Nil })
 	vt.AddMethod(3, m)
 
 	// First lookup triggers rebuild
@@ -502,15 +502,15 @@ func TestVTableFlattenBasic(t *testing.T) {
 
 func TestVTableFlattenInherited(t *testing.T) {
 	grandparent := NewVTable(&Class{Name: "GP"}, nil)
-	gm := NewMethod0("gm", func(vm interface{}, r Value) Value { return FromSmallInt(1) })
+	gm := NewMethod0("gm", func(vm *VM, r Value) Value { return FromSmallInt(1) })
 	grandparent.AddMethod(0, gm)
 
 	parent := NewVTable(&Class{Name: "P"}, grandparent)
-	pm := NewMethod0("pm", func(vm interface{}, r Value) Value { return FromSmallInt(2) })
+	pm := NewMethod0("pm", func(vm *VM, r Value) Value { return FromSmallInt(2) })
 	parent.AddMethod(1, pm)
 
 	child := NewVTable(&Class{Name: "C"}, parent)
-	cm := NewMethod0("cm", func(vm interface{}, r Value) Value { return FromSmallInt(3) })
+	cm := NewMethod0("cm", func(vm *VM, r Value) Value { return FromSmallInt(3) })
 	child.AddMethod(2, cm)
 
 	// Child should see all three methods
@@ -527,11 +527,11 @@ func TestVTableFlattenInherited(t *testing.T) {
 
 func TestVTableFlattenOverride(t *testing.T) {
 	parent := NewVTable(&Class{Name: "P"}, nil)
-	pm := NewMethod0("m", func(vm interface{}, r Value) Value { return FromSmallInt(1) })
+	pm := NewMethod0("m", func(vm *VM, r Value) Value { return FromSmallInt(1) })
 	parent.AddMethod(0, pm)
 
 	child := NewVTable(&Class{Name: "C"}, parent)
-	cm := NewMethod0("m", func(vm interface{}, r Value) Value { return FromSmallInt(2) })
+	cm := NewMethod0("m", func(vm *VM, r Value) Value { return FromSmallInt(2) })
 	child.AddMethod(0, cm)
 
 	// Child override should win
@@ -546,7 +546,7 @@ func TestVTableFlattenOverride(t *testing.T) {
 
 func TestVTableFlattenAddMethodInvalidates(t *testing.T) {
 	vt := NewVTable(&Class{Name: "Test"}, nil)
-	m1 := NewMethod0("m1", func(vm interface{}, r Value) Value { return FromSmallInt(1) })
+	m1 := NewMethod0("m1", func(vm *VM, r Value) Value { return FromSmallInt(1) })
 	vt.AddMethod(0, m1)
 
 	// Force rebuild
@@ -556,7 +556,7 @@ func TestVTableFlattenAddMethodInvalidates(t *testing.T) {
 	}
 
 	// Add a new method — should invalidate
-	m2 := NewMethod0("m2", func(vm interface{}, r Value) Value { return FromSmallInt(2) })
+	m2 := NewMethod0("m2", func(vm *VM, r Value) Value { return FromSmallInt(2) })
 	vt.AddMethod(1, m2)
 	if vt.snap.Load() != nil {
 		t.Error("snapshot should be nil after AddMethod")
@@ -573,11 +573,11 @@ func TestVTableFlattenAddMethodInvalidates(t *testing.T) {
 
 func TestVTableFlattenSetParentInvalidates(t *testing.T) {
 	parent := NewVTable(&Class{Name: "P"}, nil)
-	pm := NewMethod0("pm", func(vm interface{}, r Value) Value { return FromSmallInt(1) })
+	pm := NewMethod0("pm", func(vm *VM, r Value) Value { return FromSmallInt(1) })
 	parent.AddMethod(0, pm)
 
 	child := NewVTable(&Class{Name: "C"}, nil)
-	cm := NewMethod0("cm", func(vm interface{}, r Value) Value { return FromSmallInt(2) })
+	cm := NewMethod0("cm", func(vm *VM, r Value) Value { return FromSmallInt(2) })
 	child.AddMethod(1, cm)
 
 	// Force rebuild with no parent
@@ -599,11 +599,11 @@ func TestVTableFlattenSetParentInvalidates(t *testing.T) {
 
 func TestVTableFlattenRemoveMethodFallsBack(t *testing.T) {
 	parent := NewVTable(&Class{Name: "P"}, nil)
-	pm := NewMethod0("pm", func(vm interface{}, r Value) Value { return FromSmallInt(1) })
+	pm := NewMethod0("pm", func(vm *VM, r Value) Value { return FromSmallInt(1) })
 	parent.AddMethod(0, pm)
 
 	child := NewVTable(&Class{Name: "C"}, parent)
-	cm := NewMethod0("cm", func(vm interface{}, r Value) Value { return FromSmallInt(2) })
+	cm := NewMethod0("cm", func(vm *VM, r Value) Value { return FromSmallInt(2) })
 	child.AddMethod(0, cm) // Override parent
 
 	// Should see child's override
@@ -624,7 +624,7 @@ func TestVTableFlattenDeepChain(t *testing.T) {
 	methods := make([]Method, 5)
 	for i := 0; i < 5; i++ {
 		vt := NewVTable(&Class{Name: string(rune('A' + i))}, prev)
-		methods[i] = NewMethod0("m", func(vm interface{}, r Value) Value { return Nil })
+		methods[i] = NewMethod0("m", func(vm *VM, r Value) Value { return Nil })
 		vt.AddMethod(i, methods[i])
 		prev = vt
 	}
@@ -639,10 +639,10 @@ func TestVTableFlattenDeepChain(t *testing.T) {
 
 func TestVTableLocalMethodsUnaffectedByFlatten(t *testing.T) {
 	parent := NewVTable(&Class{Name: "P"}, nil)
-	parent.AddMethod(0, NewMethod0("pm", func(vm interface{}, r Value) Value { return Nil }))
+	parent.AddMethod(0, NewMethod0("pm", func(vm *VM, r Value) Value { return Nil }))
 
 	child := NewVTable(&Class{Name: "C"}, parent)
-	cm := NewMethod0("cm", func(vm interface{}, r Value) Value { return Nil })
+	cm := NewMethod0("cm", func(vm *VM, r Value) Value { return Nil })
 	child.AddMethod(1, cm)
 
 	// Force flatten
@@ -684,7 +684,7 @@ func BenchmarkSelectorLookup(b *testing.B) {
 
 func BenchmarkVTableLookupDirect(b *testing.B) {
 	vt := NewVTable(&Class{Name: "Test"}, nil)
-	vt.AddMethod(5, NewMethod0("m", func(vm interface{}, r Value) Value { return Nil }))
+	vt.AddMethod(5, NewMethod0("m", func(vm *VM, r Value) Value { return Nil }))
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		_ = vt.Lookup(5)
@@ -693,7 +693,7 @@ func BenchmarkVTableLookupDirect(b *testing.B) {
 
 func BenchmarkVTableLookupInherited(b *testing.B) {
 	parentVT := NewVTable(&Class{Name: "Parent"}, nil)
-	parentVT.AddMethod(5, NewMethod0("m", func(vm interface{}, r Value) Value { return Nil }))
+	parentVT.AddMethod(5, NewMethod0("m", func(vm *VM, r Value) Value { return Nil }))
 	childVT := NewVTable(&Class{Name: "Child"}, parentVT)
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -702,7 +702,7 @@ func BenchmarkVTableLookupInherited(b *testing.B) {
 }
 
 func BenchmarkMethod0Invoke(b *testing.B) {
-	m := NewMethod0("test", func(vm interface{}, receiver Value) Value {
+	m := NewMethod0("test", func(vm *VM, receiver Value) Value {
 		return Nil
 	})
 	b.ResetTimer()
@@ -712,7 +712,7 @@ func BenchmarkMethod0Invoke(b *testing.B) {
 }
 
 func BenchmarkMethod1Invoke(b *testing.B) {
-	m := NewMethod1("test", func(vm interface{}, receiver, arg1 Value) Value {
+	m := NewMethod1("test", func(vm *VM, receiver, arg1 Value) Value {
 		return arg1
 	})
 	args := []Value{FromSmallInt(42)}

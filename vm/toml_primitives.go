@@ -25,8 +25,7 @@ func (vm *VM) registerTomlPrimitives() {
 	// ---------------------------------------------------------------------------
 	// decode: aString - Parse a TOML string into a Dictionary
 	// ---------------------------------------------------------------------------
-	tomlClass.AddClassMethod1(vm.Selectors, "decode:", func(vmPtr interface{}, recv Value, strVal Value) Value {
-		v := vmPtr.(*VM)
+	tomlClass.AddClassMethod1(vm.Selectors, "decode:", func(v *VM, recv Value, strVal Value) Value {
 
 		src := v.valueToString(strVal)
 		if src == "" && !IsStringValue(strVal) {
@@ -46,8 +45,7 @@ func (vm *VM) registerTomlPrimitives() {
 	// ---------------------------------------------------------------------------
 	// decodeFile: aPath - Read and parse a TOML file into a Dictionary
 	// ---------------------------------------------------------------------------
-	tomlClass.AddClassMethod1(vm.Selectors, "decodeFile:", func(vmPtr interface{}, recv Value, pathVal Value) Value {
-		v := vmPtr.(*VM)
+	tomlClass.AddClassMethod1(vm.Selectors, "decodeFile:", func(v *VM, recv Value, pathVal Value) Value {
 
 		path := v.valueToString(pathVal)
 		if path == "" {
@@ -73,8 +71,7 @@ func (vm *VM) registerTomlPrimitives() {
 	// ---------------------------------------------------------------------------
 	// encode: aDictionary - Encode a Dictionary as a TOML string
 	// ---------------------------------------------------------------------------
-	tomlClass.AddClassMethod1(vm.Selectors, "encode:", func(vmPtr interface{}, recv Value, dictVal Value) Value {
-		v := vmPtr.(*VM)
+	tomlClass.AddClassMethod1(vm.Selectors, "encode:", func(v *VM, recv Value, dictVal Value) Value {
 
 		if !IsDictionaryValue(dictVal) {
 			return v.signalException(tomlParseErrorClass,

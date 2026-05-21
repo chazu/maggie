@@ -24,16 +24,14 @@ func (vm *VM) registerSha256Primitives() {
 	vm.globals["Sha256"] = vm.classValue(c)
 
 	// Sha256 hash: aByteArrayOrString — returns lowercase hex string
-	c.AddClassMethod1(vm.Selectors, "hash:", func(vmPtr interface{}, recv Value, arg Value) Value {
-		v := vmPtr.(*VM)
+	c.AddClassMethod1(vm.Selectors, "hash:", func(v *VM, recv Value, arg Value) Value {
 		data := v.valueToString(arg)
 		sum := sha256.Sum256([]byte(data))
 		return v.registry.NewStringValue(hex.EncodeToString(sum[:]))
 	})
 
 	// Sha256 hashBytes: aByteArrayOrString — returns byte array (as string)
-	c.AddClassMethod1(vm.Selectors, "hashBytes:", func(vmPtr interface{}, recv Value, arg Value) Value {
-		v := vmPtr.(*VM)
+	c.AddClassMethod1(vm.Selectors, "hashBytes:", func(v *VM, recv Value, arg Value) Value {
 		data := v.valueToString(arg)
 		sum := sha256.Sum256([]byte(data))
 		return v.registry.NewStringValue(string(sum[:]))
@@ -45,8 +43,7 @@ func (vm *VM) registerEd25519Primitives() {
 	vm.globals["Ed25519"] = vm.classValue(c)
 
 	// Ed25519 generate — returns Dictionary {#priv -> 32-byte seed, #pub -> 32-byte pubkey}
-	c.AddClassMethod0(vm.Selectors, "generate", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	c.AddClassMethod0(vm.Selectors, "generate", func(v *VM, recv Value) Value {
 		pub, priv, err := ed25519.GenerateKey(rand.Reader)
 		if err != nil {
 			return v.newFailureResult("Ed25519 generate: " + err.Error())
@@ -56,8 +53,7 @@ func (vm *VM) registerEd25519Primitives() {
 	})
 
 	// Ed25519 generateFromSeed: aByteArray — returns same dict; seed must be 32 bytes
-	c.AddClassMethod1(vm.Selectors, "generateFromSeed:", func(vmPtr interface{}, recv Value, arg Value) Value {
-		v := vmPtr.(*VM)
+	c.AddClassMethod1(vm.Selectors, "generateFromSeed:", func(v *VM, recv Value, arg Value) Value {
 		seed := []byte(v.valueToString(arg))
 		if len(seed) != ed25519.SeedSize {
 			return v.newFailureResult("Ed25519 generateFromSeed: seed must be 32 bytes")
@@ -68,8 +64,7 @@ func (vm *VM) registerEd25519Primitives() {
 	})
 
 	// Ed25519 sign: data key: priv — priv is a 32-byte seed OR 64-byte key. Returns 64-byte signature.
-	c.AddClassMethod2(vm.Selectors, "sign:key:", func(vmPtr interface{}, recv Value, dataVal, keyVal Value) Value {
-		v := vmPtr.(*VM)
+	c.AddClassMethod2(vm.Selectors, "sign:key:", func(v *VM, recv Value, dataVal, keyVal Value) Value {
 		data := []byte(v.valueToString(dataVal))
 		keyBytes := []byte(v.valueToString(keyVal))
 
@@ -87,8 +82,7 @@ func (vm *VM) registerEd25519Primitives() {
 	})
 
 	// Ed25519 verify: sig data: bytes pub: pubkey — returns Boolean
-	c.AddClassMethod3(vm.Selectors, "verify:data:pub:", func(vmPtr interface{}, recv Value, sigVal, dataVal, pubVal Value) Value {
-		v := vmPtr.(*VM)
+	c.AddClassMethod3(vm.Selectors, "verify:data:pub:", func(v *VM, recv Value, sigVal, dataVal, pubVal Value) Value {
 		sig := []byte(v.valueToString(sigVal))
 		data := []byte(v.valueToString(dataVal))
 		pub := []byte(v.valueToString(pubVal))
@@ -124,23 +118,20 @@ func (vm *VM) ed25519KeyPairDict(seed, pub []byte) Value {
 
 func (vm *VM) registerHexPrimitives() {
 	// String>>asHex — treat string content as bytes, return lowercase hex.
-	vm.StringClass.AddMethod0(vm.Selectors, "asHex", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	vm.StringClass.AddMethod0(vm.Selectors, "asHex", func(v *VM, recv Value) Value {
 		s := v.registry.GetStringContent(recv)
 		return v.registry.NewStringValue(hex.EncodeToString([]byte(s)))
 	})
 
 	// ByteArray>>asHex — mirror for when receivers are classified as ByteArray.
-	vm.ByteArrayClass.AddMethod0(vm.Selectors, "asHex", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	vm.ByteArrayClass.AddMethod0(vm.Selectors, "asHex", func(v *VM, recv Value) Value {
 		s := v.valueToString(recv)
 		return v.registry.NewStringValue(hex.EncodeToString([]byte(s)))
 	})
 
 	// String>>fromHex — decode hex string into a byte array (represented as a String).
 	// Raises on malformed input by returning a Failure result.
-	vm.StringClass.AddMethod0(vm.Selectors, "fromHex", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	vm.StringClass.AddMethod0(vm.Selectors, "fromHex", func(v *VM, recv Value) Value {
 		s := v.registry.GetStringContent(recv)
 		b, err := hex.DecodeString(s)
 		if err != nil {

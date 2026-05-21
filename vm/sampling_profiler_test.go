@@ -16,7 +16,7 @@ func TestSamplingProfilerBasic(t *testing.T) {
 	cls := vmInst.createClass("TestProf", vmInst.ObjectClass)
 
 	// Register a primitive that spins for long enough to be sampled
-	busyPrim := &Method0{name: "busyLoop", fn: func(vmPtr interface{}, recv Value) Value {
+	busyPrim := &Method0{name: "busyLoop", fn: func(v *VM, recv Value) Value {
 		end := time.Now().Add(50 * time.Millisecond)
 		for time.Now().Before(end) {
 			// spin

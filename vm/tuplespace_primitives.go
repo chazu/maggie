@@ -228,15 +228,13 @@ func (vm *VM) registerTupleSpacePrimitives() {
 	vm.symbolDispatch.Register(tupleSpaceMarker, &SymbolTypeEntry{Class: tsClass})
 
 	// TupleSpace new — create a new tuple space
-	tsClass.AddClassMethod0(vm.Selectors, "new", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	tsClass.AddClassMethod0(vm.Selectors, "new", func(v *VM, recv Value) Value {
 		ts := &TupleSpaceObject{}
 		return v.vmRegisterTupleSpace(ts)
 	})
 
 	// TupleSpace>>primOut: — publish a tuple (non-blocking, linear mode)
-	tsClass.AddMethod1(vm.Selectors, "primOut:", func(vmPtr interface{}, recv Value, tupleVal Value) Value {
-		v := vmPtr.(*VM)
+	tsClass.AddMethod1(vm.Selectors, "primOut:", func(v *VM, recv Value, tupleVal Value) Value {
 		ts := v.vmGetTupleSpace(recv)
 		if ts == nil {
 			return Nil
@@ -257,8 +255,7 @@ func (vm *VM) registerTupleSpacePrimitives() {
 	})
 
 	// TupleSpace>>primOutPersistent: — publish a persistent tuple (never consumed)
-	tsClass.AddMethod1(vm.Selectors, "primOutPersistent:", func(vmPtr interface{}, recv Value, tupleVal Value) Value {
-		v := vmPtr.(*VM)
+	tsClass.AddMethod1(vm.Selectors, "primOutPersistent:", func(v *VM, recv Value, tupleVal Value) Value {
 		ts := v.vmGetTupleSpace(recv)
 		if ts == nil {
 			return Nil
@@ -320,8 +317,7 @@ func (vm *VM) registerTupleSpacePrimitives() {
 	})
 
 	// TupleSpace>>primOutAffine:ttl: — publish with TTL in milliseconds
-	tsClass.AddMethod2(vm.Selectors, "primOutAffine:ttl:", func(vmPtr interface{}, recv Value, tupleVal Value, ttlVal Value) Value {
-		v := vmPtr.(*VM)
+	tsClass.AddMethod2(vm.Selectors, "primOutAffine:ttl:", func(v *VM, recv Value, tupleVal Value, ttlVal Value) Value {
 		ts := v.vmGetTupleSpace(recv)
 		if ts == nil {
 			return Nil
@@ -354,8 +350,7 @@ func (vm *VM) registerTupleSpacePrimitives() {
 	})
 
 	// TupleSpace>>primOutWithContext: — tuple removed when CancellationContext cancelled
-	tsClass.AddMethod2(vm.Selectors, "primOut:withContext:", func(vmPtr interface{}, recv Value, tupleVal Value, ctxVal Value) Value {
-		v := vmPtr.(*VM)
+	tsClass.AddMethod2(vm.Selectors, "primOut:withContext:", func(v *VM, recv Value, tupleVal Value, ctxVal Value) Value {
 		ts := v.vmGetTupleSpace(recv)
 		if ts == nil {
 			return Nil
@@ -397,8 +392,7 @@ func (vm *VM) registerTupleSpacePrimitives() {
 
 	// TupleSpace>>primIn: — blocking destructive read (linear consumption)
 	// For persistent tuples, returns value but does not remove.
-	tsClass.AddMethod1(vm.Selectors, "primIn:", func(vmPtr interface{}, recv Value, templateVal Value) Value {
-		v := vmPtr.(*VM)
+	tsClass.AddMethod1(vm.Selectors, "primIn:", func(v *VM, recv Value, templateVal Value) Value {
 		ts := v.vmGetTupleSpace(recv)
 		if ts == nil {
 			return Nil
@@ -444,8 +438,7 @@ func (vm *VM) registerTupleSpacePrimitives() {
 	})
 
 	// TupleSpace>>primRead: — blocking non-destructive read
-	tsClass.AddMethod1(vm.Selectors, "primRead:", func(vmPtr interface{}, recv Value, templateVal Value) Value {
-		v := vmPtr.(*VM)
+	tsClass.AddMethod1(vm.Selectors, "primRead:", func(v *VM, recv Value, templateVal Value) Value {
 		ts := v.vmGetTupleSpace(recv)
 		if ts == nil {
 			return Nil
@@ -482,8 +475,7 @@ func (vm *VM) registerTupleSpacePrimitives() {
 	})
 
 	// TupleSpace>>primTryIn: — non-blocking destructive read
-	tsClass.AddMethod1(vm.Selectors, "primTryIn:", func(vmPtr interface{}, recv Value, templateVal Value) Value {
-		v := vmPtr.(*VM)
+	tsClass.AddMethod1(vm.Selectors, "primTryIn:", func(v *VM, recv Value, templateVal Value) Value {
 		ts := v.vmGetTupleSpace(recv)
 		if ts == nil {
 			return Nil
@@ -515,8 +507,7 @@ func (vm *VM) registerTupleSpacePrimitives() {
 	})
 
 	// TupleSpace>>primTryRead: — non-blocking non-destructive read
-	tsClass.AddMethod1(vm.Selectors, "primTryRead:", func(vmPtr interface{}, recv Value, templateVal Value) Value {
-		v := vmPtr.(*VM)
+	tsClass.AddMethod1(vm.Selectors, "primTryRead:", func(v *VM, recv Value, templateVal Value) Value {
 		ts := v.vmGetTupleSpace(recv)
 		if ts == nil {
 			return Nil
@@ -545,8 +536,7 @@ func (vm *VM) registerTupleSpacePrimitives() {
 	// TupleSpace>>primInAll: — atomic multi-take (tensor product)
 	// Argument is a Maggie Array of CueValue templates.
 	// Atomically takes ALL matching tuples, or blocks until all satisfiable.
-	tsClass.AddMethod1(vm.Selectors, "primInAll:", func(vmPtr interface{}, recv Value, templatesVal Value) Value {
-		v := vmPtr.(*VM)
+	tsClass.AddMethod1(vm.Selectors, "primInAll:", func(v *VM, recv Value, templatesVal Value) Value {
 		ts := v.vmGetTupleSpace(recv)
 		if ts == nil {
 			return Nil
@@ -600,8 +590,7 @@ func (vm *VM) registerTupleSpacePrimitives() {
 	// TupleSpace>>primInAny: — choice (additive disjunction)
 	// Argument is a Maggie Array of CueValue templates.
 	// Returns the first tuple matching any template.
-	tsClass.AddMethod1(vm.Selectors, "primInAny:", func(vmPtr interface{}, recv Value, templatesVal Value) Value {
-		v := vmPtr.(*VM)
+	tsClass.AddMethod1(vm.Selectors, "primInAny:", func(v *VM, recv Value, templatesVal Value) Value {
 		ts := v.vmGetTupleSpace(recv)
 		if ts == nil {
 			return Nil
@@ -660,8 +649,7 @@ func (vm *VM) registerTupleSpacePrimitives() {
 	})
 
 	// TupleSpace>>primSize — number of stored tuples
-	tsClass.AddMethod0(vm.Selectors, "primSize", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	tsClass.AddMethod0(vm.Selectors, "primSize", func(v *VM, recv Value) Value {
 		ts := v.vmGetTupleSpace(recv)
 		if ts == nil {
 			return FromSmallInt(0)
@@ -672,8 +660,7 @@ func (vm *VM) registerTupleSpacePrimitives() {
 	})
 
 	// TupleSpace>>primIsEmpty — true if no tuples stored
-	tsClass.AddMethod0(vm.Selectors, "primIsEmpty", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	tsClass.AddMethod0(vm.Selectors, "primIsEmpty", func(v *VM, recv Value) Value {
 		ts := v.vmGetTupleSpace(recv)
 		if ts == nil {
 			return True
@@ -687,8 +674,7 @@ func (vm *VM) registerTupleSpacePrimitives() {
 	})
 
 	// TupleSpace>>printString
-	tsClass.AddMethod0(vm.Selectors, "primPrintString", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	tsClass.AddMethod0(vm.Selectors, "primPrintString", func(v *VM, recv Value) Value {
 		ts := v.vmGetTupleSpace(recv)
 		if ts == nil {
 			return v.registry.NewStringValue("a TupleSpace (invalid)")

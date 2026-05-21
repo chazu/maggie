@@ -28,8 +28,7 @@ func (vm *VM) registerBigIntegerPrimitives() {
 	c := vm.BigIntegerClass
 
 	// Arithmetic: +
-	c.AddMethod1(vm.Selectors, "+", func(vmPtr interface{}, recv Value, arg Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod1(vm.Selectors, "+", func(v *VM, recv Value, arg Value) Value {
 		a := getBigIntOperand(v, recv)
 		if a == nil {
 			return Nil
@@ -50,8 +49,7 @@ func (vm *VM) registerBigIntegerPrimitives() {
 	})
 
 	// Arithmetic: -
-	c.AddMethod1(vm.Selectors, "-", func(vmPtr interface{}, recv Value, arg Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod1(vm.Selectors, "-", func(v *VM, recv Value, arg Value) Value {
 		a := getBigIntOperand(v, recv)
 		if a == nil {
 			return Nil
@@ -71,8 +69,7 @@ func (vm *VM) registerBigIntegerPrimitives() {
 	})
 
 	// Arithmetic: *
-	c.AddMethod1(vm.Selectors, "*", func(vmPtr interface{}, recv Value, arg Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod1(vm.Selectors, "*", func(v *VM, recv Value, arg Value) Value {
 		a := getBigIntOperand(v, recv)
 		if a == nil {
 			return Nil
@@ -92,8 +89,7 @@ func (vm *VM) registerBigIntegerPrimitives() {
 	})
 
 	// Arithmetic: /  (integer division)
-	c.AddMethod1(vm.Selectors, "/", func(vmPtr interface{}, recv Value, arg Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod1(vm.Selectors, "/", func(v *VM, recv Value, arg Value) Value {
 		a := getBigIntOperand(v, recv)
 		if a == nil {
 			return Nil
@@ -116,8 +112,7 @@ func (vm *VM) registerBigIntegerPrimitives() {
 	})
 
 	// Arithmetic: \\ (modulo)
-	c.AddMethod1(vm.Selectors, "\\\\", func(vmPtr interface{}, recv Value, arg Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod1(vm.Selectors, "\\\\", func(v *VM, recv Value, arg Value) Value {
 		a := getBigIntOperand(v, recv)
 		if a == nil {
 			return Nil
@@ -134,8 +129,7 @@ func (vm *VM) registerBigIntegerPrimitives() {
 	})
 
 	// Arithmetic: // (floor division)
-	c.AddMethod1(vm.Selectors, "//", func(vmPtr interface{}, recv Value, arg Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod1(vm.Selectors, "//", func(v *VM, recv Value, arg Value) Value {
 		a := getBigIntOperand(v, recv)
 		if a == nil {
 			return Nil
@@ -152,8 +146,7 @@ func (vm *VM) registerBigIntegerPrimitives() {
 	})
 
 	// Comparison: <
-	c.AddMethod1(vm.Selectors, "<", func(vmPtr interface{}, recv Value, arg Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod1(vm.Selectors, "<", func(v *VM, recv Value, arg Value) Value {
 		a := getBigIntOperand(v, recv)
 		if a == nil {
 			return Nil
@@ -166,8 +159,7 @@ func (vm *VM) registerBigIntegerPrimitives() {
 	})
 
 	// Comparison: >
-	c.AddMethod1(vm.Selectors, ">", func(vmPtr interface{}, recv Value, arg Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod1(vm.Selectors, ">", func(v *VM, recv Value, arg Value) Value {
 		a := getBigIntOperand(v, recv)
 		if a == nil {
 			return Nil
@@ -180,8 +172,7 @@ func (vm *VM) registerBigIntegerPrimitives() {
 	})
 
 	// Comparison: <=
-	c.AddMethod1(vm.Selectors, "<=", func(vmPtr interface{}, recv Value, arg Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod1(vm.Selectors, "<=", func(v *VM, recv Value, arg Value) Value {
 		a := getBigIntOperand(v, recv)
 		if a == nil {
 			return Nil
@@ -194,8 +185,7 @@ func (vm *VM) registerBigIntegerPrimitives() {
 	})
 
 	// Comparison: >=
-	c.AddMethod1(vm.Selectors, ">=", func(vmPtr interface{}, recv Value, arg Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod1(vm.Selectors, ">=", func(v *VM, recv Value, arg Value) Value {
 		a := getBigIntOperand(v, recv)
 		if a == nil {
 			return Nil
@@ -208,8 +198,7 @@ func (vm *VM) registerBigIntegerPrimitives() {
 	})
 
 	// Comparison: =
-	c.AddMethod1(vm.Selectors, "=", func(vmPtr interface{}, recv Value, arg Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod1(vm.Selectors, "=", func(v *VM, recv Value, arg Value) Value {
 		a := getBigIntOperand(v, recv)
 		if a == nil {
 			return Nil
@@ -222,8 +211,7 @@ func (vm *VM) registerBigIntegerPrimitives() {
 	})
 
 	// Unary: negated
-	c.AddMethod0(vm.Selectors, "negated", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod0(vm.Selectors, "negated", func(v *VM, recv Value) Value {
 		a := getBigIntOperand(v, recv)
 		if a == nil {
 			return Nil
@@ -233,8 +221,7 @@ func (vm *VM) registerBigIntegerPrimitives() {
 	})
 
 	// Unary: abs
-	c.AddMethod0(vm.Selectors, "abs", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod0(vm.Selectors, "abs", func(v *VM, recv Value) Value {
 		a := getBigIntOperand(v, recv)
 		if a == nil {
 			return Nil
@@ -244,8 +231,7 @@ func (vm *VM) registerBigIntegerPrimitives() {
 	})
 
 	// Printing
-	c.AddMethod0(vm.Selectors, "primPrintString", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod0(vm.Selectors, "primPrintString", func(v *VM, recv Value) Value {
 		obj := v.registry.GetBigInt(recv)
 		if obj == nil {
 			return v.registry.NewStringValue("a BigInteger")
@@ -254,8 +240,7 @@ func (vm *VM) registerBigIntegerPrimitives() {
 	})
 
 	// Hash (for use in dictionaries)
-	c.AddMethod0(vm.Selectors, "hash", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod0(vm.Selectors, "hash", func(v *VM, recv Value) Value {
 		obj := v.registry.GetBigInt(recv)
 		if obj == nil {
 			return FromSmallInt(0)
@@ -271,8 +256,7 @@ func (vm *VM) registerBigIntegerPrimitives() {
 	})
 
 	// primAsFloat - convert BigInt to Float
-	c.AddMethod0(vm.Selectors, "primAsFloat", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod0(vm.Selectors, "primAsFloat", func(v *VM, recv Value) Value {
 		obj := v.registry.GetBigInt(recv)
 		if obj == nil {
 			return Nil
@@ -283,8 +267,7 @@ func (vm *VM) registerBigIntegerPrimitives() {
 	})
 
 	// asSmallInt - convert BigInt to SmallInt (truncates if out of range)
-	c.AddMethod0(vm.Selectors, "asSmallInt", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod0(vm.Selectors, "asSmallInt", func(v *VM, recv Value) Value {
 		obj := v.registry.GetBigInt(recv)
 		if obj == nil {
 			return Nil
@@ -299,8 +282,7 @@ func (vm *VM) registerBigIntegerPrimitives() {
 	})
 
 	// Bit operations
-	c.AddMethod1(vm.Selectors, "bitAnd:", func(vmPtr interface{}, recv Value, arg Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod1(vm.Selectors, "bitAnd:", func(v *VM, recv Value, arg Value) Value {
 		a := getBigIntOperand(v, recv)
 		if a == nil {
 			return Nil
@@ -313,8 +295,7 @@ func (vm *VM) registerBigIntegerPrimitives() {
 		return v.registry.NewBigIntValue(result)
 	})
 
-	c.AddMethod1(vm.Selectors, "bitOr:", func(vmPtr interface{}, recv Value, arg Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod1(vm.Selectors, "bitOr:", func(v *VM, recv Value, arg Value) Value {
 		a := getBigIntOperand(v, recv)
 		if a == nil {
 			return Nil
@@ -327,8 +308,7 @@ func (vm *VM) registerBigIntegerPrimitives() {
 		return v.registry.NewBigIntValue(result)
 	})
 
-	c.AddMethod1(vm.Selectors, "bitXor:", func(vmPtr interface{}, recv Value, arg Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod1(vm.Selectors, "bitXor:", func(v *VM, recv Value, arg Value) Value {
 		a := getBigIntOperand(v, recv)
 		if a == nil {
 			return Nil
@@ -341,8 +321,7 @@ func (vm *VM) registerBigIntegerPrimitives() {
 		return v.registry.NewBigIntValue(result)
 	})
 
-	c.AddMethod1(vm.Selectors, "bitShift:", func(vmPtr interface{}, recv Value, arg Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod1(vm.Selectors, "bitShift:", func(v *VM, recv Value, arg Value) Value {
 		a := getBigIntOperand(v, recv)
 		if a == nil {
 			return Nil
@@ -361,8 +340,7 @@ func (vm *VM) registerBigIntegerPrimitives() {
 	})
 
 	// sign - returns -1, 0, or 1
-	c.AddMethod0(vm.Selectors, "primSign", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod0(vm.Selectors, "primSign", func(v *VM, recv Value) Value {
 		obj := v.registry.GetBigInt(recv)
 		if obj == nil {
 			return FromSmallInt(0)
@@ -371,8 +349,7 @@ func (vm *VM) registerBigIntegerPrimitives() {
 	})
 
 	// isZero
-	c.AddMethod0(vm.Selectors, "isZero", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod0(vm.Selectors, "isZero", func(v *VM, recv Value) Value {
 		obj := v.registry.GetBigInt(recv)
 		if obj == nil {
 			return False

@@ -83,8 +83,7 @@ func (vm *VM) registerExecPrimitives() {
 	// -----------------------------------------------------------------------
 
 	// command: cmdString — Create a process with a command string (no args)
-	epClass.AddClassMethod1(vm.Selectors, "command:", func(vmPtr interface{}, recv Value, cmdVal Value) Value {
-		v := vmPtr.(*VM)
+	epClass.AddClassMethod1(vm.Selectors, "command:", func(v *VM, recv Value, cmdVal Value) Value {
 		cmd := v.valueToString(cmdVal)
 		if cmd == "" {
 			return v.newFailureResult("command: requires a non-empty string")
@@ -97,8 +96,7 @@ func (vm *VM) registerExecPrimitives() {
 	})
 
 	// command:args: — Create a process with command and arguments array
-	epClass.AddClassMethod2(vm.Selectors, "command:args:", func(vmPtr interface{}, recv Value, cmdVal, argsVal Value) Value {
-		v := vmPtr.(*VM)
+	epClass.AddClassMethod2(vm.Selectors, "command:args:", func(v *VM, recv Value, cmdVal, argsVal Value) Value {
 		cmd := v.valueToString(cmdVal)
 		if cmd == "" {
 			return v.newFailureResult("command:args: requires a non-empty command string")
@@ -113,8 +111,7 @@ func (vm *VM) registerExecPrimitives() {
 	})
 
 	// run:args: — Convenience: run command synchronously, return stdout string or Failure
-	epClass.AddClassMethod2(vm.Selectors, "run:args:", func(vmPtr interface{}, recv Value, cmdVal, argsVal Value) Value {
-		v := vmPtr.(*VM)
+	epClass.AddClassMethod2(vm.Selectors, "run:args:", func(v *VM, recv Value, cmdVal, argsVal Value) Value {
 		cmd := v.valueToString(cmdVal)
 		if cmd == "" {
 			return v.newFailureResult("run:args: requires a non-empty command string")
@@ -162,8 +159,7 @@ func (vm *VM) registerExecPrimitives() {
 	// -----------------------------------------------------------------------
 
 	// args: anArray — Set arguments
-	epClass.AddMethod1(vm.Selectors, "args:", func(vmPtr interface{}, recv Value, argsVal Value) Value {
-		v := vmPtr.(*VM)
+	epClass.AddMethod1(vm.Selectors, "args:", func(v *VM, recv Value, argsVal Value) Value {
 		p := v.vmGetExtProcess(recv)
 		if p == nil {
 			return Nil
@@ -173,8 +169,7 @@ func (vm *VM) registerExecPrimitives() {
 	})
 
 	// env: aDictionary — Set environment variables (merged with inherited env)
-	epClass.AddMethod1(vm.Selectors, "env:", func(vmPtr interface{}, recv Value, envVal Value) Value {
-		v := vmPtr.(*VM)
+	epClass.AddMethod1(vm.Selectors, "env:", func(v *VM, recv Value, envVal Value) Value {
 		p := v.vmGetExtProcess(recv)
 		if p == nil {
 			return Nil
@@ -184,8 +179,7 @@ func (vm *VM) registerExecPrimitives() {
 	})
 
 	// dir: aString — Set working directory
-	epClass.AddMethod1(vm.Selectors, "dir:", func(vmPtr interface{}, recv Value, dirVal Value) Value {
-		v := vmPtr.(*VM)
+	epClass.AddMethod1(vm.Selectors, "dir:", func(v *VM, recv Value, dirVal Value) Value {
 		p := v.vmGetExtProcess(recv)
 		if p == nil {
 			return Nil
@@ -199,8 +193,7 @@ func (vm *VM) registerExecPrimitives() {
 	// -----------------------------------------------------------------------
 
 	// run — Run synchronously, return self (stdout/stderr/exitCode available after)
-	epClass.AddMethod0(vm.Selectors, "run", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	epClass.AddMethod0(vm.Selectors, "run", func(v *VM, recv Value) Value {
 		p := v.vmGetExtProcess(recv)
 		if p == nil {
 			return Nil
@@ -243,8 +236,7 @@ func (vm *VM) registerExecPrimitives() {
 	})
 
 	// runWithTimeout: milliseconds — Run synchronously with timeout
-	epClass.AddMethod1(vm.Selectors, "runWithTimeout:", func(vmPtr interface{}, recv Value, msVal Value) Value {
-		v := vmPtr.(*VM)
+	epClass.AddMethod1(vm.Selectors, "runWithTimeout:", func(v *VM, recv Value, msVal Value) Value {
 		p := v.vmGetExtProcess(recv)
 		if p == nil {
 			return Nil
@@ -302,8 +294,7 @@ func (vm *VM) registerExecPrimitives() {
 	})
 
 	// start — Start asynchronously, return self
-	epClass.AddMethod0(vm.Selectors, "start", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	epClass.AddMethod0(vm.Selectors, "start", func(v *VM, recv Value) Value {
 		p := v.vmGetExtProcess(recv)
 		if p == nil {
 			return Nil
@@ -361,8 +352,7 @@ func (vm *VM) registerExecPrimitives() {
 	})
 
 	// wait — Block until async process completes, return self
-	epClass.AddMethod0(vm.Selectors, "wait", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	epClass.AddMethod0(vm.Selectors, "wait", func(v *VM, recv Value) Value {
 		p := v.vmGetExtProcess(recv)
 		if p == nil {
 			return Nil
@@ -383,8 +373,7 @@ func (vm *VM) registerExecPrimitives() {
 	})
 
 	// kill — Kill the running process
-	epClass.AddMethod0(vm.Selectors, "kill", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	epClass.AddMethod0(vm.Selectors, "kill", func(v *VM, recv Value) Value {
 		p := v.vmGetExtProcess(recv)
 		if p == nil {
 			return Nil
@@ -406,8 +395,7 @@ func (vm *VM) registerExecPrimitives() {
 	// -----------------------------------------------------------------------
 
 	// stdout — Return captured stdout as string
-	epClass.AddMethod0(vm.Selectors, "stdout", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	epClass.AddMethod0(vm.Selectors, "stdout", func(v *VM, recv Value) Value {
 		p := v.vmGetExtProcess(recv)
 		if p == nil {
 			return Nil
@@ -416,8 +404,7 @@ func (vm *VM) registerExecPrimitives() {
 	})
 
 	// stderr — Return captured stderr as string
-	epClass.AddMethod0(vm.Selectors, "stderr", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	epClass.AddMethod0(vm.Selectors, "stderr", func(v *VM, recv Value) Value {
 		p := v.vmGetExtProcess(recv)
 		if p == nil {
 			return Nil
@@ -426,8 +413,7 @@ func (vm *VM) registerExecPrimitives() {
 	})
 
 	// exitCode — Return exit code (integer, -1 if not yet run or error)
-	epClass.AddMethod0(vm.Selectors, "exitCode", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	epClass.AddMethod0(vm.Selectors, "exitCode", func(v *VM, recv Value) Value {
 		p := v.vmGetExtProcess(recv)
 		if p == nil {
 			return Nil
@@ -436,8 +422,7 @@ func (vm *VM) registerExecPrimitives() {
 	})
 
 	// isSuccess — Return true if exit code is 0
-	epClass.AddMethod0(vm.Selectors, "isSuccess", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	epClass.AddMethod0(vm.Selectors, "isSuccess", func(v *VM, recv Value) Value {
 		p := v.vmGetExtProcess(recv)
 		if p == nil {
 			return False
@@ -449,8 +434,7 @@ func (vm *VM) registerExecPrimitives() {
 	})
 
 	// isDone — Return true if process has completed
-	epClass.AddMethod0(vm.Selectors, "isDone", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	epClass.AddMethod0(vm.Selectors, "isDone", func(v *VM, recv Value) Value {
 		p := v.vmGetExtProcess(recv)
 		if p == nil {
 			return False
@@ -465,8 +449,7 @@ func (vm *VM) registerExecPrimitives() {
 	})
 
 	// command — Return the command string
-	epClass.AddMethod0(vm.Selectors, "command", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	epClass.AddMethod0(vm.Selectors, "command", func(v *VM, recv Value) Value {
 		p := v.vmGetExtProcess(recv)
 		if p == nil {
 			return Nil
@@ -475,8 +458,7 @@ func (vm *VM) registerExecPrimitives() {
 	})
 
 	// printString — Return a string representation
-	epClass.AddMethod0(vm.Selectors, "printString", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	epClass.AddMethod0(vm.Selectors, "printString", func(v *VM, recv Value) Value {
 		p := v.vmGetExtProcess(recv)
 		if p == nil {
 			return v.registry.NewStringValue("an ExternalProcess")

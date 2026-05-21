@@ -19,8 +19,7 @@ func (vm *VM) registerSignalPrimitives() {
 	// Registers a handler that sends the signal name (as a Symbol) to the channel.
 	// signalName is a String like 'SIGTERM', 'SIGINT', 'SIGHUP'.
 	// Returns the receiver (Signal class).
-	sigClass.AddClassMethod2(vm.Selectors, "trap:toChannel:", func(vmPtr interface{}, recv Value, nameVal, chVal Value) Value {
-		v := vmPtr.(*VM)
+	sigClass.AddClassMethod2(vm.Selectors, "trap:toChannel:", func(v *VM, recv Value, nameVal, chVal Value) Value {
 		name := v.valueToString(nameVal)
 		if name == "" {
 			return v.newFailureResult("Signal trap:toChannel: requires a signal name string")
@@ -52,8 +51,7 @@ func (vm *VM) registerSignalPrimitives() {
 	// Signal trapAll: anArray toChannel: aChannel
 	// Like trap:toChannel: but for multiple signals at once.
 	// anArray is an Array of signal name Strings.
-	sigClass.AddClassMethod2(vm.Selectors, "trapAll:toChannel:", func(vmPtr interface{}, recv Value, arrayVal, chVal Value) Value {
-		v := vmPtr.(*VM)
+	sigClass.AddClassMethod2(vm.Selectors, "trapAll:toChannel:", func(v *VM, recv Value, arrayVal, chVal Value) Value {
 		ch := v.vmGetChannel(chVal)
 		if ch == nil {
 			return v.newFailureResult("Signal trapAll:toChannel: requires a Channel")

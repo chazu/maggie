@@ -41,8 +41,7 @@ func (vm *VM) registerMutexPrimitives() {
 	m := vm.MutexClass
 
 	// Mutex class>>new - create a new mutex
-	newMutexFn := func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	newMutexFn := func(v *VM, recv Value) Value {
 		mutex := createMutex()
 		return v.registerMutex(mutex)
 	}
@@ -50,8 +49,7 @@ func (vm *VM) registerMutexPrimitives() {
 	m.AddClassMethod0(vm.Selectors, "primNew", newMutexFn)
 
 	// Mutex>>lock - acquire the mutex (blocks if already held)
-	lockFn := func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	lockFn := func(v *VM, recv Value) Value {
 		mu := v.getMutex(recv)
 		if mu == nil {
 			return Nil
@@ -64,8 +62,7 @@ func (vm *VM) registerMutexPrimitives() {
 	m.AddMethod0(vm.Selectors, "primLock", lockFn)
 
 	// Mutex>>unlock - release the mutex
-	unlockFn := func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	unlockFn := func(v *VM, recv Value) Value {
 		mu := v.getMutex(recv)
 		if mu == nil {
 			return Nil
@@ -79,8 +76,7 @@ func (vm *VM) registerMutexPrimitives() {
 
 	// Mutex>>tryLock - try to acquire the mutex without blocking
 	// Returns true if acquired, false if already held
-	tryLockFn := func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	tryLockFn := func(v *VM, recv Value) Value {
 		mu := v.getMutex(recv)
 		if mu == nil {
 			return False
@@ -95,8 +91,7 @@ func (vm *VM) registerMutexPrimitives() {
 	m.AddMethod0(vm.Selectors, "primTryLock", tryLockFn)
 
 	// Mutex>>isLocked - check if mutex is currently locked
-	isLockedFn := func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	isLockedFn := func(v *VM, recv Value) Value {
 		mu := v.getMutex(recv)
 		if mu == nil {
 			return False
@@ -111,8 +106,7 @@ func (vm *VM) registerMutexPrimitives() {
 
 	// Mutex>>critical: aBlock - execute block while holding the lock
 	// Automatically unlocks even if block raises exception
-	criticalFn := func(vmPtr interface{}, recv Value, block Value) Value {
-		v := vmPtr.(*VM)
+	criticalFn := func(v *VM, recv Value, block Value) Value {
 		mu := v.getMutex(recv)
 		if mu == nil {
 			return Nil

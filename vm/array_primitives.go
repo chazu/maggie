@@ -13,7 +13,7 @@ func (vm *VM) registerArrayPrimitives() {
 	c := vm.ArrayClass
 
 	// primSize - return array size
-	c.AddMethod0(vm.Selectors, "primSize", func(_ interface{}, recv Value) Value {
+	c.AddMethod0(vm.Selectors, "primSize", func(_ *VM, recv Value) Value {
 		if recv.IsObject() {
 			obj := ObjectFromValue(recv)
 			if obj != nil {
@@ -24,7 +24,7 @@ func (vm *VM) registerArrayPrimitives() {
 	})
 
 	// size - alias for primSize for direct calls
-	c.AddMethod0(vm.Selectors, "size", func(_ interface{}, recv Value) Value {
+	c.AddMethod0(vm.Selectors, "size", func(_ *VM, recv Value) Value {
 		if recv.IsObject() {
 			obj := ObjectFromValue(recv)
 			if obj != nil {
@@ -35,8 +35,7 @@ func (vm *VM) registerArrayPrimitives() {
 	})
 
 	// primAt: - array access (1-based indexing)
-	c.AddMethod1(vm.Selectors, "primAt:", func(vmPtr interface{}, recv Value, index Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod1(vm.Selectors, "primAt:", func(v *VM, recv Value, index Value) Value {
 		if !recv.IsObject() || !index.IsSmallInt() {
 			return v.SignalPrimitiveError("primAt:", "receiver must be an object and index must be an integer")
 		}
@@ -52,8 +51,7 @@ func (vm *VM) registerArrayPrimitives() {
 	})
 
 	// at: - alias for primAt: for direct calls
-	c.AddMethod1(vm.Selectors, "at:", func(vmPtr interface{}, recv Value, index Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod1(vm.Selectors, "at:", func(v *VM, recv Value, index Value) Value {
 		if !recv.IsObject() || !index.IsSmallInt() {
 			return v.SignalPrimitiveError("at:", "receiver must be an object and index must be an integer")
 		}
@@ -69,8 +67,7 @@ func (vm *VM) registerArrayPrimitives() {
 	})
 
 	// primAt:put: - array modification (1-based indexing)
-	c.AddMethod2(vm.Selectors, "primAt:put:", func(vmPtr interface{}, recv Value, index, value Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod2(vm.Selectors, "primAt:put:", func(v *VM, recv Value, index, value Value) Value {
 		if !recv.IsObject() || !index.IsSmallInt() {
 			return v.SignalPrimitiveError("primAt:put:", "receiver must be an object and index must be an integer")
 		}
@@ -87,8 +84,7 @@ func (vm *VM) registerArrayPrimitives() {
 	})
 
 	// at:put: - alias for primAt:put: for direct calls
-	c.AddMethod2(vm.Selectors, "at:put:", func(vmPtr interface{}, recv Value, index, value Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod2(vm.Selectors, "at:put:", func(v *VM, recv Value, index, value Value) Value {
 		if !recv.IsObject() || !index.IsSmallInt() {
 			return v.SignalPrimitiveError("at:put:", "receiver must be an object and index must be an integer")
 		}
@@ -105,15 +101,13 @@ func (vm *VM) registerArrayPrimitives() {
 	})
 
 	// Class-side new - create empty array
-	c.AddClassMethod0(vm.Selectors, "new", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	c.AddClassMethod0(vm.Selectors, "new", func(v *VM, recv Value) Value {
 		return v.NewArray(0)
 	})
 
 	// Class-side new: - create array of given size
 	// This is a class method - registered on ClassVTable
-	c.AddClassMethod1(vm.Selectors, "new:", func(vmPtr interface{}, recv Value, size Value) Value {
-		v := vmPtr.(*VM)
+	c.AddClassMethod1(vm.Selectors, "new:", func(v *VM, recv Value, size Value) Value {
 		if !size.IsSmallInt() {
 			return Nil
 		}
@@ -126,8 +120,7 @@ func (vm *VM) registerArrayPrimitives() {
 	})
 
 	// new:withAll: - create array of given size, all elements set to value
-	c.AddClassMethod(vm.Selectors, "new:withAll:", NewPrimitiveMethod("new:withAll:", func(vmPtr interface{}, recv Value, args []Value) Value {
-		v := vmPtr.(*VM)
+	c.AddClassMethod(vm.Selectors, "new:withAll:", NewPrimitiveMethod("new:withAll:", func(v *VM, recv Value, args []Value) Value {
 		if len(args) < 2 || !args[0].IsSmallInt() {
 			return Nil
 		}
@@ -149,8 +142,7 @@ func (vm *VM) registerArrayPrimitives() {
 	}))
 
 	// with: - create single-element array (class side)
-	c.AddClassMethod1(vm.Selectors, "with:", func(vmPtr interface{}, recv Value, elem Value) Value {
-		v := vmPtr.(*VM)
+	c.AddClassMethod1(vm.Selectors, "with:", func(v *VM, recv Value, elem Value) Value {
 		arr := v.NewArray(1)
 		if arr.IsObject() {
 			obj := ObjectFromValue(arr)
@@ -160,8 +152,7 @@ func (vm *VM) registerArrayPrimitives() {
 	})
 
 	// with:with: - create two-element array (class side)
-	c.AddClassMethod2(vm.Selectors, "with:with:", func(vmPtr interface{}, recv Value, elem1, elem2 Value) Value {
-		v := vmPtr.(*VM)
+	c.AddClassMethod2(vm.Selectors, "with:with:", func(v *VM, recv Value, elem1, elem2 Value) Value {
 		arr := v.NewArray(2)
 		if arr.IsObject() {
 			obj := ObjectFromValue(arr)
@@ -174,8 +165,7 @@ func (vm *VM) registerArrayPrimitives() {
 	// sort: - sort array in-place using a comparison block
 	// The block receives two elements and should return a negative number (a < b),
 	// zero (a = b), or a positive number (a > b).
-	c.AddMethod1(vm.Selectors, "primSort:", func(vmPtr interface{}, recv Value, block Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod1(vm.Selectors, "primSort:", func(v *VM, recv Value, block Value) Value {
 		if !recv.IsObject() {
 			return recv
 		}
@@ -215,8 +205,7 @@ func (vm *VM) registerArrayPrimitives() {
 	})
 
 	// sort - sort array in-place using default < comparison
-	c.AddMethod0(vm.Selectors, "primSortDefault", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod0(vm.Selectors, "primSortDefault", func(v *VM, recv Value) Value {
 		if !recv.IsObject() {
 			return recv
 		}
@@ -240,8 +229,7 @@ func (vm *VM) registerArrayPrimitives() {
 	})
 
 	// sorted: - return a new sorted array using a comparison block (non-destructive)
-	c.AddMethod1(vm.Selectors, "primSorted:", func(vmPtr interface{}, recv Value, block Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod1(vm.Selectors, "primSorted:", func(v *VM, recv Value, block Value) Value {
 		if !recv.IsObject() {
 			return recv
 		}
@@ -265,8 +253,7 @@ func (vm *VM) registerArrayPrimitives() {
 	})
 
 	// primJoinWith: - join array elements into a string with separator
-	c.AddMethod1(vm.Selectors, "primJoinWith:", func(vmPtr interface{}, recv Value, sep Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod1(vm.Selectors, "primJoinWith:", func(v *VM, recv Value, sep Value) Value {
 		if !recv.IsObject() {
 			return v.registry.NewStringValue("")
 		}
@@ -285,8 +272,7 @@ func (vm *VM) registerArrayPrimitives() {
 	})
 
 	// sorted - return a new sorted array using default < comparison (non-destructive)
-	c.AddMethod0(vm.Selectors, "primSortedDefault", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod0(vm.Selectors, "primSortedDefault", func(v *VM, recv Value) Value {
 		if !recv.IsObject() {
 			return recv
 		}

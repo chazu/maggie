@@ -215,8 +215,7 @@ func (vm *VM) registerRemoteChannelPrimitives() {
 	vm.symbolDispatch.Register(remoteChannelMarker, &SymbolTypeEntry{Class: c})
 
 	// RemoteChannel>>send: value — blocking send to remote channel
-	c.AddMethod1(vm.Selectors, "send:", func(vmPtr interface{}, recv, val Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod1(vm.Selectors, "send:", func(v *VM, recv, val Value) Value {
 		ref := v.getRemoteChannel(recv)
 		if ref == nil || ref.SendFunc == nil {
 			return Nil
@@ -235,8 +234,7 @@ func (vm *VM) registerRemoteChannelPrimitives() {
 	})
 
 	// RemoteChannel>>receive — blocking receive from remote channel
-	c.AddMethod0(vm.Selectors, "receive", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod0(vm.Selectors, "receive", func(v *VM, recv Value) Value {
 		ref := v.getRemoteChannel(recv)
 		if ref == nil || ref.ReceiveFunc == nil {
 			return Nil
@@ -257,8 +255,7 @@ func (vm *VM) registerRemoteChannelPrimitives() {
 	})
 
 	// RemoteChannel>>trySend: value — non-blocking send
-	c.AddMethod1(vm.Selectors, "trySend:", func(vmPtr interface{}, recv, val Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod1(vm.Selectors, "trySend:", func(v *VM, recv, val Value) Value {
 		ref := v.getRemoteChannel(recv)
 		if ref == nil || ref.TrySendFunc == nil {
 			return False
@@ -278,8 +275,7 @@ func (vm *VM) registerRemoteChannelPrimitives() {
 	})
 
 	// RemoteChannel>>tryReceive — non-blocking receive
-	c.AddMethod0(vm.Selectors, "tryReceive", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod0(vm.Selectors, "tryReceive", func(v *VM, recv Value) Value {
 		ref := v.getRemoteChannel(recv)
 		if ref == nil || ref.TryReceiveFunc == nil {
 			return Nil
@@ -302,8 +298,7 @@ func (vm *VM) registerRemoteChannelPrimitives() {
 	})
 
 	// RemoteChannel>>close
-	c.AddMethod0(vm.Selectors, "close", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod0(vm.Selectors, "close", func(v *VM, recv Value) Value {
 		ref := v.getRemoteChannel(recv)
 		if ref == nil || ref.CloseFunc == nil {
 			return recv
@@ -317,8 +312,7 @@ func (vm *VM) registerRemoteChannelPrimitives() {
 	})
 
 	// RemoteChannel>>isClosed
-	c.AddMethod0(vm.Selectors, "isClosed", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod0(vm.Selectors, "isClosed", func(v *VM, recv Value) Value {
 		ref := v.getRemoteChannel(recv)
 		if ref == nil {
 			return True
@@ -327,8 +321,7 @@ func (vm *VM) registerRemoteChannelPrimitives() {
 	})
 
 	// RemoteChannel>>isEmpty
-	c.AddMethod0(vm.Selectors, "isEmpty", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod0(vm.Selectors, "isEmpty", func(v *VM, recv Value) Value {
 		ref := v.getRemoteChannel(recv)
 		if ref == nil || ref.StatusFunc == nil {
 			return True
@@ -341,8 +334,7 @@ func (vm *VM) registerRemoteChannelPrimitives() {
 	})
 
 	// RemoteChannel>>size
-	c.AddMethod0(vm.Selectors, "size", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod0(vm.Selectors, "size", func(v *VM, recv Value) Value {
 		ref := v.getRemoteChannel(recv)
 		if ref == nil || ref.StatusFunc == nil {
 			return FromSmallInt(0)
@@ -355,8 +347,7 @@ func (vm *VM) registerRemoteChannelPrimitives() {
 	})
 
 	// RemoteChannel>>capacity
-	c.AddMethod0(vm.Selectors, "capacity", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod0(vm.Selectors, "capacity", func(v *VM, recv Value) Value {
 		ref := v.getRemoteChannel(recv)
 		if ref == nil {
 			return FromSmallInt(0)
@@ -365,8 +356,7 @@ func (vm *VM) registerRemoteChannelPrimitives() {
 	})
 
 	// RemoteChannel>>printString
-	c.AddMethod0(vm.Selectors, "printString", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod0(vm.Selectors, "printString", func(v *VM, recv Value) Value {
 		ref := v.getRemoteChannel(recv)
 		if ref == nil {
 			return v.registry.NewStringValue("a RemoteChannel (invalid)")
@@ -379,8 +369,7 @@ func (vm *VM) registerRemoteChannelPrimitives() {
 	})
 
 	// RemoteChannel>>onReceive: — for Channel select integration
-	c.AddMethod1(vm.Selectors, "onReceive:", func(vmPtr interface{}, recv, handler Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod1(vm.Selectors, "onReceive:", func(v *VM, recv, handler Value) Value {
 		return v.createAssociation(recv, handler)
 	})
 }

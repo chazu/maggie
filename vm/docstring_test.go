@@ -147,7 +147,7 @@ func TestFormatMethodHelpNoDocString(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestPrimitiveMethodDocString(t *testing.T) {
-	m := NewPrimitiveMethod("test", func(v interface{}, recv Value, args []Value) Value {
+	m := NewPrimitiveMethod("test", func(v *VM, recv Value, args []Value) Value {
 		return Nil
 	})
 	ds := m.(DocStringable)
@@ -161,7 +161,7 @@ func TestPrimitiveMethodDocString(t *testing.T) {
 }
 
 func TestMethod0DocString(t *testing.T) {
-	m := NewMethod0("size", func(v interface{}, recv Value) Value { return Nil })
+	m := NewMethod0("size", func(v *VM, recv Value) Value { return Nil })
 	ds := m.(DocStringable)
 	ds.SetDocString("Returns the size.")
 	if ds.DocString() != "Returns the size." {
@@ -170,7 +170,7 @@ func TestMethod0DocString(t *testing.T) {
 }
 
 func TestMethod1DocString(t *testing.T) {
-	m := NewMethod1("at:", func(v interface{}, recv, arg Value) Value { return Nil })
+	m := NewMethod1("at:", func(v *VM, recv, arg Value) Value { return Nil })
 	ds := m.(DocStringable)
 	ds.SetDocString("Returns element at index.")
 	if ds.DocString() != "Returns element at index." {
@@ -179,7 +179,7 @@ func TestMethod1DocString(t *testing.T) {
 }
 
 func TestMethod2DocString(t *testing.T) {
-	m := NewMethod2("at:put:", func(v interface{}, recv, a, b Value) Value { return Nil })
+	m := NewMethod2("at:put:", func(v *VM, recv, a, b Value) Value { return Nil })
 	ds := m.(DocStringable)
 	ds.SetDocString("Stores value at key.")
 	if ds.DocString() != "Stores value at key." {
@@ -189,7 +189,7 @@ func TestMethod2DocString(t *testing.T) {
 
 func TestMethodDocStringHelper(t *testing.T) {
 	// Test with a primitive method
-	prim := NewMethod0("foo", func(v interface{}, recv Value) Value { return Nil })
+	prim := NewMethod0("foo", func(v *VM, recv Value) Value { return Nil })
 	prim.(DocStringable).SetDocString("Foo doc.")
 	if got := MethodDocString(prim); got != "Foo doc." {
 		t.Errorf("MethodDocString(primitive) = %q, want %q", got, "Foo doc.")
@@ -210,7 +210,7 @@ func TestMethodByName(t *testing.T) {
 	cls := NewClass("TestClass", nil)
 
 	// Add a primitive method
-	prim := NewMethod0("primMethod", func(v interface{}, recv Value) Value { return Nil })
+	prim := NewMethod0("primMethod", func(v *VM, recv Value) Value { return Nil })
 	primSelID := selectors.Intern("primMethod")
 	cls.VTable.AddMethod(primSelID, prim)
 

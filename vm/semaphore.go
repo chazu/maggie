@@ -48,8 +48,7 @@ func (vm *VM) registerSemaphorePrimitives() {
 	s := vm.SemaphoreClass
 
 	// Semaphore class>>new: capacity - create a semaphore with given capacity
-	newCapFn := func(vmPtr interface{}, recv Value, capacity Value) Value {
-		v := vmPtr.(*VM)
+	newCapFn := func(v *VM, recv Value, capacity Value) Value {
 		if !capacity.IsSmallInt() {
 			return Nil
 		}
@@ -61,15 +60,13 @@ func (vm *VM) registerSemaphorePrimitives() {
 	s.AddClassMethod1(vm.Selectors, "primNew:", newCapFn)
 
 	// Semaphore class>>new - create a binary semaphore (capacity 1)
-	s.AddClassMethod0(vm.Selectors, "new", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	s.AddClassMethod0(vm.Selectors, "new", func(v *VM, recv Value) Value {
 		sem := createSemaphore(1)
 		return v.registerSemaphore(sem)
 	})
 
 	// Semaphore>>acquire - acquire a permit (blocks if none available)
-	acquireFn := func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	acquireFn := func(v *VM, recv Value) Value {
 		sem := v.getSemaphore(recv)
 		if sem == nil {
 			return Nil
@@ -81,8 +78,7 @@ func (vm *VM) registerSemaphorePrimitives() {
 	s.AddMethod0(vm.Selectors, "primAcquire", acquireFn)
 
 	// Semaphore>>release - release a permit
-	releaseFn := func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	releaseFn := func(v *VM, recv Value) Value {
 		sem := v.getSemaphore(recv)
 		if sem == nil {
 			return Nil
@@ -100,8 +96,7 @@ func (vm *VM) registerSemaphorePrimitives() {
 
 	// Semaphore>>tryAcquire - try to acquire a permit without blocking
 	// Returns true if acquired, false otherwise
-	tryAcquireFn := func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	tryAcquireFn := func(v *VM, recv Value) Value {
 		sem := v.getSemaphore(recv)
 		if sem == nil {
 			return False
@@ -117,8 +112,7 @@ func (vm *VM) registerSemaphorePrimitives() {
 	s.AddMethod0(vm.Selectors, "primTryAcquire", tryAcquireFn)
 
 	// Semaphore>>available - number of available permits
-	availableFn := func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	availableFn := func(v *VM, recv Value) Value {
 		sem := v.getSemaphore(recv)
 		if sem == nil {
 			return FromSmallInt(0)
@@ -129,8 +123,7 @@ func (vm *VM) registerSemaphorePrimitives() {
 	s.AddMethod0(vm.Selectors, "primAvailable", availableFn)
 
 	// Semaphore>>capacity - total capacity of the semaphore
-	capacityFn := func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	capacityFn := func(v *VM, recv Value) Value {
 		sem := v.getSemaphore(recv)
 		if sem == nil {
 			return FromSmallInt(0)
@@ -142,8 +135,7 @@ func (vm *VM) registerSemaphorePrimitives() {
 
 	// Semaphore>>critical: aBlock - execute block while holding a permit
 	// Automatically releases permit when done
-	semCriticalFn := func(vmPtr interface{}, recv Value, block Value) Value {
-		v := vmPtr.(*VM)
+	semCriticalFn := func(v *VM, recv Value, block Value) Value {
 		sem := v.getSemaphore(recv)
 		if sem == nil {
 			return Nil
@@ -174,8 +166,7 @@ func (vm *VM) registerSemaphorePrimitives() {
 	s.AddMethod1(vm.Selectors, "primCritical:", semCriticalFn)
 
 	// Semaphore>>withPermit: aBlock - alias for critical:
-	s.AddMethod1(vm.Selectors, "withPermit:", func(vmPtr interface{}, recv Value, block Value) Value {
-		v := vmPtr.(*VM)
+	s.AddMethod1(vm.Selectors, "withPermit:", func(v *VM, recv Value, block Value) Value {
 		sem := v.getSemaphore(recv)
 		if sem == nil {
 			return Nil

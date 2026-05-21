@@ -11,8 +11,7 @@ func (vm *VM) registerProquintPrimitives() {
 	vm.globals["Proquint"] = vm.classValue(c)
 
 	// Proquint encode: anInteger — encode a 32-bit integer as proquint string
-	c.AddClassMethod1(vm.Selectors, "encode:", func(vmPtr interface{}, recv Value, arg Value) Value {
-		v := vmPtr.(*VM)
+	c.AddClassMethod1(vm.Selectors, "encode:", func(v *VM, recv Value, arg Value) Value {
 		if !arg.IsSmallInt() {
 			return Nil
 		}
@@ -25,8 +24,7 @@ func (vm *VM) registerProquintPrimitives() {
 	})
 
 	// Proquint encode64: anInteger — encode a 64-bit integer as proquint string
-	c.AddClassMethod1(vm.Selectors, "encode64:", func(vmPtr interface{}, recv Value, arg Value) Value {
-		v := vmPtr.(*VM)
+	c.AddClassMethod1(vm.Selectors, "encode64:", func(v *VM, recv Value, arg Value) Value {
 		if !arg.IsSmallInt() {
 			return Nil
 		}
@@ -39,8 +37,7 @@ func (vm *VM) registerProquintPrimitives() {
 	})
 
 	// Proquint decode: aString — decode a proquint string to a 32-bit integer
-	c.AddClassMethod1(vm.Selectors, "decode:", func(vmPtr interface{}, recv Value, arg Value) Value {
-		v := vmPtr.(*VM)
+	c.AddClassMethod1(vm.Selectors, "decode:", func(v *VM, recv Value, arg Value) Value {
 		s := v.registry.GetStringContent(arg)
 		if s == "" {
 			return Nil
@@ -53,8 +50,7 @@ func (vm *VM) registerProquintPrimitives() {
 	})
 
 	// Proquint decode64: aString — decode a 4-quintuplet proquint to a 64-bit integer
-	c.AddClassMethod1(vm.Selectors, "decode64:", func(vmPtr interface{}, recv Value, arg Value) Value {
-		v := vmPtr.(*VM)
+	c.AddClassMethod1(vm.Selectors, "decode64:", func(v *VM, recv Value, arg Value) Value {
 		s := v.registry.GetStringContent(arg)
 		if s == "" {
 			return Nil
@@ -67,20 +63,17 @@ func (vm *VM) registerProquintPrimitives() {
 	})
 
 	// Proquint random — generate a random 32-bit proquint
-	c.AddClassMethod0(vm.Selectors, "random", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	c.AddClassMethod0(vm.Selectors, "random", func(v *VM, recv Value) Value {
 		return v.registry.NewStringValue(goquint.Random())
 	})
 
 	// Proquint random64 — generate a random 64-bit proquint
-	c.AddClassMethod0(vm.Selectors, "random64", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	c.AddClassMethod0(vm.Selectors, "random64", func(v *VM, recv Value) Value {
 		return v.registry.NewStringValue(goquint.Random64())
 	})
 
 	// Proquint encodeHex: aHexString — encode a hex string as proquint
-	c.AddClassMethod1(vm.Selectors, "encodeHex:", func(vmPtr interface{}, recv Value, arg Value) Value {
-		v := vmPtr.(*VM)
+	c.AddClassMethod1(vm.Selectors, "encodeHex:", func(v *VM, recv Value, arg Value) Value {
 		s := v.registry.GetStringContent(arg)
 		if s == "" {
 			return Nil
@@ -90,8 +83,7 @@ func (vm *VM) registerProquintPrimitives() {
 	})
 
 	// Proquint encodeHex64: aHexString — encode 64-bit hex as proquint
-	c.AddClassMethod1(vm.Selectors, "encodeHex64:", func(vmPtr interface{}, recv Value, arg Value) Value {
-		v := vmPtr.(*VM)
+	c.AddClassMethod1(vm.Selectors, "encodeHex64:", func(v *VM, recv Value, arg Value) Value {
 		s := v.registry.GetStringContent(arg)
 		if s == "" {
 			return Nil

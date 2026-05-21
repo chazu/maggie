@@ -234,26 +234,22 @@ func (vm *VM) registerChannelSelectPrimitives() {
 	c := vm.ChannelClass
 
 	// Channel class>>select: casesArray
-	c.AddClassMethod1(vm.Selectors, "select:", func(vmPtr interface{}, recv Value, casesArray Value) Value {
-		v := vmPtr.(*VM)
+	c.AddClassMethod1(vm.Selectors, "select:", func(v *VM, recv Value, casesArray Value) Value {
 		return v.executeSelect(casesArray, Nil)
 	})
 
 	// Channel class>>select:ifNone:
-	c.AddClassMethod2(vm.Selectors, "select:ifNone:", func(vmPtr interface{}, recv Value, casesArray Value, defaultBlock Value) Value {
-		v := vmPtr.(*VM)
+	c.AddClassMethod2(vm.Selectors, "select:ifNone:", func(v *VM, recv Value, casesArray Value, defaultBlock Value) Value {
 		return v.executeSelect(casesArray, defaultBlock)
 	})
 
 	// Channel>>onReceive: handlerBlock
-	c.AddMethod1(vm.Selectors, "onReceive:", func(vmPtr interface{}, recv Value, handler Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod1(vm.Selectors, "onReceive:", func(v *VM, recv Value, handler Value) Value {
 		return v.createSelectCase(recv, handler, false, Nil)
 	})
 
 	// Channel>>onSend:do: value handlerBlock
-	c.AddMethod2(vm.Selectors, "onSend:do:", func(vmPtr interface{}, recv Value, value Value, handler Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod2(vm.Selectors, "onSend:do:", func(v *VM, recv Value, value Value, handler Value) Value {
 		return v.createSelectCase(recv, handler, true, value)
 	})
 }

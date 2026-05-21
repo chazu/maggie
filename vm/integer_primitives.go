@@ -13,8 +13,7 @@ func (vm *VM) registerSmallIntegerPrimitives() {
 	c := vm.SmallIntegerClass
 
 	// Arithmetic
-	c.AddMethod1(vm.Selectors, "+", func(vmPtr interface{}, recv Value, arg Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod1(vm.Selectors, "+", func(v *VM, recv Value, arg Value) Value {
 		if arg.IsSmallInt() {
 			result := recv.SmallInt() + arg.SmallInt()
 			if val, ok := TryFromSmallInt(result); ok {
@@ -35,8 +34,7 @@ func (vm *VM) registerSmallIntegerPrimitives() {
 		return v.SignalPrimitiveError("+", "argument must be a number")
 	})
 
-	c.AddMethod1(vm.Selectors, "-", func(vmPtr interface{}, recv Value, arg Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod1(vm.Selectors, "-", func(v *VM, recv Value, arg Value) Value {
 		if arg.IsSmallInt() {
 			result := recv.SmallInt() - arg.SmallInt()
 			if val, ok := TryFromSmallInt(result); ok {
@@ -57,8 +55,7 @@ func (vm *VM) registerSmallIntegerPrimitives() {
 		return v.SignalPrimitiveError("-", "argument must be a number")
 	})
 
-	c.AddMethod1(vm.Selectors, "*", func(vmPtr interface{}, recv Value, arg Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod1(vm.Selectors, "*", func(v *VM, recv Value, arg Value) Value {
 		if arg.IsSmallInt() {
 			result := new(big.Int).Mul(big.NewInt(recv.SmallInt()), big.NewInt(arg.SmallInt()))
 			return v.registry.NewBigIntValue(result) // auto-demotes if fits
@@ -76,8 +73,7 @@ func (vm *VM) registerSmallIntegerPrimitives() {
 		return v.SignalPrimitiveError("*", "argument must be a number")
 	})
 
-	c.AddMethod1(vm.Selectors, "/", func(vmPtr interface{}, recv Value, arg Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod1(vm.Selectors, "/", func(v *VM, recv Value, arg Value) Value {
 		if arg.IsSmallInt() {
 			if arg.SmallInt() == 0 {
 				return v.SignalZeroDivide()
@@ -98,8 +94,7 @@ func (vm *VM) registerSmallIntegerPrimitives() {
 		return v.SignalPrimitiveError("/", "argument must be a number")
 	})
 
-	c.AddMethod1(vm.Selectors, "\\\\", func(vmPtr interface{}, recv Value, arg Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod1(vm.Selectors, "\\\\", func(v *VM, recv Value, arg Value) Value {
 		if arg.IsSmallInt() {
 			if arg.SmallInt() == 0 {
 				return v.SignalZeroDivide()
@@ -118,8 +113,7 @@ func (vm *VM) registerSmallIntegerPrimitives() {
 	})
 
 	// // - truncated integer division (floor division)
-	c.AddMethod1(vm.Selectors, "//", func(vmPtr interface{}, recv Value, arg Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod1(vm.Selectors, "//", func(v *VM, recv Value, arg Value) Value {
 		if arg.IsSmallInt() {
 			if arg.SmallInt() == 0 {
 				return v.SignalZeroDivide()
@@ -137,8 +131,7 @@ func (vm *VM) registerSmallIntegerPrimitives() {
 	})
 
 	// Comparisons
-	c.AddMethod1(vm.Selectors, "<", func(vmPtr interface{}, recv Value, arg Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod1(vm.Selectors, "<", func(v *VM, recv Value, arg Value) Value {
 		if arg.IsSmallInt() {
 			return FromBool(recv.SmallInt() < arg.SmallInt())
 		}
@@ -152,8 +145,7 @@ func (vm *VM) registerSmallIntegerPrimitives() {
 		return v.SignalPrimitiveError("<", "argument must be a number")
 	})
 
-	c.AddMethod1(vm.Selectors, ">", func(vmPtr interface{}, recv Value, arg Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod1(vm.Selectors, ">", func(v *VM, recv Value, arg Value) Value {
 		if arg.IsSmallInt() {
 			return FromBool(recv.SmallInt() > arg.SmallInt())
 		}
@@ -167,8 +159,7 @@ func (vm *VM) registerSmallIntegerPrimitives() {
 		return v.SignalPrimitiveError(">", "argument must be a number")
 	})
 
-	c.AddMethod1(vm.Selectors, "<=", func(vmPtr interface{}, recv Value, arg Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod1(vm.Selectors, "<=", func(v *VM, recv Value, arg Value) Value {
 		if arg.IsSmallInt() {
 			return FromBool(recv.SmallInt() <= arg.SmallInt())
 		}
@@ -182,8 +173,7 @@ func (vm *VM) registerSmallIntegerPrimitives() {
 		return v.SignalPrimitiveError("<=", "argument must be a number")
 	})
 
-	c.AddMethod1(vm.Selectors, ">=", func(vmPtr interface{}, recv Value, arg Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod1(vm.Selectors, ">=", func(v *VM, recv Value, arg Value) Value {
 		if arg.IsSmallInt() {
 			return FromBool(recv.SmallInt() >= arg.SmallInt())
 		}
@@ -197,8 +187,7 @@ func (vm *VM) registerSmallIntegerPrimitives() {
 		return v.SignalPrimitiveError(">=", "argument must be a number")
 	})
 
-	c.AddMethod1(vm.Selectors, "=", func(vmPtr interface{}, recv Value, arg Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod1(vm.Selectors, "=", func(v *VM, recv Value, arg Value) Value {
 		if arg.IsSmallInt() {
 			return FromBool(recv.SmallInt() == arg.SmallInt())
 		}
@@ -213,29 +202,28 @@ func (vm *VM) registerSmallIntegerPrimitives() {
 	})
 
 	// Bit operations
-	c.AddMethod1(vm.Selectors, "bitAnd:", func(_ interface{}, recv Value, arg Value) Value {
+	c.AddMethod1(vm.Selectors, "bitAnd:", func(_ *VM, recv Value, arg Value) Value {
 		if arg.IsSmallInt() {
 			return FromSmallInt(recv.SmallInt() & arg.SmallInt())
 		}
 		return Nil
 	})
 
-	c.AddMethod1(vm.Selectors, "bitOr:", func(_ interface{}, recv Value, arg Value) Value {
+	c.AddMethod1(vm.Selectors, "bitOr:", func(_ *VM, recv Value, arg Value) Value {
 		if arg.IsSmallInt() {
 			return FromSmallInt(recv.SmallInt() | arg.SmallInt())
 		}
 		return Nil
 	})
 
-	c.AddMethod1(vm.Selectors, "bitXor:", func(_ interface{}, recv Value, arg Value) Value {
+	c.AddMethod1(vm.Selectors, "bitXor:", func(_ *VM, recv Value, arg Value) Value {
 		if arg.IsSmallInt() {
 			return FromSmallInt(recv.SmallInt() ^ arg.SmallInt())
 		}
 		return Nil
 	})
 
-	c.AddMethod1(vm.Selectors, "bitShift:", func(vmPtr interface{}, recv Value, arg Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod1(vm.Selectors, "bitShift:", func(v *VM, recv Value, arg Value) Value {
 		if arg.IsSmallInt() {
 			shift := arg.SmallInt()
 			if shift >= 0 {
@@ -248,8 +236,7 @@ func (vm *VM) registerSmallIntegerPrimitives() {
 		return Nil
 	})
 
-	c.AddMethod0(vm.Selectors, "negated", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod0(vm.Selectors, "negated", func(v *VM, recv Value) Value {
 		n := recv.SmallInt()
 		result := -n
 		if val, ok := TryFromSmallInt(result); ok {
@@ -258,8 +245,7 @@ func (vm *VM) registerSmallIntegerPrimitives() {
 		return v.registry.NewBigIntValue(new(big.Int).Neg(big.NewInt(n)))
 	})
 
-	c.AddMethod0(vm.Selectors, "abs", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod0(vm.Selectors, "abs", func(v *VM, recv Value) Value {
 		n := recv.SmallInt()
 		if n < 0 {
 			result := -n
@@ -272,14 +258,12 @@ func (vm *VM) registerSmallIntegerPrimitives() {
 	})
 
 	// Printing
-	c.AddMethod0(vm.Selectors, "primPrintString", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod0(vm.Selectors, "primPrintString", func(v *VM, recv Value) Value {
 		return v.registry.NewStringValue(strconv.FormatInt(recv.SmallInt(), 10))
 	})
 
 	// Iteration
-	c.AddMethod1(vm.Selectors, "timesRepeat:", func(vmPtr interface{}, recv Value, block Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod1(vm.Selectors, "timesRepeat:", func(v *VM, recv Value, block Value) Value {
 		n := recv.SmallInt()
 		for i := int64(0); i < n; i++ {
 			v.evaluateBlock(block, nil)
@@ -287,8 +271,7 @@ func (vm *VM) registerSmallIntegerPrimitives() {
 		return recv
 	})
 
-	c.AddMethod2(vm.Selectors, "to:do:", func(vmPtr interface{}, recv Value, stop Value, block Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod2(vm.Selectors, "to:do:", func(v *VM, recv Value, stop Value, block Value) Value {
 		start := recv.SmallInt()
 		end := stop.SmallInt()
 		for i := start; i <= end; i++ {
@@ -297,8 +280,7 @@ func (vm *VM) registerSmallIntegerPrimitives() {
 		return recv
 	})
 
-	c.AddMethod3(vm.Selectors, "to:by:do:", func(vmPtr interface{}, recv Value, stop Value, step Value, block Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod3(vm.Selectors, "to:by:do:", func(v *VM, recv Value, stop Value, step Value, block Value) Value {
 		start := recv.SmallInt()
 		end := stop.SmallInt()
 		stepVal := step.SmallInt()

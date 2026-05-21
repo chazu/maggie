@@ -20,8 +20,7 @@ func (vm *VM) registerFilePrimitives() {
 
 	// readFileContents: path - Read entire file contents as a string
 	// Returns the file contents, or a Failure if the file can't be read
-	fileClass.AddClassMethod1(vm.Selectors, "readFileContents:", func(vmPtr interface{}, recv Value, pathVal Value) Value {
-		v := vmPtr.(*VM)
+	fileClass.AddClassMethod1(vm.Selectors, "readFileContents:", func(v *VM, recv Value, pathVal Value) Value {
 
 		path := v.valueToString(pathVal)
 		if path == "" {
@@ -42,8 +41,7 @@ func (vm *VM) registerFilePrimitives() {
 
 	// writeFileContents:contents: - Write string contents to a file
 	// Returns Success with the path, or Failure if write fails
-	fileClass.AddClassMethod2(vm.Selectors, "writeFileContents:contents:", func(vmPtr interface{}, recv Value, pathVal, contentsVal Value) Value {
-		v := vmPtr.(*VM)
+	fileClass.AddClassMethod2(vm.Selectors, "writeFileContents:contents:", func(v *VM, recv Value, pathVal, contentsVal Value) Value {
 
 		path := v.valueToString(pathVal)
 		if path == "" {
@@ -62,8 +60,7 @@ func (vm *VM) registerFilePrimitives() {
 
 	// writeFileContents:contents:mode: - Write string contents with explicit mode
 	// Returns Success with the path, or Failure if write fails
-	fileClass.AddClassMethod3(vm.Selectors, "writeFileContents:contents:mode:", func(vmPtr interface{}, recv Value, pathVal, contentsVal, modeVal Value) Value {
-		v := vmPtr.(*VM)
+	fileClass.AddClassMethod3(vm.Selectors, "writeFileContents:contents:mode:", func(v *VM, recv Value, pathVal, contentsVal, modeVal Value) Value {
 
 		path := v.valueToString(pathVal)
 		if path == "" {
@@ -87,8 +84,7 @@ func (vm *VM) registerFilePrimitives() {
 
 	// appendToFile:contents: - Append string contents to a file
 	// Creates the file if it doesn't exist
-	fileClass.AddClassMethod2(vm.Selectors, "appendToFile:contents:", func(vmPtr interface{}, recv Value, pathVal, contentsVal Value) Value {
-		v := vmPtr.(*VM)
+	fileClass.AddClassMethod2(vm.Selectors, "appendToFile:contents:", func(v *VM, recv Value, pathVal, contentsVal Value) Value {
 
 		path := v.valueToString(pathVal)
 		if path == "" {
@@ -117,8 +113,7 @@ func (vm *VM) registerFilePrimitives() {
 
 	// exists: path - Check if a file or directory exists
 	// Returns true or false
-	fileClass.AddClassMethod1(vm.Selectors, "exists:", func(vmPtr interface{}, recv Value, pathVal Value) Value {
-		v := vmPtr.(*VM)
+	fileClass.AddClassMethod1(vm.Selectors, "exists:", func(v *VM, recv Value, pathVal Value) Value {
 
 		path := v.valueToString(pathVal)
 		if path == "" {
@@ -133,8 +128,7 @@ func (vm *VM) registerFilePrimitives() {
 	})
 
 	// isDirectory: path - Check if path is a directory
-	fileClass.AddClassMethod1(vm.Selectors, "isDirectory:", func(vmPtr interface{}, recv Value, pathVal Value) Value {
-		v := vmPtr.(*VM)
+	fileClass.AddClassMethod1(vm.Selectors, "isDirectory:", func(v *VM, recv Value, pathVal Value) Value {
 
 		path := v.valueToString(pathVal)
 		if path == "" {
@@ -152,8 +146,7 @@ func (vm *VM) registerFilePrimitives() {
 	})
 
 	// isFile: path - Check if path is a regular file
-	fileClass.AddClassMethod1(vm.Selectors, "isFile:", func(vmPtr interface{}, recv Value, pathVal Value) Value {
-		v := vmPtr.(*VM)
+	fileClass.AddClassMethod1(vm.Selectors, "isFile:", func(v *VM, recv Value, pathVal Value) Value {
 
 		path := v.valueToString(pathVal)
 		if path == "" {
@@ -176,8 +169,7 @@ func (vm *VM) registerFilePrimitives() {
 
 	// listDirectory: path - List files and directories in a directory
 	// Returns an array of filenames, or Failure if directory can't be read
-	fileClass.AddClassMethod1(vm.Selectors, "listDirectory:", func(vmPtr interface{}, recv Value, pathVal Value) Value {
-		v := vmPtr.(*VM)
+	fileClass.AddClassMethod1(vm.Selectors, "listDirectory:", func(v *VM, recv Value, pathVal Value) Value {
 
 		path := v.valueToString(pathVal)
 		if path == "" {
@@ -197,8 +189,7 @@ func (vm *VM) registerFilePrimitives() {
 	})
 
 	// createDirectory: path - Create a directory (and parents if needed)
-	fileClass.AddClassMethod1(vm.Selectors, "createDirectory:", func(vmPtr interface{}, recv Value, pathVal Value) Value {
-		v := vmPtr.(*VM)
+	fileClass.AddClassMethod1(vm.Selectors, "createDirectory:", func(v *VM, recv Value, pathVal Value) Value {
 
 		path := v.valueToString(pathVal)
 		if path == "" {
@@ -218,8 +209,7 @@ func (vm *VM) registerFilePrimitives() {
 	// ---------------------------------------------------------------------------
 
 	// delete: path - Delete a file or empty directory
-	fileClass.AddClassMethod1(vm.Selectors, "delete:", func(vmPtr interface{}, recv Value, pathVal Value) Value {
-		v := vmPtr.(*VM)
+	fileClass.AddClassMethod1(vm.Selectors, "delete:", func(v *VM, recv Value, pathVal Value) Value {
 
 		path := v.valueToString(pathVal)
 		if path == "" {
@@ -235,8 +225,7 @@ func (vm *VM) registerFilePrimitives() {
 	})
 
 	// rename:to: - Rename/move a file or directory
-	fileClass.AddClassMethod2(vm.Selectors, "rename:to:", func(vmPtr interface{}, recv Value, oldPathVal, newPathVal Value) Value {
-		v := vmPtr.(*VM)
+	fileClass.AddClassMethod2(vm.Selectors, "rename:to:", func(v *VM, recv Value, oldPathVal, newPathVal Value) Value {
 
 		oldPath := v.valueToString(oldPathVal)
 		newPath := v.valueToString(newPathVal)
@@ -253,8 +242,7 @@ func (vm *VM) registerFilePrimitives() {
 	})
 
 	// copy:to: - Copy a file
-	fileClass.AddClassMethod2(vm.Selectors, "copy:to:", func(vmPtr interface{}, recv Value, srcVal, dstVal Value) Value {
-		v := vmPtr.(*VM)
+	fileClass.AddClassMethod2(vm.Selectors, "copy:to:", func(v *VM, recv Value, srcVal, dstVal Value) Value {
 
 		src := v.valueToString(srcVal)
 		dst := v.valueToString(dstVal)
@@ -280,37 +268,32 @@ func (vm *VM) registerFilePrimitives() {
 	// ---------------------------------------------------------------------------
 
 	// basename: path - Get the last element of a path
-	fileClass.AddClassMethod1(vm.Selectors, "basename:", func(vmPtr interface{}, recv Value, pathVal Value) Value {
-		v := vmPtr.(*VM)
+	fileClass.AddClassMethod1(vm.Selectors, "basename:", func(v *VM, recv Value, pathVal Value) Value {
 		path := v.valueToString(pathVal)
 		return v.registry.NewStringValue(filepath.Base(path))
 	})
 
 	// dirname: path - Get the directory portion of a path
-	fileClass.AddClassMethod1(vm.Selectors, "dirname:", func(vmPtr interface{}, recv Value, pathVal Value) Value {
-		v := vmPtr.(*VM)
+	fileClass.AddClassMethod1(vm.Selectors, "dirname:", func(v *VM, recv Value, pathVal Value) Value {
 		path := v.valueToString(pathVal)
 		return v.registry.NewStringValue(filepath.Dir(path))
 	})
 
 	// extension: path - Get the file extension (including dot)
-	fileClass.AddClassMethod1(vm.Selectors, "extension:", func(vmPtr interface{}, recv Value, pathVal Value) Value {
-		v := vmPtr.(*VM)
+	fileClass.AddClassMethod1(vm.Selectors, "extension:", func(v *VM, recv Value, pathVal Value) Value {
 		path := v.valueToString(pathVal)
 		return v.registry.NewStringValue(filepath.Ext(path))
 	})
 
 	// join:with: - Join path components
-	fileClass.AddClassMethod2(vm.Selectors, "join:with:", func(vmPtr interface{}, recv Value, path1Val, path2Val Value) Value {
-		v := vmPtr.(*VM)
+	fileClass.AddClassMethod2(vm.Selectors, "join:with:", func(v *VM, recv Value, path1Val, path2Val Value) Value {
 		path1 := v.valueToString(path1Val)
 		path2 := v.valueToString(path2Val)
 		return v.registry.NewStringValue(filepath.Join(path1, path2))
 	})
 
 	// absolutePath: path - Convert to absolute path
-	fileClass.AddClassMethod1(vm.Selectors, "absolutePath:", func(vmPtr interface{}, recv Value, pathVal Value) Value {
-		v := vmPtr.(*VM)
+	fileClass.AddClassMethod1(vm.Selectors, "absolutePath:", func(v *VM, recv Value, pathVal Value) Value {
 		path := v.valueToString(pathVal)
 		abs, err := filepath.Abs(path)
 		if err != nil {
@@ -320,8 +303,7 @@ func (vm *VM) registerFilePrimitives() {
 	})
 
 	// workingDirectory - Get current working directory
-	fileClass.AddClassMethod0(vm.Selectors, "workingDirectory", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	fileClass.AddClassMethod0(vm.Selectors, "workingDirectory", func(v *VM, recv Value) Value {
 		wd, err := os.Getwd()
 		if err != nil {
 			return v.newFailureResult("Cannot get working directory: " + err.Error())
@@ -330,8 +312,7 @@ func (vm *VM) registerFilePrimitives() {
 	})
 
 	// homeDirectory - Get user's home directory
-	fileClass.AddClassMethod0(vm.Selectors, "homeDirectory", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	fileClass.AddClassMethod0(vm.Selectors, "homeDirectory", func(v *VM, recv Value) Value {
 		home, err := os.UserHomeDir()
 		if err != nil {
 			return v.newFailureResult("Cannot get home directory: " + err.Error())
@@ -344,8 +325,7 @@ func (vm *VM) registerFilePrimitives() {
 	// ---------------------------------------------------------------------------
 
 	// size: path - Get file size in bytes
-	fileClass.AddClassMethod1(vm.Selectors, "size:", func(vmPtr interface{}, recv Value, pathVal Value) Value {
-		v := vmPtr.(*VM)
+	fileClass.AddClassMethod1(vm.Selectors, "size:", func(v *VM, recv Value, pathVal Value) Value {
 		path := v.valueToString(pathVal)
 		if path == "" {
 			return v.newFailureResult("size: requires a path string")
@@ -358,8 +338,7 @@ func (vm *VM) registerFilePrimitives() {
 	})
 
 	// modificationTime: path - Get file modification time as Unix milliseconds
-	fileClass.AddClassMethod1(vm.Selectors, "modificationTime:", func(vmPtr interface{}, recv Value, pathVal Value) Value {
-		v := vmPtr.(*VM)
+	fileClass.AddClassMethod1(vm.Selectors, "modificationTime:", func(v *VM, recv Value, pathVal Value) Value {
 		path := v.valueToString(pathVal)
 		if path == "" {
 			return v.newFailureResult("modificationTime: requires a path string")
@@ -376,8 +355,7 @@ func (vm *VM) registerFilePrimitives() {
 	// ---------------------------------------------------------------------------
 
 	// deleteAll: path - Recursively delete a file or directory
-	fileClass.AddClassMethod1(vm.Selectors, "deleteAll:", func(vmPtr interface{}, recv Value, pathVal Value) Value {
-		v := vmPtr.(*VM)
+	fileClass.AddClassMethod1(vm.Selectors, "deleteAll:", func(v *VM, recv Value, pathVal Value) Value {
 		path := v.valueToString(pathVal)
 		if path == "" {
 			return v.newFailureResult("deleteAll: requires a path string")
@@ -395,8 +373,7 @@ func (vm *VM) registerFilePrimitives() {
 
 	// glob:in: pattern dir - Find files matching a glob pattern in a directory
 	// Returns an array of matching paths, or Failure on error
-	fileClass.AddClassMethod2(vm.Selectors, "glob:in:", func(vmPtr interface{}, recv Value, patternVal, dirVal Value) Value {
-		v := vmPtr.(*VM)
+	fileClass.AddClassMethod2(vm.Selectors, "glob:in:", func(v *VM, recv Value, patternVal, dirVal Value) Value {
 		pattern := v.valueToString(patternVal)
 		dir := v.valueToString(dirVal)
 		if pattern == "" || dir == "" {
@@ -420,8 +397,7 @@ func (vm *VM) registerFilePrimitives() {
 
 	// tempFile - Create a temporary file in the default temp directory
 	// Returns Success with the path, or Failure on error
-	fileClass.AddClassMethod0(vm.Selectors, "tempFile", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	fileClass.AddClassMethod0(vm.Selectors, "tempFile", func(v *VM, recv Value) Value {
 		f, err := os.CreateTemp("", "maggie-*")
 		if err != nil {
 			return v.newFailureResult("Cannot create temp file: " + err.Error())
@@ -433,8 +409,7 @@ func (vm *VM) registerFilePrimitives() {
 
 	// tempFileWithPrefix: prefix - Create a temporary file with a given prefix
 	// Returns Success with the path, or Failure on error
-	fileClass.AddClassMethod1(vm.Selectors, "tempFileWithPrefix:", func(vmPtr interface{}, recv Value, prefixVal Value) Value {
-		v := vmPtr.(*VM)
+	fileClass.AddClassMethod1(vm.Selectors, "tempFileWithPrefix:", func(v *VM, recv Value, prefixVal Value) Value {
 		prefix := v.valueToString(prefixVal)
 		f, err := os.CreateTemp("", prefix+"-*")
 		if err != nil {

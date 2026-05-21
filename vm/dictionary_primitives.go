@@ -53,14 +53,12 @@ func (vm *VM) registerDictionaryPrimitives() {
 	c := vm.DictionaryClass
 
 	// Class-side new - create new empty dictionary (class method)
-	c.AddClassMethod0(vm.Selectors, "new", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	c.AddClassMethod0(vm.Selectors, "new", func(v *VM, recv Value) Value {
 		return v.registry.NewDictionaryValue()
 	})
 
 	// at: - get value for key, returns nil if not found
-	c.AddMethod1(vm.Selectors, "at:", func(vmPtr interface{}, recv Value, key Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod1(vm.Selectors, "at:", func(v *VM, recv Value, key Value) Value {
 		dict := v.registry.GetDictionaryObject(recv)
 		if dict == nil {
 			return Nil
@@ -73,8 +71,7 @@ func (vm *VM) registerDictionaryPrimitives() {
 	})
 
 	// at:put: - set value for key, returns the value
-	c.AddMethod2(vm.Selectors, "at:put:", func(vmPtr interface{}, recv Value, key, value Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod2(vm.Selectors, "at:put:", func(v *VM, recv Value, key, value Value) Value {
 		dict := v.registry.GetDictionaryObject(recv)
 		if dict == nil {
 			return value
@@ -86,8 +83,7 @@ func (vm *VM) registerDictionaryPrimitives() {
 	})
 
 	// at:ifAbsent: - get value or evaluate block if absent
-	c.AddMethod2(vm.Selectors, "at:ifAbsent:", func(vmPtr interface{}, recv Value, key, block Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod2(vm.Selectors, "at:ifAbsent:", func(v *VM, recv Value, key, block Value) Value {
 		dict := v.registry.GetDictionaryObject(recv)
 		if dict == nil {
 			return Nil
@@ -101,8 +97,7 @@ func (vm *VM) registerDictionaryPrimitives() {
 	})
 
 	// at:ifPresent: - evaluate block with value if key exists
-	c.AddMethod2(vm.Selectors, "at:ifPresent:", func(vmPtr interface{}, recv Value, key, block Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod2(vm.Selectors, "at:ifPresent:", func(v *VM, recv Value, key, block Value) Value {
 		dict := v.registry.GetDictionaryObject(recv)
 		if dict == nil {
 			return Nil
@@ -116,8 +111,7 @@ func (vm *VM) registerDictionaryPrimitives() {
 	})
 
 	// includesKey: - check if key exists
-	c.AddMethod1(vm.Selectors, "includesKey:", func(vmPtr interface{}, recv Value, key Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod1(vm.Selectors, "includesKey:", func(v *VM, recv Value, key Value) Value {
 		dict := v.registry.GetDictionaryObject(recv)
 		if dict == nil {
 			return False
@@ -130,8 +124,7 @@ func (vm *VM) registerDictionaryPrimitives() {
 	})
 
 	// size - number of key-value pairs
-	c.AddMethod0(vm.Selectors, "size", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod0(vm.Selectors, "size", func(v *VM, recv Value) Value {
 		dict := v.registry.GetDictionaryObject(recv)
 		if dict == nil {
 			return FromSmallInt(0)
@@ -140,8 +133,7 @@ func (vm *VM) registerDictionaryPrimitives() {
 	})
 
 	// isEmpty - true if dictionary has no entries
-	c.AddMethod0(vm.Selectors, "isEmpty", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod0(vm.Selectors, "isEmpty", func(v *VM, recv Value) Value {
 		dict := v.registry.GetDictionaryObject(recv)
 		if dict == nil {
 			return True
@@ -153,8 +145,7 @@ func (vm *VM) registerDictionaryPrimitives() {
 	})
 
 	// keys - return an array of all keys
-	c.AddMethod0(vm.Selectors, "keys", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod0(vm.Selectors, "keys", func(v *VM, recv Value) Value {
 		dict := v.registry.GetDictionaryObject(recv)
 		if dict == nil {
 			return v.NewArray(0)
@@ -167,8 +158,7 @@ func (vm *VM) registerDictionaryPrimitives() {
 	})
 
 	// values - return an array of all values
-	c.AddMethod0(vm.Selectors, "values", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod0(vm.Selectors, "values", func(v *VM, recv Value) Value {
 		dict := v.registry.GetDictionaryObject(recv)
 		if dict == nil {
 			return v.NewArray(0)
@@ -181,8 +171,7 @@ func (vm *VM) registerDictionaryPrimitives() {
 	})
 
 	// do: - iterate over values with a block
-	c.AddMethod1(vm.Selectors, "do:", func(vmPtr interface{}, recv Value, block Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod1(vm.Selectors, "do:", func(v *VM, recv Value, block Value) Value {
 		dict := v.registry.GetDictionaryObject(recv)
 		if dict == nil {
 			return recv
@@ -194,8 +183,7 @@ func (vm *VM) registerDictionaryPrimitives() {
 	})
 
 	// keysAndValuesDo: - iterate over key-value pairs with a block
-	c.AddMethod1(vm.Selectors, "keysAndValuesDo:", func(vmPtr interface{}, recv Value, block Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod1(vm.Selectors, "keysAndValuesDo:", func(v *VM, recv Value, block Value) Value {
 		dict := v.registry.GetDictionaryObject(recv)
 		if dict == nil {
 			return recv
@@ -208,8 +196,7 @@ func (vm *VM) registerDictionaryPrimitives() {
 	})
 
 	// removeKey: - remove key and return its value, or nil if not found
-	c.AddMethod1(vm.Selectors, "removeKey:", func(vmPtr interface{}, recv Value, key Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod1(vm.Selectors, "removeKey:", func(v *VM, recv Value, key Value) Value {
 		dict := v.registry.GetDictionaryObject(recv)
 		if dict == nil {
 			return Nil
@@ -224,8 +211,7 @@ func (vm *VM) registerDictionaryPrimitives() {
 	})
 
 	// removeKey:ifAbsent: - remove key and return value, or evaluate block if absent
-	c.AddMethod2(vm.Selectors, "removeKey:ifAbsent:", func(vmPtr interface{}, recv Value, key, block Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod2(vm.Selectors, "removeKey:ifAbsent:", func(v *VM, recv Value, key, block Value) Value {
 		dict := v.registry.GetDictionaryObject(recv)
 		if dict == nil {
 			return v.Send(block, "value", nil)

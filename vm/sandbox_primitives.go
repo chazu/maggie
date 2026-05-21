@@ -24,8 +24,7 @@ func (vm *VM) registerSandboxPrimitives() {
 	// Sandbox class>>run: aBlock
 	// Forks the block in a restricted process using the VM's sync restrictions.
 	// Returns a Process that the caller can wait on.
-	sandboxClass.AddClassMethod1(vm.Selectors, "run:", func(vmPtr interface{}, recv Value, blockVal Value) Value {
-		v := vmPtr.(*VM)
+	sandboxClass.AddClassMethod1(vm.Selectors, "run:", func(v *VM, recv Value, blockVal Value) Value {
 		bv := v.currentInterpreter().getBlockValue(blockVal)
 		if bv == nil {
 			return Nil
@@ -66,8 +65,7 @@ func (vm *VM) registerSandboxPrimitives() {
 
 	// Sandbox class>>restrictions
 	// Returns an Array of the current sync restriction names.
-	sandboxClass.AddClassMethod0(vm.Selectors, "restrictions", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	sandboxClass.AddClassMethod0(vm.Selectors, "restrictions", func(v *VM, recv Value) Value {
 		restrictions := v.SyncRestrictions()
 		elems := make([]Value, len(restrictions))
 		for i, name := range restrictions {
@@ -78,8 +76,7 @@ func (vm *VM) registerSandboxPrimitives() {
 
 	// Sandbox class>>isRehydrated: className
 	// Returns true if the named class was installed via the rehydration pipeline.
-	sandboxClass.AddClassMethod1(vm.Selectors, "isRehydrated:", func(vmPtr interface{}, recv Value, nameVal Value) Value {
-		v := vmPtr.(*VM)
+	sandboxClass.AddClassMethod1(vm.Selectors, "isRehydrated:", func(v *VM, recv Value, nameVal Value) Value {
 		var name string
 		if IsStringValue(nameVal) {
 			name = v.registry.GetStringContent(nameVal)

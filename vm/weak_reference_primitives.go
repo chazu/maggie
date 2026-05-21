@@ -9,8 +9,7 @@ func (vm *VM) registerWeakReferencePrimitives() {
 
 	// WeakReference class>>on: anObject
 	// Create a new weak reference to the given object
-	c.AddClassMethod1(vm.Selectors, "on:", func(vmPtr interface{}, recv Value, target Value) Value {
-		v := vmPtr.(*VM)
+	c.AddClassMethod1(vm.Selectors, "on:", func(v *VM, recv Value, target Value) Value {
 		if !target.IsObject() {
 			// Can only create weak refs to objects
 			return Nil
@@ -25,8 +24,7 @@ func (vm *VM) registerWeakReferencePrimitives() {
 
 	// WeakReference>>get
 	// Return the referenced object, or nil if it has been collected
-	c.AddMethod0(vm.Selectors, "get", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod0(vm.Selectors, "get", func(v *VM, recv Value) Value {
 		if !recv.IsWeakRef() {
 			return Nil
 		}
@@ -43,8 +41,7 @@ func (vm *VM) registerWeakReferencePrimitives() {
 
 	// WeakReference>>isAlive
 	// Return true if the referenced object has not been collected
-	c.AddMethod0(vm.Selectors, "isAlive", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod0(vm.Selectors, "isAlive", func(v *VM, recv Value) Value {
 		if !recv.IsWeakRef() {
 			return False
 		}
@@ -60,8 +57,7 @@ func (vm *VM) registerWeakReferencePrimitives() {
 
 	// WeakReference>>onFinalize:
 	// Set a block to be evaluated when the referenced object is collected
-	c.AddMethod1(vm.Selectors, "onFinalize:", func(vmPtr interface{}, recv Value, block Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod1(vm.Selectors, "onFinalize:", func(v *VM, recv Value, block Value) Value {
 		if !recv.IsWeakRef() {
 			return recv
 		}
@@ -82,8 +78,7 @@ func (vm *VM) registerWeakReferencePrimitives() {
 
 	// WeakReference>>clear
 	// Explicitly clear the weak reference (makes get return nil)
-	c.AddMethod0(vm.Selectors, "clear", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod0(vm.Selectors, "clear", func(v *VM, recv Value) Value {
 		if !recv.IsWeakRef() {
 			return recv
 		}
@@ -95,8 +90,7 @@ func (vm *VM) registerWeakReferencePrimitives() {
 	})
 
 	// WeakReference>>printString
-	c.AddMethod0(vm.Selectors, "printString", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod0(vm.Selectors, "printString", func(v *VM, recv Value) Value {
 		if !recv.IsWeakRef() {
 			return v.registry.NewStringValue("a WeakReference (invalid)")
 		}

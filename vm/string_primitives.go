@@ -59,21 +59,18 @@ func (vm *VM) registerStringPrimitivesExtended() {
 	c := vm.StringClass
 
 	// primLf - return a string containing a single newline character
-	c.AddClassMethod(vm.Selectors, "primLf", &Method0{name: "primLf", fn: func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	c.AddClassMethod(vm.Selectors, "primLf", &Method0{name: "primLf", fn: func(v *VM, recv Value) Value {
 		return v.registry.NewStringValue("\n")
 	}})
 
 	// primSize - return the length of the string
-	c.AddMethod0(vm.Selectors, "primSize", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod0(vm.Selectors, "primSize", func(v *VM, recv Value) Value {
 		s := v.registry.GetStringContent(recv)
 		return FromSmallInt(int64(len(s)))
 	})
 
 	// primAt: - return the Character at the given 1-based index
-	c.AddMethod1(vm.Selectors, "primAt:", func(vmPtr interface{}, recv Value, index Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod1(vm.Selectors, "primAt:", func(v *VM, recv Value, index Value) Value {
 		if !index.IsSmallInt() {
 			return v.SignalPrimitiveError("primAt:", "index must be an integer")
 		}
@@ -86,8 +83,7 @@ func (vm *VM) registerStringPrimitivesExtended() {
 	})
 
 	// primConcat: - concatenate two strings (also accepts Characters)
-	c.AddMethod1(vm.Selectors, "primConcat:", func(vmPtr interface{}, recv Value, other Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod1(vm.Selectors, "primConcat:", func(v *VM, recv Value, other Value) Value {
 		if !IsStringValue(other) && !IsCharacterValue(other) && !other.IsSymbol() {
 			return v.SignalPrimitiveError("primConcat:", "argument must be a string")
 		}
@@ -97,8 +93,7 @@ func (vm *VM) registerStringPrimitivesExtended() {
 	})
 
 	// primEquals: - compare two strings for equality
-	c.AddMethod1(vm.Selectors, "primEquals:", func(vmPtr interface{}, recv Value, other Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod1(vm.Selectors, "primEquals:", func(v *VM, recv Value, other Value) Value {
 		if !IsStringValue(other) {
 			return v.SignalPrimitiveError("primEquals:", "argument must be a string")
 		}
@@ -111,8 +106,7 @@ func (vm *VM) registerStringPrimitivesExtended() {
 	})
 
 	// primLessThan: - lexicographic comparison
-	c.AddMethod1(vm.Selectors, "primLessThan:", func(vmPtr interface{}, recv Value, other Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod1(vm.Selectors, "primLessThan:", func(v *VM, recv Value, other Value) Value {
 		if !IsStringValue(other) {
 			return v.SignalPrimitiveError("primLessThan:", "argument must be a string")
 		}
@@ -125,8 +119,7 @@ func (vm *VM) registerStringPrimitivesExtended() {
 	})
 
 	// primIncludes: - check if string contains a character or substring
-	c.AddMethod1(vm.Selectors, "primIncludes:", func(vmPtr interface{}, recv Value, char Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod1(vm.Selectors, "primIncludes:", func(v *VM, recv Value, char Value) Value {
 		if !IsStringValue(char) && !IsCharacterValue(char) && !char.IsSymbol() {
 			return v.SignalPrimitiveError("primIncludes:", "argument must be a string")
 		}
@@ -142,8 +135,7 @@ func (vm *VM) registerStringPrimitivesExtended() {
 	})
 
 	// primIndexOf: - return the 1-based index of a substring or character, or 0 if not found
-	c.AddMethod1(vm.Selectors, "primIndexOf:", func(vmPtr interface{}, recv Value, char Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod1(vm.Selectors, "primIndexOf:", func(v *VM, recv Value, char Value) Value {
 		if !IsStringValue(char) && !IsCharacterValue(char) && !char.IsSymbol() {
 			return v.SignalPrimitiveError("primIndexOf:", "argument must be a string")
 		}
@@ -160,29 +152,25 @@ func (vm *VM) registerStringPrimitivesExtended() {
 	})
 
 	// primAsSymbol - convert string to symbol
-	c.AddMethod0(vm.Selectors, "primAsSymbol", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod0(vm.Selectors, "primAsSymbol", func(v *VM, recv Value) Value {
 		s := v.registry.GetStringContent(recv)
 		return v.Symbols.SymbolValue(s)
 	})
 
 	// primAsUppercase - convert string to uppercase
-	c.AddMethod0(vm.Selectors, "primAsUppercase", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod0(vm.Selectors, "primAsUppercase", func(v *VM, recv Value) Value {
 		s := v.registry.GetStringContent(recv)
 		return v.registry.NewStringValue(strings.ToUpper(s))
 	})
 
 	// primAsLowercase - convert string to lowercase
-	c.AddMethod0(vm.Selectors, "primAsLowercase", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod0(vm.Selectors, "primAsLowercase", func(v *VM, recv Value) Value {
 		s := v.registry.GetStringContent(recv)
 		return v.registry.NewStringValue(strings.ToLower(s))
 	})
 
 	// primCopyFrom:to: - return substring (1-based, inclusive (closed interval))
-	c.AddMethod2(vm.Selectors, "primCopyFrom:to:", func(vmPtr interface{}, recv Value, start, end Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod2(vm.Selectors, "primCopyFrom:to:", func(v *VM, recv Value, start, end Value) Value {
 		if !start.IsSmallInt() || !end.IsSmallInt() {
 			return v.SignalPrimitiveError("primCopyFrom:to:", "arguments must be integers")
 		}
@@ -203,8 +191,7 @@ func (vm *VM) registerStringPrimitivesExtended() {
 	})
 
 	// asInteger - convert string to integer
-	c.AddMethod0(vm.Selectors, "asInteger", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod0(vm.Selectors, "asInteger", func(v *VM, recv Value) Value {
 		s := v.registry.GetStringContent(recv)
 		n, err := strconv.ParseInt(s, 10, 64)
 		if err != nil {
@@ -214,8 +201,7 @@ func (vm *VM) registerStringPrimitivesExtended() {
 	})
 
 	// asFloat - convert string to float
-	c.AddMethod0(vm.Selectors, "asFloat", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod0(vm.Selectors, "asFloat", func(v *VM, recv Value) Value {
 		s := v.registry.GetStringContent(recv)
 		f, err := strconv.ParseFloat(s, 64)
 		if err != nil {
@@ -225,8 +211,7 @@ func (vm *VM) registerStringPrimitivesExtended() {
 	})
 
 	// primIsDigit - check if single-char string is a digit
-	c.AddMethod0(vm.Selectors, "primIsDigit", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod0(vm.Selectors, "primIsDigit", func(v *VM, recv Value) Value {
 		s := v.registry.GetStringContent(recv)
 		if len(s) != 1 {
 			return False
@@ -239,8 +224,7 @@ func (vm *VM) registerStringPrimitivesExtended() {
 	})
 
 	// primIsLetter - check if single-char string is a letter
-	c.AddMethod0(vm.Selectors, "primIsLetter", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod0(vm.Selectors, "primIsLetter", func(v *VM, recv Value) Value {
 		s := v.registry.GetStringContent(recv)
 		if len(s) != 1 {
 			return False
@@ -253,8 +237,7 @@ func (vm *VM) registerStringPrimitivesExtended() {
 	})
 
 	// primIsWhitespace - check if single-char string is whitespace
-	c.AddMethod0(vm.Selectors, "primIsWhitespace", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod0(vm.Selectors, "primIsWhitespace", func(v *VM, recv Value) Value {
 		s := v.registry.GetStringContent(recv)
 		if len(s) != 1 {
 			return False
@@ -267,8 +250,7 @@ func (vm *VM) registerStringPrimitivesExtended() {
 	})
 
 	// primDo: - iterate over characters, yielding Character values to the block
-	c.AddMethod1(vm.Selectors, "primDo:", func(vmPtr interface{}, recv Value, block Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod1(vm.Selectors, "primDo:", func(v *VM, recv Value, block Value) Value {
 		s := v.registry.GetStringContent(recv)
 		var last Value = Nil
 		for _, ch := range s {
@@ -279,31 +261,27 @@ func (vm *VM) registerStringPrimitivesExtended() {
 	})
 
 	// primTrimBoth - trim whitespace from both ends
-	c.AddMethod0(vm.Selectors, "primTrimBoth", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod0(vm.Selectors, "primTrimBoth", func(v *VM, recv Value) Value {
 		s := v.registry.GetStringContent(recv)
 		return v.registry.NewStringValue(strings.TrimSpace(s))
 	})
 
 	// println - print the string to stdout with newline
-	c.AddMethod0(vm.Selectors, "println", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod0(vm.Selectors, "println", func(v *VM, recv Value) Value {
 		s := v.registry.GetStringContent(recv)
 		fmt.Println(s)
 		return recv
 	})
 
 	// print - print the string to stdout without newline
-	c.AddMethod0(vm.Selectors, "print", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod0(vm.Selectors, "print", func(v *VM, recv Value) Value {
 		s := v.registry.GetStringContent(recv)
 		fmt.Print(s)
 		return recv
 	})
 
 	// hashCode - FNV-1a content hash returning a bounded positive SmallInt
-	c.AddMethod0(vm.Selectors, "hashCode", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod0(vm.Selectors, "hashCode", func(v *VM, recv Value) Value {
 		s := v.registry.GetStringContent(recv)
 		h := uint32(2166136261)
 		for i := 0; i < len(s); i++ {
@@ -314,8 +292,7 @@ func (vm *VM) registerStringPrimitivesExtended() {
 	})
 
 	// primSplit: - split string by separator, returns Array of strings
-	c.AddMethod1(vm.Selectors, "primSplit:", func(vmPtr interface{}, recv Value, sep Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod1(vm.Selectors, "primSplit:", func(v *VM, recv Value, sep Value) Value {
 		s := v.registry.GetStringContent(recv)
 		separator := v.getStringLike(sep)
 		parts := strings.Split(s, separator)

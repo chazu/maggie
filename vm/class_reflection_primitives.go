@@ -64,8 +64,7 @@ func (vm *VM) registerClassReflectionPrimitives() {
 	// ---------------------------------------------------------------------------
 
 	// className - returns the name of the receiver's class as a symbol
-	c.AddMethod0(vm.Selectors, "className", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod0(vm.Selectors, "className", func(v *VM, recv Value) Value {
 		cls := v.ClassFor(recv)
 		if cls == nil {
 			return Nil
@@ -78,8 +77,7 @@ func (vm *VM) registerClassReflectionPrimitives() {
 	// ---------------------------------------------------------------------------
 
 	// methodCategories - returns an array of all category names for this class
-	c.AddClassMethod0(vm.Selectors, "methodCategories", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	c.AddClassMethod0(vm.Selectors, "methodCategories", func(v *VM, recv Value) Value {
 		cls := v.classFromValue(recv)
 		if cls == nil {
 			return v.NewArrayWithElements(nil)
@@ -93,8 +91,7 @@ func (vm *VM) registerClassReflectionPrimitives() {
 	})
 
 	// classMethodCategories - returns an array of all category names for class-side methods
-	c.AddClassMethod0(vm.Selectors, "classMethodCategories", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	c.AddClassMethod0(vm.Selectors, "classMethodCategories", func(v *VM, recv Value) Value {
 		cls := v.classFromValue(recv)
 		if cls == nil {
 			return v.NewArrayWithElements(nil)
@@ -108,8 +105,7 @@ func (vm *VM) registerClassReflectionPrimitives() {
 	})
 
 	// methodsInCategory: - returns an array of method names in the given category
-	c.AddClassMethod1(vm.Selectors, "methodsInCategory:", func(vmPtr interface{}, recv Value, category Value) Value {
-		v := vmPtr.(*VM)
+	c.AddClassMethod1(vm.Selectors, "methodsInCategory:", func(v *VM, recv Value, category Value) Value {
 		cls := v.classFromValue(recv)
 		if cls == nil {
 			return v.NewArrayWithElements(nil)
@@ -131,8 +127,7 @@ func (vm *VM) registerClassReflectionPrimitives() {
 	})
 
 	// allMethodNames - returns an array of all method names in this class
-	c.AddClassMethod0(vm.Selectors, "allMethodNames", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	c.AddClassMethod0(vm.Selectors, "allMethodNames", func(v *VM, recv Value) Value {
 		cls := v.classFromValue(recv)
 		if cls == nil {
 			return v.NewArrayWithElements(nil)
@@ -146,8 +141,7 @@ func (vm *VM) registerClassReflectionPrimitives() {
 	})
 
 	// categoryOf: - returns the category of a method given its selector
-	c.AddClassMethod1(vm.Selectors, "categoryOf:", func(vmPtr interface{}, recv Value, selector Value) Value {
-		v := vmPtr.(*VM)
+	c.AddClassMethod1(vm.Selectors, "categoryOf:", func(v *VM, recv Value, selector Value) Value {
 		cls := v.classFromValue(recv)
 		if cls == nil {
 			return Nil
@@ -172,8 +166,7 @@ func (vm *VM) registerClassReflectionPrimitives() {
 	})
 
 	// allInstVarNames - returns an array of all instance variable names
-	c.AddClassMethod0(vm.Selectors, "allInstVarNames", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	c.AddClassMethod0(vm.Selectors, "allInstVarNames", func(v *VM, recv Value) Value {
 		cls := v.classFromValue(recv)
 		if cls == nil {
 			return v.NewArrayWithElements(nil)
@@ -187,8 +180,7 @@ func (vm *VM) registerClassReflectionPrimitives() {
 	})
 
 	// instVarNames - returns an array of this class's own instance variable names
-	c.AddClassMethod0(vm.Selectors, "instVarNames", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	c.AddClassMethod0(vm.Selectors, "instVarNames", func(v *VM, recv Value) Value {
 		cls := v.classFromValue(recv)
 		if cls == nil {
 			return v.NewArrayWithElements(nil)
@@ -201,8 +193,7 @@ func (vm *VM) registerClassReflectionPrimitives() {
 	})
 
 	// superclassName - returns the name of the superclass as a symbol
-	c.AddClassMethod0(vm.Selectors, "superclassName", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	c.AddClassMethod0(vm.Selectors, "superclassName", func(v *VM, recv Value) Value {
 		cls := v.classFromValue(recv)
 		if cls == nil || cls.Superclass == nil {
 			return Nil
@@ -216,8 +207,7 @@ func (vm *VM) registerClassReflectionPrimitives() {
 
 	// allClasses - returns an array of all class objects in the system
 	// Respects process-level restrictions: hidden classes are filtered out.
-	c.AddClassMethod0(vm.Selectors, "allClasses", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	c.AddClassMethod0(vm.Selectors, "allClasses", func(v *VM, recv Value) Value {
 		interp := v.currentInterpreter()
 		classes := v.Classes.All()
 		var values []Value
@@ -231,8 +221,7 @@ func (vm *VM) registerClassReflectionPrimitives() {
 
 	// allClassesSorted - returns an array of all class objects, sorted alphabetically by name
 	// Respects process-level restrictions: hidden classes are filtered out.
-	c.AddClassMethod0(vm.Selectors, "allClassesSorted", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	c.AddClassMethod0(vm.Selectors, "allClassesSorted", func(v *VM, recv Value) Value {
 		interp := v.currentInterpreter()
 		classes := v.Classes.All()
 		// Filter and collect names
@@ -265,8 +254,7 @@ func (vm *VM) registerClassReflectionPrimitives() {
 	// ---------------------------------------------------------------------------
 
 	// name - returns the class name as a symbol
-	c.AddClassMethod0(vm.Selectors, "name", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	c.AddClassMethod0(vm.Selectors, "name", func(v *VM, recv Value) Value {
 		cls := v.classFromValue(recv)
 		if cls == nil {
 			return Nil
@@ -275,8 +263,7 @@ func (vm *VM) registerClassReflectionPrimitives() {
 	})
 
 	// superclass - returns the superclass as a class value, or nil
-	c.AddClassMethod0(vm.Selectors, "superclass", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	c.AddClassMethod0(vm.Selectors, "superclass", func(v *VM, recv Value) Value {
 		cls := v.classFromValue(recv)
 		if cls == nil || cls.Superclass == nil {
 			return Nil
@@ -285,8 +272,7 @@ func (vm *VM) registerClassReflectionPrimitives() {
 	})
 
 	// printString - returns the class name as a string
-	c.AddClassMethod0(vm.Selectors, "printString", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	c.AddClassMethod0(vm.Selectors, "printString", func(v *VM, recv Value) Value {
 		cls := v.classFromValue(recv)
 		if cls == nil {
 			return v.registry.NewStringValue("a Class")
@@ -300,8 +286,7 @@ func (vm *VM) registerClassReflectionPrimitives() {
 
 	// methodSourceFor: - returns the source code of a method as a string
 	// Returns nil if the method doesn't exist or has no source
-	c.AddClassMethod1(vm.Selectors, "methodSourceFor:", func(vmPtr interface{}, recv Value, selector Value) Value {
-		v := vmPtr.(*VM)
+	c.AddClassMethod1(vm.Selectors, "methodSourceFor:", func(v *VM, recv Value, selector Value) Value {
 		cls := v.classFromValue(recv)
 		if cls == nil {
 			return Nil
@@ -326,8 +311,7 @@ func (vm *VM) registerClassReflectionPrimitives() {
 	})
 
 	// classMethodSourceFor: - returns the source code of a class-side method
-	c.AddClassMethod1(vm.Selectors, "classMethodSourceFor:", func(vmPtr interface{}, recv Value, selector Value) Value {
-		v := vmPtr.(*VM)
+	c.AddClassMethod1(vm.Selectors, "classMethodSourceFor:", func(v *VM, recv Value, selector Value) Value {
 		cls := v.classFromValue(recv)
 		if cls == nil {
 			return Nil
@@ -362,8 +346,7 @@ func (vm *VM) registerClassReflectionPrimitives() {
 	// Accepts both formats:
 	//   'method: greet [ ^''hello'' ]'  (new-style, method: prefix stripped automatically)
 	//   'greet\n    ^''hello'''         (old-style, selector on first line)
-	c.AddClassMethod1(vm.Selectors, "compileAndInstall:", func(vmPtr interface{}, recv Value, sourceVal Value) Value {
-		v := vmPtr.(*VM)
+	c.AddClassMethod1(vm.Selectors, "compileAndInstall:", func(v *VM, recv Value, sourceVal Value) Value {
 		cls := v.classFromValue(recv)
 		if cls == nil {
 			v.signalException(v.ErrorClass, v.registry.NewStringValue("compileAndInstall: receiver is not a class"))
@@ -394,8 +377,7 @@ func (vm *VM) registerClassReflectionPrimitives() {
 	})
 
 	// compileAndInstallClassMethod: - compile and install a class-side method.
-	c.AddClassMethod1(vm.Selectors, "compileAndInstallClassMethod:", func(vmPtr interface{}, recv Value, sourceVal Value) Value {
-		v := vmPtr.(*VM)
+	c.AddClassMethod1(vm.Selectors, "compileAndInstallClassMethod:", func(v *VM, recv Value, sourceVal Value) Value {
 		cls := v.classFromValue(recv)
 		if cls == nil {
 			v.signalException(v.ErrorClass, v.registry.NewStringValue("compileAndInstallClassMethod: receiver is not a class"))

@@ -89,8 +89,7 @@ func (vm *VM) registerJSONPrimitives() {
 	// -------------------------------------------------------------------
 
 	// Json encode: anObject -> String
-	jsonClass.AddClassMethod1(vm.Selectors, "primEncode:", func(vmPtr interface{}, recv Value, obj Value) Value {
-		v := vmPtr.(*VM)
+	jsonClass.AddClassMethod1(vm.Selectors, "primEncode:", func(v *VM, recv Value, obj Value) Value {
 		goVal := v.valueToGoJSON(obj)
 		data, err := json.Marshal(goVal)
 		if err != nil {
@@ -101,8 +100,7 @@ func (vm *VM) registerJSONPrimitives() {
 	})
 
 	// Json encodePretty: anObject -> String
-	jsonClass.AddClassMethod1(vm.Selectors, "primEncodePretty:", func(vmPtr interface{}, recv Value, obj Value) Value {
-		v := vmPtr.(*VM)
+	jsonClass.AddClassMethod1(vm.Selectors, "primEncodePretty:", func(v *VM, recv Value, obj Value) Value {
 		goVal := v.valueToGoJSON(obj)
 		data, err := json.MarshalIndent(goVal, "", "  ")
 		if err != nil {
@@ -113,8 +111,7 @@ func (vm *VM) registerJSONPrimitives() {
 	})
 
 	// Json decode: aString -> Object
-	jsonClass.AddClassMethod1(vm.Selectors, "primDecode:", func(vmPtr interface{}, recv Value, strVal Value) Value {
-		v := vmPtr.(*VM)
+	jsonClass.AddClassMethod1(vm.Selectors, "primDecode:", func(v *VM, recv Value, strVal Value) Value {
 		if !IsStringValue(strVal) {
 			return v.signalException(jsonParseErrorClass,
 				v.registry.NewStringValue("Json decode: argument must be a String"))
@@ -138,8 +135,7 @@ func (vm *VM) registerJSONPrimitives() {
 	// -------------------------------------------------------------------
 
 	// JsonReader new: aString -> JsonReader
-	jsonReaderClass.AddClassMethod1(vm.Selectors, "primNew:", func(vmPtr interface{}, recv Value, strVal Value) Value {
-		v := vmPtr.(*VM)
+	jsonReaderClass.AddClassMethod1(vm.Selectors, "primNew:", func(v *VM, recv Value, strVal Value) Value {
 		if !IsStringValue(strVal) {
 			return v.signalException(jsonParseErrorClass,
 				v.registry.NewStringValue("JsonReader new: argument must be a String"))
@@ -153,8 +149,7 @@ func (vm *VM) registerJSONPrimitives() {
 	})
 
 	// JsonReader >> next -> next decoded value or nil at EOF
-	jsonReaderClass.AddMethod0(vm.Selectors, "primNext", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	jsonReaderClass.AddMethod0(vm.Selectors, "primNext", func(v *VM, recv Value) Value {
 		if !isJsonReaderValue(recv) {
 			return Nil
 		}
@@ -174,11 +169,10 @@ func (vm *VM) registerJSONPrimitives() {
 	})
 
 	// JsonReader >> hasMore -> Boolean
-	jsonReaderClass.AddMethod0(vm.Selectors, "primHasMore", func(vmPtr interface{}, recv Value) Value {
+	jsonReaderClass.AddMethod0(vm.Selectors, "primHasMore", func(v *VM, recv Value) Value {
 		if !isJsonReaderValue(recv) {
 			return False
 		}
-		v := vmPtr.(*VM)
 		reader := v.registry.GetJsonReader(jsonReaderIDFromValue(recv))
 		if reader == nil {
 			return False
@@ -194,8 +188,7 @@ func (vm *VM) registerJSONPrimitives() {
 	// -------------------------------------------------------------------
 
 	// JsonWriter new -> JsonWriter
-	jsonWriterClass.AddClassMethod0(vm.Selectors, "primNew", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	jsonWriterClass.AddClassMethod0(vm.Selectors, "primNew", func(v *VM, recv Value) Value {
 		buf := &bytes.Buffer{}
 		enc := json.NewEncoder(buf)
 		enc.SetEscapeHTML(false)
@@ -205,8 +198,7 @@ func (vm *VM) registerJSONPrimitives() {
 	})
 
 	// JsonWriter newPretty -> JsonWriter
-	jsonWriterClass.AddClassMethod0(vm.Selectors, "primNewPretty", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	jsonWriterClass.AddClassMethod0(vm.Selectors, "primNewPretty", func(v *VM, recv Value) Value {
 		buf := &bytes.Buffer{}
 		enc := json.NewEncoder(buf)
 		enc.SetEscapeHTML(false)
@@ -217,8 +209,7 @@ func (vm *VM) registerJSONPrimitives() {
 	})
 
 	// JsonWriter >> write: anObject -> self
-	jsonWriterClass.AddMethod1(vm.Selectors, "primWrite:", func(vmPtr interface{}, recv Value, obj Value) Value {
-		v := vmPtr.(*VM)
+	jsonWriterClass.AddMethod1(vm.Selectors, "primWrite:", func(v *VM, recv Value, obj Value) Value {
 		if !isJsonWriterValue(recv) {
 			return recv
 		}
@@ -235,8 +226,7 @@ func (vm *VM) registerJSONPrimitives() {
 	})
 
 	// JsonWriter >> contents -> String
-	jsonWriterClass.AddMethod0(vm.Selectors, "primContents", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	jsonWriterClass.AddMethod0(vm.Selectors, "primContents", func(v *VM, recv Value) Value {
 		if !isJsonWriterValue(recv) {
 			return v.registry.NewStringValue("")
 		}
@@ -251,11 +241,10 @@ func (vm *VM) registerJSONPrimitives() {
 	})
 
 	// JsonWriter >> reset -> self
-	jsonWriterClass.AddMethod0(vm.Selectors, "primReset", func(vmPtr interface{}, recv Value) Value {
+	jsonWriterClass.AddMethod0(vm.Selectors, "primReset", func(v *VM, recv Value) Value {
 		if !isJsonWriterValue(recv) {
 			return recv
 		}
-		v := vmPtr.(*VM)
 		writer := v.registry.GetJsonWriter(jsonWriterIDFromValue(recv))
 		if writer == nil {
 			return recv

@@ -235,15 +235,13 @@ func (vm *VM) registerChannelPrimitives() {
 	c := vm.ChannelClass
 
 	// Channel class>>new - create unbuffered channel (class method)
-	c.AddClassMethod0(vm.Selectors, "new", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	c.AddClassMethod0(vm.Selectors, "new", func(v *VM, recv Value) Value {
 		ch := createChannel(0)
 		return v.registerChannel(ch)
 	})
 
 	// Channel class>>new: size - create buffered channel (class method)
-	c.AddClassMethod1(vm.Selectors, "new:", func(vmPtr interface{}, recv Value, size Value) Value {
-		v := vmPtr.(*VM)
+	c.AddClassMethod1(vm.Selectors, "new:", func(v *VM, recv Value, size Value) Value {
 		if !size.IsSmallInt() {
 			return Nil
 		}
@@ -256,8 +254,7 @@ func (vm *VM) registerChannelPrimitives() {
 	})
 
 	// Channel>>primSend: value - send value to channel (blocking)
-	c.AddMethod1(vm.Selectors, "primSend:", func(vmPtr interface{}, recv Value, val Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod1(vm.Selectors, "primSend:", func(v *VM, recv Value, val Value) Value {
 		ch := v.getChannel(recv)
 		if ch == nil {
 			return Nil
@@ -272,8 +269,7 @@ func (vm *VM) registerChannelPrimitives() {
 	})
 
 	// Channel>>primReceive - receive value from channel (blocking)
-	c.AddMethod0(vm.Selectors, "primReceive", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod0(vm.Selectors, "primReceive", func(v *VM, recv Value) Value {
 		ch := v.getChannel(recv)
 		if ch == nil {
 			return Nil
@@ -286,8 +282,7 @@ func (vm *VM) registerChannelPrimitives() {
 	})
 
 	// Channel>>primTryReceive - non-blocking receive, returns nil if nothing available
-	c.AddMethod0(vm.Selectors, "primTryReceive", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod0(vm.Selectors, "primTryReceive", func(v *VM, recv Value) Value {
 		ch := v.getChannel(recv)
 		if ch == nil {
 			return Nil
@@ -304,8 +299,7 @@ func (vm *VM) registerChannelPrimitives() {
 	})
 
 	// Channel>>primTrySend: value - non-blocking send, returns true if sent
-	c.AddMethod1(vm.Selectors, "primTrySend:", func(vmPtr interface{}, recv Value, val Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod1(vm.Selectors, "primTrySend:", func(v *VM, recv Value, val Value) Value {
 		ch := v.getChannel(recv)
 		if ch == nil {
 			return False
@@ -320,8 +314,7 @@ func (vm *VM) registerChannelPrimitives() {
 	})
 
 	// Channel>>primClose - close the channel
-	c.AddMethod0(vm.Selectors, "primClose", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod0(vm.Selectors, "primClose", func(v *VM, recv Value) Value {
 		ch := v.getChannel(recv)
 		if ch == nil {
 			return recv
@@ -336,8 +329,7 @@ func (vm *VM) registerChannelPrimitives() {
 	})
 
 	// Channel>>primIsClosed - check if channel is closed
-	c.AddMethod0(vm.Selectors, "primIsClosed", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod0(vm.Selectors, "primIsClosed", func(v *VM, recv Value) Value {
 		ch := v.getChannel(recv)
 		if ch == nil {
 			return True
@@ -351,8 +343,7 @@ func (vm *VM) registerChannelPrimitives() {
 	// Non-prim versions for backwards compatibility and use without Channel.mag
 
 	// Channel>>send: - alias for primSend:
-	c.AddMethod1(vm.Selectors, "send:", func(vmPtr interface{}, recv Value, val Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod1(vm.Selectors, "send:", func(v *VM, recv Value, val Value) Value {
 		ch := v.getChannel(recv)
 		if ch == nil {
 			return Nil
@@ -367,8 +358,7 @@ func (vm *VM) registerChannelPrimitives() {
 	})
 
 	// Channel>>receive - alias for primReceive
-	c.AddMethod0(vm.Selectors, "receive", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod0(vm.Selectors, "receive", func(v *VM, recv Value) Value {
 		ch := v.getChannel(recv)
 		if ch == nil {
 			return Nil
@@ -381,8 +371,7 @@ func (vm *VM) registerChannelPrimitives() {
 	})
 
 	// Channel>>trySend: - alias for primTrySend:
-	c.AddMethod1(vm.Selectors, "trySend:", func(vmPtr interface{}, recv Value, val Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod1(vm.Selectors, "trySend:", func(v *VM, recv Value, val Value) Value {
 		ch := v.getChannel(recv)
 		if ch == nil {
 			return False
@@ -397,8 +386,7 @@ func (vm *VM) registerChannelPrimitives() {
 	})
 
 	// Channel>>tryReceive - alias for primTryReceive
-	c.AddMethod0(vm.Selectors, "tryReceive", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod0(vm.Selectors, "tryReceive", func(v *VM, recv Value) Value {
 		ch := v.getChannel(recv)
 		if ch == nil {
 			return Nil
@@ -415,8 +403,7 @@ func (vm *VM) registerChannelPrimitives() {
 	})
 
 	// Channel>>close - alias for primClose
-	c.AddMethod0(vm.Selectors, "close", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod0(vm.Selectors, "close", func(v *VM, recv Value) Value {
 		ch := v.getChannel(recv)
 		if ch == nil {
 			return recv
@@ -431,8 +418,7 @@ func (vm *VM) registerChannelPrimitives() {
 	})
 
 	// Channel>>isClosed - alias for primIsClosed
-	c.AddMethod0(vm.Selectors, "isClosed", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod0(vm.Selectors, "isClosed", func(v *VM, recv Value) Value {
 		ch := v.getChannel(recv)
 		if ch == nil {
 			return True
@@ -444,8 +430,7 @@ func (vm *VM) registerChannelPrimitives() {
 	})
 
 	// Channel>>isEmpty - check if channel has no pending values (for buffered)
-	c.AddMethod0(vm.Selectors, "isEmpty", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod0(vm.Selectors, "isEmpty", func(v *VM, recv Value) Value {
 		ch := v.getChannel(recv)
 		if ch == nil {
 			return True
@@ -457,8 +442,7 @@ func (vm *VM) registerChannelPrimitives() {
 	})
 
 	// Channel>>size - number of pending values (for buffered)
-	c.AddMethod0(vm.Selectors, "size", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod0(vm.Selectors, "size", func(v *VM, recv Value) Value {
 		ch := v.getChannel(recv)
 		if ch == nil {
 			return FromSmallInt(0)
@@ -467,8 +451,7 @@ func (vm *VM) registerChannelPrimitives() {
 	})
 
 	// Channel>>capacity - buffer capacity
-	c.AddMethod0(vm.Selectors, "capacity", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod0(vm.Selectors, "capacity", func(v *VM, recv Value) Value {
 		ch := v.getChannel(recv)
 		if ch == nil {
 			return FromSmallInt(0)
@@ -485,8 +468,7 @@ func (vm *VM) registerProcessPrimitives() {
 	// Block>>fork - create new process running this block
 	// Uses ExecuteBlockDetached so that non-local returns (^) in the block
 	// become local returns instead of crashing (since the home frame is unreachable)
-	vm.BlockClass.AddMethod0(vm.Selectors, "fork", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	vm.BlockClass.AddMethod0(vm.Selectors, "fork", func(v *VM, recv Value) Value {
 		bv := v.currentInterpreter().getBlockValue(recv)
 		if bv == nil {
 			return Nil
@@ -522,8 +504,7 @@ func (vm *VM) registerProcessPrimitives() {
 
 	// Block>>forkWith: arg - fork with single argument
 	// Uses ExecuteBlockDetached so that non-local returns (^) become local returns
-	vm.BlockClass.AddMethod1(vm.Selectors, "forkWith:", func(vmPtr interface{}, recv Value, arg Value) Value {
-		v := vmPtr.(*VM)
+	vm.BlockClass.AddMethod1(vm.Selectors, "forkWith:", func(v *VM, recv Value, arg Value) Value {
 		bv := v.currentInterpreter().getBlockValue(recv)
 		if bv == nil {
 			return Nil
@@ -553,8 +534,7 @@ func (vm *VM) registerProcessPrimitives() {
 	// Block>>forkWithContext: ctx - fork with cancellation context
 	// Passes the context to the block as first argument
 	// Block should check ctx isCancelled periodically
-	vm.BlockClass.AddMethod1(vm.Selectors, "forkWithContext:", func(vmPtr interface{}, recv Value, ctxArg Value) Value {
-		v := vmPtr.(*VM)
+	vm.BlockClass.AddMethod1(vm.Selectors, "forkWithContext:", func(v *VM, recv Value, ctxArg Value) Value {
 		bv := v.currentInterpreter().getBlockValue(recv)
 		if bv == nil {
 			return Nil
@@ -605,8 +585,7 @@ func (vm *VM) registerProcessPrimitives() {
 
 	// Process class>>fork: block - fork a block as a new process (class method)
 	// Uses ExecuteBlockDetached so that non-local returns (^) become local returns
-	c.AddClassMethod1(vm.Selectors, "fork:", func(vmPtr interface{}, recv Value, block Value) Value {
-		v := vmPtr.(*VM)
+	c.AddClassMethod1(vm.Selectors, "fork:", func(v *VM, recv Value, block Value) Value {
 		bv := v.currentInterpreter().getBlockValue(block)
 		if bv == nil {
 			return Nil
@@ -634,8 +613,7 @@ func (vm *VM) registerProcessPrimitives() {
 	})
 
 	// Process>>wait - wait for process to complete, return result
-	c.AddMethod0(vm.Selectors, "wait", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod0(vm.Selectors, "wait", func(v *VM, recv Value) Value {
 		proc := v.getProcess(recv)
 		if proc == nil {
 			return Nil
@@ -643,8 +621,7 @@ func (vm *VM) registerProcessPrimitives() {
 		return proc.wait()
 	})
 
-	c.AddMethod0(vm.Selectors, "primWait", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod0(vm.Selectors, "primWait", func(v *VM, recv Value) Value {
 		proc := v.getProcess(recv)
 		if proc == nil {
 			return Nil
@@ -653,8 +630,7 @@ func (vm *VM) registerProcessPrimitives() {
 	})
 
 	// Process>>isDone - check if process has completed
-	c.AddMethod0(vm.Selectors, "isDone", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod0(vm.Selectors, "isDone", func(v *VM, recv Value) Value {
 		proc := v.getProcess(recv)
 		if proc == nil {
 			return True
@@ -666,8 +642,7 @@ func (vm *VM) registerProcessPrimitives() {
 	})
 
 	// Process>>primIsAlive - check if process is still running (opposite of isDone)
-	c.AddMethod0(vm.Selectors, "primIsAlive", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod0(vm.Selectors, "primIsAlive", func(v *VM, recv Value) Value {
 		proc := v.getProcess(recv)
 		if proc == nil {
 			return False
@@ -679,8 +654,7 @@ func (vm *VM) registerProcessPrimitives() {
 	})
 
 	// Process>>result - get result (nil if not done)
-	c.AddMethod0(vm.Selectors, "result", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod0(vm.Selectors, "result", func(v *VM, recv Value) Value {
 		proc := v.getProcess(recv)
 		if proc == nil {
 			return Nil
@@ -693,8 +667,7 @@ func (vm *VM) registerProcessPrimitives() {
 		return proc.result
 	})
 
-	c.AddMethod0(vm.Selectors, "primResult", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod0(vm.Selectors, "primResult", func(v *VM, recv Value) Value {
 		proc := v.getProcess(recv)
 		if proc == nil {
 			return Nil
@@ -708,13 +681,12 @@ func (vm *VM) registerProcessPrimitives() {
 	})
 
 	// Process>>primYield - instance-side yield (stub, returns self)
-	c.AddMethod0(vm.Selectors, "primYield", func(_ interface{}, recv Value) Value {
+	c.AddMethod0(vm.Selectors, "primYield", func(_ *VM, recv Value) Value {
 		return recv
 	})
 
 	// Process>>primTerminate - terminate process with shutdown signal
-	c.AddMethod0(vm.Selectors, "primTerminate", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod0(vm.Selectors, "primTerminate", func(v *VM, recv Value) Value {
 		proc := v.getProcess(recv)
 		if proc == nil || proc.isDone() {
 			return recv
@@ -724,30 +696,29 @@ func (vm *VM) registerProcessPrimitives() {
 	})
 
 	// Process>>primPriority - get priority (stub, returns 0)
-	c.AddMethod0(vm.Selectors, "primPriority", func(_ interface{}, recv Value) Value {
+	c.AddMethod0(vm.Selectors, "primPriority", func(_ *VM, recv Value) Value {
 		return FromSmallInt(0)
 	})
 
 	// Process>>primPriority: - set priority (stub, returns self)
-	c.AddMethod1(vm.Selectors, "primPriority:", func(_ interface{}, recv Value, level Value) Value {
+	c.AddMethod1(vm.Selectors, "primPriority:", func(_ *VM, recv Value, level Value) Value {
 		return recv
 	})
 
 	// Process class>>current - get current process (class method)
-	c.AddClassMethod0(vm.Selectors, "current", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	c.AddClassMethod0(vm.Selectors, "current", func(v *VM, recv Value) Value {
 		return v.currentProcessValue()
 	})
 
 	// Process class>>yield - yield to other goroutines (class method)
-	c.AddClassMethod0(vm.Selectors, "yield", func(_ interface{}, recv Value) Value {
+	c.AddClassMethod0(vm.Selectors, "yield", func(_ *VM, recv Value) Value {
 		// runtime.Gosched() is the Go equivalent
 		// For now, just return
 		return Nil
 	})
 
 	// Process class>>sleep: milliseconds - sleep for specified time (class method)
-	c.AddClassMethod1(vm.Selectors, "sleep:", func(_ interface{}, recv Value, ms Value) Value {
+	c.AddClassMethod1(vm.Selectors, "sleep:", func(_ *VM, recv Value, ms Value) Value {
 		if !ms.IsSmallInt() {
 			return recv
 		}
@@ -758,8 +729,7 @@ func (vm *VM) registerProcessPrimitives() {
 
 	// Block>>forkRestricted: restrictions - fork with restricted globals
 	// restrictions is an Array of class name strings/symbols to hide
-	vm.BlockClass.AddMethod1(vm.Selectors, "forkRestricted:", func(vmPtr interface{}, recv Value, restrictionsVal Value) Value {
-		v := vmPtr.(*VM)
+	vm.BlockClass.AddMethod1(vm.Selectors, "forkRestricted:", func(v *VM, recv Value, restrictionsVal Value) Value {
 		bv := v.currentInterpreter().getBlockValue(recv)
 		if bv == nil {
 			return Nil
@@ -801,8 +771,7 @@ func (vm *VM) registerProcessPrimitives() {
 
 	// Process class>>forkWithout:do: - fork a block with restrictions (class method)
 	// restrictions is an Array of class name strings/symbols to hide
-	c.AddClassMethod2(vm.Selectors, "forkWithout:do:", func(vmPtr interface{}, recv Value, restrictionsVal, blockVal Value) Value {
-		v := vmPtr.(*VM)
+	c.AddClassMethod2(vm.Selectors, "forkWithout:do:", func(v *VM, recv Value, restrictionsVal, blockVal Value) Value {
 		bv := v.currentInterpreter().getBlockValue(blockVal)
 		if bv == nil {
 			return Nil
@@ -877,8 +846,7 @@ func (vm *VM) registerLinkMonitorPrimitives() {
 	c := vm.ProcessClass
 
 	// Process>>primLink: otherProcess
-	c.AddMethod1(vm.Selectors, "primLink:", func(vmPtr interface{}, recv Value, other Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod1(vm.Selectors, "primLink:", func(v *VM, recv Value, other Value) Value {
 		procA := v.getProcess(recv)
 		procB := v.getProcess(other)
 		if procA == nil || procB == nil {
@@ -889,8 +857,7 @@ func (vm *VM) registerLinkMonitorPrimitives() {
 	})
 
 	// Process>>primUnlink: otherProcess
-	c.AddMethod1(vm.Selectors, "primUnlink:", func(vmPtr interface{}, recv Value, other Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod1(vm.Selectors, "primUnlink:", func(v *VM, recv Value, other Value) Value {
 		procA := v.getProcess(recv)
 		procB := v.getProcess(other)
 		if procA == nil || procB == nil {
@@ -901,8 +868,7 @@ func (vm *VM) registerLinkMonitorPrimitives() {
 	})
 
 	// Process>>primMonitor: otherProcess — returns monitor ref ID as SmallInt
-	c.AddMethod1(vm.Selectors, "primMonitor:", func(vmPtr interface{}, recv Value, other Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod1(vm.Selectors, "primMonitor:", func(v *VM, recv Value, other Value) Value {
 		watcher := v.getProcess(recv)
 		watched := v.getProcess(other)
 		if watcher == nil || watched == nil {
@@ -913,8 +879,7 @@ func (vm *VM) registerLinkMonitorPrimitives() {
 	})
 
 	// Process>>primDemonitor: refID
-	c.AddMethod1(vm.Selectors, "primDemonitor:", func(vmPtr interface{}, recv Value, refIDVal Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod1(vm.Selectors, "primDemonitor:", func(v *VM, recv Value, refIDVal Value) Value {
 		watcher := v.getProcess(recv)
 		if watcher == nil || !refIDVal.IsSmallInt() {
 			return False
@@ -931,8 +896,7 @@ func (vm *VM) registerLinkMonitorPrimitives() {
 	})
 
 	// Process>>primTrapExit: aBoolean
-	c.AddMethod1(vm.Selectors, "primTrapExit:", func(vmPtr interface{}, recv Value, flag Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod1(vm.Selectors, "primTrapExit:", func(v *VM, recv Value, flag Value) Value {
 		proc := v.getProcess(recv)
 		if proc == nil {
 			return False
@@ -944,8 +908,7 @@ func (vm *VM) registerLinkMonitorPrimitives() {
 	})
 
 	// Process>>primTrapExit — query
-	c.AddMethod0(vm.Selectors, "primTrapExit", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod0(vm.Selectors, "primTrapExit", func(v *VM, recv Value) Value {
 		proc := v.getProcess(recv)
 		if proc == nil {
 			return False
@@ -960,8 +923,7 @@ func (vm *VM) registerLinkMonitorPrimitives() {
 	})
 
 	// Process>>primExitReason — returns exit reason as symbol or nil
-	c.AddMethod0(vm.Selectors, "primExitReason", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod0(vm.Selectors, "primExitReason", func(v *VM, recv Value) Value {
 		proc := v.getProcess(recv)
 		if proc == nil {
 			return Nil
@@ -990,21 +952,21 @@ func (vm *VM) registerMailboxPrimitives() {
 	vm.globals["MailboxMessage"] = vm.classValue(vm.MailboxMessageClass)
 
 	// MailboxMessage accessors
-	vm.MailboxMessageClass.AddMethod0(vm.Selectors, "sender", func(_ interface{}, recv Value) Value {
+	vm.MailboxMessageClass.AddMethod0(vm.Selectors, "sender", func(_ *VM, recv Value) Value {
 		obj := ObjectFromValue(recv)
 		if obj == nil {
 			return Nil
 		}
 		return obj.GetSlot(0)
 	})
-	vm.MailboxMessageClass.AddMethod0(vm.Selectors, "selector", func(_ interface{}, recv Value) Value {
+	vm.MailboxMessageClass.AddMethod0(vm.Selectors, "selector", func(_ *VM, recv Value) Value {
 		obj := ObjectFromValue(recv)
 		if obj == nil {
 			return Nil
 		}
 		return obj.GetSlot(1)
 	})
-	vm.MailboxMessageClass.AddMethod0(vm.Selectors, "payload", func(_ interface{}, recv Value) Value {
+	vm.MailboxMessageClass.AddMethod0(vm.Selectors, "payload", func(_ *VM, recv Value) Value {
 		obj := ObjectFromValue(recv)
 		if obj == nil {
 			return Nil
@@ -1013,8 +975,7 @@ func (vm *VM) registerMailboxPrimitives() {
 	})
 
 	// Process>>primSend: payload — fire-and-forget to target's mailbox
-	c.AddMethod1(vm.Selectors, "primSend:", func(vmPtr interface{}, recv Value, payload Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod1(vm.Selectors, "primSend:", func(v *VM, recv Value, payload Value) Value {
 		proc := v.getProcess(recv)
 		if proc == nil || proc.mailbox == nil {
 			return False
@@ -1028,8 +989,7 @@ func (vm *VM) registerMailboxPrimitives() {
 	})
 
 	// Process>>primSend:with: selector payload — selector-based message
-	c.AddMethod2(vm.Selectors, "primSend:with:", func(vmPtr interface{}, recv Value, selectorVal, payload Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod2(vm.Selectors, "primSend:with:", func(v *VM, recv Value, selectorVal, payload Value) Value {
 		proc := v.getProcess(recv)
 		if proc == nil || proc.mailbox == nil {
 			return False
@@ -1049,8 +1009,7 @@ func (vm *VM) registerMailboxPrimitives() {
 	})
 
 	// Process class>>primReceive — blocking receive from current process's mailbox
-	c.AddClassMethod0(vm.Selectors, "primReceive", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	c.AddClassMethod0(vm.Selectors, "primReceive", func(v *VM, recv Value) Value {
 		proc := v.currentProcess()
 		if proc == nil || proc.mailbox == nil {
 			return Nil
@@ -1063,8 +1022,7 @@ func (vm *VM) registerMailboxPrimitives() {
 	})
 
 	// Process class>>primReceive: timeoutMs — receive with timeout
-	c.AddClassMethod1(vm.Selectors, "primReceive:", func(vmPtr interface{}, recv Value, timeoutVal Value) Value {
-		v := vmPtr.(*VM)
+	c.AddClassMethod1(vm.Selectors, "primReceive:", func(v *VM, recv Value, timeoutVal Value) Value {
 		proc := v.currentProcess()
 		if proc == nil || proc.mailbox == nil {
 			return Nil
@@ -1081,8 +1039,7 @@ func (vm *VM) registerMailboxPrimitives() {
 	})
 
 	// Process class>>primTryReceive — non-blocking receive
-	c.AddClassMethod0(vm.Selectors, "primTryReceive", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	c.AddClassMethod0(vm.Selectors, "primTryReceive", func(v *VM, recv Value) Value {
 		proc := v.currentProcess()
 		if proc == nil || proc.mailbox == nil {
 			return Nil
@@ -1095,8 +1052,7 @@ func (vm *VM) registerMailboxPrimitives() {
 	})
 
 	// Process>>primRegisterAs: name — register this process with a name
-	c.AddMethod1(vm.Selectors, "primRegisterAs:", func(vmPtr interface{}, recv Value, nameVal Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod1(vm.Selectors, "primRegisterAs:", func(v *VM, recv Value, nameVal Value) Value {
 		proc := v.getProcess(recv)
 		if proc == nil {
 			return False
@@ -1117,8 +1073,7 @@ func (vm *VM) registerMailboxPrimitives() {
 	})
 
 	// Process class>>primNamed: name — look up process by registered name
-	c.AddClassMethod1(vm.Selectors, "primNamed:", func(vmPtr interface{}, recv Value, nameVal Value) Value {
-		v := vmPtr.(*VM)
+	c.AddClassMethod1(vm.Selectors, "primNamed:", func(v *VM, recv Value, nameVal Value) Value {
 		name := ""
 		if IsStringValue(nameVal) {
 			name = v.registry.GetStringContent(nameVal)
@@ -1132,8 +1087,7 @@ func (vm *VM) registerMailboxPrimitives() {
 	})
 
 	// Process>>primUnregister — remove name registration for this process
-	c.AddMethod0(vm.Selectors, "primUnregister", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod0(vm.Selectors, "primUnregister", func(v *VM, recv Value) Value {
 		proc := v.getProcess(recv)
 		if proc == nil {
 			return Nil

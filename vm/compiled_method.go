@@ -85,7 +85,7 @@ type BlockMethod struct {
 
 // Invoke executes the compiled method.
 // This is a placeholder - actual execution is done by the interpreter.
-func (m *CompiledMethod) Invoke(vm interface{}, receiver Value, args []Value) Value {
+func (m *CompiledMethod) Invoke(vm *VM, receiver Value, args []Value) Value {
 	// The interpreter will call this method but handle execution itself
 	// by reading the bytecode directly. This stub exists to satisfy the
 	// Method interface.

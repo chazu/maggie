@@ -430,8 +430,7 @@ func TestPassForwardsToOuterHandler(t *testing.T) {
 	// Helper class that signals Error when "trigger" is sent
 	signalerClass := NewClass("PassTestSignaler", nil)
 	vm.Classes.Register(signalerClass)
-	signalerClass.AddMethod0(vm.Selectors, "trigger", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	signalerClass.AddMethod0(vm.Selectors, "trigger", func(v *VM, recv Value) Value {
 		return v.signalException(v.ErrorClass, Nil)
 	})
 	signalerObj := signalerClass.NewInstance()
@@ -531,8 +530,7 @@ func TestNestedExceptionHandlersWithPass(t *testing.T) {
 	// Helper class to signal Error
 	signalerClass := NewClass("NestedPassSignaler", nil)
 	vm.Classes.Register(signalerClass)
-	signalerClass.AddMethod0(vm.Selectors, "trigger", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	signalerClass.AddMethod0(vm.Selectors, "trigger", func(v *VM, recv Value) Value {
 		return v.signalException(v.ErrorClass, Nil)
 	})
 	signalerObj := signalerClass.NewInstance()
@@ -661,8 +659,7 @@ func TestRetryReexecutesProtectedBlock(t *testing.T) {
 
 	// RetryCounter>>check - increments counter, signals Error if < 3
 	checkSelID := vm.Selectors.Intern("check")
-	counterClass.AddMethod0(vm.Selectors, "check", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	counterClass.AddMethod0(vm.Selectors, "check", func(v *VM, recv Value) Value {
 		count++
 		if count < 3 {
 			v.signalException(v.ErrorClass, Nil)
@@ -792,13 +789,11 @@ func runSignalAndCapture(t *testing.T, exClass *Class) *ExceptionObject {
 
 	signalerClass := NewClass("TraceCaptureSignaler", nil)
 	vm.Classes.Register(signalerClass)
-	signalerClass.AddMethod0(vm.Selectors, "trigger", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	signalerClass.AddMethod0(vm.Selectors, "trigger", func(v *VM, recv Value) Value {
 		return v.signalException(v.ErrorClass, v.registry.NewStringValue("boom"))
 	})
 	// "deeper" calls "trigger" so we get at least two interesting frames.
-	signalerClass.AddMethod0(vm.Selectors, "deeper", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	signalerClass.AddMethod0(vm.Selectors, "deeper", func(v *VM, recv Value) Value {
 		return v.Send(recv, "trigger", nil)
 	})
 	signalerObj := signalerClass.NewInstance()
@@ -934,8 +929,7 @@ func TestExecuteSafeIncludesCapturedTrace(t *testing.T) {
 
 	signalerClass := NewClass("ESafeSignaler", nil)
 	vm.Classes.Register(signalerClass)
-	signalerClass.AddMethod0(vm.Selectors, "trigger", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	signalerClass.AddMethod0(vm.Selectors, "trigger", func(v *VM, recv Value) Value {
 		return v.signalException(v.ErrorClass, v.registry.NewStringValue("kapow"))
 	})
 	signalerObj := signalerClass.NewInstance()

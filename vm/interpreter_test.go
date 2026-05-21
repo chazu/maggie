@@ -604,7 +604,7 @@ func TestInterpreterMethodDispatch(t *testing.T) {
 
 	// Create a class with a method
 	class := NewClass("Counter", nil)
-	class.AddMethod0(interp.Selectors, "value", func(_ interface{}, recv Value) Value {
+	class.AddMethod0(interp.Selectors, "value", func(_ *VM, recv Value) Value {
 		return FromSmallInt(99)
 	})
 

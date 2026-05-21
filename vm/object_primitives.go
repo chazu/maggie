@@ -16,8 +16,7 @@ func (vm *VM) registerObjectPrimitives() {
 	// This is a class method - registered on ClassVTable
 	// Handles both first-class class values and legacy symbol-based class references
 	_ = vm.Selectors.Intern("new") // Ensure "new" selector is interned
-	c.AddClassMethod0(vm.Selectors, "new", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	c.AddClassMethod0(vm.Selectors, "new", func(v *VM, recv Value) Value {
 		// Handle first-class class values
 		if IsClassValue(recv) {
 			cls := v.GetClassFromValue(recv)
@@ -41,8 +40,7 @@ func (vm *VM) registerObjectPrimitives() {
 
 	// basicNew - create a new instance without initialization (class-side primitive)
 	// Same as new, but in Smalltalk convention, basicNew is the raw allocator
-	c.AddClassMethod0(vm.Selectors, "basicNew", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	c.AddClassMethod0(vm.Selectors, "basicNew", func(v *VM, recv Value) Value {
 		if IsClassValue(recv) {
 			cls := v.GetClassFromValue(recv)
 			if cls != nil {
@@ -63,32 +61,30 @@ func (vm *VM) registerObjectPrimitives() {
 	})
 
 	// class - return the class of the receiver (instance-side)
-	c.AddMethod0(vm.Selectors, "class", func(_ interface{}, recv Value) Value {
+	c.AddMethod0(vm.Selectors, "class", func(_ *VM, recv Value) Value {
 		return vm.primitiveClass(recv)
 	})
 
 	// class - return the metaclass of the receiver (class-side)
 	// When you send `class` to a class value (e.g., SmallInteger class),
 	// you get the metaclass ("SmallInteger class").
-	c.AddClassMethod0(vm.Selectors, "class", func(vmPtr interface{}, recv Value) Value {
+	c.AddClassMethod0(vm.Selectors, "class", func(v *VM, recv Value) Value {
 		return vm.primitiveClass(recv)
 	})
 
 	// primClass - same as class, but a primitive that Maggie code can call
-	c.AddMethod0(vm.Selectors, "primClass", func(_ interface{}, recv Value) Value {
+	c.AddMethod0(vm.Selectors, "primClass", func(_ *VM, recv Value) Value {
 		return vm.primitiveClass(recv)
 	})
 
 	// primAsCueValue - project this object's instance variables into a CUE value
-	c.AddMethod0(vm.Selectors, "primAsCueValue", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod0(vm.Selectors, "primAsCueValue", func(v *VM, recv Value) Value {
 		cueObj := v.objectAsCueValue(recv)
 		return v.vmRegisterCueValue(cueObj)
 	})
 
 	// primIsKindOf: - check if receiver is an instance of aClass or a subclass
-	c.AddMethod1(vm.Selectors, "primIsKindOf:", func(vmPtr interface{}, recv Value, aClass Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod1(vm.Selectors, "primIsKindOf:", func(v *VM, recv Value, aClass Value) Value {
 		receiverClass := v.ClassFor(recv)
 		if receiverClass == nil {
 			return False
@@ -111,7 +107,7 @@ func (vm *VM) registerObjectPrimitives() {
 	})
 
 	// primIdentical: - identity comparison primitive (called from Object.mag's ==)
-	c.AddMethod1(vm.Selectors, "primIdentical:", func(_ interface{}, recv Value, arg Value) Value {
+	c.AddMethod1(vm.Selectors, "primIdentical:", func(_ *VM, recv Value, arg Value) Value {
 		if recv == arg {
 			return True
 		}
@@ -119,7 +115,7 @@ func (vm *VM) registerObjectPrimitives() {
 	})
 
 	// == - identity comparison (fallback if not overridden in Smalltalk)
-	c.AddMethod1(vm.Selectors, "==", func(_ interface{}, recv Value, arg Value) Value {
+	c.AddMethod1(vm.Selectors, "==", func(_ *VM, recv Value, arg Value) Value {
 		if recv == arg {
 			return True
 		}
@@ -127,7 +123,7 @@ func (vm *VM) registerObjectPrimitives() {
 	})
 
 	// ~~ - identity non-equality
-	c.AddMethod1(vm.Selectors, "~~", func(_ interface{}, recv Value, arg Value) Value {
+	c.AddMethod1(vm.Selectors, "~~", func(_ *VM, recv Value, arg Value) Value {
 		if recv != arg {
 			return True
 		}
@@ -135,50 +131,47 @@ func (vm *VM) registerObjectPrimitives() {
 	})
 
 	// isNil
-	c.AddMethod0(vm.Selectors, "isNil", func(_ interface{}, recv Value) Value {
+	c.AddMethod0(vm.Selectors, "isNil", func(_ *VM, recv Value) Value {
 		return False
 	})
 
 	// notNil
-	c.AddMethod0(vm.Selectors, "notNil", func(_ interface{}, recv Value) Value {
+	c.AddMethod0(vm.Selectors, "notNil", func(_ *VM, recv Value) Value {
 		return True
 	})
 
 	// isFailure — default: false (overridden by Failure)
-	c.AddMethod0(vm.Selectors, "isFailure", func(_ interface{}, recv Value) Value {
+	c.AddMethod0(vm.Selectors, "isFailure", func(_ *VM, recv Value) Value {
 		return False
 	})
 
 	// isSuccess — default: false (overridden by Success)
-	c.AddMethod0(vm.Selectors, "isSuccess", func(_ interface{}, recv Value) Value {
+	c.AddMethod0(vm.Selectors, "isSuccess", func(_ *VM, recv Value) Value {
 		return False
 	})
 
 	// yourself
-	c.AddMethod0(vm.Selectors, "yourself", func(_ interface{}, recv Value) Value {
+	c.AddMethod0(vm.Selectors, "yourself", func(_ *VM, recv Value) Value {
 		return recv
 	})
 
 	// ifNil: - for non-nil objects, return receiver (don't evaluate block)
-	c.AddMethod1(vm.Selectors, "ifNil:", func(_ interface{}, recv Value, block Value) Value {
+	c.AddMethod1(vm.Selectors, "ifNil:", func(_ *VM, recv Value, block Value) Value {
 		return recv
 	})
 
 	// ifNotNil: - for non-nil objects, evaluate block with receiver as argument
-	c.AddMethod1(vm.Selectors, "ifNotNil:", func(vmPtr interface{}, recv Value, block Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod1(vm.Selectors, "ifNotNil:", func(v *VM, recv Value, block Value) Value {
 		return v.evaluateBlock(block, []Value{recv})
 	})
 
 	// ifNil:ifNotNil: - for non-nil objects, evaluate second block with receiver
-	c.AddMethod2(vm.Selectors, "ifNil:ifNotNil:", func(vmPtr interface{}, recv Value, nilBlock, notNilBlock Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod2(vm.Selectors, "ifNil:ifNotNil:", func(v *VM, recv Value, nilBlock, notNilBlock Value) Value {
 		return v.evaluateBlock(notNilBlock, []Value{recv})
 	})
 
 	// perform: - send message by selector
-	c.AddMethod1(vm.Selectors, "perform:", func(vmPtr interface{}, recv Value, selector Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod1(vm.Selectors, "perform:", func(v *VM, recv Value, selector Value) Value {
 		if selector.IsSymbol() {
 			selName := v.Symbols.Name(selector.SymbolID())
 			return v.Send(recv, selName, nil)
@@ -187,8 +180,7 @@ func (vm *VM) registerObjectPrimitives() {
 	})
 
 	// perform:with: - send message with one argument
-	c.AddMethod2(vm.Selectors, "perform:with:", func(vmPtr interface{}, recv Value, selector, arg Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod2(vm.Selectors, "perform:with:", func(v *VM, recv Value, selector, arg Value) Value {
 		if selector.IsSymbol() {
 			selName := v.Symbols.Name(selector.SymbolID())
 			return v.Send(recv, selName, []Value{arg})
@@ -199,8 +191,7 @@ func (vm *VM) registerObjectPrimitives() {
 	// respondsTo: - true if receiver's class (or any superclass) implements aSelector.
 	// Walks the receiver's vtable inheritance chain via the flat dispatch table
 	// without allocating an Array of method names.
-	c.AddMethod1(vm.Selectors, "respondsTo:", func(vmPtr interface{}, recv Value, selector Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod1(vm.Selectors, "respondsTo:", func(v *VM, recv Value, selector Value) Value {
 		var selName string
 		if selector.IsSymbol() {
 			selName = v.Symbols.Name(selector.SymbolID())
@@ -223,8 +214,7 @@ func (vm *VM) registerObjectPrimitives() {
 	// Receives a Message object with selector and arguments.
 	// Panics with a "Maggie error: Message not understood: X" message
 	// which is caught by ExecuteSafe.
-	c.AddMethod1(vm.Selectors, "doesNotUnderstand:", func(vmPtr interface{}, recv Value, message Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod1(vm.Selectors, "doesNotUnderstand:", func(v *VM, recv Value, message Value) Value {
 		selectorName := "<unknown>"
 
 		// Extract selector name from the Message object
@@ -270,7 +260,7 @@ func (vm *VM) registerObjectPrimitives() {
 	})
 
 	// = - value equality (default to identity)
-	c.AddMethod1(vm.Selectors, "=", func(_ interface{}, recv Value, arg Value) Value {
+	c.AddMethod1(vm.Selectors, "=", func(_ *VM, recv Value, arg Value) Value {
 		if recv == arg {
 			return True
 		}
@@ -278,7 +268,7 @@ func (vm *VM) registerObjectPrimitives() {
 	})
 
 	// ~= - value inequality
-	c.AddMethod1(vm.Selectors, "~=", func(_ interface{}, recv Value, arg Value) Value {
+	c.AddMethod1(vm.Selectors, "~=", func(_ *VM, recv Value, arg Value) Value {
 		if recv != arg {
 			return True
 		}
@@ -286,13 +276,12 @@ func (vm *VM) registerObjectPrimitives() {
 	})
 
 	// hash - default hash (identity-based)
-	c.AddMethod0(vm.Selectors, "hash", func(_ interface{}, recv Value) Value {
+	c.AddMethod0(vm.Selectors, "hash", func(_ *VM, recv Value) Value {
 		return FromSmallInt(int64(recv))
 	})
 
 	// primError: - raise an error (signal proper exception, catchable by on:do:)
-	c.AddMethod1(vm.Selectors, "primError:", func(vmPtr interface{}, recv Value, message Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod1(vm.Selectors, "primError:", func(v *VM, recv Value, message Value) Value {
 		var msgStr string
 		if IsStringValue(message) {
 			msgStr = v.registry.GetStringContent(message)
@@ -312,7 +301,7 @@ func (vm *VM) registerObjectPrimitives() {
 	// primShallowCopy - return a shallow copy of the receiver
 	// For non-object values (ints, floats, symbols), returns self (immutable).
 	// For objects, creates a new object with the same vtable and slot values.
-	c.AddMethod0(vm.Selectors, "primShallowCopy", func(_ interface{}, recv Value) Value {
+	c.AddMethod0(vm.Selectors, "primShallowCopy", func(_ *VM, recv Value) Value {
 		if !recv.IsObject() {
 			return recv
 		}
@@ -330,7 +319,7 @@ func (vm *VM) registerObjectPrimitives() {
 
 	// become: - Two-way identity swap. All references to receiver see arg's
 	// contents and vice versa. Swaps vtable, size, and all slot contents.
-	c.AddMethod1(vm.Selectors, "become:", func(_ interface{}, recv Value, arg Value) Value {
+	c.AddMethod1(vm.Selectors, "become:", func(_ *VM, recv Value, arg Value) Value {
 		// Both must be objects
 		if !recv.IsObject() || !arg.IsObject() {
 			return recv // Can't become: non-objects
@@ -347,7 +336,7 @@ func (vm *VM) registerObjectPrimitives() {
 
 	// becomeForward: - One-way forwarding. All accesses to receiver will be
 	// redirected to arg. The arg is unchanged. Useful for proxies and lazy loading.
-	c.AddMethod1(vm.Selectors, "becomeForward:", func(_ interface{}, recv Value, arg Value) Value {
+	c.AddMethod1(vm.Selectors, "becomeForward:", func(_ *VM, recv Value, arg Value) Value {
 		// Both must be objects
 		if !recv.IsObject() || !arg.IsObject() {
 			return recv // Can't forward non-objects
@@ -363,7 +352,7 @@ func (vm *VM) registerObjectPrimitives() {
 	})
 
 	// isForwarded - Returns true if this object has been forwarded via becomeForward:
-	c.AddMethod0(vm.Selectors, "isForwarded", func(_ interface{}, recv Value) Value {
+	c.AddMethod0(vm.Selectors, "isForwarded", func(_ *VM, recv Value) Value {
 		if !recv.IsObject() {
 			return False
 		}
@@ -383,7 +372,7 @@ func (vm *VM) registerObjectPrimitives() {
 
 	// instVarAt: index - Return the value of the instance variable at index (0-based)
 	// Returns nil for non-objects or out-of-range indices
-	c.AddMethod1(vm.Selectors, "instVarAt:", func(_ interface{}, recv Value, index Value) Value {
+	c.AddMethod1(vm.Selectors, "instVarAt:", func(_ *VM, recv Value, index Value) Value {
 		if !recv.IsObject() {
 			return Nil
 		}
@@ -406,7 +395,7 @@ func (vm *VM) registerObjectPrimitives() {
 
 	// instVarAt:put: index value - Set the instance variable at index (0-based)
 	// Returns the receiver. Does nothing for non-objects or out-of-range indices.
-	c.AddMethod2(vm.Selectors, "instVarAt:put:", func(_ interface{}, recv Value, index Value, value Value) Value {
+	c.AddMethod2(vm.Selectors, "instVarAt:put:", func(_ *VM, recv Value, index Value, value Value) Value {
 		if !recv.IsObject() {
 			return recv
 		}
@@ -430,7 +419,7 @@ func (vm *VM) registerObjectPrimitives() {
 
 	// instVarSize - Return the number of instance variables
 	// Returns 0 for non-objects
-	c.AddMethod0(vm.Selectors, "instVarSize", func(_ interface{}, recv Value) Value {
+	c.AddMethod0(vm.Selectors, "instVarSize", func(_ *VM, recv Value) Value {
 		if !recv.IsObject() {
 			return FromSmallInt(0)
 		}
@@ -445,8 +434,7 @@ func (vm *VM) registerObjectPrimitives() {
 
 	// primAddDependent: adds a dependent to the receiver's dependents list.
 	// Uses identity (Value ==) to avoid duplicates.
-	c.AddMethod1(vm.Selectors, "primAddDependent:", func(vmPtr interface{}, recv Value, dep Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod1(vm.Selectors, "primAddDependent:", func(v *VM, recv Value, dep Value) Value {
 		v.dependentsMu.Lock()
 		deps := v.dependents[recv]
 		// Check for duplicate by identity
@@ -462,8 +450,7 @@ func (vm *VM) registerObjectPrimitives() {
 	})
 
 	// primRemoveDependent: removes a dependent from the receiver's dependents list.
-	c.AddMethod1(vm.Selectors, "primRemoveDependent:", func(vmPtr interface{}, recv Value, dep Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod1(vm.Selectors, "primRemoveDependent:", func(v *VM, recv Value, dep Value) Value {
 		v.dependentsMu.Lock()
 		deps := v.dependents[recv]
 		for i, d := range deps {
@@ -486,8 +473,7 @@ func (vm *VM) registerObjectPrimitives() {
 	})
 
 	// primDependents returns an Array of the receiver's dependents.
-	c.AddMethod0(vm.Selectors, "primDependents", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod0(vm.Selectors, "primDependents", func(v *VM, recv Value) Value {
 		v.dependentsMu.RLock()
 		deps := v.dependents[recv]
 		v.dependentsMu.RUnlock()
@@ -501,8 +487,7 @@ func (vm *VM) registerObjectPrimitives() {
 	})
 
 	// primReleaseDependents removes all dependents for the receiver.
-	c.AddMethod0(vm.Selectors, "primReleaseDependents", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod0(vm.Selectors, "primReleaseDependents", func(v *VM, recv Value) Value {
 		v.dependentsMu.Lock()
 		delete(v.dependents, recv)
 		v.dependentsMu.Unlock()

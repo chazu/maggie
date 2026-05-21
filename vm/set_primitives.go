@@ -10,8 +10,7 @@ func (vm *VM) registerSetPrimitives() {
 	c := vm.SetClass
 
 	// Class-side new - create a new Set with an initialized Dictionary
-	c.AddClassMethod0(vm.Selectors, "new", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	c.AddClassMethod0(vm.Selectors, "new", func(v *VM, recv Value) Value {
 		var cls *Class
 		if IsClassValue(recv) {
 			cls = v.GetClassFromValue(recv)
@@ -27,8 +26,7 @@ func (vm *VM) registerSetPrimitives() {
 	})
 
 	// add: - add an element to the set
-	c.AddMethod1(vm.Selectors, "add:", func(vmPtr interface{}, recv Value, elem Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod1(vm.Selectors, "add:", func(v *VM, recv Value, elem Value) Value {
 		if !recv.IsObject() {
 			return elem
 		}
@@ -42,8 +40,7 @@ func (vm *VM) registerSetPrimitives() {
 	})
 
 	// remove: - remove an element from the set
-	c.AddMethod1(vm.Selectors, "remove:", func(vmPtr interface{}, recv Value, elem Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod1(vm.Selectors, "remove:", func(v *VM, recv Value, elem Value) Value {
 		if !recv.IsObject() {
 			return elem
 		}
@@ -57,8 +54,7 @@ func (vm *VM) registerSetPrimitives() {
 	})
 
 	// includes: - check if element is in the set
-	c.AddMethod1(vm.Selectors, "includes:", func(vmPtr interface{}, recv Value, elem Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod1(vm.Selectors, "includes:", func(v *VM, recv Value, elem Value) Value {
 		if !recv.IsObject() {
 			return False
 		}
@@ -71,8 +67,7 @@ func (vm *VM) registerSetPrimitives() {
 	})
 
 	// size - number of elements
-	c.AddMethod0(vm.Selectors, "size", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod0(vm.Selectors, "size", func(v *VM, recv Value) Value {
 		if !recv.IsObject() {
 			return FromSmallInt(0)
 		}
@@ -85,8 +80,7 @@ func (vm *VM) registerSetPrimitives() {
 	})
 
 	// isEmpty - check if set is empty
-	c.AddMethod0(vm.Selectors, "isEmpty", func(vmPtr interface{}, recv Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod0(vm.Selectors, "isEmpty", func(v *VM, recv Value) Value {
 		if !recv.IsObject() {
 			return True
 		}
@@ -99,8 +93,7 @@ func (vm *VM) registerSetPrimitives() {
 	})
 
 	// do: - iterate over elements (keys of the internal dictionary)
-	c.AddMethod1(vm.Selectors, "do:", func(vmPtr interface{}, recv Value, block Value) Value {
-		v := vmPtr.(*VM)
+	c.AddMethod1(vm.Selectors, "do:", func(v *VM, recv Value, block Value) Value {
 		if !recv.IsObject() {
 			return Nil
 		}
