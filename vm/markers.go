@@ -50,6 +50,10 @@ const (
 	jsonReaderMarker            uint32 = 48 << 24
 	jsonWriterMarker            uint32 = 49 << 24
 
+	// gRPC primitives (exported for vm/contrib/grpc)
+	GrpcClientMarker            = grpcClientMarker
+	GrpcStreamMarker            = grpcStreamMarker
+
 	// CUE evaluation primitives (exported for vm/contrib/cue)
 	CueContextMarker            uint32 = 50 << 24
 	CueValueMarker              uint32 = 51 << 24

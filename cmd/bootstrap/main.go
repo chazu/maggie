@@ -13,6 +13,9 @@ import (
 	"github.com/chazu/maggie/pipeline"
 	"github.com/chazu/maggie/vm"
 	_ "github.com/chazu/maggie/vm/contrib/cue"
+	_ "github.com/chazu/maggie/vm/contrib/duckdb"
+	_ "github.com/chazu/maggie/vm/contrib/grpc"
+	_ "github.com/chazu/maggie/vm/contrib/sqlite"
 )
 
 // classMapping maps class names to VM classes (for core classes pre-created in Go)
@@ -39,8 +42,7 @@ var classMapping = map[string]func(*vm.VM) *vm.Class{
 	"Failure":         func(v *vm.VM) *vm.Class { return v.FailureClass },
 	"Dictionary":      func(v *vm.VM) *vm.Class { return v.DictionaryClass },
 	"Set":             func(v *vm.VM) *vm.Class { return v.SetClass },
-	"GrpcClient":      func(v *vm.VM) *vm.Class { return v.GrpcClientClass },
-	"GrpcStream":      func(v *vm.VM) *vm.Class { return v.GrpcStreamClass },
+	// GrpcClient/GrpcStream classes are created by the gRPC contrib plugin.
 	"ArrayList":       func(v *vm.VM) *vm.Class { return v.ArrayListClass },
 }
 

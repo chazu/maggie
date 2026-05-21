@@ -50,3 +50,8 @@ func ChannelMarkerValue() uint32 {
 func CborSerialEncMode() cbor.EncMode {
 	return cborSerialEncMode
 }
+
+// IsResultValue reports whether a Value is a Result (Success or Failure).
+func IsResultValue(v Value) bool {
+	return isResultValue(v)
+}

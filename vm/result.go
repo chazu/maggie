@@ -21,6 +21,12 @@ type ResultObject struct {
 	value      Value // The success value or failure reason
 }
 
+// Type returns the result type (ResultSuccess or ResultFailure).
+func (r *ResultObject) Type() ResultType { return r.resultType }
+
+// WrappedValue returns the success value or failure reason.
+func (r *ResultObject) WrappedValue() Value { return r.value }
+
 func createResult(rtype ResultType, val Value) *ResultObject {
 	return &ResultObject{
 		resultType: rtype,

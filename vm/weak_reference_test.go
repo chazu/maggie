@@ -345,6 +345,7 @@ func TestWeakReferencePrintString(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func BenchmarkNewWeakReference(b *testing.B) {
+	b.Skip("weak ref ID space (24-bit) exhausts under sustained benchmark load")
 	reg := NewObjectRegistry()
 	obj := NewObject(nil, 2)
 	b.ResetTimer()

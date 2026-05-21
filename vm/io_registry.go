@@ -1,11 +1,9 @@
 package vm
 
-// IORegistry manages registries for external I/O handles: HTTP, gRPC,
+// IORegistry manages registries for external I/O handles: HTTP,
 // Unix sockets, JSON streaming, and external processes. Embedded in
 // ObjectRegistry so all methods are promoted (zero caller changes).
 type IORegistry struct {
-	grpcClients   *AutoIDRegistry[*GrpcClientObject]
-	grpcStreams   *AutoIDRegistry[*GrpcStreamObject]
 	httpServers   *AutoIDRegistry[*HttpServerObject]
 	httpClients   *AutoIDRegistry[*HttpClientObject]
 	httpRequests  *AutoIDRegistry[*HttpRequestObject]
@@ -22,8 +20,6 @@ type IORegistry struct {
 // NewIORegistry creates an IORegistry with all sub-registries initialized.
 func NewIORegistry() *IORegistry {
 	return &IORegistry{
-		grpcClients:   NewAutoIDRegistry[*GrpcClientObject](1, WithName("grpcClients")),
-		grpcStreams:   NewAutoIDRegistry[*GrpcStreamObject](1, WithName("grpcStreams")),
 		httpServers:   NewAutoIDRegistry[*HttpServerObject](1, WithName("httpServers")),
 		httpClients:   NewAutoIDRegistry[*HttpClientObject](1, WithName("httpClients")),
 		httpRequests:  NewAutoIDRegistry[*HttpRequestObject](1, WithName("httpRequests")),
@@ -37,27 +33,6 @@ func NewIORegistry() *IORegistry {
 		cliCommands:      NewAutoIDRegistry[*CliCommandWrapper](1, WithName("cliCommands")),
 	}
 }
-
-// ---------------------------------------------------------------------------
-// gRPC
-// ---------------------------------------------------------------------------
-
-func (io *IORegistry) RegisterGrpcClient(c *GrpcClientObject) uint32 { return io.grpcClients.Register(c) }
-func (io *IORegistry) GetGrpcClient(id uint32) *GrpcClientObject     { return io.grpcClients.Get(id) }
-func (io *IORegistry) UnregisterGrpcClient(id uint32)                { io.grpcClients.Delete(id) }
-func (io *IORegistry) GrpcClientCount() int                          { return io.grpcClients.Count() }
-
-// SweepGrpcClients removes closed gRPC clients from the registry.
-func (io *IORegistry) SweepGrpcClients() int {
-	return io.grpcClients.Sweep(func(_ uint32, c *GrpcClientObject) bool {
-		return !c.closed.Load()
-	})
-}
-
-func (io *IORegistry) RegisterGrpcStream(s *GrpcStreamObject) uint32 { return io.grpcStreams.Register(s) }
-func (io *IORegistry) GetGrpcStream(id uint32) *GrpcStreamObject     { return io.grpcStreams.Get(id) }
-func (io *IORegistry) UnregisterGrpcStream(id uint32)                { io.grpcStreams.Delete(id) }
-func (io *IORegistry) GrpcStreamCount() int                          { return io.grpcStreams.Count() }
 
 // ---------------------------------------------------------------------------
 // HTTP
@@ -154,8 +129,6 @@ func (io *IORegistry) CliCommandCount() int                           { return i
 // IOStats returns counts for all I/O registries.
 func (io *IORegistry) IOStats() map[string]int {
 	return map[string]int{
-		"grpcClients":   io.GrpcClientCount(),
-		"grpcStreams":   io.GrpcStreamCount(),
 		"httpServers":   io.HttpServerCount(),
 		"httpClients":   io.HttpClientCount(),
 		"httpRequests":  io.HttpRequestCount(),

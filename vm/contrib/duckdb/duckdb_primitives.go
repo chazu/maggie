@@ -1,4 +1,4 @@
-package vm
+package duckdb
 
 import (
 	"context"
@@ -8,6 +8,8 @@ import (
 	"sync"
 
 	"github.com/marcboeker/go-duckdb"
+
+	vm "github.com/chazu/maggie/vm"
 )
 
 // ---------------------------------------------------------------------------
@@ -33,26 +35,26 @@ type DuckAppenderObject struct {
 // DuckDB Primitives Registration
 // ---------------------------------------------------------------------------
 
-func (vm *VM) registerDuckDBPrimitives() {
-	duckDBClass := vm.RegisterGoType("DuckDatabase", reflect.TypeOf(&DuckDatabaseObject{}))
-	appenderClass := vm.RegisterGoType("DuckAppender", reflect.TypeOf(&DuckAppenderObject{}))
+func RegisterDuckDBPrimitives(vmInst *vm.VM) {
+	duckDBClass := vmInst.RegisterGoType("DuckDatabase", reflect.TypeOf(&DuckDatabaseObject{}))
+	appenderClass := vmInst.RegisterGoType("DuckAppender", reflect.TypeOf(&DuckAppenderObject{}))
 
 	// -----------------------------------------------------------------------
 	// DuckDatabase class methods
 	// -----------------------------------------------------------------------
 
 	// new — Open an in-memory DuckDB database
-	duckDBClass.AddClassMethod0(vm.Selectors, "new", func(v *VM, recv Value) Value {
-		return v.openDuckDB("")
+	duckDBClass.AddClassMethod0(vmInst.Selectors, "new", func(v *vm.VM, recv vm.Value) vm.Value {
+		return openDuckDB(v, "")
 	})
 
 	// open: path — Open a file-backed DuckDB database
-	duckDBClass.AddClassMethod1(vm.Selectors, "open:", func(v *VM, recv Value, pathVal Value) Value {
-		path := v.valueToString(pathVal)
+	duckDBClass.AddClassMethod1(vmInst.Selectors, "open:", func(v *vm.VM, recv vm.Value, pathVal vm.Value) vm.Value {
+		path := v.ValueToString(pathVal)
 		if path == "" {
-			return v.newFailureResult("open: requires a path string")
+			return v.NewFailureResult("open: requires a path string")
 		}
-		return v.openDuckDB(path)
+		return openDuckDB(v, path)
 	})
 
 	// -----------------------------------------------------------------------
@@ -60,75 +62,75 @@ func (vm *VM) registerDuckDBPrimitives() {
 	// -----------------------------------------------------------------------
 
 	// query: sql — Execute a SELECT and return results as an array of dictionaries
-	duckDBClass.AddMethod1(vm.Selectors, "query:", func(v *VM, recv Value, sqlVal Value) Value {
-		dbObj := v.getDuckDB(recv)
+	duckDBClass.AddMethod1(vmInst.Selectors, "query:", func(v *vm.VM, recv vm.Value, sqlVal vm.Value) vm.Value {
+		dbObj := getDuckDB(v, recv)
 		if dbObj == nil {
-			return v.newFailureResult("query: receiver is not a DuckDatabase")
+			return v.NewFailureResult("query: receiver is not a DuckDatabase")
 		}
 
 		dbObj.mu.Lock()
 		if dbObj.closed {
 			dbObj.mu.Unlock()
-			return v.newFailureResult("query: database is closed")
+			return v.NewFailureResult("query: database is closed")
 		}
 		db := dbObj.db
 		dbObj.mu.Unlock()
 
-		sqlStr := v.valueToString(sqlVal)
+		sqlStr := v.ValueToString(sqlVal)
 		if sqlStr == "" {
-			return v.newFailureResult("query: requires a SQL string")
+			return v.NewFailureResult("query: requires a SQL string")
 		}
 
 		rows, err := db.Query(sqlStr)
 		if err != nil {
-			return v.newFailureResult("query: " + err.Error())
+			return v.NewFailureResult("query: " + err.Error())
 		}
 		defer rows.Close()
 
-		return v.rowsToArray(rows)
+		return rowsToArray(v, rows)
 	})
 
 	// execute: sql — Execute DDL/DML with no result set
-	duckDBClass.AddMethod1(vm.Selectors, "execute:", func(v *VM, recv Value, sqlVal Value) Value {
-		dbObj := v.getDuckDB(recv)
+	duckDBClass.AddMethod1(vmInst.Selectors, "execute:", func(v *vm.VM, recv vm.Value, sqlVal vm.Value) vm.Value {
+		dbObj := getDuckDB(v, recv)
 		if dbObj == nil {
-			return v.newFailureResult("execute: receiver is not a DuckDatabase")
+			return v.NewFailureResult("execute: receiver is not a DuckDatabase")
 		}
 
 		dbObj.mu.Lock()
 		if dbObj.closed {
 			dbObj.mu.Unlock()
-			return v.newFailureResult("execute: database is closed")
+			return v.NewFailureResult("execute: database is closed")
 		}
 		db := dbObj.db
 		dbObj.mu.Unlock()
 
-		sqlStr := v.valueToString(sqlVal)
+		sqlStr := v.ValueToString(sqlVal)
 		if sqlStr == "" {
-			return v.newFailureResult("execute: requires a SQL string")
+			return v.NewFailureResult("execute: requires a SQL string")
 		}
 
 		result, err := db.Exec(sqlStr)
 		if err != nil {
-			return v.newFailureResult("execute: " + err.Error())
+			return v.NewFailureResult("execute: " + err.Error())
 		}
 
 		affected, _ := result.RowsAffected()
-		return v.newSuccessResult(FromSmallInt(affected))
+		return v.NewSuccessResult(vm.FromSmallInt(affected))
 	})
 
 	// close — Close the database
-	duckDBClass.AddMethod0(vm.Selectors, "close", func(v *VM, recv Value) Value {
-		dbObj := v.getDuckDB(recv)
+	duckDBClass.AddMethod0(vmInst.Selectors, "close", func(v *vm.VM, recv vm.Value) vm.Value {
+		dbObj := getDuckDB(v, recv)
 		if dbObj == nil {
-			return v.newFailureResult("close: receiver is not a DuckDatabase")
+			return v.NewFailureResult("close: receiver is not a DuckDatabase")
 		}
 
 		dbObj.mu.Lock()
 		defer dbObj.mu.Unlock()
 
 		if dbObj.closed {
-			return v.newSuccessResult(recv)
+			return v.NewSuccessResult(recv)
 		}
 
 		var firstErr error
@@ -145,61 +147,61 @@ func (vm *VM) registerDuckDBPrimitives() {
 		dbObj.closed = true
 
 		if firstErr != nil {
-			return v.newFailureResult("close: " + firstErr.Error())
+			return v.NewFailureResult("close: " + firstErr.Error())
 		}
-		return v.newSuccessResult(recv)
+		return v.NewSuccessResult(recv)
 	})
 
 	// isClosed — Check if database is closed
-	duckDBClass.AddMethod0(vm.Selectors, "isClosed", func(v *VM, recv Value) Value {
-		dbObj := v.getDuckDB(recv)
+	duckDBClass.AddMethod0(vmInst.Selectors, "isClosed", func(v *vm.VM, recv vm.Value) vm.Value {
+		dbObj := getDuckDB(v, recv)
 		if dbObj == nil {
-			return True
+			return vm.True
 		}
 		dbObj.mu.Lock()
 		defer dbObj.mu.Unlock()
 		if dbObj.closed {
-			return True
+			return vm.True
 		}
-		return False
+		return vm.False
 	})
 
 	// appender: tableName — Create an appender for bulk inserts
-	duckDBClass.AddMethod1(vm.Selectors, "appender:", func(v *VM, recv Value, tableVal Value) Value {
-		dbObj := v.getDuckDB(recv)
+	duckDBClass.AddMethod1(vmInst.Selectors, "appender:", func(v *vm.VM, recv vm.Value, tableVal vm.Value) vm.Value {
+		dbObj := getDuckDB(v, recv)
 		if dbObj == nil {
-			return v.newFailureResult("appender: receiver is not a DuckDatabase")
+			return v.NewFailureResult("appender: receiver is not a DuckDatabase")
 		}
 
 		dbObj.mu.Lock()
 		if dbObj.closed {
 			dbObj.mu.Unlock()
-			return v.newFailureResult("appender: database is closed")
+			return v.NewFailureResult("appender: database is closed")
 		}
 		connector := dbObj.connector
 		dbObj.mu.Unlock()
 
-		tableName := v.valueToString(tableVal)
+		tableName := v.ValueToString(tableVal)
 		if tableName == "" {
-			return v.newFailureResult("appender: requires a table name string")
+			return v.NewFailureResult("appender: requires a table name string")
 		}
 
 		conn, err := connector.Connect(context.Background())
 		if err != nil {
-			return v.newFailureResult("appender: " + err.Error())
+			return v.NewFailureResult("appender: " + err.Error())
 		}
 
 		appender, err := duckdb.NewAppenderFromConn(conn, "", tableName)
 		if err != nil {
 			conn.Close()
-			return v.newFailureResult("appender: " + err.Error())
+			return v.NewFailureResult("appender: " + err.Error())
 		}
 
 		appObj := &DuckAppenderObject{appender: appender}
 		val, regErr := v.RegisterGoObject(appObj)
 		if regErr != nil {
 			appender.Close()
-			return v.newFailureResult("appender: " + regErr.Error())
+			return v.NewFailureResult("appender: " + regErr.Error())
 		}
 		return val
 	})
@@ -209,88 +211,88 @@ func (vm *VM) registerDuckDBPrimitives() {
 	// -----------------------------------------------------------------------
 
 	// appendRow: anArray — Append a row of values
-	appenderClass.AddMethod1(vm.Selectors, "appendRow:", func(v *VM, recv Value, rowVal Value) Value {
-		appObj := v.getDuckAppender(recv)
+	appenderClass.AddMethod1(vmInst.Selectors, "appendRow:", func(v *vm.VM, recv vm.Value, rowVal vm.Value) vm.Value {
+		appObj := getDuckAppender(v, recv)
 		if appObj == nil {
-			return v.newFailureResult("appendRow: receiver is not a DuckAppender")
+			return v.NewFailureResult("appendRow: receiver is not a DuckAppender")
 		}
 
 		appObj.mu.Lock()
 		defer appObj.mu.Unlock()
 
 		if appObj.closed {
-			return v.newFailureResult("appendRow: appender is closed")
+			return v.NewFailureResult("appendRow: appender is closed")
 		}
 
 		// Convert Maggie array to Go values
-		goArgs := v.arrayToDriverValues(rowVal)
+		goArgs := arrayToDriverValues(v, rowVal)
 		if goArgs == nil {
-			return v.newFailureResult("appendRow: requires an Array")
+			return v.NewFailureResult("appendRow: requires an Array")
 		}
 
 		if err := appObj.appender.AppendRow(goArgs...); err != nil {
-			return v.newFailureResult("appendRow: " + err.Error())
+			return v.NewFailureResult("appendRow: " + err.Error())
 		}
 
-		return v.newSuccessResult(recv)
+		return v.NewSuccessResult(recv)
 	})
 
 	// flush — Flush buffered rows to the table
-	appenderClass.AddMethod0(vm.Selectors, "flush", func(v *VM, recv Value) Value {
-		appObj := v.getDuckAppender(recv)
+	appenderClass.AddMethod0(vmInst.Selectors, "flush", func(v *vm.VM, recv vm.Value) vm.Value {
+		appObj := getDuckAppender(v, recv)
 		if appObj == nil {
-			return v.newFailureResult("flush: receiver is not a DuckAppender")
+			return v.NewFailureResult("flush: receiver is not a DuckAppender")
 		}
 
 		appObj.mu.Lock()
 		defer appObj.mu.Unlock()
 
 		if appObj.closed {
-			return v.newFailureResult("flush: appender is closed")
+			return v.NewFailureResult("flush: appender is closed")
 		}
 
 		if err := appObj.appender.Flush(); err != nil {
-			return v.newFailureResult("flush: " + err.Error())
+			return v.NewFailureResult("flush: " + err.Error())
 		}
 
-		return v.newSuccessResult(recv)
+		return v.NewSuccessResult(recv)
 	})
 
 	// close — Close the appender (flushes remaining rows)
-	appenderClass.AddMethod0(vm.Selectors, "close", func(v *VM, recv Value) Value {
-		appObj := v.getDuckAppender(recv)
+	appenderClass.AddMethod0(vmInst.Selectors, "close", func(v *vm.VM, recv vm.Value) vm.Value {
+		appObj := getDuckAppender(v, recv)
 		if appObj == nil {
-			return v.newFailureResult("close: receiver is not a DuckAppender")
+			return v.NewFailureResult("close: receiver is not a DuckAppender")
 		}
 
 		appObj.mu.Lock()
 		defer appObj.mu.Unlock()
 
 		if appObj.closed {
-			return v.newSuccessResult(recv)
+			return v.NewSuccessResult(recv)
 		}
 
 		if err := appObj.appender.Close(); err != nil {
 			appObj.closed = true
-			return v.newFailureResult("close: " + err.Error())
+			return v.NewFailureResult("close: " + err.Error())
 		}
 
 		appObj.closed = true
-		return v.newSuccessResult(recv)
+		return v.NewSuccessResult(recv)
 	})
 
 	// isClosed — Check if appender is closed
-	appenderClass.AddMethod0(vm.Selectors, "isClosed", func(v *VM, recv Value) Value {
-		appObj := v.getDuckAppender(recv)
+	appenderClass.AddMethod0(vmInst.Selectors, "isClosed", func(v *vm.VM, recv vm.Value) vm.Value {
+		appObj := getDuckAppender(v, recv)
 		if appObj == nil {
-			return True
+			return vm.True
 		}
 		appObj.mu.Lock()
 		defer appObj.mu.Unlock()
 		if appObj.closed {
-			return True
+			return vm.True
 		}
-		return False
+		return vm.False
 	})
 }
 
@@ -299,10 +301,10 @@ func (vm *VM) registerDuckDBPrimitives() {
 // ---------------------------------------------------------------------------
 
 // openDuckDB opens a DuckDB database (in-memory if dsn is empty).
-func (vm *VM) openDuckDB(dsn string) Value {
+func openDuckDB(vmInst *vm.VM, dsn string) vm.Value {
 	connector, err := duckdb.NewConnector(dsn, nil)
 	if err != nil {
-		return vm.newFailureResult("DuckDatabase open: " + err.Error())
+		return vmInst.NewFailureResult("DuckDatabase open: " + err.Error())
 	}
 
 	db := sql.OpenDB(connector)
@@ -312,18 +314,18 @@ func (vm *VM) openDuckDB(dsn string) Value {
 		db:        db,
 	}
 
-	val, regErr := vm.RegisterGoObject(obj)
+	val, regErr := vmInst.RegisterGoObject(obj)
 	if regErr != nil {
 		db.Close()
 		connector.Close()
-		return vm.newFailureResult("DuckDatabase: " + regErr.Error())
+		return vmInst.NewFailureResult("DuckDatabase: " + regErr.Error())
 	}
 	return val
 }
 
 // getDuckDB extracts a DuckDatabaseObject from a Maggie Value.
-func (vm *VM) getDuckDB(v Value) *DuckDatabaseObject {
-	goVal, ok := vm.GetGoObject(v)
+func getDuckDB(vmInst *vm.VM, v vm.Value) *DuckDatabaseObject {
+	goVal, ok := vmInst.GetGoObject(v)
 	if !ok {
 		return nil
 	}
@@ -335,8 +337,8 @@ func (vm *VM) getDuckDB(v Value) *DuckDatabaseObject {
 }
 
 // getDuckAppender extracts a DuckAppenderObject from a Maggie Value.
-func (vm *VM) getDuckAppender(v Value) *DuckAppenderObject {
-	goVal, ok := vm.GetGoObject(v)
+func getDuckAppender(vmInst *vm.VM, v vm.Value) *DuckAppenderObject {
+	goVal, ok := vmInst.GetGoObject(v)
 	if !ok {
 		return nil
 	}
@@ -348,13 +350,13 @@ func (vm *VM) getDuckAppender(v Value) *DuckAppenderObject {
 }
 
 // rowsToArray converts sql.Rows into a Maggie Array of Dictionaries.
-func (vm *VM) rowsToArray(rows *sql.Rows) Value {
+func rowsToArray(vmInst *vm.VM, rows *sql.Rows) vm.Value {
 	cols, err := rows.Columns()
 	if err != nil {
-		return vm.newFailureResult("query: " + err.Error())
+		return vmInst.NewFailureResult("query: " + err.Error())
 	}
 
-	var results []Value
+	var results []vm.Value
 
 	for rows.Next() {
 		// Create scan targets
@@ -365,20 +367,20 @@ func (vm *VM) rowsToArray(rows *sql.Rows) Value {
 		}
 
 		if err := rows.Scan(scanPtrs...); err != nil {
-			return vm.newFailureResult("query: " + err.Error())
+			return vmInst.NewFailureResult("query: " + err.Error())
 		}
 
 		// Build a Dictionary for this row
-		dict := vm.registry.NewDictionaryValue()
-		dictObj := vm.registry.GetDictionaryObject(dict)
+		dict := vmInst.Registry().NewDictionaryValue()
+		dictObj := vmInst.Registry().GetDictionaryObject(dict)
 		if dictObj == nil {
 			continue
 		}
 
 		for i, colName := range cols {
-			key := vm.registry.NewStringValue(colName)
-			val := vm.goScanValueToMaggie(scanValues[i])
-			h := hashValue(vm.registry, key)
+			key := vmInst.Registry().NewStringValue(colName)
+			val := goScanValueToMaggie(vmInst, scanValues[i])
+			h := vm.HashValue(vmInst.Registry(), key)
 			dictObj.Keys[h] = key
 			dictObj.Data[h] = val
 		}
@@ -387,92 +389,92 @@ func (vm *VM) rowsToArray(rows *sql.Rows) Value {
 	}
 
 	if err := rows.Err(); err != nil {
-		return vm.newFailureResult("query: " + err.Error())
+		return vmInst.NewFailureResult("query: " + err.Error())
 	}
 
-	return vm.NewArrayWithElements(results)
+	return vmInst.NewArrayWithElements(results)
 }
 
 // goScanValueToMaggie converts a database scan value to a Maggie Value.
-func (vm *VM) goScanValueToMaggie(v interface{}) Value {
+func goScanValueToMaggie(vmInst *vm.VM, v interface{}) vm.Value {
 	if v == nil {
-		return Nil
+		return vm.Nil
 	}
 	switch val := v.(type) {
 	case int64:
-		return FromSmallInt(val)
+		return vm.FromSmallInt(val)
 	case int32:
-		return FromSmallInt(int64(val))
+		return vm.FromSmallInt(int64(val))
 	case int:
-		return FromSmallInt(int64(val))
+		return vm.FromSmallInt(int64(val))
 	case float64:
-		return FromFloat64(val)
+		return vm.FromFloat64(val)
 	case float32:
-		return FromFloat64(float64(val))
+		return vm.FromFloat64(float64(val))
 	case string:
-		return vm.registry.NewStringValue(val)
+		return vmInst.Registry().NewStringValue(val)
 	case []byte:
-		return vm.registry.NewStringValue(string(val))
+		return vmInst.Registry().NewStringValue(string(val))
 	case bool:
 		if val {
-			return True
+			return vm.True
 		}
-		return False
+		return vm.False
 	default:
 		// Try reflect-based conversion for other types
 		rv := reflect.ValueOf(v)
 		switch rv.Kind() {
 		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-			return FromSmallInt(rv.Int())
+			return vm.FromSmallInt(rv.Int())
 		case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-			return FromSmallInt(int64(rv.Uint()))
+			return vm.FromSmallInt(int64(rv.Uint()))
 		case reflect.Float32, reflect.Float64:
-			return FromFloat64(rv.Float())
+			return vm.FromFloat64(rv.Float())
 		case reflect.String:
-			return vm.registry.NewStringValue(rv.String())
+			return vmInst.Registry().NewStringValue(rv.String())
 		default:
 			// Use Stringer if available, otherwise nil
 			if s, ok := v.(interface{ String() string }); ok {
-				return vm.registry.NewStringValue(s.String())
+				return vmInst.Registry().NewStringValue(s.String())
 			}
-			return Nil
+			return vm.Nil
 		}
 	}
 }
 
 // valueToDuckDB converts a Maggie Value to a Go value suitable for DuckDB.
-func (vm *VM) valueToDuckDB(v Value) interface{} {
+func valueToDuckDB(vmInst *vm.VM, v vm.Value) interface{} {
 	switch {
-	case v == Nil:
+	case v == vm.Nil:
 		return nil
-	case v == True:
+	case v == vm.True:
 		return true
-	case v == False:
+	case v == vm.False:
 		return false
 	case v.IsSmallInt():
 		return v.SmallInt()
 	case v.IsFloat():
 		return v.Float64()
-	case IsStringValue(v):
-		return vm.registry.GetStringContent(v)
+	case vm.IsStringValue(v):
+		return vmInst.Registry().GetStringContent(v)
 	default:
 		return nil
 	}
 }
 
 // arrayToDriverValues converts a Maggie Array value to []driver.Value for AppendRow.
-func (vm *VM) arrayToDriverValues(v Value) []driver.Value {
+func arrayToDriverValues(vmInst *vm.VM, v vm.Value) []driver.Value {
 	if !v.IsObject() {
 		return nil
 	}
-	obj := ObjectFromValue(v)
+	obj := vm.ObjectFromValue(v)
 	if obj == nil {
 		return nil
 	}
 	n := obj.NumSlots()
 	result := make([]driver.Value, n)
 	for i := 0; i < n; i++ {
-		result[i] = vm.valueToDuckDB(obj.GetSlot(i))
+		result[i] = valueToDuckDB(vmInst, obj.GetSlot(i))
 	}
 	return result
 }

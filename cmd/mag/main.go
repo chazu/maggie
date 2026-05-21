@@ -28,6 +28,9 @@ import (
 	"github.com/chazu/maggie/server"
 	"github.com/chazu/maggie/vm"
 	_ "github.com/chazu/maggie/vm/contrib/cue"
+	_ "github.com/chazu/maggie/vm/contrib/duckdb"
+	_ "github.com/chazu/maggie/vm/contrib/grpc"
+	_ "github.com/chazu/maggie/vm/contrib/sqlite"
 	"github.com/chazu/maggie/vm/dist"
 )
 

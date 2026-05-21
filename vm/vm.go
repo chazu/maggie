@@ -116,8 +116,6 @@ type VM struct {
 	ResultClass            *Class
 	SuccessClass           *Class
 	FailureClass           *Class
-	GrpcClientClass        *Class
-	GrpcStreamClass        *Class
 	ContextClass           *Class
 	WeakReferenceClass     *Class
 	CharacterClass         *Class
@@ -394,9 +392,7 @@ func (vm *VM) bootstrap() {
 	vm.SuccessClass = vm.createClass("Success", vm.ResultClass)
 	vm.FailureClass = vm.createClass("Failure", vm.ResultClass)
 
-	// Phase 5d: Create gRPC classes
-	vm.GrpcClientClass = vm.createClass("GrpcClient", vm.ObjectClass)
-	vm.GrpcStreamClass = vm.createClass("GrpcStream", vm.ObjectClass)
+	// GrpcClient/GrpcStream classes are created by the gRPC contrib plugin.
 
 	// Phase 5e: Create Context class for thisContext
 	vm.ContextClass = vm.createClass("Context", vm.ObjectClass)
@@ -443,7 +439,6 @@ func (vm *VM) bootstrap() {
 	vm.registerResultPrimitives()
 	vm.registerDictionaryPrimitives()
 	vm.registerSetPrimitives()
-	vm.registerGrpcPrimitives()
 	vm.registerContextPrimitives()
 	vm.registerExceptionPrimitives()
 	vm.registerExceptionBlockPrimitives()
@@ -461,13 +456,11 @@ func (vm *VM) bootstrap() {
 	vm.registerTomlPrimitives()
 	vm.registerExecPrimitives()
 	vm.registerUnixSocketPrimitives()
-	vm.registerDuckDBPrimitives()
 	vm.registerJSONPrimitives()
 	// CUE, TupleSpace, ConstraintStore are registered via contrib plugins
 	initContribPlugins(vm)
 	vm.registerProquintPrimitives()
 	vm.registerCryptoPrimitives()
-	vm.registerSqlitePrimitives()
 	vm.registerSystemPrimitives()
 	vm.registerRandomPrimitives()
 	vm.registerArrayListPrimitives()
@@ -504,8 +497,6 @@ func (vm *VM) bootstrap() {
 	vm.globals["Failure"] = vm.classValue(vm.FailureClass)
 	vm.globals["Dictionary"] = vm.classValue(vm.DictionaryClass)
 	vm.globals["Set"] = vm.classValue(vm.SetClass)
-	vm.globals["GrpcClient"] = vm.classValue(vm.GrpcClientClass)
-	vm.globals["GrpcStream"] = vm.classValue(vm.GrpcStreamClass)
 	vm.globals["Context"] = vm.classValue(vm.ContextClass)
 	vm.globals["WeakReference"] = vm.classValue(vm.WeakReferenceClass)
 	vm.globals["Character"] = vm.classValue(vm.CharacterClass)
@@ -562,9 +553,7 @@ func (vm *VM) registerSymbolDispatch() {
 	// BigInteger
 	sd.Register(bigIntMarker, &SymbolTypeEntry{Class: vm.BigIntegerClass})
 
-	// gRPC
-	sd.Register(grpcClientMarker, &SymbolTypeEntry{Class: vm.GrpcClientClass})
-	sd.Register(grpcStreamMarker, &SymbolTypeEntry{Class: vm.GrpcStreamClass})
+	// gRPC symbol dispatch is registered by the gRPC contrib plugin.
 
 	// Weak references
 	sd.Register(weakRefMarker, &SymbolTypeEntry{Class: vm.WeakReferenceClass})
