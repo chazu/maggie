@@ -98,7 +98,7 @@ func (r *GoTypeRegistry) Count() int {
 
 // RegisterGoObject stores a GoObjectWrapper and returns a symbol-encoded Value.
 func (or *ObjectRegistry) RegisterGoObject(obj *GoObjectWrapper) Value {
-	id := or.goObjects.Register(obj)
+	id := or.GoObjects.Register(obj)
 	return FromSymbolID(id | goObjectMarker)
 }
 
@@ -112,12 +112,12 @@ func (or *ObjectRegistry) GetGoObject(v Value) *GoObjectWrapper {
 		return nil
 	}
 	rawID := id & 0x00FFFFFF
-	return or.goObjects.Get(rawID)
+	return or.GoObjects.Get(rawID)
 }
 
 // GetGoObjectByID retrieves a GoObjectWrapper by raw registry ID.
 func (or *ObjectRegistry) GetGoObjectByID(id uint32) *GoObjectWrapper {
-	return or.goObjects.Get(id)
+	return or.GoObjects.Get(id)
 }
 
 // UnregisterGoObject removes a GoObject from the registry.
@@ -130,12 +130,12 @@ func (or *ObjectRegistry) UnregisterGoObject(v Value) {
 		return
 	}
 	rawID := id & 0x00FFFFFF
-	or.goObjects.Delete(rawID)
+	or.GoObjects.Delete(rawID)
 }
 
 // GoObjectCount returns the number of registered GoObjects.
 func (or *ObjectRegistry) GoObjectCount() int {
-	return or.goObjects.Count()
+	return or.GoObjects.Count()
 }
 
 // ---------------------------------------------------------------------------

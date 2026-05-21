@@ -451,7 +451,7 @@ func (vm *VM) cliWrapperForCobra(c *cobra.Command) *CliCommandWrapper {
 		return nil
 	}
 	var match *CliCommandWrapper
-	vm.registry.cliCommands.ForEach(func(_ uint32, w *CliCommandWrapper) {
+	vm.registry.CliCommands.ForEach(func(_ uint32, w *CliCommandWrapper) {
 		if w.Cobra == c {
 			match = w
 		}

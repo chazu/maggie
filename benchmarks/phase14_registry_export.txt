@@ -1,0 +1,48 @@
+goos: darwin
+goarch: arm64
+pkg: github.com/chazu/maggie/vm
+cpu: Apple M3
+BenchmarkHotPath_UnaryDispatch-8               	11892403	       131.2 ns/op	       0 B/op	       0 allocs/op
+BenchmarkHotPath_UnaryDispatch-8               	19693828	       119.9 ns/op	       0 B/op	       0 allocs/op
+BenchmarkHotPath_UnaryDispatch-8               	 8039026	       152.4 ns/op	       0 B/op	       0 allocs/op
+BenchmarkHotPath_BinaryDispatch-8              	13321584	       215.8 ns/op	       8 B/op	       1 allocs/op
+BenchmarkHotPath_BinaryDispatch-8              	 6710307	       223.9 ns/op	       8 B/op	       1 allocs/op
+BenchmarkHotPath_BinaryDispatch-8              	 5749514	       209.7 ns/op	       8 B/op	       1 allocs/op
+BenchmarkHotPath_KeywordDispatch-8             	 3093457	       506.3 ns/op	      16 B/op	       1 allocs/op
+BenchmarkHotPath_KeywordDispatch-8             	 2350264	       432.6 ns/op	      16 B/op	       1 allocs/op
+BenchmarkHotPath_KeywordDispatch-8             	 5015719	       415.8 ns/op	      16 B/op	       1 allocs/op
+BenchmarkHotPath_BlockEvalSimple-8             	 4505802	       402.3 ns/op	       0 B/op	       0 allocs/op
+BenchmarkHotPath_BlockEvalSimple-8             	 3343801	       415.7 ns/op	       0 B/op	       0 allocs/op
+BenchmarkHotPath_BlockEvalSimple-8             	 2890856	       403.5 ns/op	       0 B/op	       0 allocs/op
+BenchmarkHotPath_BlockEvalClosure-8            	 2715621	       402.2 ns/op	       0 B/op	       0 allocs/op
+BenchmarkHotPath_BlockEvalClosure-8            	 2800986	       531.4 ns/op	       0 B/op	       0 allocs/op
+BenchmarkHotPath_BlockEvalClosure-8            	 2409183	       440.6 ns/op	       0 B/op	       0 allocs/op
+BenchmarkHotPath_BufferedChannelThroughput-8   	 3290884	       515.2 ns/op	       8 B/op	       1 allocs/op
+BenchmarkHotPath_BufferedChannelThroughput-8   	 3545293	       589.6 ns/op	       8 B/op	       1 allocs/op
+BenchmarkHotPath_BufferedChannelThroughput-8   	 1560518	      1038 ns/op	       8 B/op	       1 allocs/op
+BenchmarkHotPath_ClassInstantiation-8          	 1000000	      2319 ns/op	     155 B/op	       1 allocs/op
+BenchmarkHotPath_ClassInstantiation-8          	 1000000	      2055 ns/op	     155 B/op	       1 allocs/op
+BenchmarkHotPath_ClassInstantiation-8          	 1000000	      2234 ns/op	     155 B/op	       1 allocs/op
+BenchmarkHotPath_ExceptionSignalCatch-8        	 2857506	       452.3 ns/op	      80 B/op	       1 allocs/op
+BenchmarkHotPath_ExceptionSignalCatch-8        	 2227105	       467.9 ns/op	      80 B/op	       1 allocs/op
+BenchmarkHotPath_ExceptionSignalCatch-8        	 1999694	       504.7 ns/op	      80 B/op	       1 allocs/op
+BenchmarkHotPath_IntArithmeticLoop-8           	   10000	    119331 ns/op	       0 B/op	       0 allocs/op
+BenchmarkHotPath_IntArithmeticLoop-8           	   10000	    106857 ns/op	       0 B/op	       0 allocs/op
+BenchmarkHotPath_IntArithmeticLoop-8           	   14008	    124667 ns/op	       0 B/op	       0 allocs/op
+BenchmarkHotPath_ArrayAtPut-8                  	 5315635	       341.5 ns/op	      16 B/op	       1 allocs/op
+BenchmarkHotPath_ArrayAtPut-8                  	 2740053	       382.1 ns/op	      16 B/op	       1 allocs/op
+BenchmarkHotPath_ArrayAtPut-8                  	 6353599	       259.4 ns/op	      16 B/op	       1 allocs/op
+BenchmarkHotPath_StringConcat-8                	 1000000	      1865 ns/op	     118 B/op	       3 allocs/op
+BenchmarkHotPath_StringConcat-8                	 1000000	      1833 ns/op	     118 B/op	       3 allocs/op
+BenchmarkHotPath_StringConcat-8                	 1000000	      2962 ns/op	     119 B/op	       3 allocs/op
+BenchmarkHotPath_VTableCachedLookup-8          	100000000	        19.38 ns/op	       0 B/op	       0 allocs/op
+BenchmarkHotPath_VTableCachedLookup-8          	100000000	        22.53 ns/op	       0 B/op	       0 allocs/op
+BenchmarkHotPath_VTableCachedLookup-8          	85597609	        25.19 ns/op	       0 B/op	       0 allocs/op
+BenchmarkHotPath_GlobalLookup-8                	   50504	     20189 ns/op	       0 B/op	       0 allocs/op
+BenchmarkHotPath_GlobalLookup-8                	   72174	     18698 ns/op	       0 B/op	       0 allocs/op
+BenchmarkHotPath_GlobalLookup-8                	   80781	     21858 ns/op	       0 B/op	       0 allocs/op
+BenchmarkHotPath_MethodDispatchCached-8        	 7578781	       289.1 ns/op	       8 B/op	       1 allocs/op
+BenchmarkHotPath_MethodDispatchCached-8        	 4947494	       270.4 ns/op	       8 B/op	       1 allocs/op
+BenchmarkHotPath_MethodDispatchCached-8        	 4434256	       252.4 ns/op	       8 B/op	       1 allocs/op
+PASS
+ok  	github.com/chazu/maggie/vm	207.181s

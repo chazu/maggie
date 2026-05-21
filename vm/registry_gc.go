@@ -205,19 +205,19 @@ func (gc *RegistryGC) installHooks() {
 	// them generous thresholds so we don't sweep on every burst, but cap
 	// the absolute ceiling well below their 31-bit ID space so we never
 	// run out of headroom.
-	add("strings", 50_000, 500_000, or.strings)
-	add("dictionaries", 20_000, 200_000, or.dictionaries)
+	add("strings", 50_000, 500_000, or.Strings)
+	add("dictionaries", 20_000, 200_000, or.Dictionaries)
 
 	// Exceptions and results turn over rapidly in error-handling-heavy code.
 	// Smaller thresholds — they're cheap to sweep.
-	add("exceptions", defaultGrowthThreshold, defaultAbsoluteCeiling, or.exceptions)
-	add("results", defaultGrowthThreshold, defaultAbsoluteCeiling, or.results)
-	add("contexts", defaultGrowthThreshold, defaultAbsoluteCeiling, or.contexts)
+	add("exceptions", defaultGrowthThreshold, defaultAbsoluteCeiling, or.Exceptions)
+	add("results", defaultGrowthThreshold, defaultAbsoluteCeiling, or.Results)
+	add("contexts", defaultGrowthThreshold, defaultAbsoluteCeiling, or.Contexts)
 
 	// The rest are domain-specific and usually have low cardinality.
 	// Default thresholds are fine.
-	add("goObjects", defaultGrowthThreshold, defaultAbsoluteCeiling, or.goObjects)
-	add("bigInts", defaultGrowthThreshold, defaultAbsoluteCeiling, or.bigInts)
+	add("goObjects", defaultGrowthThreshold, defaultAbsoluteCeiling, or.GoObjects)
+	add("bigInts", defaultGrowthThreshold, defaultAbsoluteCeiling, or.BigInts)
 	// classValues is monotonic and intentionally append-only — no point
 	// installing pressure hooks since sweeping won't reclaim anything.
 }

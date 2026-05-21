@@ -19,15 +19,16 @@ type ObjectRegistry struct {
 	*ConcurrencyRegistry
 	*IORegistry
 
-	// Core VM registries (AutoIDRegistry-backed)
-	exceptions       *AutoIDRegistry[*ExceptionObject]
-	results          *AutoIDRegistry[*ResultObject]
-	contexts         *AutoIDRegistry[*ContextValue]
-	dictionaries     *AutoIDRegistry[*DictionaryObject]
-	strings          *AutoIDRegistry[*StringObject]
-	goObjects        *AutoIDRegistry[*GoObjectWrapper]
-	bigInts          *AutoIDRegistry[*BigIntObject]
-	classValues      *AutoIDRegistry[*Class]
+	// Core VM registries (AutoIDRegistry-backed). Exported so callers can
+	// use Register/Get/Delete directly without delegation methods.
+	Exceptions       *AutoIDRegistry[*ExceptionObject]
+	Results          *AutoIDRegistry[*ResultObject]
+	Contexts         *AutoIDRegistry[*ContextValue]
+	Dictionaries     *AutoIDRegistry[*DictionaryObject]
+	Strings          *AutoIDRegistry[*StringObject]
+	GoObjects        *AutoIDRegistry[*GoObjectWrapper]
+	BigInts          *AutoIDRegistry[*BigIntObject]
+	ClassValues      *AutoIDRegistry[*Class]
 
 	// Special registries (not suitable for AutoIDRegistry)
 	cells          map[*Cell]struct{} // set semantics
@@ -48,21 +49,21 @@ func NewObjectRegistry() *ObjectRegistry {
 		IORegistry:          NewIORegistry(),
 
 		// Start IDs at 1 unless otherwise noted (0 = nil/uninitialized)
-		exceptions:       NewAutoIDRegistry[*ExceptionObject](1, WithName("exceptions")),
-		results:          NewAutoIDRegistry[*ResultObject](1, WithName("results")),
-		contexts:         NewAutoIDRegistry[*ContextValue](1, WithName("contexts")),
+		Exceptions:       NewAutoIDRegistry[*ExceptionObject](1, WithName("exceptions")),
+		Results:          NewAutoIDRegistry[*ResultObject](1, WithName("results")),
+		Contexts:         NewAutoIDRegistry[*ContextValue](1, WithName("contexts")),
 		// strings and dictionaries don't carry a marker byte — they use the
 		// high bit(s) of the symbol payload as their discriminator. Strings
 		// occupy [0x80000000, 0xC0000000), dictionaries [0xC0000000, 0xFFFFFFFF].
-		dictionaries:     NewAutoIDRegistry[*DictionaryObject](dictionaryIDOffset, WithMaxID(0xFFFFFFFF), WithName("dictionaries")),
-		strings:          NewAutoIDRegistry[*StringObject](stringIDOffset, WithMaxID(dictionaryIDOffset-1), WithName("strings")),
-		goObjects:        NewAutoIDRegistry[*GoObjectWrapper](0, WithName("goObjects")),
-		bigInts:          NewAutoIDRegistry[*BigIntObject](0, WithName("bigInts")),
-		// classValues is monotonic: *Class caches its assigned classValueID,
+		Dictionaries:     NewAutoIDRegistry[*DictionaryObject](dictionaryIDOffset, WithMaxID(0xFFFFFFFF), WithName("dictionaries")),
+		Strings:          NewAutoIDRegistry[*StringObject](stringIDOffset, WithMaxID(dictionaryIDOffset-1), WithName("strings")),
+		GoObjects:        NewAutoIDRegistry[*GoObjectWrapper](0, WithName("goObjects")),
+		BigInts:          NewAutoIDRegistry[*BigIntObject](0, WithName("bigInts")),
+		// ClassValues is monotonic: *Class caches its assigned classValueID,
 		// so reusing an ID would create a stale cache on the prior owner.
-		// In practice classValues entries are never deleted, but we encode
+		// In practice ClassValues entries are never deleted, but we encode
 		// the invariant here so it can't regress.
-		classValues:      NewAutoIDRegistry[*Class](1, WithMonotonic(), WithName("classValues")),
+		ClassValues:      NewAutoIDRegistry[*Class](1, WithMonotonic(), WithName("classValues")),
 
 		cells:      make(map[*Cell]struct{}),
 		classVars:  make(map[*Class]map[string]Value),
@@ -76,14 +77,14 @@ func NewObjectRegistry() *ObjectRegistry {
 // Exception Registry Methods (delegates to AutoIDRegistry)
 // ---------------------------------------------------------------------------
 
-func (or *ObjectRegistry) RegisterException(ex *ExceptionObject) uint32 { return or.exceptions.Register(ex) }
-func (or *ObjectRegistry) GetException(id uint32) *ExceptionObject      { return or.exceptions.Get(id) }
-func (or *ObjectRegistry) UnregisterException(id uint32)                { or.exceptions.Delete(id) }
-func (or *ObjectRegistry) ExceptionCount() int                          { return or.exceptions.Count() }
+func (or *ObjectRegistry) RegisterException(ex *ExceptionObject) uint32 { return or.Exceptions.Register(ex) }
+func (or *ObjectRegistry) GetException(id uint32) *ExceptionObject      { return or.Exceptions.Get(id) }
+func (or *ObjectRegistry) UnregisterException(id uint32)                { or.Exceptions.Delete(id) }
+func (or *ObjectRegistry) ExceptionCount() int                          { return or.Exceptions.Count() }
 
 // SweepExceptions removes handled exceptions from the registry.
 func (or *ObjectRegistry) SweepExceptions() int {
-	return or.exceptions.Sweep(func(_ uint32, ex *ExceptionObject) bool {
+	return or.Exceptions.Sweep(func(_ uint32, ex *ExceptionObject) bool {
 		return !ex.Handled
 	})
 }
@@ -92,10 +93,10 @@ func (or *ObjectRegistry) SweepExceptions() int {
 // Result Registry Methods (delegates to AutoIDRegistry)
 // ---------------------------------------------------------------------------
 
-func (or *ObjectRegistry) RegisterResult(r *ResultObject) uint32 { return or.results.Register(r) }
-func (or *ObjectRegistry) GetResult(id uint32) *ResultObject      { return or.results.Get(id) }
-func (or *ObjectRegistry) UnregisterResult(id uint32)             { or.results.Delete(id) }
-func (or *ObjectRegistry) ResultCount() int                       { return or.results.Count() }
+func (or *ObjectRegistry) RegisterResult(r *ResultObject) uint32 { return or.Results.Register(r) }
+func (or *ObjectRegistry) GetResult(id uint32) *ResultObject      { return or.Results.Get(id) }
+func (or *ObjectRegistry) UnregisterResult(id uint32)             { or.Results.Delete(id) }
+func (or *ObjectRegistry) ResultCount() int                       { return or.Results.Count() }
 
 // RegisterResultValue creates a Result, registers it, and returns a Value.
 func (or *ObjectRegistry) RegisterResultValue(r *ResultObject) Value {
@@ -117,11 +118,11 @@ func (or *ObjectRegistry) GetResultFromValue(v Value) *ResultObject {
 // Context Registry Methods (delegates to AutoIDRegistry)
 // ---------------------------------------------------------------------------
 
-func (or *ObjectRegistry) RegisterContext(ctx *ContextValue) uint32 { return or.contexts.Register(ctx) }
-func (or *ObjectRegistry) GetContext(id uint32) *ContextValue       { return or.contexts.Get(id) }
-func (or *ObjectRegistry) UnregisterContext(id uint32)              { or.contexts.Delete(id) }
-func (or *ObjectRegistry) ClearContexts()                          { or.contexts.Clear() }
-func (or *ObjectRegistry) ContextCount() int                       { return or.contexts.Count() }
+func (or *ObjectRegistry) RegisterContext(ctx *ContextValue) uint32 { return or.Contexts.Register(ctx) }
+func (or *ObjectRegistry) GetContext(id uint32) *ContextValue       { return or.Contexts.Get(id) }
+func (or *ObjectRegistry) UnregisterContext(id uint32)              { or.Contexts.Delete(id) }
+func (or *ObjectRegistry) ClearContexts()                          { or.Contexts.Clear() }
+func (or *ObjectRegistry) ContextCount() int                       { return or.Contexts.Count() }
 
 // RegisterContextValue registers a ContextValue and returns a Value representing it.
 func (or *ObjectRegistry) RegisterContextValue(ctx *ContextValue) Value {
@@ -149,10 +150,10 @@ func (or *ObjectRegistry) UnregisterContextValue(v Value) {
 // Dictionary Registry Methods (delegates to AutoIDRegistry)
 // ---------------------------------------------------------------------------
 
-func (or *ObjectRegistry) RegisterDictionary(d *DictionaryObject) uint32 { return or.dictionaries.Register(d) }
-func (or *ObjectRegistry) GetDictionary(id uint32) *DictionaryObject     { return or.dictionaries.Get(id) }
-func (or *ObjectRegistry) UnregisterDictionary(id uint32)                { or.dictionaries.Delete(id) }
-func (or *ObjectRegistry) DictionaryCount() int                          { return or.dictionaries.Count() }
+func (or *ObjectRegistry) RegisterDictionary(d *DictionaryObject) uint32 { return or.Dictionaries.Register(d) }
+func (or *ObjectRegistry) GetDictionary(id uint32) *DictionaryObject     { return or.Dictionaries.Get(id) }
+func (or *ObjectRegistry) UnregisterDictionary(id uint32)                { or.Dictionaries.Delete(id) }
+func (or *ObjectRegistry) DictionaryCount() int                          { return or.Dictionaries.Count() }
 
 // NewDictionaryValue creates a new empty dictionary Value, registered in the registry.
 func (or *ObjectRegistry) NewDictionaryValue() Value {
@@ -181,10 +182,10 @@ func (or *ObjectRegistry) GetDictionaryObject(v Value) *DictionaryObject {
 // String Registry Methods (delegates to AutoIDRegistry)
 // ---------------------------------------------------------------------------
 
-func (or *ObjectRegistry) RegisterString(s *StringObject) uint32 { return or.strings.Register(s) }
-func (or *ObjectRegistry) GetString(id uint32) *StringObject     { return or.strings.Get(id) }
-func (or *ObjectRegistry) UnregisterString(id uint32)            { or.strings.Delete(id) }
-func (or *ObjectRegistry) StringCount() int                      { return or.strings.Count() }
+func (or *ObjectRegistry) RegisterString(s *StringObject) uint32 { return or.Strings.Register(s) }
+func (or *ObjectRegistry) GetString(id uint32) *StringObject     { return or.Strings.Get(id) }
+func (or *ObjectRegistry) UnregisterString(id uint32)            { or.Strings.Delete(id) }
+func (or *ObjectRegistry) StringCount() int                      { return or.Strings.Count() }
 
 // NewStringValue creates a Value from a Go string, registering it in the registry.
 func (or *ObjectRegistry) NewStringValue(s string) Value {
@@ -207,11 +208,11 @@ func (or *ObjectRegistry) CompareStrings(a, b Value) bool {
 		return false
 	}
 
-	or.strings.RLock()
-	defer or.strings.RUnlock()
+	or.Strings.RLock()
+	defer or.Strings.RUnlock()
 
-	objA := or.strings.UnsafeGet(idA)
-	objB := or.strings.UnsafeGet(idB)
+	objA := or.Strings.UnsafeGet(idA)
+	objB := or.Strings.UnsafeGet(idB)
 
 	if objA == nil || objB == nil {
 		return false
@@ -230,14 +231,14 @@ func (or *ObjectRegistry) GetStringContent(v Value) string {
 		return "" // It's a regular symbol, not a string
 	}
 
-	or.strings.RLock()
-	obj := or.strings.UnsafeGet(id)
+	or.Strings.RLock()
+	obj := or.Strings.UnsafeGet(id)
 	if obj == nil {
-		or.strings.RUnlock()
+		or.Strings.RUnlock()
 		return ""
 	}
 	s := obj.Content
-	or.strings.RUnlock()
+	or.Strings.RUnlock()
 	return s
 }
 
@@ -251,9 +252,9 @@ func (or *ObjectRegistry) GetStringObject(v Value) *StringObject {
 	if id < stringIDOffset {
 		return nil
 	}
-	or.strings.RLock()
-	obj := or.strings.UnsafeGet(id)
-	or.strings.RUnlock()
+	or.Strings.RLock()
+	obj := or.Strings.UnsafeGet(id)
+	or.Strings.RUnlock()
 	return obj
 }
 
@@ -385,7 +386,7 @@ func (or *ObjectRegistry) RegisterClassValue(c *Class) Value {
 	// registrations: the class-value registry is monotonic so a losing
 	// goroutine simply discards its (unreferenced) ID and adopts the
 	// winner's. This is preferable to a per-Class lock on a hot path.
-	id := or.classValues.Register(c)
+	id := or.ClassValues.Register(c)
 	if !c.classValueID.CompareAndSwap(0, id) {
 		id = c.classValueID.Load()
 	}
@@ -399,12 +400,12 @@ func (or *ObjectRegistry) GetClassFromValue(v Value) *Class {
 		return nil
 	}
 	id := classValueIDFromValue(v)
-	return or.classValues.Get(id)
+	return or.ClassValues.Get(id)
 }
 
 // ClassValueCount returns the number of registered class values.
 func (or *ObjectRegistry) ClassValueCount() int {
-	return or.classValues.Count()
+	return or.ClassValues.Count()
 }
 
 // ---------------------------------------------------------------------------
