@@ -1,6 +1,7 @@
 # Compiler.mag
-# Main entry point for the Maggie self-hosting compiler.
-# Ties together Lexer, Parser, and BytecodeGenerator.
+# EXPERIMENTAL: Self-hosted compiler (gated behind --experimental-maggie-compiler).
+# Research artifact for metacircularity. Not the default compilation path.
+# See docs/audits/2026-05-20-codebase-audit.md item 3.2.
 
 Compiler subclass: Object
   instanceVars: currentClass

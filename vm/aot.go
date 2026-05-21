@@ -7,8 +7,9 @@ import (
 )
 
 // AOTCompiler translates bytecode methods to Go source code.
-// The generated code eliminates interpreter dispatch overhead by
-// directly performing operations instead of interpreting bytecode.
+// EXPERIMENTAL: not wired into the CLI or build pipeline.
+// Eliminates interpreter dispatch but not vtable lookup cost.
+// See docs/audits/2026-05-20-codebase-audit.md item 3.1.
 type AOTCompiler struct {
 	sb           strings.Builder
 	indent       int

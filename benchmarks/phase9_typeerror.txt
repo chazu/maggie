@@ -1,0 +1,158 @@
+goos: darwin
+goarch: arm64
+pkg: github.com/chazu/maggie/vm
+cpu: Apple M3
+BenchmarkAOTvsInterpreted/Interpreted-8        	 4276221	       371.4 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAOTvsInterpreted/AOT-8                	 7775038	       173.2 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAOTvsInterpreted/DirectGo-8           	222415822	         5.606 ns/op	       0 B/op	       0 allocs/op
+BenchmarkOpPushNil-8                           	 1000000	      4861 ns/op	       0 B/op	       0 allocs/op
+BenchmarkOpPushInt8-8                          	 1000000	      4990 ns/op	       0 B/op	       0 allocs/op
+BenchmarkOpPushTemp-8                          	  409114	      6622 ns/op	       0 B/op	       0 allocs/op
+BenchmarkOpJump-8                              	 9087108	       146.8 ns/op	       0 B/op	       0 allocs/op
+BenchmarkStackOperations-8                     	 1602724	       830.2 ns/op	       0 B/op	       0 allocs/op
+BenchmarkSmallIntAdd-8                         	12737686	       185.0 ns/op	       8 B/op	       1 allocs/op
+BenchmarkSmallIntAddNative-8                   	404825064	         2.995 ns/op	       0 B/op	       0 allocs/op
+BenchmarkSmallIntMultiply-8                    	 2939815	       444.8 ns/op	      56 B/op	       2 allocs/op
+BenchmarkSmallIntCompare-8                     	16035152	       155.6 ns/op	       8 B/op	       1 allocs/op
+BenchmarkFloatAdd-8                            	 7644807	       214.3 ns/op	       8 B/op	       1 allocs/op
+BenchmarkFloatAddNative-8                      	1000000000	         2.694 ns/op	       0 B/op	       0 allocs/op
+BenchmarkUnaryMessageSend-8                    	16771263	       122.8 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBinaryMessageSend-8                   	20195376	       130.4 ns/op	       8 B/op	       1 allocs/op
+BenchmarkKeywordMessageSend-8                  	 4924479	       313.2 ns/op	      16 B/op	       1 allocs/op
+BenchmarkSelectorTableIntern-8                 	20169069	        66.46 ns/op	       0 B/op	       0 allocs/op
+BenchmarkSelectorTableLookup-8                 	74195635	        83.77 ns/op	       0 B/op	       0 allocs/op
+BenchmarkVTableLookup-8                        	100000000	        10.02 ns/op	       0 B/op	       0 allocs/op
+BenchmarkObjectNew-8                           	  812012	      2519 ns/op	     126 B/op	       1 allocs/op
+BenchmarkObjectSlotAccess-8                    	265143954	         3.964 ns/op	       0 B/op	       0 allocs/op
+BenchmarkGarbageCollection-8                   	  344943	      6433 ns/op	       0 B/op	       0 allocs/op
+BenchmarkKeepAliveGrowth-8                     	 1839463	      1064 ns/op	      80 B/op	       1 allocs/op
+BenchmarkBlockValue-8                          	 8025505	       364.1 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBlockValueWithArg-8                   	 7075794	       242.6 ns/op	       8 B/op	       1 allocs/op
+BenchmarkBlockCreation-8                       	 3656661	       275.6 ns/op	     130 B/op	       1 allocs/op
+BenchmarkBlockWithCaptures-8                   	 4793284	       222.7 ns/op	     140 B/op	       1 allocs/op
+BenchmarkArrayAt-8                             	 7205227	       158.7 ns/op	       8 B/op	       1 allocs/op
+BenchmarkArrayAtPut-8                          	 6686670	       184.1 ns/op	      16 B/op	       1 allocs/op
+BenchmarkArraySize-8                           	11799061	        93.33 ns/op	       0 B/op	       0 allocs/op
+BenchmarkStringAt-8                            	10095096	       126.9 ns/op	       8 B/op	       1 allocs/op
+BenchmarkStringSize-8                          	10546772	       129.1 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDictionaryAtPut-8                     	 5381536	       209.6 ns/op	      16 B/op	       1 allocs/op
+BenchmarkDictionaryAt-8                        	 8164557	       177.6 ns/op	       8 B/op	       1 allocs/op
+BenchmarkFibonacciIterative-8                  	  186978	      6928 ns/op	       0 B/op	       0 allocs/op
+BenchmarkFibonacciNative-8                     	89720463	        45.02 ns/op	       0 B/op	       0 allocs/op
+BenchmarkFactorial-8                           	 1000000	      2110 ns/op	       0 B/op	       0 allocs/op
+BenchmarkFactorialNative-8                     	100000000	        37.36 ns/op	       0 B/op	       0 allocs/op
+BenchmarkSumLoop-8                             	  102703	     14769 ns/op	       0 B/op	       0 allocs/op
+BenchmarkSumLoopNative-8                       	 3075351	       333.2 ns/op	       0 B/op	       0 allocs/op
+BenchmarkChannelSendReceive-8                  	 1309945	       802.2 ns/op	       8 B/op	       1 allocs/op
+BenchmarkChannelCreation-8                     	  649458	      2330 ns/op	     202 B/op	       2 allocs/op
+BenchmarkProcessFork-8                         	21557581	       171.7 ns/op	       0 B/op	       0 allocs/op
+BenchmarkMethodCallOverhead-8                  	16850145	       107.1 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDeepMethodChain-8                     	  831807	      1521 ns/op	       0 B/op	       0 allocs/op
+BenchmarkPolymorphicDispatch-8                 	10787108	       134.8 ns/op	       0 B/op	       0 allocs/op
+BenchmarkHotPath_UnaryDispatch-8               	62944080	       143.0 ns/op	       0 B/op	       0 allocs/op
+BenchmarkHotPath_BinaryDispatch-8              	13653183	       136.5 ns/op	       8 B/op	       1 allocs/op
+BenchmarkHotPath_KeywordDispatch-8             	 5635346	       216.8 ns/op	      16 B/op	       1 allocs/op
+BenchmarkHotPath_BlockEvalSimple-8             	 4567416	       331.7 ns/op	       0 B/op	       0 allocs/op
+BenchmarkHotPath_BlockEvalClosure-8            	14648712	       328.6 ns/op	       0 B/op	       0 allocs/op
+BenchmarkHotPath_BufferedChannelThroughput-8   	 5477708	       257.3 ns/op	       8 B/op	       1 allocs/op
+BenchmarkHotPath_ClassInstantiation-8          	  757089	      1383 ns/op	     129 B/op	       1 allocs/op
+BenchmarkHotPath_ExceptionSignalCatch-8        	 4592569	       417.8 ns/op	      80 B/op	       1 allocs/op
+BenchmarkHotPath_IntArithmeticLoop-8           	   27256	     72239 ns/op	       0 B/op	       0 allocs/op
+BenchmarkHotPath_ArrayAtPut-8                  	12405866	       151.6 ns/op	      16 B/op	       1 allocs/op
+BenchmarkHotPath_StringConcat-8                	 1000000	      1910 ns/op	     117 B/op	       3 allocs/op
+BenchmarkHotPath_VTableCachedLookup-8          	109655206	        10.42 ns/op	       0 B/op	       0 allocs/op
+BenchmarkHotPath_GlobalLookup-8                	  123600	     12848 ns/op	       0 B/op	       0 allocs/op
+BenchmarkHotPath_MethodDispatchCached-8        	 7532820	       199.6 ns/op	       8 B/op	       1 allocs/op
+BenchmarkBlockEvaluation-8                     	39616981	       170.8 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBlockSendValue-8                      	 4219256	       322.7 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBytecodeBuilderEmit-8                 	12275551	       144.0 ns/op	      64 B/op	       1 allocs/op
+BenchmarkBytecodeBuilderComplete-8             	 6934161	       241.9 ns/op	      64 B/op	       1 allocs/op
+BenchmarkBytecodeReaderRead-8                  	  104215	     25919 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDisassemble-8                         	  189586	      8147 ns/op	     744 B/op	      18 allocs/op
+BenchmarkNewClass-8                            	  614288	      2769 ns/op	     240 B/op	       3 allocs/op
+BenchmarkNewClassWithInstVars-8                	 1000000	      1132 ns/op	     240 B/op	       3 allocs/op
+BenchmarkNewInstance-8                         	100000000	        21.99 ns/op	       0 B/op	       0 allocs/op
+BenchmarkInstVarIndex-8                        	100000000	        17.16 ns/op	       0 B/op	       0 allocs/op
+BenchmarkClassTableLookup-8                    	63106137	        62.64 ns/op	       0 B/op	       0 allocs/op
+BenchmarkMethodLookup-8                        	43120396	        24.39 ns/op	       0 B/op	       0 allocs/op
+BenchmarkNewCompiledMethod-8                   	811765413	         1.512 ns/op	       0 B/op	       0 allocs/op
+BenchmarkCompiledMethodBuilder-8               	  883687	      1418 ns/op	     160 B/op	       3 allocs/op
+BenchmarkGetLiteral-8                          	1000000000	         1.688 ns/op	       0 B/op	       0 allocs/op
+BenchmarkSourceLocation-8                      	 9938740	       243.8 ns/op	       0 B/op	       0 allocs/op
+BenchmarkPushContext-8                         	 1000000	      2079 ns/op	     205 B/op	       1 allocs/op
+BenchmarkContextRegistration-8                 	 2034510	       661.7 ns/op	     128 B/op	       1 allocs/op
+BenchmarkSelectorIntern-8                      	89805792	        63.57 ns/op	       0 B/op	       0 allocs/op
+BenchmarkSelectorLookup-8                      	32254342	        75.87 ns/op	       0 B/op	       0 allocs/op
+BenchmarkVTableLookupDirect-8                  	100000000	        12.09 ns/op	       0 B/op	       0 allocs/op
+BenchmarkVTableLookupInherited-8               	100000000	        12.01 ns/op	       0 B/op	       0 allocs/op
+BenchmarkMethod0Invoke-8                       	100000000	        11.27 ns/op	       0 B/op	       0 allocs/op
+BenchmarkMethod1Invoke-8                       	100000000	        10.37 ns/op	       0 B/op	       0 allocs/op
+BenchmarkExceptionCreation-8                   	 1000000	      1459 ns/op	     156 B/op	       2 allocs/op
+BenchmarkHandlerStackPushPop-8                 	100000000	        12.75 ns/op	       0 B/op	       0 allocs/op
+BenchmarkFindHandler-8                         	292453965	         8.647 ns/op	       0 B/op	       0 allocs/op
+BenchmarkCaptureTrace-8                        	  389151	      2677 ns/op	    2048 B/op	       1 allocs/op
+BenchmarkEncodeSmallInt-8                      	80783307	        15.00 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDecodeSmallInt-8                      	194981646	        10.60 ns/op	       0 B/op	       0 allocs/op
+BenchmarkEncodeFloat-8                         	100000000	        18.70 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDecodeFloat-8                         	153359785	         6.616 ns/op	       0 B/op	       0 allocs/op
+BenchmarkVarIntWrite-8                         	100000000	        11.38 ns/op	       0 B/op	       0 allocs/op
+BenchmarkVarIntRead-8                          	242500461	        11.58 ns/op	       0 B/op	       0 allocs/op
+BenchmarkStringEncode-8                        	224531851	         6.037 ns/op	       0 B/op	       0 allocs/op
+BenchmarkStringDecode-8                        	15870375	        95.23 ns/op	      16 B/op	       1 allocs/op
+BenchmarkImageReaderHeader-8                   	 8376484	       187.5 ns/op	       4 B/op	       1 allocs/op
+BenchmarkImageReaderStringTable-8              	   61986	     34315 ns/op	    7860 B/op	     110 allocs/op
+BenchmarkImageReaderFullLoad-8                 	     658	   1622382 ns/op	  359725 B/op	    1886 allocs/op
+BenchmarkImageWriterCreate-8                   	15273856	       251.0 ns/op	       0 B/op	       0 allocs/op
+BenchmarkVMSaveImage-8                         	     760	   1788304 ns/op	  237091 B/op	     110 allocs/op
+BenchmarkCollectAllObjects-8                   	   19611	     88201 ns/op	    5864 B/op	       8   23114	     87822 ns/op	    5868 B/op	       8 allocs/op
+BenchmarkInlineCacheLookup/Monomorphic_Hit-8   	100000000	        16.55 ns/op	       0 B/op	       0 allocs/op
+BenchmarkInlineCacheLookup/Polymorphic_Hit_First-8         	122223396	        10.81 ns/op	       0 B/op	       0 allocs/op
+BenchmarkInlineCacheLookup/Polymorphic_Hit_Last-8          	100000000	        10.13 ns/op	       0 B/op	       0 allocs/op
+BenchmarkInlineCacheLookup/Megamorphic_Miss-8              	100000000	        10.42 ns/op	       0 B/op	       0 allocs/op
+BenchmarkInlineCacheVsVTable/VTable_Direct-8               	100000000	        11.20 ns/op	       0 B/op	       0 allocs/op
+BenchmarkInlineCacheVsVTable/InlineCache_Then_VTable-8     	148278081	         9.673 ns/op	       0 B/op	       0 allocs/op
+BenchmarkInterpreterSimple-8                               	24732314	        68.54 ns/op	       0 B/op	       0 allocs/op
+BenchmarkInterpreterArithmetic-8                           	 9929780	       146.5 ns/op	       0 B/op	       0 allocs/op
+BenchmarkInterpreterLoop-8                                 	   52705	     35950 ns/op	       0 B/op	       0 allocs/op
+BenchmarkGetSlotInline-8                                   	1000000000	         0.7201 ns/op	       0 B/op	       0 allocs/op
+BenchmarkGetSlotOverflow-8                                 	1000000000	         0.5169 ns/op	       0 B/op	       0 allocs/op
+BenchmarkSetSlotInline-8                                   	1000000000	         0.4797 ns/op	       0 B/op	       0 allocs/op
+BenchmarkSetSlotOverflow-8                                 	1000000000	         1.083 ns/op	       0 B/op	       0 allocs/op
+BenchmarkNewObject-8                                       	1000000000	         0.6425 ns/op	       0 B/op	       0 allocs/op
+BenchmarkNewObjectWithOverflow-8                           	29992407	        45.99 ns/op	      32 B/op	       1 allocs/op
+BenchmarkObjectToValue-8                                   	1000000000	         0.7135 ns/op	       0 B/op	       0 allocs/op
+BenchmarkObjectFromValue-8                                 	1000000000	         1.167 ns/op	       0 B/op	       0 allocs/op
+BenchmarkObjectFromValueWithForwarding-8                   	470321335	         2.314 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBecome-8                                          	206669112	         5.470 ns/op	       0 B/op	       0 allocs/op
+BenchmarkProfilerMethodInvocation-8                        	50856076	        44.37 ns/op	       0 B/op	       0 allocs/op
+BenchmarkProfilerBlockInvocation-8                         	37984254	        34.69 ns/op	       0 B/op	       0 allocs/op
+BenchmarkProfilerConcurrent-8                              	77026356	        27.71 ns/op	       0 B/op	       0 allocs/op
+BenchmarkNoProfiler-8                                      	1000000000	         0.4049 ns/op	       0 B/op	       0 allocs/op
+BenchmarkIsFloat-8                                         	1000000000	         0.5180 ns/op	       0 B/op	       0 allocs/op
+BenchmarkIsSmallInt-8                                      	1000000000	         0.2974 ns/op	       0 B/op	       0 allocs/op
+BenchmarkFloat64Roundtrip-8                                	1000000000	         0.6477 ns/op	       0 B/op	       0 allocs/op
+BenchmarkSmallIntRoundtrip-8                               	1000000000	         0.6142 ns/op	       0 B/op	       0 allocs/op
+BenchmarkIsTruthy-8                                        	1000000000	         0.5707 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBlockRoundtrip-8                                  	1000000000	         0.6245 ns/op	       0 B/op	       0 allocs/op
+BenchmarkVMSendArithmetic-8                                	46457533	        41.33 ns/op	       0 B/op	       0 allocs/op
+BenchmarkVMSendBoolean-8                                   	83951547	        59.85 ns/op	       0 B/op	       0 allocs/op
+BenchmarkVMClassFor-8                                      	372564456	         4.290 ns/op	       0 B/op	       0 allocs/op
+BenchmarkNewWeakReference-8                                	       0	               NaN ns/op	       0 B/op	       0 allocs/op
+panic: ObjectRegistry: weak ref ID space exhausted (max 2^24-1 weak references)
+
+goroutine 1877 [running]:
+github.com/chazu/maggie/vm.(*ObjectRegistry).NextWeakRefID(...)
+	/Users/chazu/dev/go/maggie/vm/object_registry.go:316
+github.com/chazu/maggie/vm.NewWeakReference(...)
+	/Users/chazu/dev/go/maggie/vm/weak_reference.go:27
+github.com/chazu/maggie/vm.BenchmarkNewWeakReference(0x140002d22c8)
+	/Users/chazu/dev/go/maggie/vm/weak_reference_test.go:352 +0xf8
+testing.(*B).runN(0x140002d22c8, 0x5d9f565)
+	/Users/chazu/.local/share/mise/installs/go/1.25.8/src/testing/benchmark.go:219 +0x184
+testing.(*B).launch(0x140002d22c8)
+	/Users/chazu/.local/share/mise/installs/go/1.25.8/src/testing/benchmark.go:354 +0x174
+created by testing.(*B).doBench in goroutine 1
+	/Users/chazu/.local/share/mise/installs/go/1.25.8/src/testing/benchmark.go:296 +0x68
+exit status 2
+FAIL	github.com/chazu/maggie/vm	4345.066s
+FAIL

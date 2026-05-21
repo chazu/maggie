@@ -1,0 +1,54 @@
+goos: darwin
+goarch: arm64
+pkg: github.com/chazu/maggie/vm
+cpu: Apple M3
+BenchmarkAOTvsInterpreted/Interpreted-8        	 6699926	       217.9 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAOTvsInterpreted/AOT-8                	12293445	        91.55 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAOTvsInterpreted/DirectGo-8           	838404270	         2.411 ns/op	       0 B/op	       0 allocs/op
+BenchmarkOpPushNil-8                           	 1000000	      2145 ns/op	       0 B/op	       0 allocs/op
+BenchmarkOpPushInt8-8                          	  563730	      3081 ns/op	       0 B/op	       0 allocs/op
+BenchmarkOpPushTemp-8                          	 1000000	      2289 ns/op	       0 B/op	       0 allocs/op
+BenchmarkOpJump-8                              	27659062	        75.81 ns/op	       0 B/op	       0 allocs/op
+BenchmarkStackOperations-8                     	 4765603	       225.3 ns/op	       0 B/op	       0 allocs/op
+BenchmarkSmallIntAdd-8                         	23477698	        72.97 ns/op	       8 B/op	       1 allocs/op
+BenchmarkSmallIntAddNative-8                   	1000000000	         0.5684 ns/op	       0 B/op	       0 allocs/op
+BenchmarkSmallIntMultiply-8                    	10286830	       168.9 ns/op	      56 B/op	       2 allocs/op
+BenchmarkSmallIntCompare-8                     	23540450	        80.88 ns/op	       8 B/op	       1 allocs/op
+BenchmarkFloatAdd-8                            	17070489	        93.89 ns/op	       8 B/op	       1 allocs/op
+BenchmarkFloatAddNative-8                      	1000000000	         0.6496 ns/op	       0 B/op	       0 allocs/op
+BenchmarkUnaryMessageSend-8                    	33140434	        59.36 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBinaryMessageSend-8                   	47763648	        61.98 ns/op	       8 B/op	       1 allocs/op
+BenchmarkKeywordMessageSend-8                  	 6449000	       183.7 ns/op	      16 B/op	       1 allocs/op
+BenchmarkSelectorTableIntern-8                 	92925711	        26.16 ns/op	       0 B/op	       0 allocs/op
+BenchmarkSelectorTableLookup-8                 	46559240	        31.92 ns/op	       0 B/op	       0 allocs/op
+BenchmarkVTableLookup-8                        	272345266	         5.575 ns/op	       0 B/op	       0 allocs/op
+BenchmarkObjectNew-8                           	 1949272	      1245 ns/op	     156 B/op	       1 allocs/op
+BenchmarkObjectSlotAccess-8                    	1000000000	         0.9741 ns/op	       0 B/op	       0 allocs/op
+BenchmarkGarbageCollection-8                   	  685834	      2282 ns/op	       0 B/op	       0 allocs/op
+BenchmarkKeepAliveGrowth-8                     	 2872774	       394.0 ns/op	      80 B/op	       1 allocs/op
+BenchmarkBlockValue-8                          	 8594259	       138.3 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBlockValueWithArg-8                   	 9033190	       133.8 ns/op	       8 B/op	       1 allocs/op
+BenchmarkBlockCreation-8                       	 7670338	       197.2 ns/op	     126 B/op	       1 allocs/op
+BenchmarkBlockWithCaptures-8                   	22405191	       220.1 ns/op	     136 B/op	       1 allocs/op
+BenchmarkArrayAt-8                             	24655296	       102.0 ns/op	       8 B/op	       1 allocs/op
+BenchmarkArrayAtPut-8                          	 8159769	       409.6 ns/op	      16 B/op	       1 allocs/op
+BenchmarkArraySize-8                           	 5531319	       292.7 ns/op	       0 B/op	       0 allocs/op
+BenchmarkStringAt-8                            	 2355194	       475.6 ns/op	       8 B/op	       1 allocs/op
+BenchmarkStringSize-8                          	 3744922	       451.1 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDictionaryAtPut-8                     	 2237479	       779.8 ns/op	      16 B/op	       1 allocs/op
+BenchmarkDictionaryAt-8                        	 3303973	       477.9 ns/op	       8 B/op	       1 allocs/op
+BenchmarkFibonacciIterative-8                  	   84436	     15110 ns/op	       0 B/op	       0 allocs/op
+BenchmarkFibonacciNative-8                     	59338622	        60.31 ns/op	       0 B/op	       0 allocs/op
+BenchmarkFactorial-8                           	 1000000	      1981 ns/op	       0 B/op	       0 allocs/op
+BenchmarkFactorialNative-8                     	100000000	        32.26 ns/op	       0 B/op	       0 allocs/op
+BenchmarkSumLoop-8                             	   38722	     32978 ns/op	       0 B/op	       0 allocs/op
+BenchmarkSumLoopNative-8                       	 4589538	       305.5 ns/op	       0 B/op	       0 allocs/op
+BenchmarkChannelSendReceive-8                  	 1000000	      2733 ns/op	       8 B/op	       1 allocs/op
+BenchmarkChannelCreation-8                     	 1000000	      5218 ns/op	     219 B/op	       2 allocs/op
+BenchmarkProcessFork-8                         	 6218540	       275.9 ns/op	       5 B/op	       0 allocs/op
+BenchmarkMethodCallOverhead-8                  	 6590522	       283.3 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDeepMethodChain-8                     	 1000000	      2014 ns/op	       0 B/op	       0 allocs/op
+BenchmarkPolymorphicDispatch-8                 	 5265038	       258.9 ns/op	       0 B/op	       0 allocs/op
+BenchmarkHotPath_UnaryDispatch-8               	 8366100	       295.1 ns/op	       0 B/op	       0 allocs/op
+BenchmarkHotPath_BinaryDispatch-8              	 5707862	       264.5 ns/op	       8 B/op	       1 allocs/op
+BenchmarkHotPath_KeywordDispatch-8             	 1915808	       677.3 ns/op	      16 B/op	       1 allocs/op
