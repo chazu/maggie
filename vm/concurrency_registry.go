@@ -30,24 +30,24 @@ const concurrencyIDMax int32 = (1 << 24) - 1
 // monitorRef). Same rationale as concurrencyIDMax.
 const concurrencyIDMaxU64 uint64 = (1 << 24) - 1
 
-// allocConcurrencyID atomically bumps a uint32-sized counter and panics on
-// exhaustion. The shared helper guarantees identical overflow semantics for
-// every concurrency kind so future readers have one invariant to remember.
-func allocConcurrencyID(counter *atomic.Int32, kind string) int {
+// ErrIDSpaceExhausted is returned when the 24-bit concurrency ID space
+// is full. Callers surface this as a Maggie-level exception.
+var ErrIDSpaceExhausted = fmt.Errorf("concurrency ID space exhausted (max 2^24-1)")
+
+func allocConcurrencyID(counter *atomic.Int32, kind string) (int, error) {
 	id := counter.Add(1) - 1
 	if id < 0 || id > concurrencyIDMax {
-		panic(fmt.Sprintf("ConcurrencyRegistry: %s ID space exhausted (max 2^24-1 live %s)", kind, kind))
+		return -1, fmt.Errorf("%s: %w", kind, ErrIDSpaceExhausted)
 	}
-	return int(id)
+	return int(id), nil
 }
 
-// allocConcurrencyID64 is the uint64 counterpart for processes and monitors.
-func allocConcurrencyID64(counter *atomic.Uint64, kind string) uint64 {
+func allocConcurrencyID64(counter *atomic.Uint64, kind string) (uint64, error) {
 	id := counter.Add(1) - 1
 	if id > concurrencyIDMaxU64 {
-		panic(fmt.Sprintf("ConcurrencyRegistry: %s ID space exhausted (max 2^24-1 live %s)", kind, kind))
+		return 0, fmt.Errorf("%s: %w", kind, ErrIDSpaceExhausted)
 	}
-	return id
+	return id, nil
 }
 
 // ---------------------------------------------------------------------------
@@ -118,8 +118,7 @@ type ConcurrencyRegistry struct {
 	monitorRefID atomic.Uint64
 }
 
-// AllocMonitorRefID returns a fresh monitor ref ID. Panics on counter exhaustion.
-func (cr *ConcurrencyRegistry) AllocMonitorRefID() uint64 {
+func (cr *ConcurrencyRegistry) AllocMonitorRefID() (uint64, error) {
 	return allocConcurrencyID64(&cr.monitorRefID, "monitorRef")
 }
 
@@ -157,14 +156,17 @@ func NewConcurrencyRegistry() *ConcurrencyRegistry {
 // ---------------------------------------------------------------------------
 
 // RegisterChannel adds a channel to the registry and returns its Value.
-func (cr *ConcurrencyRegistry) RegisterChannel(ch *ChannelObject) Value {
-	id := allocConcurrencyID(&cr.channelID, "channel")
+func (cr *ConcurrencyRegistry) RegisterChannel(ch *ChannelObject) (Value, error) {
+	id, err := allocConcurrencyID(&cr.channelID, "channel")
+	if err != nil {
+		return Nil, err
+	}
 
 	cr.channelsMu.Lock()
 	cr.channels[id] = ch
 	cr.channelsMu.Unlock()
 
-	return channelToValue(id)
+	return channelToValue(id), nil
 }
 
 // GetChannel retrieves a channel by its Value.
@@ -207,12 +209,12 @@ func (cr *ConcurrencyRegistry) ChannelCount() int {
 // ---------------------------------------------------------------------------
 
 // RegisterProcess adds a process to the registry and returns its Value.
-func (cr *ConcurrencyRegistry) RegisterProcess(proc *ProcessObject) Value {
+func (cr *ConcurrencyRegistry) RegisterProcess(proc *ProcessObject) (Value, error) {
 	cr.processesMu.Lock()
 	cr.processes[proc.id] = proc
 	cr.processesMu.Unlock()
 
-	return processToValue(proc.id)
+	return processToValue(proc.id), nil
 }
 
 // GetProcess retrieves a process by its Value.
@@ -235,12 +237,15 @@ func (cr *ConcurrencyRegistry) GetProcessByID(id uint64) *ProcessObject {
 }
 
 // CreateProcess creates a new process with a unique ID and a mailbox.
-func (cr *ConcurrencyRegistry) CreateProcess(mailboxCapacity ...int) *ProcessObject {
+func (cr *ConcurrencyRegistry) CreateProcess(mailboxCapacity ...int) (*ProcessObject, error) {
 	cap := DefaultMailboxCapacity
 	if len(mailboxCapacity) > 0 && mailboxCapacity[0] > 0 {
 		cap = mailboxCapacity[0]
 	}
-	id := allocConcurrencyID64(&cr.processID, "process")
+	id, err := allocConcurrencyID64(&cr.processID, "process")
+	if err != nil {
+		return nil, err
+	}
 	proc := &ProcessObject{
 		id:      id,
 		done:    make(chan struct{}),
@@ -248,7 +253,7 @@ func (cr *ConcurrencyRegistry) CreateProcess(mailboxCapacity ...int) *ProcessObj
 	}
 	proc.state.Store(int32(ProcessRunning))
 	proc.waitGroup.Add(1)
-	return proc
+	return proc, nil
 }
 
 // SweepProcesses removes terminated processes from the registry.
@@ -279,14 +284,17 @@ func (cr *ConcurrencyRegistry) ProcessCount() int {
 // ---------------------------------------------------------------------------
 
 // RegisterMutex adds a mutex to the registry and returns its Value.
-func (cr *ConcurrencyRegistry) RegisterMutex(mu *MutexObject) Value {
-	id := allocConcurrencyID(&cr.mutexID, "mutex")
+func (cr *ConcurrencyRegistry) RegisterMutex(mu *MutexObject) (Value, error) {
+	id, err := allocConcurrencyID(&cr.mutexID, "mutex")
+	if err != nil {
+		return Nil, err
+	}
 
 	cr.mutexesMu.Lock()
 	cr.mutexes[id] = mu
 	cr.mutexesMu.Unlock()
 
-	return mutexToValue(id)
+	return mutexToValue(id), nil
 }
 
 // GetMutex retrieves a mutex by its Value.
@@ -313,14 +321,17 @@ func (cr *ConcurrencyRegistry) MutexCount() int {
 // ---------------------------------------------------------------------------
 
 // RegisterWaitGroup adds a wait group to the registry and returns its Value.
-func (cr *ConcurrencyRegistry) RegisterWaitGroup(wg *WaitGroupObject) Value {
-	id := allocConcurrencyID(&cr.waitGroupID, "waitGroup")
+func (cr *ConcurrencyRegistry) RegisterWaitGroup(wg *WaitGroupObject) (Value, error) {
+	id, err := allocConcurrencyID(&cr.waitGroupID, "waitGroup")
+	if err != nil {
+		return Nil, err
+	}
 
 	cr.waitGroupsMu.Lock()
 	cr.waitGroups[id] = wg
 	cr.waitGroupsMu.Unlock()
 
-	return waitGroupToValue(id)
+	return waitGroupToValue(id), nil
 }
 
 // GetWaitGroup retrieves a wait group by its Value.
@@ -347,14 +358,17 @@ func (cr *ConcurrencyRegistry) WaitGroupCount() int {
 // ---------------------------------------------------------------------------
 
 // RegisterSemaphore adds a semaphore to the registry and returns its Value.
-func (cr *ConcurrencyRegistry) RegisterSemaphore(sem *SemaphoreObject) Value {
-	id := allocConcurrencyID(&cr.semaphoreID, "semaphore")
+func (cr *ConcurrencyRegistry) RegisterSemaphore(sem *SemaphoreObject) (Value, error) {
+	id, err := allocConcurrencyID(&cr.semaphoreID, "semaphore")
+	if err != nil {
+		return Nil, err
+	}
 
 	cr.semaphoresMu.Lock()
 	cr.semaphores[id] = sem
 	cr.semaphoresMu.Unlock()
 
-	return semaphoreToValue(id)
+	return semaphoreToValue(id), nil
 }
 
 // GetSemaphore retrieves a semaphore by its Value.
@@ -381,14 +395,17 @@ func (cr *ConcurrencyRegistry) SemaphoreCount() int {
 // ---------------------------------------------------------------------------
 
 // RegisterCancellationContext adds a cancellation context to the registry and returns its Value.
-func (cr *ConcurrencyRegistry) RegisterCancellationContext(ctx *CancellationContextObject) Value {
-	id := allocConcurrencyID(&cr.cancellationContextID, "cancellationContext")
+func (cr *ConcurrencyRegistry) RegisterCancellationContext(ctx *CancellationContextObject) (Value, error) {
+	id, err := allocConcurrencyID(&cr.cancellationContextID, "cancellationContext")
+	if err != nil {
+		return Nil, err
+	}
 
 	cr.cancellationContextsMu.Lock()
 	cr.cancellationContexts[id] = ctx
 	cr.cancellationContextsMu.Unlock()
 
-	return cancellationContextToValue(id)
+	return cancellationContextToValue(id), nil
 }
 
 // GetCancellationContext retrieves a cancellation context by its Value.
@@ -652,12 +669,15 @@ func (cr *ConcurrencyRegistry) Sweep() (channels, processes, blocks int) {
 // ---------------------------------------------------------------------------
 
 // RegisterFuture adds a future to the registry and returns its Value.
-func (cr *ConcurrencyRegistry) RegisterFuture(f *FutureObject) Value {
-	id := allocConcurrencyID(&cr.futureID, "future")
+func (cr *ConcurrencyRegistry) RegisterFuture(f *FutureObject) (Value, error) {
+	id, err := allocConcurrencyID(&cr.futureID, "future")
+	if err != nil {
+		return Nil, err
+	}
 	cr.futuresMu.Lock()
 	cr.futures[id] = f
 	cr.futuresMu.Unlock()
-	return futureToValue(uint32(id))
+	return futureToValue(uint32(id)), nil
 }
 
 // GetFuture retrieves a future by its Value.
@@ -697,14 +717,17 @@ func (cr *ConcurrencyRegistry) SweepFutures() int {
 // ---------------------------------------------------------------------------
 
 // RegisterArrayList adds an array list to the registry and returns its Value.
-func (cr *ConcurrencyRegistry) RegisterArrayList(al *ArrayListObject) Value {
-	id := allocConcurrencyID(&cr.arrayListID, "arrayList")
+func (cr *ConcurrencyRegistry) RegisterArrayList(al *ArrayListObject) (Value, error) {
+	id, err := allocConcurrencyID(&cr.arrayListID, "arrayList")
+	if err != nil {
+		return Nil, err
+	}
 
 	cr.arrayListsMu.Lock()
 	cr.arrayLists[id] = al
 	cr.arrayListsMu.Unlock()
 
-	return arrayListToValue(id)
+	return arrayListToValue(id), nil
 }
 
 // GetArrayList retrieves an array list by its Value.

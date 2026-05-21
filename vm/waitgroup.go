@@ -43,12 +43,20 @@ func (vm *VM) registerWaitGroupPrimitives() {
 	// WaitGroup class>>new - create a new wait group
 	wg.AddClassMethod0(vm.Selectors, "new", func(v *VM, recv Value) Value {
 		waitGroup := createWaitGroup()
-		return v.registerWaitGroup(waitGroup)
+		val, err := v.registerWaitGroup(waitGroup)
+		if err != nil {
+			return v.SignalPrimitiveError("WaitGroup new", err.Error())
+		}
+		return val
 	})
 
 	wg.AddClassMethod0(vm.Selectors, "primNew", func(v *VM, recv Value) Value {
 		waitGroup := createWaitGroup()
-		return v.registerWaitGroup(waitGroup)
+		val, err := v.registerWaitGroup(waitGroup)
+		if err != nil {
+			return v.SignalPrimitiveError("WaitGroup primNew", err.Error())
+		}
+		return val
 	})
 
 	// WaitGroup>>add: count - add to the wait group counter
@@ -155,8 +163,18 @@ func (vm *VM) registerWaitGroupPrimitives() {
 		w.counter.Add(1)
 
 		// Fork the block with automatic done
-		proc := v.createProcess()
-		procValue := v.registerProcess(proc)
+		proc, err := v.createProcess()
+		if err != nil {
+			w.counter.Add(-1)
+			w.wg.Done()
+			return v.SignalPrimitiveError("WaitGroup wrap:", err.Error())
+		}
+		procValue, err := v.registerProcess(proc)
+		if err != nil {
+			w.counter.Add(-1)
+			w.wg.Done()
+			return v.SignalPrimitiveError("WaitGroup wrap:", err.Error())
+		}
 
 		go func() {
 			defer func() {

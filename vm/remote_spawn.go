@@ -286,7 +286,10 @@ func (vm *VM) doRemoteSpawn(blockVal, nodeVal, argVal Value, mode string) Value 
 func (vm *VM) doForkOn(ref *NodeRefData, spawnBytes []byte, nodeVal Value) Value {
 	// Create a local Future for the result
 	future := NewFuture()
-	futureVal := vm.registerFuture(future)
+	futureVal, regErr := vm.registerFuture(future)
+	if regErr != nil {
+		return vm.SignalPrimitiveError("Block forkOn:", regErr.Error())
+	}
 	futureID := vm.pendingSpawns.register(future)
 
 	// Embed futureID into the spawn block for result delivery
@@ -383,8 +386,13 @@ func (vm *VM) ExecuteSpawnBlock(sb *SpawnBlock, restrictions []string, pullFunc 
 	}
 
 	// Create process
-	proc := vm.createProcess()
-	vm.registerProcess(proc)
+	proc, err := vm.createProcess()
+	if err != nil {
+		return "", fmt.Errorf("spawn: create process: %w", err)
+	}
+	if _, err := vm.registerProcess(proc); err != nil {
+		return "", fmt.Errorf("spawn: register process: %w", err)
+	}
 
 	// Auto-generate a name and register
 	procName := fmt.Sprintf("_remote_%x_%d", sb.MethodHash[:4], proc.id)

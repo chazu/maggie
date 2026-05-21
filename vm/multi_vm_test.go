@@ -80,11 +80,21 @@ func TestMultiVM_IndependentProcesses(t *testing.T) {
 	defer vm2.Shutdown()
 
 	// Create processes directly in each VM
-	proc1 := vm1.createProcess()
-	vm1.registerProcess(proc1)
+	proc1, err := vm1.createProcess()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := vm1.registerProcess(proc1); err != nil {
+		t.Fatal(err)
+	}
 
-	proc2 := vm2.createProcess()
-	vm2.registerProcess(proc2)
+	proc2, err := vm2.createProcess()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := vm2.registerProcess(proc2); err != nil {
+		t.Fatal(err)
+	}
 
 	// Each VM should see exactly 1 process
 	if vm1.Concurrency().ProcessCount() < 1 {

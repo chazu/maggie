@@ -287,8 +287,14 @@ func NewVM(configs ...VMConfig) *VM {
 
 	// Create the main process (so Process current / Process receive work
 	// from the main goroutine)
-	vm.mainProcess = vm.registry.CreateProcess(vm.Config.MailboxCapacity)
-	vm.registry.RegisterProcess(vm.mainProcess)
+	mainProc, err := vm.registry.CreateProcess(vm.Config.MailboxCapacity)
+	if err != nil {
+		panic("vm: failed to create main process: " + err.Error())
+	}
+	vm.mainProcess = mainProc
+	if _, err := vm.registry.RegisterProcess(vm.mainProcess); err != nil {
+		panic("vm: failed to register main process: " + err.Error())
+	}
 
 	// Create debug server
 	vm.Debugger = NewDebugServer(vm)
@@ -721,7 +727,7 @@ func (vm *VM) ConcurrencyStats() map[string]int {
 
 // --- Channel helpers ---
 
-func (vm *VM) registerChannel(ch *ChannelObject) Value {
+func (vm *VM) registerChannel(ch *ChannelObject) (Value, error) {
 	return vm.registry.RegisterChannel(ch)
 }
 
@@ -731,11 +737,11 @@ func (vm *VM) getChannel(v Value) *ChannelObject {
 
 // --- Process helpers ---
 
-func (vm *VM) createProcess() *ProcessObject {
+func (vm *VM) createProcess() (*ProcessObject, error) {
 	return vm.registry.CreateProcess(vm.Config.MailboxCapacity)
 }
 
-func (vm *VM) registerProcess(proc *ProcessObject) Value {
+func (vm *VM) registerProcess(proc *ProcessObject) (Value, error) {
 	return vm.registry.RegisterProcess(proc)
 }
 
@@ -847,7 +853,7 @@ func (vm *VM) CreateMailboxMessage(sender Value, selector string, payload Value)
 
 // --- ArrayList helpers ---
 
-func (vm *VM) registerArrayList(al *ArrayListObject) Value {
+func (vm *VM) registerArrayList(al *ArrayListObject) (Value, error) {
 	return vm.registry.RegisterArrayList(al)
 }
 
@@ -857,7 +863,7 @@ func (vm *VM) getArrayList(v Value) *ArrayListObject {
 
 // --- Mutex helpers ---
 
-func (vm *VM) registerMutex(mu *MutexObject) Value {
+func (vm *VM) registerMutex(mu *MutexObject) (Value, error) {
 	return vm.registry.RegisterMutex(mu)
 }
 
@@ -867,7 +873,7 @@ func (vm *VM) getMutex(v Value) *MutexObject {
 
 // --- WaitGroup helpers ---
 
-func (vm *VM) registerWaitGroup(wg *WaitGroupObject) Value {
+func (vm *VM) registerWaitGroup(wg *WaitGroupObject) (Value, error) {
 	return vm.registry.RegisterWaitGroup(wg)
 }
 
@@ -877,7 +883,7 @@ func (vm *VM) getWaitGroup(v Value) *WaitGroupObject {
 
 // --- Semaphore helpers ---
 
-func (vm *VM) registerSemaphore(sem *SemaphoreObject) Value {
+func (vm *VM) registerSemaphore(sem *SemaphoreObject) (Value, error) {
 	return vm.registry.RegisterSemaphore(sem)
 }
 
@@ -885,7 +891,7 @@ func (vm *VM) getSemaphore(v Value) *SemaphoreObject {
 	return vm.registry.GetSemaphore(v)
 }
 
-func (vm *VM) registerCancellationContext(ctx *CancellationContextObject) Value {
+func (vm *VM) registerCancellationContext(ctx *CancellationContextObject) (Value, error) {
 	return vm.registry.RegisterCancellationContext(ctx)
 }
 

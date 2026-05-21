@@ -187,8 +187,13 @@ func TestInboundMonitor_RegisterAndNotify(t *testing.T) {
 	defer vm.Shutdown()
 
 	// Create a local process to be watched
-	watched := vm.createProcess()
-	vm.registerProcess(watched)
+	watched, err := vm.createProcess()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := vm.registerProcess(watched); err != nil {
+		t.Fatal(err)
+	}
 	vm.RegisterProcessName("watched-proc", watched.id)
 
 	remoteNode := [32]byte{10, 20, 30}
@@ -223,8 +228,13 @@ func TestInboundMonitor_AlreadyDead(t *testing.T) {
 	vm := NewVM()
 	defer vm.Shutdown()
 
-	watched := vm.createProcess()
-	vm.registerProcess(watched)
+	watched, err := vm.createProcess()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := vm.registerProcess(watched); err != nil {
+		t.Fatal(err)
+	}
 	vm.RegisterProcessName("dead-proc", watched.id)
 
 	// Kill it first
@@ -247,8 +257,13 @@ func TestFinishProcess_NotifiesRemoteMonitors(t *testing.T) {
 	vm := NewVM()
 	defer vm.Shutdown()
 
-	watched := vm.createProcess()
-	vm.registerProcess(watched)
+	watched, err := vm.createProcess()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := vm.registerProcess(watched); err != nil {
+		t.Fatal(err)
+	}
 
 	// Manually register a remote monitor (simulating inbound)
 	watched.mu.Lock()

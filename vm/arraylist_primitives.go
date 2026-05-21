@@ -16,7 +16,11 @@ func (vm *VM) registerArrayListPrimitives() {
 	// ArrayList class>>new - create empty with default capacity (8)
 	newFn := func(v *VM, recv Value) Value {
 		al := createArrayList(8)
-		return v.registerArrayList(al)
+		val, err := v.registerArrayList(al)
+		if err != nil {
+			return v.SignalPrimitiveError("ArrayList new", err.Error())
+		}
+		return val
 	}
 	c.AddClassMethod0(vm.Selectors, "new", newFn)
 	c.AddClassMethod0(vm.Selectors, "primNew", newFn)
@@ -31,7 +35,11 @@ func (vm *VM) registerArrayListPrimitives() {
 			}
 		}
 		al := createArrayList(capacity)
-		return v.registerArrayList(al)
+		val, err := v.registerArrayList(al)
+		if err != nil {
+			return v.SignalPrimitiveError("ArrayList new:", err.Error())
+		}
+		return val
 	}
 	c.AddClassMethod1(vm.Selectors, "new:", newCapFn)
 	c.AddClassMethod1(vm.Selectors, "primNew:", newCapFn)
@@ -40,19 +48,31 @@ func (vm *VM) registerArrayListPrimitives() {
 	withAllFn := func(v *VM, recv Value, arr Value) Value {
 		if !arr.IsObject() {
 			al := createArrayList(0)
-			return v.registerArrayList(al)
+			val, err := v.registerArrayList(al)
+			if err != nil {
+				return v.SignalPrimitiveError("ArrayList withAll:", err.Error())
+			}
+			return val
 		}
 		obj := ObjectFromValue(arr)
 		if obj == nil {
 			al := createArrayList(0)
-			return v.registerArrayList(al)
+			val, err := v.registerArrayList(al)
+			if err != nil {
+				return v.SignalPrimitiveError("ArrayList withAll:", err.Error())
+			}
+			return val
 		}
 		n := obj.NumSlots()
 		al := createArrayList(n)
 		for i := 0; i < n; i++ {
 			al.Add(obj.GetSlot(i))
 		}
-		return v.registerArrayList(al)
+		val, err := v.registerArrayList(al)
+		if err != nil {
+			return v.SignalPrimitiveError("ArrayList withAll:", err.Error())
+		}
+		return val
 	}
 	c.AddClassMethod1(vm.Selectors, "withAll:", withAllFn)
 	c.AddClassMethod1(vm.Selectors, "primWithAll:", withAllFn)
@@ -288,14 +308,22 @@ func (vm *VM) registerArrayListPrimitives() {
 	collectFn := func(v *VM, recv Value, block Value) Value {
 		al := v.getArrayList(recv)
 		if al == nil {
-			return v.registerArrayList(createArrayList(0))
+			val, err := v.registerArrayList(createArrayList(0))
+			if err != nil {
+				return v.SignalPrimitiveError("ArrayList collect:", err.Error())
+			}
+			return val
 		}
 		result := createArrayList(al.Size())
 		for i := 0; i < al.Size(); i++ {
 			val := v.evaluateBlock(block, []Value{al.elements[i]})
 			result.Add(val)
 		}
-		return v.registerArrayList(result)
+		val, err := v.registerArrayList(result)
+		if err != nil {
+			return v.SignalPrimitiveError("ArrayList collect:", err.Error())
+		}
+		return val
 	}
 	c.AddMethod1(vm.Selectors, "collect:", collectFn)
 	c.AddMethod1(vm.Selectors, "primCollect:", collectFn)
@@ -304,7 +332,11 @@ func (vm *VM) registerArrayListPrimitives() {
 	selectFn := func(v *VM, recv Value, block Value) Value {
 		al := v.getArrayList(recv)
 		if al == nil {
-			return v.registerArrayList(createArrayList(0))
+			val, err := v.registerArrayList(createArrayList(0))
+			if err != nil {
+				return v.SignalPrimitiveError("ArrayList select:", err.Error())
+			}
+			return val
 		}
 		result := createArrayList(al.Size() / 2) // estimate half match
 		for i := 0; i < al.Size(); i++ {
@@ -313,7 +345,11 @@ func (vm *VM) registerArrayListPrimitives() {
 				result.Add(elem)
 			}
 		}
-		return v.registerArrayList(result)
+		val, err := v.registerArrayList(result)
+		if err != nil {
+			return v.SignalPrimitiveError("ArrayList select:", err.Error())
+		}
+		return val
 	}
 	c.AddMethod1(vm.Selectors, "select:", selectFn)
 	c.AddMethod1(vm.Selectors, "primSelect:", selectFn)
@@ -322,7 +358,11 @@ func (vm *VM) registerArrayListPrimitives() {
 	rejectFn := func(v *VM, recv Value, block Value) Value {
 		al := v.getArrayList(recv)
 		if al == nil {
-			return v.registerArrayList(createArrayList(0))
+			val, err := v.registerArrayList(createArrayList(0))
+			if err != nil {
+				return v.SignalPrimitiveError("ArrayList reject:", err.Error())
+			}
+			return val
 		}
 		result := createArrayList(al.Size() / 2)
 		for i := 0; i < al.Size(); i++ {
@@ -331,7 +371,11 @@ func (vm *VM) registerArrayListPrimitives() {
 				result.Add(elem)
 			}
 		}
-		return v.registerArrayList(result)
+		val, err := v.registerArrayList(result)
+		if err != nil {
+			return v.SignalPrimitiveError("ArrayList reject:", err.Error())
+		}
+		return val
 	}
 	c.AddMethod1(vm.Selectors, "reject:", rejectFn)
 	c.AddMethod1(vm.Selectors, "primReject:", rejectFn)
@@ -410,11 +454,19 @@ func (vm *VM) registerArrayListPrimitives() {
 	copyFn := func(v *VM, recv Value) Value {
 		al := v.getArrayList(recv)
 		if al == nil {
-			return v.registerArrayList(createArrayList(0))
+			val, err := v.registerArrayList(createArrayList(0))
+			if err != nil {
+				return v.SignalPrimitiveError("ArrayList copy", err.Error())
+			}
+			return val
 		}
 		result := createArrayList(al.Size())
 		result.elements = append(result.elements, al.elements...)
-		return v.registerArrayList(result)
+		val, err := v.registerArrayList(result)
+		if err != nil {
+			return v.SignalPrimitiveError("ArrayList copy", err.Error())
+		}
+		return val
 	}
 	c.AddMethod0(vm.Selectors, "copy", copyFn)
 	c.AddMethod0(vm.Selectors, "primCopy", copyFn)

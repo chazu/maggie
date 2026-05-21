@@ -237,7 +237,11 @@ func (vm *VM) registerChannelPrimitives() {
 	// Channel class>>new - create unbuffered channel (class method)
 	c.AddClassMethod0(vm.Selectors, "new", func(v *VM, recv Value) Value {
 		ch := createChannel(0)
-		return v.registerChannel(ch)
+		val, err := v.registerChannel(ch)
+		if err != nil {
+			return v.SignalPrimitiveError("Channel new", err.Error())
+		}
+		return val
 	})
 
 	// Channel class>>new: size - create buffered channel (class method)
@@ -250,7 +254,11 @@ func (vm *VM) registerChannelPrimitives() {
 			bufSize = 0
 		}
 		ch := createChannel(bufSize)
-		return v.registerChannel(ch)
+		val, err := v.registerChannel(ch)
+		if err != nil {
+			return v.SignalPrimitiveError("Channel new:", err.Error())
+		}
+		return val
 	})
 
 	// Channel>>primSend: value - send value to channel (blocking)
@@ -475,8 +483,14 @@ func (vm *VM) registerProcessPrimitives() {
 		}
 		blockVal := recv
 
-		proc := v.createProcess()
-		procValue := v.registerProcess(proc)
+		proc, err := v.createProcess()
+		if err != nil {
+			return v.SignalPrimitiveError("Block fork", err.Error())
+		}
+		procValue, err := v.registerProcess(proc)
+		if err != nil {
+			return v.SignalPrimitiveError("Block fork", err.Error())
+		}
 
 		go func() {
 			defer func() {
@@ -511,8 +525,14 @@ func (vm *VM) registerProcessPrimitives() {
 		}
 		blockVal := recv
 
-		proc := v.createProcess()
-		procValue := v.registerProcess(proc)
+		proc, err := v.createProcess()
+		if err != nil {
+			return v.SignalPrimitiveError("Block forkWith:", err.Error())
+		}
+		procValue, err := v.registerProcess(proc)
+		if err != nil {
+			return v.SignalPrimitiveError("Block forkWith:", err.Error())
+		}
 
 		go func() {
 			defer func() {
@@ -546,8 +566,14 @@ func (vm *VM) registerProcessPrimitives() {
 			return Nil
 		}
 
-		proc := v.createProcess()
-		procValue := v.registerProcess(proc)
+		proc, err := v.createProcess()
+		if err != nil {
+			return v.SignalPrimitiveError("Block forkWithContext:", err.Error())
+		}
+		procValue, err := v.registerProcess(proc)
+		if err != nil {
+			return v.SignalPrimitiveError("Block forkWithContext:", err.Error())
+		}
 
 		go func() {
 			defer func() {
@@ -592,8 +618,14 @@ func (vm *VM) registerProcessPrimitives() {
 		}
 		blockVal := block
 
-		proc := v.createProcess()
-		procValue := v.registerProcess(proc)
+		proc, err := v.createProcess()
+		if err != nil {
+			return v.SignalPrimitiveError("Process fork:", err.Error())
+		}
+		procValue, err := v.registerProcess(proc)
+		if err != nil {
+			return v.SignalPrimitiveError("Process fork:", err.Error())
+		}
 
 		go func() {
 			defer func() {
@@ -749,8 +781,14 @@ func (vm *VM) registerProcessPrimitives() {
 			}
 		}
 
-		proc := v.createProcess()
-		procValue := v.registerProcess(proc)
+		proc, err := v.createProcess()
+		if err != nil {
+			return v.SignalPrimitiveError("Block forkRestricted:", err.Error())
+		}
+		procValue, err := v.registerProcess(proc)
+		if err != nil {
+			return v.SignalPrimitiveError("Block forkRestricted:", err.Error())
+		}
 
 		go func() {
 			defer func() {
@@ -791,8 +829,14 @@ func (vm *VM) registerProcessPrimitives() {
 			}
 		}
 
-		proc := v.createProcess()
-		procValue := v.registerProcess(proc)
+		proc, err := v.createProcess()
+		if err != nil {
+			return v.SignalPrimitiveError("Process forkWithout:do:", err.Error())
+		}
+		procValue, err := v.registerProcess(proc)
+		if err != nil {
+			return v.SignalPrimitiveError("Process forkWithout:do:", err.Error())
+		}
 
 		go func() {
 			defer func() {
@@ -874,7 +918,10 @@ func (vm *VM) registerLinkMonitorPrimitives() {
 		if watcher == nil || watched == nil {
 			return Nil
 		}
-		ref := v.MonitorProcess(watcher, watched)
+		ref, err := v.MonitorProcess(watcher, watched)
+		if err != nil {
+			return v.SignalPrimitiveError("Process primMonitor:", err.Error())
+		}
 		return FromSmallInt(int64(ref.ID))
 	})
 

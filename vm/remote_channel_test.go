@@ -175,7 +175,10 @@ func TestVM_FindChannelValue(t *testing.T) {
 	v := NewVM()
 
 	ch := createChannel(3)
-	chVal := v.registerChannel(ch)
+	chVal, err := v.registerChannel(ch)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	found := v.findChannelValue(ch)
 	if found != chVal {
@@ -195,7 +198,10 @@ func TestSerializeChannel_LocalRoundTrip(t *testing.T) {
 	v.SetNodeIdentityKeys(pub, make([]byte, 64))
 
 	ch := createChannel(5)
-	chVal := v.registerChannel(ch)
+	chVal, err := v.registerChannel(ch)
+	if err != nil {
+		t.Fatal(err)
+	}
 	v.ExportChannel(ch)
 
 	// Serialize
@@ -225,7 +231,10 @@ func TestSerializeChannel_RemoteCreation(t *testing.T) {
 	vmA.SetNodeIdentityKeys([]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32}, make([]byte, 64))
 
 	ch := createChannel(5)
-	chVal := vmA.registerChannel(ch)
+	chVal, err := vmA.registerChannel(ch)
+	if err != nil {
+		t.Fatal(err)
+	}
 	_ = chVal
 
 	data, err := vmA.SerializeValue(chVal)

@@ -43,7 +43,11 @@ func (vm *VM) registerMutexPrimitives() {
 	// Mutex class>>new - create a new mutex
 	newMutexFn := func(v *VM, recv Value) Value {
 		mutex := createMutex()
-		return v.registerMutex(mutex)
+		val, err := v.registerMutex(mutex)
+		if err != nil {
+			return v.SignalPrimitiveError("Mutex new", err.Error())
+		}
+		return val
 	}
 	m.AddClassMethod0(vm.Selectors, "new", newMutexFn)
 	m.AddClassMethod0(vm.Selectors, "primNew", newMutexFn)

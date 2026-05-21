@@ -394,7 +394,11 @@ func (vm *VM) remoteSend(recv, selectorVal, payload Value, wantReply bool) Value
 
 	// Request-response: create Future, resolve in background
 	future := NewFuture()
-	futureVal := vm.registerFuture(future)
+	var futureVal Value
+	futureVal, err = vm.registerFuture(future)
+	if err != nil {
+		return vm.SignalPrimitiveError("Node send", err.Error())
+	}
 
 	go func() {
 		respPayload, errKind, errMsg, netErr := ref.SendFunc(envelopeBytes)

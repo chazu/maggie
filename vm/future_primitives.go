@@ -5,7 +5,7 @@ import (
 	"time"
 )
 
-func (vm *VM) registerFuture(f *FutureObject) Value {
+func (vm *VM) registerFuture(f *FutureObject) (Value, error) {
 	return vm.registry.RegisterFuture(f)
 }
 

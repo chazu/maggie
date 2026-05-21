@@ -424,7 +424,10 @@ func TestUnixSocketAcceptToChannel(t *testing.T) {
 	}
 
 	ch := createChannel(5)
-	chVal := vm.registry.RegisterChannel(ch)
+	chVal, err := vm.registry.RegisterChannel(ch)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	result := vm.Send(serverVal, "primAcceptToChannel:", []Value{chVal})
 	if result != serverVal {

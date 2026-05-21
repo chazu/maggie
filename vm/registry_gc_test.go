@@ -169,8 +169,13 @@ func TestRegistryGCActiveProcessesNotSwept(t *testing.T) {
 	defer vm.Shutdown()
 
 	// Create a process manually that we control (stays in Running state)
-	proc := vm.createProcess()
-	vm.registerProcess(proc)
+	proc, err := vm.createProcess()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := vm.registerProcess(proc); err != nil {
+		t.Fatal(err)
+	}
 
 	procCountBefore := vm.Concurrency().ProcessCount()
 
@@ -478,8 +483,13 @@ func TestRegistryGCConcurrentAccessDuringSweep(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			for i := 0; i < opsPerGoroutine/5; i++ {
-				proc := vm.createProcess()
-				vm.registerProcess(proc)
+				proc, err := vm.createProcess()
+				if err != nil {
+					t.Fatal(err)
+				}
+				if _, err := vm.registerProcess(proc); err != nil {
+					t.Fatal(err)
+				}
 				proc.markDone(FromSmallInt(int64(i)), nil)
 				time.Sleep(time.Millisecond)
 			}
@@ -528,8 +538,13 @@ func TestRegistryGCTotalSwept(t *testing.T) {
 	vm.Send(ch, "close", nil)
 
 	// Create and complete a process
-	proc := vm.createProcess()
-	vm.registerProcess(proc)
+	proc, err := vm.createProcess()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := vm.registerProcess(proc); err != nil {
+		t.Fatal(err)
+	}
 	proc.markDone(Nil, nil)
 
 	// Create and cancel a context

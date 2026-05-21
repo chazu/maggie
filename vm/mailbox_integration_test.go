@@ -12,8 +12,9 @@ func TestMailboxPrimitive_SendReceive(t *testing.T) {
 	defer vm.Shutdown()
 
 	// Create two processes: sender and receiver
-	receiver := vm.createProcess()
-	vm.registerProcess(receiver)
+	receiver, err := vm.createProcess()
+	if err != nil { t.Fatal(err) }
+	if _, err := vm.registerProcess(receiver); err != nil { t.Fatal(err) }
 
 	// Send a message to the receiver's mailbox
 	payload := FromSmallInt(42)
@@ -71,8 +72,10 @@ func TestMailboxPrimitive_ForkedProcessCurrent(t *testing.T) {
 	vm := NewVM()
 	defer vm.Shutdown()
 
-	proc := vm.createProcess()
-	procVal := vm.registerProcess(proc)
+	proc, err := vm.createProcess()
+	if err != nil { t.Fatal(err) }
+	procVal, err := vm.registerProcess(proc)
+	if err != nil { t.Fatal(err) }
 
 	done := make(chan Value)
 	go func() {
@@ -106,8 +109,9 @@ func TestMailboxPrimitive_CrossProcessMessaging(t *testing.T) {
 	defer vm.Shutdown()
 
 	// Create receiver process
-	receiver := vm.createProcess()
-	vm.registerProcess(receiver)
+	receiver, err := vm.createProcess()
+	if err != nil { t.Fatal(err) }
+	if _, err := vm.registerProcess(receiver); err != nil { t.Fatal(err) }
 
 	// Sender goroutine sends a message
 	sent := make(chan bool)
@@ -140,7 +144,8 @@ func TestMailboxPrimitive_ProcessRegisteredNames(t *testing.T) {
 	vm := NewVM()
 	defer vm.Shutdown()
 
-	proc := vm.createProcess()
+	proc, err := vm.createProcess()
+	if err != nil { t.Fatal(err) }
 	vm.registerProcess(proc)
 
 	// Register
@@ -160,8 +165,9 @@ func TestMailboxPrimitive_ProcessRegisteredNames(t *testing.T) {
 	}
 
 	// Duplicate registration fails
-	proc2 := vm.createProcess()
-	vm.registerProcess(proc2)
+	proc2, err := vm.createProcess()
+	if err != nil { t.Fatal(err) }
+	if _, err := vm.registerProcess(proc2); err != nil { t.Fatal(err) }
 	if vm.RegisterProcessName("worker-1", proc2.id) {
 		t.Error("duplicate name registration should fail for live process")
 	}
@@ -184,7 +190,8 @@ func TestMailboxPrimitive_DeadProcessNameCleanup(t *testing.T) {
 	vm := NewVM()
 	defer vm.Shutdown()
 
-	proc := vm.createProcess()
+	proc, err := vm.createProcess()
+	if err != nil { t.Fatal(err) }
 	vm.registerProcess(proc)
 	vm.RegisterProcessName("temp-worker", proc.id)
 
@@ -226,7 +233,8 @@ func TestMailboxPrimitive_ClosedMailboxRejectsSend(t *testing.T) {
 	vm := NewVM()
 	defer vm.Shutdown()
 
-	proc := vm.createProcess()
+	proc, err := vm.createProcess()
+	if err != nil { t.Fatal(err) }
 	vm.registerProcess(proc)
 
 	// Kill process (closes mailbox)

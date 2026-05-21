@@ -79,8 +79,11 @@ func (vm *VM) UnlinkProcesses(a, b *ProcessObject) {
 // MonitorProcess creates a unidirectional monitor: watcher monitors watched.
 // Returns a MonitorRef. If watched is already dead, an immediate DOWN message
 // is delivered to the watcher's mailbox.
-func (vm *VM) MonitorProcess(watcher, watched *ProcessObject) *MonitorRef {
-	refID := vm.registry.ConcurrencyRegistry.AllocMonitorRefID()
+func (vm *VM) MonitorProcess(watcher, watched *ProcessObject) (*MonitorRef, error) {
+	refID, err := vm.registry.ConcurrencyRegistry.AllocMonitorRefID()
+	if err != nil {
+		return nil, err
+	}
 	ref := &MonitorRef{
 		ID:      refID,
 		Watcher: watcher.id,
@@ -109,7 +112,7 @@ func (vm *VM) MonitorProcess(watcher, watched *ProcessObject) *MonitorRef {
 		vm.deliverDownMessage(watcher, ref, exitReason)
 	}
 
-	return ref
+	return ref, nil
 }
 
 // DemonitorProcess removes a monitor relationship.

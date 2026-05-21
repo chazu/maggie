@@ -38,7 +38,10 @@ type LinkResponse struct {
 
 // MonitorRemoteProcess sets up a cross-node monitor.
 func (vm *VM) MonitorRemoteProcess(watcher *ProcessObject, nodeRef *NodeRefData, targetName string) (*MonitorRef, error) {
-	refID := vm.registry.ConcurrencyRegistry.AllocMonitorRefID()
+	refID, err := vm.registry.ConcurrencyRegistry.AllocMonitorRefID()
+	if err != nil {
+		return nil, err
+	}
 	nodeID := nodeRef.NodeID()
 
 	ref := &MonitorRef{

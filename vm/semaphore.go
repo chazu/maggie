@@ -54,7 +54,11 @@ func (vm *VM) registerSemaphorePrimitives() {
 		}
 		cap := int(capacity.SmallInt())
 		sem := createSemaphore(cap)
-		return v.registerSemaphore(sem)
+		val, err := v.registerSemaphore(sem)
+		if err != nil {
+			return v.SignalPrimitiveError("Semaphore new:", err.Error())
+		}
+		return val
 	}
 	s.AddClassMethod1(vm.Selectors, "new:", newCapFn)
 	s.AddClassMethod1(vm.Selectors, "primNew:", newCapFn)
@@ -62,7 +66,11 @@ func (vm *VM) registerSemaphorePrimitives() {
 	// Semaphore class>>new - create a binary semaphore (capacity 1)
 	s.AddClassMethod0(vm.Selectors, "new", func(v *VM, recv Value) Value {
 		sem := createSemaphore(1)
-		return v.registerSemaphore(sem)
+		val, err := v.registerSemaphore(sem)
+		if err != nil {
+			return v.SignalPrimitiveError("Semaphore new", err.Error())
+		}
+		return val
 	})
 
 	// Semaphore>>acquire - acquire a permit (blocks if none available)

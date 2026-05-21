@@ -7,44 +7,27 @@ import (
 	"testing"
 )
 
-// TestAllocConcurrencyIDPanicsOnExhaustion verifies the helper panics rather
-// than silently wrapping when the 24-bit ID space is exhausted. Exhaustion
-// is a real (if pathological) bug class; silent wrap would alias a new
-// primitive's ID to a live one and corrupt sends/receives.
-func TestAllocConcurrencyIDPanicsOnExhaustion(t *testing.T) {
+func TestAllocConcurrencyIDReturnsErrorOnExhaustion(t *testing.T) {
 	var counter atomic.Int32
-	// Pre-position the counter so the next Add overflows past concurrencyIDMax.
 	counter.Store(concurrencyIDMax + 1)
 
-	defer func() {
-		r := recover()
-		if r == nil {
-			t.Fatal("expected panic on ID exhaustion, got nil")
-		}
-		msg, ok := r.(string)
-		if !ok {
-			t.Fatalf("expected string panic, got %T: %v", r, r)
-		}
-		if !strings.Contains(msg, "exhausted") || !strings.Contains(msg, "channel") {
-			t.Fatalf("panic message missing kind/exhausted markers: %q", msg)
-		}
-	}()
-	allocConcurrencyID(&counter, "channel")
+	_, err := allocConcurrencyID(&counter, "channel")
+	if err == nil {
+		t.Fatal("expected error on ID exhaustion")
+	}
+	if !strings.Contains(err.Error(), "exhausted") || !strings.Contains(err.Error(), "channel") {
+		t.Fatalf("error missing kind/exhausted markers: %q", err)
+	}
 }
 
-// TestAllocConcurrencyID64PanicsOnExhaustion: same invariant for the uint64
-// helper used by processes.
-func TestAllocConcurrencyID64PanicsOnExhaustion(t *testing.T) {
+func TestAllocConcurrencyID64ReturnsErrorOnExhaustion(t *testing.T) {
 	var counter atomic.Uint64
-	counter.Store(concurrencyIDMaxU64 + 2) // counter.Add(1) - 1 lands above max
+	counter.Store(concurrencyIDMaxU64 + 2)
 
-	defer func() {
-		r := recover()
-		if r == nil {
-			t.Fatal("expected panic on ID exhaustion, got nil")
-		}
-	}()
-	allocConcurrencyID64(&counter, "process")
+	_, err := allocConcurrencyID64(&counter, "process")
+	if err == nil {
+		t.Fatal("expected error on ID exhaustion")
+	}
 }
 
 // TestAllocConcurrencyIDConcurrent verifies the helper allocates unique IDs
@@ -69,7 +52,12 @@ func TestAllocConcurrencyIDConcurrent(t *testing.T) {
 			defer wg.Done()
 			local := make([]int, 0, perG)
 			for i := 0; i < perG; i++ {
-				local = append(local, allocConcurrencyID(&counter, "channel"))
+				id, err := allocConcurrencyID(&counter, "channel")
+					if err != nil {
+						t.Errorf("unexpected error: %v", err)
+						return
+					}
+					local = append(local, id)
 			}
 			mu.Lock()
 			for _, id := range local {
