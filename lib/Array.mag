@@ -320,3 +320,15 @@ Array subclass: Object
       s := s, ')'.
       ^s
   ]
+
+  """
+  Return a lazy stream over this array's elements.
+
+  ```test
+  #(1 2 3) asStream next >>> 1
+  #(1 2 3) asStream toArray >>> #(1 2 3 )
+  ```
+  """
+  method: asStream [
+      ^Stream over: self
+  ]

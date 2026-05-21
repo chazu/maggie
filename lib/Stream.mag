@@ -1,0 +1,301 @@
+"""
+A lazy stream that produces values on demand via a generator block.
+
+Streams bridge eager collections and lazy evaluation. Create from a
+block that returns successive values (nil signals end of stream),
+or from a collection via `asStream`.
+
+```test
+(Stream on: [:i | i <= 3 ifTrue: [i] ifFalse: [nil]]) collect: [:x | x * 2] >>> #(2 4 6 )
+#(1 2 3 4 5) asStream select: [:x | x > 3] >>> #(4 5 )
+#(10 20 30) asStream next >>> 10
+```
+
+```example
+"Lazy filtering and mapping"
+#(1 2 3 4 5 6 7 8 9 10) asStream
+    select: [:n | n even]
+    collect: [:n | n * n]
+```
+"""
+Stream subclass: Object
+  instanceVars: generator index exhausted
+
+  """
+  Create a stream from a generator block. The block receives a 1-based
+  index and returns the next value, or nil to signal end of stream.
+
+  ```test
+  s := Stream on: [:i | i <= 3 ifTrue: [i * 10] ifFalse: [nil]].
+  s next >>> 10
+  s next >>> 20
+  s next >>> 30
+  s atEnd >>> true
+  ```
+  """
+  classMethod: on: aBlock [
+      ^self new initGenerator: aBlock
+  ]
+
+  """
+  Create a stream over a collection's elements.
+
+  ```test
+  s := Stream over: #(10 20 30).
+  s next >>> 10
+  s next >>> 20
+  s next >>> 30
+  s atEnd >>> true
+  ```
+  """
+  classMethod: over: aCollection [
+      | arr size |
+      arr := aCollection.
+      size := aCollection size.
+      ^self on: [:i | i <= size ifTrue: [arr at: i] ifFalse: [nil]]
+  ]
+
+  method: initGenerator: aBlock [
+      generator := aBlock.
+      index := 1.
+      exhausted := false.
+  ]
+
+  """
+  Return the next value from the stream. Returns nil when exhausted.
+
+  ```test
+  s := Stream over: #(42).
+  s next >>> 42
+  s next >>> nil
+  ```
+  """
+  method: next [
+      | val |
+      exhausted ifTrue: [^nil].
+      val := generator value: index.
+      val isNil ifTrue: [
+          exhausted := true.
+          ^nil
+      ].
+      index := index + 1.
+      ^val
+  ]
+
+  """
+  Return true if the stream has no more values.
+
+  ```test
+  s := Stream over: #().
+  s atEnd >>> true
+  ```
+  """
+  method: atEnd ^<Boolean> [
+      | val |
+      exhausted ifTrue: [^true].
+      val := generator value: index.
+      val isNil ifTrue: [
+          exhausted := true.
+          ^true
+      ].
+      ^false
+  ]
+
+  """
+  Evaluate block for each remaining element.
+
+  ```test
+  sum := 0.
+  (Stream over: #(1 2 3)) do: [:x | sum := sum + x].
+  sum >>> 6
+  ```
+  """
+  method: do: aBlock [
+      | val |
+      [exhausted] whileFalse: [
+          val := self next.
+          val isNil ifFalse: [aBlock value: val].
+      ].
+  ]
+
+  """
+  Collect remaining elements into an array.
+
+  ```test
+  (Stream over: #(1 2 3)) collect: [:x | x * 2] >>> #(2 4 6 )
+  (Stream over: #()) collect: [:x | x] >>> #()
+  ```
+  """
+  method: collect: aBlock ^<Array> [
+      | result val |
+      result := ArrayList new.
+      [exhausted] whileFalse: [
+          val := self next.
+          val isNil ifFalse: [result add: (aBlock value: val)].
+      ].
+      ^result asArray
+  ]
+
+  """
+  Select elements matching a predicate into an array.
+
+  ```test
+  (Stream over: #(1 2 3 4 5)) select: [:x | x > 3] >>> #(4 5 )
+  (Stream over: #(1 2 3)) select: [:x | x even] >>> #(2 )
+  ```
+  """
+  method: select: aBlock ^<Array> [
+      | result val |
+      result := ArrayList new.
+      [exhausted] whileFalse: [
+          val := self next.
+          val isNil ifFalse: [
+              (aBlock value: val) ifTrue: [result add: val].
+          ].
+      ].
+      ^result asArray
+  ]
+
+  """
+  Reject elements matching a predicate.
+
+  ```test
+  (Stream over: #(1 2 3 4 5)) reject: [:x | x > 3] >>> #(1 2 3 )
+  ```
+  """
+  method: reject: aBlock ^<Array> [
+      ^self select: [:each | (aBlock value: each) not]
+  ]
+
+  """
+  Detect the first element matching a predicate.
+
+  ```test
+  (Stream over: #(1 2 3 4 5)) detect: [:x | x > 3] >>> 4
+  (Stream over: #(1 2 3)) detect: [:x | x > 10] >>> nil
+  ```
+  """
+  method: detect: aBlock [
+      | val found result |
+      found := false.
+      result := nil.
+      [exhausted not & found not] whileTrue: [
+          val := self next.
+          val isNil ifFalse: [
+              (aBlock value: val) ifTrue: [
+                  found := true.
+                  result := val.
+              ].
+          ].
+      ].
+      ^result
+  ]
+
+  """
+  Accumulate a value by applying block to each element.
+
+  ```test
+  (Stream over: #(1 2 3 4)) inject: 0 into: [:sum :x | sum + x] >>> 10
+  ```
+  """
+  method: inject: initial into: aBlock [
+      | result val |
+      result := initial.
+      [exhausted] whileFalse: [
+          val := self next.
+          val isNil ifFalse: [result := aBlock value: result value: val].
+      ].
+      ^result
+  ]
+
+  """
+  Return true if any element satisfies the predicate.
+
+  ```test
+  (Stream over: #(1 2 3)) anySatisfy: [:x | x > 2] >>> true
+  (Stream over: #(1 2 3)) anySatisfy: [:x | x > 10] >>> false
+  ```
+  """
+  method: anySatisfy: aBlock ^<Boolean> [
+      | val found |
+      found := false.
+      [exhausted not & found not] whileTrue: [
+          val := self next.
+          val isNil ifFalse: [
+              (aBlock value: val) ifTrue: [found := true].
+          ].
+      ].
+      ^found
+  ]
+
+  """
+  Return true if all elements satisfy the predicate.
+
+  ```test
+  (Stream over: #(2 4 6)) allSatisfy: [:x | x even] >>> true
+  (Stream over: #(2 3 6)) allSatisfy: [:x | x even] >>> false
+  ```
+  """
+  method: allSatisfy: aBlock ^<Boolean> [
+      | val allOk |
+      allOk := true.
+      [exhausted not & allOk] whileTrue: [
+          val := self next.
+          val isNil ifFalse: [
+              (aBlock value: val) ifFalse: [allOk := false].
+          ].
+      ].
+      ^allOk
+  ]
+
+  """
+  Take at most n elements from the stream.
+
+  ```test
+  (Stream over: #(1 2 3 4 5)) take: 3 >>> #(1 2 3 )
+  (Stream over: #(1 2)) take: 5 >>> #(1 2 )
+  ```
+  """
+  method: take: n ^<Array> [
+      | result val count |
+      result := ArrayList new.
+      count := 0.
+      [exhausted not & (count < n)] whileTrue: [
+          val := self next.
+          val isNil ifFalse: [
+              result add: val.
+              count := count + 1.
+          ].
+      ].
+      ^result asArray
+  ]
+
+  """
+  Skip n elements, then return the rest as an array.
+
+  ```test
+  (Stream over: #(1 2 3 4 5)) drop: 2 >>> #(3 4 5 )
+  (Stream over: #(1 2)) drop: 5 >>> #()
+  ```
+  """
+  method: drop: n ^<Array> [
+      | count |
+      count := 0.
+      [exhausted not & (count < n)] whileTrue: [
+          self next.
+          count := count + 1.
+      ].
+      ^self collect: [:x | x]
+  ]
+
+  """
+  Collect all remaining elements into an array.
+
+  ```test
+  (Stream over: #(1 2 3)) toArray >>> #(1 2 3 )
+  ```
+  """
+  method: toArray ^<Array> [
+      ^self collect: [:x | x]
+  ]
+

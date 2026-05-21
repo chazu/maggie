@@ -1,0 +1,40 @@
+goos: darwin
+goarch: arm64
+pkg: github.com/chazu/maggie/vm
+cpu: Apple M3
+BenchmarkOpPushNil-8                           	 2396034	       501.2 ns/op	       0 B/op	       0 allocs/op
+BenchmarkOpPushNil-8                           	 2387553	       501.0 ns/op	       0 B/op	       0 allocs/op
+BenchmarkOpPushNil-8                           	 2395029	       501.3 ns/op	       0 B/op	       0 allocs/op
+BenchmarkOpPushInt8-8                          	 2391766	       502.3 ns/op	       0 B/op	       0 allocs/op
+BenchmarkOpPushInt8-8                          	 2176365	       513.8 ns/op	       0 B/op	       0 allocs/op
+BenchmarkOpPushInt8-8                          	 2384389	       501.9 ns/op	       0 B/op	       0 allocs/op
+BenchmarkOpPushTemp-8                          	 2261683	       532.5 ns/op	       0 B/op	       0 allocs/op
+BenchmarkOpPushTemp-8                          	 2268324	       529.3 ns/op	       0 B/op	       0 allocs/op
+BenchmarkOpPushTemp-8                          	 2266323	       530.7 ns/op	       0 B/op	       0 allocs/op
+BenchmarkOpJump-8                              	65780157	        18.12 ns/op	       0 B/op	       0 allocs/op
+BenchmarkOpJump-8                              	66169322	        18.14 ns/op	       0 B/op	       0 allocs/op
+BenchmarkOpJump-8                              	65205728	        18.17 ns/op	       0 B/op	       0 allocs/op
+BenchmarkStackOperations-8                     	21163958	        57.84 ns/op	       0 B/op	       0 allocs/op
+BenchmarkStackOperations-8                     	19879863	        57.42 ns/op	       0 B/op	       0 allocs/op
+BenchmarkStackOperations-8                     	21419725	        56.01 ns/op	       0 B/op	       0 allocs/op
+BenchmarkSmallIntAdd-8                         	61296681	        19.22 ns/op	       8 B/op	       1 allocs/op
+BenchmarkSmallIntAdd-8                         	61956003	        19.29 ns/op	       8 B/op	       1 allocs/op
+BenchmarkSmallIntAdd-8                         	61821680	        19.19 ns/op	       8 B/op	       1 allocs/op
+BenchmarkSmallIntAddNative-8                   	1000000000	         0.2659 ns/op	       0 B/op	       0 allocs/op
+BenchmarkSmallIntAddNative-8                   	1000000000	         0.2658 ns/op	       0 B/op	       0 allocs/op
+BenchmarkSmallIntAddNative-8                   	1000000000	         0.2660 ns/op	       0 B/op	       0 allocs/op
+BenchmarkSmallIntMultiply-8                    	28129394	        41.90 ns/op	      56 B/op	       2 allocs/op
+BenchmarkSmallIntMultiply-8                    	27185685	        42.11 ns/op	      56 B/op	       2 allocs/op
+BenchmarkSmallIntMultiply-8                    	28562587	        42.62 ns/op	      56 B/op	       2 allocs/op
+BenchmarkSmallIntCompare-8                     	63535206	        18.96 ns/op	       8 B/op	       1 allocs/op
+BenchmarkSmallIntCompare-8                     	63764211	        18.98 ns/op	       8 B/op	       1 allocs/op
+BenchmarkSmallIntCompare-8                     	63767461	        19.00 ns/op	       8 B/op	       1 allocs/op
+BenchmarkFloatAdd-8                            	60855271	        19.46 ns/op	       8 B/op	       1 allocs/op
+BenchmarkFloatAdd-8                            	62068963	        19.48 ns/op	       8 B/op	       1 allocs/op
+BenchmarkFloatAdd-8                            	54405012	        19.51 ns/op	       8 B/op	       1 allocs/op
+BenchmarkFloatAddNative-8                      	1000000000	         0.2657 ns/op	       0 B/op	       0 allocs/op
+BenchmarkFloatAddNative-8                      	1000000000	         0.2662 ns/op	       0 B/op	       0 allocs/op
+BenchmarkFloatAddNative-8                      	1000000000	         0.2682 ns/op	       0 B/op	       0 allocs/op
+BenchmarkUnaryMessageSend-8                    	98481068	        11.97 ns/op	       0 B/op	       0 allocs/op
+BenchmarkUnaryMessageSend-8                    	95720174	        11.98 ns/op	       0 B/op	       0 allocs/op
+[66 more lines]
