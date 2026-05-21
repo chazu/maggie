@@ -1,0 +1,338 @@
+goos: darwin
+goarch: arm64
+pkg: github.com/chazu/maggie/vm
+cpu: Apple M3
+BenchmarkHotPath_UnaryDispatch-8               	96915204	        11.99 ns/op	       0 B/op	       0 allocs/op
+BenchmarkHotPath_UnaryDispatch-8               	99125079	        11.99 ns/op	       0 B/op	       0 allocs/op
+BenchmarkHotPath_UnaryDispatch-8               	95512564	        11.99 ns/op	       0 B/op	       0 allocs/op
+BenchmarkHotPath_BinaryDispatch-8              	60747958	        19.56 ns/op	       8 B/op	       1 allocs/op
+BenchmarkHotPath_BinaryDispatch-8              	61569112	        19.55 ns/op	       8 B/op	       1 allocs/op
+BenchmarkHotPath_BinaryDispatch-8              	60705577	        19.48 ns/op	       8 B/op	       1 allocs/op
+BenchmarkHotPath_KeywordDispatch-8             	30933714	        38.95 ns/op	      16 B/op	       1 allocs/op
+BenchmarkHotPath_KeywordDispatch-8             	30762788	        38.71 ns/op	      16 B/op	       1 allocs/op
+BenchmarkHotPath_KeywordDispatch-8             	30567926	        38.60 ns/op	      16 B/op	       1 allocs/op
+BenchmarkHotPath_BlockEvalSimple-8             	40053458	        29.84 ns/op	       0 B/op	       0 allocs/op
+BenchmarkHotPath_BlockEvalSimple-8             	40530955	        29.92 ns/op	       0 B/op	       0 allocs/op
+BenchmarkHotPath_BlockEvalSimple-8             	40105162	        29.90 ns/op	       0 B/op	       0 allocs/op
+BenchmarkHotPath_BlockEvalClosure-8            	25552801	        46.82 ns/op	       0 B/op	       0 allocs/op
+BenchmarkHotPath_BlockEvalClosure-8            	25645477	        46.79 ns/op	       0 B/op	       0 allocs/op
+BenchmarkHotPath_BlockEvalClosure-8            	25559739	        46.79 ns/op	       0 B/op	       0 allocs/op
+BenchmarkHotPath_BufferedChannelThroughput-8   	17053963	        69.45 ns/op	       8 B/op	       1 allocs/op
+BenchmarkHotPath_BufferedChannelThroughput-8   	17161683	        69.34 ns/op	       8 B/op	       1 allocs/op
+BenchmarkHotPath_BufferedChannelThroughput-8   	17068082	        69.82 ns/op	       8 B/op	       1 allocs/op
+BenchmarkHotPath_ClassInstantiation-8          	 7456450	       251.6 ns/op	     147 B/op	       1 allocs/op
+BenchmarkHotPath_ClassInstantiation-8          	 8676679	       247.7 ns/op	     149 B/op	       1 allocs/op
+BenchmarkHotPath_ClassInstantiation-8          	 9466975	       214.2 ns/op	     143 B/op	       1 allocs/op
+BenchmarkHotPath_ExceptionSignalCatch-8        	29075431	        43.10 ns/op	      80 B/op	       1 allocs/op
+BenchmarkHotPath_ExceptionSignalCatch-8        	28918797	        49.90 ns/op	      80 B/op	       1 allocs/op
+BenchmarkHotPath_ExceptionSignalCatch-8        	29098138	        49.57 ns/op	      80 B/op	       1 allocs/op
+BenchmarkHotPath_IntArithmeticLoop-8           	  173913	      6707 ns/op	       0 B/op	       0 allocs/op
+BenchmarkHotPath_IntArithmeticLoop-8           	  178639	      6716 ns/op	       0 B/op	       0 allocs/op
+BenchmarkHotPath_IntArithmeticLoop-8           	  178650	      6720 ns/op	       0 B/op	       0 allocs/op
+BenchmarkHotPath_ArrayAtPut-8                  	45556356	        26.12 ns/op	      16 B/op	       1 allocs/op
+BenchmarkHotPath_ArrayAtPut-8                  	46063932	        26.19 ns/op	      16 B/op	       1 allocs/op
+BenchmarkHotPath_ArrayAtPut-8                  	46596814	        26.67 ns/op	      16 B/op	       1 allocs/op
+BenchmarkHotPath_StringConcat-8                	 6041108	       306.4 ns/op	     203 B/op	       4 allocs/op
+BenchmarkHotPath_StringConcat-8                	 5930487	       322.4 ns/op	     196 B/op	       4 allocs/op
+BenchmarkHotPath_StringConcat-8                	 5524424	       313.3 ns/op	     204 B/op	       4 allocs/op
+BenchmarkHotPath_VTableCachedLookup-8          	762093673	         1.560 ns/op	       0 B/op	       0 allocs/op
+BenchmarkHotPath_VTableCachedLookup-8          	754058559	         1.599 ns/op	       0 B/op	       0 allocs/op
+BenchmarkHotPath_VTableCachedLookup-8          	726205239	         1.603 ns/op	       0 B/op	       0 allocs/op
+BenchmarkHotPath_GlobalLookup-8                	  727994	      1694 ns/op	       0 B/op	       0 allocs/op
+BenchmarkHotPath_GlobalLookup-8                	  718773	      1681 ns/op	       0 B/op	       0 allocs/op
+BenchmarkHotPath_GlobalLookup-8                	  733135	      1682 ns/op	       0 B/op	       0 allocs/op
+BenchmarkHotPath_MethodDispatchCached-8        	59344342	        19.84 ns/op	       8 B/op	       1 allocs/op
+BenchmarkHotPath_MethodDispatchCached-8        	58316889	        20.15 ns/op	       8 B/op	       1 allocs/op
+BenchmarkHotPath_MethodDispatchCached-8        	58133643	        20.33 ns/op	       8 B/op	       1 allocs/op
+PASS
+ok  	github.com/chazu/maggie/vm	162.880s
+PASS
+ok  	github.com/chazu/maggie/vm	0.006s
+goos: darwin
+goarch: arm64
+pkg: github.com/chazu/maggie/vm
+cpu: Apple M3
+BenchmarkVMSaveImage-8   	unexpected fault address 0xf81d0ffe540002a9
+fatal error: fault
+[signal SIGSEGV: segmentation violation code=0x2 addr=0xf81d0ffe540002a9 pc=0x10099f884]
+
+goroutine 15 gp=0x14000102700 m=8 mp=0x14000101008 [running]:
+runtime.throw({0x100b20893?, 0x10063b9d0?})
+	/Users/chazu/.local/share/mise/installs/go/1.25.8/src/runtime/panic.go:1094 +0x34 fp=0x140000df450 sp=0x140000df420 pc=0x1006a9634
+runtime.sigpanic()
+	/Users/chazu/.local/share/mise/installs/go/1.25.8/src/runtime/signal_unix.go:939 +0x214 fp=0x140000df4b0 sp=0x140000df450 pc=0x1006abc44
+github.com/chazu/maggie/vm.(*Object).Resolve(0x140006100c0?)
+	/Users/chazu/dev/go/maggie/vm/object.go:272 +0x24 fp=0x140000df4f0 sp=0x140000df4c0 pc=0x10099f884
+github.com/chazu/maggie/vm.ObjectFromValue(0x100cbc940?)
+	/Users/chazu/dev/go/maggie/vm/object.go:314 +0x3c fp=0x140000df510 sp=0x140000df4f0 pc=0x10099f91c
+github.com/chazu/maggie/vm.(*VM).CollectAllObjects.func1(0x7ff9014000585e38)
+	/Users/chazu/dev/go/maggie/vm/image_writer.go:125 +0x8c fp=0x140000df5b0 sp=0x140000df510 pc=0x1009822ec
+github.com/chazu/maggie/vm.(*VM).CollectAllObjects(0x140001b8808)
+	/Users/chazu/dev/go/maggie/vm/image_writer.go:151 +0x3f0 fp=0x140000df9b0 sp=0x140000df5b0 pc=0x100981e60
+github.com/chazu/maggie/vm.(*ImageWriter).collectFromVM(0x140000dfc88, 0x140001b8808)
+	/Users/chazu/dev/go/maggie/vm/image_writer.go:389 +0xa9c fp=0x140000dfc40 sp=0x140000df9b0 pc=0x10098362c
+github.com/chazu/maggie/vm.(*VM).SaveImageBytes(0x140001b8808)
+	/Users/chazu/dev/go/maggie/vm/image_writer.go:102 +0xe0 fp=0x140000dfd90 sp=0x140000dfc40 pc=0x100981a40
+github.com/chazu/maggie/vm.(*VM).SaveImageTo(0x140000f62c8?, {0x100d603c0, 0x14000526e10})
+	/Users/chazu/dev/go/maggie/vm/image_writer.go:91 +0x24 fp=0x140000dfdc0 sp=0x140000dfd90 pc=0x1009818f4
+github.com/chazu/maggie/vm.BenchmarkVMSaveImage(0x140000f62c8)
+	/Users/chazu/dev/go/maggie/vm/image_writer_test.go:1861 +0x1c4 fp=0x140000dfe90 sp=0x140000dfdc0 pc=0x100a43a74
+testing.(*B).runN(0x140000f62c8, 0x17ac)
+	/Users/chazu/.local/share/mise/installs/go/1.25.8/src/testing/benchmark.go:219 +0x184 fp=0x140000dff20 sp=0x140000dfe90 pc=0x10073a9e4
+testing.(*B).launch(0x140000f62c8)
+	/Users/chazu/.local/share/mise/installs/go/1.25.8/src/testing/benchmark.go:354 +0x174 fp=0x140000dffb0 sp=0x140000dff20 pc=0x10073b4f4
+testing.(*B).doBench.gowrap1()
+	/Users/chazu/.local/share/mise/installs/go/1.25.8/src/testing/benchmark.go:296 +0x28 fp=0x140000dffd0 sp=0x140000dffb0 pc=0x10073b348
+runtime.goexit({})
+	/Users/chazu/.local/share/mise/installs/go/1.25.8/src/runtime/asm_arm64.s:1268 +0x4 fp=0x140000dffd0 sp=0x140000dffd0 pc=0x1006b2014
+created by testing.(*B).doBench in goroutine 1
+	/Users/chazu/.local/share/mise/installs/go/1.25.8/src/testing/benchmark.go:296 +0x68
+
+goroutine 1 gp=0x140000021c0 m=nil [chan receive]:
+runtime.gopark(0x0?, 0x140000b40e0?, 0xe0?, 0x42?, 0x1011ed890?)
+	/Users/chazu/.local/share/mise/installs/go/1.25.8/src/runtime/proc.go:460 +0xc0 fp=0x140000e16e0 sp=0x140000e16c0 pc=0x1006a9740
+runtime.chanrecv(0x14000030540, 0x0, 0x1)
+	/Users/chazu/.local/share/mise/installs/go/1.25.8/src/runtime/chan.go:667 +0x428 fp=0x140000e1760 sp=0x140000e16e0 pc=0x100640bc8
+runtime.chanrecv1(0x14000096028?, 0x140000242e0?)
+	/Users/chazu/.local/share/mise/installs/go/1.25.8/src/runtime/chan.go:509 +0x14 fp=0x140000e1790 sp=0x140000e1760 pc=0x100640764
+testing.(*B).doBench(0x140000f62c8)
+	/Users/chazu/.local/share/mise/installs/go/1.25.8/src/testing/benchmark.go:297 +0x78 fp=0x140000e17f0 sp=0x140000e1790 pc=0x10073b2c8
+testing.(*benchState).processBench(0x1400000e288, 0x100ce2060?)
+	/Users/chazu/.local/share/mise/installs/go/1.25.8/src/testing/benchmark.go:761 +0x2e0 fp=0x140000e1980 sp=0x140000e17f0 pc=0x10073c740
+testing.(*B).run(0x140000f62c8?)
+	/Users/chazu/.local/share/mise/installs/go/1.25.8/src/testing/benchmark.go:288 +0x60 fp=0x140000e19b0 sp=0x140000e1980 pc=0x10073b0e0
+testing.(*B).Run(0x140000f6588, {0x100b2d3e3?, 0x140000e1ae8?}, 0x100d52968)
+	/Users/chazu/.local/share/mise/installs/go/1.25.8/src/testing/benchmark.go:863 +0x408 fp=0x140000e1ab0 sp=0x140000e19b0 pc=0x10073cf98
+testing.runBenchmarks.func1(0x140000f6588)
+	/Users/chazu/.local/share/mise/installs/go/1.25.8/src/testing/benchmark.go:721 +0x38 fp=0x140000e1af0 sp=0x140000e1ab0 pc=0x10073c418
+testing.(*B).runN(0x140000f6588, 0x1)
+	/Users/chazu/.local/share/mise/installs/go/1.25.8/src/testing/benchmark.go:219 +0x184 fp=0x140000e1b80 sp=0x140000e1af0 pc=0x10073a9e4
+testing.runBenchmarks({0x100b36fd6, 0x1a}, 0x0?, {0x10113f360, 0x79, 0x7?})
+	/Users/chazu/.local/share/mise/installs/go/1.25.8/src/testing/benchmark.go:730 +0x4c4 fp=0x140000e1c90 sp=0x140000e1b80 pc=0x10073c384
+testing.(*M).Run(0x140000be460)
+	/Users/chazu/.local/share/mise/installs/go/1.25.8/src/testing/testing.go:2353 +0x7e0 fp=0x140000e1ec0 sp=0x140000e1c90 pc=0x100749d00
+main.main()
+	_testmain.go:2679 +0x80 fp=0x140000e1f40 sp=0x140000e1ec0 pc=0x100ae04f0
+runtime.main()
+	/Users/chazu/.local/share/mise/installs/go/1.25.8/src/runtime/proc.go:285 +0x278 fp=0x140000e1fd0 sp=0x140000e1f40 pc=0x100674498
+runtime.goexit({})
+	/Users/chazu/.local/share/mise/installs/go/1.25.8/src/runtime/asm_arm64.s:1268 +0x4 fp=0x140000e1fd0 sp=0x140000e1fd0 pc=0x1006b2014
+
+goroutine 2 gp=0x14000002700 m=nil [force gc (idle)]:
+runtime.gopark(0x0?, 0x0?, 0x0?, 0x0?, 0x0?)
+	/Users/chazu/.local/share/mise/installs/go/1.25.8/src/runtime/proc.go:460 +0xc0 fp=0x14000092f90 sp=0x14000092f70 pc=0x1006a9740
+runtime.goparkunlock(...)
+	/Users/chazu/.local/share/mise/installs/go/1.25.8/src/runtime/proc.go:466
+runtime.forcegchelper()
+	/Users/chazu/.local/share/mise/installs/go/1.25.8/src/runtime/proc.go:373 +0xb4 fp=0x14000092fd0 sp=0x14000092f90 pc=0x1006747e4
+runtime.goexit({})
+	/Users/chazu/.local/share/mise/installs/go/1.25.8/src/runtime/asm_arm64.s:1268 +0x4 fp=0x14000092fd0 sp=0x14000092fd0 pc=0x1006b2014
+created by runtime.init.7 in goroutine 1
+	/Users/chazu/.local/share/mise/installs/go/1.25.8/src/runtime/proc.go:361 +0x24
+
+goroutine 17 gp=0x14000102380 m=nil [GC sweep wait]:
+runtime.gopark(0x1?, 0x0?, 0x0?, 0x0?, 0x0?)
+	/Users/chazu/.local/share/mise/installs/go/1.25.8/src/runtime/proc.go:460 +0xc0 fp=0x1400008e760 sp=0x1400008e740 pc=0x1006a9740
+runtime.goparkunlock(...)
+	/Users/chazu/.local/share/mise/installs/go/1.25.8/src/runtime/proc.go:466
+runtime.bgsweep(0x1400010e000)
+	/Users/chazu/.local/share/mise/installs/go/1.25.8/src/runtime/mgcsweep.go:323 +0x104 fp=0x1400008e7b0 sp=0x1400008e760 pc=0x10065d0f4
+runtime.gcenable.gowrap1()
+	/Users/chazu/.local/share/mise/installs/go/1.25.8/src/runtime/mgc.go:212 +0x28 fp=0x1400008e7d0 sp=0x1400008e7b0 pc=0x100650d58
+runtime.goexit({})
+	/Users/chazu/.local/share/mise/installs/go/1.25.8/src/runtime/asm_arm64.s:1268 +0x4 fp=0x1400008e7d0 sp=0x1400008e7d0 pc=0x1006b2014
+created by runtime.gcenable in goroutine 1
+	/Users/chazu/.local/share/mise/installs/go/1.25.8/src/runtime/mgc.go:212 +0x6c
+
+goroutine 18 gp=0x14000102540 m=nil [sleep]:
+runtime.gopark(0x140000b4000?, 0x1a0f02b74afd?, 0x0?, 0x0?, 0x0?)
+	/Users/chazu/.local/share/mise/installs/go/1.25.8/src/runtime/proc.go:460 +0xc0 fp=0x1400008ef20 sp=0x1400008ef00 pc=0x1006a9740
+runtime.goparkunlock(...)
+	/Users/chazu/.local/share/mise/installs/go/1.25.8/src/runtime/proc.go:466
+runtime.(*scavengerState).sleep(0x10114ac60, 0x40a6c80000000000)
+	/Users/chazu/.local/share/mise/installs/go/1.25.8/src/runtime/mgcscavenge.go:504 +0x108 fp=0x1400008ef90 sp=0x1400008ef20 pc=0x10065adf8
+runtime.bgscavenge(0x1400010e000)
+	/Users/chazu/.local/share/mise/installs/go/1.25.8/src/runtime/mgcscavenge.go:662 +0x9c fp=0x1400008efb0 sp=0x1400008ef90 pc=0x10065b1ac
+runtime.gcenable.gowrap2()
+	/Users/chazu/.local/share/mise/installs/go/1.25.8/src/runtime/mgc.go:213 +0x28 fp=0x1400008efd0 sp=0x1400008efb0 pc=0x100650cf8
+runtime.goexit({})
+	/Users/chazu/.local/share/mise/installs/go/1.25.8/src/runtime/asm_arm64.s:1268 +0x4 fp=0x1400008efd0 sp=0x1400008efd0 pc=0x1006b2014
+created by runtime.gcenable in goroutine 1
+	/Users/chazu/.local/share/mise/installs/go/1.25.8/src/runtime/mgc.go:213 +0xac
+
+goroutine 3 gp=0x14000002fc0 m=nil [GOMAXPROCS updater (idle)]:
+runtime.gopark(0x0?, 0x0?, 0x0?, 0x0?, 0x0?)
+	/Users/chazu/.local/share/mise/installs/go/1.25.8/src/runtime/proc.go:460 +0xc0 fp=0x14000093770 sp=0x14000093750 pc=0x1006a9740
+runtime.goparkunlock(...)
+	/Users/chazu/.local/share/mise/installs/go/1.25.8/src/runtime/proc.go:466
+runtime.updateMaxProcsGoroutine()
+	/Users/chazu/.local/share/mise/installs/go/1.25.8/src/runtime/proc.go:6720 +0xf4 fp=0x140000937d0 sp=0x14000093770 pc=0x100683254
+runtime.goexit({})
+	/Users/chazu/.local/share/mise/installs/go/1.25.8/src/runtime/asm_arm64.s:1268 +0x4 fp=0x140000937d0 sp=0x140000937d0 pc=0x1006b2014
+created by runtime.defaultGOMAXPROCSUpdateEnable in goroutine 1
+	/Users/chazu/.local/share/mise/installs/go/1.25.8/src/runtime/proc.go:6708 +0x48
+
+goroutine 4 gp=0x14000003180 m=nil [finalizer wait]:
+runtime.gopark(0x0?, 0x0?, 0xb8?, 0x25?, 0x1006aa384?)
+	/Users/chazu/.local/share/mise/installs/go/1.25.8/src/runtime/proc.go:460 +0xc0 fp=0x14000092580 sp=0x14000092560 pc=0x1006a9740
+runtime.runFinalizers()
+	/Users/chazu/.local/share/mise/installs/go/1.25.8/src/runtime/mfinal.go:210 +0x104 fp=0x140000927d0 sp=0x14000092580 pc=0x10064fd44
+runtime.goexit({})
+	/Users/chazu/.local/share/mise/installs/go/1.25.8/src/runtime/asm_arm64.s:1268 +0x4 fp=0x140000927d0 sp=0x140000927d0 pc=0x1006b2014
+created by runtime.createfing in goroutine 1
+	/Users/chazu/.local/share/mise/installs/go/1.25.8/src/runtime/mfinal.go:172 +0x78
+
+goroutine 5 gp=0x14000003340 m=nil [cleanup wait]:
+runtime.gopark(0x0?, 0x0?, 0x0?, 0x0?, 0x0?)
+	/Users/chazu/.local/share/mise/installs/go/1.25.8/src/runtime/proc.go:460 +0xc0 fp=0x14000093f40 sp=0x14000093f20 pc=0x1006a9740
+runtime.goparkunlock(...)
+	/Users/chazu/.local/share/mise/installs/go/1.25.8/src/runtime/proc.go:466
+runtime.(*cleanupQueue).dequeue(0x10114b1a0)
+	/Users/chazu/.local/share/mise/installs/go/1.25.8/src/runtime/mcleanup.go:439 +0x110 fp=0x14000093f80 sp=0x14000093f40 pc=0x10064d230
+runtime.runCleanups()
+	/Users/chazu/.local/share/mise/installs/go/1.25.8/src/runtime/mcleanup.go:635 +0x40 fp=0x14000093fd0 sp=0x14000093f80 pc=0x10064da40
+runtime.goexit({})
+	/Users/chazu/.local/share/mise/installs/go/1.25.8/src/runtime/asm_arm64.s:1268 +0x4 fp=0x14000093fd0 sp=0x14000093fd0 pc=0x1006b2014
+created by runtime.(*cleanupQueue).createGs in goroutine 1
+	/Users/chazu/.local/share/mise/installs/go/1.25.8/src/runtime/mcleanup.go:589 +0x108
+
+goroutine 6 gp=0x14000003880 m=nil [GC worker (idle)]:
+runtime.gopark(0x0?, 0x0?, 0x0?, 0x0?, 0x0?)
+	/Users/chazu/.local/share/mise/installs/go/1.25.8/src/runtime/proc.go:460 +0xc0 fp=0x14000094710 sp=0x140000946f0 pc=0x1006a9740
+runtime.gcBgMarkWorker(0x14000030690)
+	/Users/chazu/.local/share/mise/installs/go/1.25.8/src/runtime/mgc.go:1463 +0xe0 fp=0x140000947b0 sp=0x14000094710 pc=0x1006533d0
+runtime.gcBgMarkStartWorkers.gowrap1()
+	/Users/chazu/.local/share/mise/installs/go/1.25.8/src/runtime/mgc.go:1373 +0x28 fp=0x140000947d0 sp=0x140000947b0 pc=0x1006532b8
+runtime.goexit({})
+	/Users/chazu/.local/share/mise/installs/go/1.25.8/src/runtime/asm_arm64.s:1268 +0x4 fp=0x140000947d0 sp=0x140000947d0 pc=0x1006b2014
+created by runtime.gcBgMarkStartWorkers in goroutine 1
+	/Users/chazu/.local/share/mise/installs/go/1.25.8/src/runtime/mgc.go:1373 +0x140
+
+goroutine 7 gp=0x14000003a40 m=nil [GC worker (idle)]:
+runtime.gopark(0x101173d40?, 0x1?, 0x61?, 0xc8?, 0x0?)
+	/Users/chazu/.local/share/mise/installs/go/1.25.8/src/runtime/proc.go:460 +0xc0 fp=0x14000585f10 sp=0x14000585ef0 pc=0x1006a9740
+runtime.gcBgMarkWorker(0x14000030690)
+	/Users/chazu/.local/share/mise/installs/go/1.25.8/src/runtime/mgc.go:1463 +0xe0 fp=0x14000585fb0 sp=0x14000585f10 pc=0x1006533d0
+runtime.gcBgMarkStartWorkers.gowrap1()
+	/Users/chazu/.local/share/mise/installs/go/1.25.8/src/runtime/mgc.go:1373 +0x28 fp=0x14000585fd0 sp=0x14000585fb0 pc=0x1006532b8
+runtime.goexit({})
+	/Users/chazu/.local/share/mise/installs/go/1.25.8/src/runtime/asm_arm64.s:1268 +0x4 fp=0x14000585fd0 sp=0x14000585fd0 pc=0x1006b2014
+created by runtime.gcBgMarkStartWorkers in goroutine 1
+	/Users/chazu/.local/share/mise/installs/go/1.25.8/src/runtime/mgc.go:1373 +0x140
+
+goroutine 8 gp=0x14000003c00 m=nil [GC worker (idle)]:
+runtime.gopark(0x1a0e9d64d703?, 0x3?, 0xd3?, 0xbb?, 0x0?)
+	/Users/chazu/.local/share/mise/installs/go/1.25.8/src/runtime/proc.go:460 +0xc0 fp=0x14000583f10 sp=0x14000583ef0 pc=0x1006a9740
+runtime.gcBgMarkWorker(0x14000030690)
+	/Users/chazu/.local/share/mise/installs/go/1.25.8/src/runtime/mgc.go:1463 +0xe0 fp=0x14000583fb0 sp=0x14000583f10 pc=0x1006533d0
+runtime.gcBgMarkStartWorkers.gowrap1()
+	/Users/chazu/.local/share/mise/installs/go/1.25.8/src/runtime/mgc.go:1373 +0x28 fp=0x14000583fd0 sp=0x14000583fb0 pc=0x1006532b8
+runtime.goexit({})
+	/Users/chazu/.local/share/mise/installs/go/1.25.8/src/runtime/asm_arm64.s:1268 +0x4 fp=0x14000583fd0 sp=0x14000583fd0 pc=0x1006b2014
+created by runtime.gcBgMarkStartWorkers in goroutine 1
+	/Users/chazu/.local/share/mise/installs/go/1.25.8/src/runtime/mgc.go:1373 +0x140
+
+goroutine 9 gp=0x14000003dc0 m=nil [GC worker (idle)]:
+runtime.gopark(0x1a0e9d46a725?, 0x3?, 0xcb?, 0xf4?, 0x0?)
+	/Users/chazu/.local/share/mise/installs/go/1.25.8/src/runtime/proc.go:460 +0xc0 fp=0x14000580f10 sp=0x14000580ef0 pc=0x1006a9740
+runtime.gcBgMarkWorker(0x14000030690)
+	/Users/chazu/.local/share/mise/installs/go/1.25.8/src/runtime/mgc.go:1463 +0xe0 fp=0x14000580fb0 sp=0x14000580f10 pc=0x1006533d0
+runtime.gcBgMarkStartWorkers.gowrap1()
+	/Users/chazu/.local/share/mise/installs/go/1.25.8/src/runtime/mgc.go:1373 +0x28 fp=0x14000580fd0 sp=0x14000580fb0 pc=0x1006532b8
+runtime.goexit({})
+	/Users/chazu/.local/share/mise/installs/go/1.25.8/src/runtime/asm_arm64.s:1268 +0x4 fp=0x14000580fd0 sp=0x14000580fd0 pc=0x1006b2014
+created by runtime.gcBgMarkStartWorkers in goroutine 1
+	/Users/chazu/.local/share/mise/installs/go/1.25.8/src/runtime/mgc.go:1373 +0x140
+
+goroutine 10 gp=0x140001a0000 m=nil [GC worker (idle)]:
+runtime.gopark(0x1a0e9d64f3d2?, 0x3?, 0xc?, 0x6e?, 0x0?)
+	/Users/chazu/.local/share/mise/installs/go/1.25.8/src/runtime/proc.go:460 +0xc0 fp=0x14000582f10 sp=0x14000582ef0 pc=0x1006a9740
+runtime.gcBgMarkWorker(0x14000030690)
+	/Users/chazu/.local/share/mise/installs/go/1.25.8/src/runtime/mgc.go:1463 +0xe0 fp=0x14000582fb0 sp=0x14000582f10 pc=0x1006533d0
+runtime.gcBgMarkStartWorkers.gowrap1()
+	/Users/chazu/.local/share/mise/installs/go/1.25.8/src/runtime/mgc.go:1373 +0x28 fp=0x14000582fd0 sp=0x14000582fb0 pc=0x1006532b8
+runtime.goexit({})
+	/Users/chazu/.local/share/mise/installs/go/1.25.8/src/runtime/asm_arm64.s:1268 +0x4 fp=0x14000582fd0 sp=0x14000582fd0 pc=0x1006b2014
+created by runtime.gcBgMarkStartWorkers in goroutine 1
+	/Users/chazu/.local/share/mise/installs/go/1.25.8/src/runtime/mgc.go:1373 +0x140
+
+goroutine 11 gp=0x140001a01c0 m=nil [GC worker (idle)]:
+runtime.gopark(0x1a0e9d64d87a?, 0x3?, 0x7b?, 0xa7?, 0x0?)
+	/Users/chazu/.local/share/mise/installs/go/1.25.8/src/runtime/proc.go:460 +0xc0 fp=0x14000584f10 sp=0x14000584ef0 pc=0x1006a9740
+runtime.gcBgMarkWorker(0x14000030690)
+	/Users/chazu/.local/share/mise/installs/go/1.25.8/src/runtime/mgc.go:1463 +0xe0 fp=0x14000584fb0 sp=0x14000584f10 pc=0x1006533d0
+runtime.gcBgMarkStartWorkers.gowrap1()
+	/Users/chazu/.local/share/mise/installs/go/1.25.8/src/runtime/mgc.go:1373 +0x28 fp=0x14000584fd0 sp=0x14000584fb0 pc=0x1006532b8
+runtime.goexit({})
+	/Users/chazu/.local/share/mise/installs/go/1.25.8/src/runtime/asm_arm64.s:1268 +0x4 fp=0x14000584fd0 sp=0x14000584fd0 pc=0x1006b2014
+created by runtime.gcBgMarkStartWorkers in goroutine 1
+	/Users/chazu/.local/share/mise/installs/go/1.25.8/src/runtime/mgc.go:1373 +0x140
+
+goroutine 12 gp=0x140001a0380 m=nil [GC worker (idle)]:
+runtime.gopark(0x101173d40?, 0x3?, 0xcd?, 0xc4?, 0x0?)
+	/Users/chazu/.local/share/mise/installs/go/1.25.8/src/runtime/proc.go:460 +0xc0 fp=0x140000b9f10 sp=0x140000b9ef0 pc=0x1006a9740
+runtime.gcBgMarkWorker(0x14000030690)
+	/Users/chazu/.local/share/mise/installs/go/1.25.8/src/runtime/mgc.go:1463 +0xe0 fp=0x140000b9fb0 sp=0x140000b9f10 pc=0x1006533d0
+runtime.gcBgMarkStartWorkers.gowrap1()
+	/Users/chazu/.local/share/mise/installs/go/1.25.8/src/runtime/mgc.go:1373 +0x28 fp=0x140000b9fd0 sp=0x140000b9fb0 pc=0x1006532b8
+runtime.goexit({})
+	/Users/chazu/.local/share/mise/installs/go/1.25.8/src/runtime/asm_arm64.s:1268 +0x4 fp=0x140000b9fd0 sp=0x140000b9fd0 pc=0x1006b2014
+created by runtime.gcBgMarkStartWorkers in goroutine 1
+	/Users/chazu/.local/share/mise/installs/go/1.25.8/src/runtime/mgc.go:1373 +0x140
+
+goroutine 13 gp=0x140001a0540 m=nil [GC worker (idle)]:
+runtime.gopark(0x1a0e9d64dbbb?, 0x3?, 0x1?, 0xe5?, 0x0?)
+	/Users/chazu/.local/share/mise/installs/go/1.25.8/src/runtime/proc.go:460 +0xc0 fp=0x140000bdf10 sp=0x140000bdef0 pc=0x1006a9740
+runtime.gcBgMarkWorker(0x14000030690)
+	/Users/chazu/.local/share/mise/installs/go/1.25.8/src/runtime/mgc.go:1463 +0xe0 fp=0x140000bdfb0 sp=0x140000bdf10 pc=0x1006533d0
+runtime.gcBgMarkStartWorkers.gowrap1()
+	/Users/chazu/.local/share/mise/installs/go/1.25.8/src/runtime/mgc.go:1373 +0x28 fp=0x140000bdfd0 sp=0x140000bdfb0 pc=0x1006532b8
+runtime.goexit({})
+	/Users/chazu/.local/share/mise/installs/go/1.25.8/src/runtime/asm_arm64.s:1268 +0x4 fp=0x140000bdfd0 sp=0x140000bdfd0 pc=0x1006b2014
+created by runtime.gcBgMarkStartWorkers in goroutine 1
+	/Users/chazu/.local/share/mise/installs/go/1.25.8/src/runtime/mgc.go:1373 +0x140
+
+goroutine 14 gp=0x14000102a80 m=nil [select]:
+runtime.gopark(0x140000b7f50?, 0x3?, 0x8?, 0x7e?, 0x140000b7f4a?)
+	/Users/chazu/.local/share/mise/installs/go/1.25.8/src/runtime/proc.go:460 +0xc0 fp=0x140000b7dc0 sp=0x140000b7da0 pc=0x1006a9740
+runtime.selectgo(0x140000b7f50, 0x140000b7f44, 0x0?, 0x0, 0x300000000000000?, 0x1)
+	/Users/chazu/.local/share/mise/installs/go/1.25.8/src/runtime/select.go:351 +0x6bc fp=0x140000b7f00 sp=0x140000b7dc0 pc=0x10068823c
+github.com/chazu/maggie/vm.(*RegistryGC).loop(0x140001cb200, 0x14000030690, 0x140000f62c8?)
+	/Users/chazu/dev/go/maggie/vm/registry_gc.go:314 +0x98 fp=0x140000b7fa0 sp=0x140000b7f00 pc=0x1009a7208
+github.com/chazu/maggie/vm.(*RegistryGC).Start.gowrap2()
+	/Users/chazu/dev/go/maggie/vm/registry_gc.go:162 +0x2c fp=0x140000b7fd0 sp=0x140000b7fa0 pc=0x1009a562c
+runtime.goexit({})
+	/Users/chazu/.local/share/mise/installs/go/1.25.8/src/runtime/asm_arm64.s:1268 +0x4 fp=0x140000b7fd0 sp=0x140000b7fd0 pc=0x1006b2014
+created by github.com/chazu/maggie/vm.(*RegistryGC).Start in goroutine 19
+	/Users/chazu/dev/go/maggie/vm/registry_gc.go:162 +0x17c
+
+goroutine 16 gp=0x14000202c40 m=nil [select]:
+runtime.gopark(0x140001a9f50?, 0x3?, 0x8?, 0x9e?, 0x140001a9f4a?)
+	/Users/chazu/.local/share/mise/installs/go/1.25.8/src/runtime/proc.go:460 +0xc0 fp=0x140000b6dc0 sp=0x140000b6da0 pc=0x1006a9740
+runtime.selectgo(0x140000b6f50, 0x140001a9f44, 0x140001a9fa8?, 0x0, 0x140000f62c8?, 0x1)
+	/Users/chazu/.local/share/mise/installs/go/1.25.8/src/runtime/select.go:351 +0x6bc fp=0x140000b6f00 sp=0x140000b6dc0 pc=0x10068823c
+github.com/chazu/maggie/vm.(*RegistryGC).loop(0x140001123f0, 0x14000030850, 0x140000f62c8?)
+	/Users/chazu/dev/go/maggie/vm/registry_gc.go:314 +0x98 fp=0x140000b6fa0 sp=0x140000b6f00 pc=0x1009a7208
+github.com/chazu/maggie/vm.(*RegistryGC).Start.gowrap2()
+	/Users/chazu/dev/go/maggie/vm/registry_gc.go:162 +0x2c fp=0x140000b6fd0 sp=0x140000b6fa0 pc=0x1009a562c
+runtime.goexit({})
+	/Users/chazu/.local/share/mise/installs/go/1.25.8/src/runtime/asm_arm64.s:1268 +0x4 fp=0x140000b6fd0 sp=0x140000b6fd0 pc=0x1006b2014
+created by github.com/chazu/maggie/vm.(*RegistryGC).Start in goroutine 15
+	/Users/chazu/dev/go/maggie/vm/registry_gc.go:162 +0x17c
+
+goroutine 33 gp=0x140002828c0 m=nil [select]:
+runtime.gopark(0x1400008f750?, 0x3?, 0x8?, 0xf6?, 0x1400008f74a?)
+	/Users/chazu/.local/share/mise/installs/go/1.25.8/src/runtime/proc.go:460 +0xc0 fp=0x140000b8dc0 sp=0x140000b8da0 pc=0x1006a9740
+runtime.selectgo(0x140000b8f50, 0x1400008f744, 0x0?, 0x0, 0x0?, 0x1)
+	/Users/chazu/.local/share/mise/installs/go/1.25.8/src/runtime/select.go:351 +0x6bc fp=0x140000b8f00 sp=0x140000b8dc0 pc=0x10068823c
+github.com/chazu/maggie/vm.(*RegistryGC).loop(0x14000423440, 0x14000030a10, 0x0?)
+	/Users/chazu/dev/go/maggie/vm/registry_gc.go:314 +0x98 fp=0x140000b8fa0 sp=0x140000b8f00 pc=0x1009a7208
+github.com/chazu/maggie/vm.(*RegistryGC).Start.gowrap2()
+	/Users/chazu/dev/go/maggie/vm/registry_gc.go:162 +0x2c fp=0x140000b8fd0 sp=0x140000b8fa0 pc=0x1009a562c
+runtime.goexit({})
+	/Users/chazu/.local/share/mise/installs/go/1.25.8/src/runtime/asm_arm64.s:1268 +0x4 fp=0x140000b8fd0 sp=0x140000b8fd0 pc=0x1006b2014
+created by github.com/chazu/maggie/vm.(*RegistryGC).Start in goroutine 15
+	/Users/chazu/dev/go/maggie/vm/registry_gc.go:162 +0x17c
+exit status 2
+FAIL	github.com/chazu/maggie/vm	0.038s
+FAIL
