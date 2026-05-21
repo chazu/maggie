@@ -993,40 +993,14 @@ func (vm *VM) SaveImageAtomic(path string) error {
 	return nil
 }
 
-// SaveImageTo saves the VM state to a writer.
+// SaveImageTo saves the VM state to a writer using CBOR format.
 func (vm *VM) SaveImageTo(w io.Writer) error {
-	writer := NewImageWriter()
-
-	// Collect all data from VM
-	writer.collectFromVM(vm)
-
-	// Write sections in order
-	writer.writeHeader()
-	writer.writeStringTable()
-	writer.writeSymbolTable(vm.Symbols)
-	writer.writeSelectorTable(vm.Selectors)
-	writer.writeClasses()
-	writer.writeMethods()
-	writer.writeObjects()
-	// Snapshot globals under lock to avoid races with concurrent goroutines
-	vm.globalsMu.RLock()
-	globalsSnapshot := make(map[string]Value, len(vm.globals))
-	for k, v := range vm.globals {
-		globalsSnapshot[k] = v
-	}
-	vm.globalsMu.RUnlock()
-	writer.writeGlobals(globalsSnapshot)
-	writer.writeClassVars()
-
-	// Patch header with final offsets
-	writer.patchHeader()
-
-	// Write to output
-	_, err := writer.WriteTo(w)
+	data, err := vm.SaveImageCborBytes()
 	if err != nil {
-		return fmt.Errorf("writing image data: %w", err)
+		return err
 	}
-	return nil
+	_, err = w.Write(data)
+	return err
 }
 
 // CollectAllObjects traverses from roots and collects all reachable objects.

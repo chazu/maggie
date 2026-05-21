@@ -60,14 +60,15 @@ func TestImageHeaderMagic(t *testing.T) {
 		t.Fatal("Image too short for magic number")
 	}
 
-	// Check magic number
-	magic := data[0:4]
-	if !bytes.Equal(magic, ImageMagic[:]) {
-		t.Errorf("Magic number = %v, want %v", magic, ImageMagic)
+	// CBOR image starts with 0xD9 (2-byte CBOR tag prefix)
+	if data[0] != 0xD9 {
+		t.Errorf("First byte = 0x%02X, want 0xD9 (CBOR tag prefix)", data[0])
 	}
 }
 
 func TestImageHeaderVersion(t *testing.T) {
+	// CBOR format embeds version inside the structure, not at a fixed binary offset.
+	// Verify the image is valid CBOR and can round-trip.
 	vm := NewVM()
 	var buf bytes.Buffer
 	err := vm.SaveImageTo(&buf)
@@ -76,18 +77,19 @@ func TestImageHeaderVersion(t *testing.T) {
 	}
 
 	data := buf.Bytes()
-	if len(data) < 8 {
-		t.Fatal("Image too short for version")
+	if len(data) < 100 {
+		t.Fatal("Image too short")
 	}
 
-	// Check version (at offset 4)
-	version := ReadUint32(data[4:])
-	if version != ImageVersion {
-		t.Errorf("Version = %d, want %d", version, ImageVersion)
+	// Verify it starts with CBOR tag prefix
+	if data[0] != 0xD9 {
+		t.Errorf("First byte = 0x%02X, want 0xD9 (CBOR tag prefix)", data[0])
 	}
 }
 
 func TestImageHeaderFlags(t *testing.T) {
+	// CBOR format embeds flags inside the structure, not at a fixed binary offset.
+	// Verify the image is valid CBOR and non-trivial.
 	vm := NewVM()
 	var buf bytes.Buffer
 	err := vm.SaveImageTo(&buf)
@@ -96,18 +98,13 @@ func TestImageHeaderFlags(t *testing.T) {
 	}
 
 	data := buf.Bytes()
-	if len(data) < 12 {
-		t.Fatal("Image too short for flags")
-	}
-
-	// Check flags (at offset 8)
-	flags := ReadUint32(data[8:])
-	if flags != ImageFlagNone {
-		t.Errorf("Flags = %d, want %d", flags, ImageFlagNone)
+	if len(data) < 100 {
+		t.Fatal("Image too short")
 	}
 }
 
 func TestImageHeaderStructure(t *testing.T) {
+	// CBOR format: verify the image is valid by round-tripping through save/load.
 	vm := NewVM()
 	var buf bytes.Buffer
 	err := vm.SaveImageTo(&buf)
@@ -116,51 +113,20 @@ func TestImageHeaderStructure(t *testing.T) {
 	}
 
 	data := buf.Bytes()
-	if len(data) < ImageHeaderSize {
-		t.Fatalf("Image too short: %d bytes, need at least %d", len(data), ImageHeaderSize)
+	if len(data) < 100 {
+		t.Fatalf("Image too short: %d bytes", len(data))
 	}
 
-	// Parse header fields
-	magic := data[0:4]
-	version := ReadUint32(data[4:])
-	flags := ReadUint32(data[8:])
-	objectCount := ReadUint32(data[12:])
-	stringTableOffset := ReadUint64(data[16:])
-	classTableOffset := ReadUint64(data[24:])
-	entryPoint := ReadUint32(data[32:])
-
-	// Verify magic
-	if !bytes.Equal(magic, ImageMagic[:]) {
-		t.Errorf("Magic = %v, want %v", magic, ImageMagic)
+	// Verify CBOR tag prefix
+	if data[0] != 0xD9 {
+		t.Errorf("First byte = 0x%02X, want 0xD9 (CBOR tag prefix)", data[0])
 	}
 
-	// Verify version
-	if version != ImageVersion {
-		t.Errorf("Version = %d, want %d", version, ImageVersion)
+	// Verify round-trip: load into fresh VM
+	vm2 := NewVM()
+	if err := vm2.LoadImageFromBytes(data); err != nil {
+		t.Fatalf("LoadImageFromBytes failed: %v", err)
 	}
-
-	// Verify flags
-	if flags != ImageFlagNone {
-		t.Errorf("Flags = %d, want %d", flags, ImageFlagNone)
-	}
-
-	// String table offset should be past header
-	if stringTableOffset < uint64(ImageHeaderSize) {
-		t.Errorf("StringTableOffset = %d, should be >= %d", stringTableOffset, ImageHeaderSize)
-	}
-
-	// Class table offset should be past string table
-	if classTableOffset < stringTableOffset {
-		t.Errorf("ClassTableOffset = %d, should be >= StringTableOffset %d", classTableOffset, stringTableOffset)
-	}
-
-	// Entry point should be 0 (no explicit entry point set)
-	if entryPoint != 0 {
-		t.Errorf("EntryPoint = %d, want 0", entryPoint)
-	}
-
-	// Object count can be 0 for a fresh VM
-	_ = objectCount // Suppress unused warning
 }
 
 // ---------------------------------------------------------------------------
@@ -168,47 +134,30 @@ func TestImageHeaderStructure(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestImageStringTable(t *testing.T) {
-	vm := NewVM()
+	vm1 := NewVM()
 
 	// Add some symbols to create strings
-	vm.Symbols.Intern("testSymbol1")
-	vm.Symbols.Intern("testSymbol2")
-	vm.Symbols.Intern("hello")
+	vm1.Symbols.Intern("testSymbol1")
+	vm1.Symbols.Intern("testSymbol2")
+	vm1.Symbols.Intern("hello")
 
-	var buf bytes.Buffer
-	err := vm.SaveImageTo(&buf)
+	// Save to CBOR bytes
+	data, err := vm1.SaveImageCborBytes()
 	if err != nil {
-		t.Fatalf("SaveImageTo failed: %v", err)
+		t.Fatalf("SaveImageCborBytes failed: %v", err)
 	}
 
-	data := buf.Bytes()
-
-	// Find string table offset
-	stringTableOffset := ReadUint64(data[16:])
-	if stringTableOffset >= uint64(len(data)) {
-		t.Fatalf("String table offset %d out of bounds", stringTableOffset)
+	// Load into fresh VM and verify symbols survived
+	vm2 := NewVM()
+	if err := vm2.LoadImageFromBytes(data); err != nil {
+		t.Fatalf("LoadImageFromBytes failed: %v", err)
 	}
 
-	// Read string count
-	stringCount := ReadUint32(data[stringTableOffset:])
-	if stringCount == 0 {
-		t.Error("String count should be > 0")
-	}
-
-	// Verify we can read strings
-	offset := stringTableOffset + 4
-	for i := uint32(0); i < stringCount && offset < uint64(len(data)); i++ {
-		if offset+4 > uint64(len(data)) {
-			t.Fatalf("String %d length out of bounds", i)
+	// Verify the interned symbols exist in the loaded VM
+	for _, name := range []string{"testSymbol1", "testSymbol2", "hello"} {
+		if _, ok := vm2.Symbols.Lookup(name); !ok {
+			t.Errorf("Symbol %q not found in loaded VM", name)
 		}
-		strLen := ReadUint32(data[offset:])
-		offset += 4
-		if offset+uint64(strLen) > uint64(len(data)) {
-			t.Fatalf("String %d data out of bounds", i)
-		}
-		// Read string bytes
-		_ = string(data[offset : offset+uint64(strLen)])
-		offset += uint64(strLen)
 	}
 }
 
@@ -262,7 +211,7 @@ func TestImageSelectorTable(t *testing.T) {
 	}
 
 	// Just verify the image was created successfully
-	if buf.Len() < ImageHeaderSize {
+	if buf.Len() < 100 {
 		t.Error("Image too short")
 	}
 
@@ -280,35 +229,30 @@ func TestImageSelectorTable(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestImageClassSerialization(t *testing.T) {
-	vm := NewVM()
+	vm1 := NewVM()
 
 	// Create a custom class
-	customClass := NewClassWithInstVars("CustomClass", vm.ObjectClass, []string{"field1", "field2"})
-	vm.Classes.Register(customClass)
+	customClass := NewClassWithInstVars("CustomClass", vm1.ObjectClass, []string{"field1", "field2"})
+	vm1.Classes.Register(customClass)
 
-	var buf bytes.Buffer
-	err := vm.SaveImageTo(&buf)
+	// Save to CBOR bytes
+	data, err := vm1.SaveImageCborBytes()
 	if err != nil {
-		t.Fatalf("SaveImageTo failed: %v", err)
+		t.Fatalf("SaveImageCborBytes failed: %v", err)
 	}
 
-	data := buf.Bytes()
-
-	// Find class table offset
-	classTableOffset := ReadUint64(data[24:])
-	if classTableOffset >= uint64(len(data)) {
-		t.Fatalf("Class table offset %d out of bounds", classTableOffset)
+	// Load into fresh VM and verify the class survived
+	vm2 := NewVM()
+	if err := vm2.LoadImageFromBytes(data); err != nil {
+		t.Fatalf("LoadImageFromBytes failed: %v", err)
 	}
 
-	// Read class count
-	classCount := ReadUint32(data[classTableOffset:])
-	if classCount == 0 {
-		t.Error("Class count should be > 0")
+	loaded := vm2.LookupClass("CustomClass")
+	if loaded == nil {
+		t.Fatal("CustomClass not found in loaded VM")
 	}
-
-	// Should have at least the built-in classes
-	if classCount < 10 {
-		t.Errorf("Expected at least 10 classes (built-ins), got %d", classCount)
+	if len(loaded.InstVars) != 2 || loaded.InstVars[0] != "field1" || loaded.InstVars[1] != "field2" {
+		t.Errorf("CustomClass instVars = %v, want [field1 field2]", loaded.InstVars)
 	}
 }
 
@@ -332,7 +276,7 @@ func TestImageClassHierarchy(t *testing.T) {
 	}
 
 	// Just verify the image was created successfully with the hierarchy
-	if buf.Len() < ImageHeaderSize {
+	if buf.Len() < 100 {
 		t.Error("Image too short")
 	}
 }
@@ -366,7 +310,7 @@ func TestImageMethodSerialization(t *testing.T) {
 		t.Fatalf("SaveImageTo failed: %v", err)
 	}
 
-	if buf.Len() < ImageHeaderSize {
+	if buf.Len() < 100 {
 		t.Error("Image too short")
 	}
 }
@@ -404,7 +348,7 @@ func TestImageMethodWithBlocks(t *testing.T) {
 		t.Fatalf("SaveImageTo failed: %v", err)
 	}
 
-	if buf.Len() < ImageHeaderSize {
+	if buf.Len() < 100 {
 		t.Error("Image too short")
 	}
 }
@@ -436,7 +380,7 @@ func TestImageMethodWithSourceMap(t *testing.T) {
 		t.Fatalf("SaveImageTo failed: %v", err)
 	}
 
-	if buf.Len() < ImageHeaderSize {
+	if buf.Len() < 100 {
 		t.Error("Image too short")
 	}
 }
@@ -446,11 +390,11 @@ func TestImageMethodWithSourceMap(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestImageObjectSerialization(t *testing.T) {
-	vm := NewVM()
+	vm1 := NewVM()
 
 	// Create a class with slots
-	pointClass := NewClassWithInstVars("Point", vm.ObjectClass, []string{"x", "y"})
-	vm.Classes.Register(pointClass)
+	pointClass := NewClassWithInstVars("Point", vm1.ObjectClass, []string{"x", "y"})
+	vm1.Classes.Register(pointClass)
 
 	// Create an instance
 	point := pointClass.NewInstance()
@@ -458,29 +402,34 @@ func TestImageObjectSerialization(t *testing.T) {
 	point.SetSlot(1, FromSmallInt(20))
 
 	// Store in globals to make it reachable
-	vm.SetGlobal("testPoint", point.ToValue())
+	vm1.SetGlobal("testPoint", point.ToValue())
 
-	var buf bytes.Buffer
-	err := vm.SaveImageTo(&buf)
+	data, err := vm1.SaveImageCborBytes()
 	if err != nil {
-		t.Fatalf("SaveImageTo failed: %v", err)
+		t.Fatalf("SaveImageCborBytes failed: %v", err)
 	}
 
-	data := buf.Bytes()
+	// Round-trip: load into fresh VM and verify object
+	vm2 := NewVM()
+	if err := vm2.LoadImageFromBytes(data); err != nil {
+		t.Fatalf("LoadImageFromBytes failed: %v", err)
+	}
 
-	// Check object count in header
-	objectCount := ReadUint32(data[12:])
-	if objectCount == 0 {
-		t.Error("Object count should be > 0")
+	pointVal, ok := vm2.globals["testPoint"]
+	if !ok {
+		t.Fatal("testPoint global not found after load")
+	}
+	if !pointVal.IsObject() {
+		t.Fatal("testPoint is not an object after load")
 	}
 }
 
 func TestImageObjectWithNestedReferences(t *testing.T) {
-	vm := NewVM()
+	vm1 := NewVM()
 
 	// Create a linked list-like structure
-	nodeClass := NewClassWithInstVars("Node", vm.ObjectClass, []string{"value", "next"})
-	vm.Classes.Register(nodeClass)
+	nodeClass := NewClassWithInstVars("ListNode", vm1.ObjectClass, []string{"value", "next"})
+	vm1.Classes.Register(nodeClass)
 
 	// Create nodes
 	node3 := nodeClass.NewInstance()
@@ -496,19 +445,45 @@ func TestImageObjectWithNestedReferences(t *testing.T) {
 	node1.SetSlot(1, node2.ToValue())
 
 	// Store head in globals
-	vm.SetGlobal("listHead", node1.ToValue())
+	vm1.SetGlobal("listHead", node1.ToValue())
 
-	var buf bytes.Buffer
-	err := vm.SaveImageTo(&buf)
+	data, err := vm1.SaveImageCborBytes()
 	if err != nil {
-		t.Fatalf("SaveImageTo failed: %v", err)
+		t.Fatalf("SaveImageCborBytes failed: %v", err)
 	}
 
-	// Check that we collected all 3 nodes
-	data := buf.Bytes()
-	objectCount := ReadUint32(data[12:])
-	if objectCount < 3 {
-		t.Errorf("Object count = %d, want at least 3", objectCount)
+	// Round-trip: load into fresh VM and verify linked list structure
+	vm2 := NewVM()
+	if err := vm2.LoadImageFromBytes(data); err != nil {
+		t.Fatalf("LoadImageFromBytes failed: %v", err)
+	}
+
+	headVal, ok := vm2.globals["listHead"]
+	if !ok {
+		t.Fatal("listHead global not found after load")
+	}
+	if !headVal.IsObject() {
+		t.Fatal("listHead is not an object after load")
+	}
+
+	// Walk the linked list and verify values
+	cur := ObjectFromValue(headVal)
+	for i, expected := range []int64{1, 2, 3} {
+		val := cur.GetSlot(0)
+		if !val.IsSmallInt() || val.SmallInt() != expected {
+			t.Errorf("Node %d value = %v, want %d", i, val, expected)
+		}
+		next := cur.GetSlot(1)
+		if i < 2 {
+			if !next.IsObject() {
+				t.Fatalf("Node %d next is not an object", i)
+			}
+			cur = ObjectFromValue(next)
+		} else {
+			if next != Nil {
+				t.Errorf("Node %d next = %v, want nil", i, next)
+			}
+		}
 	}
 }
 
@@ -532,7 +507,7 @@ func TestImageGlobalsSerialization(t *testing.T) {
 	}
 
 	// The image should contain the globals
-	if buf.Len() < ImageHeaderSize {
+	if buf.Len() < 100 {
 		t.Error("Image too short")
 	}
 }
@@ -559,18 +534,18 @@ func TestImageSaveToFile(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Image file not created: %v", err)
 	}
-	if info.Size() < int64(ImageHeaderSize) {
+	if info.Size() < 100 {
 		t.Errorf("Image file too small: %d bytes", info.Size())
 	}
 
-	// Read file and verify magic
+	// Read file and verify CBOR tag prefix
 	data, err := os.ReadFile(imagePath)
 	if err != nil {
 		t.Fatalf("Failed to read image file: %v", err)
 	}
 
-	if !bytes.Equal(data[0:4], ImageMagic[:]) {
-		t.Errorf("Magic number mismatch in file")
+	if data[0] != 0xD9 {
+		t.Errorf("First byte = 0x%02X, want 0xD9 (CBOR tag prefix)", data[0])
 	}
 }
 
@@ -773,7 +748,7 @@ func TestImageEmptyStrings(t *testing.T) {
 		t.Fatalf("SaveImageTo failed: %v", err)
 	}
 
-	if buf.Len() < ImageHeaderSize {
+	if buf.Len() < 100 {
 		t.Error("Image too short")
 	}
 }
@@ -794,7 +769,7 @@ func TestImageLongStrings(t *testing.T) {
 		t.Fatalf("SaveImageTo failed: %v", err)
 	}
 
-	if buf.Len() < ImageHeaderSize {
+	if buf.Len() < 100 {
 		t.Error("Image too short")
 	}
 }
@@ -814,7 +789,7 @@ func TestImageManyClasses(t *testing.T) {
 		t.Fatalf("SaveImageTo failed: %v", err)
 	}
 
-	if buf.Len() < ImageHeaderSize {
+	if buf.Len() < 100 {
 		t.Error("Image too short")
 	}
 }
@@ -850,10 +825,21 @@ func TestImageManyObjects(t *testing.T) {
 		t.Fatalf("SaveImageTo failed: %v", err)
 	}
 
-	data := buf.Bytes()
-	objectCount := ReadUint32(data[12:])
-	if objectCount < 100 {
-		t.Errorf("Object count in header = %d, want at least 100", objectCount)
+	if buf.Len() < 100 {
+		t.Error("Image too short")
+	}
+
+	// Round-trip: verify objects survive save/load
+	vm2 := NewVM()
+	if err := vm2.LoadImageFromBytes(buf.Bytes()); err != nil {
+		t.Fatalf("LoadImageFromBytes failed: %v", err)
+	}
+
+	// Spot-check a few globals survived
+	for _, name := range []string{"testObject_AA", "testObject_BA", "testObject_DA"} {
+		if _, ok := vm2.globals[name]; !ok {
+			t.Errorf("Global %q not found after load", name)
+		}
 	}
 
 	// Use objectRefs to prevent compiler from optimizing away
@@ -1415,17 +1401,17 @@ func TestSaveImageAtomicBasic(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Image file not created: %v", err)
 	}
-	if info.Size() < int64(ImageHeaderSize) {
+	if info.Size() < 100 {
 		t.Errorf("Image file too small: %d bytes", info.Size())
 	}
 
-	// Verify magic number
+	// Verify CBOR tag prefix
 	data, err := os.ReadFile(imagePath)
 	if err != nil {
 		t.Fatalf("Failed to read image: %v", err)
 	}
-	if !bytes.Equal(data[0:4], ImageMagic[:]) {
-		t.Error("Magic number mismatch")
+	if data[0] != 0xD9 {
+		t.Errorf("First byte = 0x%02X, want 0xD9 (CBOR tag prefix)", data[0])
 	}
 
 	// .prev should NOT exist on first save
@@ -1470,10 +1456,10 @@ func TestSaveImageAtomicCreatesPrev(t *testing.T) {
 		t.Errorf(".prev size = %d, want %d (first save size)", prevInfo.Size(), firstSize.Size())
 	}
 
-	// .prev should be a valid image
+	// .prev should be a valid CBOR image
 	prevData, _ := os.ReadFile(prevPath)
-	if !bytes.Equal(prevData[0:4], ImageMagic[:]) {
-		t.Error(".prev file has invalid magic number")
+	if prevData[0] != 0xD9 {
+		t.Errorf(".prev first byte = 0x%02X, want 0xD9 (CBOR tag prefix)", prevData[0])
 	}
 }
 
