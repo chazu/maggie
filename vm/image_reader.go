@@ -1,7 +1,6 @@
 package vm
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -818,11 +817,11 @@ func (ir *ImageReader) readMethod(vm *VM) (*CompiledMethod, error) {
 
 	// Remap selector IDs in bytecode from image space to VM space
 	// This is critical because primitive selectors are pre-interned and may have different IDs
-	ir.remapBytecodeSelectors(bytecode)
+	remapBytecodeSelectors(bytecode, ir.selectorIDMap)
 
 	// Also remap selectors in block bytecode
 	for _, block := range blocks {
-		ir.remapBytecodeSelectors(block.Bytecode)
+		remapBytecodeSelectors(block.Bytecode, ir.selectorIDMap)
 	}
 
 	// Map selector from image space to VM's selector space using the method name
@@ -980,10 +979,11 @@ func (ir *ImageReader) GetMethod(idx uint32) (*CompiledMethod, error) {
 // Bytecode Selector Remapping
 // ---------------------------------------------------------------------------
 
-// remapBytecodeSelectors scans bytecode and remaps selector IDs from image space to VM space.
-// This is necessary because selector IDs in the image may differ from VM selector IDs
-// due to primitives being registered before the image is loaded.
-func (ir *ImageReader) remapBytecodeSelectors(bytecode []byte) {
+// remapBytecodeSelectors scans bytecode and remaps selector IDs from image space
+// to VM space. This is necessary because selector IDs in the image may differ
+// from VM selector IDs due to primitives being registered before the image is
+// loaded. The selectorIDMap maps image selector IDs to VM selector IDs.
+func remapBytecodeSelectors(bytecode []byte, selectorIDMap map[int]int) {
 	i := 0
 	for i < len(bytecode) {
 		op := Opcode(bytecode[i])
@@ -995,7 +995,7 @@ func (ir *ImageReader) remapBytecodeSelectors(bytecode []byte) {
 				imageSelectorID := int(bytecode[i+1]) | (int(bytecode[i+2]) << 8)
 
 				// Look up the VM selector ID
-				if vmSelectorID, ok := ir.selectorIDMap[imageSelectorID]; ok {
+				if vmSelectorID, ok := selectorIDMap[imageSelectorID]; ok {
 					// Only remap if different
 					if vmSelectorID != imageSelectorID {
 						// Write remapped selector ID (little-endian)
@@ -1338,16 +1338,41 @@ func (vm *VM) LoadImage(path string) error {
 }
 
 // LoadImageFrom loads a VM state from an io.Reader.
+// It reads all bytes into memory and delegates to LoadImageFromBytes
+// for format auto-detection.
 func (vm *VM) LoadImageFrom(r io.Reader) error {
-	ir, err := NewImageReader(r)
+	data, err := io.ReadAll(r)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to read image data: %w", err)
 	}
-
-	return ir.ReadAll(vm)
+	return vm.LoadImageFromBytes(data)
 }
 
 // LoadImageFromBytes loads a VM state from a byte slice.
+// It auto-detects the format: binary images start with "MAGI" (0x4D),
+// while CBOR images start with a CBOR tag prefix (0xD9 for 2-byte tags,
+// 0xDA for 4-byte tags).
 func (vm *VM) LoadImageFromBytes(data []byte) error {
-	return vm.LoadImageFrom(bytes.NewReader(data))
+	if len(data) < 4 {
+		return ErrCorruptHeader
+	}
+
+	switch {
+	case data[0] == 'M': // "MAGI" magic number for binary format
+		ir, err := NewImageReaderFromBytes(data)
+		if err != nil {
+			return err
+		}
+		return ir.ReadAll(vm)
+
+	case data[0] == 0xD9 || data[0] == 0xDA: // CBOR tag prefix
+		cr, err := NewCborImageReader(data)
+		if err != nil {
+			return err
+		}
+		return cr.ReadAll(vm)
+
+	default:
+		return fmt.Errorf("unrecognized image format: first byte 0x%02X", data[0])
+	}
 }
