@@ -1,6 +1,7 @@
 package vm
 
 import (
+	"sync"
 	"testing"
 	"unsafe"
 )
@@ -547,8 +548,33 @@ func TestBecomeForwardRedirects(t *testing.T) {
 	}
 }
 
+func TestBecomeForwardConcurrent(t *testing.T) {
+	obj := NewObject(nil, 2)
+	obj.SetSlot(0, FromSmallInt(0))
+	target := NewObject(nil, 2)
+	target.SetSlot(0, FromSmallInt(42))
+
+	var wg sync.WaitGroup
+	for i := 0; i < 100; i++ {
+		wg.Add(2)
+		go func() {
+			defer wg.Done()
+			obj.BecomeForward(target)
+		}()
+		go func() {
+			defer wg.Done()
+			_ = obj.Resolve()
+		}()
+	}
+	wg.Wait()
+
+	resolved := obj.Resolve()
+	if resolved.GetSlot(0).SmallInt() != 42 {
+		t.Errorf("expected 42 after concurrent forwarding, got %d", resolved.GetSlot(0).SmallInt())
+	}
+}
+
 func TestBecomeForwardChain(t *testing.T) {
-	// Test that forwarding chains are followed correctly
 	objA := NewObject(nil, 2)
 	objA.SetSlot(0, FromSmallInt(1))
 
@@ -568,6 +594,11 @@ func TestBecomeForwardChain(t *testing.T) {
 	resolved := ObjectFromValue(valA)
 	if resolved.GetSlot(0).SmallInt() != 3 {
 		t.Errorf("forwarding chain should resolve to C, got slot0 = %d, want 3", resolved.GetSlot(0).SmallInt())
+	}
+
+	// Path compression: A should now point directly to C
+	if objA.forward.Load() != objC {
+		t.Error("path compression should shortcut A directly to C after Resolve()")
 	}
 }
 

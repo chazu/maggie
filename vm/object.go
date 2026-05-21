@@ -17,9 +17,10 @@ import (
 type Object struct {
 	vtable *VTable // Pointer to method dispatch table
 
-	// forward supports become: - when non-nil, this object has been forwarded
+	// forward supports become: — when non-nil, this object has been forwarded
 	// to another object. All accesses should follow this pointer.
-	forward *Object
+	// Atomic to prevent data races when goroutines hold *Object refs.
+	forward atomic.Pointer[Object]
 
 	// size tracks the actual number of slots for variable-sized objects (arrays).
 	// For regular objects, this is 0 and NumSlots() returns NumInlineSlots + len(overflow).
@@ -267,21 +268,29 @@ func (obj *Object) SetVTable(vt *VTable) {
 // This is used by become: to redirect all accesses to a new object.
 func (obj *Object) Resolve() *Object {
 	current := obj
-	for current.forward != nil {
-		current = current.forward
+	for {
+		next := current.forward.Load()
+		if next == nil {
+			break
+		}
+		current = next
+	}
+	// Path compression: shortcut long chains so future resolves are O(1).
+	if current != obj {
+		obj.forward.Store(current)
 	}
 	return current
 }
 
 // IsForwarded returns true if this object has been forwarded to another object.
 func (obj *Object) IsForwarded() bool {
-	return obj.forward != nil
+	return obj.forward.Load() != nil
 }
 
 // ForwardTo sets up a forwarding pointer from this object to another.
 // After this call, all accesses through ObjectFromValue will resolve to target.
 func (obj *Object) ForwardTo(target *Object) {
-	obj.forward = target
+	obj.forward.Store(target)
 }
 
 // ---------------------------------------------------------------------------
@@ -405,5 +414,5 @@ func (obj *Object) BecomeForward(other *Object) {
 	if obj == other {
 		return // No-op
 	}
-	obj.forward = other.Resolve() // Follow any existing chain
+	obj.forward.Store(other.Resolve()) // Follow any existing chain
 }
