@@ -9,32 +9,6 @@ import (
 )
 
 // ---------------------------------------------------------------------------
-// Image Format Constants
-// ---------------------------------------------------------------------------
-
-// ImageMagic is the magic number identifying a Maggie image file.
-var ImageMagic = [4]byte{'M', 'A', 'G', 'I'}
-
-// Image format version
-// v1: initial format
-// v2: added docstring support on methods and classes
-// v3: added class variable serialization
-// v4: added content hash (SHA-256) on compiled methods
-// v5: added typed hash (SHA-256) on compiled methods
-const ImageVersion uint32 = 5
-
-// Image header size in bytes
-// magic(4) + version(4) + flags(4) + objectCount(4) + stringTableOffset(8) + classTableOffset(8) + entryPoint(4) = 36
-const ImageHeaderSize = 36
-
-// Image flags
-const (
-	ImageFlagNone       uint32 = 0
-	ImageFlagDebugInfo  uint32 = 1 << 0 // Includes source maps and debug info
-	ImageFlagCompressed uint32 = 1 << 1 // Reserved for future compression
-)
-
-// ---------------------------------------------------------------------------
 // VM integration
 // ---------------------------------------------------------------------------
 

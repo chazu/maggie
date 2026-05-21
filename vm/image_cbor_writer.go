@@ -145,7 +145,7 @@ type CborImageWriter struct {
 func NewCborImageWriter() *CborImageWriter {
 	return &CborImageWriter{
 		encoder: NewImageEncoder(),
-		flags:   ImageFlagNone,
+		flags:   0,
 	}
 }
 
