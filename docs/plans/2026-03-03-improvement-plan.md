@@ -105,7 +105,7 @@
   1. During compilation, emit a source position table alongside bytecodes: `[]SourcePos` where each entry maps a bytecode offset to a `(file, line, col)` triple.
   2. Store the table on `CompiledMethod` (new field: `SourceMap []SourcePos`).
   3. When formatting stack traces, look up the current IP in the source map.
-  4. Update the image format (v5) to persist source maps.
+  4. Update the image format to persist source maps. *(Image format is now CBOR-based; source maps stored as `[[offset, line, col], ...]` arrays.)*
 - **Research needed:** Study how other bytecode VMs (CPython, Lua, JVM) represent source maps compactly. A run-length encoding approach (one entry per source line change, not per bytecode) would be efficient.
 
 ### ~~TODO 12: Add a peephole optimizer pass~~ DONE

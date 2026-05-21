@@ -3,6 +3,8 @@
 **Date:** 2026-04-06
 **Scout:** operand-limits investigation
 
+> **Note (2026-05-21):** The image format section (§4) references the old binary format with `ImageVersion` constants. The image format was migrated to CBOR in May 2026. Bytecode is still stored as an opaque blob, so operand widening remains format-agnostic — no version bump needed.
+
 ## Summary
 
 The Maggie bytecode format uses fixed-width operands per opcode: **uint8 (1 byte)** for temp/ivar/capture slots, and **uint16 (2 bytes)** for literal/selector/global/class indices. These limits are hardcoded in the opcode encoding (vm/bytecode.go), enforced by bounds checks in the compiler (compiler/codegen.go), and decoded inline in the interpreter (vm/interpreter.go). Widening operands to uint16/uint32 is a **cross-cutting change** affecting at minimum 6 files and roughly 200-350 lines of modifications.

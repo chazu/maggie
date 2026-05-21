@@ -63,15 +63,13 @@ func isMarkedValue(marker uint32, v Value) bool {
 
 ---
 
-### 1.4 Image Reader/Writer: 3124 Lines for a Bespoke Format
+### 1.4 Image Reader/Writer: 3124 Lines for a Bespoke Format — **RESOLVED**
 
-**What:** The image system (`image_reader.go`: 1353 lines, `image_writer.go`: 1100 lines, `image_encoding.go`: 671 lines) implements a custom binary serialization format with manual encoding tags, object index tracking, and version negotiation.
+**What:** The image system (`image_reader.go`: 1353 lines, `image_writer.go`: 1100 lines, `image_encoding.go`: 671 lines) implemented a custom binary serialization format with manual encoding tags, object index tracking, and version negotiation.
 
 **Where:** `vm/image_reader.go`, `vm/image_writer.go`, `vm/image_encoding.go`
 
-**Why it's a problem:** The format is fragile (any change requires coordinating reader/writer/encoding), already at version 4, and the code is dense with manual `binary.Write`/`binary.Read` calls. Meanwhile, the project already depends on `fxamacker/cbor` for the distribution protocol and value serialization.
-
-**Recommendation:** Not a short-term fix. But for the next image format revision, seriously consider using CBOR (already a dependency) as the image encoding. The `serial.go` CBOR infrastructure already handles Values, class references, and circular refs. This could halve the image code while making the format self-describing and forward-compatible.
+**Resolution (2026-05-21):** Migrated to CBOR (`fxamacker/cbor/v2`) in 6 phases. Binary writer, reader, and all encoding infrastructure removed. Final state: `image_writer.go` (874 lines), `image_reader.go` (678 lines), `image_encoding.go` (453 lines) — 2005 total, down from 3124 (36% reduction). Image size 675KB vs 724KB (7% smaller). Format is self-describing via CBOR tags 27100-27114.
 
 | Priority | Effort |
 |----------|--------|

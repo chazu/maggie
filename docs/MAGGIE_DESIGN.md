@@ -1228,159 +1228,86 @@ For non-self sends or different selectors, `OpTailSend` falls back to a normal s
 
 ## Image Format
 
-The image is a binary snapshot of the entire object memory, enabling save/restore of live system state.
+The image is a CBOR-encoded snapshot of the entire object memory, enabling save/restore of live system state. It uses `fxamacker/cbor/v2` with canonical encoding for deterministic output.
 
 ### Image Structure
 
+The image is a single CBOR tagged value (tag 27100) containing an envelope struct with all sections encoded using integer keys (`keyasint`) for compactness:
+
 ```
-┌─────────────────────────────────────────┐
-│ Header                                  │
-│   Magic number (MAGI)                   │
-│   Version                               │
-│   Flags                                 │
-│   Object count                          │
-│   String table offset                   │
-│   Class table offset                    │
-│   Entry point (main method)             │
-├─────────────────────────────────────────┤
-│ String Table                            │
-│   Count                                 │
-│   [length:32 | utf8 bytes]...           │
-├─────────────────────────────────────────┤
-│ Symbol Table                            │
-│   Count                                 │
-│   [string-index:32]...                  │
-├─────────────────────────────────────────┤
-│ Selector Table                          │
-│   Count                                 │
-│   [symbol-index:32]...                  │
-├─────────────────────────────────────────┤
-│ Namespace Table                         │
-│   Count                                 │
-│   [name: string-index | class-count     │
-│    | class-indices...]...               │
-├─────────────────────────────────────────┤
-│ Class Definitions                       │
-│   Count                                 │
-│   [                                     │
-│     name: string-index                  │
-│     namespace: namespace-index          │
-│     superclass: class-index             │
-│     instVarNames: [string-index]...     │
-│     classVarNames: [string-index]...    │
-│     methods: [method-def]...            │
-│   ]...                                  │
-├─────────────────────────────────────────┤
-│ Compiled Methods                        │
-│   Count                                 │
-│   [                                     │
-│     selector: selector-index            │
-│     class: class-index                  │
-│     arity, numTemps                     │
-│     literals: [value]...                │
-│     bytecode: [byte]...                 │
-│     blocks: [block-method]...           │
-│     sourceMap: [source-loc]...          │
-│   ]...                                  │
-├─────────────────────────────────────────┤
-│ Objects                                 │
-│   Count                                 │
-│   [                                     │
-│     class: class-index                  │
-│     slots: [value]...                   │
-│   ]...                                  │
-├─────────────────────────────────────────┤
-│ Globals                                 │
-│   Count                                 │
-│   [name: string-index | value]...       │
-└─────────────────────────────────────────┘
+CBOR Tag 27100 (imageEnvelope)
+├── Version: uint (1)
+├── Flags: uint
+├── Stats: { classes, methods, objects, globals }
+├── Strings: [string, ...]
+├── Symbols: [string-index, ...]
+├── Selectors: [string, ...]
+├── Classes: [classDef, ...]
+│     name: string-index
+│     namespace: string-index
+│     superclass: class-index
+│     instVarNames: [string, ...]
+│     classVarNames: [string, ...]
+│     traits: [string, ...]
+├── Methods: [methodDef, ...]
+│     name: string
+│     class: class-index
+│     arity, numTemps, numUpvalues
+│     literals: [CBOR-encoded value, ...]
+│     bytecode: bytes
+│     blocks: [blockDef, ...]
+│     sourceMap: [[offset, line, col], ...]
+│     contentHash, typedHash: bytes
+├── Objects: [objectDef, ...]
+│     class: class-index
+│     slots: [CBOR-encoded value, ...]
+├── Globals: [{ name: string-index, value: CBOR }, ...]
+└── ClassVars: [{ class: class-index, vars: [{ name, value }] }, ...]
 ```
 
 ### Value Encoding in Image
 
-```go
-// Value encoding for image serialization
-// High 4 bits indicate type, remaining bits are payload
+Values are encoded as individually-tagged CBOR items using tags 27101-27114:
 
-const (
-    imageTagFloat    = 0x0  // 64-bit float (stored directly)
-    imageTagSmallInt = 0x1  // 48-bit signed integer
-    imageTagObject   = 0x2  // object index
-    imageTagNil      = 0x3
-    imageTagTrue     = 0x4
-    imageTagFalse    = 0x5
-    imageTagSymbol   = 0x6  // symbol table index
-    imageTagString   = 0x7  // string table index (for literal strings)
-    imageTagClass    = 0x8  // class table index
-    imageTagMethod   = 0x9  // method table index
-)
-```
+| CBOR Tag | Type | Payload |
+|----------|------|---------|
+| 27101 | Float | 64-bit float |
+| 27102 | SmallInt | integer |
+| 27103 | Object ref | object index |
+| 27104 | Nil | (empty) |
+| 27105 | True | (empty) |
+| 27106 | False | (empty) |
+| 27107 | Symbol ref | symbol index |
+| 27108 | String ref | string index |
+| 27109 | Class ref | class index |
+| 27110 | Method ref | method index |
+| 27111 | Dictionary ref | dict index |
+| 27112 | BigInt | integer |
+| 27113 | Block ref | method + block index |
+| 27114 | Symbol (by name) | string |
 
 ### Image Load/Save
 
 ```go
-func (vm *VM) saveImage(path string) error {
-    w := newImageWriter(path)
-
-    // Traverse all reachable objects
-    objects := vm.collectAllObjects()
-
-    // Write header
-    w.writeHeader(len(objects))
-
-    // Write tables
-    w.writeStringTable(vm.strings)
-    w.writeSymbolTable(vm.symbols)
-    w.writeSelectorTable(vm.selectorTable)
-    w.writeNamespaceTable(vm.namespaces)
-
-    // Write classes
-    w.writeClasses(vm.allClasses())
-
-    // Write methods
-    w.writeMethods(vm.allMethods())
-
-    // Write objects
-    for _, obj := range objects {
-        w.writeObject(obj)
+func (vm *VM) SaveImageTo(w io.Writer) error {
+    data, err := vm.SaveImageBytes()
+    if err != nil {
+        return err
     }
-
-    // Write globals
-    w.writeGlobals(vm.globals)
-
-    return w.finish()
+    _, err = w.Write(data)
+    return err
 }
 
-func (vm *VM) loadImage(path string) error {
-    r := newImageReader(path)
-
-    // Read and validate header
-    header := r.readHeader()
-    if header.magic != "MAGI" {
-        return errors.New("invalid image format")
+func (vm *VM) LoadImageFromBytes(data []byte) error {
+    reader, err := NewImageReader(data)
+    if err != nil {
+        return fmt.Errorf("failed to parse CBOR image: %w", err)
     }
-
-    // Read tables
-    vm.strings = r.readStringTable()
-    vm.symbols = r.readSymbolTable()
-    vm.selectorTable = r.readSelectorTable()
-    vm.namespaces = r.readNamespaceTable()
-
-    // Read classes (creates vtables)
-    r.readClasses(vm)
-
-    // Read methods (populates vtables)
-    r.readMethods(vm)
-
-    // Read objects
-    objects := r.readObjects(vm)
-
-    // Read globals
-    vm.globals = r.readGlobals(objects)
-
-    return nil
+    return reader.ReadAll(vm)
 }
 ```
+
+Objects are read in two passes (allocate all, then fill slots) to support circular references. Selectors are stored by name and remapped to VM-local IDs on load.
 
 ---
 
@@ -1409,7 +1336,7 @@ Maggie has a layered execution architecture. The bytecode interpreter is the onl
 │    NOT integrated into CLI — Go API only                        │
 ├─────────────────────────────────────────────────────────────────┤
 │  Image (vm/image_reader.go, vm/image_writer.go)                 │
-│    Binary snapshots of VM state                                  │
+│    CBOR snapshots of VM state                                    │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -1423,7 +1350,7 @@ Maggie has a layered execution architecture. The bytecode interpreter is the onl
 | **Inline caching** | `vm/inline_cache.go` | Production | Mono/poly/mega caches integrated into interpreter dispatch. |
 | **Profiler** | `vm/profiler.go` | Integrated | Tracks method/block invocation counts. Identifies hot methods (threshold: 100) and blocks (threshold: 500). |
 | **AOT compiler** | `vm/aot.go` | Implemented, not deployed | Translates bytecode → Go source. Handles full instruction set including super sends, blocks, tail calls. |
-| **Image format** | `vm/image_reader.go`, `vm/image_writer.go` | Production | Binary snapshots with "MAGI" magic. Embedded image bootstraps the VM. |
+| **Image format** | `vm/image_reader.go`, `vm/image_writer.go` | Production | CBOR-encoded snapshots (tag 27100). Embedded image bootstraps the VM. |
 
 ### Dual-Compiler Architecture
 

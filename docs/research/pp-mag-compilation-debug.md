@@ -36,7 +36,7 @@ Tested by calling `compiler.CompileMethodDefWithIvars()` on every method definit
 
 **Finding: No method count limit per class.**
 
-The image reader/writer use `uint32` for method counts (up to 4 billion). The VTable (`vm/vtable.go`) uses a dynamically-sized `[]Method` slice with no artificial limit. Previous research (documented in `docs/research/maggie-operand-widening.md`) also confirms: "There is no class-level compilation limit separate from method-level limits."
+The image format (CBOR) places no limit on method counts. The VTable (`vm/vtable.go`) uses a dynamically-sized `[]Method` slice with no artificial limit. Previous research (documented in `docs/research/maggie-operand-widening.md`) also confirms: "There is no class-level compilation limit separate from method-level limits."
 
 ### 4. Per-Method vs Per-File Issue
 

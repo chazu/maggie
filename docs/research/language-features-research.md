@@ -173,7 +173,7 @@ Create `BigInteger` class as a subclass of `Object`. Register primitives for `+`
 
 **Step 8: Image format**
 
-BigInt values are registry-based (stored as symbol IDs with a marker), so they follow the same serialization path as other registry values. Image persistence would need to serialize the `big.Int` bytes and reconstruct on load. This requires an image format version bump.
+BigInt values are registry-based (stored as symbol IDs with a marker), so they follow the same serialization path as other registry values. Image persistence serializes `big.Int` values via CBOR tag 27112.
 
 ### Risk/Complexity
 

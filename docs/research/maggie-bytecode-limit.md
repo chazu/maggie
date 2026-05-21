@@ -95,7 +95,7 @@ A block capturing >255 variables silently truncates the capture count.
 
 ## Image Format Is Not the Bottleneck
 
-The image writer (`vm/image_writer.go`) uses `uint32` for all length fields (bytecode length, literal count, etc.), so the image format itself supports up to 4 billion bytes of bytecode per method. The bottleneck is purely in the operand encoding at compile time.
+The image format stores bytecode as an opaque byte blob with no length restriction. The bottleneck is purely in the operand encoding at compile time.
 
 ## Most Likely Trigger in Practice
 
@@ -150,5 +150,5 @@ The compiler already has an `errors []string` accumulator and callers check `Err
 | `compiler/codegen.go` | Main codegen — all narrowing casts live here |
 | `vm/compiled_method.go` | CompiledMethod/BlockMethod structs (Bytecode field) |
 | `vm/bytecode.go` | Opcode definitions, BytecodeBuilder, jump encoding |
-| `vm/image_writer.go` | Image serialization (uses uint32, not the bottleneck) |
+| `vm/image_writer.go` | Image serialization (CBOR, not the bottleneck) |
 | `compiler/peephole.go` | Post-codegen optimizer (not relevant to limits) |

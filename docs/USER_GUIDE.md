@@ -1172,7 +1172,7 @@ Compiler fileOutNamespace: 'MyApp::Models' to: '/tmp/models/'.
 
 ### Image Persistence
 
-Save the entire VM state (all loaded classes, methods, and globals) to a binary image:
+Save the entire VM state (all loaded classes, methods, and globals) to an image:
 
 ```smalltalk
 -- Save current VM state

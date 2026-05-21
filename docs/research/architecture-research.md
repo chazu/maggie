@@ -2,6 +2,8 @@
 
 Date: 2026-03-03
 
+> **Note (2026-05-21):** References to binary image format internals (line numbers, `WriteUint32` calls, 12-byte source map encoding, image version bumps) are outdated. The image format was migrated to CBOR in May 2026. Source maps are now stored as CBOR arrays of `[offset, line, col]` triples.
+
 ---
 
 ## TODO 9: Break Up ObjectRegistry
