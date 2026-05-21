@@ -50,6 +50,7 @@ func main() {
 	libDir := flag.String("lib", "lib", "Directory containing .mag source files")
 	output := flag.String("o", "maggie.image", "Output image file")
 	verbose := flag.Bool("v", false, "Verbose output")
+	cborImage := flag.Bool("cbor", false, "Write CBOR format image")
 	flag.Parse()
 
 	// Create a fresh VM with primitives
@@ -135,12 +136,19 @@ func main() {
 	}
 
 	// Save the image
-	if err := vmInst.SaveImage(*output); err != nil {
-		fmt.Fprintf(os.Stderr, "Error saving image: %v\n", err)
-		os.Exit(1)
+	if *cborImage {
+		if err := vmInst.SaveImageCbor(*output); err != nil {
+			fmt.Fprintf(os.Stderr, "Error saving CBOR image: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Printf("CBOR image saved to %s\n", *output)
+	} else {
+		if err := vmInst.SaveImage(*output); err != nil {
+			fmt.Fprintf(os.Stderr, "Error saving image: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Printf("Image saved to %s\n", *output)
 	}
-
-	fmt.Printf("Image saved to %s\n", *output)
 
 	// Generate primitive docstrings Go file for embedding in mag binary
 	if err := generatePrimDocstrings(allFiles, "cmd/mag/prim_docstrings_gen.go"); err != nil {
