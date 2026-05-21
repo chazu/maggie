@@ -132,13 +132,14 @@ func (c *Class) IncludeTrait(trait *Trait, selectors *SelectorTable) string {
 		}
 	}
 
-	// Add trait methods (class methods take precedence)
+	// Add trait methods (class methods take precedence).
+	// Clone so each class owns its own copy with correct class pointer.
 	for selectorID, method := range trait.Methods {
 		if c.VTable.Lookup(selectorID) == nil {
-			// Class doesn't define this method, add trait's method
-			c.VTable.AddMethod(selectorID, method)
+			cloned := method.Clone()
+			cloned.SetClass(c)
+			c.VTable.AddMethod(selectorID, cloned)
 		}
-		// If class already defines the method, trait method is ignored (class wins)
 	}
 
 	return ""

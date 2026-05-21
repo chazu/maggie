@@ -1174,8 +1174,8 @@ func (p *Parser) parseClassDefBody(className string, startPos Position) *ClassDe
 				classDef.InstanceVarTypes = append(classDef.InstanceVarTypes, varTypes...)
 				pendingDocString = ""
 
-			case "include:":
-				p.nextToken() // consume "include:"
+			case "include:", "uses:":
+				p.nextToken() // consume "include:" or "uses:"
 				if p.curTokenIs(TokenIdentifier) {
 					classDef.Traits = append(classDef.Traits, p.curToken.Literal)
 					p.nextToken()

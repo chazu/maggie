@@ -92,6 +92,15 @@ func (m *CompiledMethod) Invoke(vm interface{}, receiver Value, args []Value) Va
 	panic("CompiledMethod.Invoke: use interpreter")
 }
 
+// Clone returns a shallow copy with its own inline-cache state.
+// Used by trait inclusion so each class gets its own method object.
+func (m *CompiledMethod) Clone() *CompiledMethod {
+	c := *m
+	c.inlineCaches = atomic.Pointer[InlineCacheTable]{}
+	c.inlineCachesOnce = sync.Once{}
+	return &c
+}
+
 // Name returns the method name.
 func (m *CompiledMethod) Name() string {
 	return m.name

@@ -1,0 +1,50 @@
+"""
+Trait providing derived comparison methods for any class that implements `<`.
+Classes using this trait must define `<` (less-than comparison).
+Equality (`=`) is assumed to exist on all objects.
+
+```test
+3 max: 5 >>> 5
+3 min: 5 >>> 3
+5 between: 1 and: 10 >>> true
+```
+"""
+Comparable trait
+
+  """
+  Return the larger of the receiver and the argument.
+
+  ```test
+  3 max: 5 >>> 5
+  7 max: 2 >>> 7
+  ```
+  """
+  method: max: other [
+      self > other ifTrue: [^self].
+      ^other
+  ]
+
+  """
+  Return the smaller of the receiver and the argument.
+
+  ```test
+  3 min: 5 >>> 3
+  7 min: 2 >>> 2
+  ```
+  """
+  method: min: other [
+      self < other ifTrue: [^self].
+      ^other
+  ]
+
+  """
+  Return true if the receiver is between min and max, inclusive.
+
+  ```test
+  5 between: 1 and: 10 >>> true
+  0 between: 1 and: 10 >>> false
+  ```
+  """
+  method: between: min and: max ^<Boolean> [
+      ^self >= min & (self <= max)
+  ]

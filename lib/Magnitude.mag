@@ -1,7 +1,7 @@
 """
 Abstract superclass of types that support comparison via `<` and `=`.
-Subclasses must implement `<` and `=`; this class provides derived
-comparisons and `max:`, `min:`, `between:and:`.
+Subclasses must implement `<` and `=`; derived comparison methods
+(`max:`, `min:`, `between:and:`) are provided by the Comparable trait.
 
 ```test
 5 max: 3 >>> 5
@@ -11,48 +11,4 @@ comparisons and `max:`, `min:`, `between:and:`.
 ```
 """
 Magnitude subclass: Object
-
-  """
-  Return the larger of the receiver and the argument.
-
-  ```test
-  3 max: 5 >>> 5
-  7 max: 2 >>> 7
-  4 max: 4 >>> 4
-  3.0 max: 5.0 >>> 5
-  ```
-  """
-  method: max: other [
-      self > other ifTrue: [^self].
-      ^other
-  ]
-
-  """
-  Return the smaller of the receiver and the argument.
-
-  ```test
-  3 min: 5 >>> 3
-  7 min: 2 >>> 2
-  4 min: 4 >>> 4
-  3.0 min: 5.0 >>> 3
-  ```
-  """
-  method: min: other [
-      self < other ifTrue: [^self].
-      ^other
-  ]
-
-  """
-  Return true if the receiver is between min and max, inclusive.
-
-  ```test
-  5 between: 1 and: 10 >>> true
-  1 between: 1 and: 10 >>> true
-  10 between: 1 and: 10 >>> true
-  0 between: 1 and: 10 >>> false
-  11 between: 1 and: 10 >>> false
-  ```
-  """
-  method: between: min and: max ^<Boolean> [
-      ^self >= min & (self <= max)
-  ]
+  uses: Comparable

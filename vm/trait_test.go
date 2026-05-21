@@ -127,10 +127,20 @@ func TestClassIncludeTrait(t *testing.T) {
 		t.Errorf("unexpected error including trait: %s", errMsg)
 	}
 
-	// Check method was added
+	// Check method was added (cloned, not same pointer)
 	found := class.VTable.Lookup(printSelector)
-	if found != printMethod {
-		t.Error("expected trait method to be added to class")
+	if found == nil {
+		t.Fatal("expected trait method to be added to class")
+	}
+	cm, ok := found.(*CompiledMethod)
+	if !ok {
+		t.Fatal("expected CompiledMethod")
+	}
+	if cm.Name() != "print" {
+		t.Error("expected method name 'print'")
+	}
+	if cm.Class() != class {
+		t.Error("expected cloned trait method to have class set")
 	}
 }
 
@@ -213,10 +223,13 @@ func TestIncludeTraitByName(t *testing.T) {
 		t.Errorf("unexpected error: %s", errMsg)
 	}
 
-	// Verify method was added
+	// Verify method was added (cloned, not same pointer)
 	found := class.VTable.Lookup(printSelector)
-	if found != printMethod {
-		t.Error("expected trait method to be added via IncludeTraitByName")
+	if found == nil {
+		t.Fatal("expected trait method to be added via IncludeTraitByName")
+	}
+	if cm, ok := found.(*CompiledMethod); !ok || cm.Name() != "print" {
+		t.Error("expected CompiledMethod named 'print'")
 	}
 
 	// Try unknown trait
