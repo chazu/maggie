@@ -19,24 +19,21 @@ func RegisterPrimitives(v *vm.VM) {
 	nsClass := v.RegisterGoType("Go::Strings", reflect.TypeOf((*struct{})(nil)))
 	_ = nsClass
 
-	nsClass.AddClassMethod(v.Selectors, "contains:substr:", vm.NewPrimitiveMethod("contains:substr:", func(vmPtr interface{}, receiver vm.Value, args []vm.Value) vm.Value {
-		v := vmPtr.(*vm.VM)
+	nsClass.AddClassMethod(v.Selectors, "contains:substr:", vm.NewPrimitiveMethod("contains:substr:", func(v *vm.VM, receiver vm.Value, args []vm.Value) vm.Value {
 		arg0 := v.ValueToGo(args[0]).(string)
 		arg1 := v.ValueToGo(args[1]).(string)
 		result := pkg.Contains(arg0, arg1)
 		return v.GoToValue(result)
 	}))
 
-	nsClass.AddClassMethod(v.Selectors, "hasPrefix:prefix:", vm.NewPrimitiveMethod("hasPrefix:prefix:", func(vmPtr interface{}, receiver vm.Value, args []vm.Value) vm.Value {
-		v := vmPtr.(*vm.VM)
+	nsClass.AddClassMethod(v.Selectors, "hasPrefix:prefix:", vm.NewPrimitiveMethod("hasPrefix:prefix:", func(v *vm.VM, receiver vm.Value, args []vm.Value) vm.Value {
 		arg0 := v.ValueToGo(args[0]).(string)
 		arg1 := v.ValueToGo(args[1]).(string)
 		result := pkg.HasPrefix(arg0, arg1)
 		return v.GoToValue(result)
 	}))
 
-	builderClass.AddPrimitiveMethod(v.Selectors, "cap", func(vmPtr interface{}, receiver vm.Value, args []vm.Value) vm.Value {
-		v := vmPtr.(*vm.VM)
+	builderClass.AddPrimitiveMethod(v.Selectors, "cap", func(v *vm.VM, receiver vm.Value, args []vm.Value) vm.Value {
 		goVal, ok := v.GetGoObject(receiver)
 		if !ok {
 			return vm.Nil
@@ -46,8 +43,7 @@ func RegisterPrimitives(v *vm.VM) {
 		return v.GoToValue(result)
 	})
 
-	builderClass.AddPrimitiveMethod(v.Selectors, "grow:", func(vmPtr interface{}, receiver vm.Value, args []vm.Value) vm.Value {
-		v := vmPtr.(*vm.VM)
+	builderClass.AddPrimitiveMethod(v.Selectors, "grow:", func(v *vm.VM, receiver vm.Value, args []vm.Value) vm.Value {
 		goVal, ok := v.GetGoObject(receiver)
 		if !ok {
 			return vm.Nil
@@ -58,8 +54,7 @@ func RegisterPrimitives(v *vm.VM) {
 		return vm.Nil
 	})
 
-	builderClass.AddPrimitiveMethod(v.Selectors, "len", func(vmPtr interface{}, receiver vm.Value, args []vm.Value) vm.Value {
-		v := vmPtr.(*vm.VM)
+	builderClass.AddPrimitiveMethod(v.Selectors, "len", func(v *vm.VM, receiver vm.Value, args []vm.Value) vm.Value {
 		goVal, ok := v.GetGoObject(receiver)
 		if !ok {
 			return vm.Nil
@@ -69,8 +64,7 @@ func RegisterPrimitives(v *vm.VM) {
 		return v.GoToValue(result)
 	})
 
-	builderClass.AddPrimitiveMethod(v.Selectors, "reset", func(vmPtr interface{}, receiver vm.Value, args []vm.Value) vm.Value {
-		v := vmPtr.(*vm.VM)
+	builderClass.AddPrimitiveMethod(v.Selectors, "reset", func(v *vm.VM, receiver vm.Value, args []vm.Value) vm.Value {
 		goVal, ok := v.GetGoObject(receiver)
 		if !ok {
 			return vm.Nil
@@ -80,8 +74,7 @@ func RegisterPrimitives(v *vm.VM) {
 		return vm.Nil
 	})
 
-	builderClass.AddPrimitiveMethod(v.Selectors, "string", func(vmPtr interface{}, receiver vm.Value, args []vm.Value) vm.Value {
-		v := vmPtr.(*vm.VM)
+	builderClass.AddPrimitiveMethod(v.Selectors, "string", func(v *vm.VM, receiver vm.Value, args []vm.Value) vm.Value {
 		goVal, ok := v.GetGoObject(receiver)
 		if !ok {
 			return vm.Nil
@@ -91,8 +84,7 @@ func RegisterPrimitives(v *vm.VM) {
 		return v.GoToValue(result)
 	})
 
-	builderClass.AddPrimitiveMethod(v.Selectors, "write:", func(vmPtr interface{}, receiver vm.Value, args []vm.Value) vm.Value {
-		v := vmPtr.(*vm.VM)
+	builderClass.AddPrimitiveMethod(v.Selectors, "write:", func(v *vm.VM, receiver vm.Value, args []vm.Value) vm.Value {
 		goVal, ok := v.GetGoObject(receiver)
 		if !ok {
 			return vm.Nil
@@ -106,8 +98,7 @@ func RegisterPrimitives(v *vm.VM) {
 		return v.NewSuccessResult(v.GoToValue(result))
 	})
 
-	builderClass.AddPrimitiveMethod(v.Selectors, "writeByte:", func(vmPtr interface{}, receiver vm.Value, args []vm.Value) vm.Value {
-		v := vmPtr.(*vm.VM)
+	builderClass.AddPrimitiveMethod(v.Selectors, "writeByte:", func(v *vm.VM, receiver vm.Value, args []vm.Value) vm.Value {
 		goVal, ok := v.GetGoObject(receiver)
 		if !ok {
 			return vm.Nil
@@ -121,8 +112,7 @@ func RegisterPrimitives(v *vm.VM) {
 		return v.NewSuccessResult(vm.Nil)
 	})
 
-	builderClass.AddPrimitiveMethod(v.Selectors, "writeRune:", func(vmPtr interface{}, receiver vm.Value, args []vm.Value) vm.Value {
-		v := vmPtr.(*vm.VM)
+	builderClass.AddPrimitiveMethod(v.Selectors, "writeRune:", func(v *vm.VM, receiver vm.Value, args []vm.Value) vm.Value {
 		goVal, ok := v.GetGoObject(receiver)
 		if !ok {
 			return vm.Nil
@@ -136,8 +126,7 @@ func RegisterPrimitives(v *vm.VM) {
 		return v.NewSuccessResult(v.GoToValue(result))
 	})
 
-	builderClass.AddPrimitiveMethod(v.Selectors, "writeString:", func(vmPtr interface{}, receiver vm.Value, args []vm.Value) vm.Value {
-		v := vmPtr.(*vm.VM)
+	builderClass.AddPrimitiveMethod(v.Selectors, "writeString:", func(v *vm.VM, receiver vm.Value, args []vm.Value) vm.Value {
 		goVal, ok := v.GetGoObject(receiver)
 		if !ok {
 			return vm.Nil

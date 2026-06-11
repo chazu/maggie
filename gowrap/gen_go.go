@@ -108,10 +108,9 @@ func generateFunctionBinding(b *strings.Builder, fn FunctionModel, pkgPath strin
 		return
 	}
 
-	fmt.Fprintf(b, "\tnsClass.AddClassMethod(v.Selectors, %q, vm.NewPrimitiveMethod(%q, func(vmPtr interface{}, receiver vm.Value, args []vm.Value) vm.Value {\n",
+	fmt.Fprintf(b, "\tnsClass.AddClassMethod(v.Selectors, %q, vm.NewPrimitiveMethod(%q, func(v *vm.VM, receiver vm.Value, args []vm.Value) vm.Value {\n",
 		selector, selector)
 
-	// Generate body into temp buffer to check if v is used
 	var body strings.Builder
 	for i, p := range fn.Params {
 		conv := goTypeConversion(p.GoType, fmt.Sprintf("args[%d]", i), pkgPath)
@@ -123,13 +122,7 @@ func generateFunctionBinding(b *strings.Builder, fn FunctionModel, pkgPath strin
 	callExpr := fmt.Sprintf("pkg.%s(%s)", fn.Name, strings.Join(callArgs, ", "))
 	writeReturnHandling(&body, callExpr, fn.Results, fn.ReturnsErr)
 
-	bodyStr := body.String()
-	if strings.Contains(bodyStr, "v.") {
-		fmt.Fprintf(b, "\t\tv := vmPtr.(*vm.VM)\n")
-	} else {
-		fmt.Fprintf(b, "\t\t_ = vmPtr\n")
-	}
-	b.WriteString(bodyStr)
+	b.WriteString(body.String())
 
 	fmt.Fprintf(b, "\t}))\n\n")
 }
@@ -142,9 +135,8 @@ func generateMethodBinding(b *strings.Builder, m FunctionModel, tp TypeModel, pk
 	}
 
 	varName := lcFirst(tp.Name) + "Class"
-	fmt.Fprintf(b, "\t%s.AddPrimitiveMethod(v.Selectors, %q, func(vmPtr interface{}, receiver vm.Value, args []vm.Value) vm.Value {\n",
+	fmt.Fprintf(b, "\t%s.AddPrimitiveMethod(v.Selectors, %q, func(v *vm.VM, receiver vm.Value, args []vm.Value) vm.Value {\n",
 		varName, selector)
-	fmt.Fprintf(b, "\t\tv := vmPtr.(*vm.VM)\n")
 
 	// Extract Go receiver
 	fmt.Fprintf(b, "\t\tgoVal, ok := v.GetGoObject(receiver)\n")
