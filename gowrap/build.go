@@ -14,6 +14,18 @@ type WrapperPackageInfo struct {
 	PkgName    string // short package name (e.g., "strings")
 }
 
+// contribPackages are the vm/contrib plugin packages that self-register their
+// primitives (CUE, TupleSpace, ConstraintStore, DuckDB, gRPC, SQLite) via
+// init() + vm.RegisterContrib. Embedded build mains MUST blank-import these or
+// the primitives are absent at runtime ("Message not understood"). This list
+// must mirror the contrib imports in cmd/mag/main.go.
+var contribPackages = []string{
+	"vm/contrib/cue",
+	"vm/contrib/duckdb",
+	"vm/contrib/grpc",
+	"vm/contrib/sqlite",
+}
+
 func detectModulePath(projectDir string) (string, error) {
 	goModPath := filepath.Join(projectDir, "go.mod")
 	data, err := os.ReadFile(goModPath)
@@ -486,6 +498,12 @@ func generateEmbeddedMain(maggieModule, entryPoint, namespace, projectDir, wrapD
 	fmt.Fprintf(&b, "\t\"strings\"\n\n")
 	fmt.Fprintf(&b, "\t\"%s/compiler\"\n", maggieModule)
 	fmt.Fprintf(&b, "\t\"%s/vm\"\n", maggieModule)
+
+	// Blank-import contrib plugins so their init() registers primitives
+	// (CUE, TupleSpace, etc.) before vm.NewVM() applies contribs.
+	for _, pkg := range contribPackages {
+		fmt.Fprintf(&b, "\t_ \"%s/%s\"\n", maggieModule, pkg)
+	}
 
 	// Import wrapper packages if any
 	if len(wrapperPkgs) > 0 {
