@@ -22,6 +22,7 @@ type WrapperPackageInfo struct {
 var contribPackages = []string{
 	"vm/contrib/cue",
 	"vm/contrib/duckdb",
+	"vm/contrib/ganso",
 	"vm/contrib/grpc",
 	"vm/contrib/sqlite",
 }
@@ -408,6 +409,30 @@ func generateEmbeddedGoMod(maggieModule, maggieDir, projectDir, wrapDir string, 
 		if len(parts) >= 1 && !handledRequires[parts[0]] {
 			fmt.Fprintf(&b, "\t%s\n", req)
 			handledRequires[parts[0]] = true
+		}
+	}
+
+	// Propagate maggie's OWN require/replace directives so contrib packages can
+	// import maggie's transitive local-path deps (e.g. github.com/chazu/ganso,
+	// which the ganso contrib needs). Without this the embedded build can't
+	// resolve those modules and `go mod tidy` fails on an unknown revision.
+	maggieRequires, maggieReplaces := parseGoModDirectives(maggieDir)
+	for _, req := range maggieRequires {
+		parts := strings.Fields(req)
+		if len(parts) >= 1 && !handledRequires[parts[0]] {
+			fmt.Fprintf(&b, "\t%s\n", req)
+			handledRequires[parts[0]] = true
+		}
+	}
+	for _, rep := range maggieReplaces {
+		parts := strings.Fields(rep)
+		if len(parts) >= 3 && parts[1] == "=>" && !handledReplaces[parts[0]] {
+			target := parts[2]
+			if !filepath.IsAbs(target) {
+				target = filepath.Join(maggieDir, target)
+			}
+			extraReplaces = append(extraReplaces, replaceEntry{parts[0], target})
+			handledReplaces[parts[0]] = true
 		}
 	}
 

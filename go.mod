@@ -1,8 +1,6 @@
 module github.com/chazu/maggie
 
-go 1.25.7
-
-toolchain go1.25.8
+go 1.26.2
 
 require (
 	connectrpc.com/connect v1.19.1
@@ -22,11 +20,14 @@ require (
 	modernc.org/sqlite v1.46.1
 )
 
+require zombiezen.com/go/sqlite v1.4.2 // indirect
+
 require (
 	cuelabs.dev/go/oci/ociregistry v0.0.0-20250722084951-074d06050084 // indirect
 	github.com/apache/arrow-go/v18 v18.1.0 // indirect
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
 	github.com/bufbuild/protocompile v0.7.1 // indirect
+	github.com/chazu/ganso v0.0.0-00010101000000-000000000000
 	github.com/cockroachdb/apd/v3 v3.2.1 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/emicklei/proto v1.14.2 // indirect
@@ -78,3 +79,5 @@ require (
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.11.0 // indirect
 )
+
+replace github.com/chazu/ganso => /Users/chazu/dev/go/ganso
