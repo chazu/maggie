@@ -494,7 +494,11 @@ func (vm *VM) registerHttpPrimitives() {
 		// Start the VM dispatch queue so HTTP handlers can serialize
 		// Maggie execution through the VM goroutine.
 		v.StartDispatcher()
+		// GC safepoint: the serving goroutine blocks here indefinitely; mark
+		// it stopped so the string collector is not perpetually aborted.
+		v.enterBlocked(recv)
 		err := srv.server.ListenAndServe()
+		v.exitBlocked()
 		if err != nil && err != http.ErrServerClosed {
 			srv.running.Store(false)
 			return Nil

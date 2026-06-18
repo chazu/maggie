@@ -290,6 +290,11 @@ func (vm *VM) markInterpreter(i *Interpreter, ls *liveSet) {
 			vm.mark(c, ls)
 		}
 	}
+	// Values published by a blocking primitive (receiver/args held in Go
+	// locals while blocked). Empty unless this interpreter is in enterBlocked.
+	for _, r := range i.blockedRoots {
+		vm.mark(r, ls)
+	}
 }
 
 // markCompiledMethodLiterals marks the literal-pool Values of a compiled

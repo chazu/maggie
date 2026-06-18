@@ -114,6 +114,14 @@ type Interpreter struct {
 	// Accessed atomically by the sampling goroutine.
 	activePrimitiveName unsafe.Pointer // *string
 
+	// GC safepoint coordination. gcState is gcStateRunning normally; the
+	// interpreter flips it to parked/blocked at a safepoint or around a
+	// blocking primitive so the stop-the-world string collector knows it is
+	// safe to trace. blockedRoots publishes Values held in Go locals across a
+	// blocking primitive (receiver/args) so the collector marks them.
+	gcState     atomic.Int32
+	blockedRoots []Value
+
 	// Exception handling
 	exceptionHandlers *ExceptionHandler // Stack of installed exception handlers
 
@@ -580,6 +588,18 @@ func (i *Interpreter) ExecuteBlockDetached(block *BlockMethod, captures []Value,
 
 // runFrame is the unified interpreter loop for both methods and blocks.
 func (i *Interpreter) runFrame() Value {
+	// gcPoll is read once per frame: when the string collector is disabled
+	// (the default) the loop-top safepoint is a free local-bool branch and
+	// costs nothing. Only opted-in VMs pay the per-instruction atomic load.
+	// EnableStringGC runs at startup, before any long-running loop, so
+	// capturing it per frame entry is sufficient.
+	gcPoll := i.vm != nil && i.vm.gcEnabled.Load()
+	// Entry safepoint: bounds STW latency for code reached via a send/call
+	// (recursion, message dispatch). Loop iterations poll at the OpJump
+	// back-edge below, so straight-line code pays nothing.
+	if gcPoll && i.vm.gcRequested.Load() {
+		i.safepoint()
+	}
 	for {
 		frame := &i.frames[i.fp]
 		bc := frame.Bytecode()
@@ -962,6 +982,14 @@ func (i *Interpreter) runFrame() Value {
 			offset := int16(binary.LittleEndian.Uint16(bc[frame.IP:]))
 			frame.IP += 2
 			frame.IP += int(offset)
+			// GC safepoint at loop back-edges only. Every Maggie loop
+			// (whileTrue:/to:do:/timesRepeat:) closes with a backward OpJump,
+			// so this bounds collection latency without taxing straight-line
+			// code. Parking does not mutate this interpreter's frames; the
+			// loop top re-fetches frame/bc/literals on the next iteration.
+			if gcPoll && offset < 0 && i.vm.gcRequested.Load() {
+				i.safepoint()
+			}
 
 		case OpJumpTrue:
 			offset := int16(binary.LittleEndian.Uint16(bc[frame.IP:]))

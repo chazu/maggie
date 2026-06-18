@@ -282,7 +282,9 @@ func (vm *VM) registerChannelPrimitives() {
 		if ch == nil {
 			return Nil
 		}
+		v.enterBlocked(recv) // GC safepoint: parked while waiting on the channel
 		val, ok := <-ch.ch
+		v.exitBlocked()
 		if !ok {
 			return Nil // Channel closed
 		}
@@ -750,12 +752,14 @@ func (vm *VM) registerProcessPrimitives() {
 	})
 
 	// Process class>>sleep: milliseconds - sleep for specified time (class method)
-	c.AddClassMethod1(vm.Selectors, "sleep:", func(_ *VM, recv Value, ms Value) Value {
+	c.AddClassMethod1(vm.Selectors, "sleep:", func(v *VM, recv Value, ms Value) Value {
 		if !ms.IsSmallInt() {
 			return recv
 		}
 		duration := time.Duration(ms.SmallInt()) * time.Millisecond
+		v.enterBlocked(recv) // GC safepoint: parked while sleeping
 		time.Sleep(duration)
+		v.exitBlocked()
 		return recv
 	})
 
@@ -1061,7 +1065,9 @@ func (vm *VM) registerMailboxPrimitives() {
 		if proc == nil || proc.mailbox == nil {
 			return Nil
 		}
+		v.enterBlocked(recv) // GC safepoint: parked while waiting on the mailbox
 		msg, ok := proc.mailbox.Receive()
+		v.exitBlocked()
 		if !ok {
 			return Nil
 		}

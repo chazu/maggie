@@ -67,6 +67,8 @@ type RegistryGCStats struct {
 	Processes            int
 	CancellationContexts int
 	Exceptions           int
+	Strings              int
+	Dictionaries         int
 	TotalSwept           int
 	SweepDuration        time.Duration
 	Timestamp            time.Time
@@ -354,6 +356,16 @@ func (gc *RegistryGC) sweep(reason triggerReason, registryName string) *Registry
 		stats.Exceptions = gc.vm.registry.SweepExceptions()
 	}
 
+	// 3. String/dictionary tracing collector (opt-in). This runs a
+	// stop-the-world mark-sweep; it is invoked here, on the dedicated
+	// RegistryGC goroutine, which is never a Maggie mutator. On barrier
+	// timeout it is a no-op (ran == false).
+	if gc.vm.gcEnabled.Load() {
+		s, d, _ := gc.vm.CollectStringGarbage()
+		stats.Strings = s
+		stats.Dictionaries = d
+	}
+
 	// Note: We do NOT sweep the block registry here.
 	// Detached blocks (HomeFrame == -1, used by [block] fork and friends)
 	// release their slot in the fork goroutine's defer once the goroutine
@@ -365,7 +377,8 @@ func (gc *RegistryGC) sweep(reason triggerReason, registryName string) *Registry
 	// their home frame as long-lived callbacks.
 
 	stats.TotalSwept = stats.Channels + stats.Processes +
-		stats.CancellationContexts + stats.Exceptions
+		stats.CancellationContexts + stats.Exceptions +
+		stats.Strings + stats.Dictionaries
 	stats.SweepDuration = time.Since(start)
 
 	// Reset per-registry baselines so the next sweep's growth threshold is

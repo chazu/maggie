@@ -2,6 +2,7 @@ package vm
 
 import (
 	"fmt"
+	"os"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -156,6 +157,16 @@ type VM struct {
 	keepAlive   map[*Object]struct{}
 	keepAliveMu sync.Mutex
 
+	// String/dictionary tracing GC (opt-in via EnableStringGC / MAGGIE_GC).
+	// gcEnabled gates the whole feature. gcRequested is the stop-the-world
+	// flag mutators check at their safepoint. gcBarrierMu/Cond coordinate the
+	// barrier; gcRunMu serializes collection cycles. See gc_safepoint.go.
+	gcEnabled     atomic.Bool
+	gcRequested   atomic.Bool
+	gcRunMu       sync.Mutex
+	gcBarrierMu   sync.Mutex
+	gcBarrierCond *sync.Cond
+
 	// Work dispatch queue for serializing Maggie execution from
 	// external goroutines (HTTP handlers, gRPC handlers).
 	dispatchQueue chan workItem
@@ -276,6 +287,12 @@ func NewVM(configs ...VMConfig) *VM {
 		nodeRefs:         make(map[int]*NodeRefData),
 		remoteWatches:    NewRemoteWatchStore(),
 		pendingSpawns:    newPendingSpawnRegistry(),
+	}
+
+	// String/dictionary GC barrier (opt-in; see gc_safepoint.go).
+	vm.gcBarrierCond = sync.NewCond(&vm.gcBarrierMu)
+	if v := os.Getenv("MAGGIE_GC"); v != "" && v != "0" && v != "off" {
+		vm.gcEnabled.Store(true)
 	}
 
 	// Bootstrap core classes
