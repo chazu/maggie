@@ -519,6 +519,8 @@ func generateEmbeddedMain(maggieModule, entryPoint, namespace, projectDir, wrapD
 	fmt.Fprintf(&b, "import (\n")
 	fmt.Fprintf(&b, "\t_ \"embed\"\n")
 	fmt.Fprintf(&b, "\t\"fmt\"\n")
+	fmt.Fprintf(&b, "\t\"net/http\"\n")
+	fmt.Fprintf(&b, "\t_ \"net/http/pprof\"\n")
 	fmt.Fprintf(&b, "\t\"os\"\n")
 	fmt.Fprintf(&b, "\t\"strings\"\n\n")
 	fmt.Fprintf(&b, "\t\"%s/compiler\"\n", maggieModule)
@@ -555,6 +557,10 @@ func generateEmbeddedMain(maggieModule, entryPoint, namespace, projectDir, wrapD
 	fmt.Fprintf(&b, "var embeddedImage []byte\n\n")
 
 	fmt.Fprintf(&b, "func main() {\n")
+	fmt.Fprintf(&b, "\t// MAG_PPROF=<addr> starts a net/http/pprof server (e.g. localhost:6060)\n")
+	fmt.Fprintf(&b, "\tif ppaddr := os.Getenv(\"MAG_PPROF\"); ppaddr != \"\" {\n")
+	fmt.Fprintf(&b, "\t\tgo func() { _ = http.ListenAndServe(ppaddr, nil) }()\n")
+	fmt.Fprintf(&b, "\t}\n")
 	fmt.Fprintf(&b, "\tv := vm.NewVM()\n")
 	fmt.Fprintf(&b, "\tdefer v.Shutdown()\n\n")
 
