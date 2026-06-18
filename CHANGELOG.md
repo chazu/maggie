@@ -1,6 +1,15 @@
 # Changelog
 
-## 2026-06-18 — String & dictionary garbage collection (opt-in)
+## 2026-06-18 — String & dictionary GC on by default
+
+The string/dictionary collector (added below) is now **enabled by default** —
+leaving the registries unbounded OOM-kills any long-running process, so the
+safe behavior should not require opt-in. Disable with `MAGGIE_GC=0` (also
+`off` / `false` / `no`) for the unsupported concurrent-`vm.Send`-shared-main-
+interpreter pattern. Cost is ~2 % on a pure tight integer loop and unmeasurable
+on dispatch-heavy code; disabled, the hot path is unchanged.
+
+## 2026-06-18 — String & dictionary garbage collection
 
 Maggie `Value`s are NaN-boxed `uint64`s, so the Go runtime GC cannot see the
 heap objects they reference. Strings and dictionaries were registered in

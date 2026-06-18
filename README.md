@@ -10,7 +10,7 @@ A Smalltalk dialect implemented in Go. Named for [Margaret Hamilton](https://en.
 - **Language Guide** — Run `mag doc --serve` and open the Guide tab, or browse `lib/guide/` source files directly. 16 chapters from Getting Started through TupleSpace & Constraint Programming, with runnable examples validated by `mag doctest`.
 - [Design Document](docs/MAGGIE_DESIGN.md) - Architecture and implementation details
 - [Language Server](docs/lsp.md) - LSP features and editor integration
-- [String & Dictionary GC](docs/string-gc.md) - Opt-in tracing collector (`MAGGIE_GC=1`)
+- [String & Dictionary GC](docs/string-gc.md) - Tracing collector, on by default (disable with `MAGGIE_GC=0`)
 
 
 ## Quick Start

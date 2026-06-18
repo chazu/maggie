@@ -9,26 +9,27 @@ creates many *distinct* strings grew without bound. A long-running server that
 re-renders HTML on every tick (procyon-park's `pp serve`) leaked ~1 GB/min and
 was eventually OOM-killed.
 
-The string/dictionary collector reclaims those entries. It is **opt-in** and
-costs nothing when disabled.
+The string/dictionary collector reclaims those entries. It is **on by default**
+— a long-running process must not leak.
 
-## Enabling
+## Enabling / disabling
 
-```go
-vm := vm.NewVM()
-vm.EnableStringGC()        // programmatic
-```
-
-or set the environment variable before starting any Maggie binary:
+The collector is enabled by default. Disable it only for programs that cannot
+satisfy its precondition (see below):
 
 ```sh
-MAGGIE_GC=1 ./your-app          # "0" / "off" / unset = disabled
+MAGGIE_GC=0 ./your-app          # 0 / off / false / no = disabled; anything else (or unset) = enabled
 ```
 
-When enabled, collection is driven automatically by `RegistryGC`: growth
-pressure on the string registry triggers a stop-the-world cycle. You can also
-force one synchronously from a non-mutator goroutine with
-`vm.CollectStringGarbage()`.
+Programmatically: `vm.EnableStringGC()` / check with `vm.StringGCEnabled()`.
+
+Collection is driven automatically by `RegistryGC`: growth pressure on the
+string registry triggers a stop-the-world cycle. You can also force one
+synchronously from a non-mutator goroutine with `vm.CollectStringGarbage()`.
+
+Cost when enabled: one atomic load per loop back-edge — ~2 % on a pure tight
+integer loop, unmeasurable on dispatch-heavy code. When disabled the safepoint
+is a single local-bool branch (zero hot-path cost).
 
 ## How it works
 

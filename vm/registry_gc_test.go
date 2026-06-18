@@ -436,13 +436,17 @@ func TestRegistryGCLastStats(t *testing.T) {
 // work correctly while a sweep is running.
 func TestRegistryGCConcurrentAccessDuringSweep(t *testing.T) {
 	// This stress test drives Maggie execution via vm.Send concurrently from
-	// many goroutines that share the main interpreter. The opt-in string
-	// collector's stop-the-world assumes one interpreter per mutator goroutine
-	// (Maggie's real model: forked processes / a serialized dispatcher), so
-	// this unsupported sharing pattern is incompatible with it. Skip when the
-	// collector is force-enabled; the default (GC-off) run still exercises it.
-	if v := os.Getenv("MAGGIE_GC"); v != "" && v != "0" && v != "off" {
-		t.Skip("concurrent shared-interpreter vm.Send is incompatible with opt-in string GC")
+	// many goroutines that share the main interpreter. The string collector's
+	// stop-the-world assumes one interpreter per mutator goroutine (Maggie's
+	// real model: forked processes / a serialized dispatcher), so this
+	// unsupported sharing pattern is incompatible with it. The collector is now
+	// on by default, so skip unless it is explicitly disabled (MAGGIE_GC=0),
+	// under which this test still exercises RegistryGC concurrency.
+	switch os.Getenv("MAGGIE_GC") {
+	case "0", "off", "false", "no":
+		// collector disabled — run the test
+	default:
+		t.Skip("concurrent shared-interpreter vm.Send is incompatible with the string GC (default-on); run with MAGGIE_GC=0")
 	}
 	vm := NewVM()
 	defer vm.Shutdown()

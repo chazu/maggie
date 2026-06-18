@@ -289,9 +289,16 @@ func NewVM(configs ...VMConfig) *VM {
 		pendingSpawns:    newPendingSpawnRegistry(),
 	}
 
-	// String/dictionary GC barrier (opt-in; see gc_safepoint.go).
+	// String/dictionary GC barrier (see gc_safepoint.go). On by default —
+	// leaving the string/dictionary registries unbounded OOM-kills any
+	// long-running process. Disable with MAGGIE_GC=0/off/false (e.g. for
+	// programs that drive Maggie via concurrent vm.Send sharing the main
+	// interpreter, which the collector's stop-the-world does not support).
 	vm.gcBarrierCond = sync.NewCond(&vm.gcBarrierMu)
-	if v := os.Getenv("MAGGIE_GC"); v != "" && v != "0" && v != "off" {
+	switch os.Getenv("MAGGIE_GC") {
+	case "0", "off", "false", "no":
+		// explicitly disabled
+	default:
 		vm.gcEnabled.Store(true)
 	}
 
