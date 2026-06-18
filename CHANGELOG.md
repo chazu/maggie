@@ -1,5 +1,46 @@
 # Changelog
 
+## 2026-06-18 — String & dictionary garbage collection (opt-in)
+
+Maggie `Value`s are NaN-boxed `uint64`s, so the Go runtime GC cannot see the
+heap objects they reference. Strings and dictionaries were registered in
+`AutoIDRegistry`s that were never swept, so a program that creates many
+distinct strings — e.g. a long-running server re-rendering HTML on every tick —
+grew without bound until the OS OOM-killed it. (Diagnosed in `procyon-park`'s
+`pp serve`: RSS climbed ~1 GB/min, 90 % of the live heap was strings from
+`String>>,` concatenation.)
+
+Added a precise, stop-the-world mark-sweep collector for the string and
+dictionary registries:
+
+- **Tracing.** Marks from the complete live-root set — every interpreter's
+  operand stack / frames / exception handlers, globals, class variables,
+  compiled-method & block literal pools, processes (result + mailbox), blocks,
+  cells, contexts, results, exceptions — descends through objects, dictionaries,
+  array-lists and cells, and sweeps the strings and dictionaries that are not
+  reachable.
+- **Stop-the-world via cooperative safepoints.** Interpreters poll a safepoint
+  at loop back-edges and frame entry; blocking primitives (`Process sleep:`,
+  mailbox/channel receive, HTTP serve) bracket their blocking call with an
+  enter/exit-blocked pair that publishes the Values they hold. The collector
+  arms a request, waits (bounded by a 250 ms timeout — it **aborts** rather than
+  hang if a goroutine is stuck in an un-instrumented blocking primitive),
+  traces+sweeps the frozen heap, then releases.
+- **Opt-in, zero default cost.** Disabled unless `EnableStringGC()` is called or
+  `MAGGIE_GC=1` is set. When disabled the safepoint is a single local-bool
+  branch; the interpreter hot path is unchanged (benchmarked: tight integer
+  loop identical to baseline). When enabled it is driven by `RegistryGC` growth
+  pressure on the string registry.
+- **Precondition.** One interpreter per mutator goroutine (Maggie's
+  forked-process / serialized-dispatcher model). Driving Maggie execution with
+  concurrent `vm.Send` from multiple goroutines that share the main interpreter
+  is not supported under the collector.
+
+Validated with per-root regression tests, barrier tests (stop-the-world,
+timeout-abort, blocked-mutator, concurrent-churn-no-corruption), the full vm
+suite GC-on and GC-off both under `-race`, and a live `pp serve` run where RSS
+went from unbounded growth to a flat steady state with correct output.
+
 ## 2026-05-05 — petermattis/goid arm64 fast path
 
 Upgraded `github.com/petermattis/goid` from the 2018 pin
