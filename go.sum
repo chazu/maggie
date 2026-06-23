@@ -16,6 +16,8 @@ github.com/aymanbagabas/go-osc52/v2 v2.0.1 h1:HwpRHbFMcZLEVr42D4p7XBqjyuxQH5SMiE
 github.com/aymanbagabas/go-osc52/v2 v2.0.1/go.mod h1:uYgXzlJ7ZpABp8OJ+exZzJJhRNQ2ASbcXHWsFqH8hp8=
 github.com/bufbuild/protocompile v0.7.1 h1:Kd8fb6EshOHXNNRtYAmLAwy/PotlyFoN0iMbuwGNh0M=
 github.com/bufbuild/protocompile v0.7.1/go.mod h1:+Etjg4guZoAqzVk2czwEQP12yaxLJ8DxuqCJ9qHdH94=
+github.com/chazu/ganso v0.0.0-20260618142503-ea88b65f00d5 h1:4UIcQWq53569djEhZocNDHB5dcvxmfHyFpxuHhbQv3c=
+github.com/chazu/ganso v0.0.0-20260618142503-ea88b65f00d5/go.mod h1:IUIHxgOqnJc0sdoUV0ZMexDfkA1GyFF47Vj/CNVpYsA=
 github.com/chazu/goquint v0.0.0-20260303000434-ed4b48aa0d4d h1:3z/3akaQjwYFG7Sp7wBZ1bWB1fIK+OCNWL6XuT4CIUE=
 github.com/chazu/goquint v0.0.0-20260303000434-ed4b48aa0d4d/go.mod h1:qwrDA+7cmDgpxqhAguuhIfDwNJIA8khHl6rITeEvNxI=
 github.com/cockroachdb/apd/v3 v3.2.1 h1:U+8j7t0axsIgvQUqthuNm82HIrYXodOV2iWLWtEaIwg=
