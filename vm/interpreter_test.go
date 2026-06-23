@@ -809,7 +809,6 @@ func TestBlockRegistryCleanup(t *testing.T) {
 	m := b.Build()
 
 	interp.pushFrame(m, Nil, nil)
-	homeFrame := interp.fp
 
 	// Create several blocks with this home frame
 	numBlocks := 5
@@ -821,11 +820,6 @@ func TestBlockRegistryCleanup(t *testing.T) {
 	// Verify blocks were registered
 	if reg.BlockCount() != initialSize+numBlocks {
 		t.Errorf("block registry size after creation = %d, want %d", reg.BlockCount(), initialSize+numBlocks)
-	}
-
-	// Verify blocks are tracked by home frame
-	if reg.BlocksByHomeFrameCount(homeFrame) != numBlocks {
-		t.Errorf("blocks tracked for home frame = %d, want %d", reg.BlocksByHomeFrameCount(homeFrame), numBlocks)
 	}
 
 	// Pop the home frame - blocks should persist (they may escape as callbacks)

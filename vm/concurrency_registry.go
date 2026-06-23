@@ -99,10 +99,10 @@ type ConcurrencyRegistry struct {
 	blocks            []*BlockValue   // slot id -> *BlockValue (nil = empty)
 	blockSlotGen      []uint16        // slot id -> current generation
 	freeBlockSlots    []int           // recycled slot ids waiting to be reused
-	blocksByHomeFrame map[int][]int   // maps frameIndex -> list of blockIDs
 	blocksMu          sync.RWMutex
 	blockID           atomic.Int64    // grows only when no free slot available
 	blockLiveCount    int             // number of non-nil entries in blocks
+	blockPressureHook func(int32)     // called under blocksMu after each RegisterBlock
 
 	// Future registry
 	futures   map[int]*FutureObject
@@ -133,7 +133,6 @@ func NewConcurrencyRegistry() *ConcurrencyRegistry {
 		cancellationContexts: make(map[int]*CancellationContextObject),
 		blocks:               make([]*BlockValue, 0, 256),
 		blockSlotGen:         make([]uint16, 0, 256),
-		blocksByHomeFrame:    make(map[int][]int),
 		futures:              make(map[int]*FutureObject),
 		arrayLists:           make(map[int]*ArrayListObject),
 	}
@@ -502,7 +501,11 @@ func (cr *ConcurrencyRegistry) RegisterBlock(bv *BlockValue) Value {
 	gen := cr.blockSlotGen[slot] // 0 for fresh slot, current gen for recycled
 	cr.blocks[slot] = bv
 	cr.blockLiveCount++
-	cr.blocksByHomeFrame[bv.HomeFrame] = append(cr.blocksByHomeFrame[bv.HomeFrame], slot)
+	if cr.blockPressureHook != nil {
+		// Hook only reads the passed count + atomics and does a non-blocking
+		// channel send; it must NOT re-acquire blocksMu.
+		cr.blockPressureHook(int32(cr.blockLiveCount))
+	}
 
 	return FromBlockSlotGen(uint32(slot), gen)
 }
@@ -560,43 +563,15 @@ func (cr *ConcurrencyRegistry) ReleaseBlock(v Value) {
 	cr.freeBlockSlots = append(cr.freeBlockSlots, slot)
 }
 
-// ReleaseBlocksForFrame releases all blocks whose home frame matches
-// frameIndex. Each released slot's generation is bumped and the slot is
-// returned to the free list. Blocks with HomeFrame == -1 (detached, e.g.
-// forked) are not tracked here.
-func (cr *ConcurrencyRegistry) ReleaseBlocksForFrame(frameIndex int) {
-	cr.blocksMu.Lock()
-	defer cr.blocksMu.Unlock()
-	slots, ok := cr.blocksByHomeFrame[frameIndex]
-	if !ok {
-		return
-	}
-	for _, slot := range slots {
-		if slot >= len(cr.blocks) {
-			continue
-		}
-		bv := cr.blocks[slot]
-		if bv == nil {
-			continue
-		}
-		// Defensive: if the slot has since been recycled to a block with
-		// a different home frame, skip - the per-frame slice may carry
-		// stale entries.
-		if bv.HomeFrame != frameIndex {
-			continue
-		}
-		cr.blocks[slot] = nil
-		cr.blockLiveCount--
-		cr.blockSlotGen[slot] = nextBlockGen(cr.blockSlotGen[slot])
-		cr.freeBlockSlots = append(cr.freeBlockSlots, slot)
-	}
-	delete(cr.blocksByHomeFrame, frameIndex)
-}
-
-// SweepBlocks releases blocks whose home frame is no longer valid.
-// Detached blocks (HomeFrame == -1) are unaffected. Returns the number
-// of blocks released.
-func (cr *ConcurrencyRegistry) SweepBlocks(validFrames map[int]bool) int {
+// SweepBlocksLive frees every frame-bound block (HomeFrame >= 0) whose slot
+// is not present in the live set, recycling its slot for reuse. Detached
+// blocks (HomeFrame == -1, e.g. forked) are never swept here — they are
+// reclaimed by the fork goroutine's defer and are treated as unconditional
+// GC roots. The live set is the set of slot ids the tracing collector reached
+// from the complete root set; the caller MUST run under stop-the-world so no
+// other goroutine mutates the registry or holds an unrooted block Value.
+// Returns the number of blocks freed.
+func (cr *ConcurrencyRegistry) SweepBlocksLive(live map[uint32]struct{}) int {
 	cr.blocksMu.Lock()
 	defer cr.blocksMu.Unlock()
 
@@ -606,26 +581,17 @@ func (cr *ConcurrencyRegistry) SweepBlocks(validFrames map[int]bool) int {
 			continue
 		}
 		if bv.HomeFrame == -1 {
-			continue
+			continue // detached: reclaimed by the fork goroutine, not here
 		}
-		if !validFrames[bv.HomeFrame] {
-			cr.blocks[slot] = nil
-			cr.blockLiveCount--
-			cr.blockSlotGen[slot] = nextBlockGen(cr.blockSlotGen[slot])
-			cr.freeBlockSlots = append(cr.freeBlockSlots, slot)
-			swept++
+		if _, ok := live[uint32(slot)]; ok {
+			continue // still reachable
 		}
+		cr.blocks[slot] = nil
+		cr.blockLiveCount--
+		cr.blockSlotGen[slot] = nextBlockGen(cr.blockSlotGen[slot])
+		cr.freeBlockSlots = append(cr.freeBlockSlots, slot)
+		swept++
 	}
-
-	for frame := range cr.blocksByHomeFrame {
-		if frame == -1 {
-			continue
-		}
-		if !validFrames[frame] {
-			delete(cr.blocksByHomeFrame, frame)
-		}
-	}
-
 	return swept
 }
 
@@ -636,19 +602,13 @@ func (cr *ConcurrencyRegistry) BlockCount() int {
 	return cr.blockLiveCount
 }
 
-// BlocksByHomeFrameCount returns the number of blocks tracked for a given home frame.
-func (cr *ConcurrencyRegistry) BlocksByHomeFrameCount(homeFrame int) int {
-	cr.blocksMu.RLock()
-	defer cr.blocksMu.RUnlock()
-	return len(cr.blocksByHomeFrame[homeFrame])
-}
-
-// BlocksByHomeFrameHas checks if a home frame is tracked in blocksByHomeFrame.
-func (cr *ConcurrencyRegistry) BlocksByHomeFrameHas(homeFrame int) bool {
-	cr.blocksMu.RLock()
-	defer cr.blocksMu.RUnlock()
-	_, exists := cr.blocksByHomeFrame[homeFrame]
-	return exists
+// SetBlockPressureHook installs (or clears, with nil) a callback invoked under
+// blocksMu after each RegisterBlock with the current live block count. Used by
+// RegistryGC to trigger a sweep when frame-bound blocks accumulate.
+func (cr *ConcurrencyRegistry) SetBlockPressureHook(h func(int32)) {
+	cr.blocksMu.Lock()
+	cr.blockPressureHook = h
+	cr.blocksMu.Unlock()
 }
 
 // ---------------------------------------------------------------------------

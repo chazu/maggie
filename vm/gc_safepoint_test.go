@@ -40,7 +40,7 @@ func TestGCSafepoint_StopTheWorld(t *testing.T) {
 
 	ranAtLeastOnce := false
 	for c := 0; c < 30; c++ {
-		if _, _, ran := vm.CollectStringGarbage(); ran {
+		if _, _, _, ran := vm.CollectStringGarbage(); ran {
 			ranAtLeastOnce = true
 		}
 	}
@@ -70,7 +70,7 @@ func TestGCSafepoint_AbortOnStuckMutator(t *testing.T) {
 	}()
 
 	start := time.Now()
-	_, _, ran := vm.CollectStringGarbage()
+	_, _, _, ran := vm.CollectStringGarbage()
 	elapsed := time.Since(start)
 
 	if ran {
@@ -110,7 +110,7 @@ func TestGCSafepoint_BlockedMutatorIsStopped(t *testing.T) {
 	}()
 
 	s := <-ready
-	_, _, ran := vm.CollectStringGarbage()
+	_, _, _, ran := vm.CollectStringGarbage()
 	if !ran {
 		t.Fatal("collection should run when the only mutator is blocked")
 	}
@@ -128,7 +128,7 @@ func TestGCSafepoint_DisabledIsNoop(t *testing.T) {
 	if vm.StringGCEnabled() {
 		t.Fatal("string GC should be disabled after force-disable")
 	}
-	_, _, ran := vm.CollectStringGarbage()
+	_, _, _, ran := vm.CollectStringGarbage()
 	if ran {
 		t.Fatal("disabled collector must not run")
 	}

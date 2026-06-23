@@ -43,6 +43,7 @@ type liveSet struct {
 	dicts      map[uint32]struct{}
 	arrayLists map[int]struct{}
 	cells      map[*Cell]struct{}
+	blocks     map[uint32]struct{} // reachable block slot ids
 }
 
 func newLiveSet() *liveSet {
@@ -52,6 +53,7 @@ func newLiveSet() *liveSet {
 		dicts:      make(map[uint32]struct{}),
 		arrayLists: make(map[int]struct{}),
 		cells:      make(map[*Cell]struct{}),
+		blocks:     make(map[uint32]struct{}),
 	}
 }
 
@@ -130,9 +132,27 @@ func (vm *VM) mark(root Value, ls *liveSet) {
 				work = append(work, ex.MessageText, ex.Tag, ex.Signaler)
 			}
 
+		case v.IsBlock():
+			// A reachable block keeps its registry slot live and reaches
+			// through its captured variables, home self, and body literals.
+			slot := v.BlockID()
+			if _, seen := ls.blocks[slot]; seen {
+				continue
+			}
+			bv := vm.registry.GetBlock(v)
+			if bv == nil {
+				continue // stale Value (slot already recycled)
+			}
+			ls.blocks[slot] = struct{}{}
+			work = append(work, bv.Captures...)
+			work = append(work, bv.HomeSelf)
+			if bv.Block != nil {
+				work = append(work, bv.Block.Literals...)
+			}
+
 			// Symbols, small ints, floats, characters, booleans, nil, classes,
-			// bigints, channels, processes, blocks: either contain no nested
-			// Values or are enumerated directly as roots (processes/blocks).
+			// bigints, channels, processes: either contain no nested Values or
+			// are enumerated directly as roots (processes; detached blocks).
 		}
 	}
 }
@@ -192,20 +212,24 @@ func (vm *VM) markRoots(ls *liveSet) {
 	}
 	vm.registry.processesMu.RUnlock()
 
-	// 6. Blocks — captured variables + home self (detached blocks are live
-	//    roots; non-detached ones are also reachable via frames, but marking
-	//    them here is a safe over-approximation).
+	// 6. Detached blocks (HomeFrame == -1, e.g. forked) are unconditional
+	//    roots: they execute on their own goroutine and their registry Value
+	//    may not be reachable from any traced mutator root. Frame-bound blocks
+	//    (HomeFrame >= 0) are NOT roots — they survive only if the trace
+	//    reaches them (from a stack slot, frame, ivar, global, container, …),
+	//    so unreachable ones can be swept. This is the same safepoint invariant
+	//    that makes string/dictionary sweeping safe: at a safepoint every live
+	//    Value is in the operand stack or a frame, both of which are roots.
 	vm.registry.blocksMu.RLock()
-	for _, bv := range vm.registry.blocks {
-		if bv == nil {
+	for slot, bv := range vm.registry.blocks {
+		if bv == nil || bv.HomeFrame != -1 {
 			continue
 		}
+		ls.blocks[uint32(slot)] = struct{}{}
 		for _, c := range bv.Captures {
 			vm.mark(c, ls)
 		}
 		vm.mark(bv.HomeSelf, ls)
-		// The block's own literal pool is a root: a registered block can be
-		// evaluated at any time and push its string literals.
 		vm.markBlockMethodLiterals(bv.Block, ls)
 	}
 	vm.registry.blocksMu.RUnlock()
@@ -355,10 +379,10 @@ func (vm *VM) markClassMethodLiterals(c *Class, ls *liveSet) {
 // never read after they are freed — the same invariant that makes string
 // sweeping safe.
 //
-// Returns the number of strings and dictionaries freed.
-func (vm *VM) collectHeapGarbageLocked() (strings, dicts int) {
+// Returns the number of strings, dictionaries, and frame-bound blocks freed.
+func (vm *VM) collectHeapGarbageLocked() (strings, dicts, blocks int) {
 	if vm.registry == nil {
-		return 0, 0
+		return 0, 0, 0
 	}
 	ls := newLiveSet()
 	vm.markRoots(ls)
@@ -371,5 +395,6 @@ func (vm *VM) collectHeapGarbageLocked() (strings, dicts int) {
 		_, live := ls.dicts[id]
 		return live
 	})
-	return strings, dicts
+	blocks = vm.registry.SweepBlocksLive(ls.blocks)
+	return strings, dicts, blocks
 }

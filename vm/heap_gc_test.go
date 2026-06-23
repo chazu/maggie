@@ -42,7 +42,7 @@ func TestHeapGC_FreesUnreachableStrings(t *testing.T) {
 	if got := vm.registry.StringCount(); got < base+n {
 		t.Fatalf("expected at least %d strings before GC, got %d", base+n, got)
 	}
-	freed, _ := vm.collectHeapGarbageLocked()
+	freed, _, _ := vm.collectHeapGarbageLocked()
 	if freed < n {
 		t.Fatalf("expected to free >= %d unreachable strings, freed %d", n, freed)
 	}
@@ -143,7 +143,7 @@ func TestHeapGC_FreesOrphanDictAndString(t *testing.T) {
 		d.Data[1] = vm.registry.NewStringValue(probe(1000 + i))
 		// dv discarded — unreachable
 	}
-	freedStr, freedDict := vm.collectHeapGarbageLocked()
+	freedStr, freedDict, _ := vm.collectHeapGarbageLocked()
 	if freedDict < n {
 		t.Fatalf("orphan dicts not reclaimed: freed %d want >= %d", freedDict, n)
 	}
@@ -184,4 +184,104 @@ func TestHeapGC_Idempotent(t *testing.T) {
 		vm.collectHeapGarbageLocked()
 		stringStillThere(t, vm, s, probe(7))
 	}
+}
+
+// ---------------------------------------------------------------------------
+// Block tracing-GC tests.
+//
+// Frame-bound blocks (HomeFrame >= 0) are swept when the trace cannot reach
+// their Value from a live root; detached blocks (HomeFrame == -1, e.g. forked)
+// are unconditional roots and never swept here. These tests mirror the
+// string "Frees…/Keeps…" structure to lock the block root coverage.
+// ---------------------------------------------------------------------------
+
+// probeBlockMethod returns a trivial block body for registry tests.
+func probeBlockMethod() *BlockMethod {
+	return &BlockMethod{Bytecode: []byte{byte(OpPushNil), byte(OpBlockReturn)}}
+}
+
+func TestHeapGC_FreesUnreachableBlocks(t *testing.T) {
+	vm := NewVM()
+	interp := vm.interpreter
+
+	// Push a method frame so created blocks are frame-bound (HomeFrame >= 0).
+	b := NewCompiledMethodBuilder("probe", 0)
+	b.Bytecode().Emit(OpPushNil)
+	b.Bytecode().Emit(OpReturnTop)
+	interp.pushFrame(b.Build(), Nil, nil)
+
+	base := vm.registry.BlockCount()
+	const n = 5000
+	for i := 0; i < n; i++ {
+		// Value discarded: not on the operand stack, not in any root.
+		_ = interp.createBlockValue(probeBlockMethod(), nil)
+	}
+	if got := vm.registry.BlockCount(); got < base+n {
+		t.Fatalf("expected >= %d live blocks before GC, got %d", base+n, got)
+	}
+	freed := vm.registry.SweepBlocksLive(map[uint32]struct{}{})
+	if freed < n {
+		t.Fatalf("expected to free >= %d unreachable blocks, freed %d", n, freed)
+	}
+	if after := vm.registry.BlockCount(); after > base {
+		t.Fatalf("unreachable blocks not reclaimed: base=%d after=%d", base, after)
+	}
+}
+
+func TestHeapGC_KeepsGlobalBlock(t *testing.T) {
+	vm := NewVM()
+	interp := vm.interpreter
+	b := NewCompiledMethodBuilder("probe", 0)
+	b.Bytecode().Emit(OpPushNil)
+	b.Bytecode().Emit(OpReturnTop)
+	interp.pushFrame(b.Build(), Nil, nil)
+
+	blk := interp.createBlockValue(probeBlockMethod(), nil)
+	vm.SetGlobal("GcProbeBlock", blk) // reachable via global root
+	vm.collectHeapGarbageLocked()
+	if !vm.registry.HasBlock(blk) {
+		t.Fatal("globally-reachable block was incorrectly swept")
+	}
+}
+
+func TestHeapGC_KeepsBlockOnStack(t *testing.T) {
+	vm := NewVM()
+	interp := vm.interpreter
+	b := NewCompiledMethodBuilder("probe", 0)
+	b.Bytecode().Emit(OpPushNil)
+	b.Bytecode().Emit(OpReturnTop)
+	interp.pushFrame(b.Build(), Nil, nil)
+
+	blk := interp.createBlockValue(probeBlockMethod(), nil)
+	interp.push(blk) // reachable via operand-stack root
+	vm.collectHeapGarbageLocked()
+	if !vm.registry.HasBlock(blk) {
+		t.Fatal("block live on the operand stack was incorrectly swept")
+	}
+}
+
+func TestHeapGC_KeepsDetachedBlock(t *testing.T) {
+	vm := NewVM()
+	// HomeFrame == -1 marks a detached (forked) block — an unconditional root.
+	bv := &BlockValue{Block: probeBlockMethod(), HomeFrame: -1, HomeSelf: Nil}
+	blk := vm.registry.RegisterBlock(bv)
+	vm.collectHeapGarbageLocked()
+	if !vm.registry.HasBlock(blk) {
+		t.Fatal("detached block was incorrectly swept")
+	}
+}
+
+func TestHeapGC_KeepsBlockCapturedString(t *testing.T) {
+	vm := NewVM()
+	interp := vm.interpreter
+	b := NewCompiledMethodBuilder("probe", 0)
+	b.Bytecode().Emit(OpPushNil)
+	b.Bytecode().Emit(OpReturnTop)
+	interp.pushFrame(b.Build(), Nil, nil)
+
+	s := vm.registry.NewStringValue(probe(42))
+	blk := interp.createBlockValue(probeBlockMethod(), []Value{s})
+	vm.SetGlobal("GcCapBlock", blk) // block reachable; its capture must survive too
+	vm.collectHeapGarbageLocked()
+	stringStillThere(t, vm, s, probe(42))
 }

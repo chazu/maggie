@@ -69,6 +69,7 @@ type RegistryGCStats struct {
 	Exceptions           int
 	Strings              int
 	Dictionaries         int
+	Blocks               int
 	TotalSwept           int
 	SweepDuration        time.Duration
 	Timestamp            time.Time
@@ -222,6 +223,32 @@ func (gc *RegistryGC) installHooks() {
 	add("bigInts", defaultGrowthThreshold, defaultAbsoluteCeiling, or.BigInts)
 	// classValues is monotonic and intentionally append-only — no point
 	// installing pressure hooks since sweeping won't reclaim anything.
+
+	// Blocks are not an AutoIDRegistry (custom slice-backed slots), so wire
+	// pressure manually. Every non-inlined ifTrue:/whileTrue:/do: argument
+	// allocates a block; in hot loops they accumulate quickly, so use a
+	// modest growth threshold to keep the slot slices small and cache-hot.
+	{
+		mr := &monitoredRegistry{
+			name:            "blocks",
+			growthThreshold: 250_000,
+			absoluteCeiling: 1_000_000,
+			currentSize:     func() int32 { return int32(or.BlockCount()) },
+			uninstall:       func() { or.SetBlockPressureHook(nil) },
+		}
+		mr.resetAfterSweep = func() { mr.lastSweepSize.Store(int32(or.BlockCount())) }
+		gc.monitored = append(gc.monitored, mr)
+		or.SetBlockPressureHook(func(liveSize int32) {
+			last := mr.lastSweepSize.Load()
+			if liveSize-last > mr.growthThreshold {
+				gc.signal(TriggerGrowth, mr.name)
+				return
+			}
+			if liveSize > mr.absoluteCeiling {
+				gc.signal(TriggerCeiling, mr.name)
+			}
+		})
+	}
 }
 
 // signal performs a non-blocking send on the trigger channel. If the
@@ -361,24 +388,24 @@ func (gc *RegistryGC) sweep(reason triggerReason, registryName string) *Registry
 	// RegistryGC goroutine, which is never a Maggie mutator. On barrier
 	// timeout it is a no-op (ran == false).
 	if gc.vm.gcEnabled.Load() {
-		s, d, _ := gc.vm.CollectStringGarbage()
+		s, d, b, _ := gc.vm.CollectStringGarbage()
 		stats.Strings = s
 		stats.Dictionaries = d
+		stats.Blocks = b
 	}
 
-	// Note: We do NOT sweep the block registry here.
-	// Detached blocks (HomeFrame == -1, used by [block] fork and friends)
-	// release their slot in the fork goroutine's defer once the goroutine
-	// exits — see RegisterBlock/ReleaseBlock and the fork primitives in
-	// vm/concurrency.go. Frame-bound blocks (HomeFrame >= 0) are NOT
-	// currently released anywhere and accumulate in the registry; see
-	// popFrame in vm/interpreter.go. Reclaiming them would require a
-	// real reachability trace because blocks may legitimately escape
-	// their home frame as long-lived callbacks.
+	// Frame-bound blocks (HomeFrame >= 0) are swept by the same stop-the-world
+	// tracing collector that reclaims strings/dictionaries (CollectStringGarbage
+	// -> collectHeapGarbageLocked -> SweepBlocksLive): a block survives only if
+	// the trace reaches its Value from a live root. Detached blocks (HomeFrame
+	// == -1, used by [block] fork and friends) are treated as unconditional
+	// roots there and release their slot in the fork goroutine's defer once the
+	// goroutine exits — see RegisterBlock/ReleaseBlock and the fork primitives
+	// in vm/concurrency.go.
 
 	stats.TotalSwept = stats.Channels + stats.Processes +
 		stats.CancellationContexts + stats.Exceptions +
-		stats.Strings + stats.Dictionaries
+		stats.Strings + stats.Dictionaries + stats.Blocks
 	stats.SweepDuration = time.Since(start)
 
 	// Reset per-registry baselines so the next sweep's growth threshold is

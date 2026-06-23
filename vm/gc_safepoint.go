@@ -157,9 +157,9 @@ func (vm *VM) mainInterpreterActive() bool {
 // cycle actually ran (false if disabled or if the barrier timed out). Safe to
 // call only from a goroutine that is NOT a registered Maggie mutator (e.g. the
 // RegistryGC background goroutine).
-func (vm *VM) CollectStringGarbage() (strings, dicts int, ran bool) {
+func (vm *VM) CollectStringGarbage() (strings, dicts, blocks int, ran bool) {
 	if !vm.gcEnabled.Load() {
-		return 0, 0, false
+		return 0, 0, 0, false
 	}
 	vm.gcRunMu.Lock() // one collection at a time
 	defer vm.gcRunMu.Unlock()
@@ -189,14 +189,14 @@ func (vm *VM) CollectStringGarbage() (strings, dicts int, ran bool) {
 		vm.gcRequested.Store(false)
 		vm.gcBarrierCond.Broadcast()
 		vm.gcBarrierMu.Unlock()
-		return 0, 0, false
+		return 0, 0, 0, false
 	}
 
 	// Stop-the-world reached: trace + sweep on frozen state.
-	strings, dicts = vm.collectHeapGarbageLocked()
+	strings, dicts, blocks = vm.collectHeapGarbageLocked()
 
 	vm.gcRequested.Store(false)
 	vm.gcBarrierCond.Broadcast()
 	vm.gcBarrierMu.Unlock()
-	return strings, dicts, true
+	return strings, dicts, blocks, true
 }

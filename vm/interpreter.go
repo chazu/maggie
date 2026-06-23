@@ -1189,6 +1189,16 @@ func (i *Interpreter) send(selector int, argc int) (result Value) {
 		argsCopy = make([]Value, argc)
 		copy(argsCopy, args)
 	}
+	// A primitive may evaluate block arguments (ifTrue:, whileTrue:, to:do:,
+	// inject:into:, …) that run Maggie bytecode and hit GC safepoints. The
+	// receiver and args are now in Go locals / a copy, but the originals are
+	// still physically present on the operand stack just below sp (dropN/pop
+	// only moved sp, they did not clear the slots). Re-expose them as roots
+	// for the duration of the call so the string/dictionary/block tracing
+	// collector does not sweep a block that a primitive is mid-iteration over.
+	// Sub-block frames push above the restored sp, so there is no aliasing.
+	savedSP := i.sp
+	i.sp += argc + 1
 	if i.vm != nil && i.vm.SamplingProfiler() != nil {
 		name := methodName(method)
 		atomic.StorePointer(&i.activePrimitiveName, unsafe.Pointer(&name))
@@ -1197,6 +1207,7 @@ func (i *Interpreter) send(selector int, argc int) (result Value) {
 	} else {
 		result = method.Invoke(i.vm, rcvr, argsCopy)
 	}
+	i.sp = savedSP
 
 	// Primitives that evaluate blocks (e.g. ifTrue:, whileTrue:) can
 	// trigger a non-local return, setting i.unwinding.  Propagate the
