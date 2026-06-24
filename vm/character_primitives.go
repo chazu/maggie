@@ -86,6 +86,24 @@ func (vm *VM) registerCharacterPrimitives() {
 		return FromBool(GetCharacterCodePoint(recv) > GetCharacterCodePoint(other))
 	})
 
+	// <= other - ordering (inclusive). Without this, `aChar <= other` returned
+	// nil (doesNotUnderstand), so `(aChar <= x) and: [...]` threw — see the
+	// pp-serve housekeep crash. Magnitude>>between:and: also relies on it.
+	c.AddMethod1(vm.Selectors, "<=", func(_ *VM, recv Value, other Value) Value {
+		if !IsCharacterValue(other) {
+			return False
+		}
+		return FromBool(GetCharacterCodePoint(recv) <= GetCharacterCodePoint(other))
+	})
+
+	// >= other - ordering (inclusive).
+	c.AddMethod1(vm.Selectors, ">=", func(_ *VM, recv Value, other Value) Value {
+		if !IsCharacterValue(other) {
+			return False
+		}
+		return FromBool(GetCharacterCodePoint(recv) >= GetCharacterCodePoint(other))
+	})
+
 	// hash - code point as hash
 	c.AddMethod0(vm.Selectors, "hash", func(_ *VM, recv Value) Value {
 		return FromSmallInt(int64(GetCharacterCodePoint(recv)))
