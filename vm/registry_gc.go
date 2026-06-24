@@ -191,17 +191,9 @@ func (gc *RegistryGC) installHooks() {
 		mr.resetAfterSweep = func() { mr.lastSweepSize.Store(reg.LiveSize()) }
 		gc.monitored = append(gc.monitored, mr)
 
-		// Capture mr in the hook. Branch order: cheapest test first.
-		reg.SetPressureHook(func(liveSize int32) {
-			last := mr.lastSweepSize.Load()
-			if liveSize-last > mr.growthThreshold {
-				gc.signal(TriggerGrowth, mr.name)
-				return
-			}
-			if liveSize > mr.absoluteCeiling {
-				gc.signal(TriggerCeiling, mr.name)
-			}
-		})
+		// Capture mr in the hook. The decision logic is shared with the
+		// block-pressure hook below; see onPressure.
+		reg.SetPressureHook(func(liveSize int32) { gc.onPressure(mr, liveSize) })
 	}
 
 	// Strings and dictionaries are by far the most-allocated kinds. Give
@@ -238,16 +230,38 @@ func (gc *RegistryGC) installHooks() {
 		}
 		mr.resetAfterSweep = func() { mr.lastSweepSize.Store(int32(or.BlockCount())) }
 		gc.monitored = append(gc.monitored, mr)
-		or.SetBlockPressureHook(func(liveSize int32) {
-			last := mr.lastSweepSize.Load()
-			if liveSize-last > mr.growthThreshold {
-				gc.signal(TriggerGrowth, mr.name)
-				return
-			}
-			if liveSize > mr.absoluteCeiling {
-				gc.signal(TriggerCeiling, mr.name)
-			}
-		})
+		or.SetBlockPressureHook(func(liveSize int32) { gc.onPressure(mr, liveSize) })
+	}
+}
+
+// onPressure is the per-registry sweep-trigger decision, shared by the
+// AutoIDRegistry pressure hook and the block pressure hook. Branch order:
+// cheapest test first.
+//
+// Two rules:
+//
+//  1. Growth: the live set has grown by more than growthThreshold since the
+//     last sweep. Edge-triggered against the post-sweep baseline, so it can
+//     never fire twice without growthThreshold fresh allocations in between.
+//
+//  2. Ceiling: the live set has crossed absoluteCeiling — but ONLY when the
+//     previous sweep left us at or below the ceiling (last <= ceiling). Once a
+//     sweep leaves the live set ABOVE the ceiling, the registry is saturated
+//     with genuinely-live entries and re-sweeping reclaims nothing; firing on
+//     every subsequent Register busy-loops a core. In that saturated state we
+//     defer entirely to the growth rule (and the wall-clock timer floor), which
+//     paces sweeps to real allocation rather than absolute level. This was the
+//     pp-serve regression: under dashboard load the live string set sat
+//     persistently above the 500k ceiling and the collector pegged a core
+//     sweeping back-to-back to no effect.
+func (gc *RegistryGC) onPressure(mr *monitoredRegistry, liveSize int32) {
+	last := mr.lastSweepSize.Load()
+	if liveSize-last > mr.growthThreshold {
+		gc.signal(TriggerGrowth, mr.name)
+		return
+	}
+	if liveSize > mr.absoluteCeiling && last <= mr.absoluteCeiling {
+		gc.signal(TriggerCeiling, mr.name)
 	}
 }
 

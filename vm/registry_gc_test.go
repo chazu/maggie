@@ -743,6 +743,53 @@ func TestRegistryGCCeilingTrigger(t *testing.T) {
 	}
 }
 
+// TestRegistryGCCeilingNoBusyLoop is the regression test for the pp-serve
+// 110%-CPU busy-loop. When the LIVE set legitimately and persistently exceeds
+// the absolute ceiling, the collector must NOT sweep back-to-back on every
+// subsequent allocation: sweeping reclaims nothing, so once a sweep leaves the
+// live set above the ceiling, further sweeps are gated by growth, not by the
+// absolute level.
+func TestRegistryGCCeilingNoBusyLoop(t *testing.T) {
+	vm := NewVM()
+	defer vm.Shutdown()
+
+	vm.registryGC.Stop()
+	gc := NewRegistryGC(vm, 60*time.Second)
+	vm.registryGC = gc
+	gc.Start()
+	defer gc.Stop()
+
+	// Big growth band, tiny ceiling: the live set will sit far above the
+	// ceiling but never grow by a full band during the steady-state phase.
+	for _, mr := range gc.monitored {
+		if mr.name == "exceptions" {
+			mr.growthThreshold = 1_000_000
+			mr.absoluteCeiling = 50
+		}
+	}
+
+	// Push the live set well above the ceiling with genuinely-live (unhandled)
+	// exceptions, and let the initial ceiling sweep fire + suppression engage.
+	for i := 0; i < 200; i++ {
+		vm.registry.RegisterException(&ExceptionObject{Handled: false})
+	}
+	time.Sleep(100 * time.Millisecond)
+	base := gc.SweepCount()
+
+	// Steady-state: keep allocating above the ceiling but far below the growth
+	// band. Pre-fix, every Register past the ceiling re-fired a sweep
+	// (hundreds). Post-fix, the saturated ceiling is suppressed → ~0 sweeps.
+	for i := 0; i < 500; i++ {
+		vm.registry.RegisterException(&ExceptionObject{Handled: false})
+		time.Sleep(time.Millisecond) // give the GC goroutine room to sweep if it wants
+	}
+
+	extra := gc.SweepCount() - base
+	if extra > 3 {
+		t.Errorf("ceiling busy-loop: %d sweeps from 500 allocations above the ceiling (want <=3)", extra)
+	}
+}
+
 // TestRegistryGCTimerStillFires verifies that the wall-clock floor still
 // triggers sweeps for idle registries — the safety net for short-lived
 // programs and idle daemons.
