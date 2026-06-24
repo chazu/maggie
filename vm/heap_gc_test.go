@@ -60,6 +60,26 @@ func TestHeapGC_KeepsGlobalString(t *testing.T) {
 	stringStillThere(t, vm, s, probe(1))
 }
 
+// TestHeapGC_KeepsPinnedRoot covers the pinned-roots category — the path HTTP
+// route handler blocks rely on. A block (here a string stand-in) retained only
+// in a Go closure is reachable through no other root category; PinRoot must
+// keep it alive, and UnpinRoot must make it collectible again. Without the fix
+// the first sweep frees such handler blocks and every later request runs a
+// dangling block (empty HTTP bodies).
+func TestHeapGC_KeepsPinnedRoot(t *testing.T) {
+	vm := NewVM()
+	s := vm.registry.NewStringValue(probe(60))
+	vm.PinRoot(s) // reachable through EXACTLY the pinned-roots set
+	vm.collectHeapGarbageLocked()
+	stringStillThere(t, vm, s, probe(60))
+
+	vm.UnpinRoot(s)
+	vm.collectHeapGarbageLocked()
+	if got := vm.registry.GetStringContent(s); got == probe(60) {
+		t.Errorf("unpinned root should be collectible, but survived: %q", got)
+	}
+}
+
 func TestHeapGC_KeepsObjectIvarString(t *testing.T) {
 	vm := NewVM()
 	s := vm.registry.NewStringValue(probe(2))

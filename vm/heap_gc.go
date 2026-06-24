@@ -281,6 +281,20 @@ func (vm *VM) markRoots(ls *liveSet) {
 		}
 	}
 	vm.registry.Exceptions.RUnlock()
+
+	// 11. Pinned roots — Values retained in Go-land (e.g. HTTP handler blocks
+	//     captured in net/http closures) that no traced root reaches. Marking
+	//     the block Value recurses through its captures / home self / literals.
+	//     Snapshot under the lock, then mark outside it.
+	vm.pinnedRootsMu.Lock()
+	pinned := make([]Value, 0, len(vm.pinnedRoots))
+	for v := range vm.pinnedRoots {
+		pinned = append(pinned, v)
+	}
+	vm.pinnedRootsMu.Unlock()
+	for _, v := range pinned {
+		vm.mark(v, ls)
+	}
 }
 
 // markInterpreter marks the live roots held by one interpreter: operand-stack

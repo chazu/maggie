@@ -61,7 +61,6 @@ type HttpServerObject struct {
 	mu      sync.Mutex
 }
 
-
 func httpServerToValue(id uint32) Value {
 	return FromSymbolID(id | httpServerMarker)
 }
@@ -107,7 +106,6 @@ type HttpRequestObject struct {
 	bodyRead bool
 }
 
-
 func httpRequestToValue(id uint32) Value {
 	return FromSymbolID(id | httpRequestMarker)
 }
@@ -152,7 +150,6 @@ type HttpResponseObject struct {
 	body    string
 	headers map[string]string
 }
-
 
 func httpResponseToValue(id uint32) Value {
 	return FromSymbolID(id | httpResponseMarker)
@@ -331,6 +328,10 @@ func (vm *VM) registerHttpPrimitives() {
 		if bv == nil {
 			return Nil
 		}
+		// The handler block is retained for the server's lifetime inside the
+		// net/http closure below — a Go reference markRoots can't see. Pin it
+		// so the block collector keeps it (and its captures / home self) alive.
+		v.PinRoot(handlerBlock)
 		block := bv.Block
 		captures := bv.Captures
 		homeSelf := bv.HomeSelf
@@ -413,6 +414,10 @@ func (vm *VM) registerHttpPrimitives() {
 		if bv == nil {
 			return Nil
 		}
+		// The handler block is retained for the server's lifetime inside the
+		// net/http closure below — a Go reference markRoots can't see. Pin it
+		// so the block collector keeps it (and its captures / home self) alive.
+		v.PinRoot(handlerBlock)
 		block := bv.Block
 		captures := bv.Captures
 		homeSelf := bv.HomeSelf
@@ -474,6 +479,10 @@ func (vm *VM) registerHttpPrimitives() {
 		if bv == nil {
 			return Nil
 		}
+		// The handler block is retained for the server's lifetime inside the
+		// net/http closure below — a Go reference markRoots can't see. Pin it
+		// so the block collector keeps it (and its captures / home self) alive.
+		v.PinRoot(handlerBlock)
 		block := bv.Block
 		captures := bv.Captures
 		homeSelf := bv.HomeSelf

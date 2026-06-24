@@ -86,64 +86,64 @@ type VM struct {
 	globalsMu sync.RWMutex // protects globals for concurrent access
 
 	// Well-known classes (for fast-path checks and bootstrapping)
-	ObjectClass            *Class
-	ClassClass             *Class
-	MetaclassClass         *Class
-	BlockClass             *Class
-	BooleanClass           *Class
-	TrueClass              *Class
-	FalseClass             *Class
-	UndefinedObjectClass   *Class
-	MagnitudeClass         *Class
-	NumberClass            *Class
-	SmallIntegerClass      *Class
-	BigIntegerClass        *Class
-	FloatClass             *Class
-	CollectionClass        *Class
-	StringClass            *Class
-	SymbolClass            *Class
-	ArrayClass             *Class
-	ByteArrayClass         *Class
-	AssociationClass       *Class
-	DictionaryClass        *Class
-	SetClass               *Class
-	CompiledMethodClass    *Class
-	ChannelClass           *Class
-	ProcessClass           *Class
-	MutexClass                *Class
-	WaitGroupClass            *Class
-	SemaphoreClass            *Class
-	CancellationContextClass  *Class
-	ResultClass            *Class
-	SuccessClass           *Class
-	FailureClass           *Class
-	ContextClass           *Class
-	WeakReferenceClass     *Class
-	CharacterClass         *Class
-	MessageClass           *Class
-	RandomClass            *Class
-	ArrayListClass         *Class
+	ObjectClass              *Class
+	ClassClass               *Class
+	MetaclassClass           *Class
+	BlockClass               *Class
+	BooleanClass             *Class
+	TrueClass                *Class
+	FalseClass               *Class
+	UndefinedObjectClass     *Class
+	MagnitudeClass           *Class
+	NumberClass              *Class
+	SmallIntegerClass        *Class
+	BigIntegerClass          *Class
+	FloatClass               *Class
+	CollectionClass          *Class
+	StringClass              *Class
+	SymbolClass              *Class
+	ArrayClass               *Class
+	ByteArrayClass           *Class
+	AssociationClass         *Class
+	DictionaryClass          *Class
+	SetClass                 *Class
+	CompiledMethodClass      *Class
+	ChannelClass             *Class
+	ProcessClass             *Class
+	MutexClass               *Class
+	WaitGroupClass           *Class
+	SemaphoreClass           *Class
+	CancellationContextClass *Class
+	ResultClass              *Class
+	SuccessClass             *Class
+	FailureClass             *Class
+	ContextClass             *Class
+	WeakReferenceClass       *Class
+	CharacterClass           *Class
+	MessageClass             *Class
+	RandomClass              *Class
+	ArrayListClass           *Class
 
 	// Exception hierarchy
-	ExceptionClass             *Class
-	ErrorClass                 *Class
-	MessageNotUnderstoodClass  *Class
-	ZeroDivideClass            *Class
-	SubscriptOutOfBoundsClass  *Class
-	PrimitiveErrorClass        *Class
-	TypeErrorClass             *Class
-	StackOverflowClass         *Class
-	WarningClass               *Class
-	HaltClass                  *Class
-	NotificationClass          *Class
+	ExceptionClass            *Class
+	ErrorClass                *Class
+	MessageNotUnderstoodClass *Class
+	ZeroDivideClass           *Class
+	SubscriptOutOfBoundsClass *Class
+	PrimitiveErrorClass       *Class
+	TypeErrorClass            *Class
+	StackOverflowClass        *Class
+	WarningClass              *Class
+	HaltClass                 *Class
+	NotificationClass         *Class
 
 	// Interpreter
 	interpreter *Interpreter
 
 	// Goroutine-local interpreter tracking (for forked processes)
 	// Maps goroutine ID to the interpreter running in that goroutine
-	interpreters    sync.Map // int64 -> *Interpreter
-	interpreterCount int32   // number of registered forked interpreters (atomic)
+	interpreters     sync.Map // int64 -> *Interpreter
+	interpreterCount int32    // number of registered forked interpreters (atomic)
 
 	// Debugger for IDE integration
 	Debugger *DebugServer
@@ -156,6 +156,18 @@ type VM struct {
 	// Protected by keepAliveMu for thread-safe access from gRPC handlers.
 	keepAlive   map[*Object]struct{}
 	keepAliveMu sync.Mutex
+
+	// pinnedRoots holds Maggie Values that are retained OUTSIDE the traced
+	// object graph — captured in a Go closure that markRoots can never reach.
+	// The motivating case: HTTP route handlers (route:/asyncRoute:/sseRoute:)
+	// stash a handler block + its captures + home self in a net/http closure;
+	// the block's home frame is long gone and nothing in globals/stacks/ivars
+	// references it, so the block sweeper would free it and every later request
+	// would execute a dangling block. Pinned roots are marked every collection
+	// (and recurse through captures/home-self/literals via mark). Pin at the
+	// point of Go retention; unpin if/when the retention ends.
+	pinnedRoots   map[Value]struct{}
+	pinnedRootsMu sync.Mutex
 
 	// String/dictionary tracing GC (opt-in via EnableStringGC / MAGGIE_GC).
 	// gcEnabled gates the whole feature. gcRequested is the stop-the-world
@@ -181,17 +193,17 @@ type VM struct {
 	mainProcess *ProcessObject
 
 	// Process name registry: registered names → process ID.
-	processNames   map[string]uint64
-	processNamesMu sync.RWMutex
+	processNames     map[string]uint64
+	processNamesMu   sync.RWMutex
 	processNamesByID map[uint64]string
 
 	// MailboxMessageClass is bootstrapped for mailbox message instances.
-	MailboxMessageClass  *Class
-	FutureClass          *Class
-	NodeClass            *Class
-	RemoteProcessClass   *Class
+	MailboxMessageClass *Class
+	FutureClass         *Class
+	NodeClass           *Class
+	RemoteProcessClass  *Class
 
-	RemoteChannelClass   *Class
+	RemoteChannelClass *Class
 
 	// Remote channel registries
 	remoteChannels *remoteChannelRegistry
@@ -269,13 +281,14 @@ func NewVM(configs ...VMConfig) *VM {
 	}
 
 	vm := &VM{
-		Config: cfg,
-		Selectors:      NewSelectorTable(),
-		Symbols:        NewSymbolTable(),
-		Classes:        NewClassTable(),
-		Traits:         NewTraitTable(),
-		globals:        make(map[string]Value),
+		Config:           cfg,
+		Selectors:        NewSelectorTable(),
+		Symbols:          NewSymbolTable(),
+		Classes:          NewClassTable(),
+		Traits:           NewTraitTable(),
+		globals:          make(map[string]Value),
 		keepAlive:        make(map[*Object]struct{}),
+		pinnedRoots:      make(map[Value]struct{}),
 		weakRefs:         NewWeakRegistry(),
 		registry:         NewObjectRegistry(),
 		symbolDispatch:   NewSymbolDispatch(),
@@ -1477,6 +1490,25 @@ func (vm *VM) ReleaseKeepAlive(obj *Object) {
 		delete(vm.keepAlive, obj)
 		vm.keepAliveMu.Unlock()
 	}
+}
+
+// PinRoot marks a Value as a permanent GC root for the string/dictionary/block
+// collector. Use it whenever a Maggie Value (typically a block) is handed to Go
+// and retained beyond the lifetime of the frame that produced it — e.g. an HTTP
+// route handler stored in a net/http closure. Without this the collector cannot
+// see the retained Value (it lives only in a Go local, not in any traced root)
+// and would reclaim it. Idempotent.
+func (vm *VM) PinRoot(v Value) {
+	vm.pinnedRootsMu.Lock()
+	vm.pinnedRoots[v] = struct{}{}
+	vm.pinnedRootsMu.Unlock()
+}
+
+// UnpinRoot removes a previously pinned root.
+func (vm *VM) UnpinRoot(v Value) {
+	vm.pinnedRootsMu.Lock()
+	delete(vm.pinnedRoots, v)
+	vm.pinnedRootsMu.Unlock()
 }
 
 // KeepAliveCount returns the number of objects in the keepAlive set.
