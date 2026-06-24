@@ -140,6 +140,39 @@ func TestIsHttpResponseValueFalse(t *testing.T) {
 	}
 }
 
+// TestExtractHTTPResultGCSafe is the regression test for the bare-string
+// handler use-after-free. A handler that returns a bare string left it
+// referenced only from a Go local on the net/http goroutine, after the
+// producing interpreter unregistered; a string-collector sweep in that window
+// freed it and the write path emitted an empty body. extractHTTPResult must
+// snapshot the body into Go-owned bytes that survive any later sweep.
+func TestExtractHTTPResultGCSafe(t *testing.T) {
+	vm := NewVM()
+	defer vm.Shutdown()
+
+	// Bare-string result. extractHTTPResult marshals it to Go-owned bytes
+	// while `raw` is still readable; a sweep afterwards must not affect hr.body
+	// even though `raw` itself (a Go-local ID, not a Maggie root) gets freed.
+	raw := vm.registry.NewStringValue("body-bytes")
+	hr := vm.extractHTTPResult(raw)
+	vm.CollectStringGarbage()
+	rawAfter := vm.registry.GetStringContent(raw) // demonstrates the hazard
+	if !hr.hasBody || string(hr.body) != "body-bytes" {
+		t.Fatalf("bare-string body not GC-safe: hasBody=%v body=%q (raw after sweep=%q)",
+			hr.hasBody, hr.body, rawAfter)
+	}
+	t.Logf("raw string after sweep = %q (the old code read THIS on the net/http goroutine)", rawAfter)
+
+	// HttpResponse result: status + body must survive a sweep too.
+	rv := vm.Send(vm.globals["HttpResponse"], "new:body:",
+		[]Value{FromSmallInt(201), vm.registry.NewStringValue("resp-body")})
+	hr2 := vm.extractHTTPResult(rv)
+	vm.CollectStringGarbage()
+	if hr2.status != 201 || !hr2.hasBody || string(hr2.body) != "resp-body" {
+		t.Fatalf("response not GC-safe: status=%d body=%q", hr2.status, hr2.body)
+	}
+}
+
 // ---------------------------------------------------------------------------
 // HttpServer Primitive Tests (via vm.Send)
 // ---------------------------------------------------------------------------

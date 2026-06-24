@@ -182,6 +182,48 @@ func (vm *VM) vmRegisterHttpResponse(resp *HttpResponseObject) Value {
 	return httpResponseToValue(id)
 }
 
+// httpResult is a fully Go-native snapshot of a handler's response. It is built
+// by extractHTTPResult INSIDE the handler's dispatch/forked region — while the
+// producing interpreter is still registered and running — so that nothing the
+// net/http write path touches depends on a Maggie Value that could be swept by
+// the string collector after the interpreter unregisters.
+type httpResult struct {
+	status  int
+	headers map[string]string
+	body    []byte
+	hasBody bool
+}
+
+// extractHTTPResult marshals a handler's return Value into Go-native types.
+//
+// It MUST be called while the producing interpreter is still active (registered
+// and running): the string collector cannot make progress while a registered
+// interpreter is running (it parks at bytecode safepoints, not in Go calls like
+// this one), so the StringObject behind `result` stays reachable for the
+// duration of the read. Reading the body AFTER the interpreter unregisters —
+// which is what the old code did, on the net/http goroutine — races the
+// collector: a bare-string result lives only in the swept Strings registry, so
+// a sweep in that window yields an empty body. The returned httpResult holds
+// only Go-owned copies and is safe to use after any later collection.
+func (vm *VM) extractHTTPResult(result Value) httpResult {
+	if resp := vm.vmGetHttpResponse(result); resp != nil {
+		var headers map[string]string
+		if len(resp.headers) > 0 {
+			headers = make(map[string]string, len(resp.headers))
+			for k, hv := range resp.headers {
+				headers[k] = hv
+			}
+		}
+		// resp.body is already a Go string (copied at construction); []byte
+		// re-copies it into a slice the write path owns outright.
+		return httpResult{status: resp.status, headers: headers, body: []byte(resp.body), hasBody: true}
+	}
+	if IsStringValue(result) {
+		return httpResult{status: http.StatusOK, body: []byte(vm.registry.GetStringContent(result)), hasBody: true}
+	}
+	return httpResult{status: http.StatusOK, hasBody: false}
+}
+
 // ---------------------------------------------------------------------------
 // SSEConnection Registry
 // ---------------------------------------------------------------------------
@@ -387,13 +429,17 @@ func (vm *VM) registerHttpPrimitives() {
 				}
 			}()
 
-			resultCh := make(chan Value, 1)
+			// The handler runs on a forked goroutine; marshal its response to
+			// Go-native types (extractHTTPResult) on that goroutine, before it
+			// unregisters its interpreter, so the body the net/http write path
+			// emits can't be swept by the string collector after unregister.
+			resultCh := make(chan httpResult, 1)
 
 			go func() {
 				defer v.unregisterInterpreter()
 				defer func() {
 					if rec := recover(); rec != nil {
-						resultCh <- Nil
+						resultCh <- httpResult{status: http.StatusInternalServerError}
 					}
 				}()
 				interp := v.newForkedInterpreter(nil)
@@ -402,22 +448,16 @@ func (vm *VM) registerHttpPrimitives() {
 				reqVal := v.vmRegisterHttpRequest(reqObj)
 				defer v.vmUnregisterHttpRequest(reqVal)
 				result := interp.ExecuteBlockDetached(block, captures, []Value{reqVal}, homeSelf, homeMethod)
-				resultCh <- result
+				resultCh <- v.extractHTTPResult(result)
 			}()
 
-			result := <-resultCh
-			resp := v.vmGetHttpResponse(result)
-			if resp != nil {
-				for k, hv := range resp.headers {
-					w.Header().Set(k, hv)
-				}
-				w.WriteHeader(resp.status)
-				w.Write([]byte(resp.body))
-			} else {
-				w.WriteHeader(http.StatusOK)
-				if IsStringValue(result) {
-					w.Write([]byte(v.registry.GetStringContent(result)))
-				}
+			hr := <-resultCh
+			for k, hv := range hr.headers {
+				w.Header().Set(k, hv)
+			}
+			w.WriteHeader(hr.status)
+			if hr.hasBody {
+				w.Write(hr.body)
 			}
 		})
 		return recv
@@ -452,28 +492,31 @@ func (vm *VM) registerHttpPrimitives() {
 			// Dispatch Maggie execution to the VM goroutine.
 			// The HTTP request object is created inside the dispatch
 			// because the VM's registries are not thread-safe.
-			result := v.Dispatch(func() Value {
+			//
+			// The response is marshalled to Go-native types (extractHTTPResult)
+			// INSIDE the dispatch closure, before the interpreter unregisters —
+			// otherwise a bare-string body referenced only from this goroutine's
+			// Go local could be swept by the string collector before we read it,
+			// yielding an empty body.
+			var hr httpResult
+			v.Dispatch(func() Value {
 				interp := v.newInterpreter()
 				v.registerInterpreter(interp)
 				defer v.unregisterInterpreter()
 				reqObj := &HttpRequestObject{request: r}
 				reqVal := v.vmRegisterHttpRequest(reqObj)
 				defer v.vmUnregisterHttpRequest(reqVal)
-				return interp.ExecuteBlockDetached(block, captures, []Value{reqVal}, homeSelf, homeMethod)
+				result := interp.ExecuteBlockDetached(block, captures, []Value{reqVal}, homeSelf, homeMethod)
+				hr = v.extractHTTPResult(result)
+				return Nil
 			})
 
-			resp := v.vmGetHttpResponse(result)
-			if resp != nil {
-				for k, hv := range resp.headers {
-					w.Header().Set(k, hv)
-				}
-				w.WriteHeader(resp.status)
-				w.Write([]byte(resp.body))
-			} else {
-				w.WriteHeader(http.StatusOK)
-				if IsStringValue(result) {
-					w.Write([]byte(v.registry.GetStringContent(result)))
-				}
+			for k, hv := range hr.headers {
+				w.Header().Set(k, hv)
+			}
+			w.WriteHeader(hr.status)
+			if hr.hasBody {
+				w.Write(hr.body)
 			}
 		})
 		return recv
