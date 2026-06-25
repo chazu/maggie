@@ -47,7 +47,7 @@ Output subclass: Object
   """
   class method: isJson [ ^format = 'json' ]
 
-  -- Simple output helpers (class-side)
+  # -- Simple output helpers (class-side)
 
   """
   Print `aString` followed by a newline.
@@ -70,7 +70,7 @@ Output subclass: Object
       (Json encodePretty: aValue) println
   ]
 
-  -- Smart output (respects the configured format)
+  # -- Smart output (respects the configured format)
 
   """
   Render a result value using the active format. Dictionaries print as
@@ -146,7 +146,7 @@ Output subclass: Object
       ^true
   ]
 
-  -- Table output (class-side)
+  # -- Table output (class-side)
 
   """
   Print a table with the given headers. Each row is a Dictionary keyed
@@ -198,7 +198,7 @@ Output subclass: Object
       ^result
   ]
 
-  -- Instance-side API (stateless, one-shot helpers)
+  # -- Instance-side API (stateless, one-shot helpers)
 
   """
   Print `anObject` as pretty-printed JSON to stdout.

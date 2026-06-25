@@ -1,5 +1,28 @@
 # Changelog
 
+## 2026-06-25 — Parser surfaces previously-silent syntax errors
+
+`mag build` / compile no longer silently drops malformed source. The parser had
+three skip branches (top-level, class body, trait body) that advanced past
+unexpected tokens *without recording an error*, so a mistyped `method:` keyword
+or stray tokens vanished from the compiled image with no build error —
+surfacing later as a confusing `doesNotUnderstand` at runtime. (Diagnosed in
+`procyon-park`, where it repeatedly cost real debugging time.) Unexpected
+tokens now produce `line N: unexpected <TYPE> "<lit>" in <context>` and fail
+the build; resync to the next definition keeps one stray construct to a single
+error rather than flooding.
+
+This also fixed a latent gap: the parser had no `classVars:` case, so class
+variable declarations were silently dropped at parse time. They are now parsed
+into `ClassDef.ClassVariables`. (Not yet wired into `vm.Class` on the
+fresh-compile path — only image rehydrate sets `ClassVars` — so class variables
+still do not function from fresh source; deferred to avoid changing class
+content hashes.)
+
+Stdlib `--` section-separator lines (not valid Maggie — comments are `#`) in
+`lib/Cli/Output.mag` and `lib/Process.mag`, previously silently dropped, were
+corrected to `#` comments.
+
 ## 2026-06-18 — String & dictionary GC on by default
 
 The string/dictionary collector (added below) is now **enabled by default** —

@@ -80,6 +80,53 @@ func (p *Parser) Warnings() []string {
 	return p.warnings
 }
 
+// atTopLevelResyncPoint reports whether the current token is a safe place to
+// resume top-level parsing after an error: EOF, a docstring, or an identifier
+// that may begin the next class/trait/protocol definition.
+func (p *Parser) atTopLevelResyncPoint() bool {
+	return p.curTokenIs(TokenEOF) || p.curTokenIs(TokenDocstring) || p.curTokenIs(TokenIdentifier)
+}
+
+// atBodyResyncPoint reports whether the current token is a safe place to resume
+// parsing inside a class or trait body after an error: EOF, a docstring, a
+// recognized body keyword, or the start of the next top-level definition.
+func (p *Parser) atBodyResyncPoint() bool {
+	if p.curTokenIs(TokenEOF) || p.curTokenIs(TokenDocstring) {
+		return true
+	}
+	if p.curTokenIs(TokenKeyword) {
+		switch p.curToken.Literal {
+		case "method:", "classMethod:", "instanceVars:", "instanceVariables:",
+			"classVars:", "classVariables:", "include:", "uses:", "requires:":
+			return true
+		}
+	}
+	if p.curTokenIs(TokenIdentifier) {
+		switch p.peekToken.Literal {
+		case "subclass:", "trait", "protocol":
+			return true
+		}
+		if p.curToken.Literal == "class" && p.peekToken.Literal == "method:" {
+			return true
+		}
+	}
+	return false
+}
+
+// skipUnexpected records a single parse error for an unexpected token and then
+// advances to the next resync point. Without this, malformed constructs were
+// silently dropped — a method with a mistyped keyword, or stray tokens, would
+// simply vanish from the compiled image with no build error, surfacing later as
+// a confusing doesNotUnderstand at runtime. Skipping to a resync point keeps one
+// stray construct to a single error rather than flooding the error list.
+func (p *Parser) skipUnexpected(context string, atResync func() bool) {
+	p.errorf("unexpected %s %q in %s", p.curToken.Type, p.curToken.Literal, context)
+	p.nextToken()
+	for !atResync() {
+		p.nextToken()
+	}
+}
+
 // ---------------------------------------------------------------------------
 // Top-level parsing
 // ---------------------------------------------------------------------------
@@ -1056,8 +1103,9 @@ func (p *Parser) ParseSourceFile() *SourceFile {
 				pendingDocString = ""
 			}
 		} else {
-			// Skip unexpected tokens
-			p.nextToken()
+			// Unexpected token at top level — record an error rather than
+			// silently dropping it, then resync to the next definition.
+			p.skipUnexpected("top-level (expected a class, trait, or protocol definition)", p.atTopLevelResyncPoint)
 		}
 
 		startPos = p.curToken.Pos
@@ -1174,6 +1222,10 @@ func (p *Parser) parseClassDefBody(className string, startPos Position) *ClassDe
 				classDef.InstanceVarTypes = append(classDef.InstanceVarTypes, varTypes...)
 				pendingDocString = ""
 
+			case "classVars:", "classVariables:":
+				classDef.ClassVariables = append(classDef.ClassVariables, p.parseClassVars()...)
+				pendingDocString = ""
+
 			case "include:", "uses:":
 				p.nextToken() // consume "include:" or "uses:"
 				if p.curTokenIs(TokenIdentifier) {
@@ -1201,8 +1253,8 @@ func (p *Parser) parseClassDefBody(className string, startPos Position) *ClassDe
 				pendingDocString = ""
 
 			default:
-				// Unknown keyword, skip
-				p.nextToken()
+				// Unknown keyword inside class body — surface an error.
+				p.skipUnexpected(fmt.Sprintf("class %s body", className), p.atBodyResyncPoint)
 				pendingDocString = ""
 			}
 		} else if p.curTokenIs(TokenIdentifier) && p.curToken.Literal == "class" && p.peekTokenIs(TokenKeyword) && p.peekToken.Literal == "method:" {
@@ -1216,8 +1268,9 @@ func (p *Parser) parseClassDefBody(className string, startPos Position) *ClassDe
 			}
 			pendingDocString = ""
 		} else {
-			// Skip non-keyword tokens (whitespace handled by lexer)
-			p.nextToken()
+			// Unexpected non-keyword token inside class body — surface an error.
+			p.skipUnexpected(fmt.Sprintf("class %s body", className), p.atBodyResyncPoint)
+			pendingDocString = ""
 		}
 	}
 
@@ -1277,11 +1330,14 @@ func (p *Parser) parseTraitDefBody(traitName string, startPos Position) *TraitDe
 				pendingDocString = ""
 
 			default:
-				p.nextToken()
+				// Unknown keyword inside trait body — surface an error.
+				p.skipUnexpected(fmt.Sprintf("trait %s body", traitName), p.atBodyResyncPoint)
 				pendingDocString = ""
 			}
 		} else {
-			p.nextToken()
+			// Unexpected non-keyword token inside trait body — surface an error.
+			p.skipUnexpected(fmt.Sprintf("trait %s body", traitName), p.atBodyResyncPoint)
+			pendingDocString = ""
 		}
 	}
 
@@ -1333,6 +1389,37 @@ func (p *Parser) parseInstanceVars() ([]string, []*TypeExpr) {
 	}
 
 	return vars, varTypes
+}
+
+// parseClassVars parses class variable declarations.
+// Format: classVars: name1 name2 name3   OR   classVars: 'name1 name2 name3'
+func (p *Parser) parseClassVars() []string {
+	p.nextToken() // consume "classVars:" or "classVariables:"
+
+	var vars []string
+
+	// String literal form: classVars: 'a b c'
+	if p.curTokenIs(TokenString) {
+		str := p.curToken.Literal
+		p.nextToken()
+		for _, v := range strings.Fields(str) {
+			if v != "" {
+				vars = append(vars, v)
+			}
+		}
+		return vars
+	}
+
+	// Identifier list form: classVars: a b c
+	for p.curTokenIs(TokenIdentifier) {
+		if p.curToken.Literal == "class" && p.peekTokenIs(TokenKeyword) && p.peekToken.Literal == "method:" {
+			break
+		}
+		vars = append(vars, p.curToken.Literal)
+		p.nextToken()
+	}
+
+	return vars
 }
 
 // parseMethodInBrackets parses a method definition with selector and body in brackets.

@@ -759,6 +759,12 @@ func TestFormat_RealMagFiles_Idempotent(t *testing.T) {
 		if err != nil {
 			return err
 		}
+		// Skip shelved/ scratch files — they are not part of the library build
+		// and intentionally contain top-level auto-run statements that the
+		// class-file grammar does not accept.
+		if info.IsDir() && info.Name() == "shelved" {
+			return filepath.SkipDir
+		}
 		if !info.IsDir() && strings.HasSuffix(path, ".mag") {
 			magFiles = append(magFiles, path)
 		}

@@ -142,7 +142,7 @@ Process subclass: Object
       ^'a Process'
   ]
 
-  -- Mailbox messaging
+  # -- Mailbox messaging
 
   """
   Send a value to this process's mailbox (fire-and-forget).
@@ -199,7 +199,7 @@ Process subclass: Object
       ^self primUnregister
   ]
 
-  -- Links and monitors
+  # -- Links and monitors
 
   """
   Create a bidirectional link with another process. If either
@@ -298,7 +298,7 @@ Process subclass: Object
       ^self primExitReason
   ]
 
-  -- Class-side mailbox methods
+  # -- Class-side mailbox methods
 
   """
   Block the current process until a message arrives in its
