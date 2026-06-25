@@ -40,7 +40,7 @@ HttpClient subclass: Object
   client := HttpClient new
   ```
   """
-  class method: new ^<HttpClient> ! <Network> [
+  classMethod: new ^<HttpClient> ! <Network> [
       <primitive>
   ]
 

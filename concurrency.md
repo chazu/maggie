@@ -720,7 +720,7 @@ func GetInstance() *Singleton {
 Object subclass: Singleton [
     | ClassVar: instance once |
 
-    class method: getInstance [
+    classMethod: getInstance [
         once ifNil: [ once := Once new ].
         once do: [ instance := self basicNew initialize ].
         ^instance
@@ -733,7 +733,7 @@ Object subclass: Singleton [
 Object subclass: Singleton [
     | ClassVar: instance |
 
-    class method: getInstance [
+    classMethod: getInstance [
         instance ifNil: [ instance := self basicNew initialize ].
         ^instance
     ]

@@ -26,6 +26,6 @@ UnixSocketClient subclass: Object
   conn close
   ```
   """
-  class method: connectTo: path <String> ^<SocketConnection> ! <IO> [
+  classMethod: connectTo: path <String> ^<SocketConnection> ! <IO> [
       ^self primConnectTo: path
   ]

@@ -62,7 +62,7 @@ EnvBinding subclass: Object
   bindings with NaN-boxed command instances. Called automatically on first
   class load.
   """
-  class method: initialize [
+  classMethod: initialize [
       commandBindings := Dictionary new
   ]
 
@@ -79,7 +79,7 @@ EnvBinding subclass: Object
   b required >>> false
   ```
   """
-  class method: envName: aName <String> setter: aSelector <Symbol> type: aType <Symbol>
+  classMethod: envName: aName <String> setter: aSelector <Symbol> type: aType <Symbol>
       ^<Cli::EnvBinding> [
       ^self envName: aName setter: aSelector type: aType default: nil required: false
   ]
@@ -94,7 +94,7 @@ EnvBinding subclass: Object
   b required >>> false
   ```
   """
-  class method: envName: aName <String> setter: aSelector <Symbol> type: aType <Symbol>
+  classMethod: envName: aName <String> setter: aSelector <Symbol> type: aType <Symbol>
       default: aDefault ^<Cli::EnvBinding> [
       ^self envName: aName setter: aSelector type: aType default: aDefault required: false
   ]
@@ -110,7 +110,7 @@ EnvBinding subclass: Object
   b required >>> true
   ```
   """
-  class method: envName: aName <String> setter: aSelector <Symbol> type: aType <Symbol>
+  classMethod: envName: aName <String> setter: aSelector <Symbol> type: aType <Symbol>
       default: aDefault required: aBool <Boolean> ^<Cli::EnvBinding> [
       | b <Cli::EnvBinding> |
       b := self new.
@@ -160,7 +160,7 @@ EnvBinding subclass: Object
   raised >>> true
   ```
   """
-  class method: coerce: aString <String> type: aType <Symbol> [
+  classMethod: coerce: aString <String> type: aType <Symbol> [
       | trimmed parsed |
       aString isNil ifTrue: [^nil].
       trimmed := aString trimBoth.
@@ -199,7 +199,7 @@ EnvBinding subclass: Object
   here because NaN-boxed command instances cannot hold Maggie ivars of
   their own.
   """
-  class method: register: aBinding for: aCommand [
+  classMethod: register: aBinding for: aCommand [
       | list |
       commandBindings isNil ifTrue: [ commandBindings := Dictionary new ].
       list := commandBindings at: aCommand ifAbsent: [
@@ -216,7 +216,7 @@ EnvBinding subclass: Object
   Return the bindings registered for `aCommand`, or an empty ArrayList if
   none were ever registered.
   """
-  class method: bindingsFor: aCommand [
+  classMethod: bindingsFor: aCommand [
       commandBindings isNil ifTrue: [ ^ArrayList new ].
       ^commandBindings at: aCommand ifAbsent: [ ArrayList new ]
   ]
@@ -226,7 +226,7 @@ EnvBinding subclass: Object
   first `Failure` encountered, or `aTarget` on success. Called from
   `Cli::Command>>applyEnvBindings`.
   """
-  class method: applyBindingsFor: aCommand to: aTarget [
+  classMethod: applyBindingsFor: aCommand to: aTarget [
       | bindings result |
       bindings := self bindingsFor: aCommand.
       bindings do: [:b |

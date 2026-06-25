@@ -56,7 +56,7 @@ Semaphore subclass: Object
   (Semaphore new: 5) available  "=> 5"
   ```
   """
-  class method: new: capacity <Integer> ^<Semaphore> [
+  classMethod: new: capacity <Integer> ^<Semaphore> [
       ^self primNew: capacity
   ]
 
@@ -68,7 +68,7 @@ Semaphore subclass: Object
   Semaphore new available  "=> 1"
   ```
   """
-  class method: new ^<Semaphore> [
+  classMethod: new ^<Semaphore> [
       ^self primNew: 1
   ]
 

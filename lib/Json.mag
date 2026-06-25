@@ -32,7 +32,7 @@ Json subclass: Object
   Json encode: #(1 2 3)            "=> '[1,2,3]'"
   ```
   """
-  class method: encode: anObject ^<String> [
+  classMethod: encode: anObject ^<String> [
       ^self primEncode: anObject
   ]
 
@@ -44,7 +44,7 @@ Json subclass: Object
   Json encodePretty: #{'a' -> 1}
   ```
   """
-  class method: encodePretty: anObject ^<String> [
+  classMethod: encodePretty: anObject ^<String> [
       ^self primEncodePretty: anObject
   ]
 
@@ -65,7 +65,7 @@ Json subclass: Object
   Json decode: 'null'             "=> nil"
   ```
   """
-  class method: decode: aString <String> [
+  classMethod: decode: aString <String> [
       ^self primDecode: aString
   ]
 
@@ -106,7 +106,7 @@ JsonReader subclass: Object
   reader next   "=> 1"
   ```
   """
-  class method: new: aString <String> ^<JsonReader> [
+  classMethod: new: aString <String> ^<JsonReader> [
       ^self primNew: aString
   ]
 
@@ -162,7 +162,7 @@ JsonWriter subclass: Object
   JsonWriter new contents   "=> ''"
   ```
   """
-  class method: new ^<JsonWriter> [
+  classMethod: new ^<JsonWriter> [
       ^self primNew
   ]
 
@@ -176,7 +176,7 @@ JsonWriter subclass: Object
   writer contents
   ```
   """
-  class method: newPretty ^<JsonWriter> [
+  classMethod: newPretty ^<JsonWriter> [
       ^self primNewPretty
   ]
 

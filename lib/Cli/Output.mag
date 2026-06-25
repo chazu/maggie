@@ -28,45 +28,45 @@ Output subclass: Object
   Initialise the default format to 'text'. Called automatically when
   the class is first loaded.
   """
-  class method: initialize [
+  classMethod: initialize [
       format := 'text'
   ]
 
   """
   Return the currently configured format (`'text'` or `'json'`).
   """
-  class method: format [ ^format ]
+  classMethod: format [ ^format ]
 
   """
   Set the active output format. Accepts `'text'` or `'json'`.
   """
-  class method: format: aFormat [ format := aFormat ]
+  classMethod: format: aFormat [ format := aFormat ]
 
   """
   Answer true if the current format is JSON.
   """
-  class method: isJson [ ^format = 'json' ]
+  classMethod: isJson [ ^format = 'json' ]
 
   # -- Simple output helpers (class-side)
 
   """
   Print `aString` followed by a newline.
   """
-  class method: text: aString [
+  classMethod: text: aString [
       aString println
   ]
 
   """
   Print `aString` prefixed with 'Error: '.
   """
-  class method: error: aString [
+  classMethod: error: aString [
       ('Error: ', aString) println
   ]
 
   """
   Pretty-print `aValue` as JSON.
   """
-  class method: json: aValue [
+  classMethod: json: aValue [
       (Json encodePretty: aValue) println
   ]
 
@@ -77,7 +77,7 @@ Output subclass: Object
   aligned key/value lines in text mode; any value prints as JSON in
   json mode.
   """
-  class method: result: aValue [
+  classMethod: result: aValue [
       self isJson
           ifTrue: [self json: aValue]
           ifFalse: [
@@ -92,7 +92,7 @@ Output subclass: Object
   follows `Dictionary keys`, which Maggie does not guarantee — callers
   that need a specific field order should use `dictText:keys:`.
   """
-  class method: dictText: aDict [
+  classMethod: dictText: aDict [
       ^self dictText: aDict keys: aDict keys
   ]
 
@@ -101,7 +101,7 @@ Output subclass: Object
   by `keyOrder`. Keys in `keyOrder` that the dict does not contain are
   skipped; keys in the dict not in `keyOrder` are not printed.
   """
-  class method: dictText: aDict keys: keyOrder [
+  classMethod: dictText: aDict keys: keyOrder [
       | maxLen |
       keyOrder isEmpty ifTrue: [^self text: '(empty)'].
       maxLen := 0.
@@ -124,7 +124,7 @@ Output subclass: Object
   Format a single value for text output. Strings render as-is, nil as
   '(nil)', everything else via printString.
   """
-  class method: formatValue: aValue [
+  classMethod: formatValue: aValue [
       aValue isNil ifTrue: [^'(nil)'].
       (aValue class name = #String) ifTrue: [^aValue].
       ^aValue printString
@@ -135,7 +135,7 @@ Output subclass: Object
   `error`), Successes delegate to `result:`. Answers true on success,
   false on failure so the caller can branch on the return.
   """
-  class method: resultOrError: aValue [
+  classMethod: resultOrError: aValue [
       (aValue isFailure) ifTrue: [
           self isJson
               ifTrue: [self json: (Dictionary new at: 'error' put: aValue error; yourself)]
@@ -153,7 +153,7 @@ Output subclass: Object
   by `keys`; `headers` provides the display labels in the same order
   as `keys`. In JSON mode the rows are printed directly.
   """
-  class method: table: rows headers: headers keys: keys [
+  classMethod: table: rows headers: headers keys: keys [
       | widths headerLine |
       self isJson ifTrue: [^self json: rows].
 
@@ -191,7 +191,7 @@ Output subclass: Object
   """
   Right-pad `str` with spaces until its length reaches `width`.
   """
-  class method: pad: str to: width [
+  classMethod: pad: str to: width [
       | result |
       result := str.
       [result size < width] whileTrue: [result := result, ' '].
@@ -331,7 +331,7 @@ Output subclass: Object
   ((decoded at: 1) at: 'name') >>> 'Alice'
   ```
   """
-  class method: roundTripExamples [
+  classMethod: roundTripExamples [
       "Documentation anchor for the round-trip doctests above; no code path references it."
       ^self
   ]

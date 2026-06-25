@@ -51,7 +51,7 @@ UnixSocketServer subclass: Object
   server isRunning   "=> true"
   ```
   """
-  class method: listenAt: path <String> ^<UnixSocketServer> ! <IO> [
+  classMethod: listenAt: path <String> ^<UnixSocketServer> ! <IO> [
       ^self primListenAt: path
   ]
 
@@ -64,7 +64,7 @@ UnixSocketServer subclass: Object
   server := UnixSocketServer listenAt: '/tmp/test.sock' mode: 8r660
   ```
   """
-  class method: listenAt: path <String> mode: mode <Integer> ^<UnixSocketServer> ! <IO> [
+  classMethod: listenAt: path <String> mode: mode <Integer> ^<UnixSocketServer> ! <IO> [
       ^self primListenAtMode: path mode: mode
   ]
 

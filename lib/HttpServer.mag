@@ -37,7 +37,7 @@ HttpServer subclass: Object
   server := HttpServer new: 8080
   ```
   """
-  class method: new: port <Integer> ^<HttpServer> [
+  classMethod: new: port <Integer> ^<HttpServer> [
       <primitive>
   ]
 

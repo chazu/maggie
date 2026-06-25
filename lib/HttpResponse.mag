@@ -36,7 +36,7 @@ HttpResponse subclass: Object
   HttpResponse new: 500 body: 'Internal Server Error'
   ```
   """
-  class method: new: status <Integer> body: body <String> ^<HttpResponse> [
+  classMethod: new: status <Integer> body: body <String> ^<HttpResponse> [
       <primitive>
   ]
 
