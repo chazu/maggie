@@ -160,8 +160,10 @@ SmallInteger subclass: Object
   ```
   """
   method: factorial ^<Integer> [
-      self = 0 ifTrue: [^1].
-      ^self * (self - 1) factorial
+      | result |
+      result := 1.
+      1 to: self do: [:i | result := result * i].
+      ^result
   ]
 
   """
