@@ -2,6 +2,7 @@ package vm
 
 import (
 	"math/big"
+	"strings"
 	"testing"
 )
 
@@ -183,10 +184,17 @@ func TestBigIntDivisionByZero(t *testing.T) {
 	a := vm.registry.RegisterBigInt(&BigIntObject{Value: big.NewInt(100)})
 	b := vm.registry.RegisterBigInt(&BigIntObject{Value: big.NewInt(0)})
 
-	method := vm.BigIntegerClass.LookupMethod(vm.Selectors, "/")
-	result := method.Invoke(vm, a, []Value{b})
-	if result != Nil {
-		t.Fatal("expected Nil for division by zero")
+	// BigInteger / 0 must raise a catchable ZeroDivide (consistent with
+	// SmallInteger /), not silently return nil.
+	msg, signaled := signalsPrimitiveError(vm, func() {
+		method := vm.BigIntegerClass.LookupMethod(vm.Selectors, "/")
+		method.Invoke(vm, a, []Value{b})
+	})
+	if !signaled {
+		t.Fatal("expected ZeroDivide to be signaled for division by zero")
+	}
+	if !strings.Contains(msg, "division by zero") {
+		t.Errorf("unexpected message: %s", msg)
 	}
 }
 
@@ -386,5 +394,81 @@ func TestIsBigIntValue(t *testing.T) {
 	}
 	if IsBigIntValue(Nil) {
 		t.Fatal("Nil should not be BigInt")
+	}
+}
+
+// TestBigIntEqualityViaOpSendEQ guards the regression where the OpSendEQ fast
+// path (primitiveEQ) answered identity only, so two distinct BigIntegers with
+// equal value compared unequal — (100 factorial) = (100 factorial) was false.
+func TestBigIntEqualityViaOpSendEQ(t *testing.T) {
+	vm := NewVM()
+	i := vm.interpreter
+	mk := func(n int64) Value {
+		return vm.registry.RegisterBigInt(&BigIntObject{Value: big.NewInt(n)})
+	}
+	big1 := mk(1 << 50) // beyond SmallInt range
+	big1dup := mk(1 << 50)
+	big2 := mk(1 << 51)
+
+	if i.primitiveEQ(big1, big1dup) != True {
+		t.Error("equal BigIntegers should compare equal via primitiveEQ")
+	}
+	if i.primitiveEQ(big1, big2) != False {
+		t.Error("unequal BigIntegers should compare unequal")
+	}
+	// A BigInteger vs a non-numeric must answer False (boolean), never nil.
+	if got := i.primitiveEQ(big1, vm.registry.NewStringValue("x")); got != False {
+		t.Errorf("BigInteger = String should be False, got %v", got)
+	}
+	// Value-type equality unaffected.
+	if i.primitiveEQ(FromSmallInt(5), FromSmallInt(5)) != True ||
+		i.primitiveEQ(FromSmallInt(5), FromSmallInt(6)) != False {
+		t.Error("SmallInt equality regressed")
+	}
+	if i.primitiveEQ(Nil, FromSmallInt(5)) != False {
+		t.Error("nil = 5 should be False, not nil")
+	}
+}
+
+// TestBigIntFloatComparison guards the regression where BigInteger </>/<=/>=
+// returned nil for a Float argument (breaking ifTrue:), instead of promoting to
+// a real comparison; and the symmetric Float-receiver / BigInteger-arg case.
+func TestBigIntFloatComparison(t *testing.T) {
+	vm := NewVM()
+	big1 := vm.registry.RegisterBigInt(&BigIntObject{Value: new(big.Int).Lsh(big.NewInt(1), 80)}) // 2^80
+	f := FromFloat64(3.14)
+
+	cases := []struct {
+		recv, arg Value
+		sel       string
+		want      Value
+	}{
+		{big1, f, ">", True},   // 2^80 > 3.14
+		{big1, f, "<", False},  // 2^80 < 3.14
+		{big1, f, ">=", True},  //
+		{big1, f, "<=", False}, //
+		{f, big1, "<", True},   // 3.14 < 2^80 (Float receiver, BigInt arg)
+		{f, big1, ">", False},  //
+	}
+	for _, tc := range cases {
+		got := vm.Send(tc.recv, tc.sel, []Value{tc.arg})
+		if got != tc.want {
+			t.Errorf("%s: got %v, want %v", tc.sel, got, tc.want)
+		}
+		if got == Nil {
+			t.Errorf("%s returned nil (regression)", tc.sel)
+		}
+	}
+
+	// Float arithmetic with a BigInteger arg promotes to Float (no error).
+	if r := vm.Send(FromFloat64(1.5), "+", []Value{big1}); !r.IsFloat() {
+		t.Errorf("1.5 + bigint should be a Float, got %v", r)
+	}
+
+	// A non-numeric argument raises a catchable error, not nil.
+	if _, signaled := signalsPrimitiveError(vm, func() {
+		vm.Send(big1, "<", []Value{vm.Symbols.SymbolValue("sym")})
+	}); !signaled {
+		t.Error("BigInteger < non-number should raise a catchable error")
 	}
 }

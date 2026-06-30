@@ -1031,34 +1031,21 @@ func (vm *VM) Execute(method *CompiledMethod, receiver Value, args []Value) Valu
 // This prevents Go panic stack traces from being shown for Maggie-level errors.
 // Set MAGGIE_DEBUG=1 to see full Go stack traces.
 func (vm *VM) ExecuteSafe(method *CompiledMethod, receiver Value, args []Value) (result Value, err error) {
+	// Snapshot the interpreter's stack pointers so that if Execute unwinds via
+	// panic (an unhandled Maggie exception), we can restore them in the
+	// recover below. Otherwise the frames/operands pushed during the failed
+	// Execute are abandoned and every subsequent ExecuteSafe on this shared
+	// interpreter (REPL, doctest runner, LSP, docserve) builds on top of the
+	// stale frames — corrupting stack traces and eventually exhausting the
+	// frame budget with a spurious StackOverflow.
+	interp := vm.currentInterpreter()
+	savedFP, savedSP := interp.fp, interp.sp
 	defer func() {
 		if r := recover(); r != nil {
-			if msg, ok := r.(string); ok && len(msg) > 14 && msg[:14] == "Maggie error: " {
-				// Extract just the Maggie error message (already includes stack trace)
-				err = fmt.Errorf("%s", msg[14:])
-				result = Nil
-				return
-			}
-			// Catch SignaledException (unhandled Maggie exception)
-			if sigEx, ok := r.(SignaledException); ok {
-				msg := "unhandled exception"
-				if sigEx.Object != nil {
-					className := ""
-					if sigEx.Object.ExceptionClass != nil {
-						className = sigEx.Object.ExceptionClass.Name
-					}
-					if IsStringValue(sigEx.Object.MessageText) {
-						msg = vm.registry.GetStringContent(sigEx.Object.MessageText)
-					}
-					if className != "" {
-						msg = className + ": " + msg
-					}
-					// Append the captured stack trace if available so callers
-					// see where the exception was raised, not just what.
-					if len(sigEx.Object.CapturedFrames) > 0 {
-						msg = msg + "\n" + FormatCapturedTrace(sigEx.Object.CapturedFrames)
-					}
-				}
+			interp.fp, interp.sp = savedFP, savedSP
+			interp.unwinding = false
+			interp.unwindValue = Nil
+			if msg, ok := FormatUnhandledPanic(vm, r); ok {
 				err = fmt.Errorf("%s", msg)
 				result = Nil
 				return
@@ -1067,8 +1054,42 @@ func (vm *VM) ExecuteSafe(method *CompiledMethod, receiver Value, args []Value) 
 			panic(r)
 		}
 	}()
-	result = vm.currentInterpreter().Execute(method, receiver, args)
+	result = interp.Execute(method, receiver, args)
 	return result, nil
+}
+
+// FormatUnhandledPanic renders a recovered panic value as a human-readable
+// Maggie error message. It handles the two ways an uncaught Maggie error
+// propagates: a "Maggie error: "-prefixed string panic, and a SignaledException
+// carrying the exception object. The returned ok is false for any other panic
+// (a genuine Go bug), which the caller should re-panic.
+func FormatUnhandledPanic(vm *VM, r interface{}) (msg string, ok bool) {
+	if s, isStr := r.(string); isStr && len(s) > 14 && s[:14] == "Maggie error: " {
+		// Already includes the stack trace; strip the internal prefix.
+		return s[14:], true
+	}
+	if sigEx, isSig := r.(SignaledException); isSig {
+		msg = "unhandled exception"
+		if sigEx.Object != nil {
+			className := ""
+			if sigEx.Object.ExceptionClass != nil {
+				className = sigEx.Object.ExceptionClass.Name
+			}
+			if IsStringValue(sigEx.Object.MessageText) {
+				msg = vm.registry.GetStringContent(sigEx.Object.MessageText)
+			}
+			if className != "" {
+				msg = className + ": " + msg
+			}
+			// Append the captured stack trace if available so callers see
+			// where the exception was raised, not just what.
+			if len(sigEx.Object.CapturedFrames) > 0 {
+				msg = msg + "\n" + FormatCapturedTrace(sigEx.Object.CapturedFrames)
+			}
+		}
+		return msg, true
+	}
+	return "", false
 }
 
 // GetProfiler returns the VM's profiler for inspecting hot code detection.

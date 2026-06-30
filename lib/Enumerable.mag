@@ -144,3 +144,118 @@ Enumerable trait
       self do: [:each | (block value: each) ifTrue: [n := n + 1]].
       ^n
   ]
+
+  """
+  Evaluate block for each element; evaluate sepBlock between successive
+  elements (not before the first or after the last). The idiomatic basis for
+  joining and pretty-printing.
+
+  ```test
+  s := ''.
+  #(1 2 3) do: [:x | s := s, x printString] separatedBy: [s := s, '-'].
+  s >>> '1-2-3'
+  ```
+  """
+  method: do: block separatedBy: sepBlock [
+      | first |
+      first := true.
+      self do: [:each |
+          first ifFalse: [sepBlock value].
+          block value: each.
+          first := false]
+  ]
+
+  """
+  Collect all elements into a new Array, in iteration order.
+
+  ```test
+  (#(3 1 2) select: [:x | x > 1]) asArray >>> #(3 2 )
+  ```
+  """
+  method: asArray ^<Array> [
+      | acc |
+      acc := ArrayList new.
+      self do: [:each | acc add: each].
+      ^acc asArray
+  ]
+
+  """
+  Collect all elements into a new growable ArrayList (Maggie's OrderedCollection).
+
+  ```test
+  #(1 2 3) asOrderedCollection size >>> 3
+  ```
+  """
+  method: asOrderedCollection [
+      | acc |
+      acc := ArrayList new.
+      self do: [:each | acc add: each].
+      ^acc
+  ]
+
+  """
+  Collect all distinct elements into a new Set.
+
+  ```test
+  #(1 1 2 3 3) asSet size >>> 3
+  ```
+  """
+  method: asSet [
+      | s |
+      s := Set new.
+      self do: [:each | s add: each].
+      ^s
+  ]
+
+  """
+  Return the sum of all elements (which must understand +). Empty collections
+  sum to 0.
+
+  ```test
+  #(1 2 3 4) sum >>> 10
+  #() sum >>> 0
+  ```
+  """
+  method: sum [
+      | total first |
+      total := 0.
+      first := true.
+      self do: [:each |
+          first ifTrue: [total := each. first := false]
+                ifFalse: [total := total + each]].
+      ^total
+  ]
+
+  """
+  Return the largest element (per >), or nil if empty.
+
+  ```test
+  #(3 1 4 1 5) max >>> 5
+  ```
+  """
+  method: max [
+      | best first |
+      best := nil.
+      first := true.
+      self do: [:each |
+          first ifTrue: [best := each. first := false]
+                ifFalse: [(each > best) ifTrue: [best := each]]].
+      ^best
+  ]
+
+  """
+  Return the smallest element (per <), or nil if empty.
+
+  ```test
+  #(3 1 4 1 5) min >>> 1
+  ```
+  """
+  method: min [
+      | best first |
+      best := nil.
+      first := true.
+      self do: [:each |
+          first ifTrue: [best := each. first := false]
+                ifFalse: [(each < best) ifTrue: [best := each]]].
+      ^best
+  ]

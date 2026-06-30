@@ -962,6 +962,48 @@ func TestExecuteSafeIncludesCapturedTrace(t *testing.T) {
 	}
 }
 
+// TestExecuteSafeRestoresStackOnException guards the regression where an
+// unhandled exception left interp.fp/sp elevated, so repeated ExecuteSafe calls
+// on a shared interpreter (REPL, doctest, LSP) accumulated stale frames and
+// eventually threw a spurious StackOverflow.
+func TestExecuteSafeRestoresStackOnException(t *testing.T) {
+	vm := NewVM()
+	signalSelID := vm.Selectors.Intern("trigger")
+
+	signalerClass := NewClass("ESafeStackSignaler", nil)
+	vm.Classes.Register(signalerClass)
+	signalerClass.AddMethod0(vm.Selectors, "trigger", func(v *VM, recv Value) Value {
+		return v.signalException(v.ErrorClass, v.registry.NewStringValue("kapow"))
+	})
+	signalerObj := signalerClass.NewInstance()
+
+	method := &CompiledMethod{
+		Arity:    0,
+		NumTemps: 0,
+		Literals: []Value{signalerObj.ToValue()},
+		Bytecode: func() []byte {
+			bb := NewBytecodeBuilder()
+			bb.EmitUint16(OpPushLiteral, 0)
+			bb.EmitSend(OpSend, uint16(signalSelID), 0)
+			bb.Emit(OpReturnTop)
+			return bb.Bytes()
+		}(),
+	}
+
+	interp := vm.currentInterpreter()
+	baseFP, baseSP := interp.fp, interp.sp
+
+	for n := 0; n < 50; n++ {
+		if _, err := vm.ExecuteSafe(method, Nil, nil); err == nil {
+			t.Fatalf("iteration %d: expected error from unhandled exception", n)
+		}
+		if interp.fp != baseFP || interp.sp != baseSP {
+			t.Fatalf("iteration %d: stack not restored after exception: fp %d->%d, sp %d->%d",
+				n, baseFP, interp.fp, baseSP, interp.sp)
+		}
+	}
+}
+
 func BenchmarkCaptureTrace(b *testing.B) {
 	vm := NewVM()
 	i := vm.interpreter
@@ -1005,3 +1047,4 @@ func TestCaptureTraceRespectsMaxDepth(t *testing.T) {
 		t.Errorf("expected innermost-first ordering (IP=%d), got IP=%d", depth-1, frames[0].IP)
 	}
 }
+

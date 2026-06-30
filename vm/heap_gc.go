@@ -295,6 +295,41 @@ func (vm *VM) markRoots(ls *liveSet) {
 	for _, v := range pinned {
 		vm.mark(v, ls)
 	}
+
+	// 12. Futures — a resolved Future caches its result (and any typed
+	//     exception value) in fields that no traced mutator root need reach;
+	//     before the consumer calls `await`, the resolved Value lives ONLY in
+	//     the Future. Without marking it, the collector would free a still-live
+	//     string/dict/object and (because string ids are recycled) later alias
+	//     it to a different value. Resolve() also writes f.result before the
+	//     channel send, so marking the cached fields covers the buffered value.
+	vm.registry.futuresMu.RLock()
+	for _, f := range vm.registry.futures {
+		if f == nil {
+			continue
+		}
+		f.mu.Lock()
+		vm.mark(f.result, ls)
+		vm.mark(f.exceptionValue, ls)
+		f.mu.Unlock()
+	}
+	vm.registry.futuresMu.RUnlock()
+
+	// 13. Channel buffered / in-flight values. A Value sitting in a Go channel
+	//     buffer is invisible to the trace; each ChannelObject mirrors its
+	//     buffered (and mid-flight) values in `pending`, which we mark here.
+	//     Without this, a value sent into a buffered channel whose sender has
+	//     dropped its reference is collected before the receiver reads it.
+	//     Lock order is (channelsMu → ch.mu); no path takes the reverse, so no
+	//     deadlock with the STW collector.
+	vm.registry.channelsMu.RLock()
+	for _, ch := range vm.registry.channels {
+		if ch == nil {
+			continue
+		}
+		ch.markPending(vm, ls)
+	}
+	vm.registry.channelsMu.RUnlock()
 }
 
 // markInterpreter marks the live roots held by one interpreter: operand-stack

@@ -88,18 +88,19 @@ Block subclass: Object
 
   """
   Evaluate the block, then unconditionally evaluate finallyBlock before
-  returning. Returns the result of the receiver block.
+  returning — on normal completion, a non-local return, or an exception.
+  Returns the result of the receiver block.
 
   ```test
   [1 + 2] ensure: [nil] >>> 3
   [42] ensure: [99] >>> 42
+  ranOnError := false.
+  [[Error signal: 'boom'] ensure: [ranOnError := true]] on: Error do: [:e | nil].
+  ranOnError >>> true
   ```
   """
   method: ensure: finallyBlock [
-      | result |
-      result := self value.
-      finallyBlock value.
-      ^result
+      ^self primEnsure: finallyBlock
   ]
 
   """

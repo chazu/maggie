@@ -394,3 +394,139 @@ func TestIntegrationAbs(t *testing.T) {
 		t.Errorf("5 myAbs = %v, want 5", result)
 	}
 }
+
+// TestIntegrationLargeIntLiterals guards the regression where integer literals
+// outside the SmallInt range silently became Floats (precision loss) and
+// literals beyond int64 became 0. They must compile to exact BigIntegers.
+func TestIntegrationLargeIntLiterals(t *testing.T) {
+	cases := []struct {
+		source string
+		want   string
+	}{
+		{"200000000000000", "200000000000000"},           // exceeds SmallInt, fits int64
+		{"200000000000000 + 1", "200000000000001"},        // exact arithmetic
+		{"9007199254740993", "9007199254740993"},          // would lose low bit as float64
+		{"99999999999999999999", "99999999999999999999"},  // exceeds int64
+		{"99999999999999999999 + 1", "100000000000000000000"},
+	}
+	for _, tc := range cases {
+		vmInst := vm.NewVM()
+		method, err := CompileExpr(tc.source, vmInst.Selectors, vmInst.Symbols, vmInst.Registry())
+		if err != nil {
+			t.Errorf("%q: compile error: %v", tc.source, err)
+			continue
+		}
+		result, err := vmInst.ExecuteSafe(method, vm.Nil, nil)
+		if err != nil {
+			t.Errorf("%q: execute error: %v", tc.source, err)
+			continue
+		}
+		if !vm.IsBigIntValue(result) {
+			t.Errorf("%q: result is not a BigInteger (got %v)", tc.source, result)
+			continue
+		}
+		bi := vmInst.Registry().GetBigInt(result)
+		if bi == nil {
+			t.Errorf("%q: GetBigInt returned nil", tc.source)
+			continue
+		}
+		if got := bi.Value.String(); got != tc.want {
+			t.Errorf("%q: got %s, want %s", tc.source, got, tc.want)
+		}
+	}
+}
+
+// TestCompilerRobustness covers diagnostics for malformed input that previously
+// passed silently: trailing tokens, unterminated comments, and duplicate
+// parameter/temp names.
+func TestCompilerRobustness(t *testing.T) {
+	vmInst := vm.NewVM()
+	sel, sym, reg := vmInst.Selectors, vmInst.Symbols, vmInst.Registry()
+
+	// Trailing tokens must be rejected by CompileExpr.
+	for _, src := range []string{"3 4", "3 + 4 5"} {
+		if _, err := CompileExpr(src, sel, sym, reg); err == nil {
+			t.Errorf("CompileExpr(%q) should error on trailing tokens", src)
+		}
+	}
+	// A single trailing period is fine.
+	if _, err := CompileExpr("3 + 4.", sel, sym, reg); err != nil {
+		t.Errorf("CompileExpr(%q) should accept a trailing period: %v", "3 + 4.", err)
+	}
+
+	// Unterminated comment must surface an error rather than swallowing input.
+	src := "foo\n\"this comment never closes ^42"
+	if _, err := Compile(src, sel, sym, reg); err == nil {
+		t.Error("unterminated comment should produce a compile error")
+	}
+
+	// Duplicate parameter / temp names must be rejected.
+	if _, err := Compile("a: x b: x\n    ^x", sel, sym, reg); err == nil {
+		t.Error("duplicate parameter name should produce a compile error")
+	}
+	if _, err := Compile("foo\n    | y y |\n    ^y", sel, sym, reg); err == nil {
+		t.Error("duplicate temp name should produce a compile error")
+	}
+}
+
+// TestIntegrationRetryContinuation guards the regression where a handler's
+// retry/pass/resume left the handler block's frame on the stack, so a
+// successful retry returned into the leaked frame and the code after on:do:
+// was silently skipped (the result was lost).
+func TestIntegrationRetryContinuation(t *testing.T) {
+	vmInst := vm.NewVM()
+	// The assertion depends on `result := inner + 5` running AFTER the on:do:.
+	// The frame leak would skip every statement after on:do:, so this only
+	// catches the bug because on:do: is not the method's final expression.
+	source := `run
+    | tries inner result |
+    tries := 0.
+    inner := [tries := tries + 1. tries < 3 ifTrue: [Error signal: 'r']. tries * 10]
+        on: Error do: [:e | e retry].
+    result := inner + 5.
+    ^result`
+	method, err := Compile(source, vmInst.Selectors, vmInst.Symbols, vmInst.Registry())
+	if err != nil {
+		t.Fatalf("compile error: %v", err)
+	}
+	cls := vm.NewClass("RetryCont", vmInst.ObjectClass)
+	vmInst.Classes.Register(cls)
+	cls.VTable.AddMethod(vmInst.Selectors.Intern("run"), method)
+
+	result, execErr := vmInst.ExecuteSafe(method, cls.NewInstance().ToValue(), nil)
+	if execErr != nil {
+		t.Fatalf("execute error: %v", execErr)
+	}
+	// 3 attempts → tries == 3 → inner == 30 → result == 35. A leaked frame
+	// skips `result := inner + 5` (and `^result`), yielding nil/0.
+	if !result.IsSmallInt() || result.SmallInt() != 35 {
+		t.Errorf("retry continuation lost: got %v, want 35", result)
+	}
+}
+
+// TestIntegrationResumeReturnsValue guards the regression where e resume:<v>
+// dropped the value and returned the zero Value (decoding as 0) because the
+// Resume outcome reused handlerDone and was overwritten by the normal-completion
+// fall-through.
+func TestIntegrationResumeReturnsValue(t *testing.T) {
+	vmInst := vm.NewVM()
+	source := `run
+    | r |
+    r := [Warning signal: 'w'. 77] on: Warning do: [:e | e resume: 100].
+    ^r`
+	method, err := Compile(source, vmInst.Selectors, vmInst.Symbols, vmInst.Registry())
+	if err != nil {
+		t.Fatalf("compile error: %v", err)
+	}
+	cls := vm.NewClass("ResumeVal", vmInst.ObjectClass)
+	vmInst.Classes.Register(cls)
+	cls.VTable.AddMethod(vmInst.Selectors.Intern("run"), method)
+
+	result, execErr := vmInst.ExecuteSafe(method, cls.NewInstance().ToValue(), nil)
+	if execErr != nil {
+		t.Fatalf("execute error: %v", execErr)
+	}
+	if !result.IsSmallInt() || result.SmallInt() != 100 {
+		t.Errorf("resume: dropped its value: got %v, want 100", result)
+	}
+}

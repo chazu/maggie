@@ -19,6 +19,14 @@ type MonitorRef struct {
 // If either process is already dead, the other receives an immediate exit signal.
 // Locks are acquired in ID order to prevent ABBA deadlock.
 func (vm *VM) LinkProcesses(a, b *ProcessObject) {
+	// Linking a process to itself is a no-op (Erlang-style semantics).
+	// Without this guard, first==second below would acquire the same
+	// non-reentrant mutex twice and self-deadlock the goroutine while
+	// holding proc.mu forever.
+	if a == b {
+		return
+	}
+
 	first, second := a, b
 	if a.id > b.id {
 		first, second = b, a
@@ -58,6 +66,12 @@ func (vm *VM) LinkProcesses(a, b *ProcessObject) {
 
 // UnlinkProcesses removes a bidirectional link.
 func (vm *VM) UnlinkProcesses(a, b *ProcessObject) {
+	// Self-unlink is a no-op; guards against the same-mutex self-deadlock
+	// described in LinkProcesses.
+	if a == b {
+		return
+	}
+
 	first, second := a, b
 	if a.id > b.id {
 		first, second = b, a

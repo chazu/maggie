@@ -20,7 +20,55 @@ type ChannelObject struct {
 	vtable *VTable
 	ch     chan Value
 	closed atomic.Bool
-	mu     sync.Mutex // protects close operation
+	mu     sync.Mutex // protects close operation and pending
+	// pending mirrors the values currently buffered in (or mid-flight into) ch.
+	// A NaN-boxed Value in a Go channel buffer is invisible to the tracing GC,
+	// so without this mirror a value sent into a buffered channel (whose sender
+	// has dropped its reference) would be collected before the receiver reads
+	// it. markRoots marks every pending entry. Invariant: pending is always a
+	// superset of ch's contents (append before send, pop after receive), so
+	// over-approximation is possible but under-approximation (a UAF) is not.
+	pending []Value
+}
+
+// recordPending appends val to the GC mirror. Call while holding co.mu (or
+// from a context with exclusive access) immediately before/with a send.
+func (co *ChannelObject) recordPending(val Value) {
+	co.pending = append(co.pending, val)
+}
+
+// recordPendingLocked appends val to the GC mirror, acquiring co.mu. Used by
+// callers that performed the send outside the mutex (e.g. reflect.Select).
+func (co *ChannelObject) recordPendingLocked(val Value) {
+	co.mu.Lock()
+	co.recordPending(val)
+	co.mu.Unlock()
+}
+
+// popPending removes the oldest mirror entry after a successful receive. Safe
+// to call when pending is empty (some values may have been sent by paths that
+// did not record, or already drained). Identity need not match the received
+// value — markRoots marks the whole slice, so only the count matters.
+func (co *ChannelObject) popPending() {
+	co.mu.Lock()
+	if len(co.pending) > 0 {
+		// Shift left so the backing array does not grow unbounded.
+		co.pending = co.pending[1:]
+		if len(co.pending) == 0 {
+			co.pending = nil
+		}
+	}
+	co.mu.Unlock()
+}
+
+// markPending marks every buffered/in-flight value as a GC root. Called by
+// markRoots during stop-the-world.
+func (co *ChannelObject) markPending(vm *VM, ls *liveSet) {
+	co.mu.Lock()
+	for _, v := range co.pending {
+		vm.mark(v, ls)
+	}
+	co.mu.Unlock()
 }
 
 // safeSend attempts to send val on ch.ch while holding the mutex to prevent
@@ -40,6 +88,7 @@ func (co *ChannelObject) safeSend(val Value) bool {
 	// blocking to avoid deadlock with close().
 	select {
 	case co.ch <- val:
+		co.recordPending(val) // GC mirror (still holding mu)
 		co.mu.Unlock()
 		return true
 	default:
@@ -54,8 +103,16 @@ func (co *ChannelObject) safeSend(val Value) bool {
 // "send on closed channel" panics that can occur if the channel is
 // closed while we are waiting for a receiver.
 func (co *ChannelObject) safeSendBlocking(val Value) (ok bool) {
+	// Record in the GC mirror before blocking: while parked in the send, the
+	// value lives only in this Go local and would otherwise be unmarked.
+	co.mu.Lock()
+	co.recordPending(val)
+	co.mu.Unlock()
 	defer func() {
 		if r := recover(); r != nil {
+			// Send-on-closed: the value never entered the channel, so remove
+			// the mirror entry we optimistically added.
+			co.popPending()
 			ok = false
 		}
 	}()
@@ -73,6 +130,7 @@ func (co *ChannelObject) safeTrySend(val Value) bool {
 	}
 	select {
 	case co.ch <- val:
+		co.recordPending(val) // GC mirror (still holding mu via defer Unlock)
 		return true
 	default:
 		return false
@@ -89,7 +147,6 @@ func createChannel(buffered int) *ChannelObject {
 	return ch
 }
 
-
 // SafeSend sends a value, returning false if the channel is closed.
 func (co *ChannelObject) SafeSend(val Value) bool { return co.safeSend(val) }
 
@@ -97,12 +154,21 @@ func (co *ChannelObject) SafeSend(val Value) bool { return co.safeSend(val) }
 func (co *ChannelObject) SafeTrySend(val Value) bool { return co.safeTrySend(val) }
 
 // Receive blocks until a value is received. Returns (value, ok).
-func (co *ChannelObject) Receive() (Value, bool) { val, ok := <-co.ch; return val, ok }
+func (co *ChannelObject) Receive() (Value, bool) {
+	val, ok := <-co.ch
+	if ok {
+		co.popPending()
+	}
+	return val, ok
+}
 
 // TryReceive attempts a non-blocking receive. Returns (value, gotValue, ok).
 func (co *ChannelObject) TryReceive() (Value, bool, bool) {
 	select {
 	case val, ok := <-co.ch:
+		if ok {
+			co.popPending()
+		}
 		return val, true, ok
 	default:
 		return Nil, false, !co.closed.Load()
@@ -168,10 +234,10 @@ type ProcessObject struct {
 	mailbox   *Mailbox // per-process message mailbox
 
 	// Links and monitors
-	links      map[uint64]bool       // bidirectional link partners (nil until first use)
-	trapExit   bool                  // if true, exit signals become mailbox messages
-	monitors   map[uint64]*MonitorRef // monitors where THIS process is being watched
-	myMonitors map[uint64]*MonitorRef // monitors where THIS process is the watcher
+	links          map[uint64]bool              // bidirectional link partners (nil until first use)
+	trapExit       bool                         // if true, exit signals become mailbox messages
+	monitors       map[uint64]*MonitorRef       // monitors where THIS process is being watched
+	myMonitors     map[uint64]*MonitorRef       // monitors where THIS process is the watcher
 	exitReason     ExitReason                   // set by FinishProcess
 	remoteMonitors map[uint64]*RemoteMonitorRef // monitors from remote nodes watching THIS process
 }
@@ -181,7 +247,6 @@ func (p *ProcessObject) Mailbox() *Mailbox { return p.mailbox }
 
 // IsDone returns true if the process has terminated.
 func (p *ProcessObject) IsDone() bool { return p.isDone() }
-
 
 func processToValue(id uint64) Value {
 	// Use symbol encoding with a different marker
@@ -253,6 +318,9 @@ func (vm *VM) registerChannelPrimitives() {
 		if bufSize < 0 {
 			bufSize = 0
 		}
+		if bufSize > MaxArrayElements {
+			return v.SignalPrimitiveError("Channel new:", "requested buffer size exceeds maximum")
+		}
 		ch := createChannel(bufSize)
 		val, err := v.registerChannel(ch)
 		if err != nil {
@@ -270,7 +338,14 @@ func (vm *VM) registerChannelPrimitives() {
 		if ch.closed.Load() {
 			return Nil // Can't send to closed channel
 		}
-		if !ch.safeSend(val) {
+		// A send on an unbuffered/full channel blocks; mark the interpreter
+		// blocked (publishing val) so the collector can still reach a safepoint
+		// and mark the in-flight value, instead of spinning until a receiver
+		// drains and aborting every GC cycle in the meantime.
+		v.enterBlocked(recv, val)
+		ok := ch.safeSend(val)
+		v.exitBlocked()
+		if !ok {
 			return Nil // Channel closed between check and send
 		}
 		return recv
@@ -288,6 +363,7 @@ func (vm *VM) registerChannelPrimitives() {
 		if !ok {
 			return Nil // Channel closed
 		}
+		ch.popPending() // drop the consumed value from the GC mirror
 		return val
 	})
 
@@ -302,6 +378,7 @@ func (vm *VM) registerChannelPrimitives() {
 			if !ok {
 				return Nil
 			}
+			ch.popPending()
 			return val
 		default:
 			return Nil
@@ -373,10 +450,13 @@ func (vm *VM) registerChannelPrimitives() {
 		if ch == nil {
 			return Nil
 		}
+		v.enterBlocked(recv) // GC safepoint: parked while waiting on the channel
 		val, ok := <-ch.ch
+		v.exitBlocked()
 		if !ok {
 			return Nil
 		}
+		ch.popPending()
 		return val
 	})
 
@@ -406,6 +486,7 @@ func (vm *VM) registerChannelPrimitives() {
 			if !ok {
 				return Nil
 			}
+			ch.popPending()
 			return val
 		default:
 			return Nil

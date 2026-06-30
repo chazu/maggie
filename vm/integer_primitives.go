@@ -9,6 +9,13 @@ import (
 // SmallInteger Primitives
 // ---------------------------------------------------------------------------
 
+// MaxBitShift bounds the left-shift amount bitShift: will perform. A SmallInt
+// shift argument can be up to ~2^47, so `1 bitShift: hugeN` would ask big.Int
+// to allocate that many bits and trigger a fatal, uncatchable Go OOM. ~64M bits
+// (~8 MiB result) is well beyond any legitimate use while keeping the failure
+// a catchable Maggie error rather than a process kill.
+const MaxBitShift = 1 << 26
+
 func (vm *VM) registerSmallIntegerPrimitives() {
 	c := vm.SmallIntegerClass
 
@@ -135,6 +142,12 @@ func (vm *VM) registerSmallIntegerPrimitives() {
 		if arg.IsSmallInt() {
 			return FromBool(recv.SmallInt() < arg.SmallInt())
 		}
+		if arg.IsFloat() {
+			// Mixed SmallInteger/Float comparison coerces to Float — consistent
+			// with SmallInteger arithmetic (7 + 2.5 → 9.5) and Float comparison;
+			// previously this raised, so `7 < 2.5` errored instead of answering.
+			return FromBool(float64(recv.SmallInt()) < arg.Float64())
+		}
 		if IsBigIntValue(arg) {
 			a := big.NewInt(recv.SmallInt())
 			b := getBigIntOperand(v, arg)
@@ -148,6 +161,9 @@ func (vm *VM) registerSmallIntegerPrimitives() {
 	c.AddMethod1(vm.Selectors, ">", func(v *VM, recv Value, arg Value) Value {
 		if arg.IsSmallInt() {
 			return FromBool(recv.SmallInt() > arg.SmallInt())
+		}
+		if arg.IsFloat() {
+			return FromBool(float64(recv.SmallInt()) > arg.Float64())
 		}
 		if IsBigIntValue(arg) {
 			a := big.NewInt(recv.SmallInt())
@@ -163,6 +179,9 @@ func (vm *VM) registerSmallIntegerPrimitives() {
 		if arg.IsSmallInt() {
 			return FromBool(recv.SmallInt() <= arg.SmallInt())
 		}
+		if arg.IsFloat() {
+			return FromBool(float64(recv.SmallInt()) <= arg.Float64())
+		}
 		if IsBigIntValue(arg) {
 			a := big.NewInt(recv.SmallInt())
 			b := getBigIntOperand(v, arg)
@@ -176,6 +195,9 @@ func (vm *VM) registerSmallIntegerPrimitives() {
 	c.AddMethod1(vm.Selectors, ">=", func(v *VM, recv Value, arg Value) Value {
 		if arg.IsSmallInt() {
 			return FromBool(recv.SmallInt() >= arg.SmallInt())
+		}
+		if arg.IsFloat() {
+			return FromBool(float64(recv.SmallInt()) >= arg.Float64())
 		}
 		if IsBigIntValue(arg) {
 			a := big.NewInt(recv.SmallInt())
@@ -227,6 +249,9 @@ func (vm *VM) registerSmallIntegerPrimitives() {
 		if arg.IsSmallInt() {
 			shift := arg.SmallInt()
 			if shift >= 0 {
+				if shift > MaxBitShift {
+					return v.SignalPrimitiveError("bitShift:", "shift amount too large")
+				}
 				result := new(big.Int).Lsh(big.NewInt(recv.SmallInt()), uint(shift))
 				return v.registry.NewBigIntValue(result)
 			}

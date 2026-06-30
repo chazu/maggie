@@ -2,6 +2,7 @@ package compiler
 
 import (
 	"fmt"
+	"math/big"
 	"strconv"
 	"strings"
 )
@@ -41,6 +42,15 @@ func (p *Parser) nextToken() {
 // curTokenIs checks if the current token is of the given type.
 func (p *Parser) curTokenIs(t TokenType) bool {
 	return p.curToken.Type == t
+}
+
+// skipTrailingPeriods consumes any trailing statement-separator periods, so a
+// single expression with a trailing '.' (common in REPL/eval input) is accepted
+// while genuine trailing tokens still surface as errors.
+func (p *Parser) skipTrailingPeriods() {
+	for p.curTokenIs(TokenPeriod) {
+		p.nextToken()
+	}
 }
 
 // peekTokenIs checks if the peek token is of the given type.
@@ -677,7 +687,13 @@ func (p *Parser) parsePrimary() Expr {
 	case TokenFalse:
 		return p.parseFalse()
 	default:
-		p.errorf("unexpected token: %s", p.curToken.Type)
+		// For a lexer error token, the literal carries the real diagnostic
+		// (e.g. "unterminated comment"); surface it instead of the opaque type.
+		if p.curTokenIs(TokenError) {
+			p.errorf("%s", p.curToken.Literal)
+		} else {
+			p.errorf("unexpected token: %s", p.curToken.Type)
+		}
 		return nil
 	}
 }
@@ -693,16 +709,32 @@ func (p *Parser) parseInteger() *IntLiteral {
 	// Handle radix notation (16rFF)
 	var value int64
 	var err error
+	var digits string
+	radix := 10
 	if idx := strings.Index(literal, "r"); idx > 0 {
 		radixStr := literal[:idx]
-		digits := literal[idx+1:]
-		radix, _ := strconv.ParseInt(radixStr, 10, 64)
-		value, err = strconv.ParseInt(digits, int(radix), 64)
+		digits = literal[idx+1:]
+		r, _ := strconv.ParseInt(radixStr, 10, 64)
+		radix = int(r)
+		value, err = strconv.ParseInt(digits, radix, 64)
 	} else {
+		digits = literal
 		value, err = strconv.ParseInt(literal, 10, 64)
 	}
 
 	if err != nil {
+		// A range error means the literal is a valid integer that simply does
+		// not fit in int64. Preserve it exactly as a BigInteger rather than
+		// silently zeroing it (which produced wrong results).
+		if ne, ok := err.(*strconv.NumError); ok && ne.Err == strconv.ErrRange {
+			if bigVal, bok := new(big.Int).SetString(digits, radix); bok {
+				p.nextToken()
+				return &IntLiteral{
+					SpanVal:  MakeSpan(pos, p.curToken.Pos),
+					BigValue: bigVal,
+				}
+			}
+		}
 		p.errorf("invalid integer: %s", literal)
 		value = 0
 	}
@@ -1427,7 +1459,7 @@ func (p *Parser) parseClassVars() []string {
 func (p *Parser) parseMethodInBrackets(isClassMethod bool) *MethodDef {
 	startPos := p.curToken.Pos
 	sourceStart := p.curToken.Pos.Offset // capture start offset for source text
-	p.nextToken()                         // consume "method:" or "classMethod:"
+	p.nextToken()                        // consume "method:" or "classMethod:"
 
 	// Parse method signature
 	selector, params, paramTypes := p.parseMethodSignature()

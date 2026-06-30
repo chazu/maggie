@@ -53,6 +53,16 @@ Character subclass: Object
   """Return a single-character string."""
   method: asString ^<String> [ <primitive> ]
 
+  """
+  Display the character as its bare character (no $ sigil), so it renders
+  naturally in join:/displayString output.
+
+  ```test
+  $h displayString >>> 'h'
+  ```
+  """
+  method: displayString ^<String> [ ^self asString ]
+
   """Return the uppercase version of this character."""
   method: asUppercase ^<Character> [ <primitive> ]
 

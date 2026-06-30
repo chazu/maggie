@@ -25,13 +25,21 @@ BigInteger subclass: Object
 
   """
   Return the absolute value.
+
+  ```test
+  (0 - (100 factorial)) abs = (100 factorial) >>> true
+  ```
   """
-  method: abs ^<Integer> [ ^self primAbs ]
+  method: abs ^<Integer> [ <primitive> ]
 
   """
   Return the negation of the receiver.
+
+  ```test
+  (100 factorial) negated negated = (100 factorial) >>> true
+  ```
   """
-  method: negated ^<Integer> [ ^self primNegated ]
+  method: negated ^<Integer> [ <primitive> ]
 
   """
   Return -1, 0, or 1 indicating the sign.

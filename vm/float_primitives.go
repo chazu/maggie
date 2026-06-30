@@ -13,73 +13,63 @@ func (vm *VM) registerFloatPrimitives() {
 	c := vm.FloatClass
 
 	c.AddMethod1(vm.Selectors, "+", func(v *VM, recv Value, arg Value) Value {
-		if arg.IsFloat() {
-			return FromFloat64(recv.Float64() + arg.Float64())
-		}
-		if arg.IsSmallInt() {
-			return FromFloat64(recv.Float64() + float64(arg.SmallInt()))
+		if other, ok := numericArgAsFloat(v, arg); ok {
+			return FromFloat64(recv.Float64() + other)
 		}
 		return v.SignalPrimitiveError("+", "argument must be a number")
 	})
 
 	c.AddMethod1(vm.Selectors, "-", func(v *VM, recv Value, arg Value) Value {
-		if arg.IsFloat() {
-			return FromFloat64(recv.Float64() - arg.Float64())
-		}
-		if arg.IsSmallInt() {
-			return FromFloat64(recv.Float64() - float64(arg.SmallInt()))
+		if other, ok := numericArgAsFloat(v, arg); ok {
+			return FromFloat64(recv.Float64() - other)
 		}
 		return v.SignalPrimitiveError("-", "argument must be a number")
 	})
 
 	c.AddMethod1(vm.Selectors, "*", func(v *VM, recv Value, arg Value) Value {
-		if arg.IsFloat() {
-			return FromFloat64(recv.Float64() * arg.Float64())
-		}
-		if arg.IsSmallInt() {
-			return FromFloat64(recv.Float64() * float64(arg.SmallInt()))
+		if other, ok := numericArgAsFloat(v, arg); ok {
+			return FromFloat64(recv.Float64() * other)
 		}
 		return v.SignalPrimitiveError("*", "argument must be a number")
 	})
 
 	c.AddMethod1(vm.Selectors, "/", func(v *VM, recv Value, arg Value) Value {
-		if arg.IsFloat() {
-			return FromFloat64(recv.Float64() / arg.Float64())
-		}
-		if arg.IsSmallInt() {
-			return FromFloat64(recv.Float64() / float64(arg.SmallInt()))
+		if other, ok := numericArgAsFloat(v, arg); ok {
+			return FromFloat64(recv.Float64() / other)
 		}
 		return v.SignalPrimitiveError("/", "argument must be a number")
 	})
 
 	c.AddMethod1(vm.Selectors, "<", func(v *VM, recv Value, arg Value) Value {
-		var other float64
-		if arg.IsFloat() {
-			other = arg.Float64()
-		} else if arg.IsSmallInt() {
-			other = float64(arg.SmallInt())
-		} else {
+		other, ok := numericArgAsFloat(v, arg)
+		if !ok {
 			return v.SignalPrimitiveError("<", "argument must be a number")
 		}
-		if recv.Float64() < other {
-			return True
-		}
-		return False
+		return FromBool(recv.Float64() < other)
 	})
 
 	c.AddMethod1(vm.Selectors, ">", func(v *VM, recv Value, arg Value) Value {
-		var other float64
-		if arg.IsFloat() {
-			other = arg.Float64()
-		} else if arg.IsSmallInt() {
-			other = float64(arg.SmallInt())
-		} else {
+		other, ok := numericArgAsFloat(v, arg)
+		if !ok {
 			return v.SignalPrimitiveError(">", "argument must be a number")
 		}
-		if recv.Float64() > other {
-			return True
+		return FromBool(recv.Float64() > other)
+	})
+
+	c.AddMethod1(vm.Selectors, "<=", func(v *VM, recv Value, arg Value) Value {
+		other, ok := numericArgAsFloat(v, arg)
+		if !ok {
+			return v.SignalPrimitiveError("<=", "argument must be a number")
 		}
-		return False
+		return FromBool(recv.Float64() <= other)
+	})
+
+	c.AddMethod1(vm.Selectors, ">=", func(v *VM, recv Value, arg Value) Value {
+		other, ok := numericArgAsFloat(v, arg)
+		if !ok {
+			return v.SignalPrimitiveError(">=", "argument must be a number")
+		}
+		return FromBool(recv.Float64() >= other)
 	})
 
 	c.AddMethod0(vm.Selectors, "negated", func(_ *VM, recv Value) Value {

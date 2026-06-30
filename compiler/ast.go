@@ -1,5 +1,7 @@
 package compiler
 
+import "math/big"
+
 // ---------------------------------------------------------------------------
 // AST: Abstract Syntax Tree for Maggie/Smalltalk
 // ---------------------------------------------------------------------------
@@ -34,9 +36,14 @@ type Expr interface {
 }
 
 // IntLiteral represents an integer literal.
+//
+// BigValue is set (and Value left 0) only when the literal does not fit in an
+// int64; codegen then emits a BigInteger literal. For all in-range literals
+// BigValue is nil and Value holds the parsed integer.
 type IntLiteral struct {
-	SpanVal Span
-	Value   int64
+	SpanVal  Span
+	Value    int64
+	BigValue *big.Int
 }
 
 func (n *IntLiteral) Span() Span { return n.SpanVal }
@@ -433,7 +440,7 @@ func (n *TypeExpr) node()      {}
 // ProtocolEntry is a single message signature in a protocol definition.
 type ProtocolEntry struct {
 	SpanVal    Span
-	Selector   string     // "size", "at:put:", etc.
+	Selector   string      // "size", "at:put:", etc.
 	ParamTypes []*TypeExpr // one per parameter (nil entries = untyped)
 	ReturnType *TypeExpr   // nil means <Dynamic>
 	Effects    []*TypeExpr // nil/empty = no effect annotation
@@ -446,8 +453,8 @@ func (n *ProtocolEntry) node()      {}
 type ProtocolDef struct {
 	SpanVal   Span
 	Name      string
-	Includes  []string          // names of included protocols
-	Entries   []*ProtocolEntry  // message signatures
+	Includes  []string         // names of included protocols
+	Entries   []*ProtocolEntry // message signatures
 	DocString string
 }
 

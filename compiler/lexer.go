@@ -13,13 +13,13 @@ import (
 
 // Lexer tokenizes Smalltalk source code.
 type Lexer struct {
-	input   string
-	pos     int  // current position in input
-	readPos int  // reading position (after current char)
-	ch      rune // current character
-	line    int  // current line (1-based)
-	col     int  // current column (1-based)
-	lineStart int // offset of current line start
+	input     string
+	pos       int  // current position in input
+	readPos   int  // reading position (after current char)
+	ch        rune // current character
+	line      int  // current line (1-based)
+	col       int  // current column (1-based)
+	lineStart int  // offset of current line start
 
 	// comments collected during skipWhitespaceAndComments. They are not
 	// emitted as tokens (so the parser is unaffected), but accumulate
@@ -30,6 +30,12 @@ type Lexer struct {
 	// encountered while skipping whitespace; the next collected comment
 	// records it via PrecededByBlankLine.
 	sawBlankLineBeforeNext bool
+	// pendingError holds a lexical error detected while skipping
+	// whitespace/comments (e.g. an unterminated "..." comment runs to EOF).
+	// Such conditions cannot return a token from skipWhitespaceAndComments, so
+	// they are stashed here and surfaced as a TokenError on the next NextToken.
+	pendingError string
+	pendingPos   Position
 }
 
 // Comments returns all comments encountered so far, in source order.
@@ -51,7 +57,7 @@ func NewLexer(input string) *Lexer {
 // readChar reads the next character.
 func (l *Lexer) readChar() {
 	if l.readPos >= len(l.input) {
-		l.ch = 0 // EOF
+		l.ch = 0          // EOF
 		l.pos = l.readPos // Update pos even at EOF
 	} else {
 		r, size := utf8.DecodeRuneInString(l.input[l.readPos:])
@@ -91,6 +97,12 @@ func (l *Lexer) position() Position {
 // NextToken returns the next token.
 func (l *Lexer) NextToken() Token {
 	l.skipWhitespaceAndComments()
+
+	if l.pendingError != "" {
+		tok := Token{Type: TokenError, Literal: l.pendingError, Pos: l.pendingPos}
+		l.pendingError = ""
+		return tok
+	}
 
 	pos := l.position()
 
@@ -213,6 +225,14 @@ func (l *Lexer) skipWhitespaceAndComments() {
 			textEnd := l.pos
 			if l.ch == '"' {
 				l.readChar()
+			} else {
+				// Reached EOF without a closing quote: record an error so the
+				// rest of the input is not silently swallowed (which made the
+				// method body vanish and compile to an implicit ^self).
+				if l.pendingError == "" {
+					l.pendingError = "unterminated comment"
+					l.pendingPos = startPos
+				}
 			}
 			l.recordComment(Comment{
 				Pos:                 startPos,

@@ -2,6 +2,7 @@ package compiler
 
 import (
 	"fmt"
+	"math/big"
 	"strings"
 
 	"github.com/chazu/maggie/vm"
@@ -176,13 +177,24 @@ func (c *Compiler) CompileMethod(method *MethodDef) *vm.CompiledMethod {
 	c.cellVars = c.findCellVariables(method)
 	c.frame.cellInitialized = make(map[string]bool)
 
-	// Set up argument slots
+	// Set up argument slots. Reject duplicate names: a duplicate silently
+	// overwrote the earlier slot, making the first binding unreachable with no
+	// diagnostic (e.g. `a: x b: x` left the first x permanently shadowed).
+	seenNames := make(map[string]bool, len(method.Parameters)+len(method.Temps))
 	for i, param := range method.Parameters {
+		if seenNames[param] {
+			c.errorf("duplicate parameter name %q in method %s", param, method.Selector)
+		}
+		seenNames[param] = true
 		c.frame.args[param] = i
 	}
 
 	// Set up temp slots (after args)
 	for i, temp := range method.Temps {
+		if seenNames[temp] {
+			c.errorf("duplicate variable name %q in method %s", temp, method.Selector)
+		}
+		seenNames[temp] = true
 		c.frame.temps[temp] = c.frame.numArgs + i
 	}
 
@@ -191,7 +203,7 @@ func (c *Compiler) CompileMethod(method *MethodDef) *vm.CompiledMethod {
 	for name, idx := range c.frame.args {
 		if c.cellVars[name] {
 			c.checkSlotIndex(idx, "argument", name)
-			c.frame.builder.EmitByte(vm.OpPushTemp, byte(idx)) // Push current arg value
+			c.frame.builder.EmitByte(vm.OpPushTemp, byte(idx))  // Push current arg value
 			c.frame.builder.Emit(vm.OpMakeCell)                 // Wrap in cell
 			c.frame.builder.EmitByte(vm.OpStoreTemp, byte(idx)) // Store cell back
 			c.frame.builder.Emit(vm.OpPOP)                      // Clean up stack
@@ -344,10 +356,10 @@ func (c *Compiler) isTailCallCandidate(expr Expr) bool {
 		if _, isSelf := e.Receiver.(*Self); isSelf {
 			return e.Selector == c.methodSelector
 		}
-	// Note: Binary messages to self are not optimized because the common
-	// arithmetic operators use fast-path opcodes (OpSendPlus, etc.) rather
-	// than OpSend, so they wouldn't match during frame reuse checks in the
-	// interpreter. This is acceptable since binary self-recursion is rare.
+		// Note: Binary messages to self are not optimized because the common
+		// arithmetic operators use fast-path opcodes (OpSendPlus, etc.) rather
+		// than OpSend, so they wouldn't match during frame reuse checks in the
+		// interpreter. This is acceptable since binary self-recursion is rare.
 	}
 	return false
 }
@@ -392,7 +404,11 @@ func (c *Compiler) compileExpr(expr Expr) {
 	c.emitSourcePos(expr)
 	switch e := expr.(type) {
 	case *IntLiteral:
-		c.compileInt(e.Value)
+		if e.BigValue != nil {
+			c.compileBigInt(e.BigValue)
+		} else {
+			c.compileInt(e.Value)
+		}
 	case *FloatLiteral:
 		c.compileFloat(e.Value)
 	case *StringLiteral:
@@ -447,14 +463,23 @@ func (c *Compiler) compileInt(value int64) {
 	if value >= -128 && value <= 127 {
 		c.frame.builder.EmitInt8(vm.OpPushInt8, int8(value))
 	} else {
-		// Use literal table; fall back to float if integer is too large for SmallInt encoding
+		// Use literal table. A value that fits int64 but exceeds the SmallInt
+		// encoding range must become an exact BigInteger, not a lossy Float.
 		v, ok := vm.TryFromSmallInt(value)
 		if !ok {
-			v = vm.FromFloat64(float64(value))
+			c.compileBigInt(big.NewInt(value))
+			return
 		}
 		idx := c.addLiteral(v)
 		c.frame.builder.EmitUint16(vm.OpPushLiteral, uint16(idx))
 	}
+}
+
+// compileBigInt emits a BigInteger literal, preserving exact value for integers
+// outside the SmallInt range (the alternative, a Float, silently loses precision).
+func (c *Compiler) compileBigInt(value *big.Int) {
+	idx := c.addLiteral(c.registry.NewBigIntValue(value))
+	c.frame.builder.EmitUint16(vm.OpPushLiteral, uint16(idx))
 }
 
 func (c *Compiler) compileFloat(value float64) {
@@ -625,7 +650,7 @@ func (c *Compiler) compileAssignment(assign *Assignment) {
 			} else {
 				// Subsequent assignment: store into existing cell
 				c.frame.builder.EmitByte(vm.OpPushTemp, byte(localIdx)) // Get cell ref
-				c.compileExpr(assign.Value)                       // Value to store
+				c.compileExpr(assign.Value)                             // Value to store
 				c.frame.builder.Emit(vm.OpCellSet)                      // Store and leave value on stack
 			}
 			return
@@ -635,7 +660,7 @@ func (c *Compiler) compileAssignment(assign *Assignment) {
 			if idx, ok := c.frame.capturedVars[name]; ok {
 				c.checkSlotIndex(idx, "captured cell variable", name)
 				c.frame.builder.EmitByte(vm.OpPushCaptured, byte(idx)) // Get cell ref
-				c.compileExpr(assign.Value)                      // Value to store
+				c.compileExpr(assign.Value)                            // Value to store
 				c.frame.builder.Emit(vm.OpCellSet)                     // Store and leave value on stack
 				return
 			}
@@ -898,12 +923,21 @@ func (c *Compiler) compileBlock(block *Block) {
 	})
 
 	// Parameters
+	blockSeen := make(map[string]bool, len(block.Parameters)+len(block.Temps))
 	for i, param := range block.Parameters {
+		if blockSeen[param] {
+			c.errorf("duplicate block parameter name %q", param)
+		}
+		blockSeen[param] = true
 		c.frame.args[param] = i
 	}
 
 	// Temps
 	for i, temp := range block.Temps {
+		if blockSeen[temp] {
+			c.errorf("duplicate block variable name %q", temp)
+		}
+		blockSeen[temp] = true
 		c.frame.temps[temp] = c.frame.numArgs + i
 	}
 
@@ -1294,6 +1328,13 @@ func CompileExpr(source string, selectors *vm.SelectorTable, symbols *vm.SymbolT
 	expr := parser.ParseExpression()
 	if len(parser.Errors()) > 0 {
 		return nil, formatErrors("parse errors", parser.Errors())
+	}
+	// Require the input to be fully consumed. Otherwise trailing tokens are
+	// silently dropped (`3 4` compiled to `3`, `3 + 4 5` to `7`), masking real
+	// typos and lexer mis-tokenizations.
+	parser.skipTrailingPeriods()
+	if !parser.curTokenIs(TokenEOF) {
+		return nil, fmt.Errorf("parse errors: unexpected trailing token %q", parser.curToken.Literal)
 	}
 
 	compiler := NewCompiler(selectors, symbols, registry)

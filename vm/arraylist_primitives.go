@@ -33,6 +33,9 @@ func (vm *VM) registerArrayListPrimitives() {
 			if capacity < 0 {
 				capacity = 0
 			}
+			if capacity > MaxArrayElements {
+				return v.SignalPrimitiveError("ArrayList new:", "requested capacity exceeds maximum")
+			}
 		}
 		al := createArrayList(capacity)
 		val, err := v.registerArrayList(al)

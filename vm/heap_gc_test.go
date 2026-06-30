@@ -2,6 +2,7 @@ package vm
 
 import (
 	"fmt"
+	"reflect"
 	"testing"
 	"unsafe"
 )
@@ -304,4 +305,90 @@ func TestHeapGC_KeepsBlockCapturedString(t *testing.T) {
 	vm.SetGlobal("GcCapBlock", blk) // block reachable; its capture must survive too
 	vm.collectHeapGarbageLocked()
 	stringStillThere(t, vm, s, probe(42))
+}
+
+// TestHeapGC_KeepsFutureResult covers the futures root category. A Future
+// caches its resolved Value in f.result; before the consumer awaits, that
+// string is reachable through no other root. Without marking futures the
+// collector frees it (and recycles its id), corrupting the awaited result.
+func TestHeapGC_KeepsFutureResult(t *testing.T) {
+	vm := NewVM()
+	s := vm.registry.NewStringValue(probe(70))
+	f := NewFuture()
+	f.Resolve(s)
+	if _, err := vm.registry.RegisterFuture(f); err != nil {
+		t.Fatalf("RegisterFuture: %v", err)
+	}
+	// s is reachable ONLY through the registered future.
+	vm.collectHeapGarbageLocked()
+	stringStillThere(t, vm, s, probe(70))
+}
+
+// TestHeapGC_KeepsFutureExceptionValue covers the typed-exception field of a
+// Future, resolved via ResolveException.
+func TestHeapGC_KeepsFutureExceptionValue(t *testing.T) {
+	vm := NewVM()
+	exStr := vm.registry.NewStringValue(probe(71))
+	f := NewFuture()
+	f.ResolveException(exStr, "boom")
+	if _, err := vm.registry.RegisterFuture(f); err != nil {
+		t.Fatalf("RegisterFuture: %v", err)
+	}
+	vm.collectHeapGarbageLocked()
+	stringStillThere(t, vm, exStr, probe(71))
+}
+
+// TestHeapGC_KeepsBufferedChannelValue covers the channel-mirror root category.
+// A fresh string sent into a buffered channel (sender drops its reference) lives
+// only in the Go channel buffer; without the pending mirror the collector frees
+// it and recycles its id, so the eventual receive yields garbage.
+func TestHeapGC_KeepsBufferedChannelValue(t *testing.T) {
+	vm := NewVM()
+	ch := createChannel(4)
+	if _, err := vm.registry.RegisterChannel(ch); err != nil {
+		t.Fatalf("RegisterChannel: %v", err)
+	}
+	s := vm.registry.NewStringValue(probe(80))
+	if !ch.safeSend(s) {
+		t.Fatal("send failed")
+	}
+	// s is reachable ONLY through the channel buffer now.
+	vm.collectHeapGarbageLocked()
+	stringStillThere(t, vm, s, probe(80))
+
+	// After receiving, the mirror entry is dropped and the value becomes
+	// collectible again.
+	got, ok := ch.Receive()
+	if !ok || vm.registry.GetStringContent(got) != probe(80) {
+		t.Fatalf("receive returned wrong value: ok=%v", ok)
+	}
+	if len(ch.pending) != 0 {
+		t.Errorf("pending mirror not drained after receive: %d", len(ch.pending))
+	}
+}
+
+// TestHeapGC_KeepsSelectSentValue covers the select-send path: reflect.Select
+// performs the send directly into ch.ch, bypassing safeSend, so the chosen
+// send case must record the value in the pending mirror (via
+// executeSelectHandler) or it is swept while still buffered.
+func TestHeapGC_KeepsSelectSentValue(t *testing.T) {
+	vm := NewVM()
+	ch := createChannel(4)
+	if _, err := vm.registry.RegisterChannel(ch); err != nil {
+		t.Fatalf("RegisterChannel: %v", err)
+	}
+	s := vm.registry.NewStringValue(probe(93))
+
+	// Drive the real local-select path with a single ready SEND case (nil
+	// handler is fine — the value must still be recorded before any handler
+	// dispatch).
+	cases := []SelectCase{{Dir: reflect.SelectSend, Channel: ch, Value: s}}
+	vm.primitiveSelectLocal(cases, Nil)
+
+	if len(ch.pending) != 1 {
+		t.Fatalf("select-send did not record pending: pending=%d", len(ch.pending))
+	}
+	// s is reachable ONLY through the channel buffer now.
+	vm.collectHeapGarbageLocked()
+	stringStillThere(t, vm, s, probe(93))
 }

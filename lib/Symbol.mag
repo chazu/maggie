@@ -21,6 +21,18 @@ Symbol subclass: Object
       ^'#', self asString
   ]
 
+  """
+  Display the symbol without its # sigil (ANSI convention), so it renders
+  naturally in join:/displayString output.
+
+  ```test
+  #hello displayString >>> 'hello'
+  ```
+  """
+  method: displayString ^<String> [
+      ^self asString
+  ]
+
   """Return a hash value for the symbol."""
   method: hash ^<Integer> [ <primitive> ]
 

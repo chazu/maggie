@@ -9,6 +9,13 @@ import (
 // Array Primitives
 // ---------------------------------------------------------------------------
 
+// MaxArrayElements bounds the size of an array a single primitive will
+// allocate. Without it, `Array new: 1000000000000` calls make([]Value, 1e12)
+// and triggers a fatal, uncatchable Go OOM that kills the whole VM process.
+// ~134M elements (~1 GiB of Values) is far beyond any legitimate request while
+// still letting an over-large request raise a catchable Maggie error.
+const MaxArrayElements = 1 << 27
+
 func (vm *VM) registerArrayPrimitives() {
 	c := vm.ArrayClass
 
@@ -115,6 +122,9 @@ func (vm *VM) registerArrayPrimitives() {
 		if n < 0 {
 			return v.SignalPrimitiveError("new:", "size must be non-negative")
 		}
+		if n > MaxArrayElements {
+			return v.SignalPrimitiveError("new:", "requested array size exceeds maximum")
+		}
 		return v.NewArray(int(n))
 	})
 
@@ -126,6 +136,9 @@ func (vm *VM) registerArrayPrimitives() {
 		n := int(args[0].SmallInt())
 		if n < 0 {
 			return v.SignalPrimitiveError("new:withAll:", "size must be non-negative")
+		}
+		if n > MaxArrayElements {
+			return v.SignalPrimitiveError("new:withAll:", "requested array size exceeds maximum")
 		}
 		fill := args[1]
 		arr := v.NewArray(n)

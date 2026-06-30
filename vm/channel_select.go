@@ -11,11 +11,11 @@ import (
 
 // SelectCase represents a channel operation for select.
 type SelectCase struct {
-	Channel *ChannelObject     // local channel (nil if remote)
-	Remote  *RemoteChannelRef  // remote channel (nil if local)
-	Dir     reflect.SelectDir  // SelectRecv or SelectSend
-	Value   Value              // For send operations
-	Handler Value              // Block to execute on match
+	Channel *ChannelObject    // local channel (nil if remote)
+	Remote  *RemoteChannelRef // remote channel (nil if local)
+	Dir     reflect.SelectDir // SelectRecv or SelectSend
+	Value   Value             // For send operations
+	Handler Value             // Block to execute on match
 }
 
 // primitiveSelect implements Go's select statement for multiple channels.
@@ -69,6 +69,14 @@ func (vm *VM) primitiveSelectLocal(cases []SelectCase, defaultHandler Value) Val
 
 	// Perform the select
 	chosen, recv, recvOK := reflect.Select(reflectCases)
+
+	// If a SEND case was chosen, reflect.Select has already pushed the value
+	// into ch.ch, bypassing safeSend/recordPending. Mirror it now (before any
+	// early return for an invalid handler) so the GC does not sweep the still-
+	// buffered value.
+	if chosen < len(cases) && cases[chosen].Dir == reflect.SelectSend && cases[chosen].Channel != nil {
+		cases[chosen].Channel.recordPendingLocked(cases[chosen].Value)
+	}
 
 	// Handle default case
 	if hasDefault && chosen == len(cases) {
@@ -181,6 +189,14 @@ func (vm *VM) executeSelectHandler(interp *Interpreter, cases []SelectCase, chos
 		return Nil
 	}
 	handler := cases[chosen].Handler
+
+	// Reconcile the GC mirror before any early return: a consumed RECV value
+	// must be popped even when the handler block is absent (otherwise a stale
+	// entry lingers — safe over-approximation, but avoided for symmetry with
+	// the SEND record done by the caller in primitiveSelectLocal).
+	if cases[chosen].Dir == reflect.SelectRecv && recvOK && recv.IsValid() && cases[chosen].Channel != nil {
+		cases[chosen].Channel.popPending()
+	}
 
 	bv := interp.getBlockValue(handler)
 	if bv == nil {

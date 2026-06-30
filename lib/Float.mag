@@ -238,6 +238,28 @@ Float subclass: Object
   """Return true if the receiver is greater than the argument."""
   method: > other ^<Boolean> [ <primitive> ]
 
+  """
+  Return true if the receiver is less than or equal to the argument.
+
+  ```test
+  2.5 <= 2.5 >>> true
+  2.5 <= 3.0 >>> true
+  3.0 <= 2.5 >>> false
+  ```
+  """
+  method: <= other ^<Boolean> [ <primitive> ]
+
+  """
+  Return true if the receiver is greater than or equal to the argument.
+
+  ```test
+  2.5 >= 2.5 >>> true
+  3.0 >= 2.5 >>> true
+  2.5 >= 3.0 >>> false
+  ```
+  """
+  method: >= other ^<Boolean> [ <primitive> ]
+
   # --- Other primitives ---
 
   """Return the square root of the receiver."""

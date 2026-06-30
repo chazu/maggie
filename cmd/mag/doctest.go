@@ -293,6 +293,40 @@ func parseDoctestAssertions(content string) []doctestAssertion {
 
 // runDoctestBlockSharedScope runs a test block by compiling all lines into
 // a single method. Each assertion captures its result into an array slot,
+// extractTempDecl detects a leading Smalltalk temp-declaration block in a
+// doctest line. If the trimmed line begins with `|`, it returns the declared
+// variable names (type annotations like `<Foo>` stripped) and the remainder of
+// the line after the closing `|`. Otherwise it returns (nil, line unchanged).
+func extractTempDecl(line string) (names []string, rest string) {
+	trimmed := strings.TrimSpace(line)
+	if !strings.HasPrefix(trimmed, "|") {
+		return nil, line
+	}
+	end := strings.Index(trimmed[1:], "|")
+	if end < 0 {
+		return nil, line
+	}
+	inner := trimmed[1 : 1+end]
+	rest = trimmed[1+end+1:]
+
+	// Strip type annotations (`<...>`), then split on whitespace.
+	for {
+		lt := strings.Index(inner, "<")
+		if lt < 0 {
+			break
+		}
+		gt := strings.Index(inner[lt:], ">")
+		if gt < 0 {
+			break
+		}
+		inner = inner[:lt] + " " + inner[lt+gt+1:]
+	}
+	for _, tok := range strings.Fields(inner) {
+		names = append(names, tok)
+	}
+	return names, rest
+}
+
 // so setup runs exactly once and variables persist across all lines.
 func runDoctestBlockSharedScope(vmInst *vm.VM, assertions []doctestAssertion, verbose bool) []doctestResult {
 	var results []doctestResult
@@ -303,7 +337,7 @@ func runDoctestBlockSharedScope(vmInst *vm.VM, assertions []doctestAssertion, ve
 	// 2. Stores each assertion result into a results array
 	// 3. Returns the results array
 	type indexedAssertion struct {
-		asrt     doctestAssertion
+		asrt      doctestAssertion
 		resultIdx int // index in the results array, -1 for setup
 	}
 
@@ -327,14 +361,32 @@ func runDoctestBlockSharedScope(vmInst *vm.VM, assertions []doctestAssertion, ve
 	}
 
 	// Build method body: __results := Array new: N. <lines>. ^__results
+	// A line may itself open with a temp-declaration block (e.g.
+	// `| ds <DistributedSupervisor> |`). Smalltalk allows only one temp block,
+	// at the very start of a method, so such inline declarations are hoisted
+	// into the single prelude and stripped from the body — otherwise the
+	// assembled method has two `| ... |` blocks and fails to parse.
+	tempNames := []string{"__dtResults"}
+	seenTemp := map[string]bool{"__dtResults": true}
+
 	var bodyLines []string
 	bodyLines = append(bodyLines, fmt.Sprintf("__dtResults := Array new: %d", assertionCount))
 
 	for _, ia := range indexed {
 		expr := strings.TrimSuffix(strings.TrimSpace(ia.asrt.Expr), ".")
+		names, rest := extractTempDecl(expr)
+		for _, n := range names {
+			if !seenTemp[n] {
+				seenTemp[n] = true
+				tempNames = append(tempNames, n)
+			}
+		}
+		expr = strings.TrimSpace(rest)
 		if ia.resultIdx < 0 {
-			// Setup line
-			bodyLines = append(bodyLines, expr)
+			// Setup line (may now be empty if it was a bare declaration)
+			if expr != "" {
+				bodyLines = append(bodyLines, expr)
+			}
 		} else {
 			// Assertion: store result
 			bodyLines = append(bodyLines, fmt.Sprintf("__dtResults at: %d put: (%s)", ia.resultIdx+1, expr))
@@ -342,7 +394,7 @@ func runDoctestBlockSharedScope(vmInst *vm.VM, assertions []doctestAssertion, ve
 	}
 	bodyLines = append(bodyLines, "^__dtResults")
 
-	source := "doIt\n    | __dtResults |\n    " + strings.Join(bodyLines, ".\n    ")
+	source := "doIt\n    | " + strings.Join(tempNames, " ") + " |\n    " + strings.Join(bodyLines, ".\n    ")
 
 	method, compileErr := vmInst.Compile(source, nil)
 	if compileErr != nil {
@@ -541,11 +593,11 @@ func doctestSafeSend(vmInst *vm.VM, receiver vm.Value, selector string) (result 
 
 // ANSI color codes.
 const (
-	dtColorReset  = "\033[0m"
-	dtColorBold   = "\033[1m"
-	dtColorRed    = "\033[31m"
-	dtColorGreen  = "\033[32m"
-	dtColorDim    = "\033[90m"
+	dtColorReset = "\033[0m"
+	dtColorBold  = "\033[1m"
+	dtColorRed   = "\033[31m"
+	dtColorGreen = "\033[32m"
+	dtColorDim   = "\033[90m"
 )
 
 // printDoctestResults renders the test results grouped by class and method.

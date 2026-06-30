@@ -450,3 +450,39 @@ type testError struct{ msg string }
 
 func (e *testError) Error() string { return e.msg }
 func errForTest(msg string) error  { return &testError{msg} }
+
+// TestLinkProcesses_SelfLinkIsNoOp guards against the self-deadlock regression:
+// LinkProcesses(a, a) would otherwise lock the same non-reentrant mutex twice.
+// The test must complete well within the timeout; a hang means the bug is back.
+func TestLinkProcesses_SelfLinkIsNoOp(t *testing.T) {
+	vm := NewVM()
+	defer vm.Shutdown()
+
+	p, err := vm.createProcess()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := vm.registerProcess(p); err != nil {
+		t.Fatal(err)
+	}
+
+	done := make(chan struct{})
+	go func() {
+		vm.LinkProcesses(p, p)
+		vm.UnlinkProcesses(p, p)
+		close(done)
+	}()
+
+	select {
+	case <-done:
+		// ok — no deadlock, and a process is not linked to itself
+		p.mu.Lock()
+		_, linked := p.links[p.id]
+		p.mu.Unlock()
+		if linked {
+			t.Error("self-link should be a no-op, but process is linked to itself")
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("LinkProcesses(p, p) deadlocked (self-link regression)")
+	}
+}

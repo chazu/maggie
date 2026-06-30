@@ -255,7 +255,10 @@ func (vm *VM) registerStringPrimitivesExtended() {
 		var last Value = Nil
 		for _, ch := range s {
 			charVal := FromCharacter(ch)
-			last = v.Send(block, "value:", []Value{charVal})
+			// Use evaluateBlock (not Send "value:") so a non-local return (^)
+			// from the block propagates to its home frame instead of crashing
+			// the VM uncatchably — matching Set/ArrayList/Dictionary do:.
+			last = v.evaluateBlock(block, []Value{charVal})
 		}
 		return last
 	})

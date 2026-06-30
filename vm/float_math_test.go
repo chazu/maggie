@@ -144,3 +144,61 @@ func TestFloatClassConstants(t *testing.T) {
 		t.Errorf("Float nan = %v, want NaN", result)
 	}
 }
+
+func TestFloatLessEqualGreaterEqual(t *testing.T) {
+	vm := NewVM()
+	mk := FromFloat64
+	cases := []struct {
+		recv, arg Value
+		sel       string
+		want      Value
+	}{
+		{mk(2.5), mk(2.5), "<=", True},
+		{mk(2.5), mk(3.0), "<=", True},
+		{mk(3.0), mk(2.5), "<=", False},
+		{mk(2.5), mk(2.5), ">=", True},
+		{mk(3.0), mk(2.5), ">=", True},
+		{mk(2.5), mk(3.0), ">=", False},
+		{mk(5.0), FromSmallInt(5), "<=", True}, // Float vs SmallInt
+		{mk(5.0), FromSmallInt(6), ">=", False},
+	}
+	for _, tc := range cases {
+		got := vm.Send(tc.recv, tc.sel, []Value{tc.arg})
+		if got != tc.want {
+			t.Errorf("%v %s %v = %v, want %v", tc.recv.Float64(), tc.sel, tc.arg, got, tc.want)
+		}
+		if got == Nil {
+			t.Errorf("Float %s returned nil (regression)", tc.sel)
+		}
+	}
+}
+
+// TestSmallIntFloatComparison guards the regression where SmallInteger </>/<=/>=
+// raised "argument must be a number" for a Float argument (e.g. 7 < 2.5 errored)
+// instead of coercing to a numeric comparison — inconsistent with SmallInteger
+// arithmetic (7 + 2.5 → 9.5) and with Float<SmallInt.
+func TestSmallIntFloatComparison(t *testing.T) {
+	vm := NewVM()
+	cases := []struct {
+		recv int64
+		sel  string
+		arg  float64
+		want Value
+	}{
+		{7, "<", 2.5, False},
+		{7, ">", 2.5, True},
+		{7, "<=", 7.0, True},
+		{3, ">=", 2.5, True},
+		{2, "<=", 2.0, True},
+		{2, "<", 2.0, False},
+	}
+	for _, tc := range cases {
+		got := vm.Send(FromSmallInt(tc.recv), tc.sel, []Value{FromFloat64(tc.arg)})
+		if got != tc.want {
+			t.Errorf("%d %s %v = %v, want %v", tc.recv, tc.sel, tc.arg, got, tc.want)
+		}
+		if got == Nil {
+			t.Errorf("%d %s %v returned nil", tc.recv, tc.sel, tc.arg)
+		}
+	}
+}

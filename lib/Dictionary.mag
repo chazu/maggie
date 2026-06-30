@@ -69,6 +69,73 @@ Dictionary subclass: Object
   ]
 
   """
+  Evaluate block once for each value in the dictionary.
+
+  ```test
+  d := Dictionary new.
+  d at: #a put: 10.
+  acc := ArrayList new.
+  d valuesDo: [:v | acc add: v].
+  acc size >>> 1
+  ```
+  """
+  method: valuesDo: block [
+      self values do: block
+  ]
+
+  """
+  Return a new dictionary containing only the associations whose value
+  satisfies block. Keys are preserved.
+
+  ```test
+  d := Dictionary new.
+  d at: #a put: 1. d at: #b put: 2. d at: #c put: 3.
+  (d select: [:v | v > 1]) size >>> 2
+  ```
+  """
+  method: select: block ^<Dictionary> [
+      | result <Dictionary> |
+      result := Dictionary new.
+      self keysAndValuesDo: [:k :v | (block value: v) ifTrue: [result at: k put: v]].
+      ^result
+  ]
+
+  """
+  Return a new dictionary excluding associations whose value satisfies block.
+  Keys are preserved. (Overrides the Enumerable default, which assumed an
+  Array-returning select:.)
+
+  ```test
+  d := Dictionary new.
+  d at: #a put: 1. d at: #b put: 2. d at: #c put: 3.
+  (d reject: [:v | v > 1]) size >>> 1
+  ```
+  """
+  method: reject: block ^<Dictionary> [
+      | result <Dictionary> |
+      result := Dictionary new.
+      self keysAndValuesDo: [:k :v | (block value: v) ifFalse: [result at: k put: v]].
+      ^result
+  ]
+
+  """
+  Return a new dictionary with the same keys and each value transformed by
+  block.
+
+  ```test
+  d := Dictionary new.
+  d at: #a put: 1. d at: #b put: 2.
+  (d collect: [:v | v * 10]) at: #b >>> 20
+  ```
+  """
+  method: collect: block ^<Dictionary> [
+      | result <Dictionary> |
+      result := Dictionary new.
+      self keysAndValuesDo: [:k :v | result at: k put: (block value: v)].
+      ^result
+  ]
+
+  """
   Return a shallow copy of the dictionary. The new dictionary has the
   same keys and values but is a distinct object.
 

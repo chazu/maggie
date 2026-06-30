@@ -196,7 +196,7 @@ func run() (exitCode int) {
 
 	// Handle subcommands
 	args := flag.Args()
-	var docMode string  // "doc" or "doctest"
+	var docMode string // "doc" or "doctest"
 	var docArgs []string
 	var syncArgs []string
 	var helpArgs []string
@@ -650,6 +650,23 @@ func loadRC(vmInst *vm.VM, verbose bool) error {
 }
 
 // runMain executes the specified main entry point
+// runMainEntry sends the entry-point message and converts an unhandled Maggie
+// exception (propagated as a panic) into a readable error instead of letting it
+// reach the top-level recover, which prints the raw Go struct via %v.
+func runMainEntry(vmInst *vm.VM, receiver vm.Value, selector string) (result vm.Value, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			if msg, ok := vm.FormatUnhandledPanic(vmInst, r); ok {
+				result = vm.Nil
+				err = fmt.Errorf("%s", msg)
+				return
+			}
+			panic(r)
+		}
+	}()
+	return vmInst.Send(receiver, selector, nil), nil
+}
+
 func runMain(vmInst *vm.VM, entry string, verbose bool) (vm.Value, error) {
 	var className, methodName string
 
@@ -693,8 +710,7 @@ func runMain(vmInst *vm.VM, entry string, verbose bool) (vm.Value, error) {
 		// Execute class method - send to the class itself
 		// Class values are represented as symbols of the class name
 		classValue := vmInst.Symbols.SymbolValue(qualifiedName)
-		result := vmInst.Send(classValue, methodName, nil)
-		return result, nil
+		return runMainEntry(vmInst, classValue, methodName)
 	}
 
 	if verbose {
@@ -712,8 +728,7 @@ func runMain(vmInst *vm.VM, entry string, verbose bool) (vm.Value, error) {
 	}
 
 	// Execute instance method on nil
-	result := vmInst.Send(vm.Nil, methodName, nil)
-	return result, nil
+	return runMainEntry(vmInst, vm.Nil, methodName)
 }
 
 // buildCompileFunc creates a compile function suitable for the sync service's

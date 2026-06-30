@@ -231,6 +231,20 @@ Object subclass: nil
   ]
 
   """
+  Return a string representation of the receiver for display to a user.
+  Unlike printString (which is intended to be unambiguous, e.g. quoting
+  strings), displayString renders the object as it should appear in output.
+  The default delegates to printString; String returns its own characters.
+
+  ```test
+  42 displayString >>> '42'
+  ```
+  """
+  method: displayString ^<String> [
+      ^self printString
+  ]
+
+  """
   Project this object's instance variables into a CUE value.
   Returns a CueValue whose fields are the ivar names with their current values.
   Scalars (numbers, strings, booleans) project as CUE scalars.

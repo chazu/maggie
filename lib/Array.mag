@@ -278,31 +278,75 @@ Array subclass: Object
   ]
 
   """
-  Join array elements into a string with a separator.
-  Elements should be strings; non-string elements are treated as empty.
+  Return a new Array with the elements in reverse order.
+
+  ```test
+  #(1 2 3) reversed >>> #(3 2 1 )
+  #() reversed >>> #()
+  ```
+  """
+  method: reversed ^<Array> [
+      | n result <Array> |
+      n := self size.
+      result := Array new: n.
+      1 to: n do: [:i | result at: i put: (self at: n - i + 1)].
+      ^result
+  ]
+
+  """
+  Return a new Array whose i-th element is the result of evaluating block with
+  the i-th element of the receiver and the i-th element of other. The two
+  collections must be the same size.
+
+  ```test
+  (#(1 2 3) with: #(10 20 30) collect: [:a :b | a + b]) >>> #(11 22 33 )
+  ```
+  """
+  method: with: other collect: block ^<Array> [
+      | n result <Array> |
+      n := self size.
+      other size = n ifFalse: [^self error: 'with:collect: collections must be the same size'].
+      result := Array new: n.
+      1 to: n do: [:i | result at: i put: (block value: (self at: i) value: (other at: i))].
+      ^result
+  ]
+
+  """
+  Join array elements into a string with a separator. Synonym for join:;
+  each element is rendered with displayString.
 
   ```test
   #('a' 'b' 'c') joinWith: ', ' >>> 'a, b, c'
   #() joinWith: ', ' >>> ''
   #('x') joinWith: ', ' >>> 'x'
+  #(1 2 3) joinWith: ', ' >>> '1, 2, 3'
   ```
   """
   method: joinWith: separator <String> ^<String> [
-      ^self primJoinWith: separator
+      ^self join: separator
   ]
 
   """
-  Join array elements into a string with a separator.
-  Alias for joinWith: — uses the raw string value of each element.
+  Join array elements into a string with a separator. Each element is rendered
+  with displayString, so non-string elements (numbers, symbols, …) appear in
+  the result instead of being silently dropped.
 
   ```test
   #('a' 'b' 'c') join: ', ' >>> 'a, b, c'
   #() join: ', ' >>> ''
   #('x') join: ', ' >>> 'x'
+  #(1 2 3) join: ', ' >>> '1, 2, 3'
   ```
   """
   method: join: separator <String> ^<String> [
-      ^self primJoinWith: separator
+      | s first |
+      s := ''.
+      first := true.
+      self do: [:each |
+          first ifFalse: [s := s, separator].
+          s := s, each displayString.
+          first := false].
+      ^s
   ]
 
   """

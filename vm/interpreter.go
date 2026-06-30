@@ -119,32 +119,32 @@ type Interpreter struct {
 	// blocking primitive so the stop-the-world string collector knows it is
 	// safe to trace. blockedRoots publishes Values held in Go locals across a
 	// blocking primitive (receiver/args) so the collector marks them.
-	gcState     atomic.Int32
+	gcState      atomic.Int32
 	blockedRoots []Value
 
 	// Exception handling
 	exceptionHandlers *ExceptionHandler // Stack of installed exception handlers
 
 	// Well-known selector IDs (cached for fast dispatch)
-	selectorPlus    int
-	selectorMinus   int
-	selectorTimes   int
-	selectorDiv     int
-	selectorMod     int
-	selectorLT      int
-	selectorGT      int
-	selectorLE      int
-	selectorGE      int
-	selectorEQ      int
-	selectorNE      int
-	selectorAt      int
-	selectorAtPut   int
-	selectorSize    int
-	selectorValue   int
-	selectorValue1  int
-	selectorValue2  int
-	selectorNew     int
-	selectorClass   int
+	selectorPlus   int
+	selectorMinus  int
+	selectorTimes  int
+	selectorDiv    int
+	selectorMod    int
+	selectorLT     int
+	selectorGT     int
+	selectorLE     int
+	selectorGE     int
+	selectorEQ     int
+	selectorNE     int
+	selectorAt     int
+	selectorAtPut  int
+	selectorSize   int
+	selectorValue  int
+	selectorValue1 int
+	selectorValue2 int
+	selectorNew    int
+	selectorClass  int
 }
 
 // NewInterpreter creates a new standalone interpreter backed by a fresh VM.
@@ -470,7 +470,7 @@ func (i *Interpreter) pushBlockFrame(block *BlockMethod, captures []Value, args 
 	}
 
 	f := &i.frames[i.fp]
-	f.Method = nil // block frame
+	f.Method = nil   // block frame
 	f.Receiver = Nil // blocks don't have a receiver
 	f.IP = 0
 	f.BP = bp
@@ -594,6 +594,12 @@ func (i *Interpreter) runFrame() Value {
 	// EnableStringGC runs at startup, before any long-running loop, so
 	// capturing it per frame entry is sufficient.
 	gcPoll := i.vm != nil && i.vm.gcEnabled.Load()
+	// debugActive is read once per frame entry, like gcPoll: when no debugger
+	// is attached (the common case) the per-instruction hook becomes a single
+	// local-bool branch instead of two pointer loads plus an IsActive() call on
+	// every dispatched instruction. A debugger attaching mid-frame is observed
+	// at the next frame boundary (send/call), matching the GC safepoint model.
+	debugActive := i.vm != nil && i.vm.Debugger != nil && i.vm.Debugger.IsActive()
 	// Entry safepoint: bounds STW latency for code reached via a send/call
 	// (recursion, message dispatch). Loop iterations poll at the OpJump
 	// back-edge below, so straight-line code pays nothing.
@@ -618,7 +624,7 @@ func (i *Interpreter) runFrame() Value {
 
 		// --- Debugger hook ---
 		// Check for breakpoints / stepping when debugger is active.
-		if i.vm != nil && i.vm.Debugger != nil && i.vm.Debugger.IsActive() {
+		if debugActive {
 			var loc *SourceLoc
 			className := ""
 			methodName := ""
@@ -1534,9 +1540,9 @@ func (i *Interpreter) createContextForFrame(frameIdx int) *ContextValue {
 type BlockValue struct {
 	Block      *BlockMethod
 	Captures   []Value
-	HomeFrame  int              // frame pointer of the method that created this block
-	HomeSelf   Value            // self from the enclosing method context
-	HomeMethod *CompiledMethod  // the method containing nested blocks (needed for cross-interpreter execution)
+	HomeFrame  int             // frame pointer of the method that created this block
+	HomeSelf   Value           // self from the enclosing method context
+	HomeMethod *CompiledMethod // the method containing nested blocks (needed for cross-interpreter execution)
 }
 
 // NonLocalReturn is used to propagate non-local returns from blocks.
@@ -1775,7 +1781,10 @@ func mulOverflowCheck(a, b int64) (int64, bool) {
 func (i *Interpreter) primitiveDiv(a, b Value) Value {
 	if a.IsSmallInt() && b.IsSmallInt() {
 		if b.SmallInt() == 0 {
-			return Nil // Division by zero
+			// Raise a catchable ZeroDivide, consistent with //, \\, and the
+			// SmallInteger slow-path / (returning nil silently corrupted code
+			// that relied on / raising like every other division operator).
+			return i.vm.SignalZeroDivide()
 		}
 		return FromSmallInt(a.SmallInt() / b.SmallInt())
 	}
@@ -1794,7 +1803,7 @@ func (i *Interpreter) primitiveDiv(a, b Value) Value {
 func (i *Interpreter) primitiveMod(a, b Value) Value {
 	if a.IsSmallInt() && b.IsSmallInt() {
 		if b.SmallInt() == 0 {
-			return Nil
+			return i.vm.SignalZeroDivide()
 		}
 		return FromSmallInt(a.SmallInt() % b.SmallInt())
 	}
@@ -1855,19 +1864,29 @@ func (i *Interpreter) primitiveGE(a, b Value) Value {
 
 func (i *Interpreter) primitiveEQ(a, b Value) Value {
 	if a == b {
-		return True
+		return True // identical NaN-boxed values (incl. equal SmallInts, nil, booleans)
 	}
-	// For floats, compare values
+	// Fast paths for the common value types.
 	if a.IsFloat() && b.IsFloat() {
-		if a.Float64() == b.Float64() {
-			return True
-		}
+		return FromBool(a.Float64() == b.Float64())
 	}
-	// For strings, compare content under a single read lock
 	if IsStringValue(a) && IsStringValue(b) {
-		if i.vm.registry.CompareStrings(a, b) {
-			return True
-		}
+		return FromBool(i.vm.registry.CompareStrings(a, b))
+	}
+	if a.IsSmallInt() && b.IsSmallInt() {
+		// Equal SmallInts are identical (handled above); distinct ones differ.
+		return False
+	}
+	// A BigInteger or a user object may define value equality, so dispatch to
+	// the receiver's = method — returning False here silently broke BigInteger
+	// equality (e.g. (100 factorial) = (100 factorial) answered false) and every
+	// user-defined = override. For all other receiver kinds (nil, booleans,
+	// symbols, characters, strings/floats already handled, or a type mismatch),
+	// identity above already settled equality, so the answer is False. Narrowing
+	// the fallback this way also avoids invoking = primitives (e.g. String) that
+	// answer nil for an incomparable argument, which would break `… ifTrue:`.
+	if IsBigIntValue(a) || a.IsObject() {
+		return i.sendBinaryFallback(a, b, i.selectorEQ)
 	}
 	return False
 }
@@ -1939,7 +1958,7 @@ func (i *Interpreter) primitiveSize(rcvr Value) Value {
 			// Only use NumSlots for Array (and its subclasses).
 			// Other classes (Set, Dictionary, etc.) may define their own
 			// size method that differs from the number of instance variable slots.
-			if cls != nil && (cls.Name == "Array" || (cls.Superclass != nil && cls.Superclass.Name == "Array")) {
+			if cls != nil && (cls == i.vm.ArrayClass || cls.Superclass == i.vm.ArrayClass) {
 				return FromSmallInt(int64(obj.NumSlots()))
 			}
 			// Fall back to VTable dispatch for all other object types

@@ -376,12 +376,27 @@ func (c *AOTCompiler) compileBytecode(bc []byte, isBlock bool) {
 			c.emitCompareOp(">=")
 
 		case OpSendEQ:
+			// Identity and distinct-SmallInt are decided inline; everything
+			// else (BigInteger, floats by value, strings, user = overrides)
+			// dispatches, mirroring the interpreter's primitiveEQ.
 			c.writeLine("{ a := stack[sp-2]; b := stack[sp-1]; sp--")
-			c.writeLine("  stack[sp-1] = FromBool(a == b) }")
+			c.writeLine("  if a == b {")
+			c.writeLine("    stack[sp-1] = True")
+			c.writeLine("  } else if a.IsSmallInt() && b.IsSmallInt() {")
+			c.writeLine("    stack[sp-1] = False")
+			c.writeLine("  } else {")
+			c.writeLine("    stack[sp-1] = vm.Send(a, \"=\", []Value{b})")
+			c.writeLine("  } }")
 
 		case OpSendNE:
 			c.writeLine("{ a := stack[sp-2]; b := stack[sp-1]; sp--")
-			c.writeLine("  stack[sp-1] = FromBool(a != b) }")
+			c.writeLine("  if a == b {")
+			c.writeLine("    stack[sp-1] = False")
+			c.writeLine("  } else if a.IsSmallInt() && b.IsSmallInt() {")
+			c.writeLine("    stack[sp-1] = True")
+			c.writeLine("  } else {")
+			c.writeLine("    stack[sp-1] = vm.Send(a, \"~=\", []Value{b})")
+			c.writeLine("  } }")
 
 		case OpSendSize:
 			c.writeLine("{ recv := stack[sp-1]")

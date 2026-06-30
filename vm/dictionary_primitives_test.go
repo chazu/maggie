@@ -1,6 +1,7 @@
 package vm
 
 import (
+	"math/big"
 	"testing"
 )
 
@@ -516,5 +517,32 @@ func TestDictionaryClassAssignment(t *testing.T) {
 	// Dictionary values should be classified as DictionaryClass
 	if class != vm.DictionaryClass {
 		t.Errorf("Dictionary class is %v, want DictionaryClass", class.Name)
+	}
+}
+
+// TestDictionaryBigIntKey guards the regression where a BigInteger key was
+// hashed by its NaN-boxed handle, so two distinct BigInt objects with equal
+// value hashed differently and lookup always missed.
+func TestDictionaryBigIntKey(t *testing.T) {
+	vm := NewVM()
+	d := vm.registry.NewDictionaryValue()
+
+	// Two distinct BigInt objects with the same value.
+	big1 := vm.registry.RegisterBigInt(&BigIntObject{Value: big.NewInt(1 << 60)})
+	big2 := vm.registry.RegisterBigInt(&BigIntObject{Value: big.NewInt(1 << 60)})
+	if big1 == big2 {
+		t.Fatal("expected distinct BigInt handles for the test to be meaningful")
+	}
+
+	val := vm.registry.NewStringValue("big-value")
+	vm.Send(d, "at:put:", []Value{big1, val})
+
+	// Lookup with the OTHER equal-valued BigInt must hit.
+	if got := vm.Send(d, "includesKey:", []Value{big2}); got != True {
+		t.Error("includesKey: with an equal-valued BigInt key should be true")
+	}
+	got := vm.Send(d, "at:", []Value{big2})
+	if !IsStringValue(got) || vm.registry.GetStringContent(got) != "big-value" {
+		t.Errorf("at: with an equal-valued BigInt key returned %v, want 'big-value'", got)
 	}
 }

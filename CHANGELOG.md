@@ -1,5 +1,104 @@
 # Changelog
 
+## 2026-06-30 — Adversarial review hardening sweep
+
+A multi-round adversarial review (parallel subagent reviewers across
+performance, robustness, compiler correctness, GC/memory, and stdlib, iterated
+to convergence) found and fixed ~25 issues. All changes ship with regression
+tests; the Go suite, `-race`, and `mag doctest` (1166 cases) stay green.
+
+**Garbage collection — two default-on use-after-frees fixed.** The tracing GC
+(on by default) did not mark several live roots, so a value reachable only
+through them was swept and its id recycled, silently corrupting data:
+- **Futures** now mark their cached `result`/`exceptionValue` (`markRoots` §12).
+- **Channels** now mirror buffered and in-flight send values in a `pending`
+  slice marked by `markRoots` (§13); every send records and every receive
+  (including `reflect.Select` send/recv and the select fast path) pops, keeping
+  the mirror a superset of the buffer. Blocking sends now `enterBlocked` so the
+  collector can reach a safepoint (a parked send previously stalled every GC
+  cycle until a receiver drained).
+
+**Exception machinery.**
+- `ensure:` now runs its finally block on **all** exits. The lib `Block>>ensure:`
+  was a pure-Maggie `result := self value. finallyBlock value` that skipped the
+  finally on any non-local return or exception; it now delegates to the correct
+  `primEnsure:` primitive.
+- `retry`/`resume:`/`pass` no longer leak the handler block's frame. A handler
+  escaping via one of these left `fp` offset, so a successful `retry` returned
+  into the leaked frame and **every statement after `on:do:` was silently
+  skipped**. `evaluateHandlerBlock` now pops leaked frames in its recover.
+- `e resume: <v>` returned `0` instead of `<v>` (its outcome reused
+  `handlerDone` and was overwritten by the normal-completion path); fixed with a
+  distinct `handlerResume` action.
+
+**Number tower — made consistent across SmallInteger / Float / BigInteger.**
+Every comparison and arithmetic operator now coerces or answers correctly for
+all type pairs (verified by an exhaustive sweep):
+- Integer & BigInteger `/` and `\\` by zero now raise a catchable `ZeroDivide`
+  (was a silent `nil`).
+- `=` via the `OpSendEQ` fast path dispatched identity only, so BigInteger
+  value-equality and every user-defined `=` override were bypassed
+  (`(100 factorial) = (100 factorial)` was `false`); it now dispatches for
+  BigInteger and object receivers.
+- BigInteger `< > <= >=` with a Float argument returned `nil`; they now promote
+  via `big.Float`. Float `+ - * / < >` now accept a BigInteger argument
+  (promote to Float). SmallInteger `< > <= >=` with a Float argument raised an
+  error (`7 < 2.5`); they now coerce, matching SmallInteger arithmetic.
+- Float `<=` and `>=` were unimplemented (returned `nil`, breaking `ifTrue:`
+  and `between:and:`); added as primitives.
+- BigInteger `abs`/`negated` called nonexistent `primAbs`/`primNegated` (a
+  `doesNotUnderstand`); fixed to use the registered primitives.
+- Integer literals beyond the SmallInteger range now compile to exact
+  BigIntegers (were lossy Floats, or `0` past int64).
+- `Dictionary`/`Set` BigInteger keys hashed by their NaN-boxed handle, so
+  lookups always missed; they now hash by value.
+
+**Safety / reliability.**
+- `Process` self-link / self-unlink deadlocked the VM (same non-reentrant mutex
+  locked twice); now a no-op.
+- Unbounded user-controlled allocations (`Array`/`ArrayList`/`Channel new:`,
+  `bitShift:`) fatally OOM-killed the process; they now raise a catchable error
+  past a sane cap.
+- `ExecuteSafe` left `fp`/`sp` elevated after an unhandled exception, so the
+  REPL / doctest runner / LSP accumulated stale frames and eventually threw a
+  spurious `StackOverflow`; it now restores them.
+- Unhandled top-level exceptions printed the raw Go struct (`{9222… 0x…}`);
+  they now render `ClassName: messageText` plus a stack trace and exit non-zero.
+- `String>>do:` ran the block via a plain send, so a non-local return out of it
+  crashed the VM uncatchably; it now uses `evaluateBlock` (matching the other
+  collections).
+
+**Compiler diagnostics.** `CompileExpr` now errors on trailing tokens
+(`3 4`), an unterminated `"`-comment now produces an error instead of silently
+swallowing the rest of the input, and duplicate method/block parameter or temp
+names are now rejected.
+
+**Standard library additions & fixes.** `join:`/`joinWith:` now coerce each
+element via a new `displayString` (were dropping non-strings; `Object`/`String`/
+`Character`/`Symbol` implement it). `Dictionary` gained `select:`/`collect:`/
+`valuesDo:` and a fixed `reject:` (the inherited one called a missing
+`select:`). `Enumerable` gained `do:separatedBy:`, `asArray`,
+`asOrderedCollection`, `asSet`, `sum`, `max`, `min`. `Array` gained `reversed`
+and `with:collect:`. `ArrayList` gained `remove:`/`remove:ifAbsent:`/
+`removeFirst`/`sorted`/`sorted:`. `String` gained `collect:`/`select:`/
+`reversed`.
+
+**Performance (low-risk).** `size` fast path uses a pointer compare instead of
+two class-name string compares; the per-instruction debugger probe is hoisted
+to a per-frame local (free when no debugger is attached).
+
+**Tooling.** The doctest runner now hoists temp declarations from setup lines
+into its single prelude, so doctests whose setup declares its own temporaries
+(`| ds <T> |`) compile instead of failing.
+
+Deferred for dedicated, separately-reviewed work (documented with plans):
+sweeping the `keepAlive` object/ArrayList registries (a bounded leak — but a
+naive sweep risks a worse use-after-free via `becomeForward:` stubs and
+Go-held objects); class-side dispatch falling back to `Object` instance
+protocol (so `self error:` is not a no-op in a class method); a boolean
+`sort:`/`sorted:` sort-block; an operand-stack depth cap; and true
+resume-at-signal `resume:` semantics.
+
 ## 2026-06-25 — Parser surfaces previously-silent syntax errors
 
 `mag build` / compile no longer silently drops malformed source. The parser had

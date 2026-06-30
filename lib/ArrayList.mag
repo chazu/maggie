@@ -203,6 +203,70 @@ ArrayList subclass: Object
   method: removeAt: index <Integer> [ <primitive> ]
 
   """
+  Remove and return the first element, shifting the rest left. O(n).
+
+  ```test
+  (ArrayList withAll: #(10 20 30)) removeFirst >>> 10
+  ```
+  """
+  method: removeFirst [
+      ^self removeAt: 1
+  ]
+
+  """
+  Remove the first occurrence of anObject (compared with =). Raises if the
+  element is not present; use remove:ifAbsent: for the safe form.
+
+  ```test
+  (ArrayList withAll: #(1 2 3)) remove: 2; size >>> 2
+  ```
+  """
+  method: remove: anObject [
+      ^self remove: anObject ifAbsent: [self error: 'object not found']
+  ]
+
+  """
+  Remove the first occurrence of anObject (compared with =). If absent,
+  evaluate absentBlock and return its result. Returns anObject on success.
+
+  ```test
+  (ArrayList withAll: #(1 2 3)) remove: 9 ifAbsent: [#missing] >>> #missing
+  ```
+  """
+  method: remove: anObject ifAbsent: absentBlock [
+      | idx |
+      idx := self indexOf: anObject.
+      idx = 0 ifTrue: [^absentBlock value].
+      self removeAt: idx.
+      ^anObject
+  ]
+
+  """
+  Return a new Array with the elements sorted by aBlock (does not mutate the
+  receiver). aBlock is a comparator: it receives two elements and returns a
+  negative number (a before b), zero, or positive number (matching Array sorted:).
+
+  ```test
+  (ArrayList withAll: #(3 1 2)) sorted: [:a :b | a - b] >>> #(1 2 3 )
+  ```
+  """
+  method: sorted: aBlock ^<Array> [
+      ^self asArray sorted: aBlock
+  ]
+
+  """
+  Return a new Array with the elements in ascending order (does not mutate the
+  receiver).
+
+  ```test
+  (ArrayList withAll: #(3 1 2)) sorted >>> #(1 2 3 )
+  ```
+  """
+  method: sorted ^<Array> [
+      ^self asArray sorted
+  ]
+
+  """
   Remove all elements, keeping the backing capacity. Returns self.
 
   ```test

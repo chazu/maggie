@@ -24,6 +24,34 @@ func getBigIntOperand(vmPtr *VM, v Value) *big.Int {
 	return nil
 }
 
+// numericArgAsFloat coerces a numeric Value (Float, SmallInteger, or
+// BigInteger) to float64. ok is false for non-numeric args. Used by Float
+// primitives so a Float receiver with a BigInteger argument promotes to a Float
+// result (matching the BigInteger-receiver side) instead of erroring.
+func numericArgAsFloat(v *VM, arg Value) (float64, bool) {
+	if arg.IsFloat() {
+		return arg.Float64(), true
+	}
+	if arg.IsSmallInt() {
+		return float64(arg.SmallInt()), true
+	}
+	if IsBigIntValue(arg) {
+		if bi := v.registry.GetBigInt(arg); bi != nil {
+			f, _ := new(big.Float).SetInt(bi.Value).Float64()
+			return f, true
+		}
+	}
+	return 0, false
+}
+
+// bigIntFloatCmp compares a BigInteger magnitude `a` against a float `f`,
+// returning -1, 0, or 1 (a<f, a==f, a>f). Used so mixed BigInteger/Float
+// ordering promotes to a real comparison (matching mixed arithmetic) instead
+// of silently answering nil.
+func bigIntFloatCmp(a *big.Int, f float64) int {
+	return new(big.Float).SetInt(a).Cmp(big.NewFloat(f))
+}
+
 func (vm *VM) registerBigIntegerPrimitives() {
 	c := vm.BigIntegerClass
 
@@ -105,7 +133,7 @@ func (vm *VM) registerBigIntegerPrimitives() {
 			return Nil
 		}
 		if b.Sign() == 0 {
-			return Nil // Division by zero
+			return v.SignalZeroDivide() // catchable, consistent with SmallInt /
 		}
 		result := new(big.Int).Quo(a, b)
 		return v.registry.NewBigIntValue(result)
@@ -122,7 +150,7 @@ func (vm *VM) registerBigIntegerPrimitives() {
 			return Nil
 		}
 		if b.Sign() == 0 {
-			return Nil
+			return v.SignalZeroDivide()
 		}
 		result := new(big.Int).Rem(a, b)
 		return v.registry.NewBigIntValue(result)
@@ -153,7 +181,10 @@ func (vm *VM) registerBigIntegerPrimitives() {
 		}
 		b := getBigIntOperand(v, arg)
 		if b == nil {
-			return Nil
+			if arg.IsFloat() {
+				return FromBool(bigIntFloatCmp(a, arg.Float64()) < 0)
+			}
+			return v.SignalPrimitiveError("<", "argument must be a number")
 		}
 		return FromBool(a.Cmp(b) < 0)
 	})
@@ -166,7 +197,10 @@ func (vm *VM) registerBigIntegerPrimitives() {
 		}
 		b := getBigIntOperand(v, arg)
 		if b == nil {
-			return Nil
+			if arg.IsFloat() {
+				return FromBool(bigIntFloatCmp(a, arg.Float64()) > 0)
+			}
+			return v.SignalPrimitiveError(">", "argument must be a number")
 		}
 		return FromBool(a.Cmp(b) > 0)
 	})
@@ -179,7 +213,10 @@ func (vm *VM) registerBigIntegerPrimitives() {
 		}
 		b := getBigIntOperand(v, arg)
 		if b == nil {
-			return Nil
+			if arg.IsFloat() {
+				return FromBool(bigIntFloatCmp(a, arg.Float64()) <= 0)
+			}
+			return v.SignalPrimitiveError("<=", "argument must be a number")
 		}
 		return FromBool(a.Cmp(b) <= 0)
 	})
@@ -192,7 +229,10 @@ func (vm *VM) registerBigIntegerPrimitives() {
 		}
 		b := getBigIntOperand(v, arg)
 		if b == nil {
-			return Nil
+			if arg.IsFloat() {
+				return FromBool(bigIntFloatCmp(a, arg.Float64()) >= 0)
+			}
+			return v.SignalPrimitiveError(">=", "argument must be a number")
 		}
 		return FromBool(a.Cmp(b) >= 0)
 	})
@@ -203,9 +243,11 @@ func (vm *VM) registerBigIntegerPrimitives() {
 		if a == nil {
 			return Nil
 		}
+		// A non-numeric argument is simply not equal (= must answer a boolean,
+		// never nil — OpSendEQ now dispatches here for BigInteger receivers).
 		b := getBigIntOperand(v, arg)
 		if b == nil {
-			return Nil
+			return False
 		}
 		return FromBool(a.Cmp(b) == 0)
 	})
@@ -327,11 +369,14 @@ func (vm *VM) registerBigIntegerPrimitives() {
 			return Nil
 		}
 		if !arg.IsSmallInt() {
-			return Nil
+			return v.SignalTypeError("bitShift:", 1, "SmallInteger", arg)
 		}
 		shift := arg.SmallInt()
 		var result *big.Int
 		if shift >= 0 {
+			if shift > MaxBitShift {
+				return v.SignalPrimitiveError("bitShift:", "shift amount too large")
+			}
 			result = new(big.Int).Lsh(a, uint(shift))
 		} else {
 			result = new(big.Int).Rsh(a, uint(-shift))

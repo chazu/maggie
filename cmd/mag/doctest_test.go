@@ -1,6 +1,9 @@
 package main
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 // ---------------------------------------------------------------------------
 // parseDoctestAssertions
@@ -266,5 +269,29 @@ func TestDoctestTallyDoctestResults(t *testing.T) {
 				t.Errorf("total: got %d, want %d", gotTotal, tc.wantTotal)
 			}
 		})
+	}
+}
+
+func TestExtractTempDecl(t *testing.T) {
+	cases := []struct {
+		in    string
+		names []string
+		rest  string
+	}{
+		{"| ds <DistributedSupervisor> |", []string{"ds"}, ""},
+		{"| a b c |", []string{"a", "b", "c"}, ""},
+		{"| x | x := 3", []string{"x"}, " x := 3"},
+		{"3 + 4", nil, "3 + 4"},
+		{"d := Dictionary new", nil, "d := Dictionary new"},
+		{"| ds <T> | ds foo", []string{"ds"}, " ds foo"},
+	}
+	for _, c := range cases {
+		names, rest := extractTempDecl(c.in)
+		if strings.Join(names, ",") != strings.Join(c.names, ",") {
+			t.Errorf("extractTempDecl(%q) names = %v, want %v", c.in, names, c.names)
+		}
+		if strings.TrimSpace(rest) != strings.TrimSpace(c.rest) {
+			t.Errorf("extractTempDecl(%q) rest = %q, want %q", c.in, rest, c.rest)
+		}
 	}
 }

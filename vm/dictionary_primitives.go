@@ -43,6 +43,24 @@ func hashValue(or *ObjectRegistry, v Value) uint64 {
 		}
 		return h
 	}
+	// BigIntegers must hash by value, not by their NaN-boxed handle: two
+	// distinct BigInt objects with equal value have different handles, so
+	// hashing the raw bits made value-keys (e.g. `d at: 100 factorial put: …`)
+	// impossible to look up. FNV-1a over the magnitude bytes plus the sign.
+	if IsBigIntValue(v) {
+		if bi := or.GetBigInt(v); bi != nil {
+			var h uint64 = 14695981039346656037
+			if bi.Value.Sign() < 0 {
+				h ^= 1
+				h *= 1099511628211
+			}
+			for _, b := range bi.Value.Bytes() {
+				h ^= uint64(b)
+				h *= 1099511628211
+			}
+			return h
+		}
+	}
 	// For other values, use the raw bits as the hash
 	// This works because Values are NaN-boxed and unique per value
 	return uint64(v)

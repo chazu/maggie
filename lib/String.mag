@@ -273,16 +273,61 @@ String subclass: Object
   ]
 
   """
-  Evaluate aBlock with each character (as a single-character string).
+  Evaluate aBlock with each character (a Character) in order.
 
   ```test
   result := ''.
-  'abc' do: [:ch | result := result, ch, '-'].
+  'abc' do: [:ch | result := result, ch asString, '-'].
   result >>> 'a-b-c-'
+  ('abc' detect: [:c | c = $b]) >>> $b
   ```
   """
   method: do: aBlock [
       ^self primDo: aBlock
+  ]
+
+  """
+  Return a new string formed by applying block to each character. block should
+  answer a Character or String for each character.
+
+  ```test
+  ('abc' collect: [:c | c asUppercase]) >>> 'ABC'
+  ```
+  """
+  method: collect: block ^<String> [
+      | s <String> |
+      s := ''.
+      self do: [:c | s := s, (block value: c) asString].
+      ^s
+  ]
+
+  """
+  Return a new string containing only the characters for which block answers true.
+
+  ```test
+  ('hello' select: [:c | c = $l]) >>> 'll'
+  ```
+  """
+  method: select: block ^<String> [
+      | s <String> |
+      s := ''.
+      self do: [:c | (block value: c) ifTrue: [s := s, c asString]].
+      ^s
+  ]
+
+  """
+  Return a new string with the characters in reverse order.
+
+  ```test
+  'abc' reversed >>> 'cba'
+  '' reversed >>> ''
+  ```
+  """
+  method: reversed ^<String> [
+      | s <String> |
+      s := ''.
+      self do: [:c | s := c asString, s].
+      ^s
   ]
 
   """
@@ -394,6 +439,18 @@ String subclass: Object
   ```
   """
   method: asString ^<String> [
+      ^self
+  ]
+
+  """
+  Return the receiver unchanged: a string displays as its own characters,
+  without the surrounding quotes that printString adds.
+
+  ```test
+  'hello' displayString >>> 'hello'
+  ```
+  """
+  method: displayString ^<String> [
       ^self
   ]
 

@@ -11,12 +11,12 @@ import (
 // ExceptionHandler represents an installed exception handler (from on:do:).
 // The handler stack is maintained per-execution context.
 type ExceptionHandler struct {
-	ExceptionClass *Class       // The exception class this handler catches
-	HandlerBlock   Value        // The block to evaluate [:ex | ...]
-	FrameIndex     int          // Frame where handler was installed
-	HomeFrame      int          // For non-local return from handler
-	HomeSelf       Value        // Self context for handler block
-	Captures       []Value      // Captures for handler block
+	ExceptionClass *Class            // The exception class this handler catches
+	HandlerBlock   Value             // The block to evaluate [:ex | ...]
+	FrameIndex     int               // Frame where handler was installed
+	HomeFrame      int               // For non-local return from handler
+	HomeSelf       Value             // Self context for handler block
+	Captures       []Value           // Captures for handler block
 	Prev           *ExceptionHandler // Link to previous handler (stack)
 }
 
@@ -52,7 +52,6 @@ type TraceFrame struct {
 // The bottom of a long stack is rarely informative; this caps pathological
 // runaway-recursion cost.
 const MaxCapturedTraceDepth = 256
-
 
 // IsException returns true if this value is an exception.
 func (v Value) IsException() bool {
@@ -417,10 +416,16 @@ func (vm *VM) registerExceptionBlockPrimitives() {
 	b.AddMethod2(vm.Selectors, "on:do:", onDoFn)
 	b.AddMethod2(vm.Selectors, "primOn:do:", onDoFn)
 
-	// Block>>ensure: - evaluate block, then always evaluate ensureBlock
-	b.AddMethod1(vm.Selectors, "ensure:", func(v *VM, recv Value, ensureBlock Value) Value {
+	// Block>>ensure: - evaluate block, then always evaluate ensureBlock (on
+	// normal completion, non-local return, AND exception unwind). Registered
+	// under primEnsure: too so the lib Block>>ensure: can delegate here instead
+	// of reimplementing it in Maggie (a pure-Maggie `result := self value.
+	// finallyBlock value` skips the finally block on any abnormal exit).
+	ensureFn := func(v *VM, recv Value, ensureBlock Value) Value {
 		return v.evaluateBlockWithEnsure(recv, ensureBlock)
-	})
+	}
+	b.AddMethod1(vm.Selectors, "ensure:", ensureFn)
+	b.AddMethod1(vm.Selectors, "primEnsure:", ensureFn)
 
 	// Block>>ifCurtailed: - evaluate block, run curtailBlock only if exception occurs
 	ifCurtailedFn := func(v *VM, recv Value, curtailBlock Value) Value {
@@ -607,16 +612,17 @@ func FormatCapturedTrace(frames []TraceFrame) string {
 type handlerAction int
 
 const (
-	handlerDone  handlerAction = iota // handler completed normally
-	handlerPass                       // handler called pass
-	handlerRetry                      // handler called retry
+	handlerDone   handlerAction = iota // handler completed normally
+	handlerPass                        // handler called pass
+	handlerRetry                       // handler called retry
+	handlerResume                      // handler called resume: (result is the resume value)
 )
 
 // handlerOutcome captures the result and control-flow action from a handler.
 type handlerOutcome struct {
-	action    handlerAction
-	result    Value
-	passExc   SignaledException // valid when action == handlerPass
+	action  handlerAction
+	result  Value
+	passExc SignaledException // valid when action == handlerPass
 }
 
 // evaluateBlockWithHandler evaluates a block with an exception handler installed.
@@ -765,11 +771,25 @@ func (vm *VM) evaluateHandlerBlock(hbv *BlockValue, sigEx SignaledException) han
 	var handlerResult Value
 	var outcome handlerOutcome
 
+	// retry/pass/resume escape the handler block via panic, which bypasses the
+	// normal popFrame, leaving the handler block's frame(s) on the stack. Record
+	// fp here and pop any leaked frames in the recover so the caller resumes at
+	// the correct frame — otherwise a successful retry (or resume:) returns into
+	// the leaked frame and the code after on:do: is silently skipped. popFrame
+	// also restores sp to each frame's base and releases its GC-visible refs.
+	savedFP := interp.fp
+	unwindLeakedFrames := func() {
+		for interp.fp > savedFP {
+			interp.popFrame()
+		}
+	}
+
 	func() {
 		defer func() {
 			if r := recover(); r != nil {
 				switch pe := r.(type) {
 				case PassException:
+					unwindLeakedFrames()
 					// pass: signal back to evaluateBlockWithHandler
 					outcome = handlerOutcome{
 						action:  handlerPass,
@@ -777,13 +797,18 @@ func (vm *VM) evaluateHandlerBlock(hbv *BlockValue, sigEx SignaledException) han
 					}
 					return
 				case RetryException:
+					unwindLeakedFrames()
 					// retry: signal back to evaluateBlockWithHandler
 					outcome = handlerOutcome{action: handlerRetry}
 					return
 				case ResumeException:
-					// resume: use the provided value as the result
+					unwindLeakedFrames()
+					// resume: use the provided value as the result. Must use a
+					// distinct action — handlerDone here would be overwritten by
+					// the normal-completion fall-through below with the unset
+					// handlerResult (zero Value), dropping the resume value.
 					sigEx.Object.Handled = true
-					outcome = handlerOutcome{action: handlerDone, result: pe.Value}
+					outcome = handlerOutcome{action: handlerResume, result: pe.Value}
 					return
 				default:
 					panic(r)
@@ -807,7 +832,6 @@ func (vm *VM) evaluateHandlerBlock(hbv *BlockValue, sigEx SignaledException) han
 	}
 	return handlerOutcome{action: handlerDone, result: handlerResult}
 }
-
 
 // evaluateBlockWithEnsure evaluates a block, then always evaluates the ensure block.
 func (vm *VM) evaluateBlockWithEnsure(blockVal Value, ensureBlock Value) Value {
