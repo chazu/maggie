@@ -1,6 +1,9 @@
 package vm
 
 import (
+	"os"
+	"runtime/debug"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -442,5 +445,30 @@ func (gc *RegistryGC) sweep(reason triggerReason, registryName string) *Registry
 	}
 	gc.lastStats.Store(stats)
 
+	// Return reclaimed heap to the OS. The tracing collector above frees Maggie
+	// registry objects, but the Go runtime holds their backing pages at the
+	// process high-water mark and only returns them lazily — so a long-running
+	// server ratchets RSS upward and never falls, even as the live set shrinks
+	// (this is the Go<->Maggie GC interaction that made pp serve drift to GBs).
+	// FreeOSMemory forces a scavenge here, tied to the already-throttled sweep
+	// cadence (timer floor + growth thresholds) so the cost is bounded and every
+	// Maggie project gets bounded RSS for free. Opt out with MAGGIE_SCAVENGE=0
+	// for latency-critical workloads that prefer to keep pages mapped.
+	if scavengeAfterSweep() {
+		debug.FreeOSMemory()
+	}
+
 	return stats
+}
+
+// scavengeAfterSweep reports whether the GC sweep should return freed memory to
+// the OS via debug.FreeOSMemory(). On by default; disable with MAGGIE_SCAVENGE
+// set to 0/off/false/no.
+func scavengeAfterSweep() bool {
+	switch strings.ToLower(strings.TrimSpace(os.Getenv("MAGGIE_SCAVENGE"))) {
+	case "0", "off", "false", "no":
+		return false
+	default:
+		return true
+	}
 }
