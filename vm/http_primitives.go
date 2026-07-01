@@ -629,6 +629,17 @@ func (vm *VM) registerHttpPrimitives() {
 		return v.registry.NewStringValue(req.request.Method)
 	})
 
+	// host returns the request authority. Go promotes the incoming Host header
+	// to Request.Host and strips it from the Header map, so `header: 'Host'`
+	// always returns "". This exposes the real value.
+	httpRequestClass.AddMethod0(vm.Selectors, "host", func(v *VM, recv Value) Value {
+		req := v.vmGetHttpRequest(recv)
+		if req == nil {
+			return v.registry.NewStringValue("")
+		}
+		return v.registry.NewStringValue(req.request.Host)
+	})
+
 	httpRequestClass.AddMethod1(vm.Selectors, "header:", func(v *VM, recv Value, nameVal Value) Value {
 		req := v.vmGetHttpRequest(recv)
 		if req == nil {
