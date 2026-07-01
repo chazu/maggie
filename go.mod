@@ -27,7 +27,7 @@ require (
 	github.com/apache/arrow-go/v18 v18.1.0 // indirect
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
 	github.com/bufbuild/protocompile v0.7.1 // indirect
-	github.com/chazu/ganso v0.0.0-20260618142503-ea88b65f00d5
+	github.com/chazu/ganso v0.0.0-20260701144134-28700143706c
 	github.com/cockroachdb/apd/v3 v3.2.1 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/emicklei/proto v1.14.2 // indirect

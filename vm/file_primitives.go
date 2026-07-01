@@ -1,6 +1,8 @@
 package vm
 
 import (
+	"bytes"
+	"io"
 	"os"
 	"path/filepath"
 )
@@ -335,6 +337,50 @@ func (vm *VM) registerFilePrimitives() {
 			return v.newFailureResult("Cannot stat file: " + err.Error())
 		}
 		return FromSmallInt(info.Size())
+	})
+
+	// readFrom:offset: path offset - Tail a file from a byte offset.
+	// Reads from the given byte offset to EOF, then trims to the last complete
+	// line (up to and including the final '\n'), and returns a 2-element Array:
+	//   { completeContent<String>, newByteOffset<Integer> }
+	// newByteOffset is offset + the exact number of BYTES consumed, so the caller
+	// can pass it straight back next time — byte-correct regardless of UTF-8, and
+	// any partial trailing line is left for the next read (no split-line parsing).
+	// Lets a caller tail a growing .jsonl by reading only newly-appended lines
+	// instead of re-reading the whole file. Negative offset is clamped to 0;
+	// a past-EOF offset yields empty content and an unchanged offset.
+	fileClass.AddClassMethod2(vm.Selectors, "readFrom:offset:", func(v *VM, recv Value, pathVal, offsetVal Value) Value {
+		path := v.valueToString(pathVal)
+		if path == "" {
+			return v.newFailureResult("readFrom:offset: requires a path string")
+		}
+		var offset int64
+		if offsetVal.IsSmallInt() {
+			offset = offsetVal.SmallInt()
+		}
+		if offset < 0 {
+			offset = 0
+		}
+		f, err := os.Open(path)
+		if err != nil {
+			return v.newFailureResult("Cannot open file: " + err.Error())
+		}
+		defer f.Close()
+		if _, err := f.Seek(offset, io.SeekStart); err != nil {
+			return v.newFailureResult("Cannot seek file: " + err.Error())
+		}
+		buf, err := io.ReadAll(f)
+		if err != nil {
+			return v.newFailureResult("Cannot read file: " + err.Error())
+		}
+		// Consume only up to the last complete line; leave any partial for later.
+		end := bytes.LastIndexByte(buf, '\n') + 1 // 0 if no newline present
+		content := buf[:end]
+		newOffset := offset + int64(end)
+		return v.NewArrayWithElements([]Value{
+			v.registry.NewStringValue(string(content)),
+			FromSmallInt(newOffset),
+		})
 	})
 
 	// modificationTime: path - Get file modification time as Unix milliseconds
