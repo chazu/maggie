@@ -68,25 +68,53 @@ an id↔object map; those become plain maps without the GC role.
 
 ## RESUME HERE (next session pick-up)
 
-**Status:** Stage 1 COMPLETE and pushed. Branch `migrate/pointer-value`
-(commits `ec9308e` code + `162e71d` gitignore cleanup). `main` is untouched —
-do NOT merge this branch until the migration is finished (it's mid-migration but
-green at this checkpoint). Full `go test ./...` green, `-race` clean, 1166 lib
-doctests pass, image rebuilds.
+**Status:** Stage 1 COMPLETE. Stage 2 IN PROGRESS — 14 of the ~35 heap types
+migrated to pointers across 8 commits (2a–2f). Branch `migrate/pointer-value`.
+`main` untouched — do NOT merge until the migration finishes. At every commit:
+`go test ./...` green, 1166 doctests pass, image rebuilds; vm `-race` clean at
+the String, Exception, and Channel/Future checkpoints.
 
-**What's already in place (value.go):**
-- `type Value struct { hi uint64; ptr unsafe.Pointer }` with the full immediate
-  method API preserved (reads `v.hi`).
-- Heap-kind enum (`kindObject`, `kindCell`, `kindString`, `kindDictionary`,
-  `kindArrayList`, `kindBigInt`, `kindException`, `kindResult`, `kindClassValue`,
-  `kindGoObject`, `kindWeakRef`, `kindChannel`, `kindProcess`, `kindMutex`,
-  `kindWaitGroup`, `kindSemaphore`, `kindCancellationContext`, `kindFuture`,
-  `kindRemoteRef`, `kindRemoteChannel`, `kindPromise`, `kindExtension`) — most
-  are ALREADY DEFINED, ready to use. `kindBlock`/`kindContext` exist but Block
-  and Context are still immediate-id (deliberately deferred).
-- Helpers: `makeHeap(kind, ptr)`, `v.isHeap()`, `v.heapKindOf()`, `RawBits()`.
-- MIGRATED so far: Object, Cell (real pointers). Everything else is still
-  immediate NaN-box or registry-ID.
+**MIGRATED to pointers (done, committed):** Object, Cell (stage 1); then Result,
+BigInt, Exception, String, Dictionary, ArrayList, ClassValue, GoObject, Mutex,
+WaitGroup, Semaphore, CancellationContext, Channel, Future.
+
+**STILL id-based / symbol-encoded (deferred, deliberately):**
+- **Process** (`processMarker`) — Values are constructed by-id in monitor/link/
+  distribution paths (`processToValue(id)` in process_lifecycle.go, vm.go), so it
+  needs a real id↔object map. Keep it symbol-encoded; the `processes` map also
+  serves as a custom-GC root (mailbox scanning) until blocks migrate.
+- **WeakRef** (`weakRefMarker`) — its clearing mechanism is the custom collector's
+  `ProcessGC`; migrate together with the Go-native weak-ref rework in stage 3.
+- **Block** (`tagBlock`) + **Context** (`tagContext`) — migrate in stage 3 (Block
+  when the slot+gen recycling is removed).
+- **Contrib/extension kinds** (`kindExtension`: http/grpc/cue/json/unix/sse/cli/
+  exec, `externalProcessMarker`, etc.) + **RemoteRef/RemoteChannel** — STAGE 2g,
+  next up. These use `ExtensionRegistry(marker)` AutoIDRegistries.
+
+**Per-type mechanics that worked (keep doing this):**
+- Reimplement the type's public `RegisterXxxValue`/`GetXxxFromValue` (or the
+  `Register`/`Get` registry methods) as thin `makeHeap`/pointer-cast wrappers so
+  CALL SITES DON'T CHANGE. Only the registry field + GC hooks + symbol dispatch go.
+- Class-of resolution moved from `sd.Register(marker, …)` (symbol dispatch) to a
+  `case kindXxx:` in `vm.classForHeap` (vm.go). Non-immediate heap dispatch also
+  flows through `vtableForVM`'s `case v.isHeap()` (interpreter.go) and `Send`'s
+  else-branch (vm.go). **Class values are special-cased in both to dispatch via
+  `ClassVTable` directly — do NOT route them through classForHeap→MetaclassFor on
+  the hot path (that races + eagerly builds metaclasses).**
+- Serialization: `serialize()` routes heap Values to `serializeHeap` (serial.go),
+  which switches on kind. Serializable kinds (String, BigInt, Dict, Exception,
+  Channel) delegate; the rest return a clear non-serializable error. As a type
+  migrates, move its case out of `serializeSymbolEncoded`'s marker switch.
+- Custom GC (heap_gc.go): the `mark()` recursion cases for migrated container
+  kinds (dict/arraylist/result/exception) are KEPT (they let the block sweep
+  reach blocks stored inside), but the per-type ROOT ENUMERATION and per-type
+  SWEEP are removed. Channels/Processes/Futures keep their id maps AS GC roots
+  (buffered/mailbox block liveness) until blocks migrate — encoding-only change.
+- GC tests (registry_gc_test.go, heap_gc_test.go) are being deleted/retargeted as
+  types migrate; the pressure tests were repointed at the (deferred, still
+  monitored) `Contexts` registry as stable filler.
+- **Run `go test -race ./vm/` after any ClassValue/dispatch-touching change** —
+  the metaclass race only surfaces under concurrent class-side sends.
 
 **The proven recipe to migrate one registry-ID type (repeat per type):**
 1. Change its `IsXxx(v)` to `v.ptr != nil && v.hi == kindXxx`.
