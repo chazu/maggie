@@ -89,3 +89,16 @@ func (sd *SymbolDispatch) ClassForSymbolVM(v Value, vm *VM) (*Class, bool) {
 
 	return entry.Class, entry.ClassSide
 }
+
+// ClassForMarkerVM resolves the class registered for a raw marker. It is used by
+// kindExtension heap Values, which carry their marker in an extensionObject
+// rather than piggy-backing it on a symbol id. All extension/IO markers register
+// static Class entries (no Resolve), so Resolve-based entries are unsupported
+// here and report "not found".
+func (sd *SymbolDispatch) ClassForMarkerVM(marker uint32, vm *VM) (*Class, bool) {
+	entry := sd.table[byte(marker>>24)]
+	if entry == nil || entry.Resolve != nil {
+		return nil, false
+	}
+	return entry.Class, entry.ClassSide
+}

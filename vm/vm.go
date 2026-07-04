@@ -1017,6 +1017,15 @@ func (vm *VM) classForHeap(v Value) *Class {
 		return vm.ChannelClass
 	case kindFuture:
 		return vm.FutureClass
+	case kindExtension:
+		// Contrib/IO wrapper types share kindExtension; the concrete class is
+		// the one registered for the wrapper's marker in symbolDispatch.
+		if e := v.extensionObjectOf(); e != nil {
+			if cls, _ := vm.symbolDispatch.ClassForMarkerVM(e.marker, vm); cls != nil {
+				return cls
+			}
+		}
+		return vm.ObjectClass
 	default:
 		return vm.ObjectClass
 	}

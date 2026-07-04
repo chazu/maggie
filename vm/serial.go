@@ -177,6 +177,13 @@ func (s *valueSerializer) serializeHeap(v Value) ([]byte, error) {
 		return nil, fmt.Errorf("serial: cannot serialize CancellationContext (non-serializable type)")
 	case kindCell:
 		return nil, fmt.Errorf("serial: cannot serialize Cell (non-serializable type)")
+	case kindExtension:
+		// Contrib plugins register serialize hooks (e.g. CueValue). Try them;
+		// unhandled extension kinds are non-serializable IO handles.
+		if data, handled, err := trySerializeHooks(s.vm, v); handled {
+			return data, err
+		}
+		return nil, fmt.Errorf("serial: cannot serialize extension (marker=%d) (non-serializable type)", extensionMarker(v)>>24)
 	default:
 		return nil, fmt.Errorf("serial: cannot serialize heap kind %d (non-serializable type)", v.heapKindOf())
 	}
