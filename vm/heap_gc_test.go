@@ -77,7 +77,6 @@ func TestHeapGC_KeepsObjectIvarString(t *testing.T) {
 	s := vm.registry.NewStringValue(probe(2))
 	obj := NewObject(vm.ObjectClass.VTable, 2)
 	obj.SetSlot(0, s)
-	vm.KeepAlive(obj)
 	vm.SetGlobal("GcProbeObj", FromObjectPtr(unsafe.Pointer(obj)))
 	vm.collectHeapGarbageLocked()
 	stringStillThere(t, vm, s, probe(2))
@@ -90,8 +89,6 @@ func TestHeapGC_KeepsNestedObjectString(t *testing.T) {
 	inner.SetSlot(0, s)
 	outer := NewObject(vm.ObjectClass.VTable, 1)
 	outer.SetSlot(0, FromObjectPtr(unsafe.Pointer(inner)))
-	vm.KeepAlive(inner)
-	vm.KeepAlive(outer)
 	vm.SetGlobal("GcProbeNested", FromObjectPtr(unsafe.Pointer(outer)))
 	vm.collectHeapGarbageLocked()
 	stringStillThere(t, vm, s, probe(3))
@@ -118,7 +115,6 @@ func TestHeapGC_KeepsCellString(t *testing.T) {
 	// Reachable via an object slot holding the cell.
 	obj := NewObject(vm.ObjectClass.VTable, 1)
 	obj.SetSlot(0, cellVal)
-	vm.KeepAlive(obj)
 	vm.SetGlobal("GcProbeCell", FromObjectPtr(unsafe.Pointer(obj)))
 	vm.collectHeapGarbageLocked()
 	stringStillThere(t, vm, s, probe(5))
@@ -140,7 +136,6 @@ func TestHeapGC_KeepsMethodLiteralString(t *testing.T) {
 	vm.collectHeapGarbageLocked()
 	stringStillThere(t, vm, s, probe(6))
 }
-
 
 func TestHeapGC_NoCorruptionMixed(t *testing.T) {
 	vm := NewVM()

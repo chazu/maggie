@@ -590,9 +590,6 @@ func (d *valueDeserializer) deserializeObject(tag cbor.Tag) (Value, error) {
 	obj := NewObject(class.VTable, class.NumSlots)
 	objVal := obj.ToValue()
 
-	// Register with VM's keepAlive — NaN-boxed pointers are invisible to the GC
-	d.vm.KeepAlive(obj)
-
 	// Register backref before filling slots (handles cycles)
 	idx := d.nextRef
 	d.nextRef++
@@ -778,4 +775,3 @@ func (d *valueDeserializer) lookupExceptionClass(name string) *Class {
 	}
 	return nil
 }
-

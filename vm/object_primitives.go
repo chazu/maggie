@@ -17,7 +17,6 @@ func (vm *VM) registerObjectPrimitives() {
 			cls := v.GetClassFromValue(recv)
 			if cls != nil {
 				instance := cls.NewInstance()
-				v.KeepAlive(instance)
 				return instance.ToValue()
 			}
 		}
@@ -26,7 +25,6 @@ func (vm *VM) registerObjectPrimitives() {
 			symName := v.Symbols.Name(recv.SymbolID())
 			if cls := v.Classes.Lookup(symName); cls != nil {
 				instance := cls.NewInstance()
-				v.KeepAlive(instance)
 				return instance.ToValue()
 			}
 		}
@@ -40,7 +38,6 @@ func (vm *VM) registerObjectPrimitives() {
 			cls := v.GetClassFromValue(recv)
 			if cls != nil {
 				instance := cls.NewInstance()
-				v.KeepAlive(instance)
 				return instance.ToValue()
 			}
 		}
@@ -48,7 +45,6 @@ func (vm *VM) registerObjectPrimitives() {
 			symName := v.Symbols.Name(recv.SymbolID())
 			if cls := v.Classes.Lookup(symName); cls != nil {
 				instance := cls.NewInstance()
-				v.KeepAlive(instance)
 				return instance.ToValue()
 			}
 		}

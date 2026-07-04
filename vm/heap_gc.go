@@ -53,7 +53,7 @@ type liveSet struct {
 	dicts      map[Value]struct{} // visited dicts (cycle guard; not swept)
 	arrayLists map[Value]struct{} // visited array-lists (cycle guard; not swept)
 	cells      map[*Cell]struct{}
-	blocks     map[uint32]struct{} // reachable block slot ids
+	blocks     map[uint32]struct{}           // reachable block slot ids
 	extensions map[*extensionObject]struct{} // visited RootMarker wrappers (cycle guard)
 }
 
@@ -462,9 +462,8 @@ func (vm *VM) collectHeapGarbageLocked() (strings, dicts, blocks int) {
 	// GC — no custom sweep needed; `strings`/`dicts` stay 0.
 	blocks = vm.registry.SweepBlocksLive(ls.blocks)
 
-	// Object graph holders: reachable only through the trace, so unreachable
-	// pins are safe to drop. (Weak references are now Go-native — Go's GC clears
-	// them, so no ProcessGC pass is needed here.)
-	vm.sweepKeepAliveLive(ls.objects)
+	// Weak references are Go-native and objects/strings/dicts are Go-GC-traced
+	// pointers; the frame-bound block sweep above is the collector's only
+	// remaining job (removed entirely once blocks migrate to pointers).
 	return strings, dicts, blocks
 }

@@ -19,7 +19,7 @@ type ObjectRegistry struct {
 
 	// Core VM registries (AutoIDRegistry-backed). Exported so callers can
 	// use Register/Get/Delete directly without delegation methods.
-	Contexts         *AutoIDRegistry[*ContextValue]
+	Contexts *AutoIDRegistry[*ContextValue]
 
 	// Special registries (not suitable for AutoIDRegistry)
 	cells       map[*Cell]struct{} // set semantics
@@ -34,7 +34,7 @@ func NewObjectRegistry() *ObjectRegistry {
 		ConcurrencyRegistry: NewConcurrencyRegistry(),
 
 		// Start IDs at 1 unless otherwise noted (0 = nil/uninitialized)
-		Contexts:         NewAutoIDRegistry[*ContextValue](1, WithName("contexts")),
+		Contexts: NewAutoIDRegistry[*ContextValue](1, WithName("contexts")),
 
 		cells:     make(map[*Cell]struct{}),
 		classVars: make(map[*Class]map[string]Value),
@@ -89,8 +89,8 @@ func (or *ObjectRegistry) GetResultFromValue(v Value) *ResultObject {
 func (or *ObjectRegistry) RegisterContext(ctx *ContextValue) uint32 { return or.Contexts.Register(ctx) }
 func (or *ObjectRegistry) GetContext(id uint32) *ContextValue       { return or.Contexts.Get(id) }
 func (or *ObjectRegistry) UnregisterContext(id uint32)              { or.Contexts.Delete(id) }
-func (or *ObjectRegistry) ClearContexts()                          { or.Contexts.Clear() }
-func (or *ObjectRegistry) ContextCount() int                       { return or.Contexts.Count() }
+func (or *ObjectRegistry) ClearContexts()                           { or.Contexts.Clear() }
+func (or *ObjectRegistry) ContextCount() int                        { return or.Contexts.Count() }
 
 // RegisterContextValue registers a ContextValue and returns a Value representing it.
 func (or *ObjectRegistry) RegisterContextValue(ctx *ContextValue) Value {

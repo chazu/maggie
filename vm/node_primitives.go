@@ -270,7 +270,6 @@ func (vm *VM) createRemoteProcess(nodeRefVal Value, name string) Value {
 	instance := NewObject(vm.RemoteProcessClass.VTable, 2)
 	instance.SetSlot(0, nodeRefVal)
 	instance.SetSlot(1, vm.registry.NewStringValue(name))
-	vm.KeepAlive(instance)
 	return instance.ToValue()
 }
 

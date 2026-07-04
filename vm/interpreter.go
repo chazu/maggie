@@ -2037,7 +2037,6 @@ func (i *Interpreter) primitiveNew(rcvr Value) Value {
 		cls := i.vm.classFromValue(rcvr)
 		if cls != nil {
 			obj := cls.NewInstance()
-			i.vm.KeepAlive(obj)
 			return obj.ToValue()
 		}
 	}

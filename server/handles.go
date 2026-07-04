@@ -20,9 +20,10 @@ type handle struct {
 	lastUsed  time.Time
 }
 
-// HandleStore maps opaque string IDs to VM values.
-// Objects referenced by handles are pinned via vm.keepAlive
-// to prevent garbage collection.
+// HandleStore maps opaque string IDs to VM values. Each handle holds the
+// vm.Value (which carries the heap object's pointer), so a stored handle is
+// itself a strong reference — Go's GC keeps the object alive for as long as the
+// handle lives; no explicit pinning is needed.
 type HandleStore struct {
 	mu      sync.RWMutex
 	handles map[string]*handle
@@ -38,8 +39,8 @@ func NewHandleStore(worker *VMWorker) *HandleStore {
 	}
 }
 
-// Create registers a value and returns an opaque handle ID.
-// For heap objects, the value is pinned to prevent GC.
+// Create registers a value and returns an opaque handle ID. The stored
+// vm.Value keeps any heap object it references alive via Go's GC.
 func (s *HandleStore) Create(value vm.Value, className, display, sessionID string) string {
 	id := fmt.Sprintf("h-%d", s.nextID.Add(1))
 
@@ -55,14 +56,6 @@ func (s *HandleStore) Create(value vm.Value, className, display, sessionID strin
 		sessionID: sessionID,
 		created:   now,
 		lastUsed:  now,
-	}
-
-	// Pin heap objects to prevent GC
-	if value.IsObject() {
-		obj := vm.ObjectFromValue(value)
-		if obj != nil {
-			s.worker.VM().KeepAlive(obj)
-		}
 	}
 
 	return id
@@ -82,24 +75,11 @@ func (s *HandleStore) Lookup(id string) (vm.Value, bool) {
 	return h.value, true
 }
 
-// Release removes a handle and unpins the object.
+// Release removes a handle. Dropping it from the map releases the strong
+// reference; Go's GC reclaims the object once nothing else holds it.
 func (s *HandleStore) Release(id string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-
-	h, ok := s.handles[id]
-	if !ok {
-		return
-	}
-
-	// Unpin heap objects
-	if h.value.IsObject() {
-		obj := vm.ObjectFromValue(h.value)
-		if obj != nil {
-			s.worker.VM().ReleaseKeepAlive(obj)
-		}
-	}
-
 	delete(s.handles, id)
 }
 
@@ -110,12 +90,6 @@ func (s *HandleStore) ReleaseSession(sessionID string) {
 
 	for id, h := range s.handles {
 		if h.sessionID == sessionID {
-			if h.value.IsObject() {
-				obj := vm.ObjectFromValue(h.value)
-				if obj != nil {
-					s.worker.VM().ReleaseKeepAlive(obj)
-				}
-			}
 			delete(s.handles, id)
 		}
 	}
@@ -130,12 +104,6 @@ func (s *HandleStore) Sweep(ttl time.Duration) int {
 	removed := 0
 	for id, h := range s.handles {
 		if h.lastUsed.Before(cutoff) {
-			if h.value.IsObject() {
-				obj := vm.ObjectFromValue(h.value)
-				if obj != nil {
-					s.worker.VM().ReleaseKeepAlive(obj)
-				}
-			}
 			delete(s.handles, id)
 			removed++
 		}

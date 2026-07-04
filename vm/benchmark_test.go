@@ -1,6 +1,7 @@
 package vm
 
 import (
+	"runtime"
 	"testing"
 )
 
@@ -305,7 +306,9 @@ func BenchmarkObjectSlotAccess(b *testing.B) {
 	}
 }
 
-// BenchmarkGarbageCollection measures GC pause time
+// BenchmarkGarbageCollection measures Go GC pause time with a working set of
+// Maggie objects live. Objects are pointer-carrying heap Values reclaimed by
+// Go's GC — there is no custom collector to invoke.
 func BenchmarkGarbageCollection(b *testing.B) {
 	vm := benchmarkVM()
 
@@ -317,21 +320,7 @@ func BenchmarkGarbageCollection(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		vm.CollectGarbage()
-	}
-}
-
-// BenchmarkKeepAliveGrowth measures allocation with keepAlive tracking
-func BenchmarkKeepAliveGrowth(b *testing.B) {
-	vm := benchmarkVM()
-	classSymbol := vm.Symbols.SymbolValue("Object")
-
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		vm.Send(classSymbol, "new", nil)
-		if i%100 == 0 {
-			vm.CollectGarbage()
-		}
+		runtime.GC()
 	}
 }
 

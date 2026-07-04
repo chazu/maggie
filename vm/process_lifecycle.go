@@ -162,7 +162,6 @@ func (vm *VM) createDownInfo(ref *MonitorRef, reason ExitReason) Value {
 	arr.SetSlot(1, processToValue(ref.Watched))
 	arr.SetSlot(2, vm.exitReasonToValue(reason))
 	arr.SetSlot(3, reason.Result)
-	vm.KeepAlive(arr)
 	return arr.ToValue()
 }
 
@@ -174,7 +173,6 @@ func (vm *VM) createExitMessage(fromID uint64, reason ExitReason) Value {
 	arr.SetSlot(0, processToValue(fromID))
 	arr.SetSlot(1, vm.exitReasonToValue(reason))
 	arr.SetSlot(2, reason.Result)
-	vm.KeepAlive(arr)
 
 	return vm.CreateMailboxMessage(
 		processToValue(fromID),

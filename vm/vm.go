@@ -151,12 +151,6 @@ type VM struct {
 	// Compiler backend (Go or Maggie)
 	compilerBackend CompilerBackend
 
-	// keepAlive holds references to objects to prevent GC.
-	// Uses a map for O(1) lookup and removal during garbage collection.
-	// Protected by keepAliveMu for thread-safe access from gRPC handlers.
-	keepAlive   map[*Object]struct{}
-	keepAliveMu sync.Mutex
-
 	// pinnedRoots holds Maggie Values that are retained OUTSIDE the traced
 	// object graph — captured in a Go closure that markRoots can never reach.
 	// The motivating case: HTTP route handlers (route:/asyncRoute:/sseRoute:)
@@ -183,7 +177,6 @@ type VM struct {
 	// external goroutines (HTTP handlers, gRPC handlers).
 	dispatchQueue chan workItem
 	dispatchOnce  sync.Once
-
 
 	// mainProcess is the ProcessObject for the main interpreter goroutine.
 	// Created during NewVM so that Process current / Process receive work
@@ -294,7 +287,6 @@ func NewVM(configs ...VMConfig) *VM {
 		Classes:          NewClassTable(),
 		Traits:           NewTraitTable(),
 		globals:          make(map[string]Value),
-		keepAlive:        make(map[*Object]struct{}),
 		pinnedRoots:      make(map[Value]struct{}),
 		registry:         NewObjectRegistry(),
 		symbolDispatch:   NewSymbolDispatch(),
@@ -850,7 +842,6 @@ func (vm *VM) CreateMailboxMessage(sender Value, selector string, payload Value)
 		instance.SetSlot(1, Nil)
 	}
 	instance.SetSlot(2, payload)
-	vm.KeepAlive(instance)
 	return instance.ToValue()
 }
 
@@ -1371,62 +1362,6 @@ func (vm *VM) GoTypeRegistry() *GoTypeRegistry {
 // Garbage Collection
 // ---------------------------------------------------------------------------
 
-// CollectGarbage performs a full mark-sweep over the COMPLETE root set (via the
-// tracing collector's markRoots), unpinning unreachable keepAlive objects and
-// clearing weak references to them. Unlike a partial stack/globals scan it is
-// sound on a multi-process VM, so it will not free an object that is live in
-// another process. Returns the number of keepAlive objects reclaimed.
-//
-// Callers MUST guarantee no other goroutine is mutating VM state: the periodic
-// collector reaches keepAlive sweeping through the safepoint barrier
-// (collectHeapGarbageLocked); direct callers of this method are single-threaded
-// tests. Do not call it while holding any registry lock — markRoots re-acquires
-// them.
-func (vm *VM) CollectGarbage() int {
-	if vm.registry == nil {
-		return 0
-	}
-	ls := newLiveSet()
-	vm.markRoots(ls)
-	return vm.sweepKeepAliveLive(ls.objects)
-}
-
-// sweepKeepAliveLive removes keepAlive pins for objects not in the live set.
-// An object absent from the trace is unreachable, so dropping its pin lets the
-// Go runtime reclaim it (NaN-boxed object Values are raw pointers the Go GC
-// cannot otherwise see as dead). Caller MUST run under stop-the-world.
-// Returns the number of objects unpinned.
-func (vm *VM) sweepKeepAliveLive(live map[*Object]struct{}) int {
-	vm.keepAliveMu.Lock()
-	defer vm.keepAliveMu.Unlock()
-	collected := 0
-	for obj := range vm.keepAlive {
-		if _, ok := live[obj]; !ok {
-			delete(vm.keepAlive, obj)
-			collected++
-		}
-	}
-	return collected
-}
-
-// KeepAlive pins an object to prevent garbage collection.
-func (vm *VM) KeepAlive(obj *Object) {
-	if obj != nil {
-		vm.keepAliveMu.Lock()
-		vm.keepAlive[obj] = struct{}{}
-		vm.keepAliveMu.Unlock()
-	}
-}
-
-// ReleaseKeepAlive unpins an object, allowing garbage collection.
-func (vm *VM) ReleaseKeepAlive(obj *Object) {
-	if obj != nil {
-		vm.keepAliveMu.Lock()
-		delete(vm.keepAlive, obj)
-		vm.keepAliveMu.Unlock()
-	}
-}
-
 // PinRoot marks a Value as a permanent GC root for the string/dictionary/block
 // collector. Use it whenever a Maggie Value (typically a block) is handed to Go
 // and retained beyond the lifetime of the frame that produced it — e.g. an HTTP
@@ -1444,14 +1379,6 @@ func (vm *VM) UnpinRoot(v Value) {
 	vm.pinnedRootsMu.Lock()
 	delete(vm.pinnedRoots, v)
 	vm.pinnedRootsMu.Unlock()
-}
-
-// KeepAliveCount returns the number of objects in the keepAlive set.
-// Useful for testing and debugging.
-func (vm *VM) KeepAliveCount() int {
-	vm.keepAliveMu.Lock()
-	defer vm.keepAliveMu.Unlock()
-	return len(vm.keepAlive)
 }
 
 // ---------------------------------------------------------------------------
