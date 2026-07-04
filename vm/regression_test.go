@@ -59,7 +59,6 @@ func TestMarkerNoCollision(t *testing.T) {
 	markers := map[string]uint32{
 		"channel":    channelMarker,
 		"process":    processMarker,
-		"result":     resultMarker,
 		"grpcClient": grpcClientMarker,
 		"grpcStream": grpcStreamMarker,
 		"exception":  exceptionMarker,

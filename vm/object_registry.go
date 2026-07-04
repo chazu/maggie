@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sync"
 	"sync/atomic"
+	"unsafe"
 )
 
 // ---------------------------------------------------------------------------
@@ -22,7 +23,6 @@ type ObjectRegistry struct {
 	// Core VM registries (AutoIDRegistry-backed). Exported so callers can
 	// use Register/Get/Delete directly without delegation methods.
 	Exceptions       *AutoIDRegistry[*ExceptionObject]
-	Results          *AutoIDRegistry[*ResultObject]
 	Contexts         *AutoIDRegistry[*ContextValue]
 	Dictionaries     *AutoIDRegistry[*DictionaryObject]
 	Strings          *AutoIDRegistry[*StringObject]
@@ -50,7 +50,6 @@ func NewObjectRegistry() *ObjectRegistry {
 
 		// Start IDs at 1 unless otherwise noted (0 = nil/uninitialized)
 		Exceptions:       NewAutoIDRegistry[*ExceptionObject](1, WithName("exceptions")),
-		Results:          NewAutoIDRegistry[*ResultObject](1, WithName("results")),
 		Contexts:         NewAutoIDRegistry[*ContextValue](1, WithName("contexts")),
 		// strings and dictionaries don't carry a marker byte — they use the
 		// high bit(s) of the symbol payload as their discriminator. Strings
@@ -93,15 +92,11 @@ func (or *ObjectRegistry) SweepExceptions() int {
 // Result Registry Methods (delegates to AutoIDRegistry)
 // ---------------------------------------------------------------------------
 
-func (or *ObjectRegistry) RegisterResult(r *ResultObject) uint32 { return or.Results.Register(r) }
-func (or *ObjectRegistry) GetResult(id uint32) *ResultObject      { return or.Results.Get(id) }
-func (or *ObjectRegistry) UnregisterResult(id uint32)             { or.Results.Delete(id) }
-func (or *ObjectRegistry) ResultCount() int                       { return or.Results.Count() }
-
-// RegisterResultValue creates a Result, registers it, and returns a Value.
+// RegisterResultValue wraps a Result in a heap Value. The name is retained for
+// call-site compatibility; the object is now carried by a real pointer traced
+// by the Go GC rather than an id registry.
 func (or *ObjectRegistry) RegisterResultValue(r *ResultObject) Value {
-	id := or.RegisterResult(r)
-	return FromSymbolID(id | resultMarker)
+	return makeHeap(kindResult, unsafe.Pointer(r))
 }
 
 // GetResultFromValue retrieves a ResultObject from a Value.
@@ -110,8 +105,7 @@ func (or *ObjectRegistry) GetResultFromValue(v Value) *ResultObject {
 	if !isResultValue(v) {
 		return nil
 	}
-	id := markedIDFromValue(v)
-	return or.GetResult(id)
+	return (*ResultObject)(v.ptr)
 }
 
 // ---------------------------------------------------------------------------
@@ -453,7 +447,6 @@ func (or *ObjectRegistry) FullStats() map[string]int {
 		stats[k] = v
 	}
 	stats["exceptions"] = or.ExceptionCount()
-	stats["results"] = or.ResultCount()
 	stats["contexts"] = or.ContextCount()
 	stats["dictionaries"] = or.DictionaryCount()
 	stats["strings"] = or.StringCount()

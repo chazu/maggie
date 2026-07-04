@@ -273,14 +273,8 @@ func (vm *VM) markRoots(ls *liveSet) {
 	}
 	vm.registry.Contexts.RUnlock()
 
-	// 9. Results (over-approximated as roots — low volume).
-	vm.registry.Results.RLock()
-	for _, r := range vm.registry.Results.data {
-		if r != nil {
-			vm.mark(r.value, ls)
-		}
-	}
-	vm.registry.Results.RUnlock()
+	// Results are now pointer-carrying heap Values traced by the Go GC; the
+	// custom collector no longer needs to root them.
 
 	// 10. Exceptions (over-approximated as roots — low volume).
 	vm.registry.Exceptions.RLock()

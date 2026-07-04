@@ -123,20 +123,34 @@ func (s *valueSerializer) serialize(v Value) ([]byte, error) {
 	case v.IsSymbolEncoded():
 		return s.serializeSymbolEncoded(v)
 
-	case v.IsObject():
-		return s.serializeObject(v)
+	case v.isHeap():
+		return s.serializeHeap(v)
 
 	case v.IsBlock():
 		return nil, fmt.Errorf("serial: cannot serialize Block (non-serializable type)")
-
-	case v.IsCell():
-		return nil, fmt.Errorf("serial: cannot serialize Cell (non-serializable type)")
 
 	case v.IsContext():
 		return nil, fmt.Errorf("serial: cannot serialize Context (non-serializable type)")
 
 	default:
 		return nil, fmt.Errorf("serial: unknown value type %016x", v.hi)
+	}
+}
+
+// serializeHeap dispatches pointer-carrying heap Values by their kind tag.
+// Serializable kinds delegate to their specific serializer; the rest report a
+// clear non-serializable error. As types migrate from the symbol-encoded
+// registry form to pointers, their cases move here from serializeSymbolEncoded.
+func (s *valueSerializer) serializeHeap(v Value) ([]byte, error) {
+	switch v.heapKindOf() {
+	case kindObject:
+		return s.serializeObject(v)
+	case kindResult:
+		return nil, fmt.Errorf("serial: cannot serialize Result (non-serializable type)")
+	case kindCell:
+		return nil, fmt.Errorf("serial: cannot serialize Cell (non-serializable type)")
+	default:
+		return nil, fmt.Errorf("serial: cannot serialize heap kind %d (non-serializable type)", v.heapKindOf())
 	}
 }
 
@@ -192,8 +206,6 @@ func (s *valueSerializer) serializeSymbolEncoded(v Value) ([]byte, error) {
 		return nil, fmt.Errorf("serial: cannot serialize CancellationContext (non-serializable type)")
 	case goObjectMarker:
 		return nil, fmt.Errorf("serial: cannot serialize GoObject (non-serializable type)")
-	case resultMarker:
-		return nil, fmt.Errorf("serial: cannot serialize Result (non-serializable type)")
 	case exceptionMarker:
 		return s.serializeException(v)
 	case arrayListMarker:

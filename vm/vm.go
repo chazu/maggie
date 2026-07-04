@@ -667,16 +667,6 @@ func (vm *VM) registerSymbolDispatch() {
 		},
 	})
 
-	// Results — resolve to Success or Failure
-	sd.Register(resultMarker, &SymbolTypeEntry{
-		Resolve: func(v Value, vmRef *VM) (*Class, bool) {
-			r := vmRef.registry.GetResultFromValue(v)
-			if r != nil && r.resultType == ResultSuccess {
-				return vm.SuccessClass, true
-			}
-			return vm.FailureClass, true
-		},
-	})
 }
 
 // classValue returns a Value representing a class.
@@ -1009,7 +999,19 @@ func (vm *VM) ClassFor(v Value) *Class {
 			return cls
 		}
 		return vm.SymbolClass
-	case v.IsObject():
+	case v.isHeap():
+		return vm.classForHeap(v)
+	default:
+		return vm.ObjectClass
+	}
+}
+
+// classForHeap resolves the class of a pointer-carrying heap Value by its kind
+// tag. As types migrate from symbol-encoded registry ids to pointers, their
+// class resolution moves here from the symbol dispatch table.
+func (vm *VM) classForHeap(v Value) *Class {
+	switch v.heapKindOf() {
+	case kindObject:
 		obj := ObjectFromValue(v)
 		if obj != nil {
 			vt := obj.VTablePtr()
@@ -1018,6 +1020,12 @@ func (vm *VM) ClassFor(v Value) *Class {
 			}
 		}
 		return vm.ObjectClass
+	case kindResult:
+		r := vm.registry.GetResultFromValue(v)
+		if r != nil && r.resultType == ResultSuccess {
+			return vm.SuccessClass
+		}
+		return vm.FailureClass
 	default:
 		return vm.ObjectClass
 	}

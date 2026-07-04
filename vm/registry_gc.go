@@ -217,7 +217,6 @@ func (gc *RegistryGC) installHooks() {
 	// Exceptions and results turn over rapidly in error-handling-heavy code.
 	// Smaller thresholds — they're cheap to sweep.
 	add("exceptions", defaultGrowthThreshold, defaultAbsoluteCeiling, or.Exceptions)
-	add("results", defaultGrowthThreshold, defaultAbsoluteCeiling, or.Results)
 	add("contexts", defaultGrowthThreshold, defaultAbsoluteCeiling, or.Contexts)
 
 	// The rest are domain-specific and usually have low cardinality.

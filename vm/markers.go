@@ -20,7 +20,6 @@ const (
 	// Concurrency primitives
 	channelMarker               uint32 = 1 << 24
 	processMarker               uint32 = 2 << 24
-	resultMarker                uint32 = 4 << 24
 	grpcClientMarker            uint32 = 7 << 24
 	exceptionMarker             uint32 = 8 << 24
 	grpcStreamMarker            uint32 = 9 << 24

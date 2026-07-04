@@ -123,7 +123,6 @@ func TestGoObjectMarker_NoCollision(t *testing.T) {
 	markers := map[string]uint32{
 		"channel":             channelMarker,
 		"process":             processMarker,
-		"result":              resultMarker,
 		"grpcClient":          grpcClientMarker,
 		"exception":           exceptionMarker,
 		"grpcStream":          grpcStreamMarker,
