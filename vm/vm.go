@@ -1316,92 +1316,45 @@ func (vm *VM) GoTypeRegistry() *GoTypeRegistry {
 // Garbage Collection
 // ---------------------------------------------------------------------------
 
-// CollectGarbage performs a mark-sweep garbage collection.
-// It scans the stack, globals, and block captures to find reachable objects,
-// then removes unreachable objects from keepAlive.
+// CollectGarbage performs a full mark-sweep over the COMPLETE root set (via the
+// tracing collector's markRoots), unpinning unreachable keepAlive objects and
+// clearing weak references to them. Unlike a partial stack/globals scan it is
+// sound on a multi-process VM, so it will not free an object that is live in
+// another process. Returns the number of keepAlive objects reclaimed.
+//
+// Callers MUST guarantee no other goroutine is mutating VM state: the periodic
+// collector reaches keepAlive sweeping through the safepoint barrier
+// (collectHeapGarbageLocked); direct callers of this method are single-threaded
+// tests. Do not call it while holding any registry lock — markRoots re-acquires
+// them.
 func (vm *VM) CollectGarbage() int {
-	if vm.interpreter == nil {
+	if vm.registry == nil {
 		return 0
 	}
-
-	// Mark phase: find all reachable objects
-	marked := make(map[*Object]struct{})
-
-	// Mark objects reachable from the stack
-	for i := 0; i < vm.interpreter.sp; i++ {
-		vm.markValue(vm.interpreter.stack[i], marked)
-	}
-
-	// Mark objects reachable from globals
-	vm.globalsMu.RLock()
-	for _, v := range vm.globals {
-		vm.markValue(v, marked)
-	}
-	vm.globalsMu.RUnlock()
-
-	// Mark objects reachable from block captures (VM-local registry)
-	vm.registry.blocksMu.RLock()
-	for _, bv := range vm.registry.blocks {
-		if bv != nil {
-			for _, capture := range bv.Captures {
-				vm.markValue(capture, marked)
-			}
-			vm.markValue(bv.HomeSelf, marked)
-		}
-	}
-	vm.registry.blocksMu.RUnlock()
-
-	// Mark objects reachable from frames (temps on stack are already covered,
-	// but Receiver values need marking)
-	for i := 0; i <= vm.interpreter.fp; i++ {
-		vm.markValue(vm.interpreter.frames[i].Receiver, marked)
-		if vm.interpreter.frames[i].HomeSelf != Nil {
-			vm.markValue(vm.interpreter.frames[i].HomeSelf, marked)
-		}
-	}
-
-	// Process weak references: clear refs to unmarked objects and run finalizers
+	ls := newLiveSet()
+	vm.markRoots(ls)
 	if vm.weakRefs != nil {
-		vm.weakRefs.ProcessGC(marked)
+		vm.weakRefs.ProcessGC(ls.objects)
 	}
+	return vm.sweepKeepAliveLive(ls.objects)
+}
 
-	// Sweep phase: remove unmarked objects from keepAlive
+// sweepKeepAliveLive removes keepAlive pins for objects not in the live set.
+// An object absent from the trace is unreachable, so dropping its pin lets the
+// Go runtime reclaim it (NaN-boxed object Values are raw pointers the Go GC
+// cannot otherwise see as dead). Caller MUST run under stop-the-world.
+// Returns the number of objects unpinned.
+func (vm *VM) sweepKeepAliveLive(live map[*Object]struct{}) int {
 	vm.keepAliveMu.Lock()
+	defer vm.keepAliveMu.Unlock()
 	collected := 0
 	for obj := range vm.keepAlive {
-		if _, isMarked := marked[obj]; !isMarked {
+		if _, ok := live[obj]; !ok {
 			delete(vm.keepAlive, obj)
 			collected++
 		}
 	}
-	vm.keepAliveMu.Unlock()
-
 	return collected
-}
-
-// markValue recursively marks an object and all objects it references.
-func (vm *VM) markValue(v Value, marked map[*Object]struct{}) {
-	if !v.IsObject() {
-		return
-	}
-
-	obj := ObjectFromValue(v)
-	if obj == nil {
-		return
-	}
-
-	// Already marked? Skip to avoid infinite recursion
-	if _, exists := marked[obj]; exists {
-		return
-	}
-
-	// Mark this object
-	marked[obj] = struct{}{}
-
-	// Recursively mark all slots
-	for i := 0; i < obj.NumSlots(); i++ {
-		vm.markValue(obj.GetSlot(i), marked)
-	}
 }
 
 // KeepAlive pins an object to prevent garbage collection.

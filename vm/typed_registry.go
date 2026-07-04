@@ -329,6 +329,17 @@ func (r *AutoIDRegistry[V]) Sweep(keep func(uint32, V) bool) int {
 	return len(doomed)
 }
 
+// Range calls fn for every live entry under the read lock. Intended for
+// stop-the-world GC root enumeration; fn must not call back into the registry
+// (it would deadlock on r.mu) and must not retain the values beyond the call.
+func (r *AutoIDRegistry[V]) Range(fn func(uint32, V)) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	for k, v := range r.data {
+		fn(k, v)
+	}
+}
+
 // LiveSize returns the current live-entry count via a single atomic load.
 // Cheaper than Count() (no RLock); the value is eventually consistent with
 // the registry's actual size and may briefly diverge under concurrent

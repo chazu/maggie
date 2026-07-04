@@ -11,7 +11,7 @@ package vm
 // distinct strings/dictionaries (e.g. a server re-rendering HTML every tick)
 // grew without bound until the OS OOM-killed it.
 //
-// CollectHeapGarbage is a precise mark-sweep collector for those four
+// collectHeapGarbageLocked is a precise mark-sweep collector for those
 // registries. It traces from the complete live-root set, descends through
 // every container kind, and sweeps the strings / dictionaries / array-lists /
 // keepAlive objects that are not reachable.
@@ -20,7 +20,7 @@ package vm
 // mailboxes, registries) without per-field locking on the hot path. It is
 // therefore only correct when no other goroutine is mutating that state —
 // i.e. under stop-the-world. Callers MUST hold the GC safepoint barrier
-// (see gcStopTheWorld) before invoking the unexported collect* helpers.
+// (see CollectStringGarbage) before invoking the unexported collect* helpers.
 // The single-threaded test-suite calls them directly, which is safe because
 // the test goroutine is the only mutator.
 //
@@ -28,13 +28,24 @@ package vm
 //   - Strings        (or.Strings)
 //   - Dictionaries   (or.Dictionaries)
 //   - ArrayLists     (cr.arrayLists)
-//   - keepAlive objects
+//   - keepAlive objects (and weak references to them)
 //
 // Treated as roots (their contents are marked, but the holder is never swept
 // here — it is either genuine live execution state or low-volume): every
 // interpreter's stack/frames/exception-handlers, globals, class variables,
 // loaded method & block literal pools, processes (result + mailbox), blocks
-// (captures + home self), cells, contexts, results, exceptions.
+// (captures + home self), cells, contexts, results, exceptions, and extension
+// objects that implement RootMarker (e.g. TupleSpace).
+
+// RootMarker is implemented by extension-registry objects that retain Maggie
+// Values the tracing collector cannot otherwise reach through the object graph
+// (e.g. a TupleSpace holding tuples in a contrib package the vm package cannot
+// import). The collector calls MarkRoots for every such object during
+// stop-the-world; implementations MUST enumerate every retained Value, or the
+// collector will free values that are still live and later alias their ids.
+type RootMarker interface {
+	MarkRoots(mark func(Value))
+}
 
 // liveSet accumulates the reachable ids/pointers for one collection cycle.
 type liveSet struct {
@@ -330,6 +341,29 @@ func (vm *VM) markRoots(ls *liveSet) {
 		ch.markPending(vm, ls)
 	}
 	vm.registry.channelsMu.RUnlock()
+
+	// 14. Extension-registry objects (contrib: TupleSpace, …) that retain
+	//     Maggie Values the trace cannot reach through the object graph. Each
+	//     such object implements RootMarker; its retained Values are roots.
+	//     Snapshot the registry pointers under the lock, then enumerate outside
+	//     it so MarkRoots callbacks cannot re-enter extension mutation under the
+	//     same lock.
+	vm.registry.extensionsMu.RLock()
+	extRegs := make([]*AutoIDRegistry[any], 0, len(vm.registry.extensions))
+	for _, reg := range vm.registry.extensions {
+		if reg != nil {
+			extRegs = append(extRegs, reg)
+		}
+	}
+	vm.registry.extensionsMu.RUnlock()
+	markFn := func(v Value) { vm.mark(v, ls) }
+	for _, reg := range extRegs {
+		reg.Range(func(_ uint32, item any) {
+			if rm, ok := item.(RootMarker); ok {
+				rm.MarkRoots(markFn)
+			}
+		})
+	}
 }
 
 // markInterpreter marks the live roots held by one interpreter: operand-stack
@@ -417,18 +451,17 @@ func (vm *VM) markClassMethodLiterals(c *Class, ls *liveSet) {
 	markMethods(c.ClassVTable)
 }
 
-// collectHeapGarbageLocked runs one full mark-sweep cycle, sweeping the
-// unreachable strings and dictionaries — the two high-volume registry leakers
-// (the byte bulk is strings; orphaned dictionaries pin them). The caller MUST
-// guarantee no other goroutine is mutating VM state (stop-the-world).
-//
-// Object (keepAlive) and array-list sweeping are intentionally left to the
-// existing CollectGarbage path; an orphaned, un-swept array-list/object is
-// unreachable from every root, so the strings it still references by id are
-// never read after they are freed — the same invariant that makes string
-// sweeping safe.
+// collectHeapGarbageLocked runs one full mark-sweep cycle over every
+// registry-backed heap value: strings, dictionaries, array-lists, frame-bound
+// blocks, and keepAlive objects (plus weak references to swept objects). The
+// caller MUST guarantee no other goroutine is mutating VM state
+// (stop-the-world). Each kind is reachable only through the traced object
+// graph — an id/pointer absent from the live set is unreachable and safe to
+// reclaim, the same invariant that makes string sweeping safe.
 //
 // Returns the number of strings, dictionaries, and frame-bound blocks freed.
+// (Object and array-list counts are not surfaced; they share the same live
+// set and are swept in the same pass.)
 func (vm *VM) collectHeapGarbageLocked() (strings, dicts, blocks int) {
 	if vm.registry == nil {
 		return 0, 0, 0
@@ -445,5 +478,14 @@ func (vm *VM) collectHeapGarbageLocked() (strings, dicts, blocks int) {
 		return live
 	})
 	blocks = vm.registry.SweepBlocksLive(ls.blocks)
+
+	// Object graph holders: reachable only through the trace, so unreachable
+	// ids/pointers are safe to reclaim. Clear weak references to any object
+	// about to be unpinned before dropping the pins.
+	if vm.weakRefs != nil {
+		vm.weakRefs.ProcessGC(ls.objects)
+	}
+	vm.sweepKeepAliveLive(ls.objects)
+	vm.registry.SweepArrayListsLive(ls.arrayLists)
 	return strings, dicts, blocks
 }

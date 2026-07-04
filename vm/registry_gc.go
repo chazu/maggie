@@ -87,13 +87,13 @@ type RegistryGCStats struct {
 // remembers the size at the last sweep and the thresholds for growth
 // and absolute ceiling.
 type monitoredRegistry struct {
-	name             string
-	growthThreshold  int32
-	absoluteCeiling  int32
-	lastSweepSize    atomic.Int32 // live size immediately after the last sweep
-	uninstall        func()       // clears the pressure hook on Stop
-	currentSize      func() int32 // reads the registry's liveSize
-	resetAfterSweep  func()       // captures liveSize back into lastSweepSize
+	name            string
+	growthThreshold int32
+	absoluteCeiling int32
+	lastSweepSize   atomic.Int32 // live size immediately after the last sweep
+	uninstall       func()       // clears the pressure hook on Stop
+	currentSize     func() int32 // reads the registry's liveSize
+	resetAfterSweep func()       // captures liveSize back into lastSweepSize
 }
 
 // DefaultGCInterval is the wall-clock floor between sweeps for idle
@@ -105,8 +105,8 @@ const DefaultGCInterval = 60 * time.Second
 // of most workloads. Programs with extreme allocation patterns can tune
 // per-registry via WithRegistryThresholds.
 const (
-	defaultGrowthThreshold  int32 = 10_000  // delta since last sweep
-	defaultAbsoluteCeiling  int32 = 100_000 // hard cap regardless of growth
+	defaultGrowthThreshold int32 = 10_000  // delta since last sweep
+	defaultAbsoluteCeiling int32 = 100_000 // hard cap regardless of growth
 )
 
 // RegistryGC periodically sweeps VM-local registries to reclaim
@@ -119,18 +119,18 @@ type RegistryGC struct {
 	stop      chan struct{}
 	stopped   chan struct{}
 	trigger   chan triggerReason // capacity 1; non-blocking send
-	mu        sync.Mutex          // protects start/stop lifecycle
+	mu        sync.Mutex         // protects start/stop lifecycle
 
 	// monitored registries (AutoIDRegistry-backed). Built in Start().
 	monitored []*monitoredRegistry
 
 	// Statistics
-	sweepCount     atomic.Uint64
-	growthSweeps   atomic.Uint64
-	ceilingSweeps  atomic.Uint64
-	timerSweeps    atomic.Uint64
-	manualSweeps   atomic.Uint64
-	lastStats      atomic.Value // *RegistryGCStats
+	sweepCount    atomic.Uint64
+	growthSweeps  atomic.Uint64
+	ceilingSweeps atomic.Uint64
+	timerSweeps   atomic.Uint64
+	manualSweeps  atomic.Uint64
+	lastStats     atomic.Value // *RegistryGCStats
 }
 
 // NewRegistryGC creates a new RegistryGC for the given VM. interval sets
@@ -428,7 +428,12 @@ func (gc *RegistryGC) sweep(reason triggerReason, registryName string) *Registry
 	// Reset per-registry baselines so the next sweep's growth threshold is
 	// measured from the post-sweep size. Without this, registries that
 	// continue to hold N entries after sweep would re-trigger immediately.
-	for _, mr := range gc.monitored {
+	// Snapshot gc.monitored under the lock: Stop() nils it concurrently, and
+	// this sweep runs on the background goroutine that races Stop().
+	gc.mu.Lock()
+	monitored := gc.monitored
+	gc.mu.Unlock()
+	for _, mr := range monitored {
 		mr.resetAfterSweep()
 	}
 

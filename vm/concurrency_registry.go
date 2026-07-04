@@ -96,13 +96,13 @@ type ConcurrencyRegistry struct {
 	// blocks and blockSlotGen are slices indexed by slot id (much faster
 	// than map[int] for the hot GetBlock path). They grow on demand under
 	// blocksMu.
-	blocks            []*BlockValue   // slot id -> *BlockValue (nil = empty)
-	blockSlotGen      []uint16        // slot id -> current generation
-	freeBlockSlots    []int           // recycled slot ids waiting to be reused
+	blocks            []*BlockValue // slot id -> *BlockValue (nil = empty)
+	blockSlotGen      []uint16      // slot id -> current generation
+	freeBlockSlots    []int         // recycled slot ids waiting to be reused
 	blocksMu          sync.RWMutex
-	blockID           atomic.Int64    // grows only when no free slot available
-	blockLiveCount    int             // number of non-nil entries in blocks
-	blockPressureHook func(int32)     // called under blocksMu after each RegisterBlock
+	blockID           atomic.Int64 // grows only when no free slot available
+	blockLiveCount    int          // number of non-nil entries in blocks
+	blockPressureHook func(int32)  // called under blocksMu after each RegisterBlock
 
 	// Future registry
 	futures   map[int]*FutureObject
@@ -590,6 +590,27 @@ func (cr *ConcurrencyRegistry) SweepBlocksLive(live map[uint32]struct{}) int {
 		cr.blockLiveCount--
 		cr.blockSlotGen[slot] = nextBlockGen(cr.blockSlotGen[slot])
 		cr.freeBlockSlots = append(cr.freeBlockSlots, slot)
+		swept++
+	}
+	return swept
+}
+
+// SweepArrayListsLive removes array-list entries whose ids are not in the
+// live set. An ArrayListObject is reachable only through the traced object
+// graph (it is never enumerated as a root), so an id absent from the live set
+// is unreachable and safe to drop — the same invariant that makes string and
+// dictionary sweeping safe. The caller MUST run under stop-the-world.
+// Returns the number of array-lists freed.
+func (cr *ConcurrencyRegistry) SweepArrayListsLive(live map[int]struct{}) int {
+	cr.arrayListsMu.Lock()
+	defer cr.arrayListsMu.Unlock()
+
+	swept := 0
+	for id := range cr.arrayLists {
+		if _, ok := live[id]; ok {
+			continue
+		}
+		delete(cr.arrayLists, id)
 		swept++
 	}
 	return swept

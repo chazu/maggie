@@ -97,7 +97,18 @@ func (vm *VM) SaveImageTo(w io.Writer) error {
 }
 
 // SaveImageBytes serializes the VM state to CBOR bytes.
+//
+// It holds gcRunMu for the whole operation so a background collection cannot
+// run concurrently. CollectAllObjects builds a pointer-keyed object table and
+// the encode phase later looks objects up by pointer; a concurrent sweep that
+// unpinned/freed an object between those phases would yield "object pointer not
+// registered". gcRunMu is the collector's own "one collection at a time" lock,
+// so taking it here fully serializes save against sweeps. (This does not make
+// every non-safepoint heap walker safe — RPC/HTTP paths are tracked separately
+// as the STW-soundness follow-up — but it closes the whole-VM image walk.)
 func (vm *VM) SaveImageBytes() ([]byte, error) {
+	vm.gcRunMu.Lock()
+	defer vm.gcRunMu.Unlock()
 	writer := NewImageWriter()
 	writer.collectFromVM(vm)
 	return writer.WriteImage()

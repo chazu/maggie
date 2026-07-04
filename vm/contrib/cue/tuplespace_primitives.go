@@ -44,13 +44,27 @@ type TupleSpaceObject struct {
 	waiters []*tupleWaiter // blocked in/read operations
 }
 
+// MarkRoots implements vm.RootMarker: it reports every Maggie Value the tuple
+// space retains so the tracing collector treats them as live. Without this, a
+// value placed with `out:` lives only in the tuples slice — invisible to the
+// trace — and would be swept, then aliased after id recycling. In-flight values
+// handed to a waiter's wake channel are held on the receiving goroutine's Go
+// stack (a traced root once received); only the persistent tuples need marking.
+func (ts *TupleSpaceObject) MarkRoots(mark func(vm.Value)) {
+	ts.mu.Lock()
+	defer ts.mu.Unlock()
+	for i := range ts.tuples {
+		mark(ts.tuples[i].value)
+	}
+}
+
 // tupleWaiter represents a goroutine blocked on an in: or read: operation.
 type tupleWaiter struct {
 	template  *CueValueObject   // CUE template to match against (nil if compound)
-	templates []*CueValueObject  // compound templates (for inAll:)
-	ch        chan vm.Value       // wake channel — send matched tuple here (single)
-	chArray   chan []vm.Value     // compound result channel (for inAll:)
-	consume   bool               // true = in (destructive), false = read (copy)
+	templates []*CueValueObject // compound templates (for inAll:)
+	ch        chan vm.Value     // wake channel — send matched tuple here (single)
+	chArray   chan []vm.Value   // compound result channel (for inAll:)
+	consume   bool              // true = in (destructive), false = read (copy)
 }
 
 // NaN-boxing helpers for TupleSpace values.
