@@ -222,7 +222,6 @@ func (gc *RegistryGC) installHooks() {
 	// The rest are domain-specific and usually have low cardinality.
 	// Default thresholds are fine.
 	add("goObjects", defaultGrowthThreshold, defaultAbsoluteCeiling, or.GoObjects)
-	add("bigInts", defaultGrowthThreshold, defaultAbsoluteCeiling, or.BigInts)
 	// classValues is monotonic and intentionally append-only — no point
 	// installing pressure hooks since sweeping won't reclaim anything.
 

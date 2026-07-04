@@ -372,17 +372,6 @@ func TestBigIntMixedComparison(t *testing.T) {
 	}
 }
 
-func TestBigIntRegistryCount(t *testing.T) {
-	vm := NewVM()
-	if vm.registry.BigIntCount() != 0 {
-		t.Fatal("expected 0 BigInts initially")
-	}
-	vm.registry.RegisterBigInt(&BigIntObject{Value: big.NewInt(999)})
-	if vm.registry.BigIntCount() != 1 {
-		t.Fatal("expected 1 BigInt after registration")
-	}
-}
-
 func TestIsBigIntValue(t *testing.T) {
 	vm := NewVM()
 	bigVal := vm.registry.RegisterBigInt(&BigIntObject{Value: big.NewInt(999)})

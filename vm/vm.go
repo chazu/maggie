@@ -617,9 +617,6 @@ func (vm *VM) registerSymbolDispatch() {
 	// ArrayList
 	sd.Register(arrayListMarker, &SymbolTypeEntry{Class: vm.ArrayListClass})
 
-	// BigInteger
-	sd.Register(bigIntMarker, &SymbolTypeEntry{Class: vm.BigIntegerClass})
-
 	// gRPC symbol dispatch is registered by the gRPC contrib plugin.
 
 	// Weak references
@@ -1026,6 +1023,8 @@ func (vm *VM) classForHeap(v Value) *Class {
 			return vm.SuccessClass
 		}
 		return vm.FailureClass
+	case kindBigInt:
+		return vm.BigIntegerClass
 	default:
 		return vm.ObjectClass
 	}

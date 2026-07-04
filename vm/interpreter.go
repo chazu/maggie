@@ -1401,10 +1401,18 @@ func (i *Interpreter) vtableForVM(v Value, vm *VM) *VTable {
 			}
 		}
 		return vm.SymbolClass.VTable
-	case v.IsObject():
-		obj := ObjectFromValue(v)
-		if obj != nil {
-			return obj.VTablePtr()
+	case v.isHeap():
+		if v.hi == kindObject {
+			obj := ObjectFromValue(v)
+			if obj != nil {
+				return obj.VTablePtr()
+			}
+			return nil
+		}
+		// Other pointer-carrying heap kinds (BigInt, Result, …) resolve their
+		// vtable through the class returned by classForHeap.
+		if cls := vm.classForHeap(v); cls != nil {
+			return cls.VTable
 		}
 	}
 	return nil

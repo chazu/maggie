@@ -145,6 +145,12 @@ func (s *valueSerializer) serializeHeap(v Value) ([]byte, error) {
 	switch v.heapKindOf() {
 	case kindObject:
 		return s.serializeObject(v)
+	case kindBigInt:
+		bi := s.vm.registry.GetBigInt(v)
+		if bi == nil {
+			return nil, fmt.Errorf("serial: BigInteger registry miss")
+		}
+		return s.serializeBigInt(bi.Value)
 	case kindResult:
 		return nil, fmt.Errorf("serial: cannot serialize Result (non-serializable type)")
 	case kindCell:
@@ -167,14 +173,6 @@ func (s *valueSerializer) serializeSymbolEncoded(v Value) ([]byte, error) {
 	if IsCharacterValue(v) {
 		cp := GetCharacterCodePoint(v)
 		return cborSerialEncMode.Marshal(cbor.Tag{Number: cborTagCharacter, Content: uint32(cp)})
-	}
-
-	if IsBigIntValue(v) {
-		bi := s.vm.registry.GetBigInt(v)
-		if bi == nil {
-			return nil, fmt.Errorf("serial: BigInteger registry miss")
-		}
-		return s.serializeBigInt(bi.Value)
 	}
 
 	if IsDictionaryValue(v) {

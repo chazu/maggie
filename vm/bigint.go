@@ -2,6 +2,7 @@ package vm
 
 import (
 	"math/big"
+	"unsafe"
 )
 
 // ---------------------------------------------------------------------------
@@ -16,57 +17,32 @@ type BigIntObject struct {
 }
 
 // ---------------------------------------------------------------------------
-// BigInt Registry (in ObjectRegistry)
+// BigInt heap Values
 // ---------------------------------------------------------------------------
 
-// RegisterBigInt stores a BigIntObject and returns a symbol-encoded Value.
+// RegisterBigInt wraps a BigIntObject in a heap Value. The name is retained for
+// call-site compatibility; the object is now carried by a real pointer traced
+// by the Go GC rather than an id registry.
 func (or *ObjectRegistry) RegisterBigInt(obj *BigIntObject) Value {
-	id := or.BigInts.Register(obj)
-	return FromSymbolID(id | bigIntMarker)
+	return makeHeap(kindBigInt, unsafe.Pointer(obj))
 }
 
-// GetBigInt retrieves a BigIntObject from a symbol-encoded Value.
+// GetBigInt retrieves a BigIntObject from a Value.
 // Returns nil if the Value is not a BigInt.
 func (or *ObjectRegistry) GetBigInt(v Value) *BigIntObject {
-	if !v.IsSymbolEncoded() {
+	if !IsBigIntValue(v) {
 		return nil
 	}
-	id := v.SymbolID()
-	if id&markerMask != bigIntMarker {
-		return nil
-	}
-	rawID := id & 0x00FFFFFF
-	return or.BigInts.Get(rawID)
-}
-
-// UnregisterBigInt removes a BigInt from the registry.
-func (or *ObjectRegistry) UnregisterBigInt(v Value) {
-	if !v.IsSymbolEncoded() {
-		return
-	}
-	id := v.SymbolID()
-	if id&markerMask != bigIntMarker {
-		return
-	}
-	rawID := id & 0x00FFFFFF
-	or.BigInts.Delete(rawID)
-}
-
-// BigIntCount returns the number of registered BigInts.
-func (or *ObjectRegistry) BigIntCount() int {
-	return or.BigInts.Count()
+	return (*BigIntObject)(v.ptr)
 }
 
 // ---------------------------------------------------------------------------
 // Value helpers
 // ---------------------------------------------------------------------------
 
-// IsBigIntValue returns true if v is a symbol-encoded BigInt.
+// IsBigIntValue returns true if v is a heap BigInt.
 func IsBigIntValue(v Value) bool {
-	if !v.IsSymbolEncoded() {
-		return false
-	}
-	return v.SymbolID()&markerMask == bigIntMarker
+	return v.ptr != nil && v.hi == kindBigInt
 }
 
 // NewBigIntValue creates a BigInt Value from a *big.Int.

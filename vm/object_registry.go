@@ -27,7 +27,6 @@ type ObjectRegistry struct {
 	Dictionaries     *AutoIDRegistry[*DictionaryObject]
 	Strings          *AutoIDRegistry[*StringObject]
 	GoObjects        *AutoIDRegistry[*GoObjectWrapper]
-	BigInts          *AutoIDRegistry[*BigIntObject]
 	ClassValues      *AutoIDRegistry[*Class]
 
 	// Special registries (not suitable for AutoIDRegistry)
@@ -57,7 +56,6 @@ func NewObjectRegistry() *ObjectRegistry {
 		Dictionaries:     NewAutoIDRegistry[*DictionaryObject](dictionaryIDOffset, WithMaxID(0xFFFFFFFF), WithName("dictionaries")),
 		Strings:          NewAutoIDRegistry[*StringObject](stringIDOffset, WithMaxID(dictionaryIDOffset-1), WithName("strings")),
 		GoObjects:        NewAutoIDRegistry[*GoObjectWrapper](0, WithName("goObjects")),
-		BigInts:          NewAutoIDRegistry[*BigIntObject](0, WithName("bigInts")),
 		// ClassValues is monotonic: *Class caches its assigned classValueID,
 		// so reusing an ID would create a stale cache on the prior owner.
 		// In practice ClassValues entries are never deleted, but we encode
@@ -453,7 +451,6 @@ func (or *ObjectRegistry) FullStats() map[string]int {
 	stats["cells"] = or.CellCount()
 	stats["classVarClasses"] = or.ClassVarCount()
 	stats["goObjects"] = or.GoObjectCount()
-	stats["bigInts"] = or.BigIntCount()
 	stats["classValues"] = or.ClassValueCount()
 	for marker, count := range or.ExtensionStats() {
 		stats[fmt.Sprintf("ext_%d", marker>>24)] = count
