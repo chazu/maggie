@@ -139,7 +139,7 @@ func (vm *VM) mark(root Value, ls *liveSet) {
 			}
 
 		case v.IsException():
-			if ex := vm.registry.GetException(markedIDFromValue(v)); ex != nil {
+			if ex := vm.registry.GetExceptionFromValue(v); ex != nil {
 				work = append(work, ex.MessageText, ex.Tag, ex.Signaler)
 			}
 
@@ -273,19 +273,9 @@ func (vm *VM) markRoots(ls *liveSet) {
 	}
 	vm.registry.Contexts.RUnlock()
 
-	// Results are now pointer-carrying heap Values traced by the Go GC; the
-	// custom collector no longer needs to root them.
-
-	// 10. Exceptions (over-approximated as roots — low volume).
-	vm.registry.Exceptions.RLock()
-	for _, ex := range vm.registry.Exceptions.data {
-		if ex != nil {
-			vm.mark(ex.MessageText, ls)
-			vm.mark(ex.Tag, ls)
-			vm.mark(ex.Signaler, ls)
-		}
-	}
-	vm.registry.Exceptions.RUnlock()
+	// Results and Exceptions are now pointer-carrying heap Values traced by the
+	// Go GC; the custom collector no longer roots them (it still recurses THROUGH
+	// them in mark() so blocks captured inside stay reachable).
 
 	// 11. Pinned roots — Values retained in Go-land (e.g. HTTP handler blocks
 	//     captured in net/http closures) that no traced root reaches. Marking

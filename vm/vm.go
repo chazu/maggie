@@ -639,17 +639,6 @@ func (vm *VM) registerSymbolDispatch() {
 		},
 	})
 
-	// Exceptions — resolve to the specific exception subclass
-	sd.Register(exceptionMarker, &SymbolTypeEntry{
-		Resolve: func(v Value, resolveVM *VM) (*Class, bool) {
-			exObj := resolveVM.registry.GetException(v.ExceptionID())
-			if exObj != nil && exObj.ExceptionClass != nil {
-				return exObj.ExceptionClass, true
-			}
-			return resolveVM.ExceptionClass, true
-		},
-	})
-
 	// GoObjects — resolve to the specific wrapped Go type's class
 	sd.Register(goObjectMarker, &SymbolTypeEntry{
 		Resolve: func(v Value, vmRef *VM) (*Class, bool) {
@@ -1025,6 +1014,12 @@ func (vm *VM) classForHeap(v Value) *Class {
 		return vm.FailureClass
 	case kindBigInt:
 		return vm.BigIntegerClass
+	case kindException:
+		ex := vm.registry.GetExceptionFromValue(v)
+		if ex != nil && ex.ExceptionClass != nil {
+			return ex.ExceptionClass
+		}
+		return vm.ExceptionClass
 	default:
 		return vm.ObjectClass
 	}

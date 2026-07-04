@@ -151,6 +151,8 @@ func (s *valueSerializer) serializeHeap(v Value) ([]byte, error) {
 			return nil, fmt.Errorf("serial: BigInteger registry miss")
 		}
 		return s.serializeBigInt(bi.Value)
+	case kindException:
+		return s.serializeException(v)
 	case kindResult:
 		return nil, fmt.Errorf("serial: cannot serialize Result (non-serializable type)")
 	case kindCell:
@@ -204,8 +206,6 @@ func (s *valueSerializer) serializeSymbolEncoded(v Value) ([]byte, error) {
 		return nil, fmt.Errorf("serial: cannot serialize CancellationContext (non-serializable type)")
 	case goObjectMarker:
 		return nil, fmt.Errorf("serial: cannot serialize GoObject (non-serializable type)")
-	case exceptionMarker:
-		return s.serializeException(v)
 	case arrayListMarker:
 		return nil, fmt.Errorf("serial: cannot serialize ArrayList (non-serializable type)")
 	}
@@ -363,7 +363,7 @@ func (s *valueSerializer) serializeRemoteChannel(v Value) ([]byte, error) {
 }
 
 func (s *valueSerializer) serializeException(v Value) ([]byte, error) {
-	exObj := s.vm.registry.GetException(v.ExceptionID())
+	exObj := s.vm.registry.GetExceptionFromValue(v)
 	if exObj == nil {
 		// Unknown exception — serialize as a generic Error with no message
 		se := &serializedException{ClassName: "Error"}
@@ -753,8 +753,7 @@ func (d *valueDeserializer) deserializeException(tag cbor.Tag) (Value, error) {
 		Tag:            tagVal,
 		Resumable:      false, // remote exceptions are not resumable
 	}
-	id := d.vm.registry.RegisterException(exObj)
-	return FromExceptionID(id), nil
+	return d.vm.registry.RegisterExceptionValue(exObj), nil
 }
 
 // lookupExceptionClass finds an exception class by name, checking the standard

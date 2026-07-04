@@ -394,8 +394,7 @@ func (i *Interpreter) checkFrameOverflow() {
 		}
 		// Capture the (overflowing) call stack for diagnostic value.
 		exObj.CapturedFrames = i.CaptureTrace(MaxCapturedTraceDepth)
-		id := i.vm.registry.RegisterException(exObj)
-		exVal := FromExceptionID(id)
+		exVal := i.vm.registry.RegisterExceptionValue(exObj)
 		panic(SignaledException{
 			Exception: exVal,
 			Object:    exObj,

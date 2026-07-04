@@ -61,7 +61,6 @@ func TestMarkerNoCollision(t *testing.T) {
 		"process":    processMarker,
 		"grpcClient": grpcClientMarker,
 		"grpcStream": grpcStreamMarker,
-		"exception":  exceptionMarker,
 	}
 
 	seen := make(map[uint32]string)

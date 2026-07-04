@@ -190,40 +190,6 @@ func TestMultiVM_IndependentStrings(t *testing.T) {
 	}
 }
 
-// TestMultiVM_IndependentExceptions verifies that exceptions registered
-// in one VM are invisible to the other.
-func TestMultiVM_IndependentExceptions(t *testing.T) {
-	vm1 := NewVM()
-	defer vm1.Shutdown()
-	vm2 := NewVM()
-	defer vm2.Shutdown()
-
-	baseline1 := vm1.Registry().ExceptionCount()
-	baseline2 := vm2.Registry().ExceptionCount()
-
-	// Register exceptions in VM1 only
-	ex1 := &ExceptionObject{Handled: false}
-	ex2 := &ExceptionObject{Handled: true}
-	vm1.Registry().RegisterException(ex1)
-	vm1.Registry().RegisterException(ex2)
-
-	// VM1 should have 2 more exceptions; VM2 unchanged
-	if vm1.Registry().ExceptionCount() != baseline1+2 {
-		t.Errorf("VM1 exception count: got %d, want %d", vm1.Registry().ExceptionCount(), baseline1+2)
-	}
-	if vm2.Registry().ExceptionCount() != baseline2 {
-		t.Errorf("VM2 exception count changed: got %d, want %d", vm2.Registry().ExceptionCount(), baseline2)
-	}
-
-	// Sweeping VM1's exceptions should not affect VM2
-	vm1.Registry().SweepExceptions()
-
-	if vm2.Registry().ExceptionCount() != baseline2 {
-		t.Errorf("VM2 exception count changed after VM1 sweep: got %d, want %d",
-			vm2.Registry().ExceptionCount(), baseline2)
-	}
-}
-
 // TestMultiVM_IndependentBlocks verifies that blocks registered in one
 // VM's concurrency registry are invisible to the other.
 func TestMultiVM_IndependentBlocks(t *testing.T) {

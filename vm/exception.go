@@ -55,24 +55,7 @@ const MaxCapturedTraceDepth = 256
 
 // IsException returns true if this value is an exception.
 func (v Value) IsException() bool {
-	if !v.IsSymbolEncoded() {
-		return false
-	}
-	id := v.SymbolID()
-	return (id & markerMask) == exceptionMarker
-}
-
-// ExceptionID returns the exception ID for an exception value.
-func (v Value) ExceptionID() uint32 {
-	if !v.IsException() {
-		panic("Value.ExceptionID: not an exception")
-	}
-	return v.SymbolID() & ^exceptionMarker
-}
-
-// FromExceptionID creates an exception value from an ID.
-func FromExceptionID(id uint32) Value {
-	return FromSymbolID(id | exceptionMarker)
+	return v.ptr != nil && v.hi == kindException
 }
 
 // ---------------------------------------------------------------------------
@@ -252,7 +235,7 @@ func (vm *VM) registerExceptionPrimitives() {
 
 	// Exception>>signal - signal this exception instance
 	ex.AddMethod0(vm.Selectors, "signal", func(v *VM, recv Value) Value {
-		exObj := v.registry.GetException(recv.ExceptionID())
+		exObj := v.registry.GetExceptionFromValue(recv)
 		if exObj == nil {
 			// Not a registered exception, create one
 			return v.signalException(v.ExceptionClass, Nil)
@@ -262,7 +245,7 @@ func (vm *VM) registerExceptionPrimitives() {
 
 	// Exception>>messageText - return the exception message
 	ex.AddMethod0(vm.Selectors, "messageText", func(v *VM, recv Value) Value {
-		exObj := v.registry.GetException(recv.ExceptionID())
+		exObj := v.registry.GetExceptionFromValue(recv)
 		if exObj == nil {
 			return Nil
 		}
@@ -271,7 +254,7 @@ func (vm *VM) registerExceptionPrimitives() {
 
 	// Exception>>messageText: - set the exception message
 	ex.AddMethod1(vm.Selectors, "messageText:", func(v *VM, recv Value, msg Value) Value {
-		exObj := v.registry.GetException(recv.ExceptionID())
+		exObj := v.registry.GetExceptionFromValue(recv)
 		if exObj != nil {
 			exObj.MessageText = msg
 		}
@@ -280,7 +263,7 @@ func (vm *VM) registerExceptionPrimitives() {
 
 	// Exception>>tag - return the exception tag
 	ex.AddMethod0(vm.Selectors, "tag", func(v *VM, recv Value) Value {
-		exObj := v.registry.GetException(recv.ExceptionID())
+		exObj := v.registry.GetExceptionFromValue(recv)
 		if exObj == nil {
 			return Nil
 		}
@@ -289,7 +272,7 @@ func (vm *VM) registerExceptionPrimitives() {
 
 	// Exception>>tag: - set the exception tag
 	ex.AddMethod1(vm.Selectors, "tag:", func(v *VM, recv Value, tag Value) Value {
-		exObj := v.registry.GetException(recv.ExceptionID())
+		exObj := v.registry.GetExceptionFromValue(recv)
 		if exObj != nil {
 			exObj.Tag = tag
 		}
@@ -298,7 +281,7 @@ func (vm *VM) registerExceptionPrimitives() {
 
 	// Exception>>resume - resume execution after the signal point
 	ex.AddMethod0(vm.Selectors, "resume", func(v *VM, recv Value) Value {
-		exObj := v.registry.GetException(recv.ExceptionID())
+		exObj := v.registry.GetExceptionFromValue(recv)
 		if exObj == nil || !exObj.Resumable {
 			return Nil
 		}
@@ -309,7 +292,7 @@ func (vm *VM) registerExceptionPrimitives() {
 
 	// Exception>>resume: value - resume with a specific value
 	ex.AddMethod1(vm.Selectors, "resume:", func(v *VM, recv Value, val Value) Value {
-		exObj := v.registry.GetException(recv.ExceptionID())
+		exObj := v.registry.GetExceptionFromValue(recv)
 		if exObj == nil || !exObj.Resumable {
 			return Nil
 		}
@@ -320,7 +303,7 @@ func (vm *VM) registerExceptionPrimitives() {
 
 	// Exception>>pass - pass the exception to the next handler
 	ex.AddMethod0(vm.Selectors, "pass", func(v *VM, recv Value) Value {
-		exObj := v.registry.GetException(recv.ExceptionID())
+		exObj := v.registry.GetExceptionFromValue(recv)
 		if exObj == nil {
 			return Nil
 		}
@@ -339,7 +322,7 @@ func (vm *VM) registerExceptionPrimitives() {
 
 	// Exception>>return - return nil from the protected block
 	ex.AddMethod0(vm.Selectors, "return", func(v *VM, recv Value) Value {
-		exObj := v.registry.GetException(recv.ExceptionID())
+		exObj := v.registry.GetExceptionFromValue(recv)
 		if exObj != nil {
 			exObj.Handled = true
 		}
@@ -348,7 +331,7 @@ func (vm *VM) registerExceptionPrimitives() {
 
 	// Exception>>return: value - return a specific value from the protected block
 	ex.AddMethod1(vm.Selectors, "return:", func(v *VM, recv Value, val Value) Value {
-		exObj := v.registry.GetException(recv.ExceptionID())
+		exObj := v.registry.GetExceptionFromValue(recv)
 		if exObj != nil {
 			exObj.Handled = true
 		}
@@ -357,7 +340,7 @@ func (vm *VM) registerExceptionPrimitives() {
 
 	// Exception>>isResumable
 	ex.AddMethod0(vm.Selectors, "isResumable", func(v *VM, recv Value) Value {
-		exObj := v.registry.GetException(recv.ExceptionID())
+		exObj := v.registry.GetExceptionFromValue(recv)
 		if exObj == nil {
 			return False
 		}
@@ -366,7 +349,7 @@ func (vm *VM) registerExceptionPrimitives() {
 
 	// Exception>>description - return a description string
 	ex.AddMethod0(vm.Selectors, "description", func(v *VM, recv Value) Value {
-		exObj := v.registry.GetException(recv.ExceptionID())
+		exObj := v.registry.GetExceptionFromValue(recv)
 		if exObj == nil {
 			return v.registry.NewStringValue("an Exception")
 		}
@@ -391,7 +374,7 @@ func (vm *VM) registerExceptionPrimitives() {
 	// The trace is captured at signal time (not at the moment this primitive
 	// is invoked), so it reflects where the exception was raised.
 	ex.AddMethod0(vm.Selectors, "stackTrace", func(v *VM, recv Value) Value {
-		exObj := v.registry.GetException(recv.ExceptionID())
+		exObj := v.registry.GetExceptionFromValue(recv)
 		if exObj == nil || len(exObj.CapturedFrames) == 0 {
 			return v.registry.NewStringValue("  (no captured stack)")
 		}
@@ -405,7 +388,7 @@ func (vm *VM) registerExceptionPrimitives() {
 		if IsStringValue(desc) {
 			descStr = v.registry.GetStringContent(desc)
 		}
-		exObj := v.registry.GetException(recv.ExceptionID())
+		exObj := v.registry.GetExceptionFromValue(recv)
 		trace := "  (no captured stack)"
 		if exObj != nil && len(exObj.CapturedFrames) > 0 {
 			trace = FormatCapturedTrace(exObj.CapturedFrames)
@@ -466,8 +449,7 @@ func (vm *VM) signalException(exClass *Class, messageText Value) Value {
 		MessageText:    messageText,
 		Resumable:      true, // Most exceptions are resumable by default
 	}
-	id := vm.registry.RegisterException(ex)
-	exVal := FromExceptionID(id)
+	exVal := vm.registry.RegisterExceptionValue(ex)
 	return vm.signalExceptionObject(exVal, ex)
 }
 
@@ -758,8 +740,7 @@ func (vm *VM) executeProtectedBlock(
 					// the interpreter's frame state at this instant still
 					// reflects (approximately) where the panic surfaced.
 					ex.CapturedFrames = interp.CaptureTrace(MaxCapturedTraceDepth)
-					id := vm.registry.RegisterException(ex)
-					exVal := FromExceptionID(id)
+					exVal := vm.registry.RegisterExceptionValue(ex)
 					outcome = vm.evaluateHandlerBlock(hbv, SignaledException{Exception: exVal, Object: ex})
 					return
 				}

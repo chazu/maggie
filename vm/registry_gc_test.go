@@ -230,29 +230,6 @@ func TestRegistryGCSweepCancellationContexts(t *testing.T) {
 	}
 }
 
-// TestRegistryGCSweepHandledExceptions verifies that handled exceptions
-// are cleaned up from the VM-local exception registry.
-func TestRegistryGCSweepHandledExceptions(t *testing.T) {
-	vm := NewVM()
-	defer vm.Shutdown()
-
-	// Create some exceptions in the VM-local registry
-	ex1 := &ExceptionObject{Handled: true}
-	ex2 := &ExceptionObject{Handled: false}
-	ex3 := &ExceptionObject{Handled: true}
-
-	vm.registry.RegisterException(ex1)
-	vm.registry.RegisterException(ex2)
-	vm.registry.RegisterException(ex3)
-
-	stats := vm.registryGC.SweepNow()
-
-	// At least 2 handled exceptions should be swept
-	if stats.Exceptions < 2 {
-		t.Errorf("Expected at least 2 handled exceptions swept, got %d", stats.Exceptions)
-	}
-}
-
 // TestRegistryGCConfigurableInterval verifies that the sweep interval
 // can be configured.
 func TestRegistryGCConfigurableInterval(t *testing.T) {
@@ -568,7 +545,7 @@ func TestRegistryGCTotalSwept(t *testing.T) {
 	stats := vm.registryGC.SweepNow()
 
 	expectedTotal := stats.Channels + stats.Processes +
-		stats.CancellationContexts + stats.Exceptions
+		stats.CancellationContexts
 
 	if stats.TotalSwept != expectedTotal {
 		t.Errorf("TotalSwept=%d, expected sum of components=%d", stats.TotalSwept, expectedTotal)
@@ -677,7 +654,7 @@ func TestRegistryGCGrowthTrigger(t *testing.T) {
 
 	// Override the exceptions threshold to a small value for the test.
 	for _, mr := range gc.monitored {
-		if mr.name == "exceptions" {
+		if mr.name == "contexts" {
 			mr.growthThreshold = 100
 			mr.absoluteCeiling = 1_000_000 // disable ceiling path
 		}
@@ -688,8 +665,7 @@ func TestRegistryGCGrowthTrigger(t *testing.T) {
 	// Register 200 exceptions (> threshold of 100). Mark them all handled
 	// so the sweep actually reclaims them.
 	for i := 0; i < 200; i++ {
-		ex := &ExceptionObject{Handled: true}
-		vm.registry.RegisterException(ex)
+		vm.registry.RegisterContext(&ContextValue{})
 	}
 
 	final := waitForSweepCount(gc, startCount+1, 500*time.Millisecond)
@@ -720,17 +696,16 @@ func TestRegistryGCCeilingTrigger(t *testing.T) {
 
 	// Configure exceptions: huge growth threshold (won't trip), small ceiling.
 	for _, mr := range gc.monitored {
-		if mr.name == "exceptions" {
+		if mr.name == "contexts" {
 			mr.growthThreshold = 1_000_000
 			mr.absoluteCeiling = 50
 		}
 	}
 
 	startCount := gc.SweepCount()
-	// Register 60 unhandled exceptions (won't be swept, so live size stays > 50).
+	// Register 60 contexts (never reclaimed, so live size stays > 50).
 	for i := 0; i < 60; i++ {
-		ex := &ExceptionObject{Handled: false}
-		vm.registry.RegisterException(ex)
+		vm.registry.RegisterContext(&ContextValue{})
 	}
 
 	final := waitForSweepCount(gc, startCount+1, 500*time.Millisecond)
@@ -762,7 +737,7 @@ func TestRegistryGCCeilingNoBusyLoop(t *testing.T) {
 	// Big growth band, tiny ceiling: the live set will sit far above the
 	// ceiling but never grow by a full band during the steady-state phase.
 	for _, mr := range gc.monitored {
-		if mr.name == "exceptions" {
+		if mr.name == "contexts" {
 			mr.growthThreshold = 1_000_000
 			mr.absoluteCeiling = 50
 		}
@@ -771,7 +746,7 @@ func TestRegistryGCCeilingNoBusyLoop(t *testing.T) {
 	// Push the live set well above the ceiling with genuinely-live (unhandled)
 	// exceptions, and let the initial ceiling sweep fire + suppression engage.
 	for i := 0; i < 200; i++ {
-		vm.registry.RegisterException(&ExceptionObject{Handled: false})
+		vm.registry.RegisterContext(&ContextValue{})
 	}
 	time.Sleep(100 * time.Millisecond)
 	base := gc.SweepCount()
@@ -780,7 +755,7 @@ func TestRegistryGCCeilingNoBusyLoop(t *testing.T) {
 	// band. Pre-fix, every Register past the ceiling re-fired a sweep
 	// (hundreds). Post-fix, the saturated ceiling is suppressed → ~0 sweeps.
 	for i := 0; i < 500; i++ {
-		vm.registry.RegisterException(&ExceptionObject{Handled: false})
+		vm.registry.RegisterContext(&ContextValue{})
 		time.Sleep(time.Millisecond) // give the GC goroutine room to sweep if it wants
 	}
 
@@ -832,7 +807,7 @@ func TestRegistryGCCoalescingUnderBurst(t *testing.T) {
 	defer gc.Stop()
 
 	for _, mr := range gc.monitored {
-		if mr.name == "exceptions" {
+		if mr.name == "contexts" {
 			mr.growthThreshold = 1000
 		}
 	}
@@ -844,7 +819,7 @@ func TestRegistryGCCoalescingUnderBurst(t *testing.T) {
 	// would schedule thousands of sweeps. Non-blocking-send coalescing
 	// caps this near (allocations / threshold + scheduling slack).
 	for i := 0; i < 5000; i++ {
-		vm.registry.RegisterException(&ExceptionObject{Handled: false})
+		vm.registry.RegisterContext(&ContextValue{})
 	}
 	time.Sleep(150 * time.Millisecond)
 
@@ -873,7 +848,7 @@ func TestRegistryGCNoSpuriousTriggers(t *testing.T) {
 	defer gc.Stop()
 
 	for _, mr := range gc.monitored {
-		if mr.name == "exceptions" {
+		if mr.name == "contexts" {
 			mr.growthThreshold = 10_000 // way above what we'll allocate
 			mr.absoluteCeiling = 10_000
 		}
@@ -881,7 +856,7 @@ func TestRegistryGCNoSpuriousTriggers(t *testing.T) {
 
 	startCount := gc.SweepCount()
 	for i := 0; i < 100; i++ {
-		vm.registry.RegisterException(&ExceptionObject{Handled: false})
+		vm.registry.RegisterContext(&ContextValue{})
 	}
 	time.Sleep(100 * time.Millisecond)
 
@@ -905,13 +880,13 @@ func TestRegistryGCPostSweepBaselineReset(t *testing.T) {
 
 	var exMR *monitoredRegistry
 	for _, mr := range gc.monitored {
-		if mr.name == "exceptions" {
+		if mr.name == "contexts" {
 			exMR = mr
 			break
 		}
 	}
 	if exMR == nil {
-		t.Fatal("exceptions registry not monitored")
+		t.Fatal("contexts registry not monitored")
 	}
 
 	// Seed phase: use a high threshold so the initial 200 allocations do
@@ -922,7 +897,7 @@ func TestRegistryGCPostSweepBaselineReset(t *testing.T) {
 
 	// Allocate 200 unhandled exceptions, force a sweep. They survive (Handled=false).
 	for i := 0; i < 200; i++ {
-		vm.registry.RegisterException(&ExceptionObject{Handled: false})
+		vm.registry.RegisterContext(&ContextValue{})
 	}
 	gc.SweepNow()
 
@@ -933,7 +908,7 @@ func TestRegistryGCPostSweepBaselineReset(t *testing.T) {
 
 	startCount := gc.SweepCount()
 	for i := 0; i < 50; i++ {
-		vm.registry.RegisterException(&ExceptionObject{Handled: false})
+		vm.registry.RegisterContext(&ContextValue{})
 	}
 	time.Sleep(50 * time.Millisecond)
 

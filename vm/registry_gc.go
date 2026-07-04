@@ -69,7 +69,6 @@ type RegistryGCStats struct {
 	Channels             int
 	Processes            int
 	CancellationContexts int
-	Exceptions           int
 	Strings              int
 	Dictionaries         int
 	Blocks               int
@@ -214,9 +213,7 @@ func (gc *RegistryGC) installHooks() {
 	add("strings", 50_000, 500_000, or.Strings)
 	add("dictionaries", 20_000, 200_000, or.Dictionaries)
 
-	// Exceptions and results turn over rapidly in error-handling-heavy code.
-	// Smaller thresholds — they're cheap to sweep.
-	add("exceptions", defaultGrowthThreshold, defaultAbsoluteCeiling, or.Exceptions)
+	// Contexts are the last remaining error-handling registry.
 	add("contexts", defaultGrowthThreshold, defaultAbsoluteCeiling, or.Contexts)
 
 	// The rest are domain-specific and usually have low cardinality.
@@ -401,9 +398,6 @@ func (gc *RegistryGC) sweep(reason triggerReason, registryName string) *Registry
 		stats.Channels = gc.vm.registry.SweepChannels()
 		stats.Processes = gc.vm.registry.SweepProcesses()
 		stats.CancellationContexts = gc.vm.registry.SweepCancellationContexts()
-
-		// 2. Exception registry (AutoIDRegistry-backed).
-		stats.Exceptions = gc.vm.registry.SweepExceptions()
 	}
 
 	// 3. String/dictionary tracing collector (opt-in). This runs a
@@ -427,7 +421,7 @@ func (gc *RegistryGC) sweep(reason triggerReason, registryName string) *Registry
 	// in vm/concurrency.go.
 
 	stats.TotalSwept = stats.Channels + stats.Processes +
-		stats.CancellationContexts + stats.Exceptions +
+		stats.CancellationContexts +
 		stats.Strings + stats.Dictionaries + stats.Blocks
 	stats.SweepDuration = time.Since(start)
 

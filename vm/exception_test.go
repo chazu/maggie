@@ -16,14 +16,13 @@ func TestExceptionValueCreation(t *testing.T) {
 		Resumable:   true,
 	}
 
-	id := vm.registry.RegisterException(ex)
-	val := FromExceptionID(id)
+	val := vm.registry.RegisterExceptionValue(ex)
 
 	if !val.IsException() {
 		t.Error("RegisterException should return an exception value")
 	}
 
-	retrieved := vm.registry.GetException(val.ExceptionID())
+	retrieved := vm.registry.GetExceptionFromValue(val)
 	if retrieved != ex {
 		t.Error("GetException should return the original exception")
 	}
@@ -32,8 +31,7 @@ func TestExceptionValueCreation(t *testing.T) {
 func TestExceptionValueIsException(t *testing.T) {
 	vm := NewVM()
 	ex := &ExceptionObject{MessageText: Nil}
-	id := vm.registry.RegisterException(ex)
-	val := FromExceptionID(id)
+	val := vm.registry.RegisterExceptionValue(ex)
 
 	if !val.IsException() {
 		t.Error("Exception value should be an exception")
@@ -194,8 +192,7 @@ func TestExceptionMessageText(t *testing.T) {
 		ExceptionClass: vm.ErrorClass,
 		MessageText:    vm.registry.NewStringValue("Something went wrong"),
 	}
-	id := vm.registry.RegisterException(ex)
-	exVal := FromExceptionID(id)
+	exVal := vm.registry.RegisterExceptionValue(ex)
 
 	// Get messageText
 	result := vm.Send(exVal, "messageText", nil)
@@ -217,8 +214,7 @@ func TestExceptionDescription(t *testing.T) {
 		ExceptionClass: vm.ErrorClass,
 		MessageText:    vm.registry.NewStringValue("test error"),
 	}
-	id := vm.registry.RegisterException(ex)
-	exVal := FromExceptionID(id)
+	exVal := vm.registry.RegisterExceptionValue(ex)
 
 	result := vm.Send(exVal, "description", nil)
 	if !IsStringValue(result) {
@@ -242,8 +238,7 @@ func TestExceptionIsResumable(t *testing.T) {
 		ExceptionClass: vm.ExceptionClass,
 		Resumable:      true,
 	}
-	id1 := vm.registry.RegisterException(ex1)
-	exVal1 := FromExceptionID(id1)
+	exVal1 := vm.registry.RegisterExceptionValue(ex1)
 
 	result := vm.Send(exVal1, "isResumable", nil)
 	if result != True {
@@ -255,8 +250,7 @@ func TestExceptionIsResumable(t *testing.T) {
 		ExceptionClass: vm.ExceptionClass,
 		Resumable:      false,
 	}
-	id2 := vm.registry.RegisterException(ex2)
-	exVal2 := FromExceptionID(id2)
+	exVal2 := vm.registry.RegisterExceptionValue(ex2)
 
 	result = vm.Send(exVal2, "isResumable", nil)
 	if result != False {
@@ -397,8 +391,7 @@ func TestClassForException(t *testing.T) {
 	ex := &ExceptionObject{
 		ExceptionClass: vm.ErrorClass,
 	}
-	id := vm.registry.RegisterException(ex)
-	exVal := FromExceptionID(id)
+	exVal := vm.registry.RegisterExceptionValue(ex)
 
 	class := vm.ClassFor(exVal)
 	if class != vm.ErrorClass {
@@ -726,8 +719,7 @@ func BenchmarkExceptionCreation(b *testing.B) {
 			MessageText: vm.registry.NewStringValue("test"),
 			Resumable:   true,
 		}
-		id := vm.registry.RegisterException(ex)
-		vm.registry.UnregisterException(id)
+		_ = vm.registry.RegisterExceptionValue(ex)
 	}
 }
 
@@ -835,7 +827,7 @@ func runSignalAndCapture(t *testing.T, exClass *Class) *ExceptionObject {
 	if !result.IsException() {
 		t.Fatalf("handler block should have returned the exception value, got %v", result)
 	}
-	ex := vm.registry.GetException(result.ExceptionID())
+	ex := vm.registry.GetExceptionFromValue(result)
 	if ex == nil {
 		t.Fatalf("exception object not retrievable from handler result")
 	}
@@ -876,8 +868,7 @@ func TestCapturedTracePreservedAcrossPass(t *testing.T) {
 		Resumable:      false,
 		CapturedFrames: []TraceFrame{{Selector: "preset"}},
 	}
-	id := vm.registry.RegisterException(ex)
-	exVal := FromExceptionID(id)
+	exVal := vm.registry.RegisterExceptionValue(ex)
 	originalFrames := ex.CapturedFrames
 	defer func() {
 		_ = recover()
@@ -909,8 +900,7 @@ func TestStackTracePrimitiveReturnsString(t *testing.T) {
 	ex := runSignalAndCapture(t, nil)
 	// Re-register for primitive lookup
 	vm := NewVM()
-	id := vm.registry.RegisterException(ex)
-	exVal := FromExceptionID(id)
+	exVal := vm.registry.RegisterExceptionValue(ex)
 	result := vm.Send(exVal, "stackTrace", nil)
 	if !IsStringValue(result) {
 		t.Fatalf("stackTrace primitive should return a string, got %v", result)

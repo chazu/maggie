@@ -644,8 +644,7 @@ func TestSerial_Exception_Error(t *testing.T) {
 		MessageText:    v.registry.NewStringValue("something went wrong"),
 		Resumable:      false,
 	}
-	id := v.registry.RegisterException(exObj)
-	exVal := FromExceptionID(id)
+	exVal := v.registry.RegisterExceptionValue(exObj)
 
 	data, err := v.SerializeValue(exVal)
 	if err != nil {
@@ -661,7 +660,7 @@ func TestSerial_Exception_Error(t *testing.T) {
 		t.Fatal("deserialized value is not an exception")
 	}
 
-	gotObj := v.registry.GetException(got.ExceptionID())
+	gotObj := v.registry.GetExceptionFromValue(got)
 	if gotObj == nil {
 		t.Fatal("deserialized exception not in registry")
 	}
@@ -685,8 +684,7 @@ func TestSerial_Exception_ZeroDivide(t *testing.T) {
 		ExceptionClass: v.ZeroDivideClass,
 		MessageText:    v.registry.NewStringValue("division by zero"),
 	}
-	id := v.registry.RegisterException(exObj)
-	exVal := FromExceptionID(id)
+	exVal := v.registry.RegisterExceptionValue(exObj)
 
 	data, err := v.SerializeValue(exVal)
 	if err != nil {
@@ -701,7 +699,7 @@ func TestSerial_Exception_ZeroDivide(t *testing.T) {
 	if !got.IsException() {
 		t.Fatal("not an exception")
 	}
-	gotObj := v.registry.GetException(got.ExceptionID())
+	gotObj := v.registry.GetExceptionFromValue(got)
 	if gotObj == nil {
 		t.Fatal("not in registry")
 	}
@@ -720,8 +718,7 @@ func TestSerial_Exception_WithTag(t *testing.T) {
 		MessageText:    v.registry.NewStringValue("tagged error"),
 		Tag:            tagSym,
 	}
-	id := v.registry.RegisterException(exObj)
-	exVal := FromExceptionID(id)
+	exVal := v.registry.RegisterExceptionValue(exObj)
 
 	data, err := v.SerializeValue(exVal)
 	if err != nil {
@@ -733,7 +730,7 @@ func TestSerial_Exception_WithTag(t *testing.T) {
 		t.Fatalf("deserialize: %v", err)
 	}
 
-	gotObj := v.registry.GetException(got.ExceptionID())
+	gotObj := v.registry.GetExceptionFromValue(got)
 	if gotObj == nil {
 		t.Fatal("not in registry")
 	}
@@ -755,8 +752,7 @@ func TestSerial_Exception_NoMessage(t *testing.T) {
 		MessageText:    Nil,
 		Tag:            Nil,
 	}
-	id := v.registry.RegisterException(exObj)
-	exVal := FromExceptionID(id)
+	exVal := v.registry.RegisterExceptionValue(exObj)
 
 	data, err := v.SerializeValue(exVal)
 	if err != nil {
@@ -771,7 +767,7 @@ func TestSerial_Exception_NoMessage(t *testing.T) {
 	if !got.IsException() {
 		t.Fatal("not an exception")
 	}
-	gotObj := v.registry.GetException(got.ExceptionID())
+	gotObj := v.registry.GetExceptionFromValue(got)
 	if gotObj == nil {
 		t.Fatal("not in registry")
 	}
@@ -795,8 +791,7 @@ func TestSerial_Exception_UnknownClass(t *testing.T) {
 		ExceptionClass: customClass,
 		MessageText:    v.registry.NewStringValue("custom error"),
 	}
-	id := v.registry.RegisterException(exObj)
-	exVal := FromExceptionID(id)
+	exVal := v.registry.RegisterExceptionValue(exObj)
 
 	data, err := v.SerializeValue(exVal)
 	if err != nil {
@@ -815,7 +810,7 @@ func TestSerial_Exception_UnknownClass(t *testing.T) {
 	if !got.IsException() {
 		t.Fatal("not an exception")
 	}
-	gotObj := v2.registry.GetException(got.ExceptionID())
+	gotObj := v2.registry.GetExceptionFromValue(got)
 	if gotObj == nil {
 		t.Fatal("not in registry")
 	}
@@ -840,8 +835,7 @@ func TestSerial_Exception_CrossVM(t *testing.T) {
 		ExceptionClass: v1.StackOverflowClass,
 		MessageText:    v1.registry.NewStringValue("stack overflow at depth 4096"),
 	}
-	id := v1.registry.RegisterException(exObj)
-	exVal := FromExceptionID(id)
+	exVal := v1.registry.RegisterExceptionValue(exObj)
 
 	data, err := v1.SerializeValue(exVal)
 	if err != nil {
@@ -856,7 +850,7 @@ func TestSerial_Exception_CrossVM(t *testing.T) {
 	if !got.IsException() {
 		t.Fatal("not an exception on VM2")
 	}
-	gotObj := v2.registry.GetException(got.ExceptionID())
+	gotObj := v2.registry.GetExceptionFromValue(got)
 	if gotObj == nil {
 		t.Fatal("not in VM2 registry")
 	}

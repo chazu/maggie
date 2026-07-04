@@ -31,7 +31,7 @@ func (vm *VM) registerFuturePrimitives() {
 		defer f.mu.Unlock()
 		if f.exceptionValue != Nil && f.exceptionValue.IsException() {
 			// Re-signal the typed exception from the remote node
-			exObj := v.registry.GetException(f.exceptionValue.ExceptionID())
+			exObj := v.registry.GetExceptionFromValue(f.exceptionValue)
 			if exObj != nil {
 				v.signalExceptionObject(f.exceptionValue, exObj)
 				return Nil // unreachable — signalExceptionObject always panics
@@ -58,7 +58,7 @@ func (vm *VM) registerFuturePrimitives() {
 			f.mu.Lock()
 			defer f.mu.Unlock()
 			if f.exceptionValue != Nil && f.exceptionValue.IsException() {
-				exObj := v.registry.GetException(f.exceptionValue.ExceptionID())
+				exObj := v.registry.GetExceptionFromValue(f.exceptionValue)
 				if exObj != nil {
 					v.signalExceptionObject(f.exceptionValue, exObj)
 					return Nil

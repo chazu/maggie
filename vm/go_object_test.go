@@ -124,7 +124,6 @@ func TestGoObjectMarker_NoCollision(t *testing.T) {
 		"channel":             channelMarker,
 		"process":             processMarker,
 		"grpcClient":          grpcClientMarker,
-		"exception":           exceptionMarker,
 		"grpcStream":          grpcStreamMarker,
 		"weakRef":             weakRefMarker,
 		"mutex":               mutexMarker,

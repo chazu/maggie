@@ -22,7 +22,6 @@ type ObjectRegistry struct {
 
 	// Core VM registries (AutoIDRegistry-backed). Exported so callers can
 	// use Register/Get/Delete directly without delegation methods.
-	Exceptions       *AutoIDRegistry[*ExceptionObject]
 	Contexts         *AutoIDRegistry[*ContextValue]
 	Dictionaries     *AutoIDRegistry[*DictionaryObject]
 	Strings          *AutoIDRegistry[*StringObject]
@@ -48,7 +47,6 @@ func NewObjectRegistry() *ObjectRegistry {
 		IORegistry:          NewIORegistry(),
 
 		// Start IDs at 1 unless otherwise noted (0 = nil/uninitialized)
-		Exceptions:       NewAutoIDRegistry[*ExceptionObject](1, WithName("exceptions")),
 		Contexts:         NewAutoIDRegistry[*ContextValue](1, WithName("contexts")),
 		// strings and dictionaries don't carry a marker byte — they use the
 		// high bit(s) of the symbol payload as their discriminator. Strings
@@ -74,16 +72,19 @@ func NewObjectRegistry() *ObjectRegistry {
 // Exception Registry Methods (delegates to AutoIDRegistry)
 // ---------------------------------------------------------------------------
 
-func (or *ObjectRegistry) RegisterException(ex *ExceptionObject) uint32 { return or.Exceptions.Register(ex) }
-func (or *ObjectRegistry) GetException(id uint32) *ExceptionObject      { return or.Exceptions.Get(id) }
-func (or *ObjectRegistry) UnregisterException(id uint32)                { or.Exceptions.Delete(id) }
-func (or *ObjectRegistry) ExceptionCount() int                          { return or.Exceptions.Count() }
+// RegisterExceptionValue wraps an ExceptionObject in a heap Value traced by the
+// Go GC. Replaces the old id-registry form.
+func (or *ObjectRegistry) RegisterExceptionValue(ex *ExceptionObject) Value {
+	return makeHeap(kindException, unsafe.Pointer(ex))
+}
 
-// SweepExceptions removes handled exceptions from the registry.
-func (or *ObjectRegistry) SweepExceptions() int {
-	return or.Exceptions.Sweep(func(_ uint32, ex *ExceptionObject) bool {
-		return !ex.Handled
-	})
+// GetExceptionFromValue retrieves the ExceptionObject a Value references, or
+// nil if v is not an exception.
+func (or *ObjectRegistry) GetExceptionFromValue(v Value) *ExceptionObject {
+	if !v.IsException() {
+		return nil
+	}
+	return (*ExceptionObject)(v.ptr)
 }
 
 // ---------------------------------------------------------------------------
@@ -444,7 +445,6 @@ func (or *ObjectRegistry) FullStats() map[string]int {
 	for k, v := range or.IORegistry.IOStats() {
 		stats[k] = v
 	}
-	stats["exceptions"] = or.ExceptionCount()
 	stats["contexts"] = or.ContextCount()
 	stats["dictionaries"] = or.DictionaryCount()
 	stats["strings"] = or.StringCount()
