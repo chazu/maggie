@@ -265,6 +265,13 @@ type VM struct {
 	dependents   map[Value][]Value
 	dependentsMu sync.RWMutex
 
+	// cliLastRan records the CliCommandWrapper whose cobra Run callback most
+	// recently fired, so executeCliCommand can surface the exit code of whichever
+	// subcommand actually ran. Run callbacks execute synchronously on the
+	// goroutine that invoked Execute (see the run: primitive), so no lock is
+	// needed. This replaces the old linear scan over a per-id registry.
+	cliLastRan *CliCommandWrapper
+
 	// Config holds the runtime configuration for this VM instance.
 	Config VMConfig
 }

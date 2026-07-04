@@ -51,31 +51,19 @@ func (w *CliCommandWrapper) recordFlagType(name, kind string) {
 // NaN-boxing / registry helpers
 // ---------------------------------------------------------------------------
 
-func cliCommandToValue(id uint32) Value {
-	return FromSymbolID(id | cliCommandMarker)
-}
-
 func isCliCommandValue(v Value) bool {
-	if !v.IsSymbolEncoded() {
-		return false
-	}
-	return (v.SymbolID() & markerMask) == cliCommandMarker
-}
-
-func cliCommandIDFromValue(v Value) uint32 {
-	return markedIDFromValue(v)
+	return isExtensionValue(v, cliCommandMarker)
 }
 
 func (vm *VM) vmGetCliCommand(v Value) *CliCommandWrapper {
-	if !isCliCommandValue(v) {
-		return nil
+	if o := ExtensionObject(v, cliCommandMarker); o != nil {
+		return o.(*CliCommandWrapper)
 	}
-	return vm.registry.GetCliCommand(cliCommandIDFromValue(v))
+	return nil
 }
 
 func (vm *VM) vmRegisterCliCommand(w *CliCommandWrapper) Value {
-	id := vm.registry.RegisterCliCommand(w)
-	return cliCommandToValue(id)
+	return makeExtensionValue(cliCommandMarker, w)
 }
 
 // ---------------------------------------------------------------------------
@@ -343,6 +331,9 @@ func (vm *VM) registerCliPrimitives() {
 // signature returns no error — we must stash the outcome on the wrapper for
 // executeCliCommand to read.
 func (vm *VM) runCliBlock(w *CliCommandWrapper, args []string) {
+	// Record which wrapper's Run fired so executeCliCommand can read its exit
+	// code without scanning a registry.
+	vm.cliLastRan = w
 	if w.RunBlock == Nil {
 		w.exitCode = 0
 		return
@@ -429,34 +420,20 @@ func (vm *VM) runCliBlock(w *CliCommandWrapper, args []string) {
 // command can report the exit code set by the child whose Run fired. Wrappers
 // are found via the VM's lookup map (cobra.Command → CliCommandWrapper).
 func (vm *VM) executeCliCommand(w *CliCommandWrapper) (int, error) {
-	// Reset exit code in case execute is called repeatedly.
+	// Reset exit code and last-ran tracking in case execute is called repeatedly.
 	w.exitCode = 0
+	vm.cliLastRan = nil
 
-	ran, err := w.Cobra.ExecuteC()
+	_, err := w.Cobra.ExecuteC()
 	if err != nil {
 		return 1, err
 	}
-	// Look up the wrapper that actually ran and surface its exit code.
-	if effective := vm.cliWrapperForCobra(ran); effective != nil {
-		return effective.exitCode, nil
+	// Surface the exit code of whichever subcommand's Run fired (recorded by
+	// runCliBlock); fall back to the root wrapper if none ran.
+	if vm.cliLastRan != nil {
+		return vm.cliLastRan.exitCode, nil
 	}
 	return w.exitCode, nil
-}
-
-// cliWrapperForCobra finds the CliCommandWrapper whose Cobra field matches
-// the given *cobra.Command. Scans the registry linearly — fine because CLI
-// apps have tens, not thousands, of commands.
-func (vm *VM) cliWrapperForCobra(c *cobra.Command) *CliCommandWrapper {
-	if c == nil {
-		return nil
-	}
-	var match *CliCommandWrapper
-	vm.registry.CliCommands.ForEach(func(_ uint32, w *CliCommandWrapper) {
-		if w.Cobra == c {
-			match = w
-		}
-	})
-	return match
 }
 
 // cliResolveWriter unpacks an io.Writer from a GoObject-wrapped Maggie value.

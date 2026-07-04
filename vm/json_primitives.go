@@ -30,38 +30,38 @@ type JsonWriterObject struct {
 // JsonReader Registry helpers
 // ---------------------------------------------------------------------------
 
-func jsonReaderToValue(id uint32) Value {
-	return markedToValue(jsonReaderMarker, id)
+func makeJsonReaderValue(r *JsonReaderObject) Value {
+	return makeExtensionValue(jsonReaderMarker, r)
 }
 
 func isJsonReaderValue(v Value) bool {
-	if !v.IsSymbolEncoded() {
-		return false
-	}
-	return (v.SymbolID() & markerMask) == jsonReaderMarker
+	return isExtensionValue(v, jsonReaderMarker)
 }
 
-func jsonReaderIDFromValue(v Value) uint32 {
-	return markedIDFromValue(v)
+func getJsonReader(v Value) *JsonReaderObject {
+	if o := ExtensionObject(v, jsonReaderMarker); o != nil {
+		return o.(*JsonReaderObject)
+	}
+	return nil
 }
 
 // ---------------------------------------------------------------------------
 // JsonWriter Registry helpers
 // ---------------------------------------------------------------------------
 
-func jsonWriterToValue(id uint32) Value {
-	return markedToValue(jsonWriterMarker, id)
+func makeJsonWriterValue(w *JsonWriterObject) Value {
+	return makeExtensionValue(jsonWriterMarker, w)
 }
 
 func isJsonWriterValue(v Value) bool {
-	if !v.IsSymbolEncoded() {
-		return false
-	}
-	return (v.SymbolID() & markerMask) == jsonWriterMarker
+	return isExtensionValue(v, jsonWriterMarker)
 }
 
-func jsonWriterIDFromValue(v Value) uint32 {
-	return markedIDFromValue(v)
+func getJsonWriter(v Value) *JsonWriterObject {
+	if o := ExtensionObject(v, jsonWriterMarker); o != nil {
+		return o.(*JsonWriterObject)
+	}
+	return nil
 }
 
 // ---------------------------------------------------------------------------
@@ -144,8 +144,7 @@ func (vm *VM) registerJSONPrimitives() {
 		dec := json.NewDecoder(strings.NewReader(content))
 		dec.UseNumber()
 		reader := &JsonReaderObject{decoder: dec, source: content}
-		id := v.registry.RegisterJsonReader(reader)
-		return jsonReaderToValue(id)
+		return makeJsonReaderValue(reader)
 	})
 
 	// JsonReader >> next -> next decoded value or nil at EOF
@@ -153,7 +152,7 @@ func (vm *VM) registerJSONPrimitives() {
 		if !isJsonReaderValue(recv) {
 			return Nil
 		}
-		reader := v.registry.GetJsonReader(jsonReaderIDFromValue(recv))
+		reader := getJsonReader(recv)
 		if reader == nil {
 			return Nil
 		}
@@ -173,7 +172,7 @@ func (vm *VM) registerJSONPrimitives() {
 		if !isJsonReaderValue(recv) {
 			return False
 		}
-		reader := v.registry.GetJsonReader(jsonReaderIDFromValue(recv))
+		reader := getJsonReader(recv)
 		if reader == nil {
 			return False
 		}
@@ -193,8 +192,7 @@ func (vm *VM) registerJSONPrimitives() {
 		enc := json.NewEncoder(buf)
 		enc.SetEscapeHTML(false)
 		writer := &JsonWriterObject{buf: buf, enc: enc, pretty: false}
-		id := v.registry.RegisterJsonWriter(writer)
-		return jsonWriterToValue(id)
+		return makeJsonWriterValue(writer)
 	})
 
 	// JsonWriter newPretty -> JsonWriter
@@ -204,8 +202,7 @@ func (vm *VM) registerJSONPrimitives() {
 		enc.SetEscapeHTML(false)
 		enc.SetIndent("", "  ")
 		writer := &JsonWriterObject{buf: buf, enc: enc, pretty: true}
-		id := v.registry.RegisterJsonWriter(writer)
-		return jsonWriterToValue(id)
+		return makeJsonWriterValue(writer)
 	})
 
 	// JsonWriter >> write: anObject -> self
@@ -213,7 +210,7 @@ func (vm *VM) registerJSONPrimitives() {
 		if !isJsonWriterValue(recv) {
 			return recv
 		}
-		writer := v.registry.GetJsonWriter(jsonWriterIDFromValue(recv))
+		writer := getJsonWriter(recv)
 		if writer == nil {
 			return recv
 		}
@@ -230,7 +227,7 @@ func (vm *VM) registerJSONPrimitives() {
 		if !isJsonWriterValue(recv) {
 			return v.registry.NewStringValue("")
 		}
-		writer := v.registry.GetJsonWriter(jsonWriterIDFromValue(recv))
+		writer := getJsonWriter(recv)
 		if writer == nil {
 			return v.registry.NewStringValue("")
 		}
@@ -245,7 +242,7 @@ func (vm *VM) registerJSONPrimitives() {
 		if !isJsonWriterValue(recv) {
 			return recv
 		}
-		writer := v.registry.GetJsonWriter(jsonWriterIDFromValue(recv))
+		writer := getJsonWriter(recv)
 		if writer == nil {
 			return recv
 		}

@@ -18,7 +18,6 @@ import (
 // HTTP requests, HTTP responses, cells, weak reference IDs, and class variables.
 type ObjectRegistry struct {
 	*ConcurrencyRegistry
-	*IORegistry
 
 	// Core VM registries (AutoIDRegistry-backed). Exported so callers can
 	// use Register/Get/Delete directly without delegation methods.
@@ -40,7 +39,6 @@ type ObjectRegistry struct {
 func NewObjectRegistry() *ObjectRegistry {
 	or := &ObjectRegistry{
 		ConcurrencyRegistry: NewConcurrencyRegistry(),
-		IORegistry:          NewIORegistry(),
 
 		// Start IDs at 1 unless otherwise noted (0 = nil/uninitialized)
 		Contexts:         NewAutoIDRegistry[*ContextValue](1, WithName("contexts")),
@@ -356,9 +354,6 @@ func (or *ObjectRegistry) ExtensionStats() map[uint32]int {
 // FullStats returns counts of all registered objects across all registries.
 func (or *ObjectRegistry) FullStats() map[string]int {
 	stats := or.ConcurrencyRegistry.Stats()
-	for k, v := range or.IORegistry.IOStats() {
-		stats[k] = v
-	}
 	stats["contexts"] = or.ContextCount()
 	stats["cells"] = or.CellCount()
 	stats["classVarClasses"] = or.ClassVarCount()
