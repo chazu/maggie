@@ -2,6 +2,8 @@ package vm
 
 import (
 	"fmt"
+	"math"
+	"math/big"
 	"reflect"
 	"sync"
 )
@@ -9,7 +11,6 @@ import (
 // ---------------------------------------------------------------------------
 // GoObject: Unified wrapper for arbitrary Go values in the VM
 // ---------------------------------------------------------------------------
-
 
 // GoObjectWrapper holds an opaque Go value along with its type registry ID.
 type GoObjectWrapper struct {
@@ -232,10 +233,24 @@ func (vm *VM) GoToValue(goVal interface{}) Value {
 		return False
 
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-		return FromSmallInt(v.Int())
+		// FromSmallInt panics outside the 48-bit range; a wrapped Go function
+		// returning a large int64 (ns timestamps, hashes, ids) must promote to
+		// BigInteger instead of crashing the VM.
+		n := v.Int()
+		if val, ok := TryFromSmallInt(n); ok {
+			return val
+		}
+		return vm.registry.NewBigIntValue(big.NewInt(n))
 
 	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-		return FromSmallInt(int64(v.Uint()))
+		u := v.Uint()
+		if u <= math.MaxInt64 {
+			if val, ok := TryFromSmallInt(int64(u)); ok {
+				return val
+			}
+		}
+		// SetUint64 covers the full uint64 range (int64(u) would wrap negative).
+		return vm.registry.NewBigIntValue(new(big.Int).SetUint64(u))
 
 	case reflect.Float32, reflect.Float64:
 		return FromFloat64(v.Float())

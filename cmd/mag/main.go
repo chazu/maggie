@@ -65,6 +65,7 @@ func reorderArgs(args []string) []string {
 		"build": true, "deps": true, "fmt": true, "new": true,
 		"wrap": true, "sync": true, "doc": true, "doctest": true,
 		"help": true, "lsp": true, "test": true, "run": true,
+		"typecheck": true,
 	}
 	// Known top-level flags that take a value argument
 	valueFlags := map[string]bool{

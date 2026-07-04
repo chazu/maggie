@@ -131,7 +131,13 @@ func (vm *VM) registerArrayListPrimitives() {
 		if !index.IsSmallInt() {
 			return v.SignalTypeError("at:", 1, "SmallInteger", index)
 		}
-		return al.At(int(index.SmallInt() - 1))
+		// Signal on out-of-bounds like Array>>at:, rather than silently
+		// returning nil — a 1-based index must be in [1, size].
+		i := index.SmallInt()
+		if i < 1 || int(i) > al.Size() {
+			return v.SignalSubscriptOutOfBounds("at:", i, al.Size())
+		}
+		return al.At(int(i - 1))
 	}
 	c.AddMethod1(vm.Selectors, "at:", atFn)
 	c.AddMethod1(vm.Selectors, "primAt:", atFn)
@@ -139,10 +145,17 @@ func (vm *VM) registerArrayListPrimitives() {
 	// at:put: - indexed set, returns value
 	atPutFn := func(v *VM, recv Value, index, value Value) Value {
 		al := v.getArrayList(recv)
-		if al == nil || !index.IsSmallInt() {
-			return value
+		if al == nil {
+			return v.SignalPrimitiveError("at:put:", "receiver is not an ArrayList")
 		}
-		al.AtPut(int(index.SmallInt()-1), value)
+		if !index.IsSmallInt() {
+			return v.SignalTypeError("at:put:", 1, "SmallInteger", index)
+		}
+		i := index.SmallInt()
+		if i < 1 || int(i) > al.Size() {
+			return v.SignalSubscriptOutOfBounds("at:put:", i, al.Size())
+		}
+		al.AtPut(int(i-1), value)
 		return value
 	}
 	c.AddMethod2(vm.Selectors, "at:put:", atPutFn)

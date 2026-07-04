@@ -114,7 +114,7 @@ func TestGoObjectRegistry_GetNonGoObject(t *testing.T) {
 	}
 
 	// Random symbol (wrong marker)
-	if or.GetGoObject(FromSymbolID(channelMarker | 5)) != nil {
+	if or.GetGoObject(FromSymbolID(channelMarker|5)) != nil {
 		t.Error("expected nil for channel marker symbol")
 	}
 }
@@ -235,6 +235,36 @@ func TestVM_GoToValue_BasicTypes(t *testing.T) {
 				t.Errorf("expected %s for %v", tt.expected, tt.goVal)
 			}
 		})
+	}
+}
+
+// TestVM_GoToValue_LargeIntPromotes guards against a VM crash: FromSmallInt
+// panics outside the 48-bit range, so a wrapped Go value larger than that must
+// promote to a BigInteger rather than panic.
+func TestVM_GoToValue_LargeIntPromotes(t *testing.T) {
+	vmInst := NewVM()
+	defer vmInst.Shutdown()
+
+	// A nanosecond-scale timestamp exceeds 2^47.
+	big1 := int64(1) << 60
+	v := vmInst.GoToValue(big1)
+	if !IsBigIntValue(v) {
+		t.Errorf("GoToValue(1<<60) = %v, want a BigInteger", v)
+	}
+
+	// Full uint64 range must not wrap negative.
+	vu := vmInst.GoToValue(uint64(1) << 63)
+	if !IsBigIntValue(vu) {
+		t.Errorf("GoToValue(uint64 1<<63) = %v, want a BigInteger", vu)
+	}
+	bi := getBigIntOperand(vmInst, vu)
+	if bi == nil || bi.Sign() < 0 {
+		t.Errorf("GoToValue(uint64 1<<63) produced a non-positive bigint: %v", bi)
+	}
+
+	// Small values still stay SmallInt.
+	if s := vmInst.GoToValue(int64(100)); !s.IsSmallInt() || s.SmallInt() != 100 {
+		t.Errorf("GoToValue(100) = %v, want SmallInt(100)", s)
 	}
 }
 

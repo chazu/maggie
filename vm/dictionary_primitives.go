@@ -92,7 +92,9 @@ func (vm *VM) registerDictionaryPrimitives() {
 	c.AddMethod2(vm.Selectors, "at:put:", func(v *VM, recv Value, key, value Value) Value {
 		dict := v.registry.GetDictionaryObject(recv)
 		if dict == nil {
-			return value
+			// Signal like at:/at:ifAbsent: rather than silently returning the
+			// value on a non-Dictionary receiver.
+			return v.SignalPrimitiveError("at:put:", "receiver is not a Dictionary")
 		}
 		h := hashValue(v.registry, key)
 		dict.Data[h] = value
