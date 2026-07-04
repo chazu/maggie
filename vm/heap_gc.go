@@ -463,11 +463,8 @@ func (vm *VM) collectHeapGarbageLocked() (strings, dicts, blocks int) {
 	blocks = vm.registry.SweepBlocksLive(ls.blocks)
 
 	// Object graph holders: reachable only through the trace, so unreachable
-	// ids/pointers are safe to reclaim. Clear weak references to any object
-	// about to be unpinned before dropping the pins.
-	if vm.weakRefs != nil {
-		vm.weakRefs.ProcessGC(ls.objects)
-	}
+	// pins are safe to drop. (Weak references are now Go-native — Go's GC clears
+	// them, so no ProcessGC pass is needed here.)
 	vm.sweepKeepAliveLive(ls.objects)
 	return strings, dicts, blocks
 }

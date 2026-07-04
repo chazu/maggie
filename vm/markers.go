@@ -21,7 +21,6 @@ const (
 	processMarker               uint32 = 2 << 24
 	grpcClientMarker            uint32 = 7 << 24
 	grpcStreamMarker            uint32 = 9 << 24
-	weakRefMarker               uint32 = 16 << 24
 	characterMarker             uint32 = 37 << 24
 	httpServerMarker            uint32 = 38 << 24
 	httpRequestMarker           uint32 = 39 << 24

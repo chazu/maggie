@@ -76,24 +76,3 @@ func TestAllocConcurrencyIDConcurrent(t *testing.T) {
 	}
 }
 
-// TestWeakRefIDExhaustionPanics verifies the weak-ref counter panics rather
-// than wrapping past 2^24-1.
-func TestWeakRefIDExhaustionPanics(t *testing.T) {
-	or := NewObjectRegistry()
-	or.weakRefCounter.Store(weakRefIDMax) // next Add will exceed max
-
-	defer func() {
-		r := recover()
-		if r == nil {
-			t.Fatal("expected panic on weak ref ID exhaustion, got nil")
-		}
-		msg, ok := r.(string)
-		if !ok {
-			t.Fatalf("expected string panic, got %T: %v", r, r)
-		}
-		if !strings.Contains(msg, "weak ref") {
-			t.Fatalf("panic message missing 'weak ref': %q", msg)
-		}
-	}()
-	or.NextWeakRefID()
-}

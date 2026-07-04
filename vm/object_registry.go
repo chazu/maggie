@@ -2,7 +2,6 @@ package vm
 
 import (
 	"sync"
-	"sync/atomic"
 	"unsafe"
 )
 
@@ -23,11 +22,10 @@ type ObjectRegistry struct {
 	Contexts         *AutoIDRegistry[*ContextValue]
 
 	// Special registries (not suitable for AutoIDRegistry)
-	cells          map[*Cell]struct{} // set semantics
-	cellsMu        sync.RWMutex
-	weakRefCounter atomic.Uint32       // counter only
-	classVars      map[*Class]map[string]Value // nested map
-	classVarsMu    sync.RWMutex
+	cells       map[*Cell]struct{} // set semantics
+	cellsMu     sync.RWMutex
+	classVars   map[*Class]map[string]Value // nested map
+	classVarsMu sync.RWMutex
 }
 
 // NewObjectRegistry creates a new ObjectRegistry with all maps initialized.
@@ -208,37 +206,6 @@ func (or *ObjectRegistry) CellCount() int {
 	or.cellsMu.RLock()
 	defer or.cellsMu.RUnlock()
 	return len(or.cells)
-}
-
-// ---------------------------------------------------------------------------
-// Weak Reference Counter Methods
-// ---------------------------------------------------------------------------
-
-// weakRefIDMax is the largest valid weak reference ID. WeakReference values
-// are NaN-boxed via the symbol tag with weakRefMarker in bits 24-31, leaving
-// 24 bits for the ID. Wrap-around past this point would alias new weak refs
-// to live ones in WeakRegistry.refs and silently corrupt finalizer dispatch
-// (see vm/weak_reference.go: WeakRegistry uses the ID as map key).
-//
-// Weak refs are intentionally append-only: `WeakRegistry.Unregister` exists
-// but is not invoked from the VM (the GC clears the target via Clear() but
-// keeps the entry around for Lookup). Recycling IDs would require auditing
-// every Lookup-after-Clear path, so we treat exhaustion as a fatal error.
-const weakRefIDMax uint32 = (1 << 24) - 1
-
-// NextWeakRefID returns the next unique ID for a weak reference. Panics on
-// exhaustion rather than silently wrapping (see weakRefIDMax docs).
-func (or *ObjectRegistry) NextWeakRefID() uint32 {
-	id := or.weakRefCounter.Add(1)
-	if id > weakRefIDMax {
-		panic("ObjectRegistry: weak ref ID space exhausted (max 2^24-1 weak references)")
-	}
-	return id
-}
-
-// WeakRefCounterValue returns the current value of the weak reference counter.
-func (or *ObjectRegistry) WeakRefCounterValue() uint32 {
-	return or.weakRefCounter.Load()
 }
 
 // ---------------------------------------------------------------------------

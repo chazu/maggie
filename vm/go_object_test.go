@@ -108,7 +108,7 @@ func TestGoObjectRegistry_GetNonGoObject(t *testing.T) {
 	}
 
 	// Random symbol (wrong marker)
-	if or.GetGoObject(FromSymbolID(weakRefMarker|5)) != nil {
+	if or.GetGoObject(FromSymbolID(characterMarker|5)) != nil {
 		t.Error("expected nil for a non-GoObject marker symbol")
 	}
 }
@@ -118,7 +118,6 @@ func TestGoObjectMarker_NoCollision(t *testing.T) {
 		"process":             processMarker,
 		"grpcClient":          grpcClientMarker,
 		"grpcStream":          grpcStreamMarker,
-		"weakRef":             weakRefMarker,
 		"character":           characterMarker,
 		"httpServer":          httpServerMarker,
 		"httpRequest":         httpRequestMarker,

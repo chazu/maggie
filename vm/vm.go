@@ -184,8 +184,6 @@ type VM struct {
 	dispatchQueue chan workItem
 	dispatchOnce  sync.Once
 
-	// weakRefs tracks weak references for the GC to process.
-	weakRefs *WeakRegistry
 
 	// mainProcess is the ProcessObject for the main interpreter goroutine.
 	// Created during NewVM so that Process current / Process receive work
@@ -298,7 +296,6 @@ func NewVM(configs ...VMConfig) *VM {
 		globals:          make(map[string]Value),
 		keepAlive:        make(map[*Object]struct{}),
 		pinnedRoots:      make(map[Value]struct{}),
-		weakRefs:         NewWeakRegistry(),
 		registry:         NewObjectRegistry(),
 		symbolDispatch:   NewSymbolDispatch(),
 		processNames:     make(map[string]uint64),
@@ -622,8 +619,7 @@ func (vm *VM) registerSymbolDispatch() {
 
 	// gRPC symbol dispatch is registered by the gRPC contrib plugin.
 
-	// Weak references
-	sd.Register(weakRefMarker, &SymbolTypeEntry{Class: vm.WeakReferenceClass})
+	// WeakReference is a pointer-carrying kindWeakRef Value resolved via classForHeap.
 
 	// Characters
 	sd.Register(characterMarker, &SymbolTypeEntry{Class: vm.CharacterClass})
@@ -1030,6 +1026,8 @@ func (vm *VM) classForHeap(v Value) *Class {
 		return vm.RemoteChannelClass
 	case kindRemoteRef:
 		return vm.NodeClass
+	case kindWeakRef:
+		return vm.WeakReferenceClass
 	case kindExtension:
 		// Contrib/IO wrapper types share kindExtension; the concrete class is
 		// the one registered for the wrapper's marker in symbolDispatch.
@@ -1390,9 +1388,6 @@ func (vm *VM) CollectGarbage() int {
 	}
 	ls := newLiveSet()
 	vm.markRoots(ls)
-	if vm.weakRefs != nil {
-		vm.weakRefs.ProcessGC(ls.objects)
-	}
 	return vm.sweepKeepAliveLive(ls.objects)
 }
 
@@ -1463,22 +1458,11 @@ func (vm *VM) KeepAliveCount() int {
 // Weak References
 // ---------------------------------------------------------------------------
 
-// NewWeakRef creates a new weak reference to the given object.
-// The weak reference is registered with the VM's weak reference registry.
+// NewWeakRef creates a new weak reference to the given object. The reference is
+// a Go-native weak pointer (weak.Pointer); Go's GC clears it — there is no VM
+// registry to register with.
 func (vm *VM) NewWeakRef(target *Object) *WeakReference {
-	wr := NewWeakReference(vm.registry, target)
-	vm.weakRefs.Register(wr)
-	return wr
-}
-
-// LookupWeakRef looks up a weak reference by ID.
-func (vm *VM) LookupWeakRef(id uint32) *WeakReference {
-	return vm.weakRefs.Lookup(id)
-}
-
-// WeakRefCount returns the number of registered weak references.
-func (vm *VM) WeakRefCount() int {
-	return vm.weakRefs.Count()
+	return NewWeakReference(target)
 }
 
 // ---------------------------------------------------------------------------

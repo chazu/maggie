@@ -25,10 +25,7 @@ func (vm *VM) registerWeakReferencePrimitives() {
 	// WeakReference>>get
 	// Return the referenced object, or nil if it has been collected
 	c.AddMethod0(vm.Selectors, "get", func(v *VM, recv Value) Value {
-		if !recv.IsWeakRef() {
-			return Nil
-		}
-		wr := v.LookupWeakRef(recv.WeakRefID())
+		wr := weakRefFromValue(recv)
 		if wr == nil {
 			return Nil
 		}
@@ -42,10 +39,7 @@ func (vm *VM) registerWeakReferencePrimitives() {
 	// WeakReference>>isAlive
 	// Return true if the referenced object has not been collected
 	c.AddMethod0(vm.Selectors, "isAlive", func(v *VM, recv Value) Value {
-		if !recv.IsWeakRef() {
-			return False
-		}
-		wr := v.LookupWeakRef(recv.WeakRefID())
+		wr := weakRefFromValue(recv)
 		if wr == nil {
 			return False
 		}
@@ -58,18 +52,15 @@ func (vm *VM) registerWeakReferencePrimitives() {
 	// WeakReference>>onFinalize:
 	// Set a block to be evaluated when the referenced object is collected
 	c.AddMethod1(vm.Selectors, "onFinalize:", func(v *VM, recv Value, block Value) Value {
-		if !recv.IsWeakRef() {
-			return recv
-		}
-		wr := v.LookupWeakRef(recv.WeakRefID())
+		wr := weakRefFromValue(recv)
 		if wr == nil {
 			return recv
 		}
-		// Set up the finalizer to evaluate the block
+		// Set up the finalizer to evaluate the block. It runs on a Go GC cleanup
+		// goroutine, so guard against a shutting-down VM with recover.
 		if block.IsBlock() {
 			wr.SetFinalizer(func(oldValue Value) {
-				// Evaluate the block with the old value (for informational purposes)
-				// Note: the object is already collected, so the value is just a reference
+				defer func() { _ = recover() }()
 				v.evaluateBlock(block, []Value{oldValue})
 			})
 		}
@@ -79,11 +70,7 @@ func (vm *VM) registerWeakReferencePrimitives() {
 	// WeakReference>>clear
 	// Explicitly clear the weak reference (makes get return nil)
 	c.AddMethod0(vm.Selectors, "clear", func(v *VM, recv Value) Value {
-		if !recv.IsWeakRef() {
-			return recv
-		}
-		wr := v.LookupWeakRef(recv.WeakRefID())
-		if wr != nil {
+		if wr := weakRefFromValue(recv); wr != nil {
 			wr.Clear()
 		}
 		return recv
@@ -91,12 +78,9 @@ func (vm *VM) registerWeakReferencePrimitives() {
 
 	// WeakReference>>printString
 	c.AddMethod0(vm.Selectors, "printString", func(v *VM, recv Value) Value {
-		if !recv.IsWeakRef() {
-			return v.registry.NewStringValue("a WeakReference (invalid)")
-		}
-		wr := v.LookupWeakRef(recv.WeakRefID())
+		wr := weakRefFromValue(recv)
 		if wr == nil {
-			return v.registry.NewStringValue("a WeakReference (unregistered)")
+			return v.registry.NewStringValue("a WeakReference (invalid)")
 		}
 		if wr.IsAlive() {
 			target := wr.Get()
