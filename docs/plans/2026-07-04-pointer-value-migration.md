@@ -68,17 +68,35 @@ an id↔object map; those become plain maps without the GC role.
 
 ## RESUME HERE (next session pick-up)
 
-**Status:** Stage 1 COMPLETE. Stage 2 IN PROGRESS — 14 of the ~35 heap types
-migrated to pointers across 8 commits (2a–2f). Branch `migrate/pointer-value`.
-`main` untouched — do NOT merge until the migration finishes. At every commit:
+**Status:** Stage 1 COMPLETE. Stage 2 COMPLETE — all ~33 heap types migrated to
+pointers across 13 commits (2a–2g). Branch `migrate/pointer-value`. `main`
+untouched — do NOT merge until the migration finishes. At every commit:
 `go test ./...` green, 1166 doctests pass, image rebuilds; vm `-race` clean at
-the String, Exception, and Channel/Future checkpoints.
+the String, Exception, Channel/Future, and RemoteChannel/NodeRef checkpoints.
+**Next up: Stage 3 — delete the custom GC.**
 
-**MIGRATED to pointers (done, committed):** Object, Cell (stage 1); then Result,
+**MIGRATED to pointers (done, committed):** Object, Cell (stage 1); Result,
 BigInt, Exception, String, Dictionary, ArrayList, ClassValue, GoObject, Mutex,
-WaitGroup, Semaphore, CancellationContext, Channel, Future.
+WaitGroup, Semaphore, CancellationContext, Channel, Future (2a–2f); then in 2g:
+the eleven in-package IO types (HTTP client/server/request/response, SSE,
+external process, Unix listener/conn, JSON reader/writer, CLI command), contrib
+gRPC (client/stream), contrib CUE (context/value/tuplespace/constraintstore), and
+RemoteRef + RemoteChannel.
 
-**STILL id-based / symbol-encoded (deferred, deliberately):**
+**2g introduced `kindExtension`** (vm/extension.go): a single heap kind shared by
+all contrib/IO wrapper types, carrying `extensionObject{marker, obj}`. The marker
+reuses the existing NaN-box marker constants; each primitive set's marker→class
+`symbolDispatch` entry now drives class-of and method dispatch via
+`classForHeap`'s kindExtension case. Contrib packages use the exported
+`NewExtensionValue`/`ExtensionObject`/`IsExtensionValue` API. RemoteRef/RemoteChannel
+got their own `kindRemoteRef`/`kindRemoteChannel`. The `ExtensionRegistry`
+AutoIDRegistry machinery and the `IORegistry` are deleted; the heap_gc RootMarker
+enumeration is replaced by a `kindExtension` case in `mark()` (TupleSpace is
+reached through normal roots). `vmUnregisterXxx` are now no-ops. Functional
+(non-liveness) reverse-lookup maps were kept as plain sets: `nodeRefs`
+(public-key routing), `remoteChannels` (drainNode), `cliLastRan` (exit code).
+
+**STILL id-based / symbol-encoded (deferred to Stage 3, deliberately):**
 - **Process** (`processMarker`) — Values are constructed by-id in monitor/link/
   distribution paths (`processToValue(id)` in process_lifecycle.go, vm.go), so it
   needs a real id↔object map. Keep it symbol-encoded; the `processes` map also
@@ -87,9 +105,8 @@ WaitGroup, Semaphore, CancellationContext, Channel, Future.
   `ProcessGC`; migrate together with the Go-native weak-ref rework in stage 3.
 - **Block** (`tagBlock`) + **Context** (`tagContext`) — migrate in stage 3 (Block
   when the slot+gen recycling is removed).
-- **Contrib/extension kinds** (`kindExtension`: http/grpc/cue/json/unix/sse/cli/
-  exec, `externalProcessMarker`, etc.) + **RemoteRef/RemoteChannel** — STAGE 2g,
-  next up. These use `ExtensionRegistry(marker)` AutoIDRegistries.
+- **Character** (`characterMarker`) stays symbol-encoded (it's an immediate-style
+  value on the real symbol tag, not a heap object).
 
 **Per-type mechanics that worked (keep doing this):**
 - Reimplement the type's public `RegisterXxxValue`/`GetXxxFromValue` (or the
