@@ -14,10 +14,10 @@ type ContextValue struct {
 	Temps    []Value         // Copy of temporaries at capture time
 
 	// Stack information
-	IP         int   // Instruction pointer at capture time
-	SenderID   int32 // Context ID of the sender (-1 if none)
-	HomeID     int32 // Context ID of the home context for blocks (-1 for methods)
-	FrameIndex int   // Original frame index in interpreter (for debugging)
+	IP         int           // Instruction pointer at capture time
+	Sender     *ContextValue // The sender context (nil if none)
+	Home       *ContextValue // The home context for blocks (nil for methods)
+	FrameIndex int           // Original frame index in interpreter (for debugging)
 
 	// For blocks
 	Captures []Value // Captured variables

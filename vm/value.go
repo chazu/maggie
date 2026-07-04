@@ -37,7 +37,6 @@ const (
 	tagInt     uint64 = 0x0002000000000000 // 48-bit signed integer
 	tagSpecial uint64 = 0x0003000000000000 // nil, true, false
 	tagSymbol  uint64 = 0x0004000000000000 // interned symbol id / character marker
-	tagContext uint64 = 0x0007000000000000 // execution context id (registry, pre-migration)
 
 	intSignBit    uint64 = 0x0000800000000000
 	intSignExtend uint64 = 0xFFFF000000000000
@@ -290,25 +289,29 @@ func makeBlockValue(bv *BlockValue) Value {
 }
 
 // ---------------------------------------------------------------------------
-// Contexts (immediate id form, pre-migration)
+// Contexts (heap)
 // ---------------------------------------------------------------------------
 
-// IsContext returns true if v represents an execution context.
+// IsContext returns true if v references an execution context (pointer-carrying).
 func (v Value) IsContext() bool {
-	return v.ptr == nil && (v.hi&(nanBits|tagMask)) == (nanBits|tagContext)
+	return v.ptr != nil && v.hi == kindContext
 }
 
-// ContextID returns the context registry ID.
-func (v Value) ContextID() uint32 {
+// contextPtr returns the *ContextValue behind a context Value, or nil.
+func (v Value) contextPtr() *ContextValue {
 	if !v.IsContext() {
-		panic("Value.ContextID: not a context")
+		return nil
 	}
-	return uint32(v.hi & payloadMask)
+	return (*ContextValue)(v.ptr)
 }
 
-// FromContextID creates a Value from a context ID.
-func FromContextID(id uint32) Value {
-	return Value{hi: nanBits | tagContext | uint64(id)}
+// makeContextValue wraps a *ContextValue as a pointer-carrying context Value.
+// A nil context becomes Nil.
+func makeContextValue(ctx *ContextValue) Value {
+	if ctx == nil {
+		return Nil
+	}
+	return makeHeap(kindContext, unsafe.Pointer(ctx))
 }
 
 // ---------------------------------------------------------------------------

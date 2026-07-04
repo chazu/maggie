@@ -174,47 +174,13 @@ func (gc *RegistryGC) Start() {
 	go gc.loop(stopCh, stoppedCh)
 }
 
-// installHooks wires a pressure callback onto each AutoIDRegistry we know
-// about on the VM. The callback compares delta-since-last-sweep against
-// the per-registry growth threshold (cheap path) and live-size against
-// absolute ceiling (also cheap), and does a non-blocking send on the
-// trigger channel if either condition trips.
+// installHooks would wire pressure callbacks onto AutoIDRegistry-backed
+// registries, but none remain: strings/dicts/objects/blocks/contexts are all
+// pointer-carrying heap Values reclaimed by Go's GC. The sweep loop still runs
+// on the wall-clock floor to reap terminated channels/processes and scavenge OS
+// memory. Retained (as a no-op) so Start()'s lifecycle is unchanged.
 func (gc *RegistryGC) installHooks() {
-	if gc.vm == nil || gc.vm.registry == nil {
-		return
-	}
-	or := gc.vm.registry
 	gc.monitored = gc.monitored[:0]
-
-	add := func(name string, growth, ceiling int32, reg interface {
-		LiveSize() int32
-		SetPressureHook(func(int32))
-	}) {
-		mr := &monitoredRegistry{
-			name:            name,
-			growthThreshold: growth,
-			absoluteCeiling: ceiling,
-			currentSize:     reg.LiveSize,
-			uninstall:       func() { reg.SetPressureHook(nil) },
-		}
-		mr.resetAfterSweep = func() { mr.lastSweepSize.Store(reg.LiveSize()) }
-		gc.monitored = append(gc.monitored, mr)
-
-		// Capture mr in the hook. The decision logic is shared with the
-		// block-pressure hook below; see onPressure.
-		reg.SetPressureHook(func(liveSize int32) { gc.onPressure(mr, liveSize) })
-	}
-
-	// Contexts are the last remaining error-handling registry.
-	add("contexts", defaultGrowthThreshold, defaultAbsoluteCeiling, or.Contexts)
-
-	// The rest are domain-specific and usually have low cardinality.
-	// Default thresholds are fine.
-	// classValues is monotonic and intentionally append-only — no point
-	// installing pressure hooks since sweeping won't reclaim anything.
-	//
-	// Blocks are now pointer-carrying Values reclaimed by Go's GC — no registry,
-	// no pressure hook.
 }
 
 // onPressure is the per-registry sweep-trigger decision, shared by the

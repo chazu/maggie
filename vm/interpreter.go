@@ -1412,8 +1412,6 @@ func (i *Interpreter) createContext(frame *CallFrame) *ContextValue {
 		Receiver:   frame.Self(),
 		IP:         frame.IP,
 		FrameIndex: i.fp,
-		SenderID:   -1,
-		HomeID:     -1,
 	}
 
 	// Set method or block
@@ -1455,15 +1453,12 @@ func (i *Interpreter) createContext(frame *CallFrame) *ContextValue {
 
 	// Set sender (calling context) if there is one
 	if i.fp > 0 {
-		// Create context for sender frame
-		senderCtx := i.createContextForFrame(i.fp - 1)
-		ctx.SenderID = int32(i.vm.registry.RegisterContext(senderCtx))
+		ctx.Sender = i.createContextForFrame(i.fp - 1)
 	}
 
 	// Set home context for blocks
 	if frame.Block != nil && frame.HomeFrame >= 0 {
-		homeCtx := i.createContextForFrame(frame.HomeFrame)
-		ctx.HomeID = int32(i.vm.registry.RegisterContext(homeCtx))
+		ctx.Home = i.createContextForFrame(frame.HomeFrame)
 	}
 
 	return ctx
@@ -1481,8 +1476,6 @@ func (i *Interpreter) createContextForFrame(frameIdx int) *ContextValue {
 		Receiver:   frame.Self(),
 		IP:         frame.IP,
 		FrameIndex: frameIdx,
-		SenderID:   -1,
-		HomeID:     -1,
 	}
 
 	if frame.Block != nil {

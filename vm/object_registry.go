@@ -17,10 +17,6 @@ import (
 type ObjectRegistry struct {
 	*ConcurrencyRegistry
 
-	// Core VM registries (AutoIDRegistry-backed). Exported so callers can
-	// use Register/Get/Delete directly without delegation methods.
-	Contexts *AutoIDRegistry[*ContextValue]
-
 	// Special registries (not suitable for AutoIDRegistry)
 	cells       map[*Cell]struct{} // set semantics
 	cellsMu     sync.RWMutex
@@ -32,9 +28,6 @@ type ObjectRegistry struct {
 func NewObjectRegistry() *ObjectRegistry {
 	or := &ObjectRegistry{
 		ConcurrencyRegistry: NewConcurrencyRegistry(),
-
-		// Start IDs at 1 unless otherwise noted (0 = nil/uninitialized)
-		Contexts: NewAutoIDRegistry[*ContextValue](1, WithName("contexts")),
 
 		cells:     make(map[*Cell]struct{}),
 		classVars: make(map[*Class]map[string]Value),
@@ -86,32 +79,17 @@ func (or *ObjectRegistry) GetResultFromValue(v Value) *ResultObject {
 // Context Registry Methods (delegates to AutoIDRegistry)
 // ---------------------------------------------------------------------------
 
-func (or *ObjectRegistry) RegisterContext(ctx *ContextValue) uint32 { return or.Contexts.Register(ctx) }
-func (or *ObjectRegistry) GetContext(id uint32) *ContextValue       { return or.Contexts.Get(id) }
-func (or *ObjectRegistry) UnregisterContext(id uint32)              { or.Contexts.Delete(id) }
-func (or *ObjectRegistry) ClearContexts()                           { or.Contexts.Clear() }
-func (or *ObjectRegistry) ContextCount() int                        { return or.Contexts.Count() }
-
-// RegisterContextValue registers a ContextValue and returns a Value representing it.
+// RegisterContextValue wraps a ContextValue in a pointer-carrying kindContext
+// heap Value traced by Go's GC. The name is retained for call-site
+// compatibility; there is no id registry.
 func (or *ObjectRegistry) RegisterContextValue(ctx *ContextValue) Value {
-	id := or.RegisterContext(ctx)
-	return FromContextID(id)
+	return makeContextValue(ctx)
 }
 
 // GetContextFromValue retrieves the ContextValue for a context Value.
 // Returns nil if the Value is not a context.
 func (or *ObjectRegistry) GetContextFromValue(v Value) *ContextValue {
-	if !v.IsContext() {
-		return nil
-	}
-	return or.GetContext(v.ContextID())
-}
-
-// UnregisterContextValue removes a context from the registry by its Value.
-func (or *ObjectRegistry) UnregisterContextValue(v Value) {
-	if v.IsContext() {
-		or.UnregisterContext(v.ContextID())
-	}
+	return v.contextPtr()
 }
 
 // ---------------------------------------------------------------------------
@@ -281,7 +259,6 @@ func (or *ObjectRegistry) GetClassFromValue(v Value) *Class {
 // FullStats returns counts of all registered objects across all registries.
 func (or *ObjectRegistry) FullStats() map[string]int {
 	stats := or.ConcurrencyRegistry.Stats()
-	stats["contexts"] = or.ContextCount()
 	stats["cells"] = or.CellCount()
 	stats["classVarClasses"] = or.ClassVarCount()
 	return stats

@@ -124,13 +124,9 @@ func (s *valueSerializer) serialize(v Value) ([]byte, error) {
 		return s.serializeSymbolEncoded(v)
 
 	case v.isHeap():
+		// Blocks and Contexts are pointer-carrying heap Values now; their
+		// non-serializable cases live in serializeHeap.
 		return s.serializeHeap(v)
-
-	case v.IsBlock():
-		return nil, fmt.Errorf("serial: cannot serialize Block (non-serializable type)")
-
-	case v.IsContext():
-		return nil, fmt.Errorf("serial: cannot serialize Context (non-serializable type)")
 
 	default:
 		return nil, fmt.Errorf("serial: unknown value type %016x", v.hi)
@@ -177,6 +173,10 @@ func (s *valueSerializer) serializeHeap(v Value) ([]byte, error) {
 		return nil, fmt.Errorf("serial: cannot serialize CancellationContext (non-serializable type)")
 	case kindCell:
 		return nil, fmt.Errorf("serial: cannot serialize Cell (non-serializable type)")
+	case kindBlock:
+		return nil, fmt.Errorf("serial: cannot serialize Block (non-serializable type)")
+	case kindContext:
+		return nil, fmt.Errorf("serial: cannot serialize Context (non-serializable type)")
 	case kindRemoteChannel:
 		return s.serializeRemoteChannel(v)
 	case kindExtension:
