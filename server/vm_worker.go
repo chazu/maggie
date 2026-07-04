@@ -72,7 +72,10 @@ func (w *VMWorker) execute(fn func(*vm.VM) interface{}) vmResult {
 	func() {
 		defer func() {
 			if r := recover(); r != nil {
-				result.err = fmt.Errorf("%v", r)
+				// Render an unhandled Maggie exception as its message rather
+				// than the raw NaN-boxed struct — this is the error string the
+				// IDE/agent Evaluate path surfaces.
+				result.err = fmt.Errorf("%s", w.vm.DescribePanic(r))
 			}
 		}()
 		result.value = fn(w.vm)

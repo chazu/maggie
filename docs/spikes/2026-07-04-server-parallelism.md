@@ -45,10 +45,15 @@ companion Value/GC spike), then parallelize the server.
 
 ## Note surfaced while measuring
 
-The EvalService VM resolves Go-primitive sends (`+`, `*`, `negated`) but NOT
-lib-defined selectors (`factorial`, `max:`, `between:and:`) — those raise an
-exception the service reports as a garbled raw Value in `ErrorMessage`
-(`{9222246137082150913 0x…}`). Two separate bugs worth a follow-up: (a) the eval
-VM appears to be missing the library image or its lib methods; (b) exception
-values are put into the error string unrendered. Not part of this spike, but
-flagged.
+While writing the workload I saw lib selectors (`factorial`, `max:`) fail in the
+benchmark. Follow-up review clarified this is a **test-harness artifact, not a
+production bug**: `server/test_helpers_test.go` builds the shared test VM with
+`vm.NewVM()` and never loads the embedded image, so only Go primitives resolve
+there — a real `mag --serve` loads the full image and has the lib methods.
+
+The genuine bug it exposed (now FIXED): an unhandled Maggie exception was
+reported as a garbled raw Value in `ErrorMessage` (`{9222246137082150913 0x…}`).
+`VMWorker.execute` now renders it via `VM.DescribePanic` → the exception's
+message text (e.g. "Message not understood: foo"). Remaining LOW follow-up: load
+the image in the server tests' `TestMain` so server-side lib dispatch is
+actually exercised in CI.

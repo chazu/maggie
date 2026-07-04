@@ -85,6 +85,26 @@ type SignaledException struct {
 	Object    *ExceptionObject
 }
 
+// DescribePanic renders a value recovered from a panic into a human-readable
+// string. An unhandled Maggie exception (a SignaledException that propagated
+// out of Execute — e.g. through the server's VMWorker) becomes its message
+// text, e.g. "Message not understood: foo", instead of the raw NaN-boxed Value
+// + pointer that %v would print. Anything else falls back to %v. Used by
+// callers that recover panics at a package boundary and cannot reach the
+// unexported value formatters.
+func (vm *VM) DescribePanic(r any) string {
+	if sigEx, ok := r.(SignaledException); ok && sigEx.Object != nil {
+		if msg := vm.valueToString(sigEx.Object.MessageText); msg != "" {
+			return msg
+		}
+		if sigEx.Object.ExceptionClass != nil {
+			return sigEx.Object.ExceptionClass.Name
+		}
+		return "unhandled exception"
+	}
+	return fmt.Sprintf("%v", r)
+}
+
 // PassException is panicked when a handler calls "pass" to forward the
 // exception to the next outer handler.
 type PassException struct {

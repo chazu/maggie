@@ -71,7 +71,11 @@ func handleApiCommand(vmInst *vm.VM, args []string) int {
 		return 0
 	}
 
-	fmt.Printf("# Maggie API — %d classes. `mag api --json` for structured output, `mag api <Class>` for one class.\n\n", len(out))
+	plural := "classes"
+	if len(out) == 1 {
+		plural = "class"
+	}
+	fmt.Printf("# Maggie API — %d %s. `mag api --json` for structured output, `mag api <Class>` for one class.\n\n", len(out), plural)
 	for _, ac := range out {
 		header := ac.Name
 		if ac.Super != "" {

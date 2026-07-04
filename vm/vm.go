@@ -22,7 +22,7 @@ type VMConfig struct {
 	InitialStack    int           // Initial stack allocation (default: 2048)
 	InitialFrames   int           // Initial frame allocation (default: 512)
 	MailboxCapacity int           // Process mailbox capacity (default: 4096)
-	GCInterval      time.Duration // Registry GC sweep interval (default: 30s)
+	GCInterval      time.Duration // Registry GC sweep interval (default: 60s, see DefaultGCInterval)
 }
 
 // DefaultVMConfig returns the default VM configuration.
