@@ -68,12 +68,37 @@ an id↔object map; those become plain maps without the GC role.
 
 ## RESUME HERE (next session pick-up)
 
-**Status:** Stage 1 COMPLETE. Stage 2 COMPLETE — all ~33 heap types migrated to
-pointers across 13 commits (2a–2g). Branch `migrate/pointer-value`. `main`
-untouched — do NOT merge until the migration finishes. At every commit:
-`go test ./...` green, 1166 doctests pass, image rebuilds; vm `-race` clean at
-the String, Exception, Channel/Future, and RemoteChannel/NodeRef checkpoints.
-**Next up: Stage 3 — delete the custom GC.**
+**Status:** Stages 1, 2, and 3 COMPLETE. The custom collector is fully deleted;
+every heap object is now a Go-GC-traced pointer Value. Branch
+`migrate/pointer-value`, `main` untouched — do NOT merge until the migration
+finishes. At every commit: `go test ./...` green, 1166 doctests pass, image
+rebuilds; vm `-race` clean. **Next up: Stage 4 — re-run BenchmarkHotPath* vs the
+pre-migration baseline and update the spike doc; then Stage 5 (server
+per-request interpreters / retire VMWorker+Dispatch).**
+
+**Stage 3 (4 commits, 3a–3d):**
+- **3a WeakRef → Go-native** (`weak.Pointer[Object]` + `runtime.AddCleanup`
+  finalizers); pointer-carrying `kindWeakRef`. Deleted WeakRegistry / ProcessGC /
+  weakRefMarker / the id machinery.
+- **3b remove keepAlive** — objects are pointer Values, so the pin set + sweep
+  were vestigial; deleted KeepAlive/ReleaseKeepAlive/CollectGarbage and every
+  call site (incl. server/handles.go, which stores the Value already).
+- **3c Block → pointer + delete the custom collector.** kindBlock replaces the
+  slot+gen registry; deleted heap_gc.go, gc_safepoint.go, the interpreter
+  safepoint polling, enterBlocked/exitBlocked, PinRoot/pinnedRoots, gcEnabled/
+  MAGGIE_GC, and the ChannelObject `pending` GC mirror. RegistryGC survives as a
+  functional channel/process sweeper + OS scavenger. Net −1.8k lines.
+- **3d Context → pointer** (`kindContext`); SenderID/HomeID become
+  Sender/Home *ContextValue; deleted the Contexts registry + the last
+  AutoIDRegistry pressure hook (installHooks is now a no-op).
+
+**Still symbol-encoded (deliberate, final):** Process (`processMarker`, by-id
+monitor/link/exit construction; `processes` map is now a functional id resolver,
+no longer a GC root) and Character (immediate-style, real symbol tag).
+
+**Follow-up cleanup noted in 3d:** RegistryGC's now-unused pressure apparatus
+(`monitoredRegistry`, `onPressure`, growth/ceiling triggers, `WithRegistryThresholds`)
+can be simplified away — nothing sends TriggerGrowth/TriggerCeiling anymore.
 
 **MIGRATED to pointers (done, committed):** Object, Cell (stage 1); Result,
 BigInt, Exception, String, Dictionary, ArrayList, ClassValue, GoObject, Mutex,
