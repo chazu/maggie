@@ -206,8 +206,6 @@ func (gc *RegistryGC) installHooks() {
 		reg.SetPressureHook(func(liveSize int32) { gc.onPressure(mr, liveSize) })
 	}
 
-	// Dictionaries are among the most-allocated registry kinds still using ids.
-	add("dictionaries", 20_000, 200_000, or.Dictionaries)
 
 	// Contexts are the last remaining error-handling registry.
 	add("contexts", defaultGrowthThreshold, defaultAbsoluteCeiling, or.Contexts)

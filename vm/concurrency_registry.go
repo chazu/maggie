@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sync"
 	"sync/atomic"
+	"unsafe"
 )
 
 // concurrencyIDMax is the largest valid ID for any concurrency primitive whose
@@ -111,11 +112,6 @@ type ConcurrencyRegistry struct {
 	futuresMu sync.RWMutex
 	futureID  atomic.Int32
 
-	// ArrayList registry
-	arrayLists   map[int]*ArrayListObject
-	arrayListsMu sync.RWMutex
-	arrayListID  atomic.Int32
-
 	// Monitor ref ID counter
 	monitorRefID atomic.Uint64
 }
@@ -136,7 +132,6 @@ func NewConcurrencyRegistry() *ConcurrencyRegistry {
 		blocks:               make([]*BlockValue, 0, 256),
 		blockSlotGen:         make([]uint16, 0, 256),
 		futures:              make(map[int]*FutureObject),
-		arrayLists:           make(map[int]*ArrayListObject),
 	}
 	// Start IDs at 1 (0 could be confused with nil/uninitialized)
 	cr.channelID.Store(1)
@@ -147,7 +142,6 @@ func NewConcurrencyRegistry() *ConcurrencyRegistry {
 	cr.cancellationContextID.Store(1)
 	cr.blockID.Store(1)
 	cr.futureID.Store(1)
-	cr.arrayListID.Store(1)
 	cr.monitorRefID.Store(1)
 	return cr
 }
@@ -597,26 +591,6 @@ func (cr *ConcurrencyRegistry) SweepBlocksLive(live map[uint32]struct{}) int {
 	return swept
 }
 
-// SweepArrayListsLive removes array-list entries whose ids are not in the
-// live set. An ArrayListObject is reachable only through the traced object
-// graph (it is never enumerated as a root), so an id absent from the live set
-// is unreachable and safe to drop — the same invariant that makes string and
-// dictionary sweeping safe. The caller MUST run under stop-the-world.
-// Returns the number of array-lists freed.
-func (cr *ConcurrencyRegistry) SweepArrayListsLive(live map[int]struct{}) int {
-	cr.arrayListsMu.Lock()
-	defer cr.arrayListsMu.Unlock()
-
-	swept := 0
-	for id := range cr.arrayLists {
-		if _, ok := live[id]; ok {
-			continue
-		}
-		delete(cr.arrayLists, id)
-		swept++
-	}
-	return swept
-}
 
 // BlockCount returns the number of live (non-nil) registered blocks.
 func (cr *ConcurrencyRegistry) BlockCount() int {
@@ -699,37 +673,19 @@ func (cr *ConcurrencyRegistry) SweepFutures() int {
 // ArrayList Registry Methods
 // ---------------------------------------------------------------------------
 
-// RegisterArrayList adds an array list to the registry and returns its Value.
+// RegisterArrayList wraps an array list in a heap Value traced by the Go GC.
+// The (Value, error) signature is retained for call-site compatibility; there
+// is no longer an id space to exhaust, so err is always nil.
 func (cr *ConcurrencyRegistry) RegisterArrayList(al *ArrayListObject) (Value, error) {
-	id, err := allocConcurrencyID(&cr.arrayListID, "arrayList")
-	if err != nil {
-		return Nil, err
-	}
-
-	cr.arrayListsMu.Lock()
-	cr.arrayLists[id] = al
-	cr.arrayListsMu.Unlock()
-
-	return arrayListToValue(id), nil
+	return makeHeap(kindArrayList, unsafe.Pointer(al)), nil
 }
 
-// GetArrayList retrieves an array list by its Value.
+// GetArrayList retrieves an array list from its Value.
 func (cr *ConcurrencyRegistry) GetArrayList(v Value) *ArrayListObject {
 	if !isArrayListValue(v) {
 		return nil
 	}
-	id := int(markedIDFromValue(v))
-
-	cr.arrayListsMu.RLock()
-	defer cr.arrayListsMu.RUnlock()
-	return cr.arrayLists[id]
-}
-
-// ArrayListCount returns the number of registered array lists.
-func (cr *ConcurrencyRegistry) ArrayListCount() int {
-	cr.arrayListsMu.RLock()
-	defer cr.arrayListsMu.RUnlock()
-	return len(cr.arrayLists)
+	return (*ArrayListObject)(v.ptr)
 }
 
 // Stats returns counts of all registered objects.
@@ -743,6 +699,5 @@ func (cr *ConcurrencyRegistry) Stats() map[string]int {
 		"cancellationContexts": cr.CancellationContextCount(),
 		"blocks":               cr.BlockCount(),
 		"futures":              cr.FutureCount(),
-		"arrayLists":           cr.ArrayListCount(),
 	}
 }

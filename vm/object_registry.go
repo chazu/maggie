@@ -23,7 +23,6 @@ type ObjectRegistry struct {
 	// Core VM registries (AutoIDRegistry-backed). Exported so callers can
 	// use Register/Get/Delete directly without delegation methods.
 	Contexts         *AutoIDRegistry[*ContextValue]
-	Dictionaries     *AutoIDRegistry[*DictionaryObject]
 	GoObjects        *AutoIDRegistry[*GoObjectWrapper]
 	ClassValues      *AutoIDRegistry[*Class]
 
@@ -47,10 +46,6 @@ func NewObjectRegistry() *ObjectRegistry {
 
 		// Start IDs at 1 unless otherwise noted (0 = nil/uninitialized)
 		Contexts:         NewAutoIDRegistry[*ContextValue](1, WithName("contexts")),
-		// strings and dictionaries don't carry a marker byte — they use the
-		// high bit(s) of the symbol payload as their discriminator. Strings
-		// occupy [0x80000000, 0xC0000000), dictionaries [0xC0000000, 0xFFFFFFFF].
-		Dictionaries:     NewAutoIDRegistry[*DictionaryObject](dictionaryIDOffset, WithMaxID(0xFFFFFFFF), WithName("dictionaries")),
 		GoObjects:        NewAutoIDRegistry[*GoObjectWrapper](0, WithName("goObjects")),
 		// ClassValues is monotonic: *Class caches its assigned classValueID,
 		// so reusing an ID would create a stale cache on the prior owner.
@@ -141,32 +136,22 @@ func (or *ObjectRegistry) UnregisterContextValue(v Value) {
 // Dictionary Registry Methods (delegates to AutoIDRegistry)
 // ---------------------------------------------------------------------------
 
-func (or *ObjectRegistry) RegisterDictionary(d *DictionaryObject) uint32 { return or.Dictionaries.Register(d) }
-func (or *ObjectRegistry) GetDictionary(id uint32) *DictionaryObject     { return or.Dictionaries.Get(id) }
-func (or *ObjectRegistry) UnregisterDictionary(id uint32)                { or.Dictionaries.Delete(id) }
-func (or *ObjectRegistry) DictionaryCount() int                          { return or.Dictionaries.Count() }
-
-// NewDictionaryValue creates a new empty dictionary Value, registered in the registry.
+// NewDictionaryValue creates a new empty dictionary heap Value.
 func (or *ObjectRegistry) NewDictionaryValue() Value {
 	obj := &DictionaryObject{
 		Data: make(map[uint64]Value),
 		Keys: make(map[uint64]Value),
 	}
-	id := or.RegisterDictionary(obj)
-	return FromSymbolID(id)
+	return makeHeap(kindDictionary, unsafe.Pointer(obj))
 }
 
 // GetDictionaryObject returns the DictionaryObject for a Value.
 // Returns nil if v is not a dictionary.
 func (or *ObjectRegistry) GetDictionaryObject(v Value) *DictionaryObject {
-	if !v.IsSymbolEncoded() {
+	if !IsDictionaryValue(v) {
 		return nil
 	}
-	id := v.SymbolID()
-	if id < dictionaryIDOffset {
-		return nil
-	}
-	return or.GetDictionary(id)
+	return (*DictionaryObject)(v.ptr)
 }
 
 // ---------------------------------------------------------------------------
@@ -403,7 +388,6 @@ func (or *ObjectRegistry) FullStats() map[string]int {
 		stats[k] = v
 	}
 	stats["contexts"] = or.ContextCount()
-	stats["dictionaries"] = or.DictionaryCount()
 	stats["cells"] = or.CellCount()
 	stats["classVarClasses"] = or.ClassVarCount()
 	stats["goObjects"] = or.GoObjectCount()

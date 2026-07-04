@@ -147,6 +147,8 @@ func (s *valueSerializer) serializeHeap(v Value) ([]byte, error) {
 		return s.serializeObject(v)
 	case kindString:
 		return cborSerialEncMode.Marshal(s.vm.registry.GetStringContent(v))
+	case kindDictionary:
+		return s.serializeDictionary(v)
 	case kindBigInt:
 		bi := s.vm.registry.GetBigInt(v)
 		if bi == nil {
@@ -157,6 +159,8 @@ func (s *valueSerializer) serializeHeap(v Value) ([]byte, error) {
 		return s.serializeException(v)
 	case kindResult:
 		return nil, fmt.Errorf("serial: cannot serialize Result (non-serializable type)")
+	case kindArrayList:
+		return nil, fmt.Errorf("serial: cannot serialize ArrayList (non-serializable type)")
 	case kindCell:
 		return nil, fmt.Errorf("serial: cannot serialize Cell (non-serializable type)")
 	default:
@@ -172,10 +176,6 @@ func (s *valueSerializer) serializeSymbolEncoded(v Value) ([]byte, error) {
 	if IsCharacterValue(v) {
 		cp := GetCharacterCodePoint(v)
 		return cborSerialEncMode.Marshal(cbor.Tag{Number: cborTagCharacter, Content: uint32(cp)})
-	}
-
-	if IsDictionaryValue(v) {
-		return s.serializeDictionary(v)
 	}
 
 	// Try contrib plugin serialization hooks
@@ -203,8 +203,6 @@ func (s *valueSerializer) serializeSymbolEncoded(v Value) ([]byte, error) {
 		return nil, fmt.Errorf("serial: cannot serialize CancellationContext (non-serializable type)")
 	case goObjectMarker:
 		return nil, fmt.Errorf("serial: cannot serialize GoObject (non-serializable type)")
-	case arrayListMarker:
-		return nil, fmt.Errorf("serial: cannot serialize ArrayList (non-serializable type)")
 	}
 
 	// Regular symbol (interned name)

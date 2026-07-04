@@ -614,9 +614,6 @@ func (vm *VM) registerSymbolDispatch() {
 	sd.Register(semaphoreMarker, &SymbolTypeEntry{Class: vm.SemaphoreClass})
 	sd.Register(cancellationContextMarker, &SymbolTypeEntry{Class: vm.CancellationContextClass})
 
-	// ArrayList
-	sd.Register(arrayListMarker, &SymbolTypeEntry{Class: vm.ArrayListClass})
-
 	// gRPC symbol dispatch is registered by the gRPC contrib plugin.
 
 	// Weak references
@@ -1014,6 +1011,10 @@ func (vm *VM) classForHeap(v Value) *Class {
 		return vm.FailureClass
 	case kindString:
 		return vm.StringClass
+	case kindDictionary:
+		return vm.DictionaryClass
+	case kindArrayList:
+		return vm.ArrayListClass
 	case kindBigInt:
 		return vm.BigIntegerClass
 	case kindException:

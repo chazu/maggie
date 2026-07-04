@@ -141,28 +141,6 @@ func TestHeapGC_KeepsMethodLiteralString(t *testing.T) {
 	stringStillThere(t, vm, s, probe(6))
 }
 
-func TestHeapGC_FreesOrphanDict(t *testing.T) {
-	// The SSE-leak scenario: a dictionary that holds a big string is built,
-	// used transiently, and dropped (never stored in any root). The dict must
-	// be reclaimed by the custom collector; its string is now reclaimed by the
-	// Go GC once the dict is gone.
-	vm := NewVM()
-	baseDict := vm.registry.DictionaryCount()
-	const n = 2000
-	for i := 0; i < n; i++ {
-		dv := vm.registry.NewDictionaryValue()
-		d := vm.registry.GetDictionaryObject(dv)
-		d.Data[1] = vm.registry.NewStringValue(probe(1000 + i))
-		// dv discarded — unreachable
-	}
-	_, freedDict, _ := vm.collectHeapGarbageLocked()
-	if freedDict < n {
-		t.Fatalf("orphan dicts not reclaimed: freed %d want >= %d", freedDict, n)
-	}
-	if vm.registry.DictionaryCount() > baseDict+10 {
-		t.Fatalf("dicts leaked: base=%d after=%d", baseDict, vm.registry.DictionaryCount())
-	}
-}
 
 func TestHeapGC_NoCorruptionMixed(t *testing.T) {
 	vm := NewVM()

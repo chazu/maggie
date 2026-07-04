@@ -65,9 +65,6 @@ const (
 	// Distributed channels
 	remoteChannelMarker         uint32 = 55 << 24
 
-	// Growable array (ArrayList)
-	arrayListMarker             uint32 = 56 << 24
-
 	// SSE (Server-Sent Events) connection
 	sseConnectionMarker         uint32 = 57 << 24
 

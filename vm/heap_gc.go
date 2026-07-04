@@ -50,8 +50,8 @@ type RootMarker interface {
 // liveSet accumulates the reachable ids/pointers for one collection cycle.
 type liveSet struct {
 	objects    map[*Object]struct{}
-	dicts      map[uint32]struct{}
-	arrayLists map[int]struct{}
+	dicts      map[Value]struct{} // visited dicts (cycle guard; not swept)
+	arrayLists map[Value]struct{} // visited array-lists (cycle guard; not swept)
 	cells      map[*Cell]struct{}
 	blocks     map[uint32]struct{} // reachable block slot ids
 }
@@ -59,8 +59,8 @@ type liveSet struct {
 func newLiveSet() *liveSet {
 	return &liveSet{
 		objects:    make(map[*Object]struct{}),
-		dicts:      make(map[uint32]struct{}),
-		arrayLists: make(map[int]struct{}),
+		dicts:      make(map[Value]struct{}),
+		arrayLists: make(map[Value]struct{}),
 		cells:      make(map[*Cell]struct{}),
 		blocks:     make(map[uint32]struct{}),
 	}
@@ -93,29 +93,38 @@ func (vm *VM) mark(root Value, ls *liveSet) {
 			}
 
 		case IsDictionaryValue(v):
-			id := v.SymbolID()
-			if _, seen := ls.dicts[id]; seen {
+			// Dictionaries are Go-GC-traced pointers now; the custom collector
+			// only recurses through them so blocks stored as keys/values stay
+			// reachable. A per-cycle visited check is unnecessary since dicts are
+			// no longer swept, but cheap identity guards avoid infinite loops on
+			// self-referential dicts.
+			d := vm.registry.GetDictionaryObject(v)
+			if d == nil {
 				continue
 			}
-			ls.dicts[id] = struct{}{}
-			if d := vm.registry.GetDictionaryObject(v); d != nil {
-				for _, k := range d.Keys {
-					work = append(work, k)
-				}
-				for _, val := range d.Data {
-					work = append(work, val)
-				}
+			if _, seen := ls.dicts[v]; seen {
+				continue
+			}
+			ls.dicts[v] = struct{}{}
+			for _, k := range d.Keys {
+				work = append(work, k)
+			}
+			for _, val := range d.Data {
+				work = append(work, val)
 			}
 
 		case isArrayListValue(v):
-			id := int(markedIDFromValue(v))
-			if _, seen := ls.arrayLists[id]; seen {
+			// Pointer-traced by the Go GC; recurse so blocks stored as elements
+			// stay reachable for the block sweep.
+			al := vm.registry.GetArrayList(v)
+			if al == nil {
 				continue
 			}
-			ls.arrayLists[id] = struct{}{}
-			if al := vm.registry.GetArrayList(v); al != nil {
-				work = append(work, al.elements...)
+			if _, seen := ls.arrayLists[v]; seen {
+				continue
 			}
+			ls.arrayLists[v] = struct{}{}
+			work = append(work, al.elements...)
 
 		case v.IsCell():
 			cell := v.CellPtr()
@@ -448,12 +457,8 @@ func (vm *VM) collectHeapGarbageLocked() (strings, dicts, blocks int) {
 	ls := newLiveSet()
 	vm.markRoots(ls)
 
-	// Strings are pointer-carrying heap Values traced by the Go GC — no custom
-	// sweep needed; `strings` stays 0.
-	dicts = vm.registry.Dictionaries.Sweep(func(id uint32, _ *DictionaryObject) bool {
-		_, live := ls.dicts[id]
-		return live
-	})
+	// Strings and dictionaries are pointer-carrying heap Values traced by the Go
+	// GC — no custom sweep needed; `strings`/`dicts` stay 0.
 	blocks = vm.registry.SweepBlocksLive(ls.blocks)
 
 	// Object graph holders: reachable only through the trace, so unreachable
@@ -463,6 +468,5 @@ func (vm *VM) collectHeapGarbageLocked() (strings, dicts, blocks int) {
 		vm.weakRefs.ProcessGC(ls.objects)
 	}
 	vm.sweepKeepAliveLive(ls.objects)
-	vm.registry.SweepArrayListsLive(ls.arrayLists)
 	return strings, dicts, blocks
 }
