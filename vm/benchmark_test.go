@@ -804,6 +804,30 @@ func BenchmarkPolymorphicDispatch(b *testing.B) {
 // These benchmarks target the 10 critical VM hot paths for regression detection.
 
 // BenchmarkHotPath_UnaryDispatch measures unary message dispatch through VM.Send
+// BenchmarkHotPath_BlockBodyUnarySend measures a *general* unary send that
+// originates inside a block body (`[:x | x yourself]`). This is the path the
+// per-block inline cache accelerates — before it, every send inside do:/
+// collect:/select:/ifTrue: bodies fell through to a full vtable lookup.
+// (Arithmetic like `x + 1` uses inlined OpSend* opcodes and never reaches
+// here, which is why the arithmetic loop benchmarks are unaffected.)
+func BenchmarkHotPath_BlockBodyUnarySend(b *testing.B) {
+	vm := benchmarkVM()
+	yourselfID := vm.Selectors.Intern("yourself")
+
+	bb := NewBytecodeBuilder()
+	bb.EmitByte(OpPushTemp, 0)                 // push arg x
+	bb.EmitSend(OpSend, uint16(yourselfID), 0) // x yourself
+	bb.Emit(OpBlockReturn)
+	block := &BlockMethod{Arity: 1, NumTemps: 1, Bytecode: bb.Bytes()}
+	blockVal := vm.interpreter.createBlockValue(block, nil)
+	arg := []Value{FromSmallInt(42)}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		vm.Send(blockVal, "value:", arg)
+	}
+}
+
 func BenchmarkHotPath_UnaryDispatch(b *testing.B) {
 	vm := benchmarkVM()
 	obj := FromSmallInt(42)
