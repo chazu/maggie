@@ -500,3 +500,23 @@ GC sweep, security, consistency, GC-perf/tests, CI/fuzz.
   (string-helper unification 3.6, `prim` prefix 3.7, lib docstring backfill).
 - **Concurrency ID recycling (H8/H9)** — slot+generation scheme for
   channels/processes/futures.
+
+### Deferred with a note (from the final vision-review pass, 2026-07-04)
+These two LOW items were confirmed deferrable by a fresh adversarial review
+(neither is must-fix); recorded so they aren't lost:
+- **Un-bootstrapped server test VM** — `server/test_helpers_test.go` builds the
+  shared test VM with `vm.NewVM()` and never loads the embedded image, so server
+  tests only exercise Go primitives, not lib selectors. Test-quality only (no
+  user impact); loading the image in `TestMain` risks perturbing existing server
+  tests. The exception-rendering regression test correctly uses a DNU, which
+  works on the bare VM.
+- **HTTP-fork restriction residual** — `vm/http_primitives.go:450` forks HTTP
+  handlers with `newForkedInterpreter(nil)`, so a `forkRestricted:` process that
+  registers routes gets an unrestricted handler goroutine. Exotic threat model;
+  the fix needs the registrant's `hidden` captured at route-registration time.
+
+**Adversarial vision-review outcome:** after the fix sweep + two measurement
+spikes, a fresh adversarial review against the "fast/convenient/accessible/live/
+agent-friendly/leverages-Go" vision returned **no tractable objections** — all
+remaining items are the deferred architectural decisions (Value representation,
+server parallelism, liveness), now backed by the spikes under docs/spikes/.
