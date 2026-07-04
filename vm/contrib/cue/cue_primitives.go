@@ -21,35 +21,19 @@ type CueContextObject struct {
 	ctx *cuelang.Context
 }
 
-func cueContextToValue(id uint32) vm.Value {
-	return vm.MarkedToValue(vm.CueContextMarker, id)
-}
-
 func isCueContextValue(v vm.Value) bool {
-	if !v.IsSymbolEncoded() {
-		return false
-	}
-	return (v.SymbolID() & vm.MarkerMask) == vm.CueContextMarker
-}
-
-func cueContextIDFromValue(v vm.Value) uint32 {
-	return vm.MarkedIDFromValue(v)
+	return vm.IsExtensionValue(v, vm.CueContextMarker)
 }
 
 func vmGetCueContext(vmPtr *vm.VM, v vm.Value) *CueContextObject {
-	if !isCueContextValue(v) {
-		return nil
+	if o := vm.ExtensionObject(v, vm.CueContextMarker); o != nil {
+		return o.(*CueContextObject)
 	}
-	obj := vmPtr.Registry().ExtensionRegistry(vm.CueContextMarker).Get(cueContextIDFromValue(v))
-	if obj == nil {
-		return nil
-	}
-	return obj.(*CueContextObject)
+	return nil
 }
 
 func vmRegisterCueContext(vmPtr *vm.VM, c *CueContextObject) vm.Value {
-	id := vmPtr.Registry().ExtensionRegistry(vm.CueContextMarker).Register(c)
-	return cueContextToValue(id)
+	return vm.NewExtensionValue(vm.CueContextMarker, c)
 }
 
 // ---------------------------------------------------------------------------
@@ -60,35 +44,19 @@ type CueValueObject struct {
 	val cuelang.Value
 }
 
-func cueValueToValue(id uint32) vm.Value {
-	return vm.MarkedToValue(vm.CueValueMarker, id)
-}
-
 func isCueValueValue(v vm.Value) bool {
-	if !v.IsSymbolEncoded() {
-		return false
-	}
-	return (v.SymbolID() & vm.MarkerMask) == vm.CueValueMarker
-}
-
-func cueValueIDFromValue(v vm.Value) uint32 {
-	return vm.MarkedIDFromValue(v)
+	return vm.IsExtensionValue(v, vm.CueValueMarker)
 }
 
 func vmGetCueValue(vmPtr *vm.VM, v vm.Value) *CueValueObject {
-	if !isCueValueValue(v) {
-		return nil
+	if o := vm.ExtensionObject(v, vm.CueValueMarker); o != nil {
+		return o.(*CueValueObject)
 	}
-	obj := vmPtr.Registry().ExtensionRegistry(vm.CueValueMarker).Get(cueValueIDFromValue(v))
-	if obj == nil {
-		return nil
-	}
-	return obj.(*CueValueObject)
+	return nil
 }
 
 func vmRegisterCueValue(vmPtr *vm.VM, c *CueValueObject) vm.Value {
-	id := vmPtr.Registry().ExtensionRegistry(vm.CueValueMarker).Register(c)
-	return cueValueToValue(id)
+	return vm.NewExtensionValue(vm.CueValueMarker, c)
 }
 
 // ---------------------------------------------------------------------------

@@ -1,7 +1,6 @@
 package vm
 
 import (
-	"fmt"
 	"sync"
 	"sync/atomic"
 	"unsafe"
@@ -29,10 +28,6 @@ type ObjectRegistry struct {
 	weakRefCounter atomic.Uint32       // counter only
 	classVars      map[*Class]map[string]Value // nested map
 	classVarsMu    sync.RWMutex
-
-	// Extension registries for contrib plugins (keyed by marker constant)
-	extensions   map[uint32]*AutoIDRegistry[any]
-	extensionsMu sync.RWMutex
 }
 
 // NewObjectRegistry creates a new ObjectRegistry with all maps initialized.
@@ -43,9 +38,8 @@ func NewObjectRegistry() *ObjectRegistry {
 		// Start IDs at 1 unless otherwise noted (0 = nil/uninitialized)
 		Contexts:         NewAutoIDRegistry[*ContextValue](1, WithName("contexts")),
 
-		cells:      make(map[*Cell]struct{}),
-		classVars:  make(map[*Class]map[string]Value),
-		extensions: make(map[uint32]*AutoIDRegistry[any]),
+		cells:     make(map[*Cell]struct{}),
+		classVars: make(map[*Class]map[string]Value),
 	}
 
 	return or
@@ -314,40 +308,6 @@ func (or *ObjectRegistry) GetClassFromValue(v Value) *Class {
 }
 
 // ---------------------------------------------------------------------------
-// Extension Registry Methods (for contrib plugins)
-// ---------------------------------------------------------------------------
-
-// ExtensionRegistry returns (or lazily creates) a generic AutoIDRegistry for
-// the given marker. Contrib plugins use this to store their custom types.
-func (or *ObjectRegistry) ExtensionRegistry(marker uint32) *AutoIDRegistry[any] {
-	or.extensionsMu.RLock()
-	reg := or.extensions[marker]
-	or.extensionsMu.RUnlock()
-	if reg != nil {
-		return reg
-	}
-	or.extensionsMu.Lock()
-	defer or.extensionsMu.Unlock()
-	if reg = or.extensions[marker]; reg != nil {
-		return reg
-	}
-	reg = NewAutoIDRegistry[any](1)
-	or.extensions[marker] = reg
-	return reg
-}
-
-// ExtensionStats returns counts for all extension registries.
-func (or *ObjectRegistry) ExtensionStats() map[uint32]int {
-	or.extensionsMu.RLock()
-	defer or.extensionsMu.RUnlock()
-	stats := make(map[uint32]int, len(or.extensions))
-	for marker, reg := range or.extensions {
-		stats[marker] = reg.Count()
-	}
-	return stats
-}
-
-// ---------------------------------------------------------------------------
 // Extended Stats
 // ---------------------------------------------------------------------------
 
@@ -357,8 +317,5 @@ func (or *ObjectRegistry) FullStats() map[string]int {
 	stats["contexts"] = or.ContextCount()
 	stats["cells"] = or.CellCount()
 	stats["classVarClasses"] = or.ClassVarCount()
-	for marker, count := range or.ExtensionStats() {
-		stats[fmt.Sprintf("ext_%d", marker>>24)] = count
-	}
 	return stats
 }

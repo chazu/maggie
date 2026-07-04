@@ -69,35 +69,19 @@ type tupleWaiter struct {
 
 // NaN-boxing helpers for TupleSpace values.
 
-func tupleSpaceToValue(id uint32) vm.Value {
-	return vm.MarkedToValue(vm.TupleSpaceMarker, id)
-}
-
 func isTupleSpaceValue(v vm.Value) bool {
-	if !v.IsSymbolEncoded() {
-		return false
-	}
-	return (v.SymbolID() & vm.MarkerMask) == vm.TupleSpaceMarker
-}
-
-func tupleSpaceIDFromValue(v vm.Value) uint32 {
-	return vm.MarkedIDFromValue(v)
+	return vm.IsExtensionValue(v, vm.TupleSpaceMarker)
 }
 
 func vmGetTupleSpace(v *vm.VM, val vm.Value) *TupleSpaceObject {
-	if !isTupleSpaceValue(val) {
-		return nil
+	if o := vm.ExtensionObject(val, vm.TupleSpaceMarker); o != nil {
+		return o.(*TupleSpaceObject)
 	}
-	entry := v.Registry().ExtensionRegistry(vm.TupleSpaceMarker).Get(tupleSpaceIDFromValue(val))
-	if entry == nil {
-		return nil
-	}
-	return entry.(*TupleSpaceObject)
+	return nil
 }
 
 func vmRegisterTupleSpace(v *vm.VM, ts *TupleSpaceObject) vm.Value {
-	id := v.Registry().ExtensionRegistry(vm.TupleSpaceMarker).Register(ts)
-	return tupleSpaceToValue(id)
+	return vm.NewExtensionValue(vm.TupleSpaceMarker, ts)
 }
 
 // matchTuple checks if a tuple matches a CUE template using unification.

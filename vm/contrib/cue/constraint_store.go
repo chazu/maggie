@@ -69,32 +69,19 @@ func (cs *ConstraintStoreObject) isConsistent() bool {
 	return cs.store.Validate() == nil
 }
 
-func constraintStoreToValue(id uint32) vm.Value {
-	return vm.MarkedToValue(vm.ConstraintStoreMarker, id)
-}
-
 func isConstraintStoreValue(v vm.Value) bool {
-	return vm.IsMarkedValue(vm.ConstraintStoreMarker, v)
-}
-
-func constraintStoreIDFromValue(v vm.Value) uint32 {
-	return vm.MarkedIDFromValue(v)
+	return vm.IsExtensionValue(v, vm.ConstraintStoreMarker)
 }
 
 func vmGetConstraintStore(v *vm.VM, val vm.Value) *ConstraintStoreObject {
-	if !isConstraintStoreValue(val) {
-		return nil
+	if o := vm.ExtensionObject(val, vm.ConstraintStoreMarker); o != nil {
+		return o.(*ConstraintStoreObject)
 	}
-	obj := v.Registry().ExtensionRegistry(vm.ConstraintStoreMarker).Get(constraintStoreIDFromValue(val))
-	if obj == nil {
-		return nil
-	}
-	return obj.(*ConstraintStoreObject)
+	return nil
 }
 
 func vmRegisterConstraintStore(v *vm.VM, cs *ConstraintStoreObject) vm.Value {
-	id := v.Registry().ExtensionRegistry(vm.ConstraintStoreMarker).Register(cs)
-	return constraintStoreToValue(id)
+	return vm.NewExtensionValue(vm.ConstraintStoreMarker, cs)
 }
 
 func registerConstraintStorePrimitives(v *vm.VM) {

@@ -37,12 +37,12 @@ package vm
 // (captures + home self), cells, contexts, results, exceptions, and extension
 // objects that implement RootMarker (e.g. TupleSpace).
 
-// RootMarker is implemented by extension-registry objects that retain Maggie
+// RootMarker is implemented by kindExtension wrapper objects that retain Maggie
 // Values the tracing collector cannot otherwise reach through the object graph
 // (e.g. a TupleSpace holding tuples in a contrib package the vm package cannot
-// import). The collector calls MarkRoots for every such object during
-// stop-the-world; implementations MUST enumerate every retained Value, or the
-// collector will free values that are still live and later alias their ids.
+// import). When mark() reaches such a wrapper via the normal roots it calls
+// MarkRoots; implementations MUST enumerate every retained Value, or the
+// collector will free values that are still live.
 type RootMarker interface {
 	MarkRoots(mark func(Value))
 }
@@ -54,6 +54,7 @@ type liveSet struct {
 	arrayLists map[Value]struct{} // visited array-lists (cycle guard; not swept)
 	cells      map[*Cell]struct{}
 	blocks     map[uint32]struct{} // reachable block slot ids
+	extensions map[*extensionObject]struct{} // visited RootMarker wrappers (cycle guard)
 }
 
 func newLiveSet() *liveSet {
@@ -63,6 +64,7 @@ func newLiveSet() *liveSet {
 		arrayLists: make(map[Value]struct{}),
 		cells:      make(map[*Cell]struct{}),
 		blocks:     make(map[uint32]struct{}),
+		extensions: make(map[*extensionObject]struct{}),
 	}
 }
 
@@ -163,6 +165,23 @@ func (vm *VM) mark(root Value, ls *liveSet) {
 			work = append(work, bv.HomeSelf)
 			if bv.Block != nil {
 				work = append(work, bv.Block.Literals...)
+			}
+
+		case v.isHeap() && v.heapKindOf() == kindExtension:
+			// Extension wrappers (e.g. TupleSpace) may retain Maggie Values the
+			// object graph cannot otherwise reach — a contrib object the vm
+			// package cannot import. If the wrapped object implements RootMarker,
+			// enqueue its retained Values so strings/blocks inside stay live.
+			e := v.extensionObjectOf()
+			if e == nil {
+				continue
+			}
+			if _, seen := ls.extensions[e]; seen {
+				continue
+			}
+			ls.extensions[e] = struct{}{}
+			if rm, ok := e.obj.(RootMarker); ok {
+				rm.MarkRoots(func(mv Value) { work = append(work, mv) })
 			}
 
 			// Symbols, small ints, floats, characters, booleans, nil, classes,
@@ -330,28 +349,10 @@ func (vm *VM) markRoots(ls *liveSet) {
 	}
 	vm.registry.channelsMu.RUnlock()
 
-	// 14. Extension-registry objects (contrib: TupleSpace, …) that retain
-	//     Maggie Values the trace cannot reach through the object graph. Each
-	//     such object implements RootMarker; its retained Values are roots.
-	//     Snapshot the registry pointers under the lock, then enumerate outside
-	//     it so MarkRoots callbacks cannot re-enter extension mutation under the
-	//     same lock.
-	vm.registry.extensionsMu.RLock()
-	extRegs := make([]*AutoIDRegistry[any], 0, len(vm.registry.extensions))
-	for _, reg := range vm.registry.extensions {
-		if reg != nil {
-			extRegs = append(extRegs, reg)
-		}
-	}
-	vm.registry.extensionsMu.RUnlock()
-	markFn := func(v Value) { vm.mark(v, ls) }
-	for _, reg := range extRegs {
-		reg.Range(func(_ uint32, item any) {
-			if rm, ok := item.(RootMarker); ok {
-				rm.MarkRoots(markFn)
-			}
-		})
-	}
+	// Extension wrappers (contrib: TupleSpace, …) that retain Maggie Values the
+	// trace cannot otherwise reach are no longer enumerated from a registry: they
+	// are pointer-carrying kindExtension Values, so mark() reaches them through
+	// the normal roots (globals/ivars/stack) and calls their RootMarker there.
 }
 
 // markInterpreter marks the live roots held by one interpreter: operand-stack
