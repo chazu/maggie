@@ -454,3 +454,49 @@ binary on PATH is a different tool (a data-lake CLI) with no `observe`
 subcommand (verified: `unknown command "observe" for "pudl"`). Every review pass
 independently hit this. The instruction is currently unsatisfiable and should be
 corrected or the tool updated.
+
+---
+
+## Remediation Status (updated during the fix sweep)
+
+Work landed on branch `cleanup/delete-dead-code`. Commits: dead-code deletion,
+GC sweep, security, consistency, GC-perf/tests, CI/fuzz.
+
+### Fixed
+- **Dead code**: AOT compiler and dead module-chunk path deleted; self-hosted
+  compiler shelved to `lib/shelved/` (−2,229 LoC Go, −3,186 shelved).
+- **GC leak (Tier 2 / C1, C2, H5)**: the tracing collector now sweeps keepAlive
+  objects, array-lists, and weak references; `CollectGarbage` uses the complete
+  root set; `RootMarker` + extension-root pass closes C4 for the persistent
+  tuple store. `SaveImageBytes` serialized with the collector; a pre-existing
+  `RegistryGC` data race fixed (`-race` clean).
+- **Security**: fork-restriction escape (#9) closed with inheritance in the fork
+  path + regression test; `mag --serve` no longer permissive — `server.New`
+  defaults to a secure trust store and the peer-facing `SyncService` is mounted
+  only via `WithSyncService` (closes the unauthenticated channel-RPC exposure);
+  `PermMessage` now enforced in `DeliverMessage` + regression test.
+- **Consistency**: `GoToValue` promotes large ints to BigInteger instead of
+  panicking; `ArrayList>>at:`/`at:put:` and `Dictionary>>at:put:` signal like
+  `Array`/`at:`; `reorderArgs` no longer drops `typecheck` flags.
+- **GC perf (M2)** scavenge rate-limited; **ID-space doc (H8/H9)** corrected.
+- **Tests/CI**: `source_update.go` tested; lib doctests now gate CI; fuzzing
+  widened to `vm/`+`vm/dist/` with new decoder targets (envelope/chunk/value/
+  spawn-block). `OpSendAt` divergence (3.5) resolved by shelving the emitter.
+
+### Deferred (need a larger change or a design decision)
+- **STW soundness for RPC/HTTP paths (C3, C4-RPC, H1, H2)** — the background
+  collector can still race non-registered goroutines that allocate/hold Values
+  (RPC handlers, HTTP forks) and blocking primitives that skip `enterBlocked`.
+  Pre-existing for strings/dicts; needs the allocate-black mechanism + treating
+  those goroutines as mutators. Highest-value deferred item.
+- **Registry sweeping for BigInt/Result/Context/Future/GoObject (H3/H4/H6/H7)** —
+  currently over-retained as roots (leak, not corruption). Futures need care
+  (resolved-but-unawaited lives only in the future).
+- **Content-hash drift bootstrap vs pipeline (3.1)** — route `cmd/bootstrap`
+  through `pipeline.CompileAll` + a golden hash test; image-rebuild risk.
+- **vm↔vm/dist cycle / triplicated envelope signing (4.3, 3.4)** — extract a
+  leaf `wire` package.
+- **`SyncService`/`cmd/mag` decomposition (4.5, 6)** and LOW consistency nits
+  (string-helper unification 3.6, `prim` prefix 3.7, lib docstring backfill).
+- **Concurrency ID recycling (H8/H9)** — slot+generation scheme for
+  channels/processes/futures.
