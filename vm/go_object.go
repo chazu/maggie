@@ -6,6 +6,7 @@ import (
 	"math/big"
 	"reflect"
 	"sync"
+	"unsafe"
 )
 
 // ---------------------------------------------------------------------------
@@ -97,46 +98,22 @@ func (r *GoTypeRegistry) Count() int {
 // GoObject Registry (in ObjectRegistry)
 // ---------------------------------------------------------------------------
 
-// RegisterGoObject stores a GoObjectWrapper and returns a symbol-encoded Value.
+// isGoObjectValue reports whether v is a heap GoObject wrapper.
+func isGoObjectValue(v Value) bool {
+	return v.ptr != nil && v.hi == kindGoObject
+}
+
+// RegisterGoObject wraps a GoObjectWrapper in a heap Value traced by the Go GC.
 func (or *ObjectRegistry) RegisterGoObject(obj *GoObjectWrapper) Value {
-	id := or.GoObjects.Register(obj)
-	return FromSymbolID(id | goObjectMarker)
+	return makeHeap(kindGoObject, unsafe.Pointer(obj))
 }
 
-// GetGoObject retrieves a GoObjectWrapper from a symbol-encoded Value.
+// GetGoObject retrieves a GoObjectWrapper from a Value.
 func (or *ObjectRegistry) GetGoObject(v Value) *GoObjectWrapper {
-	if !v.IsSymbolEncoded() {
+	if !isGoObjectValue(v) {
 		return nil
 	}
-	id := v.SymbolID()
-	if id&markerMask != goObjectMarker {
-		return nil
-	}
-	rawID := id & 0x00FFFFFF
-	return or.GoObjects.Get(rawID)
-}
-
-// GetGoObjectByID retrieves a GoObjectWrapper by raw registry ID.
-func (or *ObjectRegistry) GetGoObjectByID(id uint32) *GoObjectWrapper {
-	return or.GoObjects.Get(id)
-}
-
-// UnregisterGoObject removes a GoObject from the registry.
-func (or *ObjectRegistry) UnregisterGoObject(v Value) {
-	if !v.IsSymbolEncoded() {
-		return
-	}
-	id := v.SymbolID()
-	if id&markerMask != goObjectMarker {
-		return
-	}
-	rawID := id & 0x00FFFFFF
-	or.GoObjects.Delete(rawID)
-}
-
-// GoObjectCount returns the number of registered GoObjects.
-func (or *ObjectRegistry) GoObjectCount() int {
-	return or.GoObjects.Count()
+	return (*GoObjectWrapper)(v.ptr)
 }
 
 // ---------------------------------------------------------------------------

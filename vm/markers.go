@@ -27,12 +27,10 @@ const (
 	waitGroupMarker             uint32 = 33 << 24
 	semaphoreMarker             uint32 = 34 << 24
 	cancellationContextMarker   uint32 = 35 << 24
-	classValueMarker            uint32 = 36 << 24
 	characterMarker             uint32 = 37 << 24
 	httpServerMarker            uint32 = 38 << 24
 	httpRequestMarker           uint32 = 39 << 24
 	httpResponseMarker          uint32 = 40 << 24
-	goObjectMarker              uint32 = 41 << 24
 
 	// OS/exec
 	externalProcessMarker       uint32 = 45 << 24

@@ -107,13 +107,6 @@ type Class struct {
 	// In Smalltalk, every class X has a metaclass "X class" whose instances
 	// are class X itself. The metaclass's VTable delegates to X's ClassVTable.
 	Metaclass *Class
-
-	// Registry ID for class value encoding. 0 = not yet registered.
-	// Lazily assigned on first call to ObjectRegistry.RegisterClassValue;
-	// CAS guards against concurrent first-time registrations from
-	// multiple goroutines (the class-value registry is monotonic, so a
-	// CAS loser may leak its assignment, which is acceptable).
-	classValueID atomic.Uint32
 }
 
 // Method represents a compiled or primitive method.

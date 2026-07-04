@@ -4,30 +4,13 @@ package vm
 // Class Values: First-class NaN-boxed representation of Class objects
 // ---------------------------------------------------------------------------
 //
-// Class values use the symbol tag with a dedicated marker (36 << 24) to
-// distinguish them from regular symbols and other symbol-encoded values
-// (channels, processes, etc.).
-//
-// The lower 24 bits store the class's registration ID, which maps to a
-// *Class pointer in the VM-local class value registry (ObjectRegistry).
-
-// classToValue creates a Value from a class registry ID.
-func classToValue(id uint32) Value {
-	return markedToValue(classValueMarker, id)
-}
+// A class value is a pointer-carrying heap Value (kindClassValue) whose pointer
+// is the *Class itself — traced by the Go GC. Two class values for the same
+// class are pointer-identical, so they compare equal without an id registry.
 
 // isClassValue returns true if this value is a class value.
 func isClassValue(v Value) bool {
-	if !v.IsSymbolEncoded() {
-		return false
-	}
-	id := v.SymbolID()
-	return (id & markerMask) == classValueMarker
-}
-
-// classValueIDFromValue extracts the registry ID from a class value.
-func classValueIDFromValue(v Value) uint32 {
-	return markedIDFromValue(v)
+	return v.ptr != nil && v.hi == kindClassValue
 }
 
 // ---------------------------------------------------------------------------

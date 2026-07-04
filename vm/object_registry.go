@@ -23,8 +23,6 @@ type ObjectRegistry struct {
 	// Core VM registries (AutoIDRegistry-backed). Exported so callers can
 	// use Register/Get/Delete directly without delegation methods.
 	Contexts         *AutoIDRegistry[*ContextValue]
-	GoObjects        *AutoIDRegistry[*GoObjectWrapper]
-	ClassValues      *AutoIDRegistry[*Class]
 
 	// Special registries (not suitable for AutoIDRegistry)
 	cells          map[*Cell]struct{} // set semantics
@@ -46,12 +44,6 @@ func NewObjectRegistry() *ObjectRegistry {
 
 		// Start IDs at 1 unless otherwise noted (0 = nil/uninitialized)
 		Contexts:         NewAutoIDRegistry[*ContextValue](1, WithName("contexts")),
-		GoObjects:        NewAutoIDRegistry[*GoObjectWrapper](0, WithName("goObjects")),
-		// ClassValues is monotonic: *Class caches its assigned classValueID,
-		// so reusing an ID would create a stale cache on the prior owner.
-		// In practice ClassValues entries are never deleted, but we encode
-		// the invariant here so it can't regress.
-		ClassValues:      NewAutoIDRegistry[*Class](1, WithMonotonic(), WithName("classValues")),
 
 		cells:      make(map[*Cell]struct{}),
 		classVars:  make(map[*Class]map[string]Value),
@@ -304,43 +296,23 @@ func (or *ObjectRegistry) ClassVarCount() int {
 // Class Value Registry Methods
 // ---------------------------------------------------------------------------
 
-// RegisterClassValue registers a class and returns its NaN-boxed Value.
-// Idempotent — if the class already has a registered ID, the existing value
-// is returned without re-registering.
+// RegisterClassValue returns the class as a pointer-carrying heap Value. The
+// pointer is the *Class itself, so the result is idempotent (pointer-identical)
+// across calls without any id registry.
 func (or *ObjectRegistry) RegisterClassValue(c *Class) Value {
 	if c == nil {
 		return Nil
 	}
-
-	// Fast path: already registered.
-	if id := c.classValueID.Load(); id != 0 {
-		return classToValue(id)
-	}
-
-	// Slow path: register new. CAS guards against concurrent first-time
-	// registrations: the class-value registry is monotonic so a losing
-	// goroutine simply discards its (unreferenced) ID and adopts the
-	// winner's. This is preferable to a per-Class lock on a hot path.
-	id := or.ClassValues.Register(c)
-	if !c.classValueID.CompareAndSwap(0, id) {
-		id = c.classValueID.Load()
-	}
-	return classToValue(id)
+	return makeHeap(kindClassValue, unsafe.Pointer(c))
 }
 
 // GetClassFromValue extracts the *Class from a class value.
-// Returns nil if v is not a class value or the class is not found.
+// Returns nil if v is not a class value.
 func (or *ObjectRegistry) GetClassFromValue(v Value) *Class {
 	if !isClassValue(v) {
 		return nil
 	}
-	id := classValueIDFromValue(v)
-	return or.ClassValues.Get(id)
-}
-
-// ClassValueCount returns the number of registered class values.
-func (or *ObjectRegistry) ClassValueCount() int {
-	return or.ClassValues.Count()
+	return (*Class)(v.ptr)
 }
 
 // ---------------------------------------------------------------------------
@@ -390,8 +362,6 @@ func (or *ObjectRegistry) FullStats() map[string]int {
 	stats["contexts"] = or.ContextCount()
 	stats["cells"] = or.CellCount()
 	stats["classVarClasses"] = or.ClassVarCount()
-	stats["goObjects"] = or.GoObjectCount()
-	stats["classValues"] = or.ClassValueCount()
 	for marker, count := range or.ExtensionStats() {
 		stats[fmt.Sprintf("ext_%d", marker>>24)] = count
 	}

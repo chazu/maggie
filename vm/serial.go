@@ -161,6 +161,8 @@ func (s *valueSerializer) serializeHeap(v Value) ([]byte, error) {
 		return nil, fmt.Errorf("serial: cannot serialize Result (non-serializable type)")
 	case kindArrayList:
 		return nil, fmt.Errorf("serial: cannot serialize ArrayList (non-serializable type)")
+	case kindGoObject:
+		return nil, fmt.Errorf("serial: cannot serialize GoObject (non-serializable type)")
 	case kindCell:
 		return nil, fmt.Errorf("serial: cannot serialize Cell (non-serializable type)")
 	default:
@@ -201,8 +203,6 @@ func (s *valueSerializer) serializeSymbolEncoded(v Value) ([]byte, error) {
 		return nil, fmt.Errorf("serial: cannot serialize Semaphore (non-serializable type)")
 	case cancellationContextMarker:
 		return nil, fmt.Errorf("serial: cannot serialize CancellationContext (non-serializable type)")
-	case goObjectMarker:
-		return nil, fmt.Errorf("serial: cannot serialize GoObject (non-serializable type)")
 	}
 
 	// Regular symbol (interned name)

@@ -42,7 +42,6 @@ func TestCliMarkerUnique(t *testing.T) {
 	markers := map[string]uint32{
 		"channel":       channelMarker,
 		"process":       processMarker,
-		"goObject":      goObjectMarker,
 		"httpClient":    httpClientMarker,
 		"sseConnection": sseConnectionMarker,
 		"cliCommand":    cliCommandMarker,

@@ -622,34 +622,6 @@ func (vm *VM) registerSymbolDispatch() {
 	// Characters
 	sd.Register(characterMarker, &SymbolTypeEntry{Class: vm.CharacterClass})
 
-	// Class values — dispatch via ClassVTable
-	sd.Register(classValueMarker, &SymbolTypeEntry{
-		ClassSide: true,
-		Resolve: func(v Value, resolveVM *VM) (*Class, bool) {
-			if resolveVM != nil {
-				cls := resolveVM.registry.GetClassFromValue(v)
-				if cls != nil {
-					return cls, true
-				}
-			}
-			return nil, false
-		},
-	})
-
-	// GoObjects — resolve to the specific wrapped Go type's class
-	sd.Register(goObjectMarker, &SymbolTypeEntry{
-		Resolve: func(v Value, vmRef *VM) (*Class, bool) {
-			if vmRef == nil {
-				return nil, false
-			}
-			cls := vmRef.GoObjectClass(v)
-			if cls != nil {
-				return cls, true
-			}
-			return nil, false
-		},
-	})
-
 }
 
 // classValue returns a Value representing a class.
@@ -1015,6 +987,14 @@ func (vm *VM) classForHeap(v Value) *Class {
 		return vm.DictionaryClass
 	case kindArrayList:
 		return vm.ArrayListClass
+	case kindClassValue:
+		// The class OF a class value is that class's metaclass; the metaclass's
+		// instance-side VTable is the class's ClassVTable, so class-side sends
+		// dispatch correctly.
+		if c := (*Class)(v.ptr); c != nil {
+			return vm.MetaclassFor(c)
+		}
+		return vm.ObjectClass
 	case kindBigInt:
 		return vm.BigIntegerClass
 	case kindException:
@@ -1023,6 +1003,11 @@ func (vm *VM) classForHeap(v Value) *Class {
 			return ex.ExceptionClass
 		}
 		return vm.ExceptionClass
+	case kindGoObject:
+		if cls := vm.GoObjectClass(v); cls != nil {
+			return cls
+		}
+		return vm.ObjectClass
 	default:
 		return vm.ObjectClass
 	}
