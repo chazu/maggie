@@ -65,7 +65,7 @@ func reorderArgs(args []string) []string {
 		"build": true, "deps": true, "fmt": true, "new": true,
 		"wrap": true, "sync": true, "doc": true, "doctest": true,
 		"help": true, "lsp": true, "test": true, "run": true,
-		"typecheck": true,
+		"typecheck": true, "api": true,
 	}
 	// Known top-level flags that take a value argument
 	valueFlags := map[string]bool{
@@ -198,6 +198,8 @@ func run() (exitCode int) {
 	var docArgs []string
 	var syncArgs []string
 	var helpArgs []string
+	var apiArgs []string
+	var apiRequested bool
 	var typecheckArgs []string
 	if len(args) > 0 {
 		switch args[0] {
@@ -228,6 +230,9 @@ func run() (exitCode int) {
 			typecheckArgs = args[1:]
 		case "help":
 			helpArgs = args[1:]
+		case "api":
+			apiArgs = args[1:]
+			apiRequested = true
 		case "sync":
 			syncArgs = args[1:]
 		case "doc":
@@ -296,6 +301,9 @@ func run() (exitCode int) {
 	if typecheckArgs != nil && len(paths) > 0 && paths[0] == "typecheck" {
 		paths = nil // typecheck at start: no source paths
 	}
+	if apiRequested && len(paths) > 0 && paths[0] == "api" {
+		paths = nil // api at start: no source paths
+	}
 
 	var loadedManifest *manifest.Manifest
 	if len(paths) > 0 {
@@ -311,7 +319,7 @@ func run() (exitCode int) {
 		if *verbose && totalMethods > 0 {
 			fmt.Printf("Compiled %d methods\n", totalMethods)
 		}
-	} else if docMode != "" || syncArgs != nil || helpArgs != nil || *mainEntry != "" || *saveImagePath != "" {
+	} else if docMode != "" || syncArgs != nil || helpArgs != nil || apiRequested || *mainEntry != "" || *saveImagePath != "" {
 		// No paths but doc/doctest/main/save-image requested: try loading from maggie.toml
 		if m, _ := manifest.FindAndLoad("."); m != nil {
 			loadedManifest = m
@@ -402,6 +410,11 @@ func run() (exitCode int) {
 	if helpArgs != nil {
 		handleHelpCommand(vmInst, helpArgs)
 		return 0
+	}
+
+	// Handle api subcommand (compact machine-readable API index)
+	if apiRequested {
+		return handleApiCommand(vmInst, apiArgs)
 	}
 
 	// Handle typecheck subcommand (after VM initialized)
