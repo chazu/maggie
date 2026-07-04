@@ -119,7 +119,6 @@ func run() (exitCode int) {
 	yutaniMode := flag.Bool("yutani", false, "Start Yutani IDE mode")
 	yutaniAddr := flag.String("yutani-addr", "localhost:7755", "Yutani server address")
 	yutaniTool := flag.String("ide-tool", "launcher", "IDE tool to start: launcher, inspector, repl")
-	useMaggieCompiler := flag.Bool("experimental-maggie-compiler", false, "Use experimental Maggie self-hosting compiler instead of Go compiler")
 	saveImagePath := flag.String("save-image", "", "Save VM state to image file after loading sources")
 	customImagePath := flag.String("image", "", "Load custom image instead of embedded default")
 	serveMode := flag.Bool("serve", false, "Start language server (gRPC + Connect HTTP/JSON)")
@@ -183,8 +182,6 @@ func run() (exitCode int) {
 		fmt.Fprintf(os.Stderr, "  %s ./lib/... --serve --port 8080  # Load libs, serve on :8080\n", p)
 		fmt.Fprintf(os.Stderr, "  %s --lsp                      # Start LSP server on stdio\n", p)
 		fmt.Fprintf(os.Stderr, "  %s lsp                        # Same as --lsp (subcommand form)\n", p)
-		fmt.Fprintf(os.Stderr, "\nExperimental:\n")
-		fmt.Fprintf(os.Stderr, "  %s -i --experimental-maggie-compiler  # Use self-hosting compiler\n", p)
 		fmt.Fprintf(os.Stderr, "\nLearning Maggie:\n")
 		fmt.Fprintf(os.Stderr, "  %s help <topic>                       # API reference for any class or method\n", p)
 		fmt.Fprintf(os.Stderr, "  %s doc --serve                        # Browsable HTML docs on localhost\n", p)
@@ -257,7 +254,7 @@ func run() (exitCode int) {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		return 1
 	}
-	wireVM(vmInst, *useMaggieCompiler, *verbose)
+	wireVM(vmInst, *verbose)
 
 	pipe := newPipeline(vmInst, *verbose)
 
@@ -514,18 +511,12 @@ func loadVM(customImagePath string, verbose bool) (*vm.VM, *dist.DiskCache, erro
 	return vmInst, diskCache, nil
 }
 
-func wireVM(vmInst *vm.VM, useMaggieCompiler bool, verbose bool) {
+func wireVM(vmInst *vm.VM, verbose bool) {
 	vmInst.UseGoCompiler(compiler.Compile)
 	vmInst.SetNodeRefFactory(buildNodeRefFactory(vmInst))
 	vmInst.SetRemoteChannelFactory(buildRemoteChannelFactory(vmInst))
 	for _, register := range projectWrapperRegistrars {
 		register(vmInst)
-	}
-	if useMaggieCompiler {
-		vmInst.UseMaggieCompiler()
-		if verbose {
-			fmt.Println("Using experimental Maggie self-hosting compiler")
-		}
 	}
 
 	vmInst.SetFileInFunc(func(v *vm.VM, source string, sourcePath string, nsOverride string, verbose bool) (int, error) {

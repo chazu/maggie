@@ -50,21 +50,6 @@ func ClassToChunk(d *vm.ClassDigest, caps []string) *Chunk {
 	return c
 }
 
-// ModuleToChunk creates a Chunk representing a module (namespace) that
-// groups a set of class hashes.
-func ModuleToChunk(namespace string, classHashes [][32]byte, caps []string) *Chunk {
-	h := vm.HashClass(namespace, "", "", nil, nil, "", classHashes)
-	deps := make([][32]byte, len(classHashes))
-	copy(deps, classHashes)
-	return &Chunk{
-		Hash:         h,
-		Type:         ChunkModule,
-		Content:      namespace,
-		Dependencies: deps,
-		Capabilities: caps,
-	}
-}
-
 // TransitiveClosure computes all hashes reachable from a root hash by
 // following dependency links through the content store.
 func TransitiveClosure(root [32]byte, store *vm.ContentStore) [][32]byte {

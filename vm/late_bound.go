@@ -24,7 +24,6 @@ type nodeRefFactoryHolder struct{ fn NodeRefFactory }
 type remoteChannelFactoryHolder struct{ fn func(*RemoteChannelRef) }
 type fileInFuncHolder struct{ fn FileInFunc }
 type fileInBatchFuncHolder struct{ fn FileInBatchFunc }
-type aotDispatchHolder struct{ table AOTDispatchTable }
 type rehydratedClassesHolder struct{ classes map[string]bool }
 
 // lateBoundFields groups all post-bootstrap-but-pre-freeze atomics on
@@ -38,7 +37,6 @@ type lateBoundFields struct {
 	remoteChannelFactory atomic.Pointer[remoteChannelFactoryHolder]
 	fileInFunc           atomic.Pointer[fileInFuncHolder]
 	fileInBatchFunc      atomic.Pointer[fileInBatchFuncHolder]
-	aotMethods           atomic.Pointer[aotDispatchHolder]
 	rehydratedClasses    atomic.Pointer[rehydratedClassesHolder]
 }
 
@@ -179,48 +177,6 @@ func (vm *VM) getFileInBatchFunc() FileInBatchFunc {
 func (vm *VM) setFileInBatchFunc(fn FileInBatchFunc) {
 	vm.checkNotFrozen("SetFileInBatchFunc")
 	vm.fileInBatchFunc.Store(&fileInBatchFuncHolder{fn: fn})
-}
-
-// ---------------------------------------------------------------------------
-// AOT methods — guarded by freeze. Published as a copy-on-write map
-// so dispatch-time readers see a stable snapshot with no locking.
-// ---------------------------------------------------------------------------
-
-// getAOTMethods returns the current AOT dispatch table or nil.
-func (vm *VM) getAOTMethods() AOTDispatchTable {
-	if h := vm.aotMethods.Load(); h != nil {
-		return h.table
-	}
-	return nil
-}
-
-// registerAOTMethods merges the supplied methods into the AOT table.
-// Builds a fresh snapshot under copy-on-write and CAS-publishes.
-// Always-on freeze guard: must be called before Freeze().
-func (vm *VM) registerAOTMethods(methods AOTDispatchTable) {
-	vm.checkNotFrozen("RegisterAOTMethods")
-	for {
-		old := vm.aotMethods.Load()
-		var oldTable AOTDispatchTable
-		if old != nil {
-			oldTable = old.table
-		}
-		next := make(AOTDispatchTable, len(oldTable)+len(methods))
-		for k, v := range oldTable {
-			next[k] = v
-		}
-		for k, v := range methods {
-			next[k] = v
-		}
-		if vm.aotMethods.CompareAndSwap(old, &aotDispatchHolder{table: next}) {
-			return
-		}
-	}
-}
-
-// resetAOTMethods clears the AOT table. Used by tests.
-func (vm *VM) resetAOTMethods() {
-	vm.aotMethods.Store(nil)
 }
 
 // ---------------------------------------------------------------------------

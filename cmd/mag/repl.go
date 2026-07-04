@@ -93,17 +93,12 @@ func handleREPLCommand(vmInst *vm.VM, cmd string) {
 		fmt.Println("  :help Class>>method      Show method documentation")
 		fmt.Println("  :compiler                Show current compiler")
 		fmt.Println("  :use-go                  Switch to Go compiler (default)")
-		fmt.Println("  :use-maggie              Switch to Maggie compiler (experimental)")
 		fmt.Println("  exit, quit               Exit REPL")
 	case ":compiler":
 		fmt.Printf("Current compiler: %s\n", vmInst.CompilerName())
 	case ":use-go":
 		vmInst.UseGoCompiler(compiler.Compile)
 		fmt.Println("Switched to Go compiler")
-	case ":use-maggie":
-		vmInst.UseMaggieCompiler()
-		fmt.Printf("Switched to Maggie compiler (experimental)\n")
-		fmt.Println("Note: Falls back to Go compiler if Maggie compiler unavailable")
 	default:
 		fmt.Printf("Unknown command: %s (type :help for commands)\n", cmd)
 	}

@@ -124,25 +124,6 @@ func TestClassToChunkFullMetadata(t *testing.T) {
 	}
 }
 
-func TestModuleToChunk(t *testing.T) {
-	ch := sha256.Sum256([]byte("class"))
-
-	c := ModuleToChunk("MyApp::Models", [][32]byte{ch}, nil)
-
-	if c.Type != ChunkModule {
-		t.Error("Type should be ChunkModule")
-	}
-	if c.Content != "MyApp::Models" {
-		t.Errorf("Content: got %q", c.Content)
-	}
-	if len(c.Dependencies) != 1 {
-		t.Error("Should have 1 dependency")
-	}
-	if c.Hash == ([32]byte{}) {
-		t.Error("Hash should not be zero")
-	}
-}
-
 func TestTransitiveClosure(t *testing.T) {
 	store := vm.NewContentStore()
 

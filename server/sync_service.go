@@ -163,16 +163,6 @@ func (s *SyncService) Transfer(
 			accepted++
 			s.trust.RecordSuccess(peerID)
 
-		case dist.ChunkModule:
-			if err := dist.VerifyChunkModule(chunk, s.store); err != nil {
-				rejected++
-				failedHashes = append(failedHashes, chunk.Hash[:])
-				s.trust.RecordHashMismatch(peerID)
-				continue
-			}
-			accepted++
-			s.trust.RecordSuccess(peerID)
-
 		default:
 			rejected++
 		}

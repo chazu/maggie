@@ -1148,12 +1148,6 @@ func (vm *VM) Send(receiver Value, selector string, args []Value) Value {
 
 	// Check if it's a compiled method or primitive
 	if cm, ok := method.(*CompiledMethod); ok {
-		// Check for AOT-compiled version first
-		if aot := vm.getAOTMethods(); aot != nil {
-			if aotMethod := aot[AOTDispatchKey{class.Name, selector}]; aotMethod != nil {
-				return aotMethod(vm, receiver, args)
-			}
-		}
 		return vm.currentInterpreter().Execute(cm, receiver, args)
 	}
 
@@ -1273,91 +1267,6 @@ func (vm *VM) GlobalsSnapshot() map[string]Value {
 // LookupClass returns a class by name.
 func (vm *VM) LookupClass(name string) *Class {
 	return vm.Classes.Lookup(name)
-}
-
-// ---------------------------------------------------------------------------
-// AOT (Ahead-of-Time) Compilation Support
-// ---------------------------------------------------------------------------
-
-// SendSuper performs a super send for AOT-compiled methods.
-// definingClassName is the name of the class where the calling method is defined.
-// The method lookup starts from definingClassName's superclass, following
-// correct Smalltalk super semantics.
-func (vm *VM) SendSuper(receiver Value, selector string, args []Value, definingClassName string) Value {
-	definingClass := vm.Classes.Lookup(definingClassName)
-	if definingClass == nil || definingClass.Superclass == nil {
-		return Nil
-	}
-
-	selectorID := vm.Selectors.Intern(selector)
-
-	// Look up the method in the superclass's VTable
-	superVT := definingClass.Superclass.VTable
-	if superVT == nil {
-		return Nil
-	}
-
-	method := superVT.Lookup(selectorID)
-	if method == nil {
-		return Nil
-	}
-
-	// Execute the method with the original receiver (not the superclass)
-	if cm, ok := method.(*CompiledMethod); ok {
-		// Check for AOT-compiled version first
-		if aot := vm.getAOTMethods(); aot != nil {
-			if aotMethod := aot[AOTDispatchKey{definingClass.Superclass.Name, selector}]; aotMethod != nil {
-				return aotMethod(vm, receiver, args)
-			}
-		}
-		return vm.currentInterpreter().Execute(cm, receiver, args)
-	}
-
-	// Primitive method
-	return method.Invoke(vm, receiver, args)
-}
-
-// CreateBlock creates a block value from a BlockMethod and captures for use in AOT-compiled code.
-// methodIdx is the index of the block in the parent method's Blocks slice.
-// The method parameter is the parent CompiledMethod that contains the block definition.
-func (vm *VM) CreateBlock(block *BlockMethod, captures []Value, homeSelf Value) Value {
-	bv := &BlockValue{
-		Block:      block,
-		Captures:   captures,
-		HomeFrame:  -1, // AOT blocks are detached (no interpreter frame)
-		HomeSelf:   homeSelf,
-		HomeMethod: nil,
-	}
-
-	// If the block has an outer method, set it as HomeMethod
-	if block.Outer != nil {
-		bv.HomeMethod = block.Outer
-	}
-
-	return vm.registry.RegisterBlock(bv)
-}
-
-// RegisterAOTMethods registers a dispatch table of AOT-compiled methods.
-// When a method is found in this table, the AOT-compiled version is used
-// instead of interpreting bytecode. Must be called before Freeze().
-func (vm *VM) RegisterAOTMethods(methods AOTDispatchTable) {
-	vm.registerAOTMethods(methods)
-}
-
-// LookupAOT looks up an AOT-compiled method for a class and selector.
-// Returns nil if no AOT method is registered.
-func (vm *VM) LookupAOT(className, selector string) AOTMethod {
-	aot := vm.getAOTMethods()
-	if aot == nil {
-		return nil
-	}
-	return aot[AOTDispatchKey{className, selector}]
-}
-
-// HasAOT returns true if AOT methods are registered.
-func (vm *VM) HasAOT() bool {
-	aot := vm.getAOTMethods()
-	return len(aot) > 0
 }
 
 // ContentStore returns the VM's content store, creating it lazily if needed.

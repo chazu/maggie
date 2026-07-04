@@ -309,66 +309,6 @@ func TestContextPrintString(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// AOT thisContext Tests
-// ---------------------------------------------------------------------------
-
-func TestAOTCompilerPushContext(t *testing.T) {
-	selectors := NewSelectorTable()
-	symbols := NewSymbolTable()
-
-	// Method that uses thisContext
-	builder := NewCompiledMethodBuilder("withContext", 0)
-	builder.Bytecode().Emit(OpPushContext)
-	builder.Bytecode().Emit(OpReturnTop)
-	method := builder.Build()
-
-	aot := NewAOTCompiler(selectors, symbols)
-	code := aot.CompileMethod(method, "Test", "withContext")
-
-	t.Logf("Generated AOT code with context:\n%s", code)
-
-	// Verify it creates a context
-	if !strings.Contains(code, "ContextValue") {
-		t.Error("AOT code should create ContextValue")
-	}
-	if !strings.Contains(code, "RegisterContext") {
-		t.Error("AOT code should call RegisterContext")
-	}
-	if !strings.Contains(code, "Receiver: self") {
-		t.Error("AOT code should set Receiver to self")
-	}
-}
-
-func TestAOTCompilerBlockPushContext(t *testing.T) {
-	selectors := NewSelectorTable()
-	symbols := NewSymbolTable()
-
-	// Block that uses thisContext
-	block := &BlockMethod{
-		Arity:       0,
-		NumTemps:    0,
-		NumCaptures: 1,
-		Bytecode: []byte{
-			byte(OpPushContext),
-			byte(OpReturnTop),
-		},
-	}
-
-	aot := NewAOTCompiler(selectors, symbols)
-	code := aot.CompileBlock(block, "Test", "example", 0)
-
-	t.Logf("Generated AOT block code with context:\n%s", code)
-
-	// Verify block context includes captures
-	if !strings.Contains(code, "ContextValue") {
-		t.Error("AOT block code should create ContextValue")
-	}
-	if !strings.Contains(code, "Captures: captures") {
-		t.Error("AOT block code should set Captures")
-	}
-}
-
-// ---------------------------------------------------------------------------
 // Context Class Tests
 // ---------------------------------------------------------------------------
 

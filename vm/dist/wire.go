@@ -154,17 +154,3 @@ func VerifyChunkClass(c *Chunk, store *vm.ContentStore) error {
 	}
 	return nil
 }
-
-// VerifyChunkModule verifies that a module chunk's declared dependency hashes
-// (class hashes) all exist in the content store.
-func VerifyChunkModule(c *Chunk, store *vm.ContentStore) error {
-	if c.Type != ChunkModule {
-		return fmt.Errorf("dist: cannot verify non-module chunk (type=%d)", c.Type)
-	}
-	for _, dep := range c.Dependencies {
-		if !store.HasHash(dep) {
-			return fmt.Errorf("dist: module chunk missing dependency %x", dep)
-		}
-	}
-	return nil
-}

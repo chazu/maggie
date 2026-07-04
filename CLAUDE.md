@@ -1,12 +1,12 @@
 ## PUDL Observation Collection
 
-Record notable observations with `pudl observe` before your session ends.
+Record notable observations with `pudl facts observe` before your session ends.
 
 ```
-pudl observe "<one-sentence description>" --kind <kind> [--repo <path>] [--source <agent-name>]
+pudl facts observe "<one-sentence description>" --kind <kind> --scope <repo:path> [--source <agent-name>]
 ```
 
-Kinds: fact, obstacle, pattern, antipattern, suggestion, bug, opportunity. You MUST post at least one observation before your work is considered complete.
+`--scope` takes a `repo:path` value (e.g. `maggie:vm/heap_gc.go`). Kinds: fact, obstacle, pattern, antipattern, suggestion, bug, opportunity. You MUST post at least one observation before your work is considered complete.
 
 ---
 

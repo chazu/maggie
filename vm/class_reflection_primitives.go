@@ -7,8 +7,8 @@ import "strings"
 // ---------------------------------------------------------------------------
 
 // stripMethodPrefix removes "method:" or "classMethod:" prefix and surrounding brackets
-// from source that was stored by methodSourceFor:, converting it back to old-style format
-// that Compile()+convertToNewStyleFormat can handle.
+// from source that was stored by methodSourceFor:, converting it back to the bare
+// selector+body form that Compile() can handle.
 // Handles leading docstrings: """...""" or "..." before the method: keyword.
 func stripMethodPrefix(source string) string {
 	trimmed := strings.TrimSpace(source)
@@ -359,7 +359,7 @@ func (vm *VM) registerClassReflectionPrimitives() {
 			v.signalException(v.ErrorClass, v.registry.NewStringValue("compileAndInstall: argument must be a string"))
 			return Nil
 		}
-		// Strip method:/classMethod: prefix if present — Compile() adds it back via convertToNewStyleFormat
+		// Strip method:/classMethod: prefix if present — Compile() handles the bare form
 		source = stripMethodPrefix(source)
 		method, err := v.Compile(source, cls)
 		if err != nil {
