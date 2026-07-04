@@ -107,12 +107,21 @@ func handleREPLCommand(vmInst *vm.VM, cmd string) {
 // handleHelpCommand handles the "mag help" subcommand.
 // With no args, lists all classes. With an arg, shows class or method help.
 func handleHelpCommand(vmInst *vm.VM, args []string) {
-	if len(args) == 0 {
+	// Bare `help` (and `help --all`) list the class index. By default we hide
+	// tutorial (GuideNN…) and IDE (Yutani) classes so an agent or newcomer sees
+	// the orthogonal core, not ~50 tutorial/widget entries. `--all` shows them.
+	if len(args) == 0 || (len(args) == 1 && args[0] == "--all") {
+		showAll := len(args) == 1 && args[0] == "--all"
 		classes := vmInst.Classes.All()
 		sort.Slice(classes, func(i, j int) bool {
 			return classes[i].Name < classes[j].Name
 		})
+		shown := 0
 		for _, cls := range classes {
+			if !showAll && isNonCoreHelpClass(cls) {
+				continue
+			}
+			shown++
 			name := cls.Name
 			if cls.Namespace != "" {
 				name = cls.Namespace + "::" + cls.Name
@@ -127,6 +136,9 @@ func handleHelpCommand(vmInst *vm.VM, args []string) {
 				fmt.Printf("  %s\n", name)
 			}
 		}
+		if !showAll {
+			fmt.Printf("\n(%d core classes shown; `mag help --all` includes tutorial and IDE classes)\n", shown)
+		}
 		return
 	}
 
@@ -135,6 +147,20 @@ func handleHelpCommand(vmInst *vm.VM, args []string) {
 	query = strings.TrimSpace(query)
 
 	handleHelpLookup(vmInst, query)
+}
+
+// isNonCoreHelpClass reports whether a class is a tutorial (GuideNN…) or IDE
+// (Yutani namespace) class that clutters the default `mag help` index.
+func isNonCoreHelpClass(cls *vm.Class) bool {
+	if strings.HasPrefix(cls.Namespace, "Yutani") {
+		return true
+	}
+	// Tutorial classes are named GuideNN… (e.g. Guide01GettingStarted).
+	n := cls.Name
+	if strings.HasPrefix(n, "Guide") && len(n) > 5 && n[5] >= '0' && n[5] <= '9' {
+		return true
+	}
+	return false
 }
 
 // handleHelpLookup handles :help ClassName and :help ClassName>>methodName.

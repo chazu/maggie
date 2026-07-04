@@ -108,13 +108,13 @@ func handleDoctestCommand(vmInst *vm.VM, args []string) {
 	// Summarize.
 	passed, failed, total := tallyDoctestResults(allResults)
 
-	fmt.Println("\033[90m" + strings.Repeat("\u2500", 40) + "\033[0m")
+	fmt.Println(dtColorDim + strings.Repeat(dtRule, 40) + dtColorReset)
 	if failed > 0 {
-		fmt.Printf("Results: \033[32m%d passed\033[0m, \033[31m%d failed\033[0m, %d total (%s)\n",
-			passed, failed, total, elapsed.Round(time.Millisecond))
+		fmt.Printf("Results: %s%d passed%s, %s%d failed%s, %d total (%s)\n",
+			dtColorGreen, passed, dtColorReset, dtColorRed, failed, dtColorReset, total, elapsed.Round(time.Millisecond))
 	} else if total > 0 {
-		fmt.Printf("Results: \033[32m%d passed\033[0m, %d total (%s)\n",
-			passed, total, elapsed.Round(time.Millisecond))
+		fmt.Printf("Results: %s%d passed%s, %d total (%s)\n",
+			dtColorGreen, passed, dtColorReset, total, elapsed.Round(time.Millisecond))
 	} else {
 		fmt.Printf("No docstring tests found.\n")
 	}
@@ -591,14 +591,33 @@ func doctestSafeSend(vmInst *vm.VM, receiver vm.Value, selector string) (result 
 // Output
 // ---------------------------------------------------------------------------
 
-// ANSI color codes.
-const (
+// ANSI color codes and result glyphs. These are variables, not constants, so
+// they can be blanked out when color is disabled — an AI agent (or a log file)
+// consuming `mag doctest` output should not have to strip escape sequences and
+// box-drawing characters from its context. Disabled when NO_COLOR is set or
+// stdout is not a terminal.
+var (
 	dtColorReset = "\033[0m"
 	dtColorBold  = "\033[1m"
 	dtColorRed   = "\033[31m"
 	dtColorGreen = "\033[32m"
 	dtColorDim   = "\033[90m"
+	dtCheck      = "✓"
+	dtCross      = "✗"
+	dtRule       = "─"
 )
+
+func init() {
+	if os.Getenv("NO_COLOR") != "" || !stdoutIsTerminal() {
+		dtColorReset, dtColorBold, dtColorRed, dtColorGreen, dtColorDim = "", "", "", "", ""
+		dtCheck, dtCross, dtRule = "ok ", "X ", "-"
+	}
+}
+
+func stdoutIsTerminal() bool {
+	fi, err := os.Stdout.Stat()
+	return err == nil && (fi.Mode()&os.ModeCharDevice) != 0
+}
 
 // printDoctestResults renders the test results grouped by class and method.
 func printDoctestResults(results []doctestMethodResult, verbose bool) {
@@ -636,7 +655,7 @@ func printDoctestResults(results []doctestMethodResult, verbose bool) {
 					continue
 				}
 				// Failed setup line.
-				fmt.Printf("    %s\u2717 %s (setup)%s\n", dtColorRed, r.Assertion.Expr, dtColorReset)
+				fmt.Printf("    %s%s %s (setup)%s\n", dtColorRed, dtCross, r.Assertion.Expr, dtColorReset)
 				if r.Error != "" {
 					fmt.Printf("      %sError: %s%s\n", dtColorRed, r.Error, dtColorReset)
 				}
@@ -644,9 +663,9 @@ func printDoctestResults(results []doctestMethodResult, verbose bool) {
 			}
 
 			if r.Passed {
-				fmt.Printf("    %s\u2713%s %s\n", dtColorGreen, dtColorReset, r.Assertion.Line)
+				fmt.Printf("    %s%s%s %s\n", dtColorGreen, dtCheck, dtColorReset, r.Assertion.Line)
 			} else {
-				fmt.Printf("    %s\u2717%s %s\n", dtColorRed, dtColorReset, r.Assertion.Line)
+				fmt.Printf("    %s%s%s %s\n", dtColorRed, dtCross, dtColorReset, r.Assertion.Line)
 				if r.Error != "" {
 					fmt.Printf("      %sError: %s%s\n", dtColorRed, r.Error, dtColorReset)
 				} else {
