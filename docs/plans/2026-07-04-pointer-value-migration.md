@@ -63,3 +63,60 @@ an id↔object map; those become plain maps without the GC role.
   each stage.
 - Serialization/image format keys heap objects by *content*, not id, so it is
   largely insulated; verified in stage 4.
+
+---
+
+## RESUME HERE (next session pick-up)
+
+**Status:** Stage 1 COMPLETE and pushed. Branch `migrate/pointer-value`
+(commits `ec9308e` code + `162e71d` gitignore cleanup). `main` is untouched —
+do NOT merge this branch until the migration is finished (it's mid-migration but
+green at this checkpoint). Full `go test ./...` green, `-race` clean, 1166 lib
+doctests pass, image rebuilds.
+
+**What's already in place (value.go):**
+- `type Value struct { hi uint64; ptr unsafe.Pointer }` with the full immediate
+  method API preserved (reads `v.hi`).
+- Heap-kind enum (`kindObject`, `kindCell`, `kindString`, `kindDictionary`,
+  `kindArrayList`, `kindBigInt`, `kindException`, `kindResult`, `kindClassValue`,
+  `kindGoObject`, `kindWeakRef`, `kindChannel`, `kindProcess`, `kindMutex`,
+  `kindWaitGroup`, `kindSemaphore`, `kindCancellationContext`, `kindFuture`,
+  `kindRemoteRef`, `kindRemoteChannel`, `kindPromise`, `kindExtension`) — most
+  are ALREADY DEFINED, ready to use. `kindBlock`/`kindContext` exist but Block
+  and Context are still immediate-id (deliberately deferred).
+- Helpers: `makeHeap(kind, ptr)`, `v.isHeap()`, `v.heapKindOf()`, `RawBits()`.
+- MIGRATED so far: Object, Cell (real pointers). Everything else is still
+  immediate NaN-box or registry-ID.
+
+**The proven recipe to migrate one registry-ID type (repeat per type):**
+1. Change its `IsXxx(v)` to `v.ptr != nil && v.hi == kindXxx`.
+2. Change its constructor (`NewXxxValue`/`RegisterXxx`) to
+   `makeHeap(kindXxx, unsafe.Pointer(obj))` instead of registering in the
+   AutoIDRegistry and returning `FromSymbolID(id|marker)`.
+3. Change its accessor (`GetXxx(v)`) to `(*XxxObject)(v.ptr)` instead of a
+   registry map lookup.
+4. Delete that type's `AutoIDRegistry` field + its `mark`/`Sweep` in heap_gc.go
+   / registry_gc.go. Remove its marker from markers.go.
+5. `go build -gcflags=-e ./...`, fix the small cascade, `go test ./...`, doctests.
+   Commit per type (or per small batch).
+
+**Stage 2 order suggestion:** start with a LOW-volume, self-contained type to
+re-confirm the recipe (e.g. `BigInt` or `Result`), then do `String` and
+`Dictionary` and `ArrayList` (highest volume / most cascade), then the
+concurrency kinds, then contrib (`kindExtension`).
+
+**Then Stage 3:** once no type uses the registries, delete `heap_gc.go`,
+`registry_gc.go`, `gc_safepoint.go`, `typed_registry.go`, `keepAlive`, the
+safepoint polling in the interpreter, and the block slot+gen recycling.
+
+**Then Stage 4/5:** re-run `BenchmarkHotPath*` vs baseline; then server
+request-parallelism (per-request interpreters, retire VMWorker/Dispatch funnel).
+
+**Gotchas learned in Stage 1:**
+- `Value` is a comparable struct, so it works directly as a map key
+  (compiler/codegen literalMap) and in `==` comparisons — no change needed there.
+- `hi`/`ptr` are unexported; out-of-package debug/hex sites need `RawBits()`.
+- Image serialization keys objects by content/pointer, largely insulated — but
+  re-verify per type in Stage 2 (image_writer.go, serial.go).
+- Object grew 80→112 bytes (16-byte Values × 4 inline slots); size guards in
+  object_test.go / value_test.go were updated to match.
