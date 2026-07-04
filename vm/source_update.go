@@ -266,18 +266,3 @@ func findMethodEnd(content string, offset int) int {
 	}
 	return len(content)
 }
-
-// indentMethod ensures a method source has consistent 2-space indentation.
-func indentMethod(source string) string {
-	lines := strings.Split(source, "\n")
-	var result []string
-	for i, line := range lines {
-		if i == 0 {
-			result = append(result, line)
-		} else {
-			// Preserve existing indentation within the method
-			result = append(result, "  "+strings.TrimLeft(line, " \t"))
-		}
-	}
-	return strings.Join(result, "\n")
-}

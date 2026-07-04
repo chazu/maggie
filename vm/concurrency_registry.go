@@ -15,10 +15,12 @@ import (
 // We deliberately do NOT recycle IDs even after Sweep removes terminated
 // entries: a Value still referencing the swept primitive would resolve to a
 // different live primitive after recycling, changing semantics from "nil
-// lookup" to "wrong object". For 4G IDs to actually be exhausted in a single
-// VM lifetime, an application would need to allocate ~30k channels/sec for
-// 5 days straight without restart — at which point a panic is the right
-// failure mode (it's a leak, not a normal workload).
+// lookup" to "wrong object". The 24-bit space is ~16.7M ids — at a sustained
+// 30k allocations/sec it exhausts in ~9 minutes, so a channel-per-request
+// server IS a realistic way to hit the cap. When it matters, adopt the block
+// registry's slot+generation recycling (see blockSlotGen) rather than widening
+// this counter. Exhaustion returns ErrIDSpaceExhausted, surfaced as a Maggie
+// exception rather than a silent wrap.
 //
 // NOTE: Blocks are an exception. They have their own tag (tagBlock) with a
 // 48-bit payload split into a 32-bit slot id + 16-bit generation, so they

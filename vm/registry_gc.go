@@ -125,13 +125,21 @@ type RegistryGC struct {
 	monitored []*monitoredRegistry
 
 	// Statistics
-	sweepCount    atomic.Uint64
-	growthSweeps  atomic.Uint64
-	ceilingSweeps atomic.Uint64
-	timerSweeps   atomic.Uint64
-	manualSweeps  atomic.Uint64
-	lastStats     atomic.Value // *RegistryGCStats
+	sweepCount        atomic.Uint64
+	growthSweeps      atomic.Uint64
+	ceilingSweeps     atomic.Uint64
+	timerSweeps       atomic.Uint64
+	manualSweeps      atomic.Uint64
+	lastStats         atomic.Value // *RegistryGCStats
+	lastScavengeNanos atomic.Int64 // unix nanos of the last debug.FreeOSMemory()
 }
+
+// minScavengeInterval bounds how often a pressure/manual sweep may force a full
+// Go GC + scavenge. Without it, a workload allocating fast enough to trip a
+// growth sweep repeatedly would call debug.FreeOSMemory() on every sweep —
+// many forced full GCs per second. Timer sweeps ignore this floor so idle
+// processes still return RSS promptly.
+const minScavengeInterval = 10 * time.Second
 
 // NewRegistryGC creates a new RegistryGC for the given VM. interval sets
 // the wall-clock floor (use DefaultGCInterval for the default).
@@ -459,11 +467,28 @@ func (gc *RegistryGC) sweep(reason triggerReason, registryName string) *Registry
 	// cadence (timer floor + growth thresholds) so the cost is bounded and every
 	// Maggie project gets bounded RSS for free. Opt out with MAGGIE_SCAVENGE=0
 	// for latency-critical workloads that prefer to keep pages mapped.
-	if scavengeAfterSweep() {
+	if scavengeAfterSweep() && gc.shouldScavenge(reason, stats) {
 		debug.FreeOSMemory()
+		gc.lastScavengeNanos.Store(time.Now().UnixNano())
 	}
 
 	return stats
+}
+
+// shouldScavenge decides whether this sweep should force a full Go GC +
+// scavenge. Timer sweeps always do (idle RSS return). Pressure/manual sweeps
+// do so only when they actually reclaimed something and not more than once per
+// minScavengeInterval, so a burst of growth-triggered sweeps cannot force a
+// full GC on every one.
+func (gc *RegistryGC) shouldScavenge(reason triggerReason, stats *RegistryGCStats) bool {
+	if reason == TriggerTimer {
+		return true
+	}
+	if stats.TotalSwept == 0 {
+		return false
+	}
+	last := gc.lastScavengeNanos.Load()
+	return time.Now().UnixNano()-last >= int64(minScavengeInterval)
 }
 
 // scavengeAfterSweep reports whether the GC sweep should return freed memory to
