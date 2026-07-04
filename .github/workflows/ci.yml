@@ -78,6 +78,24 @@ jobs:
         with:
           version: "latest"
 
+  doctest:
+    name: Doctests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.25.8"
+
+      - name: Build mag
+        run: go build -o mag ./cmd/mag/
+
+      - name: Run library doctests
+        run: ./mag doctest lib/
+
   fuzz:
     name: Fuzz
     runs-on: ubuntu-latest
@@ -91,16 +109,21 @@ jobs:
         with:
           go-version: "1.25.8"
 
-      - name: Run fuzz tests on compiler package
+      - name: Run fuzz tests
         run: |
-          # Find all fuzz targets in the compiler package
-          FUZZ_TARGETS=$(grep -r '^func Fuzz' ./compiler/*_test.go 2>/dev/null | sed 's/.*func \(Fuzz[a-zA-Z0-9_]*\).*/\1/' || true)
-          if [ -z "$FUZZ_TARGETS" ]; then
-            echo "No fuzz targets found in ./compiler/ -- skipping"
-            exit 0
-          fi
-          echo "Found fuzz targets: $FUZZ_TARGETS"
-          for TARGET in $FUZZ_TARGETS; do
-            echo "--- Fuzzing $TARGET for 5 minutes ---"
-            go test -fuzz="^${TARGET}$" -fuzztime=5m ./compiler/
+          # Fuzz every package that defines targets. vm/ carries the image and
+          # CBOR/envelope decoders (untrusted-input surface); compiler/ carries
+          # the lexer/parser targets. Split the 5-minute budget per target.
+          FUZZ_PKGS="./compiler/ ./vm/ ./vm/dist/"
+          FOUND=0
+          for PKG in $FUZZ_PKGS; do
+            TARGETS=$(grep -rh '^func Fuzz' ${PKG}*_test.go 2>/dev/null | sed 's/.*func \(Fuzz[a-zA-Z0-9_]*\).*/\1/' || true)
+            for TARGET in $TARGETS; do
+              FOUND=1
+              echo "--- Fuzzing $TARGET in $PKG for 3 minutes ---"
+              go test -fuzz="^${TARGET}$" -fuzztime=3m "$PKG"
+            done
           done
+          if [ "$FOUND" = "0" ]; then
+            echo "No fuzz targets found -- skipping"
+          fi
