@@ -33,40 +33,24 @@ type GrpcClientObject struct {
 	mu        sync.Mutex
 }
 
-func grpcClientToValue(id uint32) vm.Value {
-	return vm.MarkedToValue(vm.GrpcClientMarker, id)
-}
-
 func isGrpcClientValue(v vm.Value) bool {
-	return vm.IsMarkedValue(vm.GrpcClientMarker, v)
-}
-
-func grpcClientIDFromValue(v vm.Value) uint32 {
-	return vm.MarkedIDFromValue(v)
+	return vm.IsExtensionValue(v, vm.GrpcClientMarker)
 }
 
 func vmGetGrpcClient(vmInst *vm.VM, v vm.Value) *GrpcClientObject {
-	if !isGrpcClientValue(v) {
-		return nil
+	if o := vm.ExtensionObject(v, vm.GrpcClientMarker); o != nil {
+		return o.(*GrpcClientObject)
 	}
-	obj := vmInst.Registry().ExtensionRegistry(vm.GrpcClientMarker).Get(grpcClientIDFromValue(v))
-	if obj == nil {
-		return nil
-	}
-	return obj.(*GrpcClientObject)
+	return nil
 }
 
 func vmRegisterGrpcClient(vmInst *vm.VM, c *GrpcClientObject) vm.Value {
-	id := vmInst.Registry().ExtensionRegistry(vm.GrpcClientMarker).Register(c)
-	return grpcClientToValue(id)
+	return vm.NewExtensionValue(vm.GrpcClientMarker, c)
 }
 
-func vmUnregisterGrpcClient(vmInst *vm.VM, v vm.Value) {
-	if !isGrpcClientValue(v) {
-		return
-	}
-	vmInst.Registry().ExtensionRegistry(vm.GrpcClientMarker).Delete(grpcClientIDFromValue(v))
-}
+// vmUnregisterGrpcClient is now a no-op: the client object is a pointer-carrying
+// heap Value reclaimed by Go's GC. Retained so call sites need not change.
+func vmUnregisterGrpcClient(vmInst *vm.VM, v vm.Value) {}
 
 // ---------------------------------------------------------------------------
 // GrpcStream Registry
@@ -92,40 +76,24 @@ type GrpcStreamObject struct {
 	mu         sync.Mutex
 }
 
-func grpcStreamToValue(id uint32) vm.Value {
-	return vm.MarkedToValue(vm.GrpcStreamMarker, id)
-}
-
 func isGrpcStreamValue(v vm.Value) bool {
-	return vm.IsMarkedValue(vm.GrpcStreamMarker, v)
-}
-
-func grpcStreamIDFromValue(v vm.Value) uint32 {
-	return vm.MarkedIDFromValue(v)
+	return vm.IsExtensionValue(v, vm.GrpcStreamMarker)
 }
 
 func vmGetGrpcStream(vmInst *vm.VM, v vm.Value) *GrpcStreamObject {
-	if !isGrpcStreamValue(v) {
-		return nil
+	if o := vm.ExtensionObject(v, vm.GrpcStreamMarker); o != nil {
+		return o.(*GrpcStreamObject)
 	}
-	obj := vmInst.Registry().ExtensionRegistry(vm.GrpcStreamMarker).Get(grpcStreamIDFromValue(v))
-	if obj == nil {
-		return nil
-	}
-	return obj.(*GrpcStreamObject)
+	return nil
 }
 
 func vmRegisterGrpcStream(vmInst *vm.VM, s *GrpcStreamObject) vm.Value {
-	id := vmInst.Registry().ExtensionRegistry(vm.GrpcStreamMarker).Register(s)
-	return grpcStreamToValue(id)
+	return vm.NewExtensionValue(vm.GrpcStreamMarker, s)
 }
 
-func vmUnregisterGrpcStream(vmInst *vm.VM, v vm.Value) {
-	if !isGrpcStreamValue(v) {
-		return
-	}
-	vmInst.Registry().ExtensionRegistry(vm.GrpcStreamMarker).Delete(grpcStreamIDFromValue(v))
-}
+// vmUnregisterGrpcStream is now a no-op: the stream object is a pointer-carrying
+// heap Value reclaimed by Go's GC. Retained so call sites need not change.
+func vmUnregisterGrpcStream(vmInst *vm.VM, v vm.Value) {}
 
 // ---------------------------------------------------------------------------
 // Helper functions for Result creation
