@@ -33,6 +33,7 @@ type serverConfig struct {
 	pullFunc        func(peerID dist.NodeID, hash [32]byte) error
 	spawnResultFunc func(spawnerID dist.NodeID, futureID uint64, resultBytes []byte, errMsg error, exceptionBytes []byte)
 	peerAddrs       *sync.Map // NodeID -> address registry for code-on-demand
+	mountSync       bool      // mount the peer-facing SyncService (sync/message/spawn/channel RPCs)
 }
 
 // WithCompileFunc sets the compile function used by the sync service to
@@ -72,10 +73,27 @@ func WithPeerAddrRegistry(m *sync.Map) ServerOption {
 	return func(c *serverConfig) { c.peerAddrs = m }
 }
 
+// WithSyncService mounts the peer-facing SyncService, which exposes the
+// sync/announce, message-delivery, remote-spawn, and remote-channel RPCs to
+// other nodes. It is OFF by default: a plain server (e.g. the local IDE/
+// language server) serves only the developer-facing eval/browse/inspect/
+// modify/session services and does NOT expose any peer surface. Enable it only
+// for a node acting as a distribution peer, and pair it with a configured
+// WithTrustStore — the channel RPCs in particular are reachable by anyone who
+// can call the mounted endpoint.
+func WithSyncService() ServerOption {
+	return func(c *serverConfig) { c.mountSync = true }
+}
+
 // New creates a MaggieServer wrapping the given VM.
 func New(v *vm.VM, opts ...ServerOption) *MaggieServer {
+	// Default to a SECURE trust store: unknown peers get no permissions, so a
+	// server constructed without an explicit WithTrustStore (e.g. the local
+	// IDE/language server) does not accept remote sync/message/spawn from
+	// arbitrary peers. Callers that want to accept peers must pass
+	// WithTrustStore with a configured policy.
 	cfg := &serverConfig{
-		trustStore: dist.NewPermissiveTrustStore(),
+		trustStore: dist.NewSecureTrustStore(),
 	}
 	for _, opt := range opts {
 		opt(cfg)
@@ -101,21 +119,28 @@ func New(v *vm.VM, opts ...ServerOption) *MaggieServer {
 	browseSvc := NewBrowseService(worker)
 	modifySvc := NewModifyService(worker, handles, sessions)
 	inspectSvc := NewInspectService(worker, handles)
-	syncSvc := NewSyncService(worker, v.ContentStore(), cfg.trustStore, cfg.compileFunc, cfg.diskCache)
 
 	evalPath, evalHandler := maggiev1connect.NewEvaluationServiceHandler(evalSvc)
 	sessionPath, sessionHandler := maggiev1connect.NewSessionServiceHandler(sessionSvc)
 	browsePath, browseHandler := maggiev1connect.NewBrowsingServiceHandler(browseSvc)
 	modifyPath, modifyHandler := maggiev1connect.NewModificationServiceHandler(modifySvc)
 	inspectPath, inspectHandler := maggiev1connect.NewInspectionServiceHandler(inspectSvc)
-	syncPath, syncHandler := maggiev1connect.NewSyncServiceHandler(syncSvc)
 
 	s.mux.Handle(evalPath, evalHandler)
 	s.mux.Handle(sessionPath, sessionHandler)
 	s.mux.Handle(browsePath, browseHandler)
 	s.mux.Handle(modifyPath, modifyHandler)
 	s.mux.Handle(inspectPath, inspectHandler)
-	s.mux.Handle(syncPath, syncHandler)
+
+	// The peer-facing SyncService (sync/message/spawn/channel RPCs) is mounted
+	// only when explicitly enabled via WithSyncService. A default server (e.g.
+	// the local IDE/language server) exposes no peer surface at all — the
+	// channel RPCs in particular carry no per-request authentication.
+	if cfg.mountSync {
+		syncSvc := NewSyncService(worker, v.ContentStore(), cfg.trustStore, cfg.compileFunc, cfg.diskCache)
+		syncPath, syncHandler := maggiev1connect.NewSyncServiceHandler(syncSvc)
+		s.mux.Handle(syncPath, syncHandler)
+	}
 
 	// Start handle TTL sweeper (sweep every 5 minutes, 30-minute TTL)
 	s.stopSweeper = handles.StartSweeper(5*time.Minute, 30*time.Minute)

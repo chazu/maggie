@@ -397,6 +397,19 @@ func (s *SyncService) DeliverMessage(
 		return s.handleSpawnResult(envelope)
 	}
 
+	// User message delivery requires PermMessage. (Infrastructure selectors
+	// above — remote-down and spawn-result — are part of the monitor/spawn
+	// protocols the peer was already authorized for, so they are not gated
+	// here.) Without this check a peer configured with only "sync" could still
+	// send arbitrary messages to registered processes.
+	if !s.trust.Check(peerID, dist.PermMessage) {
+		return connect.NewResponse(&maggiev1.DeliverMessageResponse{
+			Success:      false,
+			ErrorKind:    "permissionDenied",
+			ErrorMessage: "peer lacks message permission",
+		}), nil
+	}
+
 	// Resolve target process by name or ID
 	var proc *vm.ProcessObject
 	if envelope.TargetName != "" {

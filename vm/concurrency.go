@@ -575,6 +575,10 @@ func (vm *VM) registerProcessPrimitives() {
 			return v.SignalPrimitiveError("Block fork", err.Error())
 		}
 
+		// Capture the caller's restrictions on THIS goroutine; the fork must
+		// inherit them (see inheritedHidden).
+		callerHidden := v.inheritedHidden(nil)
+
 		go func() {
 			defer func() {
 				v.HandleForkedPanic(proc, recover())
@@ -587,7 +591,7 @@ func (vm *VM) registerProcessPrimitives() {
 			}()
 
 			// Create a forked interpreter for this goroutine
-			interp := v.newForkedInterpreter(nil)
+			interp := v.newForkedInterpreter(callerHidden)
 			interp.processID = proc.id
 			// Register this interpreter for the current goroutine
 			v.registerInterpreter(interp)
@@ -617,6 +621,8 @@ func (vm *VM) registerProcessPrimitives() {
 			return v.SignalPrimitiveError("Block forkWith:", err.Error())
 		}
 
+		callerHidden := v.inheritedHidden(nil)
+
 		go func() {
 			defer func() {
 				v.HandleForkedPanic(proc, recover())
@@ -624,7 +630,7 @@ func (vm *VM) registerProcessPrimitives() {
 				v.registry.ReleaseBlock(blockVal)
 			}()
 
-			interp := v.newForkedInterpreter(nil)
+			interp := v.newForkedInterpreter(callerHidden)
 			interp.processID = proc.id
 			v.registerInterpreter(interp)
 			result := interp.ExecuteBlockDetached(bv.Block, bv.Captures, []Value{arg}, bv.HomeSelf, bv.HomeMethod)
@@ -658,6 +664,8 @@ func (vm *VM) registerProcessPrimitives() {
 			return v.SignalPrimitiveError("Block forkWithContext:", err.Error())
 		}
 
+		callerHidden := v.inheritedHidden(nil)
+
 		go func() {
 			defer func() {
 				v.HandleForkedPanic(proc, recover())
@@ -665,7 +673,7 @@ func (vm *VM) registerProcessPrimitives() {
 				v.registry.ReleaseBlock(blockVal)
 			}()
 
-			interp := v.newForkedInterpreter(nil)
+			interp := v.newForkedInterpreter(callerHidden)
 			interp.processID = proc.id
 			v.registerInterpreter(interp)
 
@@ -710,6 +718,8 @@ func (vm *VM) registerProcessPrimitives() {
 			return v.SignalPrimitiveError("Process fork:", err.Error())
 		}
 
+		callerHidden := v.inheritedHidden(nil)
+
 		go func() {
 			defer func() {
 				v.HandleForkedPanic(proc, recover())
@@ -717,7 +727,7 @@ func (vm *VM) registerProcessPrimitives() {
 				v.registry.ReleaseBlock(blockVal)
 			}()
 
-			interp := v.newForkedInterpreter(nil)
+			interp := v.newForkedInterpreter(callerHidden)
 			interp.processID = proc.id
 			v.registerInterpreter(interp)
 			result := interp.ExecuteBlockDetached(bv.Block, bv.Captures, nil, bv.HomeSelf, bv.HomeMethod)
@@ -853,18 +863,12 @@ func (vm *VM) registerProcessPrimitives() {
 		}
 		blockVal := recv
 
-		hidden := v.extractHiddenMap(restrictionsVal)
-		if hidden == nil {
+		extra := v.extractHiddenMap(restrictionsVal)
+		if extra == nil {
 			return Nil
 		}
-
-		// Inherit any existing restrictions from the calling interpreter
-		callerInterp := v.currentInterpreter()
-		if callerInterp.hidden != nil {
-			for name := range callerInterp.hidden {
-				hidden[name] = true
-			}
-		}
+		// Merge the requested restrictions with any inherited from the caller.
+		hidden := v.inheritedHidden(extra)
 
 		proc, err := v.createProcess()
 		if err != nil {
@@ -901,18 +905,12 @@ func (vm *VM) registerProcessPrimitives() {
 		}
 		// blockVal is the parameter — already a Value
 
-		hidden := v.extractHiddenMap(restrictionsVal)
-		if hidden == nil {
+		extra := v.extractHiddenMap(restrictionsVal)
+		if extra == nil {
 			return Nil
 		}
-
-		// Inherit any existing restrictions from the calling interpreter
-		callerInterp := v.currentInterpreter()
-		if callerInterp.hidden != nil {
-			for name := range callerInterp.hidden {
-				hidden[name] = true
-			}
-		}
+		// Merge the requested restrictions with any inherited from the caller.
+		hidden := v.inheritedHidden(extra)
 
 		proc, err := v.createProcess()
 		if err != nil {

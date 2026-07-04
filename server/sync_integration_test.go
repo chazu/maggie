@@ -611,6 +611,59 @@ func TestEndToEnd_DeliverMessage(t *testing.T) {
 	}
 }
 
+// TestEndToEnd_DeliverMessage_NoMessagePerm verifies that a peer without
+// PermMessage cannot deliver messages even with a valid signature — a peer
+// granted only "sync" must not be able to message registered processes.
+func TestEndToEnd_DeliverMessage_NoMessagePerm(t *testing.T) {
+	store := vm.NewContentStore()
+	compile := func(source string) (dist.CompileResult, error) {
+		return dist.CompileResult{SemanticHash: sha256.Sum256([]byte(source))}, nil
+	}
+	// Unknown peers get PermSync only — not PermMessage.
+	syncOnly := dist.NewTrustStore(dist.TrustPolicy{DefaultPerms: dist.PermSync})
+	baseURL, srvVM, stop := startTestServerWithVM(t, store, compile, syncOnly)
+	defer stop()
+	time.Sleep(10 * time.Millisecond)
+
+	srvVM.RegisterProcessName("test-worker", srvVM.MainProcessID())
+
+	client := maggiev1connect.NewSyncServiceClient(http.DefaultClient, baseURL)
+	ctx := context.Background()
+
+	sender, err := dist.GenerateIdentity()
+	if err != nil {
+		t.Fatalf("GenerateIdentity: %v", err)
+	}
+	payload, err := srvVM.SerializeValue(vm.FromSmallInt(42))
+	if err != nil {
+		t.Fatalf("SerializeValue: %v", err)
+	}
+	env := &dist.MessageEnvelope{
+		TargetName: "test-worker",
+		Selector:   "doWork:",
+		Payload:    payload,
+		Nonce:      1,
+	}
+	env.Sign(sender)
+	envBytes, err := dist.MarshalEnvelope(env)
+	if err != nil {
+		t.Fatalf("MarshalEnvelope: %v", err)
+	}
+
+	resp, err := client.DeliverMessage(ctx, connect.NewRequest(&maggiev1.DeliverMessageRequest{
+		Envelope: envBytes,
+	}))
+	if err != nil {
+		t.Fatalf("DeliverMessage transport error: %v", err)
+	}
+	if resp.Msg.Success {
+		t.Error("DeliverMessage succeeded for a peer without PermMessage; want rejection")
+	}
+	if resp.Msg.ErrorKind != "permissionDenied" {
+		t.Errorf("ErrorKind = %q, want permissionDenied", resp.Msg.ErrorKind)
+	}
+}
+
 // TestEndToEnd_DeliverMessage_InvalidSignature verifies that messages with
 // tampered signatures are rejected.
 func TestEndToEnd_DeliverMessage_InvalidSignature(t *testing.T) {

@@ -358,6 +358,7 @@ func run() (exitCode int) {
 			syncOpts = append(syncOpts, server.WithDiskCache(diskCache))
 		}
 		trustStore := loadTrustStore(loadedManifest)
+		syncOpts = append(syncOpts, server.WithSyncService())
 		syncOpts = append(syncOpts, server.WithTrustStore(trustStore))
 		syncOpts = append(syncOpts, server.WithSpawnResultFunc(buildSpawnResultFunc(vmInst)))
 		syncOpts = append(syncOpts, server.WithPullFunc(buildPullFunc(vmInst, peerAddrs)))

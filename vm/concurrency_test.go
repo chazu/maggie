@@ -2844,6 +2844,68 @@ func TestForkRestricted_WritesAreLocal(t *testing.T) {
 	}
 }
 
+// TestFork_InheritsCallerRestrictions guards against a restriction escape: a
+// plain `fork` from within a restricted process must inherit the parent's
+// hidden globals, or restricted code could regain full access by forking
+// (e.g. `[ Compiler evaluate: … ] fork`).
+func TestFork_InheritsCallerRestrictions(t *testing.T) {
+	vm := NewVM()
+	vm.globals["File"] = FromSmallInt(999)
+
+	// Simulate being inside a restricted process: the caller interpreter (the
+	// one current on this goroutine) hides "File".
+	vm.interpreter.hidden = map[string]bool{"File": true}
+
+	fileSym := vm.Symbols.SymbolValue("File")
+	block := &BlockMethod{
+		Arity:    0,
+		NumTemps: 0,
+		Bytecode: func() []byte {
+			bb := NewBytecodeBuilder()
+			bb.EmitUint16(OpPushGlobal, 0)
+			bb.Emit(OpBlockReturn)
+			return bb.Bytes()
+		}(),
+		Literals: []Value{fileSym},
+	}
+	blockVal := vm.interpreter.createBlockValue(block, nil)
+
+	proc := vm.Send(blockVal, "fork", nil)
+	result := vm.Send(proc, "wait", nil)
+
+	if result != Nil {
+		t.Errorf("plain fork from a restricted caller saw File = %v, want Nil "+
+			"(the parent's restriction must be inherited)", result)
+	}
+}
+
+func TestInheritedHidden_MergesCallerAndExtra(t *testing.T) {
+	vm := NewVM()
+	vm.interpreter.hidden = map[string]bool{"File": true, "Socket": true}
+
+	// nil extra → exactly the caller's set (a copy, not the same map).
+	got := vm.inheritedHidden(nil)
+	if !got["File"] || !got["Socket"] || len(got) != 2 {
+		t.Errorf("inheritedHidden(nil) = %v, want {File, Socket}", got)
+	}
+	got["File"] = false // mutate the copy...
+	if !vm.interpreter.hidden["File"] {
+		t.Error("inheritedHidden returned an alias of the caller's map, not a copy")
+	}
+
+	// extra restrictions are merged on top of the inherited set.
+	merged := vm.inheritedHidden(map[string]bool{"Exec": true})
+	if !merged["File"] || !merged["Socket"] || !merged["Exec"] {
+		t.Errorf("inheritedHidden(extra) = %v, want {File, Socket, Exec}", merged)
+	}
+
+	// No restrictions anywhere → nil.
+	vm.interpreter.hidden = nil
+	if vm.inheritedHidden(nil) != nil {
+		t.Error("inheritedHidden(nil) with no caller restrictions should be nil")
+	}
+}
+
 func TestForkWithoutDo_HidesClasses(t *testing.T) {
 	vm := NewVM()
 

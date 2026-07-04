@@ -374,6 +374,36 @@ func (vm *VM) newForkedInterpreter(hidden map[string]bool) *Interpreter {
 	return interp
 }
 
+// inheritedHidden returns the restriction set a fork must run under: a copy of
+// the CALLER's hidden globals merged with any extra restrictions requested for
+// this fork. Restrictions are inherited so a child process can never widen its
+// parent's global view (e.g. a restricted process must not be able to reach
+// Compiler via `[ Compiler evaluate: … ] fork`). Returns nil when there is
+// nothing to hide.
+//
+// MUST be called on the forking (caller's) goroutine, BEFORE the fork goroutine
+// starts — currentInterpreter() has to resolve to the parent process, not the
+// not-yet-registered child.
+func (vm *VM) inheritedHidden(extra map[string]bool) map[string]bool {
+	var callerHidden map[string]bool
+	if caller := vm.currentInterpreter(); caller != nil {
+		callerHidden = caller.hidden
+	}
+	if len(callerHidden) == 0 && len(extra) == 0 {
+		return nil
+	}
+	merged := make(map[string]bool, len(callerHidden)+len(extra))
+	for k := range callerHidden {
+		merged[k] = true
+	}
+	for k, v := range extra {
+		if v {
+			merged[k] = true
+		}
+	}
+	return merged
+}
+
 // ---------------------------------------------------------------------------
 // Bootstrap: Create core classes
 // ---------------------------------------------------------------------------

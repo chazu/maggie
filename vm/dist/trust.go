@@ -138,6 +138,19 @@ func NewPermissiveTrustStore() *TrustStore {
 	})
 }
 
+// NewSecureTrustStore creates a TrustStore that grants unknown peers NO
+// permissions: they can neither sync code, send messages, nor spawn. Only
+// peers explicitly configured (via AddConfiguredPeer / maggie.toml) can do
+// anything. This is the safe default for a server that has not been given an
+// explicit trust policy — e.g. the local IDE/language server, which must not
+// accept remote spawn or message delivery from arbitrary peers.
+func NewSecureTrustStore() *TrustStore {
+	return NewTrustStore(TrustPolicy{
+		DefaultPerms: PermNone,
+		BanThreshold: 3,
+	})
+}
+
 // AddConfiguredPeer registers a peer from maggie.toml.
 func (ts *TrustStore) AddConfiguredPeer(id NodeID, name string, perms Perm) {
 	ts.mu.Lock()
