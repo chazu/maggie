@@ -1012,6 +1012,8 @@ func (vm *VM) classForHeap(v Value) *Class {
 			return vm.SuccessClass
 		}
 		return vm.FailureClass
+	case kindString:
+		return vm.StringClass
 	case kindBigInt:
 		return vm.BigIntegerClass
 	case kindException:

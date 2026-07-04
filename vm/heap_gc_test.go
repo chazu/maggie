@@ -33,26 +33,6 @@ func stringStillThere(t *testing.T, vm *VM, v Value, want string) {
 	}
 }
 
-func TestHeapGC_FreesUnreachableStrings(t *testing.T) {
-	vm := NewVM()
-	base := vm.registry.StringCount()
-	const n = 5000
-	for i := 0; i < n; i++ {
-		_ = vm.registry.NewStringValue(probe(i)) // discarded, unreachable
-	}
-	if got := vm.registry.StringCount(); got < base+n {
-		t.Fatalf("expected at least %d strings before GC, got %d", base+n, got)
-	}
-	freed, _, _ := vm.collectHeapGarbageLocked()
-	if freed < n {
-		t.Fatalf("expected to free >= %d unreachable strings, freed %d", n, freed)
-	}
-	after := vm.registry.StringCount()
-	if after > base+10 {
-		t.Fatalf("unreachable strings not reclaimed: base=%d after=%d", base, after)
-	}
-}
-
 func TestHeapGC_KeepsGlobalString(t *testing.T) {
 	vm := NewVM()
 	s := vm.registry.NewStringValue(probe(1))
@@ -62,22 +42,33 @@ func TestHeapGC_KeepsGlobalString(t *testing.T) {
 }
 
 // TestHeapGC_KeepsPinnedRoot covers the pinned-roots category — the path HTTP
-// route handler blocks rely on. A block (here a string stand-in) retained only
-// in a Go closure is reachable through no other root category; PinRoot must
-// keep it alive, and UnpinRoot must make it collectible again. Without the fix
-// the first sweep frees such handler blocks and every later request runs a
-// dangling block (empty HTTP bodies).
+// route handler blocks rely on. A block retained only in a Go closure is
+// reachable through no other root category; PinRoot must keep it alive, and
+// UnpinRoot must make it collectible again. Without the fix the first sweep
+// frees such handler blocks and every later request runs a dangling block
+// (empty HTTP bodies). (Uses a block probe: strings are now Go-GC-managed and
+// no longer swept by the custom collector.)
 func TestHeapGC_KeepsPinnedRoot(t *testing.T) {
 	vm := NewVM()
-	s := vm.registry.NewStringValue(probe(60))
-	vm.PinRoot(s) // reachable through EXACTLY the pinned-roots set
-	vm.collectHeapGarbageLocked()
-	stringStillThere(t, vm, s, probe(60))
+	interp := vm.interpreter
+	// Push a method frame so the created block is frame-bound (HomeFrame >= 0)
+	// and thus eligible for sweeping — its only reachability is the pin.
+	b := NewCompiledMethodBuilder("probe", 0)
+	b.Bytecode().Emit(OpPushNil)
+	b.Bytecode().Emit(OpReturnTop)
+	interp.pushFrame(b.Build(), Nil, nil)
 
-	vm.UnpinRoot(s)
+	blk := interp.createBlockValue(probeBlockMethod(), nil) // not on the operand stack
+	vm.PinRoot(blk)                                         // reachable through EXACTLY the pinned-roots set
 	vm.collectHeapGarbageLocked()
-	if got := vm.registry.GetStringContent(s); got == probe(60) {
-		t.Errorf("unpinned root should be collectible, but survived: %q", got)
+	if !vm.registry.HasBlock(blk) {
+		t.Fatal("pinned root block was incorrectly swept")
+	}
+
+	vm.UnpinRoot(blk)
+	vm.collectHeapGarbageLocked()
+	if vm.registry.HasBlock(blk) {
+		t.Error("unpinned root block should be collectible, but survived")
 	}
 }
 
@@ -150,12 +141,12 @@ func TestHeapGC_KeepsMethodLiteralString(t *testing.T) {
 	stringStillThere(t, vm, s, probe(6))
 }
 
-func TestHeapGC_FreesOrphanDictAndString(t *testing.T) {
+func TestHeapGC_FreesOrphanDict(t *testing.T) {
 	// The SSE-leak scenario: a dictionary that holds a big string is built,
-	// used transiently, and dropped (never stored in any root). Both the dict
-	// and its string must be reclaimed.
+	// used transiently, and dropped (never stored in any root). The dict must
+	// be reclaimed by the custom collector; its string is now reclaimed by the
+	// Go GC once the dict is gone.
 	vm := NewVM()
-	baseStr := vm.registry.StringCount()
 	baseDict := vm.registry.DictionaryCount()
 	const n = 2000
 	for i := 0; i < n; i++ {
@@ -164,18 +155,12 @@ func TestHeapGC_FreesOrphanDictAndString(t *testing.T) {
 		d.Data[1] = vm.registry.NewStringValue(probe(1000 + i))
 		// dv discarded — unreachable
 	}
-	freedStr, freedDict, _ := vm.collectHeapGarbageLocked()
+	_, freedDict, _ := vm.collectHeapGarbageLocked()
 	if freedDict < n {
 		t.Fatalf("orphan dicts not reclaimed: freed %d want >= %d", freedDict, n)
 	}
-	if freedStr < n {
-		t.Fatalf("orphan dict strings not reclaimed: freed %d want >= %d", freedStr, n)
-	}
 	if vm.registry.DictionaryCount() > baseDict+10 {
 		t.Fatalf("dicts leaked: base=%d after=%d", baseDict, vm.registry.DictionaryCount())
-	}
-	if vm.registry.StringCount() > baseStr+10 {
-		t.Fatalf("strings leaked: base=%d after=%d", baseStr, vm.registry.StringCount())
 	}
 }
 

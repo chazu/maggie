@@ -145,6 +145,8 @@ func (s *valueSerializer) serializeHeap(v Value) ([]byte, error) {
 	switch v.heapKindOf() {
 	case kindObject:
 		return s.serializeObject(v)
+	case kindString:
+		return cborSerialEncMode.Marshal(s.vm.registry.GetStringContent(v))
 	case kindBigInt:
 		bi := s.vm.registry.GetBigInt(v)
 		if bi == nil {
@@ -167,11 +169,6 @@ func (s *valueSerializer) serializeHeap(v Value) ([]byte, error) {
 // marker types (Channel, Process, Mutex, etc.)
 func (s *valueSerializer) serializeSymbolEncoded(v Value) ([]byte, error) {
 	// Check specific types in order of frequency
-	if IsStringValue(v) {
-		content := s.vm.registry.GetStringContent(v)
-		return cborSerialEncMode.Marshal(content)
-	}
-
 	if IsCharacterValue(v) {
 		cp := GetCharacterCodePoint(v)
 		return cborSerialEncMode.Marshal(cbor.Tag{Number: cborTagCharacter, Content: uint32(cp)})

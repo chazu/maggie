@@ -17,20 +17,15 @@ type StringObject struct {
 	Content string
 }
 
-// stringIDOffset is the starting offset for string IDs.
-// This separates string IDs from symbol IDs in the symbol tag space.
+// stringIDOffset is the upper bound of the real-symbol id space: interned
+// Symbols occupy [0, stringIDOffset). It is retained to distinguish real
+// Symbols from other symbol-encoded ids (see Value.IsSymbol and the dictionary
+// id space); Strings themselves are now pointer-carrying heap Values.
 const stringIDOffset uint32 = 0x80000000
 
-// IsStringValue returns true if the value is a string object (not a symbol).
-// String IDs are in the range [stringIDOffset, dictionaryIDOffset).
+// IsStringValue returns true if the value is a heap string object.
 func IsStringValue(v Value) bool {
-	if !v.IsSymbolEncoded() {
-		return false
-	}
-	id := v.SymbolID()
-	// String IDs: 0x80000000 to 0xBFFFFFFF
-	// Dictionary IDs: 0xC0000000+
-	return id >= stringIDOffset && id < dictionaryIDOffset
+	return v.ptr != nil && v.hi == kindString
 }
 
 // getStringLike returns the string content from a Value that is

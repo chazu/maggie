@@ -151,45 +151,6 @@ func TestMultiVM_IndependentClassVariables(t *testing.T) {
 	}
 }
 
-// TestMultiVM_IndependentStrings verifies that string registries are
-// per-VM: creating a string in one VM does not make it visible in
-// the other.
-func TestMultiVM_IndependentStrings(t *testing.T) {
-	vm1 := NewVM()
-	defer vm1.Shutdown()
-	vm2 := NewVM()
-	defer vm2.Shutdown()
-
-	// Snapshot initial string counts (bootstrap creates some strings)
-	baseline1 := vm1.Registry().StringCount()
-	baseline2 := vm2.Registry().StringCount()
-
-	// Create strings in VM1 only
-	s1 := vm1.Registry().NewStringValue("hello")
-	_ = vm1.Registry().NewStringValue("world")
-
-	// VM1 should have 2 more strings; VM2 should be unchanged
-	if vm1.Registry().StringCount() != baseline1+2 {
-		t.Errorf("VM1 string count: got %d, want %d", vm1.Registry().StringCount(), baseline1+2)
-	}
-	if vm2.Registry().StringCount() != baseline2 {
-		t.Errorf("VM2 string count changed: got %d, want %d", vm2.Registry().StringCount(), baseline2)
-	}
-
-	// Verify content is retrievable only through VM1's registry
-	content := vm1.Registry().GetStringContent(s1)
-	if content != "hello" {
-		t.Errorf("VM1 string content: got %q, want %q", content, "hello")
-	}
-
-	// Same value looked up through VM2's registry should yield empty string
-	// (the ID maps to nothing in VM2)
-	content2 := vm2.Registry().GetStringContent(s1)
-	if content2 == "hello" {
-		t.Error("VM2 should not be able to read VM1's string by ID")
-	}
-}
-
 // TestMultiVM_IndependentBlocks verifies that blocks registered in one
 // VM's concurrency registry are invisible to the other.
 func TestMultiVM_IndependentBlocks(t *testing.T) {

@@ -318,14 +318,12 @@ func (vm *VM) ValueToGo(v Value) interface{} {
 		return v.SmallInt()
 	case v.IsFloat():
 		return v.Float64()
+	case IsStringValue(v):
+		return vm.registry.GetStringContent(v)
 	case v.IsSymbolEncoded():
 		// Check GoObject first
 		if wrapper := vm.registry.GetGoObject(v); wrapper != nil {
 			return wrapper.Value
-		}
-		// Check string
-		if s := vm.registry.GetStringObject(v); s != nil {
-			return s.Content
 		}
 		// Regular symbol
 		return vm.Symbols.Name(v.SymbolID())

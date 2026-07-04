@@ -206,11 +206,7 @@ func (gc *RegistryGC) installHooks() {
 		reg.SetPressureHook(func(liveSize int32) { gc.onPressure(mr, liveSize) })
 	}
 
-	// Strings and dictionaries are by far the most-allocated kinds. Give
-	// them generous thresholds so we don't sweep on every burst, but cap
-	// the absolute ceiling well below their 31-bit ID space so we never
-	// run out of headroom.
-	add("strings", 50_000, 500_000, or.Strings)
+	// Dictionaries are among the most-allocated registry kinds still using ids.
 	add("dictionaries", 20_000, 200_000, or.Dictionaries)
 
 	// Contexts are the last remaining error-handling registry.

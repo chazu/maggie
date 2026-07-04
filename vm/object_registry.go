@@ -24,7 +24,6 @@ type ObjectRegistry struct {
 	// use Register/Get/Delete directly without delegation methods.
 	Contexts         *AutoIDRegistry[*ContextValue]
 	Dictionaries     *AutoIDRegistry[*DictionaryObject]
-	Strings          *AutoIDRegistry[*StringObject]
 	GoObjects        *AutoIDRegistry[*GoObjectWrapper]
 	ClassValues      *AutoIDRegistry[*Class]
 
@@ -52,7 +51,6 @@ func NewObjectRegistry() *ObjectRegistry {
 		// high bit(s) of the symbol payload as their discriminator. Strings
 		// occupy [0x80000000, 0xC0000000), dictionaries [0xC0000000, 0xFFFFFFFF].
 		Dictionaries:     NewAutoIDRegistry[*DictionaryObject](dictionaryIDOffset, WithMaxID(0xFFFFFFFF), WithName("dictionaries")),
-		Strings:          NewAutoIDRegistry[*StringObject](stringIDOffset, WithMaxID(dictionaryIDOffset-1), WithName("strings")),
 		GoObjects:        NewAutoIDRegistry[*GoObjectWrapper](0, WithName("goObjects")),
 		// ClassValues is monotonic: *Class caches its assigned classValueID,
 		// so reusing an ID would create a stale cache on the prior owner.
@@ -172,83 +170,42 @@ func (or *ObjectRegistry) GetDictionaryObject(v Value) *DictionaryObject {
 }
 
 // ---------------------------------------------------------------------------
-// String Registry Methods (delegates to AutoIDRegistry)
+// String heap Values
 // ---------------------------------------------------------------------------
+//
+// Strings are pointer-carrying heap Values (kindString) traced by the Go GC.
+// StringObject is immutable-content, so no per-object lock is needed: two
+// goroutines reading .Content race-free once the pointer is published.
 
-func (or *ObjectRegistry) RegisterString(s *StringObject) uint32 { return or.Strings.Register(s) }
-func (or *ObjectRegistry) GetString(id uint32) *StringObject     { return or.Strings.Get(id) }
-func (or *ObjectRegistry) UnregisterString(id uint32)            { or.Strings.Delete(id) }
-func (or *ObjectRegistry) StringCount() int                      { return or.Strings.Count() }
-
-// NewStringValue creates a Value from a Go string, registering it in the registry.
+// NewStringValue creates a heap Value wrapping a Go string.
 func (or *ObjectRegistry) NewStringValue(s string) Value {
-	obj := &StringObject{Content: s}
-	id := or.RegisterString(obj)
-	return FromSymbolID(id)
+	return makeHeap(kindString, unsafe.Pointer(&StringObject{Content: s}))
 }
 
-// CompareStrings compares two string values under a single read lock.
-// Returns true if both are valid strings with equal content.
-// This is more efficient than two separate GetStringContent calls
-// because it only acquires the lock once instead of twice.
+// CompareStrings returns true if both values are strings with equal content.
 func (or *ObjectRegistry) CompareStrings(a, b Value) bool {
-	if !a.IsSymbolEncoded() || !b.IsSymbolEncoded() {
+	if !IsStringValue(a) || !IsStringValue(b) {
 		return false
 	}
-	idA := a.SymbolID()
-	idB := b.SymbolID()
-	if idA < stringIDOffset || idB < stringIDOffset {
-		return false
-	}
-
-	or.Strings.RLock()
-	defer or.Strings.RUnlock()
-
-	objA := or.Strings.UnsafeGet(idA)
-	objB := or.Strings.UnsafeGet(idB)
-
-	if objA == nil || objB == nil {
-		return false
-	}
-	return objA.Content == objB.Content
+	return (*StringObject)(a.ptr).Content == (*StringObject)(b.ptr).Content
 }
 
 // GetStringContent returns the Go string content of a string Value.
 // Returns empty string if v is not a string.
 func (or *ObjectRegistry) GetStringContent(v Value) string {
-	if !v.IsSymbolEncoded() {
+	if !IsStringValue(v) {
 		return ""
 	}
-	id := v.SymbolID()
-	if id < stringIDOffset {
-		return "" // It's a regular symbol, not a string
-	}
-
-	or.Strings.RLock()
-	obj := or.Strings.UnsafeGet(id)
-	if obj == nil {
-		or.Strings.RUnlock()
-		return ""
-	}
-	s := obj.Content
-	or.Strings.RUnlock()
-	return s
+	return (*StringObject)(v.ptr).Content
 }
 
 // GetStringObject returns the StringObject for a Value.
 // Returns nil if v is not a string.
 func (or *ObjectRegistry) GetStringObject(v Value) *StringObject {
-	if !v.IsSymbolEncoded() {
+	if !IsStringValue(v) {
 		return nil
 	}
-	id := v.SymbolID()
-	if id < stringIDOffset {
-		return nil
-	}
-	or.Strings.RLock()
-	obj := or.Strings.UnsafeGet(id)
-	or.Strings.RUnlock()
-	return obj
+	return (*StringObject)(v.ptr)
 }
 
 // ---------------------------------------------------------------------------
@@ -447,7 +404,6 @@ func (or *ObjectRegistry) FullStats() map[string]int {
 	}
 	stats["contexts"] = or.ContextCount()
 	stats["dictionaries"] = or.DictionaryCount()
-	stats["strings"] = or.StringCount()
 	stats["cells"] = or.CellCount()
 	stats["classVarClasses"] = or.ClassVarCount()
 	stats["goObjects"] = or.GoObjectCount()

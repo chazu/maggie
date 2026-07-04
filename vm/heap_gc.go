@@ -50,7 +50,6 @@ type RootMarker interface {
 // liveSet accumulates the reachable ids/pointers for one collection cycle.
 type liveSet struct {
 	objects    map[*Object]struct{}
-	strings    map[uint32]struct{}
 	dicts      map[uint32]struct{}
 	arrayLists map[int]struct{}
 	cells      map[*Cell]struct{}
@@ -60,7 +59,6 @@ type liveSet struct {
 func newLiveSet() *liveSet {
 	return &liveSet{
 		objects:    make(map[*Object]struct{}),
-		strings:    make(map[uint32]struct{}),
 		dicts:      make(map[uint32]struct{}),
 		arrayLists: make(map[int]struct{}),
 		cells:      make(map[*Cell]struct{}),
@@ -80,9 +78,6 @@ func (vm *VM) mark(root Value, ls *liveSet) {
 		work = work[:len(work)-1]
 
 		switch {
-		case IsStringValue(v):
-			ls.strings[v.SymbolID()] = struct{}{}
-
 		case v.IsObject():
 			obj := ObjectFromValue(v)
 			if obj == nil {
@@ -453,10 +448,8 @@ func (vm *VM) collectHeapGarbageLocked() (strings, dicts, blocks int) {
 	ls := newLiveSet()
 	vm.markRoots(ls)
 
-	strings = vm.registry.Strings.Sweep(func(id uint32, _ *StringObject) bool {
-		_, live := ls.strings[id]
-		return live
-	})
+	// Strings are pointer-carrying heap Values traced by the Go GC — no custom
+	// sweep needed; `strings` stays 0.
 	dicts = vm.registry.Dictionaries.Sweep(func(id uint32, _ *DictionaryObject) bool {
 		_, live := ls.dicts[id]
 		return live
