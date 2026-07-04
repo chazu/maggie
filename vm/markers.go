@@ -18,7 +18,6 @@ package vm
 
 const (
 	// Concurrency primitives
-	channelMarker               uint32 = 1 << 24
 	processMarker               uint32 = 2 << 24
 	grpcClientMarker            uint32 = 7 << 24
 	grpcStreamMarker            uint32 = 9 << 24
@@ -68,7 +67,6 @@ const (
 	// Distribution protocol (reserved for Phase 6)
 	chunkMarker                 uint32 = 42 << 24
 	remoteRefMarker             uint32 = 43 << 24
-	promiseMarker               uint32 = 44 << 24
 )
 
 // markerMask extracts the marker byte from a symbol ID.

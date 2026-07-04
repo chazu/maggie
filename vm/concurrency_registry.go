@@ -122,7 +122,11 @@ func NewConcurrencyRegistry() *ConcurrencyRegistry {
 // Channel Registry Methods
 // ---------------------------------------------------------------------------
 
-// RegisterChannel adds a channel to the registry and returns its Value.
+// RegisterChannel records a channel in the id map (for GC root enumeration /
+// sweeping) and returns it as a pointer-carrying heap Value. The id space can
+// no longer be "exhausted" in a way that aliases live channels (the Value is a
+// pointer), but the counter is retained as a map key; err is always nil in
+// practice.
 func (cr *ConcurrencyRegistry) RegisterChannel(ch *ChannelObject) (Value, error) {
 	id, err := allocConcurrencyID(&cr.channelID, "channel")
 	if err != nil {
@@ -133,19 +137,15 @@ func (cr *ConcurrencyRegistry) RegisterChannel(ch *ChannelObject) (Value, error)
 	cr.channels[id] = ch
 	cr.channelsMu.Unlock()
 
-	return channelToValue(id), nil
+	return channelToValue(ch), nil
 }
 
-// GetChannel retrieves a channel by its Value.
+// GetChannel retrieves a channel from its Value.
 func (cr *ConcurrencyRegistry) GetChannel(v Value) *ChannelObject {
 	if !isChannelValue(v) {
 		return nil
 	}
-	id := int(markedIDFromValue(v))
-
-	cr.channelsMu.RLock()
-	defer cr.channelsMu.RUnlock()
-	return cr.channels[id]
+	return (*ChannelObject)(v.ptr)
 }
 
 // SweepChannels removes closed channels from the registry.
@@ -504,7 +504,8 @@ func (cr *ConcurrencyRegistry) Sweep() (channels, processes, blocks int) {
 // Future Registry Methods
 // ---------------------------------------------------------------------------
 
-// RegisterFuture adds a future to the registry and returns its Value.
+// RegisterFuture records a future in the id map (for GC root enumeration /
+// sweeping) and returns it as a pointer-carrying heap Value.
 func (cr *ConcurrencyRegistry) RegisterFuture(f *FutureObject) (Value, error) {
 	id, err := allocConcurrencyID(&cr.futureID, "future")
 	if err != nil {
@@ -513,18 +514,15 @@ func (cr *ConcurrencyRegistry) RegisterFuture(f *FutureObject) (Value, error) {
 	cr.futuresMu.Lock()
 	cr.futures[id] = f
 	cr.futuresMu.Unlock()
-	return futureToValue(uint32(id)), nil
+	return futureToValue(f), nil
 }
 
-// GetFuture retrieves a future by its Value.
+// GetFuture retrieves a future from its Value.
 func (cr *ConcurrencyRegistry) GetFuture(v Value) *FutureObject {
 	if !isFutureValue(v) {
 		return nil
 	}
-	id := int(futureIDFromValue(v))
-	cr.futuresMu.RLock()
-	defer cr.futuresMu.RUnlock()
-	return cr.futures[id]
+	return (*FutureObject)(v.ptr)
 }
 
 // FutureCount returns the number of registered futures.

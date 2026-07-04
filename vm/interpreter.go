@@ -1408,6 +1408,18 @@ func (i *Interpreter) vtableForVM(v Value, vm *VM) *VTable {
 			}
 			return nil
 		}
+		if v.hi == kindClassValue {
+			// Class-side dispatch via the class's ClassVTable — no metaclass
+			// materialization on this hot path (see Send).
+			c := (*Class)(v.ptr)
+			if c == nil {
+				return nil
+			}
+			if c.ClassVTable != nil {
+				return c.ClassVTable
+			}
+			return c.VTable
+		}
 		// Other pointer-carrying heap kinds (BigInt, Result, …) resolve their
 		// vtable through the class returned by classForHeap.
 		if cls := vm.classForHeap(v); cls != nil {

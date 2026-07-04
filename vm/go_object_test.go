@@ -108,14 +108,13 @@ func TestGoObjectRegistry_GetNonGoObject(t *testing.T) {
 	}
 
 	// Random symbol (wrong marker)
-	if or.GetGoObject(FromSymbolID(channelMarker|5)) != nil {
+	if or.GetGoObject(FromSymbolID(remoteRefMarker|5)) != nil {
 		t.Error("expected nil for channel marker symbol")
 	}
 }
 
 func TestGoObjectMarker_NoCollision(t *testing.T) {
 	markers := map[string]uint32{
-		"channel":             channelMarker,
 		"process":             processMarker,
 		"grpcClient":          grpcClientMarker,
 		"grpcStream":          grpcStreamMarker,

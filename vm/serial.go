@@ -147,6 +147,10 @@ func (s *valueSerializer) serializeHeap(v Value) ([]byte, error) {
 		return s.serializeObject(v)
 	case kindString:
 		return cborSerialEncMode.Marshal(s.vm.registry.GetStringContent(v))
+	case kindChannel:
+		return s.serializeChannel(v)
+	case kindFuture:
+		return nil, fmt.Errorf("serial: cannot serialize Future (non-serializable type)")
 	case kindDictionary:
 		return s.serializeDictionary(v)
 	case kindBigInt:
@@ -197,8 +201,6 @@ func (s *valueSerializer) serializeSymbolEncoded(v Value) ([]byte, error) {
 	id := v.SymbolID()
 	marker := id & markerMask
 	switch marker {
-	case channelMarker:
-		return s.serializeChannel(v)
 	case remoteChannelMarker:
 		return s.serializeRemoteChannel(v)
 	case processMarker:

@@ -18,7 +18,7 @@ func (vm *VM) registerFuturePrimitives() {
 	vm.FutureClass = c
 	vm.globals["Future"] = vm.classValue(c)
 
-	vm.symbolDispatch.Register(promiseMarker, &SymbolTypeEntry{Class: c})
+	// Futures are pointer-carrying heap Values resolved via classForHeap.
 
 	// Future>>await — blocking, raises the remote exception on failure
 	c.AddMethod0(vm.Selectors, "await", func(v *VM, recv Value) Value {

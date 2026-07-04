@@ -4,6 +4,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+	"unsafe"
 )
 
 // NOTE: Global channel/process registries have been removed.
@@ -194,18 +195,16 @@ func (co *ChannelObject) Size() int { return len(co.ch) }
 // Cap returns the buffer capacity.
 func (co *ChannelObject) Cap() int { return cap(co.ch) }
 
-func channelToValue(id int) Value {
-	// Encode channel ID in a way we can distinguish from symbols
-	// Use the symbol encoding but with a special marker in the ID range
-	return FromSymbolID(uint32(id) | channelMarker)
+// channelToValue wraps a ChannelObject pointer in a heap Value traced by the Go
+// GC. The concurrency registry still keeps an id→channel map, but only so the
+// custom collector can enumerate channels to mark their buffered values (block
+// liveness) and sweep closed ones until blocks migrate in stage 3.
+func channelToValue(ch *ChannelObject) Value {
+	return makeHeap(kindChannel, unsafe.Pointer(ch))
 }
 
 func isChannelValue(v Value) bool {
-	if !v.IsSymbolEncoded() {
-		return false
-	}
-	id := v.SymbolID()
-	return (id & markerMask) == channelMarker
+	return v.ptr != nil && v.hi == kindChannel
 }
 
 // ---------------------------------------------------------------------------

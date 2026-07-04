@@ -377,13 +377,9 @@ func TestSerial_NonSerializable(t *testing.T) {
 	vm := NewVM()
 	defer vm.Shutdown()
 
-	// Block
-	_, err := vm.SerializeValue(FromSymbolID(channelMarker | 1))
-	if err == nil {
-		t.Error("Channel should not be serializable")
-	}
-
-	_, err = vm.SerializeValue(FromSymbolID(processMarker | 1))
+	// Process (channels ARE serializable via distributed-channel export, so
+	// they are no longer part of this non-serializable check).
+	_, err := vm.SerializeValue(FromSymbolID(processMarker | 1))
 	if err == nil {
 		t.Error("Process should not be serializable")
 	}

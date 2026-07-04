@@ -185,18 +185,14 @@ func (vm *VM) GetRemoteChannel(v Value) *RemoteChannelRef {
 	return vm.getRemoteChannel(v)
 }
 
-// findChannelValue finds the NaN-boxed Value for a ChannelObject by scanning
-// the concurrency registry. Used when deserializing a channel reference that
-// turns out to be local.
+// findChannelValue returns the heap Value for a ChannelObject. Used when
+// deserializing a channel reference that turns out to be local. With
+// pointer-carrying channel Values this is a direct wrap — no registry scan.
 func (vm *VM) findChannelValue(target *ChannelObject) Value {
-	vm.registry.channelsMu.RLock()
-	defer vm.registry.channelsMu.RUnlock()
-	for id, ch := range vm.registry.channels {
-		if ch == target {
-			return channelToValue(id)
-		}
+	if target == nil {
+		return Nil
 	}
-	return Nil
+	return channelToValue(target)
 }
 
 // DrainRemoteChannels marks all remote channels from the given node as closed.

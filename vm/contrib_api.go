@@ -39,12 +39,6 @@ func CreateCancellationContextWithCancel(parent *CancellationContextObject) *Can
 	return createCancellationContextWithCancel(parent)
 }
 
-// ChannelMarkerValue returns the unexported channelMarker constant.
-// Exported for contrib plugin tests that need to verify marker distinctness.
-func ChannelMarkerValue() uint32 {
-	return channelMarker
-}
-
 // CborSerialEncMode returns the CBOR encoder mode used for serialization.
 // Exported for contrib plugins that need to produce CBOR-compatible output.
 func CborSerialEncMode() cbor.EncMode {

@@ -40,7 +40,6 @@ func TestIsCliCommandValueFalse(t *testing.T) {
 func TestCliMarkerUnique(t *testing.T) {
 	// Regression guard: catch accidental reassignment of cliCommandMarker.
 	markers := map[string]uint32{
-		"channel":       channelMarker,
 		"process":       processMarker,
 		"httpClient":    httpClientMarker,
 		"sseConnection": sseConnectionMarker,

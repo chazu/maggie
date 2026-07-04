@@ -3,6 +3,7 @@ package vm
 import (
 	"sync"
 	"sync/atomic"
+	"unsafe"
 )
 
 // FutureObject represents a pending asynchronous result. It wraps a Go
@@ -90,20 +91,16 @@ func (f *FutureObject) Error() string {
 }
 
 // ---------------------------------------------------------------------------
-// NaN-boxing: Future values use promiseMarker (44 << 24)
+// Future values are pointer-carrying heap Values (kindFuture) traced by the Go
+// GC. The concurrency registry keeps an id→future map only so the custom
+// collector can mark each future's buffered result/exceptionValue (block
+// liveness) until blocks migrate in stage 3.
 // ---------------------------------------------------------------------------
 
-func futureToValue(id uint32) Value {
-	return FromSymbolID(id | promiseMarker)
+func futureToValue(f *FutureObject) Value {
+	return makeHeap(kindFuture, unsafe.Pointer(f))
 }
 
 func isFutureValue(v Value) bool {
-	if !v.IsSymbolEncoded() {
-		return false
-	}
-	return (v.SymbolID() & markerMask) == promiseMarker
-}
-
-func futureIDFromValue(v Value) uint32 {
-	return markedIDFromValue(v)
+	return v.ptr != nil && v.hi == kindFuture
 }

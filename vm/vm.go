@@ -606,10 +606,9 @@ func (vm *VM) createClassWithIvars(name string, superclass *Class, ivars []strin
 func (vm *VM) registerSymbolDispatch() {
 	sd := vm.symbolDispatch
 
-	// Concurrency primitives (channel + process are still symbol-encoded ids;
-	// mutex/waitGroup/semaphore/cancellationContext are pointer-carrying heap
-	// kinds resolved via classForHeap).
-	sd.Register(channelMarker, &SymbolTypeEntry{Class: vm.ChannelClass})
+	// Concurrency primitives. Process is still a symbol-encoded id (its Values
+	// are constructed by-id in monitor/link/distribution paths); the rest are
+	// pointer-carrying heap kinds resolved via classForHeap.
 	sd.Register(processMarker, &SymbolTypeEntry{Class: vm.ProcessClass})
 
 	// gRPC symbol dispatch is registered by the gRPC contrib plugin.
@@ -1014,6 +1013,10 @@ func (vm *VM) classForHeap(v Value) *Class {
 		return vm.SemaphoreClass
 	case kindCancellationContext:
 		return vm.CancellationContextClass
+	case kindChannel:
+		return vm.ChannelClass
+	case kindFuture:
+		return vm.FutureClass
 	default:
 		return vm.ObjectClass
 	}
@@ -1152,6 +1155,12 @@ func (vm *VM) Send(receiver Value, selector string, args []Value) Value {
 				class = vm.SymbolClass
 			}
 		}
+	} else if isClassValue(receiver) {
+		// A class value dispatches class-side via the class's ClassVTable —
+		// without materializing a metaclass on this hot path (MetaclassFor is
+		// reserved for the cold "class of a class" reflection path in ClassFor).
+		class = vm.registry.GetClassFromValue(receiver)
+		isClassSide = true
 	} else {
 		class = vm.ClassFor(receiver)
 	}

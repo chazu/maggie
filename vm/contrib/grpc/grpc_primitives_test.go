@@ -1007,11 +1007,4 @@ func TestGrpcMarkersDontCollideWithOtherMarkers(t *testing.T) {
 		t.Error("client and stream markers should be distinct")
 	}
 
-	// Also check against channel marker (a well-known VM marker)
-	if vm.GrpcClientMarker == vm.ChannelMarkerValue() {
-		t.Error("grpcClient marker should not collide with channel marker")
-	}
-	if vm.GrpcStreamMarker == vm.ChannelMarkerValue() {
-		t.Error("grpcStream marker should not collide with channel marker")
-	}
 }
