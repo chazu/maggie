@@ -251,7 +251,7 @@ func buildSignedEnvelopeForProcess(ref *NodeRefData, targetPID uint64, selector 
 func (vm *VM) findNodeRefByID(nodeID [32]byte) *NodeRefData {
 	vm.nodeRefsMu.RLock()
 	defer vm.nodeRefsMu.RUnlock()
-	for _, ref := range vm.nodeRefs {
+	for ref := range vm.nodeRefs {
 		if ref.NodeID() == nodeID {
 			return ref
 		}

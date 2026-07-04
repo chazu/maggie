@@ -55,9 +55,6 @@ const (
 	// ConstraintStore (exported for vm/contrib/cue)
 	ConstraintStoreMarker       uint32 = 54 << 24
 
-	// Distributed channels
-	remoteChannelMarker         uint32 = 55 << 24
-
 	// SSE (Server-Sent Events) connection
 	sseConnectionMarker         uint32 = 57 << 24
 
@@ -66,26 +63,11 @@ const (
 
 	// Distribution protocol (reserved for Phase 6)
 	chunkMarker                 uint32 = 42 << 24
-	remoteRefMarker             uint32 = 43 << 24
 )
 
 // markerMask extracts the marker byte from a symbol ID.
 const markerMask uint32 = 0xFF << 24
 
-// MarkerMask is the exported version for contrib packages.
-const MarkerMask = markerMask
-
-func markedToValue(marker uint32, id uint32) Value  { return FromSymbolID(id | marker) }
-func markedIDFromValue(v Value) uint32               { return v.SymbolID() & ^markerMask }
-func isMarkedValue(marker uint32, v Value) bool {
-	return v.IsSymbolEncoded() && (v.SymbolID()&markerMask) == marker
-}
-
-// MarkedToValue is the exported version for contrib packages.
-func MarkedToValue(marker uint32, id uint32) Value { return markedToValue(marker, id) }
-
-// MarkedIDFromValue is the exported version for contrib packages.
-func MarkedIDFromValue(v Value) uint32 { return markedIDFromValue(v) }
-
-// IsMarkedValue is the exported version for contrib packages.
-func IsMarkedValue(marker uint32, v Value) bool { return isMarkedValue(marker, v) }
+// markedIDFromValue strips the marker byte from a symbol-encoded id. Still used
+// by the process-id paths (Process remains symbol-encoded).
+func markedIDFromValue(v Value) uint32 { return v.SymbolID() & ^markerMask }

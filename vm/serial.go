@@ -177,6 +177,8 @@ func (s *valueSerializer) serializeHeap(v Value) ([]byte, error) {
 		return nil, fmt.Errorf("serial: cannot serialize CancellationContext (non-serializable type)")
 	case kindCell:
 		return nil, fmt.Errorf("serial: cannot serialize Cell (non-serializable type)")
+	case kindRemoteChannel:
+		return s.serializeRemoteChannel(v)
 	case kindExtension:
 		// Contrib plugins register serialize hooks (e.g. CueValue). Try them;
 		// unhandled extension kinds are non-serializable IO handles.
@@ -208,8 +210,6 @@ func (s *valueSerializer) serializeSymbolEncoded(v Value) ([]byte, error) {
 	id := v.SymbolID()
 	marker := id & markerMask
 	switch marker {
-	case remoteChannelMarker:
-		return s.serializeRemoteChannel(v)
 	case processMarker:
 		return nil, fmt.Errorf("serial: cannot serialize Process (non-serializable type)")
 	}

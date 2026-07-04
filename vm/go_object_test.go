@@ -108,8 +108,8 @@ func TestGoObjectRegistry_GetNonGoObject(t *testing.T) {
 	}
 
 	// Random symbol (wrong marker)
-	if or.GetGoObject(FromSymbolID(remoteRefMarker|5)) != nil {
-		t.Error("expected nil for channel marker symbol")
+	if or.GetGoObject(FromSymbolID(weakRefMarker|5)) != nil {
+		t.Error("expected nil for a non-GoObject marker symbol")
 	}
 }
 

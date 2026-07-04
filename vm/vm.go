@@ -209,10 +209,12 @@ type VM struct {
 	remoteChannels *remoteChannelRegistry
 	channelExports *channelExportRegistry
 
-	// Node references for remote connections
-	nodeRefs   map[int]*NodeRefData
+	// nodeRefs tracks every live NodeRefData so findNodeRefByID can route
+	// inbound distributed messages by node public key. NodeRef Values are
+	// pointer-carrying kindRemoteRef (Go GC owns their lifetime); this set is a
+	// purely functional reverse index, not a liveness root.
+	nodeRefs   map[*NodeRefData]struct{}
 	nodeRefsMu sync.RWMutex
-	nodeRefID  atomic.Int32
 
 	// Local node identity keys (loaded lazily)
 	localIdentity *nodeIdentityHolder
@@ -304,7 +306,7 @@ func NewVM(configs ...VMConfig) *VM {
 		dependents:       make(map[Value][]Value),
 		remoteChannels:   newRemoteChannelRegistry(),
 		channelExports:   newChannelExportRegistry(),
-		nodeRefs:         make(map[int]*NodeRefData),
+		nodeRefs:         make(map[*NodeRefData]struct{}),
 		remoteWatches:    NewRemoteWatchStore(),
 		pendingSpawns:    newPendingSpawnRegistry(),
 	}
@@ -1024,6 +1026,10 @@ func (vm *VM) classForHeap(v Value) *Class {
 		return vm.ChannelClass
 	case kindFuture:
 		return vm.FutureClass
+	case kindRemoteChannel:
+		return vm.RemoteChannelClass
+	case kindRemoteRef:
+		return vm.NodeClass
 	case kindExtension:
 		// Contrib/IO wrapper types share kindExtension; the concrete class is
 		// the one registered for the wrapper's marker in symbolDispatch.

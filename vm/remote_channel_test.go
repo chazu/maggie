@@ -26,30 +26,6 @@ func TestRemoteChannelRef_ClosedState(t *testing.T) {
 // Registry tests
 // ---------------------------------------------------------------------------
 
-func TestRemoteChannelRegistry(t *testing.T) {
-	reg := newRemoteChannelRegistry()
-
-	ref1 := &RemoteChannelRef{ChannelID: 10}
-	ref2 := &RemoteChannelRef{ChannelID: 20}
-
-	id1 := reg.register(ref1)
-	id2 := reg.register(ref2)
-
-	if id1 == id2 {
-		t.Error("IDs should be unique")
-	}
-
-	if got := reg.get(id1); got != ref1 {
-		t.Error("should get back ref1")
-	}
-	if got := reg.get(id2); got != ref2 {
-		t.Error("should get back ref2")
-	}
-	if got := reg.get(999); got != nil {
-		t.Error("should return nil for unknown ID")
-	}
-}
-
 func TestRemoteChannelRegistry_DrainNode(t *testing.T) {
 	reg := newRemoteChannelRegistry()
 
@@ -60,9 +36,9 @@ func TestRemoteChannelRegistry_DrainNode(t *testing.T) {
 	ref2 := &RemoteChannelRef{OwnerNode: nodeA, ChannelID: 2}
 	ref3 := &RemoteChannelRef{OwnerNode: nodeB, ChannelID: 3}
 
-	reg.register(ref1)
-	reg.register(ref2)
-	reg.register(ref3)
+	reg.track(ref1)
+	reg.track(ref2)
+	reg.track(ref3)
 
 	reg.drainNode(nodeA)
 
@@ -113,12 +89,14 @@ func TestChannelExportRegistry(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestRemoteChannel_NanBoxing(t *testing.T) {
-	v := remoteChannelToValue(42)
+	vm := NewVM()
+	ref := &RemoteChannelRef{ChannelID: 42}
+	v := vm.registerRemoteChannel(ref)
 	if !isRemoteChannelValue(v) {
 		t.Error("should be recognized as remote channel")
 	}
-	if id := remoteChannelIDFromValue(v); id != 42 {
-		t.Errorf("ID: got %d, want 42", id)
+	if got := vm.getRemoteChannel(v); got != ref {
+		t.Error("should resolve back to the same ref")
 	}
 
 	// Regular values should not be remote channels

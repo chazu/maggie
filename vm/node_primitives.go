@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"sync/atomic"
+	"unsafe"
 )
 
 // ---------------------------------------------------------------------------
@@ -132,22 +133,11 @@ func buildSignedEnvelope(ref *NodeRefData, targetName, selector string, payload 
 }
 
 // ---------------------------------------------------------------------------
-// NaN-boxing: Node values use remoteRefMarker (43 << 24)
+// Node values are pointer-carrying kindRemoteRef heap Values.
 // ---------------------------------------------------------------------------
 
-func nodeRefToValue(id int) Value {
-	return FromSymbolID(uint32(id) | remoteRefMarker)
-}
-
 func isNodeRefValue(v Value) bool {
-	if !v.IsSymbolEncoded() {
-		return false
-	}
-	return (v.SymbolID() & markerMask) == remoteRefMarker
-}
-
-func nodeRefIDFromValue(v Value) int {
-	return int(markedIDFromValue(v))
+	return v.ptr != nil && v.hi == kindRemoteRef
 }
 
 // ---------------------------------------------------------------------------
@@ -155,21 +145,20 @@ func nodeRefIDFromValue(v Value) int {
 // ---------------------------------------------------------------------------
 
 func (vm *VM) registerNodeRef(ref *NodeRefData) Value {
+	// The ref is a pointer-carrying kindRemoteRef Value (below). It is also
+	// tracked in nodeRefs, whose sole remaining role is the public-key reverse
+	// lookup (findNodeRefByID) used to route inbound distributed messages.
 	vm.nodeRefsMu.Lock()
-	id := int(vm.nodeRefID.Add(1) - 1)
-	vm.nodeRefs[id] = ref
+	vm.nodeRefs[ref] = struct{}{}
 	vm.nodeRefsMu.Unlock()
-	return nodeRefToValue(id)
+	return makeHeap(kindRemoteRef, unsafe.Pointer(ref))
 }
 
 func (vm *VM) getNodeRef(v Value) *NodeRefData {
 	if !isNodeRefValue(v) {
 		return nil
 	}
-	id := nodeRefIDFromValue(v)
-	vm.nodeRefsMu.RLock()
-	defer vm.nodeRefsMu.RUnlock()
-	return vm.nodeRefs[id]
+	return (*NodeRefData)(v.ptr)
 }
 
 func (vm *VM) nodeIdentity() (ed25519.PublicKey, ed25519.PrivateKey) {
@@ -198,7 +187,7 @@ func (vm *VM) registerNodePrimitives() {
 	c := vm.createClass("Node", vm.ObjectClass)
 	vm.NodeClass = c
 	vm.globals["Node"] = vm.classValue(c)
-	vm.symbolDispatch.Register(remoteRefMarker, &SymbolTypeEntry{Class: c})
+	// Class resolution is via classForHeap's kindRemoteRef case (pointer Value).
 
 	// Node class>>connect: addr
 	c.AddClassMethod1(vm.Selectors, "connect:", func(v *VM, recv, addr Value) Value {

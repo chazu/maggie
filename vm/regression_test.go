@@ -84,7 +84,7 @@ func TestMarkerNoCollision(t *testing.T) {
 	if isResultValue(ch) {
 		t.Error("Channel should not be identified as result")
 	}
-	if IsMarkedValue(GrpcStreamMarker, ch) {
+	if isExtensionValue(ch, GrpcStreamMarker) {
 		t.Error("Channel should not be identified as grpc stream")
 	}
 }
