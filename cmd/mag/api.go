@@ -118,13 +118,20 @@ func apiSelectors(vt *vm.VTable, selectors *vm.SelectorTable) []apiSelector {
 	result := make([]apiSelector, 0, len(local))
 	for selectorID, method := range local {
 		name := selectors.Name(selectorID)
-		if name == "" {
+		if name == "" || isInternalSelector(name) {
 			continue
 		}
 		result = append(result, apiSelector{Selector: name, Doc: firstLine(vm.MethodDocString(method))})
 	}
 	sort.Slice(result, func(i, j int) bool { return result[i].Selector < result[j].Selector })
 	return result
+}
+
+// isInternalSelector reports whether a selector is an internal primitive that a
+// public .mag method wraps (the `primXxx` convention). These clutter the agent-
+// facing index without adding usable surface.
+func isInternalSelector(name string) bool {
+	return len(name) > 4 && strings.HasPrefix(name, "prim") && name[4] >= 'A' && name[4] <= 'Z'
 }
 
 func apiClassName(cls *vm.Class) string {
