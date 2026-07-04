@@ -195,40 +195,10 @@ func TestRegistryGCActiveProcessesNotSwept(t *testing.T) {
 	proc.markDone(Nil, nil)
 }
 
-// TestRegistryGCSweepCancellationContexts verifies that cancelled contexts
-// are cleaned up.
-func TestRegistryGCSweepCancellationContexts(t *testing.T) {
-	vm := NewVM()
-	defer vm.Shutdown()
-
-	// Create some cancellation contexts
-	ctx1 := vm.Send(vm.classValue(vm.CancellationContextClass), "withCancel", nil)
-	ctx2 := vm.Send(vm.classValue(vm.CancellationContextClass), "withCancel", nil)
-	ctx3 := vm.Send(vm.classValue(vm.CancellationContextClass), "withCancel", nil)
-
-	countBefore := vm.Concurrency().CancellationContextCount()
-
-	// Cancel two of them
-	vm.Send(ctx1, "cancel", nil)
-	vm.Send(ctx3, "cancel", nil)
-
-	stats := vm.registryGC.SweepNow()
-
-	if stats.CancellationContexts != 2 {
-		t.Errorf("Expected 2 cancelled contexts swept, got %d", stats.CancellationContexts)
-	}
-
-	countAfter := vm.Concurrency().CancellationContextCount()
-	if countAfter != countBefore-2 {
-		t.Errorf("Context count: before=%d, after=%d, expected %d", countBefore, countAfter, countBefore-2)
-	}
-
-	// The non-cancelled context should still be accessible and functional
-	isCancelled := vm.Send(ctx2, "isCancelled", nil)
-	if isCancelled != False {
-		t.Error("ctx2 should not be cancelled")
-	}
-}
+// CancellationContexts are now pointer-carrying heap Values reclaimed by the Go
+// GC; the custom collector no longer sweeps them, so the dedicated sweep test
+// was removed. Functional cancel/isCancelled behavior is covered in
+// cancellation_test.go.
 
 // TestRegistryGCConfigurableInterval verifies that the sweep interval
 // can be configured.
@@ -538,21 +508,16 @@ func TestRegistryGCTotalSwept(t *testing.T) {
 	}
 	proc.markDone(Nil, nil)
 
-	// Create and cancel a context
-	ctx := vm.Send(vm.classValue(vm.CancellationContextClass), "withCancel", nil)
-	vm.Send(ctx, "cancel", nil)
-
 	stats := vm.registryGC.SweepNow()
 
-	expectedTotal := stats.Channels + stats.Processes +
-		stats.CancellationContexts
+	expectedTotal := stats.Channels + stats.Processes
 
 	if stats.TotalSwept != expectedTotal {
 		t.Errorf("TotalSwept=%d, expected sum of components=%d", stats.TotalSwept, expectedTotal)
 	}
 
-	if stats.TotalSwept < 3 {
-		t.Errorf("Expected at least 3 objects swept, got %d", stats.TotalSwept)
+	if stats.TotalSwept < 2 {
+		t.Errorf("Expected at least 2 objects swept, got %d", stats.TotalSwept)
 	}
 }
 

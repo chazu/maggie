@@ -388,7 +388,8 @@ func TestSerial_NonSerializable(t *testing.T) {
 		t.Error("Process should not be serializable")
 	}
 
-	_, err = vm.SerializeValue(FromSymbolID(mutexMarker | 1))
+	mutexVal, _ := vm.registry.RegisterMutex(&MutexObject{})
+	_, err = vm.SerializeValue(mutexVal)
 	if err == nil {
 		t.Error("Mutex should not be serializable")
 	}

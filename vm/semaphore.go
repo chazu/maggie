@@ -28,16 +28,8 @@ func createSemaphore(capacity int) *SemaphoreObject {
 	return sem
 }
 
-func semaphoreToValue(id int) Value {
-	return FromSymbolID(uint32(id) | semaphoreMarker)
-}
-
 func isSemaphoreValue(v Value) bool {
-	if !v.IsSymbolEncoded() {
-		return false
-	}
-	id := v.SymbolID()
-	return (id & markerMask) == semaphoreMarker
+	return v.ptr != nil && v.hi == kindSemaphore
 }
 
 // ---------------------------------------------------------------------------

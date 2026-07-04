@@ -23,10 +23,6 @@ const (
 	grpcClientMarker            uint32 = 7 << 24
 	grpcStreamMarker            uint32 = 9 << 24
 	weakRefMarker               uint32 = 16 << 24
-	mutexMarker                 uint32 = 32 << 24
-	waitGroupMarker             uint32 = 33 << 24
-	semaphoreMarker             uint32 = 34 << 24
-	cancellationContextMarker   uint32 = 35 << 24
 	characterMarker             uint32 = 37 << 24
 	httpServerMarker            uint32 = 38 << 24
 	httpRequestMarker           uint32 = 39 << 24

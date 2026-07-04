@@ -68,7 +68,6 @@ func (r triggerReason) String() string {
 type RegistryGCStats struct {
 	Channels             int
 	Processes            int
-	CancellationContexts int
 	Strings              int
 	Dictionaries         int
 	Blocks               int
@@ -384,13 +383,11 @@ func (gc *RegistryGC) sweep(reason triggerReason, registryName string) *Registry
 	}
 
 	if gc.vm.registry != nil {
-		// 1. Concurrency registries (channels/processes/CC).
-		// These are not AutoIDRegistry-backed and have no pressure hook;
-		// they ride the timer floor only. That's fine — they're typically
-		// low-cardinality and not the bursty-allocation problem case.
+		// 1. Channel/process id maps are still swept for terminated entries
+		// (they double as GC roots for buffered/mailbox blocks until blocks
+		// migrate). They ride the timer floor only — no pressure hook.
 		stats.Channels = gc.vm.registry.SweepChannels()
 		stats.Processes = gc.vm.registry.SweepProcesses()
-		stats.CancellationContexts = gc.vm.registry.SweepCancellationContexts()
 	}
 
 	// 3. String/dictionary tracing collector (opt-in). This runs a
@@ -414,7 +411,6 @@ func (gc *RegistryGC) sweep(reason triggerReason, registryName string) *Registry
 	// in vm/concurrency.go.
 
 	stats.TotalSwept = stats.Channels + stats.Processes +
-		stats.CancellationContexts +
 		stats.Strings + stats.Dictionaries + stats.Blocks
 	stats.SweepDuration = time.Since(start)
 

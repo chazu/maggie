@@ -70,26 +70,6 @@ type ConcurrencyRegistry struct {
 	processesMu sync.RWMutex
 	processID   atomic.Uint64
 
-	// Mutex registry
-	mutexes   map[int]*MutexObject
-	mutexesMu sync.RWMutex
-	mutexID   atomic.Int32
-
-	// WaitGroup registry
-	waitGroups   map[int]*WaitGroupObject
-	waitGroupsMu sync.RWMutex
-	waitGroupID  atomic.Int32
-
-	// Semaphore registry
-	semaphores   map[int]*SemaphoreObject
-	semaphoresMu sync.RWMutex
-	semaphoreID  atomic.Int32
-
-	// CancellationContext registry
-	cancellationContexts   map[int]*CancellationContextObject
-	cancellationContextsMu sync.RWMutex
-	cancellationContextID  atomic.Int32
-
 	// Block registry. Slots are recycled: when a block is released, its
 	// slot id is pushed onto freeBlockSlots and its generation in
 	// blockSlotGen is bumped. Stale Values pointing at the old (slot, gen)
@@ -125,10 +105,6 @@ func NewConcurrencyRegistry() *ConcurrencyRegistry {
 	cr := &ConcurrencyRegistry{
 		channels:             make(map[int]*ChannelObject),
 		processes:            make(map[uint64]*ProcessObject),
-		mutexes:              make(map[int]*MutexObject),
-		waitGroups:           make(map[int]*WaitGroupObject),
-		semaphores:           make(map[int]*SemaphoreObject),
-		cancellationContexts: make(map[int]*CancellationContextObject),
 		blocks:               make([]*BlockValue, 0, 256),
 		blockSlotGen:         make([]uint16, 0, 256),
 		futures:              make(map[int]*FutureObject),
@@ -136,10 +112,6 @@ func NewConcurrencyRegistry() *ConcurrencyRegistry {
 	// Start IDs at 1 (0 could be confused with nil/uninitialized)
 	cr.channelID.Store(1)
 	cr.processID.Store(1)
-	cr.mutexID.Store(1)
-	cr.waitGroupID.Store(1)
-	cr.semaphoreID.Store(1)
-	cr.cancellationContextID.Store(1)
 	cr.blockID.Store(1)
 	cr.futureID.Store(1)
 	cr.monitorRefID.Store(1)
@@ -278,164 +250,71 @@ func (cr *ConcurrencyRegistry) ProcessCount() int {
 // Mutex Registry Methods
 // ---------------------------------------------------------------------------
 
-// RegisterMutex adds a mutex to the registry and returns its Value.
+// RegisterMutex wraps a mutex in a heap Value traced by the Go GC. The
+// (Value, error) signature is retained for call-site compatibility; err is
+// always nil now that there is no id space to exhaust.
 func (cr *ConcurrencyRegistry) RegisterMutex(mu *MutexObject) (Value, error) {
-	id, err := allocConcurrencyID(&cr.mutexID, "mutex")
-	if err != nil {
-		return Nil, err
-	}
-
-	cr.mutexesMu.Lock()
-	cr.mutexes[id] = mu
-	cr.mutexesMu.Unlock()
-
-	return mutexToValue(id), nil
+	return makeHeap(kindMutex, unsafe.Pointer(mu)), nil
 }
 
-// GetMutex retrieves a mutex by its Value.
+// GetMutex retrieves a mutex from its Value.
 func (cr *ConcurrencyRegistry) GetMutex(v Value) *MutexObject {
 	if !isMutexValue(v) {
 		return nil
 	}
-	id := int(markedIDFromValue(v))
-
-	cr.mutexesMu.RLock()
-	defer cr.mutexesMu.RUnlock()
-	return cr.mutexes[id]
-}
-
-// MutexCount returns the number of registered mutexes.
-func (cr *ConcurrencyRegistry) MutexCount() int {
-	cr.mutexesMu.RLock()
-	defer cr.mutexesMu.RUnlock()
-	return len(cr.mutexes)
+	return (*MutexObject)(v.ptr)
 }
 
 // ---------------------------------------------------------------------------
 // WaitGroup Registry Methods
 // ---------------------------------------------------------------------------
 
-// RegisterWaitGroup adds a wait group to the registry and returns its Value.
+// RegisterWaitGroup wraps a wait group in a heap Value traced by the Go GC.
 func (cr *ConcurrencyRegistry) RegisterWaitGroup(wg *WaitGroupObject) (Value, error) {
-	id, err := allocConcurrencyID(&cr.waitGroupID, "waitGroup")
-	if err != nil {
-		return Nil, err
-	}
-
-	cr.waitGroupsMu.Lock()
-	cr.waitGroups[id] = wg
-	cr.waitGroupsMu.Unlock()
-
-	return waitGroupToValue(id), nil
+	return makeHeap(kindWaitGroup, unsafe.Pointer(wg)), nil
 }
 
-// GetWaitGroup retrieves a wait group by its Value.
+// GetWaitGroup retrieves a wait group from its Value.
 func (cr *ConcurrencyRegistry) GetWaitGroup(v Value) *WaitGroupObject {
 	if !isWaitGroupValue(v) {
 		return nil
 	}
-	id := int(markedIDFromValue(v))
-
-	cr.waitGroupsMu.RLock()
-	defer cr.waitGroupsMu.RUnlock()
-	return cr.waitGroups[id]
-}
-
-// WaitGroupCount returns the number of registered wait groups.
-func (cr *ConcurrencyRegistry) WaitGroupCount() int {
-	cr.waitGroupsMu.RLock()
-	defer cr.waitGroupsMu.RUnlock()
-	return len(cr.waitGroups)
+	return (*WaitGroupObject)(v.ptr)
 }
 
 // ---------------------------------------------------------------------------
 // Semaphore Registry Methods
 // ---------------------------------------------------------------------------
 
-// RegisterSemaphore adds a semaphore to the registry and returns its Value.
+// RegisterSemaphore wraps a semaphore in a heap Value traced by the Go GC.
 func (cr *ConcurrencyRegistry) RegisterSemaphore(sem *SemaphoreObject) (Value, error) {
-	id, err := allocConcurrencyID(&cr.semaphoreID, "semaphore")
-	if err != nil {
-		return Nil, err
-	}
-
-	cr.semaphoresMu.Lock()
-	cr.semaphores[id] = sem
-	cr.semaphoresMu.Unlock()
-
-	return semaphoreToValue(id), nil
+	return makeHeap(kindSemaphore, unsafe.Pointer(sem)), nil
 }
 
-// GetSemaphore retrieves a semaphore by its Value.
+// GetSemaphore retrieves a semaphore from its Value.
 func (cr *ConcurrencyRegistry) GetSemaphore(v Value) *SemaphoreObject {
 	if !isSemaphoreValue(v) {
 		return nil
 	}
-	id := int(markedIDFromValue(v))
-
-	cr.semaphoresMu.RLock()
-	defer cr.semaphoresMu.RUnlock()
-	return cr.semaphores[id]
-}
-
-// SemaphoreCount returns the number of registered semaphores.
-func (cr *ConcurrencyRegistry) SemaphoreCount() int {
-	cr.semaphoresMu.RLock()
-	defer cr.semaphoresMu.RUnlock()
-	return len(cr.semaphores)
+	return (*SemaphoreObject)(v.ptr)
 }
 
 // ---------------------------------------------------------------------------
 // CancellationContext Registry Methods
 // ---------------------------------------------------------------------------
 
-// RegisterCancellationContext adds a cancellation context to the registry and returns its Value.
+// RegisterCancellationContext wraps a cancellation context in a heap Value
+// traced by the Go GC.
 func (cr *ConcurrencyRegistry) RegisterCancellationContext(ctx *CancellationContextObject) (Value, error) {
-	id, err := allocConcurrencyID(&cr.cancellationContextID, "cancellationContext")
-	if err != nil {
-		return Nil, err
-	}
-
-	cr.cancellationContextsMu.Lock()
-	cr.cancellationContexts[id] = ctx
-	cr.cancellationContextsMu.Unlock()
-
-	return cancellationContextToValue(id), nil
+	return makeHeap(kindCancellationContext, unsafe.Pointer(ctx)), nil
 }
 
-// GetCancellationContext retrieves a cancellation context by its Value.
+// GetCancellationContext retrieves a cancellation context from its Value.
 func (cr *ConcurrencyRegistry) GetCancellationContext(v Value) *CancellationContextObject {
 	if !isCancellationContextValue(v) {
 		return nil
 	}
-	id := int(markedIDFromValue(v))
-
-	cr.cancellationContextsMu.RLock()
-	defer cr.cancellationContextsMu.RUnlock()
-	return cr.cancellationContexts[id]
-}
-
-// SweepCancellationContexts removes cancelled contexts from the registry.
-// Returns the number of contexts swept.
-func (cr *ConcurrencyRegistry) SweepCancellationContexts() int {
-	cr.cancellationContextsMu.Lock()
-	defer cr.cancellationContextsMu.Unlock()
-
-	swept := 0
-	for id, ctx := range cr.cancellationContexts {
-		if ctx.IsCancelled() {
-			delete(cr.cancellationContexts, id)
-			swept++
-		}
-	}
-	return swept
-}
-
-// CancellationContextCount returns the number of registered cancellation contexts.
-func (cr *ConcurrencyRegistry) CancellationContextCount() int {
-	cr.cancellationContextsMu.RLock()
-	defer cr.cancellationContextsMu.RUnlock()
-	return len(cr.cancellationContexts)
+	return (*CancellationContextObject)(v.ptr)
 }
 
 // ---------------------------------------------------------------------------
@@ -693,10 +572,6 @@ func (cr *ConcurrencyRegistry) Stats() map[string]int {
 	return map[string]int{
 		"channels":             cr.ChannelCount(),
 		"processes":            cr.ProcessCount(),
-		"mutexes":              cr.MutexCount(),
-		"waitGroups":           cr.WaitGroupCount(),
-		"semaphores":           cr.SemaphoreCount(),
-		"cancellationContexts": cr.CancellationContextCount(),
 		"blocks":               cr.BlockCount(),
 		"futures":              cr.FutureCount(),
 	}

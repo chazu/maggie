@@ -998,8 +998,9 @@ func TestMutexMultipleCreation(t *testing.T) {
 
 	wg.Wait()
 
-	// Verify all mutexes are valid and unique
-	seenIDs := make(map[uint32]bool)
+	// Verify all mutexes are valid and unique. Mutexes are pointer-carrying
+	// heap Values now, so identity is the whole Value (distinct pointers).
+	seenVals := make(map[Value]bool)
 	for g := 0; g < numGoroutines; g++ {
 		for i := 0; i < mutexesPerGoroutine; i++ {
 			mu := mutexes[g][i]
@@ -1011,16 +1012,15 @@ func TestMutexMultipleCreation(t *testing.T) {
 				t.Errorf("Value at [%d][%d] is not a mutex", g, i)
 				continue
 			}
-			id := mu.SymbolID()
-			if seenIDs[id] {
-				t.Errorf("Duplicate mutex ID %d at [%d][%d]", id, g, i)
+			if seenVals[mu] {
+				t.Errorf("Duplicate mutex at [%d][%d]", g, i)
 			}
-			seenIDs[id] = true
+			seenVals[mu] = true
 		}
 	}
 
-	t.Logf("Created %d mutexes from %d goroutines, %d unique IDs",
-		numGoroutines*mutexesPerGoroutine, numGoroutines, len(seenIDs))
+	t.Logf("Created %d mutexes from %d goroutines, %d unique",
+		numGoroutines*mutexesPerGoroutine, numGoroutines, len(seenVals))
 }
 
 // TestMutexRegistryIntegrity tests that mutex registry maintains integrity
@@ -1438,8 +1438,8 @@ func TestSemaphoreMultipleCreation(t *testing.T) {
 
 	wg.Wait()
 
-	// Verify all semaphores are valid
-	seenIDs := make(map[uint32]bool)
+	// Verify all semaphores are valid and unique (distinct heap pointers).
+	seenVals := make(map[Value]bool)
 	for g := 0; g < numGoroutines; g++ {
 		for i := 0; i < semsPerGoroutine; i++ {
 			s := semaphores[g][i]
@@ -1451,16 +1451,15 @@ func TestSemaphoreMultipleCreation(t *testing.T) {
 				t.Errorf("Value at [%d][%d] is not a semaphore", g, i)
 				continue
 			}
-			id := s.SymbolID()
-			if seenIDs[id] {
-				t.Errorf("Duplicate semaphore ID %d at [%d][%d]", id, g, i)
+			if seenVals[s] {
+				t.Errorf("Duplicate semaphore at [%d][%d]", g, i)
 			}
-			seenIDs[id] = true
+			seenVals[s] = true
 		}
 	}
 
-	t.Logf("Created %d semaphores from %d goroutines, %d unique IDs",
-		numGoroutines*semsPerGoroutine, numGoroutines, len(seenIDs))
+	t.Logf("Created %d semaphores from %d goroutines, %d unique",
+		numGoroutines*semsPerGoroutine, numGoroutines, len(seenVals))
 }
 
 // ---------------------------------------------------------------------------
@@ -1590,27 +1589,17 @@ func TestSweepTerminatedProcesses(t *testing.T) {
 func TestConcurrencyStats(t *testing.T) {
 	vm := NewVM()
 
-	// Create some objects
+	// Create some objects. Only channels (and processes/blocks) still have an
+	// id registry with a Stats count; mutex/waitGroup/semaphore are now
+	// pointer-carrying heap Values with no registry to count.
 	vm.Send(vm.classValue(vm.ChannelClass), "new", nil)
 	vm.Send(vm.classValue(vm.ChannelClass), "new:", []Value{FromSmallInt(5)})
-	vm.Send(vm.classValue(vm.MutexClass), "new", nil)
-	vm.Send(vm.classValue(vm.WaitGroupClass), "new", nil)
-	vm.Send(vm.classValue(vm.SemaphoreClass), "new:", []Value{FromSmallInt(3)})
 
 	// Get stats
 	stats := vm.ConcurrencyStats()
 
 	if stats["channels"] < 2 {
 		t.Errorf("Expected at least 2 channels, got %d", stats["channels"])
-	}
-	if stats["mutexes"] < 1 {
-		t.Errorf("Expected at least 1 mutex, got %d", stats["mutexes"])
-	}
-	if stats["waitGroups"] < 1 {
-		t.Errorf("Expected at least 1 wait group, got %d", stats["waitGroups"])
-	}
-	if stats["semaphores"] < 1 {
-		t.Errorf("Expected at least 1 semaphore, got %d", stats["semaphores"])
 	}
 
 	t.Logf("Stats: %v", stats)

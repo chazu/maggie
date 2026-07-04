@@ -606,13 +606,11 @@ func (vm *VM) createClassWithIvars(name string, superclass *Class, ivars []strin
 func (vm *VM) registerSymbolDispatch() {
 	sd := vm.symbolDispatch
 
-	// Concurrency primitives
+	// Concurrency primitives (channel + process are still symbol-encoded ids;
+	// mutex/waitGroup/semaphore/cancellationContext are pointer-carrying heap
+	// kinds resolved via classForHeap).
 	sd.Register(channelMarker, &SymbolTypeEntry{Class: vm.ChannelClass})
 	sd.Register(processMarker, &SymbolTypeEntry{Class: vm.ProcessClass})
-	sd.Register(mutexMarker, &SymbolTypeEntry{Class: vm.MutexClass})
-	sd.Register(waitGroupMarker, &SymbolTypeEntry{Class: vm.WaitGroupClass})
-	sd.Register(semaphoreMarker, &SymbolTypeEntry{Class: vm.SemaphoreClass})
-	sd.Register(cancellationContextMarker, &SymbolTypeEntry{Class: vm.CancellationContextClass})
 
 	// gRPC symbol dispatch is registered by the gRPC contrib plugin.
 
@@ -1008,6 +1006,14 @@ func (vm *VM) classForHeap(v Value) *Class {
 			return cls
 		}
 		return vm.ObjectClass
+	case kindMutex:
+		return vm.MutexClass
+	case kindWaitGroup:
+		return vm.WaitGroupClass
+	case kindSemaphore:
+		return vm.SemaphoreClass
+	case kindCancellationContext:
+		return vm.CancellationContextClass
 	default:
 		return vm.ObjectClass
 	}

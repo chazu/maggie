@@ -163,6 +163,14 @@ func (s *valueSerializer) serializeHeap(v Value) ([]byte, error) {
 		return nil, fmt.Errorf("serial: cannot serialize ArrayList (non-serializable type)")
 	case kindGoObject:
 		return nil, fmt.Errorf("serial: cannot serialize GoObject (non-serializable type)")
+	case kindMutex:
+		return nil, fmt.Errorf("serial: cannot serialize Mutex (non-serializable type)")
+	case kindWaitGroup:
+		return nil, fmt.Errorf("serial: cannot serialize WaitGroup (non-serializable type)")
+	case kindSemaphore:
+		return nil, fmt.Errorf("serial: cannot serialize Semaphore (non-serializable type)")
+	case kindCancellationContext:
+		return nil, fmt.Errorf("serial: cannot serialize CancellationContext (non-serializable type)")
 	case kindCell:
 		return nil, fmt.Errorf("serial: cannot serialize Cell (non-serializable type)")
 	default:
@@ -195,14 +203,6 @@ func (s *valueSerializer) serializeSymbolEncoded(v Value) ([]byte, error) {
 		return s.serializeRemoteChannel(v)
 	case processMarker:
 		return nil, fmt.Errorf("serial: cannot serialize Process (non-serializable type)")
-	case mutexMarker:
-		return nil, fmt.Errorf("serial: cannot serialize Mutex (non-serializable type)")
-	case waitGroupMarker:
-		return nil, fmt.Errorf("serial: cannot serialize WaitGroup (non-serializable type)")
-	case semaphoreMarker:
-		return nil, fmt.Errorf("serial: cannot serialize Semaphore (non-serializable type)")
-	case cancellationContextMarker:
-		return nil, fmt.Errorf("serial: cannot serialize CancellationContext (non-serializable type)")
 	}
 
 	// Regular symbol (interned name)
