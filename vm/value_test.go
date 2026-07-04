@@ -561,9 +561,11 @@ func TestZeroValues(t *testing.T) {
 }
 
 func TestValueSize(t *testing.T) {
-	// Value should be exactly 8 bytes (64 bits)
-	if size := unsafe.Sizeof(Value(0)); size != 8 {
-		t.Errorf("Value size = %d, want 8", size)
+	// Post pointer-migration: Value is 16 bytes (uint64 hi + unsafe.Pointer),
+	// so heap objects are traced by the Go GC. The copy-cost of the extra word
+	// was measured as negligible (see docs/spikes/2026-07-04-value-representation.md).
+	if size := unsafe.Sizeof(Value{}); size != 16 {
+		t.Errorf("Value size = %d, want 16", size)
 	}
 }
 

@@ -955,11 +955,11 @@ func BenchmarkHotPath_ExceptionSignalCatch(b *testing.B) {
 	// Register once and reuse
 	protectedBlockVal := func() Value {
 		id := vm.registry.RegisterBlock(protectedBV)
-		return FromBlockID(uint32(id))
+		return id
 	}()
 	handlerBlockVal := func() Value {
 		id := vm.registry.RegisterBlock(handlerBV)
-		return FromBlockID(uint32(id))
+		return id
 	}()
 
 	b.ResetTimer()

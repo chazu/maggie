@@ -251,7 +251,7 @@ func (vm *VM) registerObjectPrimitives() {
 
 	// hash - default hash (identity-based)
 	c.AddMethod0(vm.Selectors, "hash", func(_ *VM, recv Value) Value {
-		return FromSmallInt(int64(recv))
+		return FromSmallInt(int64((recv.hi ^ uint64(uintptr(recv.ptr))) & 0x7FFFFFFFFFFF))
 	})
 
 	// primError: - raise an error (signal proper exception, catchable by on:do:)

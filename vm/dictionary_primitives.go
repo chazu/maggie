@@ -63,7 +63,7 @@ func hashValue(or *ObjectRegistry, v Value) uint64 {
 	}
 	// For other values, use the raw bits as the hash
 	// This works because Values are NaN-boxed and unique per value
-	return uint64(v)
+	return v.hi ^ uint64(uintptr(v.ptr))
 }
 
 // registerDictionaryPrimitives registers Dictionary primitives on the VM.

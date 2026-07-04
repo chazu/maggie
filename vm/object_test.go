@@ -292,12 +292,13 @@ func TestAllSlots(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestObjectSize(t *testing.T) {
-	// Object should be reasonably sized
-	// vtable (8) + 4 slots (32) + slice header (24) = 64 bytes on 64-bit
+	// Post pointer-migration: a Value is 16 bytes (was 8), so the 4 inline
+	// slots take 64 bytes (was 32). vtable (8) + forward atomic.Pointer (8) +
+	// size (8) + 4 slots (64) + overflow slice header (24) ≈ 112. This +32B per
+	// small object is the acknowledged cost of GC-visible pointer Values.
 	size := unsafe.Sizeof(Object{})
-	// Allow some flexibility for alignment
-	if size > 80 {
-		t.Errorf("Object size = %d bytes, expected <= 80", size)
+	if size > 120 {
+		t.Errorf("Object size = %d bytes, expected <= 120", size)
 	}
 }
 

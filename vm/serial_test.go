@@ -502,7 +502,7 @@ func TestSerial_NestedObject(t *testing.T) {
 	}
 	if s := gotOuter.GetSlot(0); !s.IsSmallInt() || s.SmallInt() != 99 {
 		t.Errorf("outer.first: got %v (isSmallInt=%v isObject=%v isFloat=%v), want 99",
-			uint64(s), s.IsSmallInt(), s.IsObject(), s.IsFloat())
+			s.hi, s.IsSmallInt(), s.IsObject(), s.IsFloat())
 	}
 
 	gotInner := ObjectFromValue(gotOuter.GetSlot(1))

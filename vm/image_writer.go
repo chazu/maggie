@@ -278,7 +278,7 @@ func encodeImageValue(enc *ImageEncoder, v Value) (cbor.RawMessage, error) {
 		})
 
 	default:
-		return nil, fmt.Errorf("encodeImageValue: unsupported value type (bits: %016x)", uint64(v))
+		return nil, fmt.Errorf("encodeImageValue: unsupported value type (bits: %016x)", v.hi)
 	}
 }
 

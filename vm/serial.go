@@ -136,7 +136,7 @@ func (s *valueSerializer) serialize(v Value) ([]byte, error) {
 		return nil, fmt.Errorf("serial: cannot serialize Context (non-serializable type)")
 
 	default:
-		return nil, fmt.Errorf("serial: unknown value type %016x", uint64(v))
+		return nil, fmt.Errorf("serial: unknown value type %016x", v.hi)
 	}
 }
 

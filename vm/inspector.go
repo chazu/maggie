@@ -75,7 +75,7 @@ func (i *Inspector) InspectDepth(v Value, depth int) *InspectionResult {
 		if i.vm != nil {
 			result.Value = fmt.Sprintf("'%s'", i.vm.registry.GetStringContent(v))
 		} else {
-			result.Value = fmt.Sprintf("<string:0x%016x>", uint64(v))
+			result.Value = fmt.Sprintf("<string:0x%016x>", v.hi)
 		}
 
 	case IsDictionaryValue(v):
@@ -133,7 +133,7 @@ func (i *Inspector) InspectDepth(v Value, depth int) *InspectionResult {
 
 	default:
 		result.Type = "Unknown"
-		result.Value = fmt.Sprintf("<unknown:0x%016x>", uint64(v))
+		result.Value = fmt.Sprintf("<unknown:0x%016x>", v.hi)
 	}
 
 	return result

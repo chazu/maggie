@@ -701,7 +701,7 @@ func (i *Interpreter) runFrame() Value {
 		case OpPushFloat:
 			bits := binary.LittleEndian.Uint64(bc[frame.IP:])
 			frame.IP += 8
-			i.push(Value(bits))
+			i.push(Value{hi: bits})
 
 		case OpPushContext:
 			// Create a reified context (thisContext) representing the current execution state
