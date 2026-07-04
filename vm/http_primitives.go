@@ -260,9 +260,8 @@ func (vm *VM) registerHttpPrimitives() {
 			return Nil
 		}
 		// The handler block is retained for the server's lifetime inside the
-		// net/http closure below — a Go reference markRoots can't see. Pin it
-		// so the block collector keeps it (and its captures / home self) alive.
-		v.PinRoot(handlerBlock)
+		// net/http closure below, which is itself a strong (Go-GC-traced)
+		// reference to the block Value — no pinning needed.
 		block := bv.Block
 		captures := bv.Captures
 		homeSelf := bv.HomeSelf
@@ -346,9 +345,8 @@ func (vm *VM) registerHttpPrimitives() {
 			return Nil
 		}
 		// The handler block is retained for the server's lifetime inside the
-		// net/http closure below — a Go reference markRoots can't see. Pin it
-		// so the block collector keeps it (and its captures / home self) alive.
-		v.PinRoot(handlerBlock)
+		// net/http closure below, which is itself a strong (Go-GC-traced)
+		// reference to the block Value — no pinning needed.
 		block := bv.Block
 		captures := bv.Captures
 		homeSelf := bv.HomeSelf
@@ -411,9 +409,8 @@ func (vm *VM) registerHttpPrimitives() {
 			return Nil
 		}
 		// The handler block is retained for the server's lifetime inside the
-		// net/http closure below — a Go reference markRoots can't see. Pin it
-		// so the block collector keeps it (and its captures / home self) alive.
-		v.PinRoot(handlerBlock)
+		// net/http closure below, which is itself a strong (Go-GC-traced)
+		// reference to the block Value — no pinning needed.
 		block := bv.Block
 		captures := bv.Captures
 		homeSelf := bv.HomeSelf
@@ -479,9 +476,7 @@ func (vm *VM) registerHttpPrimitives() {
 		v.StartDispatcher()
 		// GC safepoint: the serving goroutine blocks here indefinitely; mark
 		// it stopped so the string collector is not perpetually aborted.
-		v.enterBlocked(recv)
 		err := srv.server.ListenAndServe()
-		v.exitBlocked()
 		if err != nil && err != http.ErrServerClosed {
 			srv.running.Store(false)
 			return Nil

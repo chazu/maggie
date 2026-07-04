@@ -2,7 +2,6 @@ package vm
 
 import (
 	"fmt"
-	"os"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -151,28 +150,6 @@ type VM struct {
 	// Compiler backend (Go or Maggie)
 	compilerBackend CompilerBackend
 
-	// pinnedRoots holds Maggie Values that are retained OUTSIDE the traced
-	// object graph — captured in a Go closure that markRoots can never reach.
-	// The motivating case: HTTP route handlers (route:/asyncRoute:/sseRoute:)
-	// stash a handler block + its captures + home self in a net/http closure;
-	// the block's home frame is long gone and nothing in globals/stacks/ivars
-	// references it, so the block sweeper would free it and every later request
-	// would execute a dangling block. Pinned roots are marked every collection
-	// (and recurse through captures/home-self/literals via mark). Pin at the
-	// point of Go retention; unpin if/when the retention ends.
-	pinnedRoots   map[Value]struct{}
-	pinnedRootsMu sync.Mutex
-
-	// String/dictionary tracing GC (opt-in via EnableStringGC / MAGGIE_GC).
-	// gcEnabled gates the whole feature. gcRequested is the stop-the-world
-	// flag mutators check at their safepoint. gcBarrierMu/Cond coordinate the
-	// barrier; gcRunMu serializes collection cycles. See gc_safepoint.go.
-	gcEnabled     atomic.Bool
-	gcRequested   atomic.Bool
-	gcRunMu       sync.Mutex
-	gcBarrierMu   sync.Mutex
-	gcBarrierCond *sync.Cond
-
 	// Work dispatch queue for serializing Maggie execution from
 	// external goroutines (HTTP handlers, gRPC handlers).
 	dispatchQueue chan workItem
@@ -287,7 +264,6 @@ func NewVM(configs ...VMConfig) *VM {
 		Classes:          NewClassTable(),
 		Traits:           NewTraitTable(),
 		globals:          make(map[string]Value),
-		pinnedRoots:      make(map[Value]struct{}),
 		registry:         NewObjectRegistry(),
 		symbolDispatch:   NewSymbolDispatch(),
 		processNames:     make(map[string]uint64),
@@ -298,19 +274,6 @@ func NewVM(configs ...VMConfig) *VM {
 		nodeRefs:         make(map[*NodeRefData]struct{}),
 		remoteWatches:    NewRemoteWatchStore(),
 		pendingSpawns:    newPendingSpawnRegistry(),
-	}
-
-	// String/dictionary GC barrier (see gc_safepoint.go). On by default —
-	// leaving the string/dictionary registries unbounded OOM-kills any
-	// long-running process. Disable with MAGGIE_GC=0/off/false (e.g. for
-	// programs that drive Maggie via concurrent vm.Send sharing the main
-	// interpreter, which the collector's stop-the-world does not support).
-	vm.gcBarrierCond = sync.NewCond(&vm.gcBarrierMu)
-	switch os.Getenv("MAGGIE_GC") {
-	case "0", "off", "false", "no":
-		// explicitly disabled
-	default:
-		vm.gcEnabled.Store(true)
 	}
 
 	// Bootstrap core classes
@@ -705,11 +668,11 @@ func (vm *VM) Registry() *ObjectRegistry {
 // SweepConcurrency runs garbage collection on concurrency objects.
 // Removes closed channels and terminated processes.
 // Returns the number of objects swept.
-func (vm *VM) SweepConcurrency() (channels, processes, blocks int) {
+func (vm *VM) SweepConcurrency() (channels, processes int) {
 	if vm.registry != nil {
 		return vm.registry.Sweep()
 	}
-	return 0, 0, 0
+	return 0, 0
 }
 
 // ConcurrencyStats returns statistics about concurrency objects.
@@ -1356,29 +1319,6 @@ func (vm *VM) GoTypeRegistry() *GoTypeRegistry {
 		vm.goTypeRegistry = NewGoTypeRegistry()
 	}
 	return vm.goTypeRegistry
-}
-
-// ---------------------------------------------------------------------------
-// Garbage Collection
-// ---------------------------------------------------------------------------
-
-// PinRoot marks a Value as a permanent GC root for the string/dictionary/block
-// collector. Use it whenever a Maggie Value (typically a block) is handed to Go
-// and retained beyond the lifetime of the frame that produced it — e.g. an HTTP
-// route handler stored in a net/http closure. Without this the collector cannot
-// see the retained Value (it lives only in a Go local, not in any traced root)
-// and would reclaim it. Idempotent.
-func (vm *VM) PinRoot(v Value) {
-	vm.pinnedRootsMu.Lock()
-	vm.pinnedRoots[v] = struct{}{}
-	vm.pinnedRootsMu.Unlock()
-}
-
-// UnpinRoot removes a previously pinned root.
-func (vm *VM) UnpinRoot(v Value) {
-	vm.pinnedRootsMu.Lock()
-	delete(vm.pinnedRoots, v)
-	vm.pinnedRootsMu.Unlock()
 }
 
 // ---------------------------------------------------------------------------

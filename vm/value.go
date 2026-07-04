@@ -37,20 +37,10 @@ const (
 	tagInt     uint64 = 0x0002000000000000 // 48-bit signed integer
 	tagSpecial uint64 = 0x0003000000000000 // nil, true, false
 	tagSymbol  uint64 = 0x0004000000000000 // interned symbol id / character marker
-	tagBlock   uint64 = 0x0005000000000000 // block closure id (registry, pre-migration)
 	tagContext uint64 = 0x0007000000000000 // execution context id (registry, pre-migration)
 
 	intSignBit    uint64 = 0x0000800000000000
 	intSignExtend uint64 = 0xFFFF000000000000
-)
-
-// Block payload layout (immediate, pre-migration): the 48-bit payload is a
-// 32-bit slot id + 16-bit generation. Migrated to a real pointer in a later
-// stage; kept id-based here to bound Stage 1's cascade.
-const (
-	blockSlotMask uint64 = 0x00000000FFFFFFFF
-	blockGenShift        = 32
-	blockGenMask  uint64 = 0x0000FFFF00000000
 )
 
 // Special value payloads.
@@ -281,35 +271,22 @@ func FromSymbolID(id uint32) Value {
 // Blocks (heap)
 // ---------------------------------------------------------------------------
 
-// IsBlock returns true if v represents a block closure (immediate id form).
+// IsBlock returns true if v references a block closure (pointer-carrying).
 func (v Value) IsBlock() bool {
-	return v.ptr == nil && (v.hi&(nanBits|tagMask)) == (nanBits|tagBlock)
+	return v.ptr != nil && v.hi == kindBlock
 }
 
-// BlockID returns the block registry slot id (low 32 bits of the payload).
-func (v Value) BlockID() uint32 {
+// blockPtr returns the *BlockValue behind a block Value, or nil.
+func (v Value) blockPtr() *BlockValue {
 	if !v.IsBlock() {
-		panic("Value.BlockID: not a block")
+		return nil
 	}
-	return uint32(v.hi & blockSlotMask)
+	return (*BlockValue)(v.ptr)
 }
 
-// BlockGen returns the generation tag stored alongside the slot id.
-func (v Value) BlockGen() uint16 {
-	if !v.IsBlock() {
-		panic("Value.BlockGen: not a block")
-	}
-	return uint16((v.hi & blockGenMask) >> blockGenShift)
-}
-
-// FromBlockID creates a Value from a block slot id with generation 0.
-func FromBlockID(id uint32) Value {
-	return Value{hi: nanBits | tagBlock | uint64(id)}
-}
-
-// FromBlockSlotGen creates a Value from a slot id and generation.
-func FromBlockSlotGen(slot uint32, gen uint16) Value {
-	return Value{hi: nanBits | tagBlock | (uint64(gen) << blockGenShift) | uint64(slot)}
+// makeBlockValue wraps a *BlockValue as a pointer-carrying block Value.
+func makeBlockValue(bv *BlockValue) Value {
+	return makeHeap(kindBlock, unsafe.Pointer(bv))
 }
 
 // ---------------------------------------------------------------------------

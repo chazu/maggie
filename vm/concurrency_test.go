@@ -232,7 +232,6 @@ func TestConcurrentBlockCreation(t *testing.T) {
 
 	testVM := NewVM()
 	defer testVM.Shutdown()
-	reg := testVM.registry
 
 	// Create multiple interpreters connected to the VM
 	interpreters := make([]*Interpreter, numGoroutines)
@@ -256,12 +255,10 @@ func TestConcurrentBlockCreation(t *testing.T) {
 	m := b.Build()
 
 	var wg sync.WaitGroup
-	blockIDs := make([][]int, numGoroutines)
+	blockPtrs := make([][]*BlockValue, numGoroutines)
 
-	// Record initial registry size
-	initialSize := reg.BlockCount()
-
-	// Concurrently create blocks from multiple goroutines
+	// Concurrently create blocks from multiple goroutines. Each block is a fresh
+	// pointer-carrying Value; distinct allocations must have distinct pointers.
 	for g := 0; g < numGoroutines; g++ {
 		wg.Add(1)
 		go func(goroutineID int) {
@@ -269,10 +266,10 @@ func TestConcurrentBlockCreation(t *testing.T) {
 			interp := interpreters[goroutineID]
 			interp.pushFrame(m, Nil, nil)
 
-			blockIDs[goroutineID] = make([]int, blocksPerGoroutine)
+			blockPtrs[goroutineID] = make([]*BlockValue, blocksPerGoroutine)
 			for i := 0; i < blocksPerGoroutine; i++ {
 				blockVal := interp.createBlockValue(blockMethod, nil)
-				blockIDs[goroutineID][i] = int(blockVal.BlockID())
+				blockPtrs[goroutineID][i] = blockVal.blockPtr()
 			}
 
 			interp.popFrame()
@@ -281,29 +278,24 @@ func TestConcurrentBlockCreation(t *testing.T) {
 
 	wg.Wait()
 
-	// Verify all blocks were created and have unique IDs
+	// Verify all block pointers are unique (no aliasing under concurrent alloc).
 	expectedTotal := numGoroutines * blocksPerGoroutine
-	actualSize := reg.BlockCount() - initialSize
-
-	// Note: actualSize may be less than expectedTotal if cleanup is enabled
-	// For now, just verify no crash and reasonable number of blocks
-	if actualSize < 0 {
-		t.Errorf("Block registry size decreased, possible corruption")
-	}
-
-	// Verify all block IDs are unique
-	seenIDs := make(map[int]bool)
+	seen := make(map[*BlockValue]bool)
 	for g := 0; g < numGoroutines; g++ {
-		for _, id := range blockIDs[g] {
-			if seenIDs[id] {
-				t.Errorf("Duplicate block ID %d found - race condition!", id)
+		for _, p := range blockPtrs[g] {
+			if p == nil {
+				t.Error("createBlockValue produced a non-block Value")
+				continue
 			}
-			seenIDs[id] = true
+			if seen[p] {
+				t.Errorf("Duplicate block pointer %p found - race condition!", p)
+			}
+			seen[p] = true
 		}
 	}
 
-	t.Logf("Created %d blocks from %d goroutines, %d unique IDs",
-		expectedTotal, numGoroutines, len(seenIDs))
+	t.Logf("Created %d blocks from %d goroutines, %d unique pointers",
+		expectedTotal, numGoroutines, len(seen))
 }
 
 // TestConcurrentCellAccess tests that multiple goroutines can safely
@@ -596,112 +588,9 @@ func TestForkedBlockWithNLRDoesNotCrash(t *testing.T) {
 // TestForkReleasesBlockRegistrySlot verifies that fork-spawned goroutines
 // release their block registry slot when the goroutine exits, so
 // fork-heavy workloads don't exhaust the 2^24 block ID space.
-func TestForkReleasesBlockRegistrySlot(t *testing.T) {
-	testVM := NewVM()
-	defer testVM.Shutdown()
-	reg := testVM.registry
-
-	// A trivial block that just returns nil. We need an enclosing method
-	// frame so createBlockValue can stamp HomeSelf/HomeMethod sensibly.
-	blockMethod := &BlockMethod{
-		Arity:       0,
-		NumTemps:    0,
-		NumCaptures: 0,
-		Bytecode:    []byte{byte(OpPushNil), byte(OpBlockReturn)},
-	}
-	hb := NewCompiledMethodBuilder("forkHost", 0)
-	hb.Bytecode().Emit(OpPushNil)
-	hb.Bytecode().Emit(OpReturnTop)
-	hostMethod := hb.Build()
-
-	interp := testVM.newInterpreter()
-	testVM.registerInterpreter(interp)
-	defer testVM.unregisterInterpreter()
-	interp.pushFrame(hostMethod, Nil, nil)
-	defer interp.popFrame()
-
-	baseline := reg.BlockCount()
-
-	const forks = 200
-	procs := make([]Value, forks)
-	for i := 0; i < forks; i++ {
-		blockVal := interp.createBlockValue(blockMethod, nil)
-		procs[i] = testVM.Send(blockVal, "fork", nil)
-	}
-
-	// Wait for all forked processes to complete.
-	for i := 0; i < forks; i++ {
-		testVM.Send(procs[i], "wait", nil)
-	}
-
-	// Give defers a moment to run after wait returns. wait() returns when
-	// the result channel is closed, which happens before the defer's
-	// ReleaseBlock — so we poll briefly.
-	deadline := time.Now().Add(2 * time.Second)
-	for time.Now().Before(deadline) {
-		if reg.BlockCount() <= baseline {
-			break
-		}
-		time.Sleep(5 * time.Millisecond)
-	}
-
-	leaked := reg.BlockCount() - baseline
-	if leaked > 0 {
-		t.Errorf("fork leaked %d block registry slots after %d forks (baseline=%d, current=%d)",
-			leaked, forks, baseline, reg.BlockCount())
-	}
-}
-
-// TestBlockRegistryRecyclesSlots verifies that releasing a block returns
-// its slot id to the free list and the next allocation reuses it.
-func TestBlockRegistryRecyclesSlots(t *testing.T) {
-	testVM := NewVM()
-	defer testVM.Shutdown()
-	reg := testVM.registry
-
-	blockMethod := &BlockMethod{
-		Bytecode: []byte{byte(OpPushNil), byte(OpBlockReturn)},
-	}
-	hb := NewCompiledMethodBuilder("recycle", 0)
-	hb.Bytecode().Emit(OpPushNil)
-	hb.Bytecode().Emit(OpReturnTop)
-	m := hb.Build()
-
-	interp := testVM.newInterpreter()
-	testVM.registerInterpreter(interp)
-	defer testVM.unregisterInterpreter()
-	interp.pushFrame(m, Nil, nil)
-	defer interp.popFrame()
-
-	first := interp.createBlockValue(blockMethod, nil)
-	firstSlot := first.BlockID()
-	firstGen := first.BlockGen()
-
-	reg.ReleaseBlock(first)
-
-	// Stale Value must resolve to nil after release.
-	if reg.GetBlock(first) != nil {
-		t.Fatal("released block still resolves")
-	}
-
-	second := interp.createBlockValue(blockMethod, nil)
-	if second.BlockID() != firstSlot {
-		t.Errorf("slot not recycled: first=%d second=%d", firstSlot, second.BlockID())
-	}
-	if second.BlockGen() == firstGen {
-		t.Errorf("generation not bumped on recycle: first.gen=%d second.gen=%d", firstGen, second.BlockGen())
-	}
-
-	// Stale (first) Value must STILL resolve to nil even though the slot
-	// is now occupied by `second` — this is the safety guarantee.
-	if reg.GetBlock(first) != nil {
-		t.Error("stale Value aliased onto recycled slot — generation check failed")
-	}
-	// The new Value resolves correctly.
-	if reg.GetBlock(second) == nil {
-		t.Error("recycled-slot Value does not resolve")
-	}
-}
+// (Removed TestForkReleasesBlockRegistrySlot and TestBlockRegistryRecyclesSlots:
+// blocks are pointer-carrying Values reclaimed by Go's GC — there is no block
+// registry slot to release, recycle, or leak, and no generation guard.)
 
 // TestNestedDetachedBlockNLR tests that nested blocks in detached mode
 // also handle NLR correctly.

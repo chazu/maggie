@@ -10,7 +10,7 @@ import (
 
 func TestBlockClassFor(t *testing.T) {
 	vm := NewVM()
-	blockVal := FromBlockID(1)
+	blockVal := makeBlockValue(&BlockValue{Block: &BlockMethod{Arity: 0}})
 
 	class := vm.ClassFor(blockVal)
 	if class != vm.BlockClass {
@@ -62,10 +62,10 @@ func TestBlockEvaluationOneArg(t *testing.T) {
 
 	// Create a block that returns its argument: [:x | x]
 	block := &BlockMethod{
-		Arity:  1,
+		Arity:    1,
 		NumTemps: 0,
-		Bytecode:  []byte{0x20, 0, 0x73}, // OpPushTemp 0, OpBlockReturn
-		Literals:  nil,
+		Bytecode: []byte{0x20, 0, 0x73}, // OpPushTemp 0, OpBlockReturn
+		Literals: nil,
 	}
 
 	// Register the block
@@ -88,10 +88,10 @@ func TestBlockEvaluationTwoArgs(t *testing.T) {
 	// Create a block that adds its arguments: [:a :b | a + b]
 	// Actually simpler: just return the second arg
 	block := &BlockMethod{
-		Arity:  2,
+		Arity:    2,
 		NumTemps: 0,
-		Bytecode:  []byte{0x20, 1, 0x73}, // OpPushTemp 1, OpBlockReturn (return second arg)
-		Literals:  nil,
+		Bytecode: []byte{0x20, 1, 0x73}, // OpPushTemp 1, OpBlockReturn (return second arg)
+		Literals: nil,
 	}
 
 	// Register the block
@@ -113,10 +113,10 @@ func TestBlockSendValue(t *testing.T) {
 
 	// Create a simple block: [123]
 	block := &BlockMethod{
-		Arity:  0,
+		Arity:    0,
 		NumTemps: 0,
-		Bytecode:  []byte{0x14, 123, 0x73}, // OpPushInt8 123, OpBlockReturn
-		Literals:  nil,
+		Bytecode: []byte{0x14, 123, 0x73}, // OpPushInt8 123, OpBlockReturn
+		Literals: nil,
 	}
 
 	// Register the block
@@ -138,10 +138,10 @@ func TestBlockSendValueWithArg(t *testing.T) {
 
 	// Create a block: [:x | x]
 	block := &BlockMethod{
-		Arity:  1,
+		Arity:    1,
 		NumTemps: 0,
-		Bytecode:  []byte{0x20, 0, 0x73}, // OpPushTemp 0, OpBlockReturn
-		Literals:  nil,
+		Bytecode: []byte{0x20, 0, 0x73}, // OpPushTemp 0, OpBlockReturn
+		Literals: nil,
 	}
 
 	// Register the block
@@ -163,18 +163,18 @@ func TestBlockSendPrimValue(t *testing.T) {
 
 	// Create a simple block: [456]
 	block := &BlockMethod{
-		Arity:  0,
+		Arity:    0,
 		NumTemps: 0,
-		Bytecode:  []byte{0x14, 0, 0x15, 0xC8, 0x01, 0x00, 0x00, 0x73}, // OpPushInt8 0, OpPushInt32 456, OpBlockReturn
-		Literals:  nil,
+		Bytecode: []byte{0x14, 0, 0x15, 0xC8, 0x01, 0x00, 0x00, 0x73}, // OpPushInt8 0, OpPushInt32 456, OpBlockReturn
+		Literals: nil,
 	}
 
 	// Actually simpler - just use int8
 	block = &BlockMethod{
-		Arity:  0,
+		Arity:    0,
 		NumTemps: 0,
-		Bytecode:  []byte{0x14, 100, 0x73}, // OpPushInt8 100, OpBlockReturn
-		Literals:  nil,
+		Bytecode: []byte{0x14, 100, 0x73}, // OpPushInt8 100, OpBlockReturn
+		Literals: nil,
 	}
 
 	// Register the block
@@ -196,10 +196,10 @@ func TestBlockGetBlockValue(t *testing.T) {
 
 	// Create and register a block
 	block := &BlockMethod{
-		Arity:  0,
+		Arity:    0,
 		NumTemps: 0,
-		Bytecode:  []byte{0x10, 0x73}, // OpPushNil, OpBlockReturn
-		Literals:  nil,
+		Bytecode: []byte{0x10, 0x73}, // OpPushNil, OpBlockReturn
+		Literals: nil,
 	}
 
 	interp := vm.interpreter
@@ -244,10 +244,10 @@ func BenchmarkBlockEvaluation(b *testing.B) {
 	vm := NewVM()
 
 	block := &BlockMethod{
-		Arity:  0,
+		Arity:    0,
 		NumTemps: 0,
-		Bytecode:  []byte{0x14, 42, 0x73},
-		Literals:  nil,
+		Bytecode: []byte{0x14, 42, 0x73},
+		Literals: nil,
 	}
 
 	interp := vm.interpreter
@@ -263,10 +263,10 @@ func BenchmarkBlockSendValue(b *testing.B) {
 	vm := NewVM()
 
 	block := &BlockMethod{
-		Arity:  0,
+		Arity:    0,
 		NumTemps: 0,
-		Bytecode:  []byte{0x14, 42, 0x73},
-		Literals:  nil,
+		Bytecode: []byte{0x14, 42, 0x73},
+		Literals: nil,
 	}
 
 	interp := vm.interpreter

@@ -66,15 +66,15 @@ func (r triggerReason) String() string {
 
 // RegistryGCStats holds statistics from a single GC sweep.
 type RegistryGCStats struct {
-	Channels             int
-	Processes            int
-	Strings              int
-	Dictionaries         int
-	Blocks               int
-	TotalSwept           int
-	SweepDuration        time.Duration
-	Timestamp            time.Time
-	Reason               triggerReason
+	Channels      int
+	Processes     int
+	Strings       int
+	Dictionaries  int
+	Blocks        int
+	TotalSwept    int
+	SweepDuration time.Duration
+	Timestamp     time.Time
+	Reason        triggerReason
 	// RegistryName is the name of the registry whose pressure tripped this
 	// sweep (only set for TriggerGrowth/TriggerCeiling). Empty otherwise.
 	RegistryName string
@@ -205,7 +205,6 @@ func (gc *RegistryGC) installHooks() {
 		reg.SetPressureHook(func(liveSize int32) { gc.onPressure(mr, liveSize) })
 	}
 
-
 	// Contexts are the last remaining error-handling registry.
 	add("contexts", defaultGrowthThreshold, defaultAbsoluteCeiling, or.Contexts)
 
@@ -213,23 +212,9 @@ func (gc *RegistryGC) installHooks() {
 	// Default thresholds are fine.
 	// classValues is monotonic and intentionally append-only — no point
 	// installing pressure hooks since sweeping won't reclaim anything.
-
-	// Blocks are not an AutoIDRegistry (custom slice-backed slots), so wire
-	// pressure manually. Every non-inlined ifTrue:/whileTrue:/do: argument
-	// allocates a block; in hot loops they accumulate quickly, so use a
-	// modest growth threshold to keep the slot slices small and cache-hot.
-	{
-		mr := &monitoredRegistry{
-			name:            "blocks",
-			growthThreshold: 250_000,
-			absoluteCeiling: 1_000_000,
-			currentSize:     func() int32 { return int32(or.BlockCount()) },
-			uninstall:       func() { or.SetBlockPressureHook(nil) },
-		}
-		mr.resetAfterSweep = func() { mr.lastSweepSize.Store(int32(or.BlockCount())) }
-		gc.monitored = append(gc.monitored, mr)
-		or.SetBlockPressureHook(func(liveSize int32) { gc.onPressure(mr, liveSize) })
-	}
+	//
+	// Blocks are now pointer-carrying Values reclaimed by Go's GC — no registry,
+	// no pressure hook.
 }
 
 // onPressure is the per-registry sweep-trigger decision, shared by the
@@ -383,35 +368,14 @@ func (gc *RegistryGC) sweep(reason triggerReason, registryName string) *Registry
 	}
 
 	if gc.vm.registry != nil {
-		// 1. Channel/process id maps are still swept for terminated entries
-		// (they double as GC roots for buffered/mailbox blocks until blocks
-		// migrate). They ride the timer floor only — no pressure hook.
+		// Channel/process id maps are swept for terminated entries so they don't
+		// grow unbounded. Strings/dicts/blocks/objects are pointer-carrying heap
+		// Values reclaimed by Go's GC — there is no custom mark-sweep to run.
 		stats.Channels = gc.vm.registry.SweepChannels()
 		stats.Processes = gc.vm.registry.SweepProcesses()
 	}
 
-	// 3. String/dictionary tracing collector (opt-in). This runs a
-	// stop-the-world mark-sweep; it is invoked here, on the dedicated
-	// RegistryGC goroutine, which is never a Maggie mutator. On barrier
-	// timeout it is a no-op (ran == false).
-	if gc.vm.gcEnabled.Load() {
-		s, d, b, _ := gc.vm.CollectStringGarbage()
-		stats.Strings = s
-		stats.Dictionaries = d
-		stats.Blocks = b
-	}
-
-	// Frame-bound blocks (HomeFrame >= 0) are swept by the same stop-the-world
-	// tracing collector that reclaims strings/dictionaries (CollectStringGarbage
-	// -> collectHeapGarbageLocked -> SweepBlocksLive): a block survives only if
-	// the trace reaches its Value from a live root. Detached blocks (HomeFrame
-	// == -1, used by [block] fork and friends) are treated as unconditional
-	// roots there and release their slot in the fork goroutine's defer once the
-	// goroutine exits — see RegisterBlock/ReleaseBlock and the fork primitives
-	// in vm/concurrency.go.
-
-	stats.TotalSwept = stats.Channels + stats.Processes +
-		stats.Strings + stats.Dictionaries + stats.Blocks
+	stats.TotalSwept = stats.Channels + stats.Processes
 	stats.SweepDuration = time.Since(start)
 
 	// Reset per-registry baselines so the next sweep's growth threshold is

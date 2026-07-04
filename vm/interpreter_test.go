@@ -799,9 +799,6 @@ func TestBlockRegistryCleanup(t *testing.T) {
 		Literals:    nil,
 	}
 
-	// Record initial registry size
-	initialSize := reg.BlockCount()
-
 	// Create a method frame (this will be the home frame for blocks)
 	b := NewCompiledMethodBuilder("test", 0)
 	b.Bytecode().Emit(OpPushNil)
@@ -817,18 +814,13 @@ func TestBlockRegistryCleanup(t *testing.T) {
 		blockVals[i] = interp.createBlockValue(blockMethod, nil)
 	}
 
-	// Verify blocks were registered
-	if reg.BlockCount() != initialSize+numBlocks {
-		t.Errorf("block registry size after creation = %d, want %d", reg.BlockCount(), initialSize+numBlocks)
-	}
-
-	// Pop the home frame - blocks should persist (they may escape as callbacks)
+	// Pop the home frame — blocks are pointer-carrying Values, so they persist
+	// (they may escape as callbacks) and always resolve while referenced.
 	interp.popFrame()
 
-	// Verify blocks are still alive after frame pop
 	for i, bv := range blockVals {
 		if !reg.HasBlock(bv) {
-			t.Errorf("block %d was incorrectly cleaned up after home frame popped", i)
+			t.Errorf("block %d should still resolve after home frame popped", i)
 		}
 	}
 }
@@ -1290,8 +1282,8 @@ func TestStackOverflowCatchableWithOnDo(t *testing.T) {
 		HomeMethod: nil,
 	}
 
-	protectedBlockVal := vm.registry.RegisterBlock(protectedBV)
-	handlerBlockVal := vm.registry.RegisterBlock(handlerBV)
+	protectedBlockVal := makeBlockValue(protectedBV)
+	handlerBlockVal := makeBlockValue(handlerBV)
 
 	// Use evaluateBlockWithHandler (the mechanism behind on:do:) to catch the exception.
 	// Catch StackOverflow (which is a subclass of Error).
@@ -1363,8 +1355,8 @@ func TestStackOverflowCatchableWithErrorOnDo(t *testing.T) {
 		HomeSelf:  Nil,
 	}
 
-	protectedBlockVal := vm.registry.RegisterBlock(protectedBV)
-	handlerBlockVal := vm.registry.RegisterBlock(handlerBV)
+	protectedBlockVal := makeBlockValue(protectedBV)
+	handlerBlockVal := makeBlockValue(handlerBV)
 
 	// Catch with Error (superclass of StackOverflow) -- should also work
 	result := vm.evaluateBlockWithHandler(protectedBlockVal, vm.ErrorClass, handlerBlockVal)

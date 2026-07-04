@@ -70,23 +70,6 @@ type ConcurrencyRegistry struct {
 	processesMu sync.RWMutex
 	processID   atomic.Uint64
 
-	// Block registry. Slots are recycled: when a block is released, its
-	// slot id is pushed onto freeBlockSlots and its generation in
-	// blockSlotGen is bumped. Stale Values pointing at the old (slot, gen)
-	// fail the gen check at lookup and resolve to nil instead of aliasing
-	// onto whatever block now lives in that slot.
-	//
-	// blocks and blockSlotGen are slices indexed by slot id (much faster
-	// than map[int] for the hot GetBlock path). They grow on demand under
-	// blocksMu.
-	blocks            []*BlockValue // slot id -> *BlockValue (nil = empty)
-	blockSlotGen      []uint16      // slot id -> current generation
-	freeBlockSlots    []int         // recycled slot ids waiting to be reused
-	blocksMu          sync.RWMutex
-	blockID           atomic.Int64 // grows only when no free slot available
-	blockLiveCount    int          // number of non-nil entries in blocks
-	blockPressureHook func(int32)  // called under blocksMu after each RegisterBlock
-
 	// Future registry
 	futures   map[int]*FutureObject
 	futuresMu sync.RWMutex
@@ -103,16 +86,13 @@ func (cr *ConcurrencyRegistry) AllocMonitorRefID() (uint64, error) {
 // NewConcurrencyRegistry creates a new concurrency registry.
 func NewConcurrencyRegistry() *ConcurrencyRegistry {
 	cr := &ConcurrencyRegistry{
-		channels:             make(map[int]*ChannelObject),
-		processes:            make(map[uint64]*ProcessObject),
-		blocks:               make([]*BlockValue, 0, 256),
-		blockSlotGen:         make([]uint16, 0, 256),
-		futures:              make(map[int]*FutureObject),
+		channels:  make(map[int]*ChannelObject),
+		processes: make(map[uint64]*ProcessObject),
+		futures:   make(map[int]*FutureObject),
 	}
 	// Start IDs at 1 (0 could be confused with nil/uninitialized)
 	cr.channelID.Store(1)
 	cr.processID.Store(1)
-	cr.blockID.Store(1)
 	cr.futureID.Store(1)
 	cr.monitorRefID.Store(1)
 	return cr
@@ -318,185 +298,28 @@ func (cr *ConcurrencyRegistry) GetCancellationContext(v Value) *CancellationCont
 }
 
 // ---------------------------------------------------------------------------
-// Block Registry Methods
+// Blocks
 // ---------------------------------------------------------------------------
+//
+// Blocks are pointer-carrying kindBlock Values (see value.go) traced by Go's
+// GC — there is no block registry, slot recycling, or generation guard. The
+// former RegisterBlock/GetBlock/ReleaseBlock/SweepBlocksLive machinery was
+// removed with the custom collector.
 
-// blockSlotMaxID caps the slot id space to 2^32 - 1, matching the 32-bit
-// slot field in the block Value encoding. Steady-state usage is bounded by
-// peak live blocks, not cumulative allocations, because slots are recycled
-// on release. We only hit this cap if peak live blocks exceeds 4 billion,
-// which is far beyond any realistic workload.
-const blockSlotMaxID int64 = (1 << 32) - 1
-
-// nextBlockGen advances a generation counter. Generation 0 is reserved for
-// "fresh slot, never recycled" so we skip it on wrap to keep that meaning.
-func nextBlockGen(g uint16) uint16 {
-	g++
-	if g == 0 {
-		g = 1
-	}
-	return g
-}
-
-// RegisterBlock adds a block to the registry and returns the encoded
-// Value (slot id + generation). Reuses a recycled slot if one is
-// available; otherwise grows the slot space.
-func (cr *ConcurrencyRegistry) RegisterBlock(bv *BlockValue) Value {
-	cr.blocksMu.Lock()
-	defer cr.blocksMu.Unlock()
-
-	var slot int
-	if n := len(cr.freeBlockSlots); n > 0 {
-		slot = cr.freeBlockSlots[n-1]
-		cr.freeBlockSlots = cr.freeBlockSlots[:n-1]
-	} else {
-		next := cr.blockID.Add(1) - 1
-		if next < 0 || next > blockSlotMaxID {
-			panic(fmt.Sprintf("ConcurrencyRegistry: block slot id space exhausted (max %d live blocks)", blockSlotMaxID))
-		}
-		slot = int(next)
-		// Grow slices to accommodate the new slot
-		for slot >= len(cr.blocks) {
-			newCap := len(cr.blocks) * 2
-			if newCap == 0 {
-				newCap = 256
-			}
-			if newCap <= slot {
-				newCap = slot + 1
-			}
-			newBlocks := make([]*BlockValue, newCap)
-			copy(newBlocks, cr.blocks)
-			cr.blocks = newBlocks
-			newGens := make([]uint16, newCap)
-			copy(newGens, cr.blockSlotGen)
-			cr.blockSlotGen = newGens
-		}
-	}
-
-	gen := cr.blockSlotGen[slot] // 0 for fresh slot, current gen for recycled
-	cr.blocks[slot] = bv
-	cr.blockLiveCount++
-	if cr.blockPressureHook != nil {
-		// Hook only reads the passed count + atomics and does a non-blocking
-		// channel send; it must NOT re-acquire blocksMu.
-		cr.blockPressureHook(int32(cr.blockLiveCount))
-	}
-
-	return FromBlockSlotGen(uint32(slot), gen)
-}
-
-// GetBlock retrieves a block by its Value. Returns nil if the slot has
-// been recycled (generation mismatch) or never registered.
-func (cr *ConcurrencyRegistry) GetBlock(v Value) *BlockValue {
-	if !v.IsBlock() {
-		return nil
-	}
-	slot := int(v.BlockID())
-	gen := v.BlockGen()
-
-	cr.blocksMu.RLock()
-	if slot >= len(cr.blocks) {
-		cr.blocksMu.RUnlock()
-		return nil
-	}
-	if cr.blockSlotGen[slot] != gen {
-		cr.blocksMu.RUnlock()
-		return nil
-	}
-	bv := cr.blocks[slot]
-	cr.blocksMu.RUnlock()
-	return bv
-}
-
-// HasBlock reports whether the Value still resolves to a live block.
+// HasBlock reports whether the Value resolves to a block. Retained for tests.
 func (cr *ConcurrencyRegistry) HasBlock(v Value) bool {
-	return cr.GetBlock(v) != nil
-}
-
-// ReleaseBlock releases the slot referenced by v if (and only if) v's
-// generation still matches the slot's current generation. Bumps the
-// slot's generation and pushes it onto the free list for reuse. Stale
-// or already-released Values are no-ops.
-func (cr *ConcurrencyRegistry) ReleaseBlock(v Value) {
-	if !v.IsBlock() {
-		return
-	}
-	slot := int(v.BlockID())
-	gen := v.BlockGen()
-
-	cr.blocksMu.Lock()
-	defer cr.blocksMu.Unlock()
-	if slot >= len(cr.blocks) || cr.blockSlotGen[slot] != gen {
-		return // already released or recycled
-	}
-	if cr.blocks[slot] == nil {
-		return
-	}
-	cr.blocks[slot] = nil
-	cr.blockLiveCount--
-	cr.blockSlotGen[slot] = nextBlockGen(gen)
-	cr.freeBlockSlots = append(cr.freeBlockSlots, slot)
-}
-
-// SweepBlocksLive frees every frame-bound block (HomeFrame >= 0) whose slot
-// is not present in the live set, recycling its slot for reuse. Detached
-// blocks (HomeFrame == -1, e.g. forked) are never swept here — they are
-// reclaimed by the fork goroutine's defer and are treated as unconditional
-// GC roots. The live set is the set of slot ids the tracing collector reached
-// from the complete root set; the caller MUST run under stop-the-world so no
-// other goroutine mutates the registry or holds an unrooted block Value.
-// Returns the number of blocks freed.
-func (cr *ConcurrencyRegistry) SweepBlocksLive(live map[uint32]struct{}) int {
-	cr.blocksMu.Lock()
-	defer cr.blocksMu.Unlock()
-
-	swept := 0
-	for slot, bv := range cr.blocks {
-		if bv == nil {
-			continue
-		}
-		if bv.HomeFrame == -1 {
-			continue // detached: reclaimed by the fork goroutine, not here
-		}
-		if _, ok := live[uint32(slot)]; ok {
-			continue // still reachable
-		}
-		cr.blocks[slot] = nil
-		cr.blockLiveCount--
-		cr.blockSlotGen[slot] = nextBlockGen(cr.blockSlotGen[slot])
-		cr.freeBlockSlots = append(cr.freeBlockSlots, slot)
-		swept++
-	}
-	return swept
-}
-
-
-// BlockCount returns the number of live (non-nil) registered blocks.
-func (cr *ConcurrencyRegistry) BlockCount() int {
-	cr.blocksMu.RLock()
-	defer cr.blocksMu.RUnlock()
-	return cr.blockLiveCount
-}
-
-// SetBlockPressureHook installs (or clears, with nil) a callback invoked under
-// blocksMu after each RegisterBlock with the current live block count. Used by
-// RegistryGC to trigger a sweep when frame-bound blocks accumulate.
-func (cr *ConcurrencyRegistry) SetBlockPressureHook(h func(int32)) {
-	cr.blocksMu.Lock()
-	cr.blockPressureHook = h
-	cr.blocksMu.Unlock()
+	return v.blockPtr() != nil
 }
 
 // ---------------------------------------------------------------------------
 // Combined Sweep
 // ---------------------------------------------------------------------------
 
-// Sweep runs all sweep operations and returns stats.
-func (cr *ConcurrencyRegistry) Sweep() (channels, processes, blocks int) {
+// Sweep runs all sweep operations and returns stats. Blocks are pointer-carrying
+// Values reclaimed by Go's GC — there is nothing to sweep for them here.
+func (cr *ConcurrencyRegistry) Sweep() (channels, processes int) {
 	channels = cr.SweepChannels()
 	processes = cr.SweepProcesses()
-	// Note: blocks need valid frame info, so we skip them here
-	// They should be swept by the interpreter when frames are popped
 	return
 }
 
@@ -568,9 +391,8 @@ func (cr *ConcurrencyRegistry) GetArrayList(v Value) *ArrayListObject {
 // Stats returns counts of all registered objects.
 func (cr *ConcurrencyRegistry) Stats() map[string]int {
 	return map[string]int{
-		"channels":             cr.ChannelCount(),
-		"processes":            cr.ProcessCount(),
-		"blocks":               cr.BlockCount(),
-		"futures":              cr.FutureCount(),
+		"channels":  cr.ChannelCount(),
+		"processes": cr.ProcessCount(),
+		"futures":   cr.FutureCount(),
 	}
 }

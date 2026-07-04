@@ -151,40 +151,9 @@ func TestMultiVM_IndependentClassVariables(t *testing.T) {
 	}
 }
 
-// TestMultiVM_IndependentBlocks verifies that blocks registered in one
-// VM's concurrency registry are invisible to the other.
-func TestMultiVM_IndependentBlocks(t *testing.T) {
-	vm1 := NewVM()
-	defer vm1.Shutdown()
-	vm2 := NewVM()
-	defer vm2.Shutdown()
-
-	baseline1 := vm1.Concurrency().BlockCount()
-	baseline2 := vm2.Concurrency().BlockCount()
-
-	// Register a block in VM1
-	bv := &BlockValue{
-		Block:    &BlockMethod{Arity: 0},
-		Captures: nil,
-	}
-	id := vm1.Concurrency().RegisterBlock(bv)
-
-	// VM1 should see it; VM2 should not
-	if vm1.Concurrency().BlockCount() != baseline1+1 {
-		t.Errorf("VM1 block count: got %d, want %d", vm1.Concurrency().BlockCount(), baseline1+1)
-	}
-	if vm2.Concurrency().BlockCount() != baseline2 {
-		t.Errorf("VM2 block count changed: got %d, want %d", vm2.Concurrency().BlockCount(), baseline2)
-	}
-
-	// GetBlock with the same ID in VM2 should return nil
-	if vm2.Concurrency().GetBlock(id) != nil {
-		t.Error("VM2 should not find VM1's block by ID")
-	}
-	if vm1.Concurrency().GetBlock(id) != bv {
-		t.Error("VM1 should find its own block by ID")
-	}
-}
+// (Removed TestMultiVM_IndependentBlocks: blocks are pointer-carrying Values
+// owned by Go's GC, not entries in a per-VM block registry, so there is no
+// per-VM block table to isolate.)
 
 // TestMultiVM_IndependentGC verifies that running RegistryGC on one VM
 // sweeps only that VM's stale objects, leaving the other VM untouched.

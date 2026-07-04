@@ -443,7 +443,7 @@ func TestPassForwardsToOuterHandler(t *testing.T) {
 		Block: signalBlock, Captures: []Value{signalerObj.ToValue()},
 		HomeFrame: -1, HomeSelf: Nil, HomeMethod: nil,
 	}
-	signalBlockVal := vm.registry.RegisterBlock(signalBV)
+	signalBlockVal := makeBlockValue(signalBV)
 
 	// Inner handler: [:ex | ex pass]
 	passHandlerBlock := &BlockMethod{
@@ -459,7 +459,7 @@ func TestPassForwardsToOuterHandler(t *testing.T) {
 	passHandlerBV := &BlockValue{
 		Block: passHandlerBlock, HomeFrame: -1, HomeSelf: Nil, HomeMethod: nil,
 	}
-	passHandlerVal := vm.registry.RegisterBlock(passHandlerBV)
+	passHandlerVal := makeBlockValue(passHandlerBV)
 
 	// Outer handler: [:ex | 99]
 	outerHandlerBlock := &BlockMethod{
@@ -474,7 +474,7 @@ func TestPassForwardsToOuterHandler(t *testing.T) {
 	outerHandlerBV := &BlockValue{
 		Block: outerHandlerBlock, HomeFrame: -1, HomeSelf: Nil, HomeMethod: nil,
 	}
-	outerHandlerVal := vm.registry.RegisterBlock(outerHandlerBV)
+	outerHandlerVal := makeBlockValue(outerHandlerBV)
 
 	// Inner on:do: block: [signaler trigger] on: Error do: [:ex | ex pass]
 	innerBlock := &BlockMethod{
@@ -493,7 +493,7 @@ func TestPassForwardsToOuterHandler(t *testing.T) {
 		Block: innerBlock, Captures: []Value{signalBlockVal, errorClassVal, passHandlerVal},
 		HomeFrame: -1, HomeSelf: Nil, HomeMethod: nil,
 	}
-	innerBlockVal := vm.registry.RegisterBlock(innerBV)
+	innerBlockVal := makeBlockValue(innerBV)
 
 	// Outer: [inner] on: Error do: [:ex | 99]
 	result := vm.evaluateBlockWithHandler(innerBlockVal, vm.ErrorClass, outerHandlerVal)
@@ -543,7 +543,7 @@ func TestNestedExceptionHandlersWithPass(t *testing.T) {
 		Block: signalBlock, Captures: []Value{signalerObj.ToValue()},
 		HomeFrame: -1, HomeSelf: Nil, HomeMethod: nil,
 	}
-	signalBlockVal := vm.registry.RegisterBlock(signalBV)
+	signalBlockVal := makeBlockValue(signalBV)
 
 	// Pass handler: [:ex | ex pass]
 	passHandler := &BlockMethod{
@@ -559,12 +559,12 @@ func TestNestedExceptionHandlersWithPass(t *testing.T) {
 	passHandlerBV1 := &BlockValue{
 		Block: passHandler, HomeFrame: -1, HomeSelf: Nil, HomeMethod: nil,
 	}
-	passHandlerVal1 := vm.registry.RegisterBlock(passHandlerBV1)
+	passHandlerVal1 := makeBlockValue(passHandlerBV1)
 
 	passHandlerBV2 := &BlockValue{
 		Block: passHandler, HomeFrame: -1, HomeSelf: Nil, HomeMethod: nil,
 	}
-	passHandlerVal2 := vm.registry.RegisterBlock(passHandlerBV2)
+	passHandlerVal2 := makeBlockValue(passHandlerBV2)
 
 	// Outer handler: [:ex | 42]
 	outerHandler := &BlockMethod{
@@ -579,7 +579,7 @@ func TestNestedExceptionHandlersWithPass(t *testing.T) {
 	outerHandlerBV := &BlockValue{
 		Block: outerHandler, HomeFrame: -1, HomeSelf: Nil, HomeMethod: nil,
 	}
-	outerHandlerVal := vm.registry.RegisterBlock(outerHandlerBV)
+	outerHandlerVal := makeBlockValue(outerHandlerBV)
 
 	// Build inner: [signaler trigger] on: Error do: [:ex | ex pass]
 	innerBlock := &BlockMethod{
@@ -598,7 +598,7 @@ func TestNestedExceptionHandlersWithPass(t *testing.T) {
 		Block: innerBlock, Captures: []Value{signalBlockVal, errorClassVal, passHandlerVal1},
 		HomeFrame: -1, HomeSelf: Nil, HomeMethod: nil,
 	}
-	innerBlockVal := vm.registry.RegisterBlock(innerBV)
+	innerBlockVal := makeBlockValue(innerBV)
 
 	// Build middle: [inner] on: Error do: [:ex | ex pass]
 	middleBlock := &BlockMethod{
@@ -617,7 +617,7 @@ func TestNestedExceptionHandlersWithPass(t *testing.T) {
 		Block: middleBlock, Captures: []Value{innerBlockVal, errorClassVal, passHandlerVal2},
 		HomeFrame: -1, HomeSelf: Nil, HomeMethod: nil,
 	}
-	middleBlockVal := vm.registry.RegisterBlock(middleBV)
+	middleBlockVal := makeBlockValue(middleBV)
 
 	// Outermost: [middle] on: Error do: [:ex | 42]
 	result := vm.evaluateBlockWithHandler(middleBlockVal, vm.ErrorClass, outerHandlerVal)
@@ -694,8 +694,8 @@ func TestRetryReexecutesProtectedBlock(t *testing.T) {
 		Block: retryHandler, HomeFrame: -1, HomeSelf: Nil, HomeMethod: nil,
 	}
 
-	protectedBlockVal := vm.registry.RegisterBlock(protectedBV)
-	retryHandlerVal := vm.registry.RegisterBlock(retryHandlerBV)
+	protectedBlockVal := makeBlockValue(protectedBV)
+	retryHandlerVal := makeBlockValue(retryHandlerBV)
 
 	result := vm.evaluateBlockWithHandler(protectedBlockVal, vm.ErrorClass, retryHandlerVal)
 
@@ -805,7 +805,7 @@ func runSignalAndCapture(t *testing.T, exClass *Class) *ExceptionObject {
 		Block: protectedBlock, Captures: []Value{signalerObj.ToValue()},
 		HomeFrame: -1, HomeSelf: Nil, HomeMethod: nil,
 	}
-	protectedBlockVal := vm.registry.RegisterBlock(protectedBV)
+	protectedBlockVal := makeBlockValue(protectedBV)
 	_ = triggerSelID
 
 	// Handler block [:ex | ex]  -- returns the exception so we can inspect it
@@ -821,7 +821,7 @@ func runSignalAndCapture(t *testing.T, exClass *Class) *ExceptionObject {
 	handlerBV := &BlockValue{
 		Block: handlerBlock, HomeFrame: -1, HomeSelf: Nil, HomeMethod: nil,
 	}
-	handlerVal := vm.registry.RegisterBlock(handlerBV)
+	handlerVal := makeBlockValue(handlerBV)
 
 	result := vm.evaluateBlockWithHandler(protectedBlockVal, exClass, handlerVal)
 	if !result.IsException() {

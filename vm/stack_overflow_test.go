@@ -263,8 +263,8 @@ func TestStackOverflowCatchableInSmalltalk(t *testing.T) {
 		HomeMethod: nil,
 	}
 
-	protectedBlockVal := vm.registry.RegisterBlock(protectedBV)
-	handlerBlockVal := vm.registry.RegisterBlock(handlerBV)
+	protectedBlockVal := makeBlockValue(protectedBV)
+	handlerBlockVal := makeBlockValue(handlerBV)
 
 	// Catch StackOverflow via on:do:
 	result := vm.evaluateBlockWithHandler(protectedBlockVal, vm.StackOverflowClass, handlerBlockVal)
@@ -336,8 +336,8 @@ func TestStackOverflowCatchableViaErrorSuperclass(t *testing.T) {
 		HomeMethod: nil,
 	}
 
-	protectedBlockVal := vm.registry.RegisterBlock(protectedBV)
-	handlerBlockVal := vm.registry.RegisterBlock(handlerBV)
+	protectedBlockVal := makeBlockValue(protectedBV)
+	handlerBlockVal := makeBlockValue(handlerBV)
 
 	// Catch with Error (superclass of StackOverflow)
 	result := vm.evaluateBlockWithHandler(protectedBlockVal, vm.ErrorClass, handlerBlockVal)
@@ -547,8 +547,8 @@ func TestDeeplyNestedBlockEvaluationCatchable(t *testing.T) {
 		HomeMethod: nil,
 	}
 
-	protectedBlockVal := vm.registry.RegisterBlock(protectedBV)
-	handlerBlockVal := vm.registry.RegisterBlock(handlerBV)
+	protectedBlockVal := makeBlockValue(protectedBV)
+	handlerBlockVal := makeBlockValue(handlerBV)
 
 	result := vm.evaluateBlockWithHandler(protectedBlockVal, vm.StackOverflowClass, handlerBlockVal)
 	if !result.IsSmallInt() || result.SmallInt() != 55 {
@@ -811,8 +811,8 @@ func TestStackOverflowRecoveryAllowsSubsequentExecution(t *testing.T) {
 		HomeMethod: nil,
 	}
 
-	protectedBlockVal := vm.registry.RegisterBlock(protectedBV)
-	handlerBlockVal := vm.registry.RegisterBlock(handlerBV)
+	protectedBlockVal := makeBlockValue(protectedBV)
+	handlerBlockVal := makeBlockValue(handlerBV)
 
 	// First: catch the overflow
 	result := vm.evaluateBlockWithHandler(protectedBlockVal, vm.StackOverflowClass, handlerBlockVal)
