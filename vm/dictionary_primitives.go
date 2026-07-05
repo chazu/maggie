@@ -11,16 +11,14 @@ type DictionaryObject struct {
 	Keys map[uint64]Value // Key hash -> Key (for iteration)
 }
 
-// dictionaryIDOffset is the starting offset for dictionary IDs.
+// dictionaryIDOffset marks the top of the legacy symbol-id space. Retained so
+// the real-symbol id range stays bounded (see stringIDOffset); Dictionaries
+// themselves are now pointer-carrying heap Values.
 const dictionaryIDOffset uint32 = 0xC0000000
 
-// IsDictionaryValue returns true if the value is a dictionary object.
+// IsDictionaryValue returns true if the value is a heap dictionary object.
 func IsDictionaryValue(v Value) bool {
-	if !v.IsSymbolEncoded() {
-		return false
-	}
-	id := v.SymbolID()
-	return id >= dictionaryIDOffset
+	return v.ptr != nil && v.hi == kindDictionary
 }
 
 // HashValue computes a hash for a Maggie Value (exported for testing).
@@ -63,7 +61,7 @@ func hashValue(or *ObjectRegistry, v Value) uint64 {
 	}
 	// For other values, use the raw bits as the hash
 	// This works because Values are NaN-boxed and unique per value
-	return uint64(v)
+	return v.hi ^ uint64(uintptr(v.ptr))
 }
 
 // registerDictionaryPrimitives registers Dictionary primitives on the VM.

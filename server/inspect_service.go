@@ -41,7 +41,7 @@ func (s *InspectService) Inspect(
 		return nil, connect.NewError(connect.CodeNotFound, fmt.Errorf("handle %q not found", req.Msg.HandleId))
 	}
 
-	result, err := s.worker.Do(func(v *vm.VM) interface{} {
+	result, err := s.worker.DoConcurrent(func(v *vm.VM) interface{} {
 		return s.inspectValue(v, val, req.Msg.HandleId)
 	})
 	if err != nil {
@@ -67,7 +67,7 @@ func (s *InspectService) InspectSlot(
 		return nil, connect.NewError(connect.CodeNotFound, fmt.Errorf("handle %q not found", req.Msg.HandleId))
 	}
 
-	result, err := s.worker.Do(func(v *vm.VM) interface{} {
+	result, err := s.worker.DoConcurrent(func(v *vm.VM) interface{} {
 		// For indexed slot names like "[0]", "[1]", etc., extract the index
 		if strings.HasPrefix(req.Msg.SlotName, "[") && strings.HasSuffix(req.Msg.SlotName, "]") {
 			var idx int
@@ -136,7 +136,7 @@ func (s *InspectService) InspectIndex(
 		return nil, connect.NewError(connect.CodeNotFound, fmt.Errorf("handle %q not found", req.Msg.HandleId))
 	}
 
-	result, err := s.worker.Do(func(v *vm.VM) interface{} {
+	result, err := s.worker.DoConcurrent(func(v *vm.VM) interface{} {
 		elemVal := v.Send(val, "at:", []vm.Value{vm.FromSmallInt(int64(req.Msg.Index + 1))})
 		display := formatValue(v, elemVal)
 		className := classNameFor(v, elemVal)
@@ -166,7 +166,12 @@ func (s *InspectService) SendMessage(
 		return nil, connect.NewError(connect.CodeNotFound, fmt.Errorf("handle %q not found", req.Msg.HandleId))
 	}
 
-	result, err := s.worker.Do(func(v *vm.VM) interface{} {
+	// The message may mutate the VM if either the selector being sent or any
+	// argument expression is schema-mutating (e.g. sending `evaluate:` to
+	// Compiler, or an arg that itself files in code) — route it through the
+	// exclusive gate in that case.
+	mutSource := req.Msg.Selector + " " + strings.Join(req.Msg.Arguments, " ")
+	result, err := s.worker.DoForSource(mutSource, func(v *vm.VM) interface{} {
 		// Compile and evaluate each argument expression
 		args := make([]vm.Value, 0, len(req.Msg.Arguments))
 		for _, argSource := range req.Msg.Arguments {
@@ -231,7 +236,8 @@ func (s *InspectService) ReleaseHandle(
 // --- helpers ---
 
 // inspectValue builds an InspectResponse for a VM value.
-// Must be called on the VM worker goroutine.
+// Must be called inside a VMWorker gate closure (Do/DoConcurrent), which runs
+// it on a registered per-request interpreter.
 func (s *InspectService) inspectValue(v *vm.VM, val vm.Value, handleID string) *maggiev1.InspectResponse {
 	inspector := vm.NewInspector(v)
 	result := inspector.Inspect(val)

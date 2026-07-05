@@ -1,38 +1,34 @@
+
 # Binaries
-/procyon
+# Emacs byte-compiled files
+# Generated image files
+# Go
+# IDE
+# OS
+# Test artifacts
+*.dll
+*.dylib
+*.elc
+*.exe
+*.exe~
+*.image
+*.native
+*.out
+*.prof
+*.so
+*.swo
+*.swp
+*.test
+*~
+.DS_Store
+.claude/
+.gitnexus
+.idea/
+.vscode/
 /bootstrap
 /mag
 /maggie
-
-# Generated image files
-*.image
-
-# Test artifacts
-*.native
-*.prof
+/procyon
 /tmp/
-
-# Go
-*.exe
-*.exe~
-*.dll
-*.so
-*.dylib
-*.test
-*.out
-go.work
-
-# Emacs byte-compiled files
-*.elc
-
-# IDE
-.idea/
-.vscode/
-*.swp
-*.swo
-*~
-
-# OS
-.DS_Store
 Thumbs.db
-.gitnexus
+go.work

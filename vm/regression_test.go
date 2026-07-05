@@ -57,12 +57,9 @@ func TestPrimIdenticalExists(t *testing.T) {
 func TestMarkerNoCollision(t *testing.T) {
 	// Verify all markers are unique
 	markers := map[string]uint32{
-		"channel":    channelMarker,
 		"process":    processMarker,
-		"result":     resultMarker,
 		"grpcClient": grpcClientMarker,
 		"grpcStream": grpcStreamMarker,
-		"exception":  exceptionMarker,
 	}
 
 	seen := make(map[uint32]string)
@@ -87,7 +84,7 @@ func TestMarkerNoCollision(t *testing.T) {
 	if isResultValue(ch) {
 		t.Error("Channel should not be identified as result")
 	}
-	if IsMarkedValue(GrpcStreamMarker, ch) {
+	if isExtensionValue(ch, GrpcStreamMarker) {
 		t.Error("Channel should not be identified as grpc stream")
 	}
 }

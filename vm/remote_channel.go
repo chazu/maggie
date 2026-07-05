@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sync"
 	"sync/atomic"
+	"unsafe"
 )
 
 // ---------------------------------------------------------------------------
@@ -35,22 +36,11 @@ func (r *RemoteChannelRef) IsClosed() bool { return r.closed.Load() }
 func (r *RemoteChannelRef) MarkClosed() { r.closed.Store(true) }
 
 // ---------------------------------------------------------------------------
-// NaN-boxing: RemoteChannel values use remoteChannelMarker (55 << 24)
+// RemoteChannel values are pointer-carrying kindRemoteChannel heap Values.
 // ---------------------------------------------------------------------------
 
-func remoteChannelToValue(id int) Value {
-	return FromSymbolID(uint32(id) | remoteChannelMarker)
-}
-
 func isRemoteChannelValue(v Value) bool {
-	if !v.IsSymbolEncoded() {
-		return false
-	}
-	return (v.SymbolID() & markerMask) == remoteChannelMarker
-}
-
-func remoteChannelIDFromValue(v Value) int {
-	return int(markedIDFromValue(v))
+	return v.ptr != nil && v.hi == kindRemoteChannel
 }
 
 // IsRemoteChannelValue returns true if v is a remote channel reference.
@@ -60,39 +50,32 @@ func IsRemoteChannelValue(v Value) bool { return isRemoteChannelValue(v) }
 // VM-local remote channel registry
 // ---------------------------------------------------------------------------
 
+// remoteChannelRegistry tracks every live RemoteChannelRef proxy so that
+// drainNode can mark all proxies of a dead node closed. Proxies are
+// pointer-carrying kindRemoteChannel Values (Go GC owns their lifetime); this
+// set is purely functional (node-death fan-out), not a liveness root.
 type remoteChannelRegistry struct {
 	mu       sync.RWMutex
-	channels map[int]*RemoteChannelRef
-	nextID   atomic.Int32
+	channels map[*RemoteChannelRef]struct{}
 }
 
 func newRemoteChannelRegistry() *remoteChannelRegistry {
-	r := &remoteChannelRegistry{
-		channels: make(map[int]*RemoteChannelRef),
+	return &remoteChannelRegistry{
+		channels: make(map[*RemoteChannelRef]struct{}),
 	}
-	r.nextID.Store(1)
-	return r
 }
 
-func (r *remoteChannelRegistry) register(ref *RemoteChannelRef) int {
-	id := int(r.nextID.Add(1) - 1)
+func (r *remoteChannelRegistry) track(ref *RemoteChannelRef) {
 	r.mu.Lock()
-	r.channels[id] = ref
+	r.channels[ref] = struct{}{}
 	r.mu.Unlock()
-	return id
-}
-
-func (r *remoteChannelRegistry) get(id int) *RemoteChannelRef {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-	return r.channels[id]
 }
 
 // drainNode marks all remote channels from the given node as closed.
 func (r *remoteChannelRegistry) drainNode(nodeID [32]byte) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	for _, ref := range r.channels {
+	for ref := range r.channels {
 		if ref.OwnerNode == nodeID {
 			ref.MarkClosed()
 		}
@@ -152,16 +135,19 @@ func (r *channelExportRegistry) Lookup(id uint64) *ChannelObject {
 // ---------------------------------------------------------------------------
 
 func (vm *VM) registerRemoteChannel(ref *RemoteChannelRef) Value {
-	id := vm.remoteChannels.register(ref)
-	return remoteChannelToValue(id)
+	// The ref is a pointer-carrying kindRemoteChannel Value (below). It is also
+	// tracked in the registry, whose sole remaining role is drainNode: marking
+	// every remote channel of a dead node as closed (a proxy can be closed even
+	// while a live Value still points at it).
+	vm.remoteChannels.track(ref)
+	return makeHeap(kindRemoteChannel, unsafe.Pointer(ref))
 }
 
 func (vm *VM) getRemoteChannel(v Value) *RemoteChannelRef {
 	if !isRemoteChannelValue(v) {
 		return nil
 	}
-	id := remoteChannelIDFromValue(v)
-	return vm.remoteChannels.get(id)
+	return (*RemoteChannelRef)(v.ptr)
 }
 
 // ExportChannel registers a local channel for remote access.
@@ -185,18 +171,14 @@ func (vm *VM) GetRemoteChannel(v Value) *RemoteChannelRef {
 	return vm.getRemoteChannel(v)
 }
 
-// findChannelValue finds the NaN-boxed Value for a ChannelObject by scanning
-// the concurrency registry. Used when deserializing a channel reference that
-// turns out to be local.
+// findChannelValue returns the heap Value for a ChannelObject. Used when
+// deserializing a channel reference that turns out to be local. With
+// pointer-carrying channel Values this is a direct wrap — no registry scan.
 func (vm *VM) findChannelValue(target *ChannelObject) Value {
-	vm.registry.channelsMu.RLock()
-	defer vm.registry.channelsMu.RUnlock()
-	for id, ch := range vm.registry.channels {
-		if ch == target {
-			return channelToValue(id)
-		}
+	if target == nil {
+		return Nil
 	}
-	return Nil
+	return channelToValue(target)
 }
 
 // DrainRemoteChannels marks all remote channels from the given node as closed.
@@ -212,7 +194,7 @@ func (vm *VM) registerRemoteChannelPrimitives() {
 	c := vm.createClass("RemoteChannel", vm.ObjectClass)
 	vm.RemoteChannelClass = c
 	vm.globals["RemoteChannel"] = vm.classValue(c)
-	vm.symbolDispatch.Register(remoteChannelMarker, &SymbolTypeEntry{Class: c})
+	// Class resolution is via classForHeap's kindRemoteChannel case (pointer Value).
 
 	// RemoteChannel>>send: value — blocking send to remote channel
 	c.AddMethod1(vm.Selectors, "send:", func(v *VM, recv, val Value) Value {

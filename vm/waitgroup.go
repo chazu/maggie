@@ -21,16 +21,8 @@ func createWaitGroup() *WaitGroupObject {
 	return &WaitGroupObject{}
 }
 
-func waitGroupToValue(id int) Value {
-	return FromSymbolID(uint32(id) | waitGroupMarker)
-}
-
 func isWaitGroupValue(v Value) bool {
-	if !v.IsSymbolEncoded() {
-		return false
-	}
-	id := v.SymbolID()
-	return (id & markerMask) == waitGroupMarker
+	return v.ptr != nil && v.hi == kindWaitGroup
 }
 
 // ---------------------------------------------------------------------------

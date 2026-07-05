@@ -799,9 +799,6 @@ func TestBlockRegistryCleanup(t *testing.T) {
 		Literals:    nil,
 	}
 
-	// Record initial registry size
-	initialSize := reg.BlockCount()
-
 	// Create a method frame (this will be the home frame for blocks)
 	b := NewCompiledMethodBuilder("test", 0)
 	b.Bytecode().Emit(OpPushNil)
@@ -817,18 +814,13 @@ func TestBlockRegistryCleanup(t *testing.T) {
 		blockVals[i] = interp.createBlockValue(blockMethod, nil)
 	}
 
-	// Verify blocks were registered
-	if reg.BlockCount() != initialSize+numBlocks {
-		t.Errorf("block registry size after creation = %d, want %d", reg.BlockCount(), initialSize+numBlocks)
-	}
-
-	// Pop the home frame - blocks should persist (they may escape as callbacks)
+	// Pop the home frame — blocks are pointer-carrying Values, so they persist
+	// (they may escape as callbacks) and always resolve while referenced.
 	interp.popFrame()
 
-	// Verify blocks are still alive after frame pop
 	for i, bv := range blockVals {
 		if !reg.HasBlock(bv) {
-			t.Errorf("block %d was incorrectly cleaned up after home frame popped", i)
+			t.Errorf("block %d should still resolve after home frame popped", i)
 		}
 	}
 }
@@ -892,86 +884,9 @@ func TestBlockRegistryMultipleFrames(t *testing.T) {
 	}
 }
 
-// TestGarbageCollection verifies that unreachable objects are collected.
-func TestGarbageCollection(t *testing.T) {
-	vm := NewVM()
-
-	// Create some arrays (which go into keepAlive)
-	initialCount := vm.KeepAliveCount()
-
-	arr1 := vm.NewArray(3)
-	arr2 := vm.NewArray(5)
-	_ = vm.NewArray(2) // arr3 - intentionally unreachable
-
-	if vm.KeepAliveCount() != initialCount+3 {
-		t.Errorf("keepAlive count after creation = %d, want %d", vm.KeepAliveCount(), initialCount+3)
-	}
-
-	// Push arr1 onto the stack (making it reachable)
-	vm.interpreter.push(arr1)
-
-	// Store arr2 in globals (making it reachable)
-	vm.globals["testArray"] = arr2
-
-	// arr3 is not reachable (not on stack, not in globals)
-
-	// Run GC
-	collected := vm.CollectGarbage()
-
-	// arr3 should have been collected
-	if collected != 1 {
-		t.Errorf("collected = %d, want 1", collected)
-	}
-
-	// keepAlive should now have 2 fewer (arr3 collected)
-	if vm.KeepAliveCount() != initialCount+2 {
-		t.Errorf("keepAlive count after GC = %d, want %d", vm.KeepAliveCount(), initialCount+2)
-	}
-
-	// Clean up
-	vm.interpreter.pop()
-	delete(vm.globals, "testArray")
-}
-
-// TestGarbageCollectionNestedObjects verifies that objects referenced by other objects are not collected.
-func TestGarbageCollectionNestedObjects(t *testing.T) {
-	vm := NewVM()
-
-	initialCount := vm.KeepAliveCount()
-
-	// Create an array that holds another array
-	inner := vm.NewArray(2)
-	outer := vm.NewArray(1)
-
-	// Store inner in outer's slot
-	if outer.IsObject() {
-		obj := ObjectFromValue(outer)
-		obj.SetSlot(0, inner)
-	}
-
-	// Push only outer onto stack
-	vm.interpreter.push(outer)
-
-	// inner is reachable through outer, so both should survive GC
-	collected := vm.CollectGarbage()
-
-	if collected != 0 {
-		t.Errorf("collected = %d, want 0 (both should be reachable)", collected)
-	}
-
-	if vm.KeepAliveCount() != initialCount+2 {
-		t.Errorf("keepAlive count = %d, want %d", vm.KeepAliveCount(), initialCount+2)
-	}
-
-	// Now pop outer from stack - both become unreachable
-	vm.interpreter.pop()
-
-	collected = vm.CollectGarbage()
-
-	if collected != 2 {
-		t.Errorf("collected = %d, want 2 (both should be unreachable)", collected)
-	}
-}
+// (Removed TestGarbageCollection / TestGarbageCollectionNestedObjects: they
+// exercised the keepAlive-based custom collector, which is gone — objects are
+// pointer-carrying heap Values reclaimed by Go's GC.)
 
 // TestInterpreterStoreGlobal verifies that OpStoreGlobal actually stores to globals.
 func TestInterpreterStoreGlobal(t *testing.T) {
@@ -1367,8 +1282,8 @@ func TestStackOverflowCatchableWithOnDo(t *testing.T) {
 		HomeMethod: nil,
 	}
 
-	protectedBlockVal := vm.registry.RegisterBlock(protectedBV)
-	handlerBlockVal := vm.registry.RegisterBlock(handlerBV)
+	protectedBlockVal := makeBlockValue(protectedBV)
+	handlerBlockVal := makeBlockValue(handlerBV)
 
 	// Use evaluateBlockWithHandler (the mechanism behind on:do:) to catch the exception.
 	// Catch StackOverflow (which is a subclass of Error).
@@ -1440,8 +1355,8 @@ func TestStackOverflowCatchableWithErrorOnDo(t *testing.T) {
 		HomeSelf:  Nil,
 	}
 
-	protectedBlockVal := vm.registry.RegisterBlock(protectedBV)
-	handlerBlockVal := vm.registry.RegisterBlock(handlerBV)
+	protectedBlockVal := makeBlockValue(protectedBV)
+	handlerBlockVal := makeBlockValue(handlerBV)
 
 	// Catch with Error (superclass of StackOverflow) -- should also work
 	result := vm.evaluateBlockWithHandler(protectedBlockVal, vm.ErrorClass, handlerBlockVal)
@@ -1768,10 +1683,10 @@ func TestSendBinaryFallbackNLR(t *testing.T) {
 	blockIdx := b.AddBlock(blockMethod)
 
 	bc := b.Bytecode()
-	bc.EmitByte(OpCaptureTemp, 0)                      // push temp 0 (other) as capture
-	bc.EmitCreateBlock(uint16(blockIdx), 1)             // create block with 1 capture
-	bc.Emit(OpSendValue)                                // block value (triggers NLR)
-	bc.EmitInt8(OpPushInt8, 127)                        // push 999 -- should NOT be reached
+	bc.EmitByte(OpCaptureTemp, 0)           // push temp 0 (other) as capture
+	bc.EmitCreateBlock(uint16(blockIdx), 1) // create block with 1 capture
+	bc.Emit(OpSendValue)                    // block value (triggers NLR)
+	bc.EmitInt8(OpPushInt8, 127)            // push 999 -- should NOT be reached
 	bc.Emit(OpReturnTop)
 
 	m := b.Build()
@@ -1797,9 +1712,9 @@ func TestSendBinaryFallbackNLR(t *testing.T) {
 		// Use OpSendPlus path: push obj and 42, execute a method that does OpSendPlus
 		caller := NewCompiledMethodBuilder("testCaller", 0)
 		callerBC := caller.Bytecode()
-		callerBC.Emit(OpPushSelf)             // push receiver (obj)
-		callerBC.EmitInt8(OpPushInt8, 42)     // push 42
-		callerBC.Emit(OpSendPlus)             // obj + 42 -> sendBinaryFallback
+		callerBC.Emit(OpPushSelf)         // push receiver (obj)
+		callerBC.EmitInt8(OpPushInt8, 42) // push 42
+		callerBC.Emit(OpSendPlus)         // obj + 42 -> sendBinaryFallback
 		callerBC.Emit(OpReturnTop)
 		callerMethod := caller.Build()
 
@@ -1815,7 +1730,6 @@ func TestSendBinaryFallbackNLR(t *testing.T) {
 		t.Errorf("result = %v (SmallInt=%v), want 42", result, result.SmallInt())
 	}
 }
-
 
 // ---------------------------------------------------------------------------
 // Arithmetic overflow promotion tests (now promotes to BigInt, not Float)

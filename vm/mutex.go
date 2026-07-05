@@ -21,16 +21,8 @@ func createMutex() *MutexObject {
 	return &MutexObject{}
 }
 
-func mutexToValue(id int) Value {
-	return FromSymbolID(uint32(id) | mutexMarker)
-}
-
 func isMutexValue(v Value) bool {
-	if !v.IsSymbolEncoded() {
-		return false
-	}
-	id := v.SymbolID()
-	return (id & markerMask) == mutexMarker
+	return v.ptr != nil && v.hi == kindMutex
 }
 
 // ---------------------------------------------------------------------------

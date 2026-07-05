@@ -142,7 +142,7 @@ func TestSerializeBlock_NonSerializableCapture(t *testing.T) {
 	block.Outer = method
 
 	// Create a mutex — non-serializable
-	mutexVal := FromSymbolID(1 | mutexMarker)
+	mutexVal, _ := v.registry.RegisterMutex(&MutexObject{})
 
 	bv := &BlockValue{
 		Block:      block,

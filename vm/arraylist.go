@@ -20,16 +20,8 @@ func createArrayList(initialCap int) *ArrayListObject {
 	}
 }
 
-func arrayListToValue(id int) Value {
-	return FromSymbolID(uint32(id) | arrayListMarker)
-}
-
 func isArrayListValue(v Value) bool {
-	if !v.IsSymbolEncoded() {
-		return false
-	}
-	id := v.SymbolID()
-	return (id & markerMask) == arrayListMarker
+	return v.ptr != nil && v.hi == kindArrayList
 }
 
 // Add appends an element. Amortized O(1).

@@ -57,7 +57,6 @@ func (vm *VM) registerSandboxPrimitives() {
 			defer func() {
 				v.HandleForkedPanic(proc, recover())
 				v.unregisterInterpreter()
-				v.registry.ReleaseBlock(blockVal)
 			}()
 
 			interp := v.newForkedInterpreter(hidden)

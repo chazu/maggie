@@ -35,12 +35,13 @@ func TestHttpServerRegistration(t *testing.T) {
 		t.Errorf("port = %d, want 9999", got.port)
 	}
 
-	// Unregister
+	// Unregister is now a no-op: the server object is a pointer-carrying heap
+	// Value reclaimed by Go's GC, so it stays resolvable while the Value lives.
 	vm.vmUnregisterHttpServer(val)
 
 	got = vm.vmGetHttpServer(val)
-	if got != nil {
-		t.Error("getHttpServer should return nil after unregister")
+	if got == nil {
+		t.Error("getHttpServer should still resolve after the no-op unregister")
 	}
 }
 
@@ -81,12 +82,13 @@ func TestHttpRequestRegistration(t *testing.T) {
 		t.Errorf("request path = %q, want %q", got.request.URL.Path, "/test")
 	}
 
-	// Unregister
+	// Unregister is now a no-op: the request object is a pointer-carrying heap
+	// Value reclaimed by Go's GC, so it stays resolvable while the Value lives.
 	vm.vmUnregisterHttpRequest(val)
 
 	got = vm.vmGetHttpRequest(val)
-	if got != nil {
-		t.Error("getHttpRequest should return nil after unregister")
+	if got == nil {
+		t.Error("getHttpRequest should still resolve after the no-op unregister")
 	}
 }
 
@@ -140,36 +142,27 @@ func TestIsHttpResponseValueFalse(t *testing.T) {
 	}
 }
 
-// TestExtractHTTPResultGCSafe is the regression test for the bare-string
-// handler use-after-free. A handler that returns a bare string left it
-// referenced only from a Go local on the net/http goroutine, after the
-// producing interpreter unregistered; a string-collector sweep in that window
-// freed it and the write path emitted an empty body. extractHTTPResult must
-// snapshot the body into Go-owned bytes that survive any later sweep.
+// TestExtractHTTPResultGCSafe verifies extractHTTPResult snapshots a handler's
+// result into Go-owned bytes. (Strings are now Go-GC-traced pointer Values, so
+// the old string-collector use-after-free window is gone; the snapshot behaviour
+// is still exercised here for the response write path.)
 func TestExtractHTTPResultGCSafe(t *testing.T) {
 	vm := NewVM()
 	defer vm.Shutdown()
 
-	// Bare-string result. extractHTTPResult marshals it to Go-owned bytes
-	// while `raw` is still readable; a sweep afterwards must not affect hr.body
-	// even though `raw` itself (a Go-local ID, not a Maggie root) gets freed.
+	// Bare-string result → Go-owned bytes.
 	raw := vm.registry.NewStringValue("body-bytes")
 	hr := vm.extractHTTPResult(raw)
-	vm.CollectStringGarbage()
-	rawAfter := vm.registry.GetStringContent(raw) // demonstrates the hazard
 	if !hr.hasBody || string(hr.body) != "body-bytes" {
-		t.Fatalf("bare-string body not GC-safe: hasBody=%v body=%q (raw after sweep=%q)",
-			hr.hasBody, hr.body, rawAfter)
+		t.Fatalf("bare-string body wrong: hasBody=%v body=%q", hr.hasBody, hr.body)
 	}
-	t.Logf("raw string after sweep = %q (the old code read THIS on the net/http goroutine)", rawAfter)
 
-	// HttpResponse result: status + body must survive a sweep too.
+	// HttpResponse result: status + body captured.
 	rv := vm.Send(vm.globals["HttpResponse"], "new:body:",
 		[]Value{FromSmallInt(201), vm.registry.NewStringValue("resp-body")})
 	hr2 := vm.extractHTTPResult(rv)
-	vm.CollectStringGarbage()
 	if hr2.status != 201 || !hr2.hasBody || string(hr2.body) != "resp-body" {
-		t.Fatalf("response not GC-safe: status=%d body=%q", hr2.status, hr2.body)
+		t.Fatalf("response wrong: status=%d body=%q", hr2.status, hr2.body)
 	}
 }
 
@@ -261,32 +254,33 @@ func TestHttpServerPortRetrieval(t *testing.T) {
 	}
 }
 
-func TestHttpServerPortOnNilServer(t *testing.T) {
+func TestHttpServerPortAfterNoOpUnregister(t *testing.T) {
 	vm := NewVM()
 
-	// Calling port on a non-server value - use a fake value that
-	// passes isHttpServerValue but whose registry entry was removed
+	// unregister is now a no-op — the server stays live behind its Value, so
+	// port reports the real port rather than the old registry-miss Nil.
 	srv := &HttpServerObject{mux: http.NewServeMux(), port: 1234}
 	val := vm.vmRegisterHttpServer(srv)
-	vm.vmUnregisterHttpServer(val) // remove from registry
+	vm.vmUnregisterHttpServer(val)
 
 	result := vm.Send(val, "port", nil)
-	if result != Nil {
-		t.Errorf("port on unregistered server should return Nil, got %v", result)
+	if !result.IsSmallInt() || result.SmallInt() != 1234 {
+		t.Errorf("port should return the live server's port 1234, got %v", result)
 	}
 }
 
-func TestHttpServerIsRunningOnNilServer(t *testing.T) {
+func TestHttpServerIsRunningOnFreshServer(t *testing.T) {
 	vm := NewVM()
 
-	// Create and immediately unregister
+	// A server that was never started reports isRunning=False. (unregister is a
+	// no-op in the pointer-Value world, so the object stays resolvable.)
 	srv := &HttpServerObject{mux: http.NewServeMux(), port: 1234}
 	val := vm.vmRegisterHttpServer(srv)
 	vm.vmUnregisterHttpServer(val)
 
 	result := vm.Send(val, "isRunning", nil)
 	if result != False {
-		t.Errorf("isRunning on unregistered server should return False, got %v", result)
+		t.Errorf("isRunning on a never-started server should return False, got %v", result)
 	}
 }
 
@@ -631,29 +625,24 @@ func TestHttpRequestQueryParam(t *testing.T) {
 	}
 }
 
-func TestHttpRequestMethodOnNil(t *testing.T) {
+func TestHttpRequestStaysLiveAfterNoOpUnregister(t *testing.T) {
 	vm := NewVM()
 
-	// Create and unregister a request to get a dead reference
+	// unregister is now a no-op: the request stays live behind its Value (Go GC
+	// owns its lifetime), so its accessors report the real request data.
 	goReq := httptest.NewRequest("GET", "/test", nil)
 	reqObj := &HttpRequestObject{request: goReq}
 	reqVal := vm.vmRegisterHttpRequest(reqObj)
 	vm.vmUnregisterHttpRequest(reqVal)
 
-	// Sending to unregistered request should return empty string
 	result := vm.Send(reqVal, "method", nil)
-	if !IsStringValue(result) || vm.registry.GetStringContent(result) != "" {
-		t.Errorf("method on unregistered request = %q, want empty string", vm.registry.GetStringContent(result))
+	if !IsStringValue(result) || vm.registry.GetStringContent(result) != "GET" {
+		t.Errorf("method = %q, want %q", vm.registry.GetStringContent(result), "GET")
 	}
 
 	result = vm.Send(reqVal, "path", nil)
-	if !IsStringValue(result) || vm.registry.GetStringContent(result) != "" {
-		t.Errorf("path on unregistered request = %q, want empty string", vm.registry.GetStringContent(result))
-	}
-
-	result = vm.Send(reqVal, "body", nil)
-	if !IsStringValue(result) || vm.registry.GetStringContent(result) != "" {
-		t.Errorf("body on unregistered request = %q, want empty string", vm.registry.GetStringContent(result))
+	if !IsStringValue(result) || vm.registry.GetStringContent(result) != "/test" {
+		t.Errorf("path = %q, want %q", vm.registry.GetStringContent(result), "/test")
 	}
 }
 

@@ -16,14 +16,13 @@ func TestExceptionValueCreation(t *testing.T) {
 		Resumable:   true,
 	}
 
-	id := vm.registry.RegisterException(ex)
-	val := FromExceptionID(id)
+	val := vm.registry.RegisterExceptionValue(ex)
 
 	if !val.IsException() {
 		t.Error("RegisterException should return an exception value")
 	}
 
-	retrieved := vm.registry.GetException(val.ExceptionID())
+	retrieved := vm.registry.GetExceptionFromValue(val)
 	if retrieved != ex {
 		t.Error("GetException should return the original exception")
 	}
@@ -32,8 +31,7 @@ func TestExceptionValueCreation(t *testing.T) {
 func TestExceptionValueIsException(t *testing.T) {
 	vm := NewVM()
 	ex := &ExceptionObject{MessageText: Nil}
-	id := vm.registry.RegisterException(ex)
-	val := FromExceptionID(id)
+	val := vm.registry.RegisterExceptionValue(ex)
 
 	if !val.IsException() {
 		t.Error("Exception value should be an exception")
@@ -194,8 +192,7 @@ func TestExceptionMessageText(t *testing.T) {
 		ExceptionClass: vm.ErrorClass,
 		MessageText:    vm.registry.NewStringValue("Something went wrong"),
 	}
-	id := vm.registry.RegisterException(ex)
-	exVal := FromExceptionID(id)
+	exVal := vm.registry.RegisterExceptionValue(ex)
 
 	// Get messageText
 	result := vm.Send(exVal, "messageText", nil)
@@ -217,8 +214,7 @@ func TestExceptionDescription(t *testing.T) {
 		ExceptionClass: vm.ErrorClass,
 		MessageText:    vm.registry.NewStringValue("test error"),
 	}
-	id := vm.registry.RegisterException(ex)
-	exVal := FromExceptionID(id)
+	exVal := vm.registry.RegisterExceptionValue(ex)
 
 	result := vm.Send(exVal, "description", nil)
 	if !IsStringValue(result) {
@@ -242,8 +238,7 @@ func TestExceptionIsResumable(t *testing.T) {
 		ExceptionClass: vm.ExceptionClass,
 		Resumable:      true,
 	}
-	id1 := vm.registry.RegisterException(ex1)
-	exVal1 := FromExceptionID(id1)
+	exVal1 := vm.registry.RegisterExceptionValue(ex1)
 
 	result := vm.Send(exVal1, "isResumable", nil)
 	if result != True {
@@ -255,8 +250,7 @@ func TestExceptionIsResumable(t *testing.T) {
 		ExceptionClass: vm.ExceptionClass,
 		Resumable:      false,
 	}
-	id2 := vm.registry.RegisterException(ex2)
-	exVal2 := FromExceptionID(id2)
+	exVal2 := vm.registry.RegisterExceptionValue(ex2)
 
 	result = vm.Send(exVal2, "isResumable", nil)
 	if result != False {
@@ -397,8 +391,7 @@ func TestClassForException(t *testing.T) {
 	ex := &ExceptionObject{
 		ExceptionClass: vm.ErrorClass,
 	}
-	id := vm.registry.RegisterException(ex)
-	exVal := FromExceptionID(id)
+	exVal := vm.registry.RegisterExceptionValue(ex)
 
 	class := vm.ClassFor(exVal)
 	if class != vm.ErrorClass {
@@ -450,7 +443,7 @@ func TestPassForwardsToOuterHandler(t *testing.T) {
 		Block: signalBlock, Captures: []Value{signalerObj.ToValue()},
 		HomeFrame: -1, HomeSelf: Nil, HomeMethod: nil,
 	}
-	signalBlockVal := FromBlockID(uint32(vm.registry.RegisterBlock(signalBV)))
+	signalBlockVal := makeBlockValue(signalBV)
 
 	// Inner handler: [:ex | ex pass]
 	passHandlerBlock := &BlockMethod{
@@ -466,7 +459,7 @@ func TestPassForwardsToOuterHandler(t *testing.T) {
 	passHandlerBV := &BlockValue{
 		Block: passHandlerBlock, HomeFrame: -1, HomeSelf: Nil, HomeMethod: nil,
 	}
-	passHandlerVal := FromBlockID(uint32(vm.registry.RegisterBlock(passHandlerBV)))
+	passHandlerVal := makeBlockValue(passHandlerBV)
 
 	// Outer handler: [:ex | 99]
 	outerHandlerBlock := &BlockMethod{
@@ -481,7 +474,7 @@ func TestPassForwardsToOuterHandler(t *testing.T) {
 	outerHandlerBV := &BlockValue{
 		Block: outerHandlerBlock, HomeFrame: -1, HomeSelf: Nil, HomeMethod: nil,
 	}
-	outerHandlerVal := FromBlockID(uint32(vm.registry.RegisterBlock(outerHandlerBV)))
+	outerHandlerVal := makeBlockValue(outerHandlerBV)
 
 	// Inner on:do: block: [signaler trigger] on: Error do: [:ex | ex pass]
 	innerBlock := &BlockMethod{
@@ -500,7 +493,7 @@ func TestPassForwardsToOuterHandler(t *testing.T) {
 		Block: innerBlock, Captures: []Value{signalBlockVal, errorClassVal, passHandlerVal},
 		HomeFrame: -1, HomeSelf: Nil, HomeMethod: nil,
 	}
-	innerBlockVal := FromBlockID(uint32(vm.registry.RegisterBlock(innerBV)))
+	innerBlockVal := makeBlockValue(innerBV)
 
 	// Outer: [inner] on: Error do: [:ex | 99]
 	result := vm.evaluateBlockWithHandler(innerBlockVal, vm.ErrorClass, outerHandlerVal)
@@ -550,7 +543,7 @@ func TestNestedExceptionHandlersWithPass(t *testing.T) {
 		Block: signalBlock, Captures: []Value{signalerObj.ToValue()},
 		HomeFrame: -1, HomeSelf: Nil, HomeMethod: nil,
 	}
-	signalBlockVal := FromBlockID(uint32(vm.registry.RegisterBlock(signalBV)))
+	signalBlockVal := makeBlockValue(signalBV)
 
 	// Pass handler: [:ex | ex pass]
 	passHandler := &BlockMethod{
@@ -566,12 +559,12 @@ func TestNestedExceptionHandlersWithPass(t *testing.T) {
 	passHandlerBV1 := &BlockValue{
 		Block: passHandler, HomeFrame: -1, HomeSelf: Nil, HomeMethod: nil,
 	}
-	passHandlerVal1 := FromBlockID(uint32(vm.registry.RegisterBlock(passHandlerBV1)))
+	passHandlerVal1 := makeBlockValue(passHandlerBV1)
 
 	passHandlerBV2 := &BlockValue{
 		Block: passHandler, HomeFrame: -1, HomeSelf: Nil, HomeMethod: nil,
 	}
-	passHandlerVal2 := FromBlockID(uint32(vm.registry.RegisterBlock(passHandlerBV2)))
+	passHandlerVal2 := makeBlockValue(passHandlerBV2)
 
 	// Outer handler: [:ex | 42]
 	outerHandler := &BlockMethod{
@@ -586,7 +579,7 @@ func TestNestedExceptionHandlersWithPass(t *testing.T) {
 	outerHandlerBV := &BlockValue{
 		Block: outerHandler, HomeFrame: -1, HomeSelf: Nil, HomeMethod: nil,
 	}
-	outerHandlerVal := FromBlockID(uint32(vm.registry.RegisterBlock(outerHandlerBV)))
+	outerHandlerVal := makeBlockValue(outerHandlerBV)
 
 	// Build inner: [signaler trigger] on: Error do: [:ex | ex pass]
 	innerBlock := &BlockMethod{
@@ -605,7 +598,7 @@ func TestNestedExceptionHandlersWithPass(t *testing.T) {
 		Block: innerBlock, Captures: []Value{signalBlockVal, errorClassVal, passHandlerVal1},
 		HomeFrame: -1, HomeSelf: Nil, HomeMethod: nil,
 	}
-	innerBlockVal := FromBlockID(uint32(vm.registry.RegisterBlock(innerBV)))
+	innerBlockVal := makeBlockValue(innerBV)
 
 	// Build middle: [inner] on: Error do: [:ex | ex pass]
 	middleBlock := &BlockMethod{
@@ -624,7 +617,7 @@ func TestNestedExceptionHandlersWithPass(t *testing.T) {
 		Block: middleBlock, Captures: []Value{innerBlockVal, errorClassVal, passHandlerVal2},
 		HomeFrame: -1, HomeSelf: Nil, HomeMethod: nil,
 	}
-	middleBlockVal := FromBlockID(uint32(vm.registry.RegisterBlock(middleBV)))
+	middleBlockVal := makeBlockValue(middleBV)
 
 	// Outermost: [middle] on: Error do: [:ex | 42]
 	result := vm.evaluateBlockWithHandler(middleBlockVal, vm.ErrorClass, outerHandlerVal)
@@ -701,8 +694,8 @@ func TestRetryReexecutesProtectedBlock(t *testing.T) {
 		Block: retryHandler, HomeFrame: -1, HomeSelf: Nil, HomeMethod: nil,
 	}
 
-	protectedBlockVal := FromBlockID(uint32(vm.registry.RegisterBlock(protectedBV)))
-	retryHandlerVal := FromBlockID(uint32(vm.registry.RegisterBlock(retryHandlerBV)))
+	protectedBlockVal := makeBlockValue(protectedBV)
+	retryHandlerVal := makeBlockValue(retryHandlerBV)
 
 	result := vm.evaluateBlockWithHandler(protectedBlockVal, vm.ErrorClass, retryHandlerVal)
 
@@ -726,8 +719,7 @@ func BenchmarkExceptionCreation(b *testing.B) {
 			MessageText: vm.registry.NewStringValue("test"),
 			Resumable:   true,
 		}
-		id := vm.registry.RegisterException(ex)
-		vm.registry.UnregisterException(id)
+		_ = vm.registry.RegisterExceptionValue(ex)
 	}
 }
 
@@ -813,7 +805,7 @@ func runSignalAndCapture(t *testing.T, exClass *Class) *ExceptionObject {
 		Block: protectedBlock, Captures: []Value{signalerObj.ToValue()},
 		HomeFrame: -1, HomeSelf: Nil, HomeMethod: nil,
 	}
-	protectedBlockVal := FromBlockID(uint32(vm.registry.RegisterBlock(protectedBV)))
+	protectedBlockVal := makeBlockValue(protectedBV)
 	_ = triggerSelID
 
 	// Handler block [:ex | ex]  -- returns the exception so we can inspect it
@@ -829,13 +821,13 @@ func runSignalAndCapture(t *testing.T, exClass *Class) *ExceptionObject {
 	handlerBV := &BlockValue{
 		Block: handlerBlock, HomeFrame: -1, HomeSelf: Nil, HomeMethod: nil,
 	}
-	handlerVal := FromBlockID(uint32(vm.registry.RegisterBlock(handlerBV)))
+	handlerVal := makeBlockValue(handlerBV)
 
 	result := vm.evaluateBlockWithHandler(protectedBlockVal, exClass, handlerVal)
 	if !result.IsException() {
 		t.Fatalf("handler block should have returned the exception value, got %v", result)
 	}
-	ex := vm.registry.GetException(result.ExceptionID())
+	ex := vm.registry.GetExceptionFromValue(result)
 	if ex == nil {
 		t.Fatalf("exception object not retrievable from handler result")
 	}
@@ -876,8 +868,7 @@ func TestCapturedTracePreservedAcrossPass(t *testing.T) {
 		Resumable:      false,
 		CapturedFrames: []TraceFrame{{Selector: "preset"}},
 	}
-	id := vm.registry.RegisterException(ex)
-	exVal := FromExceptionID(id)
+	exVal := vm.registry.RegisterExceptionValue(ex)
 	originalFrames := ex.CapturedFrames
 	defer func() {
 		_ = recover()
@@ -909,8 +900,7 @@ func TestStackTracePrimitiveReturnsString(t *testing.T) {
 	ex := runSignalAndCapture(t, nil)
 	// Re-register for primitive lookup
 	vm := NewVM()
-	id := vm.registry.RegisterException(ex)
-	exVal := FromExceptionID(id)
+	exVal := vm.registry.RegisterExceptionValue(ex)
 	result := vm.Send(exVal, "stackTrace", nil)
 	if !IsStringValue(result) {
 		t.Fatalf("stackTrace primitive should return a string, got %v", result)

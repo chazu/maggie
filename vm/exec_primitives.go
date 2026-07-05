@@ -41,32 +41,19 @@ type ExternalProcessObject struct {
 // Value encoding helpers
 // ---------------------------------------------------------------------------
 
-func extProcessToValue(id uint32) Value {
-	return FromSymbolID(id | externalProcessMarker)
-}
-
 func isExtProcessValue(v Value) bool {
-	if !v.IsSymbolEncoded() {
-		return false
-	}
-	id := v.SymbolID()
-	return (id & markerMask) == externalProcessMarker
-}
-
-func extProcessIDFromValue(v Value) uint32 {
-	return markedIDFromValue(v)
+	return isExtensionValue(v, externalProcessMarker)
 }
 
 func (vm *VM) vmGetExtProcess(v Value) *ExternalProcessObject {
-	if !isExtProcessValue(v) {
-		return nil
+	if o := ExtensionObject(v, externalProcessMarker); o != nil {
+		return o.(*ExternalProcessObject)
 	}
-	return vm.registry.GetExternalProcess(extProcessIDFromValue(v))
+	return nil
 }
 
 func (vm *VM) vmRegisterExtProcess(p *ExternalProcessObject) Value {
-	id := vm.registry.RegisterExternalProcess(p)
-	return extProcessToValue(id)
+	return makeExtensionValue(externalProcessMarker, p)
 }
 
 // ---------------------------------------------------------------------------

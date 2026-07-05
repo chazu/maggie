@@ -29,7 +29,7 @@ func (s *BrowseService) ListClasses(
 	ctx context.Context,
 	req *connect.Request[maggiev1.ListClassesRequest],
 ) (*connect.Response[maggiev1.ListClassesResponse], error) {
-	result, err := s.worker.Do(func(v *vm.VM) interface{} {
+	result, err := s.worker.DoConcurrent(func(v *vm.VM) interface{} {
 		classes := v.Classes.All()
 		infos := make([]*maggiev1.ClassInfo, 0, len(classes))
 		for _, cls := range classes {
@@ -56,7 +56,7 @@ func (s *BrowseService) GetClass(
 		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("name is required"))
 	}
 
-	result, err := s.worker.Do(func(v *vm.VM) interface{} {
+	result, err := s.worker.DoConcurrent(func(v *vm.VM) interface{} {
 		cls := v.Classes.Lookup(req.Msg.Name)
 		if cls == nil {
 			return fmt.Errorf("class %q not found", req.Msg.Name)
@@ -85,7 +85,7 @@ func (s *BrowseService) GetHierarchy(
 		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("class_name is required"))
 	}
 
-	result, err := s.worker.Do(func(v *vm.VM) interface{} {
+	result, err := s.worker.DoConcurrent(func(v *vm.VM) interface{} {
 		cls := v.Classes.Lookup(req.Msg.ClassName)
 		if cls == nil {
 			return fmt.Errorf("class %q not found", req.Msg.ClassName)
@@ -146,7 +146,7 @@ func (s *BrowseService) ListMethods(
 		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("class_name is required"))
 	}
 
-	result, err := s.worker.Do(func(v *vm.VM) interface{} {
+	result, err := s.worker.DoConcurrent(func(v *vm.VM) interface{} {
 		cls := v.Classes.Lookup(req.Msg.ClassName)
 		if cls == nil {
 			return fmt.Errorf("class %q not found", req.Msg.ClassName)
@@ -185,7 +185,7 @@ func (s *BrowseService) GetMethod(
 		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("class_name and selector are required"))
 	}
 
-	result, err := s.worker.Do(func(v *vm.VM) interface{} {
+	result, err := s.worker.DoConcurrent(func(v *vm.VM) interface{} {
 		cls := v.Classes.Lookup(req.Msg.ClassName)
 		if cls == nil {
 			return fmt.Errorf("class %q not found", req.Msg.ClassName)
@@ -235,7 +235,7 @@ func (s *BrowseService) FindSenders(
 		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("selector is required"))
 	}
 
-	result, err := s.worker.Do(func(v *vm.VM) interface{} {
+	result, err := s.worker.DoConcurrent(func(v *vm.VM) interface{} {
 		targetSelID := v.Selectors.Lookup(req.Msg.Selector)
 		if targetSelID < 0 {
 			return &maggiev1.FindSendersResponse{}
@@ -287,7 +287,7 @@ func (s *BrowseService) FindImplementors(
 		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("selector is required"))
 	}
 
-	result, err := s.worker.Do(func(v *vm.VM) interface{} {
+	result, err := s.worker.DoConcurrent(func(v *vm.VM) interface{} {
 		selID := v.Selectors.Lookup(req.Msg.Selector)
 		if selID < 0 {
 			return &maggiev1.FindImplementorsResponse{}
@@ -332,7 +332,7 @@ func (s *BrowseService) SearchSelectors(
 		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("query is required"))
 	}
 
-	result, err := s.worker.Do(func(v *vm.VM) interface{} {
+	result, err := s.worker.DoConcurrent(func(v *vm.VM) interface{} {
 		query := strings.ToLower(req.Msg.Query)
 		var matches []string
 		for _, name := range v.Selectors.All() {
@@ -362,7 +362,7 @@ func (s *BrowseService) SearchClasses(
 		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("query is required"))
 	}
 
-	result, err := s.worker.Do(func(v *vm.VM) interface{} {
+	result, err := s.worker.DoConcurrent(func(v *vm.VM) interface{} {
 		query := strings.ToLower(req.Msg.Query)
 		var infos []*maggiev1.ClassInfo
 		for _, cls := range v.Classes.All() {

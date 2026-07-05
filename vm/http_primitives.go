@@ -20,32 +20,19 @@ type HttpClientObject struct {
 	client *http.Client
 }
 
-func httpClientToValue(id uint32) Value {
-	return FromSymbolID(id | httpClientMarker)
-}
-
 func isHttpClientValue(v Value) bool {
-	if !v.IsSymbolEncoded() {
-		return false
-	}
-	id := v.SymbolID()
-	return (id & markerMask) == httpClientMarker
-}
-
-func httpClientIDFromValue(v Value) uint32 {
-	return markedIDFromValue(v)
+	return isExtensionValue(v, httpClientMarker)
 }
 
 func (vm *VM) vmGetHttpClient(v Value) *HttpClientObject {
-	if !isHttpClientValue(v) {
-		return nil
+	if o := ExtensionObject(v, httpClientMarker); o != nil {
+		return o.(*HttpClientObject)
 	}
-	return vm.registry.GetHttpClient(httpClientIDFromValue(v))
+	return nil
 }
 
 func (vm *VM) vmRegisterHttpClient(c *HttpClientObject) Value {
-	id := vm.registry.RegisterHttpClient(c)
-	return httpClientToValue(id)
+	return makeExtensionValue(httpClientMarker, c)
 }
 
 // ---------------------------------------------------------------------------
@@ -61,40 +48,25 @@ type HttpServerObject struct {
 	mu      sync.Mutex
 }
 
-func httpServerToValue(id uint32) Value {
-	return FromSymbolID(id | httpServerMarker)
-}
-
 func isHttpServerValue(v Value) bool {
-	if !v.IsSymbolEncoded() {
-		return false
-	}
-	id := v.SymbolID()
-	return (id & markerMask) == httpServerMarker
-}
-
-func httpServerIDFromValue(v Value) uint32 {
-	return markedIDFromValue(v)
+	return isExtensionValue(v, httpServerMarker)
 }
 
 func (vm *VM) vmGetHttpServer(v Value) *HttpServerObject {
-	if !isHttpServerValue(v) {
-		return nil
+	if o := ExtensionObject(v, httpServerMarker); o != nil {
+		return o.(*HttpServerObject)
 	}
-	return vm.registry.GetHttpServer(httpServerIDFromValue(v))
+	return nil
 }
 
 func (vm *VM) vmRegisterHttpServer(s *HttpServerObject) Value {
-	id := vm.registry.RegisterHttpServer(s)
-	return httpServerToValue(id)
+	return makeExtensionValue(httpServerMarker, s)
 }
 
-func (vm *VM) vmUnregisterHttpServer(v Value) {
-	if !isHttpServerValue(v) {
-		return
-	}
-	vm.registry.UnregisterHttpServer(httpServerIDFromValue(v))
-}
+// vmUnregisterHttpServer is now a no-op: the server object is reclaimed by Go's
+// GC once no Value references it. Retained so existing call sites (the `stop`
+// primitive) need not change.
+func (vm *VM) vmUnregisterHttpServer(v Value) {}
 
 // ---------------------------------------------------------------------------
 // HttpRequest Registry
@@ -106,40 +78,24 @@ type HttpRequestObject struct {
 	bodyRead bool
 }
 
-func httpRequestToValue(id uint32) Value {
-	return FromSymbolID(id | httpRequestMarker)
-}
-
 func isHttpRequestValue(v Value) bool {
-	if !v.IsSymbolEncoded() {
-		return false
-	}
-	id := v.SymbolID()
-	return (id & markerMask) == httpRequestMarker
-}
-
-func httpRequestIDFromValue(v Value) uint32 {
-	return markedIDFromValue(v)
+	return isExtensionValue(v, httpRequestMarker)
 }
 
 func (vm *VM) vmGetHttpRequest(v Value) *HttpRequestObject {
-	if !isHttpRequestValue(v) {
-		return nil
+	if o := ExtensionObject(v, httpRequestMarker); o != nil {
+		return o.(*HttpRequestObject)
 	}
-	return vm.registry.GetHttpRequest(httpRequestIDFromValue(v))
+	return nil
 }
 
 func (vm *VM) vmRegisterHttpRequest(req *HttpRequestObject) Value {
-	id := vm.registry.RegisterHttpRequest(req)
-	return httpRequestToValue(id)
+	return makeExtensionValue(httpRequestMarker, req)
 }
 
-func (vm *VM) vmUnregisterHttpRequest(v Value) {
-	if !isHttpRequestValue(v) {
-		return
-	}
-	vm.registry.UnregisterHttpRequest(httpRequestIDFromValue(v))
-}
+// vmUnregisterHttpRequest is now a no-op (Go GC reclaims the request object).
+// Retained so the per-request `defer` call sites need not change.
+func (vm *VM) vmUnregisterHttpRequest(v Value) {}
 
 // ---------------------------------------------------------------------------
 // HttpResponse Registry
@@ -151,32 +107,19 @@ type HttpResponseObject struct {
 	headers map[string]string
 }
 
-func httpResponseToValue(id uint32) Value {
-	return FromSymbolID(id | httpResponseMarker)
-}
-
 func isHttpResponseValue(v Value) bool {
-	if !v.IsSymbolEncoded() {
-		return false
-	}
-	id := v.SymbolID()
-	return (id & markerMask) == httpResponseMarker
-}
-
-func httpResponseIDFromValue(v Value) uint32 {
-	return markedIDFromValue(v)
+	return isExtensionValue(v, httpResponseMarker)
 }
 
 func (vm *VM) vmGetHttpResponse(v Value) *HttpResponseObject {
-	if !isHttpResponseValue(v) {
-		return nil
+	if o := ExtensionObject(v, httpResponseMarker); o != nil {
+		return o.(*HttpResponseObject)
 	}
-	return vm.registry.GetHttpResponse(httpResponseIDFromValue(v))
+	return nil
 }
 
 func (vm *VM) vmRegisterHttpResponse(resp *HttpResponseObject) Value {
-	id := vm.registry.RegisterHttpResponse(resp)
-	return httpResponseToValue(id)
+	return makeExtensionValue(httpResponseMarker, resp)
 }
 
 // httpResult is a fully Go-native snapshot of a handler's response. It is built
@@ -238,27 +181,15 @@ type sseEvent struct {
 	data  string // SSE data payload
 }
 
-func sseConnectionToValue(id uint32) Value {
-	return FromSymbolID(id | sseConnectionMarker)
-}
-
-func sseConnectionIDFromValue(v Value) uint32 {
-	return markedIDFromValue(v)
-}
-
 func (vm *VM) vmGetSSEConnection(v Value) *SSEConnectionObject {
-	if !v.IsSymbolEncoded() {
-		return nil
+	if o := ExtensionObject(v, sseConnectionMarker); o != nil {
+		return o.(*SSEConnectionObject)
 	}
-	if (v.SymbolID() & markerMask) != sseConnectionMarker {
-		return nil
-	}
-	return vm.registry.GetSSEConnection(sseConnectionIDFromValue(v))
+	return nil
 }
 
 func (vm *VM) vmRegisterSSEConnection(c *SSEConnectionObject) Value {
-	id := vm.registry.RegisterSSEConnection(c)
-	return sseConnectionToValue(id)
+	return makeExtensionValue(sseConnectionMarker, c)
 }
 
 // ---------------------------------------------------------------------------
@@ -329,9 +260,8 @@ func (vm *VM) registerHttpPrimitives() {
 			return Nil
 		}
 		// The handler block is retained for the server's lifetime inside the
-		// net/http closure below — a Go reference markRoots can't see. Pin it
-		// so the block collector keeps it (and its captures / home self) alive.
-		v.PinRoot(handlerBlock)
+		// net/http closure below, which is itself a strong (Go-GC-traced)
+		// reference to the block Value — no pinning needed.
 		block := bv.Block
 		captures := bv.Captures
 		homeSelf := bv.HomeSelf
@@ -415,9 +345,8 @@ func (vm *VM) registerHttpPrimitives() {
 			return Nil
 		}
 		// The handler block is retained for the server's lifetime inside the
-		// net/http closure below — a Go reference markRoots can't see. Pin it
-		// so the block collector keeps it (and its captures / home self) alive.
-		v.PinRoot(handlerBlock)
+		// net/http closure below, which is itself a strong (Go-GC-traced)
+		// reference to the block Value — no pinning needed.
 		block := bv.Block
 		captures := bv.Captures
 		homeSelf := bv.HomeSelf
@@ -480,9 +409,8 @@ func (vm *VM) registerHttpPrimitives() {
 			return Nil
 		}
 		// The handler block is retained for the server's lifetime inside the
-		// net/http closure below — a Go reference markRoots can't see. Pin it
-		// so the block collector keeps it (and its captures / home self) alive.
-		v.PinRoot(handlerBlock)
+		// net/http closure below, which is itself a strong (Go-GC-traced)
+		// reference to the block Value — no pinning needed.
 		block := bv.Block
 		captures := bv.Captures
 		homeSelf := bv.HomeSelf
@@ -548,9 +476,7 @@ func (vm *VM) registerHttpPrimitives() {
 		v.StartDispatcher()
 		// GC safepoint: the serving goroutine blocks here indefinitely; mark
 		// it stopped so the string collector is not perpetually aborted.
-		v.enterBlocked(recv)
 		err := srv.server.ListenAndServe()
-		v.exitBlocked()
 		if err != nil && err != http.ErrServerClosed {
 			srv.running.Store(false)
 			return Nil

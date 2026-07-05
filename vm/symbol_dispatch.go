@@ -50,22 +50,6 @@ func (sd *SymbolDispatch) Register(marker uint32, entry *SymbolTypeEntry) {
 func (sd *SymbolDispatch) ClassForSymbol(v Value, symbols *SymbolTable, classes *ClassTable) (*Class, bool) {
 	id := v.SymbolID()
 
-	// String range: 0x80000000 to 0xBFFFFFFF
-	if id >= stringIDOffset && id < dictionaryIDOffset {
-		if c := classes.Lookup("String"); c != nil {
-			return c, false
-		}
-		return nil, false
-	}
-
-	// Dictionary range: 0xC0000000+
-	if id >= dictionaryIDOffset {
-		if c := classes.Lookup("Dictionary"); c != nil {
-			return c, false
-		}
-		return nil, false
-	}
-
 	// Indexed marker-byte lookup (one array load).
 	entry := sd.table[byte(id>>24)]
 	if entry == nil {
@@ -89,16 +73,6 @@ func (sd *SymbolDispatch) ClassForSymbol(v Value, symbols *SymbolTable, classes 
 func (sd *SymbolDispatch) ClassForSymbolVM(v Value, vm *VM) (*Class, bool) {
 	id := v.SymbolID()
 
-	// String range: 0x80000000 to 0xBFFFFFFF
-	if id >= stringIDOffset && id < dictionaryIDOffset {
-		return vm.StringClass, false
-	}
-
-	// Dictionary range: 0xC0000000+
-	if id >= dictionaryIDOffset {
-		return vm.DictionaryClass, false
-	}
-
 	// Indexed marker-byte lookup (one array load).
 	entry := sd.table[byte(id>>24)]
 	if entry == nil {
@@ -113,5 +87,18 @@ func (sd *SymbolDispatch) ClassForSymbolVM(v Value, vm *VM) (*Class, bool) {
 		return nil, false
 	}
 
+	return entry.Class, entry.ClassSide
+}
+
+// ClassForMarkerVM resolves the class registered for a raw marker. It is used by
+// kindExtension heap Values, which carry their marker in an extensionObject
+// rather than piggy-backing it on a symbol id. All extension/IO markers register
+// static Class entries (no Resolve), so Resolve-based entries are unsupported
+// here and report "not found".
+func (sd *SymbolDispatch) ClassForMarkerVM(marker uint32, vm *VM) (*Class, bool) {
+	entry := sd.table[byte(marker>>24)]
+	if entry == nil || entry.Resolve != nil {
+		return nil, false
+	}
 	return entry.Class, entry.ClassSide
 }

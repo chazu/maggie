@@ -1,9 +1,8 @@
 package vm
 
 import (
-	"fmt"
 	"sync"
-	"sync/atomic"
+	"unsafe"
 )
 
 // ---------------------------------------------------------------------------
@@ -17,57 +16,21 @@ import (
 // HTTP requests, HTTP responses, cells, weak reference IDs, and class variables.
 type ObjectRegistry struct {
 	*ConcurrencyRegistry
-	*IORegistry
-
-	// Core VM registries (AutoIDRegistry-backed). Exported so callers can
-	// use Register/Get/Delete directly without delegation methods.
-	Exceptions       *AutoIDRegistry[*ExceptionObject]
-	Results          *AutoIDRegistry[*ResultObject]
-	Contexts         *AutoIDRegistry[*ContextValue]
-	Dictionaries     *AutoIDRegistry[*DictionaryObject]
-	Strings          *AutoIDRegistry[*StringObject]
-	GoObjects        *AutoIDRegistry[*GoObjectWrapper]
-	BigInts          *AutoIDRegistry[*BigIntObject]
-	ClassValues      *AutoIDRegistry[*Class]
 
 	// Special registries (not suitable for AutoIDRegistry)
-	cells          map[*Cell]struct{} // set semantics
-	cellsMu        sync.RWMutex
-	weakRefCounter atomic.Uint32       // counter only
-	classVars      map[*Class]map[string]Value // nested map
-	classVarsMu    sync.RWMutex
-
-	// Extension registries for contrib plugins (keyed by marker constant)
-	extensions   map[uint32]*AutoIDRegistry[any]
-	extensionsMu sync.RWMutex
+	cells       map[*Cell]struct{} // set semantics
+	cellsMu     sync.RWMutex
+	classVars   map[*Class]map[string]Value // nested map
+	classVarsMu sync.RWMutex
 }
 
 // NewObjectRegistry creates a new ObjectRegistry with all maps initialized.
 func NewObjectRegistry() *ObjectRegistry {
 	or := &ObjectRegistry{
 		ConcurrencyRegistry: NewConcurrencyRegistry(),
-		IORegistry:          NewIORegistry(),
 
-		// Start IDs at 1 unless otherwise noted (0 = nil/uninitialized)
-		Exceptions:       NewAutoIDRegistry[*ExceptionObject](1, WithName("exceptions")),
-		Results:          NewAutoIDRegistry[*ResultObject](1, WithName("results")),
-		Contexts:         NewAutoIDRegistry[*ContextValue](1, WithName("contexts")),
-		// strings and dictionaries don't carry a marker byte — they use the
-		// high bit(s) of the symbol payload as their discriminator. Strings
-		// occupy [0x80000000, 0xC0000000), dictionaries [0xC0000000, 0xFFFFFFFF].
-		Dictionaries:     NewAutoIDRegistry[*DictionaryObject](dictionaryIDOffset, WithMaxID(0xFFFFFFFF), WithName("dictionaries")),
-		Strings:          NewAutoIDRegistry[*StringObject](stringIDOffset, WithMaxID(dictionaryIDOffset-1), WithName("strings")),
-		GoObjects:        NewAutoIDRegistry[*GoObjectWrapper](0, WithName("goObjects")),
-		BigInts:          NewAutoIDRegistry[*BigIntObject](0, WithName("bigInts")),
-		// ClassValues is monotonic: *Class caches its assigned classValueID,
-		// so reusing an ID would create a stale cache on the prior owner.
-		// In practice ClassValues entries are never deleted, but we encode
-		// the invariant here so it can't regress.
-		ClassValues:      NewAutoIDRegistry[*Class](1, WithMonotonic(), WithName("classValues")),
-
-		cells:      make(map[*Cell]struct{}),
-		classVars:  make(map[*Class]map[string]Value),
-		extensions: make(map[uint32]*AutoIDRegistry[any]),
+		cells:     make(map[*Cell]struct{}),
+		classVars: make(map[*Class]map[string]Value),
 	}
 
 	return or
@@ -77,31 +40,30 @@ func NewObjectRegistry() *ObjectRegistry {
 // Exception Registry Methods (delegates to AutoIDRegistry)
 // ---------------------------------------------------------------------------
 
-func (or *ObjectRegistry) RegisterException(ex *ExceptionObject) uint32 { return or.Exceptions.Register(ex) }
-func (or *ObjectRegistry) GetException(id uint32) *ExceptionObject      { return or.Exceptions.Get(id) }
-func (or *ObjectRegistry) UnregisterException(id uint32)                { or.Exceptions.Delete(id) }
-func (or *ObjectRegistry) ExceptionCount() int                          { return or.Exceptions.Count() }
+// RegisterExceptionValue wraps an ExceptionObject in a heap Value traced by the
+// Go GC. Replaces the old id-registry form.
+func (or *ObjectRegistry) RegisterExceptionValue(ex *ExceptionObject) Value {
+	return makeHeap(kindException, unsafe.Pointer(ex))
+}
 
-// SweepExceptions removes handled exceptions from the registry.
-func (or *ObjectRegistry) SweepExceptions() int {
-	return or.Exceptions.Sweep(func(_ uint32, ex *ExceptionObject) bool {
-		return !ex.Handled
-	})
+// GetExceptionFromValue retrieves the ExceptionObject a Value references, or
+// nil if v is not an exception.
+func (or *ObjectRegistry) GetExceptionFromValue(v Value) *ExceptionObject {
+	if !v.IsException() {
+		return nil
+	}
+	return (*ExceptionObject)(v.ptr)
 }
 
 // ---------------------------------------------------------------------------
 // Result Registry Methods (delegates to AutoIDRegistry)
 // ---------------------------------------------------------------------------
 
-func (or *ObjectRegistry) RegisterResult(r *ResultObject) uint32 { return or.Results.Register(r) }
-func (or *ObjectRegistry) GetResult(id uint32) *ResultObject      { return or.Results.Get(id) }
-func (or *ObjectRegistry) UnregisterResult(id uint32)             { or.Results.Delete(id) }
-func (or *ObjectRegistry) ResultCount() int                       { return or.Results.Count() }
-
-// RegisterResultValue creates a Result, registers it, and returns a Value.
+// RegisterResultValue wraps a Result in a heap Value. The name is retained for
+// call-site compatibility; the object is now carried by a real pointer traced
+// by the Go GC rather than an id registry.
 func (or *ObjectRegistry) RegisterResultValue(r *ResultObject) Value {
-	id := or.RegisterResult(r)
-	return FromSymbolID(id | resultMarker)
+	return makeHeap(kindResult, unsafe.Pointer(r))
 }
 
 // GetResultFromValue retrieves a ResultObject from a Value.
@@ -110,152 +72,85 @@ func (or *ObjectRegistry) GetResultFromValue(v Value) *ResultObject {
 	if !isResultValue(v) {
 		return nil
 	}
-	id := markedIDFromValue(v)
-	return or.GetResult(id)
+	return (*ResultObject)(v.ptr)
 }
 
 // ---------------------------------------------------------------------------
 // Context Registry Methods (delegates to AutoIDRegistry)
 // ---------------------------------------------------------------------------
 
-func (or *ObjectRegistry) RegisterContext(ctx *ContextValue) uint32 { return or.Contexts.Register(ctx) }
-func (or *ObjectRegistry) GetContext(id uint32) *ContextValue       { return or.Contexts.Get(id) }
-func (or *ObjectRegistry) UnregisterContext(id uint32)              { or.Contexts.Delete(id) }
-func (or *ObjectRegistry) ClearContexts()                          { or.Contexts.Clear() }
-func (or *ObjectRegistry) ContextCount() int                       { return or.Contexts.Count() }
-
-// RegisterContextValue registers a ContextValue and returns a Value representing it.
+// RegisterContextValue wraps a ContextValue in a pointer-carrying kindContext
+// heap Value traced by Go's GC. The name is retained for call-site
+// compatibility; there is no id registry.
 func (or *ObjectRegistry) RegisterContextValue(ctx *ContextValue) Value {
-	id := or.RegisterContext(ctx)
-	return FromContextID(id)
+	return makeContextValue(ctx)
 }
 
 // GetContextFromValue retrieves the ContextValue for a context Value.
 // Returns nil if the Value is not a context.
 func (or *ObjectRegistry) GetContextFromValue(v Value) *ContextValue {
-	if !v.IsContext() {
-		return nil
-	}
-	return or.GetContext(v.ContextID())
-}
-
-// UnregisterContextValue removes a context from the registry by its Value.
-func (or *ObjectRegistry) UnregisterContextValue(v Value) {
-	if v.IsContext() {
-		or.UnregisterContext(v.ContextID())
-	}
+	return v.contextPtr()
 }
 
 // ---------------------------------------------------------------------------
 // Dictionary Registry Methods (delegates to AutoIDRegistry)
 // ---------------------------------------------------------------------------
 
-func (or *ObjectRegistry) RegisterDictionary(d *DictionaryObject) uint32 { return or.Dictionaries.Register(d) }
-func (or *ObjectRegistry) GetDictionary(id uint32) *DictionaryObject     { return or.Dictionaries.Get(id) }
-func (or *ObjectRegistry) UnregisterDictionary(id uint32)                { or.Dictionaries.Delete(id) }
-func (or *ObjectRegistry) DictionaryCount() int                          { return or.Dictionaries.Count() }
-
-// NewDictionaryValue creates a new empty dictionary Value, registered in the registry.
+// NewDictionaryValue creates a new empty dictionary heap Value.
 func (or *ObjectRegistry) NewDictionaryValue() Value {
 	obj := &DictionaryObject{
 		Data: make(map[uint64]Value),
 		Keys: make(map[uint64]Value),
 	}
-	id := or.RegisterDictionary(obj)
-	return FromSymbolID(id)
+	return makeHeap(kindDictionary, unsafe.Pointer(obj))
 }
 
 // GetDictionaryObject returns the DictionaryObject for a Value.
 // Returns nil if v is not a dictionary.
 func (or *ObjectRegistry) GetDictionaryObject(v Value) *DictionaryObject {
-	if !v.IsSymbolEncoded() {
+	if !IsDictionaryValue(v) {
 		return nil
 	}
-	id := v.SymbolID()
-	if id < dictionaryIDOffset {
-		return nil
-	}
-	return or.GetDictionary(id)
+	return (*DictionaryObject)(v.ptr)
 }
 
 // ---------------------------------------------------------------------------
-// String Registry Methods (delegates to AutoIDRegistry)
+// String heap Values
 // ---------------------------------------------------------------------------
+//
+// Strings are pointer-carrying heap Values (kindString) traced by the Go GC.
+// StringObject is immutable-content, so no per-object lock is needed: two
+// goroutines reading .Content race-free once the pointer is published.
 
-func (or *ObjectRegistry) RegisterString(s *StringObject) uint32 { return or.Strings.Register(s) }
-func (or *ObjectRegistry) GetString(id uint32) *StringObject     { return or.Strings.Get(id) }
-func (or *ObjectRegistry) UnregisterString(id uint32)            { or.Strings.Delete(id) }
-func (or *ObjectRegistry) StringCount() int                      { return or.Strings.Count() }
-
-// NewStringValue creates a Value from a Go string, registering it in the registry.
+// NewStringValue creates a heap Value wrapping a Go string.
 func (or *ObjectRegistry) NewStringValue(s string) Value {
-	obj := &StringObject{Content: s}
-	id := or.RegisterString(obj)
-	return FromSymbolID(id)
+	return makeHeap(kindString, unsafe.Pointer(&StringObject{Content: s}))
 }
 
-// CompareStrings compares two string values under a single read lock.
-// Returns true if both are valid strings with equal content.
-// This is more efficient than two separate GetStringContent calls
-// because it only acquires the lock once instead of twice.
+// CompareStrings returns true if both values are strings with equal content.
 func (or *ObjectRegistry) CompareStrings(a, b Value) bool {
-	if !a.IsSymbolEncoded() || !b.IsSymbolEncoded() {
+	if !IsStringValue(a) || !IsStringValue(b) {
 		return false
 	}
-	idA := a.SymbolID()
-	idB := b.SymbolID()
-	if idA < stringIDOffset || idB < stringIDOffset {
-		return false
-	}
-
-	or.Strings.RLock()
-	defer or.Strings.RUnlock()
-
-	objA := or.Strings.UnsafeGet(idA)
-	objB := or.Strings.UnsafeGet(idB)
-
-	if objA == nil || objB == nil {
-		return false
-	}
-	return objA.Content == objB.Content
+	return (*StringObject)(a.ptr).Content == (*StringObject)(b.ptr).Content
 }
 
 // GetStringContent returns the Go string content of a string Value.
 // Returns empty string if v is not a string.
 func (or *ObjectRegistry) GetStringContent(v Value) string {
-	if !v.IsSymbolEncoded() {
+	if !IsStringValue(v) {
 		return ""
 	}
-	id := v.SymbolID()
-	if id < stringIDOffset {
-		return "" // It's a regular symbol, not a string
-	}
-
-	or.Strings.RLock()
-	obj := or.Strings.UnsafeGet(id)
-	if obj == nil {
-		or.Strings.RUnlock()
-		return ""
-	}
-	s := obj.Content
-	or.Strings.RUnlock()
-	return s
+	return (*StringObject)(v.ptr).Content
 }
 
 // GetStringObject returns the StringObject for a Value.
 // Returns nil if v is not a string.
 func (or *ObjectRegistry) GetStringObject(v Value) *StringObject {
-	if !v.IsSymbolEncoded() {
+	if !IsStringValue(v) {
 		return nil
 	}
-	id := v.SymbolID()
-	if id < stringIDOffset {
-		return nil
-	}
-	or.Strings.RLock()
-	obj := or.Strings.UnsafeGet(id)
-	or.Strings.RUnlock()
-	return obj
+	return (*StringObject)(v.ptr)
 }
 
 // ---------------------------------------------------------------------------
@@ -289,37 +184,6 @@ func (or *ObjectRegistry) CellCount() int {
 	or.cellsMu.RLock()
 	defer or.cellsMu.RUnlock()
 	return len(or.cells)
-}
-
-// ---------------------------------------------------------------------------
-// Weak Reference Counter Methods
-// ---------------------------------------------------------------------------
-
-// weakRefIDMax is the largest valid weak reference ID. WeakReference values
-// are NaN-boxed via the symbol tag with weakRefMarker in bits 24-31, leaving
-// 24 bits for the ID. Wrap-around past this point would alias new weak refs
-// to live ones in WeakRegistry.refs and silently corrupt finalizer dispatch
-// (see vm/weak_reference.go: WeakRegistry uses the ID as map key).
-//
-// Weak refs are intentionally append-only: `WeakRegistry.Unregister` exists
-// but is not invoked from the VM (the GC clears the target via Clear() but
-// keeps the entry around for Lookup). Recycling IDs would require auditing
-// every Lookup-after-Clear path, so we treat exhaustion as a fatal error.
-const weakRefIDMax uint32 = (1 << 24) - 1
-
-// NextWeakRefID returns the next unique ID for a weak reference. Panics on
-// exhaustion rather than silently wrapping (see weakRefIDMax docs).
-func (or *ObjectRegistry) NextWeakRefID() uint32 {
-	id := or.weakRefCounter.Add(1)
-	if id > weakRefIDMax {
-		panic("ObjectRegistry: weak ref ID space exhausted (max 2^24-1 weak references)")
-	}
-	return id
-}
-
-// WeakRefCounterValue returns the current value of the weak reference counter.
-func (or *ObjectRegistry) WeakRefCounterValue() uint32 {
-	return or.weakRefCounter.Load()
 }
 
 // ---------------------------------------------------------------------------
@@ -369,77 +233,23 @@ func (or *ObjectRegistry) ClassVarCount() int {
 // Class Value Registry Methods
 // ---------------------------------------------------------------------------
 
-// RegisterClassValue registers a class and returns its NaN-boxed Value.
-// Idempotent — if the class already has a registered ID, the existing value
-// is returned without re-registering.
+// RegisterClassValue returns the class as a pointer-carrying heap Value. The
+// pointer is the *Class itself, so the result is idempotent (pointer-identical)
+// across calls without any id registry.
 func (or *ObjectRegistry) RegisterClassValue(c *Class) Value {
 	if c == nil {
 		return Nil
 	}
-
-	// Fast path: already registered.
-	if id := c.classValueID.Load(); id != 0 {
-		return classToValue(id)
-	}
-
-	// Slow path: register new. CAS guards against concurrent first-time
-	// registrations: the class-value registry is monotonic so a losing
-	// goroutine simply discards its (unreferenced) ID and adopts the
-	// winner's. This is preferable to a per-Class lock on a hot path.
-	id := or.ClassValues.Register(c)
-	if !c.classValueID.CompareAndSwap(0, id) {
-		id = c.classValueID.Load()
-	}
-	return classToValue(id)
+	return makeHeap(kindClassValue, unsafe.Pointer(c))
 }
 
 // GetClassFromValue extracts the *Class from a class value.
-// Returns nil if v is not a class value or the class is not found.
+// Returns nil if v is not a class value.
 func (or *ObjectRegistry) GetClassFromValue(v Value) *Class {
 	if !isClassValue(v) {
 		return nil
 	}
-	id := classValueIDFromValue(v)
-	return or.ClassValues.Get(id)
-}
-
-// ClassValueCount returns the number of registered class values.
-func (or *ObjectRegistry) ClassValueCount() int {
-	return or.ClassValues.Count()
-}
-
-// ---------------------------------------------------------------------------
-// Extension Registry Methods (for contrib plugins)
-// ---------------------------------------------------------------------------
-
-// ExtensionRegistry returns (or lazily creates) a generic AutoIDRegistry for
-// the given marker. Contrib plugins use this to store their custom types.
-func (or *ObjectRegistry) ExtensionRegistry(marker uint32) *AutoIDRegistry[any] {
-	or.extensionsMu.RLock()
-	reg := or.extensions[marker]
-	or.extensionsMu.RUnlock()
-	if reg != nil {
-		return reg
-	}
-	or.extensionsMu.Lock()
-	defer or.extensionsMu.Unlock()
-	if reg = or.extensions[marker]; reg != nil {
-		return reg
-	}
-	reg = NewAutoIDRegistry[any](1)
-	or.extensions[marker] = reg
-	return reg
-}
-
-// ExtensionStats returns counts for all extension registries.
-func (or *ObjectRegistry) ExtensionStats() map[uint32]int {
-	or.extensionsMu.RLock()
-	defer or.extensionsMu.RUnlock()
-	stats := make(map[uint32]int, len(or.extensions))
-	for marker, reg := range or.extensions {
-		stats[marker] = reg.Count()
-	}
-	return stats
+	return (*Class)(v.ptr)
 }
 
 // ---------------------------------------------------------------------------
@@ -449,21 +259,7 @@ func (or *ObjectRegistry) ExtensionStats() map[uint32]int {
 // FullStats returns counts of all registered objects across all registries.
 func (or *ObjectRegistry) FullStats() map[string]int {
 	stats := or.ConcurrencyRegistry.Stats()
-	for k, v := range or.IORegistry.IOStats() {
-		stats[k] = v
-	}
-	stats["exceptions"] = or.ExceptionCount()
-	stats["results"] = or.ResultCount()
-	stats["contexts"] = or.ContextCount()
-	stats["dictionaries"] = or.DictionaryCount()
-	stats["strings"] = or.StringCount()
 	stats["cells"] = or.CellCount()
 	stats["classVarClasses"] = or.ClassVarCount()
-	stats["goObjects"] = or.GoObjectCount()
-	stats["bigInts"] = or.BigIntCount()
-	stats["classValues"] = or.ClassValueCount()
-	for marker, count := range or.ExtensionStats() {
-		stats[fmt.Sprintf("ext_%d", marker>>24)] = count
-	}
 	return stats
 }

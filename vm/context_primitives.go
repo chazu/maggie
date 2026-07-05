@@ -9,10 +9,10 @@ func (vm *VM) registerContextPrimitives() {
 	// sender - returns the Context that called this one, or nil
 	c.AddMethod0(vm.Selectors, "sender", func(v *VM, recv Value) Value {
 		ctx := v.registry.GetContextFromValue(recv)
-		if ctx == nil || ctx.SenderID < 0 {
+		if ctx == nil || ctx.Sender == nil {
 			return Nil
 		}
-		return FromContextID(uint32(ctx.SenderID))
+		return makeContextValue(ctx.Sender)
 	})
 
 	// receiver - returns self in this context
@@ -126,10 +126,10 @@ func (vm *VM) registerContextPrimitives() {
 	// home - for block contexts, returns the home method context
 	c.AddMethod0(vm.Selectors, "home", func(v *VM, recv Value) Value {
 		ctx := v.registry.GetContextFromValue(recv)
-		if ctx == nil || ctx.HomeID < 0 {
+		if ctx == nil || ctx.Home == nil {
 			return Nil
 		}
-		return FromContextID(uint32(ctx.HomeID))
+		return makeContextValue(ctx.Home)
 	})
 
 	// printString - return a string representation

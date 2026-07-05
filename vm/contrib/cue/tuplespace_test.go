@@ -242,9 +242,6 @@ func TestTupleSpacePrimitivesIntegration(t *testing.T) {
 }
 
 func TestTupleSpaceMarkerDistinct(t *testing.T) {
-	if vm.TupleSpaceMarker == vm.ChannelMarkerValue() {
-		t.Error("tupleSpace marker should not collide with channel")
-	}
 	if vm.TupleSpaceMarker == vm.CueValueMarker {
 		t.Error("tupleSpace marker should not collide with cueValue")
 	}

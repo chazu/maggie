@@ -561,9 +561,11 @@ func TestZeroValues(t *testing.T) {
 }
 
 func TestValueSize(t *testing.T) {
-	// Value should be exactly 8 bytes (64 bits)
-	if size := unsafe.Sizeof(Value(0)); size != 8 {
-		t.Errorf("Value size = %d, want 8", size)
+	// Post pointer-migration: Value is 16 bytes (uint64 hi + unsafe.Pointer),
+	// so heap objects are traced by the Go GC. The copy-cost of the extra word
+	// was measured as negligible (see docs/spikes/2026-07-04-value-representation.md).
+	if size := unsafe.Sizeof(Value{}); size != 16 {
+		t.Errorf("Value size = %d, want 16", size)
 	}
 }
 
@@ -611,23 +613,18 @@ func BenchmarkIsTruthy(b *testing.B) {
 // ---------------------------------------------------------------------------
 
 func TestBlockRoundTrip(t *testing.T) {
-	tests := []uint32{0, 1, 100, 1000000, 0xFFFFFFFF}
-
-	for _, id := range tests {
-		v := FromBlockID(id)
-		if !v.IsBlock() {
-			t.Errorf("FromBlockID(%d).IsBlock() = false, want true", id)
-			continue
-		}
-		got := v.BlockID()
-		if got != id {
-			t.Errorf("FromBlockID(%d).BlockID() = %d, want %d", id, got, id)
-		}
+	bv := &BlockValue{Block: &BlockMethod{Arity: 0}}
+	v := makeBlockValue(bv)
+	if !v.IsBlock() {
+		t.Fatal("makeBlockValue(...).IsBlock() = false, want true")
+	}
+	if v.blockPtr() != bv {
+		t.Error("blockPtr() should resolve to the original *BlockValue")
 	}
 }
 
 func TestBlockTypeChecks(t *testing.T) {
-	v := FromBlockID(42)
+	v := makeBlockValue(&BlockValue{Block: &BlockMethod{Arity: 0}})
 	if v.IsFloat() {
 		t.Error("IsFloat should be false for block")
 	}
@@ -649,12 +646,12 @@ func TestBlockTypeChecks(t *testing.T) {
 }
 
 func TestBlockDistinctFromSymbol(t *testing.T) {
-	// Blocks and symbols with the same ID should be distinct
-	blockVal := FromBlockID(123)
+	// A pointer-carrying block value is never a symbol (an immediate).
+	blockVal := makeBlockValue(&BlockValue{Block: &BlockMethod{Arity: 0}})
 	symbolVal := FromSymbolID(123)
 
 	if blockVal == symbolVal {
-		t.Error("Block and symbol with same ID should not be equal")
+		t.Error("Block and symbol should not be equal")
 	}
 	if !blockVal.IsBlock() {
 		t.Error("Block value should be a block")
@@ -671,8 +668,9 @@ func TestBlockDistinctFromSymbol(t *testing.T) {
 }
 
 func BenchmarkBlockRoundtrip(b *testing.B) {
+	bv := &BlockValue{Block: &BlockMethod{Arity: 0}}
 	for i := 0; i < b.N; i++ {
-		v := FromBlockID(42)
-		_ = v.BlockID()
+		v := makeBlockValue(bv)
+		_ = v.blockPtr()
 	}
 }

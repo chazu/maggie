@@ -49,7 +49,7 @@ func TestNonTailRecursiveMethodOverflows(t *testing.T) {
 	recurseLabel := bc.NewLabel()
 	bc.EmitByte(OpPushTemp, 0) // push n
 	bc.EmitInt8(OpPushInt8, 0) // push 0
-	bc.Emit(OpSendEQ)         // n = 0
+	bc.Emit(OpSendEQ)          // n = 0
 	bc.EmitJump(OpJumpFalse, recurseLabel)
 
 	// Base case: return 1
@@ -58,13 +58,13 @@ func TestNonTailRecursiveMethodOverflows(t *testing.T) {
 
 	// Recursive case: n * (self badFactorial: n - 1)
 	bc.Mark(recurseLabel)
-	bc.EmitByte(OpPushTemp, 0)                               // push n (left side of *)
-	bc.Emit(OpPushSelf)                                      // push self
-	bc.EmitByte(OpPushTemp, 0)                               // push n
-	bc.EmitInt8(OpPushInt8, 1)                               // push 1
-	bc.Emit(OpSendMinus)                                     // n - 1
-	bc.EmitSend(OpSend, uint16(factSelID), 1)                // self badFactorial: n-1  (NOT tail!)
-	bc.Emit(OpSendTimes)                                     // n * result
+	bc.EmitByte(OpPushTemp, 0)                // push n (left side of *)
+	bc.Emit(OpPushSelf)                       // push self
+	bc.EmitByte(OpPushTemp, 0)                // push n
+	bc.EmitInt8(OpPushInt8, 1)                // push 1
+	bc.Emit(OpSendMinus)                      // n - 1
+	bc.EmitSend(OpSend, uint16(factSelID), 1) // self badFactorial: n-1  (NOT tail!)
+	bc.Emit(OpSendTimes)                      // n * result
 	bc.Emit(OpReturnTop)
 
 	m := b.Build()
@@ -142,7 +142,7 @@ func TestTailRecursiveMethodDoesNotOverflow(t *testing.T) {
 	recurseLabel := bc.NewLabel()
 	bc.EmitByte(OpPushTemp, 0) // push n
 	bc.EmitInt8(OpPushInt8, 0) // push 0
-	bc.Emit(OpSendEQ)         // n = 0
+	bc.Emit(OpSendEQ)          // n = 0
 	bc.EmitJump(OpJumpFalse, recurseLabel)
 
 	// Base case: return acc
@@ -225,8 +225,8 @@ func TestStackOverflowCatchableInSmalltalk(t *testing.T) {
 		NumCaptures: 1,
 		Bytecode: func() []byte {
 			bb := NewBytecodeBuilder()
-			bb.EmitByte(OpPushCaptured, 0)                        // push captured obj
-			bb.EmitSend(OpSend, uint16(recurseSelID), 0)          // obj deepRecurse
+			bb.EmitByte(OpPushCaptured, 0)               // push captured obj
+			bb.EmitSend(OpSend, uint16(recurseSelID), 0) // obj deepRecurse
 			bb.Emit(OpBlockReturn)
 			return bb.Bytes()
 		}(),
@@ -263,8 +263,8 @@ func TestStackOverflowCatchableInSmalltalk(t *testing.T) {
 		HomeMethod: nil,
 	}
 
-	protectedBlockVal := FromBlockID(uint32(vm.registry.RegisterBlock(protectedBV)))
-	handlerBlockVal := FromBlockID(uint32(vm.registry.RegisterBlock(handlerBV)))
+	protectedBlockVal := makeBlockValue(protectedBV)
+	handlerBlockVal := makeBlockValue(handlerBV)
 
 	// Catch StackOverflow via on:do:
 	result := vm.evaluateBlockWithHandler(protectedBlockVal, vm.StackOverflowClass, handlerBlockVal)
@@ -336,8 +336,8 @@ func TestStackOverflowCatchableViaErrorSuperclass(t *testing.T) {
 		HomeMethod: nil,
 	}
 
-	protectedBlockVal := FromBlockID(uint32(vm.registry.RegisterBlock(protectedBV)))
-	handlerBlockVal := FromBlockID(uint32(vm.registry.RegisterBlock(handlerBV)))
+	protectedBlockVal := makeBlockValue(protectedBV)
+	handlerBlockVal := makeBlockValue(handlerBV)
 
 	// Catch with Error (superclass of StackOverflow)
 	result := vm.evaluateBlockWithHandler(protectedBlockVal, vm.ErrorClass, handlerBlockVal)
@@ -512,8 +512,8 @@ func TestDeeplyNestedBlockEvaluationCatchable(t *testing.T) {
 		NumCaptures: 1,
 		Bytecode: func() []byte {
 			bb := NewBytecodeBuilder()
-			bb.EmitByte(OpPushCaptured, 0)                    // captured obj
-			bb.EmitInt8(OpPushInt8, 100)                       // push 100
+			bb.EmitByte(OpPushCaptured, 0) // captured obj
+			bb.EmitInt8(OpPushInt8, 100)   // push 100
 			bb.EmitSend(OpSend, uint16(outerSelID), 1)
 			bb.Emit(OpBlockReturn)
 			return bb.Bytes()
@@ -547,8 +547,8 @@ func TestDeeplyNestedBlockEvaluationCatchable(t *testing.T) {
 		HomeMethod: nil,
 	}
 
-	protectedBlockVal := FromBlockID(uint32(vm.registry.RegisterBlock(protectedBV)))
-	handlerBlockVal := FromBlockID(uint32(vm.registry.RegisterBlock(handlerBV)))
+	protectedBlockVal := makeBlockValue(protectedBV)
+	handlerBlockVal := makeBlockValue(handlerBV)
 
 	result := vm.evaluateBlockWithHandler(protectedBlockVal, vm.StackOverflowClass, handlerBlockVal)
 	if !result.IsSmallInt() || result.SmallInt() != 55 {
@@ -704,17 +704,10 @@ func TestStackOverflowExceptionMessage(t *testing.T) {
 	class.VTable.AddMethod(recurseSelID, m)
 
 	obj := class.NewInstance()
-	// Pin obj so the GC keeps it alive across the deep recursion below.
-	// Object pointers are stored in NaN-boxed Values on the operand
-	// stack and in CallFrame.Receiver — both invisible to Go's GC. Under
-	// -race + deep recursion, the Go local `obj` can be optimised out
-	// of the live range, causing GC to free the Object and the next
-	// vtable lookup to dereference a freed pointer (the
-	// "found bad pointer in Go heap" crash documented as Crash 5 in
-	// docs/vm-concurrency-audit-2026-05-03.md). Production code paths
-	// register every Object via vm.KeepAlive in the `new` primitive;
-	// tests using bare class.NewInstance must do the same.
-	vm.KeepAlive(obj)
+	// Object Values now carry the *Object pointer (kindObject), so the operand
+	// stack and CallFrame.Receiver keep it visible to Go's GC across the deep
+	// recursion below — no explicit pinning is needed (obj is also referenced
+	// directly at obj.ToValue() in the loop).
 
 	// Test with different limits to verify the message reflects the actual limit
 	for _, limit := range []int{25, 50, 100} {
@@ -818,8 +811,8 @@ func TestStackOverflowRecoveryAllowsSubsequentExecution(t *testing.T) {
 		HomeMethod: nil,
 	}
 
-	protectedBlockVal := FromBlockID(uint32(vm.registry.RegisterBlock(protectedBV)))
-	handlerBlockVal := FromBlockID(uint32(vm.registry.RegisterBlock(handlerBV)))
+	protectedBlockVal := makeBlockValue(protectedBV)
+	handlerBlockVal := makeBlockValue(handlerBV)
 
 	// First: catch the overflow
 	result := vm.evaluateBlockWithHandler(protectedBlockVal, vm.StackOverflowClass, handlerBlockVal)

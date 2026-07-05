@@ -17,12 +17,16 @@ type handle struct {
 	display   string
 	sessionID string
 	created   time.Time
-	lastUsed  time.Time
+	// lastUsed is unix-nanos, updated on every Lookup. It is atomic because
+	// Lookup updates it while holding only a read lock (many concurrent lookups
+	// of the same handle), so a plain field would be a data race.
+	lastUsed atomic.Int64
 }
 
-// HandleStore maps opaque string IDs to VM values.
-// Objects referenced by handles are pinned via vm.keepAlive
-// to prevent garbage collection.
+// HandleStore maps opaque string IDs to VM values. Each handle holds the
+// vm.Value (which carries the heap object's pointer), so a stored handle is
+// itself a strong reference — Go's GC keeps the object alive for as long as the
+// handle lives; no explicit pinning is needed.
 type HandleStore struct {
 	mu      sync.RWMutex
 	handles map[string]*handle
@@ -38,8 +42,8 @@ func NewHandleStore(worker *VMWorker) *HandleStore {
 	}
 }
 
-// Create registers a value and returns an opaque handle ID.
-// For heap objects, the value is pinned to prevent GC.
+// Create registers a value and returns an opaque handle ID. The stored
+// vm.Value keeps any heap object it references alive via Go's GC.
 func (s *HandleStore) Create(value vm.Value, className, display, sessionID string) string {
 	id := fmt.Sprintf("h-%d", s.nextID.Add(1))
 
@@ -47,23 +51,16 @@ func (s *HandleStore) Create(value vm.Value, className, display, sessionID strin
 	defer s.mu.Unlock()
 
 	now := time.Now()
-	s.handles[id] = &handle{
+	h := &handle{
 		id:        id,
 		value:     value,
 		className: className,
 		display:   display,
 		sessionID: sessionID,
 		created:   now,
-		lastUsed:  now,
 	}
-
-	// Pin heap objects to prevent GC
-	if value.IsObject() {
-		obj := vm.ObjectFromValue(value)
-		if obj != nil {
-			s.worker.VM().KeepAlive(obj)
-		}
-	}
+	h.lastUsed.Store(now.UnixNano())
+	s.handles[id] = h
 
 	return id
 }
@@ -78,28 +75,15 @@ func (s *HandleStore) Lookup(id string) (vm.Value, bool) {
 	if !ok {
 		return vm.Nil, false
 	}
-	h.lastUsed = time.Now()
+	h.lastUsed.Store(time.Now().UnixNano())
 	return h.value, true
 }
 
-// Release removes a handle and unpins the object.
+// Release removes a handle. Dropping it from the map releases the strong
+// reference; Go's GC reclaims the object once nothing else holds it.
 func (s *HandleStore) Release(id string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-
-	h, ok := s.handles[id]
-	if !ok {
-		return
-	}
-
-	// Unpin heap objects
-	if h.value.IsObject() {
-		obj := vm.ObjectFromValue(h.value)
-		if obj != nil {
-			s.worker.VM().ReleaseKeepAlive(obj)
-		}
-	}
-
 	delete(s.handles, id)
 }
 
@@ -110,12 +94,6 @@ func (s *HandleStore) ReleaseSession(sessionID string) {
 
 	for id, h := range s.handles {
 		if h.sessionID == sessionID {
-			if h.value.IsObject() {
-				obj := vm.ObjectFromValue(h.value)
-				if obj != nil {
-					s.worker.VM().ReleaseKeepAlive(obj)
-				}
-			}
 			delete(s.handles, id)
 		}
 	}
@@ -126,16 +104,10 @@ func (s *HandleStore) Sweep(ttl time.Duration) int {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	cutoff := time.Now().Add(-ttl)
+	cutoff := time.Now().Add(-ttl).UnixNano()
 	removed := 0
 	for id, h := range s.handles {
-		if h.lastUsed.Before(cutoff) {
-			if h.value.IsObject() {
-				obj := vm.ObjectFromValue(h.value)
-				if obj != nil {
-					s.worker.VM().ReleaseKeepAlive(obj)
-				}
-			}
+		if h.lastUsed.Load() < cutoff {
 			delete(s.handles, id)
 			removed++
 		}

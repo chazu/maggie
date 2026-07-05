@@ -1,0 +1,10 @@
+goos: darwin
+goarch: arm64
+pkg: github.com/chazu/maggie/server
+cpu: Apple M3
+BenchmarkServerEvalParallel     	     290	   8339866 ns/op
+BenchmarkServerEvalParallel-2   	     531	   4519728 ns/op
+BenchmarkServerEvalParallel-4   	     927	   2597540 ns/op
+BenchmarkServerEvalParallel-8   	    1239	   1916998 ns/op
+PASS
+ok  	github.com/chazu/maggie/server	11.471s

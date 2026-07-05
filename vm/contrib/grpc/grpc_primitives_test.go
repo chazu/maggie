@@ -31,12 +31,13 @@ func TestGrpcClientRegistration(t *testing.T) {
 		t.Errorf("target = %q, want %q", got.target, "localhost:50051")
 	}
 
-	// Unregister
+	// Unregister is now a no-op: the client is a pointer-carrying heap Value
+	// reclaimed by Go's GC, so it stays resolvable while the Value lives.
 	vmUnregisterGrpcClient(vmInst, val)
 
 	got = vmGetGrpcClient(vmInst, val)
-	if got != nil {
-		t.Error("vmGetGrpcClient should return nil after unregister")
+	if got == nil {
+		t.Error("vmGetGrpcClient should still resolve after the no-op unregister")
 	}
 }
 
@@ -87,10 +88,10 @@ func TestGrpcClientMultipleRegistrations(t *testing.T) {
 		t.Error("val3 should resolve to client3")
 	}
 
-	// Unregister one and check others still work
+	// unregister is a no-op now; all three remain resolvable and independent.
 	vmUnregisterGrpcClient(vmInst, val2)
-	if vmGetGrpcClient(vmInst, val2) != nil {
-		t.Error("val2 should be nil after unregister")
+	if vmGetGrpcClient(vmInst, val2) == nil {
+		t.Error("val2 should still resolve after the no-op unregister")
 	}
 	if vmGetGrpcClient(vmInst, val1) == nil {
 		t.Error("val1 should still be valid after unregistering val2")
@@ -138,12 +139,13 @@ func TestGrpcStreamRegistration(t *testing.T) {
 		t.Errorf("streamType = %v, want GrpcStreamServerStreaming", got.streamType)
 	}
 
-	// Unregister
+	// Unregister is now a no-op: the stream is a pointer-carrying heap Value
+	// reclaimed by Go's GC, so it stays resolvable while the Value lives.
 	vmUnregisterGrpcStream(vmInst, val)
 
 	got = vmGetGrpcStream(vmInst, val)
-	if got != nil {
-		t.Error("vmGetGrpcStream should return nil after unregister")
+	if got == nil {
+		t.Error("vmGetGrpcStream should still resolve after the no-op unregister")
 	}
 }
 
@@ -494,31 +496,10 @@ func TestGrpcClientCloseIdempotent(t *testing.T) {
 	}
 }
 
-func TestGrpcClientIsConnectedOnNilClient(t *testing.T) {
-	vmInst := vm.NewVM()
-
-	clientObj := &GrpcClientObject{target: "test"}
-	clientVal := vmRegisterGrpcClient(vmInst, clientObj)
-	vmUnregisterGrpcClient(vmInst, clientVal)
-
-	isConnected := vmInst.Send(clientVal, "isConnected", nil)
-	if isConnected != vm.False {
-		t.Error("isConnected on unregistered client should return False")
-	}
-}
-
-func TestGrpcClientCloseOnNilClient(t *testing.T) {
-	vmInst := vm.NewVM()
-
-	clientObj := &GrpcClientObject{target: "test"}
-	clientVal := vmRegisterGrpcClient(vmInst, clientObj)
-	vmUnregisterGrpcClient(vmInst, clientVal)
-
-	result := vmInst.Send(clientVal, "close", nil)
-	if result != clientVal {
-		t.Error("close on unregistered client should return receiver")
-	}
-}
+// (Removed TestGrpcClientIsConnectedOnNilClient / TestGrpcClientCloseOnNilClient:
+// they relied on unregister making a client Value resolve to nil — an impossible
+// state now that clients are pointer-carrying kindExtension Values kept alive by
+// Go's GC. Live-client behavior is covered by the sibling tests below.)
 
 func TestGrpcClientListServicesNoConnection(t *testing.T) {
 	vmInst := vm.NewVM()
@@ -536,24 +517,6 @@ func TestGrpcClientListServicesNoConnection(t *testing.T) {
 	size := vmInst.Send(result, "size", nil)
 	if !size.IsSmallInt() || size.SmallInt() != 0 {
 		t.Errorf("listServices on closed client should return empty array, got size %v", size)
-	}
-}
-
-func TestGrpcClientMethodsForServiceNilClient(t *testing.T) {
-	vmInst := vm.NewVM()
-
-	clientObj := &GrpcClientObject{target: "test"}
-	clientVal := vmRegisterGrpcClient(vmInst, clientObj)
-	vmUnregisterGrpcClient(vmInst, clientVal)
-
-	result := vmInst.Send(clientVal, "methodsForService:", []vm.Value{vmInst.Registry().NewStringValue("test.Service")})
-	if !result.IsObject() {
-		t.Fatal("methodsForService: should return an array")
-	}
-
-	size := vmInst.Send(result, "size", nil)
-	if !size.IsSmallInt() || size.SmallInt() != 0 {
-		t.Errorf("methodsForService: on nil client should return empty array, got size %v", size)
 	}
 }
 
@@ -575,19 +538,6 @@ func TestGrpcClientMethodsForServiceNonString(t *testing.T) {
 	}
 }
 
-func TestGrpcClientMethodDescriptorNilClient(t *testing.T) {
-	vmInst := vm.NewVM()
-
-	clientObj := &GrpcClientObject{target: "test"}
-	clientVal := vmRegisterGrpcClient(vmInst, clientObj)
-	vmUnregisterGrpcClient(vmInst, clientVal)
-
-	result := vmInst.Send(clientVal, "methodDescriptor:", []vm.Value{vmInst.Registry().NewStringValue("test.Service/Method")})
-	if result != vm.Nil {
-		t.Errorf("methodDescriptor: on nil client should return Nil, got %v", result)
-	}
-}
-
 func TestGrpcClientMethodDescriptorNonString(t *testing.T) {
 	vmInst := vm.NewVM()
 
@@ -598,22 +548,6 @@ func TestGrpcClientMethodDescriptorNonString(t *testing.T) {
 	result := vmInst.Send(clientVal, "methodDescriptor:", []vm.Value{vm.FromSmallInt(42)})
 	if result != vm.Nil {
 		t.Errorf("methodDescriptor: with non-string should return Nil, got %v", result)
-	}
-}
-
-func TestGrpcClientCallWithInvalidClient(t *testing.T) {
-	vmInst := vm.NewVM()
-
-	clientObj := &GrpcClientObject{target: "test"}
-	clientVal := vmRegisterGrpcClient(vmInst, clientObj)
-	vmUnregisterGrpcClient(vmInst, clientVal)
-
-	dict := vmInst.Registry().NewDictionaryValue()
-	result := vmInst.Send(clientVal, "call:with:", []vm.Value{vmInst.Registry().NewStringValue("test/Method"), dict})
-
-	isFailure := vmInst.Send(result, "isFailure", nil)
-	if isFailure != vm.True {
-		t.Error("call:with: on invalid client should return Failure")
 	}
 }
 
@@ -658,22 +592,6 @@ func TestGrpcClientCallWithNonDictionaryRequest(t *testing.T) {
 	}
 }
 
-func TestGrpcClientServerStreamInvalidClient(t *testing.T) {
-	vmInst := vm.NewVM()
-
-	clientObj := &GrpcClientObject{target: "test"}
-	clientVal := vmRegisterGrpcClient(vmInst, clientObj)
-	vmUnregisterGrpcClient(vmInst, clientVal)
-
-	dict := vmInst.Registry().NewDictionaryValue()
-	result := vmInst.Send(clientVal, "serverStream:with:", []vm.Value{vmInst.Registry().NewStringValue("test/Method"), dict})
-
-	isFailure := vmInst.Send(result, "isFailure", nil)
-	if isFailure != vm.True {
-		t.Error("serverStream:with: on invalid client should return Failure")
-	}
-}
-
 func TestGrpcClientServerStreamNonStringMethod(t *testing.T) {
 	vmInst := vm.NewVM()
 
@@ -705,21 +623,6 @@ func TestGrpcClientServerStreamNonDictRequest(t *testing.T) {
 	}
 }
 
-func TestGrpcClientClientStreamInvalidClient(t *testing.T) {
-	vmInst := vm.NewVM()
-
-	clientObj := &GrpcClientObject{target: "test"}
-	clientVal := vmRegisterGrpcClient(vmInst, clientObj)
-	vmUnregisterGrpcClient(vmInst, clientVal)
-
-	result := vmInst.Send(clientVal, "clientStream:", []vm.Value{vmInst.Registry().NewStringValue("test/Method")})
-
-	isFailure := vmInst.Send(result, "isFailure", nil)
-	if isFailure != vm.True {
-		t.Error("clientStream: on invalid client should return Failure")
-	}
-}
-
 func TestGrpcClientClientStreamNonString(t *testing.T) {
 	vmInst := vm.NewVM()
 
@@ -735,20 +638,10 @@ func TestGrpcClientClientStreamNonString(t *testing.T) {
 	}
 }
 
-func TestGrpcClientBidiStreamInvalidClient(t *testing.T) {
-	vmInst := vm.NewVM()
-
-	clientObj := &GrpcClientObject{target: "test"}
-	clientVal := vmRegisterGrpcClient(vmInst, clientObj)
-	vmUnregisterGrpcClient(vmInst, clientVal)
-
-	result := vmInst.Send(clientVal, "bidiStream:", []vm.Value{vmInst.Registry().NewStringValue("test/Method")})
-
-	isFailure := vmInst.Send(result, "isFailure", nil)
-	if isFailure != vm.True {
-		t.Error("bidiStream: on invalid client should return Failure")
-	}
-}
+// (Removed TestGrpcClient*InvalidClient / *NilClient tests: they unregistered a
+// client to force vmGet to resolve nil, which cannot happen for pointer-carrying
+// kindExtension Values. The paired *NonString / *NonDict tests below still cover
+// argument validation on a live client.)
 
 func TestGrpcClientBidiStreamNonString(t *testing.T) {
 	vmInst := vm.NewVM()
@@ -768,19 +661,6 @@ func TestGrpcClientBidiStreamNonString(t *testing.T) {
 // ---------------------------------------------------------------------------
 // GrpcStream Primitive Tests (via vm.Send)
 // ---------------------------------------------------------------------------
-
-func TestGrpcStreamHasNextOnNilStream(t *testing.T) {
-	vmInst := vm.NewVM()
-
-	streamObj := &GrpcStreamObject{streamType: GrpcStreamServerStreaming}
-	streamVal := vmRegisterGrpcStream(vmInst, streamObj)
-	vmUnregisterGrpcStream(vmInst, streamVal)
-
-	result := vmInst.Send(streamVal, "hasNext", nil)
-	if result != vm.False {
-		t.Error("hasNext on unregistered stream should return False")
-	}
-}
 
 func TestGrpcStreamHasNextRecvClosed(t *testing.T) {
 	vmInst := vm.NewVM()
@@ -806,35 +686,6 @@ func TestGrpcStreamHasNextOpen(t *testing.T) {
 	result := vmInst.Send(streamVal, "hasNext", nil)
 	if result != vm.True {
 		t.Error("hasNext on open stream should return True")
-	}
-}
-
-func TestGrpcStreamCloseOnNilStream(t *testing.T) {
-	vmInst := vm.NewVM()
-
-	streamObj := &GrpcStreamObject{streamType: GrpcStreamClientStreaming}
-	streamVal := vmRegisterGrpcStream(vmInst, streamObj)
-	vmUnregisterGrpcStream(vmInst, streamVal)
-
-	result := vmInst.Send(streamVal, "close", nil)
-	if result != streamVal {
-		t.Error("close on unregistered stream should return receiver")
-	}
-}
-
-func TestGrpcStreamSendOnNilStream(t *testing.T) {
-	vmInst := vm.NewVM()
-
-	streamObj := &GrpcStreamObject{streamType: GrpcStreamClientStreaming}
-	streamVal := vmRegisterGrpcStream(vmInst, streamObj)
-	vmUnregisterGrpcStream(vmInst, streamVal)
-
-	dict := vmInst.Registry().NewDictionaryValue()
-	result := vmInst.Send(streamVal, "send:", []vm.Value{dict})
-
-	isFailure := vmInst.Send(result, "isFailure", nil)
-	if isFailure != vm.True {
-		t.Error("send: on nil stream should return Failure")
 	}
 }
 
@@ -880,21 +731,6 @@ func TestGrpcStreamSendOnClosedSend(t *testing.T) {
 	}
 }
 
-func TestGrpcStreamReceiveOnNilStream(t *testing.T) {
-	vmInst := vm.NewVM()
-
-	streamObj := &GrpcStreamObject{streamType: GrpcStreamServerStreaming}
-	streamVal := vmRegisterGrpcStream(vmInst, streamObj)
-	vmUnregisterGrpcStream(vmInst, streamVal)
-
-	result := vmInst.Send(streamVal, "receive", nil)
-
-	isFailure := vmInst.Send(result, "isFailure", nil)
-	if isFailure != vm.True {
-		t.Error("receive on nil stream should return Failure")
-	}
-}
-
 func TestGrpcStreamReceiveOnRecvClosed(t *testing.T) {
 	vmInst := vm.NewVM()
 
@@ -916,33 +752,10 @@ func TestGrpcStreamReceiveOnRecvClosed(t *testing.T) {
 	}
 }
 
-func TestGrpcStreamCloseAndReceiveOnNilStream(t *testing.T) {
-	vmInst := vm.NewVM()
-
-	streamObj := &GrpcStreamObject{streamType: GrpcStreamClientStreaming}
-	streamVal := vmRegisterGrpcStream(vmInst, streamObj)
-	vmUnregisterGrpcStream(vmInst, streamVal)
-
-	result := vmInst.Send(streamVal, "closeAndReceive", nil)
-
-	isFailure := vmInst.Send(result, "isFailure", nil)
-	if isFailure != vm.True {
-		t.Error("closeAndReceive on nil stream should return Failure")
-	}
-}
-
-func TestGrpcStreamStreamTypeOnNilStream(t *testing.T) {
-	vmInst := vm.NewVM()
-
-	streamObj := &GrpcStreamObject{streamType: GrpcStreamServerStreaming}
-	streamVal := vmRegisterGrpcStream(vmInst, streamObj)
-	vmUnregisterGrpcStream(vmInst, streamVal)
-
-	result := vmInst.Send(streamVal, "streamType", nil)
-	if result != vm.Nil {
-		t.Error("streamType on nil stream should return Nil")
-	}
-}
+// (Removed TestGrpcStream*OnNilStream tests: they relied on unregister making a
+// stream Value resolve to nil, which cannot happen now that streams are
+// pointer-carrying kindExtension Values. Live-stream behavior is covered by the
+// RecvClosed / ClosedSend / NonDictionary sibling tests above.)
 
 func TestGrpcStreamStreamTypeValues(t *testing.T) {
 	vmInst := vm.NewVM()
@@ -1007,11 +820,4 @@ func TestGrpcMarkersDontCollideWithOtherMarkers(t *testing.T) {
 		t.Error("client and stream markers should be distinct")
 	}
 
-	// Also check against channel marker (a well-known VM marker)
-	if vm.GrpcClientMarker == vm.ChannelMarkerValue() {
-		t.Error("grpcClient marker should not collide with channel marker")
-	}
-	if vm.GrpcStreamMarker == vm.ChannelMarkerValue() {
-		t.Error("grpcStream marker should not collide with channel marker")
-	}
 }

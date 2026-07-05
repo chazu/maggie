@@ -57,3 +57,33 @@ reported as a garbled raw Value in `ErrorMessage` (`{9222246137082150913 0x…}`
 message text (e.g. "Message not understood: foo"). Remaining LOW follow-up: load
 the image in the server tests' `TestMain` so server-side lib dispatch is
 actually exercised in CI.
+
+---
+
+## RESOLVED — the funnel is retired, the server now scales (Stage 5)
+
+After the pointer-value migration (review #1) landed and the concurrency audit's
+Patches 1–6 made concurrent dispatch race-clean, Stage 5
+(`docs/plans/2026-07-04-stage5-server-parallelism.md`) replaced the
+single-goroutine `VMWorker.loop()` with a reader/writer gate: each request runs
+on its own per-request interpreter (`vm.RunIsolated`), read/eval requests take a
+shared lock (`DoConcurrent`), structural mutations take an exclusive lock (`Do`).
+5a first proved concurrent compile+execute race-clean
+(`server/concurrent_eval_test.go`).
+
+Re-running the SAME `BenchmarkServerEvalParallel` (Apple M3, `-benchtime=2s`):
+
+```
+                     before (funnel)   after (gate)   speedup
+BenchmarkServerEvalParallel     ~7.6 ms/op    8.34 ms/op    1.0×
+BenchmarkServerEvalParallel-2   ~7.5 ms/op    4.52 ms/op    1.85×
+BenchmarkServerEvalParallel-4   ~7.6 ms/op    2.60 ms/op    3.21×
+BenchmarkServerEvalParallel-8   ~7.6 ms/op    1.92 ms/op    4.35×
+```
+
+**ns/op now falls as cores rise** — the flat line is gone. The server parallelizes
+request throughput with cores. Scaling tapers from ideal (4.35× not 8× at
+`-cpu=8`) for the usual reasons: Amdahl's law over the shared read-lock / Go GC /
+allocator, plus the M3's mix of performance and efficiency cores. This is the
+review #2 answer flipped: extra cores now buy throughput for a Maggie
+language/web server. `go test -race ./server/` clean (0 DATA RACE).

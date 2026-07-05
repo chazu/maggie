@@ -2,7 +2,6 @@ package vm
 
 import (
 	"fmt"
-	"os"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -151,41 +150,10 @@ type VM struct {
 	// Compiler backend (Go or Maggie)
 	compilerBackend CompilerBackend
 
-	// keepAlive holds references to objects to prevent GC.
-	// Uses a map for O(1) lookup and removal during garbage collection.
-	// Protected by keepAliveMu for thread-safe access from gRPC handlers.
-	keepAlive   map[*Object]struct{}
-	keepAliveMu sync.Mutex
-
-	// pinnedRoots holds Maggie Values that are retained OUTSIDE the traced
-	// object graph — captured in a Go closure that markRoots can never reach.
-	// The motivating case: HTTP route handlers (route:/asyncRoute:/sseRoute:)
-	// stash a handler block + its captures + home self in a net/http closure;
-	// the block's home frame is long gone and nothing in globals/stacks/ivars
-	// references it, so the block sweeper would free it and every later request
-	// would execute a dangling block. Pinned roots are marked every collection
-	// (and recurse through captures/home-self/literals via mark). Pin at the
-	// point of Go retention; unpin if/when the retention ends.
-	pinnedRoots   map[Value]struct{}
-	pinnedRootsMu sync.Mutex
-
-	// String/dictionary tracing GC (opt-in via EnableStringGC / MAGGIE_GC).
-	// gcEnabled gates the whole feature. gcRequested is the stop-the-world
-	// flag mutators check at their safepoint. gcBarrierMu/Cond coordinate the
-	// barrier; gcRunMu serializes collection cycles. See gc_safepoint.go.
-	gcEnabled     atomic.Bool
-	gcRequested   atomic.Bool
-	gcRunMu       sync.Mutex
-	gcBarrierMu   sync.Mutex
-	gcBarrierCond *sync.Cond
-
 	// Work dispatch queue for serializing Maggie execution from
 	// external goroutines (HTTP handlers, gRPC handlers).
 	dispatchQueue chan workItem
 	dispatchOnce  sync.Once
-
-	// weakRefs tracks weak references for the GC to process.
-	weakRefs *WeakRegistry
 
 	// mainProcess is the ProcessObject for the main interpreter goroutine.
 	// Created during NewVM so that Process current / Process receive work
@@ -209,10 +177,12 @@ type VM struct {
 	remoteChannels *remoteChannelRegistry
 	channelExports *channelExportRegistry
 
-	// Node references for remote connections
-	nodeRefs   map[int]*NodeRefData
+	// nodeRefs tracks every live NodeRefData so findNodeRefByID can route
+	// inbound distributed messages by node public key. NodeRef Values are
+	// pointer-carrying kindRemoteRef (Go GC owns their lifetime); this set is a
+	// purely functional reverse index, not a liveness root.
+	nodeRefs   map[*NodeRefData]struct{}
 	nodeRefsMu sync.RWMutex
-	nodeRefID  atomic.Int32
 
 	// Local node identity keys (loaded lazily)
 	localIdentity *nodeIdentityHolder
@@ -265,6 +235,13 @@ type VM struct {
 	dependents   map[Value][]Value
 	dependentsMu sync.RWMutex
 
+	// cliLastRan records the CliCommandWrapper whose cobra Run callback most
+	// recently fired, so executeCliCommand can surface the exit code of whichever
+	// subcommand actually ran. Run callbacks execute synchronously on the
+	// goroutine that invoked Execute (see the run: primitive), so no lock is
+	// needed. This replaces the old linear scan over a per-id registry.
+	cliLastRan *CliCommandWrapper
+
 	// Config holds the runtime configuration for this VM instance.
 	Config VMConfig
 }
@@ -287,9 +264,6 @@ func NewVM(configs ...VMConfig) *VM {
 		Classes:          NewClassTable(),
 		Traits:           NewTraitTable(),
 		globals:          make(map[string]Value),
-		keepAlive:        make(map[*Object]struct{}),
-		pinnedRoots:      make(map[Value]struct{}),
-		weakRefs:         NewWeakRegistry(),
 		registry:         NewObjectRegistry(),
 		symbolDispatch:   NewSymbolDispatch(),
 		processNames:     make(map[string]uint64),
@@ -297,22 +271,9 @@ func NewVM(configs ...VMConfig) *VM {
 		dependents:       make(map[Value][]Value),
 		remoteChannels:   newRemoteChannelRegistry(),
 		channelExports:   newChannelExportRegistry(),
-		nodeRefs:         make(map[int]*NodeRefData),
+		nodeRefs:         make(map[*NodeRefData]struct{}),
 		remoteWatches:    NewRemoteWatchStore(),
 		pendingSpawns:    newPendingSpawnRegistry(),
-	}
-
-	// String/dictionary GC barrier (see gc_safepoint.go). On by default —
-	// leaving the string/dictionary registries unbounded OOM-kills any
-	// long-running process. Disable with MAGGIE_GC=0/off/false (e.g. for
-	// programs that drive Maggie via concurrent vm.Send sharing the main
-	// interpreter, which the collector's stop-the-world does not support).
-	vm.gcBarrierCond = sync.NewCond(&vm.gcBarrierMu)
-	switch os.Getenv("MAGGIE_GC") {
-	case "0", "off", "false", "no":
-		// explicitly disabled
-	default:
-		vm.gcEnabled.Store(true)
 	}
 
 	// Bootstrap core classes
@@ -361,17 +322,67 @@ func (vm *VM) newInterpreter() *Interpreter {
 // newForkedInterpreter creates a forked interpreter with optional restrictions.
 // It shares VM tables but writes go to a process-local overlay.
 // Pass nil for hidden to create an unrestricted forked interpreter.
-func (vm *VM) newForkedInterpreter(hidden map[string]bool) *Interpreter {
+// newRequestInterpreter builds an interpreter that shares the VM's tables AND
+// its global map — global writes go through globalsMu to the shared map, exactly
+// like the main interpreter — but has its own execution stack and frames. The
+// private stack is what makes it safe to run on a separate goroutine; unlike
+// newForkedInterpreter it is NOT forked, so it does not divert global writes
+// into a throwaway process-local overlay. Use it for units of work whose global
+// mutations (e.g. Compiler setGlobal:, workspace variables) must persist to the
+// shared VM — notably server requests via RunIsolated.
+func (vm *VM) newRequestInterpreter() *Interpreter {
 	interp := newBareInterpreterWithConfig(vm.Config)
 	interp.Selectors = vm.Selectors
 	interp.Symbols = vm.Symbols
 	interp.Classes = vm.Classes
 	interp.globals = vm.globals
 	interp.vm = vm
-	interp.forked = true
-	interp.hidden = hidden
 	interp.internWellKnownSelectors()
 	return interp
+}
+
+func (vm *VM) newForkedInterpreter(hidden map[string]bool) *Interpreter {
+	interp := vm.newRequestInterpreter()
+	// Forked processes get copy-on-write global isolation: writes land in a
+	// process-local overlay (localWrites) rather than the shared map, and
+	// `hidden` names are invisible. This is the fork/forkRestricted: semantics.
+	interp.forked = true
+	interp.hidden = hidden
+	return interp
+}
+
+// RunIsolated runs fn on a fresh request interpreter registered for the CALLING
+// goroutine, then unregisters it. While fn runs, currentInterpreter() (and thus
+// vm.Send / vm.Execute) resolves to this per-call interpreter instead of falling
+// back to the shared main vm.interpreter — so multiple goroutines can execute
+// against one VM concurrently without racing on a single interpreter's
+// stack/frames. Exposed for per-request server parallelism (Stage 5).
+//
+// The interpreter is NOT forked: it shares the VM's global map, so global writes
+// (Compiler setGlobal:, workspace variables, class/method definition) persist to
+// the shared VM exactly as they did on the pre-Stage-5 main-interpreter path.
+// Only the execution stack/frames are private — that is what makes concurrent
+// execution safe. (A forked interpreter would divert those writes into a
+// throwaway localWrites overlay and silently lose them.)
+//
+// Do NOT call RunIsolated re-entrantly on the same goroutine: interpreter
+// registration is keyed by goroutine id, so a nested call would overwrite then
+// delete the outer registration, leaving the outer frame to fall back to the
+// shared main interpreter (and unbalance interpreterCount). Server request
+// handlers satisfy this — each runs in one gate closure and the helpers they
+// call take the *VM directly rather than re-entering RunIsolated.
+//
+// RunIsolated does NOT serialize callers. Concurrent DISPATCH is race-clean
+// (concurrency audit Patches 1-6) and compilation of expression source is safe
+// (the backend allocates fresh per-call state, touching only the synchronized
+// Selectors/Symbols/registry). Concurrent structural MUTATION of shared VM state
+// (defining classes/methods, writing globals) is NOT inherently serialized and
+// must be guarded by a separate exclusive gate (see server VMWorker.Do).
+func (vm *VM) RunIsolated(fn func()) {
+	interp := vm.newRequestInterpreter()
+	vm.registerInterpreter(interp)
+	defer vm.unregisterInterpreter()
+	fn()
 }
 
 // inheritedHidden returns the restriction set a fork must run under: a copy of
@@ -606,77 +617,18 @@ func (vm *VM) createClassWithIvars(name string, superclass *Class, ivars []strin
 func (vm *VM) registerSymbolDispatch() {
 	sd := vm.symbolDispatch
 
-	// Concurrency primitives
-	sd.Register(channelMarker, &SymbolTypeEntry{Class: vm.ChannelClass})
+	// Concurrency primitives. Process is still a symbol-encoded id (its Values
+	// are constructed by-id in monitor/link/distribution paths); the rest are
+	// pointer-carrying heap kinds resolved via classForHeap.
 	sd.Register(processMarker, &SymbolTypeEntry{Class: vm.ProcessClass})
-	sd.Register(mutexMarker, &SymbolTypeEntry{Class: vm.MutexClass})
-	sd.Register(waitGroupMarker, &SymbolTypeEntry{Class: vm.WaitGroupClass})
-	sd.Register(semaphoreMarker, &SymbolTypeEntry{Class: vm.SemaphoreClass})
-	sd.Register(cancellationContextMarker, &SymbolTypeEntry{Class: vm.CancellationContextClass})
-
-	// ArrayList
-	sd.Register(arrayListMarker, &SymbolTypeEntry{Class: vm.ArrayListClass})
-
-	// BigInteger
-	sd.Register(bigIntMarker, &SymbolTypeEntry{Class: vm.BigIntegerClass})
 
 	// gRPC symbol dispatch is registered by the gRPC contrib plugin.
 
-	// Weak references
-	sd.Register(weakRefMarker, &SymbolTypeEntry{Class: vm.WeakReferenceClass})
+	// WeakReference is a pointer-carrying kindWeakRef Value resolved via classForHeap.
 
 	// Characters
 	sd.Register(characterMarker, &SymbolTypeEntry{Class: vm.CharacterClass})
 
-	// Class values — dispatch via ClassVTable
-	sd.Register(classValueMarker, &SymbolTypeEntry{
-		ClassSide: true,
-		Resolve: func(v Value, resolveVM *VM) (*Class, bool) {
-			if resolveVM != nil {
-				cls := resolveVM.registry.GetClassFromValue(v)
-				if cls != nil {
-					return cls, true
-				}
-			}
-			return nil, false
-		},
-	})
-
-	// Exceptions — resolve to the specific exception subclass
-	sd.Register(exceptionMarker, &SymbolTypeEntry{
-		Resolve: func(v Value, resolveVM *VM) (*Class, bool) {
-			exObj := resolveVM.registry.GetException(v.ExceptionID())
-			if exObj != nil && exObj.ExceptionClass != nil {
-				return exObj.ExceptionClass, true
-			}
-			return resolveVM.ExceptionClass, true
-		},
-	})
-
-	// GoObjects — resolve to the specific wrapped Go type's class
-	sd.Register(goObjectMarker, &SymbolTypeEntry{
-		Resolve: func(v Value, vmRef *VM) (*Class, bool) {
-			if vmRef == nil {
-				return nil, false
-			}
-			cls := vmRef.GoObjectClass(v)
-			if cls != nil {
-				return cls, true
-			}
-			return nil, false
-		},
-	})
-
-	// Results — resolve to Success or Failure
-	sd.Register(resultMarker, &SymbolTypeEntry{
-		Resolve: func(v Value, vmRef *VM) (*Class, bool) {
-			r := vmRef.registry.GetResultFromValue(v)
-			if r != nil && r.resultType == ResultSuccess {
-				return vm.SuccessClass, true
-			}
-			return vm.FailureClass, true
-		},
-	})
 }
 
 // classValue returns a Value representing a class.
@@ -766,11 +718,11 @@ func (vm *VM) Registry() *ObjectRegistry {
 // SweepConcurrency runs garbage collection on concurrency objects.
 // Removes closed channels and terminated processes.
 // Returns the number of objects swept.
-func (vm *VM) SweepConcurrency() (channels, processes, blocks int) {
+func (vm *VM) SweepConcurrency() (channels, processes int) {
 	if vm.registry != nil {
 		return vm.registry.Sweep()
 	}
-	return 0, 0, 0
+	return 0, 0
 }
 
 // ConcurrencyStats returns statistics about concurrency objects.
@@ -903,7 +855,6 @@ func (vm *VM) CreateMailboxMessage(sender Value, selector string, payload Value)
 		instance.SetSlot(1, Nil)
 	}
 	instance.SetSlot(2, payload)
-	vm.KeepAlive(instance)
 	return instance.ToValue()
 }
 
@@ -1009,12 +960,84 @@ func (vm *VM) ClassFor(v Value) *Class {
 			return cls
 		}
 		return vm.SymbolClass
-	case v.IsObject():
+	case v.isHeap():
+		return vm.classForHeap(v)
+	default:
+		return vm.ObjectClass
+	}
+}
+
+// classForHeap resolves the class of a pointer-carrying heap Value by its kind
+// tag. As types migrate from symbol-encoded registry ids to pointers, their
+// class resolution moves here from the symbol dispatch table.
+func (vm *VM) classForHeap(v Value) *Class {
+	switch v.heapKindOf() {
+	case kindObject:
 		obj := ObjectFromValue(v)
 		if obj != nil {
 			vt := obj.VTablePtr()
 			if vt != nil && vt.Class() != nil {
 				return vt.Class()
+			}
+		}
+		return vm.ObjectClass
+	case kindResult:
+		r := vm.registry.GetResultFromValue(v)
+		if r != nil && r.resultType == ResultSuccess {
+			return vm.SuccessClass
+		}
+		return vm.FailureClass
+	case kindString:
+		return vm.StringClass
+	case kindDictionary:
+		return vm.DictionaryClass
+	case kindArrayList:
+		return vm.ArrayListClass
+	case kindClassValue:
+		// The class OF a class value is that class's metaclass; the metaclass's
+		// instance-side VTable is the class's ClassVTable, so class-side sends
+		// dispatch correctly.
+		if c := (*Class)(v.ptr); c != nil {
+			return vm.MetaclassFor(c)
+		}
+		return vm.ObjectClass
+	case kindBigInt:
+		return vm.BigIntegerClass
+	case kindException:
+		ex := vm.registry.GetExceptionFromValue(v)
+		if ex != nil && ex.ExceptionClass != nil {
+			return ex.ExceptionClass
+		}
+		return vm.ExceptionClass
+	case kindGoObject:
+		if cls := vm.GoObjectClass(v); cls != nil {
+			return cls
+		}
+		return vm.ObjectClass
+	case kindMutex:
+		return vm.MutexClass
+	case kindWaitGroup:
+		return vm.WaitGroupClass
+	case kindSemaphore:
+		return vm.SemaphoreClass
+	case kindCancellationContext:
+		return vm.CancellationContextClass
+	case kindChannel:
+		return vm.ChannelClass
+	case kindFuture:
+		return vm.FutureClass
+	case kindRemoteChannel:
+		return vm.RemoteChannelClass
+	case kindRemoteRef:
+		return vm.NodeClass
+	case kindWeakRef:
+		return vm.WeakReferenceClass
+	case kindExtension:
+		// Contrib/IO wrapper types share kindExtension; the concrete class is
+		// the one registered for the wrapper's marker in symbolDispatch.
+		if e := v.extensionObjectOf(); e != nil {
+			if cls, _ := vm.symbolDispatch.ClassForMarkerVM(e.marker, vm); cls != nil {
+				return cls
 			}
 		}
 		return vm.ObjectClass
@@ -1156,6 +1179,12 @@ func (vm *VM) Send(receiver Value, selector string, args []Value) Value {
 				class = vm.SymbolClass
 			}
 		}
+	} else if isClassValue(receiver) {
+		// A class value dispatches class-side via the class's ClassVTable —
+		// without materializing a metaclass on this hot path (MetaclassFor is
+		// reserved for the cold "class of a class" reflection path in ClassFor).
+		class = vm.registry.GetClassFromValue(receiver)
+		isClassSide = true
 	} else {
 		class = vm.ClassFor(receiver)
 	}
@@ -1343,115 +1372,14 @@ func (vm *VM) GoTypeRegistry() *GoTypeRegistry {
 }
 
 // ---------------------------------------------------------------------------
-// Garbage Collection
-// ---------------------------------------------------------------------------
-
-// CollectGarbage performs a full mark-sweep over the COMPLETE root set (via the
-// tracing collector's markRoots), unpinning unreachable keepAlive objects and
-// clearing weak references to them. Unlike a partial stack/globals scan it is
-// sound on a multi-process VM, so it will not free an object that is live in
-// another process. Returns the number of keepAlive objects reclaimed.
-//
-// Callers MUST guarantee no other goroutine is mutating VM state: the periodic
-// collector reaches keepAlive sweeping through the safepoint barrier
-// (collectHeapGarbageLocked); direct callers of this method are single-threaded
-// tests. Do not call it while holding any registry lock — markRoots re-acquires
-// them.
-func (vm *VM) CollectGarbage() int {
-	if vm.registry == nil {
-		return 0
-	}
-	ls := newLiveSet()
-	vm.markRoots(ls)
-	if vm.weakRefs != nil {
-		vm.weakRefs.ProcessGC(ls.objects)
-	}
-	return vm.sweepKeepAliveLive(ls.objects)
-}
-
-// sweepKeepAliveLive removes keepAlive pins for objects not in the live set.
-// An object absent from the trace is unreachable, so dropping its pin lets the
-// Go runtime reclaim it (NaN-boxed object Values are raw pointers the Go GC
-// cannot otherwise see as dead). Caller MUST run under stop-the-world.
-// Returns the number of objects unpinned.
-func (vm *VM) sweepKeepAliveLive(live map[*Object]struct{}) int {
-	vm.keepAliveMu.Lock()
-	defer vm.keepAliveMu.Unlock()
-	collected := 0
-	for obj := range vm.keepAlive {
-		if _, ok := live[obj]; !ok {
-			delete(vm.keepAlive, obj)
-			collected++
-		}
-	}
-	return collected
-}
-
-// KeepAlive pins an object to prevent garbage collection.
-func (vm *VM) KeepAlive(obj *Object) {
-	if obj != nil {
-		vm.keepAliveMu.Lock()
-		vm.keepAlive[obj] = struct{}{}
-		vm.keepAliveMu.Unlock()
-	}
-}
-
-// ReleaseKeepAlive unpins an object, allowing garbage collection.
-func (vm *VM) ReleaseKeepAlive(obj *Object) {
-	if obj != nil {
-		vm.keepAliveMu.Lock()
-		delete(vm.keepAlive, obj)
-		vm.keepAliveMu.Unlock()
-	}
-}
-
-// PinRoot marks a Value as a permanent GC root for the string/dictionary/block
-// collector. Use it whenever a Maggie Value (typically a block) is handed to Go
-// and retained beyond the lifetime of the frame that produced it — e.g. an HTTP
-// route handler stored in a net/http closure. Without this the collector cannot
-// see the retained Value (it lives only in a Go local, not in any traced root)
-// and would reclaim it. Idempotent.
-func (vm *VM) PinRoot(v Value) {
-	vm.pinnedRootsMu.Lock()
-	vm.pinnedRoots[v] = struct{}{}
-	vm.pinnedRootsMu.Unlock()
-}
-
-// UnpinRoot removes a previously pinned root.
-func (vm *VM) UnpinRoot(v Value) {
-	vm.pinnedRootsMu.Lock()
-	delete(vm.pinnedRoots, v)
-	vm.pinnedRootsMu.Unlock()
-}
-
-// KeepAliveCount returns the number of objects in the keepAlive set.
-// Useful for testing and debugging.
-func (vm *VM) KeepAliveCount() int {
-	vm.keepAliveMu.Lock()
-	defer vm.keepAliveMu.Unlock()
-	return len(vm.keepAlive)
-}
-
-// ---------------------------------------------------------------------------
 // Weak References
 // ---------------------------------------------------------------------------
 
-// NewWeakRef creates a new weak reference to the given object.
-// The weak reference is registered with the VM's weak reference registry.
+// NewWeakRef creates a new weak reference to the given object. The reference is
+// a Go-native weak pointer (weak.Pointer); Go's GC clears it — there is no VM
+// registry to register with.
 func (vm *VM) NewWeakRef(target *Object) *WeakReference {
-	wr := NewWeakReference(vm.registry, target)
-	vm.weakRefs.Register(wr)
-	return wr
-}
-
-// LookupWeakRef looks up a weak reference by ID.
-func (vm *VM) LookupWeakRef(id uint32) *WeakReference {
-	return vm.weakRefs.Lookup(id)
-}
-
-// WeakRefCount returns the number of registered weak references.
-func (vm *VM) WeakRefCount() int {
-	return vm.weakRefs.Count()
+	return NewWeakReference(target)
 }
 
 // ---------------------------------------------------------------------------

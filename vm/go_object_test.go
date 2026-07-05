@@ -74,8 +74,8 @@ func TestGoObjectRegistry_RegisterAndGet(t *testing.T) {
 	wrapper := &GoObjectWrapper{TypeID: 1, Value: "hello"}
 	v := or.RegisterGoObject(wrapper)
 
-	if !v.IsSymbolEncoded() {
-		t.Fatal("expected symbol-encoded value")
+	if !isGoObjectValue(v) {
+		t.Fatal("expected a GoObject heap value")
 	}
 
 	got := or.GetGoObject(v)
@@ -88,15 +88,9 @@ func TestGoObjectRegistry_RegisterAndGet(t *testing.T) {
 	if got.TypeID != 1 {
 		t.Errorf("expected TypeID 1, got %d", got.TypeID)
 	}
-
-	if or.GoObjectCount() != 1 {
-		t.Errorf("expected count 1, got %d", or.GoObjectCount())
-	}
-
-	// Unregister
-	or.UnregisterGoObject(v)
-	if or.GoObjectCount() != 0 {
-		t.Errorf("expected count 0 after unregister, got %d", or.GoObjectCount())
+	// The wrapper pointer round-trips exactly (no id indirection).
+	if got != wrapper {
+		t.Error("expected the same wrapper pointer back")
 	}
 }
 
@@ -114,30 +108,20 @@ func TestGoObjectRegistry_GetNonGoObject(t *testing.T) {
 	}
 
 	// Random symbol (wrong marker)
-	if or.GetGoObject(FromSymbolID(channelMarker|5)) != nil {
-		t.Error("expected nil for channel marker symbol")
+	if or.GetGoObject(FromSymbolID(characterMarker|5)) != nil {
+		t.Error("expected nil for a non-GoObject marker symbol")
 	}
 }
 
 func TestGoObjectMarker_NoCollision(t *testing.T) {
 	markers := map[string]uint32{
-		"channel":             channelMarker,
 		"process":             processMarker,
-		"result":              resultMarker,
 		"grpcClient":          grpcClientMarker,
-		"exception":           exceptionMarker,
 		"grpcStream":          grpcStreamMarker,
-		"weakRef":             weakRefMarker,
-		"mutex":               mutexMarker,
-		"waitGroup":           waitGroupMarker,
-		"semaphore":           semaphoreMarker,
-		"cancellationContext": cancellationContextMarker,
-		"classValue":          classValueMarker,
 		"character":           characterMarker,
 		"httpServer":          httpServerMarker,
 		"httpRequest":         httpRequestMarker,
 		"httpResponse":        httpResponseMarker,
-		"goObject":            goObjectMarker,
 	}
 
 	seen := make(map[uint32]string)

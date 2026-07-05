@@ -123,20 +123,71 @@ func (s *valueSerializer) serialize(v Value) ([]byte, error) {
 	case v.IsSymbolEncoded():
 		return s.serializeSymbolEncoded(v)
 
-	case v.IsObject():
-		return s.serializeObject(v)
-
-	case v.IsBlock():
-		return nil, fmt.Errorf("serial: cannot serialize Block (non-serializable type)")
-
-	case v.IsCell():
-		return nil, fmt.Errorf("serial: cannot serialize Cell (non-serializable type)")
-
-	case v.IsContext():
-		return nil, fmt.Errorf("serial: cannot serialize Context (non-serializable type)")
+	case v.isHeap():
+		// Blocks and Contexts are pointer-carrying heap Values now; their
+		// non-serializable cases live in serializeHeap.
+		return s.serializeHeap(v)
 
 	default:
-		return nil, fmt.Errorf("serial: unknown value type %016x", uint64(v))
+		return nil, fmt.Errorf("serial: unknown value type %016x", v.hi)
+	}
+}
+
+// serializeHeap dispatches pointer-carrying heap Values by their kind tag.
+// Serializable kinds delegate to their specific serializer; the rest report a
+// clear non-serializable error. As types migrate from the symbol-encoded
+// registry form to pointers, their cases move here from serializeSymbolEncoded.
+func (s *valueSerializer) serializeHeap(v Value) ([]byte, error) {
+	switch v.heapKindOf() {
+	case kindObject:
+		return s.serializeObject(v)
+	case kindString:
+		return cborSerialEncMode.Marshal(s.vm.registry.GetStringContent(v))
+	case kindChannel:
+		return s.serializeChannel(v)
+	case kindFuture:
+		return nil, fmt.Errorf("serial: cannot serialize Future (non-serializable type)")
+	case kindDictionary:
+		return s.serializeDictionary(v)
+	case kindBigInt:
+		bi := s.vm.registry.GetBigInt(v)
+		if bi == nil {
+			return nil, fmt.Errorf("serial: BigInteger registry miss")
+		}
+		return s.serializeBigInt(bi.Value)
+	case kindException:
+		return s.serializeException(v)
+	case kindResult:
+		return nil, fmt.Errorf("serial: cannot serialize Result (non-serializable type)")
+	case kindArrayList:
+		return nil, fmt.Errorf("serial: cannot serialize ArrayList (non-serializable type)")
+	case kindGoObject:
+		return nil, fmt.Errorf("serial: cannot serialize GoObject (non-serializable type)")
+	case kindMutex:
+		return nil, fmt.Errorf("serial: cannot serialize Mutex (non-serializable type)")
+	case kindWaitGroup:
+		return nil, fmt.Errorf("serial: cannot serialize WaitGroup (non-serializable type)")
+	case kindSemaphore:
+		return nil, fmt.Errorf("serial: cannot serialize Semaphore (non-serializable type)")
+	case kindCancellationContext:
+		return nil, fmt.Errorf("serial: cannot serialize CancellationContext (non-serializable type)")
+	case kindCell:
+		return nil, fmt.Errorf("serial: cannot serialize Cell (non-serializable type)")
+	case kindBlock:
+		return nil, fmt.Errorf("serial: cannot serialize Block (non-serializable type)")
+	case kindContext:
+		return nil, fmt.Errorf("serial: cannot serialize Context (non-serializable type)")
+	case kindRemoteChannel:
+		return s.serializeRemoteChannel(v)
+	case kindExtension:
+		// Contrib plugins register serialize hooks (e.g. CueValue). Try them;
+		// unhandled extension kinds are non-serializable IO handles.
+		if data, handled, err := trySerializeHooks(s.vm, v); handled {
+			return data, err
+		}
+		return nil, fmt.Errorf("serial: cannot serialize extension (marker=%d) (non-serializable type)", extensionMarker(v)>>24)
+	default:
+		return nil, fmt.Errorf("serial: cannot serialize heap kind %d (non-serializable type)", v.heapKindOf())
 	}
 }
 
@@ -145,26 +196,9 @@ func (s *valueSerializer) serialize(v Value) ([]byte, error) {
 // marker types (Channel, Process, Mutex, etc.)
 func (s *valueSerializer) serializeSymbolEncoded(v Value) ([]byte, error) {
 	// Check specific types in order of frequency
-	if IsStringValue(v) {
-		content := s.vm.registry.GetStringContent(v)
-		return cborSerialEncMode.Marshal(content)
-	}
-
 	if IsCharacterValue(v) {
 		cp := GetCharacterCodePoint(v)
 		return cborSerialEncMode.Marshal(cbor.Tag{Number: cborTagCharacter, Content: uint32(cp)})
-	}
-
-	if IsBigIntValue(v) {
-		bi := s.vm.registry.GetBigInt(v)
-		if bi == nil {
-			return nil, fmt.Errorf("serial: BigInteger registry miss")
-		}
-		return s.serializeBigInt(bi.Value)
-	}
-
-	if IsDictionaryValue(v) {
-		return s.serializeDictionary(v)
 	}
 
 	// Try contrib plugin serialization hooks
@@ -176,28 +210,8 @@ func (s *valueSerializer) serializeSymbolEncoded(v Value) ([]byte, error) {
 	id := v.SymbolID()
 	marker := id & markerMask
 	switch marker {
-	case channelMarker:
-		return s.serializeChannel(v)
-	case remoteChannelMarker:
-		return s.serializeRemoteChannel(v)
 	case processMarker:
 		return nil, fmt.Errorf("serial: cannot serialize Process (non-serializable type)")
-	case mutexMarker:
-		return nil, fmt.Errorf("serial: cannot serialize Mutex (non-serializable type)")
-	case waitGroupMarker:
-		return nil, fmt.Errorf("serial: cannot serialize WaitGroup (non-serializable type)")
-	case semaphoreMarker:
-		return nil, fmt.Errorf("serial: cannot serialize Semaphore (non-serializable type)")
-	case cancellationContextMarker:
-		return nil, fmt.Errorf("serial: cannot serialize CancellationContext (non-serializable type)")
-	case goObjectMarker:
-		return nil, fmt.Errorf("serial: cannot serialize GoObject (non-serializable type)")
-	case resultMarker:
-		return nil, fmt.Errorf("serial: cannot serialize Result (non-serializable type)")
-	case exceptionMarker:
-		return s.serializeException(v)
-	case arrayListMarker:
-		return nil, fmt.Errorf("serial: cannot serialize ArrayList (non-serializable type)")
 	}
 
 	// Regular symbol (interned name)
@@ -353,7 +367,7 @@ func (s *valueSerializer) serializeRemoteChannel(v Value) ([]byte, error) {
 }
 
 func (s *valueSerializer) serializeException(v Value) ([]byte, error) {
-	exObj := s.vm.registry.GetException(v.ExceptionID())
+	exObj := s.vm.registry.GetExceptionFromValue(v)
 	if exObj == nil {
 		// Unknown exception — serialize as a generic Error with no message
 		se := &serializedException{ClassName: "Error"}
@@ -576,9 +590,6 @@ func (d *valueDeserializer) deserializeObject(tag cbor.Tag) (Value, error) {
 	obj := NewObject(class.VTable, class.NumSlots)
 	objVal := obj.ToValue()
 
-	// Register with VM's keepAlive — NaN-boxed pointers are invisible to the GC
-	d.vm.KeepAlive(obj)
-
 	// Register backref before filling slots (handles cycles)
 	idx := d.nextRef
 	d.nextRef++
@@ -743,8 +754,7 @@ func (d *valueDeserializer) deserializeException(tag cbor.Tag) (Value, error) {
 		Tag:            tagVal,
 		Resumable:      false, // remote exceptions are not resumable
 	}
-	id := d.vm.registry.RegisterException(exObj)
-	return FromExceptionID(id), nil
+	return d.vm.registry.RegisterExceptionValue(exObj), nil
 }
 
 // lookupExceptionClass finds an exception class by name, checking the standard
@@ -765,4 +775,3 @@ func (d *valueDeserializer) lookupExceptionClass(name string) *Class {
 	}
 	return nil
 }
-

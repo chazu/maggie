@@ -182,7 +182,7 @@ func (s *LspServer) textDocumentCompletion(ctx *glsp.Context, params *protocol.C
 		return nil, nil
 	}
 
-	result, err := s.worker.Do(func(v *vm.VM) interface{} {
+	result, err := s.worker.DoConcurrent(func(v *vm.VM) interface{} {
 		return s.complete(v, prefix)
 	})
 	if err != nil {
@@ -209,7 +209,7 @@ func (s *LspServer) textDocumentHover(ctx *glsp.Context, params *protocol.HoverP
 		return nil, nil
 	}
 
-	result, err := s.worker.Do(func(v *vm.VM) interface{} {
+	result, err := s.worker.DoConcurrent(func(v *vm.VM) interface{} {
 		return s.hover(v, word)
 	})
 	if err != nil {
@@ -239,7 +239,7 @@ func (s *LspServer) textDocumentDefinition(ctx *glsp.Context, params *protocol.D
 		return nil, nil
 	}
 
-	result, err := s.worker.Do(func(v *vm.VM) interface{} {
+	result, err := s.worker.DoConcurrent(func(v *vm.VM) interface{} {
 		return s.definition(v, word)
 	})
 	if err != nil || result == nil {
@@ -266,7 +266,7 @@ func (s *LspServer) textDocumentReferences(ctx *glsp.Context, params *protocol.R
 		return nil, nil
 	}
 
-	result, err := s.worker.Do(func(v *vm.VM) interface{} {
+	result, err := s.worker.DoConcurrent(func(v *vm.VM) interface{} {
 		return s.references(v, word)
 	})
 	if err != nil || result == nil {
@@ -276,7 +276,7 @@ func (s *LspServer) textDocumentReferences(ctx *glsp.Context, params *protocol.R
 	return result.([]protocol.Location), nil
 }
 
-// --- VM-backed logic (called on worker goroutine) ---
+// --- VM-backed logic (called inside a VMWorker gate closure) ---
 
 func (s *LspServer) complete(v *vm.VM, prefix string) []protocol.CompletionItem {
 	var items []protocol.CompletionItem
@@ -620,7 +620,7 @@ func (s *LspServer) publishDiagnostics(ctx *glsp.Context, uri protocol.DocumentU
 		}
 	} else {
 		// Non-.mag files: try as expression (REPL-style)
-		result, err := s.worker.Do(func(v *vm.VM) interface{} {
+		result, err := s.worker.DoConcurrent(func(v *vm.VM) interface{} {
 			_, compileErr := v.CompileExpression(text)
 			if compileErr != nil {
 				return compileErr.Error()

@@ -572,7 +572,7 @@ func doctestPrintString(vmInst *vm.VM, v vm.Value) string {
 	}
 
 	// Last resort: hex representation.
-	return fmt.Sprintf("<value:0x%X>", uint64(v))
+	return fmt.Sprintf("<value:0x%X>", v.RawBits())
 }
 
 // doctestSafeSend sends a message to a value and recovers from any panic.

@@ -35,34 +35,12 @@ type UnixConnObject struct {
 // Value encoding helpers
 // ---------------------------------------------------------------------------
 
-func unixListenerToValue(id uint32) Value {
-	return markedToValue(unixListenerMarker, id)
-}
-
 func isUnixListenerValue(v Value) bool {
-	if !v.IsSymbolEncoded() {
-		return false
-	}
-	return (v.SymbolID() & markerMask) == unixListenerMarker
-}
-
-func unixListenerIDFromValue(v Value) uint32 {
-	return markedIDFromValue(v)
-}
-
-func unixConnToValue(id uint32) Value {
-	return markedToValue(unixConnMarker, id)
+	return isExtensionValue(v, unixListenerMarker)
 }
 
 func isUnixConnValue(v Value) bool {
-	if !v.IsSymbolEncoded() {
-		return false
-	}
-	return (v.SymbolID() & markerMask) == unixConnMarker
-}
-
-func unixConnIDFromValue(v Value) uint32 {
-	return markedIDFromValue(v)
+	return isExtensionValue(v, unixConnMarker)
 }
 
 // ---------------------------------------------------------------------------
@@ -70,42 +48,32 @@ func unixConnIDFromValue(v Value) uint32 {
 // ---------------------------------------------------------------------------
 
 func (vm *VM) vmRegisterUnixListener(l *UnixListenerObject) Value {
-	id := vm.registry.RegisterUnixListener(l)
-	return unixListenerToValue(id)
+	return makeExtensionValue(unixListenerMarker, l)
 }
 
 func (vm *VM) vmGetUnixListener(v Value) *UnixListenerObject {
-	if !isUnixListenerValue(v) {
-		return nil
+	if o := ExtensionObject(v, unixListenerMarker); o != nil {
+		return o.(*UnixListenerObject)
 	}
-	return vm.registry.GetUnixListener(unixListenerIDFromValue(v))
+	return nil
 }
 
-func (vm *VM) vmUnregisterUnixListener(v Value) {
-	if !isUnixListenerValue(v) {
-		return
-	}
-	vm.registry.UnregisterUnixListener(unixListenerIDFromValue(v))
-}
+// vmUnregisterUnixListener is now a no-op (Go GC reclaims the listener object).
+func (vm *VM) vmUnregisterUnixListener(v Value) {}
 
 func (vm *VM) vmRegisterUnixConn(c *UnixConnObject) Value {
-	id := vm.registry.RegisterUnixConn(c)
-	return unixConnToValue(id)
+	return makeExtensionValue(unixConnMarker, c)
 }
 
 func (vm *VM) vmGetUnixConn(v Value) *UnixConnObject {
-	if !isUnixConnValue(v) {
-		return nil
+	if o := ExtensionObject(v, unixConnMarker); o != nil {
+		return o.(*UnixConnObject)
 	}
-	return vm.registry.GetUnixConn(unixConnIDFromValue(v))
+	return nil
 }
 
-func (vm *VM) vmUnregisterUnixConn(v Value) {
-	if !isUnixConnValue(v) {
-		return
-	}
-	vm.registry.UnregisterUnixConn(unixConnIDFromValue(v))
-}
+// vmUnregisterUnixConn is now a no-op (Go GC reclaims the conn object).
+func (vm *VM) vmUnregisterUnixConn(v Value) {}
 
 // ---------------------------------------------------------------------------
 // Primitive Registration

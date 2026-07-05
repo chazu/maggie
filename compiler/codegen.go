@@ -545,7 +545,7 @@ func (c *Compiler) compileDictionaryLiteral(dict *DictionaryLiteral) {
 // semantically equal, and registry-backed values (Strings/Symbols) are
 // interned at construction so equal payloads share an ID.
 func (c *Compiler) addLiteral(value vm.Value) int {
-	key := uint64(value)
+	key := value
 	if idx, ok := c.frame.literalMap[key]; ok {
 		return idx
 	}

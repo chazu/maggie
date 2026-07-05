@@ -318,8 +318,6 @@ func (vm *VM) NewArray(size int) Value {
 	obj := NewObject(vm.ArrayClass.VTable, size)
 	obj.SetSize(size) // Set the logical size for arrays
 	val := obj.ToValue()
-	// Keep a reference to prevent GC
-	vm.KeepAlive(obj)
 	return val
 }
 
@@ -331,8 +329,6 @@ func (vm *VM) NewArrayWithElements(elements []Value) Value {
 	obj := NewObjectWithSlots(vm.ArrayClass.VTable, elements)
 	obj.SetSize(len(elements)) // Set the logical size for arrays
 	val := obj.ToValue()
-	// Keep a reference to prevent GC
-	vm.KeepAlive(obj)
 	return val
 }
 

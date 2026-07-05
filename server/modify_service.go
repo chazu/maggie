@@ -277,7 +277,8 @@ func (s *ModifyService) EvaluateWithLocals(
 }
 
 // evaluateWithLocals does the actual evaluation with locals injection.
-// Must be called on the VM worker goroutine.
+// Must be called inside an exclusive VMWorker.Do closure — it mutates globals
+// (injects and restores locals) and runs on a registered per-request interpreter.
 func (s *ModifyService) evaluateWithLocals(v *vm.VM, msg *maggiev1.EvaluateWithLocalsRequest) *maggiev1.EvaluateWithLocalsResponse {
 	// Track injected local names and save existing globals for restoration
 	localNames := make(map[string]bool)

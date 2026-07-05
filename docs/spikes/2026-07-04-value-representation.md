@@ -77,3 +77,90 @@ slice (SmallInt + String + Array + the interpreter send path) and runs the real
 the actual dispatch/serialization paths before committing to the full migration.
 This spike de-risks the *decision*; the branch prototype would de-risk the
 *execution*.
+
+---
+
+## Post-migration measurement (Stage 4 — the real VM, not the model)
+
+The full migration landed on `migrate/pointer-value` (Stages 1–3): `Value` is now
+`{hi uint64; ptr unsafe.Pointer}`, every heap kind is a Go-GC-traced pointer, and
+the ~1,800-line custom collector (`heap_gc.go`, `registry_gc.go`'s GC role,
+`gc_safepoint.go`, keepAlive, weakref liveness, block slot+gen recycling) is
+deleted. `BenchmarkHotPath*` was re-run on the pre-migration merge-base
+(`2e93e2a`) vs the migrated HEAD, same machine (Apple M3, go1.26.2), `-count=10`.
+Raw benchstat: `benchmarks/pointer-migration-hotpath.txt`. `go test ./...` green;
+1166 doctests pass; `-race` clean on `vm/`.
+
+### Time — geomean **−18.2%** (net faster), but not uniformly
+
+| HotPath benchmark | premig | migrated | Δ |
+|---|---|---|---|
+| **ClassInstantiation** | 451 ns | 63.2 ns | **−86.0%** |
+| **StringConcat** | 142 ns | 58.7 ns | **−58.8%** |
+| **ExceptionSignalCatch** | 76.8 ns | 43.2 ns | **−43.7%** |
+| **BufferedChannelThroughput** | 88.1 ns | 66.4 ns | **−24.7%** |
+| VTableCachedLookup | 1.77 ns | 1.47 ns | −16.9% |
+| GlobalLookup | 1.74 µs | 1.58 µs | −9.3% |
+| IntArithmeticLoop | 6.46 µs | 6.31 µs | ~ (n.s.) |
+| BlockEvalClosure | 43.3 ns | 43.9 ns | +1.2% |
+| BlockEvalSimple | 28.8 ns | 30.1 ns | +4.7% |
+| UnaryDispatch | 12.0 ns | 13.1 ns | +9.5% |
+| KeywordDispatch | 37.1 ns | 42.0 ns | +13.2% |
+| MethodDispatchCached | 23.5 ns | 27.2 ns | +15.9% |
+| BlockBodyUnarySend | 75.6 ns | 87.9 ns | +16.3% |
+| ArrayAtPut | 28.7 ns | 34.2 ns | +19.1% |
+| **BinaryDispatch** | 19.1 ns | 24.9 ns | **+30.4%** |
+
+### What actually happened (vs the model's prediction)
+
+1. **The allocation/heap-touch wins are real and large — the model held there.**
+   `ClassInstantiation` (−86%), `StringConcat` (−59%), `ExceptionSignalCatch`
+   (−44%), channel throughput (−25%) are all paths that previously paid the
+   registry's lock+map insert and then leaned on the custom collector to free.
+   A plain `new` reclaimed by Go's GC is exactly the 12×-alloc / self-reclaiming
+   win the spike predicted, now visible end-to-end.
+
+2. **The 16-byte copy tax the model waved off DOES show up — on tight dispatch.**
+   The model measured a 16-slot Value copy as ~equal to 8-byte (17.5 vs 17.2 ns)
+   and concluded value size "doesn't materialize." Against the real interpreter
+   it does: the pure-dispatch micro-benchmarks with no heap access to amortize it
+   regressed **+9% to +30%** (worst: `BinaryDispatch`), and per-call arg boxing
+   **doubled** in bytes (8→16, 16→32 B/op) because every boxed operand/arg is now
+   a 16-byte Value. `allocs/op` is flat (−1.9% geomean); the cost is bytes moved,
+   not extra allocations. This is the one place the model was optimistic, and it's
+   exactly where the spike said to look ("optimistic by a small constant").
+
+3. **Net is favorable and the correctness/maintainability win is the real prize.**
+   Geomean time is −18%; the regressions are concentrated in the tightest scalar
+   loops while the wins are on the allocation-heavy paths that dominate real
+   programs. Independent of the ledger, the migration deletes ~1.8k lines of
+   custom-GC machinery (and the leak/soundness bug cluster the review flagged) and
+   makes the heap lock-free — the prerequisite for Stage 5 server parallelism.
+
+### Honest caveats / follow-ups
+
+- The dispatch regression is a genuine cost, not noise (all p=0.000, ±1%). It is
+  the 16-byte `Value` propagating through operand-stack copies and arg slices.
+  **Follow-up investigated (2026-07-04):** the "avoid materializing 1–2 arg
+  slices on the hot send path" optimization turned out to be largely a non-issue.
+  The bytecode dispatch path (`Interpreter.send`) is already allocation-free —
+  `peekN(argc)` returns a *view* into the operand stack, and primitives copy into
+  a stack-local `[16]Value`, no heap slice. `BenchmarkHotPath_IntArithmeticLoop`
+  (real bytecode loop, `OpSendPlus`) is 0 B/op and ~unchanged (−2%, n.s.). The
+  regressed micro-benchmarks (Unary/Binary/Keyword/MethodDispatch) all call the
+  **Go-API `vm.Send`** in a loop and pay (a) the inherent 16-byte Value copies and
+  (b) their own `[]Value{…}` argument literals whose element width doubled — the
+  doubled `B/op` is the benchmark's slice, not the interpreter's. The only
+  genuinely-allocating dispatch benchmark, `BlockBodyUnarySend` (1 alloc, 128→256
+  B/op), is block-frame activation; reducing it means surgery on the NLR /
+  captures / home-context machinery — high risk for a marginal micro-benchmark
+  gain on a path that is not the whole-program bottleneck. Decision: do **not**
+  destabilize the hot path; the representation's copy cost is fundamental and the
+  net geomean is already favorable. Left as a deliberate no-op.
+- Memory: `B/op` geomean +26.6% on these micro-benchmarks reflects the doubled
+  Value width in short-lived arg boxes; against whole-program RSS this trades
+  against no longer retaining dead objects in ID registries until a sweep. Not
+  measured at the process level yet — worth a macro RSS check if it matters.
+- The concurrency axis (the model's most dramatic claim, ~440× under 8 cores) is
+  **not** exercised by these single-threaded HotPath benchmarks; it is validated
+  separately by Stage 5's server-parallelism spike.

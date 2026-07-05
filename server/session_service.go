@@ -66,7 +66,7 @@ func (s *SessionServiceImpl) Complete(
 		return connect.NewResponse(&maggiev1.CompleteResponse{}), nil
 	}
 
-	result, err := s.worker.Do(func(v *vm.VM) interface{} {
+	result, err := s.worker.DoConcurrent(func(v *vm.VM) interface{} {
 		return s.complete(v, prefix)
 	})
 	if err != nil {
@@ -77,7 +77,8 @@ func (s *SessionServiceImpl) Complete(
 }
 
 // complete gathers completion candidates from the VM.
-// Must be called on the VM worker goroutine.
+// Must be called inside a VMWorker gate closure (Do/DoConcurrent), which runs
+// it on a registered per-request interpreter.
 func (s *SessionServiceImpl) complete(v *vm.VM, prefix string) *maggiev1.CompleteResponse {
 	var items []*maggiev1.CompletionItem
 

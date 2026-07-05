@@ -4,6 +4,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+	"unsafe"
 )
 
 // NOTE: Global channel/process registries have been removed.
@@ -15,60 +16,14 @@ import (
 // Channel: Wraps Go channels for Smalltalk
 // ---------------------------------------------------------------------------
 
-// ChannelObject wraps a Go channel for use in Smalltalk.
+// ChannelObject wraps a Go channel for use in Smalltalk. The buffered values
+// live in the Go channel `ch`; since Values are pointer-carrying, Go's GC
+// traces the channel buffer directly — no separate liveness mirror is needed.
 type ChannelObject struct {
 	vtable *VTable
 	ch     chan Value
 	closed atomic.Bool
-	mu     sync.Mutex // protects close operation and pending
-	// pending mirrors the values currently buffered in (or mid-flight into) ch.
-	// A NaN-boxed Value in a Go channel buffer is invisible to the tracing GC,
-	// so without this mirror a value sent into a buffered channel (whose sender
-	// has dropped its reference) would be collected before the receiver reads
-	// it. markRoots marks every pending entry. Invariant: pending is always a
-	// superset of ch's contents (append before send, pop after receive), so
-	// over-approximation is possible but under-approximation (a UAF) is not.
-	pending []Value
-}
-
-// recordPending appends val to the GC mirror. Call while holding co.mu (or
-// from a context with exclusive access) immediately before/with a send.
-func (co *ChannelObject) recordPending(val Value) {
-	co.pending = append(co.pending, val)
-}
-
-// recordPendingLocked appends val to the GC mirror, acquiring co.mu. Used by
-// callers that performed the send outside the mutex (e.g. reflect.Select).
-func (co *ChannelObject) recordPendingLocked(val Value) {
-	co.mu.Lock()
-	co.recordPending(val)
-	co.mu.Unlock()
-}
-
-// popPending removes the oldest mirror entry after a successful receive. Safe
-// to call when pending is empty (some values may have been sent by paths that
-// did not record, or already drained). Identity need not match the received
-// value — markRoots marks the whole slice, so only the count matters.
-func (co *ChannelObject) popPending() {
-	co.mu.Lock()
-	if len(co.pending) > 0 {
-		// Shift left so the backing array does not grow unbounded.
-		co.pending = co.pending[1:]
-		if len(co.pending) == 0 {
-			co.pending = nil
-		}
-	}
-	co.mu.Unlock()
-}
-
-// markPending marks every buffered/in-flight value as a GC root. Called by
-// markRoots during stop-the-world.
-func (co *ChannelObject) markPending(vm *VM, ls *liveSet) {
-	co.mu.Lock()
-	for _, v := range co.pending {
-		vm.mark(v, ls)
-	}
-	co.mu.Unlock()
+	mu     sync.Mutex // protects the close operation
 }
 
 // safeSend attempts to send val on ch.ch while holding the mutex to prevent
@@ -88,7 +43,6 @@ func (co *ChannelObject) safeSend(val Value) bool {
 	// blocking to avoid deadlock with close().
 	select {
 	case co.ch <- val:
-		co.recordPending(val) // GC mirror (still holding mu)
 		co.mu.Unlock()
 		return true
 	default:
@@ -103,16 +57,8 @@ func (co *ChannelObject) safeSend(val Value) bool {
 // "send on closed channel" panics that can occur if the channel is
 // closed while we are waiting for a receiver.
 func (co *ChannelObject) safeSendBlocking(val Value) (ok bool) {
-	// Record in the GC mirror before blocking: while parked in the send, the
-	// value lives only in this Go local and would otherwise be unmarked.
-	co.mu.Lock()
-	co.recordPending(val)
-	co.mu.Unlock()
 	defer func() {
 		if r := recover(); r != nil {
-			// Send-on-closed: the value never entered the channel, so remove
-			// the mirror entry we optimistically added.
-			co.popPending()
 			ok = false
 		}
 	}()
@@ -130,7 +76,6 @@ func (co *ChannelObject) safeTrySend(val Value) bool {
 	}
 	select {
 	case co.ch <- val:
-		co.recordPending(val) // GC mirror (still holding mu via defer Unlock)
 		return true
 	default:
 		return false
@@ -156,9 +101,6 @@ func (co *ChannelObject) SafeTrySend(val Value) bool { return co.safeTrySend(val
 // Receive blocks until a value is received. Returns (value, ok).
 func (co *ChannelObject) Receive() (Value, bool) {
 	val, ok := <-co.ch
-	if ok {
-		co.popPending()
-	}
 	return val, ok
 }
 
@@ -166,9 +108,6 @@ func (co *ChannelObject) Receive() (Value, bool) {
 func (co *ChannelObject) TryReceive() (Value, bool, bool) {
 	select {
 	case val, ok := <-co.ch:
-		if ok {
-			co.popPending()
-		}
 		return val, true, ok
 	default:
 		return Nil, false, !co.closed.Load()
@@ -194,18 +133,16 @@ func (co *ChannelObject) Size() int { return len(co.ch) }
 // Cap returns the buffer capacity.
 func (co *ChannelObject) Cap() int { return cap(co.ch) }
 
-func channelToValue(id int) Value {
-	// Encode channel ID in a way we can distinguish from symbols
-	// Use the symbol encoding but with a special marker in the ID range
-	return FromSymbolID(uint32(id) | channelMarker)
+// channelToValue wraps a ChannelObject pointer in a heap Value traced by the Go
+// GC. The concurrency registry still keeps an id→channel map, but only so
+// RegistryGC can sweep terminated channels from it (a functional cleanup, not a
+// liveness root).
+func channelToValue(ch *ChannelObject) Value {
+	return makeHeap(kindChannel, unsafe.Pointer(ch))
 }
 
 func isChannelValue(v Value) bool {
-	if !v.IsSymbolEncoded() {
-		return false
-	}
-	id := v.SymbolID()
-	return (id & markerMask) == channelMarker
+	return v.ptr != nil && v.hi == kindChannel
 }
 
 // ---------------------------------------------------------------------------
@@ -342,9 +279,7 @@ func (vm *VM) registerChannelPrimitives() {
 		// blocked (publishing val) so the collector can still reach a safepoint
 		// and mark the in-flight value, instead of spinning until a receiver
 		// drains and aborting every GC cycle in the meantime.
-		v.enterBlocked(recv, val)
 		ok := ch.safeSend(val)
-		v.exitBlocked()
 		if !ok {
 			return Nil // Channel closed between check and send
 		}
@@ -357,13 +292,10 @@ func (vm *VM) registerChannelPrimitives() {
 		if ch == nil {
 			return Nil
 		}
-		v.enterBlocked(recv) // GC safepoint: parked while waiting on the channel
 		val, ok := <-ch.ch
-		v.exitBlocked()
 		if !ok {
 			return Nil // Channel closed
 		}
-		ch.popPending() // drop the consumed value from the GC mirror
 		return val
 	})
 
@@ -378,7 +310,6 @@ func (vm *VM) registerChannelPrimitives() {
 			if !ok {
 				return Nil
 			}
-			ch.popPending()
 			return val
 		default:
 			return Nil
@@ -450,13 +381,10 @@ func (vm *VM) registerChannelPrimitives() {
 		if ch == nil {
 			return Nil
 		}
-		v.enterBlocked(recv) // GC safepoint: parked while waiting on the channel
 		val, ok := <-ch.ch
-		v.exitBlocked()
 		if !ok {
 			return Nil
 		}
-		ch.popPending()
 		return val
 	})
 
@@ -486,7 +414,6 @@ func (vm *VM) registerChannelPrimitives() {
 			if !ok {
 				return Nil
 			}
-			ch.popPending()
 			return val
 		default:
 			return Nil
@@ -564,7 +491,6 @@ func (vm *VM) registerProcessPrimitives() {
 		if bv == nil {
 			return Nil
 		}
-		blockVal := recv
 
 		proc, err := v.createProcess()
 		if err != nil {
@@ -584,10 +510,6 @@ func (vm *VM) registerProcessPrimitives() {
 				v.HandleForkedPanic(proc, recover())
 				// Unregister the interpreter when done
 				v.unregisterInterpreter()
-				// Release the block registry slot. The goroutine captured
-				// bv directly, so the registry entry serves no further
-				// purpose once the goroutine exits.
-				v.registry.ReleaseBlock(blockVal)
 			}()
 
 			// Create a forked interpreter for this goroutine
@@ -610,7 +532,6 @@ func (vm *VM) registerProcessPrimitives() {
 		if bv == nil {
 			return Nil
 		}
-		blockVal := recv
 
 		proc, err := v.createProcess()
 		if err != nil {
@@ -627,7 +548,6 @@ func (vm *VM) registerProcessPrimitives() {
 			defer func() {
 				v.HandleForkedPanic(proc, recover())
 				v.unregisterInterpreter()
-				v.registry.ReleaseBlock(blockVal)
 			}()
 
 			interp := v.newForkedInterpreter(callerHidden)
@@ -648,7 +568,6 @@ func (vm *VM) registerProcessPrimitives() {
 		if bv == nil {
 			return Nil
 		}
-		blockVal := recv
 
 		ctx := v.getCancellationContext(ctxArg)
 		if ctx == nil {
@@ -670,7 +589,6 @@ func (vm *VM) registerProcessPrimitives() {
 			defer func() {
 				v.HandleForkedPanic(proc, recover())
 				v.unregisterInterpreter()
-				v.registry.ReleaseBlock(blockVal)
 			}()
 
 			interp := v.newForkedInterpreter(callerHidden)
@@ -707,7 +625,6 @@ func (vm *VM) registerProcessPrimitives() {
 		if bv == nil {
 			return Nil
 		}
-		blockVal := block
 
 		proc, err := v.createProcess()
 		if err != nil {
@@ -724,7 +641,6 @@ func (vm *VM) registerProcessPrimitives() {
 			defer func() {
 				v.HandleForkedPanic(proc, recover())
 				v.unregisterInterpreter()
-				v.registry.ReleaseBlock(blockVal)
 			}()
 
 			interp := v.newForkedInterpreter(callerHidden)
@@ -848,9 +764,7 @@ func (vm *VM) registerProcessPrimitives() {
 			return recv
 		}
 		duration := time.Duration(ms.SmallInt()) * time.Millisecond
-		v.enterBlocked(recv) // GC safepoint: parked while sleeping
 		time.Sleep(duration)
-		v.exitBlocked()
 		return recv
 	})
 
@@ -861,7 +775,6 @@ func (vm *VM) registerProcessPrimitives() {
 		if bv == nil {
 			return Nil
 		}
-		blockVal := recv
 
 		extra := v.extractHiddenMap(restrictionsVal)
 		if extra == nil {
@@ -883,7 +796,6 @@ func (vm *VM) registerProcessPrimitives() {
 			defer func() {
 				v.HandleForkedPanic(proc, recover())
 				v.unregisterInterpreter()
-				v.registry.ReleaseBlock(blockVal)
 			}()
 
 			interp := v.newForkedInterpreter(hidden)
@@ -925,7 +837,6 @@ func (vm *VM) registerProcessPrimitives() {
 			defer func() {
 				v.HandleForkedPanic(proc, recover())
 				v.unregisterInterpreter()
-				v.registry.ReleaseBlock(blockVal)
 			}()
 
 			interp := v.newForkedInterpreter(hidden)
@@ -1144,9 +1055,7 @@ func (vm *VM) registerMailboxPrimitives() {
 		if proc == nil || proc.mailbox == nil {
 			return Nil
 		}
-		v.enterBlocked(recv) // GC safepoint: parked while waiting on the mailbox
 		msg, ok := proc.mailbox.Receive()
-		v.exitBlocked()
 		if !ok {
 			return Nil
 		}

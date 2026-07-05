@@ -39,7 +39,7 @@ func (s *EvalService) Evaluate(
 		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("source is required"))
 	}
 
-	result, err := s.worker.Do(func(v *vm.VM) interface{} {
+	result, err := s.worker.DoForSource(source, func(v *vm.VM) interface{} {
 		return s.evaluate(v, source)
 	})
 	if err != nil {
@@ -72,7 +72,7 @@ func (s *EvalService) EvaluateInContext(
 		return nil, connect.NewError(connect.CodeNotFound, fmt.Errorf("handle %q not found", ctxHandle.Id))
 	}
 
-	result, err := s.worker.Do(func(v *vm.VM) interface{} {
+	result, err := s.worker.DoForSource(source, func(v *vm.VM) interface{} {
 		return s.evaluateInContext(v, source, receiver)
 	})
 	if err != nil {
@@ -95,7 +95,7 @@ func (s *EvalService) CheckSyntax(
 		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("source is required"))
 	}
 
-	result, err := s.worker.Do(func(v *vm.VM) interface{} {
+	result, err := s.worker.DoConcurrent(func(v *vm.VM) interface{} {
 		_, compileErr := v.CompileExpression(source)
 		if compileErr != nil {
 			return &maggiev1.CheckSyntaxResponse{
@@ -118,7 +118,8 @@ func (s *EvalService) CheckSyntax(
 }
 
 // evaluate compiles and runs source, returning an EvaluateResponse.
-// Must be called on the VM worker goroutine.
+// Must be called inside a VMWorker gate closure (Do/DoConcurrent), which runs
+// it on a registered per-request interpreter.
 func (s *EvalService) evaluate(v *vm.VM, source string) *maggiev1.EvaluateResponse {
 	// Wrap as a doIt method like the REPL does
 	wrapped := "doIt\n    ^" + strings.TrimSuffix(source, ".")
@@ -156,7 +157,8 @@ func (s *EvalService) evaluate(v *vm.VM, source string) *maggiev1.EvaluateRespon
 }
 
 // evaluateInContext compiles and runs source with a specific receiver.
-// Must be called on the VM worker goroutine.
+// Must be called inside a VMWorker gate closure (Do/DoConcurrent), which runs
+// it on a registered per-request interpreter.
 func (s *EvalService) evaluateInContext(v *vm.VM, source string, receiver vm.Value) *maggiev1.EvaluateResponse {
 	wrapped := "doIt\n    ^" + strings.TrimSuffix(source, ".")
 
@@ -193,7 +195,8 @@ func (s *EvalService) evaluateInContext(v *vm.VM, source string, receiver vm.Val
 }
 
 // formatValue converts a VM value to a display string.
-// Must be called on the VM worker goroutine.
+// Must be called inside a VMWorker gate closure (Do/DoConcurrent), which runs
+// it on a registered per-request interpreter.
 func formatValue(v *vm.VM, val vm.Value) string {
 	switch {
 	case val == vm.Nil:

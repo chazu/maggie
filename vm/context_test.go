@@ -13,8 +13,6 @@ func TestContextValueCreation(t *testing.T) {
 	vm := NewVM()
 	ctx := &ContextValue{
 		Receiver: FromSmallInt(42),
-		SenderID: -1,
-		HomeID:   -1,
 	}
 
 	val := vm.registry.RegisterContextValue(ctx)
@@ -53,25 +51,19 @@ func TestContextRegistry(t *testing.T) {
 	ctx1 := &ContextValue{Receiver: FromSmallInt(1)}
 	ctx2 := &ContextValue{Receiver: FromSmallInt(2)}
 
-	id1 := vm.registry.RegisterContext(ctx1)
-	id2 := vm.registry.RegisterContext(ctx2)
+	// Contexts are pointer-carrying Values now: distinct contexts wrap to
+	// distinct Values that resolve back to their original *ContextValue.
+	val1 := vm.registry.RegisterContextValue(ctx1)
+	val2 := vm.registry.RegisterContextValue(ctx2)
 
-	if id1 == id2 {
-		t.Error("Different contexts should have different IDs")
+	if val1 == val2 {
+		t.Error("Different contexts should produce different values")
 	}
-
-	// Retrieve
-	if vm.registry.GetContext(id1) != ctx1 {
-		t.Error("Should retrieve ctx1 by id1")
+	if vm.registry.GetContextFromValue(val1) != ctx1 {
+		t.Error("Should retrieve ctx1 from val1")
 	}
-	if vm.registry.GetContext(id2) != ctx2 {
-		t.Error("Should retrieve ctx2 by id2")
-	}
-
-	// Remove
-	vm.registry.UnregisterContext(id1)
-	if vm.registry.GetContext(id1) != nil {
-		t.Error("Removed context should return nil")
+	if vm.registry.GetContextFromValue(val2) != ctx2 {
+		t.Error("Should retrieve ctx2 from val2")
 	}
 }
 
@@ -374,7 +366,6 @@ func BenchmarkContextRegistration(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		ctx := &ContextValue{Receiver: FromSmallInt(int64(i))}
-		val := vm.registry.RegisterContextValue(ctx)
-		vm.registry.UnregisterContextValue(val)
+		_ = vm.registry.RegisterContextValue(ctx)
 	}
 }
