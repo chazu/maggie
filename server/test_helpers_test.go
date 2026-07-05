@@ -2,7 +2,9 @@ package server
 
 import (
 	"context"
+	"fmt"
 	"os"
+	"path/filepath"
 	"testing"
 
 	"connectrpc.com/connect"
@@ -26,10 +28,13 @@ var (
 	testSessions *SessionStore
 )
 
-// TestMain bootstraps a single VM with the Go compiler for all server tests.
+// TestMain bootstraps a single VM for all server tests. It loads the standard
+// image so server-side dispatch exercises the real lib methods (ArrayList,
+// String, etc.), not just Go primitives — otherwise handlers that send lib
+// selectors would raise doesNotUnderstand in tests while working in a real
+// `mag --serve`.
 func TestMain(m *testing.M) {
-	testVM = vm.NewVM()
-	testVM.UseGoCompiler(compiler.Compile)
+	testVM = newImageBackedVM()
 
 	testWorker = NewVMWorker(testVM)
 	testHandles = NewHandleStore(testWorker)
@@ -39,6 +44,26 @@ func TestMain(m *testing.M) {
 
 	testWorker.Stop()
 	os.Exit(code)
+}
+
+// newImageBackedVM builds a VM loaded with the standard image and the Go
+// compiler, matching how `mag --serve` boots. Fatal on failure — a missing or
+// broken image is a real problem the server tests must surface.
+func newImageBackedVM() *vm.VM {
+	v := vm.NewVM()
+	data, err := os.ReadFile(filepath.Join("..", "cmd", "mag", "maggie.image"))
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "server tests: reading maggie.image: %v\n", err)
+		os.Exit(1)
+	}
+	if err := v.LoadImageFromBytes(data); err != nil {
+		fmt.Fprintf(os.Stderr, "server tests: loading image: %v\n", err)
+		os.Exit(1)
+	}
+	v.ReRegisterNilPrimitives()
+	v.ReRegisterBooleanPrimitives()
+	v.UseGoCompiler(compiler.Compile)
+	return v
 }
 
 // newTestBrowseService creates a BrowseService backed by the shared VM.
