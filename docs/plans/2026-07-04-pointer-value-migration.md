@@ -68,13 +68,26 @@ an id↔object map; those become plain maps without the GC role.
 
 ## RESUME HERE (next session pick-up)
 
-**Status:** Stages 1, 2, and 3 COMPLETE. The custom collector is fully deleted;
+**Status:** Stages 1, 2, 3, and 4 COMPLETE. The custom collector is fully deleted;
 every heap object is now a Go-GC-traced pointer Value. Branch
 `migrate/pointer-value`, `main` untouched — do NOT merge until the migration
 finishes. At every commit: `go test ./...` green, 1166 doctests pass, image
-rebuilds; vm `-race` clean. **Next up: Stage 4 — re-run BenchmarkHotPath* vs the
-pre-migration baseline and update the spike doc; then Stage 5 (server
-per-request interpreters / retire VMWorker+Dispatch).**
+rebuilds; vm `-race` clean. **Next up: Stage 5 (server per-request interpreters /
+retire VMWorker+Dispatch); optional follow-up: simplify RegistryGC's dead
+pressure apparatus (see 3d note below).**
+
+**Stage 4 (benchmarks) — DONE.** Re-ran `BenchmarkHotPath*` on merge-base
+`2e93e2a` vs migrated HEAD (Apple M3, go1.26.2, `-count=10`). Result: **geomean
+time −18.2%** — big wins on allocation/heap-touch paths (ClassInstantiation −86%,
+StringConcat −59%, ExceptionSignalCatch −44%, channel throughput −25%), real
+regressions on tight scalar dispatch from the 16-byte Value copy tax
+(BinaryDispatch +30%, ArrayAtPut +19%, MethodDispatchCached +16%, others +9–16%);
+`allocs/op` flat, `B/op` +27% (doubled Value width in arg boxes). Raw:
+`benchmarks/pointer-migration-hotpath.txt`; full analysis appended to the spike
+doc `docs/spikes/2026-07-04-value-representation.md` ("Post-migration
+measurement"). Candidate dispatch optimizations noted there but deferred — they
+don't block Stage 5. Concurrency axis (the model's headline claim) is NOT covered
+by these single-threaded benchmarks; Stage 5's parallelism spike validates it.
 
 **Stage 3 (4 commits, 3a–3d):**
 - **3a WeakRef → Go-native** (`weak.Pointer[Object]` + `runtime.AddCleanup`
