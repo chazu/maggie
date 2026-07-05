@@ -335,6 +335,28 @@ func (vm *VM) newForkedInterpreter(hidden map[string]bool) *Interpreter {
 	return interp
 }
 
+// RunIsolated runs fn on a fresh interpreter registered for the CALLING
+// goroutine, then unregisters it. While fn runs, currentInterpreter() (and thus
+// vm.Send / vm.Execute) resolves to this per-call interpreter instead of falling
+// back to the shared main vm.interpreter — so multiple goroutines can execute
+// against one VM concurrently without racing on a single interpreter's
+// stack/frames. This is the production fork path's mechanism
+// (registerInterpreter → run → unregisterInterpreter, see concurrency.go),
+// exposed for per-request server parallelism (Stage 5).
+//
+// RunIsolated does NOT serialize callers. Concurrent DISPATCH is race-clean
+// (concurrency audit Patches 1-6); concurrent MUTATION of shared VM state
+// (defining classes/methods, writing globals) is NOT, and must be guarded by a
+// separate exclusive gate. Compilation of expression source is safe because the
+// backend allocates fresh per-call parser/compiler state and only touches the
+// synchronized Selectors/Symbols/registry.
+func (vm *VM) RunIsolated(fn func()) {
+	interp := vm.newForkedInterpreter(nil)
+	vm.registerInterpreter(interp)
+	defer vm.unregisterInterpreter()
+	fn()
+}
+
 // inheritedHidden returns the restriction set a fork must run under: a copy of
 // the CALLER's hidden globals merged with any extra restrictions requested for
 // this fork. Restrictions are inherited so a child process can never widen its
