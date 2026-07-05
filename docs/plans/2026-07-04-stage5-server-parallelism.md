@@ -133,9 +133,38 @@ Harness note (unchanged from the parallelism spike): the image-less test VM only
 resolves Go primitives, so lib selectors like `,` raise `doesNotUnderstand` —
 that's why the workloads use `+` and bare literals, not lib methods.
 
-### Next: 5b–5e (pending go-ahead)
-5b gate (`RunConcurrent` = RLock+RunIsolated / `RunExclusive` = Lock+RunIsolated,
-`Do` aliases `RunExclusive`); 5c reclassify the 27 sites (+ upgrade class-defining
-Evaluate to exclusive, move sync_service callbacks off VMWorker); 5d delete the
-`loop()` funnel; 5e re-run `BenchmarkServerEvalParallel -cpu=1,2,4,8` + full
-`-race` suite, update `docs/spikes/2026-07-04-server-parallelism.md`.
+## 5b–5e result — DONE, the server scales ✅
+
+- **5b/5c/5d (commit a059821):** `VMWorker` lost its goroutine and became a
+  reader/writer gate. `Do` = exclusive (`gate.Lock`), unchanged signature/semantics,
+  kept for the 5 modify-service writers (CompileMethod, RemoveMethod, CreateClass,
+  SaveImage, EvaluateWithLocals). New `DoConcurrent` = shared (`gate.RLock`) for the
+  22 read/eval sites across eval/browse/inspect/lsp/session. Both run fn on a fresh
+  per-request interpreter via `vm.RunIsolated` with `DescribePanic` recovery.
+  Deleted `loop()`/`requests`/`quit`; `Stop()` no-op. pullFunc/spawnResultFunc/
+  peerAddrs (sync_service-only, never via Do) stay on the worker.
+- **5e:** re-ran `BenchmarkServerEvalParallel -cpu=1,2,4,8` — ns/op now FALLS with
+  cores (8.34→4.52→2.60→1.92 ms/op = 1.0/1.85/3.21/4.35×), vs the pre-Stage-5 flat
+  ~7.6 ms/op. `go test ./...` green; `go test -race ./server/` clean (0 DATA RACE).
+  Numbers written into `docs/spikes/2026-07-04-server-parallelism.md`.
+
+### Evaluate policy — as-implemented note
+Evaluate/EvaluateInContext/SendMessage run as concurrent readers (`DoConcurrent`).
+This is **memory-safe**: the shared structures a class-defining eval could mutate
+(ClassTable, globals, VTable, Selectors, Symbols, registry) each carry their own
+locks, and genuine structural writers (`Do`, exclusive) are mutually excluded from
+readers. The planned "detect class-defining source → upgrade to exclusive" refinement
+was NOT implemented: reliable static detection is fragile (a doIt expression defines
+classes only via runtime sends like `subclass:…` or `Compiler evaluate:`), and it
+would require restructuring compile-vs-execute around the non-reentrant RWMutex for
+no memory-safety gain — only *consistency* for the rare naked-class-definition eval
+(a concurrent browser could observe a half-built class, which is benign for an IDE
+and already possible today via forked processes defining classes at runtime).
+Deferred as an optional consistency nicety. `EvaluateWithLocals` stays exclusive
+(it writes globals unconditionally).
+
+## Stage 5 COMPLETE — pointer-value migration finished
+All five stages done. Follow-ups still open (non-blocking): simplify RegistryGC's
+dead pressure apparatus (Stage 3d note); the dispatch-copy-cost optimizations noted
+in Stage 4; and load the image in the server tests' TestMain so lib dispatch is
+exercised in CI. Branch `migrate/pointer-value` ready for review/merge.

@@ -68,13 +68,16 @@ an id↔object map; those become plain maps without the GC role.
 
 ## RESUME HERE (next session pick-up)
 
-**Status:** Stages 1, 2, 3, and 4 COMPLETE. The custom collector is fully deleted;
-every heap object is now a Go-GC-traced pointer Value. Branch
-`migrate/pointer-value`, `main` untouched — do NOT merge until the migration
-finishes. At every commit: `go test ./...` green, 1166 doctests pass, image
-rebuilds; vm `-race` clean. **Next up: Stage 5 (server per-request interpreters /
-retire VMWorker+Dispatch); optional follow-up: simplify RegistryGC's dead
-pressure apparatus (see 3d note below).**
+**Status:** ALL FIVE STAGES COMPLETE. The custom collector is fully deleted;
+every heap object is a Go-GC-traced pointer Value; the server's single-goroutine
+VMWorker funnel is retired and request throughput now scales with cores. Branch
+`migrate/pointer-value`, `main` untouched — ready for review/merge. At every
+commit: `go test ./...` green, 1166 doctests pass, image rebuilds; `-race` clean.
+Stage 5 detail + numbers: `docs/plans/2026-07-04-stage5-server-parallelism.md`
+and `docs/spikes/2026-07-04-server-parallelism.md`. **Optional non-blocking
+follow-ups:** simplify RegistryGC's dead pressure apparatus (3d note); the
+dispatch copy-cost optimizations (Stage 4); load the image in server tests'
+TestMain so lib dispatch runs in CI.
 
 **Stage 4 (benchmarks) — DONE.** Re-ran `BenchmarkHotPath*` on merge-base
 `2e93e2a` vs migrated HEAD (Apple M3, go1.26.2, `-count=10`). Result: **geomean
