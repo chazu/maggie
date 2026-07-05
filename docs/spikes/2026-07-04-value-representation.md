@@ -141,9 +141,22 @@ Raw benchstat: `benchmarks/pointer-migration-hotpath.txt`. `go test ./...` green
 
 - The dispatch regression is a genuine cost, not noise (all p=0.000, ±1%). It is
   the 16-byte `Value` propagating through operand-stack copies and arg slices.
-  Candidate follow-up optimizations (not done here): avoid materializing 1–2 arg
-  slices on the hot send path, and audit hot loops that copy Values where a
-  pointer/index would do. None of these block Stage 5.
+  **Follow-up investigated (2026-07-04):** the "avoid materializing 1–2 arg
+  slices on the hot send path" optimization turned out to be largely a non-issue.
+  The bytecode dispatch path (`Interpreter.send`) is already allocation-free —
+  `peekN(argc)` returns a *view* into the operand stack, and primitives copy into
+  a stack-local `[16]Value`, no heap slice. `BenchmarkHotPath_IntArithmeticLoop`
+  (real bytecode loop, `OpSendPlus`) is 0 B/op and ~unchanged (−2%, n.s.). The
+  regressed micro-benchmarks (Unary/Binary/Keyword/MethodDispatch) all call the
+  **Go-API `vm.Send`** in a loop and pay (a) the inherent 16-byte Value copies and
+  (b) their own `[]Value{…}` argument literals whose element width doubled — the
+  doubled `B/op` is the benchmark's slice, not the interpreter's. The only
+  genuinely-allocating dispatch benchmark, `BlockBodyUnarySend` (1 alloc, 128→256
+  B/op), is block-frame activation; reducing it means surgery on the NLR /
+  captures / home-context machinery — high risk for a marginal micro-benchmark
+  gain on a path that is not the whole-program bottleneck. Decision: do **not**
+  destabilize the hot path; the representation's copy cost is fundamental and the
+  net geomean is already favorable. Left as a deliberate no-op.
 - Memory: `B/op` geomean +26.6% on these micro-benchmarks reflects the doubled
   Value width in short-lived arg boxes; against whole-program RSS this trades
   against no longer retaining dead objects in ID registries until a sweep. Not
