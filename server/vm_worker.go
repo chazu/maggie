@@ -75,6 +75,21 @@ func (w *VMWorker) DoConcurrent(fn func(*vm.VM) interface{}) (interface{}, error
 	return w.run(fn)
 }
 
+// DoForSource runs fn under the gate appropriate for evaluated user source:
+// EXCLUSIVE (Do) when the source might structurally mutate the VM — define or
+// redefine classes/methods, write globals, file in code, save the image
+// (vm.SourceMayMutateSchema) — otherwise SHARED (DoConcurrent). Use for
+// Evaluate-style requests that compile and execute arbitrary user source, so a
+// class-defining eval is serialized against readers and other writers while
+// ordinary expression evals stay parallel. The classification is best-effort and
+// conservative; memory safety does not depend on it (see SourceMayMutateSchema).
+func (w *VMWorker) DoForSource(source string, fn func(*vm.VM) interface{}) (interface{}, error) {
+	if vm.SourceMayMutateSchema(source) {
+		return w.Do(fn)
+	}
+	return w.DoConcurrent(fn)
+}
+
 // run executes fn on a fresh per-request interpreter (so vm.Send/Execute
 // resolve to it, not the shared main interpreter), recovering panics into an
 // error. The caller holds the gate in the appropriate mode.

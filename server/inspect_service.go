@@ -166,7 +166,12 @@ func (s *InspectService) SendMessage(
 		return nil, connect.NewError(connect.CodeNotFound, fmt.Errorf("handle %q not found", req.Msg.HandleId))
 	}
 
-	result, err := s.worker.DoConcurrent(func(v *vm.VM) interface{} {
+	// The message may mutate the VM if either the selector being sent or any
+	// argument expression is schema-mutating (e.g. sending `evaluate:` to
+	// Compiler, or an arg that itself files in code) — route it through the
+	// exclusive gate in that case.
+	mutSource := req.Msg.Selector + " " + strings.Join(req.Msg.Arguments, " ")
+	result, err := s.worker.DoForSource(mutSource, func(v *vm.VM) interface{} {
 		// Compile and evaluate each argument expression
 		args := make([]vm.Value, 0, len(req.Msg.Arguments))
 		for _, argSource := range req.Msg.Arguments {

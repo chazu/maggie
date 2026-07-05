@@ -39,7 +39,7 @@ func (s *EvalService) Evaluate(
 		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("source is required"))
 	}
 
-	result, err := s.worker.DoConcurrent(func(v *vm.VM) interface{} {
+	result, err := s.worker.DoForSource(source, func(v *vm.VM) interface{} {
 		return s.evaluate(v, source)
 	})
 	if err != nil {
@@ -72,7 +72,7 @@ func (s *EvalService) EvaluateInContext(
 		return nil, connect.NewError(connect.CodeNotFound, fmt.Errorf("handle %q not found", ctxHandle.Id))
 	}
 
-	result, err := s.worker.DoConcurrent(func(v *vm.VM) interface{} {
+	result, err := s.worker.DoForSource(source, func(v *vm.VM) interface{} {
 		return s.evaluateInContext(v, source, receiver)
 	})
 	if err != nil {
