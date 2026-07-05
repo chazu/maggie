@@ -17,7 +17,10 @@ type handle struct {
 	display   string
 	sessionID string
 	created   time.Time
-	lastUsed  time.Time
+	// lastUsed is unix-nanos, updated on every Lookup. It is atomic because
+	// Lookup updates it while holding only a read lock (many concurrent lookups
+	// of the same handle), so a plain field would be a data race.
+	lastUsed atomic.Int64
 }
 
 // HandleStore maps opaque string IDs to VM values. Each handle holds the
@@ -48,15 +51,16 @@ func (s *HandleStore) Create(value vm.Value, className, display, sessionID strin
 	defer s.mu.Unlock()
 
 	now := time.Now()
-	s.handles[id] = &handle{
+	h := &handle{
 		id:        id,
 		value:     value,
 		className: className,
 		display:   display,
 		sessionID: sessionID,
 		created:   now,
-		lastUsed:  now,
 	}
+	h.lastUsed.Store(now.UnixNano())
+	s.handles[id] = h
 
 	return id
 }
@@ -71,7 +75,7 @@ func (s *HandleStore) Lookup(id string) (vm.Value, bool) {
 	if !ok {
 		return vm.Nil, false
 	}
-	h.lastUsed = time.Now()
+	h.lastUsed.Store(time.Now().UnixNano())
 	return h.value, true
 }
 
@@ -100,10 +104,10 @@ func (s *HandleStore) Sweep(ttl time.Duration) int {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	cutoff := time.Now().Add(-ttl)
+	cutoff := time.Now().Add(-ttl).UnixNano()
 	removed := 0
 	for id, h := range s.handles {
-		if h.lastUsed.Before(cutoff) {
+		if h.lastUsed.Load() < cutoff {
 			delete(s.handles, id)
 			removed++
 		}

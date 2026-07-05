@@ -322,36 +322,64 @@ func (vm *VM) newInterpreter() *Interpreter {
 // newForkedInterpreter creates a forked interpreter with optional restrictions.
 // It shares VM tables but writes go to a process-local overlay.
 // Pass nil for hidden to create an unrestricted forked interpreter.
-func (vm *VM) newForkedInterpreter(hidden map[string]bool) *Interpreter {
+// newRequestInterpreter builds an interpreter that shares the VM's tables AND
+// its global map — global writes go through globalsMu to the shared map, exactly
+// like the main interpreter — but has its own execution stack and frames. The
+// private stack is what makes it safe to run on a separate goroutine; unlike
+// newForkedInterpreter it is NOT forked, so it does not divert global writes
+// into a throwaway process-local overlay. Use it for units of work whose global
+// mutations (e.g. Compiler setGlobal:, workspace variables) must persist to the
+// shared VM — notably server requests via RunIsolated.
+func (vm *VM) newRequestInterpreter() *Interpreter {
 	interp := newBareInterpreterWithConfig(vm.Config)
 	interp.Selectors = vm.Selectors
 	interp.Symbols = vm.Symbols
 	interp.Classes = vm.Classes
 	interp.globals = vm.globals
 	interp.vm = vm
-	interp.forked = true
-	interp.hidden = hidden
 	interp.internWellKnownSelectors()
 	return interp
 }
 
-// RunIsolated runs fn on a fresh interpreter registered for the CALLING
+func (vm *VM) newForkedInterpreter(hidden map[string]bool) *Interpreter {
+	interp := vm.newRequestInterpreter()
+	// Forked processes get copy-on-write global isolation: writes land in a
+	// process-local overlay (localWrites) rather than the shared map, and
+	// `hidden` names are invisible. This is the fork/forkRestricted: semantics.
+	interp.forked = true
+	interp.hidden = hidden
+	return interp
+}
+
+// RunIsolated runs fn on a fresh request interpreter registered for the CALLING
 // goroutine, then unregisters it. While fn runs, currentInterpreter() (and thus
 // vm.Send / vm.Execute) resolves to this per-call interpreter instead of falling
 // back to the shared main vm.interpreter — so multiple goroutines can execute
 // against one VM concurrently without racing on a single interpreter's
-// stack/frames. This is the production fork path's mechanism
-// (registerInterpreter → run → unregisterInterpreter, see concurrency.go),
-// exposed for per-request server parallelism (Stage 5).
+// stack/frames. Exposed for per-request server parallelism (Stage 5).
+//
+// The interpreter is NOT forked: it shares the VM's global map, so global writes
+// (Compiler setGlobal:, workspace variables, class/method definition) persist to
+// the shared VM exactly as they did on the pre-Stage-5 main-interpreter path.
+// Only the execution stack/frames are private — that is what makes concurrent
+// execution safe. (A forked interpreter would divert those writes into a
+// throwaway localWrites overlay and silently lose them.)
+//
+// Do NOT call RunIsolated re-entrantly on the same goroutine: interpreter
+// registration is keyed by goroutine id, so a nested call would overwrite then
+// delete the outer registration, leaving the outer frame to fall back to the
+// shared main interpreter (and unbalance interpreterCount). Server request
+// handlers satisfy this — each runs in one gate closure and the helpers they
+// call take the *VM directly rather than re-entering RunIsolated.
 //
 // RunIsolated does NOT serialize callers. Concurrent DISPATCH is race-clean
-// (concurrency audit Patches 1-6); concurrent MUTATION of shared VM state
-// (defining classes/methods, writing globals) is NOT, and must be guarded by a
-// separate exclusive gate. Compilation of expression source is safe because the
-// backend allocates fresh per-call parser/compiler state and only touches the
-// synchronized Selectors/Symbols/registry.
+// (concurrency audit Patches 1-6) and compilation of expression source is safe
+// (the backend allocates fresh per-call state, touching only the synchronized
+// Selectors/Symbols/registry). Concurrent structural MUTATION of shared VM state
+// (defining classes/methods, writing globals) is NOT inherently serialized and
+// must be guarded by a separate exclusive gate (see server VMWorker.Do).
 func (vm *VM) RunIsolated(fn func()) {
-	interp := vm.newForkedInterpreter(nil)
+	interp := vm.newRequestInterpreter()
 	vm.registerInterpreter(interp)
 	defer vm.unregisterInterpreter()
 	fn()

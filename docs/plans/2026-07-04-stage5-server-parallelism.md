@@ -164,7 +164,31 @@ Deferred as an optional consistency nicety. `EvaluateWithLocals` stays exclusive
 (it writes globals unconditionally).
 
 ## Stage 5 COMPLETE — pointer-value migration finished
-All five stages done. Follow-ups still open (non-blocking): simplify RegistryGC's
-dead pressure apparatus (Stage 3d note); the dispatch-copy-cost optimizations noted
-in Stage 4; and load the image in the server tests' TestMain so lib dispatch is
-exercised in CI. Branch `migrate/pointer-value` ready for review/merge.
+All five stages done, plus the class-defining-Evaluate exclusive upgrade
+(`vm.SourceMayMutateSchema` + `VMWorker.DoForSource`), the RegistryGC
+pressure-apparatus cleanup, the dispatch-copy-cost investigation (found to be a
+deliberate no-op — see the value-representation spike), and the image-backed
+server TestMain.
+
+### Post-implementation review (addressed)
+A correctness review found and we fixed: **(H1)** `RunIsolated` was building a
+*forked* per-request interpreter, diverting `Compiler setGlobal:` / workspace-var
+writes into a throwaway COW overlay — now uses a non-forked `newRequestInterpreter`
+that shares the global map (regression test: `server/eval_global_persist_test.go`).
+**(L4)** `HandleStore.lastUsed` was written under a read lock (data race under
+concurrent lookups) — now an `atomic.Int64`. Documented as accepted/known:
+**(M2)** `SourceMayMutateSchema` can't see schema mutation hidden inside an
+*executed* method body (e.g. an inspected object's `printString` calling
+`Compiler evaluate:`) — residual consistency gap, memory-safe, pathological in
+practice. **(L5)** `RunIsolated` must not be called re-entrantly on one goroutine
+(goroutine-id-keyed registration) — documented; no current path nests.
+
+### Open follow-up (non-blocking, pre-existing)
+**(M3)** The peer-facing `server/sync_service.go` mutates VM state directly
+(`ExecuteSpawnBlock`, `DeliverMessage`, channel/monitor ops) without taking the
+gate. This predates Stage 5 and is only mounted with `WithSyncService()` (peer
+nodes, not the local IDE server), but now that dev-facing requests run
+concurrently the shared surface is wider — those mutators should be audited for
+safety against concurrent `Do`/`DoConcurrent`, or routed through the gate.
+
+Branch `migrate/pointer-value` ready for review/merge.

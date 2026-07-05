@@ -48,6 +48,14 @@ var schemaMutatingSelectorHeads = []string{
 // over-serializing; the recognised selectors are the sole runtime path to schema
 // mutation, so genuine definition is caught even when it hides inside a block or
 // a `Compiler evaluate:` string argument.
+//
+// Known gap: this only inspects the *source being evaluated*. Mutation reachable
+// only through an already-installed method that the source invokes — e.g. an
+// object whose `printString` (run by the Inspect handlers) itself calls
+// `Compiler evaluate:` — is not visible here and would run under the shared read
+// gate. This does not affect memory safety (as above); it is a residual
+// consistency gap accepted because inspecting/messaging is a hot IDE path and
+// such reflective side effects in a display method are pathological.
 func SourceMayMutateSchema(source string) bool {
 	for _, head := range schemaMutatingSelectorHeads {
 		if containsSelectorToken(source, head) {
