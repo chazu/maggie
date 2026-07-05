@@ -632,7 +632,7 @@ func TestRegistryGCTimerStillFires(t *testing.T) {
 	if final == startCount {
 		t.Fatalf("timer did not fire within 500ms with 100ms floor")
 	}
-	timer, _, _, _ := gc.SweepCounts()
+	timer, _ := gc.SweepCounts()
 	if timer == 0 {
 		t.Errorf("expected at least one timer-triggered sweep, got 0")
 	}
