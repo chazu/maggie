@@ -131,71 +131,26 @@ func (s *SemanticAnalyzer) AnalyzeMethod(method *MethodDef) {
 	s.checkUnreachableCode(method.Statements)
 }
 
-// analyzeStatements analyzes a list of statements.
+// analyzeStatements analyzes a list of statements. Traversal is centralized
+// in ast.Walk/Inspect (see ast_walk.go); only Block needs explicit handling
+// for scope push/pop.
 func (s *SemanticAnalyzer) analyzeStatements(stmts []Stmt) {
 	for _, stmt := range stmts {
-		s.analyzeStmt(stmt)
-	}
-}
-
-// analyzeStmt analyzes a single statement.
-func (s *SemanticAnalyzer) analyzeStmt(stmt Stmt) {
-	switch st := stmt.(type) {
-	case *ExprStmt:
-		s.analyzeExpr(st.Expr)
-	case *Return:
-		s.analyzeExpr(st.Value)
-	}
-}
-
-// analyzeExpr analyzes an expression.
-func (s *SemanticAnalyzer) analyzeExpr(expr Expr) {
-	switch e := expr.(type) {
-	case *Variable:
-		s.checkVariableDefined(e)
-	case *Assignment:
-		s.analyzeExpr(e.Value)
-		s.checkAssignmentTarget(e)
-	case *UnaryMessage:
-		s.analyzeExpr(e.Receiver)
-	case *BinaryMessage:
-		s.analyzeExpr(e.Receiver)
-		s.analyzeExpr(e.Argument)
-	case *KeywordMessage:
-		s.analyzeExpr(e.Receiver)
-		for _, arg := range e.Arguments {
-			s.analyzeExpr(arg)
+		if stmt == nil {
+			continue
 		}
-	case *Cascade:
-		s.analyzeExpr(e.Receiver)
-		for _, msg := range e.Messages {
-			// CascadedMessage is not an Expr, analyze its arguments
-			for _, arg := range msg.Arguments {
-				s.analyzeExpr(arg)
+		Inspect(stmt, func(n Node) bool {
+			switch e := n.(type) {
+			case *Variable:
+				s.checkVariableDefined(e)
+			case *Assignment:
+				s.checkAssignmentTarget(e)
+			case *Block:
+				s.analyzeBlock(e) // pushes scope, recurses, pops
+				return false
 			}
-		}
-	case *Block:
-		s.analyzeBlock(e)
-	case *ArrayLiteral:
-		for _, elem := range e.Elements {
-			s.analyzeExpr(elem)
-		}
-	case *DynamicArray:
-		for _, elem := range e.Elements {
-			s.analyzeExpr(elem)
-		}
-	case *DictionaryLiteral:
-		for _, k := range e.Keys {
-			s.analyzeExpr(k)
-		}
-		for _, v := range e.Values {
-			s.analyzeExpr(v)
-		}
-	// Literals and special values don't need checking
-	case *IntLiteral, *FloatLiteral, *StringLiteral, *SymbolLiteral, *CharLiteral:
-		// OK
-	case *Self, *Super, *NilLiteral, *TrueLiteral, *FalseLiteral, *ThisContext:
-		// OK
+			return true
+		})
 	}
 }
 

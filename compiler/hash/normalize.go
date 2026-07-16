@@ -1,6 +1,8 @@
 package hash
 
 import (
+	"fmt"
+
 	"github.com/chazu/maggie/compiler"
 )
 
@@ -19,8 +21,8 @@ type scope struct {
 
 // normalizer holds state for the normalization walk.
 type normalizer struct {
-	scopes        []scope            // scope stack: [0]=method, [1]=first block, etc.
-	instVars      map[string]int     // instance variable name → index
+	scopes        []scope             // scope stack: [0]=method, [1]=first block, etc.
+	instVars      map[string]int      // instance variable name → index
 	resolveGlobal func(string) string // bare name → FQN
 }
 
@@ -92,8 +94,9 @@ func (n *normalizer) normalizeStmt(stmt compiler.Stmt) hNode {
 	case *compiler.Return:
 		return &hReturn{Value: n.normalizeExpr(s.Value)}
 	default:
-		// Unknown statement type — should not happen
-		return &hNilLiteral{}
+		// See normalizeExpr's default: silent fall-through would collide
+		// distinct methods in the content-addressed store.
+		panic(fmt.Sprintf("hash: unhandled statement type %T — add a frozen tag and a normalize case", stmt))
 	}
 }
 
@@ -104,6 +107,13 @@ func (n *normalizer) normalizeStmt(stmt compiler.Stmt) hNode {
 func (n *normalizer) normalizeExpr(expr compiler.Expr) hNode {
 	switch e := expr.(type) {
 	case *compiler.IntLiteral:
+		if e.BigValue != nil {
+			// Out-of-int64-range literal: hash the sign + magnitude bytes.
+			// (Before TagBigIntLiteral existed, every big literal hashed as
+			// hIntLiteral{0} — distinct methods collided in the
+			// content-addressed store.)
+			return &hBigIntLiteral{Negative: e.BigValue.Sign() < 0, Bytes: e.BigValue.Bytes()}
+		}
 		return &hIntLiteral{Value: e.Value}
 	case *compiler.FloatLiteral:
 		return &hFloatLiteral{Value: e.Value}
@@ -212,7 +222,11 @@ func (n *normalizer) normalizeExpr(expr compiler.Expr) hNode {
 		return n.normalizeBlock(e)
 
 	default:
-		return &hNilLiteral{}
+		// A new AST node type MUST get an explicit case (and a frozen tag in
+		// tags.go) before it can be hashed. Falling through silently (the old
+		// behavior was `return &hNilLiteral{}`) would make distinct methods
+		// hash-equal — a correctness hole in a content-addressed store.
+		panic(fmt.Sprintf("hash: unhandled expression type %T — add a frozen tag and a normalize case", expr))
 	}
 }
 

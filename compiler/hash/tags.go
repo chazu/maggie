@@ -10,7 +10,11 @@ package hash
 
 // HashVersion is the version prefix for the serialization format.
 // Bumping this invalidates all existing content hashes.
-const HashVersion byte = 1
+//
+// v2: added TagBigIntLiteral — out-of-int64-range integer literals
+// previously all hashed as hIntLiteral{0}, so distinct methods collided in
+// the content-addressed store.
+const HashVersion byte = 2
 
 // AST node type tags. Each tag uniquely identifies a node kind in the
 // serialized byte stream.
@@ -28,8 +32,8 @@ const (
 	TagNilLiteral    byte = 0x08
 
 	// Pseudo-variables
-	TagSelfRef    byte = 0x09
-	TagSuperRef   byte = 0x0A
+	TagSelfRef  byte = 0x09
+	TagSuperRef byte = 0x0A
 
 	// Variable references (de Bruijn indexed)
 	TagLocalVarRef    byte = 0x0B
@@ -45,17 +49,18 @@ const (
 	TagCascade        byte = 0x13
 
 	// Statements / structure
-	TagAssignment  byte = 0x14
-	TagReturn      byte = 0x15
-	TagBlock       byte = 0x16
-	TagMethodDef   byte = 0x17
-	TagClassDef    byte = 0x18
-	TagTraitDef    byte = 0x19
-	TagPrimitive   byte = 0x1A
-	TagDynamicArray byte = 0x1B
-	TagExprStmt    byte = 0x1C
-	TagThisContext byte = 0x1D
-	TagDictLiteral byte = 0x1E
+	TagAssignment    byte = 0x14
+	TagReturn        byte = 0x15
+	TagBlock         byte = 0x16
+	TagMethodDef     byte = 0x17
+	TagClassDef      byte = 0x18
+	TagTraitDef      byte = 0x19
+	TagPrimitive     byte = 0x1A
+	TagDynamicArray  byte = 0x1B
+	TagExprStmt      byte = 0x1C
+	TagThisContext   byte = 0x1D
+	TagDictLiteral   byte = 0x1E
+	TagBigIntLiteral byte = 0x1F
 
 	// Reserved 0xFE-0xFF
 

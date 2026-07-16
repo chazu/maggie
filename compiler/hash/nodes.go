@@ -33,6 +33,13 @@ type hArrayLiteral struct{ Elements []hNode }
 type hDictLiteral struct{ Keys, Values []hNode }
 type hDynamicArray struct{ Elements []hNode }
 
+// hBigIntLiteral is an integer literal outside the int64 range, hashed by
+// sign + big-endian magnitude bytes.
+type hBigIntLiteral struct {
+	Negative bool
+	Bytes    []byte
+}
+
 func (*hIntLiteral) hnode()    {}
 func (*hFloatLiteral) hnode()  {}
 func (*hStringLiteral) hnode() {}
@@ -46,6 +53,7 @@ func (*hThisContext) hnode()   {}
 func (*hArrayLiteral) hnode()  {}
 func (*hDictLiteral) hnode()   {}
 func (*hDynamicArray) hnode()  {}
+func (*hBigIntLiteral) hnode() {}
 
 // ---------------------------------------------------------------------------
 // Variable reference nodes (de Bruijn indexed)

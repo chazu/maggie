@@ -1024,121 +1024,49 @@ func (c *Compiler) compileBlock(block *Block) {
 
 // findCapturedVariables analyzes a block's AST to find variables that need to be captured.
 // Returns a list of variable names from enclosing block scopes that are referenced.
+// Traversal is centralized in ast.Walk/Inspect (see ast_walk.go) so new node
+// types cannot be silently missed.
 func (c *Compiler) findCapturedVariables(block *Block, enclosingBlockVars map[string]int) []string {
 	result := make([]string, 0)
 	seen := make(map[string]bool)
 
-	// Walk the block's AST to find variable references
-	var walkExpr func(expr Expr)
-	var walkStmt func(stmt Stmt)
-
-	walkExpr = func(expr Expr) {
-		if expr == nil {
-			return
-		}
-		switch e := expr.(type) {
-		case *Variable:
-			name := e.Name
-			// Check if this variable is from an enclosing block scope
-			if _, ok := enclosingBlockVars[name]; ok {
-				// Skip if it's a parameter or temp of this block
-				for _, p := range block.Parameters {
-					if p == name {
-						return
-					}
-				}
-				for _, t := range block.Temps {
-					if t == name {
-						return
-					}
-				}
-				// It's a captured variable
-				if !seen[name] {
-					seen[name] = true
-					result = append(result, name)
-				}
-			}
-		case *Assignment:
-			// Check if assigning to an enclosing block variable
-			name := e.Variable
-			if _, ok := enclosingBlockVars[name]; ok {
-				// Skip if it's a parameter or temp of this block
-				isLocal := false
-				for _, p := range block.Parameters {
-					if p == name {
-						isLocal = true
-						break
-					}
-				}
-				if !isLocal {
-					for _, t := range block.Temps {
-						if t == name {
-							isLocal = true
-							break
-						}
-					}
-				}
-				if !isLocal && !seen[name] {
-					seen[name] = true
-					result = append(result, name)
-				}
-			}
-			walkExpr(e.Value)
-		case *UnaryMessage:
-			walkExpr(e.Receiver)
-		case *BinaryMessage:
-			walkExpr(e.Receiver)
-			walkExpr(e.Argument)
-		case *KeywordMessage:
-			walkExpr(e.Receiver)
-			for _, arg := range e.Arguments {
-				walkExpr(arg)
-			}
-		case *Cascade:
-			walkExpr(e.Receiver)
-			for _, msg := range e.Messages {
-				// CascadedMessage has Arguments for binary/keyword messages
-				for _, arg := range msg.Arguments {
-					walkExpr(arg)
-				}
-			}
-		case *Block:
-			// Recurse into nested blocks
-			for _, stmt := range e.Statements {
-				walkStmt(stmt)
-			}
-		case *ArrayLiteral:
-			for _, elem := range e.Elements {
-				walkExpr(elem)
-			}
-		case *DynamicArray:
-			for _, elem := range e.Elements {
-				walkExpr(elem)
-			}
-		case *DictionaryLiteral:
-			for _, k := range e.Keys {
-				walkExpr(k)
-			}
-			for _, v := range e.Values {
-				walkExpr(v)
+	isLocal := func(name string) bool {
+		for _, p := range block.Parameters {
+			if p == name {
+				return true
 			}
 		}
+		for _, t := range block.Temps {
+			if t == name {
+				return true
+			}
+		}
+		return false
 	}
-
-	walkStmt = func(stmt Stmt) {
-		if stmt == nil {
+	record := func(name string) {
+		if _, ok := enclosingBlockVars[name]; !ok {
 			return
 		}
-		switch s := stmt.(type) {
-		case *ExprStmt:
-			walkExpr(s.Expr)
-		case *Return:
-			walkExpr(s.Value)
+		if isLocal(name) || seen[name] {
+			return
 		}
+		seen[name] = true
+		result = append(result, name)
 	}
 
 	for _, stmt := range block.Statements {
-		walkStmt(stmt)
+		if stmt == nil {
+			continue
+		}
+		Inspect(stmt, func(n Node) bool {
+			switch e := n.(type) {
+			case *Variable:
+				record(e.Name)
+			case *Assignment:
+				record(e.Variable)
+			}
+			return true
+		})
 	}
 
 	return result
@@ -1153,124 +1081,60 @@ func (c *Compiler) findCellVariables(method *MethodDef) map[string]bool {
 
 	// Track: for each block-local variable, is it captured? is it assigned in nested scope?
 	type varInfo struct {
-		definedInBlock      bool
 		captured            bool
 		assignedInNestedBlk bool // assigned in a block deeper than where defined
 		blockDepth          int  // depth where defined
 	}
 	varInfos := make(map[string]*varInfo)
 
-	// Helper to walk expressions looking for captures and assignments
-	var walkExpr func(expr Expr, currentDepth int, blockVars map[string]int)
-	var walkStmt func(stmt Stmt, currentDepth int, blockVars map[string]int)
-	var walkBlock func(block *Block, depth int, outerBlockVars map[string]int)
-
-	walkExpr = func(expr Expr, currentDepth int, blockVars map[string]int) {
-		if expr == nil {
-			return
-		}
-		switch e := expr.(type) {
-		case *Variable:
-			name := e.Name
-			// Check if accessing a variable from an outer scope (block or method level)
-			if vi, ok := varInfos[name]; ok && vi.blockDepth < currentDepth {
-				vi.captured = true
+	// Traversal is centralized in ast.Walk/Inspect (see ast_walk.go); only
+	// scope entry (Block) needs explicit recursion to track depth. This
+	// walker's hand-rolled predecessor was missing *DynamicArray, so
+	// mutations from blocks inside {…} literals were silently lost.
+	var walkStmts func(stmts []Stmt, depth int)
+	walkStmts = func(stmts []Stmt, depth int) {
+		for _, stmt := range stmts {
+			if stmt == nil {
+				continue
 			}
-		case *Assignment:
-			name := e.Variable
-			// Track assignment - if assigning to an outer scope variable, it's both captured and assigned
-			if vi, ok := varInfos[name]; ok && vi.blockDepth < currentDepth {
-				vi.captured = true            // Need to capture the cell reference
-				vi.assignedInNestedBlk = true // And mark as assigned in nested block
-			}
-			walkExpr(e.Value, currentDepth, blockVars)
-		case *UnaryMessage:
-			walkExpr(e.Receiver, currentDepth, blockVars)
-		case *BinaryMessage:
-			walkExpr(e.Receiver, currentDepth, blockVars)
-			walkExpr(e.Argument, currentDepth, blockVars)
-		case *KeywordMessage:
-			walkExpr(e.Receiver, currentDepth, blockVars)
-			for _, arg := range e.Arguments {
-				walkExpr(arg, currentDepth, blockVars)
-			}
-		case *Cascade:
-			walkExpr(e.Receiver, currentDepth, blockVars)
-			for _, msg := range e.Messages {
-				for _, arg := range msg.Arguments {
-					walkExpr(arg, currentDepth, blockVars)
+			Inspect(stmt, func(n Node) bool {
+				switch e := n.(type) {
+				case *Variable:
+					// Accessing a variable from an outer scope (block or method level)
+					if vi, ok := varInfos[e.Name]; ok && vi.blockDepth < depth {
+						vi.captured = true
+					}
+				case *Assignment:
+					// Assigning to an outer-scope variable: captured AND assigned
+					if vi, ok := varInfos[e.Variable]; ok && vi.blockDepth < depth {
+						vi.captured = true
+						vi.assignedInNestedBlk = true
+					}
+				case *Block:
+					// Register this block's parameters and temps at depth+1,
+					// then walk its body at that depth.
+					for _, p := range e.Parameters {
+						varInfos[p] = &varInfo{blockDepth: depth + 1}
+					}
+					for _, t := range e.Temps {
+						varInfos[t] = &varInfo{blockDepth: depth + 1}
+					}
+					walkStmts(e.Statements, depth+1)
+					return false // handled recursion ourselves
 				}
-			}
-		case *Block:
-			// Recurse into nested block
-			walkBlock(e, currentDepth+1, blockVars)
-		case *ArrayLiteral:
-			for _, elem := range e.Elements {
-				walkExpr(elem, currentDepth, blockVars)
-			}
-		case *DictionaryLiteral:
-			for _, k := range e.Keys {
-				walkExpr(k, currentDepth, blockVars)
-			}
-			for _, v := range e.Values {
-				walkExpr(v, currentDepth, blockVars)
-			}
-		}
-	}
-
-	walkStmt = func(stmt Stmt, currentDepth int, blockVars map[string]int) {
-		if stmt == nil {
-			return
-		}
-		switch s := stmt.(type) {
-		case *ExprStmt:
-			walkExpr(s.Expr, currentDepth, blockVars)
-		case *Return:
-			walkExpr(s.Value, currentDepth, blockVars)
-		}
-	}
-
-	walkBlock = func(block *Block, depth int, outerBlockVars map[string]int) {
-		// Build block vars map including this block's temps
-		newBlockVars := make(map[string]int)
-		for k, v := range outerBlockVars {
-			newBlockVars[k] = v
-		}
-
-		// Register this block's parameters and temps
-		for i, p := range block.Parameters {
-			newBlockVars[p] = i
-			varInfos[p] = &varInfo{definedInBlock: true, blockDepth: depth}
-		}
-		for i, t := range block.Temps {
-			idx := len(block.Parameters) + i
-			newBlockVars[t] = idx
-			varInfos[t] = &varInfo{definedInBlock: true, blockDepth: depth}
-		}
-
-		// Walk block statements
-		for _, stmt := range block.Statements {
-			walkStmt(stmt, depth, newBlockVars)
+				return true
+			})
 		}
 	}
 
 	// Start at method level (depth 0)
-	// Method-level vars don't need cells (they use HOME_TEMP)
-	methodVars := make(map[string]int)
-	for i, p := range method.Parameters {
-		methodVars[p] = i
-		// Method-level vars are NOT defined in a block
-		varInfos[p] = &varInfo{definedInBlock: false, blockDepth: 0}
+	for _, p := range method.Parameters {
+		varInfos[p] = &varInfo{blockDepth: 0}
 	}
-	for i, t := range method.Temps {
-		methodVars[t] = len(method.Parameters) + i
-		varInfos[t] = &varInfo{definedInBlock: false, blockDepth: 0}
+	for _, t := range method.Temps {
+		varInfos[t] = &varInfo{blockDepth: 0}
 	}
-
-	// Walk method statements
-	for _, stmt := range method.Statements {
-		walkStmt(stmt, 0, methodVars)
-	}
+	walkStmts(method.Statements, 0)
 
 	// Collect variables that need cells.
 	// A variable needs a cell if it's captured by a block AND assigned from a block.

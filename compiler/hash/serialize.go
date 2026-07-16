@@ -2,6 +2,7 @@ package hash
 
 import (
 	"encoding/binary"
+	"fmt"
 	"math"
 )
 
@@ -143,6 +144,16 @@ func (s *serializer) serializeNode(node hNode) {
 			s.serializeNode(el)
 		}
 
+	case *hBigIntLiteral:
+		s.writeByte(TagBigIntLiteral)
+		if n.Negative {
+			s.writeByte(1)
+		} else {
+			s.writeByte(0)
+		}
+		s.writeUint32(uint32(len(n.Bytes)))
+		s.buf = append(s.buf, n.Bytes...)
+
 	case *hLocalVarRef:
 		s.writeByte(TagLocalVarRef)
 		s.writeUint16(n.ScopeDepth)
@@ -237,6 +248,11 @@ func (s *serializer) serializeNode(node hNode) {
 		if s.includeTypes {
 			s.serializeMethodTypes(n)
 		}
+
+	default:
+		// A new hashing node MUST get a frozen tag and an explicit case —
+		// silently skipping it would make distinct methods hash-equal.
+		panic(fmt.Sprintf("hash: unhandled hashing node type %T — add a frozen tag and a serialize case", node))
 	}
 }
 
