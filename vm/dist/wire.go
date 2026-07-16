@@ -109,22 +109,38 @@ type CompileResult struct {
 	TypedHash    [32]byte // zero if source has no type annotations
 }
 
+// MethodContext carries the owning-class context needed to recompute a
+// method chunk's content hash. Content hashes bind instance variables by
+// index (hInstanceVarRef) and globals by resolved FQN, so verification must
+// run with the same class context the producing pipeline used.
+//
+// InstVars is the class's full instance-variable chain in root-first order
+// (Class.AllInstVarNames order); nil for class-side and trait methods, which
+// the pipeline hashes without ivar context. Namespace is the owning class's
+// namespace, used for FQN resolution of bare global references.
+type MethodContext struct {
+	InstVars  []string
+	Namespace string
+}
+
+// CompileFunc compiles method source text in a class context and returns
+// both semantic and typed content hashes. Injected to avoid the dist
+// package depending on the compiler package.
+type CompileFunc func(source string, ctx MethodContext) (CompileResult, error)
+
 // UnmarshalCBOR is a generic CBOR unmarshal helper for the server package.
 func UnmarshalCBOR(data []byte, v interface{}) error {
 	return cbor.Unmarshal(data, v)
 }
 
-// VerifyChunkMethod compiles source from a chunk and verifies that the
-// resulting content hash matches the chunk's declared hash.
-//
-// The compile function is injected to avoid the dist package depending on
-// the compiler package. It should compile the source text and return both
-// semantic and typed content hashes.
-func VerifyChunkMethod(c *Chunk, compile func(source string) (CompileResult, error)) error {
+// VerifyChunkMethod compiles source from a chunk in the owning class's
+// context and verifies that the resulting content hash matches the chunk's
+// declared hash.
+func VerifyChunkMethod(c *Chunk, ctx MethodContext, compile CompileFunc) error {
 	if c.Type != ChunkMethod {
 		return fmt.Errorf("dist: cannot verify non-method chunk (type=%d)", c.Type)
 	}
-	result, err := compile(c.Content)
+	result, err := compile(c.Content, ctx)
 	if err != nil {
 		return fmt.Errorf("dist: compile failed: %w", err)
 	}

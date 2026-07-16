@@ -177,7 +177,7 @@ func TestVerifyChunkMethod_Valid(t *testing.T) {
 	h := sha256.Sum256([]byte("source"))
 	c := &Chunk{Hash: h, Type: ChunkMethod, Content: "source"}
 
-	err := VerifyChunkMethod(c, func(source string) (CompileResult, error) {
+	err := VerifyChunkMethod(c, MethodContext{}, func(source string, _ MethodContext) (CompileResult, error) {
 		return CompileResult{SemanticHash: sha256.Sum256([]byte(source))}, nil
 	})
 	if err != nil {
@@ -190,7 +190,7 @@ func TestVerifyChunkMethod_ValidWithTypedHash(t *testing.T) {
 	th := sha256.Sum256([]byte("source-typed"))
 	c := &Chunk{Hash: sh, Type: ChunkMethod, Content: "source", TypedHash: th}
 
-	err := VerifyChunkMethod(c, func(source string) (CompileResult, error) {
+	err := VerifyChunkMethod(c, MethodContext{}, func(source string, _ MethodContext) (CompileResult, error) {
 		return CompileResult{
 			SemanticHash: sha256.Sum256([]byte(source)),
 			TypedHash:    sha256.Sum256([]byte(source + "-typed")),
@@ -206,7 +206,7 @@ func TestVerifyChunkMethod_TypedHashMismatch(t *testing.T) {
 	th := sha256.Sum256([]byte("claimed-typed"))
 	c := &Chunk{Hash: sh, Type: ChunkMethod, Content: "source", TypedHash: th}
 
-	err := VerifyChunkMethod(c, func(source string) (CompileResult, error) {
+	err := VerifyChunkMethod(c, MethodContext{}, func(source string, _ MethodContext) (CompileResult, error) {
 		return CompileResult{
 			SemanticHash: sha256.Sum256([]byte(source)),
 			TypedHash:    sha256.Sum256([]byte("different-typed")),
@@ -221,7 +221,7 @@ func TestVerifyChunkMethod_Mismatch(t *testing.T) {
 	h := sha256.Sum256([]byte("claimed"))
 	c := &Chunk{Hash: h, Type: ChunkMethod, Content: "actual"}
 
-	err := VerifyChunkMethod(c, func(source string) (CompileResult, error) {
+	err := VerifyChunkMethod(c, MethodContext{}, func(source string, _ MethodContext) (CompileResult, error) {
 		return CompileResult{SemanticHash: sha256.Sum256([]byte(source))}, nil
 	})
 	if err == nil {
@@ -232,7 +232,7 @@ func TestVerifyChunkMethod_Mismatch(t *testing.T) {
 func TestVerifyChunkMethod_CompileError(t *testing.T) {
 	c := &Chunk{Type: ChunkMethod, Content: "bad"}
 
-	err := VerifyChunkMethod(c, func(source string) (CompileResult, error) {
+	err := VerifyChunkMethod(c, MethodContext{}, func(source string, _ MethodContext) (CompileResult, error) {
 		return CompileResult{}, fmt.Errorf("syntax error")
 	})
 	if err == nil {
@@ -243,7 +243,7 @@ func TestVerifyChunkMethod_CompileError(t *testing.T) {
 func TestVerifyChunkMethod_WrongType(t *testing.T) {
 	c := &Chunk{Type: ChunkClass}
 
-	err := VerifyChunkMethod(c, func(source string) (CompileResult, error) {
+	err := VerifyChunkMethod(c, MethodContext{}, func(source string, _ MethodContext) (CompileResult, error) {
 		return CompileResult{}, nil
 	})
 	if err == nil {

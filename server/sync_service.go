@@ -21,9 +21,10 @@ type SyncService struct {
 	store  *vm.ContentStore
 	trust  *dist.TrustStore
 
-	// compile compiles source text and returns both semantic and typed
-	// content hashes. Injected to avoid depending on the compiler package.
-	compile func(source string) (dist.CompileResult, error)
+	// compile compiles method source text in its owning-class context and
+	// returns both semantic and typed content hashes. Injected to avoid
+	// depending on the compiler package.
+	compile dist.CompileFunc
 
 	// diskCache persists received chunks to disk. May be nil.
 	diskCache *dist.DiskCache
@@ -34,7 +35,7 @@ func NewSyncService(
 	worker *VMWorker,
 	store *vm.ContentStore,
 	trust *dist.TrustStore,
-	compile func(source string) (dist.CompileResult, error),
+	compile dist.CompileFunc,
 	diskCache *dist.DiskCache,
 ) *SyncService {
 	return &SyncService{
@@ -127,9 +128,28 @@ func (s *SyncService) Transfer(
 	var accepted, rejected int32
 	var failedHashes [][]byte
 
-	for _, chunkBytes := range msg.Chunks {
+	// Decode the whole batch up front. Class chunks are collected as digests
+	// (keyed by FQN) so method verification can reconstruct each method's
+	// owning-class hashing context (ivar chain, namespace) even when the
+	// class arrives in the same transfer. The digests are unverified at this
+	// point — a lying digest simply makes its dependent methods hash-mismatch.
+	decoded := make([]*dist.Chunk, len(msg.Chunks))
+	batchDigests := make(map[string]*vm.ClassDigest)
+	for i, chunkBytes := range msg.Chunks {
 		chunk, err := dist.UnmarshalChunk(chunkBytes)
 		if err != nil {
+			continue // leaves decoded[i] nil; counted as rejected below
+		}
+		decoded[i] = chunk
+		if chunk.Type == dist.ChunkClass {
+			if d, decErr := dist.DecodeClassContent(chunk.Content); decErr == nil {
+				batchDigests[classDigestFQN(d)] = d
+			}
+		}
+	}
+
+	for _, chunk := range decoded {
+		if chunk == nil {
 			rejected++
 			continue
 		}
@@ -141,7 +161,17 @@ func (s *SyncService) Transfer(
 				failedHashes = append(failedHashes, chunk.Hash[:])
 				continue
 			}
-			if err := dist.VerifyChunkMethod(chunk, s.compile); err != nil {
+			mctx, ctxErr := s.methodContextFor(chunk, batchDigests)
+			if ctxErr != nil {
+				// The owning class's hashing context is unavailable (not in
+				// this batch, the store, or the live image). Reject the chunk
+				// but do NOT record a hash mismatch — missing context is not
+				// evidence of tampering, and mismatch strikes lead to bans.
+				rejected++
+				failedHashes = append(failedHashes, chunk.Hash[:])
+				continue
+			}
+			if err := dist.VerifyChunkMethod(chunk, mctx, s.compile); err != nil {
 				rejected++
 				failedHashes = append(failedHashes, chunk.Hash[:])
 				s.trust.RecordHashMismatch(peerID)
@@ -211,6 +241,103 @@ func (s *SyncService) indexVerifiedClass(chunk *dist.Chunk) {
 		d.TypedMethodHashes = chunk.TypedDependencies
 	}
 	s.store.IndexClass(d)
+}
+
+// maxClassChainDepth bounds the superclass walk in methodContextFor so a
+// malicious batch with cyclic digests cannot loop forever.
+const maxClassChainDepth = 256
+
+// classDigestFQN returns "namespace::name" for a digest, or just "name"
+// when it has no namespace.
+func classDigestFQN(d *vm.ClassDigest) string {
+	if d.Namespace != "" {
+		return d.Namespace + "::" + d.Name
+	}
+	return d.Name
+}
+
+// methodContextFor reconstructs the owning class's hashing context for a
+// method chunk: the full instance-variable chain (root-first, matching
+// Class.AllInstVarNames order) and the class's namespace. Context sources,
+// in order: class digests in the same transfer batch, the local content
+// store, and the live class table.
+func (s *SyncService) methodContextFor(chunk *dist.Chunk, batch map[string]*vm.ClassDigest) (dist.MethodContext, error) {
+	if chunk.ClassName == "" {
+		// Trait methods and legacy chunks carry no owning class; the
+		// pipeline hashes them with no ivar context and no namespace.
+		return dist.MethodContext{}, nil
+	}
+
+	classes := s.worker.vm.Classes
+
+	lookupDigest := func(fqn string) *vm.ClassDigest {
+		if d, ok := batch[fqn]; ok {
+			return d
+		}
+		return s.store.LookupClassByName(fqn)
+	}
+
+	// Namespace comes from the owning class itself.
+	var namespace string
+	if d := lookupDigest(chunk.ClassName); d != nil {
+		namespace = d.Namespace
+	} else if cls := classes.Lookup(chunk.ClassName); cls != nil {
+		namespace = cls.Namespace
+	} else {
+		return dist.MethodContext{}, fmt.Errorf("owning class %s not found in batch, store, or image", chunk.ClassName)
+	}
+
+	if chunk.IsClassSide {
+		// Class-side methods hash with no ivar context (pipeline parity).
+		return dist.MethodContext{Namespace: namespace}, nil
+	}
+
+	// Walk the superclass chain leaf-to-root, prepending each class's own
+	// ivars so the final slice is root-first.
+	var instVars []string
+	cur := chunk.ClassName
+	for depth := 0; cur != ""; depth++ {
+		if depth > maxClassChainDepth {
+			return dist.MethodContext{}, fmt.Errorf("superclass chain of %s exceeds %d levels", chunk.ClassName, maxClassChainDepth)
+		}
+		if d := lookupDigest(cur); d != nil {
+			instVars = append(append([]string{}, d.InstVars...), instVars...)
+			if d.SuperclassName == "" {
+				break
+			}
+			super, ok := resolveSuperFQN(d, lookupDigest, classes)
+			if !ok {
+				return dist.MethodContext{}, fmt.Errorf("superclass %s of %s not found in batch, store, or image", d.SuperclassName, cur)
+			}
+			cur = super
+			continue
+		}
+		if cls := classes.Lookup(cur); cls != nil {
+			// A live class knows its whole remaining chain.
+			instVars = append(append([]string{}, cls.AllInstVarNames()...), instVars...)
+			break
+		}
+		return dist.MethodContext{}, fmt.Errorf("class %s in superclass chain of %s not found", cur, chunk.ClassName)
+	}
+
+	return dist.MethodContext{InstVars: instVars, Namespace: namespace}, nil
+}
+
+// resolveSuperFQN resolves a digest's superclass reference to the FQN under
+// which it can be found in the batch/store or the live image, mirroring
+// rehydration's resolution order: bare name first, then qualified by the
+// subclass's namespace.
+func resolveSuperFQN(d *vm.ClassDigest, lookupDigest func(string) *vm.ClassDigest, classes *vm.ClassTable) (string, bool) {
+	candidates := []string{d.SuperclassName}
+	if d.Namespace != "" {
+		candidates = append(candidates, d.Namespace+"::"+d.SuperclassName)
+	}
+	for _, fqn := range candidates {
+		if lookupDigest(fqn) != nil || classes.Lookup(fqn) != nil {
+			return fqn, true
+		}
+	}
+	return "", false
 }
 
 // Serve returns content reachable from a root hash, minus what the requester

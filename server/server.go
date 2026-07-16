@@ -27,7 +27,7 @@ type MaggieServer struct {
 type ServerOption func(*serverConfig)
 
 type serverConfig struct {
-	compileFunc     func(string) (dist.CompileResult, error)
+	compileFunc     dist.CompileFunc
 	trustStore      *dist.TrustStore
 	diskCache       *dist.DiskCache
 	pullFunc        func(peerID dist.NodeID, hash [32]byte) error
@@ -37,9 +37,11 @@ type serverConfig struct {
 }
 
 // WithCompileFunc sets the compile function used by the sync service to
-// verify method chunks. The function should return both semantic and typed
-// content hashes. Without this, method chunk verification is disabled.
-func WithCompileFunc(fn func(string) (dist.CompileResult, error)) ServerOption {
+// verify method chunks. The function should hash the source in the supplied
+// class context and return both semantic and typed content hashes
+// (pipeline.VerifyCompileFunc is the canonical implementation). Without
+// this, method chunk verification is disabled.
+func WithCompileFunc(fn dist.CompileFunc) ServerOption {
 	return func(c *serverConfig) { c.compileFunc = fn }
 }
 

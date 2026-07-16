@@ -20,7 +20,6 @@ import (
 	"connectrpc.com/connect"
 
 	"github.com/chazu/maggie/compiler"
-	"github.com/chazu/maggie/compiler/hash"
 	maggiev1 "github.com/chazu/maggie/gen/maggie/v1"
 	"github.com/chazu/maggie/gen/maggie/v1/maggiev1connect"
 	"github.com/chazu/maggie/manifest"
@@ -738,19 +737,11 @@ func runMain(vmInst *vm.VM, entry string, verbose bool) (vm.Value, error) {
 }
 
 // buildCompileFunc creates a compile function suitable for the sync service's
-// method chunk verification. It parses source text into an AST and returns
-// both the semantic content hash and the typed content hash.
-func buildCompileFunc(vmInst *vm.VM) func(string) (dist.CompileResult, error) {
-	return func(source string) (dist.CompileResult, error) {
-		parser := compiler.NewParser(source)
-		methodDef := parser.ParseMethod()
-		if errs := parser.Errors(); len(errs) > 0 {
-			return dist.CompileResult{}, fmt.Errorf("parse errors: %v", errs)
-		}
-		semantic := hash.HashMethod(methodDef, nil, nil)
-		typed := hash.HashTypedMethod(methodDef, nil, nil)
-		return dist.CompileResult{SemanticHash: semantic, TypedHash: typed}, nil
-	}
+// method chunk verification. It hashes chunk source through the same path the
+// pipeline uses when compiling (ParseMethodDef + class ivar context + FQN
+// resolution), so verifier hashes match pipeline-produced chunk hashes.
+func buildCompileFunc(vmInst *vm.VM) dist.CompileFunc {
+	return pipeline.VerifyCompileFunc(vmInst)
 }
 
 // buildNodeRefFactory creates a factory function that produces fully-wired

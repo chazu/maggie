@@ -26,7 +26,7 @@ import (
 // returns the base URL and a stop function.
 // startTestServerWithVM creates an in-process server and also returns the VM
 // for tests that need to interact with the server's process registry.
-func startTestServerWithVM(t *testing.T, store *vm.ContentStore, compile func(string) (dist.CompileResult, error), trust *dist.TrustStore) (string, *vm.VM, func()) {
+func startTestServerWithVM(t *testing.T, store *vm.ContentStore, compile dist.CompileFunc, trust *dist.TrustStore) (string, *vm.VM, func()) {
 	t.Helper()
 
 	if trust == nil {
@@ -58,7 +58,7 @@ func startTestServerWithVM(t *testing.T, store *vm.ContentStore, compile func(st
 	return baseURL, testVM, stop
 }
 
-func startTestServer(t *testing.T, store *vm.ContentStore, compile func(string) (dist.CompileResult, error), trust *dist.TrustStore) (string, func()) {
+func startTestServer(t *testing.T, store *vm.ContentStore, compile dist.CompileFunc, trust *dist.TrustStore) (string, func()) {
 	t.Helper()
 
 	if trust == nil {
@@ -96,7 +96,7 @@ func startTestServer(t *testing.T, store *vm.ContentStore, compile func(string) 
 func TestEndToEnd_PushPull(t *testing.T) {
 	// --- VM-A: populate with methods and a class ---
 	storeA := vm.NewContentStore()
-	compile := func(source string) (dist.CompileResult, error) {
+	compile := func(source string, _ dist.MethodContext) (dist.CompileResult, error) {
 		return dist.CompileResult{SemanticHash: sha256.Sum256([]byte(source))}, nil
 	}
 
@@ -319,15 +319,22 @@ func TestEndToEnd_PushPullRehydrate(t *testing.T) {
 	// --- VM-B: start server ---
 	storeB := vm.NewContentStore()
 	// Use a real compile function that returns both semantic and typed hashes
-	realCompile := func(source string) (dist.CompileResult, error) {
+	realCompile := func(source string, mctx dist.MethodContext) (dist.CompileResult, error) {
 		md, err := compiler.ParseMethodDef(source)
 		if err != nil {
 			return dist.CompileResult{}, err
 		}
+		var ivarMap map[string]int
+		if len(mctx.InstVars) > 0 {
+			ivarMap = make(map[string]int, len(mctx.InstVars))
+			for idx, name := range mctx.InstVars {
+				ivarMap[name] = idx
+			}
+		}
 		resolve := func(name string) string { return name }
 		return dist.CompileResult{
-			SemanticHash: hash.HashMethod(md, nil, resolve),
-			TypedHash:    hash.HashTypedMethod(md, nil, resolve),
+			SemanticHash: hash.HashMethod(md, ivarMap, resolve),
+			TypedHash:    hash.HashTypedMethod(md, ivarMap, resolve),
 		}, nil
 	}
 	baseURL, stop := startTestServer(t, storeB, realCompile, nil)
@@ -511,7 +518,7 @@ func TestEndToEnd_TrustRejection(t *testing.T) {
 // that the peer gets banned.
 func TestEndToEnd_BannedPeer(t *testing.T) {
 	store := vm.NewContentStore()
-	compile := func(source string) (dist.CompileResult, error) {
+	compile := func(source string, _ dist.MethodContext) (dist.CompileResult, error) {
 		return dist.CompileResult{SemanticHash: sha256.Sum256([]byte(source))}, nil
 	}
 	baseURL, stop := startTestServer(t, store, compile, nil)
@@ -561,7 +568,7 @@ func TestEndToEnd_BannedPeer(t *testing.T) {
 // TestEndToEnd_DeliverMessage tests signed message delivery between two nodes.
 func TestEndToEnd_DeliverMessage(t *testing.T) {
 	store := vm.NewContentStore()
-	compile := func(source string) (dist.CompileResult, error) {
+	compile := func(source string, _ dist.MethodContext) (dist.CompileResult, error) {
 		return dist.CompileResult{SemanticHash: sha256.Sum256([]byte(source))}, nil
 	}
 	baseURL, srvVM, stop := startTestServerWithVM(t, store, compile, nil)
@@ -616,7 +623,7 @@ func TestEndToEnd_DeliverMessage(t *testing.T) {
 // granted only "sync" must not be able to message registered processes.
 func TestEndToEnd_DeliverMessage_NoMessagePerm(t *testing.T) {
 	store := vm.NewContentStore()
-	compile := func(source string) (dist.CompileResult, error) {
+	compile := func(source string, _ dist.MethodContext) (dist.CompileResult, error) {
 		return dist.CompileResult{SemanticHash: sha256.Sum256([]byte(source))}, nil
 	}
 	// Unknown peers get PermSync only — not PermMessage.
@@ -668,7 +675,7 @@ func TestEndToEnd_DeliverMessage_NoMessagePerm(t *testing.T) {
 // tampered signatures are rejected.
 func TestEndToEnd_DeliverMessage_InvalidSignature(t *testing.T) {
 	store := vm.NewContentStore()
-	compile := func(source string) (dist.CompileResult, error) {
+	compile := func(source string, _ dist.MethodContext) (dist.CompileResult, error) {
 		return dist.CompileResult{SemanticHash: sha256.Sum256([]byte(source))}, nil
 	}
 	baseURL, stop := startTestServer(t, store, compile, nil)
@@ -743,7 +750,7 @@ func TestEndToEnd_DeliverMessage_InvalidEnvelope(t *testing.T) {
 // to another VM, and reading it from the target process's mailbox.
 func TestEndToEnd_RemoteMailboxDelivery(t *testing.T) {
 	store := vm.NewContentStore()
-	compile := func(source string) (dist.CompileResult, error) {
+	compile := func(source string, _ dist.MethodContext) (dist.CompileResult, error) {
 		return dist.CompileResult{SemanticHash: sha256.Sum256([]byte(source))}, nil
 	}
 	baseURL, srvVM, stop := startTestServerWithVM(t, store, compile, nil)
@@ -845,7 +852,7 @@ func TestEndToEnd_RemoteMailboxDelivery(t *testing.T) {
 // would do with `node processNamed: 'worker'` + `cast:with:`.
 func TestEndToEnd_RemoteSendViaNodeRef(t *testing.T) {
 	store := vm.NewContentStore()
-	compile := func(source string) (dist.CompileResult, error) {
+	compile := func(source string, _ dist.MethodContext) (dist.CompileResult, error) {
 		return dist.CompileResult{SemanticHash: sha256.Sum256([]byte(source))}, nil
 	}
 	baseURL, srvVM, stop := startTestServerWithVM(t, store, compile, nil)
@@ -1008,7 +1015,7 @@ func TestEndToEnd_SpawnProcess_InvalidSignature(t *testing.T) {
 // This is the architect's recommended "build a demo app" validation.
 func TestEndToEnd_DistributedDemo(t *testing.T) {
 	store := vm.NewContentStore()
-	compile := func(source string) (dist.CompileResult, error) {
+	compile := func(source string, _ dist.MethodContext) (dist.CompileResult, error) {
 		return dist.CompileResult{SemanticHash: sha256.Sum256([]byte(source))}, nil
 	}
 	baseURL, srvVM, stop := startTestServerWithVM(t, store, compile, nil)
