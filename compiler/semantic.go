@@ -11,7 +11,8 @@ import (
 // SemanticAnalyzer performs semantic analysis on the AST before code generation.
 // It checks for undefined variables, unreachable code, and other semantic issues.
 type SemanticAnalyzer struct {
-	errors []string
+	errors   []string
+	warnings []string
 
 	// Known globals that are always defined
 	knownGlobals map[string]bool
@@ -91,6 +92,12 @@ func (s *SemanticAnalyzer) Errors() []string {
 	return s.errors
 }
 
+// Warnings returns accumulated analysis warnings (advisory; never fail
+// compilation).
+func (s *SemanticAnalyzer) Warnings() []string {
+	return s.warnings
+}
+
 // errorf records an error without position.
 func (s *SemanticAnalyzer) errorf(format string, args ...interface{}) {
 	s.errors = append(s.errors, fmt.Sprintf(format, args...))
@@ -103,11 +110,13 @@ func (s *SemanticAnalyzer) errorAt(node Node, format string, args ...interface{}
 	s.errors = append(s.errors, msg)
 }
 
-// warnAt records a warning with position information.
+// warnAt records a warning with position information. Warnings live in
+// their own slice — mixing them into errors made every consumer either
+// fail on advice or discard both.
 func (s *SemanticAnalyzer) warnAt(node Node, format string, args ...interface{}) {
 	pos := node.Span().Start
-	msg := fmt.Sprintf("warning: line %d, column %d: %s", pos.Line, pos.Column, fmt.Sprintf(format, args...))
-	s.errors = append(s.errors, msg)
+	msg := fmt.Sprintf("line %d, column %d: %s", pos.Line, pos.Column, fmt.Sprintf(format, args...))
+	s.warnings = append(s.warnings, msg)
 }
 
 // AnalyzeMethod performs semantic analysis on a method definition.
@@ -196,7 +205,12 @@ func (s *SemanticAnalyzer) checkAssignmentTarget(a *Assignment) {
 		"thisContext": true,
 	}
 	if reserved[name] {
-		s.errorAt(a, "cannot assign to reserved name '%s'", name)
+		// Reported as a warning: the parser cannot actually produce these
+		// assignments (reserved words are not TokenIdentifier), so this only
+		// fires for programmatically-constructed ASTs — and Analyze's
+		// contract is advisory (production callers never failed on analyzer
+		// errors, they discarded them).
+		s.warnAt(a, "cannot assign to reserved name '%s'", name)
 	}
 }
 
@@ -252,12 +266,13 @@ func (s *SemanticAnalyzer) checkUnreachableCode(stmts []Stmt) {
 // Integration with Compile function
 // ---------------------------------------------------------------------------
 
-// Analyze runs semantic analysis on a method and returns any errors/warnings.
+// Analyze runs semantic analysis on a method and returns its warnings
+// (advisory; analysis never fails compilation).
 func Analyze(method *MethodDef, instVars []string) []string {
 	analyzer := NewSemanticAnalyzer()
 	if len(instVars) > 0 {
 		analyzer.SetInstanceVars(instVars)
 	}
 	analyzer.AnalyzeMethod(method)
-	return analyzer.Errors()
+	return analyzer.Warnings()
 }

@@ -1186,6 +1186,76 @@ func Compile(source string, selectors *vm.SelectorTable, symbols *vm.SymbolTable
 	return compiled, nil
 }
 
+// Install CompileDoIt as the VM's doIt compiler: any program linking the
+// compiler package (everything that calls UseGoCompiler) gets the AST-level
+// eval path automatically.
+func init() {
+	vm.RegisterDoItCompiler(CompileDoIt)
+}
+
+// CompileDoIt parses a statement sequence (with optional leading | temps |)
+// and compiles it as a synthetic doIt method whose value is the final
+// expression. This is the ONLY supported way to compile eval input: the
+// last statement is wrapped in a Return at the AST level, so no textual
+// splicing can corrupt string literals or block bodies (the old dot-scanner
+// turned `3 + 4. 'x.y'` into a method whose string literal was "x. ^y").
+//
+// Returns the compiled method, semantic warnings (advisory — e.g.
+// possibly-undefined variables), and any parse/compile error. The full
+// method compilation path runs, including cell-variable analysis, so blocks
+// with mutable captures behave identically to method-compiled code.
+func CompileDoIt(source string, selectors *vm.SelectorTable, symbols *vm.SymbolTable, registry *vm.ObjectRegistry) (*vm.CompiledMethod, []string, error) {
+	method, err := ParseDoIt(source)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	warnings := Analyze(method, nil)
+
+	compiler := NewCompiler(selectors, symbols, registry)
+	compiled := compiler.CompileMethod(method)
+	if len(compiler.Errors()) > 0 {
+		return nil, warnings, formatErrors("compile errors", compiler.Errors())
+	}
+	compiled.Source = source
+	return compiled, warnings, nil
+}
+
+// ParseDoIt parses eval input — an optional | temps | declaration followed
+// by a statement sequence — into a synthetic doIt MethodDef whose last
+// statement is wrapped in an explicit return.
+func ParseDoIt(source string) (*MethodDef, error) {
+	p := NewParser(source)
+	startPos := p.curToken.Pos
+
+	var temps []string
+	var tempTypes []*TypeExpr
+	if p.curTokenIs(TokenBar) {
+		temps, tempTypes = p.parseTemporaries()
+	}
+
+	stmts := p.ParseStatements()
+	if errs := p.Errors(); len(errs) > 0 {
+		return nil, formatErrors("parse errors", errs)
+	}
+
+	// The doIt's value is its final expression: wrap the last statement in a
+	// Return unless it already is one.
+	if len(stmts) > 0 {
+		if es, ok := stmts[len(stmts)-1].(*ExprStmt); ok {
+			stmts[len(stmts)-1] = &Return{SpanVal: es.SpanVal, Value: es.Expr}
+		}
+	}
+
+	return &MethodDef{
+		SpanVal:    MakeSpan(startPos, p.curToken.Pos),
+		Selector:   "doIt",
+		Temps:      temps,
+		TempTypes:  tempTypes,
+		Statements: stmts,
+	}, nil
+}
+
 // CompileExpr parses and compiles an expression.
 func CompileExpr(source string, selectors *vm.SelectorTable, symbols *vm.SymbolTable, registry *vm.ObjectRegistry) (*vm.CompiledMethod, error) {
 	parser := NewParser(source)

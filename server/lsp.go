@@ -575,6 +575,10 @@ func (s *LspServer) references(v *vm.VM, word string) []protocol.Location {
 // lineErrorRe extracts "line N: message" from parser error strings.
 var lineErrorRe = regexp.MustCompile(`line (\d+): (.+)`)
 
+// lineNumRe extracts just the line number from diagnostics like
+// "line N, column M: message".
+var lineNumRe = regexp.MustCompile(`line (\d+)`)
+
 func (s *LspServer) publishDiagnostics(ctx *glsp.Context, uri protocol.DocumentUri, text string) {
 	// Use the full source file parser for .mag files (handles namespace:, import:,
 	// class/trait definitions). Fall back to CompileExpression for non-.mag URIs.
@@ -619,24 +623,52 @@ func (s *LspServer) publishDiagnostics(ctx *glsp.Context, uri protocol.DocumentU
 			}
 		}
 	} else {
-		// Non-.mag files: try as expression (REPL-style)
+		// Non-.mag files: try as expression (REPL-style). Semantic warnings
+		// (e.g. possibly-undefined variables — the "typo silently compiles
+		// to a nil global" case) are published at Warning severity.
+		type evalDiag struct {
+			compileErr string
+			warnings   []string
+		}
 		result, err := s.worker.DoConcurrent(func(v *vm.VM) interface{} {
-			_, compileErr := v.CompileExpression(text)
+			_, warnings, compileErr := v.CompileExpressionWithWarnings(text)
+			d := evalDiag{warnings: warnings}
 			if compileErr != nil {
-				return compileErr.Error()
+				d.compileErr = compileErr.Error()
 			}
-			return nil
+			return d
 		})
-		if err == nil && result != nil {
-			diagnostics = append(diagnostics, protocol.Diagnostic{
-				Range: protocol.Range{
-					Start: protocol.Position{Line: 0, Character: 0},
-					End:   protocol.Position{Line: 0, Character: 0},
-				},
-				Severity: &severity,
-				Source:   &source,
-				Message:  result.(string),
-			})
+		if err == nil {
+			d := result.(evalDiag)
+			if d.compileErr != "" {
+				diagnostics = append(diagnostics, protocol.Diagnostic{
+					Range: protocol.Range{
+						Start: protocol.Position{Line: 0, Character: 0},
+						End:   protocol.Position{Line: 0, Character: 0},
+					},
+					Severity: &severity,
+					Source:   &source,
+					Message:  d.compileErr,
+				})
+			}
+			warnSeverity := protocol.DiagnosticSeverityWarning
+			for _, w := range d.warnings {
+				line := protocol.UInteger(0)
+				if m := lineNumRe.FindStringSubmatch(w); m != nil {
+					if n, convErr := strconv.Atoi(m[1]); convErr == nil && n > 0 {
+						line = protocol.UInteger(n - 1)
+					}
+				}
+				diagnostics = append(diagnostics, protocol.Diagnostic{
+					Range: protocol.Range{
+						Start: protocol.Position{Line: line, Character: 0},
+						End:   protocol.Position{Line: line, Character: 0},
+					},
+					Severity: &warnSeverity,
+					Source:   &source,
+					Message:  w,
+				})
+			}
 		}
 	}
 
