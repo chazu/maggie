@@ -380,9 +380,7 @@ func rowsToArray(vmInst *vm.VM, rows *sql.Rows) vm.Value {
 		for i, colName := range cols {
 			key := vmInst.Registry().NewStringValue(colName)
 			val := goScanValueToMaggie(vmInst, scanValues[i])
-			h := vm.HashValue(vmInst.Registry(), key)
-			dictObj.Keys[h] = key
-			dictObj.Data[h] = val
+			dictObj.Put(vmInst.Registry(), key, val)
 		}
 
 		results = append(results, dict)

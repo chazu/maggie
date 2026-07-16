@@ -192,9 +192,9 @@ func RegisterCuePrimitives(v *vm.VM) {
 		}
 
 		result := baseVal
-		for hash, keyVal := range dict.Keys {
-			fieldName := vmPtr.ValueToString(keyVal)
-			fieldValue := dict.Data[hash]
+		for _, entry := range dict.Entries() {
+			fieldName := vmPtr.ValueToString(entry.Key)
+			fieldValue := entry.Value
 			goVal := cueExportValue(vmPtr, fieldValue)
 			var p cuelang.Path
 			if len(fieldName) > 0 && fieldName[0] == '_' {
@@ -565,9 +565,9 @@ func cueExportValue(vmPtr *vm.VM, v vm.Value) interface{} {
 	dict := vmPtr.Registry().GetDictionaryObject(v)
 	if dict != nil {
 		m := make(map[string]interface{})
-		for hash, keyVal := range dict.Keys {
-			key := vmPtr.ValueToString(keyVal)
-			m[key] = cueExportValue(vmPtr, dict.Data[hash])
+		for _, entry := range dict.Entries() {
+			key := vmPtr.ValueToString(entry.Key)
+			m[key] = cueExportValue(vmPtr, entry.Value)
 		}
 		return m
 	}

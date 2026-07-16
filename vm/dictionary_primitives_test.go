@@ -16,8 +16,8 @@ func TestNewDictionaryValue(t *testing.T) {
 	if obj == nil {
 		t.Fatal("GetDictionaryObject returned nil")
 	}
-	if len(obj.Data) != 0 {
-		t.Errorf("New dictionary has %d entries, want 0", len(obj.Data))
+	if obj.Size() != 0 {
+		t.Errorf("New dictionary has %d entries, want 0", obj.Size())
 	}
 }
 

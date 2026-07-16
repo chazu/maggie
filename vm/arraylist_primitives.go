@@ -102,9 +102,8 @@ func (vm *VM) registerArrayListPrimitives() {
 		}
 		// Try as ArrayList first
 		if other := v.getArrayList(coll); other != nil {
-			for _, elem := range other.elements {
-				al.Add(elem)
-			}
+			// Snapshot handles the aliasing case (list addAll: list) safely.
+			al.AppendSlice(other.Snapshot())
 			return recv
 		}
 		// Try as Array (Object with slots)
@@ -270,7 +269,7 @@ func (vm *VM) registerArrayListPrimitives() {
 		if al == nil {
 			return False
 		}
-		for _, e := range al.elements {
+		for _, e := range al.Snapshot() {
 			if v.Send(e, "=", []Value{elem}) == True {
 				return True
 			}
@@ -286,7 +285,7 @@ func (vm *VM) registerArrayListPrimitives() {
 		if al == nil {
 			return FromSmallInt(0)
 		}
-		for i, e := range al.elements {
+		for i, e := range al.Snapshot() {
 			if v.Send(e, "=", []Value{elem}) == True {
 				return FromSmallInt(int64(i + 1))
 			}
@@ -303,9 +302,7 @@ func (vm *VM) registerArrayListPrimitives() {
 			return v.NewArray(0)
 		}
 		// Copy elements to avoid sharing
-		elems := make([]Value, al.Size())
-		copy(elems, al.elements)
-		return v.NewArrayWithElements(elems)
+		return v.NewArrayWithElements(al.Snapshot())
 	}
 	c.AddMethod0(vm.Selectors, "asArray", asArrayFn)
 	c.AddMethod0(vm.Selectors, "primAsArray", asArrayFn)
@@ -316,10 +313,9 @@ func (vm *VM) registerArrayListPrimitives() {
 		if al == nil {
 			return v.SignalPrimitiveError("do:", "receiver is not an ArrayList")
 		}
-		// Snapshot length — safe if elements are added during iteration
-		n := al.Size()
-		for i := 0; i < n; i++ {
-			v.evaluateBlock(block, []Value{al.elements[i]})
+		// Snapshot — safe if elements are added/removed during iteration
+		for _, elem := range al.Snapshot() {
+			v.evaluateBlock(block, []Value{elem})
 		}
 		return Nil
 	}
@@ -336,9 +332,10 @@ func (vm *VM) registerArrayListPrimitives() {
 			}
 			return val
 		}
-		result := createArrayList(al.Size())
-		for i := 0; i < al.Size(); i++ {
-			val := v.evaluateBlock(block, []Value{al.elements[i]})
+		snapshot := al.Snapshot()
+		result := createArrayList(len(snapshot))
+		for _, elem := range snapshot {
+			val := v.evaluateBlock(block, []Value{elem})
 			result.Add(val)
 		}
 		val, err := v.registerArrayList(result)
@@ -360,9 +357,9 @@ func (vm *VM) registerArrayListPrimitives() {
 			}
 			return val
 		}
-		result := createArrayList(al.Size() / 2) // estimate half match
-		for i := 0; i < al.Size(); i++ {
-			elem := al.elements[i]
+		snapshot := al.Snapshot()
+		result := createArrayList(len(snapshot) / 2) // estimate half match
+		for _, elem := range snapshot {
 			if v.evaluateBlock(block, []Value{elem}) == True {
 				result.Add(elem)
 			}
@@ -386,9 +383,9 @@ func (vm *VM) registerArrayListPrimitives() {
 			}
 			return val
 		}
-		result := createArrayList(al.Size() / 2)
-		for i := 0; i < al.Size(); i++ {
-			elem := al.elements[i]
+		snapshot := al.Snapshot()
+		result := createArrayList(len(snapshot) / 2)
+		for _, elem := range snapshot {
 			if v.evaluateBlock(block, []Value{elem}) != True {
 				result.Add(elem)
 			}
@@ -409,8 +406,8 @@ func (vm *VM) registerArrayListPrimitives() {
 			return initial
 		}
 		result := initial
-		for i := 0; i < al.Size(); i++ {
-			result = v.evaluateBlock(block, []Value{result, al.elements[i]})
+		for _, elem := range al.Snapshot() {
+			result = v.evaluateBlock(block, []Value{result, elem})
 		}
 		return result
 	}
@@ -423,8 +420,7 @@ func (vm *VM) registerArrayListPrimitives() {
 		if al == nil {
 			return v.SignalPrimitiveError("detect:", "receiver is not an ArrayList")
 		}
-		for i := 0; i < al.Size(); i++ {
-			elem := al.elements[i]
+		for _, elem := range al.Snapshot() {
 			if v.evaluateBlock(block, []Value{elem}) == True {
 				return elem
 			}
@@ -440,8 +436,7 @@ func (vm *VM) registerArrayListPrimitives() {
 		if al == nil {
 			return v.evaluateBlock(noneBlock, nil)
 		}
-		for i := 0; i < al.Size(); i++ {
-			elem := al.elements[i]
+		for _, elem := range al.Snapshot() {
 			if v.evaluateBlock(block, []Value{elem}) == True {
 				return elem
 			}
@@ -459,11 +454,11 @@ func (vm *VM) registerArrayListPrimitives() {
 		}
 		var sb strings.Builder
 		sb.WriteString("ArrayList(")
-		for i := 0; i < al.Size(); i++ {
+		for i, elem := range al.Snapshot() {
 			if i > 0 {
 				sb.WriteString(" ")
 			}
-			s := v.Send(al.elements[i], "printString", nil)
+			s := v.Send(elem, "printString", nil)
 			sb.WriteString(v.valueToString(s))
 		}
 		sb.WriteString(")")
@@ -482,8 +477,9 @@ func (vm *VM) registerArrayListPrimitives() {
 			}
 			return val
 		}
-		result := createArrayList(al.Size())
-		result.elements = append(result.elements, al.elements...)
+		snapshot := al.Snapshot()
+		result := createArrayList(len(snapshot))
+		result.AppendSlice(snapshot)
 		val, err := v.registerArrayList(result)
 		if err != nil {
 			return v.SignalPrimitiveError("ArrayList copy", err.Error())
@@ -499,22 +495,26 @@ func (vm *VM) registerArrayListPrimitives() {
 		if al == nil || al.Size() <= 1 {
 			return recv
 		}
+		// Sort a snapshot (the comparison block is arbitrary Maggie code, so
+		// the lock cannot be held across it), then write the result back.
 		// Simple insertion sort using the comparison block
 		// (for large lists, could use a more efficient sort)
-		n := al.Size()
+		elems := al.Snapshot()
+		n := len(elems)
 		for i := 1; i < n; i++ {
-			key := al.elements[i]
+			key := elems[i]
 			j := i - 1
 			for j >= 0 {
-				cmp := v.evaluateBlock(block, []Value{al.elements[j], key})
+				cmp := v.evaluateBlock(block, []Value{elems[j], key})
 				if !cmp.IsSmallInt() || cmp.SmallInt() <= 0 {
 					break
 				}
-				al.elements[j+1] = al.elements[j]
+				elems[j+1] = elems[j]
 				j--
 			}
-			al.elements[j+1] = key
+			elems[j+1] = key
 		}
+		al.ReplaceAll(elems)
 		return recv
 	}
 	c.AddMethod1(vm.Selectors, "sort:", sortFn)

@@ -30,10 +30,8 @@ func TestHttpClientPostWithHeaders(t *testing.T) {
 	authVal := vm.registry.NewStringValue("Bearer secret")
 	xKey := vm.registry.NewStringValue("X-Custom")
 	xVal := vm.registry.NewStringValue("maggie")
-	dict.Data[hashValue(vm.registry, authKey)] = authVal
-	dict.Keys[hashValue(vm.registry, authKey)] = authKey
-	dict.Data[hashValue(vm.registry, xKey)] = xVal
-	dict.Keys[hashValue(vm.registry, xKey)] = xKey
+	dict.Put(vm.registry, authKey, authVal)
+	dict.Put(vm.registry, xKey, xVal)
 
 	body := vm.Send(client, "post:body:contentType:headers:", []Value{
 		vm.registry.NewStringValue(srv.URL),

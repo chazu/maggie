@@ -107,12 +107,8 @@ func (vm *VM) ed25519KeyPairDict(seed, pub []byte) Value {
 	pubKey := vm.Symbols.SymbolValue("pub")
 	privVal := vm.registry.NewStringValue(string(seed))
 	pubVal := vm.registry.NewStringValue(string(pub))
-	h1 := hashValue(vm.registry, privKey)
-	h2 := hashValue(vm.registry, pubKey)
-	dict.Data[h1] = privVal
-	dict.Keys[h1] = privKey
-	dict.Data[h2] = pubVal
-	dict.Keys[h2] = pubKey
+	dict.Put(vm.registry, privKey, privVal)
+	dict.Put(vm.registry, pubKey, pubVal)
 	return dictVal
 }
 

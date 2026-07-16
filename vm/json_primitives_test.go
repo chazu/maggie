@@ -85,8 +85,7 @@ func TestJsonEncodeDictionary(t *testing.T) {
 	key := vm.registry.NewStringValue("name")
 	val := vm.registry.NewStringValue("Alice")
 	h := hashValue(vm.registry, key)
-	d.Data[h] = val
-	d.Keys[h] = key
+	d.SetByHash(h, key, val)
 
 	result := vm.Send(jsonClass, "primEncode:", []Value{dict})
 	assertStringResult(t, vm, result, `{"name":"Alice"}`)
@@ -104,13 +103,11 @@ func TestJsonEncodeNested(t *testing.T) {
 
 	key1 := vm.registry.NewStringValue("items")
 	h1 := hashValue(vm.registry, key1)
-	d.Data[h1] = innerArr
-	d.Keys[h1] = key1
+	d.SetByHash(h1, key1, innerArr)
 
 	key2 := vm.registry.NewStringValue("ok")
 	h2 := hashValue(vm.registry, key2)
-	d.Data[h2] = True
-	d.Keys[h2] = key2
+	d.SetByHash(h2, key2, True)
 
 	result := vm.Send(jsonClass, "primEncode:", []Value{dict})
 	if !IsStringValue(result) {
@@ -155,8 +152,7 @@ func TestJsonEncodePretty(t *testing.T) {
 	key := vm.registry.NewStringValue("key")
 	val := vm.registry.NewStringValue("value")
 	h := hashValue(vm.registry, key)
-	d.Data[h] = val
-	d.Keys[h] = key
+	d.SetByHash(h, key, val)
 
 	result := vm.Send(jsonClass, "primEncodePretty:", []Value{dict})
 	if !IsStringValue(result) {
@@ -275,13 +271,13 @@ func TestJsonDecodeDictionary(t *testing.T) {
 		t.Fatalf("Expected dictionary, got %v", result)
 	}
 	dict := vm.registry.GetDictionaryObject(result)
-	if len(dict.Keys) != 2 {
-		t.Fatalf("Expected 2 keys, got %d", len(dict.Keys))
+	if dict.Size() != 2 {
+		t.Fatalf("Expected 2 keys, got %d", dict.Size())
 	}
 	// Check name
 	nameKey := vm.registry.NewStringValue("name")
 	nameHash := hashValue(vm.registry, nameKey)
-	nameVal, ok := dict.Data[nameHash]
+	nameVal, ok := dict.GetByHash(nameHash)
 	if !ok {
 		t.Fatal("Missing 'name' key")
 	}
@@ -290,7 +286,7 @@ func TestJsonDecodeDictionary(t *testing.T) {
 	// Check age
 	ageKey := vm.registry.NewStringValue("age")
 	ageHash := hashValue(vm.registry, ageKey)
-	ageVal, ok := dict.Data[ageHash]
+	ageVal, ok := dict.GetByHash(ageHash)
 	if !ok {
 		t.Fatal("Missing 'age' key")
 	}
@@ -310,7 +306,7 @@ func TestJsonDecodeNested(t *testing.T) {
 	dict := vm.registry.GetDictionaryObject(result)
 	itemsKey := vm.registry.NewStringValue("items")
 	itemsHash := hashValue(vm.registry, itemsKey)
-	items, ok := dict.Data[itemsHash]
+	items, ok := dict.GetByHash(itemsHash)
 	if !ok {
 		t.Fatal("Missing 'items' key")
 	}
@@ -371,8 +367,8 @@ func TestJsonDecodeEmptyObject(t *testing.T) {
 		t.Fatalf("Expected dictionary, got %v", result)
 	}
 	dict := vm.registry.GetDictionaryObject(result)
-	if len(dict.Keys) != 0 {
-		t.Errorf("Expected 0 keys, got %d", len(dict.Keys))
+	if dict.Size() != 0 {
+		t.Errorf("Expected 0 keys, got %d", dict.Size())
 	}
 }
 
@@ -648,8 +644,7 @@ func TestJsonLargePayload(t *testing.T) {
 		key := vm.registry.NewStringValue("index")
 		val := FromSmallInt(int64(i))
 		h := hashValue(vm.registry, key)
-		d.Data[h] = val
-		d.Keys[h] = key
+		d.SetByHash(h, key, val)
 		elems[i] = dict
 	}
 	arr := vm.NewArrayWithElements(elems)

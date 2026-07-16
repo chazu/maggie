@@ -128,12 +128,9 @@ func (vm *VM) registerExecPrimitives() {
 				exitKey := v.registry.NewStringValue("exitCode")
 				stdoutKey := v.registry.NewStringValue("stdout")
 				stderrKey := v.registry.NewStringValue("stderr")
-				dictObj.Keys[hashValue(v.registry, exitKey)] = exitKey
-				dictObj.Data[hashValue(v.registry, exitKey)] = FromSmallInt(int64(exitCode))
-				dictObj.Keys[hashValue(v.registry, stdoutKey)] = stdoutKey
-				dictObj.Data[hashValue(v.registry, stdoutKey)] = v.registry.NewStringValue(stdout.String())
-				dictObj.Keys[hashValue(v.registry, stderrKey)] = stderrKey
-				dictObj.Data[hashValue(v.registry, stderrKey)] = v.registry.NewStringValue(strings.TrimRight(reason, "\n"))
+				dictObj.Put(v.registry, exitKey, FromSmallInt(int64(exitCode)))
+				dictObj.Put(v.registry, stdoutKey, v.registry.NewStringValue(stdout.String()))
+				dictObj.Put(v.registry, stderrKey, v.registry.NewStringValue(strings.TrimRight(reason, "\n")))
 			}
 			return v.newFailureResult("Process exited with code " + strings.TrimRight(err.Error(), "\n"))
 		}
@@ -504,11 +501,11 @@ func (vm *VM) valueToDictStringMap(v Value) map[string]string {
 	if dictObj == nil {
 		return nil
 	}
-	result := make(map[string]string, len(dictObj.Data))
-	for h, key := range dictObj.Keys {
-		k := vm.valueToString(key)
-		val := dictObj.Data[h]
-		vStr := vm.valueToString(val)
+	entries := dictObj.Entries()
+	result := make(map[string]string, len(entries))
+	for _, e := range entries {
+		k := vm.valueToString(e.Key)
+		vStr := vm.valueToString(e.Value)
 		if k != "" {
 			result[k] = vStr
 		}

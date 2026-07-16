@@ -298,14 +298,12 @@ func TestSerial_Dictionary(t *testing.T) {
 	key1 := vm.registry.NewStringValue("name")
 	val1 := vm.registry.NewStringValue("Alice")
 	h1 := hashValue(vm.registry, key1)
-	dict.Keys[h1] = key1
-	dict.Data[h1] = val1
+	dict.SetByHash(h1, key1, val1)
 
 	key2 := vm.registry.NewStringValue("age")
 	val2 := FromSmallInt(30)
 	h2 := hashValue(vm.registry, key2)
-	dict.Keys[h2] = key2
-	dict.Data[h2] = val2
+	dict.SetByHash(h2, key2, val2)
 
 	data, err := vm.SerializeValue(dictVal)
 	if err != nil {
@@ -319,8 +317,8 @@ func TestSerial_Dictionary(t *testing.T) {
 		t.Fatal("deserialized value is not a dictionary")
 	}
 	gotDict := vm.registry.GetDictionaryObject(got)
-	if len(gotDict.Keys) != 2 {
-		t.Errorf("dict entries: got %d, want 2", len(gotDict.Keys))
+	if gotDict.Size() != 2 {
+		t.Errorf("dict entries: got %d, want 2", gotDict.Size())
 	}
 }
 
@@ -622,8 +620,8 @@ func TestSerial_EmptyDictionary(t *testing.T) {
 		t.Fatal("not a dictionary")
 	}
 	gotDict := vm.registry.GetDictionaryObject(got)
-	if len(gotDict.Keys) != 0 {
-		t.Errorf("empty dict: got %d entries, want 0", len(gotDict.Keys))
+	if gotDict.Size() != 0 {
+		t.Errorf("empty dict: got %d entries, want 0", gotDict.Size())
 	}
 }
 

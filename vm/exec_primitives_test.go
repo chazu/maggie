@@ -199,9 +199,7 @@ func TestExecEnvInjection(t *testing.T) {
 	dictObj := vm.registry.GetDictionaryObject(dict)
 	key := vm.registry.NewStringValue("MAGGIE_TEST_VAR")
 	val := vm.registry.NewStringValue("it_works")
-	h := hashValue(vm.registry, key)
-	dictObj.Keys[h] = key
-	dictObj.Data[h] = val
+	dictObj.Put(vm.registry, key, val)
 
 	vm.Send(proc, "env:", []Value{dict})
 	vm.Send(proc, "run", nil)

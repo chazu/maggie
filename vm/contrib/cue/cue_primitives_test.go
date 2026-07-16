@@ -261,8 +261,8 @@ func TestCueToMaggieStruct(t *testing.T) {
 	if dict == nil {
 		t.Fatal("expected Dictionary for struct conversion")
 	}
-	if len(dict.Data) != 2 {
-		t.Errorf("expected 2 entries, got %d", len(dict.Data))
+	if dict.Size() != 2 {
+		t.Errorf("expected 2 entries, got %d", dict.Size())
 	}
 }
 

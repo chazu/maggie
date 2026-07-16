@@ -982,9 +982,7 @@ func currentRowToDict(vmInst *vm.VM, rowsObj *SqliteRowsObject) vm.Value {
 	for i, col := range rowsObj.columns {
 		key := vmInst.Registry().NewStringValue(col)
 		val := sqlValueToMaggie(vmInst, values[i])
-		h := vm.HashValue(vmInst.Registry(), key)
-		dictObj.Keys[h] = key
-		dictObj.Data[h] = val
+		dictObj.Put(vmInst.Registry(), key, val)
 	}
 
 	return dict
@@ -1018,9 +1016,7 @@ func rowToDict(vmInst *vm.VM, rows *sql.Rows) vm.Value {
 	for i, col := range cols {
 		key := vmInst.Registry().NewStringValue(col)
 		val := sqlValueToMaggie(vmInst, values[i])
-		h := vm.HashValue(vmInst.Registry(), key)
-		dictObj.Keys[h] = key
-		dictObj.Data[h] = val
+		dictObj.Put(vmInst.Registry(), key, val)
 	}
 
 	return dict
@@ -1068,9 +1064,7 @@ func queryAllRows(vmInst *vm.VM, dbObj *SqliteDatabaseObject, sqlStr string, arg
 		for i, col := range cols {
 			key := vmInst.Registry().NewStringValue(col)
 			val := sqlValueToMaggie(vmInst, values[i])
-			h := vm.HashValue(vmInst.Registry(), key)
-			dictObj.Keys[h] = key
-			dictObj.Data[h] = val
+			dictObj.Put(vmInst.Registry(), key, val)
 		}
 
 		results = append(results, dict)

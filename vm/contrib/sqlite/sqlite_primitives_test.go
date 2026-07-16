@@ -340,8 +340,8 @@ func TestSqliteTypeMapping(t *testing.T) {
 		t.Fatal("expected dictionary")
 	}
 
-	if len(dictObj.Data) != 5 {
-		t.Errorf("expected 5 columns in dict, got %d", len(dictObj.Data))
+	if dictObj.Size() != 5 {
+		t.Errorf("expected 5 columns in dict, got %d", dictObj.Size())
 	}
 }
 

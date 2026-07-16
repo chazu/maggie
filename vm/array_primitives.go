@@ -344,8 +344,7 @@ func (vm *VM) DictionaryAtPut(dict Value, key Value, value Value) {
 		return
 	}
 	h := hashValue(vm.registry, key)
-	d.Data[h] = value
-	d.Keys[h] = key
+	d.SetByHash(h, key, value)
 }
 
 // DictionaryAt gets a value from a dictionary by key.
@@ -355,7 +354,7 @@ func (vm *VM) DictionaryAt(dict Value, key Value) Value {
 		return Nil
 	}
 	h := hashValue(vm.registry, key)
-	if val, ok := d.Data[h]; ok {
+	if val, ok := d.GetByHash(h); ok {
 		return val
 	}
 	return Nil

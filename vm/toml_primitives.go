@@ -154,14 +154,13 @@ func (vm *VM) maggieDictionaryToGoMap(dictVal Value) map[string]interface{} {
 	}
 
 	result := make(map[string]interface{})
-	for h, key := range dict.Keys {
-		keyStr := vm.valueToString(key)
+	for _, e := range dict.Entries() {
+		keyStr := vm.valueToString(e.Key)
 		if keyStr == "" {
 			// Convert non-string keys to string representation
-			keyStr = fmt.Sprintf("%v", key)
+			keyStr = fmt.Sprintf("%v", e.Key)
 		}
-		val := dict.Data[h]
-		result[keyStr] = vm.maggieValueToGoValue(val)
+		result[keyStr] = vm.maggieValueToGoValue(e.Value)
 	}
 	return result
 }

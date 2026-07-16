@@ -155,12 +155,12 @@ func (vm *VM) registerCompilerPrimitives() {
 		localNames := make(map[string]bool)
 		savedGlobals := make(map[string]Value)
 
-		for h, keyVal := range dict.Keys {
+		for _, e := range dict.Entries() {
 			var name string
-			if keyVal.IsSymbol() {
-				name = v.Symbols.Name(keyVal.SymbolID())
-			} else if IsStringValue(keyVal) {
-				name = v.registry.GetStringContent(keyVal)
+			if e.Key.IsSymbol() {
+				name = v.Symbols.Name(e.Key.SymbolID())
+			} else if IsStringValue(e.Key) {
+				name = v.registry.GetStringContent(e.Key)
 			} else {
 				continue
 			}
@@ -173,7 +173,7 @@ func (vm *VM) registerCompilerPrimitives() {
 			}
 
 			// Inject local value into globals
-			globals[name] = dict.Data[h]
+			globals[name] = e.Value
 		}
 
 		// Take a snapshot of all global keys before execution
@@ -204,8 +204,7 @@ func (vm *VM) registerCompilerPrimitives() {
 				// Write current value back to locals dict
 				symKey := v.Symbols.SymbolValue(name)
 				h := hashValue(v.registry, symKey)
-				dict.Data[h] = val
-				dict.Keys[h] = symKey
+				dict.SetByHash(h, symKey, val)
 			}
 		}
 
@@ -217,8 +216,7 @@ func (vm *VM) registerCompilerPrimitives() {
 				// Write it to the locals dictionary
 				symKey := v.Symbols.SymbolValue(name)
 				h := hashValue(v.registry, symKey)
-				dict.Data[h] = val
-				dict.Keys[h] = symKey
+				dict.SetByHash(h, symKey, val)
 				localNames[name] = true
 			}
 		}
@@ -581,9 +579,7 @@ func (vm *VM) methodInfoDict(method *CompiledMethod) Value {
 
 	// Helper to add key-value pair
 	put := func(key, value Value) {
-		h := hashValue(vm.registry, key)
-		dict.Data[h] = value
-		dict.Keys[h] = key
+		dict.Put(vm.registry, key, value)
 	}
 
 	// Add selector

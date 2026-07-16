@@ -306,14 +306,14 @@ func (s *valueSerializer) serializeDictionary(v Value) ([]byte, error) {
 		return nil, fmt.Errorf("serial: Dictionary registry miss")
 	}
 
-	entries := make([]dictEntry, 0, len(dict.Keys))
-	for h, key := range dict.Keys {
-		val := dict.Data[h]
-		keyBytes, err := s.serialize(key)
+	snapshot := dict.Entries()
+	entries := make([]dictEntry, 0, len(snapshot))
+	for _, e := range snapshot {
+		keyBytes, err := s.serialize(e.Key)
 		if err != nil {
 			return nil, fmt.Errorf("serial: dictionary key: %w", err)
 		}
-		valBytes, err := s.serialize(val)
+		valBytes, err := s.serialize(e.Value)
 		if err != nil {
 			return nil, fmt.Errorf("serial: dictionary value: %w", err)
 		}
@@ -661,9 +661,7 @@ func (d *valueDeserializer) deserializeDictionary(tag cbor.Tag) (Value, error) {
 		if err != nil {
 			return Nil, fmt.Errorf("serial: dictionary value: %w", err)
 		}
-		h := hashValue(d.vm.registry, key)
-		dict.Keys[h] = key
-		dict.Data[h] = val
+		dict.Put(d.vm.registry, key, val)
 	}
 
 	return dictVal, nil

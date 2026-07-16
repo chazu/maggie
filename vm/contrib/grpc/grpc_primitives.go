@@ -148,8 +148,8 @@ func dictionaryToProto(vmInst *vm.VM, dictVal vm.Value, msgDesc *desc.MessageDes
 
 	msg := dynamic.NewMessage(msgDesc)
 
-	for h, val := range dict.Data {
-		key := dict.Keys[h]
+	for _, entry := range dict.Entries() {
+		key, val := entry.Key, entry.Value
 
 		// Get field name from key (symbol or string)
 		var fieldName string

@@ -98,11 +98,7 @@ func (or *ObjectRegistry) GetContextFromValue(v Value) *ContextValue {
 
 // NewDictionaryValue creates a new empty dictionary heap Value.
 func (or *ObjectRegistry) NewDictionaryValue() Value {
-	obj := &DictionaryObject{
-		Data: make(map[uint64]Value),
-		Keys: make(map[uint64]Value),
-	}
-	return makeHeap(kindDictionary, unsafe.Pointer(obj))
+	return makeHeap(kindDictionary, unsafe.Pointer(NewDictionaryObject()))
 }
 
 // GetDictionaryObject returns the DictionaryObject for a Value.

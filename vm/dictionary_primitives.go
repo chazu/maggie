@@ -1,14 +1,102 @@
 package vm
 
+import "sync"
+
 // ---------------------------------------------------------------------------
 // Dictionary Storage: Native Go maps wrapped for the VM
 // ---------------------------------------------------------------------------
 
 // DictionaryObject represents a Maggie dictionary (key-value map).
 // Uses a Go map internally for O(1) lookup.
+//
+// All access goes through the locked methods below: dictionaries stored in
+// globals are reachable from concurrent server requests (RunIsolated
+// interpreters) and forked processes, and a bare concurrent map write is an
+// uncatchable Go runtime fatal. Iteration helpers return snapshots so
+// callers never hold the lock while running Maggie code (blocks).
 type DictionaryObject struct {
-	Data map[uint64]Value // Key hash -> Value
-	Keys map[uint64]Value // Key hash -> Key (for iteration)
+	mu   sync.RWMutex
+	data map[uint64]Value // key hash -> value
+	keys map[uint64]Value // key hash -> key (for iteration)
+}
+
+// DictEntry is one key-value pair in an iteration snapshot.
+type DictEntry struct {
+	Hash  uint64
+	Key   Value
+	Value Value
+}
+
+// NewDictionaryObject creates an empty dictionary object.
+func NewDictionaryObject() *DictionaryObject {
+	return &DictionaryObject{
+		data: make(map[uint64]Value),
+		keys: make(map[uint64]Value),
+	}
+}
+
+// GetByHash returns the value stored under a key hash.
+func (d *DictionaryObject) GetByHash(h uint64) (Value, bool) {
+	d.mu.RLock()
+	v, ok := d.data[h]
+	d.mu.RUnlock()
+	return v, ok
+}
+
+// KeyByHash returns the key object stored under a key hash.
+func (d *DictionaryObject) KeyByHash(h uint64) (Value, bool) {
+	d.mu.RLock()
+	k, ok := d.keys[h]
+	d.mu.RUnlock()
+	return k, ok
+}
+
+// SetByHash stores a key-value pair under a key hash.
+func (d *DictionaryObject) SetByHash(h uint64, key, value Value) {
+	d.mu.Lock()
+	d.data[h] = value
+	d.keys[h] = key
+	d.mu.Unlock()
+}
+
+// Put stores a key-value pair, hashing the key with hashValue. Convenience
+// for Go code building result dictionaries.
+func (d *DictionaryObject) Put(or *ObjectRegistry, key, value Value) {
+	d.SetByHash(hashValue(or, key), key, value)
+}
+
+// DeleteByHash removes the entry under a key hash, returning the removed
+// value and whether it was present.
+func (d *DictionaryObject) DeleteByHash(h uint64) (Value, bool) {
+	d.mu.Lock()
+	v, ok := d.data[h]
+	if ok {
+		delete(d.data, h)
+		delete(d.keys, h)
+	}
+	d.mu.Unlock()
+	return v, ok
+}
+
+// Size returns the number of entries.
+func (d *DictionaryObject) Size() int {
+	d.mu.RLock()
+	n := len(d.data)
+	d.mu.RUnlock()
+	return n
+}
+
+// Entries returns a snapshot of all entries. Iterate the snapshot instead
+// of the live maps so Maggie blocks can run (and even mutate the receiver)
+// without holding the lock.
+func (d *DictionaryObject) Entries() []DictEntry {
+	d.mu.RLock()
+	entries := make([]DictEntry, 0, len(d.data))
+	for h, v := range d.data {
+		entries = append(entries, DictEntry{Hash: h, Key: d.keys[h], Value: v})
+	}
+	d.mu.RUnlock()
+	return entries
 }
 
 // dictionaryIDOffset marks the top of the legacy symbol-id space. Retained so
@@ -80,7 +168,7 @@ func (vm *VM) registerDictionaryPrimitives() {
 			return v.SignalPrimitiveError("at:", "receiver is not a Dictionary")
 		}
 		h := hashValue(v.registry, key)
-		if val, ok := dict.Data[h]; ok {
+		if val, ok := dict.GetByHash(h); ok {
 			return val
 		}
 		return Nil
@@ -95,8 +183,7 @@ func (vm *VM) registerDictionaryPrimitives() {
 			return v.SignalPrimitiveError("at:put:", "receiver is not a Dictionary")
 		}
 		h := hashValue(v.registry, key)
-		dict.Data[h] = value
-		dict.Keys[h] = key
+		dict.SetByHash(h, key, value)
 		return value
 	})
 
@@ -107,7 +194,7 @@ func (vm *VM) registerDictionaryPrimitives() {
 			return v.SignalPrimitiveError("at:ifAbsent:", "receiver is not a Dictionary")
 		}
 		h := hashValue(v.registry, key)
-		if val, ok := dict.Data[h]; ok {
+		if val, ok := dict.GetByHash(h); ok {
 			return val
 		}
 		// Evaluate the block
@@ -121,7 +208,7 @@ func (vm *VM) registerDictionaryPrimitives() {
 			return v.SignalPrimitiveError("at:ifPresent:", "receiver is not a Dictionary")
 		}
 		h := hashValue(v.registry, key)
-		if val, ok := dict.Data[h]; ok {
+		if val, ok := dict.GetByHash(h); ok {
 			// Evaluate the block with the value
 			return v.Send(block, "value:", []Value{val})
 		}
@@ -135,7 +222,7 @@ func (vm *VM) registerDictionaryPrimitives() {
 			return False
 		}
 		h := hashValue(v.registry, key)
-		if _, ok := dict.Data[h]; ok {
+		if _, ok := dict.GetByHash(h); ok {
 			return True
 		}
 		return False
@@ -147,7 +234,7 @@ func (vm *VM) registerDictionaryPrimitives() {
 		if dict == nil {
 			return FromSmallInt(0)
 		}
-		return FromSmallInt(int64(len(dict.Data)))
+		return FromSmallInt(int64(dict.Size()))
 	})
 
 	// isEmpty - true if dictionary has no entries
@@ -156,7 +243,7 @@ func (vm *VM) registerDictionaryPrimitives() {
 		if dict == nil {
 			return True
 		}
-		if len(dict.Data) == 0 {
+		if dict.Size() == 0 {
 			return True
 		}
 		return False
@@ -168,9 +255,10 @@ func (vm *VM) registerDictionaryPrimitives() {
 		if dict == nil {
 			return v.NewArray(0)
 		}
-		keys := make([]Value, 0, len(dict.Keys))
-		for _, key := range dict.Keys {
-			keys = append(keys, key)
+		entries := dict.Entries()
+		keys := make([]Value, 0, len(entries))
+		for _, e := range entries {
+			keys = append(keys, e.Key)
 		}
 		return v.NewArrayWithElements(keys)
 	})
@@ -181,34 +269,36 @@ func (vm *VM) registerDictionaryPrimitives() {
 		if dict == nil {
 			return v.NewArray(0)
 		}
-		values := make([]Value, 0, len(dict.Data))
-		for _, val := range dict.Data {
-			values = append(values, val)
+		entries := dict.Entries()
+		values := make([]Value, 0, len(entries))
+		for _, e := range entries {
+			values = append(values, e.Value)
 		}
 		return v.NewArrayWithElements(values)
 	})
 
-	// do: - iterate over values with a block
+	// do: - iterate over values with a block (snapshot semantics: mutation
+	// from inside the block does not affect this iteration)
 	c.AddMethod1(vm.Selectors, "do:", func(v *VM, recv Value, block Value) Value {
 		dict := v.registry.GetDictionaryObject(recv)
 		if dict == nil {
 			return recv
 		}
-		for _, val := range dict.Data {
-			v.Send(block, "value:", []Value{val})
+		for _, e := range dict.Entries() {
+			v.Send(block, "value:", []Value{e.Value})
 		}
 		return recv
 	})
 
-	// keysAndValuesDo: - iterate over key-value pairs with a block
+	// keysAndValuesDo: - iterate over key-value pairs with a block (snapshot
+	// semantics: mutation from inside the block does not affect this iteration)
 	c.AddMethod1(vm.Selectors, "keysAndValuesDo:", func(v *VM, recv Value, block Value) Value {
 		dict := v.registry.GetDictionaryObject(recv)
 		if dict == nil {
 			return recv
 		}
-		for h, val := range dict.Data {
-			key := dict.Keys[h]
-			v.Send(block, "value:value:", []Value{key, val})
+		for _, e := range dict.Entries() {
+			v.Send(block, "value:value:", []Value{e.Key, e.Value})
 		}
 		return recv
 	})
@@ -220,9 +310,7 @@ func (vm *VM) registerDictionaryPrimitives() {
 			return v.SignalPrimitiveError("removeKey:", "receiver is not a Dictionary")
 		}
 		h := hashValue(v.registry, key)
-		if val, ok := dict.Data[h]; ok {
-			delete(dict.Data, h)
-			delete(dict.Keys, h)
+		if val, ok := dict.DeleteByHash(h); ok {
 			return val
 		}
 		return Nil
@@ -235,9 +323,7 @@ func (vm *VM) registerDictionaryPrimitives() {
 			return v.Send(block, "value", nil)
 		}
 		h := hashValue(v.registry, key)
-		if val, ok := dict.Data[h]; ok {
-			delete(dict.Data, h)
-			delete(dict.Keys, h)
+		if val, ok := dict.DeleteByHash(h); ok {
 			return val
 		}
 		return v.Send(block, "value", nil)

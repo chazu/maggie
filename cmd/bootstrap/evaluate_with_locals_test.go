@@ -21,9 +21,8 @@ func TestEvaluateWithLocals_ReadLocal(t *testing.T) {
 	locals := vmInst.Registry().NewDictionaryValue()
 	dict := vmInst.Registry().GetDictionaryObject(locals)
 	xKey := vmInst.Symbols.SymbolValue("x")
-	h := vm.HashValue(vmInst.Registry(),xKey)
-	dict.Data[h] = vm.FromSmallInt(42)
-	dict.Keys[h] = xKey
+	h := vm.HashValue(vmInst.Registry(), xKey)
+	dict.SetByHash(h, xKey, vm.FromSmallInt(42))
 
 	// Evaluate: x + 1 (should read x from locals)
 	source := vmInst.Registry().NewStringValue("x + 1")
@@ -58,7 +57,7 @@ func TestEvaluateWithLocals_WriteLocal(t *testing.T) {
 	dict := vmInst.Registry().GetDictionaryObject(locals)
 	yKey := vmInst.Symbols.SymbolValue("y")
 	h := vm.HashValue(vmInst.Registry(),yKey)
-	val, ok := dict.Data[h]
+	val, ok := dict.GetByHash(h)
 	if !ok {
 		t.Fatal("Expected y to be in locals dictionary")
 	}
@@ -82,16 +81,15 @@ func TestEvaluateWithLocals_ModifyExistingLocal(t *testing.T) {
 	locals := vmInst.Registry().NewDictionaryValue()
 	dict := vmInst.Registry().GetDictionaryObject(locals)
 	xKey := vmInst.Symbols.SymbolValue("x")
-	h := vm.HashValue(vmInst.Registry(),xKey)
-	dict.Data[h] = vm.FromSmallInt(10)
-	dict.Keys[h] = xKey
+	h := vm.HashValue(vmInst.Registry(), xKey)
+	dict.SetByHash(h, xKey, vm.FromSmallInt(10))
 
 	// Evaluate: x := x * 5 (should modify x in locals)
 	source := vmInst.Registry().NewStringValue("x := x * 5")
 	vmInst.Send(compilerClass, "evaluate:withLocals:", []vm.Value{source, locals})
 
 	// Verify x was updated in locals
-	val := dict.Data[h]
+	val, _ := dict.GetByHash(h)
 	if !val.IsSmallInt() || val.SmallInt() != 50 {
 		t.Errorf("Expected x=50 in locals, got: %v", val)
 	}
@@ -131,9 +129,8 @@ func TestEvaluateWithLocals_LocalShadowsGlobal(t *testing.T) {
 	locals := vmInst.Registry().NewDictionaryValue()
 	dict := vmInst.Registry().GetDictionaryObject(locals)
 	xKey := vmInst.Symbols.SymbolValue("x")
-	h := vm.HashValue(vmInst.Registry(),xKey)
-	dict.Data[h] = vm.FromSmallInt(5)
-	dict.Keys[h] = xKey
+	h := vm.HashValue(vmInst.Registry(), xKey)
+	dict.SetByHash(h, xKey, vm.FromSmallInt(5))
 
 	// Evaluate: x (should read local x=5, not global x=1000)
 	source := vmInst.Registry().NewStringValue("x")
@@ -172,15 +169,15 @@ func TestEvaluateWithLocals_ScopeIsolation(t *testing.T) {
 	// Verify scope 1 still has x = 42
 	dict1 := vmInst.Registry().GetDictionaryObject(locals1)
 	xKey := vmInst.Symbols.SymbolValue("x")
-	h := vm.HashValue(vmInst.Registry(),xKey)
-	val1 := dict1.Data[h]
+	h := vm.HashValue(vmInst.Registry(), xKey)
+	val1, _ := dict1.GetByHash(h)
 	if !val1.IsSmallInt() || val1.SmallInt() != 42 {
 		t.Errorf("Scope 1: expected x=42, got: %v", val1)
 	}
 
 	// Verify scope 2 has x = 99
 	dict2 := vmInst.Registry().GetDictionaryObject(locals2)
-	val2 := dict2.Data[h]
+	val2, _ := dict2.GetByHash(h)
 	if !val2.IsSmallInt() || val2.SmallInt() != 99 {
 		t.Errorf("Scope 2: expected x=99, got: %v", val2)
 	}
@@ -220,14 +217,10 @@ func TestEvaluateWithLocals_MultipleLocals(t *testing.T) {
 	dict := vmInst.Registry().GetDictionaryObject(locals)
 
 	aKey := vmInst.Symbols.SymbolValue("a")
-	aH := vm.HashValue(vmInst.Registry(),aKey)
-	dict.Data[aH] = vm.FromSmallInt(10)
-	dict.Keys[aH] = aKey
+	dict.Put(vmInst.Registry(), aKey, vm.FromSmallInt(10))
 
 	bKey := vmInst.Symbols.SymbolValue("b")
-	bH := vm.HashValue(vmInst.Registry(),bKey)
-	dict.Data[bH] = vm.FromSmallInt(20)
-	dict.Keys[bH] = bKey
+	dict.Put(vmInst.Registry(), bKey, vm.FromSmallInt(20))
 
 	// Evaluate: a + b
 	source := vmInst.Registry().NewStringValue("a + b")

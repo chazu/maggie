@@ -280,17 +280,18 @@ func (vm *VM) valueToGoJSON(v Value) interface{} {
 		if dict == nil {
 			return nil
 		}
-		m := make(map[string]interface{}, len(dict.Keys))
-		for h, key := range dict.Keys {
+		entries := dict.Entries()
+		m := make(map[string]interface{}, len(entries))
+		for _, e := range entries {
 			var keyStr string
-			if IsStringValue(key) {
-				keyStr = vm.registry.GetStringContent(key)
-			} else if key.IsSmallInt() {
-				keyStr = fmt.Sprintf("%d", key.SmallInt())
+			if IsStringValue(e.Key) {
+				keyStr = vm.registry.GetStringContent(e.Key)
+			} else if e.Key.IsSmallInt() {
+				keyStr = fmt.Sprintf("%d", e.Key.SmallInt())
 			} else {
-				keyStr = fmt.Sprintf("%v", key)
+				keyStr = fmt.Sprintf("%v", e.Key)
 			}
-			m[keyStr] = vm.valueToGoJSON(dict.Data[h])
+			m[keyStr] = vm.valueToGoJSON(e.Value)
 		}
 		return m
 	}
@@ -353,9 +354,7 @@ func (vm *VM) goJSONToValue(v interface{}) Value {
 		for k, vv := range val {
 			key := vm.registry.NewStringValue(k)
 			value := vm.goJSONToValue(vv)
-			h := hashValue(vm.registry, key)
-			d.Data[h] = value
-			d.Keys[h] = key
+			d.Put(vm.registry, key, value)
 		}
 		return dict
 	}

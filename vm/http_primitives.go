@@ -747,10 +747,9 @@ func (vm *VM) registerHttpPrimitives() {
 		}
 		req.Header.Set("Content-Type", ct)
 		if dict := v.registry.GetDictionaryObject(headersVal); dict != nil {
-			for h, val := range dict.Data {
-				key := dict.Keys[h]
-				keyStr := v.valueToString(key)
-				valStr := v.valueToString(val)
+			for _, e := range dict.Entries() {
+				keyStr := v.valueToString(e.Key)
+				valStr := v.valueToString(e.Value)
 				if keyStr == "" {
 					continue
 				}

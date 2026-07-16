@@ -256,9 +256,7 @@ func (vm *VM) GoToValue(goVal interface{}) Value {
 				for iter.Next() {
 					key := vm.registry.NewStringValue(iter.Key().String())
 					val := vm.GoToValue(iter.Value().Interface())
-					h := hashValue(vm.registry, key)
-					dictObj.Keys[h] = key
-					dictObj.Data[h] = val
+					dictObj.Put(vm.registry, key, val)
 				}
 			}
 			return dict
