@@ -82,3 +82,17 @@ func TestCompileDoIt_WarningsSurface(t *testing.T) {
 		t.Fatalf("expected undefined-variable warning, got %v", warnings)
 	}
 }
+
+// TestRestrictedGlobal_Catchable: touching a hidden global inside a
+// restricted process signals RestrictedGlobal, which on:do: can catch —
+// the conventions ruling that replaced silent-nil resolution
+// (docs/CONVENTIONS.md §2).
+func TestRestrictedGlobal_Catchable(t *testing.T) {
+	vmInst := newDoItVM(t)
+	vmInst.SetSyncRestrictions([]string{"File"})
+	result := evalDoIt(t, vmInst,
+		"(Sandbox run: [ [File] on: RestrictedGlobal do: [:e | 42] ]) wait")
+	if !result.IsSmallInt() || result.SmallInt() != 42 {
+		t.Fatalf("catching RestrictedGlobal: got %v, want 42", result)
+	}
+}

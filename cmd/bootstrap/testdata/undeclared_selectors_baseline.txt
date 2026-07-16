@@ -1,0 +1,402 @@
+Array class>>new
+Array class>>new:
+Array class>>new:withAll:
+Array class>>with:
+Array class>>with:with:
+Array>>primAt:
+Array>>primAt:put:
+Array>>primJoinWith:
+Array>>primSize
+Array>>primSort:
+Array>>primSortDefault
+Array>>primSorted:
+Array>>primSortedDefault
+ArrayList class>>primNew
+ArrayList class>>primNew:
+ArrayList class>>primWithAll:
+ArrayList>>primAdd:
+ArrayList>>primAddAll:
+ArrayList>>primAsArray
+ArrayList>>primAt:
+ArrayList>>primAt:put:
+ArrayList>>primCapacity
+ArrayList>>primClear
+ArrayList>>primCollect:
+ArrayList>>primCopy
+ArrayList>>primDetect:
+ArrayList>>primDetect:ifNone:
+ArrayList>>primDo:
+ArrayList>>primFirst
+ArrayList>>primIncludes:
+ArrayList>>primIndexOf:
+ArrayList>>primInject:into:
+ArrayList>>primIsEmpty
+ArrayList>>primLast
+ArrayList>>primNotEmpty
+ArrayList>>primPrintString
+ArrayList>>primReject:
+ArrayList>>primRemoveAt:
+ArrayList>>primRemoveLast
+ArrayList>>primSelect:
+ArrayList>>primSize
+ArrayList>>primSort:
+BigInteger>>primAsFloat
+BigInteger>>primPrintString
+BigInteger>>primSign
+Block>>primEnsure:
+Block>>primForkOn:
+Block>>primForkOn:with:
+Block>>primIfCurtailed:
+Block>>primOn:do:
+Block>>primSpawnOn:
+Block>>primSpawnOn:with:
+Block>>primValue
+Block>>primValue:
+Block>>primValue:value:
+Block>>primValue:value:value:
+Channel>>primClose
+Channel>>primIsClosed
+Channel>>primReceive
+Channel>>primSend:
+Channel>>primTryReceive
+Channel>>primTrySend:
+Character>><=
+Character>>>=
+ConstraintStore class>>new
+ConstraintStore>>primAsk:
+ConstraintStore>>primIsConsistent
+ConstraintStore>>primPrintString
+ConstraintStore>>primTell:
+ConstraintStore>>primTryAsk:
+ConstraintStore>>primValue
+ConstraintStore>>primWatch:do:
+CueContext class>>new
+CueContext>>primCompileString:
+CueContext>>primInject:into:
+CueContext>>primLoadDir:
+CueContext>>primLoadFile:
+CueContext>>primValidate:against:
+CueValue>>primError
+CueValue>>primExists
+CueValue>>primFields
+CueValue>>primFillPath:with:
+CueValue>>primIsConcrete
+CueValue>>primKind
+CueValue>>primLookup:
+CueValue>>primMatchesObject:
+CueValue>>primPrintString
+CueValue>>primSubsumedBy:
+CueValue>>primSubsumes:
+CueValue>>primToJSON
+CueValue>>primToMaggie
+CueValue>>primUnify:
+CueValue>>primValidate
+DateTime class>>fromEpoch:
+DateTime class>>now
+DateTime class>>parse:format:
+DuckAppender>>appendRow:
+DuckAppender>>close
+DuckAppender>>flush
+DuckAppender>>isClosed
+DuckDatabase class>>new
+DuckDatabase class>>open:
+DuckDatabase>>appender:
+DuckDatabase>>close
+DuckDatabase>>execute:
+DuckDatabase>>isClosed
+DuckDatabase>>query:
+ExternalProcess class>>command:
+ExternalProcess class>>command:args:
+ExternalProcess class>>run:args:
+ExternalProcess>>args:
+ExternalProcess>>command
+ExternalProcess>>dir:
+ExternalProcess>>env:
+ExternalProcess>>exitCode
+ExternalProcess>>isDone
+ExternalProcess>>isSuccess
+ExternalProcess>>kill
+ExternalProcess>>printString
+ExternalProcess>>run
+ExternalProcess>>runWithTimeout:
+ExternalProcess>>start
+ExternalProcess>>stderr
+ExternalProcess>>stdout
+ExternalProcess>>wait
+Failure class>>reason:
+Failure class>>with:
+Failure>>flatMap:
+Failure>>ifFailure:
+Failure>>ifSuccess:
+Failure>>map:
+Failure>>onSuccess:onFailure:
+Failure>>primError
+Failure>>reason
+Failure>>then:
+False>>&
+False>>|
+File class>>absolutePath:
+File class>>appendToFile:contents:
+File class>>basename:
+File class>>copy:to:
+File class>>createDirectory:
+File class>>delete:
+File class>>deleteAll:
+File class>>dirname:
+File class>>exists:
+File class>>extension:
+File class>>glob:in:
+File class>>homeDirectory
+File class>>isDirectory:
+File class>>isFile:
+File class>>join:with:
+File class>>listDirectory:
+File class>>modificationTime:
+File class>>readFileContents:
+File class>>readFrom:offset:
+File class>>rename:to:
+File class>>size:
+File class>>tempFile
+File class>>tempFileWithPrefix:
+File class>>workingDirectory
+File class>>writeFileContents:contents:
+File class>>writeFileContents:contents:mode:
+Float>>primCeiling
+Float>>primFloor
+Float>>primPrintString
+Float>>primRounded
+Float>>primTruncated
+Future>>exception
+HttpClient>>post:body:contentType:headers:
+HttpRequest>>host
+HttpServer>>asyncRoute:method:handler:
+HttpServer>>sseRoute:handler:
+Json class>>primDecode:
+Json class>>primEncode:
+Json class>>primEncodePretty:
+JsonReader class>>primNew:
+JsonReader>>primHasMore
+JsonReader>>primNext
+JsonWriter class>>primNew
+JsonWriter class>>primNewPretty
+JsonWriter>>primContents
+JsonWriter>>primReset
+JsonWriter>>primWrite:
+Message>>arguments
+Message>>printString
+Message>>selector
+Message>>sendTo:
+Mutex class>>primNew
+Mutex>>primCritical:
+Mutex>>primIsLocked
+Mutex>>primLock
+Mutex>>primTryLock
+Mutex>>primUnlock
+Node class>>connect:
+Node>>primAddr
+Node>>primNodeID
+Node>>primPing
+Node>>primProcessNamed:
+Object class>>allClassesSorted
+Object class>>allInstVarNames
+Object class>>allMethodNames
+Object class>>basicNew
+Object class>>categoryOf:
+Object class>>class
+Object class>>classMethodCategories
+Object class>>classMethodSourceFor:
+Object class>>compileAndInstall:
+Object class>>compileAndInstallClassMethod:
+Object class>>docString
+Object class>>help
+Object class>>help:
+Object class>>instVarNames
+Object class>>methodCategories
+Object class>>methodDocFor:
+Object class>>methodSourceFor:
+Object class>>methodsInCategory:
+Object class>>name
+Object class>>printString
+Object class>>superclass
+Object class>>superclassName
+Object>>become:
+Object>>becomeForward:
+Object>>className
+Object>>docString
+Object>>help
+Object>>instVarAt:
+Object>>instVarAt:put:
+Object>>instVarSize
+Object>>isFailure
+Object>>isForwarded
+Object>>isSuccess
+Object>>primAsCueValue
+Object>>primClass
+Object>>primError:
+Object>>primIdentical:
+Object>>primIsKindOf:
+Object>>primShallowCopy
+Process class>>primNamed:
+Process class>>primReceive
+Process class>>primReceive:
+Process class>>primTryReceive
+Process>>primDemonitor:
+Process>>primExitReason
+Process>>primIsAlive
+Process>>primLink:
+Process>>primMonitor:
+Process>>primRegisterAs:
+Process>>primResult
+Process>>primSend:
+Process>>primSend:with:
+Process>>primTerminate
+Process>>primTrapExit
+Process>>primTrapExit:
+Process>>primUnlink:
+Process>>primUnregister
+Process>>primWait
+Process>>primYield
+Proquint class>>decode64:
+Proquint class>>decode:
+Proquint class>>encode64:
+Proquint class>>encode:
+Proquint class>>encodeHex64:
+Proquint class>>encodeHex:
+Proquint class>>random
+Proquint class>>random64
+Random class>>new
+Random class>>new:
+Random class>>next
+Random class>>nextBetween:and:
+Random class>>nextInt:
+Random>>next
+Random>>nextBetween:and:
+Random>>nextInt:
+RemoteProcess>>primAsyncSend:with:
+RemoteProcess>>primCast:with:
+RemoteProcess>>primName
+RemoteProcess>>primNode
+Result class>>failure:
+Result class>>success:
+Semaphore class>>primNew:
+Semaphore>>primAcquire
+Semaphore>>primAvailable
+Semaphore>>primCapacity
+Semaphore>>primCritical:
+Semaphore>>primRelease
+Semaphore>>primTryAcquire
+SmallInteger>>primPrintString
+SocketConnection>>primClose
+SocketConnection>>primIsClosed
+SocketConnection>>primReceive
+SocketConnection>>primReceiveLine
+SocketConnection>>primReceiveMax:
+SocketConnection>>primSend:
+SocketConnection>>primSendLine:
+SqliteDatabase class>>primOpen:
+SqliteDatabase class>>primOpenMemory
+SqliteDatabase>>primBeginTransaction
+SqliteDatabase>>primClose
+SqliteDatabase>>primCommitTransaction
+SqliteDatabase>>primEnableWAL
+SqliteDatabase>>primExecute:
+SqliteDatabase>>primExecuteWith:params:
+SqliteDatabase>>primIsClosed
+SqliteDatabase>>primLastInsertId
+SqliteDatabase>>primMigrate:version:
+SqliteDatabase>>primMigrationVersion
+SqliteDatabase>>primPath
+SqliteDatabase>>primPragma:
+SqliteDatabase>>primPragmaSet:value:
+SqliteDatabase>>primPrepare:
+SqliteDatabase>>primQuery:
+SqliteDatabase>>primQueryAll:
+SqliteDatabase>>primQueryAllWith:params:
+SqliteDatabase>>primQueryRow:
+SqliteDatabase>>primQueryRowWith:params:
+SqliteDatabase>>primQueryWith:params:
+SqliteDatabase>>primRollbackTransaction
+SqliteDatabase>>primTableExists:
+SqliteDatabase>>primTables
+SqliteDatabase>>primVersion
+SqliteRows>>primAsDict
+SqliteRows>>primClose
+SqliteRows>>primColumnAt:
+SqliteRows>>primColumnCount
+SqliteRows>>primColumnNamed:
+SqliteRows>>primColumns
+SqliteRows>>primNext
+SqliteStatement>>primClose
+SqliteStatement>>primExecute
+SqliteStatement>>primExecuteWith:
+SqliteStatement>>primQuery
+SqliteStatement>>primQueryWith:
+SqliteStatement>>primSql
+String class>>primLf
+String>>asHex
+String>>fromHex
+String>>matchesRegex:
+String>>primAsLowercase
+String>>primAsSymbol
+String>>primAsUppercase
+String>>primAt:
+String>>primConcat:
+String>>primCopyFrom:to:
+String>>primDo:
+String>>primEquals:
+String>>primIncludes:
+String>>primIndexOf:
+String>>primIsDigit
+String>>primIsLetter
+String>>primIsWhitespace
+String>>primLessThan:
+String>>primSize
+String>>primSplit:
+String>>primTrimBoth
+String>>splitRegex:
+Success class>>with:
+Success>>flatMap:
+Success>>ifFailure:
+Success>>ifSuccess:
+Success>>map:
+Success>>onSuccess:onFailure:
+Success>>primValue
+Success>>then:
+Symbol>>primAsString
+Toml class>>decode:
+Toml class>>decodeFile:
+Toml class>>encode:
+True>>&
+True>>|
+TupleSpace class>>new
+TupleSpace>>primIn:
+TupleSpace>>primInAll:
+TupleSpace>>primInAny:
+TupleSpace>>primIsEmpty
+TupleSpace>>primOut:
+TupleSpace>>primOut:withContext:
+TupleSpace>>primOutAffine:ttl:
+TupleSpace>>primOutPersistent:
+TupleSpace>>primPrintString
+TupleSpace>>primRead:
+TupleSpace>>primSize
+TupleSpace>>primTryIn:
+TupleSpace>>primTryRead:
+UndefinedObject>>ifNil:
+UndefinedObject>>ifNil:ifNotNil:
+UndefinedObject>>ifNotNil:
+UnixSocketClient class>>primConnectTo:
+UnixSocketServer class>>primListenAt:
+UnixSocketServer class>>primListenAtMode:mode:
+UnixSocketServer>>primAccept
+UnixSocketServer>>primAcceptToChannel:
+UnixSocketServer>>primClose
+UnixSocketServer>>primIsClosed
+UnixSocketServer>>primIsRunning
+UnixSocketServer>>primPath
+WaitGroup class>>primNew
+WaitGroup>>primAdd:
+WaitGroup>>primCount
+WaitGroup>>primDone
+WaitGroup>>primWait
+WaitGroup>>primWrap:

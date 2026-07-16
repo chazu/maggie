@@ -67,6 +67,7 @@ func applyPrimitiveDocstrings(vmInst *vm.VM) {
 	setPrimDoc(vmInst, "Channel", "capacity", false, "Return the buffer capacity of the channel.")
 	setPrimDoc(vmInst, "Channel", "isEmpty", false, "Return true if no values are buffered.")
 	setPrimDoc(vmInst, "Channel", "onReceive:", false, "Create a select case that receives from this channel and evaluates block with the value.")
+	setPrimDoc(vmInst, "Channel", "onSend:do:", false, "Create a select case that SENDS a value to this channel when the channel\nis ready to accept it, then evaluates the block. The send-side complement\nof onReceive: for Channel select:.\n\n```example\nChannel select: {\n  out onSend: 42 do: [ Transcript show: 'sent' ].\n  in onReceive: [:v | Transcript show: v printString ]\n}\n```")
 	setPrimDoc(vmInst, "Channel", "size", false, "Return the number of buffered values.")
 	setPrimDoc(vmInst, "Channel", "new", true, "Create a new unbuffered channel.")
 	setPrimDoc(vmInst, "Channel", "new:", true, "Create a buffered channel with the given capacity.")

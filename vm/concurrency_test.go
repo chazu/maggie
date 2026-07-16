@@ -3,6 +3,7 @@ package vm
 import (
 	"fmt"
 	"reflect"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -2591,11 +2592,13 @@ func TestForkRestricted_HidesClasses(t *testing.T) {
 	// Fork with restriction on "File"
 	restrictions := vm.NewArrayWithElements([]Value{vm.registry.NewStringValue("File")})
 	proc := vm.Send(blockVal, "forkRestricted:", []Value{restrictions})
-	result := vm.Send(proc, "wait", nil)
+	vm.Send(proc, "wait", nil)
 
-	// Should get Nil (File is hidden)
-	if result != Nil {
-		t.Errorf("forkRestricted: saw File = %v, want Nil", result)
+	// Touching a hidden global signals RestrictedGlobal (catchable); with no
+	// handler in the forked process, the process terminates with that error.
+	reason := vm.getProcess(proc).ExitReason()
+	if reason.Error == nil || !strings.Contains(reason.Error.Error(), "RestrictedGlobal") {
+		t.Errorf("forkRestricted: touching File should die with RestrictedGlobal, got %+v", reason)
 	}
 }
 
@@ -2684,11 +2687,12 @@ func TestFork_InheritsCallerRestrictions(t *testing.T) {
 	blockVal := vm.interpreter.createBlockValue(block, nil)
 
 	proc := vm.Send(blockVal, "fork", nil)
-	result := vm.Send(proc, "wait", nil)
+	vm.Send(proc, "wait", nil)
 
-	if result != Nil {
-		t.Errorf("plain fork from a restricted caller saw File = %v, want Nil "+
-			"(the parent's restriction must be inherited)", result)
+	reason := vm.getProcess(proc).ExitReason()
+	if reason.Error == nil || !strings.Contains(reason.Error.Error(), "RestrictedGlobal") {
+		t.Errorf("plain fork from a restricted caller: touching File should die with "+
+			"RestrictedGlobal (the parent's restriction must be inherited), got %+v", reason)
 	}
 }
 
@@ -2743,10 +2747,11 @@ func TestForkWithoutDo_HidesClasses(t *testing.T) {
 	// Fork using Process forkWithout:do:
 	restrictions := vm.NewArrayWithElements([]Value{vm.registry.NewStringValue("HTTP")})
 	proc := vm.Send(vm.classValue(vm.ProcessClass), "forkWithout:do:", []Value{restrictions, blockVal})
-	result := vm.Send(proc, "wait", nil)
+	vm.Send(proc, "wait", nil)
 
-	if result != Nil {
-		t.Errorf("forkWithout:do: saw HTTP = %v, want Nil", result)
+	reason := vm.getProcess(proc).ExitReason()
+	if reason.Error == nil || !strings.Contains(reason.Error.Error(), "RestrictedGlobal") {
+		t.Errorf("forkWithout:do:: touching HTTP should die with RestrictedGlobal, got %+v", reason)
 	}
 }
 

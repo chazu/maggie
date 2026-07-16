@@ -573,8 +573,9 @@ Guide09Concurrency subclass: Object
 
   Forked processes can be sandboxed by hiding certain global names.
   Use `forkRestricted:` with an Array of class name strings to create
-  a process that cannot see those globals -- they resolve to `nil`
-  instead of signaling an error.
+  a process that cannot see those globals -- touching a hidden global
+  signals a catchable `RestrictedGlobal` error, so sandboxed code fails
+  at the access site instead of receiving a confusing `nil`.
 
   Restrictions are inherited by child forks: if a restricted process
   forks again, the child inherits all parent restrictions.
@@ -584,23 +585,25 @@ Guide09Concurrency subclass: Object
 
   ```example
   "Restrict a process from seeing File and HTTP"
-  p := [File] forkRestricted: #('File' 'HTTP').
-  p wait                  "=> nil (File is hidden)"
+  p := [ [File] on: RestrictedGlobal do: [:e | 'blocked'] ]
+      forkRestricted: #('File' 'HTTP').
+  p wait                  "=> 'blocked'"
   ```
 
   ```example
-  "Class-side equivalent"
+  "Class-side equivalent; uncaught RestrictedGlobal kills the process"
   p := Process forkWithout: #('File' 'HTTP') do: [File].
-  p wait                  "=> nil"
+  p wait.
+  p exitReason            "=> error: RestrictedGlobal ..."
   ```
 
   ```example
   "Restrictions are inherited by child forks"
   p := [
-      inner := [File] fork.
+      inner := [ [File] on: RestrictedGlobal do: [:e | 'blocked'] ] fork.
       inner wait
   ] forkRestricted: #('File').
-  p wait                  "=> nil (inner fork also restricted)"
+  p wait                  "=> 'blocked' (inner fork also restricted)"
   ```
   """
   method: s12_processRestrictions [

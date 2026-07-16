@@ -19,6 +19,21 @@ func (vm *VM) HandleForkedPanic(proc *ProcessObject, r interface{}) {
 		vm.FinishProcess(proc, ExitNormal(nlr.Value))
 		return
 	}
+	// An uncaught Maggie exception (signaled, no on:do: handler in the
+	// forked process) terminates the process with a readable error.
+	if sig, ok := r.(SignaledException); ok {
+		msg := "unhandled exception"
+		if sig.Object != nil {
+			if sig.Object.ExceptionClass != nil {
+				msg = sig.Object.ExceptionClass.Name
+			}
+			if text := vm.registry.GetStringContent(sig.Object.MessageText); text != "" {
+				msg += ": " + text
+			}
+		}
+		vm.FinishProcess(proc, ExitError(fmt.Errorf("%s", msg)))
+		return
+	}
 	stack := debug.Stack()
 	if os.Getenv("MAGGIE_DEBUG") == "1" {
 		fmt.Fprintf(os.Stderr, "process %d panic: %v\n%s\n", proc.id, r, stack)

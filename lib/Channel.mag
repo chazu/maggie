@@ -200,3 +200,17 @@ Channel subclass: Object
 
   """Create a select case that receives from this channel and evaluates block with the value."""
   method: onReceive: block [ <primitive> ]
+
+  """
+  Create a select case that SENDS a value to this channel when the channel
+  is ready to accept it, then evaluates the block. The send-side complement
+  of onReceive: for Channel select:.
+
+  ```example
+  Channel select: {
+    out onSend: 42 do: [ Transcript show: 'sent' ].
+    in onReceive: [:v | Transcript show: v printString ]
+  }
+  ```
+  """
+  method: onSend: value do: block [ <primitive> ]

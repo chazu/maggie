@@ -1,6 +1,9 @@
 package vm
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 // ---------------------------------------------------------------------------
 // Sandbox primitive tests
@@ -33,11 +36,13 @@ func TestSandboxRun_RestrictsGlobals(t *testing.T) {
 	// Run via Sandbox run:
 	sandboxClass := v.classValue(v.Classes.Lookup("Sandbox"))
 	proc := v.Send(sandboxClass, "run:", []Value{blockVal})
-	result := v.Send(proc, "wait", nil)
+	v.Send(proc, "wait", nil)
 
-	// File should be hidden -- result should be Nil
-	if result != Nil {
-		t.Errorf("Sandbox run: saw File = %v, want Nil", result)
+	// File is hidden: the access signals RestrictedGlobal; uncaught, the
+	// sandboxed process dies with that error.
+	reason := v.getProcess(proc).ExitReason()
+	if reason.Error == nil || !strings.Contains(reason.Error.Error(), "RestrictedGlobal") {
+		t.Errorf("Sandbox run: touching File should die with RestrictedGlobal, got %+v", reason)
 	}
 }
 

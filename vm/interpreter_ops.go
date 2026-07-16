@@ -1,6 +1,9 @@
 package vm
 
-import "encoding/binary"
+import (
+	"encoding/binary"
+	"fmt"
+)
 
 // ---------------------------------------------------------------------------
 // Extracted opcode handlers for runFrame()
@@ -11,6 +14,23 @@ import "encoding/binary"
 // ---------------------------------------------------------------------------
 
 // execPushGlobal handles OpPushGlobal: push a global variable onto the stack.
+// signalRestrictedGlobal raises a catchable RestrictedGlobal error for an
+// access to a global hidden by process restriction (forkRestricted:).
+func (i *Interpreter) signalRestrictedGlobal(name, accessKind string) {
+	msg := fmt.Sprintf("access to restricted global '%s' (%s) from a restricted process", name, accessKind)
+	if i.vm != nil && i.vm.RestrictedGlobalClass != nil {
+		exObj := &ExceptionObject{
+			ExceptionClass: i.vm.RestrictedGlobalClass,
+			MessageText:    i.vm.registry.NewStringValue(msg),
+			Resumable:      false,
+		}
+		exObj.CapturedFrames = i.CaptureTrace(MaxCapturedTraceDepth)
+		exVal := i.vm.registry.RegisterExceptionValue(exObj)
+		panic(SignaledException{Exception: exVal, Object: exObj})
+	}
+	panic(msg)
+}
+
 func (i *Interpreter) execPushGlobal(frame *CallFrame, bc []byte, literals []Value) {
 	idx := binary.LittleEndian.Uint16(bc[frame.IP:])
 	frame.IP += 2
@@ -25,7 +45,11 @@ func (i *Interpreter) execPushGlobal(frame *CallFrame, bc []byte, literals []Val
 		}
 		if globalName != "" {
 			if i.hidden != nil && i.hidden[globalName] {
-				i.push(Nil)
+				// Restricted process touched a hidden global: signal a
+				// catchable RestrictedGlobal instead of silently pushing nil
+				// (which failed later as a mysterious nil-DNU).
+				i.signalRestrictedGlobal(globalName, "read")
+				return
 			} else if i.localWrites != nil {
 				if val, ok := i.localWrites[globalName]; ok {
 					i.push(val)
@@ -80,7 +104,10 @@ func (i *Interpreter) execStoreGlobal(frame *CallFrame, bc []byte, literals []Va
 		}
 		if globalName != "" {
 			if i.hidden != nil && i.hidden[globalName] {
-				// silently deny write to restricted name
+				// Signal instead of silently dropping the write (see
+				// signalRestrictedGlobal).
+				i.signalRestrictedGlobal(globalName, "write")
+				return
 			} else if i.forked {
 				// Forked process: write to process-local overlay
 				if i.localWrites == nil {
@@ -291,7 +318,7 @@ func (i *Interpreter) execReturnTop(frame *CallFrame, isBlock bool) Value {
 			i.popFrame()
 			return result
 		}
-	// Non-local return: set unwinding flag instead of panic
+		// Non-local return: set unwinding flag instead of panic
 		homeFrame := frame.HomeFrame // save before popFrame zeroes the frame
 		i.popFrame()
 		i.unwinding = true

@@ -697,15 +697,9 @@ func (vm *VM) registerProcessPrimitives() {
 		return recv
 	})
 
-	// Process>>primPriority - get priority (stub, returns 0)
-	c.AddMethod0(vm.Selectors, "primPriority", func(_ *VM, recv Value) Value {
-		return FromSmallInt(0)
-	})
-
-	// Process>>primPriority: - set priority (stub, returns self)
-	c.AddMethod1(vm.Selectors, "primPriority:", func(_ *VM, recv Value, level Value) Value {
-		return recv
-	})
+	// (primPriority / primPriority: were deleted: goroutines have no
+	// priorities, and the stubs backed lib-level `priority`/`forkAt:` API
+	// that lied to users — see docs/CONVENTIONS.md, selector honesty.)
 
 	// Process class>>current - get current process (class method)
 	c.AddClassMethod0(vm.Selectors, "current", func(v *VM, recv Value) Value {

@@ -110,32 +110,6 @@ Process subclass: Object
   ]
 
   """
-  Return the scheduling priority of this process.
-
-  ```example
-  | p <Process> |
-  p := [1] fork.
-  p priority
-  ```
-  """
-  method: priority ^<Integer> [
-      ^self primPriority
-  ]
-
-  """
-  Set the scheduling priority of this process.
-
-  ```example
-  | p <Process> |
-  p := [Process sleep: 100] fork.
-  p priority: 2
-  ```
-  """
-  method: priority: level <Integer> [
-      ^self primPriority: level
-  ]
-
-  """
   Return a string representation of the process.
   """
   method: printString ^<String> [

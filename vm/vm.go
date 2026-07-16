@@ -127,6 +127,7 @@ type VM struct {
 	PrimitiveErrorClass       *Class
 	TypeErrorClass            *Class
 	StackOverflowClass        *Class
+	RestrictedGlobalClass     *Class
 	WarningClass              *Class
 	HaltClass                 *Class
 	NotificationClass         *Class

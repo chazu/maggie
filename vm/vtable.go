@@ -279,3 +279,16 @@ func NewVTableWithCapacity(class *Class, parent *VTable, capacity int) *VTable {
 	}
 	return vt
 }
+
+// OwnSelectorIDs returns the selector IDs of methods defined directly on
+// this vtable (no inherited entries). Used by the surface-parity CI check
+// (docs/CONVENTIONS.md: selector honesty).
+func (vt *VTable) OwnSelectorIDs() []int {
+	vt.mu.Lock()
+	defer vt.mu.Unlock()
+	ids := make([]int, 0, len(vt.methods))
+	for id := range vt.methods {
+		ids = append(ids, id)
+	}
+	return ids
+}

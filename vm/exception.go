@@ -184,6 +184,12 @@ func (vm *VM) bootstrapExceptionClasses() {
 	// StackOverflow - call stack depth exceeded
 	vm.StackOverflowClass = vm.createClass("StackOverflow", vm.ErrorClass)
 
+	// RestrictedGlobal - a restricted process (forkRestricted:) touched a
+	// hidden global. Signaled (catchable) instead of silently resolving to
+	// nil, so sandboxed code fails at the access site rather than as a
+	// mysterious nil-DNU far from the cause.
+	vm.RestrictedGlobalClass = vm.createClass("RestrictedGlobal", vm.ErrorClass)
+
 	// Warning is for non-fatal conditions
 	vm.WarningClass = vm.createClass("Warning", vm.ExceptionClass)
 
@@ -202,6 +208,7 @@ func (vm *VM) bootstrapExceptionClasses() {
 	vm.globals["PrimitiveError"] = vm.classValue(vm.PrimitiveErrorClass)
 	vm.globals["TypeError"] = vm.classValue(vm.TypeErrorClass)
 	vm.globals["StackOverflow"] = vm.classValue(vm.StackOverflowClass)
+	vm.globals["RestrictedGlobal"] = vm.classValue(vm.RestrictedGlobalClass)
 	vm.globals["Warning"] = vm.classValue(vm.WarningClass)
 	vm.globals["Halt"] = vm.classValue(vm.HaltClass)
 	vm.globals["Notification"] = vm.classValue(vm.NotificationClass)

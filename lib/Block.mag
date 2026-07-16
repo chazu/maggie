@@ -147,17 +147,6 @@ Block subclass: Object
   ]
 
   """
-  Fork the block at the given priority level. Returns the new Process.
-
-  ```example
-  [self backgroundTask] forkAt: 1
-  ```
-  """
-  method: forkAt: priority <Integer> ^<Process> ! <Process> [
-      ^Process fork: self at: priority
-  ]
-
-  """
   Fork the block on a remote node. Returns a Future that resolves
   when the block completes on the remote node. The block's captured
   variables must be serializable (no Channels, Processes, Mutexes, etc.).
