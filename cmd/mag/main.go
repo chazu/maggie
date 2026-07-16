@@ -751,7 +751,7 @@ func buildNodeRefFactory(vmInst *vm.VM) vm.NodeRefFactory {
 		ref := vm.NewNodeRefData(addr, pub, priv)
 
 		baseURL := "http://" + addr
-		client := maggiev1connect.NewSyncServiceClient(http.DefaultClient, baseURL)
+		client := maggiev1connect.NewSyncServiceClient(http.DefaultClient, baseURL, nodeRefClientOptions(ref)...)
 
 		ref.SendFunc = func(envelope []byte) ([]byte, string, string, error) {
 			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -820,7 +820,7 @@ func buildRemoteChannelFactory(vmInst *vm.VM) func(ref *vm.RemoteChannelRef) {
 		if c, ok := clientCache[addr]; ok {
 			return c
 		}
-		c := maggiev1connect.NewSyncServiceClient(http.DefaultClient, "http://"+addr)
+		c := maggiev1connect.NewSyncServiceClient(http.DefaultClient, "http://"+addr, nodeRefClientOptions(nodeRef)...)
 		clientCache[addr] = c
 		return c
 	}

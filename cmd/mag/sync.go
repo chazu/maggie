@@ -118,7 +118,7 @@ func handleSyncPush(vmInst *vm.VM, peerAddr string, verbose bool) {
 	}
 
 	baseURL := normalizeAddr(peerAddr)
-	client := maggiev1connect.NewSyncServiceClient(http.DefaultClient, baseURL)
+	client := maggiev1connect.NewSyncServiceClient(http.DefaultClient, baseURL, syncClientOptions()...)
 
 	if verbose {
 		fmt.Printf("Announcing %d hashes to %s\n", len(allHashes), baseURL)
@@ -197,7 +197,7 @@ func handleSyncPush(vmInst *vm.VM, peerAddr string, verbose bool) {
 
 func handleSyncPull(vmInst *vm.VM, peerAddr string, rootHashHex string, verbose bool, diskCache *dist.DiskCache) {
 	baseURL := normalizeAddr(peerAddr)
-	client := maggiev1connect.NewSyncServiceClient(http.DefaultClient, baseURL)
+	client := maggiev1connect.NewSyncServiceClient(http.DefaultClient, baseURL, syncClientOptions()...)
 	ctx := context.Background()
 
 	var rootHash [32]byte
@@ -457,7 +457,7 @@ func handleSyncDiff(vmInst *vm.VM, peerAddr string, verbose bool) {
 	store := vmInst.ContentStore()
 
 	baseURL := normalizeAddr(peerAddr)
-	client := maggiev1connect.NewSyncServiceClient(http.DefaultClient, baseURL)
+	client := maggiev1connect.NewSyncServiceClient(http.DefaultClient, baseURL, syncClientOptions()...)
 	ctx := context.Background()
 
 	// Call List RPC on peer
@@ -767,7 +767,7 @@ func buildPullFunc(vmInst *vm.VM, peerAddrs *sync.Map) func(peerID dist.NodeID, 
 		}
 
 		baseURL := normalizeAddr(peerAddr)
-		client := maggiev1connect.NewSyncServiceClient(http.DefaultClient, baseURL)
+		client := maggiev1connect.NewSyncServiceClient(http.DefaultClient, baseURL, syncClientOptions()...)
 		ctx := context.Background()
 
 		serveResp, err := client.Serve(ctx, connect.NewRequest(&maggiev1.ServeRequest{

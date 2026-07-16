@@ -6,6 +6,8 @@ import (
 	"sync"
 	"time"
 
+	"connectrpc.com/connect"
+
 	"github.com/chazu/maggie/gen/maggie/v1/maggiev1connect"
 	"github.com/chazu/maggie/vm"
 	"github.com/chazu/maggie/vm/dist"
@@ -135,12 +137,19 @@ func New(v *vm.VM, opts ...ServerOption) *MaggieServer {
 	s.mux.Handle(inspectPath, inspectHandler)
 
 	// The peer-facing SyncService (sync/message/spawn/channel RPCs) is mounted
-	// only when explicitly enabled via WithSyncService. A default server (e.g.
-	// the local IDE/language server) exposes no peer surface at all — the
-	// channel RPCs in particular carry no per-request authentication.
+	// only when explicitly enabled via WithSyncService, and always behind the
+	// auth interceptor: every RPC requires a signed request from a peer with
+	// the right permission (deny by default; Ping is the one anonymous,
+	// liveness-only exception). A default server (e.g. the local IDE/language
+	// server) exposes no peer surface at all.
 	if cfg.mountSync {
-		syncSvc := NewSyncService(worker, v.ContentStore(), cfg.trustStore, cfg.compileFunc, cfg.diskCache)
-		syncPath, syncHandler := maggiev1connect.NewSyncServiceHandler(syncSvc)
+		trust := cfg.trustStore
+		if trust == nil {
+			trust = dist.NewSecureTrustStore()
+		}
+		syncSvc := NewSyncService(worker, v.ContentStore(), trust, cfg.compileFunc, cfg.diskCache)
+		syncPath, syncHandler := maggiev1connect.NewSyncServiceHandler(syncSvc,
+			connect.WithInterceptors(NewAuthInterceptor(trust, SyncPermTable())))
 		s.mux.Handle(syncPath, syncHandler)
 	}
 

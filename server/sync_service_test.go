@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"crypto/sha256"
 	"testing"
 
@@ -46,12 +47,23 @@ func TestSyncPing_WithContent(t *testing.T) {
 	m.SetContentHash(mh)
 	store.IndexMethod(m)
 
-	resp, err := svc.Ping(bg(), connectReq(&maggiev1.PingRequest{}))
+	// The content count is reported only to authenticated peers.
+	authedCtx := context.WithValue(bg(), peerIdentityKey{}, testNodeID())
+	resp, err := svc.Ping(authedCtx, connectReq(&maggiev1.PingRequest{}))
 	if err != nil {
 		t.Fatalf("Ping returned error: %v", err)
 	}
 	if resp.Msg.ContentCount != 1 {
-		t.Errorf("ContentCount: got %d, want 1", resp.Msg.ContentCount)
+		t.Errorf("authenticated ContentCount: got %d, want 1", resp.Msg.ContentCount)
+	}
+
+	// Anonymous callers get liveness only.
+	resp, err = svc.Ping(bg(), connectReq(&maggiev1.PingRequest{}))
+	if err != nil {
+		t.Fatalf("Ping returned error: %v", err)
+	}
+	if resp.Msg.ContentCount != 0 {
+		t.Errorf("anonymous ContentCount: got %d, want 0", resp.Msg.ContentCount)
 	}
 }
 
@@ -111,31 +123,8 @@ func TestSyncAnnounce_InvalidRootHash(t *testing.T) {
 	}
 }
 
-func TestSyncAnnounce_RejectedByTrust(t *testing.T) {
-	store := vm.NewContentStore()
-	// Default: no permissions for unknown peers
-	trust := dist.NewTrustStore(dist.TrustPolicy{
-		DefaultPerms: dist.PermNone,
-		BanThreshold: 3,
-	})
-	svc := NewSyncService(testWorker, store, trust, nil, nil)
-
-	rootHash := sha256.Sum256([]byte("root"))
-
-	resp, err := svc.Announce(bg(), connectReq(&maggiev1.AnnounceRequest{
-		RootHash:  rootHash[:],
-		AllHashes: [][]byte{rootHash[:]},
-	}))
-	if err != nil {
-		t.Fatalf("Announce returned error: %v", err)
-	}
-	if resp.Msg.Status != maggiev1.AnnounceStatus_ANNOUNCE_REJECTED {
-		t.Errorf("Status: got %v, want REJECTED", resp.Msg.Status)
-	}
-	if resp.Msg.RejectReason == "" {
-		t.Error("RejectReason should be set")
-	}
-}
+// (Trust rejection of unpermitted peers is enforced by the auth
+// interceptor; see TestAuth_PermissionDenied in auth_test.go.)
 
 // ---------------------------------------------------------------------------
 // Transfer
@@ -321,54 +310,8 @@ func TestSyncTransfer_ClassChunk_MissingDep(t *testing.T) {
 // Banned peer
 // ---------------------------------------------------------------------------
 
-func TestSyncAnnounce_BannedPeer(t *testing.T) {
-	store := vm.NewContentStore()
-	trust := dist.NewPermissiveTrustStore()
-	svc := NewSyncService(testWorker, store, trust, nil, nil)
-
-	// Ban the peer — test HTTP clients have no headers, so
-	// peerNodeIDFromRequest hashes "ip:unknown"
-	testPeerID := testNodeID()
-	trust.RecordHashMismatch(testPeerID)
-	trust.RecordHashMismatch(testPeerID)
-	trust.RecordHashMismatch(testPeerID)
-
-	rootHash := sha256.Sum256([]byte("root"))
-	_, err := svc.Announce(bg(), connectReq(&maggiev1.AnnounceRequest{
-		RootHash:  rootHash[:],
-		AllHashes: [][]byte{rootHash[:]},
-	}))
-	if err == nil {
-		t.Fatal("Announce from banned peer should return error")
-	}
-}
-
-func TestSyncTransfer_BannedPeer(t *testing.T) {
-	store := vm.NewContentStore()
-	trust := dist.NewPermissiveTrustStore()
-	compile := func(source string, _ dist.MethodContext) (dist.CompileResult, error) {
-		return dist.CompileResult{SemanticHash: sha256.Sum256([]byte(source))}, nil
-	}
-	svc := NewSyncService(testWorker, store, trust, compile, nil)
-
-	// Ban the peer
-	testPeerID := testNodeID()
-	trust.RecordHashMismatch(testPeerID)
-	trust.RecordHashMismatch(testPeerID)
-	trust.RecordHashMismatch(testPeerID)
-
-	source := "source"
-	h := sha256.Sum256([]byte(source))
-	chunk := &dist.Chunk{Hash: h, Type: dist.ChunkMethod, Content: source}
-	chunkBytes, _ := dist.MarshalChunk(chunk)
-
-	_, err := svc.Transfer(bg(), connectReq(&maggiev1.TransferRequest{
-		Chunks: [][]byte{chunkBytes},
-	}))
-	if err == nil {
-		t.Fatal("Transfer from banned peer should return error")
-	}
-}
+// (Banned-peer rejection is enforced by the auth interceptor; see
+// TestAuth_BannedPeerRejected in auth_test.go.)
 
 // ---------------------------------------------------------------------------
 // Serve (pull)

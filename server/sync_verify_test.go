@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"crypto/sha256"
 	"strings"
 	"testing"
@@ -11,11 +12,18 @@ import (
 	"github.com/chazu/maggie/vm/dist"
 )
 
-// anonPeerID reproduces peerNodeIDFromRequest's fallback for a request with
-// no identifying headers, so tests can inspect the peer's trust record.
-func anonPeerID() dist.NodeID {
-	h := sha256.Sum256([]byte("ip:unknown"))
+// verifyTestPeerID is a fixed identity injected into the request context
+// (as the auth interceptor would after verifying a signature) so Transfer's
+// trust bookkeeping is observable in these tests.
+func verifyTestPeerID() dist.NodeID {
+	h := sha256.Sum256([]byte("verify-test-peer"))
 	return dist.NodeIDFromBytes(h[:])
+}
+
+// authedCtx returns a context carrying verifyTestPeerID as the
+// signature-proven peer identity.
+func authedCtx() context.Context {
+	return context.WithValue(bg(), peerIdentityKey{}, verifyTestPeerID())
 }
 
 // newVerifyTestSetup compiles a two-level hierarchy (ivars, inheritance, a
@@ -90,7 +98,7 @@ func newVerifyTestSetup(t *testing.T) (chunks [][]byte, methodChunks []*dist.Chu
 func TestTransfer_VerifiesPipelineChunksWithClassContext(t *testing.T) {
 	chunks, _, svc, trust := newVerifyTestSetup(t)
 
-	resp, err := svc.Transfer(bg(), connectReq(&maggiev1.TransferRequest{Chunks: chunks}))
+	resp, err := svc.Transfer(authedCtx(), connectReq(&maggiev1.TransferRequest{Chunks: chunks}))
 	if err != nil {
 		t.Fatalf("Transfer: %v", err)
 	}
@@ -100,7 +108,7 @@ func TestTransfer_VerifiesPipelineChunksWithClassContext(t *testing.T) {
 	if int(resp.Msg.Accepted) != len(chunks) {
 		t.Errorf("Accepted: got %d, want %d", resp.Msg.Accepted, len(chunks))
 	}
-	if p := trust.Peer(anonPeerID()); p != nil && p.HashMismatches != 0 {
+	if p := trust.Peer(verifyTestPeerID()); p != nil && p.HashMismatches != 0 {
 		t.Errorf("HashMismatches: got %d, want 0", p.HashMismatches)
 	}
 }
@@ -129,14 +137,14 @@ func TestTransfer_TamperedChunkRecordsMismatch(t *testing.T) {
 	}
 	batch := append([][]byte{data}, chunks...) // class context present in batch
 
-	resp, err := svc.Transfer(bg(), connectReq(&maggiev1.TransferRequest{Chunks: batch}))
+	resp, err := svc.Transfer(authedCtx(), connectReq(&maggiev1.TransferRequest{Chunks: batch}))
 	if err != nil {
 		t.Fatalf("Transfer: %v", err)
 	}
 	if resp.Msg.Rejected != 1 {
 		t.Errorf("Rejected: got %d, want 1", resp.Msg.Rejected)
 	}
-	p := trust.Peer(anonPeerID())
+	p := trust.Peer(verifyTestPeerID())
 	if p == nil || p.HashMismatches != 1 {
 		got := -1
 		if p != nil {
@@ -166,14 +174,14 @@ func TestTransfer_MissingClassContextRejectsWithoutStrike(t *testing.T) {
 		t.Fatalf("marshal orphan chunk: %v", err)
 	}
 
-	resp, err := svc.Transfer(bg(), connectReq(&maggiev1.TransferRequest{Chunks: [][]byte{data}}))
+	resp, err := svc.Transfer(authedCtx(), connectReq(&maggiev1.TransferRequest{Chunks: [][]byte{data}}))
 	if err != nil {
 		t.Fatalf("Transfer: %v", err)
 	}
 	if resp.Msg.Rejected != 1 {
 		t.Errorf("Rejected: got %d, want 1", resp.Msg.Rejected)
 	}
-	if p := trust.Peer(anonPeerID()); p != nil && p.HashMismatches != 0 {
+	if p := trust.Peer(verifyTestPeerID()); p != nil && p.HashMismatches != 0 {
 		t.Errorf("HashMismatches: got %d, want 0 — missing context must not strike", p.HashMismatches)
 	}
 }

@@ -1,8 +1,9 @@
 package vm
 
 import (
-	"encoding/binary"
 	"fmt"
+
+	"github.com/chazu/maggie/vm/wire"
 )
 
 // Reserved DeliverMessage selectors for infrastructure notifications.
@@ -222,25 +223,16 @@ func (vm *VM) buildDownPayload(refID uint64, reason ExitReason) []byte {
 }
 
 func buildSignedEnvelopeForProcess(ref *NodeRefData, targetPID uint64, selector string, payload []byte) ([]byte, error) {
-	env := &envelopeData{
-		SenderNode:    ref.NodeID(),
+	env := &wire.Envelope{
 		TargetProcess: targetPID,
 		Selector:      selector,
 		Payload:       payload,
 		Nonce:         ref.NextNonce(),
 	}
-
-	var sigBuf []byte
-	sigBuf = append(sigBuf, payload...)
-	var nonceBuf [8]byte
-	binary.BigEndian.PutUint64(nonceBuf[:], env.Nonce)
-	sigBuf = append(sigBuf, nonceBuf[:]...)
-	var procBuf [8]byte
-	binary.BigEndian.PutUint64(procBuf[:], env.TargetProcess)
-	sigBuf = append(sigBuf, procBuf[:]...)
-	env.Signature = ref.Sign(sigBuf)
-
-	return cborSerialEncMode.Marshal(env)
+	if err := env.SignWith(ref.NodeID(), ref.Sign); err != nil {
+		return nil, err
+	}
+	return env.Marshal()
 }
 
 // findNodeRefByID searches for a NodeRefData by its 32-byte public key.

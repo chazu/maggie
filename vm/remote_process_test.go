@@ -1,6 +1,8 @@
 package vm
 
 import (
+	"github.com/chazu/maggie/vm/wire"
+
 	"crypto/ed25519"
 	"crypto/rand"
 	"fmt"
@@ -341,8 +343,8 @@ func TestBuildSignedEnvelope(t *testing.T) {
 	}
 
 	// Should be parseable CBOR
-	var env envelopeData
-	if err := cborUnmarshal(data, &env); err != nil {
+	env, err := wire.Unmarshal(data)
+	if err != nil {
 		t.Fatalf("unmarshal envelope: %v", err)
 	}
 

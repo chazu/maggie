@@ -97,6 +97,10 @@ type PeerRecord struct {
 	HashMismatches int
 	LastSeen       time.Time
 	FirstSeen      time.Time
+
+	// Replay-window state (unexported: internal to CheckNonce).
+	nonceHighest uint64
+	nonceSeen    map[uint64]struct{}
 }
 
 // TrustPolicy is the node-wide trust configuration.
@@ -211,6 +215,11 @@ func (ts *TrustStore) RecordFailure(id NodeID) {
 
 // RecordHashMismatch records a hash mismatch and auto-bans if threshold hit.
 // Returns true if the peer was banned.
+//
+// Only call this with a SIGNATURE-PROVEN peer identity (the auth
+// interceptor's, or an envelope that verified) — never with a self-declared
+// header or envelope field, or an attacker can frame a victim into a ban
+// with garbage messages.
 func (ts *TrustStore) RecordHashMismatch(id NodeID) bool {
 	ts.mu.Lock()
 	defer ts.mu.Unlock()
@@ -225,21 +234,44 @@ func (ts *TrustStore) RecordHashMismatch(id NodeID) bool {
 	return false
 }
 
-// CheckCapabilities verifies that all capabilities required by a manifest
-// are not denied. This preserves the existing capability-checking behavior
-// for the sync Announce RPC.
-func (ts *TrustStore) CheckCapabilities(manifest *CapabilityManifest) error {
-	if manifest == nil {
-		return nil
+// nonceWindow is how many recent nonces per peer are remembered for replay
+// rejection. Nonces are per-sender increasing but may arrive out of order
+// under concurrent sends, so we accept any unseen nonce above
+// (highest - nonceWindow) and reject everything at or below the window
+// floor or already seen.
+const nonceWindow = 1024
+
+// CheckNonce validates and records a request/envelope nonce for a peer.
+// Returns an error if the nonce was already seen or is older than the
+// replay window. Callers must have verified the peer's signature first —
+// the nonce state is keyed by proven identity.
+func (ts *TrustStore) CheckNonce(id NodeID, nonce uint64) error {
+	ts.mu.Lock()
+	defer ts.mu.Unlock()
+	rec := ts.getOrCreate(id)
+	if rec.nonceSeen == nil {
+		rec.nonceSeen = make(map[uint64]struct{})
 	}
-	// With the trust model, capabilities are informational — the peer's
-	// Perm bits determine what they can do. But we still reject if the
-	// manifest declares capabilities we've explicitly restricted for spawning.
-	for _, cap := range manifest.Required {
-		for _, restricted := range ts.policy.SpawnRestrictions {
-			if cap == restricted {
-				// Not an error for sync — spawn restrictions apply to execution only
-				break
+	floor := uint64(0)
+	if rec.nonceHighest > nonceWindow {
+		floor = rec.nonceHighest - nonceWindow
+	}
+	if nonce <= floor && rec.nonceHighest > 0 {
+		return fmt.Errorf("dist: nonce %d below replay window (floor %d)", nonce, floor)
+	}
+	if _, seen := rec.nonceSeen[nonce]; seen {
+		return fmt.Errorf("dist: nonce %d replayed", nonce)
+	}
+	rec.nonceSeen[nonce] = struct{}{}
+	if nonce > rec.nonceHighest {
+		rec.nonceHighest = nonce
+		// Prune entries that fell below the new floor.
+		if rec.nonceHighest > nonceWindow {
+			newFloor := rec.nonceHighest - nonceWindow
+			for n := range rec.nonceSeen {
+				if n <= newFloor {
+					delete(rec.nonceSeen, n)
+				}
 			}
 		}
 	}

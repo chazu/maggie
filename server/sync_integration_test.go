@@ -479,87 +479,10 @@ func newTestVMForServer(t *testing.T) *vm.VM {
 	return vmInst
 }
 
-// TestEndToEnd_TrustRejection verifies that a receiver with restricted
-// trust policy rejects sync from unknown peers.
-func TestEndToEnd_TrustRejection(t *testing.T) {
-	store := vm.NewContentStore()
-	// Server denies sync for unknown peers
-	trust := dist.NewTrustStore(dist.TrustPolicy{
-		DefaultPerms: dist.PermNone,
-		BanThreshold: 3,
-	})
-	baseURL, stop := startTestServer(t, store, nil, trust)
-	defer stop()
-
-	time.Sleep(10 * time.Millisecond)
-
-	client := maggiev1connect.NewSyncServiceClient(http.DefaultClient, baseURL)
-	ctx := context.Background()
-
-	rootHash := sha256.Sum256([]byte("root"))
-
-	// Attempt to announce — should be rejected (no sync permission)
-	resp, err := client.Announce(ctx, connect.NewRequest(&maggiev1.AnnounceRequest{
-		RootHash:  rootHash[:],
-		AllHashes: [][]byte{rootHash[:]},
-	}))
-	if err != nil {
-		t.Fatalf("Announce failed: %v", err)
-	}
-	if resp.Msg.Status != maggiev1.AnnounceStatus_ANNOUNCE_REJECTED {
-		t.Errorf("Expected REJECTED, got %v", resp.Msg.Status)
-	}
-	if resp.Msg.RejectReason == "" {
-		t.Error("Expected reject reason to be set")
-	}
-}
-
-// TestEndToEnd_BannedPeer simulates repeated hash mismatches and verifies
-// that the peer gets banned.
-func TestEndToEnd_BannedPeer(t *testing.T) {
-	store := vm.NewContentStore()
-	compile := func(source string, _ dist.MethodContext) (dist.CompileResult, error) {
-		return dist.CompileResult{SemanticHash: sha256.Sum256([]byte(source))}, nil
-	}
-	baseURL, stop := startTestServer(t, store, compile, nil)
-	defer stop()
-
-	time.Sleep(10 * time.Millisecond)
-
-	client := maggiev1connect.NewSyncServiceClient(http.DefaultClient, baseURL)
-	ctx := context.Background()
-
-	// Send 3 chunks with hash mismatches to trigger ban (threshold=3)
-	for i := 0; i < 3; i++ {
-		h := sha256.Sum256([]byte(fmt.Sprintf("claimed-%d", i)))
-		chunk := &dist.Chunk{
-			Hash:    h,
-			Type:    dist.ChunkMethod,
-			Content: fmt.Sprintf("actual-%d", i), // different from hash
-		}
-		data, _ := dist.MarshalChunk(chunk)
-
-		_, err := client.Transfer(ctx, connect.NewRequest(&maggiev1.TransferRequest{
-			Chunks: [][]byte{data},
-		}))
-		if err != nil {
-			// After ban threshold, subsequent requests may fail
-			// This is expected behavior
-			continue
-		}
-	}
-
-	// Now try to announce — should be rejected because peer uses "unknown"
-	// identity (since peerFromRequest returns "unknown" for test HTTP client)
-	rootHash := sha256.Sum256([]byte("root"))
-	_, err := client.Announce(ctx, connect.NewRequest(&maggiev1.AnnounceRequest{
-		RootHash:  rootHash[:],
-		AllHashes: [][]byte{rootHash[:]},
-	}))
-	if err == nil {
-		t.Fatal("Announce from banned peer should fail")
-	}
-}
+// (TestEndToEnd_TrustRejection and TestEndToEnd_BannedPeer were replaced by
+// the interceptor-level tests in auth_test.go — permission and ban
+// enforcement now lives in the auth interceptor, keyed by signature-proven
+// identities, not in the handlers.)
 
 // ---------------------------------------------------------------------------
 // DeliverMessage
@@ -599,7 +522,7 @@ func TestEndToEnd_DeliverMessage(t *testing.T) {
 		Payload:    payload,
 		Nonce:      1,
 	}
-	env.Sign(sender)
+	dist.SignEnvelope(env, sender)
 
 	envBytes, err := dist.MarshalEnvelope(env)
 	if err != nil {
@@ -651,7 +574,7 @@ func TestEndToEnd_DeliverMessage_NoMessagePerm(t *testing.T) {
 		Payload:    payload,
 		Nonce:      1,
 	}
-	env.Sign(sender)
+	dist.SignEnvelope(env, sender)
 	envBytes, err := dist.MarshalEnvelope(env)
 	if err != nil {
 		t.Fatalf("MarshalEnvelope: %v", err)
@@ -696,7 +619,7 @@ func TestEndToEnd_DeliverMessage_InvalidSignature(t *testing.T) {
 		Payload:       payload,
 		Nonce:         1,
 	}
-	env.Sign(sender)
+	dist.SignEnvelope(env, sender)
 
 	// Tamper with payload after signing
 	env.Payload = []byte{0xf6} // CBOR null — different from original
@@ -786,7 +709,7 @@ func TestEndToEnd_RemoteMailboxDelivery(t *testing.T) {
 		Payload:    payloadBytes,
 		Nonce:      1,
 	}
-	env.Sign(sender)
+	dist.SignEnvelope(env, sender)
 	envBytes, _ := dist.MarshalEnvelope(env)
 
 	// Send via gRPC
@@ -952,7 +875,7 @@ func TestEndToEnd_SpawnProcess_PermissionDenied(t *testing.T) {
 		Payload: payload,
 		Nonce:   1,
 	}
-	env.Sign(sender)
+	dist.SignEnvelope(env, sender)
 	envBytes, _ := dist.MarshalEnvelope(env)
 
 	resp, err := client.SpawnProcess(ctx, connect.NewRequest(&maggiev1.SpawnProcessRequest{
@@ -987,7 +910,7 @@ func TestEndToEnd_SpawnProcess_InvalidSignature(t *testing.T) {
 		Payload: []byte{1, 2, 3},
 		Nonce:   1,
 	}
-	env.Sign(sender)
+	dist.SignEnvelope(env, sender)
 
 	// Tamper with payload
 	env.Payload = []byte{4, 5, 6}

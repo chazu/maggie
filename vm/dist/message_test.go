@@ -13,7 +13,7 @@ func TestMessageEnvelope_SignVerify(t *testing.T) {
 		Payload:       []byte("test payload"),
 		Nonce:         1,
 	}
-	env.Sign(sender)
+	_ = SignEnvelope(env, sender)
 
 	// SenderNode should be set
 	if env.SenderNode != sender.NodeID() {
@@ -34,7 +34,7 @@ func TestMessageEnvelope_TamperedPayload(t *testing.T) {
 		Payload:       []byte("original"),
 		Nonce:         1,
 	}
-	env.Sign(sender)
+	_ = SignEnvelope(env, sender)
 
 	// Tamper with payload
 	env.Payload = []byte("tampered")
@@ -51,7 +51,7 @@ func TestMessageEnvelope_TamperedTarget(t *testing.T) {
 		Payload:       []byte("data"),
 		Nonce:         1,
 	}
-	env.Sign(sender)
+	_ = SignEnvelope(env, sender)
 
 	// Redirect to different process
 	env.TargetProcess = 99
@@ -68,7 +68,7 @@ func TestMessageEnvelope_TamperedNonce(t *testing.T) {
 		Payload:       []byte("data"),
 		Nonce:         1,
 	}
-	env.Sign(sender)
+	_ = SignEnvelope(env, sender)
 
 	// Replay with different nonce
 	env.Nonce = 2
@@ -86,7 +86,7 @@ func TestMessageEnvelope_WrongSender(t *testing.T) {
 		Payload:       []byte("data"),
 		Nonce:         1,
 	}
-	env.Sign(sender)
+	_ = SignEnvelope(env, sender)
 
 	// Replace sender with impersonator (signature won't match)
 	env.SenderNode = impersonator.NodeID()
@@ -111,7 +111,7 @@ func TestMessageEnvelope_CBORRoundTrip(t *testing.T) {
 		ClassHints: [][32]byte{{1, 2, 3}, {4, 5, 6}},
 		Nonce:      100,
 	}
-	env.Sign(sender)
+	_ = SignEnvelope(env, sender)
 
 	// Marshal
 	data, err := MarshalEnvelope(env)
@@ -184,7 +184,7 @@ func TestMessageEnvelope_NoReplyTo(t *testing.T) {
 		Payload:       []byte("event data"),
 		Nonce:         1,
 	}
-	env.Sign(sender)
+	_ = SignEnvelope(env, sender)
 
 	data, err := MarshalEnvelope(env)
 	if err != nil {

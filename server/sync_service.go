@@ -2,7 +2,6 @@ package server
 
 import (
 	"context"
-	"crypto/sha256"
 	"fmt"
 
 	"connectrpc.com/connect"
@@ -54,36 +53,19 @@ func (s *SyncService) Announce(
 	ctx context.Context,
 	req *connect.Request[maggiev1.AnnounceRequest],
 ) (*connect.Response[maggiev1.AnnounceResponse], error) {
+	// Authentication, ban check, and PermSync are enforced by the auth
+	// interceptor (see server/auth.go).
 	msg := req.Msg
-	peerID := peerNodeIDFromRequest(req)
-
-	if s.trust.IsBanned(peerID) {
-		return nil, connect.NewError(connect.CodePermissionDenied, fmt.Errorf("peer is banned"))
-	}
 
 	if len(msg.RootHash) != 32 {
 		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("root_hash must be 32 bytes"))
 	}
 
-	// Check sync permission
-	if !s.trust.Check(peerID, dist.PermSync) {
-		return connect.NewResponse(&maggiev1.AnnounceResponse{
-			Status:       maggiev1.AnnounceStatus_ANNOUNCE_REJECTED,
-			RejectReason: fmt.Sprintf("peer %s not permitted to sync", peerID),
-		}), nil
-	}
-
-	// Decode capability manifest if present (informational — trust perms are authoritative)
+	// Validate the capability manifest encoding if present. Capabilities are
+	// informational — the peer's Perm bits are authoritative.
 	if len(msg.CapabilityManifest) > 0 {
-		manifest, err := dist.UnmarshalCapabilityManifest(msg.CapabilityManifest)
-		if err != nil {
+		if _, err := dist.UnmarshalCapabilityManifest(msg.CapabilityManifest); err != nil {
 			return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("invalid capability manifest: %v", err))
-		}
-		if err := s.trust.CheckCapabilities(manifest); err != nil {
-			return connect.NewResponse(&maggiev1.AnnounceResponse{
-				Status:       maggiev1.AnnounceStatus_ANNOUNCE_REJECTED,
-				RejectReason: err.Error(),
-			}), nil
 		}
 	}
 
@@ -118,12 +100,11 @@ func (s *SyncService) Transfer(
 	ctx context.Context,
 	req *connect.Request[maggiev1.TransferRequest],
 ) (*connect.Response[maggiev1.TransferResponse], error) {
+	// Authentication, ban check, and PermSync are enforced by the auth
+	// interceptor. peerID (when present) is the signature-proven identity —
+	// the only kind hash-mismatch strikes may be recorded against.
 	msg := req.Msg
-	peerID := peerNodeIDFromRequest(req)
-
-	if s.trust.IsBanned(peerID) {
-		return nil, connect.NewError(connect.CodePermissionDenied, fmt.Errorf("peer is banned"))
-	}
+	peerID, peerAuthenticated := PeerIdentity(ctx)
 
 	var accepted, rejected int32
 	var failedHashes [][]byte
@@ -174,24 +155,32 @@ func (s *SyncService) Transfer(
 			if err := dist.VerifyChunkMethod(chunk, mctx, s.compile); err != nil {
 				rejected++
 				failedHashes = append(failedHashes, chunk.Hash[:])
-				s.trust.RecordHashMismatch(peerID)
+				if peerAuthenticated {
+					s.trust.RecordHashMismatch(peerID)
+				}
 				continue
 			}
 			// Verification passed — index in content store
 			s.indexVerifiedMethod(chunk)
 			accepted++
-			s.trust.RecordSuccess(peerID)
+			if peerAuthenticated {
+				s.trust.RecordSuccess(peerID)
+			}
 
 		case dist.ChunkClass:
 			if err := dist.VerifyChunkClass(chunk, s.store); err != nil {
 				rejected++
 				failedHashes = append(failedHashes, chunk.Hash[:])
-				s.trust.RecordHashMismatch(peerID)
+				if peerAuthenticated {
+					s.trust.RecordHashMismatch(peerID)
+				}
 				continue
 			}
 			s.indexVerifiedClass(chunk)
 			accepted++
-			s.trust.RecordSuccess(peerID)
+			if peerAuthenticated {
+				s.trust.RecordSuccess(peerID)
+			}
 
 		default:
 			rejected++
@@ -346,12 +335,9 @@ func (s *SyncService) Serve(
 	ctx context.Context,
 	req *connect.Request[maggiev1.ServeRequest],
 ) (*connect.Response[maggiev1.ServeResponse], error) {
+	// Authentication, ban check, and PermSync are enforced by the auth
+	// interceptor.
 	msg := req.Msg
-	peerID := peerNodeIDFromRequest(req)
-
-	if s.trust.IsBanned(peerID) {
-		return nil, connect.NewError(connect.CodePermissionDenied, fmt.Errorf("peer is banned"))
-	}
 
 	if len(msg.RootHash) != 32 {
 		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("root_hash must be 32 bytes"))
@@ -414,12 +400,16 @@ func (s *SyncService) Serve(
 	}), nil
 }
 
-// Ping returns the number of hashes in the local content store.
+// Ping is the sole anonymous endpoint: liveness only. The content count is
+// a (mild) inventory signal, so it is only reported to authenticated peers.
 func (s *SyncService) Ping(
 	ctx context.Context,
 	req *connect.Request[maggiev1.PingRequest],
 ) (*connect.Response[maggiev1.PingResponse], error) {
-	count := int64(s.store.MethodCount() + s.store.ClassCount())
+	var count int64
+	if _, authenticated := PeerIdentity(ctx); authenticated {
+		count = int64(s.store.MethodCount() + s.store.ClassCount())
+	}
 	return connect.NewResponse(&maggiev1.PingResponse{
 		ContentCount: count,
 	}), nil
@@ -496,20 +486,35 @@ func (s *SyncService) DeliverMessage(
 		}), nil
 	}
 
-	// Derive peer ID from the envelope's Ed25519 public key
+	// Verify the envelope signature FIRST — only a valid signature proves
+	// the sender identity. A failed signature proves nothing about the
+	// claimed sender, so it is rejected without any trust-store bookkeeping
+	// (recording strikes against the self-declared SenderNode would let an
+	// attacker frame a victim into a ban with garbage messages).
+	if err := envelope.Verify(); err != nil {
+		return connect.NewResponse(&maggiev1.DeliverMessageResponse{
+			Success:      false,
+			ErrorKind:    "signatureInvalid",
+			ErrorMessage: err.Error(),
+		}), nil
+	}
+
+	// From here on the envelope sender identity is signature-proven. Note it
+	// can legitimately differ from the request-level peer identity (the auth
+	// interceptor's): envelopes are attributable to their original sender.
 	peerID := peerNodeIDFromEnvelope(envelope)
 
-	// Check if peer is banned
 	if s.trust.IsBanned(peerID) {
 		return nil, connect.NewError(connect.CodePermissionDenied, fmt.Errorf("peer is banned"))
 	}
 
-	// Verify signature
-	if err := envelope.Verify(); err != nil {
-		s.trust.RecordHashMismatch(peerID) // bad signatures count toward ban
+	// Envelope replay protection: the nonce is per-sender increasing;
+	// reusing one (e.g. re-wrapping a captured envelope in a fresh request)
+	// is rejected here.
+	if err := s.trust.CheckNonce(peerID, envelope.Nonce); err != nil {
 		return connect.NewResponse(&maggiev1.DeliverMessageResponse{
 			Success:      false,
-			ErrorKind:    "signatureInvalid",
+			ErrorKind:    "replayRejected",
 			ErrorMessage: err.Error(),
 		}), nil
 	}
@@ -670,8 +675,12 @@ func (s *SyncService) MonitorProcess(
 ) (*connect.Response[maggiev1.MonitorProcessResponse], error) {
 	msg := req.Msg
 
+	// Prefer the interceptor's signature-proven identity over the request
+	// body's self-declared sender field.
 	var senderNode [32]byte
-	if len(msg.SenderNode) == 32 {
+	if id, ok := PeerIdentity(ctx); ok {
+		senderNode = [32]byte(id)
+	} else if len(msg.SenderNode) == 32 {
 		copy(senderNode[:], msg.SenderNode)
 	}
 
@@ -722,36 +731,46 @@ func (s *SyncService) SpawnProcess(
 		}), nil
 	}
 
-	// Derive peer ID and check permissions
-	peerID := peerNodeIDFromEnvelope(envelope)
-
-	// Record the peer's return address for code-on-demand pull-back.
-	// The spawning node sends its listen address via X-Maggie-Return-Addr.
-	if s.worker.peerAddrs != nil {
-		if retAddr := req.Header().Get("X-Maggie-Return-Addr"); retAddr != "" {
-			s.worker.peerAddrs.Store(peerID, retAddr)
-		}
-	}
-
-	if s.trust.IsBanned(peerID) {
-		return nil, connect.NewError(connect.CodePermissionDenied, fmt.Errorf("peer is banned"))
-	}
-
-	// Verify signature
+	// Verify the envelope signature FIRST — it proves the spawner identity.
+	// A bad signature proves nothing about the claimed sender: reject with
+	// no trust-store bookkeeping (no strikes against unproven identities).
 	if err := envelope.Verify(); err != nil {
-		s.trust.RecordHashMismatch(peerID)
 		return connect.NewResponse(&maggiev1.SpawnProcessResponse{
 			Accepted: false,
 			Error:    "invalid signature",
 		}), nil
 	}
 
-	// Check PermSpawn
+	peerID := peerNodeIDFromEnvelope(envelope)
+
+	if s.trust.IsBanned(peerID) {
+		return nil, connect.NewError(connect.CodePermissionDenied, fmt.Errorf("peer is banned"))
+	}
+
+	// Envelope replay protection.
+	if err := s.trust.CheckNonce(peerID, envelope.Nonce); err != nil {
+		return connect.NewResponse(&maggiev1.SpawnProcessResponse{
+			Accepted: false,
+			Error:    err.Error(),
+		}), nil
+	}
+
+	// Check PermSpawn against the envelope-proven spawner identity (the
+	// interceptor checked the request-level peer; they can differ).
 	if !s.trust.Check(peerID, dist.PermSpawn) {
 		return connect.NewResponse(&maggiev1.SpawnProcessResponse{
 			Accepted: false,
 			Error:    "spawn not permitted",
 		}), nil
+	}
+
+	// Record the peer's return address for code-on-demand pull-back — only
+	// now that the identity is signature-proven, so spoofed envelopes cannot
+	// poison the address registry.
+	if s.worker.peerAddrs != nil {
+		if retAddr := req.Header().Get("X-Maggie-Return-Addr"); retAddr != "" {
+			s.worker.peerAddrs.Store(peerID, retAddr)
+		}
 	}
 
 	// Deserialize SpawnBlock from envelope payload
@@ -988,28 +1007,6 @@ func (s *SyncService) ChannelStatus(
 		Capacity: int32(ch.Cap()),
 		Closed:   ch.Closed(),
 	}), nil
-}
-
-// peerNodeIDFromRequest extracts a NodeID from a Connect request.
-// Tries X-Maggie-Node-ID header first (hex-encoded Ed25519 public key),
-// falls back to a deterministic hash of the IP address for backward compat.
-func peerNodeIDFromRequest[T any](req *connect.Request[T]) dist.NodeID {
-	// Best: explicit node ID header
-	if idHex := req.Header().Get("X-Maggie-Node-ID"); idHex != "" {
-		if id, err := dist.ParseNodeID(idHex); err == nil {
-			return id
-		}
-	}
-	// Fallback: hash the IP into a deterministic NodeID
-	addr := "unknown"
-	if xff := req.Header().Get("X-Forwarded-For"); xff != "" {
-		addr = xff
-	} else if peer := req.Header().Get("X-Real-Ip"); peer != "" {
-		addr = peer
-	}
-	// Use SHA-256 of the address string as a pseudo-NodeID
-	h := sha256.Sum256([]byte("ip:" + addr))
-	return dist.NodeIDFromBytes(h[:])
 }
 
 // peerNodeIDFromEnvelope extracts a NodeID from a message envelope's sender key.

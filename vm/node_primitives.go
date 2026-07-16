@@ -3,11 +3,12 @@ package vm
 import (
 	"crypto/ed25519"
 	"crypto/rand"
-	"encoding/binary"
 	"encoding/hex"
 	"fmt"
 	"sync/atomic"
 	"unsafe"
+
+	"github.com/chazu/maggie/vm/wire"
 )
 
 // ---------------------------------------------------------------------------
@@ -47,11 +48,15 @@ type nodeIdentityHolder struct {
 // NewNodeRefData creates a NodeRefData. SendFunc and PingFunc must be set
 // separately by the wiring layer, or use VM.SetNodeRefFactory to auto-wire.
 func NewNodeRefData(addr string, pub ed25519.PublicKey, priv ed25519.PrivateKey) *NodeRefData {
-	return &NodeRefData{
+	ref := &NodeRefData{
 		Addr:      addr,
 		PublicKey: pub,
 		privKey:   priv,
 	}
+	// Seed the nonce from wall-clock nanos so it stays increasing across
+	// process restarts — receivers reject nonce reuse per peer.
+	ref.nonce.Store(wire.NonceSeed())
+	return ref
 }
 
 // NodeRefFactory creates a fully-wired NodeRefData (with SendFunc/PingFunc).
@@ -74,31 +79,8 @@ func (n *NodeRefData) NodeID() [32]byte {
 }
 
 // ---------------------------------------------------------------------------
-// Lightweight envelope builder (avoids importing vm/dist)
+// Envelope building (shared implementation in vm/wire)
 // ---------------------------------------------------------------------------
-
-// buildEnvelopeBytes constructs a CBOR-encoded MessageEnvelope without
-// importing the dist package. Uses the same CBOR encoding as dist.MarshalEnvelope.
-// This is a temporary solution until the package structure is refactored.
-//
-// For now, we build a simple envelope struct and marshal it with the same
-// CBOR enc mode used by serial.go.
-type envelopeData struct {
-	SenderNode    [32]byte   `cbor:"1,keyasint"`
-	TargetProcess uint64     `cbor:"2,keyasint"`
-	TargetName    string     `cbor:"3,keyasint,omitempty"`
-	ReplyTo       *replyAddr `cbor:"4,keyasint,omitempty"`
-	Selector      string     `cbor:"5,keyasint,omitempty"`
-	Payload       []byte     `cbor:"6,keyasint"`
-	ClassHints    [][32]byte `cbor:"7,keyasint,omitempty"`
-	Nonce         uint64     `cbor:"8,keyasint"`
-	Signature     []byte     `cbor:"9,keyasint"`
-}
-
-type replyAddr struct {
-	NodeID    [32]byte `cbor:"1,keyasint"`
-	ProcessID uint64   `cbor:"2,keyasint"`
-}
 
 // BuildSignedEnvelope constructs a signed CBOR-encoded envelope. Exported for
 // use by cmd/mag wiring layer.
@@ -107,29 +89,19 @@ func BuildSignedEnvelope(ref *NodeRefData, targetName, selector string, payload 
 }
 
 func buildSignedEnvelope(ref *NodeRefData, targetName, selector string, payload []byte, wantReply bool) ([]byte, error) {
-	env := &envelopeData{
-		SenderNode: ref.NodeID(),
+	env := &wire.Envelope{
 		TargetName: targetName,
 		Selector:   selector,
 		Payload:    payload,
 		Nonce:      ref.NextNonce(),
 	}
 	if wantReply {
-		env.ReplyTo = &replyAddr{NodeID: ref.NodeID()}
+		env.ReplyTo = &wire.ReplyAddress{NodeID: ref.NodeID()}
 	}
-
-	// Sign: payload || nonce || targetProcess
-	var sigBuf []byte
-	sigBuf = append(sigBuf, payload...)
-	var nonceBuf [8]byte
-	binary.BigEndian.PutUint64(nonceBuf[:], env.Nonce)
-	sigBuf = append(sigBuf, nonceBuf[:]...)
-	var procBuf [8]byte
-	binary.BigEndian.PutUint64(procBuf[:], env.TargetProcess)
-	sigBuf = append(sigBuf, procBuf[:]...)
-	env.Signature = ref.Sign(sigBuf)
-
-	return cborSerialEncMode.Marshal(env)
+	if err := env.SignWith(ref.NodeID(), ref.Sign); err != nil {
+		return nil, err
+	}
+	return env.Marshal()
 }
 
 // ---------------------------------------------------------------------------
