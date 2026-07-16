@@ -71,6 +71,14 @@ func (vm *VM) FinishProcess(proc *ProcessObject, reason ExitReason) {
 
 	proc.mu.Unlock()
 
+	// Remove from the live-process index and the name registry BEFORE
+	// signaling completion, so anyone who observes the process as done also
+	// observes it gone from by-id/by-name resolution. The index stays
+	// bounded by live processes; Values holding the process pointer keep
+	// working — Go's GC reclaims the object when the last reference drops.
+	vm.UnregisterProcessNamesFor(proc.id)
+	vm.registry.UnregisterProcess(proc.id)
+
 	proc.waitGroup.Done()
 	if proc.mailbox != nil {
 		proc.mailbox.Close()
@@ -86,7 +94,7 @@ func (vm *VM) FinishProcess(proc *ProcessObject, reason ExitReason) {
 			delete(linked.links, proc.id)
 			linked.mu.Unlock()
 
-			vm.deliverExitSignal(linked, proc.id, reason)
+			vm.deliverExitSignal(linked, proc, reason)
 		}
 	}
 
@@ -94,7 +102,7 @@ func (vm *VM) FinishProcess(proc *ProcessObject, reason ExitReason) {
 	for _, ref := range monitorRefs {
 		watcher := vm.GetProcessByID(ref.Watcher)
 		if watcher != nil && !watcher.isDone() {
-			vm.deliverDownMessage(watcher, ref, reason)
+			vm.deliverDownMessage(watcher, ref, proc, reason)
 		}
 	}
 
@@ -109,7 +117,7 @@ func (vm *VM) FinishProcess(proc *ProcessObject, reason ExitReason) {
 // Normal exits don't propagate through links (Erlang semantics).
 // If the target is trapping exits, it receives a mailbox message.
 // Otherwise, the target is killed.
-func (vm *VM) deliverExitSignal(target *ProcessObject, fromID uint64, reason ExitReason) {
+func (vm *VM) deliverExitSignal(target *ProcessObject, from *ProcessObject, reason ExitReason) {
 	if reason.Normal {
 		return // normal exits don't propagate
 	}
@@ -120,7 +128,7 @@ func (vm *VM) deliverExitSignal(target *ProcessObject, fromID uint64, reason Exi
 
 	if trapping {
 		// Deliver as a mailbox message with selector #exit
-		msg := vm.createExitMessage(fromID, reason)
+		msg := vm.createExitMessage(from, reason)
 		if target.mailbox != nil {
 			target.mailbox.TrySend(msg)
 		}
@@ -134,17 +142,26 @@ func (vm *VM) deliverExitSignal(target *ProcessObject, fromID uint64, reason Exi
 	}
 }
 
-// deliverDownMessage sends a processDown: notification to a watcher's mailbox.
-func (vm *VM) deliverDownMessage(watcher *ProcessObject, ref *MonitorRef, reason ExitReason) {
+// deliverDownMessage sends a processDown: notification to a watcher's
+// mailbox. watched is the (just-terminated) process the monitor observed —
+// its pointer Value stays valid after termination, so the watcher can still
+// inspect it.
+func (vm *VM) deliverDownMessage(watcher *ProcessObject, ref *MonitorRef, watched *ProcessObject, reason ExitReason) {
 	// Clean up the watcher's myMonitors
 	watcher.mu.Lock()
 	delete(watcher.myMonitors, ref.ID)
 	watcher.mu.Unlock()
 
 	// Payload: [refID, processValue, reasonSymbol, resultValue]
-	downInfo := vm.createDownInfo(ref, reason)
+	// watched is nil for remote monitors (the watched process lives on
+	// another node) — the payload then carries Nil for the process slot.
+	watchedVal := Nil
+	if watched != nil {
+		watchedVal = processToValue(watched)
+	}
+	downInfo := vm.createDownInfo(ref, watched, reason)
 	msg := vm.CreateMailboxMessage(
-		processToValue(ref.Watched),
+		watchedVal,
 		"processDown:",
 		downInfo,
 	)
@@ -154,28 +171,39 @@ func (vm *VM) deliverDownMessage(watcher *ProcessObject, ref *MonitorRef, reason
 	}
 }
 
-// createDownInfo builds the payload for a DOWN notification.
-func (vm *VM) createDownInfo(ref *MonitorRef, reason ExitReason) Value {
+// createDownInfo builds the payload for a DOWN notification. watched may be
+// nil (remote monitor) — the process slot is then Nil.
+func (vm *VM) createDownInfo(ref *MonitorRef, watched *ProcessObject, reason ExitReason) Value {
+	watchedVal := Nil
+	if watched != nil {
+		watchedVal = processToValue(watched)
+	}
 	arr := NewObject(vm.ArrayClass.VTable, 4)
 	arr.SetSize(4)
 	arr.SetSlot(0, FromSmallInt(int64(ref.ID)))
-	arr.SetSlot(1, processToValue(ref.Watched))
+	arr.SetSlot(1, watchedVal)
 	arr.SetSlot(2, vm.exitReasonToValue(reason))
 	arr.SetSlot(3, reason.Result)
 	return arr.ToValue()
 }
 
 // createExitMessage builds a mailbox message for a trapped exit signal.
-func (vm *VM) createExitMessage(fromID uint64, reason ExitReason) Value {
+// from may be nil (remote link severed by node death) — the sender slot is
+// then Nil.
+func (vm *VM) createExitMessage(from *ProcessObject, reason ExitReason) Value {
+	fromVal := Nil
+	if from != nil {
+		fromVal = processToValue(from)
+	}
 	// Payload: [senderPID, reasonSymbol, resultValue]
 	arr := NewObject(vm.ArrayClass.VTable, 3)
 	arr.SetSize(3)
-	arr.SetSlot(0, processToValue(fromID))
+	arr.SetSlot(0, fromVal)
 	arr.SetSlot(1, vm.exitReasonToValue(reason))
 	arr.SetSlot(2, reason.Result)
 
 	return vm.CreateMailboxMessage(
-		processToValue(fromID),
+		fromVal,
 		"exit",
 		arr.ToValue(),
 	)

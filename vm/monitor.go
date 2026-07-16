@@ -57,10 +57,10 @@ func (vm *VM) LinkProcesses(a, b *ProcessObject) {
 
 	// If one side is already dead, propagate exit signal
 	if !aAlive && bAlive {
-		vm.deliverExitSignal(b, a.id, firstExit)
+		vm.deliverExitSignal(b, a, firstExit)
 	}
 	if !bAlive && aAlive {
-		vm.deliverExitSignal(a, b.id, secondExit)
+		vm.deliverExitSignal(a, b, secondExit)
 	}
 }
 
@@ -94,10 +94,7 @@ func (vm *VM) UnlinkProcesses(a, b *ProcessObject) {
 // Returns a MonitorRef. If watched is already dead, an immediate DOWN message
 // is delivered to the watcher's mailbox.
 func (vm *VM) MonitorProcess(watcher, watched *ProcessObject) (*MonitorRef, error) {
-	refID, err := vm.registry.ConcurrencyRegistry.AllocMonitorRefID()
-	if err != nil {
-		return nil, err
-	}
+	refID := vm.registry.ConcurrencyRegistry.AllocMonitorRefID()
 	ref := &MonitorRef{
 		ID:      refID,
 		Watcher: watcher.id,
@@ -123,7 +120,7 @@ func (vm *VM) MonitorProcess(watcher, watched *ProcessObject) (*MonitorRef, erro
 	watcher.mu.Unlock()
 
 	if alreadyDead {
-		vm.deliverDownMessage(watcher, ref, exitReason)
+		vm.deliverDownMessage(watcher, ref, watched, exitReason)
 	}
 
 	return ref, nil

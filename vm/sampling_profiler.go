@@ -26,10 +26,10 @@ type SamplingProfiler struct {
 	vm       *VM
 	interval time.Duration
 
-	mu       sync.Mutex
-	root     *trieNode
-	samples  uint64
-	dropped  uint64
+	mu      sync.Mutex
+	root    *trieNode
+	samples uint64
+	dropped uint64
 
 	stop chan struct{}
 	done chan struct{}

@@ -20,7 +20,7 @@ const SelectorSpawnResult = "__spawn_result__"
 // for execution. It carries the block's compiled method (by content hash),
 // serialized captured variables, and metadata.
 type SpawnBlock struct {
-	MethodHash   [32]byte `cbor:"1,keyasint"`           // content hash of the block's compiled method
+	MethodHash   [32]byte `cbor:"1,keyasint"`            // content hash of the block's compiled method
 	TypedHash    [32]byte `cbor:"2,keyasint,omitempty"`  // typed hash (for ContentStore lookup)
 	ArgCount     int      `cbor:"3,keyasint"`            // block arity
 	TempCount    int      `cbor:"4,keyasint"`            // number of temporaries
@@ -198,9 +198,9 @@ func (vm *VM) ResolveBlockMethod(sb *SpawnBlock) (*BlockMethod, *CompiledMethod,
 // ---------------------------------------------------------------------------
 
 type pendingSpawnRegistry struct {
-	mu       sync.RWMutex
-	spawns   map[uint64]*FutureObject
-	nextID   atomic.Uint64
+	mu     sync.RWMutex
+	spawns map[uint64]*FutureObject
+	nextID atomic.Uint64
 }
 
 func newPendingSpawnRegistry() *pendingSpawnRegistry {
@@ -286,10 +286,7 @@ func (vm *VM) doRemoteSpawn(blockVal, nodeVal, argVal Value, mode string) Value 
 func (vm *VM) doForkOn(ref *NodeRefData, spawnBytes []byte, nodeVal Value) Value {
 	// Create a local Future for the result
 	future := NewFuture()
-	futureVal, regErr := vm.registerFuture(future)
-	if regErr != nil {
-		return vm.SignalPrimitiveError("Block forkOn:", regErr.Error())
-	}
+	futureVal := vm.registerFuture(future)
 	futureID := vm.pendingSpawns.register(future)
 
 	// Embed futureID into the spawn block for result delivery
@@ -386,13 +383,8 @@ func (vm *VM) ExecuteSpawnBlock(sb *SpawnBlock, restrictions []string, pullFunc 
 	}
 
 	// Create process
-	proc, err := vm.createProcess()
-	if err != nil {
-		return "", fmt.Errorf("spawn: create process: %w", err)
-	}
-	if _, err := vm.registerProcess(proc); err != nil {
-		return "", fmt.Errorf("spawn: register process: %w", err)
-	}
+	proc := vm.createProcess()
+	vm.registerProcess(proc)
 
 	// Auto-generate a name and register
 	procName := fmt.Sprintf("_remote_%x_%d", sb.MethodHash[:4], proc.id)

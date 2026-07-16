@@ -73,7 +73,7 @@ func TestDoctestParseDoctestAssertions(t *testing.T) {
 			},
 		},
 		{
-			name:    "expression with string containing >>>",
+			name: "expression with string containing >>>",
 			// The parser splits on first >>>, so 'hello >>> world' >>> 'result'
 			// would split at the first >>>
 			content: "x >>> 'expected'",
@@ -134,11 +134,11 @@ func TestDoctestParseDoctestAssertions(t *testing.T) {
 
 func TestDoctestTallyDoctestResults(t *testing.T) {
 	tests := []struct {
-		name       string
-		results    []doctestMethodResult
-		wantPass   int
-		wantFail   int
-		wantTotal  int
+		name      string
+		results   []doctestMethodResult
+		wantPass  int
+		wantFail  int
+		wantTotal int
 	}{
 		{
 			name:      "empty results",

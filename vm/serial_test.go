@@ -377,12 +377,14 @@ func TestSerial_NonSerializable(t *testing.T) {
 
 	// Process (channels ARE serializable via distributed-channel export, so
 	// they are no longer part of this non-serializable check).
-	_, err := vm.SerializeValue(FromSymbolID(processMarker | 1))
+	proc := vm.createProcess()
+	procVal := vm.registerProcess(proc)
+	_, err := vm.SerializeValue(procVal)
 	if err == nil {
 		t.Error("Process should not be serializable")
 	}
 
-	mutexVal, _ := vm.registry.RegisterMutex(&MutexObject{})
+	mutexVal := vm.registry.RegisterMutex(&MutexObject{})
 	_, err = vm.SerializeValue(mutexVal)
 	if err == nil {
 		t.Error("Mutex should not be serializable")
@@ -528,10 +530,10 @@ func TestSerial_CircularReference(t *testing.T) {
 	// Create two nodes that reference each other: A → B → A
 	nodeA := NewObject(nodeClass.VTable, 2)
 	nodeB := NewObject(nodeClass.VTable, 2)
-	nodeA.SetSlot(0, FromSmallInt(1))  // value = 1
-	nodeA.SetSlot(1, nodeB.ToValue())  // next = B
-	nodeB.SetSlot(0, FromSmallInt(2))  // value = 2
-	nodeB.SetSlot(1, nodeA.ToValue())  // next = A (circular!)
+	nodeA.SetSlot(0, FromSmallInt(1)) // value = 1
+	nodeA.SetSlot(1, nodeB.ToValue()) // next = B
+	nodeB.SetSlot(0, FromSmallInt(2)) // value = 2
+	nodeB.SetSlot(1, nodeA.ToValue()) // next = A (circular!)
 
 	data, err := vm.SerializeValue(nodeA.ToValue())
 	if err != nil {

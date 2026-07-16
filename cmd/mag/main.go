@@ -994,17 +994,15 @@ func vmConfigFromManifest(m *manifest.Manifest) vm.VMConfig {
 	if m == nil {
 		return vm.VMConfig{}
 	}
-	cfg := vm.VMConfig{
+	// Note: the manifest's runtime.gc_interval key is accepted but ignored —
+	// the registry GC it configured was deleted (heap objects are reclaimed
+	// by Go's GC; the live-process index cleans up deterministically at
+	// process exit).
+	return vm.VMConfig{
 		MaxStackDepth:   m.Runtime.MaxStackDepth,
 		MaxFrameDepth:   m.Runtime.MaxFrameDepth,
 		InitialStack:    m.Runtime.InitialStack,
 		InitialFrames:   m.Runtime.InitialFrames,
 		MailboxCapacity: m.Runtime.MailboxCapacity,
 	}
-	if m.Runtime.GCInterval != "" {
-		if d, err := time.ParseDuration(m.Runtime.GCInterval); err == nil {
-			cfg.GCInterval = d
-		}
-	}
-	return cfg
 }

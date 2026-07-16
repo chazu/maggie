@@ -40,7 +40,6 @@ func TestIsCliCommandValueFalse(t *testing.T) {
 func TestCliMarkerUnique(t *testing.T) {
 	// Regression guard: catch accidental reassignment of cliCommandMarker.
 	markers := map[string]uint32{
-		"process":       processMarker,
 		"httpClient":    httpClientMarker,
 		"sseConnection": sseConnectionMarker,
 		"cliCommand":    cliCommandMarker,
@@ -407,4 +406,3 @@ func TestCliSetOutputRejectsBadValue(t *testing.T) {
 		vm.Send(cmdVal, "setOutput:", []Value{vm.registry.NewStringValue("not a writer")})
 	}()
 }
-

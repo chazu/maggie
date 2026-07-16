@@ -57,7 +57,6 @@ func TestPrimIdenticalExists(t *testing.T) {
 func TestMarkerNoCollision(t *testing.T) {
 	// Verify all markers are unique
 	markers := map[string]uint32{
-		"process":    processMarker,
 		"grpcClient": grpcClientMarker,
 		"grpcStream": grpcStreamMarker,
 	}

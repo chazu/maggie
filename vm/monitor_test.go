@@ -13,21 +13,11 @@ func TestMonitor_ReceivesDownOnDeath(t *testing.T) {
 	vm := NewVM()
 	defer vm.Shutdown()
 
-	watcher, err := vm.createProcess()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := vm.registerProcess(watcher); err != nil {
-		t.Fatal(err)
-	}
+	watcher := vm.createProcess()
+	vm.registerProcess(watcher)
 
-	watched, err := vm.createProcess()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := vm.registerProcess(watched); err != nil {
-		t.Fatal(err)
-	}
+	watched := vm.createProcess()
+	vm.registerProcess(watched)
 
 	// Watcher monitors watched
 	ref, err := vm.MonitorProcess(watcher, watched)
@@ -92,21 +82,11 @@ func TestMonitor_DeadProcessImmediateNotification(t *testing.T) {
 	vm := NewVM()
 	defer vm.Shutdown()
 
-	watcher, err := vm.createProcess()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := vm.registerProcess(watcher); err != nil {
-		t.Fatal(err)
-	}
+	watcher := vm.createProcess()
+	vm.registerProcess(watcher)
 
-	watched, err := vm.createProcess()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := vm.registerProcess(watched); err != nil {
-		t.Fatal(err)
-	}
+	watched := vm.createProcess()
+	vm.registerProcess(watched)
 
 	// Kill watched BEFORE monitoring
 	vm.FinishProcess(watched, ExitError(errForTest("crashed")))
@@ -131,21 +111,11 @@ func TestMonitor_Demonitor(t *testing.T) {
 	vm := NewVM()
 	defer vm.Shutdown()
 
-	watcher, err := vm.createProcess()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := vm.registerProcess(watcher); err != nil {
-		t.Fatal(err)
-	}
+	watcher := vm.createProcess()
+	vm.registerProcess(watcher)
 
-	watched, err := vm.createProcess()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := vm.registerProcess(watched); err != nil {
-		t.Fatal(err)
-	}
+	watched := vm.createProcess()
+	vm.registerProcess(watched)
 
 	ref, err := vm.MonitorProcess(watcher, watched)
 	if err != nil {
@@ -170,21 +140,11 @@ func TestLink_PropagatesAbnormalExit(t *testing.T) {
 	vm := NewVM()
 	defer vm.Shutdown()
 
-	procA, err := vm.createProcess()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := vm.registerProcess(procA); err != nil {
-		t.Fatal(err)
-	}
+	procA := vm.createProcess()
+	vm.registerProcess(procA)
 
-	procB, err := vm.createProcess()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := vm.registerProcess(procB); err != nil {
-		t.Fatal(err)
-	}
+	procB := vm.createProcess()
+	vm.registerProcess(procB)
 
 	vm.LinkProcesses(procA, procB)
 
@@ -202,21 +162,11 @@ func TestLink_NormalExitDoesNotPropagate(t *testing.T) {
 	vm := NewVM()
 	defer vm.Shutdown()
 
-	procA, err := vm.createProcess()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := vm.registerProcess(procA); err != nil {
-		t.Fatal(err)
-	}
+	procA := vm.createProcess()
+	vm.registerProcess(procA)
 
-	procB, err := vm.createProcess()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := vm.registerProcess(procB); err != nil {
-		t.Fatal(err)
-	}
+	procB := vm.createProcess()
+	vm.registerProcess(procB)
 
 	vm.LinkProcesses(procA, procB)
 
@@ -234,21 +184,11 @@ func TestLink_TrapExit(t *testing.T) {
 	vm := NewVM()
 	defer vm.Shutdown()
 
-	procA, err := vm.createProcess()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := vm.registerProcess(procA); err != nil {
-		t.Fatal(err)
-	}
+	procA := vm.createProcess()
+	vm.registerProcess(procA)
 
-	procB, err := vm.createProcess()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := vm.registerProcess(procB); err != nil {
-		t.Fatal(err)
-	}
+	procB := vm.createProcess()
+	vm.registerProcess(procB)
 
 	// B traps exits
 	procB.mu.Lock()
@@ -291,21 +231,11 @@ func TestLink_Unlink(t *testing.T) {
 	vm := NewVM()
 	defer vm.Shutdown()
 
-	procA, err := vm.createProcess()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := vm.registerProcess(procA); err != nil {
-		t.Fatal(err)
-	}
+	procA := vm.createProcess()
+	vm.registerProcess(procA)
 
-	procB, err := vm.createProcess()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := vm.registerProcess(procB); err != nil {
-		t.Fatal(err)
-	}
+	procB := vm.createProcess()
+	vm.registerProcess(procB)
 
 	vm.LinkProcesses(procA, procB)
 	vm.UnlinkProcesses(procA, procB)
@@ -323,21 +253,11 @@ func TestLink_DeadProcessSendsImmediateSignal(t *testing.T) {
 	vm := NewVM()
 	defer vm.Shutdown()
 
-	procA, err := vm.createProcess()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := vm.registerProcess(procA); err != nil {
-		t.Fatal(err)
-	}
+	procA := vm.createProcess()
+	vm.registerProcess(procA)
 
-	procB, err := vm.createProcess()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := vm.registerProcess(procB); err != nil {
-		t.Fatal(err)
-	}
+	procB := vm.createProcess()
+	vm.registerProcess(procB)
 
 	// Kill A first
 	vm.FinishProcess(procA, ExitError(errForTest("already dead")))
@@ -398,13 +318,8 @@ func TestFinishProcess_SetsExitReason(t *testing.T) {
 	vm := NewVM()
 	defer vm.Shutdown()
 
-	proc, err := vm.createProcess()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := vm.registerProcess(proc); err != nil {
-		t.Fatal(err)
-	}
+	proc := vm.createProcess()
+	vm.registerProcess(proc)
 
 	vm.FinishProcess(proc, ExitNormal(FromSmallInt(99)))
 
@@ -427,13 +342,8 @@ func TestFinishProcess_ClosesMailbox(t *testing.T) {
 	vm := NewVM()
 	defer vm.Shutdown()
 
-	proc, err := vm.createProcess()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := vm.registerProcess(proc); err != nil {
-		t.Fatal(err)
-	}
+	proc := vm.createProcess()
+	vm.registerProcess(proc)
 
 	vm.FinishProcess(proc, ExitNormal(Nil))
 
@@ -458,13 +368,8 @@ func TestLinkProcesses_SelfLinkIsNoOp(t *testing.T) {
 	vm := NewVM()
 	defer vm.Shutdown()
 
-	p, err := vm.createProcess()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := vm.registerProcess(p); err != nil {
-		t.Fatal(err)
-	}
+	p := vm.createProcess()
+	vm.registerProcess(p)
 
 	done := make(chan struct{})
 	go func() {

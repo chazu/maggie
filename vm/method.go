@@ -43,10 +43,10 @@ func (m *PrimitiveMethod) Invoke(vm *VM, receiver Value, args []Value) Value {
 	return m.fn(vm, receiver, args)
 }
 
-func (m *PrimitiveMethod) Name() string              { return m.name }
-func (m *PrimitiveMethod) Arity() int                 { return -1 } // Variable arity
-func (m *PrimitiveMethod) DocString() string           { return m.docString }
-func (m *PrimitiveMethod) SetDocString(doc string)     { m.docString = doc }
+func (m *PrimitiveMethod) Name() string            { return m.name }
+func (m *PrimitiveMethod) Arity() int              { return -1 } // Variable arity
+func (m *PrimitiveMethod) DocString() string       { return m.docString }
+func (m *PrimitiveMethod) SetDocString(doc string) { m.docString = doc }
 
 // Method0 wraps a zero-argument primitive.
 type Method0 struct {
@@ -59,10 +59,10 @@ func (m *Method0) Invoke(vm *VM, receiver Value, args []Value) Value {
 	return m.fn(vm, receiver)
 }
 
-func (m *Method0) Name() string              { return m.name }
-func (m *Method0) Arity() int                 { return 0 }
-func (m *Method0) DocString() string           { return m.docString }
-func (m *Method0) SetDocString(doc string)     { m.docString = doc }
+func (m *Method0) Name() string            { return m.name }
+func (m *Method0) Arity() int              { return 0 }
+func (m *Method0) DocString() string       { return m.docString }
+func (m *Method0) SetDocString(doc string) { m.docString = doc }
 
 // Method1 wraps a one-argument primitive.
 type Method1 struct {
@@ -75,10 +75,10 @@ func (m *Method1) Invoke(vm *VM, receiver Value, args []Value) Value {
 	return m.fn(vm, receiver, args[0])
 }
 
-func (m *Method1) Name() string              { return m.name }
-func (m *Method1) Arity() int                 { return 1 }
-func (m *Method1) DocString() string           { return m.docString }
-func (m *Method1) SetDocString(doc string)     { m.docString = doc }
+func (m *Method1) Name() string            { return m.name }
+func (m *Method1) Arity() int              { return 1 }
+func (m *Method1) DocString() string       { return m.docString }
+func (m *Method1) SetDocString(doc string) { m.docString = doc }
 
 // Method2 wraps a two-argument primitive.
 type Method2 struct {
@@ -91,10 +91,10 @@ func (m *Method2) Invoke(vm *VM, receiver Value, args []Value) Value {
 	return m.fn(vm, receiver, args[0], args[1])
 }
 
-func (m *Method2) Name() string              { return m.name }
-func (m *Method2) Arity() int                 { return 2 }
-func (m *Method2) DocString() string           { return m.docString }
-func (m *Method2) SetDocString(doc string)     { m.docString = doc }
+func (m *Method2) Name() string            { return m.name }
+func (m *Method2) Arity() int              { return 2 }
+func (m *Method2) DocString() string       { return m.docString }
+func (m *Method2) SetDocString(doc string) { m.docString = doc }
 
 // Method3 wraps a three-argument primitive.
 type Method3 struct {
@@ -107,10 +107,10 @@ func (m *Method3) Invoke(vm *VM, receiver Value, args []Value) Value {
 	return m.fn(vm, receiver, args[0], args[1], args[2])
 }
 
-func (m *Method3) Name() string              { return m.name }
-func (m *Method3) Arity() int                 { return 3 }
-func (m *Method3) DocString() string           { return m.docString }
-func (m *Method3) SetDocString(doc string)     { m.docString = doc }
+func (m *Method3) Name() string            { return m.name }
+func (m *Method3) Arity() int              { return 3 }
+func (m *Method3) DocString() string       { return m.docString }
+func (m *Method3) SetDocString(doc string) { m.docString = doc }
 
 // Method4 wraps a four-argument primitive.
 type Method4 struct {
@@ -123,10 +123,10 @@ func (m *Method4) Invoke(vm *VM, receiver Value, args []Value) Value {
 	return m.fn(vm, receiver, args[0], args[1], args[2], args[3])
 }
 
-func (m *Method4) Name() string              { return m.name }
-func (m *Method4) Arity() int                 { return 4 }
-func (m *Method4) DocString() string           { return m.docString }
-func (m *Method4) SetDocString(doc string)     { m.docString = doc }
+func (m *Method4) Name() string            { return m.name }
+func (m *Method4) Arity() int              { return 4 }
+func (m *Method4) DocString() string       { return m.docString }
+func (m *Method4) SetDocString(doc string) { m.docString = doc }
 
 // Method8 wraps an eight-argument primitive.
 type Method8 struct {
@@ -139,10 +139,10 @@ func (m *Method8) Invoke(vm *VM, receiver Value, args []Value) Value {
 	return m.fn(vm, receiver, args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7])
 }
 
-func (m *Method8) Name() string              { return m.name }
-func (m *Method8) Arity() int                 { return 8 }
-func (m *Method8) DocString() string           { return m.docString }
-func (m *Method8) SetDocString(doc string)     { m.docString = doc }
+func (m *Method8) Name() string            { return m.name }
+func (m *Method8) Arity() int              { return 8 }
+func (m *Method8) DocString() string       { return m.docString }
+func (m *Method8) SetDocString(doc string) { m.docString = doc }
 
 // ---------------------------------------------------------------------------
 // Factory functions

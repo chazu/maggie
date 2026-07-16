@@ -87,10 +87,10 @@ func (r *remoteChannelRegistry) drainNode(nodeID [32]byte) {
 // ---------------------------------------------------------------------------
 
 type channelExportRegistry struct {
-	mu       sync.RWMutex
-	exports  map[uint64]*ChannelObject
-	byChan   map[*ChannelObject]uint64 // reverse index for O(1) dedup
-	nextID   atomic.Uint64
+	mu      sync.RWMutex
+	exports map[uint64]*ChannelObject
+	byChan  map[*ChannelObject]uint64 // reverse index for O(1) dedup
+	nextID  atomic.Uint64
 }
 
 func newChannelExportRegistry() *channelExportRegistry {

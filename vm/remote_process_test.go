@@ -32,10 +32,7 @@ func TestFuture_ResolveAndAwait(t *testing.T) {
 	defer vm.Shutdown()
 
 	f := NewFuture()
-	futureVal, err := vm.registerFuture(f)
-	if err != nil {
-		t.Fatal(err)
-	}
+	futureVal := vm.registerFuture(f)
 
 	go func() {
 		time.Sleep(10 * time.Millisecond)
@@ -71,10 +68,7 @@ func TestFuture_Registry(t *testing.T) {
 	defer vm.Shutdown()
 
 	f := NewFuture()
-	val, err := vm.registerFuture(f)
-	if err != nil {
-		t.Fatal(err)
-	}
+	val := vm.registerFuture(f)
 
 	if !isFutureValue(val) {
 		t.Fatal("should be a future value")

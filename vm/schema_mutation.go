@@ -20,16 +20,16 @@ import "strings"
 // the selectors registered in compiler_primitives.go and
 // class_reflection_primitives.go.
 var schemaMutatingSelectorHeads = []string{
-	"evaluate:",                    // Compiler evaluate: / evaluate:in: / evaluate:withLocals:
-	"setGlobal:",                   // Compiler setGlobal:to: — writes a global
-	"compileMethod:",               // Compiler compileMethod:
-	"compileAndInstall:",           // <class> compileAndInstall: — installs an instance method
+	"evaluate:",                     // Compiler evaluate: / evaluate:in: / evaluate:withLocals:
+	"setGlobal:",                    // Compiler setGlobal:to: — writes a global
+	"compileMethod:",                // Compiler compileMethod:
+	"compileAndInstall:",            // <class> compileAndInstall: — installs an instance method
 	"compileAndInstallClassMethod:", // <class> compileAndInstallClassMethod:
-	"fileIn:",                      // Compiler fileIn: — loads code (defines classes/methods)
-	"fileInAll:",                   // Compiler fileInAll:
-	"saveImage:",                   // reads the whole VM — must not overlap a mutator
-	"saveImageAtomic:",             // Compiler saveImageAtomic:
-	"updateMethodInFile:",          // Compiler updateMethodInFile:selector:source:
+	"fileIn:",                       // Compiler fileIn: — loads code (defines classes/methods)
+	"fileInAll:",                    // Compiler fileInAll:
+	"saveImage:",                    // reads the whole VM — must not overlap a mutator
+	"saveImageAtomic:",              // Compiler saveImageAtomic:
+	"updateMethodInFile:",           // Compiler updateMethodInFile:selector:source:
 }
 
 // SourceMayMutateSchema reports whether evaluated source *might* structurally

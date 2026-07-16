@@ -24,7 +24,6 @@ type CancellationContextObject struct {
 	doneValue Value                      // cached done channel value
 }
 
-
 // ---------------------------------------------------------------------------
 // CancellationContext creation helpers
 // ---------------------------------------------------------------------------
@@ -146,31 +145,19 @@ func (vm *VM) registerCancellationContextPrimitives() {
 	// CancellationContext class>>background - returns the background context (never cancelled)
 	c.AddClassMethod0(vm.Selectors, "background", func(v *VM, recv Value) Value {
 		ctx := createBackgroundCancellationContext()
-		val, err := v.registerCancellationContext(ctx)
-		if err != nil {
-			return v.SignalPrimitiveError("CancellationContext background", err.Error())
-		}
-		return val
+		return v.registerCancellationContext(ctx)
 	})
 
 	// CancellationContext class>>todo - returns a TODO context (placeholder)
 	c.AddClassMethod0(vm.Selectors, "todo", func(v *VM, recv Value) Value {
 		ctx := createTodoCancellationContext()
-		val, err := v.registerCancellationContext(ctx)
-		if err != nil {
-			return v.SignalPrimitiveError("CancellationContext todo", err.Error())
-		}
-		return val
+		return v.registerCancellationContext(ctx)
 	})
 
 	// CancellationContext class>>withCancel - create a cancellable context from background
 	c.AddClassMethod0(vm.Selectors, "withCancel", func(v *VM, recv Value) Value {
 		ctx := createCancellationContextWithCancel(nil)
-		val, err := v.registerCancellationContext(ctx)
-		if err != nil {
-			return v.SignalPrimitiveError("CancellationContext withCancel", err.Error())
-		}
-		return val
+		return v.registerCancellationContext(ctx)
 	})
 
 	// CancellationContext class>>withTimeout: milliseconds - create a context with timeout
@@ -181,11 +168,7 @@ func (vm *VM) registerCancellationContextPrimitives() {
 		ms := msValue.SmallInt()
 		timeout := time.Duration(ms) * time.Millisecond
 		ctx := createCancellationContextWithTimeout(nil, timeout)
-		val, err := v.registerCancellationContext(ctx)
-		if err != nil {
-			return v.SignalPrimitiveError("CancellationContext withTimeout:", err.Error())
-		}
-		return val
+		return v.registerCancellationContext(ctx)
 	})
 
 	// CancellationContext>>withCancel - create a child context with cancellation
@@ -195,11 +178,7 @@ func (vm *VM) registerCancellationContextPrimitives() {
 			return Nil
 		}
 		ctx := createCancellationContextWithCancel(parent)
-		val, err := v.registerCancellationContext(ctx)
-		if err != nil {
-			return v.SignalPrimitiveError("CancellationContext withCancel", err.Error())
-		}
-		return val
+		return v.registerCancellationContext(ctx)
 	})
 
 	// CancellationContext>>withTimeout: milliseconds - create a child context with timeout
@@ -214,11 +193,7 @@ func (vm *VM) registerCancellationContextPrimitives() {
 		ms := msValue.SmallInt()
 		timeout := time.Duration(ms) * time.Millisecond
 		ctx := createCancellationContextWithTimeout(parent, timeout)
-		val, err := v.registerCancellationContext(ctx)
-		if err != nil {
-			return v.SignalPrimitiveError("CancellationContext withTimeout:", err.Error())
-		}
-		return val
+		return v.registerCancellationContext(ctx)
 	})
 
 	// CancellationContext>>cancel - cancel this context
@@ -355,11 +330,7 @@ func (vm *VM) registerCancellationContextPrimitives() {
 		if ctx == nil || ctx.parent == nil {
 			return Nil
 		}
-		val, err := v.registerCancellationContext(ctx.parent)
-		if err != nil {
-			return v.SignalPrimitiveError("CancellationContext parent", err.Error())
-		}
-		return val
+		return v.registerCancellationContext(ctx.parent)
 	})
 
 	// CancellationContext>>doneChannel - returns a channel that closes when context is done
@@ -371,16 +342,12 @@ func (vm *VM) registerCancellationContextPrimitives() {
 		}
 
 		// Create a channel that will close when context is done
-		var regErr error
 		ctx.doneOnce.Do(func() {
 			// Create a Maggie channel
 			ch := &ChannelObject{
 				ch: make(chan Value, 1),
 			}
-			ctx.doneValue, regErr = v.registerChannel(ch)
-			if regErr != nil {
-				return
-			}
+			ctx.doneValue = v.registerChannel(ch)
 
 			// Monitor context in background
 			go func() {
@@ -399,9 +366,6 @@ func (vm *VM) registerCancellationContextPrimitives() {
 				ch.mu.Unlock()
 			}()
 		})
-		if regErr != nil {
-			return v.SignalPrimitiveError("CancellationContext doneChannel", regErr.Error())
-		}
 
 		return ctx.doneValue
 	})

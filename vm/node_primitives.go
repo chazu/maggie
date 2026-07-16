@@ -84,15 +84,15 @@ func (n *NodeRefData) NodeID() [32]byte {
 // For now, we build a simple envelope struct and marshal it with the same
 // CBOR enc mode used by serial.go.
 type envelopeData struct {
-	SenderNode    [32]byte `cbor:"1,keyasint"`
-	TargetProcess uint64   `cbor:"2,keyasint"`
-	TargetName    string   `cbor:"3,keyasint,omitempty"`
+	SenderNode    [32]byte   `cbor:"1,keyasint"`
+	TargetProcess uint64     `cbor:"2,keyasint"`
+	TargetName    string     `cbor:"3,keyasint,omitempty"`
 	ReplyTo       *replyAddr `cbor:"4,keyasint,omitempty"`
-	Selector      string   `cbor:"5,keyasint,omitempty"`
-	Payload       []byte   `cbor:"6,keyasint"`
+	Selector      string     `cbor:"5,keyasint,omitempty"`
+	Payload       []byte     `cbor:"6,keyasint"`
 	ClassHints    [][32]byte `cbor:"7,keyasint,omitempty"`
-	Nonce         uint64   `cbor:"8,keyasint"`
-	Signature     []byte   `cbor:"9,keyasint"`
+	Nonce         uint64     `cbor:"8,keyasint"`
+	Signature     []byte     `cbor:"9,keyasint"`
 }
 
 type replyAddr struct {
@@ -382,11 +382,7 @@ func (vm *VM) remoteSend(recv, selectorVal, payload Value, wantReply bool) Value
 
 	// Request-response: create Future, resolve in background
 	future := NewFuture()
-	var futureVal Value
-	futureVal, err = vm.registerFuture(future)
-	if err != nil {
-		return vm.SignalPrimitiveError("Node send", err.Error())
-	}
+	futureVal := vm.registerFuture(future)
 
 	go func() {
 		respPayload, errKind, errMsg, netErr := ref.SendFunc(envelopeBytes)

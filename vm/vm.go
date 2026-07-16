@@ -16,12 +16,11 @@ import (
 // VMConfig holds configurable runtime parameters for the VM.
 // Zero values mean "use default".
 type VMConfig struct {
-	MaxStackDepth   int           // Operand stack depth limit (default: 131072)
-	MaxFrameDepth   int           // Call frame depth limit (default: 8192)
-	InitialStack    int           // Initial stack allocation (default: 2048)
-	InitialFrames   int           // Initial frame allocation (default: 512)
-	MailboxCapacity int           // Process mailbox capacity (default: 4096)
-	GCInterval      time.Duration // Registry GC sweep interval (default: 60s, see DefaultGCInterval)
+	MaxStackDepth   int // Operand stack depth limit (default: 131072)
+	MaxFrameDepth   int // Call frame depth limit (default: 8192)
+	InitialStack    int // Initial stack allocation (default: 2048)
+	InitialFrames   int // Initial frame allocation (default: 512)
+	MailboxCapacity int // Process mailbox capacity (default: 4096)
 }
 
 // DefaultVMConfig returns the default VM configuration.
@@ -32,7 +31,6 @@ func DefaultVMConfig() VMConfig {
 		InitialStack:    DefaultInitialStack,
 		InitialFrames:   DefaultInitialFrames,
 		MailboxCapacity: DefaultMailboxCapacity,
-		GCInterval:      DefaultGCInterval,
 	}
 }
 
@@ -53,9 +51,6 @@ func (c VMConfig) mergeDefaults() VMConfig {
 	}
 	if c.MailboxCapacity == 0 {
 		c.MailboxCapacity = d.MailboxCapacity
-	}
-	if c.GCInterval == 0 {
-		c.GCInterval = d.GCInterval
 	}
 	return c
 }
@@ -208,9 +203,6 @@ type VM struct {
 	// lateBoundFields with atomic CoW publishing. See accessors in
 	// late_bound.go and file_in.go.
 
-	// registryGC periodically sweeps concurrency and exception registries.
-	registryGC *RegistryGC
-
 	// goTypeRegistry maps Go reflect.Types to Maggie classes for GoObject dispatch.
 	goTypeRegistry *GoTypeRegistry
 
@@ -284,21 +276,11 @@ func NewVM(configs ...VMConfig) *VM {
 
 	// Create the main process (so Process current / Process receive work
 	// from the main goroutine)
-	mainProc, err := vm.registry.CreateProcess(vm.Config.MailboxCapacity)
-	if err != nil {
-		panic("vm: failed to create main process: " + err.Error())
-	}
-	vm.mainProcess = mainProc
-	if _, err := vm.registry.RegisterProcess(vm.mainProcess); err != nil {
-		panic("vm: failed to register main process: " + err.Error())
-	}
+	vm.mainProcess = vm.registry.CreateProcess(vm.Config.MailboxCapacity)
+	vm.registry.RegisterProcess(vm.mainProcess)
 
 	// Create debug server
 	vm.Debugger = NewDebugServer(vm)
-
-	// Start registry GC for automatic cleanup of stale concurrency objects
-	vm.registryGC = NewRegistryGC(vm, vm.Config.GCInterval)
-	vm.registryGC.Start()
 
 	return vm
 }
@@ -620,7 +602,6 @@ func (vm *VM) registerSymbolDispatch() {
 	// Concurrency primitives. Process is still a symbol-encoded id (its Values
 	// are constructed by-id in monitor/link/distribution paths); the rest are
 	// pointer-carrying heap kinds resolved via classForHeap.
-	sd.Register(processMarker, &SymbolTypeEntry{Class: vm.ProcessClass})
 
 	// gRPC symbol dispatch is registered by the gRPC contrib plugin.
 
@@ -715,27 +696,9 @@ func (vm *VM) Registry() *ObjectRegistry {
 	return vm.registry
 }
 
-// SweepConcurrency runs garbage collection on concurrency objects.
-// Removes closed channels and terminated processes.
-// Returns the number of objects swept.
-func (vm *VM) SweepConcurrency() (channels, processes int) {
-	if vm.registry != nil {
-		return vm.registry.Sweep()
-	}
-	return 0, 0
-}
-
-// ConcurrencyStats returns statistics about concurrency objects.
-func (vm *VM) ConcurrencyStats() map[string]int {
-	if vm.registry != nil {
-		return vm.registry.Stats()
-	}
-	return nil
-}
-
 // --- Channel helpers ---
 
-func (vm *VM) registerChannel(ch *ChannelObject) (Value, error) {
+func (vm *VM) registerChannel(ch *ChannelObject) Value {
 	return vm.registry.RegisterChannel(ch)
 }
 
@@ -745,15 +708,22 @@ func (vm *VM) getChannel(v Value) *ChannelObject {
 
 // --- Process helpers ---
 
-func (vm *VM) createProcess() (*ProcessObject, error) {
+func (vm *VM) createProcess() *ProcessObject {
 	return vm.registry.CreateProcess(vm.Config.MailboxCapacity)
 }
 
-func (vm *VM) registerProcess(proc *ProcessObject) (Value, error) {
+func (vm *VM) registerProcess(proc *ProcessObject) Value {
 	return vm.registry.RegisterProcess(proc)
 }
 
 func (vm *VM) getProcess(v Value) *ProcessObject {
+	return vm.registry.GetProcess(v)
+}
+
+// ProcessFromValue returns the ProcessObject a Value carries, or nil if the
+// Value is not a process. Exported for the server package, which resolves
+// processes returned by LookupProcessName.
+func (vm *VM) ProcessFromValue(v Value) *ProcessObject {
 	return vm.registry.GetProcess(v)
 }
 
@@ -788,7 +758,7 @@ func (vm *VM) currentProcessValue() Value {
 	if proc == nil {
 		return Nil
 	}
-	return processToValue(proc.id)
+	return processToValue(proc)
 }
 
 // RegisterProcessName registers a name for a process. Returns false if
@@ -829,7 +799,7 @@ func (vm *VM) LookupProcessName(name string) Value {
 		vm.processNamesMu.Unlock()
 		return Nil
 	}
-	return processToValue(id)
+	return processToValue(proc)
 }
 
 // UnregisterProcessName removes a name registration.
@@ -838,6 +808,18 @@ func (vm *VM) UnregisterProcessName(name string) {
 	if id, ok := vm.processNames[name]; ok {
 		delete(vm.processNames, name)
 		delete(vm.processNamesByID, id)
+	}
+	vm.processNamesMu.Unlock()
+}
+
+// UnregisterProcessNamesFor removes any name registered for a process id.
+// Called from FinishProcess so the name registry stays bounded by live
+// processes.
+func (vm *VM) UnregisterProcessNamesFor(procID uint64) {
+	vm.processNamesMu.Lock()
+	if name, ok := vm.processNamesByID[procID]; ok {
+		delete(vm.processNames, name)
+		delete(vm.processNamesByID, procID)
 	}
 	vm.processNamesMu.Unlock()
 }
@@ -860,7 +842,7 @@ func (vm *VM) CreateMailboxMessage(sender Value, selector string, payload Value)
 
 // --- ArrayList helpers ---
 
-func (vm *VM) registerArrayList(al *ArrayListObject) (Value, error) {
+func (vm *VM) registerArrayList(al *ArrayListObject) Value {
 	return vm.registry.RegisterArrayList(al)
 }
 
@@ -870,7 +852,7 @@ func (vm *VM) getArrayList(v Value) *ArrayListObject {
 
 // --- Mutex helpers ---
 
-func (vm *VM) registerMutex(mu *MutexObject) (Value, error) {
+func (vm *VM) registerMutex(mu *MutexObject) Value {
 	return vm.registry.RegisterMutex(mu)
 }
 
@@ -880,7 +862,7 @@ func (vm *VM) getMutex(v Value) *MutexObject {
 
 // --- WaitGroup helpers ---
 
-func (vm *VM) registerWaitGroup(wg *WaitGroupObject) (Value, error) {
+func (vm *VM) registerWaitGroup(wg *WaitGroupObject) Value {
 	return vm.registry.RegisterWaitGroup(wg)
 }
 
@@ -890,7 +872,7 @@ func (vm *VM) getWaitGroup(v Value) *WaitGroupObject {
 
 // --- Semaphore helpers ---
 
-func (vm *VM) registerSemaphore(sem *SemaphoreObject) (Value, error) {
+func (vm *VM) registerSemaphore(sem *SemaphoreObject) Value {
 	return vm.registry.RegisterSemaphore(sem)
 }
 
@@ -898,7 +880,7 @@ func (vm *VM) getSemaphore(v Value) *SemaphoreObject {
 	return vm.registry.GetSemaphore(v)
 }
 
-func (vm *VM) registerCancellationContext(ctx *CancellationContextObject) (Value, error) {
+func (vm *VM) registerCancellationContext(ctx *CancellationContextObject) Value {
 	return vm.registry.RegisterCancellationContext(ctx)
 }
 
@@ -1024,6 +1006,8 @@ func (vm *VM) classForHeap(v Value) *Class {
 		return vm.CancellationContextClass
 	case kindChannel:
 		return vm.ChannelClass
+	case kindProcess:
+		return vm.ProcessClass
 	case kindFuture:
 		return vm.FutureClass
 	case kindRemoteChannel:
@@ -1435,21 +1419,12 @@ func (vm *VM) currentInterpreter() *Interpreter {
 // VM Lifecycle
 // ---------------------------------------------------------------------------
 
-// Shutdown stops background goroutines (registry GC, etc.) and releases
-// resources. Call this when the VM is no longer needed.
+// Shutdown stops background goroutines and releases resources. Call this
+// when the VM is no longer needed.
 func (vm *VM) Shutdown() {
 	if sp := vm.SamplingProfiler(); sp != nil {
 		sp.Stop()
 	}
-	if vm.registryGC != nil {
-		vm.registryGC.Stop()
-	}
-}
-
-// RegistryGC returns the registry garbage collector for configuration
-// and monitoring. Returns nil if the VM has not been initialized.
-func (vm *VM) RegistryGC() *RegistryGC {
-	return vm.registryGC
 }
 
 // StartSamplingProfiler creates and starts a wall-clock sampling profiler.

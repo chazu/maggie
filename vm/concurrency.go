@@ -133,10 +133,8 @@ func (co *ChannelObject) Size() int { return len(co.ch) }
 // Cap returns the buffer capacity.
 func (co *ChannelObject) Cap() int { return cap(co.ch) }
 
-// channelToValue wraps a ChannelObject pointer in a heap Value traced by the Go
-// GC. The concurrency registry still keeps an id→channel map, but only so
-// RegistryGC can sweep terminated channels from it (a functional cleanup, not a
-// liveness root).
+// channelToValue wraps a ChannelObject pointer in a heap Value traced by the
+// Go GC.
 func channelToValue(ch *ChannelObject) Value {
 	return makeHeap(kindChannel, unsafe.Pointer(ch))
 }
@@ -185,17 +183,15 @@ func (p *ProcessObject) Mailbox() *Mailbox { return p.mailbox }
 // IsDone returns true if the process has terminated.
 func (p *ProcessObject) IsDone() bool { return p.isDone() }
 
-func processToValue(id uint64) Value {
-	// Use symbol encoding with a different marker
-	return FromSymbolID(uint32(id) | processMarker)
+// processToValue wraps a ProcessObject pointer in a heap Value traced by the
+// Go GC. Process identity for links/monitors/wire/name-registry purposes is
+// the process's uint64 id, resolved through the live-process index.
+func processToValue(proc *ProcessObject) Value {
+	return makeHeap(kindProcess, unsafe.Pointer(proc))
 }
 
 func isProcessValue(v Value) bool {
-	if !v.IsSymbolEncoded() {
-		return false
-	}
-	id := v.SymbolID()
-	return (id & markerMask) == processMarker
+	return v.ptr != nil && v.hi == kindProcess
 }
 
 // markDone is the legacy termination method. New code should use
@@ -239,11 +235,7 @@ func (vm *VM) registerChannelPrimitives() {
 	// Channel class>>new - create unbuffered channel (class method)
 	c.AddClassMethod0(vm.Selectors, "new", func(v *VM, recv Value) Value {
 		ch := createChannel(0)
-		val, err := v.registerChannel(ch)
-		if err != nil {
-			return v.SignalPrimitiveError("Channel new", err.Error())
-		}
-		return val
+		return v.registerChannel(ch)
 	})
 
 	// Channel class>>new: size - create buffered channel (class method)
@@ -259,11 +251,7 @@ func (vm *VM) registerChannelPrimitives() {
 			return v.SignalPrimitiveError("Channel new:", "requested buffer size exceeds maximum")
 		}
 		ch := createChannel(bufSize)
-		val, err := v.registerChannel(ch)
-		if err != nil {
-			return v.SignalPrimitiveError("Channel new:", err.Error())
-		}
-		return val
+		return v.registerChannel(ch)
 	})
 
 	// Channel>>primSend: value - send value to channel (blocking)
@@ -275,10 +263,7 @@ func (vm *VM) registerChannelPrimitives() {
 		if ch.closed.Load() {
 			return Nil // Can't send to closed channel
 		}
-		// A send on an unbuffered/full channel blocks; mark the interpreter
-		// blocked (publishing val) so the collector can still reach a safepoint
-		// and mark the in-flight value, instead of spinning until a receiver
-		// drains and aborting every GC cycle in the meantime.
+		// A send on an unbuffered/full channel blocks until a receiver drains.
 		ok := ch.safeSend(val)
 		if !ok {
 			return Nil // Channel closed between check and send
@@ -492,14 +477,8 @@ func (vm *VM) registerProcessPrimitives() {
 			return Nil
 		}
 
-		proc, err := v.createProcess()
-		if err != nil {
-			return v.SignalPrimitiveError("Block fork", err.Error())
-		}
-		procValue, err := v.registerProcess(proc)
-		if err != nil {
-			return v.SignalPrimitiveError("Block fork", err.Error())
-		}
+		proc := v.createProcess()
+		procValue := v.registerProcess(proc)
 
 		// Capture the caller's restrictions on THIS goroutine; the fork must
 		// inherit them (see inheritedHidden).
@@ -533,14 +512,8 @@ func (vm *VM) registerProcessPrimitives() {
 			return Nil
 		}
 
-		proc, err := v.createProcess()
-		if err != nil {
-			return v.SignalPrimitiveError("Block forkWith:", err.Error())
-		}
-		procValue, err := v.registerProcess(proc)
-		if err != nil {
-			return v.SignalPrimitiveError("Block forkWith:", err.Error())
-		}
+		proc := v.createProcess()
+		procValue := v.registerProcess(proc)
 
 		callerHidden := v.inheritedHidden(nil)
 
@@ -574,14 +547,8 @@ func (vm *VM) registerProcessPrimitives() {
 			return Nil
 		}
 
-		proc, err := v.createProcess()
-		if err != nil {
-			return v.SignalPrimitiveError("Block forkWithContext:", err.Error())
-		}
-		procValue, err := v.registerProcess(proc)
-		if err != nil {
-			return v.SignalPrimitiveError("Block forkWithContext:", err.Error())
-		}
+		proc := v.createProcess()
+		procValue := v.registerProcess(proc)
 
 		callerHidden := v.inheritedHidden(nil)
 
@@ -626,14 +593,8 @@ func (vm *VM) registerProcessPrimitives() {
 			return Nil
 		}
 
-		proc, err := v.createProcess()
-		if err != nil {
-			return v.SignalPrimitiveError("Process fork:", err.Error())
-		}
-		procValue, err := v.registerProcess(proc)
-		if err != nil {
-			return v.SignalPrimitiveError("Process fork:", err.Error())
-		}
+		proc := v.createProcess()
+		procValue := v.registerProcess(proc)
 
 		callerHidden := v.inheritedHidden(nil)
 
@@ -783,14 +744,8 @@ func (vm *VM) registerProcessPrimitives() {
 		// Merge the requested restrictions with any inherited from the caller.
 		hidden := v.inheritedHidden(extra)
 
-		proc, err := v.createProcess()
-		if err != nil {
-			return v.SignalPrimitiveError("Block forkRestricted:", err.Error())
-		}
-		procValue, err := v.registerProcess(proc)
-		if err != nil {
-			return v.SignalPrimitiveError("Block forkRestricted:", err.Error())
-		}
+		proc := v.createProcess()
+		procValue := v.registerProcess(proc)
 
 		go func() {
 			defer func() {
@@ -824,14 +779,8 @@ func (vm *VM) registerProcessPrimitives() {
 		// Merge the requested restrictions with any inherited from the caller.
 		hidden := v.inheritedHidden(extra)
 
-		proc, err := v.createProcess()
-		if err != nil {
-			return v.SignalPrimitiveError("Process forkWithout:do:", err.Error())
-		}
-		procValue, err := v.registerProcess(proc)
-		if err != nil {
-			return v.SignalPrimitiveError("Process forkWithout:do:", err.Error())
-		}
+		proc := v.createProcess()
+		procValue := v.registerProcess(proc)
 
 		go func() {
 			defer func() {

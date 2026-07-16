@@ -16,7 +16,6 @@ type WaitGroupObject struct {
 	counter atomic.Int32 // Track count for inspection
 }
 
-
 func createWaitGroup() *WaitGroupObject {
 	return &WaitGroupObject{}
 }
@@ -35,20 +34,12 @@ func (vm *VM) registerWaitGroupPrimitives() {
 	// WaitGroup class>>new - create a new wait group
 	wg.AddClassMethod0(vm.Selectors, "new", func(v *VM, recv Value) Value {
 		waitGroup := createWaitGroup()
-		val, err := v.registerWaitGroup(waitGroup)
-		if err != nil {
-			return v.SignalPrimitiveError("WaitGroup new", err.Error())
-		}
-		return val
+		return v.registerWaitGroup(waitGroup)
 	})
 
 	wg.AddClassMethod0(vm.Selectors, "primNew", func(v *VM, recv Value) Value {
 		waitGroup := createWaitGroup()
-		val, err := v.registerWaitGroup(waitGroup)
-		if err != nil {
-			return v.SignalPrimitiveError("WaitGroup primNew", err.Error())
-		}
-		return val
+		return v.registerWaitGroup(waitGroup)
 	})
 
 	// WaitGroup>>add: count - add to the wait group counter
@@ -155,18 +146,8 @@ func (vm *VM) registerWaitGroupPrimitives() {
 		w.counter.Add(1)
 
 		// Fork the block with automatic done
-		proc, err := v.createProcess()
-		if err != nil {
-			w.counter.Add(-1)
-			w.wg.Done()
-			return v.SignalPrimitiveError("WaitGroup wrap:", err.Error())
-		}
-		procValue, err := v.registerProcess(proc)
-		if err != nil {
-			w.counter.Add(-1)
-			w.wg.Done()
-			return v.SignalPrimitiveError("WaitGroup wrap:", err.Error())
-		}
+		proc := v.createProcess()
+		procValue := v.registerProcess(proc)
 
 		go func() {
 			defer func() {

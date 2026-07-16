@@ -147,6 +147,8 @@ func (s *valueSerializer) serializeHeap(v Value) ([]byte, error) {
 		return s.serializeChannel(v)
 	case kindFuture:
 		return nil, fmt.Errorf("serial: cannot serialize Future (non-serializable type)")
+	case kindProcess:
+		return nil, fmt.Errorf("serial: cannot serialize Process (non-serializable type)")
 	case kindDictionary:
 		return s.serializeDictionary(v)
 	case kindBigInt:
@@ -206,13 +208,8 @@ func (s *valueSerializer) serializeSymbolEncoded(v Value) ([]byte, error) {
 		return data, err
 	}
 
-	// Check for non-serializable marker types
 	id := v.SymbolID()
 	marker := id & markerMask
-	switch marker {
-	case processMarker:
-		return nil, fmt.Errorf("serial: cannot serialize Process (non-serializable type)")
-	}
 
 	// Regular symbol (interned name)
 	if id < stringIDOffset {

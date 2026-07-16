@@ -1,123 +1,61 @@
 package vm
 
 import (
-	"fmt"
 	"sync"
 	"sync/atomic"
 	"unsafe"
 )
 
-// concurrencyIDMax is the largest valid ID for any concurrency primitive whose
-// Value encoding shares the 24-bit symbol payload with a marker byte (see
-// vm/markers.go: channelMarker, processMarker, mutexMarker, etc.). Wrap-around
-// past this would alias a new primitive's ID to a live one and silently route
-// sends/receives/locks to the wrong object — a correctness disaster.
-//
-// We deliberately do NOT recycle IDs even after Sweep removes terminated
-// entries: a Value still referencing the swept primitive would resolve to a
-// different live primitive after recycling, changing semantics from "nil
-// lookup" to "wrong object". The 24-bit space is ~16.7M ids — at a sustained
-// 30k allocations/sec it exhausts in ~9 minutes, so a channel-per-request
-// server IS a realistic way to hit the cap. When it matters, adopt the block
-// registry's slot+generation recycling (see blockSlotGen) rather than widening
-// this counter. Exhaustion returns ErrIDSpaceExhausted, surfaced as a Maggie
-// exception rather than a silent wrap.
-//
-// NOTE: Blocks are an exception. They have their own tag (tagBlock) with a
-// 48-bit payload split into a 32-bit slot id + 16-bit generation, so they
-// do NOT use this 24-bit cap. See blockSlotMaxID and the gen-tagged
-// recycle scheme in RegisterBlock/ReleaseBlock.
-const concurrencyIDMax int32 = (1 << 24) - 1
-
-// concurrencyIDMaxU64 mirrors concurrencyIDMax for uint64 counters (process,
-// monitorRef). Same rationale as concurrencyIDMax.
-const concurrencyIDMaxU64 uint64 = (1 << 24) - 1
-
-// ErrIDSpaceExhausted is returned when the 24-bit concurrency ID space
-// is full. Callers surface this as a Maggie-level exception.
-var ErrIDSpaceExhausted = fmt.Errorf("concurrency ID space exhausted (max 2^24-1)")
-
-func allocConcurrencyID(counter *atomic.Int32, kind string) (int, error) {
-	id := counter.Add(1) - 1
-	if id < 0 || id > concurrencyIDMax {
-		return -1, fmt.Errorf("%s: %w", kind, ErrIDSpaceExhausted)
-	}
-	return int(id), nil
-}
-
-func allocConcurrencyID64(counter *atomic.Uint64, kind string) (uint64, error) {
-	id := counter.Add(1) - 1
-	if id > concurrencyIDMaxU64 {
-		return 0, fmt.Errorf("%s: %w", kind, ErrIDSpaceExhausted)
-	}
-	return id, nil
-}
-
 // ---------------------------------------------------------------------------
-// ConcurrencyRegistry: Holds all concurrency-related registries
+// ConcurrencyRegistry
 // ---------------------------------------------------------------------------
+//
+// After the pointer-value migration, every concurrency primitive is a
+// pointer-carrying heap Value traced by Go's GC — there are no id maps to
+// sweep and no id spaces to exhaust. The single exception is the process
+// index below.
 
-// ConcurrencyRegistry manages channels, processes, mutexes, wait groups,
-// semaphores, cancellation contexts, and blocks. It provides VM-local isolation and GC integration.
+// ConcurrencyRegistry holds the live-process index and the monotonic
+// counters for process and monitor-ref identity.
 type ConcurrencyRegistry struct {
-	// Channel registry
-	channels   map[int]*ChannelObject
-	channelsMu sync.RWMutex
-	channelID  atomic.Int32
-
-	// Process registry
+	// processes is the live-process index: id -> process, for every process
+	// that has been registered and has not yet terminated. It exists because
+	// process identity crosses boundaries as a plain uint64 — links and
+	// monitors record peer ids, the wire protocol targets processes by id,
+	// and the name registry maps names to ids. Entries are removed
+	// deterministically by FinishProcess when a process terminates, so the
+	// index is bounded by the number of live processes.
 	processes   map[uint64]*ProcessObject
 	processesMu sync.RWMutex
 	processID   atomic.Uint64
 
-	// Future registry
-	futures   map[int]*FutureObject
-	futuresMu sync.RWMutex
-	futureID  atomic.Int32
-
-	// Monitor ref ID counter
+	// Monitor ref ID counter (refs are plain uint64s carried in messages).
 	monitorRefID atomic.Uint64
 }
 
-func (cr *ConcurrencyRegistry) AllocMonitorRefID() (uint64, error) {
-	return allocConcurrencyID64(&cr.monitorRefID, "monitorRef")
+// AllocMonitorRefID returns the next monitor reference id.
+func (cr *ConcurrencyRegistry) AllocMonitorRefID() uint64 {
+	return cr.monitorRefID.Add(1) - 1
 }
 
 // NewConcurrencyRegistry creates a new concurrency registry.
 func NewConcurrencyRegistry() *ConcurrencyRegistry {
 	cr := &ConcurrencyRegistry{
-		channels:  make(map[int]*ChannelObject),
 		processes: make(map[uint64]*ProcessObject),
-		futures:   make(map[int]*FutureObject),
 	}
 	// Start IDs at 1 (0 could be confused with nil/uninitialized)
-	cr.channelID.Store(1)
 	cr.processID.Store(1)
-	cr.futureID.Store(1)
 	cr.monitorRefID.Store(1)
 	return cr
 }
 
 // ---------------------------------------------------------------------------
-// Channel Registry Methods
+// Channels
 // ---------------------------------------------------------------------------
 
-// RegisterChannel records a channel in the id map (for GC root enumeration /
-// sweeping) and returns it as a pointer-carrying heap Value. The id space can
-// no longer be "exhausted" in a way that aliases live channels (the Value is a
-// pointer), but the counter is retained as a map key; err is always nil in
-// practice.
-func (cr *ConcurrencyRegistry) RegisterChannel(ch *ChannelObject) (Value, error) {
-	id, err := allocConcurrencyID(&cr.channelID, "channel")
-	if err != nil {
-		return Nil, err
-	}
-
-	cr.channelsMu.Lock()
-	cr.channels[id] = ch
-	cr.channelsMu.Unlock()
-
-	return channelToValue(ch), nil
+// RegisterChannel returns a channel as a pointer-carrying heap Value.
+func (cr *ConcurrencyRegistry) RegisterChannel(ch *ChannelObject) Value {
+	return channelToValue(ch)
 }
 
 // GetChannel retrieves a channel from its Value.
@@ -128,55 +66,39 @@ func (cr *ConcurrencyRegistry) GetChannel(v Value) *ChannelObject {
 	return (*ChannelObject)(v.ptr)
 }
 
-// SweepChannels removes closed channels from the registry.
-// Returns the number of channels swept.
-func (cr *ConcurrencyRegistry) SweepChannels() int {
-	cr.channelsMu.Lock()
-	defer cr.channelsMu.Unlock()
-
-	swept := 0
-	for id, ch := range cr.channels {
-		if ch.closed.Load() {
-			delete(cr.channels, id)
-			swept++
-		}
-	}
-	return swept
-}
-
-// ChannelCount returns the number of registered channels.
-func (cr *ConcurrencyRegistry) ChannelCount() int {
-	cr.channelsMu.RLock()
-	defer cr.channelsMu.RUnlock()
-	return len(cr.channels)
-}
-
 // ---------------------------------------------------------------------------
-// Process Registry Methods
+// Processes
 // ---------------------------------------------------------------------------
 
-// RegisterProcess adds a process to the registry and returns its Value.
-func (cr *ConcurrencyRegistry) RegisterProcess(proc *ProcessObject) (Value, error) {
+// RegisterProcess adds a process to the live-process index and returns its
+// pointer-carrying Value.
+func (cr *ConcurrencyRegistry) RegisterProcess(proc *ProcessObject) Value {
 	cr.processesMu.Lock()
 	cr.processes[proc.id] = proc
 	cr.processesMu.Unlock()
-
-	return processToValue(proc.id), nil
+	return processToValue(proc)
 }
 
-// GetProcess retrieves a process by its Value.
+// UnregisterProcess removes a terminated process from the live-process
+// index. Called by FinishProcess; idempotent. Values referencing the
+// process keep working (they carry the pointer) — only by-id resolution of
+// the dead process stops.
+func (cr *ConcurrencyRegistry) UnregisterProcess(id uint64) {
+	cr.processesMu.Lock()
+	delete(cr.processes, id)
+	cr.processesMu.Unlock()
+}
+
+// GetProcess retrieves a process from its Value.
 func (cr *ConcurrencyRegistry) GetProcess(v Value) *ProcessObject {
 	if !isProcessValue(v) {
 		return nil
 	}
-	id := uint64(markedIDFromValue(v))
-
-	cr.processesMu.RLock()
-	defer cr.processesMu.RUnlock()
-	return cr.processes[id]
+	return (*ProcessObject)(v.ptr)
 }
 
-// GetProcessByID retrieves a process by its raw uint64 ID.
+// GetProcessByID retrieves a live process by its raw uint64 ID. Returns nil
+// for terminated (or never-registered) processes.
 func (cr *ConcurrencyRegistry) GetProcessByID(id uint64) *ProcessObject {
 	cr.processesMu.RLock()
 	defer cr.processesMu.RUnlock()
@@ -184,42 +106,22 @@ func (cr *ConcurrencyRegistry) GetProcessByID(id uint64) *ProcessObject {
 }
 
 // CreateProcess creates a new process with a unique ID and a mailbox.
-func (cr *ConcurrencyRegistry) CreateProcess(mailboxCapacity ...int) (*ProcessObject, error) {
+func (cr *ConcurrencyRegistry) CreateProcess(mailboxCapacity ...int) *ProcessObject {
 	cap := DefaultMailboxCapacity
 	if len(mailboxCapacity) > 0 && mailboxCapacity[0] > 0 {
 		cap = mailboxCapacity[0]
 	}
-	id, err := allocConcurrencyID64(&cr.processID, "process")
-	if err != nil {
-		return nil, err
-	}
 	proc := &ProcessObject{
-		id:      id,
+		id:      cr.processID.Add(1) - 1,
 		done:    make(chan struct{}),
 		mailbox: NewMailbox(cap),
 	}
 	proc.state.Store(int32(ProcessRunning))
 	proc.waitGroup.Add(1)
-	return proc, nil
+	return proc
 }
 
-// SweepProcesses removes terminated processes from the registry.
-// Returns the number of processes swept.
-func (cr *ConcurrencyRegistry) SweepProcesses() int {
-	cr.processesMu.Lock()
-	defer cr.processesMu.Unlock()
-
-	swept := 0
-	for id, proc := range cr.processes {
-		if proc.isDone() {
-			delete(cr.processes, id)
-			swept++
-		}
-	}
-	return swept
-}
-
-// ProcessCount returns the number of registered processes.
+// ProcessCount returns the number of live registered processes.
 func (cr *ConcurrencyRegistry) ProcessCount() int {
 	cr.processesMu.RLock()
 	defer cr.processesMu.RUnlock()
@@ -227,14 +129,12 @@ func (cr *ConcurrencyRegistry) ProcessCount() int {
 }
 
 // ---------------------------------------------------------------------------
-// Mutex Registry Methods
+// Mutexes, WaitGroups, Semaphores, CancellationContexts, Futures, ArrayLists
 // ---------------------------------------------------------------------------
 
-// RegisterMutex wraps a mutex in a heap Value traced by the Go GC. The
-// (Value, error) signature is retained for call-site compatibility; err is
-// always nil now that there is no id space to exhaust.
-func (cr *ConcurrencyRegistry) RegisterMutex(mu *MutexObject) (Value, error) {
-	return makeHeap(kindMutex, unsafe.Pointer(mu)), nil
+// RegisterMutex wraps a mutex in a heap Value traced by the Go GC.
+func (cr *ConcurrencyRegistry) RegisterMutex(mu *MutexObject) Value {
+	return makeHeap(kindMutex, unsafe.Pointer(mu))
 }
 
 // GetMutex retrieves a mutex from its Value.
@@ -245,13 +145,9 @@ func (cr *ConcurrencyRegistry) GetMutex(v Value) *MutexObject {
 	return (*MutexObject)(v.ptr)
 }
 
-// ---------------------------------------------------------------------------
-// WaitGroup Registry Methods
-// ---------------------------------------------------------------------------
-
 // RegisterWaitGroup wraps a wait group in a heap Value traced by the Go GC.
-func (cr *ConcurrencyRegistry) RegisterWaitGroup(wg *WaitGroupObject) (Value, error) {
-	return makeHeap(kindWaitGroup, unsafe.Pointer(wg)), nil
+func (cr *ConcurrencyRegistry) RegisterWaitGroup(wg *WaitGroupObject) Value {
+	return makeHeap(kindWaitGroup, unsafe.Pointer(wg))
 }
 
 // GetWaitGroup retrieves a wait group from its Value.
@@ -262,13 +158,9 @@ func (cr *ConcurrencyRegistry) GetWaitGroup(v Value) *WaitGroupObject {
 	return (*WaitGroupObject)(v.ptr)
 }
 
-// ---------------------------------------------------------------------------
-// Semaphore Registry Methods
-// ---------------------------------------------------------------------------
-
 // RegisterSemaphore wraps a semaphore in a heap Value traced by the Go GC.
-func (cr *ConcurrencyRegistry) RegisterSemaphore(sem *SemaphoreObject) (Value, error) {
-	return makeHeap(kindSemaphore, unsafe.Pointer(sem)), nil
+func (cr *ConcurrencyRegistry) RegisterSemaphore(sem *SemaphoreObject) Value {
+	return makeHeap(kindSemaphore, unsafe.Pointer(sem))
 }
 
 // GetSemaphore retrieves a semaphore from its Value.
@@ -279,14 +171,10 @@ func (cr *ConcurrencyRegistry) GetSemaphore(v Value) *SemaphoreObject {
 	return (*SemaphoreObject)(v.ptr)
 }
 
-// ---------------------------------------------------------------------------
-// CancellationContext Registry Methods
-// ---------------------------------------------------------------------------
-
 // RegisterCancellationContext wraps a cancellation context in a heap Value
 // traced by the Go GC.
-func (cr *ConcurrencyRegistry) RegisterCancellationContext(ctx *CancellationContextObject) (Value, error) {
-	return makeHeap(kindCancellationContext, unsafe.Pointer(ctx)), nil
+func (cr *ConcurrencyRegistry) RegisterCancellationContext(ctx *CancellationContextObject) Value {
+	return makeHeap(kindCancellationContext, unsafe.Pointer(ctx))
 }
 
 // GetCancellationContext retrieves a cancellation context from its Value.
@@ -297,47 +185,9 @@ func (cr *ConcurrencyRegistry) GetCancellationContext(v Value) *CancellationCont
 	return (*CancellationContextObject)(v.ptr)
 }
 
-// ---------------------------------------------------------------------------
-// Blocks
-// ---------------------------------------------------------------------------
-//
-// Blocks are pointer-carrying kindBlock Values (see value.go) traced by Go's
-// GC — there is no block registry, slot recycling, or generation guard. The
-// former RegisterBlock/GetBlock/ReleaseBlock/SweepBlocksLive machinery was
-// removed with the custom collector.
-
-// HasBlock reports whether the Value resolves to a block. Retained for tests.
-func (cr *ConcurrencyRegistry) HasBlock(v Value) bool {
-	return v.blockPtr() != nil
-}
-
-// ---------------------------------------------------------------------------
-// Combined Sweep
-// ---------------------------------------------------------------------------
-
-// Sweep runs all sweep operations and returns stats. Blocks are pointer-carrying
-// Values reclaimed by Go's GC — there is nothing to sweep for them here.
-func (cr *ConcurrencyRegistry) Sweep() (channels, processes int) {
-	channels = cr.SweepChannels()
-	processes = cr.SweepProcesses()
-	return
-}
-
-// ---------------------------------------------------------------------------
-// Future Registry Methods
-// ---------------------------------------------------------------------------
-
-// RegisterFuture records a future in the id map (for GC root enumeration /
-// sweeping) and returns it as a pointer-carrying heap Value.
-func (cr *ConcurrencyRegistry) RegisterFuture(f *FutureObject) (Value, error) {
-	id, err := allocConcurrencyID(&cr.futureID, "future")
-	if err != nil {
-		return Nil, err
-	}
-	cr.futuresMu.Lock()
-	cr.futures[id] = f
-	cr.futuresMu.Unlock()
-	return futureToValue(f), nil
+// RegisterFuture returns a future as a pointer-carrying heap Value.
+func (cr *ConcurrencyRegistry) RegisterFuture(f *FutureObject) Value {
+	return futureToValue(f)
 }
 
 // GetFuture retrieves a future from its Value.
@@ -348,36 +198,9 @@ func (cr *ConcurrencyRegistry) GetFuture(v Value) *FutureObject {
 	return (*FutureObject)(v.ptr)
 }
 
-// FutureCount returns the number of registered futures.
-func (cr *ConcurrencyRegistry) FutureCount() int {
-	cr.futuresMu.RLock()
-	defer cr.futuresMu.RUnlock()
-	return len(cr.futures)
-}
-
-// SweepFutures removes resolved futures from the registry.
-func (cr *ConcurrencyRegistry) SweepFutures() int {
-	cr.futuresMu.Lock()
-	defer cr.futuresMu.Unlock()
-	swept := 0
-	for id, f := range cr.futures {
-		if f.IsResolved() {
-			delete(cr.futures, id)
-			swept++
-		}
-	}
-	return swept
-}
-
-// ---------------------------------------------------------------------------
-// ArrayList Registry Methods
-// ---------------------------------------------------------------------------
-
 // RegisterArrayList wraps an array list in a heap Value traced by the Go GC.
-// The (Value, error) signature is retained for call-site compatibility; there
-// is no longer an id space to exhaust, so err is always nil.
-func (cr *ConcurrencyRegistry) RegisterArrayList(al *ArrayListObject) (Value, error) {
-	return makeHeap(kindArrayList, unsafe.Pointer(al)), nil
+func (cr *ConcurrencyRegistry) RegisterArrayList(al *ArrayListObject) Value {
+	return makeHeap(kindArrayList, unsafe.Pointer(al))
 }
 
 // GetArrayList retrieves an array list from its Value.
@@ -388,11 +211,14 @@ func (cr *ConcurrencyRegistry) GetArrayList(v Value) *ArrayListObject {
 	return (*ArrayListObject)(v.ptr)
 }
 
-// Stats returns counts of all registered objects.
-func (cr *ConcurrencyRegistry) Stats() map[string]int {
-	return map[string]int{
-		"channels":  cr.ChannelCount(),
-		"processes": cr.ProcessCount(),
-		"futures":   cr.FutureCount(),
-	}
+// ---------------------------------------------------------------------------
+// Blocks
+// ---------------------------------------------------------------------------
+//
+// Blocks are pointer-carrying kindBlock Values (see value.go) traced by Go's
+// GC — there is no block registry.
+
+// HasBlock reports whether the Value resolves to a block. Retained for tests.
+func (cr *ConcurrencyRegistry) HasBlock(v Value) bool {
+	return v.blockPtr() != nil
 }

@@ -11,9 +11,9 @@ package vm
 
 // SymbolTypeEntry describes how to dispatch a symbol-encoded value type.
 type SymbolTypeEntry struct {
-	Class     *Class                                         // static class (nil if Resolve is set)
-	ClassSide bool                                           // dispatch via ClassVTable (e.g. class values)
-	Resolve   func(v Value, vm *VM) (class *Class, ok bool)  // dynamic class resolution
+	Class     *Class                                        // static class (nil if Resolve is set)
+	ClassSide bool                                          // dispatch via ClassVTable (e.g. class values)
+	Resolve   func(v Value, vm *VM) (class *Class, ok bool) // dynamic class resolution
 }
 
 // SymbolDispatch is a registry keyed by the marker byte (bits 31-24 of the symbol ID).

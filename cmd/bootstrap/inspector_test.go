@@ -62,11 +62,11 @@ func TestInspector_EvaluateInDictionary(t *testing.T) {
 	dictObj := vmInst.Registry().GetDictionaryObject(dict)
 
 	nameKey := vmInst.Symbols.SymbolValue("name")
-	h := vm.HashValue(vmInst.Registry(),nameKey)
+	h := vm.HashValue(vmInst.Registry(), nameKey)
 	dictObj.SetByHash(h, nameKey, vmInst.Registry().NewStringValue("Alice"))
 
 	ageKey := vmInst.Symbols.SymbolValue("age")
-	h2 := vm.HashValue(vmInst.Registry(),ageKey)
+	h2 := vm.HashValue(vmInst.Registry(), ageKey)
 	dictObj.SetByHash(h2, ageKey, vm.FromSmallInt(30))
 
 	// self size

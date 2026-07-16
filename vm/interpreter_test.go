@@ -1076,7 +1076,7 @@ func TestPrimitiveAtString(t *testing.T) {
 // TestCellOperations verifies the basic Cell type operations.
 func TestCellOperations(t *testing.T) {
 	// Test NewCell creates a cell with the given value
-	cell := NewCell(nil, FromSmallInt(42))
+	cell := NewCell(FromSmallInt(42))
 	if !cell.IsCell() {
 		t.Error("NewCell should return a cell value")
 	}
@@ -1095,8 +1095,8 @@ func TestCellOperations(t *testing.T) {
 	}
 
 	// Test multiple cells are independent
-	cell1 := NewCell(nil, FromSmallInt(1))
-	cell2 := NewCell(nil, FromSmallInt(2))
+	cell1 := NewCell(FromSmallInt(1))
+	cell2 := NewCell(FromSmallInt(2))
 
 	if cell1.CellGet().SmallInt() != 1 || cell2.CellGet().SmallInt() != 2 {
 		t.Error("cells should be independent")

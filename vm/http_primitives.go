@@ -134,17 +134,9 @@ type httpResult struct {
 	hasBody bool
 }
 
-// extractHTTPResult marshals a handler's return Value into Go-native types.
-//
-// It MUST be called while the producing interpreter is still active (registered
-// and running): the string collector cannot make progress while a registered
-// interpreter is running (it parks at bytecode safepoints, not in Go calls like
-// this one), so the StringObject behind `result` stays reachable for the
-// duration of the read. Reading the body AFTER the interpreter unregisters —
-// which is what the old code did, on the net/http goroutine — races the
-// collector: a bare-string result lives only in the swept Strings registry, so
-// a sweep in that window yields an empty body. The returned httpResult holds
-// only Go-owned copies and is safe to use after any later collection.
+// extractHTTPResult marshals a handler's return Value into Go-native types
+// so the response can be written from any goroutine without touching
+// interpreter state.
 func (vm *VM) extractHTTPResult(result Value) httpResult {
 	if resp := vm.vmGetHttpResponse(result); resp != nil {
 		var headers map[string]string
@@ -474,8 +466,7 @@ func (vm *VM) registerHttpPrimitives() {
 		// Start the VM dispatch queue so HTTP handlers can serialize
 		// Maggie execution through the VM goroutine.
 		v.StartDispatcher()
-		// GC safepoint: the serving goroutine blocks here indefinitely; mark
-		// it stopped so the string collector is not perpetually aborted.
+		// The serving goroutine blocks here indefinitely.
 		err := srv.server.ListenAndServe()
 		if err != nil && err != http.ErrServerClosed {
 			srv.running.Store(false)

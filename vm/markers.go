@@ -17,56 +17,55 @@ package vm
 // the image format and wire protocol.
 
 const (
-	// Concurrency primitives
-	processMarker               uint32 = 2 << 24
-	grpcClientMarker            uint32 = 7 << 24
-	grpcStreamMarker            uint32 = 9 << 24
-	characterMarker             uint32 = 37 << 24
-	httpServerMarker            uint32 = 38 << 24
-	httpRequestMarker           uint32 = 39 << 24
-	httpResponseMarker          uint32 = 40 << 24
+	// marker 2 (processMarker) is retired: Process is a pointer-carrying
+	// kindProcess heap Value since the pointer-value migration. Do not reuse.
+	grpcClientMarker   uint32 = 7 << 24
+	grpcStreamMarker   uint32 = 9 << 24
+	characterMarker    uint32 = 37 << 24
+	httpServerMarker   uint32 = 38 << 24
+	httpRequestMarker  uint32 = 39 << 24
+	httpResponseMarker uint32 = 40 << 24
 
 	// OS/exec
-	externalProcessMarker       uint32 = 45 << 24
+	externalProcessMarker uint32 = 45 << 24
 
 	// Unix domain sockets
-	unixListenerMarker          uint32 = 46 << 24
-	unixConnMarker              uint32 = 47 << 24
+	unixListenerMarker uint32 = 46 << 24
+	unixConnMarker     uint32 = 47 << 24
 
 	// JSON
-	jsonReaderMarker            uint32 = 48 << 24
-	jsonWriterMarker            uint32 = 49 << 24
+	jsonReaderMarker uint32 = 48 << 24
+	jsonWriterMarker uint32 = 49 << 24
 
 	// gRPC primitives (exported for vm/contrib/grpc)
-	GrpcClientMarker            = grpcClientMarker
-	GrpcStreamMarker            = grpcStreamMarker
+	GrpcClientMarker = grpcClientMarker
+	GrpcStreamMarker = grpcStreamMarker
 
 	// CUE evaluation primitives (exported for vm/contrib/cue)
-	CueContextMarker            uint32 = 50 << 24
-	CueValueMarker              uint32 = 51 << 24
+	CueContextMarker uint32 = 50 << 24
+	CueValueMarker   uint32 = 51 << 24
 
 	// HTTP client
-	httpClientMarker            uint32 = 52 << 24
+	httpClientMarker uint32 = 52 << 24
 
 	// TupleSpace (exported for vm/contrib/cue)
-	TupleSpaceMarker            uint32 = 53 << 24
+	TupleSpaceMarker uint32 = 53 << 24
 
 	// ConstraintStore (exported for vm/contrib/cue)
-	ConstraintStoreMarker       uint32 = 54 << 24
+	ConstraintStoreMarker uint32 = 54 << 24
 
 	// SSE (Server-Sent Events) connection
-	sseConnectionMarker         uint32 = 57 << 24
+	sseConnectionMarker uint32 = 57 << 24
 
 	// Cli (cobra-backed CLI command wrapper)
-	cliCommandMarker            uint32 = 58 << 24
+	cliCommandMarker uint32 = 58 << 24
 
 	// Distribution protocol (reserved for Phase 6)
-	chunkMarker                 uint32 = 42 << 24
+	chunkMarker uint32 = 42 << 24
 )
 
 // markerMask extracts the marker byte from a symbol ID.
 const markerMask uint32 = 0xFF << 24
 
-// markedIDFromValue strips the marker byte from a symbol-encoded id. Still used
-// by the process-id paths (Process remains symbol-encoded).
+// markedIDFromValue strips the marker byte from a symbol-encoded id.
 func markedIDFromValue(v Value) uint32 { return v.SymbolID() & ^markerMask }

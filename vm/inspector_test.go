@@ -253,8 +253,7 @@ func TestInspector_Channel(t *testing.T) {
 
 	// Create a buffered channel
 	ch := createChannel(5)
-	chVal, err := vm.registerChannel(ch)
-	if err != nil { t.Fatal(err) }
+	chVal := vm.registerChannel(ch)
 
 	result := inspector.Inspect(chVal)
 
@@ -278,8 +277,7 @@ func TestInspector_UnbufferedChannel(t *testing.T) {
 
 	// Create an unbuffered channel
 	ch := createChannel(0)
-	chVal, err := vm.registerChannel(ch)
-	if err != nil { t.Fatal(err) }
+	chVal := vm.registerChannel(ch)
 
 	result := inspector.Inspect(chVal)
 
@@ -299,8 +297,7 @@ func TestInspector_ClosedChannel(t *testing.T) {
 	ch := createChannel(3)
 	ch.closed.Store(true)
 	close(ch.ch)
-	chVal, err := vm.registerChannel(ch)
-	if err != nil { t.Fatal(err) }
+	chVal := vm.registerChannel(ch)
 
 	result := inspector.Inspect(chVal)
 
@@ -317,10 +314,8 @@ func TestInspector_Process(t *testing.T) {
 	inspector := NewInspector(vm)
 
 	// Create a process
-	proc, err := vm.createProcess()
-	if err != nil { t.Fatal(err) }
-	procVal, err := vm.registerProcess(proc)
-	if err != nil { t.Fatal(err) }
+	proc := vm.createProcess()
+	procVal := vm.registerProcess(proc)
 
 	result := inspector.Inspect(procVal)
 
@@ -548,9 +543,9 @@ func TestInspector_InheritedInstVars(t *testing.T) {
 
 	// Create object with 3 slots (1 inherited + 2 local)
 	obj := NewObject(rectClass.VTable, 3)
-	obj.SetSlot(0, FromSmallInt(255))  // color
-	obj.SetSlot(1, FromSmallInt(100))  // width
-	obj.SetSlot(2, FromSmallInt(50))   // height
+	obj.SetSlot(0, FromSmallInt(255)) // color
+	obj.SetSlot(1, FromSmallInt(100)) // width
+	obj.SetSlot(2, FromSmallInt(50))  // height
 
 	result := inspector.Inspect(obj.ToValue())
 

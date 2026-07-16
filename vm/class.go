@@ -138,18 +138,9 @@ func (c *Class) AllClassVarNames() []string {
 	return result
 }
 
-// NewInstance creates a new instance of this class.
-//
-// GC note: the returned *Object is reachable from Go only via the
-// caller's local variable. Once the Object is converted to a Value
-// (NaN-boxed pointer) and stored only on the operand stack or in
-// CallFrame.Receiver, Go's GC can no longer see it as live, and the
-// next minor GC may free it — leading to "found bad pointer in Go
-// heap" crashes during dispatch. Callers that pass the resulting
-// Value into the interpreter MUST also register the Object with
-// vm.KeepAlive (or hold their own *Object reference for the duration
-// of execution). The `new` primitive does this automatically; bare
-// test/Go callers must do it explicitly.
+// NewInstance creates a new instance of this class. The resulting Object is
+// an ordinary Go allocation; Values carrying it are pointer-traced by Go's
+// GC, so no registration is needed.
 func (c *Class) NewInstance() *Object {
 	return NewObject(c.VTable, c.NumSlots)
 }

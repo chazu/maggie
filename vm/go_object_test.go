@@ -115,13 +115,12 @@ func TestGoObjectRegistry_GetNonGoObject(t *testing.T) {
 
 func TestGoObjectMarker_NoCollision(t *testing.T) {
 	markers := map[string]uint32{
-		"process":             processMarker,
-		"grpcClient":          grpcClientMarker,
-		"grpcStream":          grpcStreamMarker,
-		"character":           characterMarker,
-		"httpServer":          httpServerMarker,
-		"httpRequest":         httpRequestMarker,
-		"httpResponse":        httpResponseMarker,
+		"grpcClient":   grpcClientMarker,
+		"grpcStream":   grpcStreamMarker,
+		"character":    characterMarker,
+		"httpServer":   httpServerMarker,
+		"httpRequest":  httpRequestMarker,
+		"httpResponse": httpResponseMarker,
 	}
 
 	seen := make(map[uint32]string)

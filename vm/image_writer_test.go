@@ -557,8 +557,8 @@ func TestImageMethodWithBlocks(t *testing.T) {
 	block := blockBuilder.Build()
 
 	builder.AddBlock(block)
-	builder.Bytecode().EmitCreateBlock(0, 0)  // CREATE_BLOCK method=0 captures=0
-	builder.Bytecode().Emit(OpReturnTop)      // RETURN_TOP
+	builder.Bytecode().EmitCreateBlock(0, 0) // CREATE_BLOCK method=0 captures=0
+	builder.Bytecode().Emit(OpReturnTop)     // RETURN_TOP
 	method := builder.Build()
 
 	// Add to a class
@@ -1311,9 +1311,9 @@ func TestImageRoundTrip_BlockEvaluation(t *testing.T) {
 	// Build the method: create block, push 5, send value:, return
 	mb := NewCompiledMethodBuilder("runBlock", 0)
 	mb.AddBlock(block)
-	mb.Bytecode().EmitCreateBlock(0, 0)                        // CREATE_BLOCK (block index 0, 0 captures)
-	mb.Bytecode().EmitInt8(OpPushInt8, 5)                      // push 5
-	mb.Bytecode().EmitSend(OpSend, uint16(valueSel), 1)        // send value: to block
+	mb.Bytecode().EmitCreateBlock(0, 0)                 // CREATE_BLOCK (block index 0, 0 captures)
+	mb.Bytecode().EmitInt8(OpPushInt8, 5)               // push 5
+	mb.Bytecode().EmitSend(OpSend, uint16(valueSel), 1) // send value: to block
 	mb.Bytecode().Emit(OpReturnTop)
 	method := mb.Build()
 	method.SetClass(testClass)

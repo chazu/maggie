@@ -686,6 +686,17 @@ one-off.
    its debug.FreeOSMemory timer are DELETED entirely — they were justified by the old
    pinning behavior; reintroduce only with a benchmark showing RSS regression.
    ChannelCount()-style stats become atomic counters or go away.
+
+   **IMPLEMENTATION NOTE (as landed):** instead of a wire-only export table, the
+   processes map became a *live-process index*: every registered process is in it while
+   alive, removed deterministically by FinishProcess at exit (which also clears its name
+   registration). Rationale: local links/monitors also resolve peers by uint64 id, so a
+   wire-only table would have broken them; a live-index bounded by live processes
+   subsumes both needs with the same no-pinning guarantee. Process Values are pointer-
+   carrying (kindProcess); processMarker (2<<24) is retired, never to be reused. DOWN/
+   exit payloads for REMOTE processes now carry Nil in the process slot instead of the
+   old fabricated symbol-encoded id. Hot paths got faster (cached dispatch -7.7%) from
+   the sp-dance removal.
 3. **Generic `ast.Walk` + exhaustiveness test** — rebases the five walkers (C-6), the
    hasher (C-11), and the type inferrer on one traversal.
 

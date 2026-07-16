@@ -12,7 +12,6 @@ type SemaphoreObject struct {
 	capacity int
 }
 
-
 func createSemaphore(capacity int) *SemaphoreObject {
 	if capacity < 1 {
 		capacity = 1
@@ -46,11 +45,7 @@ func (vm *VM) registerSemaphorePrimitives() {
 		}
 		cap := int(capacity.SmallInt())
 		sem := createSemaphore(cap)
-		val, err := v.registerSemaphore(sem)
-		if err != nil {
-			return v.SignalPrimitiveError("Semaphore new:", err.Error())
-		}
-		return val
+		return v.registerSemaphore(sem)
 	}
 	s.AddClassMethod1(vm.Selectors, "new:", newCapFn)
 	s.AddClassMethod1(vm.Selectors, "primNew:", newCapFn)
@@ -58,11 +53,7 @@ func (vm *VM) registerSemaphorePrimitives() {
 	// Semaphore class>>new - create a binary semaphore (capacity 1)
 	s.AddClassMethod0(vm.Selectors, "new", func(v *VM, recv Value) Value {
 		sem := createSemaphore(1)
-		val, err := v.registerSemaphore(sem)
-		if err != nil {
-			return v.SignalPrimitiveError("Semaphore new", err.Error())
-		}
-		return val
+		return v.registerSemaphore(sem)
 	})
 
 	// Semaphore>>acquire - acquire a permit (blocks if none available)

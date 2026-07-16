@@ -11,13 +11,13 @@ import (
 
 // ObjectRegistry manages all VM-local registries. It embeds ConcurrencyRegistry
 // so all existing channel/process/mutex/waitgroup/semaphore/cancellation/block
-// methods continue to work, and adds registries for exceptions, results,
-// contexts, dictionaries, strings, gRPC clients, gRPC streams, HTTP servers,
-// HTTP requests, HTTP responses, cells, weak reference IDs, and class variables.
+// methods continue to work. Most heap kinds are plain pointer Values traced
+// by Go's GC and need no registry — only cells and class variables hold
+// genuinely shared state here.
 type ObjectRegistry struct {
 	*ConcurrencyRegistry
 
-	// Special registries (not suitable for AutoIDRegistry)
+	// Shared state that outlives any single Value reference
 	cells       map[*Cell]struct{} // set semantics
 	cellsMu     sync.RWMutex
 	classVars   map[*Class]map[string]Value // nested map
@@ -37,7 +37,7 @@ func NewObjectRegistry() *ObjectRegistry {
 }
 
 // ---------------------------------------------------------------------------
-// Exception Registry Methods (delegates to AutoIDRegistry)
+// Exception Values (plain heap pointers; no registry)
 // ---------------------------------------------------------------------------
 
 // RegisterExceptionValue wraps an ExceptionObject in a heap Value traced by the
@@ -56,7 +56,7 @@ func (or *ObjectRegistry) GetExceptionFromValue(v Value) *ExceptionObject {
 }
 
 // ---------------------------------------------------------------------------
-// Result Registry Methods (delegates to AutoIDRegistry)
+// Result Values (plain heap pointers; no registry)
 // ---------------------------------------------------------------------------
 
 // RegisterResultValue wraps a Result in a heap Value. The name is retained for
@@ -76,7 +76,7 @@ func (or *ObjectRegistry) GetResultFromValue(v Value) *ResultObject {
 }
 
 // ---------------------------------------------------------------------------
-// Context Registry Methods (delegates to AutoIDRegistry)
+// Context Values (plain heap pointers; no registry)
 // ---------------------------------------------------------------------------
 
 // RegisterContextValue wraps a ContextValue in a pointer-carrying kindContext
@@ -93,7 +93,7 @@ func (or *ObjectRegistry) GetContextFromValue(v Value) *ContextValue {
 }
 
 // ---------------------------------------------------------------------------
-// Dictionary Registry Methods (delegates to AutoIDRegistry)
+// Dictionary Values (plain heap pointers; no registry)
 // ---------------------------------------------------------------------------
 
 // NewDictionaryValue creates a new empty dictionary heap Value.
@@ -252,10 +252,13 @@ func (or *ObjectRegistry) GetClassFromValue(v Value) *Class {
 // Extended Stats
 // ---------------------------------------------------------------------------
 
-// FullStats returns counts of all registered objects across all registries.
+// FullStats returns counts of the registries that still hold shared state.
+// Most heap kinds are plain pointer Values traced by Go's GC and have no
+// registry to count.
 func (or *ObjectRegistry) FullStats() map[string]int {
-	stats := or.ConcurrencyRegistry.Stats()
-	stats["cells"] = or.CellCount()
-	stats["classVarClasses"] = or.ClassVarCount()
-	return stats
+	return map[string]int{
+		"processes":       or.ConcurrencyRegistry.ProcessCount(),
+		"cells":           or.CellCount(),
+		"classVarClasses": or.ClassVarCount(),
+	}
 }

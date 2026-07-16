@@ -305,7 +305,7 @@ func TestConcurrentCellAccess(t *testing.T) {
 	const opsPerGoroutine = 1000
 
 	// Create a shared cell
-	cell := NewCell(nil, FromSmallInt(0))
+	cell := NewCell(FromSmallInt(0))
 
 	var wg sync.WaitGroup
 
@@ -350,7 +350,7 @@ func TestConcurrentCellCreation(t *testing.T) {
 			defer wg.Done()
 			cells[goroutineID] = make([]Value, cellsPerGoroutine)
 			for i := 0; i < cellsPerGoroutine; i++ {
-				cells[goroutineID][i] = NewCell(nil, FromSmallInt(int64(i)))
+				cells[goroutineID][i] = NewCell(FromSmallInt(int64(i)))
 			}
 		}(g)
 	}
@@ -1356,48 +1356,10 @@ func TestSemaphoreMultipleCreation(t *testing.T) {
 // These tests verify that sweep functions properly clean up registries
 // ---------------------------------------------------------------------------
 
-// TestSweepClosedChannels tests that closed channels are swept from the registry.
-func TestSweepClosedChannels(t *testing.T) {
-	vm := NewVM()
-
-	// Create several channels
-	const numChannels = 10
-	channels := make([]Value, numChannels)
-	for i := 0; i < numChannels; i++ {
-		channels[i] = vm.Send(vm.classValue(vm.ChannelClass), "new:", []Value{FromSmallInt(1)})
-	}
-
-	// Verify all channels are registered
-	initialCount := vm.Concurrency().ChannelCount()
-	if initialCount < numChannels {
-		t.Errorf("Expected at least %d channels, got %d", numChannels, initialCount)
-	}
-
-	// Close half the channels
-	for i := 0; i < numChannels/2; i++ {
-		vm.Send(channels[i], "close", nil)
-	}
-
-	// Sweep
-	swept := vm.Concurrency().SweepChannels()
-
-	// Verify the right number were swept
-	if swept != numChannels/2 {
-		t.Errorf("Swept %d channels, expected %d", swept, numChannels/2)
-	}
-
-	// Verify remaining count
-	remainingCount := vm.Concurrency().ChannelCount()
-	expectedRemaining := initialCount - numChannels/2
-	if remainingCount != expectedRemaining {
-		t.Errorf("Remaining channels: %d, expected %d", remainingCount, expectedRemaining)
-	}
-
-	t.Logf("Swept %d closed channels, %d remaining", swept, remainingCount)
-}
-
-// TestSweepTerminatedProcesses tests that terminated processes are swept.
-func TestSweepTerminatedProcesses(t *testing.T) {
+// TestProcessIndexRemovalAtExit verifies that terminated processes are
+// removed from the live-process index deterministically at exit (there is
+// no sweeper anymore), while process Values keep resolving.
+func TestProcessIndexRemovalAtExit(t *testing.T) {
 	vm := NewVM()
 
 	// Create processes that complete immediately
@@ -1459,39 +1421,23 @@ func TestSweepTerminatedProcesses(t *testing.T) {
 		t.Skip("No processes started (race condition in test setup)")
 	}
 
-	// Count before sweep
-	beforeCount := vm.Concurrency().ProcessCount()
-
-	// Sweep
-	swept := vm.Concurrency().SweepProcesses()
-
-	// Verify processes were swept (at least the ones that started)
-	if swept < started {
-		t.Errorf("Swept %d processes, expected at least %d (started)", swept, started)
+	// All started processes have terminated (we waited above), so
+	// FinishProcess must already have removed them from the index — only
+	// the main process should remain.
+	count := vm.Concurrency().ProcessCount()
+	if count != 1 {
+		t.Errorf("live-process index has %d entries after exits, want 1 (main)", count)
 	}
 
-	afterCount := vm.Concurrency().ProcessCount()
-	t.Logf("Swept %d terminated processes (before: %d, after: %d)", swept, beforeCount, afterCount)
-}
-
-// TestConcurrencyStats tests the Stats method.
-func TestConcurrencyStats(t *testing.T) {
-	vm := NewVM()
-
-	// Create some objects. Only channels (and processes/blocks) still have an
-	// id registry with a Stats count; mutex/waitGroup/semaphore are now
-	// pointer-carrying heap Values with no registry to count.
-	vm.Send(vm.classValue(vm.ChannelClass), "new", nil)
-	vm.Send(vm.classValue(vm.ChannelClass), "new:", []Value{FromSmallInt(5)})
-
-	// Get stats
-	stats := vm.ConcurrencyStats()
-
-	if stats["channels"] < 2 {
-		t.Errorf("Expected at least 2 channels, got %d", stats["channels"])
+	// Process Values remain resolvable after removal (pointer-carrying).
+	for i := 0; i < numProcesses; i++ {
+		if processes[i] == Nil {
+			continue
+		}
+		if vm.getProcess(processes[i]) == nil {
+			t.Errorf("process %d Value no longer resolves after exit", i)
+		}
 	}
-
-	t.Logf("Stats: %v", stats)
 }
 
 // TestVMIsolation tests that different VMs have isolated registries.
@@ -1502,17 +1448,6 @@ func TestVMIsolation(t *testing.T) {
 	// Create channels in each VM
 	ch1 := vm1.Send(vm1.classValue(vm1.ChannelClass), "new:", []Value{FromSmallInt(1)})
 	ch2 := vm2.Send(vm2.classValue(vm2.ChannelClass), "new:", []Value{FromSmallInt(1)})
-
-	// Verify each VM only sees its own channels
-	count1 := vm1.Concurrency().ChannelCount()
-	count2 := vm2.Concurrency().ChannelCount()
-
-	if count1 != 1 {
-		t.Errorf("VM1 channel count = %d, want 1", count1)
-	}
-	if count2 != 1 {
-		t.Errorf("VM2 channel count = %d, want 1", count2)
-	}
 
 	// Verify channels are accessible in their respective VMs
 	chObj1 := vm1.getChannel(ch1)

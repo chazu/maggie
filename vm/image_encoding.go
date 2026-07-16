@@ -29,18 +29,18 @@ const (
 // imageEnvelope is the top-level tagged structure.
 // Wrapped in cbor.Tag{Number: imgTagHeader, Content: imageEnvelope{...}}
 type imageEnvelope struct {
-	Version    uint32           `cbor:"1,keyasint"`
-	Flags      uint32           `cbor:"2,keyasint"`
-	Stats      imageStats       `cbor:"3,keyasint"`
-	Strings    []string         `cbor:"4,keyasint"`
-	Symbols    []string         `cbor:"5,keyasint"`              // symbol names
-	Selectors  []string         `cbor:"6,keyasint"`              // selector names
-	Classes    []classDef       `cbor:"7,keyasint"`
-	Methods    []methodDef      `cbor:"8,keyasint"`
-	Objects    []objectDef      `cbor:"9,keyasint"`
-	Globals    []globalEntry    `cbor:"10,keyasint"`
-	ClassVars  []classVarEntry  `cbor:"11,keyasint,omitempty"`
-	EntryPoint uint32           `cbor:"12,keyasint,omitempty"` // method index
+	Version    uint32          `cbor:"1,keyasint"`
+	Flags      uint32          `cbor:"2,keyasint"`
+	Stats      imageStats      `cbor:"3,keyasint"`
+	Strings    []string        `cbor:"4,keyasint"`
+	Symbols    []string        `cbor:"5,keyasint"` // symbol names
+	Selectors  []string        `cbor:"6,keyasint"` // selector names
+	Classes    []classDef      `cbor:"7,keyasint"`
+	Methods    []methodDef     `cbor:"8,keyasint"`
+	Objects    []objectDef     `cbor:"9,keyasint"`
+	Globals    []globalEntry   `cbor:"10,keyasint"`
+	ClassVars  []classVarEntry `cbor:"11,keyasint,omitempty"`
+	EntryPoint uint32          `cbor:"12,keyasint,omitempty"` // method index
 }
 
 type imageStats struct {
@@ -51,9 +51,9 @@ type imageStats struct {
 }
 
 type classDef struct {
-	Name            uint32   `cbor:"1,keyasint"`           // string table index
-	Namespace       int64    `cbor:"2,keyasint"`           // string index or -1
-	Super           int64    `cbor:"3,keyasint"`           // class index or -1
+	Name            uint32   `cbor:"1,keyasint"` // string table index
+	Namespace       int64    `cbor:"2,keyasint"` // string index or -1
+	Super           int64    `cbor:"3,keyasint"` // class index or -1
 	NumSlots        uint32   `cbor:"4,keyasint"`
 	InstVars        []uint32 `cbor:"5,keyasint,omitempty"` // string indices
 	InstanceMethods []uint32 `cbor:"6,keyasint,omitempty"` // method indices
@@ -63,33 +63,33 @@ type classDef struct {
 }
 
 type methodDef struct {
-	Selector      int32              `cbor:"1,keyasint"`
-	Class         int64              `cbor:"2,keyasint"`            // class index or -1
-	Name          uint32             `cbor:"3,keyasint"`            // string index
-	IsClassMethod bool               `cbor:"4,keyasint,omitempty"`
-	Arity         uint32             `cbor:"5,keyasint"`
-	NumTemps      uint32             `cbor:"6,keyasint"`
-	Literals      []cbor.RawMessage  `cbor:"7,keyasint"`           // each is an encoded image value
-	Bytecode      []byte             `cbor:"8,keyasint"`
-	Blocks        []blockDef         `cbor:"9,keyasint,omitempty"`
-	Source        uint32             `cbor:"10,keyasint,omitempty"` // string index
-	HasSource     bool               `cbor:"11,keyasint,omitempty"`
-	DocString     uint32             `cbor:"12,keyasint,omitempty"` // string index
-	HasDocString  bool               `cbor:"13,keyasint,omitempty"`
-	SourceMap     [][3]uint32        `cbor:"14,keyasint,omitempty"` // [offset, line, column]
-	ContentHash   []byte             `cbor:"15,keyasint,omitempty"` // 32 bytes or empty
-	TypedHash     []byte             `cbor:"16,keyasint,omitempty"` // 32 bytes or empty
+	Selector      int32             `cbor:"1,keyasint"`
+	Class         int64             `cbor:"2,keyasint"` // class index or -1
+	Name          uint32            `cbor:"3,keyasint"` // string index
+	IsClassMethod bool              `cbor:"4,keyasint,omitempty"`
+	Arity         uint32            `cbor:"5,keyasint"`
+	NumTemps      uint32            `cbor:"6,keyasint"`
+	Literals      []cbor.RawMessage `cbor:"7,keyasint"` // each is an encoded image value
+	Bytecode      []byte            `cbor:"8,keyasint"`
+	Blocks        []blockDef        `cbor:"9,keyasint,omitempty"`
+	Source        uint32            `cbor:"10,keyasint,omitempty"` // string index
+	HasSource     bool              `cbor:"11,keyasint,omitempty"`
+	DocString     uint32            `cbor:"12,keyasint,omitempty"` // string index
+	HasDocString  bool              `cbor:"13,keyasint,omitempty"`
+	SourceMap     [][3]uint32       `cbor:"14,keyasint,omitempty"` // [offset, line, column]
+	ContentHash   []byte            `cbor:"15,keyasint,omitempty"` // 32 bytes or empty
+	TypedHash     []byte            `cbor:"16,keyasint,omitempty"` // 32 bytes or empty
 }
 
 type blockDef struct {
-	Arity       uint32             `cbor:"1,keyasint"`
-	NumTemps    uint32             `cbor:"2,keyasint"`
-	NumCaptures uint32             `cbor:"3,keyasint"`
-	Literals    []cbor.RawMessage  `cbor:"4,keyasint,omitempty"`
-	Bytecode    []byte             `cbor:"5,keyasint"`
-	SourceMap   [][3]uint32        `cbor:"6,keyasint,omitempty"`
-	Source      uint32             `cbor:"7,keyasint,omitempty"` // string index
-	HasSource   bool               `cbor:"8,keyasint,omitempty"`
+	Arity       uint32            `cbor:"1,keyasint"`
+	NumTemps    uint32            `cbor:"2,keyasint"`
+	NumCaptures uint32            `cbor:"3,keyasint"`
+	Literals    []cbor.RawMessage `cbor:"4,keyasint,omitempty"`
+	Bytecode    []byte            `cbor:"5,keyasint"`
+	SourceMap   [][3]uint32       `cbor:"6,keyasint,omitempty"`
+	Source      uint32            `cbor:"7,keyasint,omitempty"` // string index
+	HasSource   bool              `cbor:"8,keyasint,omitempty"`
 }
 
 type objectDef struct {

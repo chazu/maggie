@@ -56,17 +56,6 @@ func TestMultiVM_IndependentChannels(t *testing.T) {
 	if isClosed2 != False {
 		t.Error("VM2 channel should still be open")
 	}
-
-	// Registry counts are independent
-	count1 := vm1.Concurrency().ChannelCount()
-	count2 := vm2.Concurrency().ChannelCount()
-
-	// VM1 closed its channel but it's still in registry until GC sweep
-	// VM2 has exactly one open channel
-	if count2 < 1 {
-		t.Errorf("VM2 should have at least 1 channel, got %d", count2)
-	}
-	t.Logf("VM1 channels: %d, VM2 channels: %d", count1, count2)
 }
 
 // TestMultiVM_IndependentProcesses verifies that processes created in
@@ -80,21 +69,11 @@ func TestMultiVM_IndependentProcesses(t *testing.T) {
 	defer vm2.Shutdown()
 
 	// Create processes directly in each VM
-	proc1, err := vm1.createProcess()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := vm1.registerProcess(proc1); err != nil {
-		t.Fatal(err)
-	}
+	proc1 := vm1.createProcess()
+	vm1.registerProcess(proc1)
 
-	proc2, err := vm2.createProcess()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := vm2.registerProcess(proc2); err != nil {
-		t.Fatal(err)
-	}
+	proc2 := vm2.createProcess()
+	vm2.registerProcess(proc2)
 
 	// Each VM should see exactly 1 process
 	if vm1.Concurrency().ProcessCount() < 1 {
@@ -155,9 +134,11 @@ func TestMultiVM_IndependentClassVariables(t *testing.T) {
 // owned by Go's GC, not entries in a per-VM block registry, so there is no
 // per-VM block table to isolate.)
 
-// TestMultiVM_IndependentGC verifies that running RegistryGC on one VM
-// sweeps only that VM's stale objects, leaving the other VM untouched.
-func TestMultiVM_IndependentGC(t *testing.T) {
+// TestMultiVM_ChannelCloseIsolation verifies that closing a channel in one
+// VM leaves another VM's channels fully functional. (The old RegistryGC
+// sweep this test exercised was deleted — channels are pointer Values
+// reclaimed by Go's GC.)
+func TestMultiVM_ChannelCloseIsolation(t *testing.T) {
 	vm1 := NewVM()
 	defer vm1.Shutdown()
 	vm2 := NewVM()
@@ -167,28 +148,14 @@ func TestMultiVM_IndependentGC(t *testing.T) {
 	ch1 := vm1.Send(vm1.classValue(vm1.ChannelClass), "new:", []Value{FromSmallInt(1)})
 	ch2 := vm2.Send(vm2.classValue(vm2.ChannelClass), "new:", []Value{FromSmallInt(1)})
 
-	vm2Count := vm2.Concurrency().ChannelCount()
-
 	// Close VM1's channel
 	vm1.Send(ch1, "close", nil)
-
-	// Sweep VM1 — should clean up VM1's closed channel
-	stats := vm1.registryGC.SweepNow()
-	if stats.Channels < 1 {
-		t.Errorf("VM1 sweep should have cleaned at least 1 channel, got %d", stats.Channels)
-	}
-
-	// VM2's channel count must be unchanged
-	if vm2.Concurrency().ChannelCount() != vm2Count {
-		t.Errorf("VM2 channel count changed after VM1 GC: got %d, want %d",
-			vm2.Concurrency().ChannelCount(), vm2Count)
-	}
 
 	// VM2's channel should still work
 	vm2.Send(ch2, "send:", []Value{FromSmallInt(42)})
 	val := vm2.Send(ch2, "receive", nil)
 	if !val.IsSmallInt() || val.SmallInt() != 42 {
-		t.Errorf("VM2 channel after VM1 GC: got %v, want 42", val)
+		t.Errorf("VM2 channel after VM1 close: got %v, want 42", val)
 	}
 }
 

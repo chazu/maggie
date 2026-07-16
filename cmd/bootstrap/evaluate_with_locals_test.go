@@ -56,7 +56,7 @@ func TestEvaluateWithLocals_WriteLocal(t *testing.T) {
 	// Verify y is in the locals dictionary
 	dict := vmInst.Registry().GetDictionaryObject(locals)
 	yKey := vmInst.Symbols.SymbolValue("y")
-	h := vm.HashValue(vmInst.Registry(),yKey)
+	h := vm.HashValue(vmInst.Registry(), yKey)
 	val, ok := dict.GetByHash(h)
 	if !ok {
 		t.Fatal("Expected y to be in locals dictionary")

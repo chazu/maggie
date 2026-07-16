@@ -341,10 +341,8 @@ func FromCellPtr(cell *Cell) Value {
 }
 
 // NewCell creates a new Cell containing the given value and returns it as a
-// Value. The registry argument is retained for signature compatibility during
-// the migration but is no longer needed for liveness (the Go GC traces the
-// cell through the Value's pointer).
-func NewCell(registry *ObjectRegistry, v Value) Value {
+// Value. The Go GC traces the cell through the Value's pointer.
+func NewCell(v Value) Value {
 	cell := &Cell{value: v}
 	return FromCellPtr(cell)
 }

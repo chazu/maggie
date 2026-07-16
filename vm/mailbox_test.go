@@ -264,7 +264,7 @@ func TestMailbox_WaitForChange(t *testing.T) {
 
 	time.Sleep(10 * time.Millisecond)
 	mb.TrySend(FromSmallInt(1)) // changes version
-	wg.Wait() // should unblock
+	wg.Wait()                   // should unblock
 }
 
 func TestMailbox_RingBufferWrapAround(t *testing.T) {

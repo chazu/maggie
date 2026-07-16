@@ -548,7 +548,7 @@ func (s *SyncService) DeliverMessage(
 				ErrorMessage: fmt.Sprintf("no process registered as %q", envelope.TargetName),
 			}), nil
 		}
-		proc = s.worker.vm.GetProcessByID(uint64(procVal.SymbolID() & ^uint32(0xFF<<24)))
+		proc = s.worker.vm.ProcessFromValue(procVal)
 	} else {
 		proc = s.worker.vm.GetProcessByID(envelope.TargetProcess)
 	}
@@ -804,8 +804,7 @@ func (s *SyncService) setupResultDelivery(sb *vm.SpawnBlock, spawnerID dist.Node
 	if procVal == vm.Nil {
 		return
 	}
-	procID := uint64(procVal.SymbolID() & ^uint32(0xFF<<24))
-	proc := s.worker.vm.GetProcessByID(procID)
+	proc := s.worker.vm.ProcessFromValue(procVal)
 	if proc == nil {
 		return
 	}

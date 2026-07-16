@@ -142,15 +142,9 @@ type Interpreter struct {
 // NewInterpreter creates a new standalone interpreter backed by a fresh VM.
 // Used by tests that need independent interpreters. The underlying VM is fully
 // bootstrapped (core classes, primitives, symbol dispatch) so that vtable
-// resolution always has a non-nil VM back-reference. The registry GC goroutine
-// is stopped because tests typically don't need background sweeping.
+// resolution always has a non-nil VM back-reference.
 func NewInterpreter() *Interpreter {
-	vm := NewVM()
-	// Tests don't need the background GC sweep goroutine.
-	if vm.registryGC != nil {
-		vm.registryGC.Stop()
-	}
-	return vm.interpreter
+	return NewVM().interpreter
 }
 
 // newBareInterpreterWithConfig allocates per-goroutine execution state (stack, frames,
@@ -753,12 +747,7 @@ func (i *Interpreter) runFrame() Value {
 		case OpMakeCell:
 			// Pop value from stack, create a cell containing it, push cell reference
 			val := i.pop()
-			var reg *ObjectRegistry
-			if i.vm != nil {
-				reg = i.vm.registry
-			}
-			cell := NewCell(reg, val)
-			i.push(cell)
+			i.push(NewCell(val))
 
 		case OpCellGet:
 			// Pop cell reference, push the value contained in the cell
@@ -1166,16 +1155,10 @@ func (i *Interpreter) send(selector int, argc int) (result Value) {
 		argsCopy = make([]Value, argc)
 		copy(argsCopy, args)
 	}
-	// A primitive may evaluate block arguments (ifTrue:, whileTrue:, to:do:,
-	// inject:into:, …) that run Maggie bytecode and hit GC safepoints. The
-	// receiver and args are now in Go locals / a copy, but the originals are
-	// still physically present on the operand stack just below sp (dropN/pop
-	// only moved sp, they did not clear the slots). Re-expose them as roots
-	// for the duration of the call so the string/dictionary/block tracing
-	// collector does not sweep a block that a primitive is mid-iteration over.
-	// Sub-block frames push above the restored sp, so there is no aliasing.
-	savedSP := i.sp
-	i.sp += argc + 1
+	// rcvr and argsCopy are Go locals, so Go's GC keeps everything the
+	// primitive touches alive for the duration of the call. Blocks the
+	// primitive evaluates (ifTrue:, whileTrue:, to:do:, …) push frames at
+	// the current sp; the old arg slots below it are dead and safe to reuse.
 	if i.vm != nil && i.vm.SamplingProfiler() != nil {
 		name := methodName(method)
 		atomic.StorePointer(&i.activePrimitiveName, unsafe.Pointer(&name))
@@ -1184,7 +1167,6 @@ func (i *Interpreter) send(selector int, argc int) (result Value) {
 	} else {
 		result = method.Invoke(i.vm, rcvr, argsCopy)
 	}
-	i.sp = savedSP
 
 	// Primitives that evaluate blocks (e.g. ifTrue:, whileTrue:) can
 	// trigger a non-local return, setting i.unwinding.  Propagate the

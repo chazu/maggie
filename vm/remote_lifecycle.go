@@ -38,10 +38,7 @@ type LinkResponse struct {
 
 // MonitorRemoteProcess sets up a cross-node monitor.
 func (vm *VM) MonitorRemoteProcess(watcher *ProcessObject, nodeRef *NodeRefData, targetName string) (*MonitorRef, error) {
-	refID, err := vm.registry.ConcurrencyRegistry.AllocMonitorRefID()
-	if err != nil {
-		return nil, err
-	}
+	refID := vm.registry.ConcurrencyRegistry.AllocMonitorRefID()
 	nodeID := nodeRef.NodeID()
 
 	ref := &MonitorRef{
@@ -75,7 +72,7 @@ func (vm *VM) MonitorRemoteProcess(watcher *ProcessObject, nodeRef *NodeRefData,
 			Signal: resp.ExitSignal,
 			Result: Nil,
 		}
-		vm.deliverDownMessage(watcher, ref, reason)
+		vm.deliverDownMessage(watcher, ref, nil, reason)
 		return ref, nil
 	}
 
@@ -111,8 +108,7 @@ func (vm *VM) HandleInboundMonitor(refID, watcherID uint64, remoteNode [32]byte,
 	if targetName != "" {
 		procVal := vm.LookupProcessName(targetName)
 		if procVal != Nil {
-			pid := uint64(markedIDFromValue(procVal))
-			proc = vm.GetProcessByID(pid)
+			proc = vm.getProcess(procVal)
 		}
 	} else {
 		proc = vm.GetProcessByID(targetID)
@@ -168,7 +164,7 @@ func (vm *VM) handleNodeDown(nodeID [32]byte) {
 			continue
 		}
 		ref := &MonitorRef{ID: rm.RefID, Watcher: rm.WatcherID}
-		vm.deliverDownMessage(watcher, ref, nodeDownReason)
+		vm.deliverDownMessage(watcher, ref, nil, nodeDownReason)
 	}
 
 	for _, lr := range links {
@@ -176,7 +172,7 @@ func (vm *VM) handleNodeDown(nodeID [32]byte) {
 		if local == nil || local.isDone() {
 			continue
 		}
-		vm.deliverExitSignal(local, 0, nodeDownReason)
+		vm.deliverExitSignal(local, nil, nodeDownReason)
 	}
 }
 
@@ -266,8 +262,10 @@ func (vm *VM) FindNodeRefByPublicKey(nodeID [32]byte) *NodeRefData {
 }
 
 // DeliverDownMessage is the exported version for server package access.
+// The watched process is remote, so the DOWN payload carries Nil for the
+// process slot.
 func (vm *VM) DeliverDownMessage(watcher *ProcessObject, ref *MonitorRef, reason ExitReason) {
-	vm.deliverDownMessage(watcher, ref, reason)
+	vm.deliverDownMessage(watcher, ref, nil, reason)
 }
 
 // ExitReason returns the process's exit reason (exported for server access).

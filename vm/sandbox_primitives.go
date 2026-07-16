@@ -44,14 +44,8 @@ func (vm *VM) registerSandboxPrimitives() {
 			}
 		}
 
-		proc, err := v.createProcess()
-		if err != nil {
-			return v.SignalPrimitiveError("Sandbox forkRestricted:", err.Error())
-		}
-		procValue, err := v.registerProcess(proc)
-		if err != nil {
-			return v.SignalPrimitiveError("Sandbox forkRestricted:", err.Error())
-		}
+		proc := v.createProcess()
+		procValue := v.registerProcess(proc)
 
 		go func() {
 			defer func() {
