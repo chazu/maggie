@@ -19,6 +19,7 @@ name := 'Maggie'.
 ```
 """
 String subclass: Collection
+  include: Comparable
 
   """
   Return the number of characters in the string.

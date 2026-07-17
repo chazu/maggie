@@ -4,6 +4,7 @@
 # Use $X literal syntax or Character value: to create characters.
 
 Character subclass: Object
+  include: Comparable
 
   # Printing
   method: printOn: aStream [
