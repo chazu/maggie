@@ -4,3 +4,11 @@ and `size`. Shared iteration methods are provided by the Enumerable trait.
 """
 Collection subclass: Object
   include: Enumerable
+
+  """Type test — true for all collections.
+
+  ```example
+  #(1 2 3) isCollection
+  ```
+  """
+  method: isCollection ^<Boolean> [ ^true ]

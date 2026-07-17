@@ -99,6 +99,25 @@ Set subclass: Collection
   """Remove element from the set."""
   method: remove: element [ <primitive> ]
 
+  """
+  Remove element from the set; evaluate aBlock when it was absent.
+
+  ```test
+  s := Set new.
+  s add: 1.
+  s remove: 1 ifAbsent: [#missing] >>> 1
+  ```
+
+  ```test
+  Set new remove: 9 ifAbsent: [#missing] >>> #missing
+  ```
+
+  ```example
+  Set new remove: 9 ifAbsent: [nil]
+  ```
+  """
+  method: remove: element ifAbsent: aBlock [ <primitive> ]
+
   """Return true if the set contains element."""
   method: includes: element ^<Boolean> [ <primitive> ]
 

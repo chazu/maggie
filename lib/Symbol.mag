@@ -38,3 +38,11 @@ Symbol subclass: String
 
   """Return the number of characters."""
   method: size ^<Integer> [ <primitive> ]
+
+  """Type test — true for symbols.
+
+  ```example
+  #foo isSymbol
+  ```
+  """
+  method: isSymbol ^<Boolean> [ ^true ]

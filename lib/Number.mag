@@ -5,3 +5,11 @@ Number inherits comparison-derived methods (`max:`, `min:`, `between:and:`)
 from Magnitude.
 """
 Number subclass: Magnitude
+
+  """Type test — true for all numbers.
+
+  ```example
+  42 isNumber
+  ```
+  """
+  method: isNumber ^<Boolean> [ ^true ]

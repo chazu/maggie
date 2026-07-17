@@ -175,6 +175,33 @@ func (vm *VM) registerObjectPrimitives() {
 		return Nil
 	})
 
+	// perform:with:with: - send message with two arguments
+	c.AddMethod3(vm.Selectors, "perform:with:with:", func(v *VM, recv Value, selector, a1, a2 Value) Value {
+		if selector.IsSymbol() {
+			selName := v.Symbols.Name(selector.SymbolID())
+			return v.Send(recv, selName, []Value{a1, a2})
+		}
+		return Nil
+	})
+
+	// perform:withArguments: - send message with an Array of arguments
+	c.AddMethod2(vm.Selectors, "perform:withArguments:", func(v *VM, recv Value, selector, argsVal Value) Value {
+		if !selector.IsSymbol() {
+			return Nil
+		}
+		selName := v.Symbols.Name(selector.SymbolID())
+		obj := ObjectFromValue(argsVal)
+		if obj == nil {
+			return v.SignalPrimitiveError("perform:withArguments:", "arguments must be an Array")
+		}
+		n := obj.NumSlots()
+		args := make([]Value, n)
+		for i := 0; i < n; i++ {
+			args[i] = obj.GetSlot(i)
+		}
+		return v.Send(recv, selName, args)
+	})
+
 	// respondsTo: - true if receiver's class (or any superclass) implements aSelector.
 	// Walks the receiver's vtable inheritance chain via the flat dispatch table
 	// without allocating an Array of method names.

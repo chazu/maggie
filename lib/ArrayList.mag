@@ -145,7 +145,8 @@ ArrayList subclass: Collection
   # --- Access ---
 
   """
-  Return the first element, or nil if empty.
+  Return the first element. Raises SubscriptOutOfBounds when empty,
+  matching Array>>first.
 
   ```test
   (ArrayList withAll: #(10 20 30)) first >>> 10
@@ -154,7 +155,8 @@ ArrayList subclass: Collection
   method: first [ <primitive> ]
 
   """
-  Return the last element, or nil if empty.
+  Return the last element. Raises SubscriptOutOfBounds when empty,
+  matching Array>>last.
 
   ```test
   (ArrayList withAll: #(10 20 30)) last >>> 30

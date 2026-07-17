@@ -101,6 +101,28 @@ Dictionary subclass: Collection
   ]
 
   """
+  Return a new Dictionary of the entries whose KEY and VALUE satisfy the
+  two-argument block.
+
+  ```test
+  d := Dictionary new.
+  d at: 1 put: 'a'.
+  d at: 2 put: 'b'.
+  (d keysAndValuesSelect: [:k :v | k > 1]) size >>> 1
+  ```
+
+  ```example
+  d keysAndValuesSelect: [:k :v | k > 1]
+  ```
+  """
+  method: keysAndValuesSelect: aBlock ^<Dictionary> [
+      | result |
+      result := Dictionary new.
+      self keysAndValuesDo: [:k :v | (aBlock value: k value: v) ifTrue: [result at: k put: v]].
+      ^result
+  ]
+
+  """
   Return a new dictionary excluding associations whose value satisfies block.
   Keys are preserved. (Overrides the Enumerable default, which assumed an
   Array-returning select:.)

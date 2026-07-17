@@ -354,15 +354,92 @@ Object subclass: nil
   hash with content-based hashing (e.g. String). Never overridden."""
   method: identityHash ^<Integer> [ <primitive> ]
 
-  """Type test — returns false on generic Object. Override in String, Number,
-  Array, etc. to return true for their own instances."""
+  """Type test — returns false on generic Object; String overrides.
+
+  ```test
+  'x' isString >>> true
+  42 isString >>> false
+  ```
+
+  ```example
+  Object new isString
+  ```
+  """
   method: isString ^<Boolean> [ ^false ]
+
+  """Type test — returns false on generic Object; Number overrides.
+
+  ```test
+  42 isNumber >>> true
+  3.5 isNumber >>> true
+  'x' isNumber >>> false
+  ```
+
+  ```example
+  Object new isNumber
+  ```
+  """
+  method: isNumber ^<Boolean> [ ^false ]
+
+  """Type test — returns false on generic Object; Symbol overrides.
+
+  ```test
+  #foo isSymbol >>> true
+  'foo' isSymbol >>> false
+  ```
+
+  ```example
+  Object new isSymbol
+  ```
+  """
+  method: isSymbol ^<Boolean> [ ^false ]
+
+  """Type test — returns false on generic Object; Collection overrides
+  (Array, ArrayList, Dictionary, Set, String, ...).
+
+  ```test
+  #(1 2) isCollection >>> true
+  42 isCollection >>> false
+  ```
+
+  ```example
+  Object new isCollection
+  ```
+  """
+  method: isCollection ^<Boolean> [ ^false ]
 
   """Send a message with the given selector to the receiver."""
   method: perform: selector <Symbol> [ <primitive> ]
 
   """Send a one-argument message to the receiver."""
   method: perform: selector <Symbol> with: arg [ <primitive> ]
+
+  """
+  Send a two-argument message to the receiver.
+
+  ```test
+  #(1 2 3) perform: #copyFrom:to: with: 1 with: 2 >>> #(1 2 )
+  ```
+
+  ```example
+  3 perform: #between:and: with: 1 with: 5
+  ```
+  """
+  method: perform: selector <Symbol> with: arg1 with: arg2 [ <primitive> ]
+
+  """
+  Send a message with an Array of arguments to the receiver.
+
+  ```test
+  3 perform: #+ withArguments: #(4 ) >>> 7
+  #(1 2 3) perform: #copyFrom:to: withArguments: #(2 3 ) >>> #(2 3 )
+  ```
+
+  ```example
+  3 perform: #+ withArguments: #(4 )
+  ```
+  """
+  method: perform: selector <Symbol> withArguments: args <Array> [ <primitive> ]
 
   """If the receiver is nil, evaluate block; otherwise return self."""
   method: ifNil: block [ <primitive> ]

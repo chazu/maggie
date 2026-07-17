@@ -199,22 +199,23 @@ func (vm *VM) registerArrayListPrimitives() {
 	c.AddMethod0(vm.Selectors, "clear", clearFn)
 	c.AddMethod0(vm.Selectors, "primClear", clearFn)
 
-	// first
+	// first — raises on empty, matching Array>>first (a missing first
+	// element is a programmer error, not a nil; L-15)
 	firstFn := func(v *VM, recv Value) Value {
 		al := v.getArrayList(recv)
 		if al == nil || al.Size() == 0 {
-			return Nil
+			return v.SignalSubscriptOutOfBounds("first", 1, 0)
 		}
 		return al.At(0)
 	}
 	c.AddMethod0(vm.Selectors, "first", firstFn)
 	c.AddMethod0(vm.Selectors, "primFirst", firstFn)
 
-	// last
+	// last — raises on empty, matching Array>>last
 	lastFn := func(v *VM, recv Value) Value {
 		al := v.getArrayList(recv)
 		if al == nil || al.Size() == 0 {
-			return Nil
+			return v.SignalSubscriptOutOfBounds("last", 1, 0)
 		}
 		return al.At(al.Size() - 1)
 	}

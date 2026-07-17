@@ -52,6 +52,23 @@ func (vm *VM) registerSetPrimitives() {
 		return elem
 	})
 
+	// remove:ifAbsent: - remove element, evaluating the block when absent
+	// (the ifAbsent: form every other collection offers; L-15)
+	c.AddMethod2(vm.Selectors, "remove:ifAbsent:", func(v *VM, recv Value, elem, block Value) Value {
+		obj := ObjectFromValue(recv)
+		if obj == nil {
+			return v.evaluateBlock(block, nil)
+		}
+		d := v.registry.GetDictionaryObject(obj.GetSlot(0))
+		if d == nil {
+			return v.evaluateBlock(block, nil)
+		}
+		if _, ok := d.Delete(v.registry, elem); !ok {
+			return v.evaluateBlock(block, nil)
+		}
+		return elem
+	})
+
 	// includes: - check if element is in the set
 	c.AddMethod1(vm.Selectors, "includes:", func(v *VM, recv Value, elem Value) Value {
 		if !recv.IsObject() {
