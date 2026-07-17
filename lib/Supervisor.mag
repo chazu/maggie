@@ -80,6 +80,7 @@ sup stop
 Supervisor subclass: Object
   instanceVars: strategy <Symbol> childSpecs <Array> maxRestarts <Integer> maxSeconds <Integer> process <Process>
                 children <Dictionary> restartTimes <Array> running <Boolean>
+  include: SupervisorCore
 
   """
   Create a supervisor with the given strategy and child specifications.
@@ -152,20 +153,7 @@ Supervisor subclass: Object
       childSpecs := childSpecs select: [:s | s id ~= anId]
   ]
 
-  """Return the IDs of currently running children."""
-  method: runningChildren ^<Array> [
-      | ids <ArrayList> |
-      ids := ArrayList new.
-      children keysAndValuesDo: [:k :v |
-          v isAlive ifTrue: [ids add: k]
-      ].
-      ^ids asArray
-  ]
 
-  """Return the count of running children."""
-  method: countChildren ^<Integer> [
-      ^self runningChildren size
-  ]
 
   "--- Private: supervisor event loop ---"
 
@@ -225,12 +213,6 @@ Supervisor subclass: Object
       strategy = #restForOne ifTrue: [self restartFrom: childId]
   ]
 
-  method: findChildId: procValue ^<String> [
-      children keysAndValuesDo: [:k :v |
-          v = procValue ifTrue: [^k]
-      ].
-      ^nil
-  ]
 
   method: findSpec: anId <String> ^<ChildSpec> [
       childSpecs do: [:s | s id = anId ifTrue: [^s]].
@@ -279,21 +261,7 @@ Supervisor subclass: Object
       children := Dictionary new
   ]
 
-  method: recordRestart [
-      | now <Integer> |
-      now := DateTime now epochMillis.
-      restartTimes add: now
-  ]
 
-  method: restartIntensityExceeded ^<Boolean> [
-      | now <Integer> windowStart <Integer> count <Integer> |
-      restartTimes size < maxRestarts ifTrue: [^false].
-      now := DateTime now epochMillis.
-      windowStart := now - (maxSeconds * 1000).
-      count := 0.
-      restartTimes do: [:t | t >= windowStart ifTrue: [count := count + 1]].
-      ^count > maxRestarts
-  ]
 
   method: printString ^<String> [
       ^'a Supervisor(', strategy printString, ', ', self countChildren printString, ' children)'

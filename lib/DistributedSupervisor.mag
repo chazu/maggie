@@ -40,6 +40,7 @@ cluster stop
 ```
 """
 DistributedSupervisor subclass: Object
+  include: SupervisorCore
   instanceVars: strategy <Symbol> childSpecs <Array> maxRestarts <Integer> maxSeconds <Integer>
                 restartTimes <ArrayList> running <Boolean> cluster <Cluster>
                 supervisorProcess <Process> children <Dictionary> nodeAssignments <Dictionary>
@@ -124,20 +125,7 @@ DistributedSupervisor subclass: Object
       childSpecs := childSpecs select: [:s | s id ~= anId]
   ]
 
-  """Return the IDs of currently running children."""
-  method: runningChildren ^<Array> [
-      | ids <ArrayList> |
-      ids := ArrayList new.
-      children keysAndValuesDo: [:k :v |
-          v isAlive ifTrue: [ids add: k]
-      ].
-      ^ids asArray
-  ]
 
-  """Return the count of running children."""
-  method: countChildren ^<Integer> [
-      ^self runningChildren size
-  ]
 
   """Return which node a child is assigned to (or nil for local)."""
   method: nodeFor: childId <String> [
@@ -317,12 +305,6 @@ DistributedSupervisor subclass: Object
       specsToRestart do: [:spec | self spawnChildSpec: spec]
   ]
 
-  method: findChildId: procValue ^<String> [
-      children keysAndValuesDo: [:k :v |
-          v = procValue ifTrue: [^k]
-      ].
-      ^nil
-  ]
 
   method: findSpec: anId <String> ^<ChildSpec> [
       childSpecs do: [:s | s id = anId ifTrue: [^s]].
@@ -344,21 +326,7 @@ DistributedSupervisor subclass: Object
       nodeAssignments := Dictionary new
   ]
 
-  method: recordRestart [
-      | now <Integer> |
-      now := DateTime now epochMillis.
-      restartTimes add: now
-  ]
 
-  method: restartIntensityExceeded ^<Boolean> [
-      | now <Integer> windowStart <Integer> count <Integer> |
-      restartTimes size < maxRestarts ifTrue: [^false].
-      now := DateTime now epochMillis.
-      windowStart := now - (maxSeconds * 1000).
-      count := 0.
-      restartTimes do: [:t | t >= windowStart ifTrue: [count := count + 1]].
-      ^count > maxRestarts
-  ]
 
   method: printString ^<String> [
       ^'a DistributedSupervisor(', strategy printString, ', ', self countChildren printString, ' children)'

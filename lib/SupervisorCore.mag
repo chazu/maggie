@@ -1,0 +1,86 @@
+"""
+Shared behavior for supervisors (Supervisor, DistributedSupervisor,
+DynamicSupervisor). These helpers operate on the common instance variables every
+supervisor declares — `children` (a Dictionary of id → process), `restartTimes`
+(an ordered collection of restart timestamps), and the `maxRestarts`/`maxSeconds`
+restart-intensity budget — so they can live in one place instead of being copied
+into each supervisor class.
+
+```example
+"Included by every supervisor; see Supervisor/DynamicSupervisor for usage."
+Supervisor new countChildren
+```
+"""
+SupervisorCore trait
+
+  """
+  The ids of children that are currently alive.
+
+  ```example
+  sup runningChildren
+  ```
+  """
+  method: runningChildren ^<Array> [
+      | ids <ArrayList> |
+      ids := ArrayList new.
+      children keysAndValuesDo: [:k :v |
+          v isAlive ifTrue: [ids add: k]
+      ].
+      ^ids asArray
+  ]
+
+  """
+  How many children are currently alive.
+
+  ```example
+  sup countChildren
+  ```
+  """
+  method: countChildren ^<Integer> [
+      ^self runningChildren size
+  ]
+
+  """
+  Find the child id whose process value equals procValue, or nil.
+
+  ```example
+  sup findChildId: aProcess
+  ```
+  """
+  method: findChildId: procValue ^<String> [
+      children keysAndValuesDo: [:k :v |
+          v = procValue ifTrue: [^k]
+      ].
+      ^nil
+  ]
+
+  """
+  Record that a restart just happened (for restart-intensity tracking).
+
+  ```example
+  sup recordRestart
+  ```
+  """
+  method: recordRestart [
+      | now <Integer> |
+      now := DateTime now epochMillis.
+      restartTimes add: now
+  ]
+
+  """
+  Whether more than maxRestarts restarts occurred within the last maxSeconds
+  — the signal to give up rather than restart again.
+
+  ```example
+  sup restartIntensityExceeded
+  ```
+  """
+  method: restartIntensityExceeded ^<Boolean> [
+      | now <Integer> windowStart <Integer> count <Integer> |
+      restartTimes size < maxRestarts ifTrue: [^false].
+      now := DateTime now epochMillis.
+      windowStart := now - (maxSeconds * 1000).
+      count := 0.
+      restartTimes do: [:t | t >= windowStart ifTrue: [count := count + 1]].
+      ^count > maxRestarts
+  ]

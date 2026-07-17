@@ -36,6 +36,7 @@ ds stop
 ```
 """
 DynamicSupervisor subclass: Object
+  include: SupervisorCore
   instanceVars: template <ChildSpec> children <Dictionary> process <Process> running <Boolean>
                 maxRestarts <Integer> maxSeconds <Integer> restartTimes <Array>
 
@@ -99,20 +100,7 @@ DynamicSupervisor subclass: Object
       ]
   ]
 
-  """Return the IDs of currently running children."""
-  method: runningChildren ^<Array> [
-      | ids <ArrayList> |
-      ids := ArrayList new.
-      children keysAndValuesDo: [:k :v |
-          v isAlive ifTrue: [ids add: k]
-      ].
-      ^ids asArray
-  ]
 
-  """Return the count of running children."""
-  method: countChildren ^<Integer> [
-      ^self runningChildren size
-  ]
 
   """Return the supervisor process."""
   method: process ^<Process> [ ^process ]
@@ -158,12 +146,6 @@ DynamicSupervisor subclass: Object
       self startChild: childId
   ]
 
-  method: findChildId: procValue ^<String> [
-      children keysAndValuesDo: [:k :v |
-          v = procValue ifTrue: [^k]
-      ].
-      ^nil
-  ]
 
   method: shouldRestart: reason <Symbol> ^<Boolean> [
       template restart = #permanent ifTrue: [^true].
@@ -179,21 +161,7 @@ DynamicSupervisor subclass: Object
       children := Dictionary new
   ]
 
-  method: recordRestart [
-      | now <Integer> |
-      now := DateTime now epochMillis.
-      restartTimes add: now
-  ]
 
-  method: restartIntensityExceeded ^<Boolean> [
-      | now <Integer> windowStart <Integer> count <Integer> |
-      restartTimes size < maxRestarts ifTrue: [^false].
-      now := DateTime now epochMillis.
-      windowStart := now - (maxSeconds * 1000).
-      count := 0.
-      restartTimes do: [:t | t >= windowStart ifTrue: [count := count + 1]].
-      ^count > maxRestarts
-  ]
 
   method: printString ^<String> [
       ^'a DynamicSupervisor(', self countChildren printString, ' children)'
