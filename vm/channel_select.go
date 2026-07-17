@@ -159,14 +159,25 @@ func (vm *VM) primitiveSelectMixed(cases []SelectCase, defaultHandler Value) Val
 	wait := time.Millisecond
 
 	for {
-		// Try each case non-blocking
+		// Try each case non-blocking, tracking whether any case could still
+		// proceed. A closed channel can never satisfy its case (send: closed;
+		// recv: closed and drained), so if EVERY case is dead the select can
+		// never fire — return nil instead of busy-spinning the backoff forever.
+		anyLive := false
 		for i, c := range cases {
 			if c.Dir == reflect.SelectRecv {
-				val, gotValue := vm.tryReceiveAny(c)
+				val, gotValue, closed := vm.tryReceiveAny(c)
 				if gotValue {
 					return vm.executeSelectHandlerWithValue(interp, cases[i], val)
 				}
+				if !closed {
+					anyLive = true
+				}
 			} else if c.Dir == reflect.SelectSend {
+				if vm.sendCaseClosed(c) {
+					continue // dead: sending on a closed channel can never succeed
+				}
+				anyLive = true
 				if vm.trySendAny(c) {
 					return vm.executeSelectHandlerNoValue(interp, cases[i])
 				}
@@ -185,6 +196,10 @@ func (vm *VM) primitiveSelectMixed(cases []SelectCase, defaultHandler Value) Val
 			)
 		}
 
+		if !anyLive {
+			return Nil // all cases closed; nothing can ever proceed
+		}
+
 		// Backoff and retry
 		time.Sleep(wait)
 		if wait < maxWait {
@@ -196,28 +211,46 @@ func (vm *VM) primitiveSelectMixed(cases []SelectCase, defaultHandler Value) Val
 	}
 }
 
-// tryReceiveAny attempts a non-blocking receive from either a local or remote channel.
-func (vm *VM) tryReceiveAny(c SelectCase) (Value, bool) {
+// sendCaseClosed reports whether a send case's channel is closed (so the send
+// can never succeed).
+func (vm *VM) sendCaseClosed(c SelectCase) bool {
 	if c.Channel != nil {
-		// Local channel
-		val, gotValue, _ := c.Channel.TryReceive()
+		return c.Channel.Closed()
+	}
+	if c.Remote != nil {
+		return c.Remote.IsClosed()
+	}
+	return true // no channel wired — treat as dead
+}
+
+// tryReceiveAny attempts a non-blocking receive from a local or remote channel.
+// Returns (value, gotValue, closed): closed is true when the channel is closed
+// and drained, so the caller can stop polling it.
+func (vm *VM) tryReceiveAny(c SelectCase) (Value, bool, bool) {
+	if c.Channel != nil {
+		val, gotValue, open := c.Channel.TryReceive()
 		if gotValue {
-			return val, true
+			return val, true, false
 		}
-		return Nil, false
+		return Nil, false, !open
 	}
 	if c.Remote != nil && c.Remote.TryReceiveFunc != nil {
-		data, gotValue, _, err := c.Remote.TryReceiveFunc(c.Remote.ChannelID)
-		if err != nil || !gotValue {
-			return Nil, false
-		}
-		val, err := vm.DeserializeValue(data)
+		data, gotValue, open, err := c.Remote.TryReceiveFunc(c.Remote.ChannelID)
 		if err != nil {
-			return Nil, false
+			return Nil, false, c.Remote.IsClosed()
 		}
-		return val, true
+		if !gotValue {
+			return Nil, false, !open || c.Remote.IsClosed()
+		}
+		val, derr := vm.DeserializeValue(data)
+		if derr != nil {
+			// The value was consumed from the channel; dropping it silently
+			// would lose a message. Signal (matching RemoteChannel>>receive).
+			return vm.signalRemoteError("select: deserialize received value: " + derr.Error()), false, false
+		}
+		return val, true, false
 	}
-	return Nil, false
+	return Nil, false, true
 }
 
 // trySendAny attempts a non-blocking send on either a local or remote channel.

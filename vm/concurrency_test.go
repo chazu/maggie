@@ -3168,3 +3168,33 @@ func TestChannelSelect_SendClosedFallsBackToReceive(t *testing.T) {
 		t.Fatal("select did not terminate after send channel closed")
 	}
 }
+
+// TestSelectMixedAllClosedReturnsNil regresses the spin-forever bug: a mixed
+// select whose only case is a send on a closed channel used to loop the backoff
+// forever. It must return nil (nothing can proceed) like the local path.
+func TestSelectMixedAllClosedReturnsNil(t *testing.T) {
+	vm := NewVM()
+	defer vm.Shutdown()
+
+	ch := createChannel(0)
+	ch.Close()
+	// Give the case a remote sibling so primitiveSelect routes to the mixed
+	// (polling) path rather than the reflect.Select fast path.
+	remote := &RemoteChannelRef{ChannelID: 1}
+	remote.closed.Store(true)
+	cases := []SelectCase{
+		{Channel: ch, Dir: reflect.SelectSend, Value: FromSmallInt(1), Handler: Nil},
+		{Remote: remote, Dir: reflect.SelectSend, Value: FromSmallInt(2), Handler: Nil},
+	}
+
+	done := make(chan Value, 1)
+	go func() { done <- vm.primitiveSelectMixed(cases, Nil) }()
+	select {
+	case got := <-done:
+		if got != Nil {
+			t.Errorf("all-closed mixed select: got %v, want nil", got)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("mixed select over closed channels spun forever")
+	}
+}
