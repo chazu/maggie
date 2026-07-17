@@ -13,7 +13,7 @@ import (
 func TestFloatRoundTrip(t *testing.T) {
 	tests := []float64{
 		0.0,
-		-0.0,
+		math.Copysign(0, -1), // real negative zero (-0.0 is a constant +0.0 in Go)
 		1.0,
 		-1.0,
 		3.14159265358979,
