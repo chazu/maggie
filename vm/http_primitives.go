@@ -289,7 +289,7 @@ func (vm *VM) registerHttpPrimitives() {
 			// own registered interpreter (the VM's structures are safe for
 			// concurrent dispatch; only interpreter stacks are per-goroutine).
 			func() {
-				interp := v.newForkedInterpreter(nil)
+				interp := v.newRequestInterpreter()
 				v.registerInterpreter(interp)
 				defer v.unregisterInterpreter()
 				connVal := v.vmRegisterSSEConnection(conn)
@@ -368,7 +368,7 @@ func (vm *VM) registerHttpPrimitives() {
 						resultCh <- httpResult{status: http.StatusInternalServerError}
 					}
 				}()
-				interp := v.newForkedInterpreter(nil)
+				interp := v.newRequestInterpreter()
 				v.registerInterpreter(interp)
 				reqObj := &HttpRequestObject{request: r}
 				reqVal := v.vmRegisterHttpRequest(reqObj)
@@ -423,7 +423,7 @@ func (vm *VM) registerHttpPrimitives() {
 			// pattern as server RPC handlers (RunIsolated).
 			var hr httpResult
 			func() {
-				interp := v.newForkedInterpreter(nil)
+				interp := v.newRequestInterpreter()
 				v.registerInterpreter(interp)
 				defer v.unregisterInterpreter()
 				reqObj := &HttpRequestObject{request: r}
