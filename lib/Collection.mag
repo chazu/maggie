@@ -3,4 +3,4 @@ Abstract superclass of all collections. Subclasses must implement `do:`
 and `size`. Shared iteration methods are provided by the Enumerable trait.
 """
 Collection subclass: Object
-  uses: Enumerable
+  include: Enumerable

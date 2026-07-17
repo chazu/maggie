@@ -11,4 +11,4 @@ Subclasses must implement `<` and `=`; derived comparison methods
 ```
 """
 Magnitude subclass: Object
-  uses: Comparable
+  include: Comparable

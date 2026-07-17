@@ -107,7 +107,7 @@ func (p *Parser) atBodyResyncPoint() bool {
 	if p.curTokenIs(TokenKeyword) {
 		switch p.curToken.Literal {
 		case "method:", "classMethod:", "instanceVars:", "instanceVariables:",
-			"classVars:", "classVariables:", "include:", "uses:", "requires:":
+			"classVars:", "classVariables:", "include:", "requires:":
 			return true
 		}
 	}
@@ -1353,9 +1353,10 @@ func (p *Parser) parseTraitDefBody(traitName string, startPos Position) *TraitDe
 				pendingDocString = ""
 
 			case "requires:":
-				// Parse required method selectors
+				// Parse required method selectors (identifiers, symbols, or
+				// binary operators like `<`)
 				p.nextToken() // consume "requires:"
-				for p.curTokenIs(TokenSymbol) || p.curTokenIs(TokenIdentifier) {
+				for p.curTokenIs(TokenSymbol) || p.curTokenIs(TokenIdentifier) || p.curTokenIs(TokenBinarySelector) {
 					traitDef.Requires = append(traitDef.Requires, p.curToken.Literal)
 					p.nextToken()
 				}

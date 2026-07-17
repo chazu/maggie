@@ -1,7 +1,9 @@
 """
 Trait providing derived comparison methods for any class that implements `<`.
-Classes using this trait must define `<` (less-than comparison).
-Equality (`=`) is assumed to exist on all objects.
+Classes including this trait must define `<` (less-than comparison); the
+trait derives `>`, `<=`, `>=`, `max:`, `min:`, and `between:and:` from it
+(classes may still override any of them with faster primitives). Equality
+(`=`) is assumed to exist on all objects.
 
 ```test
 3 max: 5 >>> 5
@@ -10,6 +12,45 @@ Equality (`=`) is assumed to exist on all objects.
 ```
 """
 Comparable trait
+
+  """
+  Return true if the receiver is greater than the argument.
+  Derived from `<` (argument < receiver).
+
+  ```test
+  5 > 3 >>> true
+  3 > 5 >>> false
+  ```
+  """
+  method: > other ^<Boolean> [
+      ^other < self
+  ]
+
+  """
+  Return true if the receiver is less than or equal to the argument.
+  Derived from `<`.
+
+  ```test
+  3 <= 3 >>> true
+  5 <= 3 >>> false
+  ```
+  """
+  method: <= other ^<Boolean> [
+      ^(other < self) not
+  ]
+
+  """
+  Return true if the receiver is greater than or equal to the argument.
+  Derived from `<`.
+
+  ```test
+  3 >= 3 >>> true
+  3 >= 5 >>> false
+  ```
+  """
+  method: >= other ^<Boolean> [
+      ^(self < other) not
+  ]
 
   """
   Return the larger of the receiver and the argument.

@@ -21,9 +21,10 @@ Indexable protocol
   at: <Integer> ^<Object>.
 
 """
-Any object that supports ordering comparisons.
+Any object that supports ordering comparisons. (Named Ordered so the
+Comparable TRAIT — a different construct — keeps sole claim to its name.)
 """
-Comparable protocol
+Ordered protocol
   < <Object> ^<Boolean>.
   > <Object> ^<Boolean>.
   <= <Object> ^<Boolean>.
