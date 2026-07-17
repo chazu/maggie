@@ -1,9 +1,14 @@
 """
-A lazy stream that produces values on demand via a generator block.
+A stream that produces values on demand via a generator block.
 
-Streams bridge eager collections and lazy evaluation. Create from a
-block that returns successive values (nil signals end of stream),
-or from a collection via `asStream`.
+Streams bridge collections and demand-driven production. Create from a
+generator block via `on:` (the block returns successive values; nil signals
+end of stream), or from a collection via `over:` / `asStream` — collection
+streams track the collection's size, so nil is an ordinary element and is
+never swallowed.
+
+The combinators (`collect:`, `select:`, `reject:`, `take:`, `drop:`,
+`asArray`) are EAGER: each drains the stream and answers an Array.
 
 ```test
 (Stream on: [:i | i <= 3 ifTrue: [i] ifFalse: [nil]]) collect: [:x | x * 2] >>> #(2 4 6 )
@@ -11,19 +16,19 @@ or from a collection via `asStream`.
 #(10 20 30) asStream next >>> 10
 ```
 
-```example
-"Lazy filtering and mapping"
-#(1 2 3 4 5 6 7 8 9 10) asStream
-    select: [:n | n even]
-    collect: [:n | n * n]
+```test
+"nil elements survive collection streams"
+(Stream over: #(1 nil 2)) asArray >>> #(1 nil 2 )
 ```
 """
 Stream subclass: Object
-  instanceVars: generator index exhausted
+  instanceVars: generator index exhausted limit
 
   """
   Create a stream from a generator block. The block receives a 1-based
   index and returns the next value, or nil to signal end of stream.
+  (A generator stream therefore cannot produce nil elements — use
+  `over:` for collections that may contain nil.)
 
   ```test
   s := Stream on: [:i | i <= 3 ifTrue: [i * 10] ifFalse: [nil]].
@@ -38,7 +43,8 @@ Stream subclass: Object
   ]
 
   """
-  Create a stream over a collection's elements.
+  Create a stream over a collection's elements. The stream is bounded by
+  the collection's size, so nil elements pass through unharmed.
 
   ```test
   s := Stream over: #(10 20 30).
@@ -49,10 +55,9 @@ Stream subclass: Object
   ```
   """
   classMethod: over: aCollection [
-      | arr size |
+      | arr |
       arr := aCollection.
-      size := aCollection size.
-      ^self on: [:i | i <= size ifTrue: [arr at: i] ifFalse: [nil]]
+      ^self new initGenerator: [:i | arr at: i] limit: aCollection size
   ]
 
   method: initGenerator: aBlock [
@@ -62,7 +67,23 @@ Stream subclass: Object
   ]
 
   """
-  Return the next value from the stream. Returns nil when exhausted.
+  Initialize a bounded stream (used by `over:`).
+
+  ```example
+  Stream new initGenerator: [:i | i * 2] limit: 5
+  ```
+  """
+  method: initGenerator: aBlock limit: n [
+      generator := aBlock.
+      index := 1.
+      exhausted := false.
+      limit := n.
+  ]
+
+  """
+  Return the next value from the stream, or nil when exhausted. For a
+  bounded (collection) stream a nil answer can also be a genuine nil
+  element — use `atEnd` to distinguish.
 
   ```test
   s := Stream over: #(42).
@@ -72,12 +93,8 @@ Stream subclass: Object
   """
   method: next [
       | val |
-      exhausted ifTrue: [^nil].
+      self atEnd ifTrue: [^nil].
       val := generator value: index.
-      val isNil ifTrue: [
-          exhausted := true.
-          ^nil
-      ].
       index := index + 1.
       ^val
   ]
@@ -89,12 +106,18 @@ Stream subclass: Object
   s := Stream over: #().
   s atEnd >>> true
   ```
+
+  ```test
+  (Stream over: #(nil)) atEnd >>> false
+  ```
   """
   method: atEnd ^<Boolean> [
-      | val |
       exhausted ifTrue: [^true].
-      val := generator value: index.
-      val isNil ifTrue: [
+      limit isNil ifFalse: [
+          index > limit ifTrue: [exhausted := true. ^true].
+          ^false
+      ].
+      (generator value: index) isNil ifTrue: [
           exhausted := true.
           ^true
       ].
@@ -111,15 +134,11 @@ Stream subclass: Object
   ```
   """
   method: do: aBlock [
-      | val |
-      [exhausted] whileFalse: [
-          val := self next.
-          val isNil ifFalse: [aBlock value: val].
-      ].
+      [self atEnd] whileFalse: [aBlock value: self next].
   ]
 
   """
-  Collect remaining elements into an array.
+  Collect remaining elements into an array (eager).
 
   ```test
   (Stream over: #(1 2 3)) collect: [:x | x * 2] >>> #(2 4 6 )
@@ -127,17 +146,14 @@ Stream subclass: Object
   ```
   """
   method: collect: aBlock ^<Array> [
-      | result val |
+      | result |
       result := ArrayList new.
-      [exhausted] whileFalse: [
-          val := self next.
-          val isNil ifFalse: [result add: (aBlock value: val)].
-      ].
+      [self atEnd] whileFalse: [result add: (aBlock value: self next)].
       ^result asArray
   ]
 
   """
-  Select elements matching a predicate into an array.
+  Select elements matching a predicate into an array (eager).
 
   ```test
   (Stream over: #(1 2 3 4 5)) select: [:x | x > 3] >>> #(4 5 )
@@ -147,17 +163,15 @@ Stream subclass: Object
   method: select: aBlock ^<Array> [
       | result val |
       result := ArrayList new.
-      [exhausted] whileFalse: [
+      [self atEnd] whileFalse: [
           val := self next.
-          val isNil ifFalse: [
-              (aBlock value: val) ifTrue: [result add: val].
-          ].
+          (aBlock value: val) ifTrue: [result add: val].
       ].
       ^result asArray
   ]
 
   """
-  Reject elements matching a predicate.
+  Reject elements matching a predicate (eager).
 
   ```test
   (Stream over: #(1 2 3 4 5)) reject: [:x | x > 3] >>> #(1 2 3 )
@@ -168,7 +182,7 @@ Stream subclass: Object
   ]
 
   """
-  Detect the first element matching a predicate.
+  Detect the first element matching a predicate, or nil if none.
 
   ```test
   (Stream over: #(1 2 3 4 5)) detect: [:x | x > 3] >>> 4
@@ -176,19 +190,12 @@ Stream subclass: Object
   ```
   """
   method: detect: aBlock [
-      | val found result |
-      found := false.
-      result := nil.
-      [exhausted not & found not] whileTrue: [
+      | val |
+      [self atEnd] whileFalse: [
           val := self next.
-          val isNil ifFalse: [
-              (aBlock value: val) ifTrue: [
-                  found := true.
-                  result := val.
-              ].
-          ].
+          (aBlock value: val) ifTrue: [^val].
       ].
-      ^result
+      ^nil
   ]
 
   """
@@ -199,12 +206,9 @@ Stream subclass: Object
   ```
   """
   method: inject: initial into: aBlock [
-      | result val |
+      | result |
       result := initial.
-      [exhausted] whileFalse: [
-          val := self next.
-          val isNil ifFalse: [result := aBlock value: result value: val].
-      ].
+      [self atEnd] whileFalse: [result := aBlock value: result value: self next].
       ^result
   ]
 
@@ -217,15 +221,10 @@ Stream subclass: Object
   ```
   """
   method: anySatisfy: aBlock ^<Boolean> [
-      | val found |
-      found := false.
-      [exhausted not & found not] whileTrue: [
-          val := self next.
-          val isNil ifFalse: [
-              (aBlock value: val) ifTrue: [found := true].
-          ].
+      [self atEnd] whileFalse: [
+          (aBlock value: self next) ifTrue: [^true].
       ].
-      ^found
+      ^false
   ]
 
   """
@@ -237,19 +236,14 @@ Stream subclass: Object
   ```
   """
   method: allSatisfy: aBlock ^<Boolean> [
-      | val allOk |
-      allOk := true.
-      [exhausted not & allOk] whileTrue: [
-          val := self next.
-          val isNil ifFalse: [
-              (aBlock value: val) ifFalse: [allOk := false].
-          ].
+      [self atEnd] whileFalse: [
+          (aBlock value: self next) ifFalse: [^false].
       ].
-      ^allOk
+      ^true
   ]
 
   """
-  Take at most n elements from the stream.
+  Take at most n elements from the stream (eager).
 
   ```test
   (Stream over: #(1 2 3 4 5)) take: 3 >>> #(1 2 3 )
@@ -257,21 +251,18 @@ Stream subclass: Object
   ```
   """
   method: take: n ^<Array> [
-      | result val count |
+      | result count |
       result := ArrayList new.
       count := 0.
-      [exhausted not & (count < n)] whileTrue: [
-          val := self next.
-          val isNil ifFalse: [
-              result add: val.
-              count := count + 1.
-          ].
+      [self atEnd not and: [count < n]] whileTrue: [
+          result add: self next.
+          count := count + 1.
       ].
       ^result asArray
   ]
 
   """
-  Skip n elements, then return the rest as an array.
+  Skip n elements, then return the rest as an array (eager).
 
   ```test
   (Stream over: #(1 2 3 4 5)) drop: 2 >>> #(3 4 5 )
@@ -281,21 +272,28 @@ Stream subclass: Object
   method: drop: n ^<Array> [
       | count |
       count := 0.
-      [exhausted not & (count < n)] whileTrue: [
+      [self atEnd not and: [count < n]] whileTrue: [
           self next.
           count := count + 1.
       ].
-      ^self collect: [:x | x]
+      ^self asArray
   ]
 
   """
-  Collect all remaining elements into an array.
+  Collect all remaining elements into an array (eager).
 
   ```test
-  (Stream over: #(1 2 3)) toArray >>> #(1 2 3 )
+  (Stream over: #(1 2 3)) asArray >>> #(1 2 3 )
+  (Stream over: #(1 nil 3)) asArray >>> #(1 nil 3 )
+  ```
+
+  ```example
+  #(1 2 3) asStream asArray
   ```
   """
-  method: toArray ^<Array> [
-      ^self collect: [:x | x]
+  method: asArray ^<Array> [
+      | result |
+      result := ArrayList new.
+      [self atEnd] whileFalse: [result add: self next].
+      ^result asArray
   ]
-
