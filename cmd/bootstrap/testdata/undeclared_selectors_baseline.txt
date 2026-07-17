@@ -253,7 +253,6 @@ Process>>primTrapExit:
 Process>>primUnlink:
 Process>>primUnregister
 Process>>primWait
-Process>>primYield
 Proquint class>>decode64:
 Proquint class>>decode:
 Proquint class>>encode64:

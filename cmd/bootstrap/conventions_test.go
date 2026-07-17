@@ -260,8 +260,16 @@ func TestConventions_UndeclaredSelectorRatchet(t *testing.T) {
 			"with a docstring):\n  %s", len(fresh), strings.Join(fresh, "\n  "))
 	}
 	if len(undeclared) < len(baseline) {
-		t.Logf("undeclared-selector debt shrank: %d → %d — regenerate %s to lock it in",
-			len(baseline), len(undeclared), baselinePath)
+		if os.Getenv("MAGGIE_REGEN_RATCHET") == "1" {
+			sort.Strings(undeclared)
+			if wErr := os.WriteFile(baselinePath, []byte(strings.Join(undeclared, "\n")+"\n"), 0o644); wErr != nil {
+				t.Fatal(wErr)
+			}
+			t.Logf("undeclared-selector debt shrank: %d → %d — baseline regenerated", len(baseline), len(undeclared))
+		} else {
+			t.Logf("undeclared-selector debt shrank: %d → %d — run with MAGGIE_REGEN_RATCHET=1 to lock it in",
+				len(baseline), len(undeclared))
+		}
 	}
 }
 
@@ -307,9 +315,16 @@ func TestConventions_DoctestRatchet(t *testing.T) {
 			"New lib methods must ship with doctests (docs/CONVENTIONS.md).", missing, baselineCount)
 	}
 	if missing < baselineCount {
-		if wErr := os.WriteFile(baselinePath, []byte(strconv.Itoa(missing)+"\n"), 0o644); wErr != nil {
-			t.Fatal(wErr)
+		// Do NOT rewrite the tracked baseline as a side effect of `go test` — a
+		// self-mutating test dirties the working tree and CI. Only rewrite when
+		// explicitly regenerating; otherwise just report.
+		if os.Getenv("MAGGIE_REGEN_RATCHET") == "1" {
+			if wErr := os.WriteFile(baselinePath, []byte(strconv.Itoa(missing)+"\n"), 0o644); wErr != nil {
+				t.Fatal(wErr)
+			}
+			t.Logf("doctest debt shrank %d → %d; baseline regenerated", baselineCount, missing)
+		} else {
+			t.Logf("doctest debt shrank %d → %d — run with MAGGIE_REGEN_RATCHET=1 to lock it in", baselineCount, missing)
 		}
-		t.Logf("doctest debt shrank %d → %d; ratchet tightened", baselineCount, missing)
 	}
 }
