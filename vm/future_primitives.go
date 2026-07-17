@@ -26,7 +26,7 @@ func (vm *VM) registerFuturePrimitives() {
 		if f == nil {
 			return Nil
 		}
-		<-f.ch // block until resolved
+		<-f.done // block until resolved; re-entrant (closed channel) for repeat awaits and multiple waiters
 		return v.futureResolvedValue(f)
 	})
 
@@ -42,7 +42,7 @@ func (vm *VM) registerFuturePrimitives() {
 		}
 		ms := timeoutVal.SmallInt()
 		select {
-		case <-f.ch:
+		case <-f.done:
 			return v.futureResolvedValue(f)
 		case <-time.After(time.Duration(ms) * time.Millisecond):
 			return Nil
@@ -61,7 +61,7 @@ func (vm *VM) registerFuturePrimitives() {
 		}
 		ms := timeoutVal.SmallInt()
 		select {
-		case <-f.ch:
+		case <-f.done:
 			return v.futureResolvedValue(f)
 		case <-time.After(time.Duration(ms) * time.Millisecond):
 			return v.evaluateBlock(blockVal, nil)

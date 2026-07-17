@@ -11,28 +11,41 @@ import (
 // is available. Futures are created by asyncSend:with: on RemoteProcess
 // and can participate in Channel select: via their underlying Go channel.
 type FutureObject struct {
-	ch             chan Value   // capacity 1, receives the result exactly once
-	result         Value       // cached after first receive
-	err            string      // non-empty if the remote side returned an error
-	exceptionValue Value       // typed exception value (if remote raised a Maggie exception)
-	resolved       atomic.Bool // true after result is available
-	mu             sync.Mutex  // protects result/err/exceptionValue
+	ch             chan Value    // capacity 1, for GoChan/select integration (one-shot)
+	done           chan struct{} // closed once on resolve — broadcasts to all awaiters
+	result         Value         // cached after resolve
+	err            string        // non-empty if the remote side returned an error
+	exceptionValue Value         // typed exception value (if remote raised a Maggie exception)
+	resolved       atomic.Bool   // true after result is available
+	mu             sync.Mutex    // protects result/err/exceptionValue
 }
 
 // NewFuture creates an unresolved Future.
 func NewFuture() *FutureObject {
 	return &FutureObject{
-		ch: make(chan Value, 1),
+		ch:   make(chan Value, 1),
+		done: make(chan struct{}),
 	}
+}
+
+// publish marks the Future resolved exactly once: it delivers chVal to the
+// select-integration channel and closes done to wake every awaiter. Callers
+// set result/err/exceptionValue under mu before calling. A duplicate resolve
+// is ignored (rather than panicking on a second send/close).
+func (f *FutureObject) publish(chVal Value) {
+	if !f.resolved.CompareAndSwap(false, true) {
+		return
+	}
+	f.ch <- chVal
+	close(f.done)
 }
 
 // Resolve writes a successful result. Must be called exactly once.
 func (f *FutureObject) Resolve(val Value) {
 	f.mu.Lock()
 	f.result = val
-	f.resolved.Store(true)
 	f.mu.Unlock()
-	f.ch <- val
+	f.publish(val)
 }
 
 // ResolveError writes an error result. Must be called exactly once.
@@ -41,9 +54,8 @@ func (f *FutureObject) ResolveError(errMsg string) {
 	f.err = errMsg
 	f.result = Nil
 	f.exceptionValue = Nil
-	f.resolved.Store(true)
 	f.mu.Unlock()
-	f.ch <- Nil
+	f.publish(Nil)
 }
 
 // ResolveException writes an error result with a typed exception value.
@@ -54,10 +66,14 @@ func (f *FutureObject) ResolveException(exVal Value, errMsg string) {
 	f.err = errMsg
 	f.result = Nil
 	f.exceptionValue = exVal
-	f.resolved.Store(true)
 	f.mu.Unlock()
-	f.ch <- Nil
+	f.publish(Nil)
 }
+
+// Done returns a channel closed when the Future resolves. Reading it is
+// idempotent (a closed channel never blocks), so await is re-entrant and wakes
+// all waiters — unlike the one-shot ch.
+func (f *FutureObject) Done() <-chan struct{} { return f.done }
 
 // ExceptionValue returns the typed exception value, or Nil if none.
 func (f *FutureObject) ExceptionValue() Value {
@@ -92,9 +108,7 @@ func (f *FutureObject) Error() string {
 
 // ---------------------------------------------------------------------------
 // Future values are pointer-carrying heap Values (kindFuture) traced by the Go
-// GC. The concurrency registry keeps an id→future map only so the custom
-// collector can mark each future's buffered result/exceptionValue (block
-// liveness) until blocks migrate in stage 3.
+// GC; the object is reclaimed when the last reference drops.
 // ---------------------------------------------------------------------------
 
 func futureToValue(f *FutureObject) Value {

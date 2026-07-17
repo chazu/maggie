@@ -6,6 +6,7 @@ import (
 	"crypto/ed25519"
 	"crypto/rand"
 	"fmt"
+	"sync"
 	"testing"
 	"time"
 
@@ -50,6 +51,47 @@ func TestFuture_ResolveAndAwait(t *testing.T) {
 		t.Errorf("result: got %d, want 42", f.Result().SmallInt())
 	}
 	_ = futureVal
+}
+
+func TestFuture_AwaitIsReEntrant(t *testing.T) {
+	// Regression: await did an unconditional <-f.ch, so a second await (or an
+	// await after the ch was drained by a select/timeout) blocked forever, and
+	// multiple concurrent waiters could not all wake. Awaiting the done channel
+	// must be idempotent and broadcast.
+	vm := NewVM()
+	defer vm.Shutdown()
+
+	f := NewFuture()
+	futureVal := vm.registerFuture(f)
+	f.Resolve(FromSmallInt(42))
+
+	// Multiple sequential awaits must all return the value, not block.
+	for i := 0; i < 3; i++ {
+		done := make(chan Value, 1)
+		go func() { done <- vm.Send(futureVal, "await", nil) }()
+		select {
+		case got := <-done:
+			if got.SmallInt() != 42 {
+				t.Fatalf("await %d: got %d, want 42", i, got.SmallInt())
+			}
+		case <-time.After(2 * time.Second):
+			t.Fatalf("await %d blocked forever", i)
+		}
+	}
+
+	// Many concurrent waiters must all wake.
+	var wg sync.WaitGroup
+	for i := 0; i < 8; i++ {
+		wg.Add(1)
+		go func() { defer wg.Done(); vm.Send(futureVal, "await", nil) }()
+	}
+	waited := make(chan struct{})
+	go func() { wg.Wait(); close(waited) }()
+	select {
+	case <-waited:
+	case <-time.After(2 * time.Second):
+		t.Fatal("concurrent awaiters did not all wake")
+	}
 }
 
 func TestFuture_ResolveError(t *testing.T) {
