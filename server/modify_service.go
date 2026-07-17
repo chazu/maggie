@@ -3,7 +3,6 @@ package server
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"connectrpc.com/connect"
 
@@ -311,10 +310,10 @@ func (s *ModifyService) evaluateWithLocals(v *vm.VM, msg *maggiev1.EvaluateWithL
 		return true
 	})
 
-	// Compile the expression. For multi-statement source, put ^ only before
-	// the last statement so all statements execute.
-	wrapped := wrapWorkspaceSource(msg.Source)
-	method, compileErr := v.Compile(wrapped, nil)
+	// Compile the workspace source via the AST-level doIt compiler, which wraps
+	// the LAST statement in a return without any textual splicing — unlike the
+	// old dot-splitter, `x := 3.14` and periods inside block bodies survive.
+	method, compileErr := v.CompileExpression(msg.Source)
 	if compileErr != nil {
 		restoreGlobals(v, localNames, savedGlobals)
 		return &maggiev1.EvaluateWithLocalsResponse{
@@ -420,66 +419,6 @@ func restoreGlobals(v *vm.VM, localNames map[string]bool, saved map[string]vm.Va
 // wrapWorkspaceSource wraps workspace source as a doIt method.
 // For multi-statement source, all statements execute and the last one's
 // value is returned (^ only before the last statement).
-func wrapWorkspaceSource(source string) string {
-	source = strings.TrimSpace(source)
-	source = strings.TrimSuffix(source, ".")
-
-	// Split on statement separators
-	stmts := splitStatements(source)
-	if len(stmts) <= 1 {
-		return "doIt\n    ^" + source
-	}
-
-	// All statements but last execute normally, last one returns
-	var buf strings.Builder
-	buf.WriteString("doIt\n")
-	for i, stmt := range stmts {
-		stmt = strings.TrimSpace(stmt)
-		if stmt == "" {
-			continue
-		}
-		if i == len(stmts)-1 {
-			buf.WriteString("    ^")
-		} else {
-			buf.WriteString("    ")
-		}
-		buf.WriteString(stmt)
-		if i < len(stmts)-1 {
-			buf.WriteString(".\n")
-		}
-	}
-	return buf.String()
-}
-
-// splitStatements splits Smalltalk source on period statement separators,
-// handling string literals and nested constructs.
-func splitStatements(source string) []string {
-	var stmts []string
-	var current strings.Builder
-	inString := false
-
-	for i := 0; i < len(source); i++ {
-		ch := source[i]
-		if ch == '\'' {
-			inString = !inString
-			current.WriteByte(ch)
-		} else if ch == '.' && !inString {
-			s := strings.TrimSpace(current.String())
-			if s != "" {
-				stmts = append(stmts, s)
-			}
-			current.Reset()
-		} else {
-			current.WriteByte(ch)
-		}
-	}
-	s := strings.TrimSpace(current.String())
-	if s != "" {
-		stmts = append(stmts, s)
-	}
-	return stmts
-}
-
 func sideStr(classSide bool) string {
 	if classSide {
 		return "class"

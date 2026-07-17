@@ -5,7 +5,9 @@ import (
 
 	"connectrpc.com/connect"
 
+	"github.com/chazu/maggie/compiler"
 	maggiev1 "github.com/chazu/maggie/gen/maggie/v1"
+	"github.com/chazu/maggie/vm"
 )
 
 // ---------------------------------------------------------------------------
@@ -383,38 +385,27 @@ func TestEvaluateWithLocals_CompileError(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// wrapWorkspaceSource (internal helper, tested via EvaluateWithLocals)
+// Workspace eval (routes through the AST-level doIt compiler)
 // ---------------------------------------------------------------------------
 
-func TestWrapWorkspaceSource_SingleStatement(t *testing.T) {
-	result := wrapWorkspaceSource("3 + 4")
-	if result != "doIt\n    ^3 + 4" {
-		t.Errorf("wrapWorkspaceSource single = %q, want %q", result, "doIt\n    ^3 + 4")
-	}
-}
+// TestWorkspaceEvalSurvivesDecimalsAndBlocks regresses the workspace-eval path
+// away from the textual dot-splitter: `x := 3.14` and periods inside block
+// bodies must not be mistaken for statement separators. The old splitter turned
+// `x := 3.14` into `x := 3` / `^14` — a compile error — so a clean compile of
+// these sources is exactly the fix. (Execution needs the lib image; compilation
+// is where the splitter did its damage.)
+func TestWorkspaceEvalSurvivesDecimalsAndBlocks(t *testing.T) {
+	v := vm.NewVM()
+	v.UseGoCompiler(compiler.Compile)
 
-func TestWrapWorkspaceSource_MultipleStatements(t *testing.T) {
-	result := wrapWorkspaceSource("x := 1. x + 2")
-	// First statement should not have ^, last one should
-	if result == "" {
-		t.Fatal("wrapWorkspaceSource returned empty string")
+	sources := []string{
+		"x := 3.14. x",
+		"s := 0. #(1 2 3) do: [:e | s := s + e. s]. s",
+		"p := 'a.b.c'. p size",
 	}
-	// Should contain both statements
-	if len(result) < 10 {
-		t.Errorf("wrapWorkspaceSource result too short: %q", result)
-	}
-}
-
-func TestSplitStatements_Simple(t *testing.T) {
-	stmts := splitStatements("a := 1. b := 2. a + b")
-	if len(stmts) != 3 {
-		t.Errorf("splitStatements length = %d, want 3", len(stmts))
-	}
-}
-
-func TestSplitStatements_StringWithPeriod(t *testing.T) {
-	stmts := splitStatements("x := 'hello.world'. x size")
-	if len(stmts) != 2 {
-		t.Errorf("splitStatements length = %d, want 2 (period in string should not split)", len(stmts))
+	for _, src := range sources {
+		if _, err := v.CompileExpression(src); err != nil {
+			t.Errorf("workspace source must compile via the AST doIt path, got error for %q: %v", src, err)
+		}
 	}
 }
