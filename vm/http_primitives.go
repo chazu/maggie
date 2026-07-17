@@ -322,74 +322,7 @@ func (vm *VM) registerHttpPrimitives() {
 		return recv
 	})
 
-	// asyncRoute:method:handler: — like route:method:handler: but runs the Maggie
-	// handler block on the HTTP handler goroutine. Use for handlers
-	// that block inside Maggie (e.g. long-poll sleep loops) so they don't stall every
-	// other request waiting for the single dispatch goroutine to free up.
-	httpServerClass.AddMethod3(vm.Selectors, "asyncRoute:method:handler:", func(v *VM, recv Value, pathVal, methodVal, handlerBlock Value) Value {
-		srv := v.vmGetHttpServer(recv)
-		if srv == nil {
-			return Nil
-		}
-		path := v.valueToString(pathVal)
-		httpMethod := strings.ToUpper(v.valueToString(methodVal))
-		bv := v.currentInterpreter().getBlockValue(handlerBlock)
-		if bv == nil {
-			return Nil
-		}
-		// The handler block is retained for the server's lifetime inside the
-		// net/http closure below, which is itself a strong (Go-GC-traced)
-		// reference to the block Value — no pinning needed.
-		block := bv.Block
-		captures := bv.Captures
-		homeSelf := bv.HomeSelf
-		homeMethod := bv.HomeMethod
-
-		srv.mux.HandleFunc(path, func(w http.ResponseWriter, r *http.Request) {
-			if httpMethod != "" && r.Method != httpMethod {
-				http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-				return
-			}
-			defer func() {
-				if rec := recover(); rec != nil {
-					http.Error(w, fmt.Sprintf("Internal server error: %v", rec), http.StatusInternalServerError)
-				}
-			}()
-
-			// The handler runs on a forked goroutine; marshal its response to
-			// Go-native types (extractHTTPResult) on that goroutine, while its
-			// interpreter is still registered.
-			resultCh := make(chan httpResult, 1)
-
-			go func() {
-				defer v.unregisterInterpreter()
-				defer func() {
-					if rec := recover(); rec != nil {
-						resultCh <- httpResult{status: http.StatusInternalServerError}
-					}
-				}()
-				interp := v.newRequestInterpreter()
-				v.registerInterpreter(interp)
-				reqObj := &HttpRequestObject{request: r}
-				reqVal := v.vmRegisterHttpRequest(reqObj)
-				defer v.vmUnregisterHttpRequest(reqVal)
-				result := interp.ExecuteBlockDetached(block, captures, []Value{reqVal}, homeSelf, homeMethod)
-				resultCh <- v.extractHTTPResult(result)
-			}()
-
-			hr := <-resultCh
-			for k, hv := range hr.headers {
-				w.Header().Set(k, hv)
-			}
-			w.WriteHeader(hr.status)
-			if hr.hasBody {
-				w.Write(hr.body)
-			}
-		})
-		return recv
-	})
-
-	httpServerClass.AddMethod3(vm.Selectors, "route:method:handler:", func(v *VM, recv Value, pathVal, methodVal, handlerBlock Value) Value {
+	registerRoute := func(v *VM, recv, pathVal, methodVal, handlerBlock Value) Value {
 		srv := v.vmGetHttpServer(recv)
 		if srv == nil {
 			return Nil
@@ -442,7 +375,13 @@ func (vm *VM) registerHttpPrimitives() {
 			}
 		})
 		return recv
-	})
+	}
+	httpServerClass.AddMethod3(vm.Selectors, "route:method:handler:", registerRoute)
+	// asyncRoute:method:handler: is a synonym. Its old body forked a goroutine
+	// then immediately blocked on the result — no different from running the
+	// handler on the request goroutine (route: does that), so it now shares the
+	// same registration instead of a divergent forked copy.
+	httpServerClass.AddMethod3(vm.Selectors, "asyncRoute:method:handler:", registerRoute)
 
 	httpServerClass.AddMethod0(vm.Selectors, "start", func(v *VM, recv Value) Value {
 		srv := v.vmGetHttpServer(recv)
