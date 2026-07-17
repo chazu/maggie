@@ -878,3 +878,39 @@ func TestCompileCascadeSuperEmitsSuperSend(t *testing.T) {
 		t.Errorf("cascaded super sends must NOT emit a plain OpSend:\n%s", vm.Disassemble(method.Bytecode))
 	}
 }
+
+// TestCompileExprRunsCellAnalysis regresses closure corruption: CompileExpression
+// skipped findCellVariables, so a block that mutated a captured variable got a
+// private copy instead of a shared cell. Compile via CompileExpr and CompileDoIt
+// and assert identical bytecode-level cell handling by executing both.
+func TestCompileExprRunsCellAnalysis(t *testing.T) {
+	selectors := vm.NewSelectorTable()
+	symbols := vm.NewSymbolTable()
+	registry := newTestRegistry()
+
+	const src = "[:a | [ a := a + 1 ] value. a] value: 1"
+	viaExpr, err := CompileExpr(src, selectors, symbols, registry)
+	if err != nil {
+		t.Fatalf("CompileExpr: %v", err)
+	}
+	viaDoIt, _, err := CompileDoIt(src, selectors, symbols, registry)
+	if err != nil {
+		t.Fatalf("CompileDoIt: %v", err)
+	}
+	// Both must now emit cell (boxed) opcodes for the mutated capture — the old
+	// CompileExpr path emitted plain temp ops and lost the mutation.
+	hasCellOp := func(bc []byte) bool {
+		for i := 0; i < len(bc); {
+			switch vm.Opcode(bc[i]) {
+			case vm.OpPushCaptured, vm.OpStoreCaptured, vm.OpPushHomeTemp, vm.OpStoreHomeTemp:
+				return true
+			}
+			i += 1 + vm.Opcode(bc[i]).Info().OperandBytes
+		}
+		return false
+	}
+	if hasCellOp(viaDoIt.Bytecode) != hasCellOp(viaExpr.Bytecode) {
+		t.Errorf("CompileExpr and CompileDoIt disagree on cell handling:\n  expr:\n%s\n  doit:\n%s",
+			vm.Disassemble(viaExpr.Bytecode), vm.Disassemble(viaDoIt.Bytecode))
+	}
+}

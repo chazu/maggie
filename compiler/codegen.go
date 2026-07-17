@@ -264,38 +264,17 @@ func (c *Compiler) CompileMethod(method *MethodDef) *vm.CompiledMethod {
 	return result
 }
 
-// CompileExpression compiles an expression for REPL/eval.
+// CompileExpression compiles an expression for REPL/eval. It delegates to
+// CompileMethod with a synthetic `doIt` returning the expression, so the full
+// pipeline runs — crucially findCellVariables, which the old standalone path
+// skipped, causing `[:a | [ a := a + 1 ] value. a] value: 1` to answer 1
+// instead of 2 (the inner block mutated a private capture copy, not a shared
+// cell). Delegating also resets stale cell state on a reused Compiler.
 func (c *Compiler) CompileExpression(expr Expr) *vm.CompiledMethod {
-	c.pushFrame(&compilationFrame{
-		builder:    vm.NewBytecodeBuilder(),
-		literalMap: make(map[interface{}]int),
-		temps:      make(map[string]int),
-		args:       make(map[string]int),
+	return c.CompileMethod(&MethodDef{
+		Selector:   "doIt",
+		Statements: []Stmt{&Return{SpanVal: expr.Span(), Value: expr}},
 	})
-	defer c.popFrame()
-	c.blocks = nil
-
-	c.compileExpr(expr)
-	c.frame.builder.Emit(vm.OpReturnTop)
-
-	// Collect any builder errors (e.g., jump offset overflow)
-	c.errors = append(c.errors, c.frame.builder.Errors...)
-
-	b := vm.NewCompiledMethodBuilder("doIt", 0)
-	for _, code := range c.frame.builder.Bytes() {
-		b.Bytecode().EmitRaw(code)
-	}
-	for _, lit := range c.frame.literals {
-		b.AddLiteral(lit)
-	}
-	for _, block := range c.blocks {
-		b.AddBlock(block)
-	}
-
-	result := b.Build()
-	result.SourceMap = c.frame.sourceMap
-	result.Bytecode, result.SourceMap = Peephole(result.Bytecode, result.SourceMap)
-	return result
 }
 
 // endsWithReturn checks if statement list ends with a return.
