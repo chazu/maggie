@@ -344,26 +344,16 @@ func (vm *VM) registerCancellationContextPrimitives() {
 		// Create a channel that will close when context is done
 		ctx.doneOnce.Do(func() {
 			// Create a Maggie channel
-			ch := &ChannelObject{
-				ch: make(chan Value, 1),
-			}
+			ch := createChannel(1)
 			ctx.doneValue = v.registerChannel(ch)
 
 			// Monitor context in background
 			go func() {
 				<-ctx.Done()
 				// Send a value to signal done
-				select {
-				case ch.ch <- True:
-				default:
-				}
-				// Close the channel
-				ch.mu.Lock()
-				if !ch.closed.Load() {
-					ch.closed.Store(true)
-					close(ch.ch)
-				}
-				ch.mu.Unlock()
+				ch.safeTrySend(True)
+				// Close the channel (protocol-aware: never races senders)
+				ch.Close()
 			}()
 		})
 

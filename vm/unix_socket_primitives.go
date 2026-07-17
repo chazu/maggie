@@ -222,7 +222,11 @@ func (vm *VM) registerUnixSocketPrimitives() {
 					reader: bufio.NewReader(conn),
 				}
 				connVal := v.vmRegisterUnixConn(connObj)
-				ch.ch <- connVal
+				if !ch.safeSend(connVal) {
+					// Accept channel closed — drop the connection instead of
+					// panicking the accept loop.
+					conn.Close()
+				}
 			}
 		}()
 

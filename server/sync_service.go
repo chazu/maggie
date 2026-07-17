@@ -877,7 +877,13 @@ func (s *SyncService) ChannelSend(
 		}), nil
 	}
 
-	if !ch.SafeSend(val) {
+	// Ctx-aware send: a client disconnect or deadline frees this handler
+	// goroutine instead of pinning it forever on a full channel (SD-7).
+	sent, err := ch.SendCtx(ctx, val)
+	if err != nil {
+		return nil, connect.NewError(connect.CodeCanceled, err)
+	}
+	if !sent {
 		return connect.NewResponse(&maggiev1.ChannelSendResponse{
 			Success: false,
 			Error:   "channel closed",
@@ -900,7 +906,12 @@ func (s *SyncService) ChannelReceive(
 		}), nil
 	}
 
-	val, ok := ch.Receive()
+	// Ctx-aware receive: a client disconnect or deadline frees this handler
+	// goroutine instead of pinning it forever on an empty channel (SD-7).
+	val, ok, err := ch.ReceiveCtx(ctx)
+	if err != nil {
+		return nil, connect.NewError(connect.CodeCanceled, err)
+	}
 	if !ok {
 		// Closed and fully drained — release the export so the channel
 		// object isn't pinned for the life of the VM.

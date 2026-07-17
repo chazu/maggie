@@ -1,6 +1,7 @@
 package vm
 
 import (
+	"context"
 	"fmt"
 	"reflect"
 	"strings"
@@ -2921,5 +2922,109 @@ func TestGlobalsRWMutexForkedWriteIsolation(t *testing.T) {
 	val, ok := vm.LookupGlobal("isolationTest")
 	if !ok || val.SmallInt() != 100 {
 		t.Errorf("shared global isolationTest = %v, want 100", val)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Ctx-aware channel operations (SD-7: server RPC handlers must not block
+// forever when the client disconnects)
+// ---------------------------------------------------------------------------
+
+func TestChannelReceiveCtx_Canceled(t *testing.T) {
+	ch := createChannel(0)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Millisecond)
+	defer cancel()
+
+	start := time.Now()
+	_, ok, err := ch.ReceiveCtx(ctx)
+	if err == nil {
+		t.Fatal("expected ctx error on empty channel")
+	}
+	if ok {
+		t.Error("ok should be false on ctx expiry")
+	}
+	if time.Since(start) > 2*time.Second {
+		t.Error("ReceiveCtx did not honor ctx deadline")
+	}
+}
+
+func TestChannelReceiveCtx_Value(t *testing.T) {
+	ch := createChannel(1)
+	ch.SafeSend(FromSmallInt(42))
+
+	val, ok, err := ch.ReceiveCtx(context.Background())
+	if err != nil || !ok {
+		t.Fatalf("receive: ok=%v err=%v", ok, err)
+	}
+	if !val.IsSmallInt() || val.SmallInt() != 42 {
+		t.Errorf("got %v, want 42", val)
+	}
+}
+
+func TestChannelSendCtx_Canceled(t *testing.T) {
+	ch := createChannel(1)
+	ch.SafeSend(FromSmallInt(1)) // fill the buffer
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Millisecond)
+	defer cancel()
+
+	start := time.Now()
+	sent, err := ch.SendCtx(ctx, FromSmallInt(2))
+	if err == nil {
+		t.Fatal("expected ctx error on full channel")
+	}
+	if sent {
+		t.Error("sent should be false on ctx expiry")
+	}
+	if time.Since(start) > 2*time.Second {
+		t.Error("SendCtx did not honor ctx deadline")
+	}
+}
+
+func TestChannelSendCtx_Closed(t *testing.T) {
+	ch := createChannel(1)
+	ch.Close()
+
+	sent, err := ch.SendCtx(context.Background(), FromSmallInt(1))
+	if err != nil {
+		t.Fatalf("closed channel should not report a ctx error: %v", err)
+	}
+	if sent {
+		t.Error("send on closed channel should report sent=false")
+	}
+}
+
+func TestChannelSendCtx_ClosedWhileBlocked(t *testing.T) {
+	ch := createChannel(0)
+
+	go func() {
+		time.Sleep(30 * time.Millisecond)
+		ch.Close()
+	}()
+
+	sent, err := ch.SendCtx(context.Background(), FromSmallInt(1))
+	if err != nil {
+		t.Fatalf("close-while-blocked should not report a ctx error: %v", err)
+	}
+	if sent {
+		t.Error("send on channel closed mid-wait should report sent=false")
+	}
+}
+
+func TestChannelSendCtx_Success(t *testing.T) {
+	ch := createChannel(0)
+
+	done := make(chan Value, 1)
+	go func() {
+		val, _ := ch.Receive()
+		done <- val
+	}()
+
+	sent, err := ch.SendCtx(context.Background(), FromSmallInt(7))
+	if err != nil || !sent {
+		t.Fatalf("send: sent=%v err=%v", sent, err)
+	}
+	if got := <-done; !got.IsSmallInt() || got.SmallInt() != 7 {
+		t.Errorf("received %v, want 7", got)
 	}
 }

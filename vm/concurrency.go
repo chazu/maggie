@@ -1,6 +1,7 @@
 package vm
 
 import (
+	"context"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -19,51 +20,62 @@ import (
 // ChannelObject wraps a Go channel for use in Smalltalk. The buffered values
 // live in the Go channel `ch`; since Values are pointer-carrying, Go's GC
 // traces the channel buffer directly — no separate liveness mirror is needed.
+//
+// Close protocol: closing a Go channel while a sender is parked on it is a
+// data race (recover-ing the resulting panic does not fix that). Blocking
+// senders therefore register in `senders` (under mu) and select on `done`;
+// Close() closes `done` first, waits for parked senders to vacate, and only
+// then closes `ch`. Receivers are unaffected — `ch` still closes, so drains
+// and reflect.Select keep their semantics.
 type ChannelObject struct {
-	vtable *VTable
-	ch     chan Value
-	closed atomic.Bool
-	mu     sync.Mutex // protects the close operation
+	vtable  *VTable
+	ch      chan Value
+	done    chan struct{}  // closed by Close() before ch; wakes parked senders
+	senders sync.WaitGroup // blocking senders currently parked on ch
+	closed  atomic.Bool
+	mu      sync.Mutex // protects the close flag and sender registration
 }
 
-// safeSend attempts to send val on ch.ch while holding the mutex to prevent
-// a concurrent close from causing a panic. The mutex is held only to check
-// the closed flag and initiate the send; for unbuffered channels the send
-// may block while holding the lock (which is acceptable because close() also
-// acquires the lock, so close will wait until the send completes or another
-// goroutine receives).
+// safeSend sends val, blocking until sent or the channel closes.
 func (co *ChannelObject) safeSend(val Value) bool {
+	sent, _ := co.sendCtx(nil, val)
+	return sent
+}
+
+// sendCtx is the single blocking-send implementation. A nil ctx means "block
+// until sent or closed". Returns (sent, ctxErr); sent=false with a nil ctxErr
+// means the channel closed.
+func (co *ChannelObject) sendCtx(ctx context.Context, val Value) (bool, error) {
 	co.mu.Lock()
 	if co.closed.Load() {
 		co.mu.Unlock()
-		return false
+		return false, nil
 	}
-	// For buffered channels with space, the send completes immediately.
-	// For unbuffered or full buffered channels, we must unlock before
-	// blocking to avoid deadlock with close().
+	// Buffered channel with space (or ready receiver): completes immediately.
 	select {
 	case co.ch <- val:
 		co.mu.Unlock()
-		return true
+		return true, nil
 	default:
-		// Channel is full or unbuffered with no receiver; unlock and
-		// do a blocking send with recover protection.
-		co.mu.Unlock()
-		return co.safeSendBlocking(val)
 	}
-}
+	// Register as a parked sender while still holding mu, so Close() cannot
+	// pass senders.Wait() before this goroutine is selecting on done.
+	co.senders.Add(1)
+	co.mu.Unlock()
+	defer co.senders.Done()
 
-// safeSendBlocking does a blocking send with defer/recover to catch
-// "send on closed channel" panics that can occur if the channel is
-// closed while we are waiting for a receiver.
-func (co *ChannelObject) safeSendBlocking(val Value) (ok bool) {
-	defer func() {
-		if r := recover(); r != nil {
-			ok = false
-		}
-	}()
-	co.ch <- val
-	return true
+	var ctxDone <-chan struct{}
+	if ctx != nil {
+		ctxDone = ctx.Done()
+	}
+	select {
+	case co.ch <- val:
+		return true, nil
+	case <-co.done:
+		return false, nil
+	case <-ctxDone: // nil when ctx == nil: never fires
+		return false, ctx.Err()
+	}
 }
 
 // safeTrySend attempts a non-blocking send on ch.ch while holding the
@@ -82,8 +94,14 @@ func (co *ChannelObject) safeTrySend(val Value) bool {
 	}
 }
 
+// NewChannelObject creates a standalone ChannelObject with the given buffer
+// capacity (0 = unbuffered). Exported for server tests and wiring layers.
+func NewChannelObject(capacity int) *ChannelObject {
+	return createChannel(capacity)
+}
+
 func createChannel(buffered int) *ChannelObject {
-	ch := &ChannelObject{}
+	ch := &ChannelObject{done: make(chan struct{})}
 	if buffered > 0 {
 		ch.ch = make(chan Value, buffered)
 	} else {
@@ -104,6 +122,26 @@ func (co *ChannelObject) Receive() (Value, bool) {
 	return val, ok
 }
 
+// ReceiveCtx blocks until a value is received, the channel closes, or ctx is
+// done. Returns (value, ok, ctxErr); ctxErr is non-nil only when ctx expired
+// first. Used by server RPC handlers so a client disconnect frees the handler
+// goroutine instead of pinning it forever on an empty channel.
+func (co *ChannelObject) ReceiveCtx(ctx context.Context) (Value, bool, error) {
+	select {
+	case val, ok := <-co.ch:
+		return val, ok, nil
+	case <-ctx.Done():
+		return Nil, false, ctx.Err()
+	}
+}
+
+// SendCtx sends val, blocking until sent, the channel closes, or ctx is done.
+// Returns (sent, ctxErr); sent=false with a nil ctxErr means the channel
+// closed. The RPC counterpart of safeSend.
+func (co *ChannelObject) SendCtx(ctx context.Context, val Value) (bool, error) {
+	return co.sendCtx(ctx, val)
+}
+
 // TryReceive attempts a non-blocking receive. Returns (value, gotValue, ok).
 func (co *ChannelObject) TryReceive() (Value, bool, bool) {
 	select {
@@ -114,14 +152,19 @@ func (co *ChannelObject) TryReceive() (Value, bool, bool) {
 	}
 }
 
-// Close closes the channel.
+// Close closes the channel. Parked senders are woken via done and observe
+// the close as sent=false; ch itself is closed only after they vacate, so
+// close(co.ch) never races a parked sender.
 func (co *ChannelObject) Close() {
 	co.mu.Lock()
 	defer co.mu.Unlock()
-	if !co.closed.Load() {
-		co.closed.Store(true)
-		close(co.ch)
+	if co.closed.Load() {
+		return
 	}
+	co.closed.Store(true)
+	close(co.done)
+	co.senders.Wait()
+	close(co.ch)
 }
 
 // Closed returns true if the channel is closed.

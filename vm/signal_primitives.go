@@ -41,7 +41,11 @@ func (vm *VM) registerSignalPrimitives() {
 
 		go func() {
 			for range goCh {
-				ch.ch <- sigSymVal
+				// safeSend instead of a raw send: a closed channel stops
+				// delivery instead of panicking this goroutine.
+				if !ch.safeSend(sigSymVal) {
+					return
+				}
 			}
 		}()
 
@@ -82,7 +86,9 @@ func (vm *VM) registerSignalPrimitives() {
 					sigName = "SIG" + sigName
 				}
 				symVal := v.Symbols.SymbolValue(sigName)
-				ch.ch <- symVal
+				if !ch.safeSend(symVal) {
+					return
+				}
 			}
 		}()
 
