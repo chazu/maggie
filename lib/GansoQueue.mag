@@ -1,0 +1,37 @@
+"""
+A named queue within a GansoDatabase. Producers `enqueue:` payloads; workers
+`claimOne:` a job to process, then `ack` it (see GansoJob).
+
+```example
+| db q id |
+db := GansoDatabase open: '/tmp/ganso.db'.
+q := db queue: 'emails'.
+id := q enqueue: 'welcome@example.com'.
+db close
+```
+"""
+GansoQueue subclass: Object
+
+  """
+  Enqueue a payload string and return the new job's id.
+
+  ```example
+  id := q enqueue: 'welcome@example.com'
+  ```
+  """
+  method: enqueue: payload <String> ^<String> ! <IO> [
+      <primitive>
+  ]
+
+  """
+  Claim the next available job for the given worker name, or nil if the queue
+  is empty. The claim is durable — if the worker dies before `ack`, the job
+  becomes claimable again.
+
+  ```example
+  job := q claimOne: 'worker-1'
+  ```
+  """
+  method: claimOne: worker <String> ^<GansoJob> ! <IO> [
+      <primitive>
+  ]

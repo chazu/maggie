@@ -1,0 +1,46 @@
+"""
+A job claimed from a GansoQueue. Read its `id` and `payload`, do the work,
+then `ack` it so it is not redelivered.
+
+```example
+| job |
+job := q claimOne: 'worker-1'.
+job isNil ifFalse: [
+    Transcript showLine: job payload.
+    job ack]
+```
+"""
+GansoJob subclass: Object
+
+  """
+  The job's unique id.
+
+  ```example
+  job id
+  ```
+  """
+  method: id ^<String> [
+      <primitive>
+  ]
+
+  """
+  The job's payload string.
+
+  ```example
+  job payload
+  ```
+  """
+  method: payload ^<String> [
+      <primitive>
+  ]
+
+  """
+  Acknowledge the job as done so it is not redelivered.
+
+  ```example
+  job ack
+  ```
+  """
+  method: ack ! <IO> [
+      <primitive>
+  ]

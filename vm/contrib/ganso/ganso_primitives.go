@@ -33,7 +33,7 @@ func RegisterGansoPrimitives(v *vm.VM) {
 	jClass := v.RegisterGoType("GansoJob", reflect.TypeOf((*GansoJobObject)(nil)))
 
 	// GansoDatabase open: <path> — open/create a ganso DB at path.
-	dbClass.AddClassMethod1(v.Selectors, "primOpen:", func(v *vm.VM, recv vm.Value, pathVal vm.Value) vm.Value {
+	dbClass.AddClassMethod1(v.Selectors, "open:", func(v *vm.VM, recv vm.Value, pathVal vm.Value) vm.Value {
 		path := v.ValueToString(pathVal)
 		if path == "" {
 			return v.NewFailureResult("Ganso open: requires a path string")
@@ -50,7 +50,7 @@ func RegisterGansoPrimitives(v *vm.VM) {
 		return val
 	})
 
-	dbClass.AddMethod1(v.Selectors, "primQueue:", func(v *vm.VM, recv vm.Value, nameVal vm.Value) vm.Value {
+	dbClass.AddMethod1(v.Selectors, "queue:", func(v *vm.VM, recv vm.Value, nameVal vm.Value) vm.Value {
 		o := getGansoDB(v, recv)
 		if o == nil {
 			return v.NewFailureResult("not a GansoDatabase")
@@ -63,7 +63,7 @@ func RegisterGansoPrimitives(v *vm.VM) {
 		return val
 	})
 
-	dbClass.AddMethod0(v.Selectors, "primClose", func(v *vm.VM, recv vm.Value) vm.Value {
+	dbClass.AddMethod0(v.Selectors, "close", func(v *vm.VM, recv vm.Value) vm.Value {
 		o := getGansoDB(v, recv)
 		if o == nil {
 			return v.NewFailureResult("not a GansoDatabase")
@@ -77,7 +77,7 @@ func RegisterGansoPrimitives(v *vm.VM) {
 
 	// GansoDatabase exec: <sql> args: <Array> — single positional-param write
 	// statement in an IMMEDIATE transaction. Returns true, or a failure.
-	dbClass.AddMethod2(v.Selectors, "primExec:args:", func(v *vm.VM, recv vm.Value, sqlVal, argsVal vm.Value) vm.Value {
+	dbClass.AddMethod2(v.Selectors, "execute:with:", func(v *vm.VM, recv vm.Value, sqlVal, argsVal vm.Value) vm.Value {
 		o := getGansoDB(v, recv)
 		if o == nil {
 			return v.NewFailureResult("not a GansoDatabase")
@@ -90,7 +90,7 @@ func RegisterGansoPrimitives(v *vm.VM) {
 
 	// GansoDatabase query: <sql> args: <Array> — positional-param read.
 	// Returns an Array of Dictionaries (column name -> value).
-	dbClass.AddMethod2(v.Selectors, "primQuery:args:", func(v *vm.VM, recv vm.Value, sqlVal, argsVal vm.Value) vm.Value {
+	dbClass.AddMethod2(v.Selectors, "query:with:", func(v *vm.VM, recv vm.Value, sqlVal, argsVal vm.Value) vm.Value {
 		o := getGansoDB(v, recv)
 		if o == nil {
 			return v.NewFailureResult("not a GansoDatabase")
@@ -106,7 +106,7 @@ func RegisterGansoPrimitives(v *vm.VM) {
 	})
 
 	// GansoQueue enqueue: <payloadString> — returns the job id.
-	qClass.AddMethod1(v.Selectors, "primEnqueue:", func(v *vm.VM, recv vm.Value, payloadVal vm.Value) vm.Value {
+	qClass.AddMethod1(v.Selectors, "enqueue:", func(v *vm.VM, recv vm.Value, payloadVal vm.Value) vm.Value {
 		o := getGansoQueue(v, recv)
 		if o == nil {
 			return v.NewFailureResult("not a GansoQueue")
@@ -119,7 +119,7 @@ func RegisterGansoPrimitives(v *vm.VM) {
 	})
 
 	// GansoQueue claimOne: <workerID> — returns a GansoJob, or nil if none.
-	qClass.AddMethod1(v.Selectors, "primClaimOne:", func(v *vm.VM, recv vm.Value, workerVal vm.Value) vm.Value {
+	qClass.AddMethod1(v.Selectors, "claimOne:", func(v *vm.VM, recv vm.Value, workerVal vm.Value) vm.Value {
 		o := getGansoQueue(v, recv)
 		if o == nil {
 			return v.NewFailureResult("not a GansoQueue")
@@ -138,7 +138,7 @@ func RegisterGansoPrimitives(v *vm.VM) {
 		return val
 	})
 
-	jClass.AddMethod0(v.Selectors, "primId", func(v *vm.VM, recv vm.Value) vm.Value {
+	jClass.AddMethod0(v.Selectors, "id", func(v *vm.VM, recv vm.Value) vm.Value {
 		o := getGansoJob(v, recv)
 		if o == nil {
 			return v.NewFailureResult("not a GansoJob")
@@ -146,7 +146,7 @@ func RegisterGansoPrimitives(v *vm.VM) {
 		return v.Registry().NewStringValue(o.job.ID)
 	})
 
-	jClass.AddMethod0(v.Selectors, "primPayload", func(v *vm.VM, recv vm.Value) vm.Value {
+	jClass.AddMethod0(v.Selectors, "payload", func(v *vm.VM, recv vm.Value) vm.Value {
 		o := getGansoJob(v, recv)
 		if o == nil {
 			return v.NewFailureResult("not a GansoJob")
@@ -154,7 +154,7 @@ func RegisterGansoPrimitives(v *vm.VM) {
 		return v.Registry().NewStringValue(string(o.job.Payload))
 	})
 
-	jClass.AddMethod0(v.Selectors, "primAck", func(v *vm.VM, recv vm.Value) vm.Value {
+	jClass.AddMethod0(v.Selectors, "ack", func(v *vm.VM, recv vm.Value) vm.Value {
 		o := getGansoJob(v, recv)
 		if o == nil {
 			return v.NewFailureResult("not a GansoJob")

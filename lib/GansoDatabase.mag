@@ -1,0 +1,77 @@
+"""
+Ganso is an embedded, durable job queue backed by SQLite. A GansoDatabase
+holds named queues; producers enqueue payloads and workers claim, process, and
+acknowledge jobs. The database also exposes raw SQL for advanced use.
+
+```example
+"Open a queue database, enqueue a job, claim and acknowledge it"
+| db q job |
+db := GansoDatabase open: '/tmp/ganso.db'.
+q := db queue: 'emails'.
+q enqueue: 'welcome@example.com'.
+job := q claimOne: 'worker-1'.
+job ack.
+db close
+```
+"""
+GansoDatabase subclass: Object
+
+  """
+  Open (creating if needed) a Ganso database at the given file path.
+
+  ```example
+  | db |
+  db := GansoDatabase open: '/tmp/ganso.db'.
+  db close
+  ```
+  """
+  classMethod: open: path <String> ^<GansoDatabase> ! <IO> [
+      <primitive>
+  ]
+
+  """
+  Return the named queue, creating it if it does not exist.
+
+  ```example
+  | db q |
+  db := GansoDatabase open: '/tmp/ganso.db'.
+  q := db queue: 'emails'.
+  db close
+  ```
+  """
+  method: queue: name <String> ^<GansoQueue> [
+      <primitive>
+  ]
+
+  """
+  Execute a SQL statement with positional `?` arguments (no result rows).
+
+  ```example
+  db execute: 'DELETE FROM jobs WHERE queue = ?' with: #('emails')
+  ```
+  """
+  method: execute: sql <String> with: args <Array> ! <IO> [
+      <primitive>
+  ]
+
+  """
+  Run a SQL query with positional `?` arguments and return the rows.
+
+  ```example
+  rows := db query: 'SELECT * FROM jobs WHERE queue = ?' with: #('emails')
+  ```
+  """
+  method: query: sql <String> with: args <Array> ! <IO> [
+      <primitive>
+  ]
+
+  """
+  Close the database and release its file handle.
+
+  ```example
+  db close
+  ```
+  """
+  method: close ! <IO> [
+      <primitive>
+  ]
