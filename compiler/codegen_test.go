@@ -847,3 +847,34 @@ func TestCompileThreadsInstanceVars(t *testing.T) {
 		t.Errorf("without instVars, `^x` falls back to PUSH_GLOBAL:\n%s", vm.Disassemble(withoutIvars.Bytecode))
 	}
 }
+
+// TestCompileCascadeSuperEmitsSuperSend regresses the bug where cascaded
+// messages on `super` were dynamically dispatched on self (OpSend) instead of
+// OpSendSuper — which could re-enter an override and recurse infinitely.
+func TestCompileCascadeSuperEmitsSuperSend(t *testing.T) {
+	selectors := vm.NewSelectorTable()
+	symbols := vm.NewSymbolTable()
+	registry := newTestRegistry()
+
+	// foo [ super bar; baz ]
+	method, err := Compile("foo\n    super bar; baz", selectors, symbols, registry, nil)
+	if err != nil {
+		t.Fatalf("compile: %v", err)
+	}
+	sawSuper, sawPlainSend := false, false
+	for i := 0; i < len(method.Bytecode); {
+		switch vm.Opcode(method.Bytecode[i]) {
+		case vm.OpSendSuper:
+			sawSuper = true
+		case vm.OpSend:
+			sawPlainSend = true
+		}
+		i += 1 + vm.Opcode(method.Bytecode[i]).Info().OperandBytes
+	}
+	if !sawSuper {
+		t.Errorf("cascaded super sends must emit OpSendSuper:\n%s", vm.Disassemble(method.Bytecode))
+	}
+	if sawPlainSend {
+		t.Errorf("cascaded super sends must NOT emit a plain OpSend:\n%s", vm.Disassemble(method.Bytecode))
+	}
+}

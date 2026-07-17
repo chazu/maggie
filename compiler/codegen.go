@@ -842,8 +842,20 @@ func (c *Compiler) emitSendSuper(selector string, numArgs int) {
 // ---------------------------------------------------------------------------
 
 func (c *Compiler) compileCascade(cascade *Cascade) {
-	// Compile receiver once
+	// Compile receiver once. A `super` receiver pushes self but each cascaded
+	// message must dispatch to the superclass, so pick the send op accordingly
+	// — otherwise `super foo; bar` would dynamically dispatch on self and could
+	// re-enter an override of foo (infinite recursion) instead of super's.
+	_, isSuper := cascade.Receiver.(*Super)
 	c.compileExpr(cascade.Receiver)
+
+	send := func(selector string, numArgs int) {
+		if isSuper {
+			c.emitSendSuper(selector, numArgs)
+		} else {
+			c.emitSend(selector, numArgs)
+		}
+	}
 
 	for i, msg := range cascade.Messages {
 		// Dup receiver for all but last message
@@ -854,15 +866,15 @@ func (c *Compiler) compileCascade(cascade *Cascade) {
 		// Compile message arguments and send
 		switch msg.Type {
 		case UnaryMsg:
-			c.emitSend(msg.Selector, 0)
+			send(msg.Selector, 0)
 		case BinaryMsg:
 			c.compileExpr(msg.Arguments[0])
-			c.emitSend(msg.Selector, 1)
+			send(msg.Selector, 1)
 		case KeywordMsg:
 			for _, arg := range msg.Arguments {
 				c.compileExpr(arg)
 			}
-			c.emitSend(msg.Selector, len(msg.Arguments))
+			send(msg.Selector, len(msg.Arguments))
 		}
 
 		// Pop result of non-last messages
