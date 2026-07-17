@@ -25,6 +25,18 @@ func gitCheckout(dir, ref string) error {
 	return nil
 }
 
+// gitResetHard hard-resets the working tree to ref (e.g. origin/<branch>), so a
+// branch dependency advances to the fetched remote tip instead of lingering at
+// the local branch's old commit.
+func gitResetHard(dir, ref string) error {
+	cmd := exec.Command("git", "reset", "--hard", "--quiet", ref)
+	cmd.Dir = dir
+	if out, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("git reset --hard %s in %s: %s: %w", ref, dir, strings.TrimSpace(string(out)), err)
+	}
+	return nil
+}
+
 // gitFetch fetches updates from the remote.
 func gitFetch(dir string) error {
 	cmd := exec.Command("git", "fetch", "--quiet", "--all", "--tags")

@@ -2,6 +2,7 @@ package manifest
 
 import (
 	"fmt"
+	"sort"
 	"os"
 	"path/filepath"
 )
@@ -73,7 +74,17 @@ func (r *Resolver) Resolve() ([]ResolvedDep, error) {
 func (r *Resolver) resolveAll(deps map[string]Dependency, resolved map[string]*ResolvedDep) ([]ResolvedDep, error) {
 	var order []ResolvedDep
 
-	for name, dep := range deps {
+	// Iterate in sorted name order: the returned load order (and the lock file
+	// derived from it) must be deterministic, otherwise the image build order
+	// varies between runs (it matters when sibling deps extend the same class).
+	names := make([]string, 0, len(deps))
+	for name := range deps {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+
+	for _, name := range names {
+		dep := deps[name]
 		if _, ok := resolved[name]; ok {
 			continue // already resolved
 		}
@@ -208,6 +219,16 @@ func (r *Resolver) resolveOne(name string, dep Dependency) (*ResolvedDep, error)
 			if err := gitCheckout(depDir, ref); err != nil {
 				return nil, err
 			}
+			// For a branch, `git checkout <branch>` on an already-checked-out
+			// local branch leaves it at its old commit — it never advances to
+			// the fetched remote tip. Hard-reset to origin/<branch> so the dep
+			// actually tracks the branch. (Tags/commits are immutable refs and
+			// need no reset.)
+			if dep.Tag == "" && dep.Commit == "" && dep.Branch != "" {
+				if err := gitResetHard(depDir, "origin/"+dep.Branch); err != nil {
+					return nil, err
+				}
+			}
 		}
 
 		// Try to load its manifest
@@ -233,7 +254,16 @@ func (r *Resolver) resolveOne(name string, dep Dependency) (*ResolvedDep, error)
 func (r *Resolver) writeLock(resolved map[string]*ResolvedDep) error {
 	lf := &LockFile{}
 
-	for _, rd := range resolved {
+	// Emit lock entries in sorted name order so lock.toml doesn't churn between
+	// otherwise-identical runs.
+	names := make([]string, 0, len(resolved))
+	for name := range resolved {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+
+	for _, name := range names {
+		rd := resolved[name]
 		ld := LockedDep{
 			Name: rd.Name,
 		}
