@@ -279,6 +279,12 @@ func printValue(vmInst *vm.VM, v vm.Value) {
 	case v.IsSymbol():
 		name := vmInst.Symbols.Name(v.SymbolID())
 		fmt.Printf("#%s\n", name)
+	case vm.IsCharacterValue(v):
+		if s := vmInst.Send(v, "printString", nil); vm.IsStringValue(s) {
+			fmt.Println(vmInst.Registry().GetStringContent(s))
+		} else {
+			fmt.Println("a Character")
+		}
 	case v.IsObject():
 		result := vmInst.Send(v, "printString", nil)
 		if result.IsSmallInt() {
@@ -287,6 +293,12 @@ func printValue(vmInst *vm.VM, v vm.Value) {
 			printValue(vmInst, result)
 		}
 	default:
-		fmt.Printf("<%v>\n", v)
+		// Fall back to the value's own printString rather than dumping the raw
+		// NaN-box internals ($h once printed as <{9222… <nil>}>).
+		if s := vmInst.Send(v, "printString", nil); vm.IsStringValue(s) {
+			fmt.Println(vmInst.Registry().GetStringContent(s))
+		} else {
+			fmt.Printf("<%v>\n", v)
+		}
 	}
 }
