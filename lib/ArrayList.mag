@@ -379,6 +379,17 @@ ArrayList subclass: Collection
   """
   method: sort: aBlock ^<Self> [ <primitive> ]
 
+  """
+  Sort the list in place using the default `<` ordering. Returns self.
+
+  ```example
+  (ArrayList withAll: #(3 1 2)) sort asArray >>> #(1 2 3 )
+  ```
+  """
+  method: sort ^<Self> [
+      ^self sort: [:a :b | (a < b) ifTrue: [-1] ifFalse: [(a > b) ifTrue: [1] ifFalse: [0]]]
+  ]
+
   # --- Printing ---
 
   """

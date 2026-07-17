@@ -57,10 +57,7 @@ Set subclass: Collection
   ```
   """
   method: reject: aBlock ^<Set> [
-    | result <Set> |
-    result := Set new.
-    self do: [:each | (aBlock value: each) ifFalse: [result add: each]].
-    ^result
+      ^self select: [:each | (aBlock value: each) not]
   ]
 
   """
@@ -129,3 +126,14 @@ Set subclass: Collection
 
   """Evaluate block once for each element."""
   method: do: block [ <primitive> ]
+
+  """
+  Return the set's elements as a sorted Array (using the default `<` ordering).
+
+  ```example
+  ((Set new add: 3; add: 1; add: 2; yourself) sorted) >>> #(1 2 3 )
+  ```
+  """
+  method: sorted ^<Array> [
+      ^self asArray sorted
+  ]

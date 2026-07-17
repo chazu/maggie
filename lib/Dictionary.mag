@@ -134,10 +134,7 @@ Dictionary subclass: Collection
   ```
   """
   method: reject: block ^<Dictionary> [
-      | result <Dictionary> |
-      result := Dictionary new.
-      self keysAndValuesDo: [:k :v | (block value: v) ifFalse: [result at: k put: v]].
-      ^result
+      ^self select: [:v | (block value: v) not]
   ]
 
   """
