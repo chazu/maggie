@@ -46,14 +46,21 @@ RemoteProcess subclass: Object
   ]
 
   """
-  Request-response: send a message and return a Future that will
-  resolve with the remote process's response. Use `await` on the
-  Future to block until the result is available.
+  Send a message to the remote process and return a Future for the delivery.
+  The Future resolves once the message has been delivered (or with an error if
+  delivery fails).
+
+  NOTE: a reply VALUE from the remote process is not yet delivered back — the
+  message is placed in the target's mailbox and the Future resolves with nil,
+  not the target's return value. (End-to-end request-response needs
+  correlation-id reply routing, which is not implemented.) Use it for delivery
+  confirmation / error propagation; for a reply, have the target send a message
+  back to a process you monitor.
 
   ```example
   | future <Future> |
   future := worker asyncSend: #compute: with: 42.
-  future await        "=> the result from the remote side"
+  future await        "=> nil once delivered (not the remote return value)"
   ```
   """
   method: asyncSend: selector <Symbol> with: payload ^<Future> ! <Network> [

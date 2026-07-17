@@ -604,6 +604,11 @@ func (s *SyncService) DeliverMessage(
 		}), nil
 	}
 
+	// NOTE: ResponsePayload is intentionally left empty. Delivery is to the
+	// target's mailbox (async), so there is no synchronous return value to send
+	// back — asyncSend:with:'s Future resolves to nil on delivery. True
+	// request-response would need correlation-id reply routing (a separate
+	// inbound reply message resolving the sender's Future), which is not built.
 	return connect.NewResponse(&maggiev1.DeliverMessageResponse{
 		Success: true,
 	}), nil
