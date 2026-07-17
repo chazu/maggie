@@ -355,7 +355,9 @@ func (vm *VM) registerRemoteChannelPrimitives() {
 		if ref.IsClosed() {
 			return recv
 		}
-		ref.CloseFunc(ref.ChannelID)
+		if err := ref.CloseFunc(ref.ChannelID); err != nil {
+			return v.SignalPrimitiveError("close", fmt.Sprintf("remote close failed: %v", err))
+		}
 		ref.MarkClosed()
 		return recv
 	})

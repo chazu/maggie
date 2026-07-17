@@ -355,13 +355,16 @@ func (vm *VM) executeSelect(casesArray Value, defaultBlock Value) Value {
 		return Nil
 	}
 
-	cases := make([]SelectCase, len(arr))
-	for i, caseVal := range arr {
+	cases := make([]SelectCase, 0, len(arr))
+	for _, caseVal := range arr {
 		sc, ok := vm.parseSelectCase(caseVal)
 		if !ok {
-			continue
+			// Signal rather than silently skipping — a skipped case previously
+			// left a zero-valued (nil-channel) entry that the select machinery
+			// then treated as a dead case, masking the user's malformed input.
+			return vm.SignalPrimitiveError("select:", "malformed select case")
 		}
-		cases[i] = sc
+		cases = append(cases, sc)
 	}
 
 	return vm.primitiveSelect(cases, defaultBlock)
