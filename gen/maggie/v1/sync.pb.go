@@ -560,6 +560,7 @@ func (*PingRequest) Descriptor() ([]byte, []int) {
 type PingResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	ContentCount  int64                  `protobuf:"varint,1,opt,name=content_count,json=contentCount,proto3" json:"content_count,omitempty"` // number of hashes in local content store
+	NodeId        []byte                 `protobuf:"bytes,2,opt,name=node_id,json=nodeId,proto3" json:"node_id,omitempty"`                    // responder's 32-byte Ed25519 node identity (for peer-ID handshake)
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -599,6 +600,13 @@ func (x *PingResponse) GetContentCount() int64 {
 		return x.ContentCount
 	}
 	return 0
+}
+
+func (x *PingResponse) GetNodeId() []byte {
+	if x != nil {
+		return x.NodeId
+	}
+	return nil
 }
 
 type ResolveRequest struct {
@@ -1716,9 +1724,10 @@ const file_maggie_v1_sync_proto_rawDesc = "" +
 	"\rServeResponse\x12\x1c\n" +
 	"\tavailable\x18\x01 \x03(\fR\tavailable\x12\x16\n" +
 	"\x06chunks\x18\x02 \x03(\fR\x06chunks\"\r\n" +
-	"\vPingRequest\"3\n" +
+	"\vPingRequest\"L\n" +
 	"\fPingResponse\x12#\n" +
-	"\rcontent_count\x18\x01 \x01(\x03R\fcontentCount\"/\n" +
+	"\rcontent_count\x18\x01 \x01(\x03R\fcontentCount\x12\x17\n" +
+	"\anode_id\x18\x02 \x01(\fR\x06nodeId\"/\n" +
 	"\x0eResolveRequest\x12\x1d\n" +
 	"\n" +
 	"class_name\x18\x01 \x01(\tR\tclassName\"D\n" +

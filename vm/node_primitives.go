@@ -20,8 +20,9 @@ import (
 // vm/dist (which imports vm, creating a cycle).
 type NodeRefData struct {
 	Addr      string
-	PublicKey ed25519.PublicKey  // our public key
-	privKey   ed25519.PrivateKey // our private key
+	PublicKey ed25519.PublicKey  // OUR public key (used to sign outgoing envelopes)
+	privKey   ed25519.PrivateKey // OUR private key
+	peerID    atomic.Pointer[[32]byte] // the REMOTE peer's node id, learned via Ping handshake
 	nonce     atomic.Uint64
 
 	// SendFunc is injected by the cmd/mag layer to perform the actual
@@ -71,11 +72,42 @@ func (n *NodeRefData) Sign(data []byte) []byte {
 	return ed25519.Sign(n.privKey, data)
 }
 
-// NodeID returns the 32-byte node identifier.
+// NodeID returns OUR 32-byte node identifier — the sender id stamped on
+// outgoing envelopes and request-auth headers. This is the LOCAL identity, not
+// the peer's; use PeerNodeID for the remote side's identity.
 func (n *NodeRefData) NodeID() [32]byte {
 	var nid [32]byte
 	copy(nid[:], n.PublicKey)
 	return nid
+}
+
+// SetPeerID records the remote peer's node identity (learned from the Ping
+// handshake). Idempotent and safe for concurrent callers.
+func (n *NodeRefData) SetPeerID(id [32]byte) {
+	cp := id
+	n.peerID.Store(&cp)
+}
+
+// PeerNodeID returns the remote peer's node identity and whether it is known
+// yet. Health-monitoring, DOWN routing (findNodeRefByID), and node-death
+// cleanup (DrainRemoteChannels) must key on THIS, not on our own NodeID().
+func (n *NodeRefData) PeerNodeID() (id [32]byte, ok bool) {
+	if p := n.peerID.Load(); p != nil {
+		return *p, true
+	}
+	return id, false
+}
+
+// peerKey is the identity to use for all peer-scoped bookkeeping
+// (health-monitor key, findNodeRefByID matching, pendingSpawns/DrainRemoteChannels
+// on node death). After the connect: handshake it is the remote peer's id; if
+// the peer was unreachable it degrades to our own id — no worse than the
+// pre-handshake behavior, and self-consistent because every site uses this.
+func (n *NodeRefData) peerKey() [32]byte {
+	if id, ok := n.PeerNodeID(); ok {
+		return id
+	}
+	return n.NodeID()
 }
 
 // ---------------------------------------------------------------------------
@@ -169,6 +201,11 @@ func (vm *VM) localNodeID() (id [32]byte, ok bool) {
 	return id, true
 }
 
+// LocalNodeID exposes this VM's 32-byte node identity for the peer-ID
+// handshake (the Ping response advertises it). ok is false before an identity
+// is installed.
+func (vm *VM) LocalNodeID() (id [32]byte, ok bool) { return vm.localNodeID() }
+
 // ---------------------------------------------------------------------------
 // Primitives
 // ---------------------------------------------------------------------------
@@ -194,6 +231,12 @@ func (vm *VM) registerNodePrimitives() {
 			ref = fn(addrStr, pub, priv)
 		} else {
 			ref = NewNodeRefData(addrStr, pub, priv)
+		}
+		// Handshake: learn the peer's node identity so health-monitoring and
+		// node-death cleanup key on the PEER's id, not ours. Best-effort — if
+		// the peer is unreachable now, a later ping populates it.
+		if ref.PingFunc != nil {
+			ref.PingFunc()
 		}
 		return v.registerNodeRef(ref)
 	})
@@ -232,13 +275,14 @@ func (vm *VM) registerNodePrimitives() {
 		return v.createRemoteProcess(recv, nameStr)
 	})
 
-	// Node>>primNodeID — hex-encoded 32-byte public key
+	// Node>>primNodeID — hex-encoded 32-byte identity of the REMOTE node
+	// (learned via the connect: handshake; falls back to ours if unreachable).
 	c.AddMethod0(vm.Selectors, "primNodeID", func(v *VM, recv Value) Value {
 		ref := v.getNodeRef(recv)
 		if ref == nil {
 			return Nil
 		}
-		nid := ref.NodeID()
+		nid := ref.peerKey()
 		return v.registry.NewStringValue(hex.EncodeToString(nid[:]))
 	})
 

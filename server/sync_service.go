@@ -411,9 +411,13 @@ func (s *SyncService) Ping(
 	if _, authenticated := PeerIdentity(ctx); authenticated {
 		count = int64(s.store.MethodCount() + s.store.ClassCount())
 	}
-	return connect.NewResponse(&maggiev1.PingResponse{
-		ContentCount: count,
-	}), nil
+	resp := &maggiev1.PingResponse{ContentCount: count}
+	// Advertise our node identity so a connecting peer can bind the NodeRef to
+	// OUR id (not its own) for health-monitoring and node-death cleanup.
+	if id, ok := s.worker.vm.LocalNodeID(); ok {
+		resp.NodeId = id[:]
+	}
+	return connect.NewResponse(resp), nil
 }
 
 // Resolve maps a class name (FQN) to its content hash.

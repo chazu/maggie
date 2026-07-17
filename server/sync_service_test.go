@@ -1,7 +1,10 @@
 package server
 
 import (
+	"bytes"
 	"context"
+	"crypto/ed25519"
+	"crypto/rand"
 	"crypto/sha256"
 	"testing"
 
@@ -36,6 +39,29 @@ func TestSyncPing_Empty(t *testing.T) {
 	}
 	if resp.Msg.ContentCount != 0 {
 		t.Errorf("ContentCount: got %d, want 0", resp.Msg.ContentCount)
+	}
+}
+
+// TestSyncPing_AdvertisesNodeID verifies the peer-ID handshake: Ping returns
+// the responder's node identity so a connecting peer can bind its NodeRef to
+// the PEER's id rather than its own (fix maggie-0qj).
+func TestSyncPing_AdvertisesNodeID(t *testing.T) {
+	pub, priv, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	v := newImageBackedVM()
+	v.SetNodeIdentityKeys(pub, priv)
+	worker := NewVMWorker(v)
+	defer worker.Stop()
+	svc := NewSyncService(worker, vm.NewContentStore(), dist.NewPermissiveTrustStore(), nil, nil)
+
+	resp, err := svc.Ping(bg(), connectReq(&maggiev1.PingRequest{}))
+	if err != nil {
+		t.Fatalf("Ping returned error: %v", err)
+	}
+	if !bytes.Equal(resp.Msg.NodeId, pub) {
+		t.Errorf("Ping NodeId: got %x, want %x", resp.Msg.NodeId, []byte(pub))
 	}
 }
 

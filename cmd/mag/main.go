@@ -775,8 +775,19 @@ func buildNodeRefFactory(vmInst *vm.VM) vm.NodeRefFactory {
 		ref.PingFunc = func() bool {
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
-			_, err := client.Ping(ctx, connect.NewRequest(&maggiev1.PingRequest{}))
-			return err == nil
+			resp, err := client.Ping(ctx, connect.NewRequest(&maggiev1.PingRequest{}))
+			if err != nil {
+				return false
+			}
+			// Learn the peer's node identity from the handshake so this ref
+			// keys health-monitoring and node-death cleanup on the PEER's id
+			// rather than our own.
+			if len(resp.Msg.NodeId) == 32 {
+				var pid [32]byte
+				copy(pid[:], resp.Msg.NodeId)
+				ref.SetPeerID(pid)
+			}
+			return true
 		}
 
 		ref.SpawnFunc = func(spawnBlockBytes []byte) (string, error) {

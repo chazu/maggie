@@ -307,7 +307,7 @@ func (vm *VM) doRemoteSpawn(blockVal, nodeVal, argVal Value, mode string) Value 
 
 	// Heartbeat coverage starts at spawn, not at the first monitor: a plain
 	// forkOn:/spawnOn: must still learn about node death (SD-6).
-	vm.ensureHealthMonitor(ref.NodeID(), ref)
+	vm.ensureHealthMonitor(ref.peerKey(), ref)
 
 	if mode == "fork" {
 		return vm.doForkOn(ref, spawnBytes, nodeVal)
@@ -319,7 +319,7 @@ func (vm *VM) doForkOn(ref *NodeRefData, spawnBytes []byte, nodeVal Value) Value
 	// Create a local Future for the result
 	future := NewFuture()
 	futureVal := vm.registerFuture(future)
-	futureID := vm.pendingSpawns.register(future, ref.NodeID())
+	futureID := vm.pendingSpawns.register(future, ref.peerKey())
 
 	// Embed futureID into the spawn block for result delivery
 	sb, err := DeserializeSpawnBlock(spawnBytes)

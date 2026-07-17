@@ -19,6 +19,55 @@ func testNodeRef(nodeID [32]byte) *NodeRefData {
 	return ref
 }
 
+// TestNodeRefData_LocalVsPeerIdentity regresses the identity conflation:
+// NodeID() is OUR signing id (same for every peer); peer-scoped bookkeeping
+// must key on the PEER's id, learned via the handshake. Before the fix,
+// findNodeRefByID compared a peer's true id against our-own-id refs and never
+// matched, so cross-node DOWN and channel cleanup silently no-op'd.
+func TestNodeRefData_LocalVsPeerIdentity(t *testing.T) {
+	localPub := make(ed25519.PublicKey, ed25519.PublicKeySize)
+	localPub[0] = 0x11
+	ref := NewNodeRefData("peer:1", localPub, nil)
+
+	var localID [32]byte
+	localID[0] = 0x11
+	if ref.NodeID() != localID {
+		t.Fatal("NodeID() must return our local signing identity")
+	}
+	// Before the handshake, the peer id is unknown and peerKey degrades to ours.
+	if _, ok := ref.PeerNodeID(); ok {
+		t.Error("peer id should be unknown before the handshake")
+	}
+	if ref.peerKey() != localID {
+		t.Error("peerKey should degrade to the local id pre-handshake")
+	}
+
+	// After the handshake learns the peer's id, peer-scoped lookups key on it
+	// while NodeID() (signing) stays local.
+	peerID := [32]byte{0x99, 0x88}
+	ref.SetPeerID(peerID)
+	if got, ok := ref.PeerNodeID(); !ok || got != peerID {
+		t.Errorf("PeerNodeID after handshake: got %v ok=%v, want %v", got, ok, peerID)
+	}
+	if ref.peerKey() != peerID {
+		t.Error("peerKey must return the learned peer id")
+	}
+	if ref.NodeID() != localID {
+		t.Error("NodeID() must remain our local signing identity after learning the peer id")
+	}
+
+	// findNodeRefByID must now match on the peer's true id.
+	v := NewVM()
+	defer v.Shutdown()
+	v.registerNodeRef(ref)
+	if v.findNodeRefByID(peerID) != ref {
+		t.Error("findNodeRefByID must match on the learned peer id")
+	}
+	if v.findNodeRefByID(localID) == ref {
+		t.Error("findNodeRefByID must NOT match our own local id")
+	}
+}
+
 func TestHandleNodeDown_ResolvesPendingSpawns(t *testing.T) {
 	vm := NewVM()
 	defer vm.Shutdown()

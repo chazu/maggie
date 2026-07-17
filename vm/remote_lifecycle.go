@@ -40,7 +40,7 @@ type LinkResponse struct {
 // MonitorRemoteProcess sets up a cross-node monitor.
 func (vm *VM) MonitorRemoteProcess(watcher *ProcessObject, nodeRef *NodeRefData, targetName string) (*MonitorRef, error) {
 	refID := vm.registry.ConcurrencyRegistry.AllocMonitorRefID()
-	nodeID := nodeRef.NodeID()
+	nodeID := nodeRef.peerKey()
 
 	ref := &MonitorRef{
 		ID:      refID,
@@ -189,7 +189,7 @@ func (vm *VM) handleNodeDown(nodeID [32]byte) {
 	// Drop the node's reverse-lookup entries; a reconnect registers a fresh ref.
 	vm.nodeRefsMu.Lock()
 	for ref := range vm.nodeRefs {
-		if ref.NodeID() == nodeID {
+		if ref.peerKey() == nodeID {
 			delete(vm.nodeRefs, ref)
 		}
 	}
@@ -270,7 +270,7 @@ func (vm *VM) findNodeRefByID(nodeID [32]byte) *NodeRefData {
 	vm.nodeRefsMu.RLock()
 	defer vm.nodeRefsMu.RUnlock()
 	for ref := range vm.nodeRefs {
-		if ref.NodeID() == nodeID {
+		if ref.peerKey() == nodeID {
 			return ref
 		}
 	}
