@@ -28,9 +28,3 @@ func UnmarshalEnvelope(data []byte) (*MessageEnvelope, error) {
 	return wire.Unmarshal(data)
 }
 
-// MessageResponse is sent back to the sender after processing a message.
-type MessageResponse struct {
-	Success bool   `cbor:"1,keyasint"`
-	Error   string `cbor:"2,keyasint,omitempty"` // error kind: networkError, processNotFound, mailboxFull, applicationError
-	Payload []byte `cbor:"3,keyasint,omitempty"` // CBOR-encoded response value (for asyncSend)
-}

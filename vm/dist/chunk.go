@@ -37,7 +37,9 @@ type SyncAnnouncement struct {
 	RootHash    [32]byte            `cbor:"1,keyasint"`
 	AllHashes   [][32]byte          `cbor:"2,keyasint"`
 	Capability  *CapabilityManifest `cbor:"3,keyasint,omitempty"`
-	HashVersion byte                `cbor:"4,keyasint"`
+	// HashVersion is reserved for announce-time hash-version skew detection —
+	// currently neither set nor read (the wire slot is kept for forward compat).
+	HashVersion byte `cbor:"4,keyasint"`
 }
 
 // SyncRequest is the have/want negotiation message.
