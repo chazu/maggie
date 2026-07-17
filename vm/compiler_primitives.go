@@ -203,8 +203,7 @@ func (vm *VM) registerCompilerPrimitives() {
 			if val, ok := globals[name]; ok {
 				// Write current value back to locals dict
 				symKey := v.Symbols.SymbolValue(name)
-				h := hashValue(v.registry, symKey)
-				dict.SetByHash(h, symKey, val)
+				dict.Set(v.registry, symKey, val)
 			}
 		}
 
@@ -215,8 +214,7 @@ func (vm *VM) registerCompilerPrimitives() {
 				// This is a new variable created during evaluation
 				// Write it to the locals dictionary
 				symKey := v.Symbols.SymbolValue(name)
-				h := hashValue(v.registry, symKey)
-				dict.SetByHash(h, symKey, val)
+				dict.Set(v.registry, symKey, val)
 				localNames[name] = true
 			}
 		}

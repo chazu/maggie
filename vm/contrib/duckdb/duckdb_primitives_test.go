@@ -164,8 +164,7 @@ func TestDuckDBCreateInsertQuery(t *testing.T) {
 
 	// Verify 'name' column in first row
 	nameKey := vmInst.Registry().NewStringValue("name")
-	h := vm.HashValue(vmInst.Registry(), nameKey)
-	nameVal, exists := dictObj.GetByHash(h)
+		nameVal, exists := dictObj.Get(vmInst.Registry(), nameKey)
 	if !exists {
 		t.Fatal("Missing 'name' key in row")
 	}
@@ -197,8 +196,7 @@ func TestDuckDBUpdate(t *testing.T) {
 	}
 	row := vmInst.Registry().GetDictionaryObject(arr.GetSlot(0))
 	valKey := vmInst.Registry().NewStringValue("val")
-	h := vm.HashValue(vmInst.Registry(), valKey)
-	val, _ := row.GetByHash(h)
+		val, _ := row.Get(vmInst.Registry(), valKey)
 	if val.SmallInt() != 99 {
 		t.Errorf("Updated val = %d, want 99", val.SmallInt())
 	}
@@ -226,8 +224,7 @@ func TestDuckDBDelete(t *testing.T) {
 	}
 	row := vmInst.Registry().GetDictionaryObject(arr.GetSlot(0))
 	nKey := vmInst.Registry().NewStringValue("n")
-	h := vm.HashValue(vmInst.Registry(), nKey)
-	n, _ := row.GetByHash(h)
+		n, _ := row.Get(vmInst.Registry(), nKey)
 	if n.SmallInt() != 2 {
 		t.Errorf("Count after delete = %d, want 2", n.SmallInt())
 	}
@@ -261,35 +258,35 @@ func TestDuckDBTypeMapping(t *testing.T) {
 
 	// INTEGER -> SmallInt
 	iKey := vmInst.Registry().NewStringValue("i")
-	iVal, _ := row.GetByHash(vm.HashValue(vmInst.Registry(), iKey))
+	iVal, _ := row.Get(vmInst.Registry(), iKey)
 	if !iVal.IsSmallInt() || iVal.SmallInt() != 42 {
 		t.Errorf("INTEGER mapping: got %v, want 42", iVal)
 	}
 
 	// DOUBLE -> Float
 	dKey := vmInst.Registry().NewStringValue("d")
-	dVal, _ := row.GetByHash(vm.HashValue(vmInst.Registry(), dKey))
+	dVal, _ := row.Get(vmInst.Registry(), dKey)
 	if !dVal.IsFloat() {
 		t.Errorf("DOUBLE mapping: got non-float %v", dVal)
 	}
 
 	// VARCHAR -> String
 	vKey := vmInst.Registry().NewStringValue("v")
-	vVal, _ := row.GetByHash(vm.HashValue(vmInst.Registry(), vKey))
+	vVal, _ := row.Get(vmInst.Registry(), vKey)
 	if !vm.IsStringValue(vVal) || vmInst.Registry().GetStringContent(vVal) != "hello" {
 		t.Errorf("VARCHAR mapping: got %v, want 'hello'", vVal)
 	}
 
 	// BOOLEAN -> True/False
 	bKey := vmInst.Registry().NewStringValue("b")
-	bVal, _ := row.GetByHash(vm.HashValue(vmInst.Registry(), bKey))
+	bVal, _ := row.Get(vmInst.Registry(), bKey)
 	if bVal != vm.True {
 		t.Errorf("BOOLEAN mapping: got %v, want True", bVal)
 	}
 
 	// NULL -> Nil
 	nKey := vmInst.Registry().NewStringValue("n")
-	nVal, _ := row.GetByHash(vm.HashValue(vmInst.Registry(), nKey))
+	nVal, _ := row.Get(vmInst.Registry(), nKey)
 	if nVal != vm.Nil {
 		t.Errorf("NULL mapping: got %v, want Nil", nVal)
 	}
@@ -339,7 +336,7 @@ func TestDuckDBParquetRoundTrip(t *testing.T) {
 	// Verify first row
 	row0 := vmInst.Registry().GetDictionaryObject(arr.GetSlot(0))
 	labelKey := vmInst.Registry().NewStringValue("label")
-	labelVal, _ := row0.GetByHash(vm.HashValue(vmInst.Registry(), labelKey))
+	labelVal, _ := row0.Get(vmInst.Registry(), labelKey)
 	if vmInst.Registry().GetStringContent(labelVal) != "one" {
 		t.Errorf("First Parquet row label = %q, want 'one'", vmInst.Registry().GetStringContent(labelVal))
 	}
@@ -389,7 +386,7 @@ func TestDuckDBAppenderBulkInsert(t *testing.T) {
 	}
 	row := vmInst.Registry().GetDictionaryObject(arr.GetSlot(0))
 	nKey := vmInst.Registry().NewStringValue("n")
-	n, _ := row.GetByHash(vm.HashValue(vmInst.Registry(), nKey))
+	n, _ := row.Get(vmInst.Registry(), nKey)
 	if n.SmallInt() != 100 {
 		t.Errorf("Bulk insert count = %d, want 100", n.SmallInt())
 	}
@@ -421,7 +418,7 @@ func TestDuckDBAppenderFlush(t *testing.T) {
 	arr := vm.ObjectFromValue(rows)
 	row := vmInst.Registry().GetDictionaryObject(arr.GetSlot(0))
 	nKey := vmInst.Registry().NewStringValue("n")
-	n, _ := row.GetByHash(vm.HashValue(vmInst.Registry(), nKey))
+	n, _ := row.Get(vmInst.Registry(), nKey)
 	if n.SmallInt() != 5 {
 		t.Errorf("After flush count = %d, want 5", n.SmallInt())
 	}
@@ -434,7 +431,7 @@ func TestDuckDBAppenderFlush(t *testing.T) {
 	rows = vmInst.Send(db, "query:", []vm.Value{vmInst.Registry().NewStringValue("SELECT count(*) as n FROM f")})
 	arr = vm.ObjectFromValue(rows)
 	row3 := vmInst.Registry().GetDictionaryObject(arr.GetSlot(0))
-	n, _ = row3.GetByHash(vm.HashValue(vmInst.Registry(), nKey))
+	n, _ = row3.Get(vmInst.Registry(), nKey)
 	if n.SmallInt() != 6 {
 		t.Errorf("After second close count = %d, want 6", n.SmallInt())
 	}

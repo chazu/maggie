@@ -25,12 +25,11 @@ func TestDictionaryObject_ConcurrentAccess(t *testing.T) {
 		go func(g int) {
 			defer wg.Done()
 			for i := 0; i < ops; i++ {
-				h := uint64(g*ops + i)
-				key := FromSmallInt(int64(h))
-				dict.SetByHash(h, key, FromSmallInt(int64(i)))
-				dict.GetByHash(h)
+				key := FromSmallInt(int64(g*ops + i))
+				dict.Set(vm.registry, key, FromSmallInt(int64(i)))
+				dict.Get(vm.registry, key)
 				if i%3 == 0 {
-					dict.DeleteByHash(h)
+					dict.Delete(vm.registry, key)
 				}
 				if i%7 == 0 {
 					for range dict.Entries() {

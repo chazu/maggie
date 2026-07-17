@@ -47,8 +47,8 @@ func TestEd25519GenerateSignVerify(t *testing.T) {
 		if dict == nil {
 			t.Fatalf("generate did not return dictionary")
 		}
-		priv, _ := dict.GetByHash(hashValue(vm.registry, vm.Symbols.SymbolValue("priv")))
-		pub, _ := dict.GetByHash(hashValue(vm.registry, vm.Symbols.SymbolValue("pub")))
+		priv, _ := dict.Get(vm.registry, vm.Symbols.SymbolValue("priv"))
+		pub, _ := dict.Get(vm.registry, vm.Symbols.SymbolValue("pub"))
 		privBytes := vm.registry.GetStringContent(priv)
 		pubBytes := vm.registry.GetStringContent(pub)
 		if len(privBytes) != ed25519.SeedSize {
@@ -90,7 +90,7 @@ func TestEd25519GenerateFromSeedDeterministic(t *testing.T) {
 	if dict == nil {
 		t.Fatalf("no dict")
 	}
-	pubVal, _ := dict.GetByHash(hashValue(vm.registry, vm.Symbols.SymbolValue("pub")))
+	pubVal, _ := dict.Get(vm.registry, vm.Symbols.SymbolValue("pub"))
 	expectedPub := ed25519.NewKeyFromSeed(seed).Public().(ed25519.PublicKey)
 	if vm.registry.GetStringContent(pubVal) != string(expectedPub) {
 		t.Fatalf("deterministic pubkey mismatch")

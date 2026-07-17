@@ -7,7 +7,9 @@ import "sync"
 // ---------------------------------------------------------------------------
 
 // DictionaryObject represents a Maggie dictionary (key-value map).
-// Uses a Go map internally for O(1) lookup.
+// Entries are bucketed by key hash with an equality probe: two distinct keys
+// with colliding 64-bit hashes coexist instead of silently aliasing each
+// other (FNV-1a collisions are adversarially constructible).
 //
 // All access goes through the locked methods below: dictionaries stored in
 // globals are reachable from concurrent server requests (RunIsolated
@@ -16,8 +18,14 @@ import "sync"
 // callers never hold the lock while running Maggie code (blocks).
 type DictionaryObject struct {
 	mu   sync.RWMutex
-	data map[uint64]Value // key hash -> value
-	keys map[uint64]Value // key hash -> key (for iteration)
+	data map[uint64][]dictSlot // key hash -> collision bucket
+	size int
+}
+
+// dictSlot is one stored key-value pair inside a collision bucket.
+type dictSlot struct {
+	key   Value
+	value Value
 }
 
 // DictEntry is one key-value pair in an iteration snapshot.
@@ -30,58 +38,102 @@ type DictEntry struct {
 // NewDictionaryObject creates an empty dictionary object.
 func NewDictionaryObject() *DictionaryObject {
 	return &DictionaryObject{
-		data: make(map[uint64]Value),
-		keys: make(map[uint64]Value),
+		data: make(map[uint64][]dictSlot),
 	}
 }
 
-// GetByHash returns the value stored under a key hash.
-func (d *DictionaryObject) GetByHash(h uint64) (Value, bool) {
-	d.mu.RLock()
-	v, ok := d.data[h]
-	d.mu.RUnlock()
-	return v, ok
+// dictKeysEqual mirrors hashValue's discrimination exactly: content equality
+// for the content-hashed kinds (String, BigInteger), raw-bits equality for
+// everything else (value equality for NaN-boxed immediates, identity for
+// heap objects). Keeping these two functions in lockstep is the collision
+// probe's correctness condition.
+func dictKeysEqual(or *ObjectRegistry, a, b Value) bool {
+	if a.hi == b.hi && a.ptr == b.ptr {
+		return true
+	}
+	if IsStringValue(a) && IsStringValue(b) {
+		return or.GetStringContent(a) == or.GetStringContent(b)
+	}
+	if IsBigIntValue(a) && IsBigIntValue(b) {
+		ba, bb := or.GetBigInt(a), or.GetBigInt(b)
+		return ba != nil && bb != nil && ba.Value.Cmp(bb.Value) == 0
+	}
+	return false
 }
 
-// KeyByHash returns the key object stored under a key hash.
-func (d *DictionaryObject) KeyByHash(h uint64) (Value, bool) {
-	d.mu.RLock()
-	k, ok := d.keys[h]
-	d.mu.RUnlock()
-	return k, ok
+// Get returns the value stored under key, probing the collision bucket with
+// key equality.
+func (d *DictionaryObject) Get(or *ObjectRegistry, key Value) (Value, bool) {
+	return d.getWithHash(hashValue(or, key), or, key)
 }
 
-// SetByHash stores a key-value pair under a key hash.
-func (d *DictionaryObject) SetByHash(h uint64, key, value Value) {
+func (d *DictionaryObject) getWithHash(h uint64, or *ObjectRegistry, key Value) (Value, bool) {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+	for _, s := range d.data[h] {
+		if dictKeysEqual(or, s.key, key) {
+			return s.value, true
+		}
+	}
+	return Nil, false
+}
+
+// Set stores a key-value pair, replacing an equal existing key.
+func (d *DictionaryObject) Set(or *ObjectRegistry, key, value Value) {
+	d.setWithHash(hashValue(or, key), or, key, value)
+}
+
+func (d *DictionaryObject) setWithHash(h uint64, or *ObjectRegistry, key, value Value) {
 	d.mu.Lock()
-	d.data[h] = value
-	d.keys[h] = key
-	d.mu.Unlock()
+	defer d.mu.Unlock()
+	bucket := d.data[h]
+	for i := range bucket {
+		if dictKeysEqual(or, bucket[i].key, key) {
+			bucket[i].value = value
+			return
+		}
+	}
+	d.data[h] = append(bucket, dictSlot{key: key, value: value})
+	d.size++
 }
 
-// Put stores a key-value pair, hashing the key with hashValue. Convenience
-// for Go code building result dictionaries.
+// Put is a synonym for Set, kept for Go code building result dictionaries.
 func (d *DictionaryObject) Put(or *ObjectRegistry, key, value Value) {
-	d.SetByHash(hashValue(or, key), key, value)
+	d.Set(or, key, value)
 }
 
-// DeleteByHash removes the entry under a key hash, returning the removed
+// Delete removes the entry whose key equals key, returning the removed
 // value and whether it was present.
-func (d *DictionaryObject) DeleteByHash(h uint64) (Value, bool) {
+func (d *DictionaryObject) Delete(or *ObjectRegistry, key Value) (Value, bool) {
+	return d.deleteWithHash(hashValue(or, key), or, key)
+}
+
+func (d *DictionaryObject) deleteWithHash(h uint64, or *ObjectRegistry, key Value) (Value, bool) {
 	d.mu.Lock()
-	v, ok := d.data[h]
-	if ok {
-		delete(d.data, h)
-		delete(d.keys, h)
+	defer d.mu.Unlock()
+	bucket := d.data[h]
+	for i := range bucket {
+		if dictKeysEqual(or, bucket[i].key, key) {
+			v := bucket[i].value
+			last := len(bucket) - 1
+			bucket[i] = bucket[last]
+			bucket = bucket[:last]
+			if len(bucket) == 0 {
+				delete(d.data, h)
+			} else {
+				d.data[h] = bucket
+			}
+			d.size--
+			return v, true
+		}
 	}
-	d.mu.Unlock()
-	return v, ok
+	return Nil, false
 }
 
 // Size returns the number of entries.
 func (d *DictionaryObject) Size() int {
 	d.mu.RLock()
-	n := len(d.data)
+	n := d.size
 	d.mu.RUnlock()
 	return n
 }
@@ -91,9 +143,11 @@ func (d *DictionaryObject) Size() int {
 // without holding the lock.
 func (d *DictionaryObject) Entries() []DictEntry {
 	d.mu.RLock()
-	entries := make([]DictEntry, 0, len(d.data))
-	for h, v := range d.data {
-		entries = append(entries, DictEntry{Hash: h, Key: d.keys[h], Value: v})
+	entries := make([]DictEntry, 0, d.size)
+	for h, bucket := range d.data {
+		for _, s := range bucket {
+			entries = append(entries, DictEntry{Hash: h, Key: s.key, Value: s.value})
+		}
 	}
 	d.mu.RUnlock()
 	return entries
@@ -167,8 +221,7 @@ func (vm *VM) registerDictionaryPrimitives() {
 		if dict == nil {
 			return v.SignalPrimitiveError("at:", "receiver is not a Dictionary")
 		}
-		h := hashValue(v.registry, key)
-		if val, ok := dict.GetByHash(h); ok {
+		if val, ok := dict.Get(v.registry, key); ok {
 			return val
 		}
 		return Nil
@@ -182,8 +235,7 @@ func (vm *VM) registerDictionaryPrimitives() {
 			// value on a non-Dictionary receiver.
 			return v.SignalPrimitiveError("at:put:", "receiver is not a Dictionary")
 		}
-		h := hashValue(v.registry, key)
-		dict.SetByHash(h, key, value)
+		dict.Set(v.registry, key, value)
 		return value
 	})
 
@@ -193,8 +245,7 @@ func (vm *VM) registerDictionaryPrimitives() {
 		if dict == nil {
 			return v.SignalPrimitiveError("at:ifAbsent:", "receiver is not a Dictionary")
 		}
-		h := hashValue(v.registry, key)
-		if val, ok := dict.GetByHash(h); ok {
+		if val, ok := dict.Get(v.registry, key); ok {
 			return val
 		}
 		// Evaluate the block
@@ -207,8 +258,7 @@ func (vm *VM) registerDictionaryPrimitives() {
 		if dict == nil {
 			return v.SignalPrimitiveError("at:ifPresent:", "receiver is not a Dictionary")
 		}
-		h := hashValue(v.registry, key)
-		if val, ok := dict.GetByHash(h); ok {
+		if val, ok := dict.Get(v.registry, key); ok {
 			// Evaluate the block with the value
 			return v.Send(block, "value:", []Value{val})
 		}
@@ -221,8 +271,7 @@ func (vm *VM) registerDictionaryPrimitives() {
 		if dict == nil {
 			return False
 		}
-		h := hashValue(v.registry, key)
-		if _, ok := dict.GetByHash(h); ok {
+		if _, ok := dict.Get(v.registry, key); ok {
 			return True
 		}
 		return False
@@ -309,8 +358,7 @@ func (vm *VM) registerDictionaryPrimitives() {
 		if dict == nil {
 			return v.SignalPrimitiveError("removeKey:", "receiver is not a Dictionary")
 		}
-		h := hashValue(v.registry, key)
-		if val, ok := dict.DeleteByHash(h); ok {
+		if val, ok := dict.Delete(v.registry, key); ok {
 			return val
 		}
 		return Nil
@@ -322,8 +370,7 @@ func (vm *VM) registerDictionaryPrimitives() {
 		if dict == nil {
 			return v.Send(block, "value", nil)
 		}
-		h := hashValue(v.registry, key)
-		if val, ok := dict.DeleteByHash(h); ok {
+		if val, ok := dict.Delete(v.registry, key); ok {
 			return val
 		}
 		return v.Send(block, "value", nil)

@@ -300,13 +300,11 @@ func TestSerial_Dictionary(t *testing.T) {
 	// Add entries
 	key1 := vm.registry.NewStringValue("name")
 	val1 := vm.registry.NewStringValue("Alice")
-	h1 := hashValue(vm.registry, key1)
-	dict.SetByHash(h1, key1, val1)
+	dict.Set(vm.registry, key1, val1)
 
 	key2 := vm.registry.NewStringValue("age")
 	val2 := FromSmallInt(30)
-	h2 := hashValue(vm.registry, key2)
-	dict.SetByHash(h2, key2, val2)
+	dict.Set(vm.registry, key2, val2)
 
 	data, err := vm.SerializeValue(dictVal)
 	if err != nil {

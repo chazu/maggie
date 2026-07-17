@@ -343,8 +343,7 @@ func (vm *VM) DictionaryAtPut(dict Value, key Value, value Value) {
 	if d == nil {
 		return
 	}
-	h := hashValue(vm.registry, key)
-	d.SetByHash(h, key, value)
+	d.Set(vm.registry, key, value)
 }
 
 // DictionaryAt gets a value from a dictionary by key.
@@ -353,8 +352,7 @@ func (vm *VM) DictionaryAt(dict Value, key Value) Value {
 	if d == nil {
 		return Nil
 	}
-	h := hashValue(vm.registry, key)
-	if val, ok := d.GetByHash(h); ok {
+	if val, ok := d.Get(vm.registry, key); ok {
 		return val
 	}
 	return Nil

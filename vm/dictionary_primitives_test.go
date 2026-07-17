@@ -546,3 +546,95 @@ func TestDictionaryBigIntKey(t *testing.T) {
 		t.Errorf("at: with an equal-valued BigInt key returned %v, want 'big-value'", got)
 	}
 }
+
+// ---------------------------------------------------------------------------
+// Collision handling (VM-13): distinct keys with colliding hashes must
+// coexist instead of silently aliasing each other.
+// ---------------------------------------------------------------------------
+
+func TestDictionary_HashCollisions(t *testing.T) {
+	vm := NewVM()
+	defer vm.Shutdown()
+	d := NewDictionaryObject()
+
+	keyA := vm.registry.NewStringValue("alpha")
+	keyB := vm.registry.NewStringValue("beta")
+	const h = uint64(0xDEADBEEF) // forced collision
+
+	d.setWithHash(h, vm.registry, keyA, FromSmallInt(1))
+	d.setWithHash(h, vm.registry, keyB, FromSmallInt(2))
+
+	if d.Size() != 2 {
+		t.Fatalf("size after colliding inserts: got %d, want 2", d.Size())
+	}
+	if v, ok := d.getWithHash(h, vm.registry, keyA); !ok || v.SmallInt() != 1 {
+		t.Errorf("keyA: got %v ok=%v, want 1", v, ok)
+	}
+	if v, ok := d.getWithHash(h, vm.registry, keyB); !ok || v.SmallInt() != 2 {
+		t.Errorf("keyB: got %v ok=%v, want 2", v, ok)
+	}
+
+	// Overwrite within the bucket
+	d.setWithHash(h, vm.registry, keyA, FromSmallInt(3))
+	if d.Size() != 2 {
+		t.Errorf("size after overwrite: got %d, want 2", d.Size())
+	}
+	if v, _ := d.getWithHash(h, vm.registry, keyA); v.SmallInt() != 3 {
+		t.Errorf("keyA after overwrite: got %v, want 3", v)
+	}
+
+	// Delete one; the other survives
+	if v, ok := d.deleteWithHash(h, vm.registry, keyA); !ok || v.SmallInt() != 3 {
+		t.Errorf("delete keyA: got %v ok=%v", v, ok)
+	}
+	if _, ok := d.getWithHash(h, vm.registry, keyA); ok {
+		t.Error("keyA should be gone")
+	}
+	if v, ok := d.getWithHash(h, vm.registry, keyB); !ok || v.SmallInt() != 2 {
+		t.Errorf("keyB after deleting keyA: got %v ok=%v, want 2", v, ok)
+	}
+	if d.Size() != 1 {
+		t.Errorf("size: got %d, want 1", d.Size())
+	}
+
+	// Delete the last entry; the bucket disappears
+	d.deleteWithHash(h, vm.registry, keyB)
+	if d.Size() != 0 {
+		t.Errorf("size: got %d, want 0", d.Size())
+	}
+	if len(d.data) != 0 {
+		t.Errorf("empty bucket should be removed, %d buckets remain", len(d.data))
+	}
+}
+
+// Distinct String objects with equal content are ONE key (content hashing +
+// content equality stay in lockstep).
+func TestDictionary_ContentKeyEquality(t *testing.T) {
+	vm := NewVM()
+	defer vm.Shutdown()
+	d := NewDictionaryObject()
+
+	k1 := vm.registry.NewStringValue("key")
+	k2 := vm.registry.NewStringValue("key") // distinct object, same content
+	d.Set(vm.registry, k1, FromSmallInt(1))
+	d.Set(vm.registry, k2, FromSmallInt(2))
+
+	if d.Size() != 1 {
+		t.Fatalf("equal-content strings should be one key; size=%d", d.Size())
+	}
+	if v, _ := d.Get(vm.registry, k1); v.SmallInt() != 2 {
+		t.Errorf("got %v, want 2 (overwritten)", v)
+	}
+
+	// BigIntegers by value
+	b1 := vm.registry.NewBigIntValue(new(big.Int).SetUint64(1 << 60))
+	b2 := vm.registry.NewBigIntValue(new(big.Int).SetUint64(1 << 60))
+	d.Set(vm.registry, b1, FromSmallInt(10))
+	d.Set(vm.registry, b2, FromSmallInt(20))
+	if v, _ := d.Get(vm.registry, b2); v.SmallInt() != 20 {
+		t.Errorf("bigint key: got %v, want 20", v)
+	}
+	if d.Size() != 2 {
+		t.Errorf("size: got %d, want 2", d.Size())
+	}
+}
