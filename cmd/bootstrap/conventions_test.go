@@ -110,6 +110,92 @@ func TestConventions_PrimitiveStubsAreRegistered(t *testing.T) {
 	}
 }
 
+// isPrimConventionSelector matches the `prim<Uppercase>` naming convention for
+// Go primitives that back a lib wrapper (primSign, primIsZero, primLock). It
+// deliberately excludes ordinary selectors that merely start with "prim"
+// (e.g. primary:) by requiring an uppercase letter after the prefix.
+func isPrimConventionSelector(sel string) bool {
+	return strings.HasPrefix(sel, "prim") && len(sel) > 4 && sel[4] >= 'A' && sel[4] <= 'Z'
+}
+
+// TestConventions_PrimSelectorSendsAreRegistered closes the hard gate's blind
+// spot: a wrapper whose BODY sends a prim* selector that is registered nowhere
+// (e.g. `method: isZero [ ^self primIsZero ]` when Go registered `isZero`) is
+// just as phantom as an unbacked <primitive> stub — it DNUs at runtime — but
+// the stub-only gate never sees it. Scan every lib method body for prim*
+// sends and require each to resolve to a Go-registered method or a lib
+// declaration.
+func TestConventions_PrimSelectorSendsAreRegistered(t *testing.T) {
+	vmInst := vm.NewVM() // Go-registered primitives only
+	defs := libClassDefs(t)
+
+	registered := make(map[string]bool)
+	for _, c := range vmInst.Classes.All() {
+		for name := range vtableSelectorNames(vmInst, c.VTable) {
+			registered[name] = true
+		}
+		for name := range vtableSelectorNames(vmInst, c.ClassVTable) {
+			registered[name] = true
+		}
+	}
+	libDeclared := make(map[string]bool)
+	for _, cd := range defs {
+		for _, m := range cd.Methods {
+			libDeclared[m.Selector] = true
+		}
+		for _, m := range cd.ClassMethods {
+			libDeclared[m.Selector] = true
+		}
+	}
+
+	var phantoms []string
+	seen := make(map[string]bool)
+	note := func(className string, m *compiler.MethodDef, sel string) {
+		if !isPrimConventionSelector(sel) || registered[sel] || libDeclared[sel] {
+			return
+		}
+		key := fmt.Sprintf("%s>>%s calls %s", className, m.Selector, sel)
+		if !seen[key] {
+			seen[key] = true
+			phantoms = append(phantoms, key)
+		}
+	}
+	scan := func(className string, m *compiler.MethodDef) {
+		for _, stmt := range m.Statements {
+			compiler.Inspect(stmt, func(n compiler.Node) bool {
+				switch msg := n.(type) {
+				case *compiler.UnaryMessage:
+					note(className, m, msg.Selector)
+				case *compiler.BinaryMessage:
+					note(className, m, msg.Selector)
+				case *compiler.KeywordMessage:
+					note(className, m, msg.Selector)
+				case *compiler.Cascade:
+					for _, cm := range msg.Messages {
+						note(className, m, cm.Selector)
+					}
+				}
+				return true
+			})
+		}
+	}
+	for className, cd := range defs {
+		for _, m := range cd.Methods {
+			scan(className, m)
+		}
+		for _, m := range cd.ClassMethods {
+			scan(className, m)
+		}
+	}
+
+	if len(phantoms) > 0 {
+		sort.Strings(phantoms)
+		t.Fatalf("phantom prim* sends: %d lib method bodies call a prim-prefixed selector "+
+			"that is neither Go-registered nor lib-declared (silent DNU at runtime):\n  %s",
+			len(phantoms), strings.Join(phantoms, "\n  "))
+	}
+}
+
 // TestConventions_UndeclaredSelectorRatchet: VM-registered selectors on lib
 // classes that the lib source never declares are invisible API. The
 // baseline file lists the current debt; it may only shrink.
