@@ -240,6 +240,28 @@ func runDoctestMethods(vmInst *vm.VM, cls *vm.Class, methods map[int]vm.Method, 
 	return results
 }
 
+// isSmalltalkCommentOnly reports whether the trimmed line is entirely a
+// Smalltalk comment. Double-quoted spans are comments (strings use single
+// quotes), so such a line carries no statement and must not be assembled into
+// a doIt. "" inside a comment is an escaped quote.
+func isSmalltalkCommentOnly(s string) bool {
+	if !strings.HasPrefix(s, "\"") {
+		return false
+	}
+	i := 1
+	for i < len(s) {
+		if s[i] == '"' {
+			if i+1 < len(s) && s[i+1] == '"' {
+				i += 2
+				continue
+			}
+			return strings.TrimSpace(s[i+1:]) == "" // closing quote → rest must be blank
+		}
+		i++
+	}
+	return false // unterminated comment — leave as-is for the compiler to report
+}
+
 // parseDoctestAssertions extracts assertion lines (containing >>>) and setup
 // lines from a test block's content. Setup lines are evaluated for side
 // effects only.
@@ -249,6 +271,13 @@ func parseDoctestAssertions(content string) []doctestAssertion {
 	for _, line := range strings.Split(content, "\n") {
 		trimmed := strings.TrimSpace(line)
 		if trimmed == "" {
+			continue
+		}
+
+		if isSmalltalkCommentOnly(trimmed) {
+			// A "..." comment line is not a statement (Smalltalk strings use
+			// single quotes). Treating it as a setup expression would splice
+			// an empty statement into the assembled doIt → a parse error.
 			continue
 		}
 

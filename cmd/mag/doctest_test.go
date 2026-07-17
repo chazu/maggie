@@ -51,6 +51,13 @@ func TestDoctestParseDoctestAssertions(t *testing.T) {
 			},
 		},
 		{
+			name:    "comment-only line is skipped (not an empty statement)",
+			content: "\"nil elements survive collection streams\"\n(Stream over: #(1 nil 2)) asArray >>> #(1 nil 2 )",
+			expected: []doctestAssertion{
+				{Line: "(Stream over: #(1 nil 2)) asArray >>> #(1 nil 2 )", Expr: "(Stream over: #(1 nil 2)) asArray", Expected: "#(1 nil 2 )"},
+			},
+		},
+		{
 			name:    "blank lines between assertions are skipped",
 			content: "3 + 4 >>> 7\n\n\n10 - 2 >>> 8",
 			expected: []doctestAssertion{
