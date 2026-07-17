@@ -1,6 +1,8 @@
 package vm
 
 import (
+	"crypto/rand"
+	"encoding/binary"
 	"fmt"
 	"sync"
 	"sync/atomic"
@@ -93,16 +95,30 @@ type channelExportRegistry struct {
 	mu      sync.RWMutex
 	exports map[uint64]*ChannelObject
 	byChan  map[*ChannelObject]uint64 // reverse index for O(1) dedup
-	nextID  atomic.Uint64
 }
 
 func newChannelExportRegistry() *channelExportRegistry {
-	r := &channelExportRegistry{
+	return &channelExportRegistry{
 		exports: make(map[uint64]*ChannelObject),
 		byChan:  make(map[*ChannelObject]uint64),
 	}
-	r.nextID.Store(1)
-	return r
+}
+
+// randExportID returns a non-zero cryptographically-random uint64. Export IDs
+// are unguessable capabilities, not sequential counters: with sequential IDs a
+// peer holding PermMessage could enumerate 1,2,3… and send/receive/close
+// channels it was never handed. crypto/rand failure is fatal — we must never
+// fall back to a predictable ID.
+func randExportID() uint64 {
+	var b [8]byte
+	if _, err := rand.Read(b[:]); err != nil {
+		panic("channel export: crypto/rand unavailable: " + err.Error())
+	}
+	id := binary.LittleEndian.Uint64(b[:])
+	if id == 0 {
+		return 1 // 0 is reserved as "no channel"
+	}
+	return id
 }
 
 // Export registers a local channel for remote access and returns its export ID.
@@ -120,7 +136,13 @@ func (r *channelExportRegistry) Export(ch *ChannelObject) uint64 {
 	if id, ok := r.byChan[ch]; ok {
 		return id
 	}
-	id := r.nextID.Add(1) - 1
+	id := randExportID()
+	for {
+		if _, taken := r.exports[id]; !taken {
+			break
+		}
+		id = randExportID() // collision (astronomically rare) — redraw
+	}
 	r.exports[id] = ch
 	r.byChan[ch] = id
 	return id

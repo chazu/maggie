@@ -84,6 +84,34 @@ func TestChannelExportRegistry(t *testing.T) {
 	}
 }
 
+// TestChannelExportIDsAreUnguessable regresses the ID-enumeration weakness:
+// export IDs must be high-entropy capabilities, not sequential counters a peer
+// could walk (1,2,3…) to reach channels it was never handed.
+func TestChannelExportIDsAreUnguessable(t *testing.T) {
+	reg := newChannelExportRegistry()
+	const n = 64
+	ids := make(map[uint64]bool, n)
+	small := 0
+	for i := 0; i < n; i++ {
+		id := reg.Export(createChannel(0))
+		if id == 0 {
+			t.Fatal("export ID must never be 0 (reserved)")
+		}
+		if ids[id] {
+			t.Fatalf("duplicate export ID %d", id)
+		}
+		ids[id] = true
+		if id < uint64(n)*4 {
+			small++ // a sequential allocator would put every id in this band
+		}
+	}
+	// With random 64-bit IDs essentially none should land in the low band that
+	// a sequential counter would fill entirely.
+	if small > 2 {
+		t.Errorf("export IDs look sequential/enumerable: %d of %d in the low band", small, n)
+	}
+}
+
 // ---------------------------------------------------------------------------
 // NaN-boxing tests
 // ---------------------------------------------------------------------------
