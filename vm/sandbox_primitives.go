@@ -47,20 +47,8 @@ func (vm *VM) registerSandboxPrimitives() {
 		proc := v.createProcess()
 		procValue := v.registerProcess(proc)
 
-		go func() {
-			defer func() {
-				v.HandleForkedPanic(proc, recover())
-				v.unregisterInterpreter()
-			}()
-
-			interp := v.newForkedInterpreter(hidden)
-			interp.processID = proc.id
-			v.registerInterpreter(interp)
-			result := interp.ExecuteBlockDetached(bv.Block, bv.Captures, nil, bv.HomeSelf, bv.HomeMethod)
-			// FinishProcess (not markDone) so the live-process index and name
-			// registry are cleaned up and links/monitors are notified.
-			v.FinishProcess(proc, ExitNormal(result))
-		}()
+		// Shares the one fork-goroutine body (FinishProcess cleanup + idempotency).
+		v.runForkedBlock(proc, hidden, bv, nil)
 
 		return procValue
 	})

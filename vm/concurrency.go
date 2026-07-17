@@ -190,6 +190,27 @@ func isChannelValue(v Value) bool {
 // Process: Wraps goroutines for Smalltalk
 // ---------------------------------------------------------------------------
 
+// runForkedBlock runs bv on a new goroutine bound to a fresh forked interpreter
+// with the given hidden-global set, finishing proc when the block returns. This
+// is the single fork-goroutine body shared by fork / forkWith: /
+// forkWithContext: / Process fork: / forkRestricted: / forkWithout:do: — one
+// place for the defer/register/execute/finish sequence (and the FinishProcess
+// idempotency contract) instead of six drifting copies. The hidden set and any
+// captured args must be computed on the CALLER's goroutine before this returns.
+func (v *VM) runForkedBlock(proc *ProcessObject, hidden map[string]bool, bv *BlockValue, args []Value) {
+	go func() {
+		defer func() {
+			v.HandleForkedPanic(proc, recover())
+			v.unregisterInterpreter()
+		}()
+		interp := v.newForkedInterpreter(hidden)
+		interp.processID = proc.id
+		v.registerInterpreter(interp)
+		result := interp.ExecuteBlockDetached(bv.Block, bv.Captures, args, bv.HomeSelf, bv.HomeMethod)
+		v.FinishProcess(proc, ExitNormal(result))
+	}()
+}
+
 // ProcessState represents the state of a process.
 type ProcessState int
 
@@ -555,22 +576,7 @@ func (vm *VM) registerProcessPrimitives() {
 		// inherit them (see inheritedHidden).
 		callerHidden := v.inheritedHidden(nil)
 
-		go func() {
-			defer func() {
-				v.HandleForkedPanic(proc, recover())
-				// Unregister the interpreter when done
-				v.unregisterInterpreter()
-			}()
-
-			// Create a forked interpreter for this goroutine
-			interp := v.newForkedInterpreter(callerHidden)
-			interp.processID = proc.id
-			// Register this interpreter for the current goroutine
-			v.registerInterpreter(interp)
-			// Use ExecuteBlockDetached so ^ becomes local return
-			result := interp.ExecuteBlockDetached(bv.Block, bv.Captures, nil, bv.HomeSelf, bv.HomeMethod)
-			v.FinishProcess(proc, ExitNormal(result))
-		}()
+		v.runForkedBlock(proc, callerHidden, bv, nil)
 
 		return procValue
 	})
@@ -588,18 +594,7 @@ func (vm *VM) registerProcessPrimitives() {
 
 		callerHidden := v.inheritedHidden(nil)
 
-		go func() {
-			defer func() {
-				v.HandleForkedPanic(proc, recover())
-				v.unregisterInterpreter()
-			}()
-
-			interp := v.newForkedInterpreter(callerHidden)
-			interp.processID = proc.id
-			v.registerInterpreter(interp)
-			result := interp.ExecuteBlockDetached(bv.Block, bv.Captures, []Value{arg}, bv.HomeSelf, bv.HomeMethod)
-			v.FinishProcess(proc, ExitNormal(result))
-		}()
+		v.runForkedBlock(proc, callerHidden, bv, []Value{arg})
 
 		return procValue
 	})
@@ -623,24 +618,7 @@ func (vm *VM) registerProcessPrimitives() {
 
 		callerHidden := v.inheritedHidden(nil)
 
-		go func() {
-			defer func() {
-				v.HandleForkedPanic(proc, recover())
-				v.unregisterInterpreter()
-			}()
-
-			interp := v.newForkedInterpreter(callerHidden)
-			interp.processID = proc.id
-			v.registerInterpreter(interp)
-
-			// Cancellation is cooperative: the block receives the context and
-			// polls `isCancelled` (a Go goroutine can't be force-stopped). The
-			// context is passed as the block's first argument; no watcher
-			// goroutine is needed — an empty select arm on ctx.Done() did
-			// nothing but imply a preemption that doesn't exist.
-			result := interp.ExecuteBlockDetached(bv.Block, bv.Captures, []Value{ctxArg}, bv.HomeSelf, bv.HomeMethod)
-			v.FinishProcess(proc, ExitNormal(result))
-		}()
+		v.runForkedBlock(proc, callerHidden, bv, []Value{ctxArg})
 
 		return procValue
 	})
@@ -660,18 +638,7 @@ func (vm *VM) registerProcessPrimitives() {
 
 		callerHidden := v.inheritedHidden(nil)
 
-		go func() {
-			defer func() {
-				v.HandleForkedPanic(proc, recover())
-				v.unregisterInterpreter()
-			}()
-
-			interp := v.newForkedInterpreter(callerHidden)
-			interp.processID = proc.id
-			v.registerInterpreter(interp)
-			result := interp.ExecuteBlockDetached(bv.Block, bv.Captures, nil, bv.HomeSelf, bv.HomeMethod)
-			v.FinishProcess(proc, ExitNormal(result))
-		}()
+		v.runForkedBlock(proc, callerHidden, bv, nil)
 
 		return procValue
 	})
@@ -786,18 +753,7 @@ func (vm *VM) registerProcessPrimitives() {
 		proc := v.createProcess()
 		procValue := v.registerProcess(proc)
 
-		go func() {
-			defer func() {
-				v.HandleForkedPanic(proc, recover())
-				v.unregisterInterpreter()
-			}()
-
-			interp := v.newForkedInterpreter(hidden)
-			interp.processID = proc.id
-			v.registerInterpreter(interp)
-			result := interp.ExecuteBlockDetached(bv.Block, bv.Captures, nil, bv.HomeSelf, bv.HomeMethod)
-			v.FinishProcess(proc, ExitNormal(result))
-		}()
+		v.runForkedBlock(proc, hidden, bv, nil)
 
 		return procValue
 	})
@@ -821,18 +777,7 @@ func (vm *VM) registerProcessPrimitives() {
 		proc := v.createProcess()
 		procValue := v.registerProcess(proc)
 
-		go func() {
-			defer func() {
-				v.HandleForkedPanic(proc, recover())
-				v.unregisterInterpreter()
-			}()
-
-			interp := v.newForkedInterpreter(hidden)
-			interp.processID = proc.id
-			v.registerInterpreter(interp)
-			result := interp.ExecuteBlockDetached(bv.Block, bv.Captures, nil, bv.HomeSelf, bv.HomeMethod)
-			v.FinishProcess(proc, ExitNormal(result))
-		}()
+		v.runForkedBlock(proc, hidden, bv, nil)
 
 		return procValue
 	})
