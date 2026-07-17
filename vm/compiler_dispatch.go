@@ -30,7 +30,7 @@ type CompilerBackend interface {
 
 // CompileFunc is the signature for compilation functions.
 // This is used to inject the Go compiler without creating import cycles.
-type CompileFunc func(source string, selectors *SelectorTable, symbols *SymbolTable, registry *ObjectRegistry) (*CompiledMethod, error)
+type CompileFunc func(source string, selectors *SelectorTable, symbols *SymbolTable, registry *ObjectRegistry, instVars []string) (*CompiledMethod, error)
 
 // GoCompilerBackend wraps the compiler/ package written in Go.
 // This is used for bootstrapping, AOT compilation, and as a fallback.
@@ -47,7 +47,11 @@ func NewGoCompilerBackend(vm *VM, compileFunc CompileFunc) *GoCompilerBackend {
 
 // Compile compiles a method source string using the Go compiler.
 func (g *GoCompilerBackend) Compile(source string, class *Class) (*CompiledMethod, error) {
-	method, err := g.compileFunc(source, g.vm.Selectors, g.vm.Symbols, g.vm.registry)
+	var instVars []string
+	if class != nil {
+		instVars = class.AllInstVarNames()
+	}
+	method, err := g.compileFunc(source, g.vm.Selectors, g.vm.Symbols, g.vm.registry, instVars)
 	if err != nil {
 		return nil, err
 	}

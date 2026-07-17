@@ -1206,7 +1206,7 @@ func formatErrors(kind string, errs []string) error {
 }
 
 // Compile parses and compiles source code to a method.
-func Compile(source string, selectors *vm.SelectorTable, symbols *vm.SymbolTable, registry *vm.ObjectRegistry) (*vm.CompiledMethod, error) {
+func Compile(source string, selectors *vm.SelectorTable, symbols *vm.SymbolTable, registry *vm.ObjectRegistry, instVars []string) (*vm.CompiledMethod, error) {
 	parser := NewParser(source)
 	method := parser.ParseMethod()
 	if len(parser.Errors()) > 0 {
@@ -1218,6 +1218,12 @@ func Compile(source string, selectors *vm.SelectorTable, symbols *vm.SymbolTable
 	_ = warnings // In the future, could log these or return them
 
 	compiler := NewCompiler(selectors, symbols, registry)
+	// Without the receiver class's instance variables, every ivar reference
+	// would resolve to a (nil) global — the live-coding/IDE compile path must
+	// pass them so `^x` becomes PUSH_IVAR, not PUSH_GLOBAL.
+	if len(instVars) > 0 {
+		compiler.SetInstanceVars(instVars)
+	}
 	compiled := compiler.CompileMethod(method)
 	if len(compiler.Errors()) > 0 {
 		return nil, formatErrors("compile errors", compiler.Errors())

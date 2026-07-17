@@ -53,7 +53,7 @@ func runYutaniIDE(vmInst *vm.VM, addr string, tool string, verbose bool) error {
 	if verbose {
 		fmt.Printf("Compiling: %s\n", startupCode)
 	}
-	method, err := compiler.Compile(source, vmInst.Selectors, vmInst.Symbols, vmInst.Registry())
+	method, err := compiler.Compile(source, vmInst.Selectors, vmInst.Symbols, vmInst.Registry(), nil)
 	if err != nil {
 		return fmt.Errorf("compiling startup code: %w", err)
 	}

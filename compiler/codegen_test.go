@@ -242,7 +242,7 @@ func TestCompileMethod(t *testing.T) {
 	symbols := vm.NewSymbolTable()
 	registry := newTestRegistry()
 
-	method, err := Compile("double ^self * 2", selectors, symbols, registry)
+	method, err := Compile("double ^self * 2", selectors, symbols, registry, nil)
 	if err != nil {
 		t.Fatalf("compile error: %v", err)
 	}
@@ -260,7 +260,7 @@ func TestCompileMethodWithArgs(t *testing.T) {
 	symbols := vm.NewSymbolTable()
 	registry := newTestRegistry()
 
-	method, err := Compile("add: x ^self + x", selectors, symbols, registry)
+	method, err := Compile("add: x ^self + x", selectors, symbols, registry, nil)
 	if err != nil {
 		t.Fatalf("compile error: %v", err)
 	}
@@ -279,7 +279,7 @@ func TestCompileMethodWithTemps(t *testing.T) {
 	registry := newTestRegistry()
 
 	source := "compute | result | result := 42. ^result"
-	method, err := Compile(source, selectors, symbols, registry)
+	method, err := Compile(source, selectors, symbols, registry, nil)
 	if err != nil {
 		t.Fatalf("compile error: %v", err)
 	}
@@ -294,7 +294,7 @@ func TestCompileKeywordMethod(t *testing.T) {
 	symbols := vm.NewSymbolTable()
 	registry := newTestRegistry()
 
-	method, err := Compile("at: index put: value ^self", selectors, symbols, registry)
+	method, err := Compile("at: index put: value ^self", selectors, symbols, registry, nil)
 	if err != nil {
 		t.Fatalf("compile error: %v", err)
 	}
@@ -372,7 +372,7 @@ func TestCompileAssignment(t *testing.T) {
 
 	// Method with temp and assignment
 	source := "test | x | x := 42. ^x"
-	method, err := Compile(source, selectors, symbols, registry)
+	method, err := Compile(source, selectors, symbols, registry, nil)
 	if err != nil {
 		t.Fatalf("compile error: %v", err)
 	}
@@ -392,7 +392,7 @@ func TestCompileUseArg(t *testing.T) {
 
 	// Method that uses its argument
 	source := "square: n ^n * n"
-	method, err := Compile(source, selectors, symbols, registry)
+	method, err := Compile(source, selectors, symbols, registry, nil)
 	if err != nil {
 		t.Fatalf("compile error: %v", err)
 	}
@@ -708,7 +708,7 @@ func TestSourceMapEmittedForMethod(t *testing.T) {
 	registry := newTestRegistry()
 
 	source := "doSomething\n  | x |\n  x := 42.\n  ^x + 1"
-	method, err := Compile(source, selectors, symbols, registry)
+	method, err := Compile(source, selectors, symbols, registry, nil)
 	if err != nil {
 		t.Fatalf("compile error: %v", err)
 	}
@@ -760,7 +760,7 @@ func TestSourceMapEmittedForBlock(t *testing.T) {
 	registry := newTestRegistry()
 
 	source := "doIt\n  [:x | x + 1] value: 5"
-	method, err := Compile(source, selectors, symbols, registry)
+	method, err := Compile(source, selectors, symbols, registry, nil)
 	if err != nil {
 		t.Fatalf("compile error: %v", err)
 	}
@@ -786,7 +786,7 @@ func TestSourceLocationLookup(t *testing.T) {
 	registry := newTestRegistry()
 
 	source := "doIt\n  | x |\n  x := 10.\n  ^x"
-	method, err := Compile(source, selectors, symbols, registry)
+	method, err := Compile(source, selectors, symbols, registry, nil)
 	if err != nil {
 		t.Fatalf("compile error: %v", err)
 	}
@@ -803,5 +803,47 @@ func TestSourceLocationLookup(t *testing.T) {
 	}
 	if loc.Line < 1 {
 		t.Errorf("expected line >= 1, got %d", loc.Line)
+	}
+}
+
+// TestCompileThreadsInstanceVars is the regression for the live-coding/IDE
+// compile path (GoCompilerBackend.Compile → compiler.Compile): without the
+// receiver class's instance variables, an ivar reference compiled to a nil
+// global fetch instead of PUSH_IVAR. Compile the same body with and without
+// instVars and assert the opcode differs accordingly.
+func TestCompileThreadsInstanceVars(t *testing.T) {
+	selectors := vm.NewSelectorTable()
+	symbols := vm.NewSymbolTable()
+	registry := newTestRegistry()
+
+	const src = "getX\n  ^x"
+
+	hasOpcode := func(bc []byte, op vm.Opcode) bool {
+		for i := 0; i < len(bc); {
+			if vm.Opcode(bc[i]) == op {
+				return true
+			}
+			i += 1 + vm.Opcode(bc[i]).Info().OperandBytes
+		}
+		return false
+	}
+
+	withIvars, err := Compile(src, selectors, symbols, registry, []string{"x"})
+	if err != nil {
+		t.Fatalf("compile with ivars: %v", err)
+	}
+	if !hasOpcode(withIvars.Bytecode, vm.OpPushIvar) {
+		t.Errorf("with instVars, `^x` must emit PUSH_IVAR:\n%s", vm.Disassemble(withIvars.Bytecode))
+	}
+	if hasOpcode(withIvars.Bytecode, vm.OpPushGlobal) {
+		t.Errorf("with instVars, `^x` must NOT emit PUSH_GLOBAL:\n%s", vm.Disassemble(withIvars.Bytecode))
+	}
+
+	withoutIvars, err := Compile(src, selectors, symbols, registry, nil)
+	if err != nil {
+		t.Fatalf("compile without ivars: %v", err)
+	}
+	if !hasOpcode(withoutIvars.Bytecode, vm.OpPushGlobal) {
+		t.Errorf("without instVars, `^x` falls back to PUSH_GLOBAL:\n%s", vm.Disassemble(withoutIvars.Bytecode))
 	}
 }
