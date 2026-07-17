@@ -633,21 +633,12 @@ func (vm *VM) registerProcessPrimitives() {
 			interp.processID = proc.id
 			v.registerInterpreter(interp)
 
-			// Monitor context cancellation
-			done := make(chan struct{})
-			go func() {
-				select {
-				case <-ctx.Done():
-					// Context cancelled - mark process as cancelled
-					// The block should check isCancelled and exit gracefully
-				case <-done:
-					// Block completed normally
-				}
-			}()
-
-			// Pass context as first argument
+			// Cancellation is cooperative: the block receives the context and
+			// polls `isCancelled` (a Go goroutine can't be force-stopped). The
+			// context is passed as the block's first argument; no watcher
+			// goroutine is needed — an empty select arm on ctx.Done() did
+			// nothing but imply a preemption that doesn't exist.
 			result := interp.ExecuteBlockDetached(bv.Block, bv.Captures, []Value{ctxArg}, bv.HomeSelf, bv.HomeMethod)
-			close(done)
 			v.FinishProcess(proc, ExitNormal(result))
 		}()
 
