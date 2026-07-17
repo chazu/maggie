@@ -19,6 +19,12 @@ import (
 //	mag api --all      include tutorial (GuideNN) and IDE (Yutani) classes
 //	mag api Array      just one class (matches by short or full name)
 func handleApiCommand(vmInst *vm.VM, args []string) int {
+	if wantsHelp(args) {
+		subcmdUsage("api [class] [--json] [--all]",
+			"Print the API (classes and selectors) of the loaded image.",
+			"Examples:\n  mag api            # all classes\n  mag api ArrayList  # one class\n  mag api --json")
+		return 0
+	}
 	asJSON := false
 	showAll := false
 	var only string

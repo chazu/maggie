@@ -12,6 +12,12 @@ import (
 
 // handleTypecheckCommand handles the "mag typecheck" subcommand.
 func handleTypecheckCommand(args []string, vmInst *vm.VM) {
+	if wantsHelp(args) {
+		subcmdUsage("typecheck [--verbose] [files or dirs...]",
+			"Type-check .mag files (Strongtalk-style optional annotations).",
+			"Exits non-zero on parse errors or type warnings.")
+		return
+	}
 	fs := flag.NewFlagSet("typecheck", flag.ExitOnError)
 	verbose := fs.Bool("verbose", false, "Show all checks, not just warnings")
 	fs.Parse(args)
