@@ -36,6 +36,7 @@ type serverConfig struct {
 	spawnResultFunc func(spawnerID dist.NodeID, futureID uint64, resultBytes []byte, errMsg error, exceptionBytes []byte)
 	peerAddrs       *sync.Map // NodeID -> address registry for code-on-demand
 	mountSync       bool      // mount the peer-facing SyncService (sync/message/spawn/channel RPCs)
+	membership      *dist.Membership // cluster membership core (nil = gossip disabled)
 }
 
 // WithCompileFunc sets the compile function used by the sync service to
@@ -67,6 +68,13 @@ func WithPullFunc(fn func(peerID dist.NodeID, hash [32]byte) error) ServerOption
 // WithSpawnResultFunc sets the callback for delivering spawn results.
 func WithSpawnResultFunc(fn func(spawnerID dist.NodeID, futureID uint64, resultBytes []byte, errMsg error, exceptionBytes []byte)) ServerOption {
 	return func(c *serverConfig) { c.spawnResultFunc = fn }
+}
+
+// WithMembership wires the cluster membership core so inbound __gossip__
+// envelopes update its view. Without it, gossip is rejected as an unknown
+// selector.
+func WithMembership(m *dist.Membership) ServerOption {
+	return func(c *serverConfig) { c.membership = m }
 }
 
 // WithPeerAddrRegistry sets a shared NodeID -> address registry. The
@@ -107,6 +115,7 @@ func New(v *vm.VM, opts ...ServerOption) *MaggieServer {
 	worker.pullFunc = cfg.pullFunc
 	worker.spawnResultFunc = cfg.spawnResultFunc
 	worker.peerAddrs = cfg.peerAddrs
+	worker.membership = cfg.membership
 	handles := NewHandleStore(worker)
 	sessions := NewSessionStore(handles)
 

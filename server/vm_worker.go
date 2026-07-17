@@ -63,6 +63,10 @@ type VMWorker struct {
 	// to the spawning node. Injected by the server wiring layer.
 	spawnResultFunc func(spawnerID dist.NodeID, futureID uint64, resultBytes []byte, errMsg error, exceptionBytes []byte)
 
+	// membership is the cluster membership core; inbound __gossip__ envelopes
+	// feed its view. nil when gossip is not enabled for this server.
+	membership *dist.Membership
+
 	// peerAddrs maps NodeID -> address for peers that have sent us
 	// requests. Used by code-on-demand to call back to the spawning
 	// node's Serve RPC. May be nil.

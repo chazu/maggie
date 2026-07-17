@@ -196,14 +196,15 @@ DistributedSupervisor subclass: Object
   or nil if no cluster / no live members.
   """
   method: selectNode: childId <String> ^<Node> [
-      | members <Array> node <Node> |
+      | members <Array> member |
       cluster isNil ifTrue: [^nil].
       members := cluster members.
       members size = 0 ifTrue: [^nil].
-      rrIndex := rrIndex \\ members size.
-      node := members at: rrIndex.
-      rrIndex := rrIndex + 1.
-      ^node
+      "cluster members are ClusterMembers; round-robin over them and resolve the
+      Node from the chosen one (1-based indexing)."
+      rrIndex := (rrIndex \\ members size) + 1.
+      member := members at: rrIndex.
+      ^member node
   ]
 
   """Handle a child going down. Applies restart strategy."""

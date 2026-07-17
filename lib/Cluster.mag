@@ -1,236 +1,167 @@
 """
-Automated cluster membership management. Connects to seed nodes, monitors
-them for failure, and delivers membership events when nodes join or leave.
+Cluster membership — a thin Maggie face over the Go membership core
+(`ClusterRuntime` primitives). The core (configured from `maggie.toml`
+`[sync].peers`) discovers peers, gossips a shared liveness view, and detects
+failure; this class exposes that view, delivers membership events to handler
+blocks, and offers consistent-hashing placement via `HashRing`.
 
-Built on existing primitives: `Node connect:`, process monitors, and
-the `NodeHealthMonitor` heartbeat system.
+`Cluster current` is the singleton wired to the configured core. Membership
+events arrive asynchronously on the `__cluster__` process (started by
+`start`); the event is a hint — `members` is always the authoritative view, so
+handlers and the ring re-read it rather than trusting the event payload.
 
 ```example
-"Create a cluster from seed addresses"
-| cluster <Cluster> |
-cluster := Cluster seeds: #('host1:8081' 'host2:8081').
+| cluster |
+cluster := Cluster current.
 cluster start.
-
-cluster members.    "Array of live Node values"
-cluster size.       "Number of live members"
-
-"Register event handlers"
-cluster onMemberUp: [:node | ('joined: ', node addr) println].
-cluster onMemberDown: [:addr | ('left: ', addr) println].
-
-cluster stop
+cluster onMemberUp:   [:m | ('up: ',   m addr) println].
+cluster onMemberDown: [:m | ('down: ', m addr) println].
+cluster members do: [:m | m addr println].
+(cluster nodeFor: 'user-123') ifNotNil: [:node | node println]
 ```
 """
 Cluster subclass: Object
-  instanceVars: seeds <Array> members <Dictionary> process <Process> running <Boolean>
-                onUpBlock onDownBlock reconnectInterval <Integer>
-                failedSeeds <Array> sentinelName <String> ring <HashRing>
+  instanceVars: onUpBlock onDownBlock onDiscoveredBlock ring <HashRing> running <Boolean> process <Process>
+  classVars: Current
 
   """
-  Create a cluster from an array of seed addresses (e.g., 'host:port').
+  The singleton cluster wired to the configured membership core. Created on
+  first use.
+  """
+  classMethod: current ^<Cluster> [
+      Current isNil ifTrue: [ Current := self new primInit ].
+      ^Current
+  ]
+
+  """
+  DEPRECATED — the cluster is configured from `maggie.toml` `[sync].peers`, not
+  from a seed array. Answers `Cluster current`; the argument is ignored. Kept so
+  existing callers keep working.
   """
   classMethod: seeds: anArray <Array> ^<Cluster> [
-      | cluster <Cluster> |
-      cluster := self new.
-      cluster primInit: anArray.
-      ^cluster
+      ^self current
   ]
 
-  method: primInit: seedArray <Array> [
-      seeds := seedArray.
-      members := Dictionary new.
-      failedSeeds := ArrayList new.
+  method: primInit ^<Cluster> [
+      ring := HashRing new.
       running := false.
-      reconnectInterval := 10000.
-      sentinelName := '__cluster__'.
       onUpBlock := nil.
       onDownBlock := nil.
-      ring := HashRing new
+      onDiscoveredBlock := nil.
+      ^self
   ]
 
-  """Start the cluster membership manager."""
+  """
+  Start the membership event loop: register this process as the `__cluster__`
+  sentinel/event inbox and dispatch membership events to the handler blocks.
+  Idempotent — a second call returns the running process.
+  """
   method: start ^<Process> ! <Process, Network> [
-      "Register ourselves as a sentinel so peers can monitor us"
-      Process current registerAs: sentinelName.
-
-      running := true.
+      running ifTrue: [ ^process ].
       process := [self runLoop] fork.
       ^process
   ]
 
-  """Stop the cluster and disconnect from all peers."""
+  """Stop the event loop."""
   method: stop [
       running := false.
-      process notNil ifTrue: [process primTerminate].
-      members := Dictionary new
+      process notNil ifTrue: [ process primTerminate ]
   ]
 
-  """Return an Array of currently live Node values."""
+  """Return an Array of the currently live cluster members (ClusterMember)."""
   method: members ^<Array> [
-      | result <ArrayList> |
-      result := ArrayList new.
-      members keysAndValuesDo: [:k :v | result add: v].
-      ^result asArray
+      ^ClusterRuntime members
   ]
 
-  """Return the number of live members."""
+  """Number of live members."""
   method: size ^<Integer> [
       ^self members size
   ]
 
-  """Return true if the given address is a live member."""
-  method: isConnected: addr <String> ^<Boolean> [
-      ^(members at: addr ifAbsent: [nil]) notNil
-  ]
+  """Register a handler for when a member becomes live. Block receives a ClusterMember."""
+  method: onMemberUp: aBlock [ onUpBlock := aBlock ]
 
-  """Register a block to call when a new member joins. Block receives the Node."""
-  method: onMemberUp: aBlock [
-      onUpBlock := aBlock
-  ]
-
-  """Register a block to call when a member leaves. Block receives the address string."""
-  method: onMemberDown: aBlock [
-      onDownBlock := aBlock
-  ]
+  """Register a handler for when a member is declared down. Block receives a ClusterMember."""
+  method: onMemberDown: aBlock [ onDownBlock := aBlock ]
 
   """
-  Return the node responsible for the given key using consistent hashing.
-  Returns a Node, or nil if the cluster is empty.
+  Register a handler for a gossip-learned member we are not connected to (a join
+  candidate). Block receives a ClusterMember; it may call `member connect`.
+  """
+  method: onMemberDiscovered: aBlock [ onDiscoveredBlock := aBlock ]
 
-  ```example
-  | cluster <Cluster> node <Node> |
-  cluster := Cluster seeds: #('host1:8081' 'host2:8081').
-  node := cluster nodeFor: 'user-123'.
-  ```
+  """Set the coarse join policy: #eager, #lazy, or #manual."""
+  method: joinPolicy: aSymbol <Symbol> [ ClusterRuntime setJoinPolicy: aSymbol ]
+
+  """Set this node's gossiped metadata (a Dictionary of string->string)."""
+  method: setMetadata: aDict <Dictionary> [ ClusterRuntime setMetadata: aDict ]
+
+  """Connect to an address explicitly (asynchronous)."""
+  method: connect: addr <String> [ ClusterRuntime connect: addr ]
+
+  """
+  Return the Node responsible for a key via consistent hashing over the
+  currently-connected members, or nil if none are connected.
   """
   method: nodeFor: key <String> ^<Node> [
+      self rebuildRing.
       ^ring nodeFor: key
   ]
 
-  """
-  Return N nodes responsible for the given key (for replication).
-  Returns an Array of Nodes.
-  """
+  """Return N Nodes responsible for a key (for replication)."""
   method: nodesFor: key <String> count: n <Integer> ^<Array> [
+      self rebuildRing.
       ^ring nodesFor: key count: n
   ]
 
-  """Return the underlying HashRing."""
-  method: ring ^<HashRing> [ ^ring ]
-
-  """Return the reconnect interval in milliseconds."""
-  method: reconnectInterval ^<Integer> [
-      ^reconnectInterval
+  """The underlying HashRing (rebuilt from live members)."""
+  method: ring ^<HashRing> [
+      self rebuildRing.
+      ^ring
   ]
 
-  """Set the reconnect interval in milliseconds."""
-  method: reconnectInterval: ms <Integer> [
-      reconnectInterval := ms
-  ]
+  "--- Private ---"
 
-  "--- Private: cluster management loop ---"
+  """
+  Rebuild the ring from the authoritative live view. Only connected members
+  (those with a routable Node) are placement targets. Rebuilding from `members`
+  each time keeps the ring consistent with the view even if an event was dropped.
+  """
+  method: rebuildRing [
+      ring := HashRing new.
+      self members do: [:m |
+          m isConnected ifTrue: [ ring add: m node ]
+      ]
+  ]
 
   method: runLoop ! <Process, Network> [
-      | lastReconnect <Integer> msg <MailboxMessage> now <Integer> |
+      | msg <MailboxMessage> |
+      Process current registerAs: '__cluster__'.
       Process current trapExit: true.
-
-      "Connect to all seeds"
-      seeds do: [:addr | self connectSeed: addr].
-
-      "Main loop"
-      lastReconnect := DateTime now epochMillis.
-
+      running := true.
       [running] whileTrue: [
           msg := Process receive: 1000.
-
-          msg notNil ifTrue: [
-              msg selector = #processDown: ifTrue: [
-                  self handleDown: msg payload
-              ]
-          ].
-
-          "Periodically retry failed seeds"
-          now := DateTime now epochMillis.
-          (now - lastReconnect >= reconnectInterval) ifTrue: [
-              lastReconnect := now.
-              self reconnectFailed
-          ]
+          msg notNil ifTrue: [ self dispatch: msg ]
       ]
   ]
 
-  method: connectSeed: addr <String> ! <Network> [
-      | node <Node> sentinel <RemoteProcess> |
-      [
-          node := Node connect: addr.
-          node ping ifTrue: [
-              sentinel := node processNamed: sentinelName.
-              sentinel notNil ifTrue: [
-                  Process current monitor: sentinel.
-                  members at: addr put: node.
-                  self notifyUp: node.
-                  "Remove from failed list if present"
-                  failedSeeds := failedSeeds reject: [:a | a = addr]
-              ] ifFalse: [
-                  "Node reachable but no sentinel — add as member anyway"
-                  members at: addr put: node.
-                  self notifyUp: node
-              ]
-          ] ifFalse: [
-              self addFailed: addr
-          ]
-      ] on: Error do: [:e |
-          self addFailed: addr
+  method: dispatch: msg <MailboxMessage> [
+      | sel member |
+      sel := msg selector.
+      member := msg payload.
+      "The event is a hint; rebuild the ring from the authoritative view."
+      self rebuildRing.
+      sel = #memberUp: ifTrue: [ ^self safely: onUpBlock with: member ].
+      sel = #memberDown: ifTrue: [ ^self safely: onDownBlock with: member ].
+      sel = #memberDiscovered: ifTrue: [ ^self safely: onDiscoveredBlock with: member ]
+  ]
+
+  """Invoke a handler block, isolating exceptions so one bad handler cannot kill the loop."""
+  method: safely: aBlock with: arg [
+      aBlock notNil ifTrue: [
+          [aBlock value: arg] on: Error do: [:e |
+              ('cluster handler error: ', e messageText) println]
       ]
-  ]
-
-  method: handleDown: info <Array> ! <Network> [
-      "info is #(refID processValue reasonSymbol resultValue)"
-      | reason <Symbol> deadAddrs <ArrayList> |
-      reason := info at: 4.
-      deadAddrs := ArrayList new.
-
-      "Find members whose nodes are no longer reachable"
-      members keysAndValuesDo: [:addr :node |
-          node ping ifFalse: [
-              deadAddrs add: addr
-          ]
-      ].
-
-      "Remove dead members (notify before removing so ring can find the node)"
-      deadAddrs do: [:addr |
-          self notifyDown: addr.
-          members removeKey: addr ifAbsent: [nil].
-          self addFailed: addr
-      ]
-  ]
-
-  method: reconnectFailed ! <Network> [
-      | toRetry <Array> |
-      toRetry := failedSeeds copy.
-      failedSeeds := ArrayList new.
-      toRetry do: [:addr |
-          (members at: addr ifAbsent: [nil]) isNil ifTrue: [
-              self connectSeed: addr
-          ]
-      ]
-  ]
-
-  method: addFailed: addr <String> [
-      (failedSeeds includes: addr) ifFalse: [
-          failedSeeds add: addr
-      ]
-  ]
-
-  method: notifyUp: node <Node> [
-      ring add: node.
-      onUpBlock notNil ifTrue: [onUpBlock value: node]
-  ]
-
-  method: notifyDown: addr <String> [
-      | node <Node> |
-      node := members at: addr ifAbsent: [nil].
-      node notNil ifTrue: [ring remove: node].
-      onDownBlock notNil ifTrue: [onDownBlock value: addr]
   ]
 
   method: printString ^<String> [

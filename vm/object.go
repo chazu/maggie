@@ -103,6 +103,11 @@ type Class struct {
 	ClassVars   []string // Class variable names (shared across all instances)
 	DocString   string   // documentation from """ ... """ (empty if none)
 
+	// NonSerializable marks instances of this class as forbidden on the wire
+	// (e.g. ClusterMember, which wraps live node handles). serializeObject
+	// signals rather than emitting a detached zombie a peer could act on.
+	NonSerializable bool
+
 	// Metaclass is the lazily-created metaclass for this class.
 	// In Smalltalk, every class X has a metaclass "X class" whose instances
 	// are class X itself. The metaclass's VTable delegates to X's ClassVTable.

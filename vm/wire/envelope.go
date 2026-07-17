@@ -36,8 +36,9 @@ func init() {
 
 // ReplyAddress identifies where to send a response.
 type ReplyAddress struct {
-	NodeID    [32]byte `cbor:"1,keyasint"` // reply-to node
-	ProcessID uint64   `cbor:"2,keyasint"` // reply-to process
+	NodeID      [32]byte `cbor:"1,keyasint"`           // reply-to node
+	ProcessID   uint64   `cbor:"2,keyasint,omitempty"` // reply-to process (unused by the correlation-id reply path)
+	Correlation uint64   `cbor:"3,keyasint,omitempty"` // sender's pending-reply id; the __reply__ envelope echoes it to resolve the right Future
 }
 
 // Envelope is the wire format for inter-node messages. It wraps a

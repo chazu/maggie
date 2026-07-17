@@ -921,9 +921,11 @@ func (vm *VM) registerLinkMonitorPrimitives() {
 func (vm *VM) registerMailboxPrimitives() {
 	c := vm.ProcessClass
 
-	// Bootstrap MailboxMessage class
+	// Bootstrap MailboxMessage class. Slots 3-4 (reply node + correlation) back
+	// the request-response reply path; they have no instance-variable names or
+	// accessors, so they stay invisible to ordinary Maggie code.
 	vm.MailboxMessageClass = NewClassWithInstVars("MailboxMessage", vm.ObjectClass, []string{"sender", "selector", "payload"})
-	vm.MailboxMessageClass.NumSlots = 3
+	vm.MailboxMessageClass.NumSlots = mailboxNumSlots
 	vm.Classes.Register(vm.MailboxMessageClass)
 	vm.globals["MailboxMessage"] = vm.classValue(vm.MailboxMessageClass)
 
@@ -949,6 +951,9 @@ func (vm *VM) registerMailboxPrimitives() {
 		}
 		return obj.GetSlot(2)
 	})
+
+	// Request-response reply methods (reply:, isRequest).
+	vm.addMailboxReplyMethods()
 
 	// Process>>primSend: payload — fire-and-forget to target's mailbox
 	c.AddMethod1(vm.Selectors, "primSend:", func(v *VM, recv Value, payload Value) Value {

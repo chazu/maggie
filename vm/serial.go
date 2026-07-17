@@ -273,6 +273,9 @@ func (s *valueSerializer) serializeObject(v Value) ([]byte, error) {
 	if class == nil {
 		return nil, fmt.Errorf("serial: object has no class")
 	}
+	if class.NonSerializable {
+		return nil, fmt.Errorf("serial: cannot serialize %s (non-serializable type)", class.Name)
+	}
 
 	// Compute class hash for identity
 	digest := DigestClass(class)
@@ -438,6 +441,14 @@ type valueDeserializer struct {
 	refs    map[uint32]Value // backreference index → deserialized value
 	nextRef uint32           // next backreference index to assign
 	depth   int
+
+	// pullClass, when set, is invoked with a class content hash the moment an
+	// object references a class missing from the local registry. It should pull
+	// and rehydrate the class (and its transitive deps) so a retry of the local
+	// lookup succeeds. nil disables code-on-demand (the class-not-found error
+	// stands). See DeserializeValueWithPull.
+	pullClass func(hash [32]byte) error
+	pulled    map[[32]byte]bool // hashes already attempted, to bound retries per graph
 }
 
 // DeserializeValue decodes CBOR bytes back into a Maggie Value. Returns an
@@ -446,6 +457,23 @@ func (vm *VM) DeserializeValue(data []byte) (Value, error) {
 	d := &valueDeserializer{
 		vm:   vm,
 		refs: make(map[uint32]Value),
+	}
+	return d.deserialize(data)
+}
+
+// DeserializeValueWithPull is DeserializeValue with code-on-demand: if the
+// payload references a class this node lacks, pullClass is called to fetch and
+// rehydrate it (and its transitive dependencies) from the sender, then the
+// lookup is retried. This makes a message carrying an instance of a class the
+// receiver has never seen self-healing — the receiver pulls the class the same
+// way a remote spawn pulls a missing method. A nil pullClass behaves exactly
+// like DeserializeValue.
+func (vm *VM) DeserializeValueWithPull(data []byte, pullClass func(hash [32]byte) error) (Value, error) {
+	d := &valueDeserializer{
+		vm:        vm,
+		refs:      make(map[uint32]Value),
+		pullClass: pullClass,
+		pulled:    make(map[[32]byte]bool),
 	}
 	return d.deserialize(data)
 }
@@ -629,7 +657,19 @@ func (d *valueDeserializer) deserializeObject(tag cbor.Tag) (Value, error) {
 	// Look up the class by content hash, then by name
 	class := d.lookupClass(so.ClassHash, so.ClassName)
 	if class == nil {
-		return Nil, fmt.Errorf("serial: class %q (hash %x) not found locally", so.ClassName, so.ClassHash[:8])
+		// Code-on-demand: pull the missing class (and its transitive deps) from
+		// the sender, then retry the lookup once. Each hash is attempted at most
+		// once per graph so a genuinely-absent class fails fast instead of
+		// re-pulling on every referencing object.
+		if d.pullClass != nil && !d.pulled[so.ClassHash] {
+			d.pulled[so.ClassHash] = true
+			if err := d.pullClass(so.ClassHash); err == nil {
+				class = d.lookupClass(so.ClassHash, so.ClassName)
+			}
+		}
+		if class == nil {
+			return Nil, fmt.Errorf("serial: class %q (hash %x) not found locally", so.ClassName, so.ClassHash[:8])
+		}
 	}
 
 	// Shape check: a slot-count mismatch means the sender's definition of

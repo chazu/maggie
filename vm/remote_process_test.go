@@ -261,11 +261,21 @@ func TestRemoteProcess_AsyncSendWithFuture(t *testing.T) {
 	pub, priv := testKeys(t)
 	ref := NewNodeRefData("localhost:9090", pub, priv)
 
-	// Simulate successful response with payload
+	// Simulate a responder: on delivery, decode the correlation id the sender
+	// stamped into ReplyTo and resolve the pending reply Future — the same
+	// effect the server's __reply__ handler produces when the remote process
+	// calls `msg reply:`. Returns only a delivery ack, as a real peer would.
 	ref.SendFunc = func(envelope []byte) ([]byte, string, string, error) {
-		// Serialize response value
-		respBytes, _ := vm.SerializeValue(FromSmallInt(99))
-		return respBytes, "", "", nil
+		env, err := wire.Unmarshal(envelope)
+		if err != nil || env.ReplyTo == nil {
+			return nil, "", "", nil
+		}
+		go func() {
+			if f := vm.ResolvePendingReply(env.ReplyTo.Correlation, [32]byte{}); f != nil {
+				f.Resolve(FromSmallInt(99))
+			}
+		}()
+		return nil, "", "", nil
 	}
 
 	nodeVal := vm.registerNodeRef(ref)

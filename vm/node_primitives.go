@@ -20,8 +20,8 @@ import (
 // vm/dist (which imports vm, creating a cycle).
 type NodeRefData struct {
 	Addr      string
-	PublicKey ed25519.PublicKey  // OUR public key (used to sign outgoing envelopes)
-	privKey   ed25519.PrivateKey // OUR private key
+	PublicKey ed25519.PublicKey        // OUR public key (used to sign outgoing envelopes)
+	privKey   ed25519.PrivateKey       // OUR private key
 	peerID    atomic.Pointer[[32]byte] // the REMOTE peer's node id, learned via Ping handshake
 	nonce     atomic.Uint64
 
@@ -148,6 +148,46 @@ func isNodeRefValue(v Value) bool {
 // VM helpers
 // ---------------------------------------------------------------------------
 
+// ConnectNode builds a fully-wired NodeRefData for addr, performs the Ping
+// handshake so the peer's node id is learned, registers it for reverse lookup,
+// and returns it. Returns nil if no local identity is available. This is the
+// shared body of the `Node connect:` primitive; the membership layer calls it
+// to establish connections to discovered peers. Best-effort handshake: if the
+// peer is unreachable now, a later ping populates its id.
+func (vm *VM) ConnectNode(addr string) *NodeRefData {
+	if addr == "" {
+		return nil
+	}
+	pub, priv := vm.nodeIdentity()
+	if pub == nil {
+		return nil
+	}
+	var ref *NodeRefData
+	if fn := vm.GetNodeRefFactory(); fn != nil {
+		ref = fn(addr, pub, priv)
+	} else {
+		ref = NewNodeRefData(addr, pub, priv)
+	}
+	if ref.PingFunc != nil {
+		ref.PingFunc()
+	}
+	vm.registerNodeRef(ref)
+	return ref
+}
+
+// HealthMonitor returns the VM's node health monitor, creating and starting it
+// on first use. The membership failure detector wraps this single instance so
+// heartbeating is shared with monitor/link tracking.
+func (vm *VM) HealthMonitor() *NodeHealthMonitor {
+	vm.healthMonitorMu.Lock()
+	defer vm.healthMonitorMu.Unlock()
+	if vm.healthMonitor == nil {
+		vm.healthMonitor = NewNodeHealthMonitor(vm)
+		vm.healthMonitor.Start()
+	}
+	return vm.healthMonitor
+}
+
 func (vm *VM) registerNodeRef(ref *NodeRefData) Value {
 	// The ref is a pointer-carrying kindRemoteRef Value (below). It is also
 	// tracked in nodeRefs, whose sole remaining role is the public-key reverse
@@ -190,6 +230,18 @@ func (vm *VM) SetNodeIdentityKeys(pub ed25519.PublicKey, priv ed25519.PrivateKey
 	vm.localIdentity.Store(&nodeIdentityHolder{pub: pub, priv: priv})
 }
 
+// SignWithNodeIdentity signs data with the VM's persistent node identity key,
+// returning (signature, true). It returns (nil, false) when no identity has been
+// installed — it never mints an ephemeral key, so a signature always corresponds
+// to LocalNodeID(). Used by the membership layer to self-sign its gossip records.
+func (vm *VM) SignWithNodeIdentity(data []byte) ([]byte, bool) {
+	holder := vm.localIdentity.Load()
+	if holder == nil || holder.priv == nil {
+		return nil, false
+	}
+	return ed25519.Sign(holder.priv, data), true
+}
+
 // localNodeID returns the 32-byte local node ID, or the zero array if no
 // identity has been set. Safe for concurrent use.
 func (vm *VM) localNodeID() (id [32]byte, ok bool) {
@@ -222,23 +274,11 @@ func (vm *VM) registerNodePrimitives() {
 		if addrStr == "" {
 			return Nil
 		}
-		pub, priv := v.nodeIdentity()
-		if pub == nil {
+		ref := v.ConnectNode(addrStr)
+		if ref == nil {
 			return Nil
 		}
-		var ref *NodeRefData
-		if fn := v.GetNodeRefFactory(); fn != nil {
-			ref = fn(addrStr, pub, priv)
-		} else {
-			ref = NewNodeRefData(addrStr, pub, priv)
-		}
-		// Handshake: learn the peer's node identity so health-monitoring and
-		// node-death cleanup key on the PEER's id, not ours. Best-effort — if
-		// the peer is unreachable now, a later ping populates it.
-		if ref.PingFunc != nil {
-			ref.PingFunc()
-		}
-		return v.registerNodeRef(ref)
+		return makeHeap(kindRemoteRef, unsafe.Pointer(ref))
 	})
 
 	// Node>>primAddr
@@ -405,42 +445,48 @@ func (vm *VM) remoteSend(recv, selectorVal, payload Value, wantReply bool) Value
 		return vm.SignalPrimitiveError("asyncSend:with:", fmt.Sprintf("cannot serialize payload: %v", err))
 	}
 
-	// Build and sign envelope
-	envelopeBytes, err := buildSignedEnvelope(ref, targetName, sel, payloadBytes, wantReply)
-	if err != nil {
-		return vm.SignalPrimitiveError("asyncSend:with:", fmt.Sprintf("cannot build envelope: %v", err))
-	}
-
 	if !wantReply {
 		// Fire-and-forget
+		envelopeBytes, err := buildSignedEnvelope(ref, targetName, sel, payloadBytes, false)
+		if err != nil {
+			return vm.SignalPrimitiveError("cast:with:", fmt.Sprintf("cannot build envelope: %v", err))
+		}
 		go ref.SendFunc(envelopeBytes)
 		return True
 	}
 
-	// Request-response: create Future, resolve in background
+	// Request-response: register a Future keyed by a correlation id, stamp that
+	// id into the envelope's ReplyAddress, and leave the Future pending. The
+	// delivery ack only confirms enqueue; the actual answer arrives later as a
+	// __reply__ envelope that resolves the Future (or node-death drains it).
 	future := NewFuture()
 	futureVal := vm.registerFuture(future)
+	correlation := vm.pendingReplies.register(future, ref.peerKey())
+
+	replyTo := &wire.ReplyAddress{NodeID: ref.NodeID(), Correlation: correlation}
+	envelopeBytes, err := buildSignedEnvelopeWithReply(ref, targetName, sel, payloadBytes, replyTo)
+	if err != nil {
+		vm.pendingReplies.resolve(correlation, [32]byte{})
+		return vm.SignalPrimitiveError("asyncSend:with:", fmt.Sprintf("cannot build envelope: %v", err))
+	}
 
 	go func() {
-		respPayload, errKind, errMsg, netErr := ref.SendFunc(envelopeBytes)
+		_, errKind, errMsg, netErr := ref.SendFunc(envelopeBytes)
 		if netErr != nil {
-			future.ResolveError(fmt.Sprintf("network: %v", netErr))
+			if f, ok := vm.pendingReplies.resolve(correlation, [32]byte{}); ok {
+				f.ResolveError(fmt.Sprintf("network: %v", netErr))
+			}
 			return
 		}
 		if errKind != "" {
-			future.ResolveError(errKind + ": " + errMsg)
+			// Delivery failed (process not found, mailbox full, permission).
+			// No reply will ever come, so resolve the Future now.
+			if f, ok := vm.pendingReplies.resolve(correlation, [32]byte{}); ok {
+				f.ResolveError(errKind + ": " + errMsg)
+			}
 			return
 		}
-		if len(respPayload) > 0 {
-			result, deserErr := vm.DeserializeValue(respPayload)
-			if deserErr != nil {
-				future.ResolveError(fmt.Sprintf("deserialize: %v", deserErr))
-				return
-			}
-			future.Resolve(result)
-		} else {
-			future.Resolve(Nil)
-		}
+		// Delivered — the reply resolves the Future asynchronously.
 	}()
 
 	return futureVal

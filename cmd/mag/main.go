@@ -376,6 +376,45 @@ func run() (exitCode int) {
 		syncOpts = append(syncOpts, server.WithSpawnResultFunc(buildSpawnResultFunc(vmInst)))
 		syncOpts = append(syncOpts, server.WithPullFunc(buildPullFunc(vmInst, peerAddrs)))
 		syncOpts = append(syncOpts, server.WithPeerAddrRegistry(peerAddrs))
+
+		// Cluster membership: gossip a shared liveness view among the configured
+		// seeds. Discovered/gossiped peers stay at the trust store's default
+		// perms — membership disseminates addresses and liveness, never trust.
+		var mship *dist.Membership
+		if selfID, ok := vmInst.LocalNodeID(); ok && len(loadedManifest.Sync.Peers) > 0 {
+			// JoinLazy by default: we connect to the operator-configured static
+			// seeds (via discovery), but do NOT auto-dial addresses learned from
+			// gossip — those are untrusted and auto-dialing them is an SSRF /
+			// amplification vector. Gossip still propagates the view; connecting
+			// to gossip-learned peers is an explicit opt-in (Phase 2 hook / config).
+			mship = dist.NewMembership(vmInst, trustStore, dist.NodeID(selfID), syncAddr,
+				dist.NewDirectHeartbeatDetector(vmInst), dist.MembershipConfig{JoinPolicy: dist.JoinLazy})
+			mship.AddDiscovery(dist.NewStaticDiscovery(loadedManifest.Sync.Peers))
+			syncOpts = append(syncOpts, server.WithMembership(mship))
+
+			// Bridge membership → Maggie: expose the core to the Cluster
+			// primitives and forward events to the __cluster__ event process
+			// (async, best-effort — the Cluster loop treats them as hints).
+			vmInst.SetClusterCore(mship)
+			mship.Subscribe(func(ev dist.MemberEvent) {
+				var sel string
+				switch ev.Kind {
+				case dist.EventDown:
+					sel = vm.SelectorMemberDown
+				case dist.EventDiscovered:
+					sel = vm.SelectorMemberDiscovered
+				default:
+					sel = vm.SelectorMemberUp
+				}
+				vmInst.DeliverClusterEvent(sel, vm.ClusterMemberInfo{
+					ID:       ev.Record.Peer,
+					Addr:     ev.Record.Addr,
+					Status:   uint8(ev.Record.Status),
+					Metadata: ev.Record.Metadata,
+				})
+			})
+		}
+
 		srv := server.New(vmInst, syncOpts...)
 		go func() {
 			if err := srv.ListenAndServe(syncAddr); err != nil {
@@ -383,6 +422,12 @@ func run() (exitCode int) {
 			}
 		}()
 		vmInst.SetLocalListenAddr(syncAddr)
+		if mship != nil {
+			mship.Start(context.Background())
+			if *verbose {
+				fmt.Printf("Cluster membership started (%d seed(s))\n", len(loadedManifest.Sync.Peers))
+			}
+		}
 		if *verbose {
 			fmt.Printf("Sync server listening on %s\n", syncAddr)
 		}

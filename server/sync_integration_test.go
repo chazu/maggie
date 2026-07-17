@@ -770,6 +770,239 @@ func TestEndToEnd_RemoteMailboxDelivery(t *testing.T) {
 	}
 }
 
+// startGossipTestServer builds an in-process server whose VMWorker has a
+// membership core attached, and returns the base URL, the membership, and a
+// stop function. trust gates whether inbound gossip is accepted (PermSync).
+func startGossipTestServer(t *testing.T, self dist.NodeID, trust *dist.TrustStore) (string, *dist.Membership, func()) {
+	t.Helper()
+	if trust == nil {
+		trust = dist.NewPermissiveTrustStore()
+	}
+	testVM := vm.NewVM()
+	worker := NewVMWorker(testVM)
+	// JoinManual so applying gossip records peers without real network connects.
+	mship := dist.NewMembership(testVM, trust, self, "self:0", dist.NewDirectHeartbeatDetector(testVM),
+		dist.MembershipConfig{JoinPolicy: dist.JoinManual})
+	worker.membership = mship
+
+	svc := NewSyncService(worker, vm.NewContentStore(), trust, nil, nil)
+	mux := http.NewServeMux()
+	path, handler := maggiev1connect.NewSyncServiceHandler(svc)
+	mux.Handle(path, handler)
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	srv := &http.Server{Handler: mux}
+	go func() { _ = srv.Serve(listener) }()
+	stop := func() { srv.Close(); worker.Stop() }
+	return fmt.Sprintf("http://%s", listener.Addr().String()), mship, stop
+}
+
+func TestEndToEnd_GossipDelivery(t *testing.T) {
+	server, _ := dist.GenerateIdentity()
+	var serverID dist.NodeID
+	copy(serverID[:], server.PublicKey)
+
+	baseURL, mship, stop := startGossipTestServer(t, serverID, dist.NewPermissiveTrustStore())
+	defer stop()
+	time.Sleep(10 * time.Millisecond)
+
+	// A peer gossips a self-signed member record for a third node.
+	peer, _ := dist.GenerateIdentity()
+	gossipedIdty, _ := dist.GenerateIdentity()
+	var gossiped dist.NodeID
+	copy(gossiped[:], gossipedIdty.PublicKey)
+
+	rec := dist.MemberRecord{Peer: gossiped, Addr: "node3:9000", Status: dist.StatusAlive,
+		Incarnation: 1, Metadata: map[string]string{"zone": "eu-west"}}
+	if err := dist.SignMemberRecord(&rec, gossipedIdty.PrivateKey); err != nil {
+		t.Fatalf("sign record: %v", err)
+	}
+	payload, _ := dist.EncodeGossip([]dist.MemberRecord{rec})
+	env := &dist.MessageEnvelope{Selector: dist.GossipSelector, Payload: payload, Nonce: 1}
+	dist.SignEnvelope(env, peer)
+	envBytes, _ := dist.MarshalEnvelope(env)
+
+	client := maggiev1connect.NewSyncServiceClient(http.DefaultClient, baseURL)
+	resp, err := client.DeliverMessage(context.Background(),
+		connect.NewRequest(&maggiev1.DeliverMessageRequest{Envelope: envBytes}))
+	if err != nil || !resp.Msg.Success {
+		t.Fatalf("gossip delivery failed: err=%v resp=%+v", err, resp.Msg)
+	}
+
+	// The membership view now contains the gossiped member, metadata intact.
+	var found bool
+	for _, r := range mship.Members() {
+		if r.Peer == gossiped {
+			found = true
+			if r.Addr != "node3:9000" || r.Metadata["zone"] != "eu-west" {
+				t.Errorf("gossiped record mismatch: %+v", r)
+			}
+		}
+	}
+	if !found {
+		t.Fatal("gossiped member did not appear in the view")
+	}
+}
+
+func TestEndToEnd_GossipRejectedWithoutSyncPerm(t *testing.T) {
+	server, _ := dist.GenerateIdentity()
+	var serverID dist.NodeID
+	copy(serverID[:], server.PublicKey)
+
+	// Secure trust store: an unconfigured peer gets NO permissions, so gossip
+	// (which requires PermSync) is rejected — proving membership never accepts
+	// state from a peer below the baseline sync grant.
+	baseURL, mship, stop := startGossipTestServer(t, serverID, dist.NewSecureTrustStore())
+	defer stop()
+	time.Sleep(10 * time.Millisecond)
+
+	peer, _ := dist.GenerateIdentity()
+	var gossiped dist.NodeID
+	gossiped[0] = 0x55
+	payload, _ := dist.EncodeGossip([]dist.MemberRecord{
+		{Peer: gossiped, Addr: "x:1", Status: dist.StatusAlive, Incarnation: 1},
+	})
+	env := &dist.MessageEnvelope{Selector: dist.GossipSelector, Payload: payload, Nonce: 1}
+	dist.SignEnvelope(env, peer)
+	envBytes, _ := dist.MarshalEnvelope(env)
+
+	client := maggiev1connect.NewSyncServiceClient(http.DefaultClient, baseURL)
+	resp, err := client.DeliverMessage(context.Background(),
+		connect.NewRequest(&maggiev1.DeliverMessageRequest{Envelope: envBytes}))
+	if err != nil {
+		t.Fatalf("delivery errored: %v", err)
+	}
+	if resp.Msg.Success {
+		t.Fatal("gossip from a peer without PermSync should be rejected")
+	}
+	if len(mship.Members()) != 0 {
+		t.Errorf("rejected gossip must not touch the view, got %d members", len(mship.Members()))
+	}
+}
+
+// TestEndToEnd_RequestReplyDelivery drives both halves of request-response over
+// real gRPC. The request half: an envelope carrying a ReplyTo correlation lands
+// in the target's mailbox as a MailboxMessage that reports isRequest. The reply
+// half: a __reply__ envelope from the peer resolves the requester's pending
+// Future through the server's handleReply path.
+func TestEndToEnd_RequestReplyDelivery(t *testing.T) {
+	store := vm.NewContentStore()
+	compile := func(source string, _ dist.MethodContext) (dist.CompileResult, error) {
+		return dist.CompileResult{SemanticHash: sha256.Sum256([]byte(source))}, nil
+	}
+	// The server here plays the REQUESTER node A: it holds the pending Future
+	// and receives the inbound __reply__ envelope.
+	baseURL, vmA, stop := startTestServerWithVM(t, store, compile, nil)
+	defer stop()
+	time.Sleep(10 * time.Millisecond)
+
+	client := maggiev1connect.NewSyncServiceClient(http.DefaultClient, baseURL)
+	ctx := context.Background()
+
+	// The peer B (responder) identity.
+	peerB, _ := dist.GenerateIdentity()
+	var peerBID [32]byte
+	copy(peerBID[:], peerB.PublicKey)
+
+	// --- Request half: an envelope with a ReplyTo correlation delivers a
+	// request-flavored MailboxMessage. ---
+	vmA.RegisterProcessName("svc", vmA.MainProcessID())
+	svcProc := vmA.GetProcessByID(vmA.MainProcessID())
+
+	reqPayload, _ := vmA.SerializeValue(vm.FromSmallInt(5))
+	reqEnv := &dist.MessageEnvelope{
+		TargetName: "svc",
+		Selector:   "double:",
+		Payload:    reqPayload,
+		ReplyTo:    &dist.ReplyAddress{NodeID: peerBID, Correlation: 99},
+		Nonce:      1,
+	}
+	dist.SignEnvelope(reqEnv, peerB)
+	reqBytes, _ := dist.MarshalEnvelope(reqEnv)
+	resp, err := client.DeliverMessage(ctx, connect.NewRequest(&maggiev1.DeliverMessageRequest{Envelope: reqBytes}))
+	if err != nil || !resp.Msg.Success {
+		t.Fatalf("request delivery failed: err=%v resp=%+v", err, resp.Msg)
+	}
+	msg, ok := svcProc.Mailbox().TryReceive()
+	if !ok {
+		t.Fatal("no request message in mailbox")
+	}
+	if got := vmA.Send(msg, "isRequest", nil); got != vm.True {
+		t.Error("delivered request message should report isRequest = true")
+	}
+
+	// --- Reply half: register a pending Future, then have B send a __reply__
+	// envelope that resolves it. ---
+	future := vm.NewFuture()
+	correlation := vmA.RegisterPendingReply(future, peerBID)
+
+	resultBytes, _ := vmA.SerializeValue(vm.FromSmallInt(84))
+	replyBody, _ := vm.EncodeReplyPayload(correlation, resultBytes, "")
+	replyEnv := &dist.MessageEnvelope{
+		Selector: vm.SelectorReply,
+		Payload:  replyBody,
+		Nonce:    2,
+	}
+	dist.SignEnvelope(replyEnv, peerB)
+	replyBytes, _ := dist.MarshalEnvelope(replyEnv)
+	resp, err = client.DeliverMessage(ctx, connect.NewRequest(&maggiev1.DeliverMessageRequest{Envelope: replyBytes}))
+	if err != nil || !resp.Msg.Success {
+		t.Fatalf("reply delivery failed: err=%v resp=%+v", err, resp.Msg)
+	}
+
+	select {
+	case <-future.Done():
+	case <-time.After(2 * time.Second):
+		t.Fatal("pending future was not resolved by the reply")
+	}
+	if future.Error() != "" {
+		t.Fatalf("future resolved with error: %s", future.Error())
+	}
+	if r := future.Result(); !r.IsSmallInt() || r.SmallInt() != 84 {
+		t.Errorf("future result: got %v, want 84", r)
+	}
+}
+
+// TestEndToEnd_ReplyWrongPeerIgnored verifies the correlation-id reply path
+// rejects a reply forged by a different peer than the one the request went to.
+func TestEndToEnd_ReplyWrongPeerIgnored(t *testing.T) {
+	store := vm.NewContentStore()
+	baseURL, vmA, stop := startTestServerWithVM(t, store, nil, nil)
+	defer stop()
+	time.Sleep(10 * time.Millisecond)
+
+	client := maggiev1connect.NewSyncServiceClient(http.DefaultClient, baseURL)
+	ctx := context.Background()
+
+	realPeer, _ := dist.GenerateIdentity()
+	var realID [32]byte
+	copy(realID[:], realPeer.PublicKey)
+	attacker, _ := dist.GenerateIdentity()
+
+	future := vm.NewFuture()
+	correlation := vmA.RegisterPendingReply(future, realID)
+
+	resultBytes, _ := vmA.SerializeValue(vm.FromSmallInt(1))
+	replyBody, _ := vm.EncodeReplyPayload(correlation, resultBytes, "")
+	replyEnv := &dist.MessageEnvelope{Selector: vm.SelectorReply, Payload: replyBody, Nonce: 1}
+	dist.SignEnvelope(replyEnv, attacker) // signed by the wrong peer
+	replyBytes, _ := dist.MarshalEnvelope(replyEnv)
+	resp, err := client.DeliverMessage(ctx, connect.NewRequest(&maggiev1.DeliverMessageRequest{Envelope: replyBytes}))
+	if err != nil || !resp.Msg.Success {
+		t.Fatalf("delivery errored: err=%v resp=%+v", err, resp.Msg)
+	}
+
+	// The forged reply must NOT resolve the future.
+	select {
+	case <-future.Done():
+		t.Fatal("future was resolved by a reply from the wrong peer")
+	case <-time.After(150 * time.Millisecond):
+		// expected: still pending
+	}
+}
+
 // TestEndToEnd_RemoteSendViaNodeRef tests the full path using the
 // vm-level NodeRefData + SendFunc, simulating what a Maggie program
 // would do with `node processNamed: 'worker'` + `cast:with:`.

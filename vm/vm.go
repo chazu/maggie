@@ -161,6 +161,7 @@ type VM struct {
 	FutureClass         *Class
 	NodeClass           *Class
 	RemoteProcessClass  *Class
+	ClusterMemberClass  *Class
 
 	RemoteChannelClass *Class
 
@@ -224,6 +225,15 @@ type VM struct {
 	// remote nodes. Keyed by futureID embedded in the SpawnBlock.
 	pendingSpawns *pendingSpawnRegistry
 
+	// pendingReplies tracks Futures for asyncSend:with: request-response calls
+	// awaiting a reply. Keyed by the correlation id carried in the envelope's
+	// ReplyAddress; resolved by the inbound __reply__ handler.
+	pendingReplies *pendingReplyRegistry
+
+	// clusterCore is the membership handle the Cluster/ClusterMember primitives
+	// delegate to (set by the wiring layer; nil = no cluster configured).
+	clusterCore ClusterCore
+
 	// dependents maps objects to their dependent lists for the ST-80
 	// change/update notification protocol. Uses Value identity (==) as key.
 	dependents   map[Value][]Value
@@ -268,6 +278,7 @@ func NewVM(configs ...VMConfig) *VM {
 		nodeRefs:         make(map[*NodeRefData]struct{}),
 		remoteWatches:    NewRemoteWatchStore(),
 		pendingSpawns:    newPendingSpawnRegistry(),
+		pendingReplies:   newPendingReplyRegistry(),
 	}
 
 	// Bootstrap core classes
@@ -498,6 +509,7 @@ func (vm *VM) bootstrap() {
 	vm.registerNodePrimitives()
 	vm.registerRemoteProcessPrimitives()
 	vm.registerSpawnPrimitives()
+	vm.registerClusterPrimitives()
 	vm.registerRemoteChannelPrimitives()
 	vm.registerMutexPrimitives()
 	vm.registerWaitGroupPrimitives()
@@ -831,19 +843,46 @@ func (vm *VM) UnregisterProcessNamesFor(procID uint64) {
 	vm.processNamesMu.Unlock()
 }
 
-// CreateMailboxMessage creates a MailboxMessage instance with sender, selector, payload.
+// MailboxMessage slot layout. Slots 0-2 (sender/selector/payload) have public
+// accessors; slots 3-4 hold the request-response reply address and are read only
+// by MailboxMessage>>reply:/isRequest (no accessor — effectively hidden).
+const (
+	mailboxSlotSender      = 0
+	mailboxSlotSelector    = 1
+	mailboxSlotPayload     = 2
+	mailboxSlotReplyNode   = 3 // String of the requester's raw 32-byte node id, or Nil
+	mailboxSlotCorrelation = 4 // SmallInt correlation id, or Nil
+	mailboxNumSlots        = 5
+)
+
+// CreateMailboxMessage creates a fire-and-forget MailboxMessage (no reply address).
 func (vm *VM) CreateMailboxMessage(sender Value, selector string, payload Value) Value {
+	var zero [32]byte
+	return vm.CreateMailboxMessageWithReply(sender, selector, payload, zero, 0)
+}
+
+// CreateMailboxMessageWithReply creates a MailboxMessage carrying an optional
+// reply address. A non-zero correlation marks the message as a request the
+// receiver can answer with `msg reply:`; replyNode is the requester's node id.
+func (vm *VM) CreateMailboxMessageWithReply(sender Value, selector string, payload Value, replyNode [32]byte, correlation uint64) Value {
 	if vm.MailboxMessageClass == nil {
 		return payload // fallback if class not bootstrapped
 	}
-	instance := NewObject(vm.MailboxMessageClass.VTable, 3)
-	instance.SetSlot(0, sender)
+	instance := NewObject(vm.MailboxMessageClass.VTable, mailboxNumSlots)
+	instance.SetSlot(mailboxSlotSender, sender)
 	if selector != "" {
-		instance.SetSlot(1, vm.Symbols.SymbolValue(selector))
+		instance.SetSlot(mailboxSlotSelector, vm.Symbols.SymbolValue(selector))
 	} else {
-		instance.SetSlot(1, Nil)
+		instance.SetSlot(mailboxSlotSelector, Nil)
 	}
-	instance.SetSlot(2, payload)
+	instance.SetSlot(mailboxSlotPayload, payload)
+	if correlation != 0 {
+		instance.SetSlot(mailboxSlotReplyNode, vm.registry.NewStringValue(string(replyNode[:])))
+		instance.SetSlot(mailboxSlotCorrelation, FromSmallInt(int64(correlation)))
+	} else {
+		instance.SetSlot(mailboxSlotReplyNode, Nil)
+		instance.SetSlot(mailboxSlotCorrelation, Nil)
+	}
 	return instance.ToValue()
 }
 

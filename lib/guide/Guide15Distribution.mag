@@ -579,6 +579,35 @@ Guide15Distribution subclass: Object
       ('remote call failed: ', e messageText) print]
   ```
 
+  **The responder side (reply):**
+
+  A process that answers `asyncSend:` requests reads its mailbox and replies to
+  the message. `MailboxMessage>>isRequest` distinguishes a request (sent with
+  `asyncSend:with:`) from a fire-and-forget `cast:with:`; `reply:` routes the
+  answer back to the caller's Future.
+
+  ```example
+  "A tiny service loop running on the remote node."
+  [ | msg |
+    msg := Process receive.
+    msg isRequest
+      ifTrue: [ msg reply: (self handle: msg payload) ]
+      ifFalse: [ self logEvent: msg payload ] ] repeat
+  ```
+
+  The reply is a signed envelope sent back over the peer connection, so the
+  responding node must have a connection to the caller (have both nodes
+  `connect:` to each other). A request that is never `reply:`-ed leaves the
+  caller's Future pending -- await it with a timeout.
+
+  **Code-on-demand:**
+
+  A message payload may carry an instance of a class the receiving node has
+  never seen. On deserialization the receiver pulls the missing class -- and its
+  transitive dependencies -- from the sender by content hash, rehydrates it, and
+  continues, exactly as a remote spawn pulls a missing method. No manual
+  `sync push` of the class is required first.
+
   **Value serialization:**
 
   All message payloads are serialized with CBOR. Supported types:

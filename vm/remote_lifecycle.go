@@ -162,6 +162,12 @@ func (vm *VM) handleNodeDown(nodeID [32]byte) {
 		f.ResolveError("nodeDown: remote node died before delivering spawn result")
 	}
 
+	// Same for asyncSend:with: request-response futures: no reply will arrive
+	// from a dead node.
+	for _, f := range vm.pendingReplies.drainNode(nodeID) {
+		f.ResolveError("nodeDown: remote node died before replying")
+	}
+
 	// Mark every remote-channel proxy owned by the dead node closed so
 	// blocked/future channel operations fail instead of hanging.
 	vm.DrainRemoteChannels(nodeID)

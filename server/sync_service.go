@@ -547,6 +547,12 @@ func (s *SyncService) DeliverMessage(
 	if envelope.Selector == vm.SelectorSpawnResult {
 		return s.handleSpawnResult(envelope)
 	}
+	if envelope.Selector == vm.SelectorReply {
+		return s.handleReply(envelope, peerID)
+	}
+	if envelope.Selector == dist.GossipSelector {
+		return s.handleGossip(envelope, peerID)
+	}
 
 	// User message delivery requires PermMessage. (Infrastructure selectors
 	// above — remote-down and spawn-result — are part of the monitor/spawn
@@ -584,8 +590,15 @@ func (s *SyncService) DeliverMessage(
 		}), nil
 	}
 
-	// Deserialize payload
-	payload, err := s.worker.vm.DeserializeValue(envelope.Payload)
+	// Deserialize payload. Code-on-demand: if the payload carries an instance of
+	// a class we lack, pull and rehydrate it from the sender, then retry.
+	var pullClass func(hash [32]byte) error
+	if s.worker.pullFunc != nil {
+		pullClass = func(hash [32]byte) error {
+			return s.worker.pullFunc(peerID, hash)
+		}
+	}
+	payload, err := s.worker.vm.DeserializeValueWithPull(envelope.Payload, pullClass)
 	if err != nil {
 		return connect.NewResponse(&maggiev1.DeliverMessageResponse{
 			Success:      false,
@@ -594,8 +607,16 @@ func (s *SyncService) DeliverMessage(
 		}), nil
 	}
 
-	// Create MailboxMessage and deliver to mailbox
-	mailboxMsg := s.worker.vm.CreateMailboxMessage(vm.Nil, envelope.Selector, payload)
+	// Create MailboxMessage and deliver to mailbox. When the sender used
+	// asyncSend:with:, ReplyTo carries the correlation id so the receiving
+	// process can answer with `msg reply:`.
+	var replyNode [32]byte
+	var correlation uint64
+	if envelope.ReplyTo != nil {
+		replyNode = envelope.ReplyTo.NodeID
+		correlation = envelope.ReplyTo.Correlation
+	}
+	mailboxMsg := s.worker.vm.CreateMailboxMessageWithReply(vm.Nil, envelope.Selector, payload, replyNode, correlation)
 	if !proc.Mailbox().TrySend(mailboxMsg) {
 		return connect.NewResponse(&maggiev1.DeliverMessageResponse{
 			Success:      false,
@@ -604,14 +625,79 @@ func (s *SyncService) DeliverMessage(
 		}), nil
 	}
 
-	// NOTE: ResponsePayload is intentionally left empty. Delivery is to the
-	// target's mailbox (async), so there is no synchronous return value to send
-	// back — asyncSend:with:'s Future resolves to nil on delivery. True
-	// request-response would need correlation-id reply routing (a separate
-	// inbound reply message resolving the sender's Future), which is not built.
+	// The delivery ack only confirms the message was enqueued. For a
+	// request-response send the actual answer travels back later as its own
+	// __reply__ envelope (see handleReply); ResponsePayload stays empty.
 	return connect.NewResponse(&maggiev1.DeliverMessageResponse{
 		Success: true,
 	}), nil
+}
+
+// handleGossip merges an inbound membership digest into the membership view.
+// Gossip is gated on PermSync, not PermMessage: it disseminates addresses and
+// liveness (membership), never trust grants. A peer therefore needs only the
+// baseline sync permission to be heard — and even an unconfigured, signed peer
+// (which the trust store hands DefaultPerms = PermSync) can share its view
+// without ever being granted message/spawn rights.
+func (s *SyncService) handleGossip(envelope *dist.MessageEnvelope, peerID dist.NodeID) (*connect.Response[maggiev1.DeliverMessageResponse], error) {
+	if s.worker.membership == nil {
+		return connect.NewResponse(&maggiev1.DeliverMessageResponse{
+			Success:      false,
+			ErrorKind:    wire.ErrKindProcessNotFound,
+			ErrorMessage: "membership not enabled on this node",
+		}), nil
+	}
+	if !s.trust.Check(peerID, dist.PermSync) {
+		return connect.NewResponse(&maggiev1.DeliverMessageResponse{
+			Success:      false,
+			ErrorKind:    wire.ErrKindPermissionDenied,
+			ErrorMessage: "peer lacks sync permission",
+		}), nil
+	}
+
+	records, err := dist.DecodeGossip(envelope.Payload)
+	if err != nil {
+		return connect.NewResponse(&maggiev1.DeliverMessageResponse{
+			Success:   false,
+			ErrorKind: wire.ErrKindDeserialization,
+		}), nil
+	}
+	s.worker.membership.ApplyGossip(records, peerID)
+	return connect.NewResponse(&maggiev1.DeliverMessageResponse{Success: true}), nil
+}
+
+// handleReply resolves a pending asyncSend:with: Future from an inbound
+// __reply__ envelope. The correlation id in the payload identifies the Future;
+// the signature-proven peerID must match the node the request was sent to.
+func (s *SyncService) handleReply(envelope *dist.MessageEnvelope, peerID dist.NodeID) (*connect.Response[maggiev1.DeliverMessageResponse], error) {
+	correlation, resultBytes, errMsg, err := vm.DecodeReplyPayload(envelope.Payload)
+	if err != nil {
+		return connect.NewResponse(&maggiev1.DeliverMessageResponse{
+			Success:   false,
+			ErrorKind: wire.ErrKindDeserialization,
+		}), nil
+	}
+
+	future := s.worker.vm.ResolvePendingReply(correlation, peerID)
+	if future == nil {
+		// Unknown, already resolved, or replying peer mismatch — not an error.
+		return connect.NewResponse(&maggiev1.DeliverMessageResponse{Success: true}), nil
+	}
+
+	if errMsg != "" {
+		future.ResolveError(errMsg)
+	} else if len(resultBytes) > 0 {
+		result, derr := s.worker.vm.DeserializeValue(resultBytes)
+		if derr != nil {
+			future.ResolveError(fmt.Sprintf("reply deserialize: %v", derr))
+		} else {
+			future.Resolve(result)
+		}
+	} else {
+		future.Resolve(vm.Nil)
+	}
+
+	return connect.NewResponse(&maggiev1.DeliverMessageResponse{Success: true}), nil
 }
 
 // handleRemoteDown processes a __down__ notification from a remote node.

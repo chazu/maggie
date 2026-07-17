@@ -46,21 +46,32 @@ RemoteProcess subclass: Object
   ]
 
   """
-  Send a message to the remote process and return a Future for the delivery.
-  The Future resolves once the message has been delivered (or with an error if
-  delivery fails).
+  Request-response: send a message to the remote process and return a Future
+  that resolves with the remote process's REPLY value.
 
-  NOTE: a reply VALUE from the remote process is not yet delivered back — the
-  message is placed in the target's mailbox and the Future resolves with nil,
-  not the target's return value. (End-to-end request-response needs
-  correlation-id reply routing, which is not implemented.) Use it for delivery
-  confirmation / error propagation; for a reply, have the target send a message
-  back to a process you monitor.
+  The target receives a `MailboxMessage` for which `isRequest` is true; it
+  answers by sending `reply:` to that message. The reply travels back as its own
+  signed envelope and resolves this Future. If delivery fails (no such process,
+  mailbox full, permission denied) or the remote node dies before replying, the
+  Future resolves with an error instead.
+
+  Requirement: the responding node must have a connection back to this node
+  (e.g. both nodes `connect:` to each other) so the reply can be routed. If the
+  target never sends `reply:`, this Future stays pending — await it with a
+  timeout.
 
   ```example
-  | future <Future> |
+  | future <Future> result <Integer> |
   future := worker asyncSend: #compute: with: 42.
-  future await        "=> nil once delivered (not the remote return value)"
+  result := future await.        "=> the value the remote handler replied with"
+  ```
+
+  The remote handler side looks like:
+
+  ```example
+  | msg <MailboxMessage> |
+  [ msg := Process receive.
+    msg isRequest ifTrue: [ msg reply: (self compute: msg payload) ] ] repeat
   ```
   """
   method: asyncSend: selector <Symbol> with: payload ^<Future> ! <Network> [

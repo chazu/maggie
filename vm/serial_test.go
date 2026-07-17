@@ -366,6 +366,80 @@ func TestSerial_Object(t *testing.T) {
 	}
 }
 
+// TestSerial_CodeOnDemand verifies that DeserializeValueWithPull invokes the
+// pull callback when a payload references a class the receiver lacks, and
+// succeeds on the retry once the class is available.
+func TestSerial_CodeOnDemand(t *testing.T) {
+	// Sender defines Widget and serializes an instance.
+	sender := NewVM()
+	defer sender.Shutdown()
+	sw := sender.createClass("Widget", sender.ObjectClass)
+	sw.InstVars = []string{"label"}
+	sw.NumSlots = 1
+	obj := NewObject(sw.VTable, 1)
+	obj.SetSlot(0, FromSmallInt(7))
+	data, err := sender.SerializeValue(obj.ToValue())
+	if err != nil {
+		t.Fatalf("serialize: %v", err)
+	}
+
+	// Receiver lacks Widget: a plain deserialize must fail.
+	receiver := NewVM()
+	defer receiver.Shutdown()
+	if _, err := receiver.DeserializeValue(data); err == nil {
+		t.Fatal("expected class-not-found error without code-on-demand")
+	}
+
+	// With a pull callback that installs the class, deserialize succeeds.
+	pulls := 0
+	pull := func(hash [32]byte) error {
+		pulls++
+		rc := receiver.createClass("Widget", receiver.ObjectClass)
+		rc.InstVars = []string{"label"}
+		rc.NumSlots = 1
+		return nil
+	}
+	got, err := receiver.DeserializeValueWithPull(data, pull)
+	if err != nil {
+		t.Fatalf("deserialize with pull: %v", err)
+	}
+	if pulls != 1 {
+		t.Errorf("pull callback invoked %d times, want 1", pulls)
+	}
+	gotObj := ObjectFromValue(got)
+	if gotObj == nil || gotObj.GetSlot(0).SmallInt() != 7 {
+		t.Fatalf("pulled object slot mismatch: %v", got)
+	}
+}
+
+// TestSerial_CodeOnDemand_PullFails verifies that when the pull callback cannot
+// supply the class, the original class-not-found error stands and the callback
+// is not retried for the same hash.
+func TestSerial_CodeOnDemand_PullFails(t *testing.T) {
+	sender := NewVM()
+	defer sender.Shutdown()
+	sw := sender.createClass("Gadget", sender.ObjectClass)
+	sw.InstVars = []string{"n"}
+	sw.NumSlots = 1
+	obj := NewObject(sw.VTable, 1)
+	obj.SetSlot(0, FromSmallInt(3))
+	data, _ := sender.SerializeValue(obj.ToValue())
+
+	receiver := NewVM()
+	defer receiver.Shutdown()
+	pulls := 0
+	pull := func(hash [32]byte) error {
+		pulls++
+		return nil // pretends to pull but installs nothing
+	}
+	if _, err := receiver.DeserializeValueWithPull(data, pull); err == nil {
+		t.Fatal("expected error when pull cannot supply the class")
+	}
+	if pulls != 1 {
+		t.Errorf("pull attempted %d times, want exactly 1", pulls)
+	}
+}
+
 // CUE value serialization tests are in vm/contrib/cue/serial_test.go
 
 // ---------------------------------------------------------------------------

@@ -20,10 +20,11 @@ type NodeHealthMonitor struct {
 	interval time.Duration
 	maxMiss  int
 
-	mu      sync.Mutex
-	nodes   map[[32]byte]*trackedNode
-	stopCh  chan struct{}
-	stopped bool
+	mu            sync.Mutex
+	nodes         map[[32]byte]*trackedNode
+	stopCh        chan struct{}
+	stopped       bool
+	downObservers []func([32]byte) // notified (in addition to handleNodeDown) when a node dies
 }
 
 type trackedNode struct {
@@ -58,6 +59,17 @@ func (nhm *NodeHealthMonitor) Track(nodeID [32]byte, ref *NodeRefData) {
 		sendFunc: ref.SendFunc,
 		lastSeen: time.Now(),
 	}
+}
+
+// AddDownObserver registers a callback fired when a tracked node is declared
+// dead — in addition to the VM's own handleNodeDown cleanup. The membership
+// layer uses this to surface a Dead MemberEvent without the health monitor
+// needing to know about it. Observers run on the monitor's tick goroutine and
+// must not block.
+func (nhm *NodeHealthMonitor) AddDownObserver(fn func([32]byte)) {
+	nhm.mu.Lock()
+	nhm.downObservers = append(nhm.downObservers, fn)
+	nhm.mu.Unlock()
 }
 
 // Untrack stops monitoring a remote node.
@@ -134,8 +146,13 @@ func (nhm *NodeHealthMonitor) tick() {
 	for _, nodeID := range deadNodes {
 		nhm.mu.Lock()
 		delete(nhm.nodes, nodeID)
+		observers := make([]func([32]byte), len(nhm.downObservers))
+		copy(observers, nhm.downObservers)
 		nhm.mu.Unlock()
 
 		nhm.vm.handleNodeDown(nodeID)
+		for _, obs := range observers {
+			obs(nodeID)
+		}
 	}
 }
