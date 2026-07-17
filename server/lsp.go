@@ -15,6 +15,7 @@ import (
 	glspserver "github.com/tliron/glsp/server"
 
 	"github.com/chazu/maggie/compiler"
+	"github.com/chazu/maggie/format"
 	"github.com/chazu/maggie/vm"
 
 	_ "github.com/tliron/commonlog/simple"
@@ -955,17 +956,10 @@ func (s *LspServer) textDocumentFormatting(ctx *glsp.Context, params *protocol.D
 // from cmd/mag/format.go since that's in package main and can't be imported.
 // It parses the source and returns canonical output.
 func formatMaggieSource(source string) (string, error) {
-	// We call ParseSourceFileFromString to validate, but the actual formatting
-	// requires the formatter from cmd/mag. For now, we just validate and return
-	// the source unchanged if valid — the full formatter will be extracted to a
-	// shared package in a follow-up.
-	_, err := compiler.ParseSourceFileFromString(source)
-	if err != nil {
-		return "", err
-	}
-	// TODO: extract Format() from cmd/mag/format.go to a shared package
-	// and call it here. For now, formatting is advertised but is a no-op.
-	return source, nil
+	// The canonical formatter now lives in the shared `format` package (extracted
+	// from cmd/mag), so the LSP formatting the capability advertises actually
+	// reformats instead of returning the source unchanged.
+	return format.Format(source)
 }
 
 // --- Helpers ---
