@@ -189,8 +189,14 @@ func (vm *VM) ResolveBlockMethod(sb *SpawnBlock) (*BlockMethod, *CompiledMethod,
 		}
 	}
 
-	// Fallback: use the first block (most common case — one block per method)
-	return method.Blocks[0], method, nil
+	// One block: it is unambiguously the one (arity/capture metadata quirks
+	// aside). Multiple blocks with none matching means we'd otherwise run the
+	// WRONG block remotely — surface that instead of silently guessing Blocks[0].
+	if len(method.Blocks) == 1 {
+		return method.Blocks[0], method, nil
+	}
+	return nil, nil, fmt.Errorf("spawn: no block in method %q matches arity %d / %d captures",
+		method.Name(), sb.ArgCount, sb.NumCaptures)
 }
 
 // ---------------------------------------------------------------------------
