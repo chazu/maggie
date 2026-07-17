@@ -24,8 +24,13 @@ func Peephole(bytecode []byte, sourceMap []vm.SourceLoc) ([]byte, []vm.SourceLoc
 	// Stripping NOPs can create new fold opportunities (e.g., chained arithmetic).
 	for {
 		changed := false
-		changed = foldConstants(bytecode) || changed
-		changed = eliminatePushPop(bytecode) || changed
+		// Jump targets are computed once per iteration. foldConstants and
+		// eliminatePushPop only overwrite bytes with equal-length NOPs (they
+		// never shift offsets), so the target set stays valid for both until
+		// stripNOPs runs at the end of the iteration.
+		targets := jumpTargets(bytecode)
+		changed = foldConstants(bytecode, targets) || changed
+		changed = eliminatePushPop(bytecode, targets) || changed
 
 		eliminateDeadCode(bytecode)
 
@@ -38,6 +43,28 @@ func Peephole(bytecode []byte, sourceMap []vm.SourceLoc) ([]byte, []vm.SourceLoc
 	return bytecode, sourceMap
 }
 
+// jumpTargets returns the set of byte offsets that are the destination of some
+// jump instruction. Optimizations that rewrite or delete an instruction MUST
+// NOT do so across a jump target: a control-flow path that jumps into the
+// middle of a rewritten window would execute a corrupted sequence.
+func jumpTargets(bc []byte) map[int]bool {
+	targets := make(map[int]bool)
+	i := 0
+	for i < len(bc) {
+		op := vm.Opcode(bc[i])
+		size := instrSize(bc, i)
+		if isJump(op) && i+2 < len(bc) {
+			offset := int(int16(binary.LittleEndian.Uint16(bc[i+1 : i+3])))
+			target := i + 3 + offset // jump is relative to end of instruction
+			if target >= 0 && target < len(bc) {
+				targets[target] = true
+			}
+		}
+		i += size
+	}
+	return targets
+}
+
 // ---------------------------------------------------------------------------
 // Phase A: Constant folding
 // ---------------------------------------------------------------------------
@@ -45,12 +72,16 @@ func Peephole(bytecode []byte, sourceMap []vm.SourceLoc) ([]byte, []vm.SourceLoc
 // foldConstants replaces PushInt8/PushInt8/SendArith with PushInt8(result)
 // or PushInt32(result) if the result doesn't fit in int8. Returns true if
 // any changes were made.
-func foldConstants(bc []byte) bool {
+func foldConstants(bc []byte, targets map[int]bool) bool {
 	changed := false
 	i := 0
 	for i+4 < len(bc) {
-		// Pattern: PushInt8 <a> PushInt8 <b> SendArith
-		if bc[i] == byte(vm.OpPushInt8) && bc[i+2] == byte(vm.OpPushInt8) {
+		// Pattern: PushInt8 <a> PushInt8 <b> SendArith. Fold only if no jump
+		// lands on the second push or the arith op — a path jumping to i+2 or
+		// i+4 expects those instructions to still be present. (i+1/i+3 are
+		// operand bytes and can never be legitimate instruction boundaries.)
+		if bc[i] == byte(vm.OpPushInt8) && bc[i+2] == byte(vm.OpPushInt8) &&
+			!targets[i+2] && !targets[i+4] {
 			a := int64(int8(bc[i+1]))
 			b := int64(int8(bc[i+3]))
 			op := vm.Opcode(bc[i+4])
@@ -110,23 +141,10 @@ func foldConstants(bc []byte) bool {
 // target of a jump instruction).
 func eliminateDeadCode(bc []byte) {
 	// First pass: collect all jump targets
-	targets := make(map[int]bool)
-	i := 0
-	for i < len(bc) {
-		op := vm.Opcode(bc[i])
-		size := instrSize(bc, i)
-		if isJump(op) && i+2 < len(bc) {
-			offset := int(int16(binary.LittleEndian.Uint16(bc[i+1 : i+3])))
-			target := i + 3 + offset // jump is relative to end of instruction
-			if target >= 0 && target < len(bc) {
-				targets[target] = true
-			}
-		}
-		i += size
-	}
+	targets := jumpTargets(bc)
 
 	// Second pass: NOP out instructions after unconditional jumps
-	i = 0
+	i := 0
 	for i < len(bc) {
 		op := vm.Opcode(bc[i])
 		size := instrSize(bc, i)
@@ -155,7 +173,7 @@ func eliminateDeadCode(bc []byte) {
 
 // eliminatePushPop replaces side-effect-free Push*/Pop pairs with NOPs.
 // Returns true if any changes were made.
-func eliminatePushPop(bc []byte) bool {
+func eliminatePushPop(bc []byte, targets map[int]bool) bool {
 	changed := false
 	i := 0
 	for i < len(bc) {
@@ -165,7 +183,11 @@ func eliminatePushPop(bc []byte) bool {
 		// Check if this is a side-effect-free push followed by Pop
 		if isPurePush(op) {
 			nextI := i + size
-			if nextI < len(bc) && vm.Opcode(bc[nextI]) == vm.OpPOP {
+			// Never eliminate when the POP is a jump target: a merge point
+			// (e.g. the join of an inlined ifTrue:ifFalse:) reaches the POP by
+			// jumping, with a value pushed on the branch path. Removing the
+			// pair would leave that value orphaned on the operand stack.
+			if nextI < len(bc) && vm.Opcode(bc[nextI]) == vm.OpPOP && !targets[nextI] {
 				// NOP out both the push and the pop
 				for k := i; k < nextI; k++ {
 					bc[k] = byte(vm.OpNOP)

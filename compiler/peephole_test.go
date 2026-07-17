@@ -208,3 +208,46 @@ func TestJumpTargetsPreserved(t *testing.T) {
 		t.Errorf("expected %d bytes, got %d", len(bc), len(out))
 	}
 }
+
+// TestConstantFoldNotAcrossJumpTarget guards the miscompile where a jump lands
+// inside a foldable PushInt8/PushInt8/SendArith window. Folding would delete the
+// second push / the arith that the jumping path expects to execute.
+// Regression for: (true ifTrue: [1] ifFalse: [2]) + 3 evaluating to 1 not 4.
+func TestConstantFoldNotAcrossJumpTarget(t *testing.T) {
+	bc := []byte{
+		byte(vm.OpPushInt8), 5, // 0: first push
+		byte(vm.OpPushInt8), 3, // 2: second push — jump target below
+		byte(vm.OpSendPlus),    // 4
+		byte(vm.OpJump), 0xFA, 0xFF, // 5: jump -6 → target = 5+3-6 = 2
+	}
+	out, _ := Peephole(bc, nil)
+	if len(out) != len(bc) {
+		t.Fatalf("fold must be suppressed across a jump target: expected %d bytes, got %d: %v", len(bc), len(out), out)
+	}
+	if vm.Opcode(out[2]) != vm.OpPushInt8 || vm.Opcode(out[4]) != vm.OpSendPlus {
+		t.Errorf("second push / arith clobbered by fold across jump target: %v", out)
+	}
+}
+
+// TestPushPopNotAcrossJumpTarget guards the miscompile where the POP at an
+// inlined conditional's merge point is a jump target: removing the else-push +
+// merge-POP leaves the then-branch value orphaned on the operand stack.
+func TestPushPopNotAcrossJumpTarget(t *testing.T) {
+	bc := []byte{
+		byte(vm.OpPushTrue),         // 0: condition
+		byte(vm.OpJumpFalse), 5, 0,  // 1: false → else @ 9  (1+3+5)
+		byte(vm.OpPushInt8), 1,      // 4: then value
+		byte(vm.OpJump), 2, 0,       // 6: → merge POP @ 11  (6+3+2)
+		byte(vm.OpPushInt8), 2,      // 9: else value (pure push)
+		byte(vm.OpPOP),              // 11: merge point — jump target
+		byte(vm.OpPushInt8), 5,      // 12
+		byte(vm.OpReturnTop),        // 14
+	}
+	out, _ := Peephole(bc, nil)
+	if len(out) != len(bc) {
+		t.Fatalf("push/pop elimination must be suppressed across a merge jump target: expected %d bytes, got %d: %v", len(bc), len(out), out)
+	}
+	if vm.Opcode(out[9]) != vm.OpPushInt8 || vm.Opcode(out[11]) != vm.OpPOP {
+		t.Errorf("else-push / merge-POP clobbered across jump target: %v", out)
+	}
+}
