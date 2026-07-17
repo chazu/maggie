@@ -21,7 +21,10 @@ func (vm *VM) registerFilePrimitives() {
 	// ---------------------------------------------------------------------------
 
 	// readFileContents: path - Read entire file contents as a string
-	// Returns the file contents, or a Failure if the file can't be read
+	// Returns Success wrapping the contents, or Failure if the file can't be
+	// read — the same tagged Result shape as writeFileContents:contents:
+	// (previously success returned the bare string, so isSuccess DNU'd only
+	// on the happy path).
 	fileClass.AddClassMethod1(vm.Selectors, "readFileContents:", func(v *VM, recv Value, pathVal Value) Value {
 
 		path := v.valueToString(pathVal)
@@ -34,7 +37,7 @@ func (vm *VM) registerFilePrimitives() {
 			return v.newFailureResult("Cannot read file: " + err.Error())
 		}
 
-		return v.registry.NewStringValue(string(content))
+		return v.newSuccessResult(v.registry.NewStringValue(string(content)))
 	})
 
 	// ---------------------------------------------------------------------------

@@ -2,24 +2,29 @@
 An HTTP client for making requests to web servers.
 
 HttpClient wraps Go's net/http.Client with a default 30-second timeout.
-All request methods return the response body as a string, or nil on error.
+All request methods return a Result: Success wrapping the response body
+string, or Failure carrying the reason (bad URL, connection refused, DNS
+failure, ...). Pattern-match with `ifSuccess:`/`ifFailure:` or unwrap
+with `value`.
 
 ```example
 "Simple GET request"
-| client <HttpClient> body <String> |
+| client <HttpClient> result <Result> |
 client := HttpClient new.
-body := client get: 'http://example.com/api/status'.
-body print
+result := client get: 'http://example.com/api/status'.
+result
+    ifSuccess: [:body | body print]
+    ifFailure: [:reason | ('request failed: ', reason) print]
 ```
 
 ```example
 "POST with JSON body"
-| client <HttpClient> response <String> |
+| client <HttpClient> result <Result> |
 client := HttpClient new.
-response := client post: 'http://example.com/api/data'
-                   body: '{"name": "Alice"}'
-                   contentType: 'application/json'.
-response print
+result := client post: 'http://example.com/api/data'
+                 body: '{"name": "Alice"}'
+                 contentType: 'application/json'.
+result isSuccess ifTrue: [result value print]
 ```
 
 ```example
@@ -45,71 +50,92 @@ HttpClient subclass: Object
   ]
 
   """
-  Perform an HTTP GET request. Returns the response body as a string,
-  or nil on error.
+  Perform an HTTP GET request. Returns Success wrapping the response
+  body string, or Failure with the reason.
 
   ```example
-  | body <String> |
-  body := HttpClient new get: 'http://example.com/'
+  | result <Result> |
+  result := HttpClient new get: 'http://example.com/'.
+  result ifSuccess: [:body | body print]
   ```
   """
-  method: get: url <String> ^<String> ! <Network> [
+  method: get: url <String> ^<Result> ! <Network> [
       <primitive>
   ]
 
   """
   Perform an HTTP POST request with the given body string.
   Uses 'application/octet-stream' as the default content type.
-  Returns the response body as a string, or nil on error.
+  Returns Success wrapping the response body, or Failure with the reason.
 
   ```example
-  | result <String> |
+  | result <Result> |
   result := HttpClient new post: 'http://example.com/api' body: 'hello'
   ```
   """
-  method: post: url <String> body: body <String> ^<String> ! <Network> [
+  method: post: url <String> body: body <String> ^<Result> ! <Network> [
       <primitive>
   ]
 
   """
   Perform an HTTP POST request with the given body and content type.
-  Returns the response body as a string, or nil on error.
+  Returns Success wrapping the response body, or Failure with the reason.
 
   ```example
-  | result <String> |
+  | result <Result> |
   result := HttpClient new
       post: 'http://example.com/api'
       body: '{"key": "value"}'
       contentType: 'application/json'
   ```
   """
-  method: post: url <String> body: body <String> contentType: contentType <String> ^<String> ! <Network> [
+  method: post: url <String> body: body <String> contentType: contentType <String> ^<Result> ! <Network> [
+      <primitive>
+  ]
+
+  """
+  Perform an HTTP POST request with body, content type, and a Dictionary
+  of extra headers (string keys and values). Returns Success wrapping the
+  response body, or Failure with the reason.
+
+  ```example
+  | headers <Dictionary> result <Result> |
+  headers := Dictionary new.
+  headers at: 'Authorization' put: 'Bearer token123'.
+  result := HttpClient new
+      post: 'http://example.com/api'
+      body: '{}'
+      contentType: 'application/json'
+      headers: headers
+  ```
+  """
+  method: post: url <String> body: body <String> contentType: contentType <String> headers: headers <Dictionary> ^<Result> ! <Network> [
       <primitive>
   ]
 
   """
   Perform an HTTP PUT request with the given body string.
   Uses 'application/octet-stream' as the content type.
-  Returns the response body as a string, or nil on error.
+  Returns Success wrapping the response body, or Failure with the reason.
 
   ```example
-  | result <String> |
+  | result <Result> |
   result := HttpClient new put: 'http://example.com/api/item' body: 'data'
   ```
   """
-  method: put: url <String> body: body <String> ^<String> ! <Network> [
+  method: put: url <String> body: body <String> ^<Result> ! <Network> [
       <primitive>
   ]
 
   """
-  Perform an HTTP DELETE request. Returns the response body as a string,
-  or nil on error.
+  Perform an HTTP DELETE request. Returns Success wrapping the response
+  body, or Failure with the reason.
 
   ```example
-  | result <String> |
+  | result <Result> |
   result := HttpClient new delete: 'http://example.com/api/item/1'
   ```
   """
-  method: delete: url <String> ^<String> ! <Network> [
+  method: delete: url <String> ^<Result> ! <Network> [
       <primitive>
   ]

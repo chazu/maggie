@@ -91,7 +91,7 @@ CodeEditor subclass: Object
           self updateStatus: 'Error: ', result error.
           ^self
       ].
-      contents := result.
+      contents := result value.
       filename := aFilename.
       modified := false.
       textArea text: contents.

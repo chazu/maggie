@@ -166,8 +166,6 @@ Float>>primFloor
 Float>>primPrintString
 Float>>primRounded
 Float>>primTruncated
-Future>>exception
-HttpClient>>post:body:contentType:headers:
 HttpRequest>>host
 HttpServer>>asyncRoute:method:handler:
 HttpServer>>sseRoute:handler:

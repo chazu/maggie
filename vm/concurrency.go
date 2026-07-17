@@ -443,6 +443,40 @@ func (vm *VM) registerChannelPrimitives() {
 		}
 	})
 
+	// Channel>>receiveIfClosed: - blocking receive; evaluates the block when
+	// the channel is closed and drained, so a legitimately-sent nil is
+	// distinguishable from closure (failure doctrine: nil never signals).
+	c.AddMethod1(vm.Selectors, "receiveIfClosed:", func(v *VM, recv Value, blockVal Value) Value {
+		ch := v.getChannel(recv)
+		if ch == nil {
+			return v.evaluateBlock(blockVal, nil)
+		}
+		val, ok := <-ch.ch
+		if !ok {
+			return v.evaluateBlock(blockVal, nil)
+		}
+		return val
+	})
+
+	// Channel>>tryReceiveIfEmpty: - non-blocking receive; evaluates the block
+	// when no value was obtained (empty or closed+drained), so a
+	// legitimately-sent nil is distinguishable from absence.
+	c.AddMethod1(vm.Selectors, "tryReceiveIfEmpty:", func(v *VM, recv Value, blockVal Value) Value {
+		ch := v.getChannel(recv)
+		if ch == nil {
+			return v.evaluateBlock(blockVal, nil)
+		}
+		select {
+		case val, ok := <-ch.ch:
+			if !ok {
+				return v.evaluateBlock(blockVal, nil)
+			}
+			return val
+		default:
+			return v.evaluateBlock(blockVal, nil)
+		}
+	})
+
 	// Channel>>close - alias for primClose
 	c.AddMethod0(vm.Selectors, "close", func(v *VM, recv Value) Value {
 		ch := v.getChannel(recv)

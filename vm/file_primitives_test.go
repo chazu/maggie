@@ -61,9 +61,7 @@ func TestFileReadFileContents(t *testing.T) {
 	}
 
 	result := vm.Send(fc, "readFileContents:", []Value{vm.registry.NewStringValue(testFile)})
-	if !IsStringValue(result) {
-		t.Fatalf("readFileContents: did not return a string, got result-like value")
-	}
+	result = assertSuccess(t, vm, result, "readFileContents:")
 	content := vm.registry.GetStringContent(result)
 	if content != "Hello, Maggie!" {
 		t.Errorf("readFileContents: returned %q, want %q", content, "Hello, Maggie!")
@@ -82,9 +80,7 @@ func TestFileReadFileContentsEmpty(t *testing.T) {
 	}
 
 	result := vm.Send(fc, "readFileContents:", []Value{vm.registry.NewStringValue(testFile)})
-	if !IsStringValue(result) {
-		t.Fatalf("readFileContents: of empty file did not return a string")
-	}
+	result = assertSuccess(t, vm, result, "readFileContents:")
 	content := vm.registry.GetStringContent(result)
 	if content != "" {
 		t.Errorf("readFileContents: of empty file returned %q, want empty string", content)
@@ -103,9 +99,7 @@ func TestFileReadFileContentsUnicode(t *testing.T) {
 	}
 
 	result := vm.Send(fc, "readFileContents:", []Value{vm.registry.NewStringValue(testFile)})
-	if !IsStringValue(result) {
-		t.Fatalf("readFileContents: of unicode file did not return a string")
-	}
+	result = assertSuccess(t, vm, result, "readFileContents:")
 	content := vm.registry.GetStringContent(result)
 	if content != unicodeContent {
 		t.Errorf("readFileContents: returned %q, want %q", content, unicodeContent)
@@ -124,9 +118,7 @@ func TestFileReadFileContentsMultiline(t *testing.T) {
 	}
 
 	result := vm.Send(fc, "readFileContents:", []Value{vm.registry.NewStringValue(testFile)})
-	if !IsStringValue(result) {
-		t.Fatalf("readFileContents: of multiline file did not return a string")
-	}
+	result = assertSuccess(t, vm, result, "readFileContents:")
 	content := vm.registry.GetStringContent(result)
 	if content != multiline {
 		t.Errorf("readFileContents: returned %q, want %q", content, multiline)
@@ -1170,9 +1162,7 @@ func TestFileWriteThenRead(t *testing.T) {
 
 	// Read via Maggie
 	readResult := vm.Send(fc, "readFileContents:", []Value{vm.registry.NewStringValue(testFile)})
-	if !IsStringValue(readResult) {
-		t.Fatalf("readFileContents: did not return a string in roundtrip")
-	}
+	readResult = assertSuccess(t, vm, readResult, "readFileContents:")
 
 	got := vm.registry.GetStringContent(readResult)
 	if got != content {
@@ -1279,9 +1269,7 @@ func TestFileCopyThenVerifyContents(t *testing.T) {
 
 	// Read copy via Maggie
 	readResult := vm.Send(fc, "readFileContents:", []Value{vm.registry.NewStringValue(dstFile)})
-	if !IsStringValue(readResult) {
-		t.Fatalf("readFileContents: did not return string")
-	}
+	readResult = assertSuccess(t, vm, readResult, "readFileContents:")
 	if vm.registry.GetStringContent(readResult) != "original content" {
 		t.Errorf("Copied file content = %q, want %q", vm.registry.GetStringContent(readResult), "original content")
 	}
@@ -1313,9 +1301,7 @@ func TestFileRenameThenVerify(t *testing.T) {
 
 	// New should exist with correct content
 	readResult := vm.Send(fc, "readFileContents:", []Value{vm.registry.NewStringValue(newFile)})
-	if !IsStringValue(readResult) {
-		t.Fatalf("Cannot read renamed file")
-	}
+	readResult = assertSuccess(t, vm, readResult, "readFileContents:")
 	if vm.registry.GetStringContent(readResult) != "rename me" {
 		t.Errorf("Renamed file content = %q, want %q", vm.registry.GetStringContent(readResult), "rename me")
 	}
@@ -1335,9 +1321,7 @@ func TestFileBinaryData(t *testing.T) {
 
 	// Read via Maggie -- Go strings can hold arbitrary bytes
 	result := vm.Send(fc, "readFileContents:", []Value{vm.registry.NewStringValue(testFile)})
-	if !IsStringValue(result) {
-		t.Fatalf("readFileContents: of binary data did not return a string")
-	}
+	result = assertSuccess(t, vm, result, "readFileContents:")
 	got := vm.registry.GetStringContent(result)
 	if got != binaryLike {
 		t.Errorf("Binary data round-trip failed: got %q, want %q", got, binaryLike)

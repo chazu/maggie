@@ -644,76 +644,65 @@ func (vm *VM) registerHttpPrimitives() {
 		return v.vmRegisterHttpClient(c)
 	})
 
-	// get: url — HTTP GET, returns response body as string
+	// All request methods follow the failure doctrine: they return a Result —
+	// Success wrapping the response body string, or Failure carrying the
+	// reason. nil is never a failure signal.
+
+	// get: url — HTTP GET
 	httpClientClass.AddMethod1(vm.Selectors, "get:", func(v *VM, recv Value, urlVal Value) Value {
 		c := v.vmGetHttpClient(recv)
 		if c == nil {
-			return Nil
+			return v.newFailureResult("get: receiver is not an HttpClient")
 		}
 		url := v.valueToString(urlVal)
 		if url == "" {
-			return Nil
+			return v.newFailureResult("get: requires a URL string")
 		}
 		resp, err := c.client.Get(url)
 		if err != nil {
-			return Nil
+			return v.newFailureResult("GET " + url + ": " + err.Error())
 		}
-		defer resp.Body.Close()
-		body, err := io.ReadAll(resp.Body)
-		if err != nil {
-			return Nil
-		}
-		return v.registry.NewStringValue(string(body))
+		return v.httpBodyResult(url, resp)
 	})
 
-	// post:body: — HTTP POST with string body, returns response body as string
+	// post:body: — HTTP POST with string body
 	httpClientClass.AddMethod2(vm.Selectors, "post:body:", func(v *VM, recv Value, urlVal, bodyVal Value) Value {
 		c := v.vmGetHttpClient(recv)
 		if c == nil {
-			return Nil
+			return v.newFailureResult("post:body: receiver is not an HttpClient")
 		}
 		url := v.valueToString(urlVal)
 		bodyStr := v.valueToString(bodyVal)
 		if url == "" {
-			return Nil
+			return v.newFailureResult("post:body: requires a URL string")
 		}
 		resp, err := c.client.Post(url, "application/octet-stream", strings.NewReader(bodyStr))
 		if err != nil {
-			return Nil
+			return v.newFailureResult("POST " + url + ": " + err.Error())
 		}
-		defer resp.Body.Close()
-		body, err := io.ReadAll(resp.Body)
-		if err != nil {
-			return Nil
-		}
-		return v.registry.NewStringValue(string(body))
+		return v.httpBodyResult(url, resp)
 	})
 
 	// post:body:contentType: — HTTP POST with explicit content type
 	httpClientClass.AddMethod3(vm.Selectors, "post:body:contentType:", func(v *VM, recv Value, urlVal, bodyVal, ctVal Value) Value {
 		c := v.vmGetHttpClient(recv)
 		if c == nil {
-			return Nil
+			return v.newFailureResult("post:body:contentType: receiver is not an HttpClient")
 		}
 		url := v.valueToString(urlVal)
 		bodyStr := v.valueToString(bodyVal)
 		ct := v.valueToString(ctVal)
 		if url == "" {
-			return Nil
+			return v.newFailureResult("post:body:contentType: requires a URL string")
 		}
 		if ct == "" {
 			ct = "application/octet-stream"
 		}
 		resp, err := c.client.Post(url, ct, strings.NewReader(bodyStr))
 		if err != nil {
-			return Nil
+			return v.newFailureResult("POST " + url + ": " + err.Error())
 		}
-		defer resp.Body.Close()
-		body, err := io.ReadAll(resp.Body)
-		if err != nil {
-			return Nil
-		}
-		return v.registry.NewStringValue(string(body))
+		return v.httpBodyResult(url, resp)
 	})
 
 	// post:body:contentType:headers: — POST with explicit content type and a
@@ -721,20 +710,20 @@ func (vm *VM) registerHttpPrimitives() {
 	httpClientClass.AddMethod4(vm.Selectors, "post:body:contentType:headers:", func(v *VM, recv Value, urlVal, bodyVal, ctVal, headersVal Value) Value {
 		c := v.vmGetHttpClient(recv)
 		if c == nil {
-			return Nil
+			return v.newFailureResult("post:body:contentType:headers: receiver is not an HttpClient")
 		}
 		url := v.valueToString(urlVal)
 		bodyStr := v.valueToString(bodyVal)
 		ct := v.valueToString(ctVal)
 		if url == "" {
-			return Nil
+			return v.newFailureResult("post:body:contentType:headers: requires a URL string")
 		}
 		if ct == "" {
 			ct = "application/octet-stream"
 		}
 		req, err := http.NewRequest(http.MethodPost, url, strings.NewReader(bodyStr))
 		if err != nil {
-			return Nil
+			return v.newFailureResult("POST " + url + ": " + err.Error())
 		}
 		req.Header.Set("Content-Type", ct)
 		if dict := v.registry.GetDictionaryObject(headersVal); dict != nil {
@@ -749,68 +738,53 @@ func (vm *VM) registerHttpPrimitives() {
 		}
 		resp, err := c.client.Do(req)
 		if err != nil {
-			return Nil
+			return v.newFailureResult("POST " + url + ": " + err.Error())
 		}
-		defer resp.Body.Close()
-		body, err := io.ReadAll(resp.Body)
-		if err != nil {
-			return Nil
-		}
-		return v.registry.NewStringValue(string(body))
+		return v.httpBodyResult(url, resp)
 	})
 
-	// put:body: — HTTP PUT with string body, returns response body as string
+	// put:body: — HTTP PUT with string body
 	httpClientClass.AddMethod2(vm.Selectors, "put:body:", func(v *VM, recv Value, urlVal, bodyVal Value) Value {
 		c := v.vmGetHttpClient(recv)
 		if c == nil {
-			return Nil
+			return v.newFailureResult("put:body: receiver is not an HttpClient")
 		}
 		url := v.valueToString(urlVal)
 		bodyStr := v.valueToString(bodyVal)
 		if url == "" {
-			return Nil
+			return v.newFailureResult("put:body: requires a URL string")
 		}
 		req, err := http.NewRequest(http.MethodPut, url, strings.NewReader(bodyStr))
 		if err != nil {
-			return Nil
+			return v.newFailureResult("PUT " + url + ": " + err.Error())
 		}
 		req.Header.Set("Content-Type", "application/octet-stream")
 		resp, err := c.client.Do(req)
 		if err != nil {
-			return Nil
+			return v.newFailureResult("PUT " + url + ": " + err.Error())
 		}
-		defer resp.Body.Close()
-		body, err := io.ReadAll(resp.Body)
-		if err != nil {
-			return Nil
-		}
-		return v.registry.NewStringValue(string(body))
+		return v.httpBodyResult(url, resp)
 	})
 
-	// delete: url — HTTP DELETE, returns response body as string
+	// delete: url — HTTP DELETE
 	httpClientClass.AddMethod1(vm.Selectors, "delete:", func(v *VM, recv Value, urlVal Value) Value {
 		c := v.vmGetHttpClient(recv)
 		if c == nil {
-			return Nil
+			return v.newFailureResult("delete: receiver is not an HttpClient")
 		}
 		url := v.valueToString(urlVal)
 		if url == "" {
-			return Nil
+			return v.newFailureResult("delete: requires a URL string")
 		}
 		req, err := http.NewRequest(http.MethodDelete, url, nil)
 		if err != nil {
-			return Nil
+			return v.newFailureResult("DELETE " + url + ": " + err.Error())
 		}
 		resp, err := c.client.Do(req)
 		if err != nil {
-			return Nil
+			return v.newFailureResult("DELETE " + url + ": " + err.Error())
 		}
-		defer resp.Body.Close()
-		body, err := io.ReadAll(resp.Body)
-		if err != nil {
-			return Nil
-		}
-		return v.registry.NewStringValue(string(body))
+		return v.httpBodyResult(url, resp)
 	})
 
 	// -------------------------------------------------------------------
@@ -874,4 +848,15 @@ func (vm *VM) registerHttpPrimitives() {
 		}
 		return True
 	})
+}
+
+// httpBodyResult drains an HTTP response into a Result: Success wrapping the
+// body string, or Failure if the body cannot be read.
+func (vm *VM) httpBodyResult(url string, resp *http.Response) Value {
+	defer resp.Body.Close()
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return vm.newFailureResult("reading response from " + url + ": " + err.Error())
+	}
+	return vm.newSuccessResult(vm.registry.NewStringValue(string(body)))
 }

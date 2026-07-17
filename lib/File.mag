@@ -9,7 +9,7 @@ class side.
 ## Reading
 
 - `File readFileContents: path` -- Read entire file as a string. Returns
-  Failure if the file cannot be read.
+  Success wrapping the contents, or Failure if the file cannot be read.
 
 ## Writing
 
@@ -115,7 +115,7 @@ File exists: ftResult value >>> true
 ```test
 ftPath1 := (File tempFile) value.
 File writeFileContents: ftPath1 contents: 'hello maggie'.
-File readFileContents: ftPath1 >>> 'hello maggie'
+(File readFileContents: ftPath1) value >>> 'hello maggie'
 ```
 
 ```test
@@ -127,7 +127,7 @@ ftPath2 := (File tempFile) value.
 ftPath3 := (File tempFile) value.
 File writeFileContents: ftPath3 contents: 'first'.
 File appendToFile: ftPath3 contents: ' second'.
-File readFileContents: ftPath3 >>> 'first second'
+(File readFileContents: ftPath3) value >>> 'first second'
 ```
 
 ```test
@@ -161,7 +161,7 @@ ftPathB := ftPathA, '.renamed'.
 File writeFileContents: ftPathA contents: 'data'.
 (File rename: ftPathA to: ftPathB) isSuccess >>> true
 File exists: ftPathA >>> false
-File readFileContents: ftPathB >>> 'data'
+(File readFileContents: ftPathB) value >>> 'data'
 ```
 
 ```test
@@ -169,7 +169,7 @@ ftSrc := (File tempFile) value.
 ftDst := ftSrc, '.copy'.
 File writeFileContents: ftSrc contents: 'original'.
 (File copy: ftSrc to: ftDst) isSuccess >>> true
-File readFileContents: ftDst >>> 'original'
+(File readFileContents: ftDst) value >>> 'original'
 ```
 
 ```test
@@ -209,16 +209,15 @@ ftPfxResult isSuccess >>> true
 
 ```example
 "Read a file, transform it, write it back"
-| contents <String> |
-contents := File readFileContents: '/tmp/example.txt'.
-File writeFileContents: '/tmp/example.txt' contents: contents, ' (updated)'
+(File readFileContents: '/tmp/example.txt') ifSuccess: [:contents |
+    File writeFileContents: '/tmp/example.txt' contents: contents, ' (updated)']
 ```
 
 ```example
-"Check if a path exists before reading"
-(File exists: '/tmp/myfile.txt')
-    ifTrue:  [File readFileContents: '/tmp/myfile.txt']
-    ifFalse: ['File not found']
+"Read with an explicit failure branch"
+(File readFileContents: '/tmp/myfile.txt')
+    ifSuccess: [:contents | contents]
+    ifFailure: [:reason | 'File not found']
 ```
 
 ```example

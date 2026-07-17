@@ -33,12 +33,16 @@ func TestHttpClientPostWithHeaders(t *testing.T) {
 	dict.Put(vm.registry, authKey, authVal)
 	dict.Put(vm.registry, xKey, xVal)
 
-	body := vm.Send(client, "post:body:contentType:headers:", []Value{
+	result := vm.Send(client, "post:body:contentType:headers:", []Value{
 		vm.registry.NewStringValue(srv.URL),
 		vm.registry.NewStringValue("hello"),
 		vm.registry.NewStringValue("text/plain"),
 		headers,
 	})
+	if vm.Send(result, "isSuccess", nil) != True {
+		t.Fatalf("expected Success result, got %v", vm.Send(result, "printString", nil))
+	}
+	body := vm.Send(result, "value", nil)
 	if vm.registry.GetStringContent(body) != "ok" {
 		t.Fatalf("unexpected body: %q", vm.registry.GetStringContent(body))
 	}

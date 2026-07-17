@@ -58,7 +58,9 @@ Channel subclass: Object
 
   """
   Receive a value from the channel. Blocks until a value is
-  available or the channel is closed.
+  available or the channel is closed. Returns `nil` for a closed
+  channel — indistinguishable from a legitimately-sent nil; use
+  `receiveIfClosed:` when that matters.
 
   ```example
   | ch <Channel> |
@@ -69,6 +71,27 @@ Channel subclass: Object
   """
   method: receive ! <Process> [
       ^self primReceive
+  ]
+
+  """
+  Receive a value from the channel, blocking until one is available.
+  Evaluates `aBlock` if the channel is closed and drained, so a
+  legitimately-sent nil is distinguishable from closure.
+
+  ```test
+  ch := Channel new: 1.
+  ch send: 42.
+  ch receiveIfClosed: [#closed] >>> 42
+  ```
+
+  ```test
+  ch := Channel new: 1.
+  ch close.
+  ch receiveIfClosed: [#closed] >>> #closed
+  ```
+  """
+  method: receiveIfClosed: aBlock ! <Process> [
+      <primitive>
   ]
 
   """
@@ -92,7 +115,9 @@ Channel subclass: Object
 
   """
   Attempt to receive a value without blocking. Returns the value
-  if one was available, or `nil` if the channel was empty.
+  if one was available, or `nil` if the channel was empty —
+  indistinguishable from a legitimately-sent nil; use
+  `tryReceiveIfEmpty:` when that matters.
 
   ```test
   ch := Channel new: 1.
@@ -106,6 +131,25 @@ Channel subclass: Object
   """
   method: tryReceive [
       ^self primTryReceive
+  ]
+
+  """
+  Attempt to receive a value without blocking. Evaluates `aBlock`
+  when no value was obtained (channel empty, or closed and drained),
+  so a legitimately-sent nil is distinguishable from absence.
+
+  ```test
+  ch := Channel new: 1.
+  ch trySend: 99.
+  ch tryReceiveIfEmpty: [#empty] >>> 99
+  ```
+
+  ```test
+  (Channel new: 1) tryReceiveIfEmpty: [#empty] >>> #empty
+  ```
+  """
+  method: tryReceiveIfEmpty: aBlock [
+      <primitive>
   ]
 
   """

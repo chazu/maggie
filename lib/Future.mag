@@ -1,43 +1,64 @@
 """
 A Future represents a pending asynchronous result from a remote
-operation. Created by `RemoteProcess>>asyncSend:with:`.
+operation. Created by `RemoteProcess>>asyncSend:with:` and `Block>>forkOn:`.
 
-Use `await` to block until the result is available. Use `isResolved`
-to check without blocking. Use `result` to get the value if resolved.
+Use `await` to block until the result is available. On failure, `await`
+signals: a typed exception from the remote side is re-signaled locally,
+and a plain remote error raises a catchable `Error` — the result of a
+successful `await` is always a real value, never nil-meaning-error.
+Use `isResolved` to check without blocking, and `await:ifTimeout:` to
+bound the wait with an explicit timeout handler.
 
 ```example
 | future <Future> result <Integer> |
 future := worker asyncSend: #compute: with: 42.
 future isResolved       "=> false (initially)"
-result := future await. "=> blocks until resolved"
+result := future await. "=> blocks until resolved; signals on error"
 future isResolved       "=> true"
 ```
 """
 Future subclass: Object
 
   """
-  Block the current process until the Future resolves.
-  Returns the result value. If the remote side returned an
-  error, returns nil (check `error` for the error message).
+  Block the current process until the Future resolves, then return the
+  result value. If the remote side failed, signals: a typed remote
+  exception is re-signaled locally; a plain remote error raises a
+  catchable `Error` carrying the message.
 
   ```example
-  future await    "=> the result value"
+  [future await] on: Error do: [:e | ('remote failed: ', e messageText) print]
   ```
   """
   method: await ! <Process> [
-      ^self primAwait
+      <primitive>
   ]
 
   """
-  Block for at most `ms` milliseconds. Returns the result
-  value if resolved in time, or nil on timeout.
+  Block for at most `ms` milliseconds. Returns the result value if
+  resolved in time (signaling on error, like `await`), or nil on
+  timeout. Prefer `await:ifTimeout:`, which distinguishes a timeout
+  from a legitimate nil result.
 
   ```example
-  future await: 5000    "=> result or nil"
+  future await: 5000    "=> result, or nil on timeout"
   ```
   """
   method: await: ms <Integer> ! <Process> [
-      ^self primAwait: ms
+      <primitive>
+  ]
+
+  """
+  Block for at most `ms` milliseconds. Returns the result value if
+  resolved in time (signaling on error, like `await`); evaluates
+  `timeoutBlock` on timeout, so a nil result is distinguishable from a
+  missed deadline.
+
+  ```example
+  future await: 5000 ifTimeout: [Error signal: 'worker took too long']
+  ```
+  """
+  method: await: ms <Integer> ifTimeout: timeoutBlock ! <Process> [
+      <primitive>
   ]
 
   """
@@ -48,28 +69,54 @@ Future subclass: Object
   ```
   """
   method: isResolved ^<Boolean> [
-      ^self primIsResolved
+      <primitive>
   ]
 
   """
   Return the result value if resolved, or nil if still pending.
-  Does not block.
+  Does not block and never signals — for non-blocking inspection;
+  use `await` when you need the failure reported.
+
+  ```example
+  future isResolved ifTrue: [future result print]
+  ```
   """
   method: result [
-      ^self primResult
+      <primitive>
   ]
 
   """
-  Return the error message string if the Future resolved with
-  an error, or nil if successful or still pending.
+  Return the error message string if the Future resolved with a plain
+  remote error, or nil if successful or still pending. Non-blocking
+  inspection only — `await` signals these errors.
+
+  ```example
+  future error ifNotNil: [:msg | ('failed: ', msg) print]
+  ```
   """
   method: error ^<String> [
-      ^self primError
+      <primitive>
+  ]
+
+  """
+  Return the typed exception value if the Future resolved with a remote
+  exception, or nil. Non-blocking inspection only — `await` re-signals it.
+
+  ```example
+  future exception ifNotNil: [:ex | ex printString print]
+  ```
+  """
+  method: exception [
+      <primitive>
   ]
 
   """
   Return a string representation.
+
+  ```example
+  future printString    "=> 'a Future (pending)'"
+  ```
   """
   method: printString ^<String> [
-      ^self primPrintString
+      <primitive>
   ]
