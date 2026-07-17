@@ -1,3 +1,5 @@
+//go:build spike
+
 // Package valuerep is a THROWAWAY measurement spike for the review's #1
 // question: should Maggie's `Value` stay a NaN-boxed uint64 (heap objects in
 // lock+map side registries, invisible to Go's GC) or become a pointer-carrying

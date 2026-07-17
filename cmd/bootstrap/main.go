@@ -66,13 +66,8 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Also find compiler files in lib/compiler/
-	compilerDir := filepath.Join(*libDir, "compiler")
-	compilerFiles, err := filepath.Glob(filepath.Join(compilerDir, "*.mag"))
-	if err != nil && !os.IsNotExist(err) {
-		fmt.Fprintf(os.Stderr, "Error finding compiler files: %v\n", err)
-		os.Exit(1)
-	}
+	// (The Maggie-in-Maggie compiler moved to lib/shelved/compiler/ and is no
+	// longer bootstrapped, so lib/compiler/ is not globbed.)
 
 	// Also find guide files in lib/guide/
 	guideDir := filepath.Join(*libDir, "guide")
@@ -89,16 +84,13 @@ func main() {
 
 	if *verbose {
 		fmt.Printf("Found %d core library files\n", len(files))
-		if len(compilerFiles) > 0 {
-			fmt.Printf("Found %d compiler files\n", len(compilerFiles))
-		}
 		if len(guideFiles) > 0 {
 			fmt.Printf("Found %d guide files\n", len(guideFiles))
 		}
 	}
 
-	// Combine core, compiler, and guide files
-	allFiles := append(files, compilerFiles...)
+	// Combine core and guide files
+	allFiles := files
 	allFiles = append(allFiles, guideFiles...)
 
 	methods, err := compileAllFiles(allFiles, vmInst, *verbose)
