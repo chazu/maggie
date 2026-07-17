@@ -94,11 +94,30 @@ func (m *CompiledMethod) Invoke(vm *VM, receiver Value, args []Value) Value {
 
 // Clone returns a shallow copy with its own inline-cache state.
 // Used by trait inclusion so each class gets its own method object.
+//
+// Fields are copied explicitly (rather than `c := *m`) because the struct
+// embeds an atomic.Pointer/sync.Once, which `go vet` copylocks forbids copying
+// by value. inlineCaches/inlineCachesOnce are intentionally left zero — the
+// clone builds its own cache lazily on first dispatch. NOTE: a new field added
+// to CompiledMethod must be added here too.
 func (m *CompiledMethod) Clone() *CompiledMethod {
-	c := *m
-	c.inlineCaches = atomic.Pointer[InlineCacheTable]{}
-	c.inlineCachesOnce = sync.Once{}
-	return &c
+	return &CompiledMethod{
+		selector:      m.selector,
+		class:         m.class,
+		name:          m.name,
+		IsClassMethod: m.IsClassMethod,
+		category:      m.category,
+		docString:     m.docString,
+		Arity:         m.Arity,
+		NumTemps:      m.NumTemps,
+		Literals:      m.Literals,
+		Bytecode:      m.Bytecode,
+		Blocks:        m.Blocks,
+		ContentHash:   m.ContentHash,
+		TypedHash:     m.TypedHash,
+		Source:        m.Source,
+		SourceMap:     m.SourceMap,
+	}
 }
 
 // Name returns the method name.

@@ -22,7 +22,7 @@ func eval(t *testing.T, vmInst *vm.VM, source string) vm.Value {
 // compileMethod compiles a method definition and installs it on the given class.
 func compileMethod(t *testing.T, vmInst *vm.VM, class *vm.Class, source string) {
 	t.Helper()
-	method, err := compiler.Compile(source, vmInst.Selectors, vmInst.Symbols, vmInst.Registry())
+	method, err := compiler.Compile(source, vmInst.Selectors, vmInst.Symbols, vmInst.Registry(), nil)
 	if err != nil {
 		t.Fatalf("compile error for method: %v\nsource: %s", err, source)
 	}
@@ -53,7 +53,7 @@ func compileMethodWithIvars(t *testing.T, vmInst *vm.VM, class *vm.Class, source
 // compileClassMethod compiles a class-side method and installs it.
 func compileClassMethod(t *testing.T, vmInst *vm.VM, class *vm.Class, source string) {
 	t.Helper()
-	method, err := compiler.Compile(source, vmInst.Selectors, vmInst.Symbols, vmInst.Registry())
+	method, err := compiler.Compile(source, vmInst.Selectors, vmInst.Symbols, vmInst.Registry(), nil)
 	if err != nil {
 		t.Fatalf("compile error for class method: %v\nsource: %s", err, source)
 	}
