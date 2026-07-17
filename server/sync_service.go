@@ -473,7 +473,21 @@ func (s *SyncService) List(
 func (s *SyncService) DeliverMessage(
 	ctx context.Context,
 	req *connect.Request[maggiev1.DeliverMessageRequest],
-) (*connect.Response[maggiev1.DeliverMessageResponse], error) {
+) (resp *connect.Response[maggiev1.DeliverMessageResponse], _ error) {
+	// The sync surface runs outside the VMWorker gate (see vm_worker.go), so
+	// it does not inherit run()'s panic recovery — recover here so a panic in
+	// deserialization or delivery becomes a clean error response instead of
+	// propagating raw into connect (SD-8).
+	defer func() {
+		if r := recover(); r != nil {
+			resp = connect.NewResponse(&maggiev1.DeliverMessageResponse{
+				Success:      false,
+				ErrorKind:    "internalError",
+				ErrorMessage: s.worker.vm.DescribePanic(r),
+			})
+		}
+	}()
+
 	msg := req.Msg
 
 	// Decode the CBOR envelope
@@ -719,7 +733,19 @@ func (s *SyncService) DemonitorProcess(
 func (s *SyncService) SpawnProcess(
 	ctx context.Context,
 	req *connect.Request[maggiev1.SpawnProcessRequest],
-) (*connect.Response[maggiev1.SpawnProcessResponse], error) {
+) (resp *connect.Response[maggiev1.SpawnProcessResponse], _ error) {
+	// Outside the VMWorker gate — recover panics from deserialization/spawn
+	// setup into a clean rejection (SD-8). The spawned block itself runs on
+	// its own goroutine with its own recover (ExecuteSpawnBlock).
+	defer func() {
+		if r := recover(); r != nil {
+			resp = connect.NewResponse(&maggiev1.SpawnProcessResponse{
+				Accepted: false,
+				Error:    s.worker.vm.DescribePanic(r),
+			})
+		}
+	}()
+
 	msg := req.Msg
 
 	// Decode the CBOR envelope

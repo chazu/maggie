@@ -90,3 +90,36 @@ func isIdentChar(b byte) bool {
 		(b >= 'A' && b <= 'Z') ||
 		(b >= '0' && b <= '9')
 }
+
+// MethodStoresGlobal reports whether a compiled doIt (or any of its blocks)
+// stores into a global — the plain-assignment mutation path (`X := 42`) that
+// the selector text check above cannot see. The server's DoForSource compiles
+// evaluated source and consults this so a global-writing eval runs under the
+// exclusive gate, matching the documented "Do covers global writes" contract.
+func MethodStoresGlobal(m *CompiledMethod) bool {
+	if m == nil {
+		return false
+	}
+	if bytecodeHasOp(m.Bytecode, OpStoreGlobal) {
+		return true
+	}
+	for _, b := range m.Blocks {
+		if bytecodeHasOp(b.Bytecode, OpStoreGlobal) {
+			return true
+		}
+	}
+	return false
+}
+
+// bytecodeHasOp scans instruction-by-instruction (operand-aware, so operand
+// bytes can't false-positive as opcodes) for the target opcode.
+func bytecodeHasOp(bc []byte, target Opcode) bool {
+	for i := 0; i < len(bc); {
+		op := Opcode(bc[i])
+		if op == target {
+			return true
+		}
+		i += 1 + op.Info().OperandBytes
+	}
+	return false
+}

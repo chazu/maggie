@@ -28,6 +28,24 @@ import (
 //
 // Both paths recover panics (unhandled Maggie exceptions) into an error string
 // via VM.DescribePanic, exactly as the old single-goroutine path did.
+//
+// GATE BOUNDARY (declared, SD-8): the gate governs the IDE request surface —
+// modify_service (all writers use Do), browse/inspect/eval services (readers
+// use DoConcurrent, evals DoForSource). The following run OUTSIDE the gate by
+// design and are NOT serialized against Do:
+//
+//   - the sync/distribution surface (SyncService handlers: message delivery,
+//     remote spawns, channel RPCs) — long-blocking channel operations must
+//     not pin a read lock and starve writers, and spawned blocks run on
+//     their own goroutines regardless. These handlers carry their own panic
+//     recovery.
+//   - locally forked Maggie processes and HTTP/SSE handler blocks.
+//
+// Consequently Do's exclusivity is a consistency device for the IDE surface
+// (a class-defining eval will not interleave with a browse), NOT a
+// stop-the-world: an image save excludes sibling IDE requests, while forked
+// processes and remote deliveries proceed. Memory safety never depends on
+// the gate — the pointer heap and per-structure locks provide it.
 type VMWorker struct {
 	vm *vm.VM
 
@@ -77,14 +95,26 @@ func (w *VMWorker) DoConcurrent(fn func(*vm.VM) interface{}) (interface{}, error
 
 // DoForSource runs fn under the gate appropriate for evaluated user source:
 // EXCLUSIVE (Do) when the source might structurally mutate the VM — define or
-// redefine classes/methods, write globals, file in code, save the image
-// (vm.SourceMayMutateSchema) — otherwise SHARED (DoConcurrent). Use for
-// Evaluate-style requests that compile and execute arbitrary user source, so a
-// class-defining eval is serialized against readers and other writers while
-// ordinary expression evals stay parallel. The classification is best-effort and
-// conservative; memory safety does not depend on it (see SourceMayMutateSchema).
+// redefine classes/methods, write globals, file in code, save the image —
+// otherwise SHARED (DoConcurrent). Use for Evaluate-style requests that
+// compile and execute arbitrary user source, so a class-defining eval is
+// serialized against readers and other writers while ordinary expression
+// evals stay parallel.
+//
+// Classification is two-layered: the selector text check
+// (vm.SourceMayMutateSchema) catches the reflective family (evaluate:,
+// setGlobal:, fileIn:, …), and a classification compile catches the plain
+// global assignment `X := 42` by scanning the compiled doIt for a
+// global-store opcode (vm.MethodStoresGlobal) — assignment syntax has no
+// selector for the text check to see. A source that fails to compile
+// classifies as SHARED; the handler surfaces the compile error itself.
+// Memory safety does not depend on any of this (see SourceMayMutateSchema);
+// the gate buys consistency.
 func (w *VMWorker) DoForSource(source string, fn func(*vm.VM) interface{}) (interface{}, error) {
 	if vm.SourceMayMutateSchema(source) {
+		return w.Do(fn)
+	}
+	if m, err := w.vm.CompileExpression(source); err == nil && vm.MethodStoresGlobal(m) {
 		return w.Do(fn)
 	}
 	return w.DoConcurrent(fn)
@@ -112,8 +142,10 @@ func (w *VMWorker) run(fn func(*vm.VM) interface{}) (result interface{}, err err
 // goroutine, so there is nothing to shut down.
 func (w *VMWorker) Stop() {}
 
-// VM returns the underlying VM (for read-only metadata access that
-// doesn't touch interpreter state, like Selectors/Symbols/Classes).
+// VM returns the underlying VM. Callers bypass the gate entirely: the sync
+// surface uses this for deserialization, mailbox delivery, and spawn
+// execution (see GATE BOUNDARY above). Callers must not assume they are
+// serialized against Do writers — per-structure locks are what protect them.
 func (w *VMWorker) VM() *vm.VM {
 	return w.vm
 }
