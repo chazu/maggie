@@ -7,10 +7,9 @@ import (
 )
 
 // Reserved DeliverMessage selectors for infrastructure notifications.
-const (
-	SelectorDown = "__down__"
-	SelectorExit = "__exit__"
-)
+// SelectorDown is the wire selector for a monitor DOWN notification. (There is
+// no cross-node exit/link selector — process links are local-only.)
+const SelectorDown = "__down__"
 
 // MonitorResponse is the Go-side view of MonitorProcessResponse.
 type MonitorResponse struct {
@@ -20,17 +19,6 @@ type MonitorResponse struct {
 	AlreadyDead  bool
 	ExitSignal   string
 	ExitNormal   bool
-}
-
-// LinkResponse is the Go-side view of LinkProcessResponse.
-type LinkResponse struct {
-	Success      bool
-	ErrorKind    string
-	ErrorMessage string
-	AlreadyDead  bool
-	ExitSignal   string
-	ExitNormal   bool
-	RemoteID     uint64
 }
 
 // ---------------------------------------------------------------------------
@@ -156,7 +144,7 @@ func (vm *VM) RemoteWatches() *RemoteWatchStore {
 
 // handleNodeDown is called by NodeHealthMonitor when a node is unreachable.
 func (vm *VM) handleNodeDown(nodeID [32]byte) {
-	outMonitors, links := vm.remoteWatches.DrainNode(nodeID)
+	outMonitors := vm.remoteWatches.DrainNode(nodeID)
 	nodeDownReason := ExitSignal("nodeDown", Nil)
 
 	for _, rm := range outMonitors {
@@ -166,14 +154,6 @@ func (vm *VM) handleNodeDown(nodeID [32]byte) {
 		}
 		ref := &MonitorRef{ID: rm.RefID, Watcher: rm.WatcherID}
 		vm.deliverDownMessage(watcher, ref, nil, nodeDownReason)
-	}
-
-	for _, lr := range links {
-		local := vm.GetProcessByID(lr.LocalID)
-		if local == nil || local.isDone() {
-			continue
-		}
-		vm.deliverExitSignal(local, nil, nodeDownReason)
 	}
 
 	// Resolve pending forkOn: futures against the dead node — their results

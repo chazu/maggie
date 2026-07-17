@@ -83,12 +83,9 @@ func TestRemoteWatchStore_DrainNode(t *testing.T) {
 	rws.AddOutboundMonitor(&RemoteMonitorRef{RefID: 2, WatcherID: 11, RemoteNode: node, Outbound: true})
 	rws.AddInboundMonitor(&RemoteMonitorRef{RefID: 3, WatcherID: 30, RemoteNode: node, Outbound: false})
 
-	outMonitors, links := rws.DrainNode(node)
+	outMonitors := rws.DrainNode(node)
 	if len(outMonitors) != 2 {
 		t.Errorf("drained outbound monitors: got %d, want 2", len(outMonitors))
-	}
-	if len(links) != 0 {
-		t.Errorf("drained links: got %d, want 0", len(links))
 	}
 
 	// Store should be empty for this node
@@ -100,7 +97,7 @@ func TestRemoteWatchStore_DrainNode(t *testing.T) {
 	}
 
 	// Double drain returns nothing
-	out2, _ := rws.DrainNode(node)
+	out2 := rws.DrainNode(node)
 	if len(out2) != 0 {
 		t.Error("double drain should return nothing")
 	}

@@ -15,15 +15,10 @@ type RemoteMonitorRef struct {
 	Outbound    bool     // true = we are the watcher's node
 }
 
-// RemoteLinkRef tracks a link relationship across nodes.
-type RemoteLinkRef struct {
-	LocalID    uint64   // local process ID
-	RemoteID   uint64   // remote process ID
-	RemoteNode [32]byte // public key of the remote node
-}
-
-// RemoteWatchStore tracks all cross-node monitor and link relationships
-// for this VM. Keyed by remote node ID for fast bulk cleanup on node failure.
+// RemoteWatchStore tracks all cross-node monitor relationships for this VM,
+// keyed by remote node ID for fast bulk cleanup on node failure. (Cross-node
+// process LINKS are not implemented — only local links and cross-node monitors
+// exist — so there is no link state here.)
 type RemoteWatchStore struct {
 	mu sync.Mutex
 
@@ -33,17 +28,13 @@ type RemoteWatchStore struct {
 	// Inbound monitors: a remote node is watching one of our processes.
 	inMonitors map[uint64]*RemoteMonitorRef
 
-	// Links: bidirectional cross-node links.
-	links map[string]*RemoteLinkRef
-
-	// Index: remoteNode → set of refIDs/linkKeys for fast node-failure cleanup.
+	// Index: remoteNode → set of refIDs for fast node-failure cleanup.
 	byNode map[[32]byte]*nodeWatchSet
 }
 
 type nodeWatchSet struct {
 	outMonitorRefs []uint64
 	inMonitorRefs  []uint64
-	linkKeys       []string
 }
 
 // NewRemoteWatchStore creates an empty remote watch store.
@@ -51,7 +42,6 @@ func NewRemoteWatchStore() *RemoteWatchStore {
 	return &RemoteWatchStore{
 		outMonitors: make(map[uint64]*RemoteMonitorRef),
 		inMonitors:  make(map[uint64]*RemoteMonitorRef),
-		links:       make(map[string]*RemoteLinkRef),
 		byNode:      make(map[[32]byte]*nodeWatchSet),
 	}
 }
@@ -122,25 +112,16 @@ func (rws *RemoteWatchStore) RemoveInboundMonitorOwnedBy(refID uint64, node [32]
 	return ref
 }
 
-// AddLink records a cross-node link.
-func (rws *RemoteWatchStore) AddLink(key string, ref *RemoteLinkRef) {
-	rws.mu.Lock()
-	defer rws.mu.Unlock()
-	rws.links[key] = ref
-	ns := rws.nodeSet(ref.RemoteNode)
-	ns.linkKeys = append(ns.linkKeys, key)
-}
-
-// DrainNode removes all watches for a given remote node. Returns the
-// outbound monitors and links for local notification delivery.
+// DrainNode removes all monitors for a given remote node. Returns the outbound
+// monitors for local DOWN delivery.
 // Called by NodeHealthMonitor when a node is declared dead.
-func (rws *RemoteWatchStore) DrainNode(node [32]byte) (outMonitors []*RemoteMonitorRef, links []*RemoteLinkRef) {
+func (rws *RemoteWatchStore) DrainNode(node [32]byte) (outMonitors []*RemoteMonitorRef) {
 	rws.mu.Lock()
 	defer rws.mu.Unlock()
 
 	ns, ok := rws.byNode[node]
 	if !ok {
-		return nil, nil
+		return nil
 	}
 
 	for _, refID := range ns.outMonitorRefs {
@@ -151,12 +132,6 @@ func (rws *RemoteWatchStore) DrainNode(node [32]byte) (outMonitors []*RemoteMoni
 	}
 	for _, refID := range ns.inMonitorRefs {
 		delete(rws.inMonitors, refID)
-	}
-	for _, key := range ns.linkKeys {
-		if ref, exists := rws.links[key]; exists {
-			links = append(links, ref)
-			delete(rws.links, key)
-		}
 	}
 
 	delete(rws.byNode, node)

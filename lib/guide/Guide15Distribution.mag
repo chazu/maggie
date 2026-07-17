@@ -627,13 +627,13 @@ Guide15Distribution subclass: Object
   ]
 
   """
-  ## Cross-Node Monitors and Links
+  ## Cross-Node Monitors
 
-  Process monitors and links work transparently across nodes. When you
-  monitor a `RemoteProcess`, the VM establishes the monitor via a
-  `MonitorProcess` RPC. When the remote process dies, a `__down__`
-  notification is sent back and delivered as a local `#processDown:`
-  message.
+  Process monitors work across nodes (process LINKS are local-only — there is
+  no cross-node link propagation). When you monitor a `RemoteProcess`, the VM
+  establishes the monitor via a `MonitorProcess` RPC. When the remote process
+  dies, a `__down__` notification is sent back and delivered as a local
+  `#processDown:` message.
 
   ```example
   "Monitor a remote process"
@@ -654,13 +654,13 @@ Guide15Distribution subclass: Object
   **Node failure detection:**
 
   Heartbeat monitoring starts as soon as this node has any stake in a
-  remote node: a cross-node monitor or link, a `forkOn:`/`spawnOn:`
+  remote node: a cross-node monitor, a `forkOn:`/`spawnOn:`
   spawn, or a remote channel reference. The `NodeHealthMonitor` sends
   periodic pings (every 5 seconds by default); if 3 consecutive pings
   fail, the node is declared dead and everything pending against it is
   cleaned up:
 
-  - monitors/links receive synthetic `nodeDown` exit signals
+  - monitors receive synthetic `nodeDown` DOWN notifications
   - pending `forkOn:` futures resolve with a `nodeDown` error
     (so `await` signals instead of blocking forever)
   - remote channel references are marked closed
@@ -682,9 +682,9 @@ Guide15Distribution subclass: Object
   ]
   ```
 
-  Links also work across nodes: if a remote linked process dies
-  abnormally, the local process is killed (or receives an `#exit`
-  message if trapping exits).
+  (Process links are local-only. To react to a *remote* process's death,
+  use a cross-node monitor as shown above — links do not propagate across
+  the wire.)
   """
   method: s10c_crossNodeMonitors [
       "Cross-node monitors use MonitorProcess/DemonitorProcess RPCs."
