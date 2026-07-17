@@ -20,14 +20,17 @@ CI enforcement lives in `cmd/bootstrap/conventions_test.go`.
 - **nil is never a failure signal.** An API that returns nil on error
   discards the reason and moves the crash to a distant nil-DNU.
 
-Migration schedule (worst offenders first):
-- `HttpClient` — currently returns nil on error and *discards the reason*.
-  Migrate to Result.
-- `Future` — currently `await` returns nil on error with a side-channel
-  `error` accessor. `await` should signal (the error message is already
-  carried); `await:` timeout gets an `ifTimeout:` variant.
-- `File readFileContents:` — returns an untagged `String | Failure` union;
-  the happy path DNUs on `isSuccess`. Return `Success with: contents`.
+Migration schedule (worst offenders first) — **completed 2026-07-16**:
+- `HttpClient` — ~~returns nil on error and discards the reason~~ DONE: all
+  request methods return `Success` wrapping the response body or `Failure`
+  carrying the reason.
+- `Future` — ~~`await` returns nil on error with a side-channel `error`
+  accessor~~ DONE: `await` signals (typed remote exceptions re-signal;
+  plain remote errors raise a catchable `Error`); `await:ifTimeout:` added.
+  The `error`/`exception` accessors remain for non-blocking inspection.
+- `File readFileContents:` — ~~returns an untagged `String | Failure`
+  union~~ DONE: returns `Success with: contents`, matching
+  `writeFileContents:contents:`.
 
 ## 2. nil semantics
 
@@ -35,9 +38,11 @@ nil is a value, not a signal. Absence, closure, and timeout get explicit
 variants or exceptions:
 
 - absence: `at:ifAbsent:`, `detect:ifNone:`, `remove:ifAbsent:`
-- channels: `receive:ifClosed:`, `tryReceive:ifEmpty:` (to be added —
-  today nil-as-closed is indistinguishable from a legitimately-sent nil)
-- futures: signal on error; `ifTimeout:` for deadlines
+- channels: `receiveIfClosed:`, `tryReceiveIfEmpty:` (added 2026-07-16 —
+  plain `receive`/`tryReceive` still answer nil for closed/empty, so use
+  the variants whenever a legitimately-sent nil must be distinguishable)
+- futures: signal on error; `await:ifTimeout:` for deadlines (both
+  implemented 2026-07-16)
 
 **Sanctioned rule, no exceptions:** restricted globals (`forkRestricted:`)
 signal a catchable `RestrictedGlobal` error instead of silently resolving

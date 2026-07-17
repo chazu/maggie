@@ -175,6 +175,22 @@ Guide08ErrorHandling subclass: Object
   you return a `Success` wrapping the result or a `Failure` wrapping an
   error reason.
 
+  This is the stdlib's own doctrine (see docs/CONVENTIONS.md): `File`
+  reads and writes, every `HttpClient` request, `Regex`, and the Cue
+  bindings all return Results. For example:
+
+  ```example
+  (File readFileContents: '/etc/hosts')
+      ifSuccess: [:contents | contents lines size print]
+      ifFailure: [:reason | ('cannot read: ', reason) print]
+  ```
+
+  ```example
+  (HttpClient new get: 'http://example.com/api')
+      ifSuccess: [:body | body print]
+      ifFailure: [:reason | ('request failed: ', reason) print]
+  ```
+
   Create results with factory methods on the classes:
 
   - `Success with: value` -- wrap a success value

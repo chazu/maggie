@@ -25,6 +25,9 @@ Maggie is a Smalltalk-family language VM written in Go. For full API docs:
 - **`fork` NLR semantics** — `fork` treats non-local returns (^) as local within the forked process to prevent NLR crashes across goroutines (there is no `forkWithResult`; use `Process>>wait`/`result` or `forkOn:` futures)
 - **Process-level restriction** — `forkRestricted:` hides globals; touching a hidden global signals a catchable `RestrictedGlobal` error. Restrictions inherited by child forks. `Compiler evaluate:` and `Object allClasses` respect restrictions.
 - **Tail-call optimization** — compiler auto-detects `^self selector: args` in tail position → `OpTailSend`
+- **Control-flow inlining** — `ifTrue:`/`ifFalse:`/`ifTrue:ifFalse:`/`and:`/`or:`/`whileTrue:`/`whileFalse:` compile to jump bytecode when blocks are literal (param-less, temp-less); `keywordInlineParts` in `compiler/inline_control_flow.go` is the single predicate shared by codegen AND `findCellVariables` — keep them in lockstep. Non-boolean conditions raise a catchable `mustBeBoolean` Error.
+- **Failure doctrine** (`docs/CONVENTIONS.md`) — expected failures return `Result`, programmer errors signal, nil never signals. File/HttpClient return Results; `Future>>await` signals on error; `Channel>>receiveIfClosed:`/`tryReceiveIfEmpty:` disambiguate nil.
+- **Serialization depth cap** — `maxSerialDepth` (256) bounds serializer AND deserializer recursion; Arrays/Dictionaries participate in backref identity across the wire.
 - **Stack overflow** at 4096 frames → catchable `StackOverflow` exception
 - **BigInteger** auto-promotion when SmallInteger overflows 48-bit range
 - **Type annotations** are optional, Strongtalk-model — checked by `mag typecheck`, never affect runtime

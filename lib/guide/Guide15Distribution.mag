@@ -562,10 +562,21 @@ Guide15Distribution subclass: Object
   ```example
   "Returns a Future that resolves when the remote side responds."
   future := worker asyncSend: #compute: with: 42.
-  result := future await.        "Blocks until resolved"
-  result := future await: 5000.  "With timeout in milliseconds"
+  result := future await.        "Blocks until resolved; signals on error"
+  result := future await: 5000.  "With timeout in milliseconds (nil on timeout)"
+  result := future await: 5000 ifTimeout: [#tooSlow].  "Explicit timeout branch"
   future isResolved.             "true/false (non-blocking)"
-  future error.                  "Error message or nil"
+  future error.                  "Error message or nil (non-blocking inspection)"
+  ```
+
+  On failure `await` signals: a typed exception from the remote side is
+  re-signaled locally, and a plain remote error raises a catchable
+  `Error` -- so a successful `await` always answers a real value.
+  Handle failures with `on:do:`:
+
+  ```example
+  [future await] on: Error do: [:e |
+      ('remote call failed: ', e messageText) print]
   ```
 
   **Value serialization:**
@@ -573,8 +584,13 @@ Guide15Distribution subclass: Object
   All message payloads are serialized with CBOR. Supported types:
   SmallInt, BigInteger, Float, Boolean, Nil, String, Symbol,
   Character, Array, Dictionary, Object (with named ivars), and
-  CueValue. Circular object references are handled via backreference
-  tags. Non-serializable types (Process, Channel, Mutex, etc.)
+  CueValue. Circular and shared references -- including
+  self-referential Arrays and Dictionaries -- are handled via
+  backreference tags and keep their identity across the wire.
+  Nesting is bounded at 256 levels; deeper values are rejected with
+  a clean error on both serialization and deserialization (this also
+  protects a node from hostile deeply-nested payloads).
+  Non-serializable types (Process, Channel, Mutex, etc.)
   raise an error at send time.
 
   **Example: distributed counter**
@@ -637,11 +653,17 @@ Guide15Distribution subclass: Object
 
   **Node failure detection:**
 
-  When the first cross-node monitor or link is established, a
-  `NodeHealthMonitor` starts sending periodic heartbeat pings to
-  the remote node (every 5 seconds by default). If 3 consecutive
-  pings fail, the node is declared dead and all monitors/links for
-  that node receive synthetic `nodeDown` exit signals.
+  Heartbeat monitoring starts as soon as this node has any stake in a
+  remote node: a cross-node monitor or link, a `forkOn:`/`spawnOn:`
+  spawn, or a remote channel reference. The `NodeHealthMonitor` sends
+  periodic pings (every 5 seconds by default); if 3 consecutive pings
+  fail, the node is declared dead and everything pending against it is
+  cleaned up:
+
+  - monitors/links receive synthetic `nodeDown` exit signals
+  - pending `forkOn:` futures resolve with a `nodeDown` error
+    (so `await` signals instead of blocking forever)
+  - remote channel references are marked closed
 
   This means monitors catch both individual process death (normal
   notification) and entire node failure (timeout-based detection).

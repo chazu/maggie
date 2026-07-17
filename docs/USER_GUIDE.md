@@ -325,6 +325,14 @@ x > 0 ifTrue: ['positive'] ifFalse: ['not positive']
 1 to: 10 by: 2 do: [:i | i printString]  -- odd numbers
 ```
 
+The compiler inlines `ifTrue:`, `ifFalse:`, `ifTrue:ifFalse:`, `and:`,
+`or:`, `whileTrue:`, and `whileFalse:` to jump bytecode when their blocks
+are written literally (no closure is allocated, no message is sent). A
+block held in a variable still dispatches as a real message. Inlined
+conditionals require an actual Boolean: a non-boolean condition raises a
+catchable `Error` ("mustBeBoolean...") instead of a
+`doesNotUnderstand:`.
+
 ### Methods
 
 Methods are defined in `.mag` files. Each method starts at column 0:
@@ -698,6 +706,10 @@ receive                 -- blocking receive
 -- Non-blocking operations
 trySend: value          -- non-blocking send (returns true/false)
 tryReceive              -- non-blocking receive (returns value or nil)
+
+-- Disambiguating variants (nil is a value, not a signal)
+receiveIfClosed: blk    -- blocking receive; evaluates blk if closed+drained
+tryReceiveIfEmpty: blk  -- non-blocking receive; evaluates blk if no value
 
 -- State
 close                   -- close the channel

@@ -106,7 +106,15 @@ Guide09Concurrency subclass: Object
   - `receive` -- blocking receive
   - `trySend:` -- non-blocking send, returns true/false
   - `tryReceive` -- non-blocking receive, returns value or nil
+  - `receiveIfClosed:` -- blocking receive; evaluates the block when
+    the channel is closed and drained
+  - `tryReceiveIfEmpty:` -- non-blocking receive; evaluates the block
+    when no value was available
   - `close` -- close the channel (no more sends)
+
+  `receive` and `tryReceive` answer nil for closed/empty -- use the
+  `ifClosed:`/`ifEmpty:` variants whenever a legitimately-sent nil must
+  be distinguishable from closure or absence.
 
   For doctests, always prefer buffered channels (`new:`) to avoid
   deadlocks in single-line evaluation.
@@ -154,11 +162,19 @@ Guide09Concurrency subclass: Object
   Send `close` to a channel when no more values will be sent. After
   closing, `trySend:` returns false and `isClosed` returns true.
   Receives will drain any remaining buffered values, then return nil.
+  When nil could also be a legitimate value, `receiveIfClosed:` and
+  `tryReceiveIfEmpty:` make the closed/empty case explicit.
 
   ```test
   ch := Channel new: 1.
   ch close.
   ch isClosed >>> true
+  ```
+
+  ```test
+  ch := Channel new: 1.
+  ch close.
+  ch receiveIfClosed: [#drained] >>> #drained
   ```
 
   ```test
