@@ -527,6 +527,11 @@ func loadVM(customImagePath string, verbose bool) (*vm.VM, *dist.DiskCache, erro
 
 func wireVM(vmInst *vm.VM, verbose bool) {
 	vmInst.UseGoCompiler(compiler.Compile)
+	// Sign envelopes (Node connect:, forkOn:, remote channels) with the
+	// persistent .maggie/node.key identity — the same key the request-auth
+	// layer uses — so peers can whitelist this node. Without this the VM would
+	// mint a fresh ephemeral key per process and no trust store could match it.
+	applyLocalIdentity(vmInst)
 	vmInst.SetNodeRefFactory(buildNodeRefFactory(vmInst))
 	vmInst.SetRemoteChannelFactory(buildRemoteChannelFactory(vmInst))
 	for _, register := range projectWrapperRegistrars {
