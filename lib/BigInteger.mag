@@ -52,8 +52,12 @@ BigInteger subclass: Number
 
   """
   Return true if the receiver is zero.
+
+  ```test
+  20 factorial isZero >>> false
+  ```
   """
-  method: isZero ^<Boolean> [ ^self primIsZero ]
+  method: isZero ^<Boolean> [ <primitive> ]
 
   """
   Convert to Float (may lose precision for very large values).
@@ -65,9 +69,13 @@ BigInteger subclass: Number
   method: asFloat ^<Float> [ ^self primAsFloat ]
 
   """
-  Convert to SmallInteger (truncates if too large).
+  Convert to SmallInteger, or nil if the value is too large to fit.
+
+  ```test
+  20 factorial asSmallInt isNil >>> true
+  ```
   """
-  method: asSmallInt ^<Integer> [ ^self primAsSmallInt ]
+  method: asSmallInt ^<Integer> [ <primitive> ]
 
   """
   Return a human-readable string representation.

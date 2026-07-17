@@ -308,7 +308,7 @@ func (vm *VM) registerBigIntegerPrimitives() {
 		return FromFloat64(result)
 	})
 
-	// asSmallInt - convert BigInt to SmallInt (truncates if out of range)
+	// asSmallInt - convert BigInt to SmallInt, or Nil if out of range
 	c.AddMethod0(vm.Selectors, "asSmallInt", func(v *VM, recv Value) Value {
 		obj := v.registry.GetBigInt(recv)
 		if obj == nil {
