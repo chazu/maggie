@@ -135,9 +135,24 @@ func (inf *Inferrer) inferExpr(env *TypeEnv, expr compiler.Expr) MaggieType {
 	case *compiler.FalseLiteral:
 		return &NamedType{Name: "Boolean"}
 	case *compiler.ArrayLiteral:
+		// ArrayLiteral elements are compile-time literals (no sends), so no
+		// traversal needed.
 		return &NamedType{Name: "Array"}
 	case *compiler.DynamicArray:
+		// Dynamic-array elements are arbitrary expressions ({ File readAll: p })
+		// — infer each so their effects are counted.
+		for _, el := range e.Elements {
+			inf.inferExpr(env, el)
+		}
 		return &NamedType{Name: "Array"}
+	case *compiler.DictionaryLiteral:
+		for _, k := range e.Keys {
+			inf.inferExpr(env, k)
+		}
+		for _, v := range e.Values {
+			inf.inferExpr(env, v)
+		}
+		return &NamedType{Name: "Dictionary"}
 	case *compiler.Self:
 		return &NamedType{Name: inf.className}
 	case *compiler.Super:
@@ -164,12 +179,25 @@ func (inf *Inferrer) inferExpr(env *TypeEnv, expr compiler.Expr) MaggieType {
 		return inf.inferSend(recvType, e.Selector, e.SpanVal.Start)
 	case *compiler.BinaryMessage:
 		recvType := inf.inferExpr(env, e.Receiver)
+		// The argument must be inferred too, or effects/assignments inside it
+		// (e.g. `x + (File readAll: p)`) are invisible — unsound effect inference.
+		inf.inferExpr(env, e.Argument)
 		return inf.inferSend(recvType, e.Selector, e.SpanVal.Start)
 	case *compiler.KeywordMessage:
 		recvType := inf.inferExpr(env, e.Receiver)
+		for _, arg := range e.Arguments {
+			inf.inferExpr(env, arg)
+		}
 		return inf.inferSend(recvType, e.Selector, e.SpanVal.Start)
 	case *compiler.Cascade:
 		recvType := inf.inferExpr(env, e.Receiver)
+		// Infer each cascaded message's arguments too (they were skipped
+		// entirely, hiding their effects).
+		for _, msg := range e.Messages {
+			for _, arg := range msg.Arguments {
+				inf.inferExpr(env, arg)
+			}
+		}
 		// Cascade returns the receiver
 		return recvType
 	case *compiler.Block:

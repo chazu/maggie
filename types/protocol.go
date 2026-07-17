@@ -58,12 +58,12 @@ func (r *ProtocolRegistry) RegisterFromAST(def *compiler.ProtocolDef) *ProtocolT
 	return pt
 }
 
-// Satisfies checks whether a VM class structurally satisfies a protocol.
-// A class satisfies a protocol if it responds to every message in the
-// protocol with the correct arity. Type compatibility of parameters and
-// return types is checked when both sides have annotations.
+// Satisfies checks whether a VM class structurally satisfies a protocol: it
+// responds to every selector the protocol requires. Arity is covered
+// implicitly — a keyword/binary selector string already encodes its argument
+// count — but parameter and return TYPE compatibility is NOT checked here.
 func Satisfies(class *vm.Class, protocol *ProtocolType, selectors *vm.SelectorTable) bool {
-	for selector, _ := range protocol.Methods {
+	for selector := range protocol.Methods {
 		selectorID := selectors.Intern(selector)
 
 		// Check instance methods

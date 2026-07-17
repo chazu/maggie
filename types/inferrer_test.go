@@ -464,3 +464,28 @@ func TestInferStringConcat(t *testing.T) {
 		t.Errorf("expected String from string concat, got %s", retType)
 	}
 }
+
+// TestInferVisitsMessageArguments regresses the soundness bug where inferExpr
+// inferred only receivers, never arguments — so effects and DNUs inside a
+// keyword/binary argument were invisible. A bad send nested in an argument must
+// now be diagnosed.
+func TestInferVisitsMessageArguments(t *testing.T) {
+	inf := newTestInferrer()
+	// The argument `42 definitelyNotASelector` sends an unknown selector to a
+	// SmallInteger; before the fix the argument was never inferred.
+	md, className := parseMethod(
+		`Foo subclass: Object method: test [ ^Array with: (42 definitelyNotASelector) ]`)
+	if md == nil {
+		t.Fatal("failed to parse method")
+	}
+	_, _, diags := inf.InferMethod(className, md)
+	found := false
+	for _, d := range diags {
+		if strings.Contains(d.Message, "definitelyNotASelector") {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("expected a diagnostic for the unknown send in the argument, got: %v", diags)
+	}
+}

@@ -56,10 +56,29 @@ func (c *Checker) CheckSourceFile(sf *compiler.SourceFile) {
 			c.EffectTable.HarvestFromMethod(classDef.Name, method)
 		}
 	}
+	for _, traitDef := range sf.Traits {
+		for _, method := range traitDef.Methods {
+			c.ReturnTypes.HarvestFromMethod(traitDef.Name, method)
+			c.EffectTable.HarvestFromMethod(traitDef.Name, method)
+		}
+	}
 
 	// Check class definitions
 	for _, classDef := range sf.Classes {
 		c.checkClassDef(classDef)
+	}
+	// Check trait methods and extension methods, which were previously skipped
+	// entirely — so a bad annotation in a trait or extension method went
+	// unreported.
+	for _, traitDef := range sf.Traits {
+		synthetic := &compiler.ClassDef{Name: traitDef.Name}
+		for _, method := range traitDef.Methods {
+			c.checkMethodDef(method, synthetic)
+		}
+	}
+	extClass := &compiler.ClassDef{Name: ""}
+	for _, method := range sf.Methods {
+		c.checkMethodDef(method, extClass)
 	}
 }
 
