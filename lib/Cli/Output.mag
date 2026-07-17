@@ -175,7 +175,7 @@ Output subclass: Object
       1 to: headers size do: [:i |
           headerLine := headerLine, (self pad: (headers at: i) to: (widths at: i)), '  '
       ].
-      self text: headerLine trimBoth.
+      self text: headerLine trimSeparators.
 
       "Print rows"
       rows do: [:row |
@@ -184,7 +184,7 @@ Output subclass: Object
           1 to: keys size do: [:i |
               line := line, (self pad: (self formatValue: (row at: (keys at: i) ifAbsent: [''])) to: (widths at: i)), '  '
           ].
-          self text: line trimBoth
+          self text: line trimSeparators
       ]
   ]
 

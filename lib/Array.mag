@@ -312,21 +312,6 @@ Array subclass: Collection
   ]
 
   """
-  Join array elements into a string with a separator. Synonym for join:;
-  each element is rendered with displayString.
-
-  ```test
-  #('a' 'b' 'c') joinWith: ', ' >>> 'a, b, c'
-  #() joinWith: ', ' >>> ''
-  #('x') joinWith: ', ' >>> 'x'
-  #(1 2 3) joinWith: ', ' >>> '1, 2, 3'
-  ```
-  """
-  method: joinWith: separator <String> ^<String> [
-      ^self join: separator
-  ]
-
-  """
   Join array elements into a string with a separator. Each element is rendered
   with displayString, so non-string elements (numbers, symbols, …) appear in
   the result instead of being silently dropped.

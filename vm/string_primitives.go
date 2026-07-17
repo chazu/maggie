@@ -205,43 +205,50 @@ func (vm *VM) registerStringPrimitivesExtended() {
 		return FromFloat64(f)
 	})
 
-	// primIsDigit - check if single-char string is a digit
+	// primIsDigit - true when EVERY character is a digit (empty string is
+	// false). Previously single-char only: 'ab' isDigit silently answered
+	// false, a quiet multi-char footgun (L-14).
 	c.AddMethod0(vm.Selectors, "primIsDigit", func(v *VM, recv Value) Value {
 		s := v.registry.GetStringContent(recv)
-		if len(s) != 1 {
+		if len(s) == 0 {
 			return False
 		}
-		ch := s[0]
-		if ch >= '0' && ch <= '9' {
-			return True
+		for i := 0; i < len(s); i++ {
+			if s[i] < '0' || s[i] > '9' {
+				return False
+			}
 		}
-		return False
+		return True
 	})
 
-	// primIsLetter - check if single-char string is a letter
+	// primIsLetter - true when EVERY character is a letter (empty is false)
 	c.AddMethod0(vm.Selectors, "primIsLetter", func(v *VM, recv Value) Value {
 		s := v.registry.GetStringContent(recv)
-		if len(s) != 1 {
+		if len(s) == 0 {
 			return False
 		}
-		ch := s[0]
-		if (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') {
-			return True
+		for i := 0; i < len(s); i++ {
+			ch := s[i]
+			if !((ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z')) {
+				return False
+			}
 		}
-		return False
+		return True
 	})
 
-	// primIsWhitespace - check if single-char string is whitespace
+	// primIsWhitespace - true when EVERY character is whitespace (empty is false)
 	c.AddMethod0(vm.Selectors, "primIsWhitespace", func(v *VM, recv Value) Value {
 		s := v.registry.GetStringContent(recv)
-		if len(s) != 1 {
+		if len(s) == 0 {
 			return False
 		}
-		ch := s[0]
-		if ch == ' ' || ch == '\t' || ch == '\n' || ch == '\r' {
-			return True
+		for i := 0; i < len(s); i++ {
+			ch := s[i]
+			if ch != ' ' && ch != '\t' && ch != '\n' && ch != '\r' {
+				return False
+			}
 		}
-		return False
+		return True
 	})
 
 	// primDo: - iterate over characters, yielding Character values to the block

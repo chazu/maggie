@@ -99,10 +99,10 @@ SqliteRows subclass: Object
   ```example
   | rows <SqliteRows> allRows <Array> |
   rows := db query: 'SELECT * FROM users'.
-  allRows := rows toArray
+  allRows := rows asArray
   ```
   """
-  method: toArray ^<Array> ! <IO> [
+  method: asArray ^<Array> ! <IO> [
       | result <ArrayList> |
       result := ArrayList new.
       [self next] whileTrue: [

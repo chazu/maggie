@@ -163,7 +163,7 @@ EnvBinding subclass: Object
   classMethod: coerce: aString <String> type: aType <Symbol> [
       | trimmed parsed |
       aString isNil ifTrue: [^nil].
-      trimmed := aString trimBoth.
+      trimmed := aString trimSeparators.
 
       aType = #string ifTrue: [^trimmed].
 
@@ -362,7 +362,7 @@ EnvBinding subclass: Object
   """
   method: applyRawValue: aString to: aTarget [
       | coerced |
-      (aString isNil or: [aString trimBoth isEmpty]) ifTrue: [
+      (aString isNil or: [aString trimSeparators isEmpty]) ifTrue: [
           required ifTrue: [
               ^Failure with: envName, ' is required but not set'
           ].

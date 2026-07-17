@@ -331,11 +331,14 @@ String subclass: Collection
   ]
 
   """
-  Return true if this single-character string is a digit (0-9).
+  Return true if every character is a digit (0-9). Empty strings answer
+  false.
 
   ```test
   '5' isDigit >>> true
-  'a' isDigit >>> false
+  '123' isDigit >>> true
+  '12a' isDigit >>> false
+  '' isDigit >>> false
   ```
   """
   method: isDigit ^<Boolean> [
@@ -343,11 +346,13 @@ String subclass: Collection
   ]
 
   """
-  Return true if this single-character string is a letter (a-z, A-Z).
+  Return true if every character is a letter (a-z, A-Z). Empty strings
+  answer false.
 
   ```test
   'a' isLetter >>> true
-  '5' isLetter >>> false
+  'abc' isLetter >>> true
+  'ab1' isLetter >>> false
   ```
   """
   method: isLetter ^<Boolean> [
@@ -355,11 +360,11 @@ String subclass: Collection
   ]
 
   """
-  Return true if this single-character string is a letter or digit.
+  Return true if the string is all letters or all digits.
 
   ```test
-  'a' isAlphanumeric >>> true
-  '5' isAlphanumeric >>> true
+  'abc' isAlphanumeric >>> true
+  '123' isAlphanumeric >>> true
   ' ' isAlphanumeric >>> false
   ```
   """
@@ -368,11 +373,13 @@ String subclass: Collection
   ]
 
   """
-  Return true if this single-character string is whitespace.
+  Return true if every character is whitespace. Empty strings answer
+  false.
 
   ```test
   ' ' isWhitespace >>> true
-  'a' isWhitespace >>> false
+  '  	' isWhitespace >>> true
+  ' a ' isWhitespace >>> false
   ```
   """
   method: isWhitespace ^<Boolean> [
@@ -380,18 +387,14 @@ String subclass: Collection
   ]
 
   """
-  Return a copy with leading and trailing whitespace removed.
+  Return a copy with leading and trailing whitespace removed
+  (Smalltalk-classic name; the trimBoth alias is gone).
 
   ```test
-  '  hello  ' trimBoth >>> 'hello'
-  'no spaces' trimBoth >>> 'no spaces'
+  '  hello  ' trimSeparators >>> 'hello'
+  'no spaces' trimSeparators >>> 'no spaces'
   ```
   """
-  method: trimBoth ^<String> [
-      ^self primTrimBoth
-  ]
-
-  """Alias for trimBoth — removes leading and trailing whitespace. Smalltalk-classic name."""
   method: trimSeparators ^<String> [
       ^self primTrimBoth
   ]
