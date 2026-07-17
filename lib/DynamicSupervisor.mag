@@ -104,7 +104,7 @@ DynamicSupervisor subclass: Object
       | ids <ArrayList> |
       ids := ArrayList new.
       children keysAndValuesDo: [:k :v |
-          v isDone not ifTrue: [ids add: k]
+          v isAlive ifTrue: [ids add: k]
       ].
       ^ids asArray
   ]
@@ -174,7 +174,7 @@ DynamicSupervisor subclass: Object
 
   method: terminateAllChildren [
       children keysAndValuesDo: [:k :v |
-          v isDone not ifTrue: [v primTerminate]
+          v isAlive ifTrue: [v primTerminate]
       ].
       children := Dictionary new
   ]

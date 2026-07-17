@@ -698,18 +698,6 @@ func (vm *VM) registerProcessPrimitives() {
 		return proc.wait()
 	})
 
-	// Process>>isDone - check if process has completed
-	c.AddMethod0(vm.Selectors, "isDone", func(v *VM, recv Value) Value {
-		proc := v.getProcess(recv)
-		if proc == nil {
-			return True
-		}
-		if proc.isDone() {
-			return True
-		}
-		return False
-	})
-
 	// Process>>primIsAlive - check if process is still running (opposite of isDone)
 	c.AddMethod0(vm.Selectors, "primIsAlive", func(v *VM, recv Value) Value {
 		proc := v.getProcess(recv)
@@ -747,11 +735,6 @@ func (vm *VM) registerProcessPrimitives() {
 		proc.mu.Lock()
 		defer proc.mu.Unlock()
 		return proc.result
-	})
-
-	// Process>>primYield - instance-side yield (stub, returns self)
-	c.AddMethod0(vm.Selectors, "primYield", func(_ *VM, recv Value) Value {
-		return recv
 	})
 
 	// Process>>primTerminate - terminate process with shutdown signal

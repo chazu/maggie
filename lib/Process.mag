@@ -12,7 +12,7 @@ to block until the process completes and retrieve its result.
 | p <Process> |
 p := [100] fork.
 p wait.
-p isDone               "=> true"
+p isTerminated          "=> true"
 ```
 
 ```example
@@ -26,18 +26,6 @@ ch := Channel new: 10.
 ```
 """
 Process subclass: Object
-
-  """
-  Yield the current process's time slice to allow other
-  goroutines to run. Returns the receiver.
-
-  ```example
-  100 timesRepeat: [Process yield]
-  ```
-  """
-  method: yield [
-      ^self primYield
-  ]
 
   """
   Terminate the process. The process will stop executing and
@@ -355,5 +343,5 @@ Process subclass: Object
   """Fork block with restricted global access."""
   classMethod: forkWithout: restrictions <Array> do: block ^<Process> ! <Process> [ <primitive> ]
 
-  """Return true if the process has finished."""
-  method: isDone ^<Boolean> [ <primitive> ]
+  """Return true if the process has finished. One blessed pair: `isAlive`
+  and its negation `isTerminated` (the old `isDone` duplicate is gone)."""

@@ -62,7 +62,7 @@ Guide09Concurrency subclass: Object
   `wait` returns the result of the forked block -- the value of its last
   expression.
 
-  `isDone` checks whether a process has finished without blocking. `result`
+  `isTerminated` checks whether a process has finished without blocking. `result`
   returns the process's result if it has finished, or `nil` if it is still
   running.
 
@@ -74,7 +74,7 @@ Guide09Concurrency subclass: Object
   ```example
   p := [42] fork.
   p wait.
-  p isDone
+  p isTerminated
   ```
 
   ```example

@@ -1413,8 +1413,8 @@ func TestProcessIndexRemovalAtExit(t *testing.T) {
 		if processes[i] == Nil {
 			continue
 		}
-		done := vm.Send(processes[i], "isDone", nil)
-		if done != True {
+		alive := vm.Send(processes[i], "primIsAlive", nil)
+		if alive != False {
 			t.Errorf("Process %d should be done", i)
 		}
 	}
