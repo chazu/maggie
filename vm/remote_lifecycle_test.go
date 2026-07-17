@@ -212,3 +212,28 @@ func TestCloseChannel_KeepsExportWhileBuffered(t *testing.T) {
 		t.Error("drained channel should be unexported")
 	}
 }
+
+// Two concurrent nodeIdentity() calls must agree on one ephemeral identity —
+// the lazy init was previously an unsynchronized write (VM-7).
+func TestNodeIdentity_ConcurrentLazyInit(t *testing.T) {
+	vm := NewVM()
+	defer vm.Shutdown()
+
+	const n = 16
+	pubs := make([]ed25519.PublicKey, n)
+	var wg sync.WaitGroup
+	for i := 0; i < n; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			pubs[i], _ = vm.nodeIdentity()
+		}(i)
+	}
+	wg.Wait()
+
+	for i := 1; i < n; i++ {
+		if !pubs[0].Equal(pubs[i]) {
+			t.Fatalf("goroutines observed different identities (0 vs %d)", i)
+		}
+	}
+}

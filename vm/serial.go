@@ -361,10 +361,7 @@ func (s *valueSerializer) serializeChannel(v Value) ([]byte, error) {
 	exportID := s.vm.ExportChannel(ch)
 
 	// Get the local node ID
-	var ownerNode [32]byte
-	if s.vm.localIdentity != nil {
-		copy(ownerNode[:], s.vm.localIdentity.pub)
-	}
+	ownerNode, _ := s.vm.localNodeID()
 
 	sc := &serializedChannel{
 		OwnerNode: ownerNode,
@@ -722,12 +719,9 @@ func (d *valueDeserializer) deserializeChannel(tag cbor.Tag) (Value, error) {
 	}
 
 	// Check if this is a local channel (we are the owner)
-	var localNode [32]byte
-	if d.vm.localIdentity != nil {
-		copy(localNode[:], d.vm.localIdentity.pub)
-	}
+	localNode, hasIdentity := d.vm.localNodeID()
 
-	if sc.OwnerNode == localNode && localNode != ([32]byte{}) {
+	if hasIdentity && sc.OwnerNode == localNode {
 		// Local channel — look up by export ID
 		ch := d.vm.LookupExportedChannel(sc.ChannelID)
 		if ch != nil {

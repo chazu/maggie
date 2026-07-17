@@ -180,8 +180,11 @@ type VM struct {
 	nodeRefs   map[*NodeRefData]struct{}
 	nodeRefsMu sync.RWMutex
 
-	// Local node identity keys (loaded lazily)
-	localIdentity *nodeIdentityHolder
+	// Local node identity keys (loaded lazily; atomic — read on concurrent
+	// serializer/deserializer goroutines, written by nodeIdentity()/
+	// SetNodeIdentityKeys)
+	localIdentity   atomic.Pointer[nodeIdentityHolder]
+	localIdentityMu sync.Mutex // serializes lazy generation
 
 	// NodeRefFactory, LocalListenAddr, RemoteChannelFactory now live
 	// in lateBoundFields with atomic accessors. Use:

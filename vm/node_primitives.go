@@ -134,21 +134,39 @@ func (vm *VM) getNodeRef(v Value) *NodeRefData {
 }
 
 func (vm *VM) nodeIdentity() (ed25519.PublicKey, ed25519.PrivateKey) {
-	if vm.localIdentity != nil {
-		return vm.localIdentity.pub, vm.localIdentity.priv
+	if id := vm.localIdentity.Load(); id != nil {
+		return id.pub, id.priv
 	}
-	// Generate ephemeral identity
+	// Generate an ephemeral identity. The mutex serializes generation so two
+	// concurrent Node connect: calls cannot mint two different identities
+	// (which would break reply routing).
+	vm.localIdentityMu.Lock()
+	defer vm.localIdentityMu.Unlock()
+	if id := vm.localIdentity.Load(); id != nil {
+		return id.pub, id.priv
+	}
 	pub, priv, err := ed25519.GenerateKey(rand.Reader)
 	if err != nil {
 		return nil, nil
 	}
-	vm.localIdentity = &nodeIdentityHolder{pub: pub, priv: priv}
+	vm.localIdentity.Store(&nodeIdentityHolder{pub: pub, priv: priv})
 	return pub, priv
 }
 
 // SetNodeIdentityKeys sets the VM's local node identity keys.
 func (vm *VM) SetNodeIdentityKeys(pub ed25519.PublicKey, priv ed25519.PrivateKey) {
-	vm.localIdentity = &nodeIdentityHolder{pub: pub, priv: priv}
+	vm.localIdentity.Store(&nodeIdentityHolder{pub: pub, priv: priv})
+}
+
+// localNodeID returns the 32-byte local node ID, or the zero array if no
+// identity has been set. Safe for concurrent use.
+func (vm *VM) localNodeID() (id [32]byte, ok bool) {
+	holder := vm.localIdentity.Load()
+	if holder == nil {
+		return id, false
+	}
+	copy(id[:], holder.pub)
+	return id, true
 }
 
 // ---------------------------------------------------------------------------
