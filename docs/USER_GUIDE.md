@@ -901,7 +901,6 @@ withTimeout: ms         -- create child with timeout
 -- Cancellation
 cancel                  -- cancel this context
 isCancelled             -- check if cancelled
-isDone                  -- alias for isCancelled
 
 -- Deadline info
 hasDeadline             -- check if has timeout

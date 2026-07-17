@@ -218,17 +218,6 @@ func (vm *VM) registerCancellationContextPrimitives() {
 		return False
 	})
 
-	// CancellationContext>>isDone - alias for isCancelled
-	c.AddMethod0(vm.Selectors, "isDone", func(v *VM, recv Value) Value {
-		ctx := v.getCancellationContext(recv)
-		if ctx == nil {
-			return True
-		}
-		if ctx.IsCancelled() {
-			return True
-		}
-		return False
-	})
 
 	// CancellationContext>>deadline - returns deadline as milliseconds since epoch, or nil
 	c.AddMethod0(vm.Selectors, "deadline", func(v *VM, recv Value) Value {
