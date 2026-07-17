@@ -156,29 +156,7 @@ func (vm *VM) registerSemaphorePrimitives() {
 	s.AddMethod1(vm.Selectors, "critical:", semCriticalFn)
 	s.AddMethod1(vm.Selectors, "primCritical:", semCriticalFn)
 
-	// Semaphore>>withPermit: aBlock - alias for critical:
-	s.AddMethod1(vm.Selectors, "withPermit:", func(v *VM, recv Value, block Value) Value {
-		sem := v.getSemaphore(recv)
-		if sem == nil {
-			return Nil
-		}
-
-		bv := v.currentInterpreter().getBlockValue(block)
-		if bv == nil {
-			return Nil
-		}
-
-		<-sem.permits
-		defer func() {
-			select {
-			case sem.permits <- struct{}{}:
-			default:
-			}
-		}()
-
-		return v.currentInterpreter().ExecuteBlock(
-			bv.Block, bv.Captures, nil,
-			bv.HomeFrame, bv.HomeSelf, bv.HomeMethod,
-		)
-	})
+	// Semaphore>>withPermit: aBlock — same behavior as critical:, registered to
+	// the same function rather than a verbatim copy.
+	s.AddMethod1(vm.Selectors, "withPermit:", semCriticalFn)
 }
