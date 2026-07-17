@@ -72,25 +72,28 @@ func (vm *VM) registerWaitGroupPrimitives() {
 	})
 
 	// WaitGroup>>done - decrement the wait group counter by 1
-	wg.AddMethod0(vm.Selectors, "done", func(v *VM, recv Value) Value {
+	doneFn := func(v *VM, recv Value) Value {
 		w := v.getWaitGroup(recv)
 		if w == nil {
 			return Nil
 		}
-		w.counter.Add(-1)
-		w.wg.Done()
-		return recv
-	})
-
-	wg.AddMethod0(vm.Selectors, "primDone", func(v *VM, recv Value) Value {
-		w := v.getWaitGroup(recv)
-		if w == nil {
-			return Nil
+		// Guard: sync.WaitGroup.Done below zero panics 'negative WaitGroup
+		// counter' and crashes the goroutine. Only Done() when the counter is
+		// positive; the CAS loop keeps the mirror and the real wg in lockstep.
+		for {
+			cur := w.counter.Load()
+			if cur <= 0 {
+				return v.SignalPrimitiveError("done", "WaitGroup counter is already zero")
+			}
+			if w.counter.CompareAndSwap(cur, cur-1) {
+				break
+			}
 		}
-		w.counter.Add(-1)
 		w.wg.Done()
 		return recv
-	})
+	}
+	wg.AddMethod0(vm.Selectors, "done", doneFn)
+	wg.AddMethod0(vm.Selectors, "primDone", doneFn)
 
 	// WaitGroup>>wait - block until the counter is zero
 	wg.AddMethod0(vm.Selectors, "wait", func(v *VM, recv Value) Value {

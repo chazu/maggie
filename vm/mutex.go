@@ -58,7 +58,13 @@ func (vm *VM) registerMutexPrimitives() {
 		if mu == nil {
 			return Nil
 		}
-		mu.locked.Store(false)
+		// Guard: sync.Mutex.Unlock on an unlocked mutex is a Go *fatal* error
+		// that no on:do: can catch. The CAS also serializes concurrent
+		// unlocks so at most one reaches the real Unlock. Unlocking a mutex
+		// that isn't locked is a programmer error → signal a catchable Error.
+		if !mu.locked.CompareAndSwap(true, false) {
+			return v.SignalPrimitiveError("unlock", "mutex is not locked")
+		}
 		mu.mu.Unlock()
 		return recv
 	}

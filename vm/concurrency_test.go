@@ -716,6 +716,45 @@ func TestMutexLockUnlock(t *testing.T) {
 	}
 }
 
+// TestMutexUnlockUnlockedSignals guards the regression where unlocking an
+// unlocked mutex hit Go's *fatal* 'unlock of unlocked mutex' and aborted the
+// whole VM. It must now raise a catchable Error instead.
+func TestMutexUnlockUnlockedSignals(t *testing.T) {
+	vm := NewVM()
+	mu := vm.Send(vm.classValue(vm.MutexClass), "new", nil)
+	func() {
+		defer func() {
+			r := recover()
+			if r == nil {
+				t.Fatal("expected a signaled Error, got no panic")
+			}
+			if _, ok := r.(SignaledException); !ok {
+				t.Fatalf("expected SignaledException, got %T: %v", r, r)
+			}
+		}()
+		vm.Send(mu, "unlock", nil)
+	}()
+}
+
+// TestWaitGroupDoneBelowZeroSignals guards the regression where WaitGroup>>done
+// past zero hit Go's 'negative WaitGroup counter' panic and crashed the VM.
+func TestWaitGroupDoneBelowZeroSignals(t *testing.T) {
+	vm := NewVM()
+	wg := vm.Send(vm.classValue(vm.WaitGroupClass), "new", nil)
+	func() {
+		defer func() {
+			r := recover()
+			if r == nil {
+				t.Fatal("expected a signaled Error, got no panic")
+			}
+			if _, ok := r.(SignaledException); !ok {
+				t.Fatalf("expected SignaledException, got %T: %v", r, r)
+			}
+		}()
+		vm.Send(wg, "done", nil)
+	}()
+}
+
 // TestMutexTryLock tests non-blocking lock acquisition.
 func TestMutexTryLock(t *testing.T) {
 	vm := NewVM()
