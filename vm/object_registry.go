@@ -153,29 +153,9 @@ func (or *ObjectRegistry) GetStringObject(v Value) *StringObject {
 // Cell Registry Methods
 // ---------------------------------------------------------------------------
 
-// RegisterCell adds a cell to the registry.
-func (or *ObjectRegistry) RegisterCell(c *Cell) {
-	or.cellsMu.Lock()
-	or.cells[c] = struct{}{}
-	or.cellsMu.Unlock()
-}
-
-// UnregisterCell removes a cell from the registry.
-func (or *ObjectRegistry) UnregisterCell(c *Cell) {
-	or.cellsMu.Lock()
-	delete(or.cells, c)
-	or.cellsMu.Unlock()
-}
-
-// HasCell checks if a cell is in the registry.
-func (or *ObjectRegistry) HasCell(c *Cell) bool {
-	or.cellsMu.RLock()
-	defer or.cellsMu.RUnlock()
-	_, exists := or.cells[c]
-	return exists
-}
-
-// CellCount returns the number of registered cells.
+// CellCount returns the number of registered cells (always 0 now — cells are
+// pointer-carrying Values traced by Go's GC and are never registered here; the
+// register/unregister/has methods were removed as dead. Kept for the stats map).
 func (or *ObjectRegistry) CellCount() int {
 	or.cellsMu.RLock()
 	defer or.cellsMu.RUnlock()

@@ -4,7 +4,6 @@ import (
 	"encoding/binary"
 	"fmt"
 	"math/big"
-	"math/bits"
 	"sync/atomic"
 	"unsafe"
 )
@@ -1757,21 +1756,6 @@ func (i *Interpreter) primitiveTimes(a, b Value) Value {
 	return i.sendBinaryFallback(a, b, i.selectorTimes)
 }
 
-// mulOverflowCheck returns the product of a and b and whether it overflowed int64.
-func mulOverflowCheck(a, b int64) (int64, bool) {
-	hi, lo := bits.Mul64(uint64(a), uint64(b))
-	result := int64(lo)
-	// For signed multiplication, the upper 64 bits must be the sign-extension of the lower 64.
-	// Adjust hi for the signed contribution: Mul64 is unsigned, so we compensate.
-	if a < 0 {
-		hi -= uint64(b)
-	}
-	if b < 0 {
-		hi -= uint64(a)
-	}
-	signExtend := uint64(result >> 63)
-	return result, hi != signExtend
-}
 
 func (i *Interpreter) primitiveDiv(a, b Value) Value {
 	if a.IsSmallInt() && b.IsSmallInt() {
@@ -1994,12 +1978,6 @@ func (i *Interpreter) primitiveValue2(rcvr, arg1, arg2 Value) Value {
 	return Nil
 }
 
-func (i *Interpreter) primitiveValue3(rcvr, arg1, arg2, arg3 Value) Value {
-	if bv := i.getBlockValue(rcvr); bv != nil {
-		return i.ExecuteBlock(bv.Block, bv.Captures, []Value{arg1, arg2, arg3}, bv.HomeFrame, bv.HomeSelf, bv.HomeMethod)
-	}
-	return Nil
-}
 
 func (i *Interpreter) primitiveNew(rcvr Value) Value {
 	// Try VTable dispatch first — many classes (Set, Dictionary, etc.)

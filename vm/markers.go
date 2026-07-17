@@ -60,12 +60,7 @@ const (
 	// Cli (cobra-backed CLI command wrapper)
 	cliCommandMarker uint32 = 58 << 24
 
-	// Distribution protocol (reserved for Phase 6)
-	chunkMarker uint32 = 42 << 24
 )
 
 // markerMask extracts the marker byte from a symbol ID.
 const markerMask uint32 = 0xFF << 24
-
-// markedIDFromValue strips the marker byte from a symbol-encoded id.
-func markedIDFromValue(v Value) uint32 { return v.SymbolID() & ^markerMask }

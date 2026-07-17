@@ -76,21 +76,6 @@ func createCancellationContextWithTimeout(parent *CancellationContextObject, tim
 	}
 }
 
-func createCancellationContextWithDeadline(parent *CancellationContextObject, deadline time.Time) *CancellationContextObject {
-	var parentCtx context.Context
-	if parent != nil {
-		parentCtx = parent.ctx
-	} else {
-		parentCtx = context.Background()
-	}
-
-	ctx, cancel := context.WithDeadline(parentCtx, deadline)
-	return &CancellationContextObject{
-		ctx:    ctx,
-		cancel: cancel,
-		parent: parent,
-	}
-}
 
 // ---------------------------------------------------------------------------
 // CancellationContext methods

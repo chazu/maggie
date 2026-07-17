@@ -20,9 +20,6 @@ type HttpClientObject struct {
 	client *http.Client
 }
 
-func isHttpClientValue(v Value) bool {
-	return isExtensionValue(v, httpClientMarker)
-}
 
 func (vm *VM) vmGetHttpClient(v Value) *HttpClientObject {
 	if o := ExtensionObject(v, httpClientMarker); o != nil {
