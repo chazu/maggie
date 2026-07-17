@@ -243,7 +243,7 @@ func (n *normalizer) normalizeExpr(expr compiler.Expr) hNode {
 // ---------------------------------------------------------------------------
 
 // resolveVariable resolves a variable name to hLocalVarRef, hInstanceVarRef,
-// or hGlobalRef. This mirrors the resolution order in codegen.go:438-489.
+// or hGlobalRef. This mirrors the resolution order in codegen.go (compileVariable).
 func (n *normalizer) resolveVariable(name string) hNode {
 	// 1. Search scopes from innermost to outermost
 	for depth := len(n.scopes) - 1; depth >= 0; depth-- {

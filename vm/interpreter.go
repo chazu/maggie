@@ -522,10 +522,11 @@ func (i *Interpreter) popFrame() {
 	// Zero the frame to release GC-visible references (Receiver, Captures, etc.)
 	*frame = CallFrame{}
 	i.fp--
-	// NOTE: We intentionally do NOT release blocks when frames are popped.
-	// Blocks may escape their home frame (stored in Dictionaries, instance vars, etc.)
-	// and be invoked later as callbacks. The block registry uses a sweep-based GC
-	// to clean up unreachable blocks instead.
+	// NOTE: nothing to release here. Blocks may escape their home frame (stored
+	// in Dictionaries, instance vars, etc.) and be invoked later as callbacks;
+	// they are pointer-carrying Values reclaimed by Go's GC when unreachable
+	// (the old sweep-based block registry was removed in the pointer-value
+	// migration).
 }
 
 // ---------------------------------------------------------------------------

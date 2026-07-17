@@ -239,7 +239,7 @@ func (vm *VM) registerHttpPrimitives() {
 	})
 
 	// sseRoute:handler: — register an SSE endpoint. The handler block receives
-	// [:conn :req |] and runs briefly on the dispatch queue to let Maggie store
+	// [:conn :req |] and runs on the HTTP handler goroutine to let Maggie store
 	// the connection. The Go-side event loop then streams events to the client.
 	httpServerClass.AddMethod2(vm.Selectors, "sseRoute:handler:", func(v *VM, recv Value, pathVal, handlerBlock Value) Value {
 		srv := v.vmGetHttpServer(recv)
@@ -298,7 +298,7 @@ func (vm *VM) registerHttpPrimitives() {
 				interp.ExecuteBlockDetached(block, captures, []Value{connVal, reqVal}, homeSelf, homeMethod)
 			}()
 
-			// SSE event loop — runs on the HTTP handler goroutine, not the dispatch queue.
+			// SSE event loop — runs on the HTTP handler goroutine.
 			for {
 				select {
 				case evt, ok := <-conn.eventCh:
@@ -323,7 +323,7 @@ func (vm *VM) registerHttpPrimitives() {
 	})
 
 	// asyncRoute:method:handler: — like route:method:handler: but runs the Maggie
-	// handler block in a forked goroutine (not the dispatch queue). Use for handlers
+	// handler block on the HTTP handler goroutine. Use for handlers
 	// that block inside Maggie (e.g. long-poll sleep loops) so they don't stall every
 	// other request waiting for the single dispatch goroutine to free up.
 	httpServerClass.AddMethod3(vm.Selectors, "asyncRoute:method:handler:", func(v *VM, recv Value, pathVal, methodVal, handlerBlock Value) Value {

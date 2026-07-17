@@ -10,7 +10,7 @@ import (
 // Deterministic binary serialization of the frozen hashing AST.
 //
 // Encoding conventions:
-//   - First byte: HashVersion (0x01)
+//   - First byte: HashVersion (see tags.go)
 //   - Integers: big-endian fixed-width (int64=8B, uint16=2B)
 //   - Floats: IEEE 754 big-endian 8B
 //   - Strings: uint32 big-endian length + UTF-8 bytes
