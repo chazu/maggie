@@ -42,6 +42,13 @@ const (
 	cborTagException      = 27015
 )
 
+// maxSerialDepth bounds recursion in both the serializer and deserializer.
+// Object slots are independently-encoded CBOR documents (serializedObject.Slots
+// is [][]byte), so the CBOR library's per-document nesting limit never sees the
+// aggregate depth — without this cap a remote peer could crash the node with a
+// single deeply-nested payload (fatal Go stack overflow).
+const maxSerialDepth = 256
+
 // serializedException is the CBOR representation of a Maggie exception.
 type serializedException struct {
 	ClassName   string `cbor:"1,keyasint"`           // e.g. "Error", "ZeroDivide"
@@ -87,9 +94,10 @@ func init() {
 // ---------------------------------------------------------------------------
 
 type valueSerializer struct {
-	vm   *VM
-	seen map[uintptr]uint32 // object pointer → backreference index
-	next uint32
+	vm    *VM
+	seen  map[uintptr]uint32 // object/dictionary pointer → backreference index
+	next  uint32
+	depth int
 }
 
 // SerializeValue encodes a Maggie Value to CBOR bytes. Returns an error if
@@ -104,6 +112,12 @@ func (vm *VM) SerializeValue(v Value) ([]byte, error) {
 }
 
 func (s *valueSerializer) serialize(v Value) ([]byte, error) {
+	if s.depth >= maxSerialDepth {
+		return nil, fmt.Errorf("serial: value nesting exceeds max depth %d", maxSerialDepth)
+	}
+	s.depth++
+	defer func() { s.depth-- }()
+
 	switch {
 	case v.IsNil():
 		return cborSerialEncMode.Marshal(nil)
@@ -303,6 +317,16 @@ func (s *valueSerializer) serializeDictionary(v Value) ([]byte, error) {
 		return nil, fmt.Errorf("serial: Dictionary registry miss")
 	}
 
+	// Backref check: shared and cyclic dictionaries encode as backreferences,
+	// exactly like objects — this is also the cycle guard that keeps a
+	// self-containing Dictionary from recursing forever.
+	ptr := uintptr(v.ptr)
+	if idx, ok := s.seen[ptr]; ok {
+		return cborSerialEncMode.Marshal(cbor.Tag{Number: cborTagBackref, Content: idx})
+	}
+	s.seen[ptr] = s.next
+	s.next++
+
 	snapshot := dict.Entries()
 	entries := make([]dictEntry, 0, len(snapshot))
 	for _, e := range snapshot {
@@ -412,6 +436,7 @@ type valueDeserializer struct {
 	vm      *VM
 	refs    map[uint32]Value // backreference index → deserialized value
 	nextRef uint32           // next backreference index to assign
+	depth   int
 }
 
 // DeserializeValue decodes CBOR bytes back into a Maggie Value. Returns an
@@ -425,6 +450,12 @@ func (vm *VM) DeserializeValue(data []byte) (Value, error) {
 }
 
 func (d *valueDeserializer) deserialize(data []byte) (Value, error) {
+	if d.depth >= maxSerialDepth {
+		return Nil, fmt.Errorf("serial: payload nesting exceeds max depth %d", maxSerialDepth)
+	}
+	d.depth++
+	defer func() { d.depth-- }()
+
 	if len(data) == 0 {
 		return Nil, fmt.Errorf("serial: empty data")
 	}
@@ -468,8 +499,18 @@ func (d *valueDeserializer) fromInterface(raw interface{}) (Value, error) {
 	case string:
 		return d.vm.registry.NewStringValue(v), nil
 	case []interface{}:
-		// CBOR array → Maggie Array
-		elems := make([]Value, len(v))
+		// CBOR array → Maggie Array. The serializer registers Arrays in its
+		// backref map before serializing elements, so the deserializer must
+		// assign a ref index at the same point in traversal order — otherwise
+		// every backref after an Array resolves to the wrong object. Allocate
+		// first, register, then fill, so self-referential arrays round-trip.
+		arrVal := d.vm.NewArray(len(v))
+		obj := ObjectFromValue(arrVal)
+		if obj == nil {
+			return Nil, fmt.Errorf("serial: failed to create Array")
+		}
+		d.refs[d.nextRef] = arrVal
+		d.nextRef++
 		for i, elem := range v {
 			elemBytes, err := cborSerialEncMode.Marshal(elem)
 			if err != nil {
@@ -479,9 +520,9 @@ func (d *valueDeserializer) fromInterface(raw interface{}) (Value, error) {
 			if err != nil {
 				return Nil, fmt.Errorf("serial: array elem %d: %w", i, err)
 			}
-			elems[i] = val
+			obj.SetSlot(i, val)
 		}
-		return d.vm.NewArrayWithElements(elems), nil
+		return arrVal, nil
 	default:
 		return Nil, fmt.Errorf("serial: unsupported CBOR type %T", raw)
 	}
@@ -648,6 +689,11 @@ func (d *valueDeserializer) deserializeDictionary(tag cbor.Tag) (Value, error) {
 	if dict == nil {
 		return Nil, fmt.Errorf("serial: failed to create Dictionary")
 	}
+
+	// Register the backref index before decoding entries — mirrors the
+	// serializer's registration order and lets cyclic dictionaries resolve.
+	d.refs[d.nextRef] = dictVal
+	d.nextRef++
 
 	for _, entry := range sd.Entries {
 		key, err := d.deserialize(entry.Key)

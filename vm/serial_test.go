@@ -3,7 +3,10 @@ package vm
 import (
 	"math"
 	"math/big"
+	"strings"
 	"testing"
+
+	"github.com/fxamacker/cbor/v2"
 )
 
 // ---------------------------------------------------------------------------
@@ -857,5 +860,234 @@ func TestSerial_Exception_CrossVM(t *testing.T) {
 	msg := v2.registry.GetStringContent(gotObj.MessageText)
 	if msg != "stack overflow at depth 4096" {
 		t.Errorf("message: got %q, want %q", msg, "stack overflow at depth 4096")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Backref alignment (SD-4) and recursion bounds (SD-5)
+// ---------------------------------------------------------------------------
+
+// An Array serialized before a shared object used to shift every subsequent
+// backref index: the serializer registered Arrays in its seen map but the
+// deserializer never assigned them ref indices.
+func TestSerial_BackrefAfterArray(t *testing.T) {
+	vm := NewVM()
+	defer vm.Shutdown()
+
+	sharedClass := vm.createClass("SharedThing", vm.ObjectClass)
+	sharedClass.InstVars = []string{"value"}
+	sharedClass.NumSlots = 1
+
+	shared := NewObject(sharedClass.VTable, 1)
+	shared.SetSlot(0, FromSmallInt(7))
+
+	inner := vm.NewArrayWithElements([]Value{FromSmallInt(1)})
+	outer := vm.NewArrayWithElements([]Value{inner, shared.ToValue(), shared.ToValue()})
+
+	data, err := vm.SerializeValue(outer)
+	if err != nil {
+		t.Fatalf("serialize: %v", err)
+	}
+	got, err := vm.DeserializeValue(data)
+	if err != nil {
+		t.Fatalf("deserialize: %v", err)
+	}
+
+	gotOuter := ObjectFromValue(got)
+	if gotOuter == nil || gotOuter.NumSlots() != 3 {
+		t.Fatalf("outer: got %v", got)
+	}
+	first := ObjectFromValue(gotOuter.GetSlot(1))
+	second := ObjectFromValue(gotOuter.GetSlot(2))
+	if first == nil || second == nil {
+		t.Fatal("shared slots did not decode to objects")
+	}
+	if s := first.GetSlot(0); !s.IsSmallInt() || s.SmallInt() != 7 {
+		t.Errorf("shared.value: got %v, want 7", s)
+	}
+	if first != second {
+		t.Error("shared object identity lost: slots 2 and 3 are different objects")
+	}
+}
+
+func TestSerial_SelfReferentialArray(t *testing.T) {
+	vm := NewVM()
+	defer vm.Shutdown()
+
+	arrVal := vm.NewArray(2)
+	arrObj := ObjectFromValue(arrVal)
+	arrObj.SetSlot(0, FromSmallInt(5))
+	arrObj.SetSlot(1, arrVal)
+
+	data, err := vm.SerializeValue(arrVal)
+	if err != nil {
+		t.Fatalf("serialize self-referential array: %v", err)
+	}
+	got, err := vm.DeserializeValue(data)
+	if err != nil {
+		t.Fatalf("deserialize self-referential array: %v", err)
+	}
+
+	gotObj := ObjectFromValue(got)
+	if gotObj == nil || gotObj.NumSlots() != 2 {
+		t.Fatalf("array: got %v", got)
+	}
+	if s := gotObj.GetSlot(0); !s.IsSmallInt() || s.SmallInt() != 5 {
+		t.Errorf("elem 1: got %v, want 5", s)
+	}
+	if ObjectFromValue(gotObj.GetSlot(1)) != gotObj {
+		t.Error("elem 2 should be the array itself")
+	}
+}
+
+func TestSerial_SharedDictionaryIdentity(t *testing.T) {
+	vm := NewVM()
+	defer vm.Shutdown()
+
+	dictVal := vm.NewDictionary()
+	dict := vm.registry.GetDictionaryObject(dictVal)
+	dict.Put(vm.registry, vm.registry.NewStringValue("k"), FromSmallInt(1))
+
+	outer := vm.NewArrayWithElements([]Value{dictVal, dictVal})
+
+	data, err := vm.SerializeValue(outer)
+	if err != nil {
+		t.Fatalf("serialize: %v", err)
+	}
+	got, err := vm.DeserializeValue(data)
+	if err != nil {
+		t.Fatalf("deserialize: %v", err)
+	}
+
+	gotOuter := ObjectFromValue(got)
+	if gotOuter == nil || gotOuter.NumSlots() != 2 {
+		t.Fatalf("outer: got %v", got)
+	}
+	d1 := vm.registry.GetDictionaryObject(gotOuter.GetSlot(0))
+	d2 := vm.registry.GetDictionaryObject(gotOuter.GetSlot(1))
+	if d1 == nil || d2 == nil {
+		t.Fatal("slots did not decode to dictionaries")
+	}
+	if d1 != d2 {
+		t.Error("shared dictionary identity lost")
+	}
+	if d1.Size() != 1 {
+		t.Errorf("dict size: got %d, want 1", d1.Size())
+	}
+}
+
+// A Dictionary containing itself used to recurse forever in the serializer
+// (fatal Go stack overflow). It now round-trips via a backreference.
+func TestSerial_CyclicDictionary(t *testing.T) {
+	vm := NewVM()
+	defer vm.Shutdown()
+
+	dictVal := vm.NewDictionary()
+	dict := vm.registry.GetDictionaryObject(dictVal)
+	dict.Put(vm.registry, vm.registry.NewStringValue("self"), dictVal)
+
+	data, err := vm.SerializeValue(dictVal)
+	if err != nil {
+		t.Fatalf("serialize cyclic dict: %v", err)
+	}
+	got, err := vm.DeserializeValue(data)
+	if err != nil {
+		t.Fatalf("deserialize cyclic dict: %v", err)
+	}
+
+	gotDict := vm.registry.GetDictionaryObject(got)
+	if gotDict == nil || gotDict.Size() != 1 {
+		t.Fatalf("dict: got %v", got)
+	}
+	entries := gotDict.Entries()
+	if vm.registry.GetDictionaryObject(entries[0].Value) != gotDict {
+		t.Error("cyclic entry should resolve to the dictionary itself")
+	}
+}
+
+// makeChain builds a linked chain of n objects; slot 0 of the innermost
+// holds 42.
+func makeChain(vm *VM, n int) Value {
+	chainClass := vm.createClass("Chain", vm.ObjectClass)
+	chainClass.InstVars = []string{"next"}
+	chainClass.NumSlots = 1
+
+	next := FromSmallInt(42)
+	for i := 0; i < n; i++ {
+		node := NewObject(chainClass.VTable, 1)
+		node.SetSlot(0, next)
+		next = node.ToValue()
+	}
+	return next
+}
+
+func TestSerial_DeepNestingWithinCap(t *testing.T) {
+	vm := NewVM()
+	defer vm.Shutdown()
+
+	data, err := vm.SerializeValue(makeChain(vm, 100))
+	if err != nil {
+		t.Fatalf("serialize 100-deep chain: %v", err)
+	}
+	got, err := vm.DeserializeValue(data)
+	if err != nil {
+		t.Fatalf("deserialize 100-deep chain: %v", err)
+	}
+
+	cur := ObjectFromValue(got)
+	for i := 0; i < 99; i++ {
+		cur = ObjectFromValue(cur.GetSlot(0))
+		if cur == nil {
+			t.Fatalf("chain broken at depth %d", i+1)
+		}
+	}
+	if s := cur.GetSlot(0); !s.IsSmallInt() || s.SmallInt() != 42 {
+		t.Errorf("innermost value: got %v, want 42", s)
+	}
+}
+
+func TestSerial_SerializerDepthCap(t *testing.T) {
+	vm := NewVM()
+	defer vm.Shutdown()
+
+	_, err := vm.SerializeValue(makeChain(vm, maxSerialDepth+50))
+	if err == nil {
+		t.Fatal("expected depth error serializing over-deep chain")
+	}
+	if !strings.Contains(err.Error(), "max depth") {
+		t.Errorf("error should mention max depth: %v", err)
+	}
+}
+
+// A hostile peer can nest serializedObject documents arbitrarily deep; each
+// slot is an independently-encoded CBOR document, so the CBOR library's
+// nesting limit never triggers. The explicit depth counter must reject the
+// payload cleanly instead of crashing the node.
+func TestSerial_DeserializerDepthCap(t *testing.T) {
+	vm := NewVM()
+	defer vm.Shutdown()
+
+	deepClass := vm.createClass("DeepChain", vm.ObjectClass)
+	deepClass.InstVars = []string{"next"}
+	deepClass.NumSlots = 1
+
+	payload, err := cborSerialEncMode.Marshal(nil)
+	if err != nil {
+		t.Fatalf("marshal leaf: %v", err)
+	}
+	for i := 0; i < maxSerialDepth+50; i++ {
+		so := &serializedObject{ClassName: "DeepChain", Slots: [][]byte{payload}}
+		payload, err = cborSerialEncMode.Marshal(cbor.Tag{Number: cborTagObject, Content: so})
+		if err != nil {
+			t.Fatalf("marshal level %d: %v", i, err)
+		}
+	}
+
+	_, err = vm.DeserializeValue(payload)
+	if err == nil {
+		t.Fatal("expected depth error deserializing hostile payload")
+	}
+	if !strings.Contains(err.Error(), "max depth") {
+		t.Errorf("error should mention max depth: %v", err)
 	}
 }
