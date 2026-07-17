@@ -107,6 +107,21 @@ func (rws *RemoteWatchStore) RemoveInboundMonitor(refID uint64) *RemoteMonitorRe
 	return ref
 }
 
+// RemoveInboundMonitorOwnedBy removes an inbound monitor only if it was
+// established by `node` (the watcher's signature-proven identity). Returns the
+// removed ref, or nil if the monitor doesn't exist or belongs to another peer —
+// so one peer cannot cancel another peer's monitor by guessing ref IDs.
+func (rws *RemoteWatchStore) RemoveInboundMonitorOwnedBy(refID uint64, node [32]byte) *RemoteMonitorRef {
+	rws.mu.Lock()
+	defer rws.mu.Unlock()
+	ref, ok := rws.inMonitors[refID]
+	if !ok || ref.RemoteNode != node {
+		return nil
+	}
+	delete(rws.inMonitors, refID)
+	return ref
+}
+
 // AddLink records a cross-node link.
 func (rws *RemoteWatchStore) AddLink(key string, ref *RemoteLinkRef) {
 	rws.mu.Lock()

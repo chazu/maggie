@@ -723,7 +723,17 @@ func (s *SyncService) DemonitorProcess(
 	ctx context.Context,
 	req *connect.Request[maggiev1.DemonitorProcessRequest],
 ) (*connect.Response[maggiev1.DemonitorProcessResponse], error) {
-	s.worker.vm.RemoteWatches().RemoveInboundMonitor(req.Msg.MonitorRefId)
+	// Only the peer that established the monitor may cancel it — otherwise any
+	// peer with PermMessage could suppress another peer's DOWN by guessing ref
+	// IDs. Prefer the interceptor's signature-proven identity (as MonitorProcess
+	// does); fall back to the self-declared sender only when unauthenticated.
+	var senderNode [32]byte
+	if id, ok := PeerIdentity(ctx); ok {
+		senderNode = [32]byte(id)
+	} else if len(req.Msg.SenderNode) == 32 {
+		copy(senderNode[:], req.Msg.SenderNode)
+	}
+	s.worker.vm.RemoteWatches().RemoveInboundMonitorOwnedBy(req.Msg.MonitorRefId, senderNode)
 	return connect.NewResponse(&maggiev1.DemonitorProcessResponse{Success: true}), nil
 }
 

@@ -51,6 +51,29 @@ func TestRemoteWatchStore_InboundMonitor(t *testing.T) {
 	}
 }
 
+func TestRemoteWatchStore_RemoveInboundMonitorOwnedBy(t *testing.T) {
+	rws := NewRemoteWatchStore()
+	owner := [32]byte{4, 5, 6}
+	other := [32]byte{7, 8, 9}
+	rws.AddInboundMonitor(&RemoteMonitorRef{RefID: 2, WatcherID: 20, RemoteNode: owner})
+
+	// A different peer must not be able to cancel this monitor by ref ID.
+	if ref := rws.RemoveInboundMonitorOwnedBy(2, other); ref != nil {
+		t.Error("a non-owner peer must not remove another peer's monitor")
+	}
+	if rws.InboundCount() != 1 {
+		t.Fatalf("monitor removed by non-owner: count %d, want 1", rws.InboundCount())
+	}
+
+	// The owning peer can.
+	if ref := rws.RemoveInboundMonitorOwnedBy(2, owner); ref == nil {
+		t.Error("owner peer must be able to remove its own monitor")
+	}
+	if rws.InboundCount() != 0 {
+		t.Errorf("count after owner removal: got %d, want 0", rws.InboundCount())
+	}
+}
+
 func TestRemoteWatchStore_DrainNode(t *testing.T) {
 	rws := NewRemoteWatchStore()
 	node := [32]byte{1, 2, 3}
