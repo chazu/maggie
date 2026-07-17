@@ -98,9 +98,29 @@ type PeerRecord struct {
 	LastSeen       time.Time
 	FirstSeen      time.Time
 
-	// Replay-window state (unexported: internal to CheckNonce).
-	nonceHighest uint64
-	nonceSeen    map[uint64]struct{}
+	// Replay-window state, one window per logical nonce stream (request-auth
+	// headers vs message/spawn envelopes). These streams advance at different
+	// rates from independent counters; sharing one window let the faster
+	// stream (heartbeat Pings) push the floor past the slower stream and
+	// false-reject genuine messages. Unexported: internal to CheckNonce.
+	nonceWindows map[NonceStream]*nonceWindowState
+}
+
+// NonceStream identifies an independent monotonic nonce sequence for a peer.
+type NonceStream uint8
+
+const (
+	// NonceStreamRequest is the per-RPC request-auth header nonce (advances on
+	// every call, including heartbeat Ping).
+	NonceStreamRequest NonceStream = iota
+	// NonceStreamEnvelope is the message/spawn envelope nonce (advances only on
+	// actual delivered messages).
+	NonceStreamEnvelope
+)
+
+type nonceWindowState struct {
+	highest uint64
+	seen    map[uint64]struct{}
 }
 
 // TrustPolicy is the node-wide trust configuration.
@@ -241,36 +261,42 @@ func (ts *TrustStore) RecordHashMismatch(id NodeID) bool {
 // floor or already seen.
 const nonceWindow = 1024
 
-// CheckNonce validates and records a request/envelope nonce for a peer.
-// Returns an error if the nonce was already seen or is older than the
-// replay window. Callers must have verified the peer's signature first —
-// the nonce state is keyed by proven identity.
-func (ts *TrustStore) CheckNonce(id NodeID, nonce uint64) error {
+// CheckNonce validates and records a nonce for a peer on the given stream.
+// Returns an error if the nonce was already seen or is older than that
+// stream's replay window. Callers must have verified the peer's signature
+// first — the nonce state is keyed by proven identity. Each stream keeps an
+// independent window so a faster stream cannot false-reject a slower one.
+func (ts *TrustStore) CheckNonce(id NodeID, stream NonceStream, nonce uint64) error {
 	ts.mu.Lock()
 	defer ts.mu.Unlock()
 	rec := ts.getOrCreate(id)
-	if rec.nonceSeen == nil {
-		rec.nonceSeen = make(map[uint64]struct{})
+	if rec.nonceWindows == nil {
+		rec.nonceWindows = make(map[NonceStream]*nonceWindowState)
+	}
+	w := rec.nonceWindows[stream]
+	if w == nil {
+		w = &nonceWindowState{seen: make(map[uint64]struct{})}
+		rec.nonceWindows[stream] = w
 	}
 	floor := uint64(0)
-	if rec.nonceHighest > nonceWindow {
-		floor = rec.nonceHighest - nonceWindow
+	if w.highest > nonceWindow {
+		floor = w.highest - nonceWindow
 	}
-	if nonce <= floor && rec.nonceHighest > 0 {
+	if nonce <= floor && w.highest > 0 {
 		return fmt.Errorf("dist: nonce %d below replay window (floor %d)", nonce, floor)
 	}
-	if _, seen := rec.nonceSeen[nonce]; seen {
+	if _, seen := w.seen[nonce]; seen {
 		return fmt.Errorf("dist: nonce %d replayed", nonce)
 	}
-	rec.nonceSeen[nonce] = struct{}{}
-	if nonce > rec.nonceHighest {
-		rec.nonceHighest = nonce
+	w.seen[nonce] = struct{}{}
+	if nonce > w.highest {
+		w.highest = nonce
 		// Prune entries that fell below the new floor.
-		if rec.nonceHighest > nonceWindow {
-			newFloor := rec.nonceHighest - nonceWindow
-			for n := range rec.nonceSeen {
+		if w.highest > nonceWindow {
+			newFloor := w.highest - nonceWindow
+			for n := range w.seen {
 				if n <= newFloor {
-					delete(rec.nonceSeen, n)
+					delete(w.seen, n)
 				}
 			}
 		}

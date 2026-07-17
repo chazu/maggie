@@ -526,7 +526,7 @@ func (s *SyncService) DeliverMessage(
 	// Envelope replay protection: the nonce is per-sender increasing;
 	// reusing one (e.g. re-wrapping a captured envelope in a fresh request)
 	// is rejected here.
-	if err := s.trust.CheckNonce(peerID, envelope.Nonce); err != nil {
+	if err := s.trust.CheckNonce(peerID, dist.NonceStreamEnvelope, envelope.Nonce); err != nil {
 		return connect.NewResponse(&maggiev1.DeliverMessageResponse{
 			Success:      false,
 			ErrorKind:    wire.ErrKindReplayRejected,
@@ -785,7 +785,7 @@ func (s *SyncService) SpawnProcess(
 	}
 
 	// Envelope replay protection.
-	if err := s.trust.CheckNonce(peerID, envelope.Nonce); err != nil {
+	if err := s.trust.CheckNonce(peerID, dist.NonceStreamEnvelope, envelope.Nonce); err != nil {
 		return connect.NewResponse(&maggiev1.SpawnProcessResponse{
 			Accepted: false,
 			Error:    err.Error(),

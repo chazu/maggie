@@ -157,7 +157,7 @@ func verifyRequestAuth(req connect.AnyRequest, trust *dist.TrustStore) (dist.Nod
 
 	// Nonce replay check happens only AFTER the signature proves the
 	// identity, so spoofed ids cannot pollute a victim's window.
-	if err := trust.CheckNonce(peerID, nonce); err != nil {
+	if err := trust.CheckNonce(peerID, dist.NonceStreamRequest, nonce); err != nil {
 		return zero, err
 	}
 

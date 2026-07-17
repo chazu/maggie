@@ -196,7 +196,7 @@ func TestTrustStore_TransientPeerCap(t *testing.T) {
 		id[1] = byte(i >> 8)
 		id[2] = byte(i >> 16)
 		id[31] = 0xAB // keep distinct from the configured peer
-		_ = ts.CheckNonce(id, 1)
+		_ = ts.CheckNonce(id, NonceStreamRequest, 1)
 	}
 
 	if got := ts.PeerCount(); got > maxTransientPeers+1 {
@@ -204,5 +204,31 @@ func TestTrustStore_TransientPeerCap(t *testing.T) {
 	}
 	if ts.Peer(configured) == nil {
 		t.Error("configured peer must never be evicted")
+	}
+}
+
+// TestTrustStore_NonceStreamsAreIndependent regresses the shared-window bug:
+// the request-auth stream (advances on every RPC, incl. heartbeat Ping) must
+// not push the replay floor past the slower envelope stream and reject genuine
+// messages. Each stream keeps its own window.
+func TestTrustStore_NonceStreamsAreIndependent(t *testing.T) {
+	ts := NewTrustStore(TrustPolicy{DefaultPerms: PermMessage})
+	peer := NodeID{2, 4, 6}
+
+	// The request stream races far ahead (as heartbeats would).
+	for n := uint64(1); n <= 5000; n++ {
+		if err := ts.CheckNonce(peer, NonceStreamRequest, n); err != nil {
+			t.Fatalf("request nonce %d rejected: %v", n, err)
+		}
+	}
+
+	// A low, first-ever envelope nonce must still be accepted — it lives in a
+	// separate window that the request flood never touched.
+	if err := ts.CheckNonce(peer, NonceStreamEnvelope, 3); err != nil {
+		t.Errorf("genuine envelope nonce false-rejected across streams: %v", err)
+	}
+	// Replay within the envelope stream is still caught.
+	if err := ts.CheckNonce(peer, NonceStreamEnvelope, 3); err == nil {
+		t.Error("envelope nonce replay should be rejected")
 	}
 }
