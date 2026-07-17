@@ -1653,3 +1653,25 @@ func TestParserFQN_SuperclassIsFQN(t *testing.T) {
 func contains(s, substr string) bool {
 	return len(s) >= len(substr) && strings.Contains(s, substr)
 }
+
+// TestParseMethodRejectsClassDefinitionKeyword regresses the mis-parse where a
+// full class-body method definition fed to ParseMethod (the runtime/IDE compile
+// path) was silently accepted as a method literally named `method:`.
+func TestParseMethodRejectsClassDefinitionKeyword(t *testing.T) {
+	for _, src := range []string{
+		"method: getX [ ^x ]",
+		"classMethod: make [ ^self new ]",
+	} {
+		p := NewParser(src)
+		m := p.ParseMethod()
+		if m != nil && len(p.Errors()) == 0 {
+			t.Errorf("ParseMethod(%q) should error (class-definition keyword as selector), got selector %q", src, m.Selector)
+		}
+	}
+
+	// The canonical bracketed form with a real selector still parses.
+	p := NewParser("getX [ ^42 ]")
+	if m := p.ParseMethod(); m == nil || m.Selector != "getX" {
+		t.Errorf("ParseMethod(\"getX [ ^42 ]\") should yield selector getX, got %v (errs %v)", m, p.Errors())
+	}
+}

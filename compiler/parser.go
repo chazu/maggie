@@ -198,6 +198,18 @@ func (p *Parser) ParseMethod() *MethodDef {
 		return nil
 	}
 
+	// Guard the bracketed-definition mis-parse: ParseMethod expects a bare
+	// `selector body` (no enclosing brackets). A full class-body form like
+	// `method: getX [ ^x ]` otherwise parses as a method literally named
+	// `method:` with a dead block body. Reject the class-definition keywords.
+	switch selector {
+	case "method:", "classMethod:", "instanceVars:", "instanceVariables:",
+		"include:", "trait", "protocol":
+		p.errorf("unexpected class-definition keyword %q as a method selector — "+
+			"pass the method body without the enclosing `method: … [ … ]` wrapper", selector)
+		return nil
+	}
+
 	// Parse optional return type annotation: ^<Type>
 	var returnType *TypeExpr
 	if p.curTokenIs(TokenCaret) && p.peekTokenIs(TokenBinarySelector) && p.peekToken.Literal == "<" {
