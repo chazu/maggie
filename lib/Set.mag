@@ -24,7 +24,7 @@ s add: 1.
 s size
 ```
 """
-Set subclass: Object
+Set subclass: Collection
   instanceVars: dict
 
   """

@@ -21,7 +21,7 @@ automatically demoted for efficiency.
 20 factorial printString >>> '2432902008176640000'
 ```
 """
-BigInteger subclass: Object
+BigInteger subclass: Number
 
   """
   Return the absolute value.

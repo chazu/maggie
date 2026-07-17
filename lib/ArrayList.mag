@@ -24,7 +24,7 @@ list add: 3.
 list size
 ```
 """
-ArrayList subclass: Object
+ArrayList subclass: Collection
   include: Printable
 
   # --- Class methods ---

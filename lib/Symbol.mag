@@ -1,6 +1,6 @@
 # Symbol.mag
 
-Symbol subclass: Object
+Symbol subclass: String
 
   # Symbols are unique and immutable
   method: asSymbol ^<Symbol> [

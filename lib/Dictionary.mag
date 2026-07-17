@@ -34,7 +34,7 @@ d at: #age put: 30.
 d size
 ```
 """
-Dictionary subclass: Object
+Dictionary subclass: Collection
 
   # notEmpty inherited from Collection
 

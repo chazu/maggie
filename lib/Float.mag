@@ -27,7 +27,7 @@ accept both Float and SmallInteger arguments.
 ((3.0 * 3.0) + (4.0 * 4.0)) sqrt
 ```
 """
-Float subclass: Object
+Float subclass: Number
 
   """
   Return the arithmetic negation of the receiver.

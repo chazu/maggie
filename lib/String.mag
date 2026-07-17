@@ -18,7 +18,7 @@ name := 'Maggie'.
 'Hello, ', name, '!'
 ```
 """
-String subclass: Object
+String subclass: Collection
 
   """
   Return the number of characters in the string.

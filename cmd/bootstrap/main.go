@@ -231,6 +231,19 @@ func compileAllFiles(files []string, vmInst *vm.VM, verbose bool) (int, error) {
 			classGetter, ok := classMapping[classDef.Name]
 			if ok {
 				class = classGetter(vmInst)
+				// The declaration must tell the truth about the hardwired
+				// hierarchy (L-7): the loader VERIFIES instead of silently
+				// ignoring it — `Array subclass: Object` while the VM wires
+				// Array under Collection teaches readers a wrong model.
+				if classDef.Superclass != "" && class.Superclass != nil {
+					// (nil-superclass root — Object — declares `subclass: nil`
+					// and is exempt.)
+					if actual := class.Superclass.Name; actual != classDef.Superclass {
+						fmt.Printf("ERROR: %s declares 'subclass: %s' but the VM defines its superclass as %s\n",
+							classDef.Name, classDef.Superclass, actual)
+						os.Exit(1)
+					}
+				}
 			} else {
 				// Dynamically create the class (for compiler and user classes)
 				var superclass *vm.Class
