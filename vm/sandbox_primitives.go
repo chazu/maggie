@@ -54,9 +54,12 @@ func (vm *VM) registerSandboxPrimitives() {
 			}()
 
 			interp := v.newForkedInterpreter(hidden)
+			interp.processID = proc.id
 			v.registerInterpreter(interp)
 			result := interp.ExecuteBlockDetached(bv.Block, bv.Captures, nil, bv.HomeSelf, bv.HomeMethod)
-			proc.markDone(result, nil)
+			// FinishProcess (not markDone) so the live-process index and name
+			// registry are cleaned up and links/monitors are notified.
+			v.FinishProcess(proc, ExitNormal(result))
 		}()
 
 		return procValue

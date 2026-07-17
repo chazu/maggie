@@ -165,6 +165,44 @@ func TestProcessFork(t *testing.T) {
 	}
 }
 
+func TestFinishProcessIsIdempotent(t *testing.T) {
+	// Regression: fork+terminate (and linked-exit / node-death races) can call
+	// FinishProcess on the same process twice. The second call must be a no-op;
+	// a second waitGroup.Done()/close(done) panics and aborts the whole VM.
+	vm := NewVM()
+	proc := vm.registry.CreateProcess()
+	vm.registerProcess(proc)
+
+	vm.FinishProcess(proc, ExitNormal(FromSmallInt(1)))
+	if !proc.isDone() {
+		t.Fatal("process should be terminated after first FinishProcess")
+	}
+	// FinishProcess must remove the process from the live index (markDone did
+	// not — that was the leak in Sandbox run:/WaitGroup>>wrap:).
+	if vm.GetProcessByID(proc.id) != nil {
+		t.Fatal("finished process should be unregistered from the live-process index")
+	}
+	// Second and third finishes must not panic.
+	vm.FinishProcess(proc, ExitSignal("shutdown", Nil))
+	vm.FinishProcess(proc, ExitError(fmt.Errorf("boom")))
+
+	// Concurrent finishes from many goroutines must also be safe.
+	proc2 := vm.registry.CreateProcess()
+	vm.registerProcess(proc2)
+	var wg sync.WaitGroup
+	for i := 0; i < 16; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			vm.FinishProcess(proc2, ExitNormal(Nil))
+		}()
+	}
+	wg.Wait()
+	if !proc2.isDone() {
+		t.Fatal("proc2 should be terminated")
+	}
+}
+
 func TestProcessSleep(t *testing.T) {
 	vm := NewVM()
 

@@ -204,6 +204,7 @@ type ProcessObject struct {
 	vtable    *VTable
 	id        uint64
 	state     atomic.Int32 // ProcessState
+	finished  atomic.Bool  // guards one-shot finish (waitGroup.Done + close(done))
 	done      chan struct{}
 	result    Value
 	err       error
@@ -241,6 +242,9 @@ func isProcessValue(v Value) bool {
 // vm.FinishProcess() instead, which handles link/monitor notifications.
 // Kept for backward compatibility with tests that don't have a VM reference.
 func (p *ProcessObject) markDone(result Value, err error) {
+	if !p.finished.CompareAndSwap(false, true) {
+		return // already finished — second finish would panic on WaitGroup/close
+	}
 	p.mu.Lock()
 	p.result = result
 	p.err = err

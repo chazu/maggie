@@ -32,35 +32,39 @@ func (vm *VM) LinkProcesses(a, b *ProcessObject) {
 		first, second = b, a
 	}
 
+	// first/second establish lock order only; aliveness and exit reasons are
+	// keyed to a/b directly (both locks are held), so the propagation below is
+	// not sensitive to which of a/b happened to have the smaller id.
 	first.mu.Lock()
 	second.mu.Lock()
 
-	aAlive := first.state.Load() != int32(ProcessTerminated)
-	bAlive := second.state.Load() != int32(ProcessTerminated)
+	aAlive := a.state.Load() != int32(ProcessTerminated)
+	bAlive := b.state.Load() != int32(ProcessTerminated)
 
 	if aAlive && bAlive {
-		if first.links == nil {
-			first.links = make(map[uint64]bool)
+		if a.links == nil {
+			a.links = make(map[uint64]bool)
 		}
-		if second.links == nil {
-			second.links = make(map[uint64]bool)
+		if b.links == nil {
+			b.links = make(map[uint64]bool)
 		}
-		first.links[second.id] = true
-		second.links[first.id] = true
+		a.links[b.id] = true
+		b.links[a.id] = true
 	}
 
-	firstExit := first.exitReason
-	secondExit := second.exitReason
+	aExit := a.exitReason
+	bExit := b.exitReason
 
 	second.mu.Unlock()
 	first.mu.Unlock()
 
-	// If one side is already dead, propagate exit signal
+	// If exactly one side is already dead, deliver the dead side's exit reason
+	// to the live side.
 	if !aAlive && bAlive {
-		vm.deliverExitSignal(b, a, firstExit)
+		vm.deliverExitSignal(b, a, aExit)
 	}
 	if !bAlive && aAlive {
-		vm.deliverExitSignal(a, b, secondExit)
+		vm.deliverExitSignal(a, b, bExit)
 	}
 }
 

@@ -159,10 +159,16 @@ func (vm *VM) registerWaitGroupPrimitives() {
 				v.unregisterInterpreter()
 			}()
 
-			interp := v.newInterpreter()
+			// newForkedInterpreter (not newInterpreter) so global writes go to
+			// a COW overlay and forkRestricted: hidden-global restrictions are
+			// inherited — otherwise a sandboxed process escapes via wrap:.
+			interp := v.newForkedInterpreter(v.inheritedHidden(nil))
+			interp.processID = proc.id
 			v.registerInterpreter(interp)
 			result := interp.ExecuteBlockDetached(bv.Block, bv.Captures, nil, bv.HomeSelf, bv.HomeMethod)
-			proc.markDone(result, nil)
+			// FinishProcess (not markDone) so the live-process index and name
+			// registry are cleaned up and links/monitors are notified.
+			v.FinishProcess(proc, ExitNormal(result))
 		}()
 
 		return procValue

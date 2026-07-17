@@ -47,6 +47,13 @@ func (vm *VM) HandleForkedPanic(proc *ProcessObject, r interface{}) {
 // exit reason, notifies linked processes and monitors, and cleans up.
 // This replaces direct calls to proc.markDone().
 func (vm *VM) FinishProcess(proc *ProcessObject, reason ExitReason) {
+	// One-shot: the goroutine's own completion, an explicit terminate, a
+	// linked-process exit signal, and node-death cleanup can all race to
+	// finish the same process. Only the first proceeds — a second
+	// waitGroup.Done()/close(proc.done) would panic and abort the whole VM.
+	if !proc.finished.CompareAndSwap(false, true) {
+		return
+	}
 	proc.mu.Lock()
 	proc.result = reason.Result
 	if reason.Error != nil {
