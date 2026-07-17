@@ -55,8 +55,9 @@ to nil (implemented 2026-07-16; Guide09 documents the pattern).
 - Conversions are `as*`: `asArray`, `asString`, `asStream`. (`toArray` is
   deprecated.)
 - Smalltalk-80 conventions hold: `isEmpty`/`notEmpty`, `printString`,
-  `hash`/`=` contract (equal objects have equal hashes — String's
-  `hashCode` split is scheduled to fold into `hash`).
+  `hash`/`=` contract (equal objects have equal hashes — `String>>hash`
+  is content-based as of 2026-07-16; `hashCode` is gone, `identityHash`
+  is the identity escape hatch).
 - Go primitives use the `prim` prefix when a lib `.mag` wrapper exists,
   else the wrapper overwrites the primitive on image load.
 

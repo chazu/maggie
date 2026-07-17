@@ -133,5 +133,5 @@ HashRing subclass: Object
 
   method: hashKey: key <String> ^<Integer> [
       "Content-based hash producing a bounded positive integer"
-      ^key printString hashCode
+      ^key printString hash
   ]

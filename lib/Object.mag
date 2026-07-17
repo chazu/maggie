@@ -345,16 +345,14 @@ Object subclass: nil
 
   # --- Primitives ---
 
-  """Return a hash value for the receiver."""
+  """Return a hash value for the receiver. Identity-based by default;
+  classes with content equality (String) override it with a content hash
+  so that equal objects hash equally."""
   method: hash ^<Integer> [ <primitive> ]
 
-  """Return an identity-based hash value. On Object this aliases hash (which is
-  already identity-based). Subclasses that override hash with content-based
-  hashing (e.g. String, Array) should NOT override identityHash — it must
-  remain stable across content equality."""
-  method: identityHash ^<Integer> [
-      ^self hash
-  ]
+  """Return an identity-based hash value, even for classes that override
+  hash with content-based hashing (e.g. String). Never overridden."""
+  method: identityHash ^<Integer> [ <primitive> ]
 
   """Type test — returns false on generic Object. Override in String, Number,
   Array, etc. to return true for their own instances."""

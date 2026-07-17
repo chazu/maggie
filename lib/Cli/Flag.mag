@@ -306,5 +306,5 @@ Flag subclass: Object
   ```
   """
   method: hash ^<Integer> [
-      ^name hashCode
+      ^name hash
   ]

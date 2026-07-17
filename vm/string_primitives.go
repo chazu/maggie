@@ -278,8 +278,11 @@ func (vm *VM) registerStringPrimitivesExtended() {
 		return recv
 	})
 
-	// hashCode - FNV-1a content hash returning a bounded positive SmallInt
-	c.AddMethod0(vm.Selectors, "hashCode", func(v *VM, recv Value) Value {
+	// hash - FNV-1a content hash returning a bounded positive SmallInt.
+	// Overrides Object>>hash (identity-based) so equal strings hash equally,
+	// honoring the hash/= contract (L-1). The Java-named hashCode alias is
+	// gone; identity is available via Object>>identityHash.
+	c.AddMethod0(vm.Selectors, "hash", func(v *VM, recv Value) Value {
 		s := v.registry.GetStringContent(recv)
 		h := uint32(2166136261)
 		for i := 0; i < len(s); i++ {

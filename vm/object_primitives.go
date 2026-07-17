@@ -245,8 +245,15 @@ func (vm *VM) registerObjectPrimitives() {
 		return False
 	})
 
-	// hash - default hash (identity-based)
+	// hash - default hash (identity-based). Classes with content equality
+	// (String) override this with a content hash to honor the hash/= contract.
 	c.AddMethod0(vm.Selectors, "hash", func(_ *VM, recv Value) Value {
+		return FromSmallInt(int64((recv.hi ^ uint64(uintptr(recv.ptr))) & 0x7FFFFFFFFFFF))
+	})
+
+	// identityHash - always identity-based, even for classes that override
+	// hash with content hashing. Must NOT be overridden.
+	c.AddMethod0(vm.Selectors, "identityHash", func(_ *VM, recv Value) Value {
 		return FromSmallInt(int64((recv.hi ^ uint64(uintptr(recv.ptr))) & 0x7FFFFFFFFFFF))
 	})
 

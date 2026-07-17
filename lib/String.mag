@@ -504,5 +504,16 @@ String subclass: Object
   """Print the receiver to stdout followed by a newline."""
   method: println [ <primitive> ]
 
-  """Return an FNV-1a hash of the string content."""
-  method: hashCode ^<Integer> [ <primitive> ]
+  """
+  Return an FNV-1a hash of the string content. Equal strings hash equally,
+  honoring the hash/= contract; use `identityHash` for identity.
+
+  ```test
+  ('hel', 'lo') hash = 'hello' hash >>> true
+  ```
+
+  ```example
+  'hello' hash
+  ```
+  """
+  method: hash ^<Integer> [ <primitive> ]
