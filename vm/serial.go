@@ -5,6 +5,8 @@ import (
 	"math/big"
 
 	"github.com/fxamacker/cbor/v2"
+
+	"github.com/chazu/maggie/vm/wire"
 )
 
 // ---------------------------------------------------------------------------
@@ -279,8 +281,10 @@ func (s *valueSerializer) serializeObject(v Value) ([]byte, error) {
 		className = class.Namespace + "::" + class.Name
 	}
 
-	// Serialize each slot
-	numSlots := obj.NumSlots()
+	// Serialize each LOGICAL slot (class.NumSlots): obj.NumSlots() reports
+	// physical capacity, which is at least the 4 inline slots — emitting it
+	// would pad every small object and defeat the receiver's shape check.
+	numSlots := class.NumSlots
 	slots := make([][]byte, numSlots)
 	for i := 0; i < numSlots; i++ {
 		slotData, err := s.serialize(obj.GetSlot(i))
@@ -597,7 +601,14 @@ func (d *valueDeserializer) deserializeTag(tag cbor.Tag, rawData []byte) (Value,
 		if val, handled, err := tryDeserializeHook(d.vm, tag); handled {
 			return val, err
 		}
-		// Unknown tag — try to deserialize the content as a plain value
+		// Unknown tag in the Maggie private range: version skew. A newer
+		// node's new type must fail loudly, not decay into a naked map/array
+		// with its semantics stripped (the transport-level guard is the wire
+		// envelope's Version field; this catches value-format skew).
+		if tag.Number >= 27000 && tag.Number < 27100 {
+			return Nil, fmt.Errorf("serial: unknown Maggie tag %d (version skew? local wire version %d)", tag.Number, wire.Version)
+		}
+		// Foreign (non-Maggie) tag — decode its content as a plain value
 		return d.fromInterface(tag.Content)
 	}
 }
@@ -621,6 +632,14 @@ func (d *valueDeserializer) deserializeObject(tag cbor.Tag) (Value, error) {
 		return Nil, fmt.Errorf("serial: class %q (hash %x) not found locally", so.ClassName, so.ClassHash[:8])
 	}
 
+	// Shape check: a slot-count mismatch means the sender's definition of
+	// this class differs from ours — silently truncating (the old behavior)
+	// corrupts object state without a diagnostic.
+	if len(so.Slots) != class.NumSlots {
+		return Nil, fmt.Errorf("serial: class %q shape mismatch: payload has %d slots, local class has %d (version skew across nodes?)",
+			so.ClassName, len(so.Slots), class.NumSlots)
+	}
+
 	// Create instance
 	obj := NewObject(class.VTable, class.NumSlots)
 	objVal := obj.ToValue()
@@ -632,9 +651,6 @@ func (d *valueDeserializer) deserializeObject(tag cbor.Tag) (Value, error) {
 
 	// Fill slots
 	for i, slotData := range so.Slots {
-		if i >= obj.NumSlots() {
-			break
-		}
 		val, err := d.deserialize(slotData)
 		if err != nil {
 			return Nil, fmt.Errorf("serial: object %s slot %d: %w", so.ClassName, i, err)
@@ -646,7 +662,18 @@ func (d *valueDeserializer) deserializeObject(tag cbor.Tag) (Value, error) {
 }
 
 func (d *valueDeserializer) lookupClass(hash [32]byte, name string) *Class {
-	// Try by name first (faster, works for local classes)
+	// Hash first: the semantic hash is the identity key (serial.go header).
+	// A name match with a different definition is exactly the version skew
+	// we must not silently accept, so the hash gets the first word.
+	if d.vm.contentStore != nil && hash != ([32]byte{}) {
+		if digest := d.vm.contentStore.LookupClass(hash); digest != nil {
+			if cls := d.vm.Classes.Lookup(digest.Name); cls != nil {
+				return cls
+			}
+		}
+	}
+	// Fall back by name (bootstrap classes without content digests). The
+	// shape check in deserializeObject catches dangerous name-only matches.
 	if name != "" {
 		if cls := d.vm.Classes.Lookup(name); cls != nil {
 			return cls
@@ -654,14 +681,6 @@ func (d *valueDeserializer) lookupClass(hash [32]byte, name string) *Class {
 		// Try Globals
 		if gv, ok := d.vm.Global(name); ok {
 			if cls := d.vm.GetClassFromValue(gv); cls != nil {
-				return cls
-			}
-		}
-	}
-	// Try content store by hash
-	if d.vm.contentStore != nil {
-		if digest := d.vm.contentStore.LookupClass(hash); digest != nil {
-			if cls := d.vm.Classes.Lookup(digest.Name); cls != nil {
 				return cls
 			}
 		}

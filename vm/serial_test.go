@@ -1089,3 +1089,73 @@ func TestSerial_DeserializerDepthCap(t *testing.T) {
 		t.Errorf("error should mention max depth: %v", err)
 	}
 }
+
+// ---------------------------------------------------------------------------
+// Version-skew hardening (SD-12)
+// ---------------------------------------------------------------------------
+
+// An unknown tag in the Maggie private range must fail loudly, not decay
+// into a naked value with its semantics stripped.
+func TestSerial_UnknownMaggieTagRejected(t *testing.T) {
+	vm := NewVM()
+	defer vm.Shutdown()
+
+	payload, err := cborSerialEncMode.Marshal(cbor.Tag{Number: 27099, Content: uint64(42)})
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	_, err = vm.DeserializeValue(payload)
+	if err == nil {
+		t.Fatal("expected error for unknown Maggie tag")
+	}
+	if !strings.Contains(err.Error(), "unknown Maggie tag") {
+		t.Errorf("error should mention unknown Maggie tag: %v", err)
+	}
+}
+
+// Foreign (non-Maggie) tags still decode their content permissively.
+func TestSerial_ForeignTagDecodesContent(t *testing.T) {
+	vm := NewVM()
+	defer vm.Shutdown()
+
+	payload, err := cborSerialEncMode.Marshal(cbor.Tag{Number: 4242, Content: uint64(7)})
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	got, err := vm.DeserializeValue(payload)
+	if err != nil {
+		t.Fatalf("deserialize: %v", err)
+	}
+	if !got.IsSmallInt() || got.SmallInt() != 7 {
+		t.Errorf("got %v, want 7", got)
+	}
+}
+
+// A payload whose slot count disagrees with the local class definition is
+// version skew: hard error instead of silent truncation.
+func TestSerial_ShapeMismatchRejected(t *testing.T) {
+	vm := NewVM()
+	defer vm.Shutdown()
+
+	shapeClass := vm.createClass("ShapeThing", vm.ObjectClass)
+	shapeClass.InstVars = []string{"a", "b"}
+	shapeClass.NumSlots = 2
+
+	nilSlot, _ := cborSerialEncMode.Marshal(nil)
+	so := &serializedObject{
+		ClassName: "ShapeThing",
+		Slots:     [][]byte{nilSlot, nilSlot, nilSlot}, // 3 slots vs local 2
+	}
+	payload, err := cborSerialEncMode.Marshal(cbor.Tag{Number: cborTagObject, Content: so})
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+
+	_, err = vm.DeserializeValue(payload)
+	if err == nil {
+		t.Fatal("expected shape mismatch error")
+	}
+	if !strings.Contains(err.Error(), "shape mismatch") {
+		t.Errorf("error should mention shape mismatch: %v", err)
+	}
+}
