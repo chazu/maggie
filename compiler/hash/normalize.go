@@ -57,13 +57,21 @@ func normalizeMethod(method *compiler.MethodDef, instVars map[string]int, resolv
 	}
 	n.scopes = []scope{{vars: methodVars}}
 
-	// Handle primitive methods
-	if method.Primitive > 0 {
+	// Handle primitive methods. The real marker is IsPrimitiveStub (a
+	// `[ <primitive> ]` body); MethodDef.Primitive is a legacy number that
+	// nothing populates. Without checking the stub flag, a <primitive> stub and
+	// an empty-body method both fell through to the Primitive:0/no-statements
+	// branch and collided in the content-addressed store.
+	if method.IsPrimitiveStub || method.Primitive > 0 {
+		prim := method.Primitive
+		if prim == 0 {
+			prim = 1 // stub marker: distinguishes <primitive> from an empty body
+		}
 		return &hMethodDef{
 			Selector:  method.Selector,
 			Arity:     len(method.Parameters),
 			NumTemps:  len(method.Parameters) + len(method.Temps),
-			Primitive: method.Primitive,
+			Primitive: prim,
 			DocString: method.DocString,
 		}
 	}
