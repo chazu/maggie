@@ -580,6 +580,45 @@ var lineErrorRe = regexp.MustCompile(`line (\d+): (.+)`)
 // "line N, column M: message".
 var lineNumRe = regexp.MustCompile(`line (\d+)`)
 
+// analyzeSourceFileWarnings runs semantic analysis over every method in a
+// parsed source file, using the live VM's global names so lib-class references
+// don't produce spurious "undefined" warnings. Returns deduplicated warning
+// messages. (Warnings are not yet source-position-anchored.)
+func (s *LspServer) analyzeSourceFileWarnings(sf *compiler.SourceFile) []string {
+	var globals []string
+	if _, err := s.worker.DoConcurrent(func(v *vm.VM) interface{} {
+		for name := range v.GlobalsSnapshot() {
+			globals = append(globals, name)
+		}
+		return nil
+	}); err != nil {
+		return nil
+	}
+
+	seen := make(map[string]bool)
+	var out []string
+	add := func(ws []string) {
+		for _, w := range ws {
+			if !seen[w] {
+				seen[w] = true
+				out = append(out, w)
+			}
+		}
+	}
+	for _, cd := range sf.Classes {
+		for _, m := range cd.Methods {
+			add(compiler.AnalyzeWithGlobals(m, cd.InstanceVariables, globals))
+		}
+		for _, m := range cd.ClassMethods {
+			add(compiler.AnalyzeWithGlobals(m, nil, globals))
+		}
+	}
+	for _, m := range sf.Methods { // extension methods
+		add(compiler.AnalyzeWithGlobals(m, nil, globals))
+	}
+	return out
+}
+
 func (s *LspServer) publishDiagnostics(ctx *glsp.Context, uri protocol.DocumentUri, text string) {
 	// Use the full source file parser for .mag files (handles namespace:, import:,
 	// class/trait definitions). Fall back to CompileExpression for non-.mag URIs.
@@ -588,7 +627,26 @@ func (s *LspServer) publishDiagnostics(ctx *glsp.Context, uri protocol.DocumentU
 	source := lspName
 
 	if strings.HasSuffix(string(uri), ".mag") {
-		_, parseErr := compiler.ParseSourceFileFromString(text)
+		sf, parseErr := compiler.ParseSourceFileFromString(text)
+		if parseErr == nil && sf != nil {
+			// Parse succeeded — run semantic analysis and publish warnings
+			// (undefined variables, unreachable code). Known globals come from
+			// the live VM so lib-class references don't warn. Warnings carry no
+			// source position yet, so they anchor at the top of the file.
+			warnSeverity := protocol.DiagnosticSeverityWarning
+			warnSource := lspName
+			for _, w := range s.analyzeSourceFileWarnings(sf) {
+				diagnostics = append(diagnostics, protocol.Diagnostic{
+					Range: protocol.Range{
+						Start: protocol.Position{Line: 0, Character: 0},
+						End:   protocol.Position{Line: 0, Character: 0},
+					},
+					Severity: &warnSeverity,
+					Source:   &warnSource,
+					Message:  w,
+				})
+			}
+		}
 		if parseErr != nil {
 			// Parser errors are formatted as "parse errors: [line N: msg; line M: msg]"
 			// or individual "line N: msg" entries joined by semicolons.

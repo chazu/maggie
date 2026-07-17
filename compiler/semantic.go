@@ -269,7 +269,19 @@ func (s *SemanticAnalyzer) checkUnreachableCode(stmts []Stmt) {
 // Analyze runs semantic analysis on a method and returns its warnings
 // (advisory; analysis never fails compilation).
 func Analyze(method *MethodDef, instVars []string) []string {
+	return AnalyzeWithGlobals(method, instVars, nil)
+}
+
+// AnalyzeWithGlobals is Analyze with an extra set of known global names (e.g.
+// the live VM's classes/globals). The default known-globals set is small and
+// omits the whole lib, so without this every lib-class reference would produce
+// a spurious "may be undefined" warning — pass the real globals to suppress
+// those false positives.
+func AnalyzeWithGlobals(method *MethodDef, instVars []string, globals []string) []string {
 	analyzer := NewSemanticAnalyzer()
+	for _, g := range globals {
+		analyzer.AddKnownGlobal(g)
+	}
 	if len(instVars) > 0 {
 		analyzer.SetInstanceVars(instVars)
 	}

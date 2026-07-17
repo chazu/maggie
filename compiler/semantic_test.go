@@ -210,3 +210,35 @@ func TestSemanticAnalyzer_PositionInErrors(t *testing.T) {
 		t.Errorf("expected position information in warning, got: %v", warnings)
 	}
 }
+
+// TestAnalyzeWithGlobals verifies that a supplied known-global suppresses the
+// spurious "may be undefined" warning for lib classes, while a genuinely
+// undefined variable is still flagged.
+func TestAnalyzeWithGlobals(t *testing.T) {
+	// method: foo [ ^ArrayList new ]  — ArrayList is a lib class.
+	p := NewParser("foo\n    ^ArrayList new")
+	m := p.ParseMethod()
+	if m == nil || len(p.Errors()) > 0 {
+		t.Fatalf("parse failed: %v", p.Errors())
+	}
+
+	withGlobal := AnalyzeWithGlobals(m, nil, []string{"ArrayList"})
+	for _, w := range withGlobal {
+		if strings.Contains(w, "ArrayList") {
+			t.Errorf("known global ArrayList should not warn, got: %q", w)
+		}
+	}
+
+	// A genuinely unknown name should still warn.
+	p2 := NewParser("foo\n    ^Nonexistent new")
+	m2 := p2.ParseMethod()
+	warned := false
+	for _, w := range AnalyzeWithGlobals(m2, nil, []string{"ArrayList"}) {
+		if strings.Contains(w, "Nonexistent") {
+			warned = true
+		}
+	}
+	if !warned {
+		t.Error("expected a warning for the undefined name Nonexistent")
+	}
+}
