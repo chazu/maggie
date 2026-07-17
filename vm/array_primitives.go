@@ -278,7 +278,9 @@ func (vm *VM) registerArrayPrimitives() {
 		parts := make([]string, n)
 		for i := 0; i < n; i++ {
 			elem := obj.GetSlot(i)
-			parts[i] = v.getStringLike(elem)
+			// Match Array>>join:'s `each displayString` semantics so non-string
+			// elements (numbers, etc.) render correctly instead of vanishing.
+			parts[i] = v.getStringLike(v.Send(elem, "displayString", nil))
 		}
 		return v.registry.NewStringValue(strings.Join(parts, separator))
 	})

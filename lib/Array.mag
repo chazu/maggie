@@ -323,16 +323,7 @@ Array subclass: Collection
   #(1 2 3) join: ', ' >>> '1, 2, 3'
   ```
   """
-  method: join: separator <String> ^<String> [
-      | s first |
-      s := ''.
-      first := true.
-      self do: [:each |
-          first ifFalse: [s := s, separator].
-          s := s, each displayString.
-          first := false].
-      ^s
-  ]
+  method: join: separator <String> ^<String> [ ^self primJoinWith: separator ]
 
   """
   Return a string representation of the array.
