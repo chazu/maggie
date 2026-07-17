@@ -283,22 +283,26 @@ func (vm *VM) registerSpawnPrimitives() {
 }
 
 func (vm *VM) doRemoteSpawn(blockVal, nodeVal, argVal Value, mode string) Value {
+	selector := "forkOn:"
+	if mode == "spawn" {
+		selector = "spawnOn:"
+	}
+
 	bv := vm.currentInterpreter().getBlockValue(blockVal)
 	if bv == nil {
-		return Nil
+		return vm.SignalPrimitiveError(selector, "receiver is not a block")
 	}
 
 	ref := vm.getNodeRef(nodeVal)
 	if ref == nil || ref.SpawnFunc == nil {
-		return Nil
+		return vm.SignalPrimitiveError(selector, "argument is not a connected node")
 	}
 
-	// Serialize the block
+	// Serialize the block. Failure doctrine: a non-serializable capture is a
+	// catchable error, not a printed line and a nil (SD-14).
 	spawnBytes, err := vm.SerializeBlock(bv, argVal, mode)
 	if err != nil {
-		// TODO: raise Maggie exception once we have a clean error path
-		fmt.Printf("spawn error: %v\n", err)
-		return Nil
+		return vm.SignalPrimitiveError(selector, err.Error())
 	}
 
 	// Heartbeat coverage starts at spawn, not at the first monitor: a plain
@@ -348,7 +352,7 @@ func (vm *VM) doForkOn(ref *NodeRefData, spawnBytes []byte, nodeVal Value) Value
 func (vm *VM) doSpawnOn(ref *NodeRefData, spawnBytes []byte, nodeVal Value) Value {
 	processName, err := ref.SpawnFunc(spawnBytes)
 	if err != nil {
-		return Nil
+		return vm.SignalPrimitiveError("spawnOn:", fmt.Sprintf("spawn RPC failed: %v", err))
 	}
 	return vm.createRemoteProcess(nodeVal, processName)
 }

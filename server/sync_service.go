@@ -10,6 +10,7 @@ import (
 	"github.com/chazu/maggie/gen/maggie/v1/maggiev1connect"
 	"github.com/chazu/maggie/vm"
 	"github.com/chazu/maggie/vm/dist"
+	"github.com/chazu/maggie/vm/wire"
 )
 
 // SyncService implements the SyncService gRPC/Connect handler for
@@ -482,7 +483,7 @@ func (s *SyncService) DeliverMessage(
 		if r := recover(); r != nil {
 			resp = connect.NewResponse(&maggiev1.DeliverMessageResponse{
 				Success:      false,
-				ErrorKind:    "internalError",
+				ErrorKind:    wire.ErrKindInternal,
 				ErrorMessage: s.worker.vm.DescribePanic(r),
 			})
 		}
@@ -495,7 +496,7 @@ func (s *SyncService) DeliverMessage(
 	if err != nil {
 		return connect.NewResponse(&maggiev1.DeliverMessageResponse{
 			Success:      false,
-			ErrorKind:    "deserializationError",
+			ErrorKind:    wire.ErrKindDeserialization,
 			ErrorMessage: fmt.Sprintf("invalid envelope: %v", err),
 		}), nil
 	}
@@ -508,7 +509,7 @@ func (s *SyncService) DeliverMessage(
 	if err := envelope.Verify(); err != nil {
 		return connect.NewResponse(&maggiev1.DeliverMessageResponse{
 			Success:      false,
-			ErrorKind:    "signatureInvalid",
+			ErrorKind:    wire.ErrKindSignatureInvalid,
 			ErrorMessage: err.Error(),
 		}), nil
 	}
@@ -528,7 +529,7 @@ func (s *SyncService) DeliverMessage(
 	if err := s.trust.CheckNonce(peerID, envelope.Nonce); err != nil {
 		return connect.NewResponse(&maggiev1.DeliverMessageResponse{
 			Success:      false,
-			ErrorKind:    "replayRejected",
+			ErrorKind:    wire.ErrKindReplayRejected,
 			ErrorMessage: err.Error(),
 		}), nil
 	}
@@ -551,7 +552,7 @@ func (s *SyncService) DeliverMessage(
 	if !s.trust.Check(peerID, dist.PermMessage) {
 		return connect.NewResponse(&maggiev1.DeliverMessageResponse{
 			Success:      false,
-			ErrorKind:    "permissionDenied",
+			ErrorKind:    wire.ErrKindPermissionDenied,
 			ErrorMessage: "peer lacks message permission",
 		}), nil
 	}
@@ -563,7 +564,7 @@ func (s *SyncService) DeliverMessage(
 		if procVal == vm.Nil {
 			return connect.NewResponse(&maggiev1.DeliverMessageResponse{
 				Success:      false,
-				ErrorKind:    "processNotFound",
+				ErrorKind:    wire.ErrKindProcessNotFound,
 				ErrorMessage: fmt.Sprintf("no process registered as %q", envelope.TargetName),
 			}), nil
 		}
@@ -574,7 +575,7 @@ func (s *SyncService) DeliverMessage(
 	if proc == nil || proc.IsDone() {
 		return connect.NewResponse(&maggiev1.DeliverMessageResponse{
 			Success:      false,
-			ErrorKind:    "processNotFound",
+			ErrorKind:    wire.ErrKindProcessNotFound,
 			ErrorMessage: "target process not found or terminated",
 		}), nil
 	}
@@ -584,7 +585,7 @@ func (s *SyncService) DeliverMessage(
 	if err != nil {
 		return connect.NewResponse(&maggiev1.DeliverMessageResponse{
 			Success:      false,
-			ErrorKind:    "deserializationError",
+			ErrorKind:    wire.ErrKindDeserialization,
 			ErrorMessage: fmt.Sprintf("payload: %v", err),
 		}), nil
 	}
@@ -594,7 +595,7 @@ func (s *SyncService) DeliverMessage(
 	if !proc.Mailbox().TrySend(mailboxMsg) {
 		return connect.NewResponse(&maggiev1.DeliverMessageResponse{
 			Success:      false,
-			ErrorKind:    "mailboxFull",
+			ErrorKind:    wire.ErrKindMailboxFull,
 			ErrorMessage: "target process mailbox is full",
 		}), nil
 	}
@@ -615,7 +616,7 @@ func (s *SyncService) handleRemoteDown(envelope *dist.MessageEnvelope) (*connect
 	if err := dist.UnmarshalCBOR(envelope.Payload, &dp); err != nil {
 		return connect.NewResponse(&maggiev1.DeliverMessageResponse{
 			Success:   false,
-			ErrorKind: "deserializationError",
+			ErrorKind: wire.ErrKindDeserialization,
 		}), nil
 	}
 
@@ -647,7 +648,7 @@ func (s *SyncService) handleSpawnResult(envelope *dist.MessageEnvelope) (*connec
 	if err := dist.UnmarshalCBOR(envelope.Payload, &sr); err != nil {
 		return connect.NewResponse(&maggiev1.DeliverMessageResponse{
 			Success:   false,
-			ErrorKind: "deserializationError",
+			ErrorKind: wire.ErrKindDeserialization,
 		}), nil
 	}
 

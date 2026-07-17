@@ -327,16 +327,19 @@ func (vm *VM) RemoteSend(recv, selectorVal, payload Value, wantReply bool) Value
 }
 
 // remoteSend is the core implementation for both cast:with: and asyncSend:with:.
+// Failure doctrine: local failures (bad receiver, non-serializable payload,
+// envelope build) SIGNAL catchable errors instead of answering nil — nil
+// would silently discard the reason (SD-14).
 func (vm *VM) remoteSend(recv, selectorVal, payload Value, wantReply bool) Value {
 	obj := ObjectFromValue(recv)
 	if obj == nil {
-		return Nil
+		return vm.SignalPrimitiveError("asyncSend:with:", "receiver is not a RemoteProcess")
 	}
 
 	nodeRefVal := obj.GetSlot(0)
 	ref := vm.getNodeRef(nodeRefVal)
 	if ref == nil || ref.SendFunc == nil {
-		return Nil
+		return vm.SignalPrimitiveError("asyncSend:with:", "remote process has no connected node")
 	}
 
 	nameVal := obj.GetSlot(1)
@@ -355,13 +358,13 @@ func (vm *VM) remoteSend(recv, selectorVal, payload Value, wantReply bool) Value
 	// Serialize payload
 	payloadBytes, err := vm.SerializeValue(payload)
 	if err != nil {
-		return Nil
+		return vm.SignalPrimitiveError("asyncSend:with:", fmt.Sprintf("cannot serialize payload: %v", err))
 	}
 
 	// Build and sign envelope
 	envelopeBytes, err := buildSignedEnvelope(ref, targetName, sel, payloadBytes, wantReply)
 	if err != nil {
-		return Nil
+		return vm.SignalPrimitiveError("asyncSend:with:", fmt.Sprintf("cannot build envelope: %v", err))
 	}
 
 	if !wantReply {

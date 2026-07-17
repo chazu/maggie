@@ -230,21 +230,26 @@ func (vm *VM) registerRemoteChannelPrimitives() {
 	vm.globals["RemoteChannel"] = vm.classValue(c)
 	// Class resolution is via classForHeap's kindRemoteChannel case (pointer Value).
 
+	// Failure doctrine (SD-14): closed-channel outcomes keep local Channel
+	// semantics (nil / false), but genuine failures — non-serializable
+	// values, network errors, undecodable replies — SIGNAL catchable errors
+	// instead of being indistinguishable from closure.
+
 	// RemoteChannel>>send: value — blocking send to remote channel
 	c.AddMethod1(vm.Selectors, "send:", func(v *VM, recv, val Value) Value {
 		ref := v.getRemoteChannel(recv)
 		if ref == nil || ref.SendFunc == nil {
-			return Nil
+			return v.SignalPrimitiveError("send:", "receiver is not a connected RemoteChannel")
 		}
 		if ref.IsClosed() {
 			return Nil
 		}
 		data, err := v.SerializeValue(val)
 		if err != nil {
-			return Nil
+			return v.SignalPrimitiveError("send:", fmt.Sprintf("cannot serialize value: %v", err))
 		}
 		if err := ref.SendFunc(ref.ChannelID, data); err != nil {
-			return Nil
+			return v.SignalPrimitiveError("send:", fmt.Sprintf("remote send failed: %v", err))
 		}
 		return recv
 	})
@@ -253,19 +258,22 @@ func (vm *VM) registerRemoteChannelPrimitives() {
 	c.AddMethod0(vm.Selectors, "receive", func(v *VM, recv Value) Value {
 		ref := v.getRemoteChannel(recv)
 		if ref == nil || ref.ReceiveFunc == nil {
-			return Nil
+			return v.SignalPrimitiveError("receive", "receiver is not a connected RemoteChannel")
 		}
 		if ref.IsClosed() {
 			return Nil
 		}
 		data, ok, err := ref.ReceiveFunc(ref.ChannelID)
-		if err != nil || !ok {
+		if err != nil {
+			return v.SignalPrimitiveError("receive", fmt.Sprintf("remote receive failed: %v", err))
+		}
+		if !ok {
 			ref.MarkClosed()
 			return Nil
 		}
 		val, err := v.DeserializeValue(data)
 		if err != nil {
-			return Nil
+			return v.SignalPrimitiveError("receive", fmt.Sprintf("cannot deserialize value: %v", err))
 		}
 		return val
 	})
@@ -274,18 +282,18 @@ func (vm *VM) registerRemoteChannelPrimitives() {
 	c.AddMethod1(vm.Selectors, "trySend:", func(v *VM, recv, val Value) Value {
 		ref := v.getRemoteChannel(recv)
 		if ref == nil || ref.TrySendFunc == nil {
-			return False
+			return v.SignalPrimitiveError("trySend:", "receiver is not a connected RemoteChannel")
 		}
 		if ref.IsClosed() {
 			return False
 		}
 		data, err := v.SerializeValue(val)
 		if err != nil {
-			return False
+			return v.SignalPrimitiveError("trySend:", fmt.Sprintf("cannot serialize value: %v", err))
 		}
 		sent, err := ref.TrySendFunc(ref.ChannelID, data)
 		if err != nil {
-			return False
+			return v.SignalPrimitiveError("trySend:", fmt.Sprintf("remote send failed: %v", err))
 		}
 		return FromBool(sent)
 	})
@@ -294,13 +302,16 @@ func (vm *VM) registerRemoteChannelPrimitives() {
 	c.AddMethod0(vm.Selectors, "tryReceive", func(v *VM, recv Value) Value {
 		ref := v.getRemoteChannel(recv)
 		if ref == nil || ref.TryReceiveFunc == nil {
-			return Nil
+			return v.SignalPrimitiveError("tryReceive", "receiver is not a connected RemoteChannel")
 		}
 		if ref.IsClosed() {
 			return Nil
 		}
 		data, gotValue, ok, err := ref.TryReceiveFunc(ref.ChannelID)
-		if err != nil || !gotValue {
+		if err != nil {
+			return v.SignalPrimitiveError("tryReceive", fmt.Sprintf("remote receive failed: %v", err))
+		}
+		if !gotValue {
 			if !ok {
 				ref.MarkClosed()
 			}
@@ -308,7 +319,7 @@ func (vm *VM) registerRemoteChannelPrimitives() {
 		}
 		val, err := v.DeserializeValue(data)
 		if err != nil {
-			return Nil
+			return v.SignalPrimitiveError("tryReceive", fmt.Sprintf("cannot deserialize value: %v", err))
 		}
 		return val
 	})

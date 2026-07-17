@@ -311,16 +311,23 @@ func TestRemoteProcess_NilSendFunc(t *testing.T) {
 
 	pub, priv := testKeys(t)
 	ref := NewNodeRefData("localhost:9090", pub, priv)
-	// SendFunc is nil — should return Nil
+	// SendFunc is nil — must SIGNAL a catchable error, not answer nil
+	// (failure doctrine: nil never signals; SD-14)
 
 	nodeVal := vm.registerNodeRef(ref)
 	rpVal := vm.createRemoteProcess(nodeVal, "worker")
 
+	defer func() {
+		r := recover()
+		if r == nil {
+			t.Fatal("expected a signaled error when SendFunc is nil")
+		}
+		if _, ok := r.(SignaledException); !ok {
+			t.Fatalf("expected SignaledException, got %T: %v", r, r)
+		}
+	}()
 	sel := vm.Symbols.SymbolValue("work")
-	result := vm.remoteSend(rpVal, sel, FromSmallInt(1), false)
-	if result != Nil {
-		t.Error("should return Nil when SendFunc is nil")
-	}
+	vm.remoteSend(rpVal, sel, FromSmallInt(1), false)
 }
 
 // ---------------------------------------------------------------------------
