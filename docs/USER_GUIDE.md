@@ -756,7 +756,7 @@ Process fork: block                 -- class method version
 
 -- Waiting
 wait                    -- block until complete, returns result
-isDone                  -- check if process finished
+isTerminated            -- check if process finished
 result                  -- get result (nil if not done)
 
 -- Control

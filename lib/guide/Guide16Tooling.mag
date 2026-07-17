@@ -326,13 +326,13 @@ Guide16Tooling subclass: Object
 
   ```example
   mag> :help Array
-  Array (subclass of Object)
+  Array (subclass of Collection)
     Instance variables: none
     ...methods listed...
 
   mag> :help Array>>at:
   Array>>at:
-    Returns the element at the given index (0-based).
+    Returns the element at the given 1-based index.
   ```
 
   `:use-go` and `:use-maggie` switch between the Go-based compiler
@@ -422,7 +422,7 @@ Guide16Tooling subclass: Object
   mag ./src -i
 
   # Then in the REPL:
-  mag> myObject inspect
+  mag> myObject printString
   mag> MyClass new doSomething
   mag> :help MyClass>>suspiciousMethod
   ```

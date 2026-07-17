@@ -1,5 +1,12 @@
 # Maggie Smalltalk Concurrency Analysis
 
+> ⚠️ **HISTORICAL DESIGN DOC — not current API reference.** This predates the
+> pointer-value migration and contains examples for machinery that no longer
+> exists (`forkWithResult`, `vm.CollectGarbage()`, `proc.isDone()`, sweep-based
+> GC). For the current concurrency API see `docs/USER_GUIDE.md` and
+> `lib/guide/Guide09Concurrency.mag`. Kept only as a record of the original
+> design reasoning.
+>
 > **Note**: This document was originally a design analysis. Most "proposed" features are now **fully implemented**:
 > - ✅ Channels (with select statement)
 > - ✅ Processes (fork, forkWith:, forkWithContext:)

@@ -28,7 +28,7 @@ Maggie is a Smalltalk-family language VM written in Go. For full API docs:
 - **Control-flow inlining** — `ifTrue:`/`ifFalse:`/`ifTrue:ifFalse:`/`and:`/`or:`/`whileTrue:`/`whileFalse:` compile to jump bytecode when blocks are literal (param-less, temp-less); `keywordInlineParts` in `compiler/inline_control_flow.go` is the single predicate shared by codegen AND `findCellVariables` — keep them in lockstep. Non-boolean conditions raise a catchable `mustBeBoolean` Error.
 - **Failure doctrine** (`docs/CONVENTIONS.md`) — expected failures return `Result`, programmer errors signal, nil never signals. File/HttpClient return Results; `Future>>await` signals on error; `Channel>>receiveIfClosed:`/`tryReceiveIfEmpty:` disambiguate nil.
 - **Serialization depth cap** — `maxSerialDepth` (256) bounds serializer AND deserializer recursion; Arrays/Dictionaries participate in backref identity across the wire.
-- **Stack overflow** at 4096 frames → catchable `StackOverflow` exception
+- **Stack overflow** at 8192 frames → catchable `StackOverflow` exception
 - **BigInteger** auto-promotion when SmallInteger overflows 48-bit range
 - **Type annotations** are optional, Strongtalk-model — checked by `mag typecheck`, never affect runtime
 - **Image format** is CBOR-based (tagged envelope with string/symbol/class/method/object tables)

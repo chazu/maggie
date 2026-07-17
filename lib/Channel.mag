@@ -252,8 +252,8 @@ Channel subclass: Object
 
   ```example
   Channel select: {
-    out onSend: 42 do: [ Transcript show: 'sent' ].
-    in onReceive: [:v | Transcript show: v printString ]
+    out onSend: 42 do: [ 'sent' println ].
+    in onReceive: [:v | v printString println ]
   }
   ```
   """

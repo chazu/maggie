@@ -642,7 +642,7 @@ Guide09Concurrency subclass: Object
     with the given selector and payload.
 
   Both return `true` if delivered, `false` if the process is dead or
-  its mailbox is full (default capacity: 1024).
+  its mailbox is full (default capacity: 4096).
 
   **Receiving messages:**
 
@@ -815,7 +815,7 @@ Guide09Concurrency subclass: Object
   proc := [Error signal: 'oops'] fork.
   proc wait.
   reason := proc primExitReason.
-  reason isNil ifFalse: [Transcript showLine: 'crashed: ', reason printString].
+  reason isNil ifFalse: [('crashed: ', reason printString) println].
   ```
 
   In day-to-day development, `MAGGIE_DEBUG=1 mag -m App.start` is the

@@ -6,7 +6,7 @@ then `ack` it so it is not redelivered.
 | job |
 job := q claimOne: 'worker-1'.
 job isNil ifFalse: [
-    Transcript showLine: job payload.
+    job payload println.
     job ack]
 ```
 """
