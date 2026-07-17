@@ -178,3 +178,31 @@ func TestTrustStore_ConfiguredPeerUnbans(t *testing.T) {
 		t.Error("should have sync after reconfiguration")
 	}
 }
+
+// TestTrustStore_TransientPeerCap regresses unbounded peers-map growth: a peer
+// rotating Ed25519 keys presents an endless stream of validly-signed identities
+// (each calling CheckNonce → getOrCreate). Transient records must be capped and
+// evicted LRU, while a configured peer is never evicted.
+func TestTrustStore_TransientPeerCap(t *testing.T) {
+	ts := NewTrustStore(TrustPolicy{DefaultPerms: PermNone})
+
+	configured := NodeID{1, 1, 1}
+	ts.AddConfiguredPeer(configured, "keeper", PermSync)
+
+	// Flood with far more transient identities than the cap.
+	for i := 0; i < maxTransientPeers+500; i++ {
+		var id NodeID
+		id[0] = byte(i)
+		id[1] = byte(i >> 8)
+		id[2] = byte(i >> 16)
+		id[31] = 0xAB // keep distinct from the configured peer
+		_ = ts.CheckNonce(id, 1)
+	}
+
+	if got := ts.PeerCount(); got > maxTransientPeers+1 {
+		t.Errorf("peers map unbounded: %d records, want <= %d", got, maxTransientPeers+1)
+	}
+	if ts.Peer(configured) == nil {
+		t.Error("configured peer must never be evicted")
+	}
+}

@@ -313,15 +313,47 @@ func (ts *TrustStore) PeerCount() int {
 	return len(ts.peers)
 }
 
+// maxTransientPeers bounds the number of unconfigured peer records. Ed25519
+// keygen is free, so a peer can present an unbounded stream of validly-signed
+// (but ultimately permission-denied) identities; without a cap each would mint
+// a permanent PeerRecord. Configured peers (maggie.toml) never count against
+// this and are never evicted.
+const maxTransientPeers = 4096
+
 func (ts *TrustStore) getOrCreate(id NodeID) *PeerRecord {
 	rec, ok := ts.peers[id]
 	if !ok {
+		if len(ts.peers) >= maxTransientPeers {
+			ts.evictOldestTransient()
+		}
+		now := time.Now()
 		rec = &PeerRecord{
 			ID:        id,
 			Perms:     ts.policy.DefaultPerms,
-			FirstSeen: time.Now(),
+			FirstSeen: now,
+			LastSeen:  now,
 		}
 		ts.peers[id] = rec
 	}
 	return rec
+}
+
+// evictOldestTransient removes the least-recently-seen unconfigured peer record
+// to keep the map bounded under a key-rotation flood. Configured peers are
+// preserved. Caller holds ts.mu.
+func (ts *TrustStore) evictOldestTransient() {
+	var oldestID NodeID
+	var oldest time.Time
+	found := false
+	for id, rec := range ts.peers {
+		if rec.Configured {
+			continue
+		}
+		if !found || rec.LastSeen.Before(oldest) {
+			oldestID, oldest, found = id, rec.LastSeen, true
+		}
+	}
+	if found {
+		delete(ts.peers, oldestID)
+	}
 }
