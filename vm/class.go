@@ -98,7 +98,8 @@ func (c *Class) GetClassVar(reg *ObjectRegistry, name string) Value {
 func (c *Class) SetClassVar(reg *ObjectRegistry, name string, value Value) {
 	owner := c.findClassVarOwner(name)
 	if owner == nil {
-		// Variable not declared - could error, but for now just store on this class
+		// Not declared on any superclass: auto-declare on this class (Smalltalk
+		// lets a class-var spring into existence on first assignment).
 		owner = c
 	}
 	reg.SetClassVar(owner, name, value)

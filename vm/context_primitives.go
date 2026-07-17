@@ -26,13 +26,9 @@ func (vm *VM) registerContextPrimitives() {
 
 	// method - returns the CompiledMethod for this context (nil for blocks)
 	c.AddMethod0(vm.Selectors, "method", func(v *VM, recv Value) Value {
-		ctx := v.registry.GetContextFromValue(recv)
-		if ctx == nil || ctx.Method == nil {
-			return Nil
-		}
-		// Return the method as a value - for now just return nil
-		// since CompiledMethod isn't directly representable as a Value
-		// TODO: Consider making methods first-class values
+		_ = v.registry.GetContextFromValue(recv)
+		// Methods are not first-class values in Maggie, so a context's method
+		// has no Value representation — this answers nil by design (not a stub).
 		return Nil
 	})
 

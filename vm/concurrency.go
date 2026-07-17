@@ -2,6 +2,7 @@ package vm
 
 import (
 	"context"
+	"runtime"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -720,9 +721,10 @@ func (vm *VM) registerProcessPrimitives() {
 
 	// Process class>>yield - yield to other goroutines (class method)
 	c.AddClassMethod0(vm.Selectors, "yield", func(_ *VM, recv Value) Value {
-		// runtime.Gosched() is the Go equivalent
-		// For now, just return
-		return Nil
+		// Yield the goroutine so other runnable processes get a turn — the
+		// selector actually yields now instead of being a silent no-op.
+		runtime.Gosched()
+		return recv
 	})
 
 	// Process class>>sleep: milliseconds - sleep for specified time (class method)
