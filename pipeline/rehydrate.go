@@ -310,12 +310,3 @@ func topoSortClasses(digests []*vm.ClassDigest, vmInst *vm.VM) ([]*vm.ClassDiges
 	return sorted, nil
 }
 
-// verifyMethodHash computes a content hash from a method's AST and compares
-// it to an expected hash. This is used to verify that recompiled methods
-// match their stored content hashes.
-func verifyMethodHash(methodDef *compiler.MethodDef, instVars map[string]int, namespace string, classes *vm.ClassTable, expected [32]byte) bool {
-	computed := hash.HashMethod(methodDef, instVars, func(name string) string {
-		return resolveGlobalForHash(name, namespace, nil, classes)
-	})
-	return computed == expected
-}
