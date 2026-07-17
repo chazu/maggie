@@ -41,37 +41,19 @@ func (vm *VM) primitiveSelect(cases []SelectCase, defaultHandler Value) Value {
 }
 
 // primitiveSelectLocal handles the pure-local case using reflect.Select.
+//
+// Send cases participate in the ChannelObject close protocol: each select
+// sender registers in the channel's senders WaitGroup and watches the
+// channel's done channel as an extra recv case, so Close() never closes
+// co.ch under a parked select-send (that is a data race / panic). A send
+// case whose channel closes is disabled and the select retries with the
+// remaining cases; when no case can ever proceed the select answers nil.
 func (vm *VM) primitiveSelectLocal(cases []SelectCase, defaultHandler Value) Value {
 	interp := vm.currentInterpreter()
-
-	// Build reflect.SelectCase slice
-	reflectCases := make([]reflect.SelectCase, len(cases))
-	for i, c := range cases {
-		if c.Channel == nil {
-			continue
-		}
-		reflectCases[i] = reflect.SelectCase{
-			Dir:  c.Dir,
-			Chan: reflect.ValueOf(c.Channel.ch),
-		}
-		if c.Dir == reflect.SelectSend {
-			reflectCases[i].Send = reflect.ValueOf(c.Value)
-		}
-	}
-
-	// Add default case if provided
 	hasDefault := defaultHandler != Nil
-	if hasDefault {
-		reflectCases = append(reflectCases, reflect.SelectCase{
-			Dir: reflect.SelectDefault,
-		})
-	}
+	disabled := make([]bool, len(cases))
 
-	// Perform the select
-	chosen, recv, recvOK := reflect.Select(reflectCases)
-
-	// Handle default case
-	if hasDefault && chosen == len(cases) {
+	runDefault := func() Value {
 		bv := interp.getBlockValue(defaultHandler)
 		if bv == nil {
 			return Nil
@@ -82,7 +64,86 @@ func (vm *VM) primitiveSelectLocal(cases []SelectCase, defaultHandler Value) Val
 		)
 	}
 
-	return vm.executeSelectHandler(interp, cases, chosen, recv, recvOK)
+	for {
+		reflectCases := make([]reflect.SelectCase, 0, 2*len(cases)+1)
+		slotCase := make([]int, 0, 2*len(cases))   // reflect idx -> case idx
+		slotIsDone := make([]bool, 0, 2*len(cases)) // true for done-watch slots
+		var registered []*ChannelObject
+
+		for i, c := range cases {
+			if disabled[i] || c.Channel == nil {
+				continue
+			}
+			if c.Dir == reflect.SelectSend {
+				co := c.Channel
+				co.mu.Lock()
+				if co.closed.Load() {
+					co.mu.Unlock()
+					disabled[i] = true
+					continue
+				}
+				co.senders.Add(1) // registered under mu, like sendCtx
+				co.mu.Unlock()
+				registered = append(registered, co)
+				reflectCases = append(reflectCases, reflect.SelectCase{
+					Dir:  reflect.SelectSend,
+					Chan: reflect.ValueOf(co.ch),
+					Send: reflect.ValueOf(c.Value),
+				})
+				slotCase = append(slotCase, i)
+				slotIsDone = append(slotIsDone, false)
+				// Close() fires done before waiting on senders — this case
+				// wakes the parked select so it can vacate.
+				reflectCases = append(reflectCases, reflect.SelectCase{
+					Dir:  reflect.SelectRecv,
+					Chan: reflect.ValueOf(co.done),
+				})
+				slotCase = append(slotCase, i)
+				slotIsDone = append(slotIsDone, true)
+			} else {
+				reflectCases = append(reflectCases, reflect.SelectCase{
+					Dir:  reflect.SelectRecv,
+					Chan: reflect.ValueOf(c.Channel.ch),
+				})
+				slotCase = append(slotCase, i)
+				slotIsDone = append(slotIsDone, false)
+			}
+		}
+
+		if len(reflectCases) == 0 {
+			// Every case is disabled (closed send channels): nothing can
+			// ever proceed.
+			if hasDefault {
+				return runDefault()
+			}
+			return Nil
+		}
+
+		if hasDefault {
+			reflectCases = append(reflectCases, reflect.SelectCase{
+				Dir: reflect.SelectDefault,
+			})
+		}
+
+		chosen, recv, recvOK := reflect.Select(reflectCases)
+
+		// Vacate the sendq before anything else so Close() can proceed.
+		for _, co := range registered {
+			co.senders.Done()
+		}
+
+		if hasDefault && chosen == len(reflectCases)-1 {
+			return runDefault()
+		}
+		caseIdx := slotCase[chosen]
+		if slotIsDone[chosen] {
+			// A send case's channel closed while we waited: that case can
+			// never fire — drop it and re-select with the rest.
+			disabled[caseIdx] = true
+			continue
+		}
+		return vm.executeSelectHandler(interp, cases, caseIdx, recv, recvOK)
+	}
 }
 
 // primitiveSelectMixed handles select with a mix of local and remote channels.
@@ -181,13 +242,6 @@ func (vm *VM) executeSelectHandler(interp *Interpreter, cases []SelectCase, chos
 		return Nil
 	}
 	handler := cases[chosen].Handler
-
-	// Reconcile the GC mirror before any early return: a consumed RECV value
-	// must be popped even when the handler block is absent (otherwise a stale
-	// entry lingers — safe over-approximation, but avoided for symmetry with
-	// the SEND record done by the caller in primitiveSelectLocal).
-	if cases[chosen].Dir == reflect.SelectRecv && recvOK && recv.IsValid() && cases[chosen].Channel != nil {
-	}
 
 	bv := interp.getBlockValue(handler)
 	if bv == nil {

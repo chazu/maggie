@@ -3028,3 +3028,66 @@ func TestChannelSendCtx_Success(t *testing.T) {
 		t.Errorf("received %v, want 7", got)
 	}
 }
+
+// A select-send parked on a channel must survive a concurrent close: the
+// send case registers in the close protocol and the select retries/answers
+// nil instead of racing close(co.ch) (panic).
+func TestChannelSelect_SendVsConcurrentClose(t *testing.T) {
+	vm := NewVM()
+	defer vm.Shutdown()
+
+	ch := createChannel(0) // unbuffered: the select-send parks
+	chVal := channelToValue(ch)
+
+	go func() {
+		time.Sleep(30 * time.Millisecond)
+		ch.Close()
+	}()
+
+	cases := []SelectCase{{
+		Channel: ch,
+		Dir:     reflect.SelectSend,
+		Value:   FromSmallInt(1),
+		Handler: Nil,
+	}}
+	_ = chVal
+	got := vm.primitiveSelect(cases, Nil)
+	if !got.IsNil() {
+		t.Errorf("select on closed send channel: got %v, want nil", got)
+	}
+}
+
+// A select mixing a doomed send with a live receive must still take the
+// receive after the send channel closes.
+func TestChannelSelect_SendClosedFallsBackToReceive(t *testing.T) {
+	vm := NewVM()
+	defer vm.Shutdown()
+
+	sendCh := createChannel(0)
+	recvCh := createChannel(1)
+
+	go func() {
+		time.Sleep(20 * time.Millisecond)
+		sendCh.Close()
+		time.Sleep(20 * time.Millisecond)
+		recvCh.SafeSend(FromSmallInt(7))
+	}()
+
+	// Handlers are nil (executeSelectHandler answers Nil for a missing
+	// block), so we only assert the select terminates instead of panicking
+	// or spinning.
+	cases := []SelectCase{
+		{Channel: sendCh, Dir: reflect.SelectSend, Value: FromSmallInt(1), Handler: Nil},
+		{Channel: recvCh, Dir: reflect.SelectRecv, Handler: Nil},
+	}
+	done := make(chan struct{})
+	go func() {
+		vm.primitiveSelect(cases, Nil)
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("select did not terminate after send channel closed")
+	}
+}
