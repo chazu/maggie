@@ -727,6 +727,11 @@ func (c *Compiler) compileAssignment(assign *Assignment) {
 // ---------------------------------------------------------------------------
 
 func (c *Compiler) compileUnaryMessage(msg *UnaryMessage) {
+	// Inline [cond] whileTrue / whileFalse on literal blocks
+	if c.tryInlineUnaryControlFlow(msg) {
+		return
+	}
+
 	// Compile receiver
 	c.compileExpr(msg.Receiver)
 
@@ -788,6 +793,12 @@ func (c *Compiler) compileBinaryMessage(msg *BinaryMessage) {
 }
 
 func (c *Compiler) compileKeywordMessage(msg *KeywordMessage) {
+	// Inline standard control flow (ifTrue:/whileTrue:/and:/…) when the
+	// block arguments are literal blocks
+	if c.tryInlineControlFlow(msg) {
+		return
+	}
+
 	// Compile receiver
 	c.compileExpr(msg.Receiver)
 
@@ -1091,39 +1102,68 @@ func (c *Compiler) findCellVariables(method *MethodDef) map[string]bool {
 	// scope entry (Block) needs explicit recursion to track depth. This
 	// walker's hand-rolled predecessor was missing *DynamicArray, so
 	// mutations from blocks inside {…} literals were silently lost.
+	//
+	// Inlined control flow (keywordInlineParts/unaryInlineParts) is
+	// scope-TRANSPARENT: those block bodies compile in the enclosing frame,
+	// so they must be walked at the same depth — otherwise every loop
+	// variable would be needlessly cell-boxed. The predicate is shared with
+	// codegen's tryInlineControlFlow, which keeps the two in lockstep: a
+	// block skipped here is guaranteed to be inlined there.
+	var walkNode func(n Node, depth int)
 	var walkStmts func(stmts []Stmt, depth int)
+
+	walkNode = func(n Node, depth int) {
+		Inspect(n, func(m Node) bool {
+			switch e := m.(type) {
+			case *Variable:
+				// Accessing a variable from an outer scope (block or method level)
+				if vi, ok := varInfos[e.Name]; ok && vi.blockDepth < depth {
+					vi.captured = true
+				}
+			case *Assignment:
+				// Assigning to an outer-scope variable: captured AND assigned
+				if vi, ok := varInfos[e.Variable]; ok && vi.blockDepth < depth {
+					vi.captured = true
+					vi.assignedInNestedBlk = true
+				}
+			case *KeywordMessage:
+				if parts, ok := keywordInlineParts(e); ok {
+					for _, sub := range parts.exprs {
+						walkNode(sub, depth)
+					}
+					for _, blk := range parts.blocks {
+						// Inlinable blocks have no params/temps to register.
+						walkStmts(blk.Statements, depth)
+					}
+					return false // handled recursion ourselves
+				}
+			case *UnaryMessage:
+				if cond, ok := unaryInlineParts(e); ok {
+					walkStmts(cond.Statements, depth)
+					return false
+				}
+			case *Block:
+				// Register this block's parameters and temps at depth+1,
+				// then walk its body at that depth.
+				for _, p := range e.Parameters {
+					varInfos[p] = &varInfo{blockDepth: depth + 1}
+				}
+				for _, t := range e.Temps {
+					varInfos[t] = &varInfo{blockDepth: depth + 1}
+				}
+				walkStmts(e.Statements, depth+1)
+				return false // handled recursion ourselves
+			}
+			return true
+		})
+	}
+
 	walkStmts = func(stmts []Stmt, depth int) {
 		for _, stmt := range stmts {
 			if stmt == nil {
 				continue
 			}
-			Inspect(stmt, func(n Node) bool {
-				switch e := n.(type) {
-				case *Variable:
-					// Accessing a variable from an outer scope (block or method level)
-					if vi, ok := varInfos[e.Name]; ok && vi.blockDepth < depth {
-						vi.captured = true
-					}
-				case *Assignment:
-					// Assigning to an outer-scope variable: captured AND assigned
-					if vi, ok := varInfos[e.Variable]; ok && vi.blockDepth < depth {
-						vi.captured = true
-						vi.assignedInNestedBlk = true
-					}
-				case *Block:
-					// Register this block's parameters and temps at depth+1,
-					// then walk its body at that depth.
-					for _, p := range e.Parameters {
-						varInfos[p] = &varInfo{blockDepth: depth + 1}
-					}
-					for _, t := range e.Temps {
-						varInfos[t] = &varInfo{blockDepth: depth + 1}
-					}
-					walkStmts(e.Statements, depth+1)
-					return false // handled recursion ourselves
-				}
-				return true
-			})
+			walkNode(stmt, depth)
 		}
 	}
 

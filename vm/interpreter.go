@@ -393,6 +393,35 @@ func (i *Interpreter) checkFrameOverflow() {
 	panic(msg)
 }
 
+// signalMustBeBoolean raises a catchable Error when an inlined conditional
+// jump (OpJumpTrue/OpJumpFalse) pops a non-boolean value — the bytecode
+// analog of the doesNotUnderstand a real ifTrue:/whileTrue:/and: send would
+// raise on a non-boolean receiver.
+func (i *Interpreter) signalMustBeBoolean(cond Value) {
+	className := "an object"
+	if i.vm != nil {
+		if cls := i.vm.ClassFor(cond); cls != nil {
+			className = cls.Name
+		}
+	}
+	msg := fmt.Sprintf("mustBeBoolean: conditional expected true or false, got %s", className)
+
+	if i.vm != nil && i.vm.ErrorClass != nil {
+		exObj := &ExceptionObject{
+			ExceptionClass: i.vm.ErrorClass,
+			MessageText:    i.vm.registry.NewStringValue(msg),
+			Resumable:      false,
+		}
+		exObj.CapturedFrames = i.CaptureTrace(MaxCapturedTraceDepth)
+		exVal := i.vm.registry.RegisterExceptionValue(exObj)
+		panic(SignaledException{
+			Exception: exVal,
+			Object:    exObj,
+		})
+	}
+	panic(msg)
+}
+
 func (i *Interpreter) pushFrame(method *CompiledMethod, receiver Value, args []Value) {
 	i.checkFrameOverflow()
 
@@ -963,14 +992,21 @@ func (i *Interpreter) runFrame() Value {
 			cond := i.pop()
 			if cond == True {
 				frame.IP += int(offset)
+			} else if cond != False {
+				// ST-80 blue-book jump semantics: inlined conditionals
+				// require an actual Boolean (matches the DNU a real
+				// ifTrue:/and: send would raise on a non-boolean).
+				i.signalMustBeBoolean(cond)
 			}
 
 		case OpJumpFalse:
 			offset := int16(binary.LittleEndian.Uint16(bc[frame.IP:]))
 			frame.IP += 2
 			cond := i.pop()
-			if cond == False || cond == Nil {
+			if cond == False {
 				frame.IP += int(offset)
+			} else if cond != True {
+				i.signalMustBeBoolean(cond)
 			}
 
 		case OpJumpNil:
