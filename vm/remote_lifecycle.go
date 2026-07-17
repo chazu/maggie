@@ -175,15 +175,45 @@ func (vm *VM) handleNodeDown(nodeID [32]byte) {
 		}
 		vm.deliverExitSignal(local, nil, nodeDownReason)
 	}
+
+	// Resolve pending forkOn: futures against the dead node — their results
+	// can never arrive, and Future wait would block forever.
+	for _, f := range vm.pendingSpawns.drainNode(nodeID) {
+		f.ResolveError("nodeDown: remote node died before delivering spawn result")
+	}
+
+	// Mark every remote-channel proxy owned by the dead node closed so
+	// blocked/future channel operations fail instead of hanging.
+	vm.DrainRemoteChannels(nodeID)
+
+	// Drop the node's reverse-lookup entries; a reconnect registers a fresh ref.
+	vm.nodeRefsMu.Lock()
+	for ref := range vm.nodeRefs {
+		if ref.NodeID() == nodeID {
+			delete(vm.nodeRefs, ref)
+		}
+	}
+	vm.nodeRefsMu.Unlock()
+
+	// Stop heartbeating the dead node (no-op when invoked from the monitor's
+	// own tick, which already removed it).
+	vm.healthMonitorMu.Lock()
+	if vm.healthMonitor != nil {
+		vm.healthMonitor.Untrack(nodeID)
+	}
+	vm.healthMonitorMu.Unlock()
 }
 
 // ensureHealthMonitor lazily creates and starts the NodeHealthMonitor.
 func (vm *VM) ensureHealthMonitor(nodeID [32]byte, ref *NodeRefData) {
+	vm.healthMonitorMu.Lock()
 	if vm.healthMonitor == nil {
 		vm.healthMonitor = NewNodeHealthMonitor(vm)
 		vm.healthMonitor.Start()
 	}
-	vm.healthMonitor.Track(nodeID, ref)
+	hm := vm.healthMonitor
+	vm.healthMonitorMu.Unlock()
+	hm.Track(nodeID, ref)
 }
 
 // ---------------------------------------------------------------------------

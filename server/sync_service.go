@@ -902,6 +902,9 @@ func (s *SyncService) ChannelReceive(
 
 	val, ok := ch.Receive()
 	if !ok {
+		// Closed and fully drained — release the export so the channel
+		// object isn't pinned for the life of the VM.
+		s.worker.vm.UnexportChannel(ch)
 		return connect.NewResponse(&maggiev1.ChannelReceiveResponse{
 			Success:     true,
 			ChannelOpen: false,
@@ -960,6 +963,10 @@ func (s *SyncService) ChannelTryReceive(
 
 	val, gotValue, ok := ch.TryReceive()
 	if !gotValue {
+		if !ok {
+			// Closed and fully drained — release the export.
+			s.worker.vm.UnexportChannel(ch)
+		}
 		return connect.NewResponse(&maggiev1.ChannelTryReceiveResponse{
 			GotValue:    false,
 			ChannelOpen: ok,
@@ -988,7 +995,7 @@ func (s *SyncService) ChannelClose(
 		return connect.NewResponse(&maggiev1.ChannelCloseResponse{Success: false}), nil
 	}
 
-	ch.Close()
+	s.worker.vm.CloseChannel(ch)
 	return connect.NewResponse(&maggiev1.ChannelCloseResponse{Success: true}), nil
 }
 

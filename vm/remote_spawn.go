@@ -197,32 +197,56 @@ func (vm *VM) ResolveBlockMethod(sb *SpawnBlock) (*BlockMethod, *CompiledMethod,
 // Pending spawn registry: maps futureID → FutureObject for result delivery
 // ---------------------------------------------------------------------------
 
+// pendingSpawn associates a forkOn: Future with the node executing the block,
+// so handleNodeDown can resolve every future stranded by a dead node.
+type pendingSpawn struct {
+	future *FutureObject
+	nodeID [32]byte
+}
+
 type pendingSpawnRegistry struct {
 	mu     sync.RWMutex
-	spawns map[uint64]*FutureObject
+	spawns map[uint64]pendingSpawn
 	nextID atomic.Uint64
 }
 
 func newPendingSpawnRegistry() *pendingSpawnRegistry {
 	return &pendingSpawnRegistry{
-		spawns: make(map[uint64]*FutureObject),
+		spawns: make(map[uint64]pendingSpawn),
 	}
 }
 
-func (r *pendingSpawnRegistry) register(f *FutureObject) uint64 {
+func (r *pendingSpawnRegistry) register(f *FutureObject, nodeID [32]byte) uint64 {
 	id := r.nextID.Add(1)
 	r.mu.Lock()
-	r.spawns[id] = f
+	r.spawns[id] = pendingSpawn{future: f, nodeID: nodeID}
 	r.mu.Unlock()
 	return id
 }
 
 func (r *pendingSpawnRegistry) resolve(id uint64) *FutureObject {
 	r.mu.Lock()
-	f := r.spawns[id]
+	ps, ok := r.spawns[id]
 	delete(r.spawns, id)
 	r.mu.Unlock()
-	return f
+	if !ok {
+		return nil
+	}
+	return ps.future
+}
+
+// drainNode removes and returns all futures pending against the given node.
+func (r *pendingSpawnRegistry) drainNode(nodeID [32]byte) []*FutureObject {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	var out []*FutureObject
+	for id, ps := range r.spawns {
+		if ps.nodeID == nodeID {
+			out = append(out, ps.future)
+			delete(r.spawns, id)
+		}
+	}
+	return out
 }
 
 // ---------------------------------------------------------------------------
@@ -277,6 +301,10 @@ func (vm *VM) doRemoteSpawn(blockVal, nodeVal, argVal Value, mode string) Value 
 		return Nil
 	}
 
+	// Heartbeat coverage starts at spawn, not at the first monitor: a plain
+	// forkOn:/spawnOn: must still learn about node death (SD-6).
+	vm.ensureHealthMonitor(ref.NodeID(), ref)
+
 	if mode == "fork" {
 		return vm.doForkOn(ref, spawnBytes, nodeVal)
 	}
@@ -287,17 +315,19 @@ func (vm *VM) doForkOn(ref *NodeRefData, spawnBytes []byte, nodeVal Value) Value
 	// Create a local Future for the result
 	future := NewFuture()
 	futureVal := vm.registerFuture(future)
-	futureID := vm.pendingSpawns.register(future)
+	futureID := vm.pendingSpawns.register(future, ref.NodeID())
 
 	// Embed futureID into the spawn block for result delivery
 	sb, err := DeserializeSpawnBlock(spawnBytes)
 	if err != nil {
+		vm.pendingSpawns.resolve(futureID) // no result will ever arrive
 		future.ResolveError(fmt.Sprintf("spawn: %v", err))
 		return futureVal
 	}
 	sb.FutureID = futureID
 	spawnBytes, err = cborSerialEncMode.Marshal(cbor.Tag{Number: cborTagSpawnBlock, Content: sb})
 	if err != nil {
+		vm.pendingSpawns.resolve(futureID)
 		future.ResolveError(fmt.Sprintf("spawn: re-encode: %v", err))
 		return futureVal
 	}
@@ -305,6 +335,7 @@ func (vm *VM) doForkOn(ref *NodeRefData, spawnBytes []byte, nodeVal Value) Value
 	go func() {
 		processName, err := ref.SpawnFunc(spawnBytes)
 		if err != nil {
+			vm.pendingSpawns.resolve(futureID)
 			future.ResolveError(fmt.Sprintf("spawn RPC: %v", err))
 			return
 		}

@@ -322,12 +322,7 @@ func (vm *VM) registerChannelPrimitives() {
 		if ch == nil {
 			return recv
 		}
-		ch.mu.Lock()
-		defer ch.mu.Unlock()
-		if !ch.closed.Load() {
-			ch.closed.Store(true)
-			close(ch.ch)
-		}
+		v.CloseChannel(ch)
 		return recv
 	})
 
@@ -411,12 +406,7 @@ func (vm *VM) registerChannelPrimitives() {
 		if ch == nil {
 			return recv
 		}
-		ch.mu.Lock()
-		defer ch.mu.Unlock()
-		if !ch.closed.Load() {
-			ch.closed.Store(true)
-			close(ch.ch)
-		}
+		v.CloseChannel(ch)
 		return recv
 	})
 

@@ -750,6 +750,13 @@ func (d *valueDeserializer) deserializeChannel(tag cbor.Tag) (Value, error) {
 		fn(ref)
 	}
 
+	// A plain channel reference needs heartbeat coverage too: when the owner
+	// node dies, drainNode marks this proxy closed instead of letting
+	// operations block forever.
+	if nodeRef := d.vm.findNodeRefByID(sc.OwnerNode); nodeRef != nil {
+		d.vm.ensureHealthMonitor(sc.OwnerNode, nodeRef)
+	}
+
 	return d.vm.registerRemoteChannel(ref), nil
 }
 

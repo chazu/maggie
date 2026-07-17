@@ -71,13 +71,16 @@ func (r *remoteChannelRegistry) track(ref *RemoteChannelRef) {
 	r.mu.Unlock()
 }
 
-// drainNode marks all remote channels from the given node as closed.
+// drainNode marks all remote channels from the given node as closed and
+// removes them from the tracking set — once closed, their node-death fan-out
+// role is finished, so keeping them would only grow the set forever.
 func (r *remoteChannelRegistry) drainNode(nodeID [32]byte) {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	for ref := range r.channels {
 		if ref.OwnerNode == nodeID {
 			ref.MarkClosed()
+			delete(r.channels, ref)
 		}
 	}
 }
@@ -130,6 +133,19 @@ func (r *channelExportRegistry) Lookup(id uint64) *ChannelObject {
 	return r.exports[id]
 }
 
+// Unexport removes a channel from the export tables. Serializing a channel
+// exports it as a side effect; without an unexport path every channel that
+// ever crossed the wire would be pinned against the Go GC for the life of
+// the VM (SD-11).
+func (r *channelExportRegistry) Unexport(ch *ChannelObject) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if id, ok := r.byChan[ch]; ok {
+		delete(r.exports, id)
+		delete(r.byChan, ch)
+	}
+}
+
 // ---------------------------------------------------------------------------
 // VM helpers
 // ---------------------------------------------------------------------------
@@ -158,6 +174,24 @@ func (vm *VM) ExportChannel(ch *ChannelObject) uint64 {
 // LookupExportedChannel returns the local channel for an export ID.
 func (vm *VM) LookupExportedChannel(id uint64) *ChannelObject {
 	return vm.channelExports.Lookup(id)
+}
+
+// UnexportChannel removes a channel from the export registry. Called when a
+// closed exported channel has fully drained — remote peers observing the
+// missing export treat it as closed.
+func (vm *VM) UnexportChannel(ch *ChannelObject) {
+	vm.channelExports.Unexport(ch)
+}
+
+// CloseChannel closes ch and, if it has no buffered values left, releases its
+// remote export. A closed channel with buffered values stays exported so
+// remote receivers can drain it; the drain path unexports on the final
+// receive.
+func (vm *VM) CloseChannel(ch *ChannelObject) {
+	ch.Close()
+	if ch.Size() == 0 {
+		vm.channelExports.Unexport(ch)
+	}
 }
 
 // RegisterRemoteChannelValue creates and registers a RemoteChannelRef.

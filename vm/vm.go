@@ -189,9 +189,12 @@ type VM struct {
 	//   vm.GetLocalListenAddr() / SetLocalListenAddr()
 	//   vm.GetRemoteChannelFactory() / SetRemoteChannelFactory()
 
-	// Cross-node monitor/link tracking and health monitoring
-	remoteWatches *RemoteWatchStore
-	healthMonitor *NodeHealthMonitor
+	// Cross-node monitor/link tracking and health monitoring.
+	// healthMonitorMu guards lazy creation of healthMonitor (ensureHealthMonitor
+	// is called from interpreter goroutines and server handlers concurrently).
+	remoteWatches   *RemoteWatchStore
+	healthMonitor   *NodeHealthMonitor
+	healthMonitorMu sync.Mutex
 
 	// registry holds all VM-local object registries (concurrency, exceptions,
 	// results, contexts, dictionaries, strings, gRPC, HTTP, cells, class vars, etc.).
@@ -1426,6 +1429,11 @@ func (vm *VM) Shutdown() {
 	if sp := vm.SamplingProfiler(); sp != nil {
 		sp.Stop()
 	}
+	vm.healthMonitorMu.Lock()
+	if vm.healthMonitor != nil {
+		vm.healthMonitor.Stop()
+	}
+	vm.healthMonitorMu.Unlock()
 }
 
 // StartSamplingProfiler creates and starts a wall-clock sampling profiler.

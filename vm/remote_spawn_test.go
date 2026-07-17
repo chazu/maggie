@@ -245,8 +245,9 @@ func TestPendingSpawnRegistry(t *testing.T) {
 	f1 := NewFuture()
 	f2 := NewFuture()
 
-	id1 := reg.register(f1)
-	id2 := reg.register(f2)
+	nodeA := [32]byte{1}
+	id1 := reg.register(f1, nodeA)
+	id2 := reg.register(f2, nodeA)
 
 	if id1 == id2 {
 		t.Error("IDs should be unique")
