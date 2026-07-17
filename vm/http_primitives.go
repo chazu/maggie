@@ -122,11 +122,11 @@ func (vm *VM) vmRegisterHttpResponse(resp *HttpResponseObject) Value {
 	return makeExtensionValue(httpResponseMarker, resp)
 }
 
-// httpResult is a fully Go-native snapshot of a handler's response. It is built
-// by extractHTTPResult INSIDE the handler's dispatch/forked region — while the
-// producing interpreter is still registered and running — so that nothing the
-// net/http write path touches depends on a Maggie Value that could be swept by
-// the string collector after the interpreter unregisters.
+// httpResult is a fully Go-native snapshot of a handler's response, built by
+// extractHTTPResult while the producing interpreter is still registered so
+// header/body accessor sends resolve on the right interpreter. (Values are
+// Go-GC-traced pointers; no collector can sweep them out from under the
+// net/http write path.)
 type httpResult struct {
 	status  int
 	headers map[string]string
@@ -285,17 +285,18 @@ func (vm *VM) registerHttpPrimitives() {
 				done:    r.Context().Done(),
 			}
 
-			// Dispatch briefly to run the Maggie handler block.
-			v.Dispatch(func() Value {
-				interp := v.newInterpreter()
+			// Run the Maggie handler block on this request goroutine with its
+			// own registered interpreter (the VM's structures are safe for
+			// concurrent dispatch; only interpreter stacks are per-goroutine).
+			func() {
+				interp := v.newForkedInterpreter(nil)
 				v.registerInterpreter(interp)
 				defer v.unregisterInterpreter()
 				connVal := v.vmRegisterSSEConnection(conn)
 				reqObj := &HttpRequestObject{request: r}
 				reqVal := v.vmRegisterHttpRequest(reqObj)
 				interp.ExecuteBlockDetached(block, captures, []Value{connVal, reqVal}, homeSelf, homeMethod)
-				return Nil
-			})
+			}()
 
 			// SSE event loop — runs on the HTTP handler goroutine, not the dispatch queue.
 			for {
@@ -356,9 +357,8 @@ func (vm *VM) registerHttpPrimitives() {
 			}()
 
 			// The handler runs on a forked goroutine; marshal its response to
-			// Go-native types (extractHTTPResult) on that goroutine, before it
-			// unregisters its interpreter, so the body the net/http write path
-			// emits can't be swept by the string collector after unregister.
+			// Go-native types (extractHTTPResult) on that goroutine, while its
+			// interpreter is still registered.
 			resultCh := make(chan httpResult, 1)
 
 			go func() {
@@ -418,18 +418,12 @@ func (vm *VM) registerHttpPrimitives() {
 				}
 			}()
 
-			// Dispatch Maggie execution to the VM goroutine.
-			// The HTTP request object is created inside the dispatch
-			// because the VM's registries are not thread-safe.
-			//
-			// The response is marshalled to Go-native types (extractHTTPResult)
-			// INSIDE the dispatch closure, before the interpreter unregisters —
-			// otherwise a bare-string body referenced only from this goroutine's
-			// Go local could be swept by the string collector before we read it,
-			// yielding an empty body.
+			// Run the Maggie handler on this request goroutine with its own
+			// registered interpreter — requests execute concurrently, same
+			// pattern as server RPC handlers (RunIsolated).
 			var hr httpResult
-			v.Dispatch(func() Value {
-				interp := v.newInterpreter()
+			func() {
+				interp := v.newForkedInterpreter(nil)
 				v.registerInterpreter(interp)
 				defer v.unregisterInterpreter()
 				reqObj := &HttpRequestObject{request: r}
@@ -437,8 +431,7 @@ func (vm *VM) registerHttpPrimitives() {
 				defer v.vmUnregisterHttpRequest(reqVal)
 				result := interp.ExecuteBlockDetached(block, captures, []Value{reqVal}, homeSelf, homeMethod)
 				hr = v.extractHTTPResult(result)
-				return Nil
-			})
+			}()
 
 			for k, hv := range hr.headers {
 				w.Header().Set(k, hv)
@@ -463,9 +456,6 @@ func (vm *VM) registerHttpPrimitives() {
 		}
 		srv.running.Store(true)
 		srv.mu.Unlock()
-		// Start the VM dispatch queue so HTTP handlers can serialize
-		// Maggie execution through the VM goroutine.
-		v.StartDispatcher()
 		// The serving goroutine blocks here indefinitely.
 		err := srv.server.ListenAndServe()
 		if err != nil && err != http.ErrServerClosed {

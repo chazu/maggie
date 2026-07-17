@@ -146,11 +146,6 @@ type VM struct {
 	// Compiler backend (Go or Maggie)
 	compilerBackend CompilerBackend
 
-	// Work dispatch queue for serializing Maggie execution from
-	// external goroutines (HTTP handlers, gRPC handlers).
-	dispatchQueue chan workItem
-	dispatchOnce  sync.Once
-
 	// mainProcess is the ProcessObject for the main interpreter goroutine.
 	// Created during NewVM so that Process current / Process receive work
 	// from the main goroutine.
@@ -280,6 +275,11 @@ func NewVM(configs ...VMConfig) *VM {
 
 	// Create interpreter
 	vm.interpreter = vm.newInterpreter()
+
+	// Claim the main interpreter for the creating goroutine: once forked
+	// interpreters exist, currentInterpreter() resolves by goroutine ID, and
+	// only THIS goroutine may reach the shared main interpreter (VM-9).
+	vm.interpreters.Store(getGoroutineID(), vm.interpreter)
 
 	// Create the main process (so Process current / Process receive work
 	// from the main goroutine)
@@ -1413,13 +1413,18 @@ func (vm *VM) currentInterpreter() *Interpreter {
 	if atomic.LoadInt32(&vm.interpreterCount) == 0 {
 		return vm.interpreter
 	}
-	// Slow path: look up by goroutine ID
+	// Slow path: look up by goroutine ID (the NewVM goroutine is registered
+	// at creation, so the main program resolves here too)
 	gid := getGoroutineID()
 	if interp, ok := vm.interpreters.Load(gid); ok {
 		return interp.(*Interpreter)
 	}
-	// Fallback to main interpreter (main goroutine isn't registered)
-	return vm.interpreter
+	// Unregistered goroutine (Go timer/callback invoking vm.Send, …). The
+	// old fallback handed out the SHARED main interpreter — two goroutines
+	// mutating one frame stack, silent corruption. Hand out a fresh isolated
+	// interpreter instead: utility sends work, and concurrent misuse can no
+	// longer corrupt the main program's stack (VM-9).
+	return vm.newRequestInterpreter()
 }
 
 // ---------------------------------------------------------------------------
