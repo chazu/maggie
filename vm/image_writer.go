@@ -404,6 +404,31 @@ func (w *ImageWriter) collectFromVM(vm *VM) {
 	copy(w.selectorNames, allSelectors)
 }
 
+// sortedMethods returns a vtable's CompiledMethods ordered by selector name.
+// Iterating the methods map directly registers method names/docstrings/literals
+// into the string table in a nondeterministic order, which shifts every string
+// index and makes the whole image churn between builds; a stable order (by
+// selector name, which never varies) makes the image reproducible.
+func (w *ImageWriter) sortedMethods(vt *VTable) []*CompiledMethod {
+	if vt == nil {
+		return nil
+	}
+	ids := make([]int, 0, len(vt.methods))
+	for id := range vt.methods {
+		ids = append(ids, id)
+	}
+	sort.Slice(ids, func(i, j int) bool {
+		return w.vm.Selectors.Name(ids[i]) < w.vm.Selectors.Name(ids[j])
+	})
+	out := make([]*CompiledMethod, 0, len(ids))
+	for _, id := range ids {
+		if cm, ok := vt.methods[id].(*CompiledMethod); ok {
+			out = append(out, cm)
+		}
+	}
+	return out
+}
+
 func (w *ImageWriter) collectClass(c *Class) {
 	w.registerString(c.Name)
 	if c.Namespace != "" {
@@ -419,19 +444,11 @@ func (w *ImageWriter) collectClass(c *Class) {
 	w.encoder.RegisterClass(c)
 	w.classes = append(w.classes, c)
 
-	if c.VTable != nil {
-		for _, method := range c.VTable.methods {
-			if cm, ok := method.(*CompiledMethod); ok {
-				w.collectMethod(cm)
-			}
-		}
+	for _, cm := range w.sortedMethods(c.VTable) {
+		w.collectMethod(cm)
 	}
-	if c.ClassVTable != nil {
-		for _, method := range c.ClassVTable.methods {
-			if cm, ok := method.(*CompiledMethod); ok {
-				w.collectMethod(cm)
-			}
-		}
+	for _, cm := range w.sortedMethods(c.ClassVTable) {
+		w.collectMethod(cm)
 	}
 }
 
@@ -645,27 +662,18 @@ func (w *ImageWriter) buildClassDef(c *Class) (classDef, error) {
 		instVars[i], _ = w.encoder.LookupString(ivar)
 	}
 
-	// Instance method indices
+	// Instance/class method indices, in the same stable selector-name order used
+	// during collection so the serialized lists are deterministic.
 	var instanceMethods []uint32
-	if c.VTable != nil {
-		for _, m := range c.VTable.methods {
-			if cm, ok := m.(*CompiledMethod); ok {
-				if idx, ok := w.encoder.LookupMethod(cm); ok {
-					instanceMethods = append(instanceMethods, idx)
-				}
-			}
+	for _, cm := range w.sortedMethods(c.VTable) {
+		if idx, ok := w.encoder.LookupMethod(cm); ok {
+			instanceMethods = append(instanceMethods, idx)
 		}
 	}
-
-	// Class method indices
 	var classMethods []uint32
-	if c.ClassVTable != nil {
-		for _, m := range c.ClassVTable.methods {
-			if cm, ok := m.(*CompiledMethod); ok {
-				if idx, ok := w.encoder.LookupMethod(cm); ok {
-					classMethods = append(classMethods, idx)
-				}
-			}
+	for _, cm := range w.sortedMethods(c.ClassVTable) {
+		if idx, ok := w.encoder.LookupMethod(cm); ok {
+			classMethods = append(classMethods, idx)
 		}
 	}
 

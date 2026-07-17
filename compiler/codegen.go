@@ -3,10 +3,26 @@ package compiler
 import (
 	"fmt"
 	"math/big"
+	"sort"
 	"strings"
 
 	"github.com/chazu/maggie/vm"
 )
+
+// cellNamesBySlot returns the names in `slots` (name→slot-index) that are cell
+// variables, ordered by ascending slot index. Emitting cell-init code in this
+// stable order — rather than map-iteration order — keeps compiled bytecode
+// deterministic for methods with more than one cell variable.
+func cellNamesBySlot(slots map[string]int, cellVars map[string]bool) []string {
+	names := make([]string, 0, len(slots))
+	for name := range slots {
+		if cellVars[name] {
+			names = append(names, name)
+		}
+	}
+	sort.Slice(names, func(i, j int) bool { return slots[names[i]] < slots[names[j]] })
+	return names
+}
 
 // ---------------------------------------------------------------------------
 // Codegen: Compile AST to bytecode
@@ -198,28 +214,30 @@ func (c *Compiler) CompileMethod(method *MethodDef) *vm.CompiledMethod {
 		c.frame.temps[temp] = c.frame.numArgs + i
 	}
 
-	// Pre-initialize method-level cell variables.
+	// Pre-initialize method-level cell variables, emitted in slot-index order.
+	// Iterating the args/temps maps directly emitted this prologue in
+	// nondeterministic order, so a method with two+ cell variables (e.g. min:/
+	// max:) produced different-but-equivalent bytecode on each compile —
+	// enough to make the whole image non-reproducible.
 	// Method args that are cells: wrap existing arg value in a cell.
-	for name, idx := range c.frame.args {
-		if c.cellVars[name] {
-			c.checkSlotIndex(idx, "argument", name)
-			c.frame.builder.EmitByte(vm.OpPushTemp, byte(idx))  // Push current arg value
-			c.frame.builder.Emit(vm.OpMakeCell)                 // Wrap in cell
-			c.frame.builder.EmitByte(vm.OpStoreTemp, byte(idx)) // Store cell back
-			c.frame.builder.Emit(vm.OpPOP)                      // Clean up stack
-			c.frame.cellInitialized[name] = true
-		}
+	for _, name := range cellNamesBySlot(c.frame.args, c.cellVars) {
+		idx := c.frame.args[name]
+		c.checkSlotIndex(idx, "argument", name)
+		c.frame.builder.EmitByte(vm.OpPushTemp, byte(idx))  // Push current arg value
+		c.frame.builder.Emit(vm.OpMakeCell)                 // Wrap in cell
+		c.frame.builder.EmitByte(vm.OpStoreTemp, byte(idx)) // Store cell back
+		c.frame.builder.Emit(vm.OpPOP)                      // Clean up stack
+		c.frame.cellInitialized[name] = true
 	}
 	// Method temps that are cells: wrap nil in a cell.
-	for name, idx := range c.frame.temps {
-		if c.cellVars[name] {
-			c.checkSlotIndex(idx, "temp", name)
-			c.frame.builder.Emit(vm.OpPushNil)
-			c.frame.builder.Emit(vm.OpMakeCell)
-			c.frame.builder.EmitByte(vm.OpStoreTemp, byte(idx))
-			c.frame.builder.Emit(vm.OpPOP)
-			c.frame.cellInitialized[name] = true
-		}
+	for _, name := range cellNamesBySlot(c.frame.temps, c.cellVars) {
+		idx := c.frame.temps[name]
+		c.checkSlotIndex(idx, "temp", name)
+		c.frame.builder.Emit(vm.OpPushNil)
+		c.frame.builder.Emit(vm.OpMakeCell)
+		c.frame.builder.EmitByte(vm.OpStoreTemp, byte(idx))
+		c.frame.builder.Emit(vm.OpPOP)
+		c.frame.cellInitialized[name] = true
 	}
 
 	// Compile statements
