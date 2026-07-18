@@ -1,5 +1,145 @@
 # Changelog
 
+## 2026-07-17 — Distribution: request-response, code-on-demand, cluster membership
+
+Three distribution features plus a second full adversarial-review sweep the day
+after the 2026-07-16 review was remediated (six parallel review agents over VM
+core, dist/wire/server, compiler/types/manifest, `lib/*.mag`, and tooling/docs).
+
+**Request-response over the wire.** `RemoteProcess>>asyncSend:with:` Futures now
+resolve with the remote handler's **reply value**, not just an ack. A message
+carries a `__reply__` correlation token; the handler's `msg reply: <v>` (or a
+method's return value) is serialized back and delivered to the waiting Future
+(`vm/remote_request.go`). Previously reply values were dropped on the floor.
+
+**Code-on-demand.** The deserializer auto-pulls missing classes: receiving an
+object whose class the local VM doesn't have triggers a content-addressed class
+fetch from the sender, so a peer can send you an instance of a type you've never
+compiled (`vm/serial.go`).
+
+**Cluster membership (Phase 1).** Gossip-based membership with pluggable
+`Discovery` and `FailureDetector` interfaces (`vm/dist/membership.go`,
+`discovery.go`, `failure_detector.go`, `gossip_wire.go`). The `__gossip__` RPC is
+gated on `PermSync` — membership is separated from trust — and wired through
+`cmd/mag`. `Cluster.mag` gains the Go-backed primitives in `vm/cluster.go` /
+`vm/cluster_primitives.go`. Design in
+`docs/plans/2026-07-17-cluster-membership-plan.md`.
+
+**Second review sweep — P0 breakage fixed.** All reproduced by throwaway tests
+against the real compiler/VM:
+- **Peephole constant folding was jump-target-blind.** `foldConstants` collapsed
+  `PushInt a; PushInt b; SendArith` even when a jump label pointed into the
+  middle of the window, so `^(true ifTrue: [1] ifFalse: [2]) + 3` returned `1`.
+  The fold and push/pop phases now compute jump targets like `eliminateDeadCode`.
+- **`FinishProcess` double-finish aborted the whole VM.** No terminated-guard, so
+  a second finish double-fired `waitGroup.Done()`/`close(proc.done)` →
+  `sync: negative WaitGroup counter` panicking inside the deferred finish →
+  unrecoverable exit. Process finish is now idempotent (CAS), with link-exit
+  routing and the `markDone` leak fixed alongside.
+- **`BigInteger>>isZero`/`asSmallInt` were phantom API** — wrappers called
+  `primIsZero`/`primAsSmallInt` but Go registered them unprefixed, so the
+  wrappers overwrote the primitives and then DNU'd (`20 factorial isZero`). Fixed
+  to primitive stubs; a conventions test now gates phantom `prim*` sends in lib
+  bodies.
+
+**Second review sweep — other fixes.** `Mutex>>unlock` / `WaitGroup>>done` signal
+a catchable error instead of fatally aborting; `Future>>await` is re-entrant and
+wakes all waiters; mixed `select` terminates on all-closed and signals on
+deserialize error; cascades on `super` emit super sends; peer bookkeeping keys on
+the peer's id (not our own); per-stream nonce replay windows; exported-channel IDs
+are unguessable capabilities rather than sequential; the trust store bounds its
+transient peer records; the `mag` CLI signs envelopes with the persistent node
+identity; HTTP route/SSE/async handlers persist their global writes; instance
+variables are threaded into the runtime/IDE compile path; LSP formatting actually
+formats (shared `format` package); `mag typecheck` inference is sound over
+arguments and cascades and exits non-zero on failure. Details in
+`docs/reviews/2026-07-17-adversarial-system-review.md`.
+
+## 2026-07-16 — Structural adversarial-review fixes (post-migration)
+
+Remediation of the 2026-07-16 review (four parallel deep reviews — VM core,
+compiler/types/pipeline, server/dist, language design — over the freshly-merged
+pointer-value migration). The review found the debt concentrated in three rings
+around a clean migration core; all five structural fixes landed. Full findings in
+`docs/reviews/2026-07-16-adversarial-system-review.md`.
+
+**Registry ring deleted.** The half-deleted registry layer that survived the
+migration as load-bearing-looking shells is gone: the Futures registry (a pure
+leak, capped at 2^24 forever, swept by nobody), the 378-line dead
+`typed_registry.go`, and the registry ring itself — finishing the `Process`
+pointer migration. Future/Process/Channel Values are pointer-carrying; the maps
+served no liveness role.
+
+**Knowledge de-duplicated (every confirmed miscompile was drift between copies).**
+- **AST traversal** centralized in `ast.Walk` (was five separate walkers), with
+  hash guards and `TagBigIntLiteral`.
+- **Envelopes** unified: a `vm/wire` leaf package, fully-signed envelopes, and an
+  auth interceptor — the signature now covers routing and freshness, not just
+  payload bytes. Value-format skew fails loudly (unknown-tag rejection,
+  hash-first lookup, shape check).
+- **Eval paths** unified: `CompileDoIt` does AST-level eval compilation and
+  surfaces semantic warnings; server workspace eval uses the AST doIt compiler,
+  not the textual dot-splitter.
+
+**Concurrency correctness under the parallel server.** The two workhorse shared
+collections that Stage 5's concurrent `DoConcurrent` exposed — `DictionaryObject`
+and `ArrayListObject` — got synchronization (bare map writes were an uncatchable
+`fatal error: concurrent map writes`). Dictionary collision handling rewritten to
+bucketed storage with an equality probe. `localIdentity` lazy init synchronized.
+The dispatch queue was deleted in favor of interpreter ownership for unregistered
+goroutines.
+
+**Control-flow inlining.** `ifTrue:`/`ifFalse:`/`and:`/`or:`/`whileTrue:` etc.
+with literal blocks now compile to jump bytecode instead of block sends
+(`compiler/inline_control_flow.go`); the `keywordInlineParts` predicate is shared
+by codegen and `findCellVariables` so they stay in lockstep.
+
+**Failure-doctrine migration.** `HttpClient`, `Future`, `File`, and `Channel`
+migrated to the `docs/CONVENTIONS.md` doctrine — expected failures return
+`Result`, `Future>>await` signals, `Channel` disambiguates nil via
+`receiveIfClosed:`/`tryReceiveIfEmpty:`. Distributed failures signal instead of
+vanishing into nil. Also landed the conventions doctrine itself: surface-parity +
+doctest CI, `RestrictedGlobal`, and phantom-API removal.
+
+**Distributed robustness.** Node-death cleanup (remote refs/channels torn down),
+context-aware channel RPCs with race-free channel close, and serializer backref
+alignment with bounded recursion.
+
+## 2026-07-04 — Pointer-carrying Value: delete the custom GC; concurrent server
+
+The #1 architectural decision from the 2026-07-04 codebase review, backed by a
+measured spike (heap access ~23× faster, alloc ~12× faster and Go-GC-reclaimed).
+`Value` changed from a NaN-boxed `uint64` to a `{hi uint64; ptr unsafe.Pointer}`
+struct: immediates keep the existing NaN-box in `hi` with `ptr == nil`; the ~35
+heap kinds (String, Dictionary, ArrayList, Object, Cell, BigInt, Channel,
+Process, Mutex, …, and contrib http/grpc/cue/json) put the Go object behind
+`ptr`, now traced by Go's GC, with `hi` holding a small `kind` tag. Access is a
+pointer deref, not a registry map lookup. Migrated in staged commits, each ending
+compiling/green. Plan: `docs/plans/2026-07-04-pointer-value-migration.md`.
+
+**~1.8k lines of custom memory management deleted.** Because a live `Value` now
+keeps its heap object reachable through `ptr`, the Go runtime traces the whole
+graph, so the custom collector and the ID registries are unnecessary and gone:
+`heap_gc.go`, `registry_gc.go`, `gc_safepoint.go` (the STW collector + safepoint
+polling), `typed_registry.go` (`AutoIDRegistry`), the ID-keyed object/concurrency
+maps, `keepAlive`, weak-ref liveness plumbing, block slot+generation recycling,
+and the 2^24 ID-exhaustion machinery. `WeakReference` became Go-native
+(`weak.Pointer`).
+
+**Server requests now run concurrently.** With the single-goroutine VMWorker
+funnel no longer needed for GC safety, requests run on per-request isolated
+interpreters (`vm.RunIsolated`) behind an RWMutex gate — `VMWorker.Do` takes it
+exclusively, `DoConcurrent` shares it. A spike had shown the old server was fully
+serialized (`docs/plans/2026-07-04-stage5-server-parallelism.md`).
+
+**Housekeeping in the same sweep.** Removed the AOT compiler and shelved the
+self-hosted compiler (deleting the dead module-chunk path); added `mag api`, a
+compact machine-readable API index for agents, and hid internal `prim*` selectors
+from it; freed heap back to the OS after each GC sweep; added CI library doctests
+and fuzzers for the `vm/` decoders (envelope, chunk, value, spawn-block); and
+closed a fork-restriction escape, a permissive `--serve`, and an unenforced
+`PermMessage`.
+
 ## 2026-06-30 — Adversarial review hardening sweep
 
 A multi-round adversarial review (parallel subagent reviewers across
