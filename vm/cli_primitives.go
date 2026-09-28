@@ -263,7 +263,7 @@ func (vm *VM) registerCliPrimitives() {
 		if err != nil {
 			return v.signalException(cliErrorClass, v.registry.NewStringValue("intFlag: "+err.Error()))
 		}
-		return FromSmallInt(int64(val))
+		return v.registry.NewIntegerValue(int64(val))
 	})
 
 	// ---------------------------------------------------------------------

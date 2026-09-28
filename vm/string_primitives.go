@@ -2,6 +2,7 @@ package vm
 
 import (
 	"fmt"
+	"math/big"
 	"strconv"
 	"strings"
 )
@@ -188,11 +189,13 @@ func (vm *VM) registerStringPrimitivesExtended() {
 	// asInteger - convert string to integer
 	c.AddMethod0(vm.Selectors, "asInteger", func(v *VM, recv Value) Value {
 		s := v.registry.GetStringContent(recv)
-		n, err := strconv.ParseInt(s, 10, 64)
-		if err != nil {
+		// Parse arbitrary precision: digit strings beyond the SmallInteger
+		// (or int64) range answer a BigInteger instead of panicking the VM.
+		n, ok := new(big.Int).SetString(s, 10)
+		if !ok {
 			return Nil
 		}
-		return FromSmallInt(n)
+		return v.registry.NewBigIntValue(n)
 	})
 
 	// asFloat - convert string to float

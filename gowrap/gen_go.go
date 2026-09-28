@@ -229,7 +229,7 @@ func goTypeConversion(t types.Type, valueExpr, wrappedPkgPath string) string {
 			case basic.Info()&types.IsString != 0:
 				return fmt.Sprintf("func() *string { s := v.ValueToGo(%s).(string); return &s }()", valueExpr)
 			case basic.Info()&types.IsInteger != 0:
-				return fmt.Sprintf("func() *%s { n := %s(%s.SmallInt()); return &n }()", basic.Name(), basic.Name(), valueExpr)
+				return fmt.Sprintf("func() *%s { n := %s; return &n }()", basic.Name(), intArgExpr(basic, basic.Name(), valueExpr))
 			case basic.Info()&types.IsFloat != 0:
 				return fmt.Sprintf("func() *%s { f := %s(%s.Float64()); return &f }()", basic.Name(), basic.Name(), valueExpr)
 			case basic.Info()&types.IsBoolean != 0:
@@ -260,7 +260,7 @@ func goTypeConversion(t types.Type, valueExpr, wrappedPkgPath string) string {
 				case basic.Info()&types.IsString != 0:
 					return fmt.Sprintf("%s(v.ValueToGo(%s).(string))", castExpr, valueExpr)
 				case basic.Info()&types.IsInteger != 0:
-					return fmt.Sprintf("%s(%s.SmallInt())", castExpr, valueExpr)
+					return intArgExpr(basic, castExpr, valueExpr)
 				case basic.Info()&types.IsFloat != 0:
 					return fmt.Sprintf("%s(%s.Float64())", castExpr, valueExpr)
 				case basic.Info()&types.IsBoolean != 0:
@@ -282,7 +282,7 @@ func goTypeConversion(t types.Type, valueExpr, wrappedPkgPath string) string {
 		case u.Info()&types.IsBoolean != 0:
 			return fmt.Sprintf("v.ValueToGo(%s).(bool)", valueExpr)
 		case u.Info()&types.IsInteger != 0:
-			return fmt.Sprintf("%s(%s.SmallInt())", u.Name(), valueExpr)
+			return intArgExpr(u, u.Name(), valueExpr)
 		case u.Info()&types.IsFloat != 0:
 			return fmt.Sprintf("%s(%s.Float64())", u.Name(), valueExpr)
 		}
@@ -309,4 +309,26 @@ func lcFirst(s string) string {
 		return s
 	}
 	return strings.ToLower(s[:1]) + s[1:]
+}
+
+// intArgExpr converts valueExpr to the integer type castExpr, whose underlying
+// type is basic. GoIntArg/GoUintArg accept BigIntegers and signal a catchable
+// error for non-integers or values that don't fit the parameter's width.
+func intArgExpr(basic *types.Basic, castExpr, valueExpr string) string {
+	bits := 0 // platform size: int, uint, uintptr
+	switch basic.Kind() {
+	case types.Int8, types.Uint8:
+		bits = 8
+	case types.Int16, types.Uint16:
+		bits = 16
+	case types.Int32, types.Uint32:
+		bits = 32
+	case types.Int64, types.Uint64:
+		bits = 64
+	}
+	helper := "GoIntArg"
+	if basic.Info()&types.IsUnsigned != 0 {
+		helper = "GoUintArg"
+	}
+	return fmt.Sprintf("%s(v.%s(%s, %d))", castExpr, helper, valueExpr, bits)
 }

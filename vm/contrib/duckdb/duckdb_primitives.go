@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"database/sql/driver"
+	"math/big"
 	"reflect"
 	"sync"
 
@@ -400,11 +401,12 @@ func goScanValueToMaggie(vmInst *vm.VM, v interface{}) vm.Value {
 	}
 	switch val := v.(type) {
 	case int64:
-		return vm.FromSmallInt(val)
+		// BIGINT columns are 64-bit; promote beyond SmallInteger range.
+		return vmInst.Registry().NewIntegerValue(val)
 	case int32:
 		return vm.FromSmallInt(int64(val))
 	case int:
-		return vm.FromSmallInt(int64(val))
+		return vmInst.Registry().NewIntegerValue(int64(val))
 	case float64:
 		return vm.FromFloat64(val)
 	case float32:
@@ -423,9 +425,10 @@ func goScanValueToMaggie(vmInst *vm.VM, v interface{}) vm.Value {
 		rv := reflect.ValueOf(v)
 		switch rv.Kind() {
 		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-			return vm.FromSmallInt(rv.Int())
+			return vmInst.Registry().NewIntegerValue(rv.Int())
 		case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-			return vm.FromSmallInt(int64(rv.Uint()))
+			// SetUint64 covers the full range (int64(u) would wrap negative).
+			return vmInst.Registry().NewBigIntValue(new(big.Int).SetUint64(rv.Uint()))
 		case reflect.Float32, reflect.Float64:
 			return vm.FromFloat64(rv.Float())
 		case reflect.String:

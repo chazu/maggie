@@ -490,11 +490,12 @@ func cueToMaggie(vmPtr *vm.VM, v cuelang.Value) vm.Value {
 		}
 		return vm.False
 	case cuelang.IntKind:
-		n, err := v.Int64()
+		// CUE integers are arbitrary precision; keep them exact.
+		n, err := v.Int(nil)
 		if err != nil {
 			return vm.Nil
 		}
-		return vm.FromSmallInt(n)
+		return vmPtr.Registry().NewBigIntValue(n)
 	case cuelang.FloatKind, cuelang.NumberKind:
 		f, err := v.Float64()
 		if err != nil {

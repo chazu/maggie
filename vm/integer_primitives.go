@@ -85,7 +85,8 @@ func (vm *VM) registerSmallIntegerPrimitives() {
 			if arg.SmallInt() == 0 {
 				return v.SignalZeroDivide()
 			}
-			return FromSmallInt(recv.SmallInt() / arg.SmallInt())
+			// MinSmallInt / -1 overflows the 48-bit range; promote.
+			return v.registry.NewIntegerValue(recv.SmallInt() / arg.SmallInt())
 		}
 		if IsBigIntValue(arg) {
 			a := big.NewInt(recv.SmallInt())
@@ -132,7 +133,8 @@ func (vm *VM) registerSmallIntegerPrimitives() {
 			if (a < 0) != (b < 0) && a%b != 0 {
 				result--
 			}
-			return FromSmallInt(result)
+			// MinSmallInt // -1 overflows the 48-bit range; promote.
+			return v.registry.NewIntegerValue(result)
 		}
 		return v.SignalPrimitiveError("//", "argument must be a number")
 	})

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"math/big"
 	"strings"
 )
 
@@ -325,7 +326,12 @@ func (vm *VM) goJSONToValue(v interface{}) Value {
 	case json.Number:
 		// Try integer first
 		if i, err := val.Int64(); err == nil {
-			return FromSmallInt(i)
+			return vm.registry.NewIntegerValue(i)
+		}
+		// Integer literals beyond int64 (large ids) stay exact as BigInteger
+		// rather than silently losing precision through float64.
+		if bi, ok := new(big.Int).SetString(string(val), 10); ok {
+			return vm.registry.NewBigIntValue(bi)
 		}
 		// Fall back to float
 		if f, err := val.Float64(); err == nil {
@@ -336,7 +342,7 @@ func (vm *VM) goJSONToValue(v interface{}) Value {
 		// Shouldn't happen with valid JSON
 		return Nil
 	case float64:
-		if val == math.Trunc(val) && !math.IsInf(val, 0) && val >= math.MinInt64 && val <= math.MaxInt64 {
+		if val == math.Trunc(val) && val >= float64(MinSmallInt) && val <= float64(MaxSmallInt) {
 			return FromSmallInt(int64(val))
 		}
 		return FromFloat64(val)

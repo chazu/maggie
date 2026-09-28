@@ -5,6 +5,7 @@ import (
 	"math"
 	"math/big"
 	"reflect"
+	"strconv"
 	"sync"
 	"unsafe"
 )
@@ -291,6 +292,16 @@ func (vm *VM) ValueToGo(v Value) interface{} {
 		return false
 	case v.IsSmallInt():
 		return v.SmallInt()
+	case IsBigIntValue(v):
+		// Mirror GoToValue: int64 when it fits, *big.Int beyond. Returning
+		// nil here made large integers silently vanish (e.g. bound as NULL).
+		if bi := vm.registry.GetBigInt(v); bi != nil {
+			if bi.Value.IsInt64() {
+				return bi.Value.Int64()
+			}
+			return new(big.Int).Set(bi.Value)
+		}
+		return nil
 	case v.IsFloat():
 		return v.Float64()
 	case IsStringValue(v):
@@ -305,4 +316,58 @@ func (vm *VM) ValueToGo(v Value) interface{} {
 	default:
 		return nil
 	}
+}
+
+// GoIntArg converts an Integer argument for a signed Go integer parameter of
+// the given bit size (0 means the platform int size). gowrap-generated
+// bindings call it; Value.SmallInt panicked on BigIntegers and non-integers,
+// and a plain conversion would silently truncate to the parameter's width.
+// Anything that is not an Integer within range signals a PrimitiveError.
+func (vm *VM) GoIntArg(v Value, bits int) int64 {
+	if bits == 0 {
+		bits = strconv.IntSize
+	}
+	n, ok := vm.integerArg(v)
+	if ok && n.IsInt64() {
+		i := n.Int64()
+		if bits == 64 || (i >= -(1<<(bits-1)) && i < 1<<(bits-1)) {
+			return i
+		}
+	}
+	vm.SignalPrimitiveError("Go argument", fmt.Sprintf("expected an Integer that fits int%d, got %s", bits, vm.describeIntArg(v, ok)))
+	return 0
+}
+
+// GoUintArg is GoIntArg for unsigned Go integer parameters.
+func (vm *VM) GoUintArg(v Value, bits int) uint64 {
+	if bits == 0 {
+		bits = strconv.IntSize
+	}
+	n, ok := vm.integerArg(v)
+	if ok && n.Sign() >= 0 && n.BitLen() <= bits {
+		return n.Uint64()
+	}
+	vm.SignalPrimitiveError("Go argument", fmt.Sprintf("expected an Integer that fits uint%d, got %s", bits, vm.describeIntArg(v, ok)))
+	return 0
+}
+
+// integerArg returns v as a big.Int when it is a SmallInteger or BigInteger.
+func (vm *VM) integerArg(v Value) (*big.Int, bool) {
+	if v.IsSmallInt() {
+		return big.NewInt(v.SmallInt()), true
+	}
+	if IsBigIntValue(v) {
+		if bi := vm.registry.GetBigInt(v); bi != nil {
+			return bi.Value, true
+		}
+	}
+	return nil, false
+}
+
+func (vm *VM) describeIntArg(v Value, isInt bool) string {
+	if isInt {
+		n, _ := vm.integerArg(v)
+		return n.String()
+	}
+	return "a non-Integer"
 }

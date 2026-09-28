@@ -115,7 +115,7 @@ func (vm *VM) goValueToMaggieValue(v interface{}) Value {
 	case string:
 		return vm.registry.NewStringValue(val)
 	case int64:
-		return FromSmallInt(val)
+		return vm.registry.NewIntegerValue(val)
 	case float64:
 		return FromFloat64(val)
 	case bool:

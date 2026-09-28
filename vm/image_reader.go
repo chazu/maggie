@@ -111,9 +111,13 @@ func decodeImageValue(vm *VM, decoder *ImageDecoder, raw cbor.RawMessage) (Value
 		}
 		return False, nil
 	case uint64:
-		return FromSmallInt(int64(v)), nil
+		// A corrupt or hostile image must fail/promote, not panic the loader.
+		if v <= uint64(MaxSmallInt) {
+			return FromSmallInt(int64(v)), nil
+		}
+		return vm.registry.NewBigIntValue(new(big.Int).SetUint64(v)), nil
 	case int64:
-		return FromSmallInt(v), nil
+		return vm.registry.NewIntegerValue(v), nil
 	case float32:
 		return FromFloat64(float64(v)), nil
 	case float64:

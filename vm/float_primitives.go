@@ -84,44 +84,40 @@ func (vm *VM) registerFloatPrimitives() {
 		return recv
 	})
 
-	c.AddMethod0(vm.Selectors, "truncated", func(_ *VM, recv Value) Value {
-		return FromSmallInt(int64(recv.Float64()))
+	// Float -> Integer conversions promote to BigInteger beyond the
+	// SmallInteger range and signal on NaN/Infinity (FromSmallInt would panic
+	// and kill the VM). rounded uses math.Round (half away from zero); the old
+	// f+0.5 formulation answered 1 for 0.49999999999999994.
+	c.AddMethod0(vm.Selectors, "truncated", func(v *VM, recv Value) Value {
+		return v.integerFromFloat("truncated", math.Trunc(recv.Float64()))
 	})
 
-	c.AddMethod0(vm.Selectors, "primTruncated", func(_ *VM, recv Value) Value {
-		return FromSmallInt(int64(recv.Float64()))
+	c.AddMethod0(vm.Selectors, "primTruncated", func(v *VM, recv Value) Value {
+		return v.integerFromFloat("primTruncated", math.Trunc(recv.Float64()))
 	})
 
-	c.AddMethod0(vm.Selectors, "rounded", func(_ *VM, recv Value) Value {
-		f := recv.Float64()
-		if f >= 0 {
-			return FromSmallInt(int64(f + 0.5))
-		}
-		return FromSmallInt(int64(f - 0.5))
+	c.AddMethod0(vm.Selectors, "rounded", func(v *VM, recv Value) Value {
+		return v.integerFromFloat("rounded", math.Round(recv.Float64()))
 	})
 
-	c.AddMethod0(vm.Selectors, "primRounded", func(_ *VM, recv Value) Value {
-		f := recv.Float64()
-		if f >= 0 {
-			return FromSmallInt(int64(f + 0.5))
-		}
-		return FromSmallInt(int64(f - 0.5))
+	c.AddMethod0(vm.Selectors, "primRounded", func(v *VM, recv Value) Value {
+		return v.integerFromFloat("primRounded", math.Round(recv.Float64()))
 	})
 
-	c.AddMethod0(vm.Selectors, "floor", func(_ *VM, recv Value) Value {
-		return FromSmallInt(int64(math.Floor(recv.Float64())))
+	c.AddMethod0(vm.Selectors, "floor", func(v *VM, recv Value) Value {
+		return v.integerFromFloat("floor", math.Floor(recv.Float64()))
 	})
 
-	c.AddMethod0(vm.Selectors, "primFloor", func(_ *VM, recv Value) Value {
-		return FromSmallInt(int64(math.Floor(recv.Float64())))
+	c.AddMethod0(vm.Selectors, "primFloor", func(v *VM, recv Value) Value {
+		return v.integerFromFloat("primFloor", math.Floor(recv.Float64()))
 	})
 
-	c.AddMethod0(vm.Selectors, "ceiling", func(_ *VM, recv Value) Value {
-		return FromSmallInt(int64(math.Ceil(recv.Float64())))
+	c.AddMethod0(vm.Selectors, "ceiling", func(v *VM, recv Value) Value {
+		return v.integerFromFloat("ceiling", math.Ceil(recv.Float64()))
 	})
 
-	c.AddMethod0(vm.Selectors, "primCeiling", func(_ *VM, recv Value) Value {
-		return FromSmallInt(int64(math.Ceil(recv.Float64())))
+	c.AddMethod0(vm.Selectors, "primCeiling", func(v *VM, recv Value) Value {
+		return v.integerFromFloat("primCeiling", math.Ceil(recv.Float64()))
 	})
 
 	c.AddMethod0(vm.Selectors, "printString", func(v *VM, recv Value) Value {

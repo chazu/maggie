@@ -1765,7 +1765,8 @@ func (i *Interpreter) primitiveDiv(a, b Value) Value {
 			// that relied on / raising like every other division operator).
 			return i.vm.SignalZeroDivide()
 		}
-		return FromSmallInt(a.SmallInt() / b.SmallInt())
+		// MinSmallInt / -1 overflows the 48-bit range; promote.
+		return i.vm.registry.NewIntegerValue(a.SmallInt() / b.SmallInt())
 	}
 	if a.IsFloat() && b.IsFloat() {
 		return FromFloat64(a.Float64() / b.Float64())
