@@ -2,10 +2,13 @@ package sqlite
 
 import (
 	"database/sql"
+	"database/sql/driver"
 	"fmt"
+	"math/big"
 	"reflect"
 	"strings"
 	"sync"
+	"sync/atomic"
 
 	vm "github.com/chazu/maggie/vm"
 
@@ -17,26 +20,80 @@ import (
 // ---------------------------------------------------------------------------
 
 // SqliteDatabaseObject wraps a Go *sql.DB for use in Maggie.
+//
+// database/sql pools connections, so a SQL-level BEGIN only covers whichever
+// connection ran it. beginTransaction instead holds a *sql.Tx, and every
+// operation runs on it (see conn) until commit or rollback. mu guards closed
+// and tx, since forked processes may share one database object.
 type SqliteDatabaseObject struct {
 	db     *sql.DB
 	path   string
 	closed bool
+	tx     *sql.Tx
 	mu     sync.Mutex
 }
 
+// sqlConn is the query surface shared by *sql.DB and *sql.Tx.
+type sqlConn interface {
+	Exec(query string, args ...any) (sql.Result, error)
+	Query(query string, args ...any) (*sql.Rows, error)
+	QueryRow(query string, args ...any) *sql.Row
+}
+
+// conn returns the active transaction, or the pool when none is active.
+// ok is false once the database is closed.
+func (d *SqliteDatabaseObject) conn() (c sqlConn, ok bool) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if d.closed {
+		return nil, false
+	}
+	if d.tx != nil {
+		return d.tx, true
+	}
+	return d.db, true
+}
+
+// activeTx returns the active transaction, or nil.
+func (d *SqliteDatabaseObject) activeTx() *sql.Tx {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	return d.tx
+}
+
+// memoryDBCounter names in-memory databases; see primOpenMemory.
+var memoryDBCounter atomic.Uint64
+
 // SqliteStatementObject wraps a Go *sql.Stmt for use in Maggie.
+// *sql.Stmt is safe for concurrent use; closed is atomic because forked
+// processes may share the statement.
 type SqliteStatementObject struct {
 	stmt   *sql.Stmt
 	query  string
 	dbObj  *SqliteDatabaseObject
-	closed bool
+	closed atomic.Bool
+}
+
+// current returns the statement bound to the database's active transaction,
+// if any, so prepared statements don't run outside it. The tx-specific
+// statement is closed by database/sql when the transaction ends.
+func (s *SqliteStatementObject) current() *sql.Stmt {
+	if tx := s.dbObj.activeTx(); tx != nil {
+		return tx.Stmt(s.stmt)
+	}
+	return s.stmt
 }
 
 // SqliteRowsObject wraps *sql.Rows for iteration in Maggie.
+//
+// *sql.Rows is not safe for concurrent Next/Scan, and forked processes may
+// share a cursor, so mu serializes every operation on rows and closed.
+// columns is immutable after construction.
 type SqliteRowsObject struct {
 	rows    *sql.Rows
 	columns []string
 	closed  bool
+	mu      sync.Mutex
 }
 
 // ---------------------------------------------------------------------------
@@ -92,8 +149,11 @@ func registerSqliteDatabasePrimitives(vmInst *vm.VM, dbClass *vm.Class) {
 
 	// openMemory — Open an in-memory SQLite database
 	dbClass.AddClassMethod0(vmInst.Selectors, "primOpenMemory", func(v *vm.VM, recv vm.Value) vm.Value {
-
-		db, err := sql.Open("sqlite", ":memory:")
+		// Plain ":memory:" gives each pooled connection its own empty
+		// database. The memdb VFS shares one database, by name, across the
+		// pool's connections; a unique name keeps separate opens separate.
+		name := fmt.Sprintf("file:/maggie-memory-%d?vfs=memdb", memoryDBCounter.Add(1))
+		db, err := sql.Open("sqlite", name)
 		if err != nil {
 			return v.NewFailureResult("Cannot open in-memory database: " + err.Error())
 		}
@@ -118,6 +178,10 @@ func registerSqliteDatabasePrimitives(vmInst *vm.VM, dbClass *vm.Class) {
 		if dbObj.closed {
 			return v.NewFailureResult("Database already closed")
 		}
+		if dbObj.tx != nil {
+			dbObj.tx.Rollback()
+			dbObj.tx = nil
+		}
 		err := dbObj.db.Close()
 		dbObj.closed = true
 		if err != nil {
@@ -132,7 +196,8 @@ func registerSqliteDatabasePrimitives(vmInst *vm.VM, dbClass *vm.Class) {
 		if dbObj == nil {
 			return v.NewFailureResult("Not a SqliteDatabase")
 		}
-		if dbObj.closed {
+		conn, ok := dbObj.conn()
+		if !ok {
 			return v.NewFailureResult("Database is closed")
 		}
 
@@ -141,13 +206,13 @@ func registerSqliteDatabasePrimitives(vmInst *vm.VM, dbClass *vm.Class) {
 			return v.NewFailureResult("execute: requires a SQL string")
 		}
 
-		result, err := dbObj.db.Exec(sqlStr)
+		result, err := conn.Exec(sqlStr)
 		if err != nil {
 			return v.NewFailureResult("SQL error: " + err.Error())
 		}
 
 		rowsAffected, _ := result.RowsAffected()
-		return vm.FromSmallInt(rowsAffected)
+		return v.Registry().NewIntegerValue(rowsAffected)
 	})
 
 	// execute:with: sql params — Execute SQL with positional parameters (array)
@@ -156,7 +221,8 @@ func registerSqliteDatabasePrimitives(vmInst *vm.VM, dbClass *vm.Class) {
 		if dbObj == nil {
 			return v.NewFailureResult("Not a SqliteDatabase")
 		}
-		if dbObj.closed {
+		conn, ok := dbObj.conn()
+		if !ok {
 			return v.NewFailureResult("Database is closed")
 		}
 
@@ -166,13 +232,13 @@ func registerSqliteDatabasePrimitives(vmInst *vm.VM, dbClass *vm.Class) {
 		}
 
 		args := valueToGoArgs(v, paramsVal)
-		result, err := dbObj.db.Exec(sqlStr, args...)
+		result, err := conn.Exec(sqlStr, args...)
 		if err != nil {
 			return v.NewFailureResult("SQL error: " + err.Error())
 		}
 
 		rowsAffected, _ := result.RowsAffected()
-		return vm.FromSmallInt(rowsAffected)
+		return v.Registry().NewIntegerValue(rowsAffected)
 	})
 
 	// query: sql — Execute SQL that returns rows (SELECT)
@@ -181,7 +247,8 @@ func registerSqliteDatabasePrimitives(vmInst *vm.VM, dbClass *vm.Class) {
 		if dbObj == nil {
 			return v.NewFailureResult("Not a SqliteDatabase")
 		}
-		if dbObj.closed {
+		conn, ok := dbObj.conn()
+		if !ok {
 			return v.NewFailureResult("Database is closed")
 		}
 
@@ -190,7 +257,7 @@ func registerSqliteDatabasePrimitives(vmInst *vm.VM, dbClass *vm.Class) {
 			return v.NewFailureResult("query: requires a SQL string")
 		}
 
-		rows, err := dbObj.db.Query(sqlStr)
+		rows, err := conn.Query(sqlStr)
 		if err != nil {
 			return v.NewFailureResult("SQL error: " + err.Error())
 		}
@@ -211,7 +278,8 @@ func registerSqliteDatabasePrimitives(vmInst *vm.VM, dbClass *vm.Class) {
 		if dbObj == nil {
 			return v.NewFailureResult("Not a SqliteDatabase")
 		}
-		if dbObj.closed {
+		conn, ok := dbObj.conn()
+		if !ok {
 			return v.NewFailureResult("Database is closed")
 		}
 
@@ -221,7 +289,7 @@ func registerSqliteDatabasePrimitives(vmInst *vm.VM, dbClass *vm.Class) {
 		}
 
 		args := valueToGoArgs(v, paramsVal)
-		rows, err := dbObj.db.Query(sqlStr, args...)
+		rows, err := conn.Query(sqlStr, args...)
 		if err != nil {
 			return v.NewFailureResult("SQL error: " + err.Error())
 		}
@@ -242,7 +310,8 @@ func registerSqliteDatabasePrimitives(vmInst *vm.VM, dbClass *vm.Class) {
 		if dbObj == nil {
 			return v.NewFailureResult("Not a SqliteDatabase")
 		}
-		if dbObj.closed {
+		conn, ok := dbObj.conn()
+		if !ok {
 			return v.NewFailureResult("Database is closed")
 		}
 
@@ -251,7 +320,7 @@ func registerSqliteDatabasePrimitives(vmInst *vm.VM, dbClass *vm.Class) {
 			return v.NewFailureResult("queryRow: requires a SQL string")
 		}
 
-		rows, err := dbObj.db.Query(sqlStr)
+		rows, err := conn.Query(sqlStr)
 		if err != nil {
 			return v.NewFailureResult("SQL error: " + err.Error())
 		}
@@ -266,7 +335,8 @@ func registerSqliteDatabasePrimitives(vmInst *vm.VM, dbClass *vm.Class) {
 		if dbObj == nil {
 			return v.NewFailureResult("Not a SqliteDatabase")
 		}
-		if dbObj.closed {
+		conn, ok := dbObj.conn()
+		if !ok {
 			return v.NewFailureResult("Database is closed")
 		}
 
@@ -276,7 +346,7 @@ func registerSqliteDatabasePrimitives(vmInst *vm.VM, dbClass *vm.Class) {
 		}
 
 		args := valueToGoArgs(v, paramsVal)
-		rows, err := dbObj.db.Query(sqlStr, args...)
+		rows, err := conn.Query(sqlStr, args...)
 		if err != nil {
 			return v.NewFailureResult("SQL error: " + err.Error())
 		}
@@ -291,12 +361,13 @@ func registerSqliteDatabasePrimitives(vmInst *vm.VM, dbClass *vm.Class) {
 		if dbObj == nil {
 			return v.NewFailureResult("Not a SqliteDatabase")
 		}
-		if dbObj.closed {
+		conn, ok := dbObj.conn()
+		if !ok {
 			return v.NewFailureResult("Database is closed")
 		}
 
 		sqlStr := v.ValueToString(sqlVal)
-		return queryAllRows(v, dbObj, sqlStr, nil)
+		return queryAllRows(v, conn, sqlStr, nil)
 	})
 
 	// queryAll:with: sql params — Execute SQL with params and return all rows
@@ -305,13 +376,14 @@ func registerSqliteDatabasePrimitives(vmInst *vm.VM, dbClass *vm.Class) {
 		if dbObj == nil {
 			return v.NewFailureResult("Not a SqliteDatabase")
 		}
-		if dbObj.closed {
+		conn, ok := dbObj.conn()
+		if !ok {
 			return v.NewFailureResult("Database is closed")
 		}
 
 		sqlStr := v.ValueToString(sqlVal)
 		args := valueToGoArgs(v, paramsVal)
-		return queryAllRows(v, dbObj, sqlStr, args)
+		return queryAllRows(v, conn, sqlStr, args)
 	})
 
 	// prepare: sql — Prepare a statement for repeated execution
@@ -320,7 +392,8 @@ func registerSqliteDatabasePrimitives(vmInst *vm.VM, dbClass *vm.Class) {
 		if dbObj == nil {
 			return v.NewFailureResult("Not a SqliteDatabase")
 		}
-		if dbObj.closed {
+		_, ok := dbObj.conn()
+		if !ok {
 			return v.NewFailureResult("Database is closed")
 		}
 
@@ -349,13 +422,14 @@ func registerSqliteDatabasePrimitives(vmInst *vm.VM, dbClass *vm.Class) {
 		if dbObj == nil {
 			return v.NewFailureResult("Not a SqliteDatabase")
 		}
-		if dbObj.closed {
+		conn, ok := dbObj.conn()
+		if !ok {
 			return v.NewFailureResult("Database is closed")
 		}
 
 		name := v.ValueToString(nameVal)
 		var result string
-		err := dbObj.db.QueryRow("PRAGMA " + name).Scan(&result)
+		err := conn.QueryRow("PRAGMA " + name).Scan(&result)
 		if err != nil {
 			return v.NewFailureResult("PRAGMA error: " + err.Error())
 		}
@@ -368,13 +442,14 @@ func registerSqliteDatabasePrimitives(vmInst *vm.VM, dbClass *vm.Class) {
 		if dbObj == nil {
 			return v.NewFailureResult("Not a SqliteDatabase")
 		}
-		if dbObj.closed {
+		conn, ok := dbObj.conn()
+		if !ok {
 			return v.NewFailureResult("Database is closed")
 		}
 
 		name := v.ValueToString(nameVal)
 		valStr := v.ValueToString(valVal)
-		_, err := dbObj.db.Exec(fmt.Sprintf("PRAGMA %s = %s", name, valStr))
+		_, err := conn.Exec(fmt.Sprintf("PRAGMA %s = %s", name, valStr))
 		if err != nil {
 			return v.NewFailureResult("PRAGMA error: " + err.Error())
 		}
@@ -387,12 +462,13 @@ func registerSqliteDatabasePrimitives(vmInst *vm.VM, dbClass *vm.Class) {
 		if dbObj == nil {
 			return v.NewFailureResult("Not a SqliteDatabase")
 		}
-		if dbObj.closed {
+		conn, ok := dbObj.conn()
+		if !ok {
 			return v.NewFailureResult("Database is closed")
 		}
 
 		var result string
-		err := dbObj.db.QueryRow("PRAGMA journal_mode=WAL").Scan(&result)
+		err := conn.QueryRow("PRAGMA journal_mode=WAL").Scan(&result)
 		if err != nil {
 			return v.NewFailureResult("Cannot enable WAL: " + err.Error())
 		}
@@ -405,14 +481,25 @@ func registerSqliteDatabasePrimitives(vmInst *vm.VM, dbClass *vm.Class) {
 		if dbObj == nil {
 			return v.NewFailureResult("Not a SqliteDatabase")
 		}
-		if dbObj.closed {
+		conn, ok := dbObj.conn()
+		if !ok {
 			return v.NewFailureResult("Database is closed")
 		}
 
-		_, err := dbObj.db.Exec("BEGIN TRANSACTION")
+		if _, isTx := conn.(*sql.Tx); isTx {
+			return v.NewFailureResult("Cannot begin transaction: a transaction is already active")
+		}
+		tx, err := dbObj.db.Begin()
 		if err != nil {
 			return v.NewFailureResult("Cannot begin transaction: " + err.Error())
 		}
+		dbObj.mu.Lock()
+		defer dbObj.mu.Unlock()
+		if dbObj.closed || dbObj.tx != nil {
+			tx.Rollback()
+			return v.NewFailureResult("Cannot begin transaction: database closed or transaction started concurrently")
+		}
+		dbObj.tx = tx
 		return recv
 	})
 
@@ -422,12 +509,21 @@ func registerSqliteDatabasePrimitives(vmInst *vm.VM, dbClass *vm.Class) {
 		if dbObj == nil {
 			return v.NewFailureResult("Not a SqliteDatabase")
 		}
-		if dbObj.closed {
+		conn, ok := dbObj.conn()
+		if !ok {
 			return v.NewFailureResult("Database is closed")
 		}
 
-		_, err := dbObj.db.Exec("COMMIT")
-		if err != nil {
+		tx, isTx := conn.(*sql.Tx)
+		if !isTx {
+			return v.NewFailureResult("Cannot commit transaction: no transaction is active")
+		}
+		dbObj.mu.Lock()
+		if dbObj.tx == tx {
+			dbObj.tx = nil
+		}
+		dbObj.mu.Unlock()
+		if err := tx.Commit(); err != nil {
 			return v.NewFailureResult("Cannot commit transaction: " + err.Error())
 		}
 		return vm.True
@@ -439,12 +535,21 @@ func registerSqliteDatabasePrimitives(vmInst *vm.VM, dbClass *vm.Class) {
 		if dbObj == nil {
 			return v.NewFailureResult("Not a SqliteDatabase")
 		}
-		if dbObj.closed {
+		conn, ok := dbObj.conn()
+		if !ok {
 			return v.NewFailureResult("Database is closed")
 		}
 
-		_, err := dbObj.db.Exec("ROLLBACK")
-		if err != nil {
+		tx, isTx := conn.(*sql.Tx)
+		if !isTx {
+			return v.NewFailureResult("Cannot rollback transaction: no transaction is active")
+		}
+		dbObj.mu.Lock()
+		if dbObj.tx == tx {
+			dbObj.tx = nil
+		}
+		dbObj.mu.Unlock()
+		if err := tx.Rollback(); err != nil {
 			return v.NewFailureResult("Cannot rollback transaction: " + err.Error())
 		}
 		return vm.True
@@ -465,7 +570,7 @@ func registerSqliteDatabasePrimitives(vmInst *vm.VM, dbClass *vm.Class) {
 		if dbObj == nil {
 			return vm.False
 		}
-		if dbObj.closed {
+		if _, ok := dbObj.conn(); !ok {
 			return vm.True
 		}
 		return vm.False
@@ -477,16 +582,17 @@ func registerSqliteDatabasePrimitives(vmInst *vm.VM, dbClass *vm.Class) {
 		if dbObj == nil {
 			return v.NewFailureResult("Not a SqliteDatabase")
 		}
-		if dbObj.closed {
+		conn, ok := dbObj.conn()
+		if !ok {
 			return v.NewFailureResult("Database is closed")
 		}
 
 		var id int64
-		err := dbObj.db.QueryRow("SELECT last_insert_rowid()").Scan(&id)
+		err := conn.QueryRow("SELECT last_insert_rowid()").Scan(&id)
 		if err != nil {
 			return v.NewFailureResult("Cannot get last insert ID: " + err.Error())
 		}
-		return vm.FromSmallInt(id)
+		return v.Registry().NewIntegerValue(id)
 	})
 
 	// tableExists: name — Check if a table exists
@@ -495,13 +601,14 @@ func registerSqliteDatabasePrimitives(vmInst *vm.VM, dbClass *vm.Class) {
 		if dbObj == nil {
 			return v.NewFailureResult("Not a SqliteDatabase")
 		}
-		if dbObj.closed {
+		conn, ok := dbObj.conn()
+		if !ok {
 			return v.NewFailureResult("Database is closed")
 		}
 
 		name := v.ValueToString(nameVal)
 		var count int
-		err := dbObj.db.QueryRow(
+		err := conn.QueryRow(
 			"SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name=?", name,
 		).Scan(&count)
 		if err != nil {
@@ -519,11 +626,12 @@ func registerSqliteDatabasePrimitives(vmInst *vm.VM, dbClass *vm.Class) {
 		if dbObj == nil {
 			return v.NewFailureResult("Not a SqliteDatabase")
 		}
-		if dbObj.closed {
+		conn, ok := dbObj.conn()
+		if !ok {
 			return v.NewFailureResult("Database is closed")
 		}
 
-		rows, err := dbObj.db.Query("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
+		rows, err := conn.Query("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
 		if err != nil {
 			return v.NewFailureResult("Error listing tables: " + err.Error())
 		}
@@ -537,6 +645,9 @@ func registerSqliteDatabasePrimitives(vmInst *vm.VM, dbClass *vm.Class) {
 			}
 			names = append(names, v.Registry().NewStringValue(name))
 		}
+		if err := rows.Err(); err != nil {
+			return v.NewFailureResult("Error listing tables: " + err.Error())
+		}
 		return v.NewArrayWithElements(names)
 	})
 
@@ -546,12 +657,13 @@ func registerSqliteDatabasePrimitives(vmInst *vm.VM, dbClass *vm.Class) {
 		if dbObj == nil {
 			return v.NewFailureResult("Not a SqliteDatabase")
 		}
-		if dbObj.closed {
+		conn, ok := dbObj.conn()
+		if !ok {
 			return v.NewFailureResult("Database is closed")
 		}
 
 		var version string
-		err := dbObj.db.QueryRow("SELECT sqlite_version()").Scan(&version)
+		err := conn.QueryRow("SELECT sqlite_version()").Scan(&version)
 		if err != nil {
 			return v.NewFailureResult("Cannot get version: " + err.Error())
 		}
@@ -564,20 +676,19 @@ func registerSqliteDatabasePrimitives(vmInst *vm.VM, dbClass *vm.Class) {
 		if dbObj == nil {
 			return v.NewFailureResult("Not a SqliteDatabase")
 		}
-		if dbObj.closed {
+		conn, ok := dbObj.conn()
+		if !ok {
 			return v.NewFailureResult("Database is closed")
 		}
 
 		sqlStr := v.ValueToString(sqlVal)
-		var version int64
-		if versionVal.IsSmallInt() {
-			version = versionVal.SmallInt()
-		} else {
-			return v.NewFailureResult("migrate:version: version must be an integer")
+		version, isInt := sqlArg(v, versionVal).(int64)
+		if !isInt {
+			return v.NewFailureResult("migrate:version: version must be a 64-bit integer")
 		}
 
 		// Create migrations table if it doesn't exist
-		_, err := dbObj.db.Exec(`CREATE TABLE IF NOT EXISTS _maggie_migrations (
+		_, err := conn.Exec(`CREATE TABLE IF NOT EXISTS _maggie_migrations (
 			version INTEGER PRIMARY KEY,
 			applied_at TEXT DEFAULT (datetime('now'))
 		)`)
@@ -587,7 +698,7 @@ func registerSqliteDatabasePrimitives(vmInst *vm.VM, dbClass *vm.Class) {
 
 		// Check if migration already applied
 		var count int
-		err = dbObj.db.QueryRow("SELECT COUNT(*) FROM _maggie_migrations WHERE version = ?", version).Scan(&count)
+		err = conn.QueryRow("SELECT COUNT(*) FROM _maggie_migrations WHERE version = ?", version).Scan(&count)
 		if err != nil {
 			return v.NewFailureResult("Cannot check migration status: " + err.Error())
 		}
@@ -595,7 +706,18 @@ func registerSqliteDatabasePrimitives(vmInst *vm.VM, dbClass *vm.Class) {
 			return vm.False // Already applied
 		}
 
-		// Apply migration in a transaction
+		// Inside a user transaction the migration joins it (the caller
+		// commits); otherwise it gets its own.
+		if outer, isTx := conn.(*sql.Tx); isTx {
+			if _, err := outer.Exec(sqlStr); err != nil {
+				return v.NewFailureResult("Migration failed: " + err.Error())
+			}
+			if _, err := outer.Exec("INSERT INTO _maggie_migrations (version) VALUES (?)", version); err != nil {
+				return v.NewFailureResult("Cannot record migration: " + err.Error())
+			}
+			return vm.True
+		}
+
 		tx, err := dbObj.db.Begin()
 		if err != nil {
 			return v.NewFailureResult("Cannot begin migration transaction: " + err.Error())
@@ -626,13 +748,14 @@ func registerSqliteDatabasePrimitives(vmInst *vm.VM, dbClass *vm.Class) {
 		if dbObj == nil {
 			return v.NewFailureResult("Not a SqliteDatabase")
 		}
-		if dbObj.closed {
+		conn, ok := dbObj.conn()
+		if !ok {
 			return v.NewFailureResult("Database is closed")
 		}
 
 		// Check if migrations table exists
 		var count int
-		err := dbObj.db.QueryRow(
+		err := conn.QueryRow(
 			"SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='_maggie_migrations'",
 		).Scan(&count)
 		if err != nil {
@@ -643,11 +766,11 @@ func registerSqliteDatabasePrimitives(vmInst *vm.VM, dbClass *vm.Class) {
 		}
 
 		var version int64
-		err = dbObj.db.QueryRow("SELECT COALESCE(MAX(version), 0) FROM _maggie_migrations").Scan(&version)
+		err = conn.QueryRow("SELECT COALESCE(MAX(version), 0) FROM _maggie_migrations").Scan(&version)
 		if err != nil {
 			return v.NewFailureResult("Cannot get migration version: " + err.Error())
 		}
-		return vm.FromSmallInt(version)
+		return v.Registry().NewIntegerValue(version)
 	})
 }
 
@@ -662,16 +785,16 @@ func registerSqliteStatementPrimitives(vmInst *vm.VM, stmtClass *vm.Class) {
 		if stmtObj == nil {
 			return v.NewFailureResult("Not a SqliteStatement")
 		}
-		if stmtObj.closed {
+		if stmtObj.closed.Load() {
 			return v.NewFailureResult("Statement is closed")
 		}
 
-		result, err := stmtObj.stmt.Exec()
+		result, err := stmtObj.current().Exec()
 		if err != nil {
 			return v.NewFailureResult("Statement execute error: " + err.Error())
 		}
 		rowsAffected, _ := result.RowsAffected()
-		return vm.FromSmallInt(rowsAffected)
+		return v.Registry().NewIntegerValue(rowsAffected)
 	})
 
 	// executeWith: params — Execute the prepared statement with params (array)
@@ -680,17 +803,17 @@ func registerSqliteStatementPrimitives(vmInst *vm.VM, stmtClass *vm.Class) {
 		if stmtObj == nil {
 			return v.NewFailureResult("Not a SqliteStatement")
 		}
-		if stmtObj.closed {
+		if stmtObj.closed.Load() {
 			return v.NewFailureResult("Statement is closed")
 		}
 
 		args := valueToGoArgs(v, paramsVal)
-		result, err := stmtObj.stmt.Exec(args...)
+		result, err := stmtObj.current().Exec(args...)
 		if err != nil {
 			return v.NewFailureResult("Statement execute error: " + err.Error())
 		}
 		rowsAffected, _ := result.RowsAffected()
-		return vm.FromSmallInt(rowsAffected)
+		return v.Registry().NewIntegerValue(rowsAffected)
 	})
 
 	// query — Query with the prepared statement, no params
@@ -699,11 +822,11 @@ func registerSqliteStatementPrimitives(vmInst *vm.VM, stmtClass *vm.Class) {
 		if stmtObj == nil {
 			return v.NewFailureResult("Not a SqliteStatement")
 		}
-		if stmtObj.closed {
+		if stmtObj.closed.Load() {
 			return v.NewFailureResult("Statement is closed")
 		}
 
-		rows, err := stmtObj.stmt.Query()
+		rows, err := stmtObj.current().Query()
 		if err != nil {
 			return v.NewFailureResult("Statement query error: " + err.Error())
 		}
@@ -724,12 +847,12 @@ func registerSqliteStatementPrimitives(vmInst *vm.VM, stmtClass *vm.Class) {
 		if stmtObj == nil {
 			return v.NewFailureResult("Not a SqliteStatement")
 		}
-		if stmtObj.closed {
+		if stmtObj.closed.Load() {
 			return v.NewFailureResult("Statement is closed")
 		}
 
 		args := valueToGoArgs(v, paramsVal)
-		rows, err := stmtObj.stmt.Query(args...)
+		rows, err := stmtObj.current().Query(args...)
 		if err != nil {
 			return v.NewFailureResult("Statement query error: " + err.Error())
 		}
@@ -750,11 +873,10 @@ func registerSqliteStatementPrimitives(vmInst *vm.VM, stmtClass *vm.Class) {
 		if stmtObj == nil {
 			return v.NewFailureResult("Not a SqliteStatement")
 		}
-		if stmtObj.closed {
+		if stmtObj.closed.Swap(true) {
 			return v.NewFailureResult("Statement already closed")
 		}
 		err := stmtObj.stmt.Close()
-		stmtObj.closed = true
 		if err != nil {
 			return v.NewFailureResult("Error closing statement: " + err.Error())
 		}
@@ -782,11 +904,18 @@ func registerSqliteRowsPrimitives(vmInst *vm.VM, rowsClass *vm.Class) {
 		if rowsObj == nil {
 			return v.NewFailureResult("Not a SqliteRows")
 		}
+		rowsObj.mu.Lock()
+		defer rowsObj.mu.Unlock()
 		if rowsObj.closed {
 			return vm.False
 		}
 		if rowsObj.rows.Next() {
 			return vm.True
+		}
+		// Next is false both at the end and on error; don't report an
+		// error as a normal end of rows.
+		if err := rowsObj.rows.Err(); err != nil {
+			return v.NewFailureResult("Error reading rows: " + err.Error())
 		}
 		return vm.False
 	})
@@ -870,6 +999,8 @@ func registerSqliteRowsPrimitives(vmInst *vm.VM, rowsClass *vm.Class) {
 		if rowsObj == nil {
 			return v.NewFailureResult("Not a SqliteRows")
 		}
+		rowsObj.mu.Lock()
+		defer rowsObj.mu.Unlock()
 		if rowsObj.closed {
 			return vm.True
 		}
@@ -929,23 +1060,44 @@ func getSqliteRows(vmInst *vm.VM, val vm.Value) *SqliteRowsObject {
 func valueToGoArgs(vmInst *vm.VM, val vm.Value) []interface{} {
 	if !val.IsObject() {
 		// Single value
-		return []interface{}{vmInst.ValueToGo(val)}
+		return []interface{}{sqlArg(vmInst, val)}
 	}
 	obj := vm.ObjectFromValue(val)
 	if obj == nil {
-		return []interface{}{vmInst.ValueToGo(val)}
+		return []interface{}{sqlArg(vmInst, val)}
 	}
 
 	n := obj.NumSlots()
 	args := make([]interface{}, n)
 	for i := 0; i < n; i++ {
-		args[i] = vmInst.ValueToGo(obj.GetSlot(i))
+		args[i] = sqlArg(vmInst, obj.GetSlot(i))
 	}
 	return args
 }
 
+// sqlArg converts one bind parameter. VM.ValueToGo gives an int64 for any
+// Integer that fits and a *big.Int beyond that; SQLite INTEGER is signed
+// 64-bit, so a *big.Int binds a driver.Valuer whose error surfaces through
+// the existing Exec/Query error path as a Failure result (rather than the
+// driver's generic unsupported-type error).
+func sqlArg(vmInst *vm.VM, v vm.Value) interface{} {
+	arg := vmInst.ValueToGo(v)
+	if n, ok := arg.(*big.Int); ok {
+		return sqlArgError{fmt.Errorf("integer %s does not fit SQLite's signed 64-bit INTEGER", n)}
+	}
+	return arg
+}
+
+// sqlArgError is a bind parameter that fails conversion with err.
+type sqlArgError struct{ err error }
+
+func (e sqlArgError) Value() (driver.Value, error) { return nil, e.err }
+
 // scanCurrentRow scans all columns of the current row and returns the value at idx.
 func scanCurrentRow(vmInst *vm.VM, rowsObj *SqliteRowsObject, idx int) vm.Value {
+	rowsObj.mu.Lock()
+	defer rowsObj.mu.Unlock()
+
 	colCount := len(rowsObj.columns)
 	values := make([]interface{}, colCount)
 	valuePtrs := make([]interface{}, colCount)
@@ -962,6 +1114,9 @@ func scanCurrentRow(vmInst *vm.VM, rowsObj *SqliteRowsObject, idx int) vm.Value 
 
 // currentRowToDict scans the current row and returns it as a Dictionary.
 func currentRowToDict(vmInst *vm.VM, rowsObj *SqliteRowsObject) vm.Value {
+	rowsObj.mu.Lock()
+	defer rowsObj.mu.Unlock()
+
 	colCount := len(rowsObj.columns)
 	values := make([]interface{}, colCount)
 	valuePtrs := make([]interface{}, colCount)
@@ -992,6 +1147,9 @@ func currentRowToDict(vmInst *vm.VM, rowsObj *SqliteRowsObject) vm.Value {
 // Returns nil if no rows. Caller must close rows.
 func rowToDict(vmInst *vm.VM, rows *sql.Rows) vm.Value {
 	if !rows.Next() {
+		if err := rows.Err(); err != nil {
+			return vmInst.NewFailureResult("Error reading row: " + err.Error())
+		}
 		return vm.Nil
 	}
 
@@ -1023,7 +1181,7 @@ func rowToDict(vmInst *vm.VM, rows *sql.Rows) vm.Value {
 }
 
 // queryAllRows executes a query and returns all rows as an Array of Dictionaries.
-func queryAllRows(vmInst *vm.VM, dbObj *SqliteDatabaseObject, sqlStr string, args []interface{}) vm.Value {
+func queryAllRows(vmInst *vm.VM, conn sqlConn, sqlStr string, args []interface{}) vm.Value {
 	if sqlStr == "" {
 		return vmInst.NewFailureResult("queryAll: requires a SQL string")
 	}
@@ -1031,9 +1189,9 @@ func queryAllRows(vmInst *vm.VM, dbObj *SqliteDatabaseObject, sqlStr string, arg
 	var rows *sql.Rows
 	var err error
 	if args == nil {
-		rows, err = dbObj.db.Query(sqlStr)
+		rows, err = conn.Query(sqlStr)
 	} else {
-		rows, err = dbObj.db.Query(sqlStr, args...)
+		rows, err = conn.Query(sqlStr, args...)
 	}
 	if err != nil {
 		return vmInst.NewFailureResult("SQL error: " + err.Error())
@@ -1069,6 +1227,9 @@ func queryAllRows(vmInst *vm.VM, dbObj *SqliteDatabaseObject, sqlStr string, arg
 
 		results = append(results, dict)
 	}
+	if err := rows.Err(); err != nil {
+		return vmInst.NewFailureResult("Error reading rows: " + err.Error())
+	}
 
 	return vmInst.NewArrayWithElements(results)
 }
@@ -1081,7 +1242,8 @@ func sqlValueToMaggie(vmInst *vm.VM, v interface{}) vm.Value {
 	}
 	switch val := v.(type) {
 	case int64:
-		return vm.FromSmallInt(val)
+		// INTEGER columns are 64-bit; promote beyond SmallInteger range.
+		return vmInst.Registry().NewIntegerValue(val)
 	case float64:
 		return vm.FromFloat64(val)
 	case string:
