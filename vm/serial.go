@@ -858,21 +858,26 @@ func (d *valueDeserializer) deserializeException(tag cbor.Tag) (Value, error) {
 	return d.vm.registry.RegisterExceptionValue(exObj), nil
 }
 
-// lookupExceptionClass finds an exception class by name, checking the standard
-// exception hierarchy. Returns nil if not found.
+// lookupExceptionClass finds an exception class by name. Returns nil if the
+// name is unknown or names a class outside the Exception hierarchy — the name
+// comes off the wire, and a peer must not be able to mint an "exception" whose
+// class is, say, Object.
 func (d *valueDeserializer) lookupExceptionClass(name string) *Class {
 	if name == "" {
 		return nil
 	}
-	// Try Globals first (covers all registered exception classes)
-	if gv, ok := d.vm.globals[name]; ok {
-		if cls := d.vm.GetClassFromValue(gv); cls != nil {
-			return cls
-		}
+	var cls *Class
+	// Try Globals first (covers all registered exception classes). Go through
+	// Global(): deserialization runs on network goroutines concurrently with
+	// global writes, so the map must be read under globalsMu.
+	if gv, ok := d.vm.Global(name); ok {
+		cls = d.vm.GetClassFromValue(gv)
 	}
-	// Try ClassTable
-	if cls := d.vm.Classes.Lookup(name); cls != nil {
-		return cls
+	if cls == nil {
+		cls = d.vm.Classes.Lookup(name)
 	}
-	return nil
+	if cls == nil || !cls.IsSubclassOf(d.vm.ExceptionClass) {
+		return nil
+	}
+	return cls
 }
