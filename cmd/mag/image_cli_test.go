@@ -800,6 +800,9 @@ func TestImageRoundTrip_ClassMethodIsClassMethodFlag(t *testing.T) {
 }
 
 func TestSaveImage_ReadOnlyDirectoryFails(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root bypasses directory permissions")
+	}
 	tmpDir := t.TempDir()
 	readOnlyDir := filepath.Join(tmpDir, "readonly")
 	if err := os.Mkdir(readOnlyDir, 0555); err != nil {

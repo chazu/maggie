@@ -51,6 +51,51 @@ MailboxMessage subclass: Object
   ]
 
   """
+  Answer true when the sender used `RemoteProcess>>asyncSend:with:` and is
+  awaiting a reply; false for fire-and-forget `cast:with:`/`send:`.
+
+  ```example
+  | p <Process> |
+  p := [Process receive isRequest] fork.
+  Process sleep: 10.
+  p send: 42.
+  p wait  "=> false"
+  ```
+
+  ```test
+  | p <Process> |
+  p := [Process receive isRequest] fork.
+  Process sleep: 10.
+  p send: 42.
+  p wait >>> false
+  ```
+  """
+  method: isRequest ^<Boolean> [ <primitive> ]
+
+  """
+  Answer a request-response message with value, routing it back to the
+  requester's Future. Signals if the message was not a request or the
+  requester is unreachable. Returns value.
+
+  ```example
+  | p <Process> |
+  p := [[Process receive reply: 1. false] on: Error do: [:e | e return: true]] fork.
+  Process sleep: 10.
+  p send: 42.
+  p wait  "=> true"
+  ```
+
+  ```test
+  | p <Process> |
+  p := [[Process receive reply: 1. false] on: Error do: [:e | e return: true]] fork.
+  Process sleep: 10.
+  p send: 42.
+  p wait >>> true
+  ```
+  """
+  method: reply: value [ <primitive> ]
+
+  """
   Return a string representation of the message.
   """
   method: printString ^<String> [
