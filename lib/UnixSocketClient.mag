@@ -2,30 +2,39 @@
 A Unix domain socket client that connects to a server at a
 filesystem path.
 
-Returns a SocketConnection for sending and receiving data.
+`connectTo:` answers a Result (CONVENTIONS §1): Success wrapping a
+SocketConnection for sending and receiving data, or Failure with the
+reason (no such socket, connection refused).
 
 ```example
 | conn <SocketConnection> response <String> |
-conn := UnixSocketClient connectTo: '/tmp/echo.sock'.
+conn := (UnixSocketClient connectTo: '/tmp/echo.sock') value.
 conn sendLine: 'hello'.
-response := conn receiveLine.
+response := conn receiveLine value.
 conn close
+```
+
+```example
+"Handle an absent server"
+(UnixSocketClient connectTo: '/tmp/maybe.sock')
+    onSuccess: [:conn | conn sendLine: 'ping'. conn close]
+    onFailure: [:reason | 'server not running: ', reason]
 ```
 """
 UnixSocketClient subclass: Object
 
   """
   Connect to a Unix domain socket server at the given path.
-  Returns a SocketConnection on success, or a Failure on error.
+  Answers Success wrapping a SocketConnection, or Failure on error.
 
   ```example
   | conn <SocketConnection> result <String> |
-  conn := UnixSocketClient connectTo: '/tmp/app.sock'.
+  conn := (UnixSocketClient connectTo: '/tmp/app.sock') value.
   conn sendLine: '{"method":"ping"}'.
-  result := conn receiveLine.
+  result := conn receiveLine value.
   conn close
   ```
   """
-  classMethod: connectTo: path <String> ^<SocketConnection> ! <IO> [
+  classMethod: connectTo: path <String> ^<Result> ! <IO> [
       ^self primConnectTo: path
   ]

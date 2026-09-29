@@ -181,14 +181,14 @@ Guide08ErrorHandling subclass: Object
 
   ```example
   (File readFileContents: '/etc/hosts')
-      ifSuccess: [:contents | contents size print]
-      ifFailure: [:reason | ('cannot read: ', reason) print]
+      onSuccess: [:contents | contents size print]
+      onFailure: [:reason | ('cannot read: ', reason) print]
   ```
 
   ```example
   (HttpClient new get: 'http://example.com/api')
-      ifSuccess: [:body | body print]
-      ifFailure: [:reason | ('request failed: ', reason) print]
+      onSuccess: [:body | body print]
+      onFailure: [:reason | ('request failed: ', reason) print]
   ```
 
   Create results with factory methods on the classes:

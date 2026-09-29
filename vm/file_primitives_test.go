@@ -538,7 +538,7 @@ func TestFileListDirectory(t *testing.T) {
 	os.WriteFile(filepath.Join(tmpDir, "beta.txt"), []byte("b"), 0644)
 	os.Mkdir(filepath.Join(tmpDir, "subdir"), 0755)
 
-	result := vm.Send(fc, "listDirectory:", []Value{vm.registry.NewStringValue(tmpDir)})
+	result := assertSuccess(t, vm, vm.Send(fc, "listDirectory:", []Value{vm.registry.NewStringValue(tmpDir)}), "listDirectory:")
 
 	if !result.IsObject() {
 		t.Fatalf("listDirectory: did not return an object (array)")
@@ -576,7 +576,7 @@ func TestFileListDirectoryEmpty(t *testing.T) {
 	fc := fileClass(vm)
 	tmpDir := t.TempDir()
 
-	result := vm.Send(fc, "listDirectory:", []Value{vm.registry.NewStringValue(tmpDir)})
+	result := assertSuccess(t, vm, vm.Send(fc, "listDirectory:", []Value{vm.registry.NewStringValue(tmpDir)}), "listDirectory: empty")
 
 	if !result.IsObject() {
 		t.Fatalf("listDirectory: of empty dir did not return an object")
@@ -1101,7 +1101,7 @@ func TestFileWorkingDirectory(t *testing.T) {
 	vm := NewVM()
 	fc := fileClass(vm)
 
-	result := vm.Send(fc, "workingDirectory", nil)
+	result := assertSuccess(t, vm, vm.Send(fc, "workingDirectory", nil), "workingDirectory")
 	if !IsStringValue(result) {
 		t.Fatalf("workingDirectory did not return a string")
 	}
@@ -1125,7 +1125,7 @@ func TestFileHomeDirectory(t *testing.T) {
 	vm := NewVM()
 	fc := fileClass(vm)
 
-	result := vm.Send(fc, "homeDirectory", nil)
+	result := assertSuccess(t, vm, vm.Send(fc, "homeDirectory", nil), "homeDirectory")
 	if !IsStringValue(result) {
 		t.Fatalf("homeDirectory did not return a string")
 	}
@@ -1224,7 +1224,7 @@ func TestFileCreateDirectoryListAndDelete(t *testing.T) {
 	})
 
 	// List the directory
-	listResult := vm.Send(fc, "listDirectory:", []Value{vm.registry.NewStringValue(subDir)})
+	listResult := assertSuccess(t, vm, vm.Send(fc, "listDirectory:", []Value{vm.registry.NewStringValue(subDir)}), "listDirectory:")
 	arr := ObjectFromValue(listResult)
 	if arr == nil {
 		t.Fatal("listDirectory: returned nil")
@@ -1386,4 +1386,55 @@ func TestFileSuccessResultContainsPath(t *testing.T) {
 	if vm.registry.GetStringContent(val) != testFile {
 		t.Errorf("Success value = %q, want path %q", vm.registry.GetStringContent(val), testFile)
 	}
+}
+
+// ---------------------------------------------------------------------------
+// Failure doctrine: metadata/glob/tail primitives answer Success on success
+// ---------------------------------------------------------------------------
+
+func TestFileMetadataPrimitivesReturnResults(t *testing.T) {
+	vm := NewVM()
+	fc := fileClass(vm)
+	tmpDir := t.TempDir()
+	testFile := filepath.Join(tmpDir, "data.txt")
+	if err := os.WriteFile(testFile, []byte("line1\nline2\npartial"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	pathVal := vm.registry.NewStringValue(testFile)
+	missing := vm.registry.NewStringValue(filepath.Join(tmpDir, "nope.txt"))
+
+	size := assertSuccess(t, vm, vm.Send(fc, "size:", []Value{pathVal}), "size:")
+	if !size.IsSmallInt() || size.SmallInt() != 19 {
+		t.Errorf("size: = %v, want 19", size)
+	}
+	assertFailure(t, vm, vm.Send(fc, "size:", []Value{missing}), "size: missing")
+
+	mt := assertSuccess(t, vm, vm.Send(fc, "modificationTime:", []Value{pathVal}), "modificationTime:")
+	if !mt.IsSmallInt() || mt.SmallInt() <= 0 {
+		t.Errorf("modificationTime: = %v, want positive integer", mt)
+	}
+	assertFailure(t, vm, vm.Send(fc, "modificationTime:", []Value{missing}), "modificationTime: missing")
+
+	globbed := assertSuccess(t, vm, vm.Send(fc, "glob:in:", []Value{
+		vm.registry.NewStringValue("*.txt"), vm.registry.NewStringValue(tmpDir),
+	}), "glob:in:")
+	if arr := ObjectFromValue(globbed); arr == nil || arr.NumSlots() != 1 {
+		t.Errorf("glob:in: expected 1-element Array")
+	}
+	assertFailure(t, vm, vm.Send(fc, "glob:in:", []Value{
+		vm.registry.NewStringValue("[bad"), vm.registry.NewStringValue(tmpDir),
+	}), "glob:in: bad pattern")
+
+	tail := assertSuccess(t, vm, vm.Send(fc, "readFrom:offset:", []Value{pathVal, FromSmallInt(0)}), "readFrom:offset:")
+	arr := ObjectFromValue(tail)
+	if arr == nil || arr.NumSlots() != 2 {
+		t.Fatalf("readFrom:offset: expected a 2-element Array")
+	}
+	if got := vm.registry.GetStringContent(arr.GetSlot(0)); got != "line1\nline2\n" {
+		t.Errorf("readFrom:offset: content = %q", got)
+	}
+	if off := arr.GetSlot(1); !off.IsSmallInt() || off.SmallInt() != 12 {
+		t.Errorf("readFrom:offset: offset = %v, want 12", off)
+	}
+	assertFailure(t, vm, vm.Send(fc, "readFrom:offset:", []Value{missing, FromSmallInt(0)}), "readFrom:offset: missing")
 }

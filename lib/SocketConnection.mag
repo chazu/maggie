@@ -2,87 +2,101 @@
 A bidirectional connection over a Unix domain socket.
 
 SocketConnection objects are returned by UnixSocketServer>>accept
-and UnixSocketClient>>connectTo:. They support both raw byte
-I/O and line-based protocols (ideal for JSON-RPC).
+and UnixSocketClient>>connectTo: (unwrap their Success first). They
+support both raw byte I/O and line-based protocols (ideal for JSON-RPC).
+
+Failure contract (CONVENTIONS §1): `send:`, `sendLine:`, `receive`,
+`receive:` and `receiveLine` answer a Result on both paths -- `Success`
+wrapping the receiver (sends) or the received String (receives), or
+`Failure` with the reason (connection closed, EOF, I/O error). A
+non-Integer byte count signals.
 
 ```example
 "Line-based JSON-RPC protocol"
 | conn <SocketConnection> response <String> |
-conn := UnixSocketClient connectTo: '/tmp/rpc.sock'.
+conn := (UnixSocketClient connectTo: '/tmp/rpc.sock') value.
 conn sendLine: '{"jsonrpc":"2.0","method":"ping","id":1}'.
-response := conn receiveLine.
+response := conn receiveLine value.
 conn close
 ```
 
 ```example
 "Raw send/receive"
 | conn <SocketConnection> data <String> |
-conn := UnixSocketClient connectTo: '/tmp/app.sock'.
+conn := (UnixSocketClient connectTo: '/tmp/app.sock') value.
 conn send: 'HELLO'.
-data := conn receive.
+data := conn receive value.
 conn close
 ```
 """
 SocketConnection subclass: Object
 
   """
-  Send raw string data over the connection.
+  Send raw string data over the connection. Answers Success wrapping
+  the receiver, or Failure if the connection is closed or the write fails.
 
   ```example
   conn send: 'hello world'
   ```
   """
-  method: send: data <String> ! <IO> [
+  method: send: data <String> ^<Result> ! <IO> [
       ^self primSend: data
   ]
 
   """
   Send a string followed by a newline. Useful for line-delimited
-  protocols like JSON-RPC.
+  protocols like JSON-RPC. Answers Success wrapping the receiver, or
+  Failure if the connection is closed or the write fails.
 
   ```example
   conn sendLine: '{"method":"test"}'
   ```
   """
-  method: sendLine: data <String> ! <IO> [
+  method: sendLine: data <String> ^<Result> ! <IO> [
       ^self primSendLine: data
   ]
 
   """
   Read up to 4096 bytes from the connection. Blocks until data
-  is available.
+  is available. Answers Success wrapping the String read, or Failure
+  on EOF, a closed connection, or an I/O error.
 
   ```example
   | data <String> |
-  data := conn receive
+  data := conn receive value
   ```
   """
-  method: receive ^<String> ! <IO> [
+  method: receive ^<Result> ! <IO> [
       ^self primReceive
   ]
 
   """
-  Read up to maxBytes bytes from the connection.
+  Read up to maxBytes bytes from the connection. Answers Success
+  wrapping the String read, or Failure (EOF, closed, I/O error). A
+  non-Integer maxBytes signals.
 
   ```example
   | data <String> |
-  data := conn receive: 1024
+  data := (conn receive: 1024) value
   ```
   """
-  method: receive: maxBytes <Integer> ^<String> ! <IO> [
+  method: receive: maxBytes <Integer> ^<Result> ! <IO> [
       ^self primReceiveMax: maxBytes
   ]
 
   """
   Read one newline-delimited line. The trailing newline is stripped.
-  Blocks until a full line is available.
+  Blocks until a full line is available. Answers Success wrapping the
+  line (a final unterminated line is answered as-is), or Failure on EOF,
+  a closed connection, or an I/O error.
 
   ```example
-  | line <String> |
-  line := conn receiveLine
+  (conn receiveLine)
+      onSuccess: [:line | line]
+      onFailure: [:reason | conn close]
   ```
   """
-  method: receiveLine ^<String> ! <IO> [
+  method: receiveLine ^<Result> ! <IO> [
       ^self primReceiveLine
   ]
 

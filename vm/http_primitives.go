@@ -20,7 +20,6 @@ type HttpClientObject struct {
 	client *http.Client
 }
 
-
 func (vm *VM) vmGetHttpClient(v Value) *HttpClientObject {
 	if o := ExtensionObject(v, httpClientMarker); o != nil {
 		return o.(*HttpClientObject)
@@ -64,6 +63,16 @@ func (vm *VM) vmRegisterHttpServer(s *HttpServerObject) Value {
 // GC once no Value references it. Retained so existing call sites (the `stop`
 // primitive) need not change.
 func (vm *VM) vmUnregisterHttpServer(v Value) {}
+
+// newHTTPServer builds the net/http server an HttpServer listens with.
+func newHTTPServer(port int, mux *http.ServeMux) *http.Server {
+	return &http.Server{
+		Addr:         fmt.Sprintf(":%d", port),
+		Handler:      mux,
+		ReadTimeout:  30 * time.Second,
+		WriteTimeout: 30 * time.Second,
+	}
+}
 
 // ---------------------------------------------------------------------------
 // HttpRequest Registry
@@ -163,6 +172,27 @@ type SSEConnectionObject struct {
 	eventCh chan sseEvent
 	done    <-chan struct{} // r.Context().Done()
 	closed  atomic.Bool
+	// sendMu orders sends against close: senders hold it shared while they
+	// check closed and send, close holds it exclusively while it closes
+	// eventCh, so no send can land on the closed channel.
+	sendMu sync.RWMutex
+}
+
+// send delivers evt to the SSE event loop, answering false once the
+// connection is closed by either side.
+func (c *SSEConnectionObject) send(evt sseEvent) bool {
+	c.sendMu.RLock()
+	defer c.sendMu.RUnlock()
+	if c.closed.Load() {
+		return false
+	}
+	select {
+	case c.eventCh <- evt:
+		return true
+	case <-c.done:
+		c.closed.Store(true)
+		return false
+	}
 }
 
 type sseEvent struct {
@@ -198,21 +228,19 @@ func (vm *VM) registerHttpPrimitives() {
 	vm.symbolDispatch.Register(httpRequestMarker, &SymbolTypeEntry{Class: httpRequestClass})
 	vm.symbolDispatch.Register(httpResponseMarker, &SymbolTypeEntry{Class: httpResponseClass})
 
+	// Failure doctrine (docs/CONVENTIONS.md §1): bad arguments and a
+	// receiver that is not a live HttpServer are programmer errors and
+	// signal; the expected failure (start cannot listen) answers a Failure.
 	httpServerClass.AddClassMethod1(vm.Selectors, "new:", func(v *VM, recv Value, portVal Value) Value {
 		if !portVal.IsSmallInt() {
-			return Nil
+			return v.SignalPrimitiveError("HttpServer new:", "port must be an Integer")
 		}
 		port := int(portVal.SmallInt())
 		mux := http.NewServeMux()
 		srv := &HttpServerObject{
-			mux: mux,
-			server: &http.Server{
-				Addr:         fmt.Sprintf(":%d", port),
-				Handler:      mux,
-				ReadTimeout:  30 * time.Second,
-				WriteTimeout: 30 * time.Second,
-			},
-			port: port,
+			mux:    mux,
+			server: newHTTPServer(port, mux),
+			port:   port,
 		}
 		return v.vmRegisterHttpServer(srv)
 	})
@@ -220,12 +248,12 @@ func (vm *VM) registerHttpPrimitives() {
 	httpServerClass.AddMethod2(vm.Selectors, "serveStatic:from:", func(v *VM, recv Value, urlPathVal, dirPathVal Value) Value {
 		srv := v.vmGetHttpServer(recv)
 		if srv == nil {
-			return Nil
+			return v.signalNotHttpServer("serveStatic:from:")
 		}
 		urlPath := v.valueToString(urlPathVal)
 		dirPath := v.valueToString(dirPathVal)
 		if urlPath == "" || dirPath == "" {
-			return Nil
+			return v.SignalPrimitiveError("HttpServer serveStatic:from:", "URL path and directory must be non-empty Strings")
 		}
 		if !strings.HasSuffix(urlPath, "/") {
 			urlPath = urlPath + "/"
@@ -241,12 +269,15 @@ func (vm *VM) registerHttpPrimitives() {
 	httpServerClass.AddMethod2(vm.Selectors, "sseRoute:handler:", func(v *VM, recv Value, pathVal, handlerBlock Value) Value {
 		srv := v.vmGetHttpServer(recv)
 		if srv == nil {
-			return Nil
+			return v.signalNotHttpServer("sseRoute:handler:")
 		}
 		path := v.valueToString(pathVal)
+		if path == "" {
+			return v.SignalPrimitiveError("HttpServer sseRoute:handler:", "path must be a non-empty String")
+		}
 		bv := v.currentInterpreter().getBlockValue(handlerBlock)
 		if bv == nil {
-			return Nil
+			return v.SignalPrimitiveError("HttpServer sseRoute:handler:", "handler must be a Block")
 		}
 		// The handler block is retained for the server's lifetime inside the
 		// net/http closure below, which is itself a strong (Go-GC-traced)
@@ -322,13 +353,16 @@ func (vm *VM) registerHttpPrimitives() {
 	registerRoute := func(v *VM, recv, pathVal, methodVal, handlerBlock Value) Value {
 		srv := v.vmGetHttpServer(recv)
 		if srv == nil {
-			return Nil
+			return v.signalNotHttpServer("route:method:handler:")
 		}
 		path := v.valueToString(pathVal)
+		if path == "" {
+			return v.SignalPrimitiveError("HttpServer route:method:handler:", "path must be a non-empty String")
+		}
 		httpMethod := strings.ToUpper(v.valueToString(methodVal))
 		bv := v.currentInterpreter().getBlockValue(handlerBlock)
 		if bv == nil {
-			return Nil
+			return v.SignalPrimitiveError("HttpServer route:method:handler:", "handler must be a Block")
 		}
 		// The handler block is retained for the server's lifetime inside the
 		// net/http closure below, which is itself a strong (Go-GC-traced)
@@ -380,25 +414,29 @@ func (vm *VM) registerHttpPrimitives() {
 	// same registration instead of a divergent forked copy.
 	httpServerClass.AddMethod3(vm.Selectors, "asyncRoute:method:handler:", registerRoute)
 
+	// start blocks serving until stop. Answers Success wrapping the receiver
+	// on clean shutdown (or at once if already running), or Failure carrying
+	// the listen/serve error (e.g. port in use).
 	httpServerClass.AddMethod0(vm.Selectors, "start", func(v *VM, recv Value) Value {
 		srv := v.vmGetHttpServer(recv)
 		if srv == nil {
-			return Nil
+			return v.signalNotHttpServer("start")
 		}
 		srv.mu.Lock()
 		if srv.running.Load() {
 			srv.mu.Unlock()
-			return recv
+			return v.newSuccessResult(recv)
 		}
 		srv.running.Store(true)
+		server := srv.server
 		srv.mu.Unlock()
 		// The serving goroutine blocks here indefinitely.
-		err := srv.server.ListenAndServe()
+		err := server.ListenAndServe()
 		if err != nil && err != http.ErrServerClosed {
 			srv.running.Store(false)
-			return Nil
+			return v.newFailureResult(fmt.Sprintf("HttpServer start (port %d): %v", srv.port, err))
 		}
-		return recv
+		return v.newSuccessResult(recv)
 	})
 
 	httpServerClass.AddMethod0(vm.Selectors, "stop", func(v *VM, recv Value) Value {
@@ -414,6 +452,11 @@ func (vm *VM) registerHttpPrimitives() {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		srv.server.Shutdown(ctx)
+		// An http.Server cannot be reused after Shutdown (ListenAndServe
+		// returns ErrServerClosed at once), so swap in a fresh one over the
+		// same mux — otherwise a later start would silently serve nothing
+		// while isRunning answered true.
+		srv.server = newHTTPServer(srv.port, srv.mux)
 		srv.running.Store(false)
 		v.vmUnregisterHttpServer(recv)
 		return recv
@@ -422,7 +465,7 @@ func (vm *VM) registerHttpPrimitives() {
 	httpServerClass.AddMethod0(vm.Selectors, "port", func(v *VM, recv Value) Value {
 		srv := v.vmGetHttpServer(recv)
 		if srv == nil {
-			return Nil
+			return v.signalNotHttpServer("port")
 		}
 		return FromSmallInt(int64(srv.port))
 	})
@@ -539,7 +582,7 @@ func (vm *VM) registerHttpPrimitives() {
 	httpResponseClass.AddMethod0(vm.Selectors, "status", func(v *VM, recv Value) Value {
 		resp := v.vmGetHttpResponse(recv)
 		if resp == nil {
-			return Nil
+			return v.SignalPrimitiveError("HttpResponse status", "receiver is not a live HttpResponse")
 		}
 		return FromSmallInt(int64(resp.status))
 	})
@@ -724,34 +767,19 @@ func (vm *VM) registerHttpPrimitives() {
 	// send: data — send a data-only SSE event. Returns true/false.
 	sseConnectionClass.AddMethod1(vm.Selectors, "send:", func(v *VM, recv Value, dataVal Value) Value {
 		conn := v.vmGetSSEConnection(recv)
-		if conn == nil || conn.closed.Load() {
+		if conn == nil {
 			return False
 		}
-		data := v.valueToString(dataVal)
-		select {
-		case conn.eventCh <- sseEvent{data: data}:
-			return True
-		case <-conn.done:
-			conn.closed.Store(true)
-			return False
-		}
+		return FromBool(conn.send(sseEvent{data: v.valueToString(dataVal)}))
 	})
 
 	// send:event: — send a named SSE event (e.g. for Datastar). Returns true/false.
 	sseConnectionClass.AddMethod2(vm.Selectors, "send:event:", func(v *VM, recv Value, dataVal, eventVal Value) Value {
 		conn := v.vmGetSSEConnection(recv)
-		if conn == nil || conn.closed.Load() {
+		if conn == nil {
 			return False
 		}
-		data := v.valueToString(dataVal)
-		event := v.valueToString(eventVal)
-		select {
-		case conn.eventCh <- sseEvent{event: event, data: data}:
-			return True
-		case <-conn.done:
-			conn.closed.Store(true)
-			return False
-		}
+		return FromBool(conn.send(sseEvent{event: v.valueToString(eventVal), data: v.valueToString(dataVal)}))
 	})
 
 	// close — close the SSE connection from the server side.
@@ -760,9 +788,11 @@ func (vm *VM) registerHttpPrimitives() {
 		if conn == nil {
 			return recv
 		}
+		conn.sendMu.Lock()
 		if !conn.closed.Swap(true) {
 			close(conn.eventCh)
 		}
+		conn.sendMu.Unlock()
 		return recv
 	})
 
@@ -774,6 +804,13 @@ func (vm *VM) registerHttpPrimitives() {
 		}
 		return True
 	})
+}
+
+// signalNotHttpServer signals the programmer error of sending an HttpServer
+// primitive to something that is not a live HttpServer (e.g. `HttpServer new`
+// without a port).
+func (vm *VM) signalNotHttpServer(selector string) Value {
+	return vm.SignalPrimitiveError("HttpServer "+selector, "receiver is not a live HttpServer (create one with HttpServer new: port)")
 }
 
 // httpBodyResult drains an HTTP response into a Result: Success wrapping the

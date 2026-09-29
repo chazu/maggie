@@ -5,6 +5,12 @@ HttpServer wraps Go's net/http server. It supports static file serving
 and route-based request handling with method filtering. Route handlers
 receive an HttpRequest and should return an HttpResponse or a string.
 
+Failure contract (CONVENTIONS §1): `start` answers a Result -- `Success`
+wrapping the server after a clean `stop`, or `Failure` carrying the listen
+error (port in use, permission denied). Bad arguments (a non-Integer port,
+an empty path, a non-Block handler) are programmer errors and signal.
+Nothing answers nil on error.
+
 ```example
 "Basic web server"
 | server <HttpServer> |
@@ -30,7 +36,8 @@ HttpServer subclass: Object
 
   """
   Create a new HTTP server listening on the given port.
-  The server is not started until `start` is called.
+  The server is not started until `start` is called. A non-Integer port
+  signals an Error.
 
   ```example
   | server <HttpServer> |
@@ -44,6 +51,7 @@ HttpServer subclass: Object
   """
   Register a static file handler. Requests matching urlPath will be
   served from dirPath on the filesystem. Returns self for chaining.
+  Empty paths signal an Error.
 
   ```example
   server serveStatic: '/static/' from: './public'
@@ -56,7 +64,8 @@ HttpServer subclass: Object
   """
   Register a route handler. The handler block receives an HttpRequest
   and should return an HttpResponse or a string. If method is empty,
-  all HTTP methods are accepted. Returns self for chaining.
+  all HTTP methods are accepted. Returns self for chaining. An empty path
+  or a non-Block handler signals an Error.
 
   ```example
   server route: '/api/data' method: 'GET' handler: [:req |
@@ -70,16 +79,19 @@ HttpServer subclass: Object
 
   """
   Start the server. This blocks the current process until the server
-  is stopped. Returns self on clean shutdown, or nil on error.
+  is stopped. Answers Success wrapping self on clean shutdown (or at once
+  if already running), or Failure carrying the reason if the server cannot
+  listen (e.g. the port is already in use).
 
   ```example
   | server <HttpServer> |
   server := HttpServer new: 8080.
-  [server start] fork.
+  [(server start) onSuccess: [:s | 'stopped' println]
+                  onFailure: [:reason | ('cannot serve: ', reason) println]] fork.
   "Server is now running in background"
   ```
   """
-  method: start ^<Self> ! <Network> [
+  method: start ^<Result> ! <Network> [
       <primitive>
   ]
 

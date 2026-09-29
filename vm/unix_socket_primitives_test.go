@@ -30,17 +30,7 @@ func TestUnixSocketServerListenAndClose(t *testing.T) {
 	// listenAt:
 	serverClass := vm.globals["UnixSocketServer"]
 	pathVal := vm.registry.NewStringValue(sockPath)
-	result := vm.Send(serverClass, "primListenAt:", []Value{pathVal})
-
-	if !isUnixListenerValue(result) {
-		if isResultValue(result) {
-			r := vm.registry.GetResultFromValue(result)
-			if r != nil && r.resultType == ResultFailure {
-				t.Fatalf("listenAt: failed: %v", vm.valueToString(r.value))
-			}
-		}
-		t.Fatalf("listenAt: should return a UnixSocketServer value, got %v", result)
-	}
+	result := assertSuccess(t, vm, vm.Send(serverClass, "primListenAt:", []Value{pathVal}), "primListenAt:")
 
 	// Verify socket file exists
 	if _, err := os.Stat(sockPath); os.IsNotExist(err) {
@@ -107,37 +97,15 @@ func TestUnixSocketClientConnectAndSendReceive(t *testing.T) {
 	// connectTo:
 	clientClass := vm.globals["UnixSocketClient"]
 	pathVal := vm.registry.NewStringValue(sockPath)
-	connVal := vm.Send(clientClass, "primConnectTo:", []Value{pathVal})
-
-	if !isUnixConnValue(connVal) {
-		if isResultValue(connVal) {
-			r := vm.registry.GetResultFromValue(connVal)
-			if r != nil && r.resultType == ResultFailure {
-				t.Fatalf("connectTo: failed: %v", vm.valueToString(r.value))
-			}
-		}
-		t.Fatalf("connectTo: should return a SocketConnection value, got %v", connVal)
-	}
+	connVal := assertSuccess(t, vm, vm.Send(clientClass, "primConnectTo:", []Value{pathVal}), "primConnectTo:")
 
 	// send:
-	sendResult := vm.Send(connVal, "primSend:", []Value{vm.registry.NewStringValue("hello")})
-	if sendResult != connVal {
-		if isResultValue(sendResult) {
-			r := vm.registry.GetResultFromValue(sendResult)
-			if r != nil && r.resultType == ResultFailure {
-				t.Fatalf("send: failed: %v", vm.valueToString(r.value))
-			}
-		}
+	if sent := assertSuccess(t, vm, vm.Send(connVal, "primSend:", []Value{vm.registry.NewStringValue("hello")}), "primSend:"); sent != connVal {
+		t.Fatalf("send: should answer Success wrapping the connection")
 	}
 
 	// receive
-	recvResult := vm.Send(connVal, "primReceive", nil)
-	if isResultValue(recvResult) {
-		r := vm.registry.GetResultFromValue(recvResult)
-		if r != nil && r.resultType == ResultFailure {
-			t.Fatalf("receive failed: %v", vm.valueToString(r.value))
-		}
-	}
+	recvResult := assertSuccess(t, vm, vm.Send(connVal, "primReceive", nil), "primReceive")
 	content := vm.valueToString(recvResult)
 	if content != "hello" {
 		t.Fatalf("expected 'hello', got %q", content)
@@ -183,28 +151,13 @@ func TestUnixSocketLineProtocol(t *testing.T) {
 
 	clientClass := vm.globals["UnixSocketClient"]
 	pathVal := vm.registry.NewStringValue(sockPath)
-	connVal := vm.Send(clientClass, "primConnectTo:", []Value{pathVal})
-	if !isUnixConnValue(connVal) {
-		if isResultValue(connVal) {
-			r := vm.registry.GetResultFromValue(connVal)
-			if r != nil && r.resultType == ResultFailure {
-				t.Fatalf("connectTo: failed: %v", vm.valueToString(r.value))
-			}
-		}
-		t.Fatalf("connectTo: should return SocketConnection, got %v", connVal)
-	}
+	connVal := assertSuccess(t, vm, vm.Send(clientClass, "primConnectTo:", []Value{pathVal}), "primConnectTo:")
 
 	// sendLine:
-	vm.Send(connVal, "primSendLine:", []Value{vm.registry.NewStringValue(`{"method":"test"}`)})
+	assertSuccess(t, vm, vm.Send(connVal, "primSendLine:", []Value{vm.registry.NewStringValue(`{"method":"test"}`)}), "primSendLine:")
 
 	// receiveLine
-	lineResult := vm.Send(connVal, "primReceiveLine", nil)
-	if isResultValue(lineResult) {
-		r := vm.registry.GetResultFromValue(lineResult)
-		if r != nil && r.resultType == ResultFailure {
-			t.Fatalf("receiveLine failed: %v", vm.valueToString(r.value))
-		}
-	}
+	lineResult := assertSuccess(t, vm, vm.Send(connVal, "primReceiveLine", nil), "primReceiveLine")
 	lineStr := vm.valueToString(lineResult)
 
 	expected := `echo:{"method":"test"}`
@@ -222,16 +175,7 @@ func TestUnixSocketServerAccept(t *testing.T) {
 
 	serverClass := vm.globals["UnixSocketServer"]
 	pathVal := vm.registry.NewStringValue(sockPath)
-	serverVal := vm.Send(serverClass, "primListenAt:", []Value{pathVal})
-	if !isUnixListenerValue(serverVal) {
-		if isResultValue(serverVal) {
-			r := vm.registry.GetResultFromValue(serverVal)
-			if r != nil && r.resultType == ResultFailure {
-				t.Fatalf("listenAt: failed: %v", vm.valueToString(r.value))
-			}
-		}
-		t.Fatalf("listenAt: should return UnixSocketServer value")
-	}
+	serverVal := assertSuccess(t, vm, vm.Send(serverClass, "primListenAt:", []Value{pathVal}), "primListenAt:")
 
 	// Connect a Go client
 	var wg sync.WaitGroup
@@ -249,18 +193,9 @@ func TestUnixSocketServerAccept(t *testing.T) {
 	}()
 
 	// Server accept
-	connVal := vm.Send(serverVal, "primAccept", nil)
-	if !isUnixConnValue(connVal) {
-		if isResultValue(connVal) {
-			r := vm.registry.GetResultFromValue(connVal)
-			if r != nil && r.resultType == ResultFailure {
-				t.Fatalf("accept failed: %v", vm.valueToString(r.value))
-			}
-		}
-		t.Fatalf("accept should return SocketConnection")
-	}
+	connVal := assertSuccess(t, vm, vm.Send(serverVal, "primAccept", nil), "primAccept")
 
-	lineResult := vm.Send(connVal, "primReceiveLine", nil)
+	lineResult := assertSuccess(t, vm, vm.Send(connVal, "primReceiveLine", nil), "primReceiveLine")
 	lineStr := vm.valueToString(lineResult)
 	if lineStr != "from-client" {
 		t.Fatalf("expected 'from-client', got %q", lineStr)
@@ -277,16 +212,7 @@ func TestUnixSocketConcurrentConnections(t *testing.T) {
 
 	serverClass := vm.globals["UnixSocketServer"]
 	pathVal := vm.registry.NewStringValue(sockPath)
-	serverVal := vm.Send(serverClass, "primListenAt:", []Value{pathVal})
-	if !isUnixListenerValue(serverVal) {
-		if isResultValue(serverVal) {
-			r := vm.registry.GetResultFromValue(serverVal)
-			if r != nil && r.resultType == ResultFailure {
-				t.Fatalf("listenAt: failed: %v", vm.valueToString(r.value))
-			}
-		}
-		t.Fatal("listenAt: should return UnixSocketServer value")
-	}
+	serverVal := assertSuccess(t, vm, vm.Send(serverClass, "primListenAt:", []Value{pathVal}), "primListenAt:")
 
 	const numClients = 5
 	var wg sync.WaitGroup
@@ -308,11 +234,8 @@ func TestUnixSocketConcurrentConnections(t *testing.T) {
 	}
 
 	for i := 0; i < numClients; i++ {
-		connVal := vm.Send(serverVal, "primAccept", nil)
-		if !isUnixConnValue(connVal) {
-			continue
-		}
-		lineResult := vm.Send(connVal, "primReceiveLine", nil)
+		connVal := assertSuccess(t, vm, vm.Send(serverVal, "primAccept", nil), "primAccept")
+		lineResult := assertSuccess(t, vm, vm.Send(connVal, "primReceiveLine", nil), "primReceiveLine")
 		lineStr := vm.valueToString(lineResult)
 		if lineStr != "ping" {
 			t.Errorf("expected 'ping', got %q", lineStr)
@@ -344,17 +267,7 @@ func TestUnixSocketStaleSocketCleanup(t *testing.T) {
 	// listenAt: should detect the stale file (can't connect to it) and remove it
 	serverClass := vm.globals["UnixSocketServer"]
 	pathVal := vm.registry.NewStringValue(sockPath)
-	result := vm.Send(serverClass, "primListenAt:", []Value{pathVal})
-
-	if !isUnixListenerValue(result) {
-		if isResultValue(result) {
-			r := vm.registry.GetResultFromValue(result)
-			if r != nil && r.resultType == ResultFailure {
-				t.Fatalf("listenAt: should succeed on stale socket, got: %v", vm.valueToString(r.value))
-			}
-		}
-		t.Fatal("listenAt: should return UnixSocketServer value on stale socket cleanup")
-	}
+	result := assertSuccess(t, vm, vm.Send(serverClass, "primListenAt:", []Value{pathVal}), "primListenAt:")
 
 	vm.Send(result, "primClose", nil)
 }
@@ -366,17 +279,7 @@ func TestUnixSocketServerListenAtMode(t *testing.T) {
 	serverClass := vm.globals["UnixSocketServer"]
 	pathVal := vm.registry.NewStringValue(sockPath)
 	modeVal := FromSmallInt(0o660)
-	result := vm.Send(serverClass, "primListenAtMode:mode:", []Value{pathVal, modeVal})
-
-	if !isUnixListenerValue(result) {
-		if isResultValue(result) {
-			r := vm.registry.GetResultFromValue(result)
-			if r != nil && r.resultType == ResultFailure {
-				t.Fatalf("listenAt:mode: failed: %v", vm.valueToString(r.value))
-			}
-		}
-		t.Fatal("listenAt:mode: should return UnixSocketServer value")
-	}
+	result := assertSuccess(t, vm, vm.Send(serverClass, "primListenAtMode:mode:", []Value{pathVal, modeVal}), "primListenAtMode:mode:")
 
 	info, err := os.Stat(sockPath)
 	if err != nil {
@@ -412,28 +315,13 @@ func TestUnixSocketAcceptToChannel(t *testing.T) {
 
 	serverClass := vm.globals["UnixSocketServer"]
 	pathVal := vm.registry.NewStringValue(sockPath)
-	serverVal := vm.Send(serverClass, "primListenAt:", []Value{pathVal})
-	if !isUnixListenerValue(serverVal) {
-		if isResultValue(serverVal) {
-			r := vm.registry.GetResultFromValue(serverVal)
-			if r != nil && r.resultType == ResultFailure {
-				t.Fatalf("listenAt: failed: %v", vm.valueToString(r.value))
-			}
-		}
-		t.Fatal("listenAt: should return UnixSocketServer value")
-	}
+	serverVal := assertSuccess(t, vm, vm.Send(serverClass, "primListenAt:", []Value{pathVal}), "primListenAt:")
 
 	ch := createChannel(5)
 	chVal := vm.registry.RegisterChannel(ch)
 
-	result := vm.Send(serverVal, "primAcceptToChannel:", []Value{chVal})
-	if result != serverVal {
-		if isResultValue(result) {
-			r := vm.registry.GetResultFromValue(result)
-			if r != nil && r.resultType == ResultFailure {
-				t.Fatalf("acceptToChannel: failed: %v", vm.valueToString(r.value))
-			}
-		}
+	if result := assertSuccess(t, vm, vm.Send(serverVal, "primAcceptToChannel:", []Value{chVal}), "primAcceptToChannel:"); result != serverVal {
+		t.Fatalf("acceptToChannel: should answer Success wrapping the server")
 	}
 
 	conn, err := net.Dial("unix", sockPath)
@@ -453,4 +341,142 @@ func TestUnixSocketAcceptToChannel(t *testing.T) {
 	}
 
 	vm.Send(serverVal, "primClose", nil)
+}
+
+// unixConnPair returns a SocketConnection Value for the client side and the
+// raw server-side net.Conn.
+func unixConnPair(t *testing.T, vm *VM) (Value, net.Conn) {
+	t.Helper()
+	path := tempSockPath(t)
+	ln, err := net.Listen("unix", path)
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	t.Cleanup(func() { ln.Close() })
+	accepted := make(chan net.Conn, 1)
+	go func() {
+		c, err := ln.Accept()
+		if err == nil {
+			accepted <- c
+		}
+	}()
+	connVal := assertSuccess(t, vm, vm.Send(vm.globals["UnixSocketClient"], "primConnectTo:", []Value{vm.registry.NewStringValue(path)}), "primConnectTo:")
+	if vm.vmGetUnixConn(connVal) == nil {
+		t.Fatal("primConnectTo: did not return a SocketConnection")
+	}
+	select {
+	case server := <-accepted:
+		t.Cleanup(func() { server.Close() })
+		return connVal, server
+	case <-time.After(3 * time.Second):
+		t.Fatal("accept timed out")
+	}
+	return Nil, nil
+}
+
+// primReceive after primReceiveLine must see the bytes the line reader
+// already buffered past the newline, not skip them.
+func TestUnixSocketReceiveAfterReceiveLine(t *testing.T) {
+	vm := NewVM()
+	connVal, server := unixConnPair(t, vm)
+	if _, err := server.Write([]byte("first\nrest")); err != nil {
+		t.Fatal(err)
+	}
+	time.Sleep(50 * time.Millisecond) // let both parts arrive in one read
+
+	line := assertSuccess(t, vm, vm.Send(connVal, "primReceiveLine", nil), "primReceiveLine")
+	if got := vm.registry.GetStringContent(line); got != "first" {
+		t.Fatalf("primReceiveLine = %q, want %q", got, "first")
+	}
+	got := make(chan string, 1)
+	go func() {
+		got <- vm.registry.GetStringContent(vm.Send(vm.Send(connVal, "primReceive", nil), "value", nil))
+	}()
+	select {
+	case s := <-got:
+		if s != "rest" {
+			t.Fatalf("primReceive = %q, want %q", s, "rest")
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("primReceive blocked: bytes buffered by primReceiveLine were lost")
+	}
+}
+
+// primClose must not wait behind a process blocked in primReceiveLine —
+// closing is how that reader gets unblocked.
+func TestUnixSocketCloseWhileReceiveLineBlocked(t *testing.T) {
+	vm := NewVM()
+	connVal, _ := unixConnPair(t, vm)
+
+	readDone := make(chan struct{})
+	go func() {
+		defer close(readDone)
+		vm.Send(connVal, "primReceiveLine", nil)
+	}()
+	time.Sleep(50 * time.Millisecond) // let the reader block
+
+	closed := make(chan struct{})
+	go func() {
+		defer close(closed)
+		vm.Send(connVal, "primClose", nil)
+	}()
+	select {
+	case <-closed:
+	case <-time.After(2 * time.Second):
+		t.Fatal("primClose deadlocked behind a blocked primReceiveLine")
+	}
+	select {
+	case <-readDone:
+	case <-time.After(2 * time.Second):
+		t.Fatal("blocked primReceiveLine was not released by primClose")
+	}
+}
+
+// Failure doctrine: expected I/O failures answer Failure, and a closed
+// connection answers Failure from every read/write primitive.
+func TestUnixSocketClosedConnectionAnswersFailure(t *testing.T) {
+	vm := NewVM()
+	connVal, _ := unixConnPair(t, vm)
+	vm.Send(connVal, "primClose", nil)
+	for _, c := range []struct {
+		sel  string
+		args []Value
+	}{
+		{"primSend:", []Value{vm.registry.NewStringValue("x")}},
+		{"primSendLine:", []Value{vm.registry.NewStringValue("x")}},
+		{"primReceive", nil},
+		{"primReceiveMax:", []Value{FromSmallInt(10)}},
+		{"primReceiveLine", nil},
+	} {
+		assertFailure(t, vm, vm.Send(connVal, c.sel, c.args), c.sel+" on closed connection")
+	}
+}
+
+// EOF from the peer is an expected failure: Failure, not a bare value.
+func TestUnixSocketReceiveLineEOFAnswersFailure(t *testing.T) {
+	vm := NewVM()
+	connVal, server := unixConnPair(t, vm)
+	server.Close()
+	assertFailure(t, vm, vm.Send(connVal, "primReceiveLine", nil), "primReceiveLine at EOF")
+}
+
+// A non-Integer max byte count is a programmer error: it signals.
+func TestUnixSocketReceiveMaxNonIntegerSignals(t *testing.T) {
+	vm := NewVM()
+	connVal, _ := unixConnPair(t, vm)
+	if _, signaled := signalsPrimitiveError(vm, func() {
+		vm.Send(connVal, "primReceiveMax:", []Value{vm.registry.NewStringValue("x")})
+	}); !signaled {
+		t.Error("primReceiveMax: with a non-Integer should signal")
+	}
+}
+
+func TestUnixSocketListenInUseAnswersFailure(t *testing.T) {
+	vm := NewVM()
+	sockPath := tempSockPath(t)
+	serverClass := vm.globals["UnixSocketServer"]
+	pathVal := vm.registry.NewStringValue(sockPath)
+	first := assertSuccess(t, vm, vm.Send(serverClass, "primListenAt:", []Value{pathVal}), "primListenAt:")
+	defer vm.Send(first, "primClose", nil)
+	assertFailure(t, vm, vm.Send(serverClass, "primListenAt:", []Value{pathVal}), "primListenAt: in use")
 }

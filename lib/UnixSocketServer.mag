@@ -6,16 +6,24 @@ Unix domain sockets provide fast, secure IPC on the same machine.
 The server listens at a path and accepts incoming connections,
 returning SocketConnection objects for each client.
 
+Failure contract (CONVENTIONS §1): `listenAt:`, `listenAt:mode:`,
+`accept` and `acceptToChannel:` answer a Result on both paths --
+`Success` wrapping the server/connection, or `Failure` with the reason
+(socket in use, permission denied, server closed). Unwrap with `value`
+or branch with `onSuccess:onFailure:`. Programmer errors (a non-Integer
+mode, a non-Channel argument) signal.
+
 ```example
 "Basic server that echoes lines back to clients"
 | server <UnixSocketServer> conn <SocketConnection> line <String> |
-server := UnixSocketServer listenAt: '/tmp/echo.sock'.
+server := (UnixSocketServer listenAt: '/tmp/echo.sock') value.
 
 [server isRunning] whileTrue: [
-    conn := server accept.
+    conn := server accept value.
     [conn isClosed not] whileTrue: [
-        line := conn receiveLine.
-        conn sendLine: line
+        (conn receiveLine)
+            onSuccess: [:l | conn sendLine: l]
+            onFailure: [:reason | conn close]
     ]
 ]
 ```
@@ -23,7 +31,7 @@ server := UnixSocketServer listenAt: '/tmp/echo.sock'.
 ```example
 "Server with channel-based accept for concurrent handling"
 | server <UnixSocketServer> ch <Channel> conn <SocketConnection> |
-server := UnixSocketServer listenAt: '/tmp/app.sock'.
+server := (UnixSocketServer listenAt: '/tmp/app.sock') value.
 ch := Channel new: 10.
 server acceptToChannel: ch.
 
@@ -34,58 +42,64 @@ server acceptToChannel: ch.
 ```
 
 ```example
-"Server with explicit permissions"
-| server <UnixSocketServer> |
-server := UnixSocketServer listenAt: '/tmp/secure.sock' mode: 8r660
+"Server with explicit permissions, handling a bind failure"
+(UnixSocketServer listenAt: '/tmp/secure.sock' mode: 8r660)
+    onSuccess: [:server | server path]
+    onFailure: [:reason | 'could not listen: ', reason]
 ```
 """
 UnixSocketServer subclass: Object
 
   """
   Create a server listening at the given filesystem path.
-  Removes stale socket files automatically.
+  Removes stale socket files automatically. Answers Success wrapping the
+  UnixSocketServer, or Failure if the socket is in use or cannot be bound.
 
   ```example
   | server <UnixSocketServer> |
-  server := UnixSocketServer listenAt: '/tmp/test.sock'.
+  server := (UnixSocketServer listenAt: '/tmp/test.sock') value.
   server isRunning   "=> true"
   ```
   """
-  classMethod: listenAt: path <String> ^<UnixSocketServer> ! <IO> [
+  classMethod: listenAt: path <String> ^<Result> ! <IO> [
       ^self primListenAt: path
   ]
 
   """
   Create a server listening at path with the given file mode
-  (permissions). Mode is an integer, e.g. 8r660.
+  (permissions). Mode is an integer, e.g. 8r660. Answers Success wrapping
+  the UnixSocketServer, or Failure if the socket cannot be bound or
+  chmod'ed. A non-Integer mode signals.
 
   ```example
   | server <UnixSocketServer> |
-  server := UnixSocketServer listenAt: '/tmp/test.sock' mode: 8r660
+  server := (UnixSocketServer listenAt: '/tmp/test.sock' mode: 8r660) value
   ```
   """
-  classMethod: listenAt: path <String> mode: mode <Integer> ^<UnixSocketServer> ! <IO> [
+  classMethod: listenAt: path <String> mode: mode <Integer> ^<Result> ! <IO> [
       ^self primListenAtMode: path mode: mode
   ]
 
   """
   Accept a new client connection. Blocks until a client connects.
-  Returns a SocketConnection.
+  Answers Success wrapping a SocketConnection, or Failure if the server
+  is closed or the accept fails.
 
   ```example
   | conn <SocketConnection> line <String> |
-  conn := server accept.
-  line := conn receiveLine.
+  conn := server accept value.
+  line := conn receiveLine value.
   conn close
   ```
   """
-  method: accept ^<SocketConnection> ! <IO> [
+  method: accept ^<Result> ! <IO> [
       ^self primAccept
   ]
 
   """
   Spawn a background goroutine that accepts connections and sends
-  them to the given Channel. Returns self immediately.
+  them to the given Channel. Answers Success wrapping self immediately,
+  or Failure if the server is already closed. A non-Channel signals.
 
   ```example
   | ch <Channel> conn <SocketConnection> |
@@ -94,7 +108,7 @@ UnixSocketServer subclass: Object
   conn := ch receive
   ```
   """
-  method: acceptToChannel: channel <Channel> ^<Self> ! <IO, Process> [
+  method: acceptToChannel: channel <Channel> ^<Result> ! <IO, Process> [
       ^self primAcceptToChannel: channel
   ]
 
@@ -114,7 +128,7 @@ UnixSocketServer subclass: Object
   Return the filesystem path of this server's socket.
 
   ```example
-  (UnixSocketServer listenAt: '/tmp/x.sock') path   "=> '/tmp/x.sock'"
+  (UnixSocketServer listenAt: '/tmp/x.sock') value path   "=> '/tmp/x.sock'"
   ```
   """
   method: path ^<String> [

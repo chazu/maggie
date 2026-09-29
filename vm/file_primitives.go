@@ -173,7 +173,8 @@ func (vm *VM) registerFilePrimitives() {
 	// ---------------------------------------------------------------------------
 
 	// listDirectory: path - List files and directories in a directory
-	// Returns an array of filenames, or Failure if directory can't be read
+	// Returns Success wrapping an Array of filenames, or Failure if the
+	// directory can't be read.
 	fileClass.AddClassMethod1(vm.Selectors, "listDirectory:", func(v *VM, recv Value, pathVal Value) Value {
 
 		path := v.valueToString(pathVal)
@@ -190,7 +191,7 @@ func (vm *VM) registerFilePrimitives() {
 		for i, entry := range entries {
 			values[i] = v.registry.NewStringValue(entry.Name())
 		}
-		return v.NewArrayWithElements(values)
+		return v.newSuccessResult(v.NewArrayWithElements(values))
 	})
 
 	// createDirectory: path - Create a directory (and parents if needed)
@@ -307,29 +308,31 @@ func (vm *VM) registerFilePrimitives() {
 		return v.registry.NewStringValue(abs)
 	})
 
-	// workingDirectory - Get current working directory
+	// workingDirectory - Get current working directory (Success with the
+	// path string, or Failure)
 	fileClass.AddClassMethod0(vm.Selectors, "workingDirectory", func(v *VM, recv Value) Value {
 		wd, err := os.Getwd()
 		if err != nil {
 			return v.newFailureResult("Cannot get working directory: " + err.Error())
 		}
-		return v.registry.NewStringValue(wd)
+		return v.newSuccessResult(v.registry.NewStringValue(wd))
 	})
 
-	// homeDirectory - Get user's home directory
+	// homeDirectory - Get user's home directory (Success with the path
+	// string, or Failure)
 	fileClass.AddClassMethod0(vm.Selectors, "homeDirectory", func(v *VM, recv Value) Value {
 		home, err := os.UserHomeDir()
 		if err != nil {
 			return v.newFailureResult("Cannot get home directory: " + err.Error())
 		}
-		return v.registry.NewStringValue(home)
+		return v.newSuccessResult(v.registry.NewStringValue(home))
 	})
 
 	// ---------------------------------------------------------------------------
 	// File metadata
 	// ---------------------------------------------------------------------------
 
-	// size: path - Get file size in bytes
+	// size: path - Get file size in bytes (Success with the Integer, or Failure)
 	fileClass.AddClassMethod1(vm.Selectors, "size:", func(v *VM, recv Value, pathVal Value) Value {
 		path := v.valueToString(pathVal)
 		if path == "" {
@@ -339,12 +342,13 @@ func (vm *VM) registerFilePrimitives() {
 		if err != nil {
 			return v.newFailureResult("Cannot stat file: " + err.Error())
 		}
-		return FromSmallInt(info.Size())
+		return v.newSuccessResult(FromSmallInt(info.Size()))
 	})
 
 	// readFrom:offset: path offset - Tail a file from a byte offset.
 	// Reads from the given byte offset to EOF, then trims to the last complete
-	// line (up to and including the final '\n'), and returns a 2-element Array:
+	// line (up to and including the final '\n'), and returns Success wrapping a
+	// 2-element Array (or Failure if the file cannot be opened/read):
 	//   { completeContent<String>, newByteOffset<Integer> }
 	// newByteOffset is offset + the exact number of BYTES consumed, so the caller
 	// can pass it straight back next time — byte-correct regardless of UTF-8, and
@@ -380,13 +384,14 @@ func (vm *VM) registerFilePrimitives() {
 		end := bytes.LastIndexByte(buf, '\n') + 1 // 0 if no newline present
 		content := buf[:end]
 		newOffset := offset + int64(end)
-		return v.NewArrayWithElements([]Value{
+		return v.newSuccessResult(v.NewArrayWithElements([]Value{
 			v.registry.NewStringValue(string(content)),
 			FromSmallInt(newOffset),
-		})
+		}))
 	})
 
 	// modificationTime: path - Get file modification time as Unix milliseconds
+	// (Success with the Integer, or Failure)
 	fileClass.AddClassMethod1(vm.Selectors, "modificationTime:", func(v *VM, recv Value, pathVal Value) Value {
 		path := v.valueToString(pathVal)
 		if path == "" {
@@ -396,7 +401,7 @@ func (vm *VM) registerFilePrimitives() {
 		if err != nil {
 			return v.newFailureResult("Cannot stat file: " + err.Error())
 		}
-		return FromSmallInt(info.ModTime().UnixMilli())
+		return v.newSuccessResult(FromSmallInt(info.ModTime().UnixMilli()))
 	})
 
 	// ---------------------------------------------------------------------------
@@ -421,7 +426,7 @@ func (vm *VM) registerFilePrimitives() {
 	// ---------------------------------------------------------------------------
 
 	// glob:in: pattern dir - Find files matching a glob pattern in a directory
-	// Returns an array of matching paths, or Failure on error
+	// Returns Success wrapping an Array of matching paths, or Failure on error
 	fileClass.AddClassMethod2(vm.Selectors, "glob:in:", func(v *VM, recv Value, patternVal, dirVal Value) Value {
 		pattern := v.valueToString(patternVal)
 		dir := v.valueToString(dirVal)
@@ -437,7 +442,7 @@ func (vm *VM) registerFilePrimitives() {
 		for i, m := range matches {
 			values[i] = v.registry.NewStringValue(m)
 		}
-		return v.NewArrayWithElements(values)
+		return v.newSuccessResult(v.NewArrayWithElements(values))
 	})
 
 	// ---------------------------------------------------------------------------

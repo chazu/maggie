@@ -31,13 +31,28 @@ Migration schedule (worst offenders first) — **completed 2026-07-16**:
 - `File readFileContents:` — ~~returns an untagged `String | Failure`
   union~~ DONE: returns `Success with: contents`, matching
   `writeFileContents:contents:`.
+- Untagged `X | Failure` unions — DONE 2026-09-29: `File listDirectory:`,
+  `size:`, `modificationTime:`, `glob:in:`, `readFrom:offset:`,
+  `workingDirectory`, `homeDirectory`; `DateTime parse:format:`; the Unix
+  socket surface (`listenAt:`, `listenAt:mode:`, `accept`,
+  `acceptToChannel:`, `connectTo:`, `send:`, `sendLine:`, `receive`,
+  `receive:`, `receiveLine`) all answer `Success`/`Failure`. `HttpServer
+  start` answers `Success`/`Failure` (was nil on listen error). Argument
+  and receiver errors (`HttpServer new:` non-Integer port, `DateTime
+  format:` bad layout, `fromEpoch:` non-number, socket mode/size/Channel
+  type errors) signal.
 
 ## 2. nil semantics
 
 nil is a value, not a signal. Absence, closure, and timeout get explicit
 variants or exceptions:
 
-- absence: `at:ifAbsent:`, `detect:ifNone:`, `remove:ifAbsent:`
+- absence: `at:ifAbsent:`, `detect:ifNone:`, `remove:ifAbsent:`,
+  `removeKey:ifAbsent:`. The non-tolerant forms signal (2026-09-29):
+  `Set>>remove:`/`ArrayList>>remove:` raise `NotFound`,
+  `Dictionary>>removeKey:` raises `KeyNotFound` (a `NotFound`), and
+  `ArrayList>>removeAt:`/`removeFirst`/`removeLast` raise
+  `SubscriptOutOfBounds` like `at:`/`first`/`last`.
 - channels: `receiveIfClosed:`, `tryReceiveIfEmpty:` (added 2026-07-16 —
   plain `receive`/`tryReceive` still answer nil for closed/empty, so use
   the variants whenever a legitimately-sent nil must be distinguishable)

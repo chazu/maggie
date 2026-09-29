@@ -28,7 +28,18 @@ type UnixConnObject struct {
 	conn   net.Conn
 	reader *bufio.Reader
 	closed atomic.Bool
-	mu     sync.Mutex
+	// readMu serializes reads. Every read goes through reader, so bytes a
+	// line read buffered past its newline are seen by the next raw receive.
+	// Close deliberately does not take it: closing the conn is what unblocks
+	// a reader parked in Read.
+	readMu sync.Mutex
+}
+
+// read reads up to len(buf) bytes through the shared buffered reader.
+func (c *UnixConnObject) read(buf []byte) (int, error) {
+	c.readMu.Lock()
+	defer c.readMu.Unlock()
+	return c.reader.Read(buf)
 }
 
 // ---------------------------------------------------------------------------
@@ -77,6 +88,11 @@ func (vm *VM) vmUnregisterUnixConn(v Value) {}
 
 // ---------------------------------------------------------------------------
 // Primitive Registration
+//
+// Failure doctrine (docs/CONVENTIONS.md §1): every primitive that can hit an
+// expected I/O failure answers a Result on BOTH paths — Success wrapping the
+// answer, or Failure carrying the reason. Programmer errors (wrong receiver,
+// non-Integer mode/size, non-Channel argument) signal a PrimitiveError.
 // ---------------------------------------------------------------------------
 
 func (vm *VM) registerUnixSocketPrimitives() {
@@ -125,7 +141,7 @@ func (vm *VM) registerUnixSocketPrimitives() {
 			path:     path,
 		}
 		srv.running.Store(true)
-		return v.vmRegisterUnixListener(srv)
+		return v.newSuccessResult(v.vmRegisterUnixListener(srv))
 	})
 
 	// UnixSocketServer primListenAtMode:mode:
@@ -135,7 +151,7 @@ func (vm *VM) registerUnixSocketPrimitives() {
 			return v.newFailureResult("UnixSocketServer.listenAt:mode: requires a path string")
 		}
 		if !modeVal.IsSmallInt() {
-			return v.newFailureResult("UnixSocketServer.listenAt:mode: requires an integer mode")
+			return v.SignalPrimitiveError("UnixSocketServer listenAt:mode:", "mode must be an Integer")
 		}
 		mode := os.FileMode(modeVal.SmallInt())
 
@@ -167,18 +183,19 @@ func (vm *VM) registerUnixSocketPrimitives() {
 			path:     path,
 		}
 		srv.running.Store(true)
-		return v.vmRegisterUnixListener(srv)
+		return v.newSuccessResult(v.vmRegisterUnixListener(srv))
 	})
 
 	// -----------------------------------------------------------------------
 	// UnixSocketServer instance methods
 	// -----------------------------------------------------------------------
 
-	// primAccept — blocking accept, returns a SocketConnection
+	// primAccept — blocking accept; Success wrapping a SocketConnection, or
+	// Failure if the server is closed / accept fails.
 	serverClass.AddMethod0(vm.Selectors, "primAccept", func(v *VM, recv Value) Value {
 		srv := v.vmGetUnixListener(recv)
 		if srv == nil {
-			return v.newFailureResult("Invalid UnixSocketServer")
+			return v.SignalPrimitiveError("UnixSocketServer", "receiver is not a live UnixSocketServer")
 		}
 		if srv.closed.Load() {
 			return v.newFailureResult("UnixSocketServer is closed")
@@ -193,18 +210,19 @@ func (vm *VM) registerUnixSocketPrimitives() {
 			conn:   conn,
 			reader: bufio.NewReader(conn),
 		}
-		return v.vmRegisterUnixConn(connObj)
+		return v.newSuccessResult(v.vmRegisterUnixConn(connObj))
 	})
 
-	// primAcceptToChannel: ch — spawn goroutine that sends new connections to channel
+	// primAcceptToChannel: ch — spawn goroutine that sends new connections to
+	// channel; answers Success wrapping the receiver, or Failure if closed.
 	serverClass.AddMethod1(vm.Selectors, "primAcceptToChannel:", func(v *VM, recv Value, chVal Value) Value {
 		srv := v.vmGetUnixListener(recv)
 		if srv == nil {
-			return v.newFailureResult("Invalid UnixSocketServer")
+			return v.SignalPrimitiveError("UnixSocketServer", "receiver is not a live UnixSocketServer")
 		}
 		ch := v.vmGetChannel(chVal)
 		if ch == nil {
-			return v.newFailureResult("acceptToChannel: requires a Channel")
+			return v.SignalPrimitiveError("UnixSocketServer acceptToChannel:", "argument must be a Channel")
 		}
 		if srv.closed.Load() {
 			return v.newFailureResult("UnixSocketServer is closed")
@@ -230,7 +248,7 @@ func (vm *VM) registerUnixSocketPrimitives() {
 			}
 		}()
 
-		return recv
+		return v.newSuccessResult(recv)
 	})
 
 	// primClose — stop accepting, remove socket file
@@ -308,7 +326,7 @@ func (vm *VM) registerUnixSocketPrimitives() {
 			conn:   conn,
 			reader: bufio.NewReader(conn),
 		}
-		return v.vmRegisterUnixConn(connObj)
+		return v.newSuccessResult(v.vmRegisterUnixConn(connObj))
 	})
 
 	// -----------------------------------------------------------------------
@@ -319,7 +337,7 @@ func (vm *VM) registerUnixSocketPrimitives() {
 	connClass.AddMethod1(vm.Selectors, "primSend:", func(v *VM, recv Value, dataVal Value) Value {
 		c := v.vmGetUnixConn(recv)
 		if c == nil {
-			return v.newFailureResult("Invalid SocketConnection")
+			return v.SignalPrimitiveError("SocketConnection", "receiver is not a live SocketConnection")
 		}
 		if c.closed.Load() {
 			return v.newFailureResult("SocketConnection is closed")
@@ -330,14 +348,14 @@ func (vm *VM) registerUnixSocketPrimitives() {
 		if err != nil {
 			return v.newFailureResult("send: " + err.Error())
 		}
-		return recv
+		return v.newSuccessResult(recv)
 	})
 
 	// primSendLine: data — write string data followed by newline
 	connClass.AddMethod1(vm.Selectors, "primSendLine:", func(v *VM, recv Value, dataVal Value) Value {
 		c := v.vmGetUnixConn(recv)
 		if c == nil {
-			return v.newFailureResult("Invalid SocketConnection")
+			return v.SignalPrimitiveError("SocketConnection", "receiver is not a live SocketConnection")
 		}
 		if c.closed.Load() {
 			return v.newFailureResult("SocketConnection is closed")
@@ -348,38 +366,38 @@ func (vm *VM) registerUnixSocketPrimitives() {
 		if err != nil {
 			return v.newFailureResult("sendLine: " + err.Error())
 		}
-		return recv
+		return v.newSuccessResult(recv)
 	})
 
 	// primReceive — read up to 4096 bytes
 	connClass.AddMethod0(vm.Selectors, "primReceive", func(v *VM, recv Value) Value {
 		c := v.vmGetUnixConn(recv)
 		if c == nil {
-			return v.newFailureResult("Invalid SocketConnection")
+			return v.SignalPrimitiveError("SocketConnection", "receiver is not a live SocketConnection")
 		}
 		if c.closed.Load() {
 			return v.newFailureResult("SocketConnection is closed")
 		}
 
 		buf := make([]byte, 4096)
-		n, err := c.conn.Read(buf)
+		n, err := c.read(buf)
 		if err != nil {
 			return v.newFailureResult("receive: " + err.Error())
 		}
-		return v.registry.NewStringValue(string(buf[:n]))
+		return v.newSuccessResult(v.registry.NewStringValue(string(buf[:n])))
 	})
 
 	// primReceiveMax: maxBytes — read up to maxBytes
 	connClass.AddMethod1(vm.Selectors, "primReceiveMax:", func(v *VM, recv Value, maxVal Value) Value {
 		c := v.vmGetUnixConn(recv)
 		if c == nil {
-			return v.newFailureResult("Invalid SocketConnection")
+			return v.SignalPrimitiveError("SocketConnection", "receiver is not a live SocketConnection")
 		}
 		if c.closed.Load() {
 			return v.newFailureResult("SocketConnection is closed")
 		}
 		if !maxVal.IsSmallInt() {
-			return v.newFailureResult("receive: requires an integer max bytes")
+			return v.SignalPrimitiveError("SocketConnection receive:", "max bytes must be an Integer")
 		}
 		maxBytes := int(maxVal.SmallInt())
 		if maxBytes <= 0 {
@@ -387,31 +405,31 @@ func (vm *VM) registerUnixSocketPrimitives() {
 		}
 
 		buf := make([]byte, maxBytes)
-		n, err := c.conn.Read(buf)
+		n, err := c.read(buf)
 		if err != nil {
 			return v.newFailureResult("receive: " + err.Error())
 		}
-		return v.registry.NewStringValue(string(buf[:n]))
+		return v.newSuccessResult(v.registry.NewStringValue(string(buf[:n])))
 	})
 
 	// primReceiveLine — read one newline-delimited line (for JSON-RPC)
 	connClass.AddMethod0(vm.Selectors, "primReceiveLine", func(v *VM, recv Value) Value {
 		c := v.vmGetUnixConn(recv)
 		if c == nil {
-			return v.newFailureResult("Invalid SocketConnection")
+			return v.SignalPrimitiveError("SocketConnection", "receiver is not a live SocketConnection")
 		}
 		if c.closed.Load() {
 			return v.newFailureResult("SocketConnection is closed")
 		}
 
-		c.mu.Lock()
+		c.readMu.Lock()
 		line, err := c.reader.ReadString('\n')
-		c.mu.Unlock()
+		c.readMu.Unlock()
 
 		if err != nil {
 			if len(line) > 0 {
 				// Partial read before error — return what we got
-				return v.registry.NewStringValue(line)
+				return v.newSuccessResult(v.registry.NewStringValue(line))
 			}
 			return v.newFailureResult("receiveLine: " + err.Error())
 		}
@@ -419,7 +437,7 @@ func (vm *VM) registerUnixSocketPrimitives() {
 		if len(line) > 0 && line[len(line)-1] == '\n' {
 			line = line[:len(line)-1]
 		}
-		return v.registry.NewStringValue(line)
+		return v.newSuccessResult(v.registry.NewStringValue(line))
 	})
 
 	// primClose
@@ -429,12 +447,8 @@ func (vm *VM) registerUnixSocketPrimitives() {
 			return recv
 		}
 
-		c.mu.Lock()
-		defer c.mu.Unlock()
-
-		if !c.closed.Load() {
+		if !c.closed.Swap(true) {
 			c.conn.Close()
-			c.closed.Store(true)
 		}
 
 		v.vmUnregisterUnixConn(recv)

@@ -3,9 +3,11 @@ package vm
 import (
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -196,10 +198,12 @@ func TestHttpServerNewInvalidPort(t *testing.T) {
 
 	httpServerClassVal := vm.globals["HttpServer"]
 
-	// Non-integer argument should return Nil
-	result := vm.Send(httpServerClassVal, "new:", []Value{vm.registry.NewStringValue("abc")})
-	if result != Nil {
-		t.Errorf("HttpServer new: with non-integer should return Nil, got %v", result)
+	// A non-integer port is a programmer error: it signals (CONVENTIONS §1),
+	// never answers nil.
+	if _, signaled := signalsPrimitiveError(vm, func() {
+		vm.Send(httpServerClassVal, "new:", []Value{vm.registry.NewStringValue("abc")})
+	}); !signaled {
+		t.Error("HttpServer new: with non-integer should signal")
 	}
 }
 
@@ -759,9 +763,9 @@ func TestHttpServerDoubleStart(t *testing.T) {
 	srv := vm.vmGetHttpServer(serverVal)
 	if srv != nil {
 		srv.running.Store(true)
-		result := vm.Send(serverVal, "start", nil)
+		result := assertSuccess(t, vm, vm.Send(serverVal, "start", nil), "second start")
 		if result != serverVal {
-			t.Error("second start should return receiver immediately")
+			t.Error("second start should answer Success wrapping the receiver immediately")
 		}
 	}
 
@@ -1026,6 +1030,153 @@ func TestHttpGlobalsRegistered(t *testing.T) {
 	for _, name := range []string{"HttpServer", "HttpRequest", "HttpResponse"} {
 		if _, ok := vm.globals[name]; !ok {
 			t.Errorf("global %q should be registered", name)
+		}
+	}
+}
+
+// freeTCPPort returns a port that was free a moment ago.
+func freeTCPPort(t *testing.T) int {
+	t.Helper()
+	l, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	defer l.Close()
+	return l.Addr().(*net.TCPAddr).Port
+}
+
+// waitServing polls until a TCP connection to port succeeds or the deadline passes.
+func waitServing(port int) bool {
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) {
+		c, err := net.DialTimeout("tcp", fmt.Sprintf("127.0.0.1:%d", port), 100*time.Millisecond)
+		if err == nil {
+			c.Close()
+			return true
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	return false
+}
+
+// An http.Server cannot be reused after Shutdown; stop must leave the
+// HttpServer restartable rather than making the next start a silent no-op
+// that reports isRunning=true while nothing listens.
+func TestHttpServerRestartAfterStop(t *testing.T) {
+	vm := NewVM()
+	port := freeTCPPort(t)
+	serverVal := vm.Send(vm.globals["HttpServer"], "new:", []Value{FromSmallInt(int64(port))})
+	srv := vm.vmGetHttpServer(serverVal)
+
+	for round := 1; round <= 2; round++ {
+		done := make(chan struct{})
+		go func() {
+			defer close(done)
+			vm.Send(serverVal, "start", nil)
+		}()
+		if !waitServing(port) {
+			t.Fatalf("round %d: server not accepting connections (running=%v)", round, srv.running.Load())
+		}
+		vm.Send(serverVal, "stop", nil)
+		select {
+		case <-done:
+		case <-time.After(3 * time.Second):
+			t.Fatalf("round %d: start did not return after stop", round)
+		}
+	}
+}
+
+// send: racing close must answer false, never panic with "send on closed
+// channel" (close used to close eventCh between send:'s closed check and
+// its channel send).
+func TestSSEConnectionSendCloseRace(t *testing.T) {
+	vm := NewVM()
+	for iter := 0; iter < 200; iter++ {
+		done := make(chan struct{})
+		conn := &SSEConnectionObject{eventCh: make(chan sseEvent), done: done}
+		connVal := vm.vmRegisterSSEConnection(conn)
+		go func() {
+			for range conn.eventCh {
+			}
+		}()
+		var wg sync.WaitGroup
+		for s := 0; s < 4; s++ {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				for k := 0; k < 20; k++ {
+					vm.Send(connVal, "send:", []Value{vm.registry.NewStringValue("x")})
+				}
+			}()
+		}
+		vm.Send(connVal, "close", nil)
+		wg.Wait()
+		close(done)
+	}
+}
+
+// start must answer a Failure carrying the listen error (e.g. port in use),
+// never nil.
+func TestHttpServerStartPortInUseAnswersFailure(t *testing.T) {
+	vm := NewVM()
+	l, err := net.Listen("tcp", ":0")
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	defer l.Close()
+	port := l.Addr().(*net.TCPAddr).Port
+	serverVal := vm.Send(vm.globals["HttpServer"], "new:", []Value{FromSmallInt(int64(port))})
+
+	done := make(chan Value, 1)
+	go func() { done <- vm.Send(serverVal, "start", nil) }()
+	select {
+	case result := <-done:
+		assertFailure(t, vm, result, "start on a port in use")
+		if vm.Send(serverVal, "isRunning", nil) != False {
+			t.Error("isRunning should be false after a failed start")
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("start on a port in use did not return")
+	}
+}
+
+// A clean stop makes the blocked start answer Success wrapping the server.
+func TestHttpServerStartAnswersSuccessOnStop(t *testing.T) {
+	vm := NewVM()
+	port := freeTCPPort(t)
+	serverVal := vm.Send(vm.globals["HttpServer"], "new:", []Value{FromSmallInt(int64(port))})
+	done := make(chan Value, 1)
+	go func() { done <- vm.Send(serverVal, "start", nil) }()
+	if !waitServing(port) {
+		t.Fatal("server not accepting connections")
+	}
+	vm.Send(serverVal, "stop", nil)
+	select {
+	case result := <-done:
+		if got := assertSuccess(t, vm, result, "start after stop"); got != serverVal {
+			t.Error("start should answer Success wrapping the receiver")
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("start did not return after stop")
+	}
+}
+
+// Registration primitives given bad arguments signal instead of answering nil.
+func TestHttpServerBadRegistrationArgumentsSignal(t *testing.T) {
+	vm := NewVM()
+	serverVal := vm.Send(vm.globals["HttpServer"], "new:", []Value{FromSmallInt(0)})
+	empty := vm.registry.NewStringValue("")
+	path := vm.registry.NewStringValue("/x")
+	cases := map[string]func(){
+		"serveStatic:from: empty": func() { vm.Send(serverVal, "serveStatic:from:", []Value{empty, empty}) },
+		"route: non-block": func() {
+			vm.Send(serverVal, "route:method:handler:", []Value{path, vm.registry.NewStringValue("GET"), FromSmallInt(1)})
+		},
+		"sseRoute: non-block": func() { vm.Send(serverVal, "sseRoute:handler:", []Value{path, FromSmallInt(1)}) },
+	}
+	for name, fn := range cases {
+		if _, signaled := signalsPrimitiveError(vm, fn); !signaled {
+			t.Errorf("%s should signal", name)
 		}
 	}
 }

@@ -1,10 +1,13 @@
 """
 File system operations for reading, writing, and manipulating files and paths.
 
-File provides class-side methods for all file I/O. Methods that can fail
-return a Result (Success or Failure). Path manipulation methods are pure
-and always return strings. All methods are primitives registered on the
-class side.
+File provides class-side methods for all file I/O. Every method that can
+fail returns a Result on BOTH paths: `Success` wrapping the answer, or
+`Failure` carrying the reason -- never a bare value on success. Unwrap with
+`value`, or branch with `onSuccess:onFailure:`. Predicates (`exists:`,
+`isDirectory:`, `isFile:`) answer Booleans, and path manipulation methods
+are pure and always return strings. All methods are primitives registered
+on the class side.
 
 ## Reading
 
@@ -26,7 +29,8 @@ class side.
 
 ## Directory operations
 
-- `File listDirectory: path` -- Return an Array of filenames in a directory.
+- `File listDirectory: path` -- Success wrapping an Array of the filenames
+  in a directory, or Failure if it cannot be read.
 - `File createDirectory: path` -- Create directory and parents. Returns Success.
 
 ## File manipulation
@@ -46,17 +50,22 @@ class side.
 
 ## Directories
 
-- `File workingDirectory` -- Current working directory.
-- `File homeDirectory` -- User home directory.
+- `File workingDirectory` -- Success wrapping the current working directory.
+- `File homeDirectory` -- Success wrapping the user home directory.
 
 ## File metadata
 
-- `File size: path` -- File size in bytes.
-- `File modificationTime: path` -- Modification time as Unix milliseconds.
+- `File size: path` -- Success wrapping the file size in bytes.
+- `File modificationTime: path` -- Success wrapping the modification time
+  as Unix milliseconds.
+- `File readFrom: path offset: byteOffset` -- Tail a file: Success wrapping
+  `{ content. newOffset }`, where content runs from `byteOffset` to the last
+  complete line and `newOffset` is the offset to pass next time.
 
 ## Glob
 
-- `File glob: pattern in: dir` -- Find files matching a glob pattern.
+- `File glob: pattern in: dir` -- Success wrapping an Array of the paths
+  matching a glob pattern, or Failure for an invalid pattern.
 
 ## Temporary files
 
@@ -90,11 +99,11 @@ File join: '/tmp' with: 'file.txt' >>> '/tmp/file.txt'
 ```
 
 ```test
-(File workingDirectory) class >>> String
+(File workingDirectory) value class >>> String
 ```
 
 ```test
-(File homeDirectory) class >>> String
+(File homeDirectory) value class >>> String
 ```
 
 ```test
@@ -140,12 +149,13 @@ File isFile: '/tmp' >>> false
 ```test
 ftPath5 := (File tempFile) value.
 File writeFileContents: ftPath5 contents: 'hello'.
-File size: ftPath5 >>> 5
+(File size: ftPath5) value >>> 5
+(File size: '/nonexistent/xyzzy') isFailure >>> true
 ```
 
 ```test
 ftPath6 := (File tempFile) value.
-(File modificationTime: ftPath6) > 0 >>> true
+(File modificationTime: ftPath6) value > 0 >>> true
 ```
 
 ```test
@@ -182,7 +192,8 @@ File isDirectory: ftDir1 >>> true
 ftDir2 := '/tmp/maggie-test-listdir-dt'.
 File createDirectory: ftDir2.
 File writeFileContents: (File join: ftDir2 with: 'a.txt') contents: 'a'.
-(File listDirectory: ftDir2) class >>> Array
+(File listDirectory: ftDir2) value class >>> Array
+(File listDirectory: '/nonexistent/xyzzy') isFailure >>> true
 ```
 
 ```test
@@ -198,7 +209,14 @@ ftDir4 := '/tmp/maggie-test-glob-dt'.
 File createDirectory: ftDir4.
 File writeFileContents: (File join: ftDir4 with: 'a.txt') contents: 'a'.
 File writeFileContents: (File join: ftDir4 with: 'b.txt') contents: 'b'.
-(File glob: '*.txt' in: ftDir4) size >>> 2
+(File glob: '*.txt' in: ftDir4) value size >>> 2
+```
+
+```test
+ftTail := (File tempFile) value.
+File writeFileContents: ftTail contents: 'one', String lf, 'two', String lf, 'part'.
+((File readFrom: ftTail offset: 0) value at: 2) >>> 8
+(File readFrom: '/nonexistent/xyzzy' offset: 0) isFailure >>> true
 ```
 
 ```test
@@ -216,13 +234,13 @@ ftPfxResult isSuccess >>> true
 ```example
 "Read with an explicit failure branch"
 (File readFileContents: '/tmp/myfile.txt')
-    ifSuccess: [:contents | contents]
-    ifFailure: [:reason | 'File not found']
+    onSuccess: [:contents | contents]
+    onFailure: [:reason | 'File not found']
 ```
 
 ```example
 "List .mag files in a directory"
-File glob: '*.mag' in: 'lib/'
+(File glob: '*.mag' in: 'lib/') value
 ```
 """
 File subclass: Object

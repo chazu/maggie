@@ -13,8 +13,8 @@ with `value`.
 client := HttpClient new.
 result := client get: 'http://example.com/api/status'.
 result
-    ifSuccess: [:body | body print]
-    ifFailure: [:reason | ('request failed: ', reason) print]
+    onSuccess: [:body | body print]
+    onFailure: [:reason | ('request failed: ', reason) print]
 ```
 
 ```example
