@@ -1,41 +1,34 @@
 package manifest
 
-import "strings"
+import (
+	"strings"
+	"unicode"
+)
 
-// ToPascalCase converts a string to PascalCase.
-// "my-app" -> "MyApp", "models" -> "Models", "myApp" -> "MyApp"
+// ToPascalCase converts a directory or dependency name to a namespace
+// segment: the first letter of each word is upper-cased and the rest is kept
+// as written, so acronyms survive.
+//
+//	"my-app" -> "MyApp", "models" -> "Models", "myApp" -> "MyApp",
+//	"UI" -> "UI", "HTTPServer" -> "HTTPServer", "émile" -> "Émile"
+//
+// Any character that cannot appear in an identifier ('-', '_', '.', spaces,
+// …) separates words, so the result is always identifier characters.
 func ToPascalCase(s string) string {
-	var words []string
-	current := ""
-	for i, r := range s {
-		if r == '-' || r == '_' {
-			if current != "" {
-				words = append(words, current)
-				current = ""
-			}
+	var b strings.Builder
+	startWord := true
+	for _, r := range s {
+		if !unicode.IsLetter(r) && !unicode.IsDigit(r) {
+			startWord = true
 			continue
 		}
-		if i > 0 && r >= 'A' && r <= 'Z' {
-			prev := rune(s[i-1])
-			if prev >= 'a' && prev <= 'z' {
-				words = append(words, current)
-				current = ""
-			}
+		if startWord {
+			r = unicode.ToUpper(r)
+			startWord = false
 		}
-		current += string(r)
+		b.WriteRune(r)
 	}
-	if current != "" {
-		words = append(words, current)
-	}
-
-	var result string
-	for _, w := range words {
-		if w == "" {
-			continue
-		}
-		result += strings.ToUpper(w[:1]) + strings.ToLower(w[1:])
-	}
-	return result
+	return b.String()
 }
 
 // reservedNamespaces lists core VM class names that cannot be used as
