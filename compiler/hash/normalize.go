@@ -200,25 +200,13 @@ func (n *normalizer) normalizeExpr(expr compiler.Expr) hNode {
 		}
 
 	case *compiler.Cascade:
-		msgs := make([]hCascadedMessage, len(e.Messages))
-		for i, m := range e.Messages {
-			args := make([]hNode, len(m.Arguments))
-			for j, a := range m.Arguments {
-				args[j] = n.normalizeExpr(a)
-			}
-			var msgType byte
-			switch m.Type {
-			case compiler.UnaryMsg:
-				msgType = TagCascadeUnary
-			case compiler.BinaryMsg:
-				msgType = TagCascadeBinary
-			case compiler.KeywordMsg:
-				msgType = TagCascadeKeyword
-			}
-			msgs[i] = hCascadedMessage{
-				Type:      msgType,
-				Selector:  m.Selector,
-				Arguments: args,
+		// Chained messages are flattened into the list, marked Chained; the
+		// list length is serialized first, so the encoding stays unambiguous.
+		msgs := make([]hCascadedMessage, 0, len(e.Messages))
+		for _, m := range e.Messages {
+			msgs = append(msgs, n.normalizeCascaded(m, false))
+			for _, next := range m.Then {
+				msgs = append(msgs, n.normalizeCascaded(next, true))
 			}
 		}
 		return &hCascade{
@@ -295,4 +283,22 @@ func (n *normalizer) normalizeBlock(block *compiler.Block) *hBlock {
 		NumTemps:   len(block.Parameters) + len(block.Temps),
 		Statements: stmts,
 	}
+}
+
+// normalizeCascaded normalizes one cascaded message (not its chain).
+func (n *normalizer) normalizeCascaded(m compiler.CascadedMessage, chained bool) hCascadedMessage {
+	args := make([]hNode, len(m.Arguments))
+	for j, a := range m.Arguments {
+		args[j] = n.normalizeExpr(a)
+	}
+	var msgType byte
+	switch m.Type {
+	case compiler.UnaryMsg:
+		msgType = TagCascadeUnary
+	case compiler.BinaryMsg:
+		msgType = TagCascadeBinary
+	case compiler.KeywordMsg:
+		msgType = TagCascadeKeyword
+	}
+	return hCascadedMessage{Chained: chained, Type: msgType, Selector: m.Selector, Arguments: args}
 }

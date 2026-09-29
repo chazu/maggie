@@ -192,6 +192,9 @@ func (s *serializer) serializeNode(node hNode) {
 		s.serializeNode(n.Receiver)
 		s.writeUint32(uint32(len(n.Messages)))
 		for _, msg := range n.Messages {
+			if msg.Chained {
+				s.writeByte(TagCascadeChained)
+			}
 			s.writeByte(msg.Type)
 			s.writeString(msg.Selector)
 			s.writeUint32(uint32(len(msg.Arguments)))

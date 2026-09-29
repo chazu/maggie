@@ -44,6 +44,34 @@ func (p *Parser) curTokenIs(t TokenType) bool {
 	return p.curToken.Type == t
 }
 
+// expectEOF records an error unless all input has been consumed. Statement
+// parsing stops quietly at the first token that cannot continue a statement,
+// so without this check `3 4` or a stray `]` would be silently dropped.
+func (p *Parser) expectEOF() {
+	p.skipTrailingPeriods()
+	if !p.curTokenIs(TokenEOF) {
+		p.errorf("unexpected %s %q after the last statement", p.curToken.Type, p.curToken.Literal)
+	}
+}
+
+// curIsNegativeNumber reports whether the current token is a number literal
+// the lexer read with a leading minus (it lexes `-1` greedily).
+func (p *Parser) curIsNegativeNumber() bool {
+	return (p.curTokenIs(TokenInteger) || p.curTokenIs(TokenFloat)) &&
+		strings.HasPrefix(p.curToken.Literal, "-")
+}
+
+// splitNegativeNumber turns a negative number token met where a binary
+// operator is expected into the binary selector `-` followed by the positive
+// literal, so `x-1` parses as `x - 1` (as `3 -1` does in Pharo) instead of
+// stopping the expression at the literal. The token is rewritten in place to
+// the positive number; the caller then parses it as the argument.
+func (p *Parser) splitNegativeNumber() {
+	p.curToken.Literal = p.curToken.Literal[1:]
+	p.curToken.Pos.Offset++
+	p.curToken.Pos.Column++
+}
+
 // skipTrailingPeriods consumes any trailing statement-separator periods, so a
 // single expression with a trailing '.' (common in REPL/eval input) is accepted
 // while genuine trailing tokens still surface as errors.
@@ -229,6 +257,7 @@ func (p *Parser) ParseMethod() *MethodDef {
 
 	// Parse statements
 	stmts := p.ParseStatements()
+	p.expectEOF()
 
 	return &MethodDef{
 		SpanVal:    MakeSpan(startPos, p.curToken.Pos),
@@ -503,9 +532,14 @@ func (p *Parser) parseBinarySendNoCascade() Expr {
 
 	// Parse binary messages (left associative)
 	// Note: TokenBar (|) is also a binary selector in expression context
-	for p.curTokenIs(TokenBinarySelector) || p.curTokenIs(TokenBar) {
+	for p.curTokenIs(TokenBinarySelector) || p.curTokenIs(TokenBar) || p.curIsNegativeNumber() {
 		selector := p.curToken.Literal
-		p.nextToken()
+		if p.curIsNegativeNumber() {
+			selector = "-"
+			p.splitNegativeNumber()
+		} else {
+			p.nextToken()
+		}
 
 		right := p.parseUnarySend()
 		if right == nil {
@@ -577,8 +611,37 @@ func (p *Parser) parseCascade(first Expr) Expr {
 	}
 }
 
-// parseCascadedMessage parses a single cascaded message (without receiver).
+// parseCascadedMessage parses one cascade part (without receiver): a message
+// chain unary* binary* [keyword], as in ANSI. The first message goes to the
+// cascade receiver; the rest are collected in Then.
 func (p *Parser) parseCascadedMessage() *CascadedMessage {
+	first := p.parseCascadedSingle()
+	if first == nil {
+		return nil
+	}
+	kind := first.Type
+	for kind != KeywordMsg {
+		var next *CascadedMessage
+		switch {
+		case kind == UnaryMsg && p.curTokenIs(TokenIdentifier) &&
+			!p.peekTokenIs(TokenAssign) && !p.peekTokenIs(TokenColon):
+			next = p.parseCascadedSingle()
+		case p.curTokenIs(TokenBinarySelector) || p.curTokenIs(TokenBar) || p.curIsNegativeNumber():
+			next = p.parseCascadedSingle()
+		case p.curTokenIs(TokenKeyword):
+			next = p.parseCascadedSingle()
+		}
+		if next == nil {
+			break
+		}
+		first.Then = append(first.Then, *next)
+		kind = next.Type
+	}
+	return first
+}
+
+// parseCascadedSingle parses a single message of a cascade part.
+func (p *Parser) parseCascadedSingle() *CascadedMessage {
 	switch {
 	case p.curTokenIs(TokenIdentifier):
 		// Unary message
@@ -589,10 +652,15 @@ func (p *Parser) parseCascadedMessage() *CascadedMessage {
 			Selector: selector,
 		}
 
-	case p.curTokenIs(TokenBinarySelector):
-		// Binary message
+	case p.curTokenIs(TokenBinarySelector) || p.curTokenIs(TokenBar) || p.curIsNegativeNumber():
+		// Binary message (`; -1` is the binary minus, as in parseBinarySendNoCascade)
 		selector := p.curToken.Literal
-		p.nextToken()
+		if p.curIsNegativeNumber() {
+			selector = "-"
+			p.splitNegativeNumber()
+		} else {
+			p.nextToken()
+		}
 		arg := p.parseUnarySend()
 		if arg == nil {
 			return nil
@@ -718,16 +786,26 @@ func (p *Parser) parseInteger() *IntLiteral {
 	pos := p.curToken.Pos
 	literal := p.curToken.Literal
 
-	// Handle radix notation (16rFF)
+	// Handle radix notation (16rFF). The sign applies to the value, not the
+	// radix: -16rFF is -(16rFF), so strip it before splitting on 'r'.
 	var value int64
 	var err error
 	var digits string
 	radix := 10
-	if idx := strings.Index(literal, "r"); idx > 0 {
-		radixStr := literal[:idx]
-		digits = literal[idx+1:]
-		r, _ := strconv.ParseInt(radixStr, 10, 64)
+	sign := ""
+	body := literal
+	if strings.HasPrefix(body, "-") {
+		sign, body = "-", body[1:]
+	}
+	if idx := strings.Index(body, "r"); idx > 0 {
+		r, _ := strconv.ParseInt(body[:idx], 10, 64)
 		radix = int(r)
+		digits = sign + body[idx+1:]
+		if radix < 2 || radix > 36 {
+			p.errorf("invalid integer: %s (radix must be 2..36)", literal)
+			p.nextToken()
+			return &IntLiteral{SpanVal: MakeSpan(pos, p.curToken.Pos)}
+		}
 		value, err = strconv.ParseInt(digits, radix, 64)
 	} else {
 		digits = literal

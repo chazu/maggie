@@ -68,6 +68,10 @@ const (
 	TagCascadeUnary   byte = 0x20
 	TagCascadeBinary  byte = 0x21
 	TagCascadeKeyword byte = 0x22
+	// TagCascadeChained prefixes a message sent to the previous message's
+	// result within one cascade part (`x foo; bar baz`: baz). Chain-free
+	// cascades never emit it, so their hashes are unchanged.
+	TagCascadeChained byte = 0x23
 )
 
 // Typed serialization presence bytes. These are NOT node tags — they indicate
@@ -88,5 +92,5 @@ var allTags = []byte{
 	TagAssignment, TagReturn, TagBlock, TagMethodDef,
 	TagClassDef, TagTraitDef, TagPrimitive, TagDynamicArray,
 	TagExprStmt, TagThisContext, TagDictLiteral,
-	TagCascadeUnary, TagCascadeBinary, TagCascadeKeyword,
+	TagCascadeUnary, TagCascadeBinary, TagCascadeKeyword, TagCascadeChained,
 }

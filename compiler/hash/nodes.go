@@ -110,6 +110,7 @@ type hCascade struct {
 
 // hCascadedMessage is a message in a cascade.
 type hCascadedMessage struct {
+	Chained   bool // sent to the previous message's result (serialized as TagCascadeChained)
 	Type      byte // TagCascadeUnary, TagCascadeBinary, or TagCascadeKeyword
 	Selector  string
 	Arguments []hNode

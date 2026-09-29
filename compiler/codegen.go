@@ -582,12 +582,6 @@ func (c *Compiler) compileVariable(name string) {
 		}
 		return
 	}
-	// Check if it's an instance variable
-	if idx, ok := c.instVars[name]; ok {
-		c.checkSlotIndex(idx, "instance variable", name)
-		c.frame.builder.EmitByte(vm.OpPushIvar, byte(idx))
-		return
-	}
 	// In a block: check captured variables first (for nested blocks)
 	if c.frame.inBlock && c.frame.capturedVars != nil {
 		if idx, ok := c.frame.capturedVars[name]; ok {
@@ -613,6 +607,13 @@ func (c *Compiler) compileVariable(name string) {
 			c.frame.builder.EmitByte(vm.OpPushHomeTemp, byte(idx))
 			return
 		}
+	}
+	// Instance variables come after every lexical scope, so a temp or arg
+	// shadows an ivar of the same name inside blocks just as at method level.
+	if idx, ok := c.instVars[name]; ok {
+		c.checkSlotIndex(idx, "instance variable", name)
+		c.frame.builder.EmitByte(vm.OpPushIvar, byte(idx))
+		return
 	}
 	// Must be a global — resolve to FQN if namespace context is available
 	resolved := c.resolveGlobalName(name)
@@ -683,14 +684,6 @@ func (c *Compiler) compileAssignment(assign *Assignment) {
 		return
 	}
 
-	// Check if it's an instance variable
-	if idx, ok := c.instVars[name]; ok {
-		c.checkSlotIndex(idx, "instance variable", name)
-		c.frame.builder.EmitByte(vm.OpStoreIvar, byte(idx))
-		c.frame.builder.EmitByte(vm.OpPushIvar, byte(idx)) // Leave value on stack
-		return
-	}
-
 	// In a block: check captured variables first (for nested blocks)
 	if c.frame.inBlock && c.frame.capturedVars != nil {
 		if idx, ok := c.frame.capturedVars[name]; ok {
@@ -710,6 +703,15 @@ func (c *Compiler) compileAssignment(assign *Assignment) {
 			return
 		}
 		// Note: we don't allow assigning to outer args, treat as global
+	}
+
+	// Instance variables come after every lexical scope (same order as
+	// compileVariable), so a shadowing temp wins inside blocks too.
+	if idx, ok := c.instVars[name]; ok {
+		c.checkSlotIndex(idx, "instance variable", name)
+		c.frame.builder.EmitByte(vm.OpStoreIvar, byte(idx))
+		c.frame.builder.EmitByte(vm.OpPushIvar, byte(idx)) // Leave value on stack
+		return
 	}
 
 	// Global assignment — resolve to FQN if namespace context is available
@@ -861,23 +863,34 @@ func (c *Compiler) compileCascade(cascade *Cascade) {
 		}
 
 		// Compile message arguments and send
-		switch msg.Type {
-		case UnaryMsg:
-			send(msg.Selector, 0)
-		case BinaryMsg:
-			c.compileExpr(msg.Arguments[0])
-			send(msg.Selector, 1)
-		case KeywordMsg:
-			for _, arg := range msg.Arguments {
-				c.compileExpr(arg)
-			}
-			send(msg.Selector, len(msg.Arguments))
+		c.compileCascadedSend(msg, send)
+		// The rest of the part's chain goes to that result — a normal send,
+		// even in a cascade on super.
+		for _, next := range msg.Then {
+			c.compileCascadedSend(next, c.emitSend)
 		}
 
 		// Pop result of non-last messages
 		if i < len(cascade.Messages)-1 {
 			c.frame.builder.Emit(vm.OpPOP)
 		}
+	}
+}
+
+// compileCascadedSend compiles one cascaded message's arguments and send
+// (the receiver is already on the stack).
+func (c *Compiler) compileCascadedSend(msg CascadedMessage, send func(string, int)) {
+	switch msg.Type {
+	case UnaryMsg:
+		send(msg.Selector, 0)
+	case BinaryMsg:
+		c.compileExpr(msg.Arguments[0])
+		send(msg.Selector, 1)
+	case KeywordMsg:
+		for _, arg := range msg.Arguments {
+			c.compileExpr(arg)
+		}
+		send(msg.Selector, len(msg.Arguments))
 	}
 }
 
@@ -961,26 +974,25 @@ func (c *Compiler) compileBlock(block *Block) {
 		c.frame.temps[temp] = c.frame.numArgs + i
 	}
 
-	// Pre-initialize cell variables
-	for name, idx := range c.frame.temps {
-		if c.cellVars[name] {
-			c.checkSlotIndex(idx, "block temp", name)
-			c.frame.builder.Emit(vm.OpPushNil)
-			c.frame.builder.Emit(vm.OpMakeCell)
-			c.frame.builder.EmitByte(vm.OpStoreTemp, byte(idx))
-			c.frame.builder.Emit(vm.OpPOP)
-			c.frame.cellInitialized[name] = true
-		}
+	// Pre-initialize cell variables in slot order (map iteration order made
+	// block bytecode, and so the image, nondeterministic — see CompileMethod).
+	for _, name := range cellNamesBySlot(c.frame.temps, c.cellVars) {
+		idx := c.frame.temps[name]
+		c.checkSlotIndex(idx, "block temp", name)
+		c.frame.builder.Emit(vm.OpPushNil)
+		c.frame.builder.Emit(vm.OpMakeCell)
+		c.frame.builder.EmitByte(vm.OpStoreTemp, byte(idx))
+		c.frame.builder.Emit(vm.OpPOP)
+		c.frame.cellInitialized[name] = true
 	}
-	for name, idx := range c.frame.args {
-		if c.cellVars[name] {
-			c.checkSlotIndex(idx, "block arg", name)
-			c.frame.builder.EmitByte(vm.OpPushTemp, byte(idx))
-			c.frame.builder.Emit(vm.OpMakeCell)
-			c.frame.builder.EmitByte(vm.OpStoreTemp, byte(idx))
-			c.frame.builder.Emit(vm.OpPOP)
-			c.frame.cellInitialized[name] = true
-		}
+	for _, name := range cellNamesBySlot(c.frame.args, c.cellVars) {
+		idx := c.frame.args[name]
+		c.checkSlotIndex(idx, "block arg", name)
+		c.frame.builder.EmitByte(vm.OpPushTemp, byte(idx))
+		c.frame.builder.Emit(vm.OpMakeCell)
+		c.frame.builder.EmitByte(vm.OpStoreTemp, byte(idx))
+		c.frame.builder.Emit(vm.OpPOP)
+		c.frame.cellInitialized[name] = true
 	}
 
 	// Compile block body
@@ -1004,9 +1016,17 @@ func (c *Compiler) compileBlock(block *Block) {
 	// Pop back to outer frame
 	c.popFrame()
 
-	// Emit capture instructions in the outer frame
+	// Emit capture instructions in the outer frame. The outer frame's own
+	// temps/args come first: they shadow same-named variables further out,
+	// whose slot indices belong to a different frame.
 	for _, varName := range varsToCapture {
-		if idx, ok := outerFrame.enclosingBlockVars[varName]; ok {
+		if idx, ok := c.frame.temps[varName]; ok {
+			c.checkSlotIndex(idx, "temp", varName)
+			c.frame.builder.EmitByte(vm.OpPushTemp, byte(idx))
+		} else if idx, ok := c.frame.args[varName]; ok {
+			c.checkSlotIndex(idx, "argument", varName)
+			c.frame.builder.EmitByte(vm.OpPushTemp, byte(idx))
+		} else if idx, ok := outerFrame.enclosingBlockVars[varName]; ok {
 			if outerFrame.capturedVars != nil {
 				if captIdx, ok := outerFrame.capturedVars[varName]; ok {
 					c.checkSlotIndex(captIdx, "captured variable", varName)
@@ -1015,12 +1035,6 @@ func (c *Compiler) compileBlock(block *Block) {
 				}
 			}
 			c.checkSlotIndex(idx, "block variable", varName)
-			c.frame.builder.EmitByte(vm.OpPushTemp, byte(idx))
-		} else if idx, ok := c.frame.temps[varName]; ok {
-			c.checkSlotIndex(idx, "temp", varName)
-			c.frame.builder.EmitByte(vm.OpPushTemp, byte(idx))
-		} else if idx, ok := c.frame.args[varName]; ok {
-			c.checkSlotIndex(idx, "argument", varName)
 			c.frame.builder.EmitByte(vm.OpPushTemp, byte(idx))
 		} else if idx, ok := c.frame.outerTemps[varName]; ok {
 			c.checkSlotIndex(idx, "outer temp", varName)
@@ -1153,14 +1167,31 @@ func (c *Compiler) findCellVariables(method *MethodDef) map[string]bool {
 				}
 			case *Block:
 				// Register this block's parameters and temps at depth+1,
-				// then walk its body at that depth.
-				for _, p := range e.Parameters {
-					varInfos[p] = &varInfo{blockDepth: depth + 1}
-				}
-				for _, t := range e.Temps {
-					varInfos[t] = &varInfo{blockDepth: depth + 1}
+				// walk its body at that depth, then record which of them
+				// need cells and restore whatever those names meant outside.
+				// Entries are keyed by bare name, so without the restore a
+				// sibling block reusing a name (:x, :each, | t |) overwrote
+				// an earlier variable's record and lost its cell.
+				names := make([]string, 0, len(e.Parameters)+len(e.Temps))
+				names = append(append(names, e.Parameters...), e.Temps...)
+				saved := make(map[string]*varInfo, len(names))
+				for _, name := range names {
+					if _, done := saved[name]; !done {
+						saved[name] = varInfos[name]
+					}
+					varInfos[name] = &varInfo{blockDepth: depth + 1}
 				}
 				walkStmts(e.Statements, depth+1)
+				for name, prev := range saved {
+					if vi := varInfos[name]; vi.captured && vi.assignedInNestedBlk {
+						cellVars[name] = true
+					}
+					if prev == nil {
+						delete(varInfos, name)
+					} else {
+						varInfos[name] = prev
+					}
+				}
 				return false // handled recursion ourselves
 			}
 			return true
@@ -1185,11 +1216,12 @@ func (c *Compiler) findCellVariables(method *MethodDef) map[string]bool {
 	}
 	walkStmts(method.Statements, 0)
 
-	// Collect variables that need cells.
-	// A variable needs a cell if it's captured by a block AND assigned from a block.
-	// This applies to both block-local and method-level variables. Method-level
-	// variables now go through captures (not HomeBP) so blocks can outlive
-	// their method frame without reading stale stack data.
+	// Collect method-level variables that need cells (block-local ones were
+	// recorded as each block's scope closed). A variable needs a cell if it's
+	// captured by a block AND assigned from a block. Method-level variables
+	// go through captures (not HomeBP) so blocks can outlive their method
+	// frame without reading stale stack data. cellVars is keyed by name, so a
+	// name is boxed in every scope that declares it — consistent, if eager.
 	for name, vi := range varInfos {
 		if vi.captured && vi.assignedInNestedBlk {
 			cellVars[name] = true
@@ -1290,6 +1322,7 @@ func ParseDoIt(source string) (*MethodDef, error) {
 	}
 
 	stmts := p.ParseStatements()
+	p.expectEOF()
 	if errs := p.Errors(); len(errs) > 0 {
 		return nil, formatErrors("parse errors", errs)
 	}

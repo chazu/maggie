@@ -2,6 +2,7 @@ package compiler
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -494,9 +495,11 @@ func (l *Lexer) readNumber(pos Position) Token {
 	}
 
 	if l.ch == 'r' {
-		// Radix notation
+		// Radix notation: consume the digits valid in that radix (2..36),
+		// so 36rZZ lexes whole while 16rFF stays clear of a following name.
+		radix, _ := strconv.Atoi(strings.TrimPrefix(l.input[start:l.pos], "-"))
 		l.readChar()
-		for isHexDigit(l.ch) {
+		for d := radixDigitValue(l.ch); d >= 0 && d < radix; d = radixDigitValue(l.ch) {
 			l.readChar()
 		}
 		return Token{Type: TokenInteger, Literal: l.input[start:l.pos], Pos: pos}
@@ -527,6 +530,20 @@ func (l *Lexer) readNumber(pos Position) Token {
 		return Token{Type: TokenFloat, Literal: l.input[start:l.pos], Pos: pos}
 	}
 	return Token{Type: TokenInteger, Literal: l.input[start:l.pos], Pos: pos}
+}
+
+// radixDigitValue returns the value of ch as a digit in radix notation
+// (0-9, then A-Z / a-z for 10-35), or -1 if it is not a digit.
+func radixDigitValue(ch rune) int {
+	switch {
+	case ch >= '0' && ch <= '9':
+		return int(ch - '0')
+	case ch >= 'A' && ch <= 'Z':
+		return int(ch-'A') + 10
+	case ch >= 'a' && ch <= 'z':
+		return int(ch-'a') + 10
+	}
+	return -1
 }
 
 // readIdentifierOrKeyword reads an identifier or keyword.
@@ -593,10 +610,6 @@ func isLetter(r rune) bool {
 
 func isDigit(r rune) bool {
 	return r >= '0' && r <= '9'
-}
-
-func isHexDigit(r rune) bool {
-	return isDigit(r) || (r >= 'a' && r <= 'f') || (r >= 'A' && r <= 'F')
 }
 
 // Tokenize returns all tokens from the input.

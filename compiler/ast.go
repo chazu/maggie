@@ -195,6 +195,10 @@ type CascadedMessage struct {
 	Selector  string
 	Keywords  []string // for keyword messages
 	Arguments []Expr   // for binary and keyword messages
+	// Then holds the rest of this cascade part's message chain, each sent to
+	// the previous result (ANSI: `x foo; bar baz` sends bar to x, baz to
+	// that). Its elements have no Then of their own.
+	Then []CascadedMessage
 }
 
 // MessageType indicates the type of message.

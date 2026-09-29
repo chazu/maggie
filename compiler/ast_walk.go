@@ -79,6 +79,11 @@ func Walk(v Visitor, node Node) {
 			for _, arg := range msg.Arguments {
 				walkIfNotNil(v, arg)
 			}
+			for _, next := range msg.Then {
+				for _, arg := range next.Arguments {
+					walkIfNotNil(v, arg)
+				}
+			}
 		}
 
 	case *Block:

@@ -193,13 +193,22 @@ func (inf *Inferrer) inferExpr(env *TypeEnv, expr compiler.Expr) MaggieType {
 		recvType := inf.inferExpr(env, e.Receiver)
 		// Infer each cascaded message's arguments too (they were skipped
 		// entirely, hiding their effects).
+		// A cascade answers its last message's result; each part's chain
+		// sends its later messages to the previous result.
+		result := recvType
 		for _, msg := range e.Messages {
 			for _, arg := range msg.Arguments {
 				inf.inferExpr(env, arg)
 			}
+			result = inf.inferSend(recvType, msg.Selector, e.SpanVal.Start)
+			for _, next := range msg.Then {
+				for _, arg := range next.Arguments {
+					inf.inferExpr(env, arg)
+				}
+				result = inf.inferSend(result, next.Selector, e.SpanVal.Start)
+			}
 		}
-		// Cascade returns the receiver
-		return recvType
+		return result
 	case *compiler.Block:
 		// Walk block body for effect inference (blocks may contain effectful code)
 		blockEnv := NewTypeEnv(env)
