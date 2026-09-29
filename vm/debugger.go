@@ -29,6 +29,11 @@ type DebugServer struct {
 	// Current pause state
 	paused      bool
 	pauseReason string
+
+	// Location of the last pause. A breakpoint does not re-fire while
+	// execution stays on this (frame, line); step commands start from it.
+	pausedFrame int // -1 when no pause location is held
+	pausedLine  int
 }
 
 // breakpointKey uniquely identifies a breakpoint location.
@@ -113,6 +118,7 @@ func NewDebugServer(vm *VM) *DebugServer {
 		resumeChan:  make(chan struct{}, 1),
 		eventChan:   make(chan DebugEvent, 10),
 		stepMode:    StepNone,
+		pausedFrame: -1,
 	}
 }
 
@@ -130,6 +136,17 @@ func (d *DebugServer) Deactivate() {
 	d.active.Store(false)
 	// Clear all breakpoints
 	d.breakpoints = make(map[breakpointKey]bool)
+	d.stepMode = StepNone
+	d.pausedFrame = -1
+
+	// Release a process blocked in WaitForResume.
+	if d.paused {
+		d.paused = false
+		select {
+		case d.resumeChan <- struct{}{}:
+		default:
+		}
+	}
 }
 
 // IsActive returns whether the debug server is enabled.
@@ -322,6 +339,7 @@ func (d *DebugServer) StepOver(currentFrame int, currentLine int) {
 func (d *DebugServer) StepInto() {
 	d.mu.Lock()
 	d.stepMode = StepInto
+	d.stepLine = d.pausedLine
 	d.paused = false
 	d.mu.Unlock()
 
@@ -343,6 +361,14 @@ func (d *DebugServer) StepOut(currentFrame int) {
 	case d.resumeChan <- struct{}{}:
 	default:
 	}
+}
+
+// PausedAt returns the frame pointer and line of the last pause
+// (frame -1 if execution has not paused).
+func (d *DebugServer) PausedAt() (frame, line int) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	return d.pausedFrame, d.pausedLine
 }
 
 // IsPaused returns whether execution is currently paused.
@@ -561,6 +587,10 @@ func (d *DebugServer) formatValue(v Value) string {
 		return fmt.Sprintf("%d", v.SmallInt())
 	case v.IsFloat():
 		return fmt.Sprintf("%g", v.Float64())
+	case v.IsBlock():
+		return "a Block"
+	case d.vm != nil && (IsStringValue(v) || IsCharacterValue(v) || IsDictionaryValue(v) || IsBigIntValue(v)):
+		return NewInspector(d.vm).InspectDepth(v, 0).Value
 	case v.IsSymbol():
 		if d.vm != nil {
 			name := d.vm.Symbols.Name(v.SymbolID())
@@ -574,6 +604,11 @@ func (d *DebugServer) formatValue(v Value) string {
 		}
 		return "<object>"
 	default:
+		if d.vm != nil {
+			if cls := d.vm.ClassFor(v); cls != nil {
+				return "a " + cls.Name
+			}
+		}
 		return "<unknown>"
 	}
 }
@@ -591,6 +626,11 @@ func (d *DebugServer) typeOf(v Value) string {
 		return "SmallInteger"
 	case v.IsFloat():
 		return "Float"
+	case d.vm != nil:
+		if cls := d.vm.ClassFor(v); cls != nil {
+			return cls.Name
+		}
+		return "Object"
 	case v.IsSymbol():
 		return "Symbol"
 	case v.IsObject():
@@ -628,24 +668,29 @@ func (d *DebugServer) ShouldBreak(class, method string, line, framePtr int) (boo
 		return false, ""
 	}
 
+	// Leaving the paused (frame, line) re-arms breakpoints there.
+	if d.pausedFrame >= 0 && (framePtr < d.pausedFrame || (framePtr == d.pausedFrame && line != d.pausedLine)) {
+		d.pausedFrame = -1
+	}
+
 	// Check for pending pause request
 	select {
 	case req := <-d.pauseChan:
-		d.paused = true
-		d.pauseReason = req.reason
+		d.pauseAt(req.reason, framePtr, line)
 		return true, req.reason
 	default:
 	}
 
-	// Check breakpoints
+	// Check breakpoints (a breakpoint fires once per arrival on its line,
+	// not once per bytecode on it)
 	key := breakpointKey{
 		className:  class,
 		methodName: method,
 		line:       line,
 	}
-	if active, exists := d.breakpoints[key]; exists && active {
-		d.paused = true
-		d.pauseReason = "breakpoint"
+	if active, exists := d.breakpoints[key]; exists && active &&
+		!(framePtr == d.pausedFrame && line == d.pausedLine) {
+		d.pauseAt("breakpoint", framePtr, line)
 		return true, "breakpoint"
 	}
 
@@ -653,33 +698,40 @@ func (d *DebugServer) ShouldBreak(class, method string, line, framePtr int) (boo
 	switch d.stepMode {
 	case StepInto:
 		// Break on any line change
-		if line != d.stepLine {
-			d.paused = true
-			d.pauseReason = "step"
+		if line != d.stepLine || framePtr != d.stepFrame {
 			d.stepMode = StepNone
+			d.pauseAt("step", framePtr, line)
 			return true, "step"
 		}
 
 	case StepOver:
 		// Break if we're at the same or higher frame level and line changed
 		if framePtr <= d.stepFrame && line != d.stepLine {
-			d.paused = true
-			d.pauseReason = "step"
 			d.stepMode = StepNone
+			d.pauseAt("step", framePtr, line)
 			return true, "step"
 		}
 
 	case StepOut:
 		// Break when we return to a lower frame level
 		if framePtr < d.stepFrame {
-			d.paused = true
-			d.pauseReason = "step"
 			d.stepMode = StepNone
+			d.pauseAt("step", framePtr, line)
 			return true, "step"
 		}
 	}
 
 	return false, ""
+}
+
+// pauseAt records a pause at (framePtr, line). Caller holds d.mu.
+func (d *DebugServer) pauseAt(reason string, framePtr, line int) {
+	d.paused = true
+	d.pauseReason = reason
+	d.pausedFrame = framePtr
+	d.pausedLine = line
+	d.stepFrame = framePtr
+	d.stepLine = line
 }
 
 // WaitForResume blocks until execution should continue.

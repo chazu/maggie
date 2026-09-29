@@ -110,34 +110,69 @@ func extractSelectorParts(selector string) []string {
 }
 
 // matchesMethodStart checks if a line matches "method: <selector> ..." or
-// "classMethod: <selector> ...". For keyword selectors, the parts may be
-// interspersed with parameter names.
+// "classMethod: <selector> ...". The header is tokenized and the selector it
+// declares must equal the requested one exactly (so at: does not match
+// at:put:, and put: does not match xput:).
 func matchesMethodStart(line string, prefix string, selectorParts []string) bool {
 	if !strings.HasPrefix(line, prefix) {
 		return false
 	}
-	rest := strings.TrimSpace(line[len(prefix):])
+	return headerSelector(line[len(prefix):]) == strings.Join(selectorParts, "")
+}
 
-	if len(selectorParts) == 1 && !strings.HasSuffix(selectorParts[0], ":") {
-		// Unary selector: "foo" should match "foo [" or "foo["
-		word := selectorParts[0]
-		return strings.HasPrefix(rest, word) &&
-			(len(rest) == len(word) ||
-				rest[len(word)] == ' ' ||
-				rest[len(word)] == '[' ||
-				rest[len(word)] == '\t')
-	}
-
-	// Keyword selector: check each part appears in order
-	pos := 0
-	for _, part := range selectorParts {
-		idx := strings.Index(rest[pos:], part)
-		if idx < 0 {
-			return false
+// headerSelector extracts the selector declared by a method header (the text
+// after "method:"/"classMethod:"), skipping argument names, <Type>
+// annotations, ^ and ! markers, and stopping at the body's '['.
+func headerSelector(rest string) string {
+	var keywords []string
+	first := true
+	i := 0
+	for i < len(rest) {
+		ch := rest[i]
+		switch {
+		case ch == ' ' || ch == '\t':
+			i++
+			continue
+		case ch == '[':
+			i = len(rest)
+			continue
+		case !first && ch == '<':
+			// Skip a (possibly nested) type annotation.
+			depth := 0
+			for i < len(rest) {
+				if rest[i] == '<' {
+					depth++
+				} else if rest[i] == '>' {
+					depth--
+					if depth == 0 {
+						i++
+						break
+					}
+				}
+				i++
+			}
+			continue
+		case !first && (ch == '^' || ch == '!'):
+			i++
+			continue
 		}
-		pos += idx + len(part)
+		start := i
+		for i < len(rest) && rest[i] != ' ' && rest[i] != '\t' && rest[i] != '[' && (first || rest[i] != '<') {
+			i++
+		}
+		word := rest[start:i]
+		if first {
+			first = false
+			if !strings.HasSuffix(word, ":") {
+				// Unary or binary selector: the first word is the whole selector.
+				return word
+			}
+		}
+		if strings.HasSuffix(word, ":") {
+			keywords = append(keywords, word)
+		}
 	}
-	return true
+	return strings.Join(keywords, "")
 }
 
 // findDocstringStart walks backwards from methodLine to include leading
@@ -155,31 +190,18 @@ func findDocstringStart(lines []string, methodLine int) int {
 		trimmed := strings.TrimSpace(lines[i])
 		// Triple-quoted docstring ending with """
 		if strings.HasSuffix(trimmed, `"""`) {
-			// Find the start of the triple-quoted docstring
-			for i >= 0 {
-				if strings.Contains(strings.TrimSpace(lines[i]), `"""`) {
-					// Check if this line starts the docstring (has opening """)
-					line := strings.TrimSpace(lines[i])
-					if strings.HasPrefix(line, `"""`) {
-						return i
-					}
-					// If only closing, keep looking
-					if i > 0 {
-						i--
-						continue
-					}
-				}
-				if i == 0 {
-					break
-				}
-				// Check if previous line has opening """
-				prevTrimmed := strings.TrimSpace(lines[i])
-				if strings.HasPrefix(prevTrimmed, `"""`) {
-					return i
-				}
-				i--
+			// Single-line """doc""": this line is the whole docstring.
+			if strings.HasPrefix(trimmed, `"""`) && len(trimmed) >= 6 {
+				return i
 			}
-			return i
+			// Otherwise this line only closes the docstring; the opening
+			// """ is on the nearest earlier line containing one.
+			for j := i - 1; j >= 0; j-- {
+				if strings.Contains(lines[j], `"""`) {
+					return j
+				}
+			}
+			return methodLine
 		}
 		// Single-line comment "..."
 		if strings.HasPrefix(trimmed, `"`) && strings.HasSuffix(trimmed, `"`) && len(trimmed) > 1 {
@@ -241,6 +263,10 @@ func findMethodEnd(content string, offset int) int {
 			continue
 		}
 		switch ch {
+		case '$':
+			// Character literal: the next byte ($], $', $") is data.
+			i += 2
+			continue
 		case '\'':
 			inString = true
 		case '"':

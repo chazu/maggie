@@ -140,6 +140,7 @@ var opcodeTable = map[Opcode]OpcodeInfo{
 	OpPushInt32:   {"PUSH_INT32", 4, 1},
 	OpPushLiteral: {"PUSH_LITERAL", 2, 1},
 	OpPushFloat:   {"PUSH_FLOAT", 8, 1},
+	OpPushContext: {"PUSH_CONTEXT", 0, 1},
 
 	// Variables
 	OpPushTemp:      {"PUSH_TEMP", 1, 1},

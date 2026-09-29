@@ -134,6 +134,9 @@ func (vm *VM) registerDebuggerPrimitives() {
 
 		className := v.valueToString(classArg)
 		methodName := v.valueToString(methodArg)
+		if !lineArg.IsSmallInt() {
+			return v.newFailureResult("Line must be an integer")
+		}
 		line := int(lineArg.SmallInt())
 
 		err := v.Debugger.EnableBreakpoint(className, methodName, line)
@@ -151,6 +154,9 @@ func (vm *VM) registerDebuggerPrimitives() {
 
 		className := v.valueToString(classArg)
 		methodName := v.valueToString(methodArg)
+		if !lineArg.IsSmallInt() {
+			return v.newFailureResult("Line must be an integer")
+		}
 		line := int(lineArg.SmallInt())
 
 		err := v.Debugger.DisableBreakpoint(className, methodName, line)
@@ -184,8 +190,10 @@ func (vm *VM) registerDebuggerPrimitives() {
 
 	// stepOver - Step to next line, over method calls
 	debuggerClass.AddClassMethod0(vm.Selectors, "stepOver", func(v *VM, recv Value) Value {
-		if v.Debugger != nil && v.interpreter != nil {
-			v.Debugger.StepOver(v.interpreter.fp, 0)
+		if v.Debugger != nil {
+			// Step from where the debugged process paused, not from the
+			// interpreter running this primitive.
+			v.Debugger.StepOver(v.Debugger.PausedAt())
 			return True
 		}
 		return False
@@ -202,8 +210,9 @@ func (vm *VM) registerDebuggerPrimitives() {
 
 	// stepOut - Step out of the current method
 	debuggerClass.AddClassMethod0(vm.Selectors, "stepOut", func(v *VM, recv Value) Value {
-		if v.Debugger != nil && v.interpreter != nil {
-			v.Debugger.StepOut(v.interpreter.fp)
+		if v.Debugger != nil {
+			frame, _ := v.Debugger.PausedAt()
+			v.Debugger.StepOut(frame)
 			return True
 		}
 		return False

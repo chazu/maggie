@@ -1,7 +1,9 @@
 package vm
 
 import (
+	"runtime"
 	"testing"
+	"time"
 )
 
 // ---------------------------------------------------------------------------
@@ -572,5 +574,145 @@ func TestDeactivationClearsBreakpoints(t *testing.T) {
 
 	if len(ds.ListBreakpoints()) != 0 {
 		t.Error("Deactivation should clear all breakpoints")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Regression tests (fresh-eyes audit)
+// ---------------------------------------------------------------------------
+
+// A line breakpoint must fire once per arrival at the line, not once per
+// bytecode executed on it.
+func TestBreakpointFiresOncePerLine(t *testing.T) {
+	ds := NewDebugServer(NewVM())
+	ds.Activate()
+	ds.SetBreakpoint("Object", "test", 1)
+
+	if brk, _ := ds.ShouldBreak("Object", "test", 1, 0); !brk {
+		t.Fatal("expected first hit on line 1")
+	}
+	ds.Resume()
+	if brk, _ := ds.ShouldBreak("Object", "test", 1, 0); brk {
+		t.Error("re-broke on the next bytecode of the same line")
+	}
+	if brk, _ := ds.ShouldBreak("Object", "test", 2, 0); brk {
+		t.Error("broke on line 2 without a breakpoint")
+	}
+	// Coming back to line 1 (e.g. a loop) is a new arrival.
+	if brk, _ := ds.ShouldBreak("Object", "test", 1, 0); !brk {
+		t.Error("expected breakpoint to fire again after the line changed")
+	}
+}
+
+// StepInto from a pause must not stop again on the same line.
+func TestStepIntoWaitsForLineChange(t *testing.T) {
+	ds := NewDebugServer(NewVM())
+	ds.Activate()
+	ds.SetBreakpoint("Object", "test", 3)
+	ds.ShouldBreak("Object", "test", 3, 0)
+
+	ds.StepInto()
+	if brk, _ := ds.ShouldBreak("Object", "test", 3, 0); brk {
+		t.Error("StepInto stopped on the same line it started from")
+	}
+	if brk, reason := ds.ShouldBreak("Object", "callee", 7, 1); !brk || reason != "step" {
+		t.Errorf("StepInto should stop in the callee, got %v %q", brk, reason)
+	}
+}
+
+// The Debugger stepOver primitive must step from the paused location, not
+// line 0 of whatever interpreter runs the primitive.
+func TestStepOverPrimitiveUsesPausedLocation(t *testing.T) {
+	v := NewVM()
+	ds := v.Debugger
+	ds.Activate()
+	ds.SetBreakpoint("Object", "test", 3)
+	if brk, _ := ds.ShouldBreak("Object", "test", 3, 2); !brk {
+		t.Fatal("expected breakpoint hit")
+	}
+
+	dbg, _ := v.Global("Debugger")
+	if r := v.Send(dbg, "stepOver", nil); r != True {
+		t.Fatalf("stepOver returned %v", r)
+	}
+	if brk, _ := ds.ShouldBreak("Object", "test", 3, 2); brk {
+		t.Error("stepOver stopped on the same line")
+	}
+	if brk, _ := ds.ShouldBreak("Object", "callee", 1, 3); brk {
+		t.Error("stepOver stopped in a deeper frame")
+	}
+	if brk, reason := ds.ShouldBreak("Object", "test", 4, 2); !brk || reason != "step" {
+		t.Errorf("stepOver should stop on the next line of the paused frame, got %v %q", brk, reason)
+	}
+}
+
+// Deactivate must release a process blocked in WaitForResume.
+func TestDeactivateReleasesPausedProcess(t *testing.T) {
+	ds := NewDebugServer(NewVM())
+	ds.Activate()
+	ds.SetBreakpoint("Object", "test", 1)
+
+	done := make(chan struct{})
+	go func() {
+		if brk, _ := ds.ShouldBreak("Object", "test", 1, 0); brk {
+			ds.WaitForResume()
+		}
+		close(done)
+	}()
+	for !ds.IsPaused() {
+		runtime.Gosched()
+	}
+	ds.Deactivate()
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("paused process still blocked after Deactivate")
+	}
+	if ds.IsPaused() {
+		t.Error("IsPaused should be false after Deactivate")
+	}
+}
+
+// Strings, characters, dictionaries and blocks must not display as <unknown>.
+func TestFormatValueHeapKinds(t *testing.T) {
+	v := NewVM()
+	ds := v.Debugger
+	block := v.interpreter.createBlockValue(&BlockMethod{}, nil)
+	tests := []struct {
+		value     Value
+		wantValue string
+		wantType  string
+	}{
+		{v.registry.NewStringValue("hi"), "'hi'", "String"},
+		{FromCharacter('x'), "$x", "Character"},
+		{v.NewDictionary(), "a Dictionary", "Dictionary"},
+		{block, "a Block", "Block"},
+	}
+	for _, tt := range tests {
+		if got := ds.formatValue(tt.value); got != tt.wantValue {
+			t.Errorf("formatValue = %q, want %q", got, tt.wantValue)
+		}
+		if got := ds.typeOf(tt.value); got != tt.wantType {
+			t.Errorf("typeOf = %q, want %q", got, tt.wantType)
+		}
+	}
+}
+
+// enable/disableBreakpoint: with a non-integer line must fail like
+// setBreakpoint: does, not decode garbage.
+func TestEnableDisableBreakpointRejectNonIntegerLine(t *testing.T) {
+	v := NewVM()
+	dbg, _ := v.Global("Debugger")
+	cls := v.registry.NewStringValue("Object")
+	meth := v.registry.NewStringValue("yourself")
+	for _, sel := range []string{"enableBreakpoint:method:line:", "disableBreakpoint:method:line:"} {
+		r := v.Send(dbg, sel, []Value{cls, meth, v.registry.NewStringValue("x")})
+		res := v.registry.GetResultFromValue(r)
+		if res == nil || res.resultType != ResultFailure {
+			t.Fatalf("%s: expected Failure", sel)
+		}
+		if msg := v.registry.GetStringContent(res.value); msg != "Line must be an integer" {
+			t.Errorf("%s: failure reason = %q", sel, msg)
+		}
 	}
 }

@@ -488,3 +488,40 @@ func TestImageRoundTripMultilineDocString(t *testing.T) {
 		t.Errorf("DocString mismatch:\ngot:  %q\nwant: %q", loaded.DocString, cls.DocString)
 	}
 }
+
+// methodDocFor: / help: must find class-side methods and inherited methods,
+// not only the receiver's own instance-side methods.
+func TestMethodDocForClassSideAndInherited(t *testing.T) {
+	v := NewVM()
+	parent := NewClass("DocParent", v.ObjectClass)
+	child := NewClass("DocChild", parent)
+	v.Classes.Register(parent)
+	v.Classes.Register(child)
+
+	install := func(vt *VTable, name, doc string) {
+		b := NewCompiledMethodBuilder(name, 0)
+		b.SetDocString(doc)
+		b.Bytecode().Emit(OpReturnSelf)
+		m := b.Build()
+		sel := v.Selectors.Intern(name)
+		m.SetSelector(sel)
+		vt.AddMethod(sel, m)
+	}
+	install(parent.VTable, "inheritedThing", "Inherited instance doc.")
+	install(child.ClassVTable, "make", "Class-side doc.")
+	install(parent.ClassVTable, "parentMake", "Inherited class-side doc.")
+
+	for sel, want := range map[string]string{
+		"inheritedThing": "Inherited instance doc.",
+		"make":           "Class-side doc.",
+		"parentMake":     "Inherited class-side doc.",
+	} {
+		r := v.Send(v.ClassValue(child), "methodDocFor:", []Value{v.Symbols.SymbolValue(sel)})
+		if !IsStringValue(r) || v.registry.GetStringContent(r) != want {
+			t.Errorf("methodDocFor: #%s = %v, want %q", sel, r, want)
+		}
+		if r := v.Send(v.ClassValue(child), "help:", []Value{v.Symbols.SymbolValue(sel)}); r == Nil {
+			t.Errorf("help: #%s returned nil (method not found)", sel)
+		}
+	}
+}

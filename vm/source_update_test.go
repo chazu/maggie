@@ -155,3 +155,85 @@ func TestUpdateMethodInFile_MissingFile(t *testing.T) {
 		t.Error("expected an error for a missing file")
 	}
 }
+
+// A keyword selector must match exactly: updating at: must not clobber at:put:
+// (which also contains "at:"), and put: must not match xput:.
+func TestUpdateMethodInFile_KeywordSelectorExactMatch(t *testing.T) {
+	src := "Box subclass: Object\n" +
+		"  method: at: i put: v [\n    ^'atput'\n  ]\n\n" +
+		"  method: xput: v [\n    ^'xput'\n  ]\n\n" +
+		"  method: at: i [\n    ^'at'\n  ]\n\n" +
+		"  method: put: v [\n    ^'put'\n  ]\n"
+	path := writeTempMag(t, src)
+
+	if err := UpdateMethodInFile(path, "at:", "method: at: i [\n^'AT'\n]", false); err != nil {
+		t.Fatalf("UpdateMethodInFile at:: %v", err)
+	}
+	if err := UpdateMethodInFile(path, "put:", "method: put: v [\n^'PUT'\n]", false); err != nil {
+		t.Fatalf("UpdateMethodInFile put:: %v", err)
+	}
+	got := readFile(t, path)
+	assertSurvivors(t, got, "method: at: i put: v", "^'atput'", "method: xput: v", "^'xput'", "^'AT'", "^'PUT'")
+	if strings.Contains(got, "^'at'\n") || strings.Contains(got, "^'put'\n") {
+		t.Errorf("old at:/put: bodies still present:\n%s", got)
+	}
+}
+
+// Type-annotated headers still match their selector.
+func TestUpdateMethodInFile_TypedHeader(t *testing.T) {
+	src := "Box subclass: Object\n" +
+		"  method: post: url <String> body: b <String> ^<Result> [\n    ^1\n  ]\n\n" +
+		"  method: size ^<Integer> [\n    ^0\n  ]\n"
+	path := writeTempMag(t, src)
+	if err := UpdateMethodInFile(path, "post:body:", "method: post: url body: b [\n^2\n]", false); err != nil {
+		t.Fatalf("post:body:: %v", err)
+	}
+	if err := UpdateMethodInFile(path, "size", "method: size [\n^3\n]", false); err != nil {
+		t.Fatalf("size: %v", err)
+	}
+	got := readFile(t, path)
+	assertSurvivors(t, got, "^2", "^3")
+}
+
+// Character literals ($] and $') must not affect bracket/string tracking.
+func TestUpdateMethodInFile_CharacterLiterals(t *testing.T) {
+	src := "Box subclass: Object\n" +
+		"  method: close [\n    ^$]\n  ]\n\n" +
+		"  method: quote [\n    ^$'\n  ]\n\n" +
+		"  method: after [\n    ^'after'\n  ]\n"
+	path := writeTempMag(t, src)
+	if err := UpdateMethodInFile(path, "close", "method: close [\n^1\n]", false); err != nil {
+		t.Fatalf("close: %v", err)
+	}
+	if err := UpdateMethodInFile(path, "quote", "method: quote [\n^2\n]", false); err != nil {
+		t.Fatalf("quote: %v", err)
+	}
+	got := readFile(t, path)
+	assertSurvivors(t, got, "method: close [", "^1", "method: quote [", "^2", "method: after [", "^'after'")
+	if strings.Contains(got, "$") {
+		t.Errorf("old character-literal bodies still present:\n%s", got)
+	}
+	if n := strings.Count(got, "]"); n != 3 {
+		t.Errorf("expected 3 closing brackets, got %d:\n%s", n, got)
+	}
+}
+
+// A multi-line docstring with bare """ delimiter lines is replaced with the method.
+func TestUpdateMethodInFile_MultiLineDocstring(t *testing.T) {
+	src := "Box subclass: Object\n" +
+		"  method: first [\n    ^0\n  ]\n\n" +
+		"  \"\"\"\n  Old doc line one.\n  Old doc line two.\n  \"\"\"\n" +
+		"  method: greet [\n    ^'hello'\n  ]\n"
+	path := writeTempMag(t, src)
+	if err := UpdateMethodInFile(path, "greet", "\"\"\"\nNew doc.\n\"\"\"\nmethod: greet [\n^'hi'\n]", false); err != nil {
+		t.Fatalf("greet: %v", err)
+	}
+	got := readFile(t, path)
+	if strings.Contains(got, "Old doc") {
+		t.Errorf("old docstring not replaced:\n%s", got)
+	}
+	if n := strings.Count(got, `"""`); n != 2 {
+		t.Errorf("expected exactly one docstring (2 delimiters), got %d:\n%s", n, got)
+	}
+	assertSurvivors(t, got, "method: first [", "^0", "New doc.", "^'hi'")
+}

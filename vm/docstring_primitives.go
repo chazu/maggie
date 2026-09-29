@@ -77,13 +77,13 @@ func (vm *VM) registerDocstringPrimitives() {
 			return Nil
 		}
 
-		m := cls.MethodByName(selName)
+		m, owner := findMethodForHelp(cls, selName)
 		if m == nil {
 			fmt.Printf("%s does not understand #%s\n", cls.Name, selName)
 			return Nil
 		}
 
-		fmt.Println(formatMethodHelpAny(cls.Name, m))
+		fmt.Println(formatMethodHelpAny(owner, m))
 		return recv
 	})
 
@@ -99,7 +99,7 @@ func (vm *VM) registerDocstringPrimitives() {
 			return Nil
 		}
 
-		m := cls.MethodByName(selName)
+		m, _ := findMethodForHelp(cls, selName)
 		if m == nil {
 			return Nil
 		}
@@ -110,6 +110,24 @@ func (vm *VM) registerDocstringPrimitives() {
 		}
 		return v.registry.NewStringValue(doc)
 	})
+}
+
+// findMethodForHelp looks up a method by name for help:/methodDocFor:,
+// searching instance-side then class-side methods up the superclass chain.
+// It returns the method and the display name of its owner ("Foo" or
+// "Foo class"), or nil if no such method exists.
+func findMethodForHelp(cls *Class, name string) (Method, string) {
+	for c := cls; c != nil; c = c.Superclass {
+		if m := c.MethodByName(name); m != nil {
+			return m, c.Name
+		}
+	}
+	for c := cls; c != nil; c = c.Superclass {
+		if m := c.ClassMethodByName(name); m != nil {
+			return m, c.Name + " class"
+		}
+	}
+	return nil, ""
 }
 
 // FormatClassHelp formats a class for display in help output.

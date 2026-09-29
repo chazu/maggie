@@ -600,3 +600,11 @@ func TestNegativeInt32(t *testing.T) {
 		t.Errorf("negative int32 = %d, want -1000000", v)
 	}
 }
+
+// OpPushContext must have metadata (disassembly/operand decoding).
+func TestOpPushContextInfo(t *testing.T) {
+	info := OpPushContext.Info()
+	if info.Name != "PUSH_CONTEXT" || info.OperandBytes != 0 || info.StackEffect != 1 {
+		t.Errorf("OpPushContext info = %+v", info)
+	}
+}

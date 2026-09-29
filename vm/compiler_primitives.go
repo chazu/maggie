@@ -147,13 +147,20 @@ func (vm *VM) registerCompilerPrimitives() {
 			return v.newFailureResult("evaluate:withLocals: requires a Dictionary for locals")
 		}
 
-		// Get the calling process's interpreter (respects restrictions)
+		// Get the calling process's interpreter (respects restrictions).
+		// Locals are overlaid on the layer this interpreter's global
+		// reads/writes actually hit: its process-local overlay when forked,
+		// the shared map (under globalsMu) otherwise.
 		interp := v.currentInterpreter()
-		globals := interp.globals
+		layer := evalLocalsLayer{v: v, interp: interp}
 
 		// Extract local variable names and values from the dictionary
 		localNames := make(map[string]bool)
 		savedGlobals := make(map[string]Value)
+
+		// Restore the layer even if compilation fails or the evaluation
+		// signals, so locals never leak into globals.
+		defer func() { layer.restore(localNames, savedGlobals) }()
 
 		for _, e := range dict.Entries() {
 			var name string
@@ -167,31 +174,25 @@ func (vm *VM) registerCompilerPrimitives() {
 
 			localNames[name] = true
 
-			// Save existing global value (if any) for restoration
-			if existing, ok := globals[name]; ok {
+			// Save existing value (if any) for restoration
+			if existing, ok := layer.get(name); ok {
 				savedGlobals[name] = existing
 			}
 
-			// Inject local value into globals
-			globals[name] = e.Value
+			// Inject local value
+			interp.SetGlobal(name, e.Value)
 		}
 
-		// Take a snapshot of all global keys before execution
+		// Take a snapshot of the layer's keys before execution
 		// so we can detect new assignments
-		preExecGlobals := make(map[string]bool)
-		for k := range globals {
-			preExecGlobals[k] = true
-		}
+		preExecGlobals := layer.keys()
 
 		// Compile the expression
 		method, err := v.CompileExpression(source)
 		if err != nil {
-			// Restore globals before returning error
-			v.restoreGlobalsMap(globals, localNames, savedGlobals)
 			return v.newFailureResult("Compilation error: " + err.Error())
 		}
 		if method == nil {
-			v.restoreGlobalsMap(globals, localNames, savedGlobals)
 			return v.newFailureResult("Compilation returned nil")
 		}
 
@@ -200,7 +201,7 @@ func (vm *VM) registerCompilerPrimitives() {
 
 		// Write back modified/new locals to the dictionary
 		for name := range localNames {
-			if val, ok := globals[name]; ok {
+			if val, ok := layer.get(name); ok {
 				// Write current value back to locals dict
 				symKey := v.Symbols.SymbolValue(name)
 				dict.Set(v.registry, symKey, val)
@@ -208,19 +209,18 @@ func (vm *VM) registerCompilerPrimitives() {
 		}
 
 		// Also capture any NEW variables assigned during execution
-		// (variables that didn't exist in globals before and aren't class names)
-		for name, val := range globals {
+		// (variables that didn't exist before and aren't class names)
+		for name := range layer.keys() {
 			if !preExecGlobals[name] && !localNames[name] {
-				// This is a new variable created during evaluation
-				// Write it to the locals dictionary
-				symKey := v.Symbols.SymbolValue(name)
-				dict.Set(v.registry, symKey, val)
-				localNames[name] = true
+				if val, ok := layer.get(name); ok {
+					// This is a new variable created during evaluation
+					// Write it to the locals dictionary
+					symKey := v.Symbols.SymbolValue(name)
+					dict.Set(v.registry, symKey, val)
+					localNames[name] = true
+				}
 			}
 		}
-
-		// Restore globals to their pre-evaluation state
-		v.restoreGlobalsMap(globals, localNames, savedGlobals)
 
 		return result
 	})
@@ -552,14 +552,47 @@ func (vm *VM) registerCompilerPrimitives() {
 	compilerClass.AddClassMethod(vm.Selectors, "isProfiling", isProf)
 }
 
-// restoreGlobalsMap restores a Globals map after evaluate:withLocals: execution.
-// For each local name: if it had a saved value, restore it; otherwise delete it from globals.
-func (vm *VM) restoreGlobalsMap(globals map[string]Value, localNames map[string]bool, savedGlobals map[string]Value) {
+// evalLocalsLayer is the global layer evaluate:withLocals: overlays locals
+// on: a forked interpreter's process-local writes, or the shared globals map
+// (accessed under globalsMu) for a non-forked interpreter.
+type evalLocalsLayer struct {
+	v      *VM
+	interp *Interpreter
+}
+
+func (l evalLocalsLayer) get(name string) (Value, bool) {
+	if l.interp.forked {
+		val, ok := l.interp.localWrites[name]
+		return val, ok
+	}
+	return l.v.Global(name)
+}
+
+func (l evalLocalsLayer) keys() map[string]bool {
+	out := make(map[string]bool)
+	if l.interp.forked {
+		for k := range l.interp.localWrites {
+			out[k] = true
+		}
+		return out
+	}
+	l.v.RangeGlobals(func(name string, _ Value) bool {
+		out[name] = true
+		return true
+	})
+	return out
+}
+
+// restore undoes the overlay after evaluate:withLocals: execution.
+// For each local name: if it had a saved value, restore it; otherwise delete it.
+func (l evalLocalsLayer) restore(localNames map[string]bool, savedGlobals map[string]Value) {
 	for name := range localNames {
 		if saved, ok := savedGlobals[name]; ok {
-			globals[name] = saved
+			l.interp.SetGlobal(name, saved)
+		} else if l.interp.forked {
+			delete(l.interp.localWrites, name)
 		} else {
-			delete(globals, name)
+			l.v.DeleteGlobal(name)
 		}
 	}
 }

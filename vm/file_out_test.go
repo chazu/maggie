@@ -218,3 +218,66 @@ func TestFileOutNamespaceNestedNamespace(t *testing.T) {
 		t.Error("Button not found in FileOutNamespace result")
 	}
 }
+
+// ---------------------------------------------------------------------------
+// Regression tests (fresh-eyes audit)
+// ---------------------------------------------------------------------------
+
+func addSourceMethod(selectors *SelectorTable, vt *VTable, cls *Class, name string, arity int, source string) {
+	selID := selectors.Intern(name)
+	b := NewCompiledMethodBuilder(name, arity)
+	b.SetSource(source)
+	b.Bytecode().Emit(OpReturnSelf)
+	m := b.Build()
+	m.SetSelector(selID)
+	m.SetClass(cls)
+	vt.AddMethod(selID, m)
+}
+
+// A superclass from another namespace must be written fully qualified.
+func TestFileOutSuperclassFromOtherNamespaceIsQualified(t *testing.T) {
+	selectors := NewSelectorTable()
+	object := NewClass("Object", nil)
+	shape := NewClassInNamespace("Geo", "Shape", object)
+	circle := NewClassInNamespace("App", "Circle", shape)
+	square := NewClassInNamespace("Geo", "Square", shape)
+
+	if got := FileOutClass(circle, selectors); !strings.Contains(got, "Circle subclass: Geo::Shape\n") {
+		t.Errorf("cross-namespace superclass not qualified:\n%s", got)
+	}
+	if got := FileOutClass(square, selectors); !strings.Contains(got, "Square subclass: Shape\n") {
+		t.Errorf("same-namespace superclass should stay short:\n%s", got)
+	}
+}
+
+// Sources stored without the method:/classMethod: wrapper (compileAndInstall:)
+// are wrapped; class-side methods always carry classMethod:; source-less
+// keyword stubs get argument names.
+func TestFileOutWrapsBareAndClassSideSources(t *testing.T) {
+	selectors := NewSelectorTable()
+	cls := NewClass("Box", NewClass("Object", nil))
+	addSourceMethod(selectors, cls.VTable, cls, "at:put:", 2, "at: i put: v\n    ^i")
+	addSourceMethod(selectors, cls.VTable, cls, "size", 0, "size ^0")
+	addSourceMethod(selectors, cls.ClassVTable, cls, "make", 0, "make\n    ^self new")
+	addSourceMethod(selectors, cls.ClassVTable, cls, "other", 0, "method: other [ ^1 ]")
+
+	stubSel := selectors.Intern("with:with:")
+	b := NewCompiledMethodBuilder("with:with:", 2)
+	b.Bytecode().Emit(OpReturnSelf)
+	stub := b.Build()
+	stub.SetSelector(stubSel)
+	cls.VTable.AddMethod(stubSel, stub)
+
+	got := FileOutClass(cls, selectors)
+	for _, want := range []string{
+		"method: at: i put: v [\n    ^i\n  ]",
+		"method: size [\n    ^0\n  ]",
+		"classMethod: make [\n    ^self new\n  ]",
+		"classMethod: other [ ^1 ]",
+		"method: with: arg1 with: arg2 [",
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("missing %q in fileOut:\n%s", want, got)
+		}
+	}
+}
