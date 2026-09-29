@@ -1883,3 +1883,32 @@ func BenchmarkCollectAllObjects(b *testing.B) {
 		_ = vm.CollectAllObjects()
 	}
 }
+
+// ImageSaveOptions.StripSource omits method source text; by default it is kept.
+func TestSaveImageWith_StripSource(t *testing.T) {
+	v := NewVM()
+	defer v.Shutdown()
+	m := NewCompiledMethodBuilder("answer", 0).SetSource("method: answer [ ^42 ]").Build()
+	v.ObjectClass.VTable.AddMethod(v.Selectors.Intern("answer"), m)
+	m.SetClass(v.ObjectClass)
+
+	for _, strip := range []bool{false, true} {
+		path := filepath.Join(t.TempDir(), "x.image")
+		if err := v.SaveImageWith(path, ImageSaveOptions{StripSource: strip}); err != nil {
+			t.Fatalf("SaveImageWith(strip=%v): %v", strip, err)
+		}
+		loaded := NewVM()
+		if err := loaded.LoadImage(path); err != nil {
+			t.Fatalf("LoadImage: %v", err)
+		}
+		got := loaded.ObjectClass.VTable.Lookup(loaded.Selectors.Intern("answer"))
+		cm, _ := got.(*CompiledMethod)
+		if cm == nil {
+			t.Fatalf("strip=%v: method not in reloaded image", strip)
+		}
+		if hasSource := cm.Source != ""; hasSource == strip {
+			t.Errorf("strip=%v: reloaded Source = %q", strip, cm.Source)
+		}
+		loaded.Shutdown()
+	}
+}

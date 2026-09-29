@@ -59,8 +59,8 @@ include-source = true
 	if m.Image.Output != "test.image" {
 		t.Errorf("image output = %q, want test.image", m.Image.Output)
 	}
-	if !m.Image.IncludeSource {
-		t.Error("image include-source = false, want true")
+	if m.Image.IncludeSource == nil || !*m.Image.IncludeSource {
+		t.Error("image include-source not parsed as true")
 	}
 }
 

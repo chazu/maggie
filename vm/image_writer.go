@@ -17,13 +17,35 @@ import (
 
 // SaveImage saves the VM state to a file.
 func (vm *VM) SaveImage(path string) error {
+	return vm.SaveImageWith(path, ImageSaveOptions{})
+}
+
+// ImageSaveOptions tunes what SaveImageWith writes.
+type ImageSaveOptions struct {
+	// StripSource omits method and block source text (maggie.toml
+	// [image] include-source = false): a smaller image, but fileOut: and
+	// source browsing have nothing to show for its methods.
+	StripSource bool
+}
+
+// SaveImageWith saves the VM state to path with the given options.
+func (vm *VM) SaveImageWith(path string, opts ImageSaveOptions) error {
+	writer := NewImageWriter()
+	writer.stripSource = opts.StripSource
+	writer.collectFromVM(vm)
+	data, err := writer.WriteImage()
+	if err != nil {
+		return err
+	}
 	f, err := os.Create(path)
 	if err != nil {
 		return fmt.Errorf("creating image file %q: %w", path, err)
 	}
-	defer f.Close()
-
-	return vm.SaveImageTo(f)
+	if _, err := f.Write(data); err != nil {
+		f.Close()
+		return err
+	}
+	return f.Close()
 }
 
 // SaveImageAtomic saves the VM state to a file using crash-safe atomic writes.
@@ -304,8 +326,9 @@ type ImageWriter struct {
 	symbolNames   []string
 	selectorNames []string
 
-	flags      uint32
-	entryPoint uint32
+	flags       uint32
+	entryPoint  uint32
+	stripSource bool // omit method/block source text (see ImageSaveOptions)
 
 	// VM reference for value encoding during WriteImage
 	vm *VM
@@ -546,7 +569,7 @@ func (w *ImageWriter) collectMethod(m *CompiledMethod) {
 	}
 
 	w.registerString(m.name)
-	if m.Source != "" {
+	if m.Source != "" && !w.stripSource {
 		w.registerString(m.Source)
 	}
 	if m.docString != "" {
@@ -570,7 +593,7 @@ func (w *ImageWriter) collectMethod(m *CompiledMethod) {
 }
 
 func (w *ImageWriter) collectBlock(b *BlockMethod) {
-	if b.Source != "" {
+	if b.Source != "" && !w.stripSource {
 		w.registerString(b.Source)
 	}
 	for _, lit := range b.Literals {
@@ -837,7 +860,7 @@ func (w *ImageWriter) buildMethodDef(m *CompiledMethod) (methodDef, error) {
 		SourceMap:     sourceMap,
 	}
 
-	if m.Source != "" {
+	if m.Source != "" && !w.stripSource {
 		srcIdx, _ := w.encoder.LookupString(m.Source)
 		md.Source = srcIdx
 		md.HasSource = true
@@ -888,7 +911,7 @@ func (w *ImageWriter) buildBlockDef(b *BlockMethod) (blockDef, error) {
 		SourceMap:   sourceMap,
 	}
 
-	if b.Source != "" {
+	if b.Source != "" && !w.stripSource {
 		srcIdx, _ := w.encoder.LookupString(b.Source)
 		bd.Source = srcIdx
 		bd.HasSource = true

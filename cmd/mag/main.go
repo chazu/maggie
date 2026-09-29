@@ -351,7 +351,17 @@ func run() (exitCode int) {
 
 	// Save image if requested (after loading all sources, before running main)
 	if *saveImagePath != "" {
-		if err := vmInst.SaveImage(*saveImagePath); err != nil {
+		// [image] include-source applies whether the sources came from the
+		// manifest or from explicit paths inside the project.
+		opts := vm.ImageSaveOptions{}
+		m := loadedManifest
+		if m == nil {
+			m, _ = manifest.FindAndLoad(".")
+		}
+		if m != nil {
+			opts.StripSource = !m.Image.KeepsSource()
+		}
+		if err := vmInst.SaveImageWith(*saveImagePath, opts); err != nil {
 			fmt.Fprintf(os.Stderr, "Error saving image: %v\n", err)
 			return 1
 		}

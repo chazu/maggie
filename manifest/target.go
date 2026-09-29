@@ -93,14 +93,16 @@ func (m *Manifest) mergeTarget(tc *TargetConfig) *ResolvedTarget {
 		entry = m.Source.Entry
 	}
 
-	// Image: merged per field. A target that set only output used to drop
-	// the top-level include-source. (include-source is a plain bool, so a
-	// target can add it but not switch off a top-level true.)
+	// Image: merged per field — a target overrides only what it sets, so
+	// setting output keeps the top-level include-source, and an explicit
+	// include-source (true or false) overrides it.
 	image := m.Image
 	if tc.Image.Output != "" {
 		image.Output = tc.Image.Output
 	}
-	image.IncludeSource = image.IncludeSource || tc.Image.IncludeSource
+	if tc.Image.IncludeSource != nil {
+		image.IncludeSource = tc.Image.IncludeSource
+	}
 
 	// Output binary
 	output := tc.Output

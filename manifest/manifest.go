@@ -71,7 +71,15 @@ type Dependency struct {
 // ImageConfig configures image output.
 type ImageConfig struct {
 	Output        string `toml:"output"`
-	IncludeSource bool   `toml:"include-source"`
+	// IncludeSource is nil when unset: source is kept by default, and a
+	// [[target]] inherits the top-level value unless it sets its own.
+	IncludeSource *bool `toml:"include-source"`
+}
+
+// KeepsSource reports whether saved images keep method source text
+// (include-source; true unless explicitly set to false).
+func (c ImageConfig) KeepsSource() bool {
+	return c.IncludeSource == nil || *c.IncludeSource
 }
 
 // GoWrapConfig configures Go package wrapping.

@@ -250,9 +250,10 @@ entry = "CLI.main"
 }
 
 func TestMergeTarget_ImageFieldsAndDirs(t *testing.T) {
+	yes, no := true, false
 	m := &Manifest{
 		Source: Source{Dirs: []string{"src"}},
-		Image:  ImageConfig{Output: "base.image", IncludeSource: true},
+		Image:  ImageConfig{Output: "base.image", IncludeSource: &yes},
 		Targets: []TargetConfig{{
 			Name:      "t",
 			ExtraDirs: []string{"extra", "src", "./extra"},
@@ -263,8 +264,18 @@ func TestMergeTarget_ImageFieldsAndDirs(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if rt.Image.Output != "t.image" || !rt.Image.IncludeSource {
+	if rt.Image.Output != "t.image" || !rt.Image.KeepsSource() {
 		t.Errorf("Image = %+v, want output t.image with include-source kept", rt.Image)
+	}
+
+	// An explicit false in the target switches the top-level true off.
+	m.Targets[0].Image.IncludeSource = &no
+	if rt, _ := m.ResolveTarget("t"); rt.Image.KeepsSource() {
+		t.Error("target include-source = false did not override the top level")
+	}
+	// Unset everywhere: source is kept.
+	if (ImageConfig{}).KeepsSource() != true {
+		t.Error("unset include-source should keep source")
 	}
 	if strings.Join(rt.Dirs, ",") != "src,extra" {
 		t.Errorf("Dirs = %v, want [src extra]", rt.Dirs)

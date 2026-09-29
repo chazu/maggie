@@ -457,7 +457,7 @@ func compileTargetImage(m *manifest.Manifest, target *manifest.ResolvedTarget, v
 	tmpPath := tmpFile.Name()
 	tmpFile.Close()
 
-	if err := vmInst.SaveImage(tmpPath); err != nil {
+	if err := vmInst.SaveImageWith(tmpPath, vm.ImageSaveOptions{StripSource: !target.Image.KeepsSource()}); err != nil {
 		os.Remove(tmpPath)
 		return "", fmt.Errorf("saving image: %w", err)
 	}
