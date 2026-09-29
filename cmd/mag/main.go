@@ -6,9 +6,11 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"net"
 	"os"
 	"path/filepath"
 	"runtime/pprof"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -123,6 +125,7 @@ func run() (exitCode int) {
 	customImagePath := flag.String("image", "", "Load custom image instead of embedded default")
 	serveMode := flag.Bool("serve", false, "Start language server (gRPC + Connect HTTP/JSON)")
 	servePort := flag.Int("port", 4567, "Language server port (used with --serve)")
+	serveHost := flag.String("host", "127.0.0.1", "Language server bind address (used with --serve); eval is unauthenticated, so bind beyond loopback (e.g. 0.0.0.0 in a container) only on a trusted network")
 	lspMode := flag.Bool("lsp", false, "Start LSP server on stdio")
 	profileMode := flag.Bool("profile", false, "Enable wall-clock sampling profiler")
 	profileRate := flag.Int("profile-rate", 1000, "Sampling rate in Hz (default 1000)")
@@ -183,8 +186,9 @@ func run() (exitCode int) {
 		fmt.Fprintf(os.Stderr, "  %s doctest                    # Run docstring tests\n", p)
 		fmt.Fprintf(os.Stderr, "  %s doctest --verbose          # Run with detailed output\n", p)
 		fmt.Fprintf(os.Stderr, "\nLanguage Server:\n")
-		fmt.Fprintf(os.Stderr, "  %s --serve                    # Start language server on :4567\n", p)
-		fmt.Fprintf(os.Stderr, "  %s ./lib/... --serve --port 8080  # Load libs, serve on :8080\n", p)
+		fmt.Fprintf(os.Stderr, "  %s --serve                    # Start language server on 127.0.0.1:4567\n", p)
+		fmt.Fprintf(os.Stderr, "  %s ./lib/... --serve --port 8080  # Load libs, serve on 127.0.0.1:8080\n", p)
+		fmt.Fprintf(os.Stderr, "  %s --serve --host 0.0.0.0     # All interfaces (unauthenticated eval!)\n", p)
 		fmt.Fprintf(os.Stderr, "  %s --lsp                      # Start LSP server on stdio\n", p)
 		fmt.Fprintf(os.Stderr, "  %s lsp                        # Same as --lsp (subcommand form)\n", p)
 		fmt.Fprintf(os.Stderr, "\nLearning Maggie:\n")
@@ -474,12 +478,15 @@ func run() (exitCode int) {
 
 	// Start language server if --serve is set (background if -m also set)
 	if *serveMode {
-		srv := newLanguageServer(vmInst, *servePort)
+		addr := languageServerAddr(*serveHost, *servePort)
+		if !isLoopbackHost(*serveHost) {
+			fmt.Fprintf(os.Stderr, "WARNING: language server bound to %s: its eval service runs arbitrary code with no authentication — anyone who can reach this address can execute code as you.\n", addr)
+		}
+		srv := newLanguageServer(vmInst, addr)
 		defer srv.Stop()
 		if *mainEntry != "" {
-			startServerBackground(srv, *servePort)
+			startServerBackground(srv, addr)
 		} else {
-			addr := fmt.Sprintf(":%d", *servePort)
 			vmInst.Freeze()
 			if err := srv.ListenAndServe(addr); err != nil {
 				fmt.Fprintf(os.Stderr, "Server error: %v\n", err)
@@ -665,9 +672,23 @@ func startSamplingProfiler(vmInst *vm.VM, rate int, output string, verbose bool)
 	}
 }
 
-func newLanguageServer(vmInst *vm.VM, port int) *server.MaggieServer {
+// languageServerAddr is the --serve listen address. The default host is
+// loopback: the IDE services include unauthenticated eval.
+func languageServerAddr(host string, port int) string {
+	return net.JoinHostPort(host, strconv.Itoa(port))
+}
+
+// isLoopbackHost reports whether host only accepts local connections.
+func isLoopbackHost(host string) bool {
+	if host == "localhost" {
+		return true
+	}
+	ip := net.ParseIP(host)
+	return ip != nil && ip.IsLoopback()
+}
+
+func newLanguageServer(vmInst *vm.VM, addr string) *server.MaggieServer {
 	peerAddrs := &sync.Map{}
-	addr := fmt.Sprintf(":%d", port)
 	vmInst.SetLocalListenAddr(addr)
 	return server.New(vmInst,
 		server.WithCompileFunc(buildCompileFunc(vmInst)),
@@ -676,8 +697,7 @@ func newLanguageServer(vmInst *vm.VM, port int) *server.MaggieServer {
 	)
 }
 
-func startServerBackground(srv *server.MaggieServer, port int) {
-	addr := fmt.Sprintf(":%d", port)
+func startServerBackground(srv *server.MaggieServer, addr string) {
 	go func() {
 		if err := srv.ListenAndServe(addr); err != nil {
 			fmt.Fprintf(os.Stderr, "Server error: %v\n", err)
