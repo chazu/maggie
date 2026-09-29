@@ -270,6 +270,10 @@ func (ts *TrustStore) CheckNonce(id NodeID, stream NonceStream, nonce uint64) er
 	ts.mu.Lock()
 	defer ts.mu.Unlock()
 	rec := ts.getOrCreate(id)
+	// Every authenticated request is activity: without this, a peer that
+	// only makes signed requests keeps its FirstSeen as LastSeen and is the
+	// first evicted under a key flood — losing its nonce window.
+	rec.LastSeen = time.Now()
 	if rec.nonceWindows == nil {
 		rec.nonceWindows = make(map[NonceStream]*nonceWindowState)
 	}
@@ -366,13 +370,16 @@ func (ts *TrustStore) getOrCreate(id NodeID) *PeerRecord {
 
 // evictOldestTransient removes the least-recently-seen unconfigured peer record
 // to keep the map bounded under a key-rotation flood. Configured peers are
-// preserved. Caller holds ts.mu.
+// preserved, and so are banned ones: evicting a ban would lift it, handing the
+// peer the default permissions again on its next request. (A ban costs the
+// peer BanThreshold rejected pushes, so banned records cannot be minted as
+// cheaply as fresh keys.) Caller holds ts.mu.
 func (ts *TrustStore) evictOldestTransient() {
 	var oldestID NodeID
 	var oldest time.Time
 	found := false
 	for id, rec := range ts.peers {
-		if rec.Configured {
+		if rec.Configured || rec.Banned {
 			continue
 		}
 		if !found || rec.LastSeen.Before(oldest) {

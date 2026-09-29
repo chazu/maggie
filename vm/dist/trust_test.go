@@ -207,6 +207,32 @@ func TestTrustStore_TransientPeerCap(t *testing.T) {
 	}
 }
 
+// A key flood must not evict a banned peer's record: that would lift the ban
+// and hand the peer the default permissions again.
+func TestTrustStore_FloodDoesNotLiftBan(t *testing.T) {
+	ts := NewTrustStore(TrustPolicy{DefaultPerms: PermSync, BanThreshold: 1})
+
+	bad := NodeID{9, 9, 9}
+	if !ts.RecordHashMismatch(bad) {
+		t.Fatal("peer should be banned after one mismatch")
+	}
+
+	for i := 0; i < maxTransientPeers+500; i++ {
+		var id NodeID
+		id[0] = byte(i)
+		id[1] = byte(i >> 8)
+		id[31] = 0xCD
+		_ = ts.CheckNonce(id, NonceStreamRequest, 1)
+	}
+
+	if !ts.IsBanned(bad) {
+		t.Error("ban lifted by eviction")
+	}
+	if ts.Check(bad, PermSync) {
+		t.Error("banned peer regained default permissions")
+	}
+}
+
 // TestTrustStore_NonceStreamsAreIndependent regresses the shared-window bug:
 // the request-auth stream (advances on every RPC, incl. heartbeat Ping) must
 // not push the replay floor past the slower envelope stream and reject genuine
