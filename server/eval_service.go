@@ -3,7 +3,6 @@ package server
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"connectrpc.com/connect"
 
@@ -121,10 +120,9 @@ func (s *EvalService) CheckSyntax(
 // Must be called inside a VMWorker gate closure (Do/DoConcurrent), which runs
 // it on a registered per-request interpreter.
 func (s *EvalService) evaluate(v *vm.VM, source string) *maggiev1.EvaluateResponse {
-	// Wrap as a doIt method like the REPL does
-	wrapped := "doIt\n    ^" + strings.TrimSuffix(source, ".")
-
-	method, err := v.Compile(wrapped, nil)
+	// The doIt compiler answers the value of the last statement. Prefixing
+	// the text with ^ would return after the FIRST statement of `a. b.`.
+	method, err := v.CompileExpression(source)
 	if err != nil {
 		return &maggiev1.EvaluateResponse{
 			Success:      false,
@@ -160,9 +158,7 @@ func (s *EvalService) evaluate(v *vm.VM, source string) *maggiev1.EvaluateRespon
 // Must be called inside a VMWorker gate closure (Do/DoConcurrent), which runs
 // it on a registered per-request interpreter.
 func (s *EvalService) evaluateInContext(v *vm.VM, source string, receiver vm.Value) *maggiev1.EvaluateResponse {
-	wrapped := "doIt\n    ^" + strings.TrimSuffix(source, ".")
-
-	method, err := v.Compile(wrapped, nil)
+	method, err := v.CompileExpression(source)
 	if err != nil {
 		return &maggiev1.EvaluateResponse{
 			Success:      false,

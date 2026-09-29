@@ -292,3 +292,45 @@ func TestCheckSyntax_EmptySource(t *testing.T) {
 		t.Fatal("CheckSyntax with empty source should return error")
 	}
 }
+
+// Multi-statement source must run every statement and answer the last one.
+// Compiling it as `^<source>` returned after the first statement.
+func TestEvaluate_RunsEveryStatement(t *testing.T) {
+	svc := newTestEvalService()
+
+	resp, err := svc.Evaluate(bg(), connectReq(&maggiev1.EvaluateRequest{
+		Source: "| x | x := 3. x := x + 4. x * 2.",
+	}))
+	if err != nil {
+		t.Fatalf("Evaluate returned error: %v", err)
+	}
+	if !resp.Msg.Success {
+		t.Fatalf("Evaluate was not successful: %s", resp.Msg.ErrorMessage)
+	}
+	if resp.Msg.Result != "14" {
+		t.Errorf("Evaluate result = %q, want %q", resp.Msg.Result, "14")
+	}
+}
+
+func TestEvaluateInContext_RunsEveryStatement(t *testing.T) {
+	svc := newTestEvalService()
+
+	evalResp, err := svc.Evaluate(bg(), connectReq(&maggiev1.EvaluateRequest{Source: "10"}))
+	if err != nil || !evalResp.Msg.Success {
+		t.Fatalf("Evaluate failed: %v %v", err, evalResp)
+	}
+
+	resp, err := svc.EvaluateInContext(bg(), connectReq(&maggiev1.EvaluateInContextRequest{
+		Source:  "| y | y := self + 1. y * 2",
+		Context: &maggiev1.ObjectHandle{Id: evalResp.Msg.Handle.Id},
+	}))
+	if err != nil {
+		t.Fatalf("EvaluateInContext returned error: %v", err)
+	}
+	if !resp.Msg.Success {
+		t.Fatalf("EvaluateInContext was not successful: %s", resp.Msg.ErrorMessage)
+	}
+	if resp.Msg.Result != "22" {
+		t.Errorf("EvaluateInContext result = %q, want %q", resp.Msg.Result, "22")
+	}
+}
