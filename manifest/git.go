@@ -6,9 +6,23 @@ import (
 	"strings"
 )
 
+// rejectOptionLike refuses a value that git would parse as an option. Git URLs
+// and refs come from dependency manifests (including transitive, untrusted
+// ones), so "--upload-pack=..." or similar must never reach git's argv as a
+// flag.
+func rejectOptionLike(kind, value string) error {
+	if strings.HasPrefix(value, "-") {
+		return fmt.Errorf("invalid git %s %q: must not begin with '-'", kind, value)
+	}
+	return nil
+}
+
 // gitClone clones a git repository to dest.
 func gitClone(url, dest string) error {
-	cmd := exec.Command("git", "clone", "--quiet", url, dest)
+	if err := rejectOptionLike("url", url); err != nil {
+		return err
+	}
+	cmd := exec.Command("git", "clone", "--quiet", "--", url, dest)
 	if out, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("git clone %s: %s: %w", url, strings.TrimSpace(string(out)), err)
 	}
@@ -17,6 +31,9 @@ func gitClone(url, dest string) error {
 
 // gitCheckout checks out a specific ref (tag, branch, or commit) in a repo.
 func gitCheckout(dir, ref string) error {
+	if err := rejectOptionLike("ref", ref); err != nil {
+		return err
+	}
 	cmd := exec.Command("git", "checkout", "--quiet", ref)
 	cmd.Dir = dir
 	if out, err := cmd.CombinedOutput(); err != nil {
@@ -29,6 +46,9 @@ func gitCheckout(dir, ref string) error {
 // branch dependency advances to the fetched remote tip instead of lingering at
 // the local branch's old commit.
 func gitResetHard(dir, ref string) error {
+	if err := rejectOptionLike("ref", ref); err != nil {
+		return err
+	}
 	cmd := exec.Command("git", "reset", "--hard", "--quiet", ref)
 	cmd.Dir = dir
 	if out, err := cmd.CombinedOutput(); err != nil {

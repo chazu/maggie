@@ -320,8 +320,6 @@ func parseDoctestAssertions(content string) []doctestAssertion {
 	return assertions
 }
 
-// runDoctestBlockSharedScope runs a test block by compiling all lines into
-// a single method. Each assertion captures its result into an array slot,
 // extractTempDecl detects a leading Smalltalk temp-declaration block in a
 // doctest line. If the trimmed line begins with `|`, it returns the declared
 // variable names (type annotations like `<Foo>` stripped) and the remainder of
@@ -356,6 +354,8 @@ func extractTempDecl(line string) (names []string, rest string) {
 	return names, rest
 }
 
+// runDoctestBlockSharedScope runs a test block by compiling all lines into
+// a single method. Each assertion captures its result into an array slot,
 // so setup runs exactly once and variables persist across all lines.
 func runDoctestBlockSharedScope(vmInst *vm.VM, assertions []doctestAssertion, verbose bool) []doctestResult {
 	var results []doctestResult
@@ -381,10 +381,17 @@ func runDoctestBlockSharedScope(vmInst *vm.VM, assertions []doctestAssertion, ve
 		}
 	}
 
-	if assertionCount == 0 {
-		// No assertions, just setup lines — run them once
+	// failBlock reports a compile or runtime error for the whole block. The
+	// error is charged to the assertions; setup lines are only charged when
+	// there are no assertions — otherwise a setup-only block that fails to
+	// compile or signals at runtime would be reported as passing.
+	failBlock := func(errMsg string) []doctestResult {
 		for _, ia := range indexed {
-			results = append(results, doctestResult{Assertion: ia.asrt, Passed: true})
+			if ia.resultIdx >= 0 || assertionCount == 0 {
+				results = append(results, doctestResult{Assertion: ia.asrt, Passed: false, Error: errMsg})
+			} else {
+				results = append(results, doctestResult{Assertion: ia.asrt, Passed: true})
+			}
 		}
 		return results
 	}
@@ -427,35 +434,12 @@ func runDoctestBlockSharedScope(vmInst *vm.VM, assertions []doctestAssertion, ve
 
 	method, compileErr := vmInst.Compile(source, nil)
 	if compileErr != nil {
-		// If compilation fails, report error on all assertions
-		for _, ia := range indexed {
-			if ia.resultIdx >= 0 {
-				results = append(results, doctestResult{
-					Assertion: ia.asrt,
-					Passed:    false,
-					Error:     fmt.Sprintf("compile: %v", compileErr),
-				})
-			} else {
-				results = append(results, doctestResult{Assertion: ia.asrt, Passed: true})
-			}
-		}
-		return results
+		return failBlock(fmt.Sprintf("compile: %v", compileErr))
 	}
 
 	resultsArray, execErr := vmInst.ExecuteSafe(method, vm.Nil, nil)
 	if execErr != nil {
-		for _, ia := range indexed {
-			if ia.resultIdx >= 0 {
-				results = append(results, doctestResult{
-					Assertion: ia.asrt,
-					Passed:    false,
-					Error:     fmt.Sprintf("runtime: %v", execErr),
-				})
-			} else {
-				results = append(results, doctestResult{Assertion: ia.asrt, Passed: true})
-			}
-		}
-		return results
+		return failBlock(fmt.Sprintf("runtime: %v", execErr))
 	}
 
 	// Extract results and compare
@@ -503,34 +487,10 @@ func doctestEvalExpression(vmInst *vm.VM, expr string) (vm.Value, error) {
 		return vm.Nil, nil
 	}
 
-	// Wrap expression as a doIt method. For multi-statement expressions
-	// (setup + assertion), place ^ before the last statement.
-	expr = strings.TrimSpace(expr)
-	expr = strings.TrimSuffix(expr, ".")
-
-	// Find the last statement separator (". " pattern — dot followed by space).
-	// This avoids splitting on dots inside string literals or number literals.
-	lastSep := -1
-	inString := false
-	for i := 0; i < len(expr); i++ {
-		if expr[i] == '\'' {
-			inString = !inString
-		}
-		if !inString && expr[i] == '.' && i+1 < len(expr) && expr[i+1] == ' ' {
-			lastSep = i
-		}
-	}
-
-	var source string
-	if lastSep < 0 {
-		source = "doIt\n    ^" + expr
-	} else {
-		prefix := expr[:lastSep+1]
-		suffix := strings.TrimSpace(expr[lastSep+1:])
-		source = "doIt\n    " + prefix + " ^" + suffix
-	}
-
-	method, err := vmInst.Compile(source, nil)
+	// The doIt compiler parses the statement sequence and returns the value
+	// of the last statement; no textual ^ splicing (which misreads periods
+	// inside comments or symbols).
+	method, err := vmInst.CompileExpression(expr)
 	if err != nil {
 		return vm.Nil, fmt.Errorf("compile: %v", err)
 	}

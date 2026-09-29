@@ -105,12 +105,7 @@ func handleTestCommand(args []string, verbose bool) {
 	}
 
 	// Compile test source directories
-	testDirs := m.TestDirPaths()
-	if len(testDirs) == 0 {
-		// Default to "test" directory if it exists
-		testDirs = m.TestDirPaths()
-	}
-	for _, testDir := range testDirs {
+	for _, testDir := range m.TestDirPaths() {
 		if _, err := os.Stat(testDir); err != nil {
 			if verbose {
 				fmt.Printf("Skipping missing test dir: %s\n", testDir)
@@ -140,7 +135,7 @@ func handleTestCommand(args []string, verbose bool) {
 				return
 			}
 			if result.IsSmallInt() {
-				done <- int(result.SmallInt())
+				done <- entryExitCode(result.SmallInt())
 				return
 			}
 			done <- 0
@@ -164,7 +159,7 @@ func handleTestCommand(args []string, verbose bool) {
 			os.Exit(1)
 		}
 		if result.IsSmallInt() {
-			os.Exit(int(result.SmallInt()))
+			os.Exit(entryExitCode(result.SmallInt()))
 		}
 	}
 }

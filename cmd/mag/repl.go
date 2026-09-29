@@ -206,18 +206,21 @@ func handleHelpLookup(vmInst *vm.VM, query string) {
 
 // evalAndPrint compiles and executes an expression, printing the result.
 func evalAndPrint(vmInst *vm.VM, input string) {
-	source := input
+	var method *vm.CompiledMethod
+	var err error
 	if looksLikeMethodDef(input) {
 		// A bare `selector\n  body` is compiled and run once with self = nil —
 		// it is NOT installed as a method anywhere. Say so, so the REPL doesn't
 		// look like it silently accepted a definition. Methods are defined in
 		// .mag source files (see `mag api`/the guides for the class surface).
 		fmt.Println("note: running this as a one-off (self = nil); it is not installed as a method — define methods in a .mag file")
+		method, err = vmInst.Compile(input, nil)
 	} else {
-		source = "doIt\n    ^" + strings.TrimSuffix(input, ".")
+		// Statement sequence: the doIt compiler returns the value of the last
+		// statement. Prefixing the text with ^ would return after the FIRST
+		// statement, silently skipping the rest of `a. b.`.
+		method, err = vmInst.CompileExpression(input)
 	}
-
-	method, err := vmInst.Compile(source, nil)
 	if err != nil {
 		fmt.Printf("Compile error: %v\n", err)
 		return

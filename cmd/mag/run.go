@@ -102,6 +102,6 @@ func handleRunCommand(args []string, verbose bool) {
 		os.Exit(1)
 	}
 	if result.IsSmallInt() {
-		os.Exit(int(result.SmallInt()))
+		os.Exit(entryExitCode(result.SmallInt()))
 	}
 }

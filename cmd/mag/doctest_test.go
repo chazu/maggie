@@ -302,3 +302,30 @@ func TestExtractTempDecl(t *testing.T) {
 		}
 	}
 }
+
+// ---------------------------------------------------------------------------
+// runDoctestBlockSharedScope
+// ---------------------------------------------------------------------------
+
+// A test block made only of setup lines must still execute: an error in it
+// has to surface as a failure rather than being reported as passing unrun.
+func TestDoctestSetupOnlyBlockRuns(t *testing.T) {
+	vmInst := newTestVM(t)
+
+	ok := runDoctestBlockSharedScope(vmInst, parseDoctestAssertions("| x |\nx := 3 + 4"), false)
+	for _, r := range ok {
+		if !r.Passed {
+			t.Errorf("valid setup line %q failed: %s", r.Assertion.Line, r.Error)
+		}
+	}
+
+	for name, content := range map[string]string{
+		"runtime": "1 / 0",
+		"compile": "3 +",
+	} {
+		results := runDoctestBlockSharedScope(vmInst, parseDoctestAssertions(content), false)
+		if len(results) != 1 || results[0].Passed {
+			t.Errorf("%s: failing setup-only block reported %+v, want one failure", name, results)
+		}
+	}
+}

@@ -730,6 +730,17 @@ func loadRC(vmInst *vm.VM, verbose bool) error {
 }
 
 // runMain executes the specified main entry point
+// entryExitCode maps an entry point's SmallInteger result to a process exit
+// status. POSIX keeps only the low 8 bits, so passing the value through would
+// turn e.g. 256 failures into exit 0 (success); anything outside 0..255 is
+// reported as a generic failure instead.
+func entryExitCode(n int64) int {
+	if n < 0 || n > 255 {
+		return 1
+	}
+	return int(n)
+}
+
 // runMainEntry sends the entry-point message and converts an unhandled Maggie
 // exception (propagated as a panic) into a readable error instead of letting it
 // reach the top-level recover, which prints the raw Go struct via %v.
