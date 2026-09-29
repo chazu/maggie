@@ -1,6 +1,9 @@
 package manifest
 
-import "fmt"
+import (
+	"fmt"
+	"path/filepath"
+)
 
 // ResolvedTarget holds the fully merged configuration for a single build target.
 type ResolvedTarget struct {
@@ -48,9 +51,16 @@ func (m *Manifest) ResolveAllTargets() ([]ResolvedTarget, error) {
 
 // mergeTarget combines top-level config with a target's overrides.
 func (m *Manifest) mergeTarget(tc *TargetConfig) *ResolvedTarget {
-	// Start with base source dirs, add extra, remove excluded
-	dirs := append([]string{}, m.Source.Dirs...)
-	dirs = append(dirs, tc.ExtraDirs...)
+	// Start with base source dirs, add extra (once each: a repeated dir
+	// would compile the same files twice), remove excluded
+	var dirs []string
+	seenDir := make(map[string]bool)
+	for _, d := range append(append([]string{}, m.Source.Dirs...), tc.ExtraDirs...) {
+		if key := filepath.Clean(d); !seenDir[key] {
+			seenDir[key] = true
+			dirs = append(dirs, d)
+		}
+	}
 	if len(tc.ExcludeDirs) > 0 {
 		excludeSet := make(map[string]bool, len(tc.ExcludeDirs))
 		for _, d := range tc.ExcludeDirs {
@@ -83,11 +93,14 @@ func (m *Manifest) mergeTarget(tc *TargetConfig) *ResolvedTarget {
 		entry = m.Source.Entry
 	}
 
-	// Image: target overrides base
-	image := tc.Image
-	if image.Output == "" && !image.IncludeSource {
-		image = m.Image
+	// Image: merged per field. A target that set only output used to drop
+	// the top-level include-source. (include-source is a plain bool, so a
+	// target can add it but not switch off a top-level true.)
+	image := m.Image
+	if tc.Image.Output != "" {
+		image.Output = tc.Image.Output
 	}
+	image.IncludeSource = image.IncludeSource || tc.Image.IncludeSource
 
 	// Output binary
 	output := tc.Output

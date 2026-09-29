@@ -3,6 +3,7 @@ package manifest
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -245,5 +246,27 @@ entry = "CLI.main"
 	}
 	if len(m.Targets[0].ExtraDirs) != 1 || m.Targets[0].ExtraDirs[0] != "tools" {
 		t.Errorf("target[0].ExtraDirs = %v, want [tools]", m.Targets[0].ExtraDirs)
+	}
+}
+
+func TestMergeTarget_ImageFieldsAndDirs(t *testing.T) {
+	m := &Manifest{
+		Source: Source{Dirs: []string{"src"}},
+		Image:  ImageConfig{Output: "base.image", IncludeSource: true},
+		Targets: []TargetConfig{{
+			Name:      "t",
+			ExtraDirs: []string{"extra", "src", "./extra"},
+			Image:     ImageConfig{Output: "t.image"},
+		}},
+	}
+	rt, err := m.ResolveTarget("t")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rt.Image.Output != "t.image" || !rt.Image.IncludeSource {
+		t.Errorf("Image = %+v, want output t.image with include-source kept", rt.Image)
+	}
+	if strings.Join(rt.Dirs, ",") != "src,extra" {
+		t.Errorf("Dirs = %v, want [src extra]", rt.Dirs)
 	}
 }
