@@ -965,3 +965,63 @@ func TestFormat_PreservesMultilineComment(t *testing.T) {
 		t.Errorf("not idempotent.\nFirst:\n%s\nSecond:\n%s", formatted, formatted2)
 	}
 }
+
+// ---------------------------------------------------------------------------
+// Semantics-preservation regressions
+// ---------------------------------------------------------------------------
+
+func formatOrFail(t *testing.T, input string) string {
+	t.Helper()
+	formatted, err := Format(input)
+	if err != nil {
+		t.Fatalf("format failed: %v", err)
+	}
+	return formatted
+}
+
+func TestFormat_CascadeKeepsReceiverParens(t *testing.T) {
+	got := formatOrFail(t, "Foo subclass: Object\n  method: m [ ^(3 max: 4) foo; bar ]")
+	if !strings.Contains(got, "(3 max: 4) foo;") {
+		t.Errorf("cascade receiver lost its parentheses: %s", got)
+	}
+}
+
+func TestFormat_LargeIntegerLiteral(t *testing.T) {
+	got := formatOrFail(t, "Foo subclass: Object\n  method: m [ ^123456789012345678901234567890 ]")
+	if !strings.Contains(got, "^123456789012345678901234567890") {
+		t.Errorf("large integer literal not preserved: %s", got)
+	}
+}
+
+func TestFormat_ClassVarsPreserved(t *testing.T) {
+	got := formatOrFail(t, "Foo subclass: Object\n  instanceVars: a\n  classVars: Count Total\n  method: m [ ^Count ]")
+	if !strings.Contains(got, "classVars: Count Total") {
+		t.Errorf("classVars: dropped: %s", got)
+	}
+	if got2 := formatOrFail(t, got); got2 != got {
+		t.Errorf("not idempotent.\nFirst:\n%s\nSecond:\n%s", got, got2)
+	}
+}
+
+func TestFormat_QuotedSymbolInLiteralArray(t *testing.T) {
+	got := formatOrFail(t, "Foo subclass: Object\n  method: m [ ^#(#'hello world' #foo) ]")
+	if !strings.Contains(got, "#(#'hello world' foo)") {
+		t.Errorf("quoted symbol in literal array lost its quotes: %s", got)
+	}
+	// Keyword/binary selectors and true/false/nil symbols must keep their #:
+	// written bare they fail to parse or read back as constants.
+	got = formatOrFail(t, "Foo subclass: Object\n  method: m [ ^#(#at:put: #+ #true bar) ]")
+	if !strings.Contains(got, "#(#at:put: #+ #true bar)") {
+		t.Errorf("selector symbols in literal array not preserved: %s", got)
+	}
+}
+
+func TestFormat_CascadeMessageChain(t *testing.T) {
+	got := formatOrFail(t, "Foo subclass: Object\n  method: m [ ^x foo; bar baz: 1 + 2; qux ]")
+	if !strings.Contains(got, "bar baz: 1 + 2;") {
+		t.Errorf("cascade chain not preserved: %s", got)
+	}
+	if got2 := formatOrFail(t, got); got2 != got {
+		t.Errorf("not idempotent.\nFirst:\n%s\nSecond:\n%s", got, got2)
+	}
+}

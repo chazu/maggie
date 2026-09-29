@@ -234,6 +234,11 @@ func (f *formatter) formatClassDef(cls *compiler.ClassDef) {
 		f.newline()
 	}
 
+	// Class variables
+	if len(cls.ClassVariables) > 0 {
+		f.writeln("  classVars: " + strings.Join(cls.ClassVariables, " "))
+	}
+
 	// Instance methods
 	for _, method := range cls.Methods {
 		f.newline()
@@ -532,7 +537,12 @@ func (f *formatter) formatStmt(stmt compiler.Stmt) {
 func (f *formatter) formatExpr(expr compiler.Expr) {
 	switch e := expr.(type) {
 	case *compiler.IntLiteral:
-		f.write(fmt.Sprintf("%d", e.Value))
+		if e.BigValue != nil {
+			// Literals beyond int64 live only in BigValue (Value is 0).
+			f.write(e.BigValue.String())
+		} else {
+			f.write(fmt.Sprintf("%d", e.Value))
+		}
 
 	case *compiler.FloatLiteral:
 		f.write(formatFloat(e.Value))
@@ -680,9 +690,15 @@ func (f *formatter) formatKeywordMessage(msg *compiler.KeywordMessage) {
 }
 
 func (f *formatter) formatCascade(cascade *compiler.Cascade) {
-	// Format receiver
-	// The first message acts on the receiver
-	f.formatExpr(cascade.Receiver)
+	// Format receiver. It must bind tighter than the first message, or
+	// re-parsing re-associates it: (3 max: 4) foo; bar must not lose its
+	// parentheses. A keyword or binary first message takes a binary receiver
+	// (binary sends are left-associative); a unary one needs a unary receiver.
+	minPrec := precedenceBinary
+	if len(cascade.Messages) > 0 && cascade.Messages[0].Type == compiler.UnaryMsg {
+		minPrec = precedenceUnary
+	}
+	f.formatExprPrecedence(cascade.Receiver, minPrec)
 
 	for i, msg := range cascade.Messages {
 		if i > 0 {
@@ -696,6 +712,13 @@ func (f *formatter) formatCascade(cascade *compiler.Cascade) {
 }
 
 func (f *formatter) formatCascadedMessage(msg compiler.CascadedMessage) {
+	f.formatCascadedSingle(msg)
+	for _, next := range msg.Then {
+		f.formatCascadedSingle(next)
+	}
+}
+
+func (f *formatter) formatCascadedSingle(msg compiler.CascadedMessage) {
 	switch msg.Type {
 	case compiler.UnaryMsg:
 		f.write(" ")
@@ -901,8 +924,14 @@ func needsQuoting(s string) bool {
 func (f *formatter) formatLiteralArrayElement(expr compiler.Expr) {
 	switch e := expr.(type) {
 	case *compiler.SymbolLiteral:
-		// In literal arrays, symbols can appear as bare identifiers
-		f.write(e.Value)
+		// In literal arrays a bare identifier reads back as a symbol; anything
+		// else (keyword/binary selectors, quoted symbols, and the words
+		// true/false/nil, which read back as those constants) keeps its #.
+		if isBareArraySymbol(e.Value) {
+			f.write(e.Value)
+		} else {
+			f.formatSymbol(e)
+		}
 	case *compiler.ArrayLiteral:
 		// Nested literal array
 		f.write("#(")
@@ -916,6 +945,23 @@ func (f *formatter) formatLiteralArrayElement(expr compiler.Expr) {
 	default:
 		f.formatExpr(expr)
 	}
+}
+
+// isBareArraySymbol reports whether a symbol can be written without # inside
+// a literal array: a plain identifier the parser reads back as a symbol.
+func isBareArraySymbol(s string) bool {
+	if s == "" || s == "true" || s == "false" || s == "nil" {
+		return false
+	}
+	if !(isLetterRune(rune(s[0])) || s[0] == '_') {
+		return false
+	}
+	for _, r := range s {
+		if !(isLetterRune(r) || isDigitRune(r) || r == '_') {
+			return false
+		}
+	}
+	return true
 }
 
 // ---------------------------------------------------------------------------
