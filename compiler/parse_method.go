@@ -43,6 +43,13 @@ func ParseMethodDef(source string) (*MethodDef, error) {
 		return nil, fmt.Errorf("failed to parse method definition")
 	}
 
+	// Exactly one method: anything after it would be silently dropped, so a
+	// sync chunk or stored Source could carry text that was never compiled
+	// or hashed.
+	if !p.curTokenIs(TokenEOF) {
+		p.errorf("unexpected %s %q after the method definition", p.curToken.Type, p.curToken.Literal)
+	}
+
 	if len(p.Errors()) > 0 {
 		return nil, fmt.Errorf("parse errors: %v", p.Errors())
 	}
