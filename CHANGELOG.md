@@ -29,6 +29,11 @@ existing code or deployments observe:
   mismatch (legacy bare-name class chunks are rejected). Multi-line class
   docstrings travel as a quoted `DOCQ` line; they previously failed to
   decode and the class was indexed under its whole content blob.
+- **Class hashes cover instance-variable order** (class-hash format
+  0x02). Objects cross the wire as positional slots matched to a class by
+  hash, so classes differing only in ivar order used to swap field values
+  silently. Class hashes change, so upgrade nodes together; chunk-cache
+  entries in the old format are skipped on load.
 - **Classes inherit Object's protocol.** `Object class` now falls through
   to `Class` and `Object` like Smalltalk-80, so `Array == Array`, `hash`,
   `isNil`, `error:` and message-not-understood work on classes; each used

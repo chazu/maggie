@@ -217,17 +217,9 @@ func (s *SyncService) indexVerifiedMethod(chunk *dist.Chunk) {
 // indexVerifiedClass indexes a class digest from a verified chunk.
 // Populates both semantic and typed hashes from the chunk.
 func (s *SyncService) indexVerifiedClass(chunk *dist.Chunk) {
-	d, err := dist.DecodeClassContent(chunk.Content)
+	d, err := dist.DecodeVerifiedClass(chunk)
 	if err != nil {
-		return // unreachable: VerifyChunkClass already decoded the content
-	}
-	d.Hash = chunk.Hash
-	d.MethodHashes = chunk.Dependencies
-	if chunk.TypedHash != ([32]byte{}) {
-		d.TypedHash = chunk.TypedHash
-	}
-	if len(chunk.TypedDependencies) > 0 {
-		d.TypedMethodHashes = chunk.TypedDependencies
+		return // unreachable: VerifyChunkClass already verified the chunk
 	}
 	s.store.IndexClass(d)
 }

@@ -321,8 +321,13 @@ func (cs *ContentStore) LookupByPrefix(prefix string) ([32]byte, string, error) 
 // ---------------------------------------------------------------------------
 
 // HashClass computes the SHA-256 of a ClassDigest from its structural fields.
-// The hash covers: name, namespace, superclass, sorted instVars, sorted
-// classVars, docstring, and sorted method hashes.
+// The hash covers: name, namespace, superclass, instVars IN DECLARATION
+// ORDER, sorted classVars, docstring, and sorted method hashes.
+//
+// Instance-variable order is the slot layout: serialized objects ship slots
+// positionally and are matched to a local class by this hash, so two classes
+// differing only in ivar order must not share it. (Format 0x01 sorted them.)
+// Class variables are looked up by name, so their order is irrelevant.
 func HashClass(name, namespace, superclass string, instVars, classVars []string, docString string, methodHashes [][32]byte) [32]byte {
 	// Sort method hashes for determinism
 	sorted := make([][32]byte, len(methodHashes))
@@ -357,12 +362,17 @@ func HashClass(name, namespace, superclass string, instVars, classVars []string,
 		}
 	}
 
-	// Tag byte for class hash format
-	buf = append(buf, 0x01)
+	// Tag byte for class hash format: 0x02 = ordered instVars.
+	buf = append(buf, 0x02)
 	writeString(name)
 	writeString(namespace)
 	writeString(superclass)
-	writeStringSlice(instVars)
+	var ivLen [4]byte
+	binary.BigEndian.PutUint32(ivLen[:], uint32(len(instVars)))
+	buf = append(buf, ivLen[:]...)
+	for _, iv := range instVars {
+		writeString(iv)
+	}
 	writeStringSlice(classVars)
 	writeString(docString)
 

@@ -165,17 +165,8 @@ func VerifyChunkClass(c *Chunk, store *vm.ContentStore) error {
 	if c.Type != ChunkClass {
 		return fmt.Errorf("dist: cannot verify non-class chunk (type=%d)", c.Type)
 	}
-	d, err := DecodeClassContent(c.Content)
-	if err != nil {
+	if _, err := DecodeVerifiedClass(c); err != nil {
 		return err
-	}
-	if h := vm.HashClass(d.Name, d.Namespace, d.SuperclassName, d.InstVars, d.ClassVars, d.DocString, c.Dependencies); h != c.Hash {
-		return fmt.Errorf("dist: class hash mismatch: declared %x, computed %x", c.Hash, h)
-	}
-	if c.TypedHash != ([32]byte{}) {
-		if h := vm.HashClass(d.Name, d.Namespace, d.SuperclassName, d.InstVars, d.ClassVars, d.DocString, c.TypedDependencies); h != c.TypedHash {
-			return fmt.Errorf("dist: typed class hash mismatch: declared %x, computed %x", c.TypedHash, h)
-		}
 	}
 	for _, dep := range c.Dependencies {
 		if !store.HasHash(dep) {
@@ -183,4 +174,34 @@ func VerifyChunkClass(c *Chunk, store *vm.ContentStore) error {
 		}
 	}
 	return nil
+}
+
+// DecodeVerifiedClass decodes a class chunk and checks that its structure and
+// declared method hashes re-hash to the chunk's semantic (and, when present,
+// typed) hash. The returned digest carries the chunk's hashes and method
+// hashes, ready to index. Unlike VerifyChunkClass it does not require the
+// methods to be present in any store.
+func DecodeVerifiedClass(c *Chunk) (*vm.ClassDigest, error) {
+	if c.Type != ChunkClass {
+		return nil, fmt.Errorf("dist: cannot verify non-class chunk (type=%d)", c.Type)
+	}
+	d, err := DecodeClassContent(c.Content)
+	if err != nil {
+		return nil, err
+	}
+	if h := vm.HashClass(d.Name, d.Namespace, d.SuperclassName, d.InstVars, d.ClassVars, d.DocString, c.Dependencies); h != c.Hash {
+		return nil, fmt.Errorf("dist: class hash mismatch: declared %x, computed %x", c.Hash, h)
+	}
+	if c.TypedHash != ([32]byte{}) {
+		if h := vm.HashClass(d.Name, d.Namespace, d.SuperclassName, d.InstVars, d.ClassVars, d.DocString, c.TypedDependencies); h != c.TypedHash {
+			return nil, fmt.Errorf("dist: typed class hash mismatch: declared %x, computed %x", c.TypedHash, h)
+		}
+	}
+	d.Hash = c.Hash
+	d.MethodHashes = c.Dependencies
+	d.TypedHash = c.TypedHash
+	if len(c.TypedDependencies) > 0 {
+		d.TypedMethodHashes = c.TypedDependencies
+	}
+	return d, nil
 }

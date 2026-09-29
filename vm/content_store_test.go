@@ -400,3 +400,17 @@ func TestDigestClass_SuperclassFQN(t *testing.T) {
 		t.Errorf("SuperclassName: got %q, want %q", d.SuperclassName, "Lib::Base")
 	}
 }
+
+func TestHashClass_InstVarOrderMatters(t *testing.T) {
+	// Instance-variable order is the slot layout that serialized objects
+	// rely on; class variables are name-keyed, so their order is irrelevant.
+	ab := HashClass("P", "", "Object", []string{"a", "b"}, []string{"x", "y"}, "", nil)
+	ba := HashClass("P", "", "Object", []string{"b", "a"}, []string{"x", "y"}, "", nil)
+	if ab == ba {
+		t.Error("classes differing only in ivar order must hash differently")
+	}
+	yx := HashClass("P", "", "Object", []string{"a", "b"}, []string{"y", "x"}, "", nil)
+	if ab != yx {
+		t.Error("class-variable order must not affect the class hash")
+	}
+}

@@ -298,13 +298,11 @@ func handleSyncPull(vmInst *vm.VM, peerAddr string, rootHashHex string, verbose 
 				}
 				continue
 			}
-			d, decErr := dist.DecodeClassContent(chunk.Content)
+			d, decErr := dist.DecodeVerifiedClass(chunk)
 			if decErr != nil {
-				rejected++ // unreachable: VerifyChunkClass already decoded it
+				rejected++ // unreachable: VerifyChunkClass already verified it
 				continue
 			}
-			d.Hash = chunk.Hash
-			d.MethodHashes = chunk.Dependencies
 			store.IndexClass(d)
 			accepted++
 		default:
@@ -797,12 +795,10 @@ func buildPullFunc(vmInst *vm.VM, peerAddrs *sync.Map) func(peerID dist.NodeID, 
 				if verifyErr := dist.VerifyChunkClass(chunk, store); verifyErr != nil {
 					continue
 				}
-				d, decErr := dist.DecodeClassContent(chunk.Content)
+				d, decErr := dist.DecodeVerifiedClass(chunk)
 				if decErr != nil {
-					continue // unreachable: VerifyChunkClass already decoded it
+					continue // unreachable: VerifyChunkClass already verified it
 				}
-				d.Hash = chunk.Hash
-				d.MethodHashes = chunk.Dependencies
 				store.IndexClass(d)
 				accepted++
 			}

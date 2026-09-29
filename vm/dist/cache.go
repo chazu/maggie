@@ -159,24 +159,13 @@ func (dc *DiskCache) LoadInto(store *vm.ContentStore) (int, error) {
 			store.IndexMethod(m)
 			loaded++
 		case ChunkClass:
-			d, decErr := DecodeClassContent(chunk.Content)
-			if decErr != nil {
-				// Legacy entries carried a bare class name. Anything else
-				// that fails to decode (e.g. a multi-line DOC written before
-				// DOCQ existed) is corrupt: indexing it would name a class
-				// after the whole content blob.
-				if strings.ContainsAny(chunk.Content, " \n") {
-					continue
-				}
-				d = &vm.ClassDigest{Name: chunk.Content}
-			}
-			d.Hash = chunk.Hash
-			d.MethodHashes = chunk.Dependencies
-			if chunk.TypedHash != ([32]byte{}) {
-				d.TypedHash = chunk.TypedHash
-			}
-			if len(chunk.TypedDependencies) > 0 {
-				d.TypedMethodHashes = chunk.TypedDependencies
+			// Re-verify: entries written under an older class-hash format
+			// (or a pre-DOCQ multi-line DOC, or a legacy bare name) no
+			// longer hash to their key. Indexing them would advertise
+			// digests every peer rejects, so they are skipped as stale.
+			d, verr := DecodeVerifiedClass(chunk)
+			if verr != nil {
+				continue
 			}
 			store.IndexClass(d)
 			loaded++

@@ -174,11 +174,11 @@ func TestDiskCache_LoadInto(t *testing.T) {
 	}
 
 	// Store a class chunk
-	ch := sha256.Sum256([]byte("class-src"))
+	ch := vm.HashClass("MyClass", "", "", nil, nil, "", [][32]byte{mh})
 	cChunk := &Chunk{
 		Hash:         ch,
 		Type:         ChunkClass,
-		Content:      "MyClass",
+		Content:      "CLASS MyClass",
 		Dependencies: [][32]byte{mh},
 	}
 	if err := dc.Put(cChunk); err != nil {
@@ -338,7 +338,7 @@ func TestDiskCache_SaveFrom_LoadInto_RoundTrip(t *testing.T) {
 	m2.SetContentHash(mh2)
 	storeA.IndexMethod(m2)
 
-	ch := sha256.Sum256([]byte("cls"))
+	ch := vm.HashClass("RoundTripClass", "", "", nil, nil, "", [][32]byte{mh1, mh2})
 	d := &vm.ClassDigest{
 		Name:         "RoundTripClass",
 		Hash:         ch,
@@ -389,5 +389,30 @@ func TestDiskCache_SaveFrom_LoadInto_RoundTrip(t *testing.T) {
 	m1B := storeB.LookupMethod(mh1)
 	if m1B.Source != "method: alpha [ ^1 ]" {
 		t.Errorf("Method source: got %q, want %q", m1B.Source, "method: alpha [ ^1 ]")
+	}
+}
+
+func TestDiskCache_LoadInto_SkipsStaleClassEntries(t *testing.T) {
+	dc, err := NewDiskCache(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	// An entry whose content no longer hashes to its key (older class-hash
+	// format, legacy bare name, tampering) must not be indexed.
+	stale := &Chunk{
+		Hash:    sha256.Sum256([]byte("old-format")),
+		Type:    ChunkClass,
+		Content: "CLASS Stale\nIVARS a b",
+	}
+	if err := dc.Put(stale); err != nil {
+		t.Fatal(err)
+	}
+	store := vm.NewContentStore()
+	loaded, err := dc.LoadInto(store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if loaded != 0 || store.LookupClass(stale.Hash) != nil {
+		t.Errorf("stale class entry was indexed (loaded=%d)", loaded)
 	}
 }
