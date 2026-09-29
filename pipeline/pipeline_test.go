@@ -820,3 +820,188 @@ func TestProjectIncludesImageTrait(t *testing.T) {
 		t.Errorf("max: from Comparable = %v, want the larger Money", got)
 	}
 }
+
+// ---------------------------------------------------------------------------
+// NumSlots must reflect the whole resolved chain, whatever the declaration
+// order. Pass 1b used to compute NumSlots while a superclass could still be
+// temporarily parented to Object, so Apple saw only Base's ivar.
+// ---------------------------------------------------------------------------
+
+func TestTwoPass_NumSlotsUsesFullChainRegardlessOfOrder(t *testing.T) {
+	vmInst := newTestVM(t)
+	pipe := newPipeline(vmInst)
+
+	src := `Apple subclass: SlotBase
+  instanceVars: a
+
+  method: setA [ a := 42 ]
+  method: getA [ ^a ]
+
+SlotBase subclass: SlotCore
+  instanceVars: b
+
+  method: getB [ ^b ]
+
+SlotCore subclass: Object
+  instanceVars: c1 c2 c3 c4 c5
+
+  method: getC1 [ ^c1 ]
+`
+	if _, err := pipe.CompileSourceFile(src, "slots.mag", ""); err != nil {
+		t.Fatalf("compile: %v", err)
+	}
+
+	want := map[string]int{"SlotCore": 5, "SlotBase": 6, "Apple": 7}
+	for name, n := range want {
+		cls := vmInst.Classes.Lookup(name)
+		if cls == nil {
+			t.Fatalf("%s not found", name)
+		}
+		if cls.NumSlots != n {
+			t.Errorf("%s.NumSlots = %d, want %d (ivars %v)", name, cls.NumSlots, n, cls.AllInstVarNames())
+		}
+	}
+
+	apple := vmInst.Classes.Lookup("Apple")
+	o := vmInst.Send(vmInst.ClassValue(apple), "new", nil)
+	vmInst.Send(o, "setA", nil)
+	got := vmInst.Send(o, "getA", nil)
+	if !got.IsSmallInt() || got.SmallInt() != 42 {
+		t.Errorf("o setA. o getA = %v, want 42", got)
+	}
+}
+
+// A superclass cycle within one batch must be reported, not recurse forever
+// in AllInstVarNames.
+func TestTwoPass_SuperclassCycleIsAnError(t *testing.T) {
+	vmInst := newTestVM(t)
+	pipe := newPipeline(vmInst)
+
+	src := `CycA subclass: CycB
+  method: a [ ^1 ]
+
+CycB subclass: CycA
+  method: b [ ^2 ]
+`
+	_, err := pipe.CompileSourceFile(src, "cycle.mag", "")
+	if err == nil || !strings.Contains(err.Error(), "circular") {
+		t.Fatalf("expected circular superclass error, got %v", err)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// A class declared in a namespaced file whose short name matches a core
+// class must become App::<Name>, not silently modify the core class.
+// ---------------------------------------------------------------------------
+
+func TestNamespacedClassDoesNotHijackCoreClass(t *testing.T) {
+	vmInst := newTestVM(t)
+	pipe := newPipeline(vmInst)
+
+	core := vmInst.Classes.Lookup("Stream")
+	if core == nil {
+		t.Fatal("core Stream not found in image")
+	}
+	coreIvars := append([]string(nil), core.InstVars...)
+	coreSlots := core.NumSlots
+
+	src := `namespace: 'App'
+
+Stream subclass: Object
+  instanceVars: appOnlyIvar
+
+  method: appOnlyMethod [ ^appOnlyIvar ]
+`
+	if _, err := pipe.CompileSourceFile(src, "app_stream.mag", ""); err != nil {
+		t.Fatalf("compile: %v", err)
+	}
+
+	appStream := vmInst.Classes.LookupInNamespace("App", "Stream")
+	if appStream == nil || appStream == core {
+		t.Fatalf("App::Stream was not created as a distinct class (got %v)", appStream)
+	}
+	if appStream.NumSlots != 1 {
+		t.Errorf("App::Stream.NumSlots = %d, want 1", appStream.NumSlots)
+	}
+
+	if strings.Join(core.InstVars, ",") != strings.Join(coreIvars, ",") || core.NumSlots != coreSlots {
+		t.Errorf("core Stream shape changed: ivars %v -> %v, slots %d -> %d", coreIvars, core.InstVars, coreSlots, core.NumSlots)
+	}
+	if sel := vmInst.Selectors.Lookup("appOnlyMethod"); sel >= 0 && core.VTable.Lookup(sel) != nil {
+		t.Error("core Stream gained appOnlyMethod from a namespaced file")
+	}
+}
+
+// Files without a namespace still extend existing (core) classes.
+func TestRootFileExtendsCoreClass(t *testing.T) {
+	vmInst := newTestVM(t)
+	pipe := newPipeline(vmInst)
+
+	src := `Object subclass: Object
+  method: auditRootExtension [ ^7 ]
+`
+	if _, err := pipe.CompileSourceFile(src, "ext.mag", ""); err != nil {
+		t.Fatalf("compile: %v", err)
+	}
+	got := vmInst.Send(vm.FromSmallInt(1), "auditRootExtension", nil)
+	if !got.IsSmallInt() || got.SmallInt() != 7 {
+		t.Errorf("1 auditRootExtension = %v, want 7", got)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Auto-imports must be appended in a deterministic (sorted) order, so bare
+// names resolve the same way on every load.
+// ---------------------------------------------------------------------------
+
+func TestApplyAutoImports_Deterministic(t *testing.T) {
+	mk := func() []ParsedFile {
+		return []ParsedFile{
+			{Namespace: "Zeta"},
+			{Namespace: "Alpha"},
+			{Namespace: "Mid", Imports: []string{"Zeta"}},
+			{Namespace: ""},
+			{Namespace: "Beta"},
+		}
+	}
+	for i := 0; i < 20; i++ {
+		files := mk()
+		applyAutoImports(files)
+		if got := strings.Join(files[3].Imports, ","); got != "Alpha,Beta,Mid,Zeta" {
+			t.Fatalf("root file imports = %q, want sorted Alpha,Beta,Mid,Zeta", got)
+		}
+		if got := strings.Join(files[2].Imports, ","); got != "Zeta,Alpha,Beta" {
+			t.Fatalf("Mid imports = %q, want explicit first then sorted: Zeta,Alpha,Beta", got)
+		}
+		if got := strings.Join(files[0].Imports, ","); got != "Alpha,Beta,Mid" {
+			t.Fatalf("Zeta imports = %q, want Alpha,Beta,Mid", got)
+		}
+	}
+}
+
+// In a namespaced file, `Stream subclass: Stream` declares App::Stream as a
+// subclass of the root Stream (not of itself).
+func TestNamespacedShadowSubclassOfCoreClass(t *testing.T) {
+	vmInst := newTestVM(t)
+	pipe := newPipeline(vmInst)
+
+	src := `namespace: 'App'
+
+Stream subclass: Stream
+  method: appShadow [ ^5 ]
+`
+	if _, err := pipe.CompileSourceFile(src, "app_shadow.mag", ""); err != nil {
+		t.Fatalf("compile: %v", err)
+	}
+	core := vmInst.Classes.Lookup("Stream")
+	app := vmInst.Classes.LookupInNamespace("App", "Stream")
+	if app == nil || app == core {
+		t.Fatalf("App::Stream not created as a distinct class")
+	}
+	if app.Superclass != core {
+		t.Errorf("App::Stream superclass = %v, want core Stream", app.Superclass)
+	}
+	if app.NumSlots != core.NumSlots {
+		t.Errorf("App::Stream.NumSlots = %d, want core's %d", app.NumSlots, core.NumSlots)
+	}
+}

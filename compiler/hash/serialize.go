@@ -238,7 +238,14 @@ func (s *serializer) serializeNode(node hNode) {
 		s.writeInt(n.Arity)
 		s.writeInt(n.NumTemps)
 		s.writeInt(n.Primitive)
-		s.writeString(n.DocString)
+		// Frozen docstring slot, always written empty: docstrings are
+		// documentation, not semantics. CompiledMethod.Source — what sync
+		// ships and what verifiers and rehydration re-hash — starts at
+		// "method:" and never carries the docstring, so hashing it made every
+		// documented method unverifiable by peers. Keeping the (empty) slot
+		// leaves the byte layout — and every undocumented method's hash —
+		// unchanged, so HashVersion is not bumped.
+		s.writeString("")
 		if n.Primitive > 0 {
 			// Primitive methods have no body to serialize
 			s.writeUint32(0)

@@ -361,3 +361,42 @@ func TestDigestClass(t *testing.T) {
 		t.Error("Hash should not be zero")
 	}
 }
+
+// LookupClassByName takes a fully-qualified name: a namespaced digest must be
+// found by its FQN (Namespace + "::" + Name), and a bare name must not match
+// a namespaced class of the same short name.
+func TestContentStore_LookupClassByName_MatchesFQN(t *testing.T) {
+	cs := NewContentStore()
+
+	nsd := &ClassDigest{Name: "Widget", Namespace: "App", Hash: sha256.Sum256([]byte("app-widget"))}
+	root := &ClassDigest{Name: "Gadget", Hash: sha256.Sum256([]byte("gadget"))}
+	cs.IndexClass(nsd)
+	cs.IndexClass(root)
+
+	if got := cs.LookupClassByName("App::Widget"); got != nsd {
+		t.Errorf("LookupClassByName(App::Widget) = %v, want the App::Widget digest", got)
+	}
+	if got := cs.LookupClassByName("Widget"); got != nil {
+		t.Errorf("LookupClassByName(Widget) = %v, want nil (no root Widget)", got)
+	}
+	if got := cs.LookupClassByName("Gadget"); got != root {
+		t.Errorf("LookupClassByName(Gadget) = %v, want the root Gadget digest", got)
+	}
+}
+
+// DigestClass must record the superclass by FQN, otherwise a class whose
+// superclass lives in another namespace cannot be rehydrated.
+func TestDigestClass_SuperclassFQN(t *testing.T) {
+	vm := NewVM()
+	defer vm.Shutdown()
+
+	base := NewClass("Base", vm.ObjectClass)
+	base.Namespace = "Lib"
+	widget := NewClass("Widget", base)
+	widget.Namespace = "App"
+
+	d := DigestClass(widget)
+	if d.SuperclassName != "Lib::Base" {
+		t.Errorf("SuperclassName: got %q, want %q", d.SuperclassName, "Lib::Base")
+	}
+}

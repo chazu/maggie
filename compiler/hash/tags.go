@@ -14,6 +14,11 @@ package hash
 // v2: added TagBigIntLiteral — out-of-int64-range integer literals
 // previously all hashed as hIntLiteral{0}, so distinct methods collided in
 // the content-addressed store.
+//
+// Method docstrings are excluded from the hash (the hMethodDef docstring slot
+// is always serialized empty). That change kept the byte layout, so it did
+// not bump the version: undocumented methods hash exactly as before, and
+// documented methods' old hashes were never re-derivable from shipped source.
 const HashVersion byte = 2
 
 // AST node type tags. Each tag uniquely identifies a node kind in the

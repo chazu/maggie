@@ -1,7 +1,9 @@
 package pipeline
 
 import (
+	"bytes"
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/chazu/maggie/compiler"
@@ -18,7 +20,7 @@ func RehydrateFromStore(vmInst *vm.VM) (int, error) {
 	// Phase 1: Collect class digests that need rehydration.
 	// A class needs rehydration if it exists in the ContentStore
 	// but NOT in the VM's ClassTable (or Globals).
-	var toRehydrate []*vm.ClassDigest
+	byFQN := make(map[string]*vm.ClassDigest)
 	for _, h := range store.ClassHashes() {
 		d := store.LookupClass(h)
 		if d == nil {
@@ -28,16 +30,31 @@ func RehydrateFromStore(vmInst *vm.VM) (int, error) {
 		if vmInst.Classes.Lookup(fqn) != nil {
 			continue
 		}
-		// Also check bare name for non-namespaced classes
-		if d.Namespace == "" && vmInst.Classes.Lookup(d.Name) != nil {
-			continue
+		// Two different digests for one FQN are conflicting definitions of
+		// the same class. Picking one would depend on map iteration order
+		// (and used to compile the class twice), so refuse instead.
+		if prev, ok := byFQN[fqn]; ok && prev.Hash != d.Hash {
+			a, b := prev.Hash, d.Hash
+			if bytes.Compare(a[:], b[:]) > 0 {
+				a, b = b, a
+			}
+			return 0, fmt.Errorf("rehydrate: conflicting class digests for %s (%x and %x)", fqn, a[:8], b[:8])
 		}
-		toRehydrate = append(toRehydrate, d)
+		byFQN[fqn] = d
 	}
 
-	if len(toRehydrate) == 0 {
+	if len(byFQN) == 0 {
 		return 0, nil
 	}
+
+	// Deterministic order: FQN-sorted input to the topological sort.
+	toRehydrate := make([]*vm.ClassDigest, 0, len(byFQN))
+	for _, d := range byFQN {
+		toRehydrate = append(toRehydrate, d)
+	}
+	sort.Slice(toRehydrate, func(i, j int) bool {
+		return classFQN(toRehydrate[i].Name, toRehydrate[i].Namespace) < classFQN(toRehydrate[j].Name, toRehydrate[j].Namespace)
+	})
 
 	// Phase 2: Topological sort by superclass dependency.
 	// Classes whose superclass is already in the VM sort first.
@@ -57,17 +74,12 @@ func RehydrateFromStore(vmInst *vm.VM) (int, error) {
 		if d.SuperclassName == "" || d.SuperclassName == "Object" {
 			superclass = vmInst.ObjectClass
 		} else {
-			// Check VM ClassTable first
-			superclass = vmInst.Classes.Lookup(d.SuperclassName)
-			if superclass == nil {
-				// Check among classes we just created in this batch
-				superclass = classMap[d.SuperclassName]
-			}
-			if superclass == nil && d.Namespace != "" {
-				// Try with namespace prefix
-				superclass = vmInst.Classes.Lookup(d.Namespace + "::" + d.SuperclassName)
-				if superclass == nil {
-					superclass = classMap[d.Namespace+"::"+d.SuperclassName]
+			for _, cand := range superclassCandidates(d) {
+				if superclass = classMap[cand]; superclass != nil {
+					break
+				}
+				if superclass = vmInst.Classes.Lookup(cand); superclass != nil {
+					break
 				}
 			}
 			if superclass == nil {
@@ -215,50 +227,67 @@ func classFQN(name, namespace string) string {
 	return name
 }
 
-// topoSortClasses performs a topological sort of class digests by superclass dependency.
-// Classes whose superclass is already in the VM come first. Classes that depend on
-// other classes in the batch come after their dependencies.
+// superclassCandidates returns the class-table keys a digest's superclass
+// reference may denote, in resolution order. Digests record the superclass
+// FQN; legacy digests may carry a short name. Either way the reference is
+// tried in the class's own namespace first and then as written (FQN or root
+// class) — the same order as ClassTable.LookupWithImports.
+//
+// The class's own FQN is never a candidate: App::Stream with superclass
+// "Stream" names the root Stream, not itself.
+func superclassCandidates(d *vm.ClassDigest) []string {
+	if d.Namespace == "" {
+		return []string{d.SuperclassName}
+	}
+	own := classFQN(d.Name, d.Namespace)
+	var out []string
+	for _, cand := range []string{d.Namespace + "::" + d.SuperclassName, d.SuperclassName} {
+		if cand != own {
+			out = append(out, cand)
+		}
+	}
+	return out
+}
+
+// topoSortClasses performs a topological sort of class digests by superclass
+// dependency. Classes whose superclass is already in the VM come first.
+// Classes that depend on other classes in the batch come after their
+// dependencies. The output is deterministic for a given input order.
 func topoSortClasses(digests []*vm.ClassDigest, vmInst *vm.VM) ([]*vm.ClassDigest, error) {
-	// Build lookup maps
 	byFQN := make(map[string]*vm.ClassDigest, len(digests))
-	byName := make(map[string]*vm.ClassDigest, len(digests))
 	for _, d := range digests {
-		fqn := classFQN(d.Name, d.Namespace)
-		byFQN[fqn] = d
-		byName[d.Name] = d
+		byFQN[classFQN(d.Name, d.Namespace)] = d
+	}
+
+	// batchSuper returns the FQN of d's superclass if it resolves to a class
+	// in this batch, or "" if it is Object/absent or resolves to a class
+	// already in the VM. Mirrors the resolution order of phase 3.
+	batchSuper := func(d *vm.ClassDigest) string {
+		if d.SuperclassName == "" || d.SuperclassName == "Object" {
+			return ""
+		}
+		for _, cand := range superclassCandidates(d) {
+			if _, ok := byFQN[cand]; ok {
+				return cand
+			}
+			if vmInst.Classes.Lookup(cand) != nil {
+				return ""
+			}
+		}
+		return ""
 	}
 
 	// Kahn's algorithm
-	// Compute in-degree: count how many batch-internal dependencies each class has
 	inDegree := make(map[string]int, len(digests))
+	dependents := make(map[string][]string, len(digests))
 	for _, d := range digests {
 		fqn := classFQN(d.Name, d.Namespace)
-		if _, ok := inDegree[fqn]; !ok {
-			inDegree[fqn] = 0
-		}
-
-		if d.SuperclassName == "" || d.SuperclassName == "Object" {
-			continue
-		}
-
-		// Check if the superclass is in this batch
-		superInBatch := false
-		if _, ok := byFQN[d.SuperclassName]; ok {
-			superInBatch = true
-		} else if _, ok := byName[d.SuperclassName]; ok {
-			superInBatch = true
-		} else if d.Namespace != "" {
-			if _, ok := byFQN[d.Namespace+"::"+d.SuperclassName]; ok {
-				superInBatch = true
-			}
-		}
-
-		if superInBatch {
+		if super := batchSuper(d); super != "" {
 			inDegree[fqn]++
+			dependents[super] = append(dependents[super], fqn)
 		}
 	}
 
-	// Collect nodes with zero in-degree
 	var queue []string
 	for _, d := range digests {
 		fqn := classFQN(d.Name, d.Namespace)
@@ -271,34 +300,12 @@ func topoSortClasses(digests []*vm.ClassDigest, vmInst *vm.VM) ([]*vm.ClassDiges
 	for len(queue) > 0 {
 		fqn := queue[0]
 		queue = queue[1:]
-		d := byFQN[fqn]
-		sorted = append(sorted, d)
+		sorted = append(sorted, byFQN[fqn])
 
-		// Find dependents: classes whose superclass is d.Name or fqn
-		for _, dep := range digests {
-			depFQN := classFQN(dep.Name, dep.Namespace)
-			if depFQN == fqn {
-				continue
-			}
-
-			superName := dep.SuperclassName
-			if superName == "" {
-				continue
-			}
-
-			// Check if dep depends on d
-			isDep := false
-			if superName == d.Name || superName == fqn {
-				isDep = true
-			} else if dep.Namespace != "" && dep.Namespace+"::"+superName == fqn {
-				isDep = true
-			}
-
-			if isDep {
-				inDegree[depFQN]--
-				if inDegree[depFQN] == 0 {
-					queue = append(queue, depFQN)
-				}
+		for _, dep := range dependents[fqn] {
+			inDegree[dep]--
+			if inDegree[dep] == 0 {
+				queue = append(queue, dep)
 			}
 		}
 	}
@@ -309,4 +316,3 @@ func topoSortClasses(digests []*vm.ClassDigest, vmInst *vm.VM) ([]*vm.ClassDiges
 
 	return sorted, nil
 }
-

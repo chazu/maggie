@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/chazu/maggie/compiler"
@@ -193,6 +194,7 @@ func (p *Pipeline) CompileAll(files []ParsedFile) (int, error) {
 		class    *vm.Class
 		classDef *compiler.ClassDef
 		pf       *ParsedFile
+		created  bool // skeleton created by this batch (not a pre-existing class being extended)
 	}
 	var classEntries []classEntry
 
@@ -218,12 +220,17 @@ func (p *Pipeline) CompileAll(files []ParsedFile) (int, error) {
 
 		// Register class skeletons
 		for _, classDef := range pf.SF.Classes {
-			// Check if the class already exists (e.g., extending a core class from the image)
+			// Check if the class already exists (e.g., extending a core class
+			// from the image). A namespaced file only extends classes in its
+			// own namespace: `namespace:` sets the namespace for every class
+			// the file defines, so `Stream subclass: Object` there declares
+			// App::Stream — falling back to the bare name would silently
+			// rewrite core Stream. Root (non-namespaced) files extend by
+			// bare name as documented.
 			var class *vm.Class
 			if pf.Namespace != "" {
 				class = vmInst.Classes.LookupInNamespace(pf.Namespace, classDef.Name)
-			}
-			if class == nil {
+			} else {
 				class = vmInst.Classes.Lookup(classDef.Name)
 			}
 
@@ -252,7 +259,7 @@ func (p *Pipeline) CompileAll(files []ParsedFile) (int, error) {
 
 				p.logf("  Created class %s (skeleton)\n", qualifiedName(pf.Namespace, classDef.Name))
 
-				classEntries = append(classEntries, classEntry{class: class, classDef: classDef, pf: pf})
+				classEntries = append(classEntries, classEntry{class: class, classDef: classDef, pf: pf, created: true})
 			} else {
 				// Class already exists (extending core class) — still track for method compilation
 				if classDef.DocString != "" && class.DocString == "" {
@@ -276,17 +283,40 @@ func (p *Pipeline) CompileAll(files []ParsedFile) (int, error) {
 		}
 
 		resolved := vmInst.Classes.LookupWithImports(ce.classDef.Superclass, ce.pf.Namespace, ce.pf.Imports)
+		if resolved == ce.class {
+			// `Stream subclass: Stream` in namespace App: the superclass
+			// reference cannot name the class being declared, so it means
+			// the class of that name outside this namespace.
+			resolved = vmInst.Classes.Lookup(ce.classDef.Superclass)
+		}
 		if resolved == nil {
 			return 0, fmt.Errorf("class %s: superclass %s not found\n  declared in: %s\n  namespace: %s\n  imports searched: %v",
 				ce.classDef.Name, ce.classDef.Superclass, ce.pf.Path, ce.pf.Namespace, ce.pf.Imports)
+		}
+		if resolved.IsSubclassOf(ce.class) {
+			return 0, fmt.Errorf("class %s: circular superclass chain through %s\n  declared in: %s",
+				ce.classDef.Name, resolved.FullName(), ce.pf.Path)
 		}
 
 		ce.class.Superclass = resolved
 		ce.class.VTable.SetParent(resolved.VTable)
 		ce.class.ClassVTable.SetParent(resolved.ClassVTable)
-		ce.class.NumSlots = len(ce.class.AllInstVarNames())
 
 		p.logf("  Resolved %s superclass -> %s\n", ce.classDef.Name, resolved.FullName())
+	}
+
+	// ---------------------------------------------------------------
+	// Pass 1c — Recompute slot counts from the fully resolved chains
+	// ---------------------------------------------------------------
+	// Only now is every superclass pointer final. Computing NumSlots in
+	// pass 1b would read a superclass that may still be temporarily
+	// parented to Object (declaration order is arbitrary). AllInstVarNames
+	// walks the live chain, so each count is correct regardless of the
+	// order entries are visited in.
+	for _, ce := range classEntries {
+		if ce.created {
+			ce.class.NumSlots = len(ce.class.AllInstVarNames())
+		}
 	}
 
 	// ---------------------------------------------------------------
@@ -585,29 +615,7 @@ func (p *Pipeline) LoadProject(m *manifest.Manifest) (int, error) {
 	}
 
 	// Auto-import: within a project, all namespaces are implicitly available
-	allNamespaces := make(map[string]bool)
-	for _, pf := range allFiles {
-		if pf.Namespace != "" {
-			allNamespaces[pf.Namespace] = true
-		}
-	}
-	if len(allNamespaces) > 0 {
-		nsList := make([]string, 0, len(allNamespaces))
-		for ns := range allNamespaces {
-			nsList = append(nsList, ns)
-		}
-		for i := range allFiles {
-			existing := make(map[string]bool, len(allFiles[i].Imports))
-			for _, imp := range allFiles[i].Imports {
-				existing[imp] = true
-			}
-			for _, ns := range nsList {
-				if ns != allFiles[i].Namespace && !existing[ns] {
-					allFiles[i].Imports = append(allFiles[i].Imports, ns)
-				}
-			}
-		}
-	}
+	applyAutoImports(allFiles)
 
 	return p.CompileAll(allFiles)
 }
@@ -682,31 +690,41 @@ func (p *Pipeline) LoadTarget(m *manifest.Manifest, target *manifest.ResolvedTar
 	}
 
 	// Auto-import: within a project, all namespaces are implicitly available
+	applyAutoImports(allFiles)
+
+	return p.CompileAll(allFiles)
+}
+
+// applyAutoImports makes every namespace in the batch implicitly importable
+// from every file: each file's imports gain all other namespaces it does not
+// already import explicitly. The appended namespaces are sorted so bare-name
+// resolution (first import wins) is deterministic across loads.
+func applyAutoImports(files []ParsedFile) {
 	allNamespaces := make(map[string]bool)
-	for _, pf := range allFiles {
+	for _, pf := range files {
 		if pf.Namespace != "" {
 			allNamespaces[pf.Namespace] = true
 		}
 	}
-	if len(allNamespaces) > 0 {
-		nsList := make([]string, 0, len(allNamespaces))
-		for ns := range allNamespaces {
-			nsList = append(nsList, ns)
+	if len(allNamespaces) == 0 {
+		return
+	}
+	nsList := make([]string, 0, len(allNamespaces))
+	for ns := range allNamespaces {
+		nsList = append(nsList, ns)
+	}
+	sort.Strings(nsList)
+	for i := range files {
+		existing := make(map[string]bool, len(files[i].Imports))
+		for _, imp := range files[i].Imports {
+			existing[imp] = true
 		}
-		for i := range allFiles {
-			existing := make(map[string]bool, len(allFiles[i].Imports))
-			for _, imp := range allFiles[i].Imports {
-				existing[imp] = true
-			}
-			for _, ns := range nsList {
-				if ns != allFiles[i].Namespace && !existing[ns] {
-					allFiles[i].Imports = append(allFiles[i].Imports, ns)
-				}
+		for _, ns := range nsList {
+			if ns != files[i].Namespace && !existing[ns] {
+				files[i].Imports = append(files[i].Imports, ns)
 			}
 		}
 	}
-
-	return p.CompileAll(allFiles)
 }
 
 // resolveGlobalForHash resolves a bare name to its FQN for content hashing.

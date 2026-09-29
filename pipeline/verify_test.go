@@ -73,3 +73,65 @@ func TestHashMethodSource_RoundTripsPipelineHashes(t *testing.T) {
 		}
 	}
 }
+
+// A method with a docstring must round-trip through HashMethodSource: its
+// Source (which starts at "method:" and carries no docstring) is what sync
+// ships and verifiers re-hash. Previously the docstring was folded into the
+// semantic hash, so every documented method failed verification and each
+// failure recorded a hash-mismatch strike against an honest peer.
+func TestHashMethodSource_DocumentedMethodRoundTrips(t *testing.T) {
+	vmInst := newTestVM(t)
+	pipe := newPipeline(vmInst)
+
+	src := `VerifyDocHash subclass: Object
+  instanceVars: w
+
+  """Answers two."""
+  method: w2 [ ^2 ]
+
+  """Class-side doc."""
+  classMethod: make [ ^self new ]
+`
+	if _, err := pipe.CompileSourceFile(src, "verify_doc_hash.mag", ""); err != nil {
+		t.Fatalf("compile: %v", err)
+	}
+
+	cls := vmInst.Classes.Lookup("VerifyDocHash")
+	if cls == nil {
+		t.Fatal("VerifyDocHash not found")
+	}
+	store := vmInst.ContentStore()
+	digest := store.LookupClassByName("VerifyDocHash")
+	if digest == nil {
+		t.Fatal("digest for VerifyDocHash not in store")
+	}
+	if len(digest.MethodHashes) != 2 {
+		t.Fatalf("expected 2 method hashes, got %d", len(digest.MethodHashes))
+	}
+	for _, mh := range digest.MethodHashes {
+		m := store.LookupMethod(mh)
+		if m == nil {
+			t.Fatalf("method %x not in store", mh[:8])
+		}
+		if m.DocString() == "" {
+			t.Fatalf("%s: expected a docstring on the compiled method", m.Name())
+		}
+		if strings.Contains(m.Source, `"""`) {
+			t.Fatalf("%s: Source unexpectedly carries the docstring: %q", m.Name(), m.Source)
+		}
+		var ivars []string
+		if !strings.HasPrefix(m.Source, "classMethod:") {
+			ivars = cls.AllInstVarNames()
+		}
+		semantic, typed, err := HashMethodSource(m.Source, ivars, cls.Namespace, vmInst.Classes)
+		if err != nil {
+			t.Fatalf("%s: HashMethodSource: %v", m.Name(), err)
+		}
+		if semantic != mh {
+			t.Errorf("%s: semantic hash diverged: pipeline %x, verifier %x", m.Name(), mh[:8], semantic[:8])
+		}
+		if th := m.GetTypedHash(); th != ([32]byte{}) && typed != th {
+			t.Errorf("%s: typed hash diverged: pipeline %x, verifier %x", m.Name(), th[:8], typed[:8])
+		}
+	}
+}

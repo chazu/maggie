@@ -291,18 +291,27 @@ func TestNormalize_PrimitiveMethod(t *testing.T) {
 	}
 }
 
-func TestNormalize_DocStringAffectsHash(t *testing.T) {
+// Docstrings are documentation, not semantics: they must NOT affect the
+// semantic or typed hash. CompiledMethod.Source (what sync ships and what
+// verifiers/rehydration re-hash) starts at "method:" and never carries the
+// docstring, so a docstring-sensitive hash can never be re-derived by a peer.
+func TestNormalize_DocStringDoesNotAffectHash(t *testing.T) {
 	md1 := methodDef("test", nil, nil, exprStmt(intLit(1)))
 	md1.DocString = "First doc"
 
 	md2 := methodDef("test", nil, nil, exprStmt(intLit(1)))
 	md2.DocString = "Second doc"
 
-	h1 := HashMethod(md1, nil, nil)
-	h2 := HashMethod(md2, nil, nil)
+	md3 := methodDef("test", nil, nil, exprStmt(intLit(1)))
 
-	if h1 == h2 {
-		t.Error("different docstrings should produce different hashes")
+	if HashMethod(md1, nil, nil) != HashMethod(md2, nil, nil) {
+		t.Error("different docstrings must not produce different semantic hashes")
+	}
+	if HashMethod(md1, nil, nil) != HashMethod(md3, nil, nil) {
+		t.Error("a docstring must not change the semantic hash vs. no docstring")
+	}
+	if HashTypedMethod(md1, nil, nil) != HashTypedMethod(md3, nil, nil) {
+		t.Error("a docstring must not change the typed hash vs. no docstring")
 	}
 }
 

@@ -38,7 +38,7 @@ type ContentStore struct {
 type ClassDigest struct {
 	Name              string
 	Namespace         string
-	SuperclassName    string
+	SuperclassName    string // superclass FQN (Namespace::Name); legacy digests may carry a short name
 	InstVars          []string
 	ClassVars         []string
 	DocString         string
@@ -195,18 +195,28 @@ func (cs *ContentStore) ClassCount() int {
 	return len(cs.classes)
 }
 
-// LookupClassByName returns the first ClassDigest whose Name matches the
-// given fully-qualified name, or nil if no match is found. This is a linear
-// scan and not intended for hot paths.
+// LookupClassByName returns the first ClassDigest whose fully-qualified name
+// (Namespace::Name, or just Name for a root class) matches name, or nil if no
+// match is found. A bare name therefore matches only a root (non-namespaced)
+// class. This is a linear scan and not intended for hot paths.
 func (cs *ContentStore) LookupClassByName(name string) *ClassDigest {
 	cs.mu.RLock()
 	defer cs.mu.RUnlock()
 	for _, d := range cs.classes {
-		if d.Name == name {
+		if d.FQN() == name {
 			return d
 		}
 	}
 	return nil
+}
+
+// FQN returns the digest's fully-qualified class name: "Namespace::Name", or
+// just Name for a root (non-namespaced) class.
+func (d *ClassDigest) FQN() string {
+	if d.Namespace == "" {
+		return d.Name
+	}
+	return d.Namespace + "::" + d.Name
 }
 
 // AllClassDigests returns all class digests in the store.
@@ -375,7 +385,9 @@ func DigestClass(c *Class) *ClassDigest {
 		Namespace: c.Namespace,
 	}
 	if c.Superclass != nil {
-		d.SuperclassName = c.Superclass.Name
+		// FQN, not the short name: a superclass in another namespace
+		// (App::Widget < Lib::Base) must be resolvable on rehydration.
+		d.SuperclassName = c.Superclass.FullName()
 	}
 	if len(c.InstVars) > 0 {
 		d.InstVars = make([]string, len(c.InstVars))

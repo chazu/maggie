@@ -1,6 +1,7 @@
 package pipeline
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/chazu/maggie/compiler"
@@ -327,4 +328,157 @@ func containsStr(s, sub string) bool {
 		}
 	}
 	return false
+}
+
+// copyStore moves every method and class digest from src's content store into
+// dst's, simulating content received over sync.
+func copyStore(src, dst *vm.VM) {
+	from, to := src.ContentStore(), dst.ContentStore()
+	for _, h := range from.MethodHashes() {
+		to.IndexMethod(from.LookupMethod(h))
+	}
+	for _, h := range from.ClassHashes() {
+		to.IndexClass(from.LookupClass(h))
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Test: cross-namespace superclass (App::Widget < Lib::Base) and documented
+// methods survive compile → store → rehydrate on a fresh VM.
+// ---------------------------------------------------------------------------
+
+func TestRehydrateCrossNamespaceSuperclassAndDocstrings(t *testing.T) {
+	vmA := newTestVM(t)
+	pipe := newPipeline(vmA)
+
+	if _, err := pipe.CompileSourceFile(`RhxBase subclass: Object
+  instanceVars: base
+
+  """Answers ten."""
+  method: baseValue [ ^10 ]
+`, "lib_base.mag", "Lib"); err != nil {
+		t.Fatalf("compile Lib::RhxBase: %v", err)
+	}
+	if _, err := pipe.CompileSourceFile(`import: 'Lib'
+
+RhxWidget subclass: RhxBase
+  instanceVars: label
+
+  """Answers twenty."""
+  method: widgetValue [ ^20 ]
+`, "app_widget.mag", "App"); err != nil {
+		t.Fatalf("compile App::RhxWidget: %v", err)
+	}
+
+	vmB := newTestVM(t)
+	copyStore(vmA, vmB)
+
+	if _, err := RehydrateFromStore(vmB); err != nil {
+		t.Fatalf("RehydrateFromStore: %v", err)
+	}
+
+	base := vmB.Classes.Lookup("Lib::RhxBase")
+	widget := vmB.Classes.Lookup("App::RhxWidget")
+	if base == nil || widget == nil {
+		t.Fatalf("rehydrated classes missing: base=%v widget=%v", base, widget)
+	}
+	if widget.Superclass != base {
+		t.Errorf("App::RhxWidget superclass = %v, want Lib::RhxBase", widget.Superclass)
+	}
+	if widget.NumSlots != 2 {
+		t.Errorf("App::RhxWidget.NumSlots = %d, want 2", widget.NumSlots)
+	}
+	inst := vmB.Send(vmB.ClassValue(widget), "new", nil)
+	if v := vmB.Send(inst, "baseValue", nil); !v.IsSmallInt() || v.SmallInt() != 10 {
+		t.Errorf("baseValue = %v, want 10", v)
+	}
+	if v := vmB.Send(inst, "widgetValue", nil); !v.IsSmallInt() || v.SmallInt() != 20 {
+		t.Errorf("widgetValue = %v, want 20", v)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Test: a legacy short superclass name resolves in the class's own namespace
+// before the root namespace (LookupWithImports order).
+// ---------------------------------------------------------------------------
+
+func TestRehydrateShortSuperclassPrefersOwnNamespace(t *testing.T) {
+	vmInst := newTestVM(t)
+	pipe := newPipeline(vmInst)
+	if _, err := pipe.CompileSourceFile("RhpBase subclass: Object\n  method: which [ ^1 ]\n", "root.mag", ""); err != nil {
+		t.Fatalf("compile root RhpBase: %v", err)
+	}
+	if _, err := pipe.CompileSourceFile("RhpBase subclass: Object\n  method: which [ ^2 ]\n", "app.mag", "App"); err != nil {
+		t.Fatalf("compile App::RhpBase: %v", err)
+	}
+	appBase := vmInst.Classes.Lookup("App::RhpBase")
+	if appBase == nil || appBase == vmInst.Classes.Lookup("RhpBase") {
+		t.Fatal("expected distinct root RhpBase and App::RhpBase")
+	}
+
+	store := vmInst.ContentStore()
+	d := &vm.ClassDigest{Name: "RhpWidget", Namespace: "App", SuperclassName: "RhpBase"}
+	d.Hash = vm.HashClass(d.Name, d.Namespace, d.SuperclassName, d.InstVars, d.ClassVars, d.DocString, d.MethodHashes)
+	store.IndexClass(d)
+
+	if _, err := RehydrateFromStore(vmInst); err != nil {
+		t.Fatalf("RehydrateFromStore: %v", err)
+	}
+	widget := vmInst.Classes.Lookup("App::RhpWidget")
+	if widget == nil {
+		t.Fatal("App::RhpWidget not rehydrated")
+	}
+	if widget.Superclass != appBase {
+		t.Errorf("App::RhpWidget superclass = %s, want App::RhpBase", widget.Superclass.FullName())
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Test: two different digests for the same FQN are a conflict, not a
+// nondeterministic overwrite + double compile.
+// ---------------------------------------------------------------------------
+
+func TestRehydrateRejectsConflictingDigestsForSameFQN(t *testing.T) {
+	vmInst := newTestVM(t)
+	store := vmInst.ContentStore()
+
+	mh1 := makeMethodStub(t, store, "method: v [ ^1 ]", vmInst)
+	mh2 := makeMethodStub(t, store, "method: v [ ^2 ]", vmInst)
+	for _, mh := range [][32]byte{mh1, mh2} {
+		d := &vm.ClassDigest{Name: "RhDup", Namespace: "App", SuperclassName: "Object", MethodHashes: [][32]byte{mh}}
+		d.Hash = vm.HashClass(d.Name, d.Namespace, d.SuperclassName, d.InstVars, d.ClassVars, d.DocString, d.MethodHashes)
+		store.IndexClass(d)
+	}
+
+	compiled, err := RehydrateFromStore(vmInst)
+	if err == nil || !strings.Contains(err.Error(), "App::RhDup") || !strings.Contains(err.Error(), "conflicting") {
+		t.Fatalf("expected conflicting-digest error for App::RhDup, got compiled=%d err=%v", compiled, err)
+	}
+	if vmInst.Classes.Lookup("App::RhDup") != nil {
+		t.Error("App::RhDup should not be registered when its digests conflict")
+	}
+}
+
+// A digest App::RhsStream whose superclass short name equals its own name
+// refers to the root class of that name, not to itself.
+func TestRehydrateSuperclassSameShortNameIsRootClass(t *testing.T) {
+	vmInst := newTestVM(t)
+	pipe := newPipeline(vmInst)
+	if _, err := pipe.CompileSourceFile("RhsStream subclass: Object\n  method: which [ ^1 ]\n", "root.mag", ""); err != nil {
+		t.Fatalf("compile root RhsStream: %v", err)
+	}
+	root := vmInst.Classes.Lookup("RhsStream")
+
+	store := vmInst.ContentStore()
+	d := &vm.ClassDigest{Name: "RhsStream", Namespace: "App", SuperclassName: "RhsStream"}
+	d.Hash = vm.HashClass(d.Name, d.Namespace, d.SuperclassName, d.InstVars, d.ClassVars, d.DocString, d.MethodHashes)
+	store.IndexClass(d)
+
+	if _, err := RehydrateFromStore(vmInst); err != nil {
+		t.Fatalf("RehydrateFromStore: %v", err)
+	}
+	app := vmInst.Classes.Lookup("App::RhsStream")
+	if app == nil || app.Superclass != root {
+		t.Fatalf("App::RhsStream superclass = %v, want root RhsStream", app)
+	}
 }
