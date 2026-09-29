@@ -588,9 +588,51 @@ var lineNumRe = regexp.MustCompile(`line (\d+)`)
 // messages. (Warnings are not yet source-position-anchored.)
 func (s *LspServer) analyzeSourceFileWarnings(sf *compiler.SourceFile) []string {
 	var globals []string
+	// Per class: the instance variables in scope (inherited first, as
+	// AllInstVarNames orders them) and the class variables visible to it.
+	// Without the inherited ones, a subclass method using its superclass's
+	// ivars (or class variables) was warned "may be undefined".
+	ivarsFor := make(map[*compiler.ClassDef][]string, len(sf.Classes))
+	cvarsFor := make(map[*compiler.ClassDef][]string, len(sf.Classes))
 	if _, err := s.worker.DoConcurrent(func(v *vm.VM) interface{} {
 		for name := range v.GlobalsSnapshot() {
 			globals = append(globals, name)
+		}
+		namespace := ""
+		if sf.Namespace != nil {
+			namespace = sf.Namespace.Name
+		}
+		var imports []string
+		for _, imp := range sf.Imports {
+			imports = append(imports, imp.Path)
+		}
+		local := make(map[string]*compiler.ClassDef, len(sf.Classes))
+		for _, cd := range sf.Classes {
+			local[cd.Name] = cd
+		}
+		for _, cd := range sf.Classes {
+			var ivars, cvars []string
+			seen := map[*compiler.ClassDef]bool{}
+			// Walk the chain through this file's classes, then finish it
+			// with the live class the chain reaches.
+			for cur := cd; cur != nil && !seen[cur]; {
+				seen[cur] = true
+				ivars = append(append([]string{}, cur.InstanceVariables...), ivars...)
+				cvars = append(cvars, cur.ClassVariables...)
+				if cur.Superclass == "" {
+					break
+				}
+				if next, ok := local[cur.Superclass]; ok && next != cur {
+					cur = next
+					continue
+				}
+				if cls := v.Classes.LookupWithImports(cur.Superclass, namespace, imports); cls != nil {
+					ivars = append(append([]string{}, cls.AllInstVarNames()...), ivars...)
+					cvars = append(cvars, cls.AllClassVarNames()...)
+				}
+				break
+			}
+			ivarsFor[cd], cvarsFor[cd] = ivars, cvars
 		}
 		return nil
 	}); err != nil {
@@ -608,11 +650,12 @@ func (s *LspServer) analyzeSourceFileWarnings(sf *compiler.SourceFile) []string 
 		}
 	}
 	for _, cd := range sf.Classes {
+		known := append(append([]string{}, globals...), cvarsFor[cd]...)
 		for _, m := range cd.Methods {
-			add(compiler.AnalyzeWithGlobals(m, cd.InstanceVariables, globals))
+			add(compiler.AnalyzeWithGlobals(m, ivarsFor[cd], known))
 		}
 		for _, m := range cd.ClassMethods {
-			add(compiler.AnalyzeWithGlobals(m, nil, globals))
+			add(compiler.AnalyzeWithGlobals(m, nil, known))
 		}
 	}
 	for _, m := range sf.Methods { // extension methods

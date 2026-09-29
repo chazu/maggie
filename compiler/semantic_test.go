@@ -242,3 +242,24 @@ func TestAnalyzeWithGlobals(t *testing.T) {
 		t.Error("expected a warning for the undefined name Nonexistent")
 	}
 }
+
+// Assigning an undeclared name compiles to a global store; warn like a read.
+func TestSemanticAnalyzer_AssignmentToUndeclared(t *testing.T) {
+	method, err := ParseMethodDef("method: foo: a [ | t | undeclared := 4. t := a. ^t ]")
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	warnings := Analyze(method, nil)
+	found := false
+	for _, w := range warnings {
+		if strings.Contains(w, "'undeclared'") {
+			found = true
+		}
+		if strings.Contains(w, "'t'") || strings.Contains(w, "'a'") {
+			t.Errorf("unexpected warning: %s", w)
+		}
+	}
+	if !found {
+		t.Errorf("expected a warning for 'undeclared', got %v", warnings)
+	}
+}

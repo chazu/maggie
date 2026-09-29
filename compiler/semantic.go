@@ -165,34 +165,31 @@ func (s *SemanticAnalyzer) analyzeStatements(stmts []Stmt) {
 
 // checkVariableDefined checks if a variable is defined.
 func (s *SemanticAnalyzer) checkVariableDefined(v *Variable) {
-	name := v.Name
+	if s.isKnownName(v.Name) {
+		return
+	}
+	// Unknown variable - likely a typo or undefined global
+	// This is a warning, not an error, since globals can be defined at runtime
+	s.warnAt(v, "variable '%s' may be undefined (assuming global)", v.Name)
+}
 
-	// Check local scope
+// isKnownName reports whether name is an argument or temporary in scope, an
+// instance variable, or a known global.
+func (s *SemanticAnalyzer) isKnownName(name string) bool {
 	if s.args[name] || s.temps[name] {
-		return
+		return true
 	}
-
-	// Check instance variables
 	if s.instVars != nil && s.instVars[name] {
-		return
+		return true
 	}
-
 	// Check outer scopes (for blocks)
 	for i := len(s.outerScopes) - 1; i >= 0; i-- {
 		scope := s.outerScopes[i]
 		if scope.args[name] || scope.temps[name] {
-			return
+			return true
 		}
 	}
-
-	// Check known globals
-	if s.knownGlobals[name] {
-		return
-	}
-
-	// Unknown variable - likely a typo or undefined global
-	// This is a warning, not an error, since globals can be defined at runtime
-	s.warnAt(v, "variable '%s' may be undefined (assuming global)", name)
+	return s.knownGlobals[name]
 }
 
 // checkAssignmentTarget checks if an assignment target is valid.
@@ -211,6 +208,12 @@ func (s *SemanticAnalyzer) checkAssignmentTarget(a *Assignment) {
 		// contract is advisory (production callers never failed on analyzer
 		// errors, they discarded them).
 		s.warnAt(a, "cannot assign to reserved name '%s'", name)
+		return
+	}
+	// An assignment to an undeclared name compiles to a global store — as
+	// likely a typo as the equivalent read, which is warned about too.
+	if !s.isKnownName(name) {
+		s.warnAt(a, "variable '%s' may be undefined (assigning a global)", name)
 	}
 }
 

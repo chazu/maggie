@@ -1,6 +1,7 @@
 package server
 
 import (
+	"strings"
 	"testing"
 
 	protocol "github.com/tliron/glsp/protocol_3_16"
@@ -573,5 +574,40 @@ func TestFormattingRangeEndIsUTF16(t *testing.T) {
 	// ' 日 本 😀(2) ' = 6 UTF-16 units (12 bytes).
 	if r.End.Line != 1 || r.End.Character != 6 {
 		t.Errorf("wholeDocumentRange end = %+v, want line 1 char 6", r.End)
+	}
+}
+
+// A subclass method using its superclass's instance or class variables must
+// not be warned "may be undefined" — from a superclass in the same file or in
+// the live image.
+func TestLSP_AnalyzeWarnings_InheritedVariables(t *testing.T) {
+	lsp := &LspServer{worker: testWorker, docs: make(map[string]string)}
+	sf, err := compiler.ParseSourceFileFromString(`LspBase subclass: Object
+  instanceVars: base
+  classVars: Shared
+  method: base [ ^base ]
+
+LspSub subclass: LspBase
+  instanceVars: own
+  method: sum [ ^base + own + Shared ]
+  method: typo [ ^bsae ]
+`)
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	warnings := lsp.analyzeSourceFileWarnings(sf)
+	for _, w := range warnings {
+		for _, name := range []string{"'base'", "'own'", "'Shared'"} {
+			if strings.Contains(w, name) {
+				t.Errorf("false warning for an in-scope variable: %s", w)
+			}
+		}
+	}
+	found := false
+	for _, w := range warnings {
+		found = found || strings.Contains(w, "'bsae'")
+	}
+	if !found {
+		t.Errorf("expected a warning for the undefined 'bsae', got %v", warnings)
 	}
 }
