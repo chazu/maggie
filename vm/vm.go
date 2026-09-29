@@ -428,6 +428,13 @@ func (vm *VM) bootstrap() {
 	vm.ObjectClass = vm.createBootstrapClass("Object", nil)
 	vm.ClassClass = vm.createBootstrapClass("Class", vm.ObjectClass)
 
+	// Object class superclass == Class (Smalltalk-80; see MetaclassFor). A
+	// class-side send that misses every ClassVTable falls through to Class's
+	// instance side and so to Object's: a class answers ==, hash, isNil,
+	// error:, doesNotUnderstand: like any object. Without this link the
+	// chain bottomed out and such sends silently answered nil.
+	vm.ObjectClass.ClassVTable.SetParent(vm.ClassClass.VTable)
+
 	// Create the Metaclass class (subclass of Class)
 	vm.MetaclassClass = vm.createClass("Metaclass", vm.ClassClass)
 
