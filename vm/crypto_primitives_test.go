@@ -111,15 +111,15 @@ func TestHexRoundtrip(t *testing.T) {
 		if vm.registry.GetStringContent(asHex) != hex.EncodeToString(c) {
 			t.Fatalf("asHex mismatch for %x", c)
 		}
-		back := vm.Send(asHex, "fromHex", nil)
+		back := vm.Send(vm.Send(asHex, "fromHex", nil), "value", nil)
 		if vm.registry.GetStringContent(back) != string(c) {
 			t.Fatalf("fromHex roundtrip mismatch for %x", c)
 		}
 	}
 
-	// malformed hex returns Failure (not a string with the original content)
+	// malformed hex answers a Failure
 	bad := vm.Send(vm.registry.NewStringValue("zz"), "fromHex", nil)
-	if IsStringValue(bad) {
-		t.Fatalf("fromHex of malformed input should not return a plain string")
+	if vm.Send(bad, "isFailure", nil) != True {
+		t.Fatalf("fromHex of malformed input should answer a Failure")
 	}
 }

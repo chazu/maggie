@@ -46,24 +46,26 @@ func (vm *VM) registerEd25519Primitives() {
 	c.AddClassMethod0(vm.Selectors, "generate", func(v *VM, recv Value) Value {
 		pub, priv, err := ed25519.GenerateKey(rand.Reader)
 		if err != nil {
-			return v.newFailureResult("Ed25519 generate: " + err.Error())
+			return v.SignalPrimitiveError("generate", err.Error())
 		}
 		seed := priv.Seed()
 		return v.ed25519KeyPairDict(seed, pub)
 	})
 
-	// Ed25519 generateFromSeed: aByteArray — returns same dict; seed must be 32 bytes
+	// Ed25519 generateFromSeed: aByteArray — returns same dict; a seed that
+	// is not 32 bytes is a programmer error and signals.
 	c.AddClassMethod1(vm.Selectors, "generateFromSeed:", func(v *VM, recv Value, arg Value) Value {
 		seed := []byte(v.valueToString(arg))
 		if len(seed) != ed25519.SeedSize {
-			return v.newFailureResult("Ed25519 generateFromSeed: seed must be 32 bytes")
+			return v.SignalPrimitiveError("generateFromSeed:", "seed must be 32 bytes")
 		}
 		priv := ed25519.NewKeyFromSeed(seed)
 		pub := priv.Public().(ed25519.PublicKey)
 		return v.ed25519KeyPairDict(seed, pub)
 	})
 
-	// Ed25519 sign: data key: priv — priv is a 32-byte seed OR 64-byte key. Returns 64-byte signature.
+	// Ed25519 sign: data key: priv — priv is a 32-byte seed OR 64-byte key
+	// (any other length signals). Returns 64-byte signature.
 	c.AddClassMethod2(vm.Selectors, "sign:key:", func(v *VM, recv Value, dataVal, keyVal Value) Value {
 		data := []byte(v.valueToString(dataVal))
 		keyBytes := []byte(v.valueToString(keyVal))
@@ -75,7 +77,7 @@ func (vm *VM) registerEd25519Primitives() {
 		case ed25519.PrivateKeySize: // 64 bytes — full private key
 			priv = ed25519.PrivateKey(keyBytes)
 		default:
-			return v.newFailureResult("Ed25519 sign:key: private key must be 32 or 64 bytes")
+			return v.SignalPrimitiveError("sign:key:", "private key must be 32 or 64 bytes")
 		}
 		sig := ed25519.Sign(priv, data)
 		return v.registry.NewStringValue(string(sig))
@@ -125,14 +127,15 @@ func (vm *VM) registerHexPrimitives() {
 		return v.registry.NewStringValue(hex.EncodeToString([]byte(s)))
 	})
 
-	// String>>fromHex — decode hex string into a byte array (represented as a String).
-	// Raises on malformed input by returning a Failure result.
+	// String>>fromHex — decode hex string into a byte array (represented as
+	// a String). Malformed hex is a parse failure: answers Success wrapping
+	// the bytes, or Failure carrying the reason.
 	vm.StringClass.AddMethod0(vm.Selectors, "fromHex", func(v *VM, recv Value) Value {
 		s := v.registry.GetStringContent(recv)
 		b, err := hex.DecodeString(s)
 		if err != nil {
 			return v.newFailureResult("fromHex: " + err.Error())
 		}
-		return v.registry.NewStringValue(string(b))
+		return v.newSuccessResult(v.registry.NewStringValue(string(b)))
 	})
 }

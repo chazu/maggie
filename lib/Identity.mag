@@ -26,9 +26,17 @@ sig := id sign: 'message'.
 ```
 
 ```test
-bytes := 'deadbeef' fromHex.
+bytes := 'deadbeef' fromHex value.
 bytes size >>> 4
 bytes asHex >>> 'deadbeef'
+'zz' fromHex isFailure >>> true
+```
+
+```test
+id := Identity generate.
+((Identity fromPrivHex: id privHex) publicKey = id publicKey) >>> true
+([Identity fromPrivHex: 'zz'] on: Error do: [:e | #signalled]) >>> #signalled
+([Identity fromPrivKey: 'short'] on: Error do: [:e | #signalled]) >>> #signalled
 ```
 """
 Identity subclass: Object
@@ -52,9 +60,13 @@ Identity subclass: Object
       ^id
   ]
 
-  """Rebuild an identity from a hex-encoded 32-byte private seed."""
+  """Rebuild an identity from a hex-encoded 32-byte private seed. Malformed
+  hex signals, like a seed of the wrong length."""
   classMethod: fromPrivHex: hex <String> ^<Identity> [
-      ^self fromPrivKey: hex fromHex
+      | bytes |
+      bytes := hex fromHex.
+      bytes isFailure ifTrue: [^self error: 'Identity fromPrivHex: ', bytes error].
+      ^self fromPrivKey: bytes value
   ]
 
   """Verify a signature against data and a 32-byte public key."""

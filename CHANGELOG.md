@@ -29,6 +29,9 @@ existing code or deployments observe:
   mismatch (legacy bare-name class chunks are rejected). Multi-line class
   docstrings travel as a quoted `DOCQ` line; they previously failed to
   decode and the class was indexed under its whole content blob.
+- **`String>>fromHex` answers a Result** (`Success` wrapping the bytes, or
+  `Failure`); `Ed25519 generateFromSeed:`/`sign:key:` signal on a key of
+  the wrong length instead of answering a Failure in place of the value.
 
 **Now honoured**
 - `[image] include-source = false` strips method source from images saved

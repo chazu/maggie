@@ -40,7 +40,8 @@ Migration schedule (worst offenders first) — **completed 2026-07-16**:
   start` answers `Success`/`Failure` (was nil on listen error). Argument
   and receiver errors (`HttpServer new:` non-Integer port, `DateTime
   format:` bad layout, `fromEpoch:` non-number, socket mode/size/Channel
-  type errors) signal.
+  type errors) signal. `String>>fromHex` answers `Success`/`Failure`; `Ed25519`
+  bad seed/key lengths signal.
 
 ## 2. nil semantics
 
