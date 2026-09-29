@@ -1233,3 +1233,41 @@ func TestSerial_ShapeMismatchRejected(t *testing.T) {
 		t.Errorf("error should mention shape mismatch: %v", err)
 	}
 }
+
+// TestSerial_NamespacedClassResolvesByHash guards lookupClass's hash path:
+// it looked the matched digest up by bare Name, but the class table is keyed
+// by FQN, so App::Point resolved to an unrelated root-level Point of the same
+// shape (or missed and fell back to the name-only match).
+func TestSerial_NamespacedClassResolvesByHash(t *testing.T) {
+	vm := NewVM()
+	defer vm.Shutdown()
+
+	root := vm.createClass("Point", vm.ObjectClass)
+	root.InstVars = []string{"x"}
+	root.NumSlots = 1
+
+	nsPoint := NewClass("Point", vm.ObjectClass)
+	nsPoint.Namespace = "App"
+	nsPoint.InstVars = []string{"x"}
+	nsPoint.NumSlots = 1
+	vm.Classes.Register(nsPoint)
+	vm.ContentStore().IndexClass(DigestClass(nsPoint))
+
+	obj := NewObject(nsPoint.VTable, 1)
+	obj.SetSlot(0, FromSmallInt(3))
+	data, err := vm.SerializeValue(obj.ToValue())
+	if err != nil {
+		t.Fatalf("serialize: %v", err)
+	}
+	got, err := vm.DeserializeValue(data)
+	if err != nil {
+		t.Fatalf("deserialize: %v", err)
+	}
+	gotObj := ObjectFromValue(got)
+	if gotObj == nil {
+		t.Fatal("deserialized value is not an object")
+	}
+	if cls := gotObj.VTablePtr().Class(); cls != nsPoint {
+		t.Errorf("resolved to %s, want App::Point", cls.FullName())
+	}
+}

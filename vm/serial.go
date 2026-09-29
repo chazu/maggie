@@ -707,7 +707,10 @@ func (d *valueDeserializer) lookupClass(hash [32]byte, name string) *Class {
 	// we must not silently accept, so the hash gets the first word.
 	if d.vm.contentStore != nil && hash != ([32]byte{}) {
 		if digest := d.vm.contentStore.LookupClass(hash); digest != nil {
-			if cls := d.vm.Classes.Lookup(digest.Name); cls != nil {
+			// The class table is keyed by FQN; a bare digest.Name missed
+			// every namespaced class and silently fell back to the
+			// name-only match below.
+			if cls := d.vm.Classes.Lookup(digest.FQN()); cls != nil {
 				return cls
 			}
 		}
