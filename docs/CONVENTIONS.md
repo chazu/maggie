@@ -42,6 +42,11 @@ Migration schedule (worst offenders first) — **completed 2026-07-16**:
   format:` bad layout, `fromEpoch:` non-number, socket mode/size/Channel
   type errors) signal. `String>>fromHex` answers `Success`/`Failure`; `Ed25519`
   bad seed/key lengths signal.
+- Conversions vs parsing — ruled 2026-09-29: an `as*` conversion asserts
+  its receiver is well-formed and signals when it is not
+  (`'oops' asInteger`, `asFloat`); parsing untrusted text is an expected
+  failure and answers a Result (`parseInteger`, `parseFloat`). Neither
+  answers nil (both did before).
 
 ## 2. nil semantics
 

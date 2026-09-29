@@ -60,8 +60,6 @@ Channel>>primReceive
 Channel>>primSend:
 Channel>>primTryReceive
 Channel>>primTrySend:
-Character>><=
-Character>>>=
 ConstraintStore class>>new
 ConstraintStore>>primAsk:
 ConstraintStore>>primIsConsistent

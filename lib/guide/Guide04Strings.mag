@@ -242,9 +242,10 @@ Guide04Strings subclass: Object
 
   """
   Strings can be converted to numbers with asInteger and asFloat.
-  If the string does not represent a valid number, nil is returned
-  rather than raising an error. This makes it safe to attempt
-  conversion without error handling.
+  These are for text you know is numeric: malformed text signals an
+  Error. For untrusted input (user text, files, the network) use
+  parseInteger and parseFloat, which answer a Success wrapping the
+  number or a Failure saying why the text is not one.
 
   The asSymbol message interns the string and returns a Symbol.
   The asString message on a string simply returns itself.
@@ -253,7 +254,8 @@ Guide04Strings subclass: Object
   '42' asInteger >>> 42
   '-7' asInteger >>> -7
   '3.14' asFloat >>> 3.14
-  'oops' asInteger >>> nil
+  'oops' parseInteger isFailure >>> true
+  ('12' parseInteger value + 1) >>> 13
   'hello' asSymbol >>> #hello
   'hello' asString >>> 'hello'
   ```
@@ -261,7 +263,7 @@ Guide04Strings subclass: Object
   method: s11_conversion [
       '42' asInteger.
       '3.14' asFloat.
-      'oops' asInteger.
+      'oops' parseInteger.
       ^'hello' asSymbol
   ]
 

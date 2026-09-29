@@ -496,11 +496,64 @@ String subclass: Collection
 
   # --- Conversion primitives ---
 
-  """Parse the receiver as an integer."""
+  """
+  Convert the receiver, which must be decimal integer text, to an Integer.
+  Malformed text signals an Error; use `parseInteger` for untrusted input.
+
+  ```test
+  '42' asInteger >>> 42
+  (['oops' asInteger] on: Error do: [:e | #signalled]) >>> #signalled
+  ```
+
+  ```example
+  '42' asInteger + 1
+  ```
+  """
   method: asInteger ^<Integer> [ <primitive> ]
 
-  """Parse the receiver as a float."""
+  """
+  Parse the receiver as a decimal integer, answering `Success` wrapping the
+  Integer or `Failure` describing why the text is not one.
+
+  ```test
+  '-7' parseInteger value >>> -7
+  'oops' parseInteger isFailure >>> true
+  ```
+
+  ```example
+  (userInput parseInteger) ifFailure: [:reason | reason println]
+  ```
+  """
+  method: parseInteger ^<Result> [ <primitive> ]
+
+  """
+  Convert the receiver, which must be numeric text, to a Float. Malformed
+  text signals an Error; use `parseFloat` for untrusted input.
+
+  ```test
+  '3.5' asFloat >>> 3.5
+  ```
+
+  ```example
+  '3.5' asFloat * 2
+  ```
+  """
   method: asFloat ^<Float> [ <primitive> ]
+
+  """
+  Parse the receiver as a float, answering `Success` wrapping the Float or
+  `Failure` describing why the text is not one.
+
+  ```test
+  '2.5' parseFloat value >>> 2.5
+  'x' parseFloat isFailure >>> true
+  ```
+
+  ```example
+  '2.5' parseFloat value
+  ```
+  """
+  method: parseFloat ^<Result> [ <primitive> ]
 
   # --- Output primitives ---
 

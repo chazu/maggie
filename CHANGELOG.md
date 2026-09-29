@@ -36,6 +36,9 @@ existing code or deployments observe:
 - **`String>>fromHex` answers a Result** (`Success` wrapping the bytes, or
   `Failure`); `Ed25519 generateFromSeed:`/`sign:key:` signal on a key of
   the wrong length instead of answering a Failure in place of the value.
+- **`String>>asInteger`/`asFloat` signal on malformed text** (were nil).
+  For untrusted input use the new `parseInteger`/`parseFloat`, which
+  answer `Success`/`Failure`.
 - **`Context>>tempAt:` is 1-based** like every other subscript (was
   0-based), and a bad index signals `SubscriptOutOfBounds`/`TypeError`
   instead of answering nil.

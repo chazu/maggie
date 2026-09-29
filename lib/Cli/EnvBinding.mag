@@ -29,7 +29,7 @@ no Maggie equivalent.
 | `type`       | Behaviour                                                           |
 | ------------ | ------------------------------------------------------------------- |
 | `#string`    | value is passed through verbatim (after `trim`)                     |
-| `#integer`   | `asInteger`; raises an `Error` when the string does not parse       |
+| `#integer`   | `parseInteger`; raises an `Error` when the string does not parse    |
 | `#bool`      | `true`/`1`/`yes` (case-insensitive) → `true`; everything else → `false` |
 | `#duration`  | delegates to `Duration parse:` when the class is loaded, else returns the trimmed string |
 
@@ -168,11 +168,11 @@ EnvBinding subclass: Object
       aType = #string ifTrue: [^trimmed].
 
       aType = #integer ifTrue: [
-          parsed := trimmed asInteger.
-          parsed isNil ifTrue: [
+          parsed := trimmed parseInteger.
+          parsed isFailure ifTrue: [
               Error signal: 'Cli::EnvBinding: cannot coerce ', trimmed printString, ' to #integer'
           ].
-          ^parsed
+          ^parsed value
       ].
 
       aType = #bool ifTrue: [

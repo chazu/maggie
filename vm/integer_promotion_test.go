@@ -113,8 +113,19 @@ func TestStringAsIntegerLarge(t *testing.T) {
 	if got := v.Send(v.registry.NewStringValue("-42"), "asInteger", nil); !got.IsSmallInt() || got.SmallInt() != -42 {
 		t.Errorf("'-42' asInteger: want -42")
 	}
-	if got := v.Send(v.registry.NewStringValue("12abc"), "asInteger", nil); got != Nil {
-		t.Errorf("'12abc' asInteger: want nil")
+	assertBigInt(t, v, v.Send(v.Send(v.registry.NewStringValue(s), "parseInteger", nil), "value", nil), want)
+
+	// Malformed text: asInteger signals, parseInteger answers a Failure.
+	func() {
+		defer func() {
+			if _, ok := recover().(SignaledException); !ok {
+				t.Errorf("'12abc' asInteger: want a signalled error")
+			}
+		}()
+		v.Send(v.registry.NewStringValue("12abc"), "asInteger", nil)
+	}()
+	if got := v.Send(v.registry.NewStringValue("12abc"), "parseInteger", nil); v.Send(got, "isFailure", nil) != True {
+		t.Errorf("'12abc' parseInteger: want a Failure")
 	}
 }
 

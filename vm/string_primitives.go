@@ -188,26 +188,45 @@ func (vm *VM) registerStringPrimitivesExtended() {
 		return v.registry.NewStringValue(s[startIdx-1 : endIdx])
 	})
 
-	// asInteger - convert string to integer
+	// asInteger / asFloat convert text the caller knows is numeric; malformed
+	// text is a programmer error and signals. parseInteger / parseFloat are
+	// for untrusted text: they answer Success or Failure (failure doctrine).
+	// Parsing is arbitrary precision: digit strings beyond the SmallInteger
+	// (or int64) range answer a BigInteger instead of panicking the VM.
 	c.AddMethod0(vm.Selectors, "asInteger", func(v *VM, recv Value) Value {
 		s := v.registry.GetStringContent(recv)
-		// Parse arbitrary precision: digit strings beyond the SmallInteger
-		// (or int64) range answer a BigInteger instead of panicking the VM.
 		n, ok := new(big.Int).SetString(s, 10)
 		if !ok {
-			return Nil
+			return v.SignalPrimitiveError("asInteger", notANumberMessage(s, "an integer"))
 		}
 		return v.registry.NewBigIntValue(n)
 	})
 
-	// asFloat - convert string to float
+	c.AddMethod0(vm.Selectors, "parseInteger", func(v *VM, recv Value) Value {
+		s := v.registry.GetStringContent(recv)
+		n, ok := new(big.Int).SetString(s, 10)
+		if !ok {
+			return v.newFailureResult("parseInteger: " + notANumberMessage(s, "an integer"))
+		}
+		return v.newSuccessResult(v.registry.NewBigIntValue(n))
+	})
+
 	c.AddMethod0(vm.Selectors, "asFloat", func(v *VM, recv Value) Value {
 		s := v.registry.GetStringContent(recv)
 		f, err := strconv.ParseFloat(s, 64)
 		if err != nil {
-			return Nil
+			return v.SignalPrimitiveError("asFloat", notANumberMessage(s, "a float"))
 		}
 		return FromFloat64(f)
+	})
+
+	c.AddMethod0(vm.Selectors, "parseFloat", func(v *VM, recv Value) Value {
+		s := v.registry.GetStringContent(recv)
+		f, err := strconv.ParseFloat(s, 64)
+		if err != nil {
+			return v.newFailureResult("parseFloat: " + notANumberMessage(s, "a float"))
+		}
+		return v.newSuccessResult(FromFloat64(f))
 	})
 
 	// primIsDigit - true when EVERY character is a digit (empty string is
@@ -315,4 +334,14 @@ func (vm *VM) registerStringPrimitivesExtended() {
 		}
 		return v.NewArrayWithElements(elems)
 	})
+}
+
+// notANumberMessage describes unparseable numeric text, truncating long input
+// so an error message cannot balloon to the size of the string.
+func notANumberMessage(s, what string) string {
+	const max = 40
+	if len(s) > max {
+		s = s[:max] + "..."
+	}
+	return fmt.Sprintf("%q is not %s", s, what)
 }
