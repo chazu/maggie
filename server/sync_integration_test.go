@@ -20,6 +20,7 @@ import (
 	"github.com/chazu/maggie/pipeline"
 	"github.com/chazu/maggie/vm"
 	"github.com/chazu/maggie/vm/dist"
+	"github.com/chazu/maggie/vm/wire"
 )
 
 // startTestServer creates an in-process sync server on a random port and
@@ -962,6 +963,29 @@ func TestEndToEnd_RequestReplyDelivery(t *testing.T) {
 	}
 	if r := future.Result(); !r.IsSmallInt() || r.SmallInt() != 84 {
 		t.Errorf("future result: got %v, want 84", r)
+	}
+
+	// --- A correlation id beyond SmallInt range is rejected as malformed,
+	// not delivered (it used to panic building the MailboxMessage). ---
+	badEnv := &dist.MessageEnvelope{
+		TargetName: "svc",
+		Selector:   "double:",
+		Payload:    reqPayload,
+		ReplyTo:    &dist.ReplyAddress{NodeID: peerBID, Correlation: 1 << 60},
+		Nonce:      3,
+	}
+	dist.SignEnvelope(badEnv, peerB)
+	badBytes, _ := dist.MarshalEnvelope(badEnv)
+	resp, err = client.DeliverMessage(ctx, connect.NewRequest(&maggiev1.DeliverMessageRequest{Envelope: badBytes}))
+	if err != nil {
+		t.Fatalf("out-of-range correlation: RPC error %v", err)
+	}
+	if resp.Msg.Success || resp.Msg.ErrorKind != wire.ErrKindDeserialization {
+		t.Errorf("out-of-range correlation: got success=%v kind=%q, want deserialization rejection",
+			resp.Msg.Success, resp.Msg.ErrorKind)
+	}
+	if _, ok := svcProc.Mailbox().TryReceive(); ok {
+		t.Error("out-of-range correlation must not reach the mailbox")
 	}
 }
 

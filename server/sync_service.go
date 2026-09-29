@@ -615,6 +615,16 @@ func (s *SyncService) DeliverMessage(
 	if envelope.ReplyTo != nil {
 		replyNode = envelope.ReplyTo.NodeID
 		correlation = envelope.ReplyTo.Correlation
+		// The message stores the id as a SmallInt; a peer-chosen id beyond
+		// that range would panic in CreateMailboxMessageWithReply. Honest
+		// senders mint ids from a counter starting at 1.
+		if correlation > uint64(vm.MaxSmallInt) {
+			return connect.NewResponse(&maggiev1.DeliverMessageResponse{
+				Success:      false,
+				ErrorKind:    wire.ErrKindDeserialization,
+				ErrorMessage: "reply correlation id out of range",
+			}), nil
+		}
 	}
 	mailboxMsg := s.worker.vm.CreateMailboxMessageWithReply(vm.Nil, envelope.Selector, payload, replyNode, correlation)
 	if !proc.Mailbox().TrySend(mailboxMsg) {
