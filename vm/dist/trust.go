@@ -6,6 +6,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/chazu/maggie/vm/wire"
 )
 
 // NodeID is the canonical peer identity: an Ed25519 public key.
@@ -121,6 +123,21 @@ const (
 type nonceWindowState struct {
 	highest uint64
 	seen    map[uint64]struct{}
+	// restoredFloor, when set, rejects every nonce at or below it: the
+	// record was evicted and recreated, so the per-nonce seen set is gone
+	// and only the old high-water mark is known.
+	restoredFloor uint64
+}
+
+// evictedNonces keeps a recently active peer's nonce high-water marks after
+// its record is evicted, until anything signed before eviction has aged out
+// of the wire freshness window. Without it, flooding the table with fresh
+// keys would evict a victim's record and let its recent, still-fresh
+// envelopes and requests be replayed.
+type evictedNonces struct {
+	id      NodeID
+	at      time.Time
+	highest map[NonceStream]uint64
 }
 
 // TrustPolicy is the node-wide trust configuration.
@@ -136,6 +153,11 @@ type TrustStore struct {
 	mu     sync.RWMutex
 	peers  map[NodeID]*PeerRecord
 	policy TrustPolicy
+
+	// Nonce marks of evicted, recently active peers, by id and in eviction
+	// order (oldest first) so expired entries are pruned from the front.
+	evicted      map[NodeID]*evictedNonces
+	evictedOrder []*evictedNonces
 }
 
 // NewTrustStore creates a TrustStore with the given policy.
@@ -286,6 +308,9 @@ func (ts *TrustStore) CheckNonce(id NodeID, stream NonceStream, nonce uint64) er
 	if w.highest > nonceWindow {
 		floor = w.highest - nonceWindow
 	}
+	if w.restoredFloor > 0 && nonce <= w.restoredFloor {
+		return fmt.Errorf("dist: nonce %d at or below the pre-eviction mark %d", nonce, w.restoredFloor)
+	}
 	if nonce <= floor && w.highest > 0 {
 		return fmt.Errorf("dist: nonce %d below replay window (floor %d)", nonce, floor)
 	}
@@ -363,6 +388,20 @@ func (ts *TrustStore) getOrCreate(id NodeID) *PeerRecord {
 			FirstSeen: now,
 			LastSeen:  now,
 		}
+		ts.pruneEvicted(now)
+		if ev, ok := ts.evicted[id]; ok {
+			// Re-seen within the freshness window: nothing it signed
+			// before eviction may be accepted again.
+			rec.nonceWindows = make(map[NonceStream]*nonceWindowState, len(ev.highest))
+			for stream, hi := range ev.highest {
+				rec.nonceWindows[stream] = &nonceWindowState{
+					highest:       hi,
+					seen:          make(map[uint64]struct{}),
+					restoredFloor: hi,
+				}
+			}
+			delete(ts.evicted, id) // its order entry is skipped when pruned
+		}
 		ts.peers[id] = rec
 	}
 	return rec
@@ -386,7 +425,47 @@ func (ts *TrustStore) evictOldestTransient() {
 			oldestID, oldest, found = id, rec.LastSeen, true
 		}
 	}
-	if found {
-		delete(ts.peers, oldestID)
+	if !found {
+		return
+	}
+	rec := ts.peers[oldestID]
+	delete(ts.peers, oldestID)
+
+	// A record active within the freshness window may have signed messages
+	// that are still acceptable: remember its nonce marks until they expire.
+	if len(rec.nonceWindows) > 0 && time.Since(rec.LastSeen) <= evictedNonceRetention {
+		ev := &evictedNonces{id: oldestID, at: time.Now(), highest: make(map[NonceStream]uint64, len(rec.nonceWindows))}
+		for stream, w := range rec.nonceWindows {
+			ev.highest[stream] = w.highest
+		}
+		if ts.evicted == nil {
+			ts.evicted = make(map[NodeID]*evictedNonces)
+		}
+		ts.evicted[oldestID] = ev
+		ts.evictedOrder = append(ts.evictedOrder, ev)
+	}
+}
+
+// evictedNonceRetention is how long a signed message can remain acceptable:
+// its timestamp may be up to MaxClockSkew ahead of the receiver's clock and
+// is then accepted until MaxClockSkew after that.
+const evictedNonceRetention = 2 * wire.MaxClockSkew
+
+// pruneEvicted drops evicted-peer nonce marks older than the freshness
+// window: anything they could reject is already rejected as stale. Memory
+// is thus bounded by the eviction rate times that window. Caller holds ts.mu.
+func (ts *TrustStore) pruneEvicted(now time.Time) {
+	i := 0
+	for ; i < len(ts.evictedOrder); i++ {
+		ev := ts.evictedOrder[i]
+		if now.Sub(ev.at) <= evictedNonceRetention {
+			break
+		}
+		if ts.evicted[ev.id] == ev {
+			delete(ts.evicted, ev.id)
+		}
+	}
+	if i > 0 {
+		ts.evictedOrder = append([]*evictedNonces(nil), ts.evictedOrder[i:]...)
 	}
 }

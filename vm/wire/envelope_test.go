@@ -70,6 +70,7 @@ func TestEnvelope_RoutingFieldsAreSigned(t *testing.T) {
 		"Payload":       func(e *Envelope) { e.Payload = []byte{9} },
 		"Nonce":         func(e *Envelope) { e.Nonce++ },
 		"Version":       func(e *Envelope) { e.Version = 0 },
+		"Timestamp":     func(e *Envelope) { e.Timestamp += int64(time.Second) },
 	}
 	for field, mutate := range tamper {
 		env, _, _ := signedEnvelope(t)
@@ -89,6 +90,45 @@ func TestEnvelope_UnversionedRejected(t *testing.T) {
 	env.Version = 0 // simulate a pre-v1 envelope
 	if err := env.Verify(); err == nil {
 		t.Error("unversioned envelope should be rejected")
+	}
+}
+
+// An envelope is only accepted within ±MaxClockSkew of its signed
+// timestamp, so a captured envelope cannot be replayed later.
+func TestEnvelope_Freshness(t *testing.T) {
+	env, _, _ := signedEnvelope(t)
+	signedAt := time.Unix(0, env.Timestamp)
+	if err := env.VerifyAt(signedAt.Add(MaxClockSkew - time.Second)); err != nil {
+		t.Errorf("fresh envelope rejected: %v", err)
+	}
+	if err := env.VerifyAt(signedAt.Add(-MaxClockSkew + time.Second)); err != nil {
+		t.Errorf("envelope from a sender slightly ahead rejected: %v", err)
+	}
+	if err := env.VerifyAt(signedAt.Add(MaxClockSkew + time.Second)); err == nil {
+		t.Error("stale envelope accepted")
+	}
+	if err := env.VerifyAt(signedAt.Add(-MaxClockSkew - time.Second)); err == nil {
+		t.Error("envelope from the future accepted")
+	}
+}
+
+// v1 envelopes carried no timestamp; they are rejected rather than accepted
+// forever.
+func TestEnvelope_V1Rejected(t *testing.T) {
+	sender, priv := testKeys(t)
+	env := &Envelope{Payload: []byte{1}, Nonce: 1}
+	if err := env.Sign(sender, priv); err != nil {
+		t.Fatalf("Sign: %v", err)
+	}
+	env.Version, env.Timestamp = 1, 0
+	env.Signature = nil
+	b, err := env.signedBytes()
+	if err != nil {
+		t.Fatal(err)
+	}
+	env.Signature = ed25519.Sign(priv, b) // validly signed v1
+	if err := env.Verify(); err == nil {
+		t.Error("v1 envelope should be rejected")
 	}
 }
 

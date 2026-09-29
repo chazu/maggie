@@ -12,6 +12,7 @@ package wire
 import (
 	"crypto/ed25519"
 	"fmt"
+	"time"
 
 	"github.com/fxamacker/cbor/v2"
 )
@@ -19,7 +20,10 @@ import (
 // Version is the current wire protocol version. Envelopes with any other
 // version (including 0, i.e. unversioned pre-v1 envelopes) are rejected —
 // version skew fails loudly instead of silently misinterpreting fields.
-const Version uint8 = 1
+//
+// v2 added the signed Timestamp. v1 envelopes are not accepted: without a
+// timestamp a captured v1 envelope could be replayed indefinitely.
+const Version uint8 = 2
 
 // encMode is the canonical CBOR encoding used for both marshaling and
 // signature construction. Canonical form is what makes "sign the encoded
@@ -51,9 +55,12 @@ type ReplyAddress struct {
 // different process nor rewrite its selector (e.g. into __spawn_result__ /
 // __down__ control messages).
 //
-// Replay protection: Nonce is strictly increasing per sender (seeded from
-// wall-clock nanoseconds so it stays increasing across sender restarts);
-// receivers track a per-peer window and reject reuse.
+// Replay protection is two-layered. Timestamp (signed) bounds an envelope's
+// life to ±MaxClockSkew of the receiver's clock — the same window request
+// authentication uses — so a captured envelope expires. Within that window,
+// Nonce (strictly increasing per sender, seeded from wall-clock nanoseconds
+// so it stays increasing across restarts) is checked against a per-peer
+// window and reuse is rejected.
 type Envelope struct {
 	SenderNode    [32]byte      `cbor:"1,keyasint"`           // sender's Ed25519 public key
 	TargetProcess uint64        `cbor:"2,keyasint"`           // local process ID on target node
@@ -65,6 +72,7 @@ type Envelope struct {
 	Nonce         uint64        `cbor:"8,keyasint"`           // per-sender increasing, for replay prevention
 	Signature     []byte        `cbor:"9,keyasint,omitempty"` // Ed25519 signature (excluded from signed bytes)
 	Version       uint8         `cbor:"10,keyasint"`          // wire protocol version (see Version)
+	Timestamp     int64         `cbor:"11,keyasint"`          // signing time, unix nanoseconds (v2+)
 }
 
 // signedBytes returns the canonical encoding of the envelope with the
@@ -75,13 +83,14 @@ func (e *Envelope) signedBytes() ([]byte, error) {
 	return encMode.Marshal(&cp)
 }
 
-// SignWith stamps the version and sender, then signs the envelope using the
+// SignWith stamps the version, sender and signing time, then signs the envelope using the
 // supplied signer (typically ed25519.Sign closed over a private key —
 // callback form so callers in different packages can supply their own
 // identity types).
 func (e *Envelope) SignWith(sender [32]byte, signer func([]byte) []byte) error {
 	e.Version = Version
 	e.SenderNode = sender
+	e.Timestamp = time.Now().UnixNano()
 	b, err := e.signedBytes()
 	if err != nil {
 		return fmt.Errorf("wire: encode for signing: %w", err)
@@ -96,8 +105,14 @@ func (e *Envelope) Sign(sender [32]byte, priv ed25519.PrivateKey) error {
 	return e.SignWith(sender, func(b []byte) []byte { return ed25519.Sign(priv, b) })
 }
 
-// Verify checks the version and the signature against SenderNode.
+// Verify checks the version, the signature against SenderNode, and that the
+// envelope was signed within ±MaxClockSkew of now.
 func (e *Envelope) Verify() error {
+	return e.VerifyAt(time.Now())
+}
+
+// VerifyAt is Verify against the given receiver clock.
+func (e *Envelope) VerifyAt(now time.Time) error {
 	if e.Version != Version {
 		return fmt.Errorf("wire: unsupported envelope version %d (want %d)", e.Version, Version)
 	}
@@ -110,6 +125,13 @@ func (e *Envelope) Verify() error {
 	}
 	if !ed25519.Verify(e.SenderNode[:], b, e.Signature) {
 		return fmt.Errorf("wire: signature verification failed")
+	}
+	skew := now.UnixNano() - e.Timestamp
+	if skew < 0 {
+		skew = -skew
+	}
+	if skew > int64(MaxClockSkew) {
+		return fmt.Errorf("wire: envelope timestamp outside ±%s window (stale or replayed)", MaxClockSkew)
 	}
 	return nil
 }

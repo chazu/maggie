@@ -258,3 +258,33 @@ func TestTrustStore_NonceStreamsAreIndependent(t *testing.T) {
 		t.Error("envelope nonce replay should be rejected")
 	}
 }
+
+// Evicting a recently active peer must not reopen its nonces: a still-fresh
+// envelope or request captured before a key flood cannot be replayed after.
+func TestTrustStore_FloodDoesNotReopenRecentNonces(t *testing.T) {
+	ts := NewTrustStore(TrustPolicy{DefaultPerms: PermMessage})
+	victim := NodeID{7, 7, 7}
+	for _, n := range []uint64{500, 501} {
+		if err := ts.CheckNonce(victim, NonceStreamEnvelope, n); err != nil {
+			t.Fatalf("nonce %d: %v", n, err)
+		}
+	}
+
+	for i := 0; i < maxTransientPeers+10; i++ {
+		var id NodeID
+		id[0], id[1], id[31] = byte(i), byte(i>>8), 0xEE
+		_ = ts.CheckNonce(id, NonceStreamRequest, 1)
+	}
+	if ts.Peer(victim) != nil {
+		t.Fatal("test setup: victim record was not evicted")
+	}
+
+	for _, n := range []uint64{500, 501} {
+		if err := ts.CheckNonce(victim, NonceStreamEnvelope, n); err == nil {
+			t.Errorf("nonce %d replayed after eviction", n)
+		}
+	}
+	if err := ts.CheckNonce(victim, NonceStreamEnvelope, 502); err != nil {
+		t.Errorf("genuine next nonce rejected: %v", err)
+	}
+}
