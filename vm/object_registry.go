@@ -190,12 +190,22 @@ func (or *ObjectRegistry) SetClassVar(c *Class, name string, value Value) {
 	or.classVars[c][name] = value
 }
 
-// GetClassVarStorage returns the full class variable map for a class.
-// Returns nil if no class variables have been set.
+// GetClassVarStorage returns a snapshot of the class variable map for a
+// class, or nil if no class variables have been set. It is a copy: callers
+// (the image writer) iterate it without the lock while SetClassVar may be
+// writing the live map from another process.
 func (or *ObjectRegistry) GetClassVarStorage(c *Class) map[string]Value {
 	or.classVarsMu.RLock()
 	defer or.classVarsMu.RUnlock()
-	return or.classVars[c]
+	vars := or.classVars[c]
+	if vars == nil {
+		return nil
+	}
+	snapshot := make(map[string]Value, len(vars))
+	for name, v := range vars {
+		snapshot[name] = v
+	}
+	return snapshot
 }
 
 // ClassVarCount returns the number of classes with class variable storage.
