@@ -1,6 +1,10 @@
 package dist
 
-import "github.com/chazu/maggie/vm"
+import (
+	"sync"
+
+	"github.com/chazu/maggie/vm"
+)
 
 // FailureDetector produces liveness transitions for the peers it is told to
 // track. The membership core applies the events to its view and gossip spreads
@@ -26,6 +30,12 @@ type FailureDetector interface {
 type DirectHeartbeatDetector struct {
 	hm     *vm.NodeHealthMonitor
 	events chan MemberEvent
+
+	// mu guards stopped and serializes onDown's send against Stop's close:
+	// the down-observer stays registered on the VM-owned health monitor after
+	// Stop, so a later node death must not send on the closed channel.
+	mu      sync.Mutex
+	stopped bool
 }
 
 // NewDirectHeartbeatDetector builds a detector over the VM's health monitor and
@@ -52,14 +62,26 @@ func (d *DirectHeartbeatDetector) Events() <-chan MemberEvent { return d.events 
 // onDown runs on the health monitor's tick goroutine; it must not block, so the
 // event channel is buffered and a full channel drops the (redundant) event.
 func (d *DirectHeartbeatDetector) onDown(nodeID [32]byte) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if d.stopped {
+		return
+	}
 	select {
 	case d.events <- MemberEvent{Peer: NodeID(nodeID), Status: StatusDead}:
 	default:
 	}
 }
 
-// Stop closes the event channel. The underlying health monitor is owned by the
-// VM and keeps running for monitor/link use.
+// Stop closes the event channel (idempotent). The underlying health monitor is
+// owned by the VM and keeps running for monitor/link use; its down-observer
+// stays registered but becomes a no-op.
 func (d *DirectHeartbeatDetector) Stop() {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if d.stopped {
+		return
+	}
+	d.stopped = true
 	close(d.events)
 }

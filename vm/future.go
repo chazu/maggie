@@ -23,51 +23,51 @@ type FutureObject struct {
 // NewFuture creates an unresolved Future.
 func NewFuture() *FutureObject {
 	return &FutureObject{
-		ch:   make(chan Value, 1),
-		done: make(chan struct{}),
+		ch:             make(chan Value, 1),
+		done:           make(chan struct{}),
+		result:         Nil,
+		exceptionValue: Nil,
 	}
 }
 
-// publish marks the Future resolved exactly once: it delivers chVal to the
-// select-integration channel and closes done to wake every awaiter. Callers
-// set result/err/exceptionValue under mu before calling. A duplicate resolve
-// is ignored (rather than panicking on a second send/close).
-func (f *FutureObject) publish(chVal Value) {
-	if !f.resolved.CompareAndSwap(false, true) {
-		return
+// publish marks the Future resolved exactly once: it records the outcome
+// fields, delivers chVal to the select-integration channel, and closes done to
+// wake every awaiter. The already-resolved check happens under mu BEFORE any
+// field is written, so a duplicate resolve is a no-op — it neither overwrites
+// the first outcome nor panics on a second send/close. Result/Error/
+// ExceptionValue lock mu, so they never observe resolved=true with the fields
+// half-written. Returns false for a duplicate resolve.
+func (f *FutureObject) publish(result Value, errMsg string, exVal Value, chVal Value) bool {
+	f.mu.Lock()
+	if f.resolved.Load() {
+		f.mu.Unlock()
+		return false
 	}
+	f.result = result
+	f.err = errMsg
+	f.exceptionValue = exVal
+	f.resolved.Store(true)
+	f.mu.Unlock()
 	f.ch <- chVal
 	close(f.done)
+	return true
 }
 
-// Resolve writes a successful result. Must be called exactly once.
+// Resolve writes a successful result. Only the first resolve takes effect.
 func (f *FutureObject) Resolve(val Value) {
-	f.mu.Lock()
-	f.result = val
-	f.mu.Unlock()
-	f.publish(val)
+	f.publish(val, "", Nil, val)
 }
 
-// ResolveError writes an error result. Must be called exactly once.
+// ResolveError writes an error result. Only the first resolve takes effect.
 func (f *FutureObject) ResolveError(errMsg string) {
-	f.mu.Lock()
-	f.err = errMsg
-	f.result = Nil
-	f.exceptionValue = Nil
-	f.mu.Unlock()
-	f.publish(Nil)
+	f.publish(Nil, errMsg, Nil, Nil)
 }
 
 // ResolveException writes an error result with a typed exception value.
-// Must be called exactly once. The exVal should be a deserialized exception
-// Value that can be re-signaled on the receiving VM.
+// Only the first resolve takes effect. The exVal should be a deserialized
+// exception Value that can be re-signaled on the receiving VM.
 func (f *FutureObject) ResolveException(exVal Value, errMsg string) {
-	f.mu.Lock()
-	f.err = errMsg
-	f.result = Nil
-	f.exceptionValue = exVal
-	f.mu.Unlock()
-	f.publish(Nil)
+	f.publish(Nil, errMsg, exVal, Nil)
 }
 
 // Done returns a channel closed when the Future resolves. Reading it is

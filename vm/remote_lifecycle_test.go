@@ -118,7 +118,7 @@ func TestHandleNodeDown_ClosesRemoteChannels(t *testing.T) {
 	}
 	// Drained proxies leave the tracking set (grow-only leak fix)
 	vm.remoteChannels.mu.RLock()
-	_, stillTracked := vm.remoteChannels.channels[refA]
+	_, stillTracked := vm.remoteChannels.channels[remoteChannelKey{owner: nodeA, id: 1}]
 	vm.remoteChannels.mu.RUnlock()
 	if stillTracked {
 		t.Error("drained proxy should be removed from the tracking set")

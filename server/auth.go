@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"strconv"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -164,14 +165,35 @@ func verifyRequestAuth(req connect.AnyRequest, trust *dist.TrustStore) (dist.Nod
 	return peerID, nil
 }
 
+// requestNonces holds one request-auth nonce counter per local signing
+// identity. The server checks request nonces in a single replay window per
+// SENDER, so every client interceptor signing as the same identity (the sync
+// client, each Node connect: ref's client, the per-address remote-channel
+// client) must draw from one monotonic source. Per-interceptor counters seeded
+// from wall-clock nanos let a newer client push the window past an older one's
+// counter and lock it out. (Envelope nonces are a separate stream with their
+// own window — see vm.NodeRefData.NextNonce.)
+var requestNonces sync.Map // [32]byte -> *atomic.Uint64
+
+// requestNonceFor returns the shared request-nonce counter for nodeID, seeded
+// from wall-clock nanos on first use so it stays increasing across restarts.
+func requestNonceFor(nodeID [32]byte) *atomic.Uint64 {
+	if c, ok := requestNonces.Load(nodeID); ok {
+		return c.(*atomic.Uint64)
+	}
+	c := new(atomic.Uint64)
+	c.Store(wire.NonceSeed())
+	actual, _ := requestNonces.LoadOrStore(nodeID, c)
+	return actual.(*atomic.Uint64)
+}
+
 // NewClientAuthInterceptor builds the client-side interceptor that signs
 // every outgoing request with the local node identity. nodeID is the
 // Ed25519 public key; sign is typically ed25519.Sign closed over the
 // private key (callback form so NodeRefData and dist.NodeIdentity can both
 // drive it).
 func NewClientAuthInterceptor(nodeID [32]byte, sign func([]byte) []byte) connect.UnaryInterceptorFunc {
-	var nonce atomic.Uint64
-	nonce.Store(wire.NonceSeed())
+	nonce := requestNonceFor(nodeID)
 	idHex := hex.EncodeToString(nodeID[:])
 
 	return func(next connect.UnaryFunc) connect.UnaryFunc {

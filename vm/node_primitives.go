@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
+	"sync"
 	"sync/atomic"
 	"unsafe"
 
@@ -23,7 +24,7 @@ type NodeRefData struct {
 	PublicKey ed25519.PublicKey        // OUR public key (used to sign outgoing envelopes)
 	privKey   ed25519.PrivateKey       // OUR private key
 	peerID    atomic.Pointer[[32]byte] // the REMOTE peer's node id, learned via Ping handshake
-	nonce     atomic.Uint64
+	nonce     *atomic.Uint64           // shared per local identity (see envelopeNonceFor)
 
 	// SendFunc is injected by the cmd/mag layer to perform the actual
 	// gRPC DeliverMessage call. Returns (responsePayload, errorKind, errorMsg, err).
@@ -46,6 +47,27 @@ type nodeIdentityHolder struct {
 	priv ed25519.PrivateKey
 }
 
+// envelopeNonces holds one envelope-nonce counter per local signing identity.
+// Receivers check envelope nonces in a single replay window per SENDER, so every
+// NodeRefData signing as the same identity (a second connect: to the same
+// address, the cluster core's ref, per-address helper refs) must draw from one
+// monotonic source. Per-ref counters seeded from wall-clock nanos let a newer
+// ref push the receiver's window past an older ref's counter and lock it out.
+var envelopeNonces sync.Map // [32]byte (public key) -> *atomic.Uint64
+
+// envelopeNonceFor returns the shared envelope-nonce counter for identity id,
+// seeding it from wall-clock nanos on first use so it stays increasing across
+// process restarts.
+func envelopeNonceFor(id [32]byte) *atomic.Uint64 {
+	if c, ok := envelopeNonces.Load(id); ok {
+		return c.(*atomic.Uint64)
+	}
+	c := new(atomic.Uint64)
+	c.Store(wire.NonceSeed())
+	actual, _ := envelopeNonces.LoadOrStore(id, c)
+	return actual.(*atomic.Uint64)
+}
+
 // NewNodeRefData creates a NodeRefData. SendFunc and PingFunc must be set
 // separately by the wiring layer, or use VM.SetNodeRefFactory to auto-wire.
 func NewNodeRefData(addr string, pub ed25519.PublicKey, priv ed25519.PrivateKey) *NodeRefData {
@@ -54,9 +76,7 @@ func NewNodeRefData(addr string, pub ed25519.PublicKey, priv ed25519.PrivateKey)
 		PublicKey: pub,
 		privKey:   priv,
 	}
-	// Seed the nonce from wall-clock nanos so it stays increasing across
-	// process restarts — receivers reject nonce reuse per peer.
-	ref.nonce.Store(wire.NonceSeed())
+	ref.nonce = envelopeNonceFor(ref.NodeID())
 	return ref
 }
 
@@ -64,7 +84,9 @@ func NewNodeRefData(addr string, pub ed25519.PublicKey, priv ed25519.PrivateKey)
 // Injected by cmd/mag to avoid import cycles.
 type NodeRefFactory func(addr string, pub ed25519.PublicKey, priv ed25519.PrivateKey) *NodeRefData
 
-// NextNonce returns a monotonically increasing nonce.
+// NextNonce returns a monotonically increasing envelope nonce, shared by every
+// NodeRefData signing as the same local identity.
+// NodeRefData must be built with NewNodeRefData.
 func (n *NodeRefData) NextNonce() uint64 { return n.nonce.Add(1) }
 
 // SignEnvelope signs data with the node's private key.
@@ -461,7 +483,16 @@ func (vm *VM) remoteSend(recv, selectorVal, payload Value, wantReply bool) Value
 	// __reply__ envelope that resolves the Future (or node-death drains it).
 	future := NewFuture()
 	futureVal := vm.registerFuture(future)
-	correlation := vm.pendingReplies.register(future, ref.peerKey())
+
+	// The expected replier is the peer's handshake-learned id, or zero ("any
+	// peer") when the connect: handshake failed — registering peerKey()'s
+	// fallback (our OWN id) would make handleReply reject the real peer's reply.
+	expectedPeer, _ := ref.PeerNodeID()
+	correlation := vm.pendingReplies.register(future, expectedPeer)
+
+	// Heartbeat coverage starts at the request (as forkOn: does): without it a
+	// node death never drains this pending reply and await blocks forever.
+	vm.ensureHealthMonitor(ref.peerKey(), ref)
 
 	replyTo := &wire.ReplyAddress{NodeID: ref.NodeID(), Correlation: correlation}
 	envelopeBytes, err := buildSignedEnvelopeWithReply(ref, targetName, sel, payloadBytes, replyTo)

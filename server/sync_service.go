@@ -542,7 +542,7 @@ func (s *SyncService) DeliverMessage(
 
 	// Infrastructure selectors: route through monitor/link system
 	if envelope.Selector == vm.SelectorDown {
-		return s.handleRemoteDown(envelope)
+		return s.handleRemoteDown(envelope, peerID)
 	}
 	if envelope.Selector == vm.SelectorSpawnResult {
 		return s.handleSpawnResult(envelope)
@@ -700,8 +700,10 @@ func (s *SyncService) handleReply(envelope *dist.MessageEnvelope, peerID dist.No
 	return connect.NewResponse(&maggiev1.DeliverMessageResponse{Success: true}), nil
 }
 
-// handleRemoteDown processes a __down__ notification from a remote node.
-func (s *SyncService) handleRemoteDown(envelope *dist.MessageEnvelope) (*connect.Response[maggiev1.DeliverMessageResponse], error) {
+// handleRemoteDown processes a __down__ notification from a remote node. The
+// signature-proven sender must be the node the monitored process lives on, so
+// one peer cannot fire (and consume) a monitor we hold on another peer.
+func (s *SyncService) handleRemoteDown(envelope *dist.MessageEnvelope, peerID dist.NodeID) (*connect.Response[maggiev1.DeliverMessageResponse], error) {
 	type downPayload struct {
 		RefID  uint64 `cbor:"1,keyasint"`
 		Signal string `cbor:"2,keyasint"`
@@ -715,7 +717,7 @@ func (s *SyncService) handleRemoteDown(envelope *dist.MessageEnvelope) (*connect
 		}), nil
 	}
 
-	rmRef := s.worker.vm.RemoteWatches().RemoveOutboundMonitor(dp.RefID)
+	rmRef := s.worker.vm.RemoteWatches().RemoveOutboundMonitorFrom(dp.RefID, [32]byte(peerID))
 	if rmRef == nil {
 		return connect.NewResponse(&maggiev1.DeliverMessageResponse{Success: true}), nil
 	}
@@ -828,7 +830,9 @@ func (s *SyncService) DemonitorProcess(
 	} else if len(req.Msg.SenderNode) == 32 {
 		copy(senderNode[:], req.Msg.SenderNode)
 	}
-	s.worker.vm.RemoteWatches().RemoveInboundMonitorOwnedBy(req.Msg.MonitorRefId, senderNode)
+	// Detach from both the watch store and the watched process, or the DOWN
+	// is still sent when the process exits.
+	s.worker.vm.CancelInboundMonitor(req.Msg.MonitorRefId, senderNode)
 	return connect.NewResponse(&maggiev1.DemonitorProcessResponse{Success: true}), nil
 }
 
@@ -995,9 +999,11 @@ func (s *SyncService) ChannelSend(
 ) (*connect.Response[maggiev1.ChannelSendResponse], error) {
 	ch := s.worker.vm.LookupExportedChannel(req.Msg.ChannelId)
 	if ch == nil {
+		// An export disappears when its channel is closed and drained, so an
+		// unknown ID reads as closed (same answer as a closed channel below).
 		return connect.NewResponse(&maggiev1.ChannelSendResponse{
 			Success: false,
-			Error:   "channel not found",
+			Error:   vm.RemoteChannelClosedMsg,
 		}), nil
 	}
 
@@ -1018,7 +1024,7 @@ func (s *SyncService) ChannelSend(
 	if !sent {
 		return connect.NewResponse(&maggiev1.ChannelSendResponse{
 			Success: false,
-			Error:   "channel closed",
+			Error:   vm.RemoteChannelClosedMsg,
 		}), nil
 	}
 
@@ -1032,9 +1038,11 @@ func (s *SyncService) ChannelReceive(
 ) (*connect.Response[maggiev1.ChannelReceiveResponse], error) {
 	ch := s.worker.vm.LookupExportedChannel(req.Msg.ChannelId)
 	if ch == nil {
+		// Closed-and-drained channels are unexported (below), so an unknown
+		// export ID answers closed — receive on a closed channel is nil.
 		return connect.NewResponse(&maggiev1.ChannelReceiveResponse{
-			Success: false,
-			Error:   "channel not found",
+			Success:     true,
+			ChannelOpen: false,
 		}), nil
 	}
 
@@ -1076,9 +1084,8 @@ func (s *SyncService) ChannelTrySend(
 ) (*connect.Response[maggiev1.ChannelTrySendResponse], error) {
 	ch := s.worker.vm.LookupExportedChannel(req.Msg.ChannelId)
 	if ch == nil {
-		return connect.NewResponse(&maggiev1.ChannelTrySendResponse{
-			Error: "channel not found",
-		}), nil
+		// Unknown export = closed and drained: trySend: answers false.
+		return connect.NewResponse(&maggiev1.ChannelTrySendResponse{Sent: false}), nil
 	}
 
 	val, err := s.worker.vm.DeserializeValue(req.Msg.Value)
@@ -1099,8 +1106,10 @@ func (s *SyncService) ChannelTryReceive(
 ) (*connect.Response[maggiev1.ChannelTryReceiveResponse], error) {
 	ch := s.worker.vm.LookupExportedChannel(req.Msg.ChannelId)
 	if ch == nil {
+		// Unknown export = closed and drained.
 		return connect.NewResponse(&maggiev1.ChannelTryReceiveResponse{
-			Error: "channel not found",
+			GotValue:    false,
+			ChannelOpen: false,
 		}), nil
 	}
 
@@ -1135,7 +1144,8 @@ func (s *SyncService) ChannelClose(
 ) (*connect.Response[maggiev1.ChannelCloseResponse], error) {
 	ch := s.worker.vm.LookupExportedChannel(req.Msg.ChannelId)
 	if ch == nil {
-		return connect.NewResponse(&maggiev1.ChannelCloseResponse{Success: false}), nil
+		// Already closed and drained — closing again is a no-op, as locally.
+		return connect.NewResponse(&maggiev1.ChannelCloseResponse{Success: true}), nil
 	}
 
 	s.worker.vm.CloseChannel(ch)

@@ -925,6 +925,10 @@ func buildRemoteChannelFactory(vmInst *vm.VM) func(ref *vm.RemoteChannelRef) {
 				return err
 			}
 			if !resp.Msg.Success {
+				if resp.Msg.Error == vm.RemoteChannelClosedMsg {
+					// send: on a closed channel answers nil, as locally.
+					return vm.ErrRemoteChannelClosed
+				}
 				return fmt.Errorf("%s", resp.Msg.Error)
 			}
 			return nil

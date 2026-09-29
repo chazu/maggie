@@ -345,8 +345,11 @@ func (vm *VM) doForkOn(ref *NodeRefData, spawnBytes []byte, nodeVal Value) Value
 	go func() {
 		processName, err := ref.SpawnFunc(spawnBytes)
 		if err != nil {
-			vm.pendingSpawns.resolve(futureID)
-			future.ResolveError(fmt.Sprintf("spawn RPC: %v", err))
+			// Only resolve if we still own the entry: a node-death drain (or a
+			// spawn result racing the RPC error) may already have resolved it.
+			if f := vm.pendingSpawns.resolve(futureID); f != nil {
+				f.ResolveError(fmt.Sprintf("spawn RPC: %v", err))
+			}
 			return
 		}
 		_ = processName // result comes via DeliverMessage when block completes

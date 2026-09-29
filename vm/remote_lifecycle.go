@@ -110,8 +110,16 @@ func (vm *VM) HandleInboundMonitor(refID, watcherID uint64, remoteNode [32]byte,
 	rmRef := &RemoteMonitorRef{
 		RefID:      refID,
 		WatcherID:  watcherID,
+		WatchedID:  proc.id,
 		RemoteNode: remoteNode,
 		Outbound:   false,
+		watched:    proc,
+	}
+
+	// Register in the store first: it assigns the VM-unique localKey that keys
+	// proc.remoteMonitors (the watcher-chosen refID collides across nodes).
+	if replaced := vm.remoteWatches.AddInboundMonitor(rmRef); replaced != nil {
+		vm.dropFromWatched(replaced)
 	}
 
 	proc.mu.Lock()
@@ -121,16 +129,39 @@ func (vm *VM) HandleInboundMonitor(refID, watcherID uint64, remoteNode [32]byte,
 		if proc.remoteMonitors == nil {
 			proc.remoteMonitors = make(map[uint64]*RemoteMonitorRef)
 		}
-		proc.remoteMonitors[refID] = rmRef
+		proc.remoteMonitors[rmRef.localKey] = rmRef
 	}
 	proc.mu.Unlock()
 
 	if dead {
+		vm.remoteWatches.removeInboundRef(rmRef)
 		return true, exitR
 	}
-
-	vm.remoteWatches.AddInboundMonitor(rmRef)
 	return false, ExitReason{}
+}
+
+// CancelInboundMonitor cancels the inbound monitor that `node` (the watcher's
+// signature-proven identity) established under refID: it leaves both the watch
+// store and the watched process's remoteMonitors, so no DOWN is sent later.
+// A refID owned by a different node is left untouched.
+func (vm *VM) CancelInboundMonitor(refID uint64, node [32]byte) {
+	if rmRef := vm.remoteWatches.RemoveInboundMonitorOwnedBy(refID, node); rmRef != nil {
+		vm.dropFromWatched(rmRef)
+	}
+}
+
+// dropFromWatched removes an inbound monitor ref from its watched process's
+// remoteMonitors map (if it is still the entry under its localKey).
+func (vm *VM) dropFromWatched(rmRef *RemoteMonitorRef) {
+	proc := rmRef.watched
+	if proc == nil {
+		return
+	}
+	proc.mu.Lock()
+	if cur, ok := proc.remoteMonitors[rmRef.localKey]; ok && cur == rmRef {
+		delete(proc.remoteMonitors, rmRef.localKey)
+	}
+	proc.mu.Unlock()
 }
 
 // RemoteWatches returns the VM's remote watch store (for server access).
@@ -166,6 +197,14 @@ func (vm *VM) handleNodeDown(nodeID [32]byte) {
 	// from a dead node.
 	for _, f := range vm.pendingReplies.drainNode(nodeID) {
 		f.ResolveError("nodeDown: remote node died before replying")
+	}
+	// Requests to a peer whose id was never learned are registered with a zero
+	// expected peer (any replier accepted) and heartbeated under peerKey()'s
+	// fallback — our own id. When that fallback key dies, drain them too.
+	if local, ok := vm.localNodeID(); ok && local == nodeID {
+		for _, f := range vm.pendingReplies.drainNode([32]byte{}) {
+			f.ResolveError("nodeDown: remote node died before replying")
+		}
 	}
 
 	// Mark every remote-channel proxy owned by the dead node closed so
@@ -206,8 +245,11 @@ func (vm *VM) ensureHealthMonitor(nodeID [32]byte, ref *NodeRefData) {
 // Remote DOWN notification sending (when OUR process dies)
 // ---------------------------------------------------------------------------
 
-// sendRemoteDown sends a DOWN notification to a remote watcher node.
+// sendRemoteDown sends a DOWN notification to a remote watcher node and
+// removes the exact (node, refID) inbound monitor from the watch store.
 func (vm *VM) sendRemoteDown(rmRef *RemoteMonitorRef, reason ExitReason) {
+	vm.remoteWatches.removeInboundRef(rmRef)
+
 	ref := vm.findNodeRefByID(rmRef.RemoteNode)
 	if ref == nil || ref.SendFunc == nil {
 		return

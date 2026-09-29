@@ -281,8 +281,7 @@ func (vm *VM) FinishProcess(proc *ProcessObject, reason ExitReason) {
 
 	// Send DOWN notifications to remote watchers
 	for _, rmRef := range remoteRefs {
-		vm.sendRemoteDown(rmRef, reason)
-		vm.remoteWatches.RemoveInboundMonitor(rmRef.RefID)
+		vm.sendRemoteDown(rmRef, reason) // also removes the (node, refID) entry
 	}
 }
 

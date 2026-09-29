@@ -57,7 +57,10 @@ Cluster subclass: Object
   Idempotent — a second call returns the running process.
   """
   method: start ^<Process> ! <Process, Network> [
-      running ifTrue: [ ^process ].
+      "Mark running BEFORE forking: the loop may not have been scheduled yet
+      when a second start arrives, and must not get a twin."
+      (running and: [process notNil and: [process isAlive]]) ifTrue: [ ^process ].
+      running := true.
       process := [self runLoop] fork.
       ^process
   ]
@@ -138,7 +141,6 @@ Cluster subclass: Object
       | msg <MailboxMessage> |
       Process current registerAs: '__cluster__'.
       Process current trapExit: true.
-      running := true.
       [running] whileTrue: [
           msg := Process receive: 1000.
           msg notNil ifTrue: [ self dispatch: msg ]

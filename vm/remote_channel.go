@@ -3,10 +3,13 @@ package vm
 import (
 	"crypto/rand"
 	"encoding/binary"
+	"errors"
 	"fmt"
+	"runtime"
 	"sync"
 	"sync/atomic"
 	"unsafe"
+	"weak"
 )
 
 // ---------------------------------------------------------------------------
@@ -31,6 +34,16 @@ type RemoteChannelRef struct {
 	StatusFunc     func(channelID uint64) (size int, capacity int, closed bool, err error)
 }
 
+// RemoteChannelClosedMsg is the ChannelSend error text the owning node answers
+// when the channel is closed (or no longer exported, which a closed, drained
+// channel is). The client wiring maps it to ErrRemoteChannelClosed.
+const RemoteChannelClosedMsg = "channel closed"
+
+// ErrRemoteChannelClosed is returned by a RemoteChannelRef.SendFunc when the
+// owning node reports the channel closed. send: then answers nil like a local
+// closed channel instead of signaling.
+var ErrRemoteChannelClosed = errors.New(RemoteChannelClosedMsg)
+
 // IsClosed returns true if the remote channel is known to be closed.
 func (r *RemoteChannelRef) IsClosed() bool { return r.closed.Load() }
 
@@ -52,38 +65,86 @@ func IsRemoteChannelValue(v Value) bool { return isRemoteChannelValue(v) }
 // VM-local remote channel registry
 // ---------------------------------------------------------------------------
 
-// remoteChannelRegistry tracks every live RemoteChannelRef proxy so that
-// drainNode can mark all proxies of a dead node closed. Proxies are
-// pointer-carrying kindRemoteChannel Values (Go GC owns their lifetime); this
-// set is purely functional (node-death fan-out), not a liveness root.
+// remoteChannelKey identifies a remote channel: its owner node and the export
+// ID it has there.
+type remoteChannelKey struct {
+	owner [32]byte
+	id    uint64
+}
+
+// remoteChannelRegistry tracks the live RemoteChannelRef proxy for each
+// (owner node, channel ID) so that (a) deserializing the same channel again
+// reuses one proxy instead of minting a new one every time, and (b) drainNode
+// can mark all proxies of a dead node closed. Proxies are pointer-carrying
+// kindRemoteChannel Values (Go GC owns their lifetime); the registry holds only
+// WEAK pointers, and a cleanup removes an entry once its proxy is collected, so
+// the registry never pins proxies nor grows with every channel that ever
+// crossed the wire.
 type remoteChannelRegistry struct {
 	mu       sync.RWMutex
-	channels map[*RemoteChannelRef]struct{}
+	channels map[remoteChannelKey]weak.Pointer[RemoteChannelRef]
 }
 
 func newRemoteChannelRegistry() *remoteChannelRegistry {
 	return &remoteChannelRegistry{
-		channels: make(map[*RemoteChannelRef]struct{}),
+		channels: make(map[remoteChannelKey]weak.Pointer[RemoteChannelRef]),
 	}
 }
 
-func (r *remoteChannelRegistry) track(ref *RemoteChannelRef) {
+// track registers ref and returns the canonical proxy for its (owner,
+// channel): an existing live proxy if one is registered, else ref itself.
+func (r *remoteChannelRegistry) track(ref *RemoteChannelRef) *RemoteChannelRef {
+	k := remoteChannelKey{owner: ref.OwnerNode, id: ref.ChannelID}
 	r.mu.Lock()
-	r.channels[ref] = struct{}{}
+	defer r.mu.Unlock()
+	if wp, ok := r.channels[k]; ok {
+		if existing := wp.Value(); existing != nil {
+			return existing
+		}
+	}
+	wp := weak.Make(ref)
+	r.channels[k] = wp
+	runtime.AddCleanup(ref, r.forget, remoteChannelEntry{key: k, wp: wp})
+	return ref
+}
+
+// remoteChannelEntry is the cleanup argument identifying one registry entry.
+type remoteChannelEntry struct {
+	key remoteChannelKey
+	wp  weak.Pointer[RemoteChannelRef]
+}
+
+// forget drops a collected proxy's entry (unless it was already replaced by a
+// newer proxy for the same channel).
+func (r *remoteChannelRegistry) forget(e remoteChannelEntry) {
+	r.mu.Lock()
+	if cur, ok := r.channels[e.key]; ok && cur == e.wp {
+		delete(r.channels, e.key)
+	}
 	r.mu.Unlock()
 }
 
+// trackedCount returns the number of registry entries (for tests).
+func (r *remoteChannelRegistry) trackedCount() int {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return len(r.channels)
+}
+
 // drainNode marks all remote channels from the given node as closed and
-// removes them from the tracking set — once closed, their node-death fan-out
-// role is finished, so keeping them would only grow the set forever.
+// removes them from the registry — once closed, their node-death fan-out role
+// is finished, and a later deserialization after reconnect gets a fresh proxy.
 func (r *remoteChannelRegistry) drainNode(nodeID [32]byte) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	for ref := range r.channels {
-		if ref.OwnerNode == nodeID {
-			ref.MarkClosed()
-			delete(r.channels, ref)
+	for k, wp := range r.channels {
+		if k.owner != nodeID {
+			continue
 		}
+		if ref := wp.Value(); ref != nil {
+			ref.MarkClosed()
+		}
+		delete(r.channels, k)
 	}
 }
 
@@ -173,11 +234,11 @@ func (r *channelExportRegistry) Unexport(ch *ChannelObject) {
 // ---------------------------------------------------------------------------
 
 func (vm *VM) registerRemoteChannel(ref *RemoteChannelRef) Value {
-	// The ref is a pointer-carrying kindRemoteChannel Value (below). It is also
-	// tracked in the registry, whose sole remaining role is drainNode: marking
-	// every remote channel of a dead node as closed (a proxy can be closed even
-	// while a live Value still points at it).
-	vm.remoteChannels.track(ref)
+	// The ref is a pointer-carrying kindRemoteChannel Value (below). The
+	// registry dedupes by (owner, channel ID) — an already-live proxy for the
+	// same remote channel is reused — and weakly tracks it so drainNode can
+	// mark every remote channel of a dead node as closed.
+	ref = vm.remoteChannels.track(ref)
 	return makeHeap(kindRemoteChannel, unsafe.Pointer(ref))
 }
 
@@ -271,6 +332,11 @@ func (vm *VM) registerRemoteChannelPrimitives() {
 			return v.SignalPrimitiveError("send:", fmt.Sprintf("cannot serialize value: %v", err))
 		}
 		if err := ref.SendFunc(ref.ChannelID, data); err != nil {
+			if errors.Is(err, ErrRemoteChannelClosed) {
+				// Local closed-channel semantics: send: answers nil.
+				ref.MarkClosed()
+				return Nil
+			}
 			return v.SignalPrimitiveError("send:", fmt.Sprintf("remote send failed: %v", err))
 		}
 		return recv
