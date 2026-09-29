@@ -2,6 +2,7 @@ package types
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/chazu/maggie/compiler"
 	"github.com/chazu/maggie/vm"
@@ -20,10 +21,18 @@ type Inferrer struct {
 	VM          *vm.VM
 	Verbose     bool
 
-	className      string           // class being checked
-	diagnostics    []Diagnostic     // collected during inference
-	inferredEffect Effect           // accumulated effects during inference
-	methodLocals   map[string]bool  // params + temps declared in method signature
+	// Superclasses maps class names defined in the checked sources to their
+	// declared superclass names, for subtype checks on classes the VM has
+	// not loaded. Optional.
+	Superclasses map[string]string
+
+	className      string          // class being checked (qualified)
+	classSide      bool            // checking a class-side method
+	namespace      string          // namespace of the file being checked
+	imports        []string        // imports of the file being checked
+	diagnostics    []Diagnostic    // collected during inference
+	inferredEffect Effect          // accumulated effects during inference
+	methodLocals   map[string]bool // params + temps declared in method signature
 }
 
 // NewInferrer creates an inferrer with the given dependencies.
@@ -41,10 +50,53 @@ func (inf *Inferrer) SetEffectTable(et *EffectTable) {
 	inf.EffectTable = et
 }
 
-// InferMethod performs type inference on a method body.
+// SetNamespace sets the namespace and imports used to resolve class names
+// (e.g. `Command` inside `namespace: 'Cli'` is `Cli::Command`).
+func (inf *Inferrer) SetNamespace(namespace string, imports []string) {
+	inf.namespace = namespace
+	inf.imports = imports
+}
+
+// classSideSuffix marks the class-side (metaclass) type of a class:
+// "Foo class" is the type of the class object Foo itself.
+const classSideSuffix = " class"
+
+// ClassSideName returns the name of the class-side type of className.
+// Class-side return types and effects are keyed under this name.
+func ClassSideName(className string) string { return className + classSideSuffix }
+
+// splitClassSide reports whether name is a class-side type name and returns
+// the underlying class name.
+func splitClassSide(name string) (string, bool) {
+	if base, ok := strings.CutSuffix(name, classSideSuffix); ok {
+		return base, true
+	}
+	return name, false
+}
+
+// InferMethod performs type inference on an instance-side method body.
 // Returns the inferred return type, inferred effects, and any diagnostics generated.
 func (inf *Inferrer) InferMethod(className string, md *compiler.MethodDef) (MaggieType, Effect, []Diagnostic) {
+	return inf.inferMethod(className, false, md)
+}
+
+// InferClassMethod performs type inference on a class-side method body, where
+// self is the class object rather than an instance.
+func (inf *Inferrer) InferClassMethod(className string, md *compiler.MethodDef) (MaggieType, Effect, []Diagnostic) {
+	return inf.inferMethod(className, true, md)
+}
+
+// selfType is the type of self in the method being checked.
+func (inf *Inferrer) selfType() *NamedType {
+	if inf.classSide {
+		return &NamedType{Name: ClassSideName(inf.className)}
+	}
+	return &NamedType{Name: inf.className}
+}
+
+func (inf *Inferrer) inferMethod(className string, classSide bool, md *compiler.MethodDef) (MaggieType, Effect, []Diagnostic) {
 	inf.className = className
+	inf.classSide = classSide
 	inf.diagnostics = nil
 	inf.inferredEffect = EffectNone
 	inf.methodLocals = make(map[string]bool)
@@ -58,7 +110,7 @@ func (inf *Inferrer) InferMethod(className string, md *compiler.MethodDef) (Magg
 	env := NewTypeEnv(nil)
 
 	// Bind self
-	env.Set("self", &NamedType{Name: className})
+	env.Set("self", inf.selfType())
 
 	// Bind parameters from annotations (or Dynamic if untyped)
 	for i, paramName := range md.Parameters {
@@ -91,15 +143,10 @@ func (inf *Inferrer) InferMethod(className string, md *compiler.MethodDef) (Magg
 	// Check inferred return vs declared return type
 	if md.ReturnType != nil && lastReturnType != nil {
 		declared := typeExprToType(md.ReturnType)
-		if !IsDynamic(declared) && !IsDynamic(lastReturnType) {
-			// Resolve Self to the class name for comparison
-			declaredName := inf.resolveTypeName(declared)
-			inferredName := inf.resolveTypeName(lastReturnType)
-			if declaredName != inferredName && declaredName != "" && inferredName != "" {
-				inf.addDiagnostic(md.SpanVal.Start,
-					fmt.Sprintf("inferred return type %s is not assignable to declared %s",
-						lastReturnType.String(), declared.String()))
-			}
+		if !inf.isAssignable(lastReturnType, declared) {
+			inf.addDiagnostic(md.SpanVal.Start,
+				fmt.Sprintf("inferred return type %s is not assignable to declared %s",
+					lastReturnType.String(), declared.String()))
 		}
 	}
 
@@ -154,9 +201,9 @@ func (inf *Inferrer) inferExpr(env *TypeEnv, expr compiler.Expr) MaggieType {
 		}
 		return &NamedType{Name: "Dictionary"}
 	case *compiler.Self:
-		return &NamedType{Name: inf.className}
+		return inf.selfType()
 	case *compiler.Super:
-		return &NamedType{Name: inf.className}
+		return inf.selfType()
 	case *compiler.ThisContext:
 		return &DynamicType{}
 	case *compiler.Variable:
@@ -244,13 +291,16 @@ func (inf *Inferrer) inferSend(recvType MaggieType, selector string, pos compile
 	if className == "" {
 		return &DynamicType{}
 	}
+	// A class-side receiver ("Foo class") dispatches through Foo's
+	// ClassVTable; its return types/effects are keyed by the class-side name.
+	baseName, classSide := splitClassSide(className)
 
 	// Accumulate effects from global class usage
-	if eff, ok := GlobalEffects[className]; ok {
+	if eff, ok := GlobalEffects[baseName]; ok {
 		inf.inferredEffect = inf.inferredEffect.Union(eff)
 	}
 	// Accumulate effects from specific class+selector pairs
-	if selEffects, ok := SelectorEffects[className]; ok {
+	if selEffects, ok := SelectorEffects[baseName]; ok {
 		if eff, ok := selEffects[selector]; ok {
 			inf.inferredEffect = inf.inferredEffect.Union(eff)
 		}
@@ -272,12 +322,16 @@ func (inf *Inferrer) inferSend(recvType MaggieType, selector string, pos compile
 
 	// Check if the class actually has this method via the VM
 	if inf.VM != nil {
-		class := inf.VM.Classes.Lookup(className)
+		class := inf.lookupClass(baseName)
 		if class != nil {
+			vt := class.VTable
+			if classSide {
+				vt = class.ClassVTable
+			}
 			selectorID := inf.VM.Selectors.Lookup(selector)
 			hasMethod := false
 			if selectorID >= 0 {
-				if class.VTable != nil && class.VTable.Lookup(selectorID) != nil {
+				if vt != nil && vt.Lookup(selectorID) != nil {
 					hasMethod = true
 				}
 			}
@@ -314,10 +368,103 @@ func (inf *Inferrer) resolveTypeName(t MaggieType) string {
 	case *NamedType:
 		return v.Name
 	case *SelfType:
-		return inf.className
+		return inf.selfType().Name
 	default:
 		return ""
 	}
+}
+
+// lookupClass resolves a class name to a VM class, honoring the current
+// namespace and imports and falling back to the bare name.
+func (inf *Inferrer) lookupClass(name string) *vm.Class {
+	if inf.VM == nil || name == "" {
+		return nil
+	}
+	return inf.VM.Classes.LookupWithImports(name, inf.namespace, inf.imports)
+}
+
+// isAssignable reports whether a value of type from may be returned where
+// type to is declared: Dynamic either way, nil to anything, anything to
+// Object, SmallInteger/BigInteger to Integer, a class to its superclasses,
+// and a class to a protocol it satisfies. When the relationship cannot be
+// determined (a class neither loaded nor defined in the checked sources)
+// the value is accepted — the checker only warns on what it can prove.
+func (inf *Inferrer) isAssignable(from, to MaggieType) bool {
+	if IsDynamic(from) || IsDynamic(to) {
+		return true
+	}
+	fromName := inf.resolveTypeName(from)
+	toName := inf.resolveTypeName(to)
+	if fromName == "" || toName == "" {
+		return true
+	}
+	if fromName == "UndefinedObject" || toName == "Object" {
+		return true
+	}
+	if protocol := inf.Protocols.Lookup(toName); protocol != nil {
+		if _, classSide := splitClassSide(fromName); classSide || inf.VM == nil {
+			return true
+		}
+		if class := inf.lookupClass(fromName); class != nil {
+			return Satisfies(class, protocol, inf.VM.Selectors)
+		}
+		return true
+	}
+	fromBase, fromSide := splitClassSide(fromName)
+	toBase, toSide := splitClassSide(toName)
+	if fromSide != toSide {
+		return false
+	}
+	return inf.isSubclassName(fromBase, toBase)
+}
+
+// isSubclassName walks from's superclass chain — through classes defined
+// in the checked sources, then VM classes — looking for to.
+func (inf *Inferrer) isSubclassName(from, to string) bool {
+	toClass := inf.lookupClass(to)
+	seen := make(map[string]bool)
+	for cur := from; cur != "" && !seen[cur]; {
+		seen[cur] = true
+		if inf.sameClassName(cur, to) {
+			return true
+		}
+		// Integer is an alias for the concrete integer classes.
+		if to == "Integer" && (cur == "SmallInteger" || cur == "BigInteger") {
+			return true
+		}
+		if super, ok := inf.Superclasses[cur]; ok {
+			cur = super
+			continue
+		}
+		if super, ok := inf.Superclasses[qualifyName(inf.namespace, cur)]; ok {
+			cur = super
+			continue
+		}
+		class := inf.lookupClass(cur)
+		if class == nil {
+			return true // unknown hierarchy: can't prove a mismatch
+		}
+		if toClass != nil {
+			return class.IsSubclassOf(toClass)
+		}
+		// to isn't a VM class: continue up through VM superclass names
+		// (to may be an alias such as Integer).
+		if class.Superclass == nil {
+			return false
+		}
+		cur = class.Superclass.FullName()
+	}
+	return false
+}
+
+// sameClassName reports whether a and b name the same class, allowing one
+// to be namespace-qualified and the other not.
+func (inf *Inferrer) sameClassName(a, b string) bool {
+	if a == b || qualifyName(inf.namespace, a) == qualifyName(inf.namespace, b) {
+		return true
+	}
+	ca, cb := inf.lookupClass(a), inf.lookupClass(b)
+	return ca != nil && ca == cb
 }
 
 func (inf *Inferrer) addDiagnostic(pos compiler.Position, message string) {

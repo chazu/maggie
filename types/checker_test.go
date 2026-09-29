@@ -445,3 +445,99 @@ func TestTypeCompatibility(t *testing.T) {
 		}
 	}
 }
+
+// checkSource runs a fresh checker (bare VM) over source and returns the
+// diagnostics. Extra sources are declared first, as `mag typecheck` does for
+// the other files in the set.
+func checkSource(t *testing.T, source string, others ...string) []Diagnostic {
+	t.Helper()
+	c := NewChecker(testVM())
+	var parsed []*compiler.SourceFile
+	for _, src := range append(others, source) {
+		p := compiler.NewParser(src)
+		sf := p.ParseSourceFile()
+		if errs := p.Errors(); len(errs) > 0 {
+			t.Fatalf("parse errors: %v", errs)
+		}
+		parsed = append(parsed, sf)
+		c.DeclareTypes(sf)
+	}
+	c.CheckSourceFile(parsed[len(parsed)-1])
+	return c.Diagnostics
+}
+
+func expectNoDiags(t *testing.T, name string, diags []Diagnostic) {
+	t.Helper()
+	if len(diags) != 0 {
+		t.Errorf("%s: expected no diagnostics, got %v", name, diags)
+	}
+}
+
+// Bug: the declared-return check compared type NAMES, so subtypes, the
+// Integer alias and nil were all reported as mismatches.
+func TestDeclaredReturnAcceptsSubtypesAndNil(t *testing.T) {
+	cases := map[string]string{
+		"Integer": "^<Integer> [ ^42 ]",
+		"Number":  "^<Number> [ ^42 ]",
+		"Object":  "^<Object> [ ^'hi' ]",
+		"nil":     "^<String> [ ^nil ]",
+		"Symbol":  "^<String> [ ^#sym ]",
+	}
+	for name, body := range cases {
+		expectNoDiags(t, name, checkSource(t, "Foo subclass: Object\n  method: m "+body+"\n"))
+	}
+	// A genuine mismatch must still be reported.
+	diags := checkSource(t, "Foo subclass: Object\n  method: m ^<String> [ ^42 ]\n")
+	if len(diags) != 1 || !contains(diags[0].Message, "not assignable") {
+		t.Errorf("expected one 'not assignable' diagnostic, got %v", diags)
+	}
+}
+
+// Bug: classes defined in the files being checked were "unknown type".
+func TestClassesInCheckedFilesAreKnownTypes(t *testing.T) {
+	expectNoDiags(t, "same file", checkSource(t,
+		"Point3 subclass: Object\n  method: me ^<Point3> [ ^self ]\n"))
+	expectNoDiags(t, "other file", checkSource(t,
+		"Foo subclass: Object\n  method: p: x <Point4> ^<Point4> [ ^x ]\n",
+		"Point4 subclass: Object\n", "Tr4 trait\n"))
+	expectNoDiags(t, "trait", checkSource(t,
+		"Foo subclass: Object\n  method: p: x <Tr5> [ ^x ]\n", "Tr5 trait\n"))
+}
+
+// Bug: class-side self was typed as an instance, and class/instance
+// return-type annotations collided in one table.
+func TestClassSideSelfIsTheClass(t *testing.T) {
+	expectNoDiags(t, "class-side new:", checkSource(t,
+		"Array subclass: Object\n  classMethod: make [ ^self new: 3 ]\n"))
+
+	diags := checkSource(t, "Array subclass: Object\n  classMethod: make [ ^self noSuchThing ]\n")
+	if len(diags) != 1 || !contains(diags[0].Message, "Array class does not understand #noSuchThing") {
+		t.Errorf("expected class-side DNU warning, got %v", diags)
+	}
+
+	expectNoDiags(t, "side-keyed return types", checkSource(t, `Foo subclass: Object
+  classMethod: label ^<SmallInteger> [ ^1 ]
+  method: label ^<String> [ ^'x' ]
+  method: useInstance ^<String> [ ^self label ]
+  classMethod: useClass ^<SmallInteger> [ ^self label ]
+`))
+}
+
+// Bug: & and | live only on True/False, so a Boolean receiver warned.
+func TestBooleanAndOr(t *testing.T) {
+	expectNoDiags(t, "&", checkSource(t,
+		"Foo subclass: Object\n  method: m ^<Boolean> [ ^(3 > 2) & true ]\n"))
+	expectNoDiags(t, "|", checkSource(t,
+		"Foo subclass: Object\n  method: m ^<Boolean> [ ^(3 > 2) | false ]\n"))
+}
+
+// Bug: self was bound to the short class name inside a namespace, so
+// `^<Ns::Class>` returning self was a mismatch.
+func TestSelfIsNamespaceQualified(t *testing.T) {
+	expectNoDiags(t, "fqn self", checkSource(t, `namespace: 'Geo'
+
+Point3 subclass: Object
+  method: me ^<Geo::Point3> [ ^self ]
+  method: me2 ^<Point3> [ ^self ]
+`))
+}

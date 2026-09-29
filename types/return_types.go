@@ -120,6 +120,12 @@ func (rt *ReturnTypeTable) populateBuiltins() {
 	rt.Register("Boolean", "not", boolean)
 	rt.Register("Boolean", "and:", boolean)
 	rt.Register("Boolean", "or:", boolean)
+	// Non-short-circuit and logical ops are implemented only on True and
+	// False (vm/boolean_primitives.go, lib/True.mag, lib/False.mag), but every
+	// Boolean answers them.
+	for _, sel := range []string{"&", "|", "xor:", "eqv:"} {
+		rt.Register("Boolean", sel, boolean)
+	}
 	rt.Register("Boolean", "asString", str)
 	rt.Register("Boolean", "printString", str)
 

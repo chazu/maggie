@@ -2,6 +2,7 @@ package types
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/chazu/maggie/compiler"
 	"github.com/chazu/maggie/vm"
@@ -26,6 +27,11 @@ type Checker struct {
 	VM          *vm.VM
 	Verbose     bool
 	Diagnostics []Diagnostic
+
+	declared     map[string]bool   // class/trait names defined in checked sources
+	superclasses map[string]string // class name -> superclass, from checked sources
+	namespace    string            // namespace of the file being checked
+	imports      []string          // imports of the file being checked
 }
 
 // NewChecker creates a type checker with the given VM for class lookups.
@@ -40,20 +46,28 @@ func NewChecker(vmInst *vm.VM) *Checker {
 
 // CheckSourceFile checks all definitions in a source file.
 func (c *Checker) CheckSourceFile(sf *compiler.SourceFile) {
+	c.DeclareTypes(sf)
+	c.namespace = sourceNamespace(sf)
+	c.imports = sourceImports(sf)
+
 	// Register protocols first (they may be referenced by classes)
 	for _, protoDef := range sf.Protocols {
 		c.Protocols.RegisterFromAST(protoDef)
 	}
 
-	// Harvest return type and effect annotations from all methods before inference
+	// Harvest return type and effect annotations from all methods before
+	// inference. Classes are keyed by their qualified name (what self is
+	// bound to); class-side methods under the metaclass name so a class-side
+	// and an instance-side method with the same selector don't collide.
 	for _, classDef := range sf.Classes {
+		className := qualifyName(c.namespace, classDef.Name)
 		for _, method := range classDef.Methods {
-			c.ReturnTypes.HarvestFromMethod(classDef.Name, method)
-			c.EffectTable.HarvestFromMethod(classDef.Name, method)
+			c.ReturnTypes.HarvestFromMethod(className, method)
+			c.EffectTable.HarvestFromMethod(className, method)
 		}
 		for _, method := range classDef.ClassMethods {
-			c.ReturnTypes.HarvestFromMethod(classDef.Name, method)
-			c.EffectTable.HarvestFromMethod(classDef.Name, method)
+			c.ReturnTypes.HarvestFromMethod(ClassSideName(className), method)
+			c.EffectTable.HarvestFromMethod(ClassSideName(className), method)
 		}
 	}
 	for _, traitDef := range sf.Traits {
@@ -71,29 +85,30 @@ func (c *Checker) CheckSourceFile(sf *compiler.SourceFile) {
 	// entirely — so a bad annotation in a trait or extension method went
 	// unreported.
 	for _, traitDef := range sf.Traits {
-		synthetic := &compiler.ClassDef{Name: traitDef.Name}
 		for _, method := range traitDef.Methods {
-			c.checkMethodDef(method, synthetic)
+			c.checkMethodDef(method, traitDef.Name, false)
 		}
 	}
-	extClass := &compiler.ClassDef{Name: ""}
 	for _, method := range sf.Methods {
-		c.checkMethodDef(method, extClass)
+		c.checkMethodDef(method, "", false)
 	}
 }
 
 // checkClassDef checks a class definition's methods.
 func (c *Checker) checkClassDef(classDef *compiler.ClassDef) {
+	className := qualifyName(c.namespace, classDef.Name)
 	for _, method := range classDef.Methods {
-		c.checkMethodDef(method, classDef)
+		c.checkMethodDef(method, className, false)
 	}
 	for _, method := range classDef.ClassMethods {
-		c.checkMethodDef(method, classDef)
+		c.checkMethodDef(method, className, true)
 	}
 }
 
 // checkMethodDef checks a single method definition.
-func (c *Checker) checkMethodDef(method *compiler.MethodDef, classDef *compiler.ClassDef) {
+// className is the (qualified) class name; classSide is true for class
+// methods, where self is the class rather than an instance.
+func (c *Checker) checkMethodDef(method *compiler.MethodDef, className string, classSide bool) {
 	// Check that parameter types reference known types/protocols
 	for i, paramType := range method.ParamTypes {
 		if paramType != nil {
@@ -125,7 +140,15 @@ func (c *Checker) checkMethodDef(method *compiler.MethodDef, classDef *compiler.
 	if !method.IsPrimitiveStub && len(method.Statements) > 0 {
 		inferrer := NewInferrer(c.ReturnTypes, c.Protocols, c.VM, c.Verbose)
 		inferrer.SetEffectTable(c.EffectTable)
-		_, inferredEffect, diags := inferrer.InferMethod(classDef.Name, method)
+		inferrer.SetNamespace(c.namespace, c.imports)
+		inferrer.Superclasses = c.superclasses
+		var inferredEffect Effect
+		var diags []Diagnostic
+		if classSide {
+			_, inferredEffect, diags = inferrer.InferClassMethod(className, method)
+		} else {
+			_, inferredEffect, diags = inferrer.InferMethod(className, method)
+		}
 		for _, d := range diags {
 			c.addDiagnostic(d.Pos, d.Message)
 		}
@@ -162,8 +185,13 @@ func (c *Checker) checkTypeExists(typeExpr *compiler.TypeExpr, context string) {
 		return
 	}
 
-	// Check VM classes
-	if c.VM != nil && c.VM.Classes.Lookup(name) != nil {
+	// Check classes/traits defined in the sources being checked
+	if c.declared[name] {
+		return
+	}
+
+	// Check VM classes (namespace/import aware, falling back to the bare name)
+	if c.VM != nil && c.VM.Classes.LookupWithImports(name, c.namespace, c.imports) != nil {
 		return
 	}
 
@@ -225,4 +253,54 @@ func (c *Checker) checkEffects(method *compiler.MethodDef, declared, inferred Ef
 
 func (c *Checker) addDiagnostic(pos compiler.Position, message string) {
 	c.Diagnostics = append(c.Diagnostics, Diagnostic{Pos: pos, Message: message})
+}
+
+// DeclareTypes records the class and trait names a source file defines, so
+// annotations referring to them are not reported as unknown types. Classes
+// in a namespace are declared under both the short and qualified names.
+// `mag typecheck` declares every file in the check set before checking any
+// of them; CheckSourceFile also declares its own file.
+func (c *Checker) DeclareTypes(sf *compiler.SourceFile) {
+	if c.declared == nil {
+		c.declared = make(map[string]bool)
+		c.superclasses = make(map[string]string)
+	}
+	ns := sourceNamespace(sf)
+	for _, classDef := range sf.Classes {
+		c.declared[classDef.Name] = true
+		c.declared[qualifyName(ns, classDef.Name)] = true
+		if classDef.Superclass != "" && classDef.Superclass != "nil" {
+			c.superclasses[qualifyName(ns, classDef.Name)] = classDef.Superclass
+		}
+	}
+	for _, traitDef := range sf.Traits {
+		c.declared[traitDef.Name] = true
+		c.declared[qualifyName(ns, traitDef.Name)] = true
+	}
+}
+
+// sourceNamespace returns the file's `namespace:` declaration, or "".
+func sourceNamespace(sf *compiler.SourceFile) string {
+	if sf.Namespace == nil {
+		return ""
+	}
+	return sf.Namespace.Name
+}
+
+// sourceImports returns the file's `import:` paths.
+func sourceImports(sf *compiler.SourceFile) []string {
+	var imports []string
+	for _, imp := range sf.Imports {
+		imports = append(imports, imp.Path)
+	}
+	return imports
+}
+
+// qualifyName prefixes name with namespace (Ns::Name) unless there is no
+// namespace or the name is already qualified.
+func qualifyName(namespace, name string) string {
+	if namespace == "" || name == "" || strings.Contains(name, "::") {
+		return name
+	}
+	return namespace + "::" + name
 }

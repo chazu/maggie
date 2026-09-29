@@ -29,23 +29,23 @@ func handleTypecheckCommand(args []string, vmInst *vm.VM) {
 
 	checker := types.NewChecker(vmInst)
 	checker.Verbose = *verbose
-	totalFiles := 0
-	parseErrors := 0
 
+	var files []string
 	for _, path := range paths {
-		files, err := collectMagFiles([]string{path})
+		found, err := collectMagFiles([]string{path})
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 			continue
 		}
+		files = append(files, found...)
+	}
+	if *verbose {
 		for _, file := range files {
-			if *verbose {
-				fmt.Printf("Checking %s\n", file)
-			}
-			parseErrors += typecheckFile(checker, file)
-			totalFiles++
+			fmt.Printf("Checking %s\n", file)
 		}
 	}
+	totalFiles := len(files)
+	parseErrors := typecheckFiles(checker, files)
 
 	// Report diagnostics
 	if len(checker.Diagnostics) > 0 {
@@ -64,14 +64,35 @@ func handleTypecheckCommand(args []string, vmInst *vm.VM) {
 	}
 }
 
-// typecheckFile checks one file and returns the number of parse errors (0 on
-// success). Parse errors are reported and counted so the command can exit
-// non-zero instead of silently "checking" a broken partial AST.
-func typecheckFile(checker *types.Checker, path string) int {
+// typecheckFiles parses every file, declares all of their classes and traits
+// with the checker, and only then checks each one — so a class defined in
+// one file of the set is a known type in all the others, regardless of
+// order. Returns the total number of parse errors; files that fail to parse
+// are reported and skipped rather than "checked" as a broken partial AST.
+func typecheckFiles(checker *types.Checker, files []string) int {
+	parseErrors := 0
+	var parsed []*compiler.SourceFile
+	for _, file := range files {
+		sf, errs := parseTypecheckFile(file)
+		parseErrors += errs
+		if sf != nil {
+			checker.DeclareTypes(sf)
+			parsed = append(parsed, sf)
+		}
+	}
+	for _, sf := range parsed {
+		checker.CheckSourceFile(sf)
+	}
+	return parseErrors
+}
+
+// parseTypecheckFile parses one file, returning the source file (nil on
+// failure) and the number of errors reported.
+func parseTypecheckFile(path string) (*compiler.SourceFile, int) {
 	content, err := os.ReadFile(path)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error reading %s: %v\n", path, err)
-		return 1
+		return nil, 1
 	}
 
 	p := compiler.NewParser(string(content))
@@ -80,12 +101,10 @@ func typecheckFile(checker *types.Checker, path string) int {
 		for _, e := range errs {
 			fmt.Fprintf(os.Stderr, "%s: parse error: %s\n", path, e)
 		}
-		return len(errs)
+		return nil, len(errs)
 	}
 	if sf == nil {
-		return 1
+		return nil, 1
 	}
-
-	checker.CheckSourceFile(sf)
-	return 0
+	return sf, 0
 }
