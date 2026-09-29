@@ -116,6 +116,13 @@ func handleBuildCommand(args []string, verbose bool) {
 	}
 
 	// Apply CLI overrides
+	if outputBinary != "" && len(targets) > 1 {
+		// Every target would be written to the same path, each build silently
+		// overwriting the previous one.
+		fmt.Fprintf(os.Stderr, "Error: -o cannot be used when building %d targets; set output per [[target]] in maggie.toml\n", len(targets))
+		os.Exit(1)
+	}
+
 	for i := range targets {
 		if outputBinary != "" {
 			targets[i].Output = outputBinary
@@ -473,11 +480,16 @@ func compileProjectImage(m *manifest.Manifest, verbose bool) (string, error) {
 	return compileTargetImage(m, target, verbose)
 }
 
-// detectMaggieDir finds the maggie module directory.
+// detectMaggieDir finds the maggie module directory. runtime.Caller reports
+// the source path baked in at compile time, which only exists on the machine
+// that built this binary (and is module-relative under -trimpath) — so it is
+// used only when it still holds the module's go.mod; otherwise MAGGIE_DIR.
 func detectMaggieDir() string {
-	_, filename, _, ok := runtime.Caller(0)
-	if ok {
-		return filepath.Dir(filepath.Dir(filepath.Dir(filename)))
+	if _, filename, _, ok := runtime.Caller(0); ok {
+		dir := filepath.Dir(filepath.Dir(filepath.Dir(filename)))
+		if _, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil {
+			return dir
+		}
 	}
 	if dir := os.Getenv("MAGGIE_DIR"); dir != "" {
 		return dir
