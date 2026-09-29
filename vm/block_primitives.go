@@ -103,3 +103,22 @@ func (vm *VM) evaluateBlock(blockVal Value, args []Value) Value {
 	result := interp.ExecuteBlock(bv.Block, bv.Captures, args, bv.HomeFrame, bv.HomeSelf, bv.HomeMethod)
 	return result
 }
+
+// valueOf evaluates a "valuable" with args. A real block runs through
+// evaluateBlock, so a non-local return (^) inside it unwinds to its home
+// method; sending value:… instead dispatches to the lib's compiled
+// Block>>value:… wrappers, whose Execute panics on that foreign unwind and
+// kills the program. Any other object is sent value/value:/value:value:.
+func (vm *VM) valueOf(block Value, args []Value) Value {
+	if block.IsBlock() {
+		return vm.evaluateBlock(block, args)
+	}
+	selector := "value"
+	switch len(args) {
+	case 1:
+		selector = "value:"
+	case 2:
+		selector = "value:value:"
+	}
+	return vm.Send(block, selector, args)
+}

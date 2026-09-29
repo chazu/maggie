@@ -272,10 +272,23 @@ func TestDictionaryRemoveKeyMissing(t *testing.T) {
 	vm := NewVM()
 	d := vm.registry.NewDictionaryValue()
 
-	// Remove non-existent key
-	result := vm.Send(d, "removeKey:", []Value{vm.registry.NewStringValue("missing")})
-	if result != Nil {
-		t.Errorf("removeKey: of missing key returned %v, want Nil", result)
+	// Remove non-existent key: a programmer error, signals KeyNotFound
+	// (CONVENTIONS §1) rather than answering nil.
+	var cls string
+	func() {
+		defer func() {
+			if r := recover(); r != nil {
+				sig, ok := r.(SignaledException)
+				if !ok || sig.Object == nil {
+					panic(r)
+				}
+				cls = sig.Object.ExceptionClass.Name
+			}
+		}()
+		vm.Send(d, "removeKey:", []Value{vm.registry.NewStringValue("missing")})
+	}()
+	if cls != "KeyNotFound" {
+		t.Errorf("removeKey: of missing key signaled %q, want KeyNotFound", cls)
 	}
 }
 

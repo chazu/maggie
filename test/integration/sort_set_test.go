@@ -247,7 +247,13 @@ func TestSetRemoveNonexistent(t *testing.T) {
 
 	eval(t, vmInst, `s := Set new`)
 	eval(t, vmInst, `s add: 1`)
-	eval(t, vmInst, `s remove: 99`)
+	// remove: of an absent element signals NotFound; remove:ifAbsent: is
+	// the tolerant form.
+	caught := eval(t, vmInst, `[s remove: 99. false] on: NotFound do: [:e | true]`)
+	if caught != vm.True {
+		t.Errorf("Set remove: of absent element should signal NotFound, got %v", caught)
+	}
+	eval(t, vmInst, `s remove: 99 ifAbsent: [nil]`)
 
 	result := eval(t, vmInst, `s size`)
 	if !result.IsSmallInt() || result.SmallInt() != 1 {

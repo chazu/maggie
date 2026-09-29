@@ -334,8 +334,10 @@ Guide05Collections subclass: Object
 
   """
   ArrayList also supports removeLast (O(1)), removeAt: (O(n) shift),
-  clear, indexOf:, includes:, and copy. Use withAll: to create an
-  ArrayList from an existing Array.
+  clear, indexOf:, includes:, and copy. Like at:, removeAt: and
+  removeLast/removeFirst signal SubscriptOutOfBounds rather than
+  answering nil when there is nothing to remove. Use withAll: to create
+  an ArrayList from an existing Array.
 
   ```test
   list := ArrayList withAll: #(10 20 30 40).
@@ -494,9 +496,10 @@ Guide05Collections subclass: Object
 
   """
   The removeKey: message deletes an entry from the dictionary and
-  returns the value that was stored. If the key is not present, it
-  returns nil. The removeKey:ifAbsent: variant evaluates a block when
-  the key is missing.
+  returns the value that was stored. Removing a key that is not present
+  is a programmer error: it signals KeyNotFound (catchable with on:do:).
+  When absence is expected, use removeKey:ifAbsent:, which evaluates a
+  block instead.
 
   The copy message creates a shallow duplicate of the dictionary.
   Changes to the copy do not affect the original.
@@ -506,7 +509,8 @@ Guide05Collections subclass: Object
   d at: #x put: 10.
   d removeKey: #x >>> 10
   d size >>> 0
-  d removeKey: #y >>> nil
+  [d removeKey: #y] on: KeyNotFound do: [:e | #missing] >>> #missing
+  d removeKey: #y ifAbsent: [nil] >>> nil
   c := Dictionary new.
   c at: #a put: 1.
   c2 := c copy.

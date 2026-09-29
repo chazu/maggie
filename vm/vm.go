@@ -128,6 +128,8 @@ type VM struct {
 	TypeErrorClass            *Class
 	StackOverflowClass        *Class
 	RestrictedGlobalClass     *Class
+	NotFoundClass             *Class
+	KeyNotFoundClass          *Class
 	WarningClass              *Class
 	HaltClass                 *Class
 	NotificationClass         *Class

@@ -760,7 +760,7 @@ func (d *valueDeserializer) deserializeDictionary(tag cbor.Tag) (Value, error) {
 		if err != nil {
 			return Nil, fmt.Errorf("serial: dictionary value: %w", err)
 		}
-		dict.Put(d.vm.registry, key, val)
+		dict.SetKey(d.vm, key, val)
 	}
 
 	return dictVal, nil

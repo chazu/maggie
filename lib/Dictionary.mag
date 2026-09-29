@@ -210,10 +210,29 @@ Dictionary subclass: Collection
   """Return true if the dictionary contains key."""
   method: includesKey: key ^<Boolean> [ <primitive> ]
 
-  """Remove the entry for key. Raises an error if absent."""
+  """
+  Remove the entry for key and return its value. Signals KeyNotFound (a
+  NotFound) if key is absent; use removeKey:ifAbsent: when absence is
+  expected.
+
+  ```test
+  d := Dictionary new.
+  d at: #a put: 1.
+  d removeKey: #a >>> 1
+  d size >>> 0
+  [d removeKey: #a] on: KeyNotFound do: [:e | #missing] >>> #missing
+  ```
+  """
   method: removeKey: key [ <primitive> ]
 
-  """Remove the entry for key; if absent, evaluate block."""
+  """
+  Remove the entry for key and return its value; if absent, evaluate block
+  and return its result. The tolerant form of removeKey:.
+
+  ```test
+  Dictionary new removeKey: #a ifAbsent: [#missing] >>> #missing
+  ```
+  """
   method: removeKey: key ifAbsent: block [ <primitive> ]
 
   """Return an array of all keys."""

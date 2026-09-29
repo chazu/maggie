@@ -38,17 +38,21 @@ func (vm *VM) registerSetPrimitives() {
 		return elem
 	})
 
-	// remove: - remove an element from the set
+	// remove: - remove an element from the set and answer it; signals
+	// NotFound if absent (CONVENTIONS §1 — remove:ifAbsent: is the tolerant
+	// form).
 	c.AddMethod1(vm.Selectors, "remove:", func(v *VM, recv Value, elem Value) Value {
-		if !recv.IsObject() {
-			return elem
-		}
 		obj := ObjectFromValue(recv)
 		if obj == nil {
-			return elem
+			return v.SignalPrimitiveError("remove:", "receiver is not a Set")
 		}
-		dict := obj.GetSlot(0)
-		v.Send(dict, "removeKey:", []Value{elem})
+		d := v.registry.GetDictionaryObject(obj.GetSlot(0))
+		if d == nil {
+			return v.SignalPrimitiveError("remove:", "receiver is not a Set")
+		}
+		if _, ok := d.DeleteKey(v, elem); !ok {
+			return v.SignalNotFound("remove:", elem)
+		}
 		return elem
 	})
 
@@ -63,7 +67,7 @@ func (vm *VM) registerSetPrimitives() {
 		if d == nil {
 			return v.evaluateBlock(block, nil)
 		}
-		if _, ok := d.Delete(v.registry, elem); !ok {
+		if _, ok := d.DeleteKey(v, elem); !ok {
 			return v.evaluateBlock(block, nil)
 		}
 		return elem

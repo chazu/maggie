@@ -51,6 +51,9 @@ func dictKeysEqual(or *ObjectRegistry, a, b Value) bool {
 	if a.hi == b.hi && a.ptr == b.ptr {
 		return true
 	}
+	if a.IsFloat() && b.IsFloat() {
+		return a.Float64() == b.Float64() // 0.0 = -0.0 (NaN only matches itself, above)
+	}
 	if IsStringValue(a) && IsStringValue(b) {
 		return or.GetStringContent(a) == or.GetStringContent(b)
 	}
@@ -201,9 +204,129 @@ func hashValue(or *ObjectRegistry, v Value) uint64 {
 			return h
 		}
 	}
+	// 0.0 = -0.0, so they must hash alike; every other Float hashes by bits.
+	if v.IsFloat() && v.Float64() == 0 {
+		v = FromFloat64(0)
+	}
 	// For other values, use the raw bits as the hash
 	// This works because Values are NaN-boxed and unique per value
 	return v.hi ^ uint64(uintptr(v.ptr))
+}
+
+// ---------------------------------------------------------------------------
+// Keys with user-defined = / hash
+// ---------------------------------------------------------------------------
+//
+// Maggie-facing dictionary operations go through the *VM variants below
+// (GetKey/SetKey/DeleteKey), which honor a key class's own = and hash. Those
+// run Maggie code, so they are never sent while the dictionary lock is held
+// (a = or hash that reads the same dictionary would deadlock): the hash is
+// computed before locking, and candidate keys are compared against a bucket
+// snapshot. Go-side builders with plain keys (strings, symbols, numbers) may
+// keep using Get/Set/Delete — for such keys both paths hash identically.
+
+// customKey reports whether key is an object whose class overrides = or hash
+// in Maggie code (Object's own = and hash are identity).
+func (vm *VM) customKey(key Value) bool {
+	if !key.IsObject() {
+		return false
+	}
+	cls := vm.ClassFor(key)
+	if cls == nil || cls.VTable == nil {
+		return false
+	}
+	for _, sel := range [...]string{"=", "hash"} {
+		if cm, ok := cls.VTable.Lookup(vm.Selectors.Intern(sel)).(*CompiledMethod); ok && cm.Class() != vm.ObjectClass {
+			return true
+		}
+	}
+	return false
+}
+
+// keyHash hashes key the way the Maggie-facing operations bucket it.
+func (vm *VM) keyHash(key Value, custom bool) uint64 {
+	if custom {
+		return hashValue(vm.registry, vm.Send(key, "hash", nil))
+	}
+	return hashValue(vm.registry, key)
+}
+
+// findCustomKey returns the stored key in bucket h that key is = to, judged
+// against a snapshot so the = sends run without the lock.
+func (vm *VM) findCustomKey(d *DictionaryObject, h uint64, key Value) (Value, bool) {
+	d.mu.RLock()
+	bucket := append([]dictSlot(nil), d.data[h]...)
+	d.mu.RUnlock()
+	for _, s := range bucket {
+		if s.key == key || vm.Send(key, "=", []Value{s.key}) == True {
+			return s.key, true
+		}
+	}
+	return Nil, false
+}
+
+// GetKey returns the value stored under a key = to key.
+func (d *DictionaryObject) GetKey(vm *VM, key Value) (Value, bool) {
+	if !vm.customKey(key) {
+		return d.Get(vm.registry, key)
+	}
+	h := vm.keyHash(key, true)
+	stored, ok := vm.findCustomKey(d, h, key)
+	if !ok {
+		return Nil, false
+	}
+	return d.getIdentical(h, stored)
+}
+
+// SetKey stores value under key, replacing the value of a key = to it.
+// Concurrent insertion of two distinct-but-equal keys may keep both (the =
+// comparison cannot run under the lock); single-process use is exact.
+func (d *DictionaryObject) SetKey(vm *VM, key, value Value) {
+	if !vm.customKey(key) {
+		d.Set(vm.registry, key, value)
+		return
+	}
+	h := vm.keyHash(key, true)
+	if stored, ok := vm.findCustomKey(d, h, key); ok {
+		key = stored // keep the original key object, as Smalltalk does
+	}
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	bucket := d.data[h]
+	for i := range bucket {
+		if bucket[i].key == key {
+			bucket[i].value = value
+			return
+		}
+	}
+	d.data[h] = append(bucket, dictSlot{key: key, value: value})
+	d.size++
+}
+
+// DeleteKey removes the entry whose key is = to key.
+func (d *DictionaryObject) DeleteKey(vm *VM, key Value) (Value, bool) {
+	if !vm.customKey(key) {
+		return d.Delete(vm.registry, key)
+	}
+	h := vm.keyHash(key, true)
+	stored, ok := vm.findCustomKey(d, h, key)
+	if !ok {
+		return Nil, false
+	}
+	// Identity match on the stored key: dictKeysEqual's first check.
+	return d.deleteWithHash(h, vm.registry, stored)
+}
+
+// getIdentical returns the value stored under exactly this key object.
+func (d *DictionaryObject) getIdentical(h uint64, key Value) (Value, bool) {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+	for _, s := range d.data[h] {
+		if s.key == key {
+			return s.value, true
+		}
+	}
+	return Nil, false
 }
 
 // registerDictionaryPrimitives registers Dictionary primitives on the VM.
@@ -221,7 +344,7 @@ func (vm *VM) registerDictionaryPrimitives() {
 		if dict == nil {
 			return v.SignalPrimitiveError("at:", "receiver is not a Dictionary")
 		}
-		if val, ok := dict.Get(v.registry, key); ok {
+		if val, ok := dict.GetKey(v, key); ok {
 			return val
 		}
 		return Nil
@@ -235,7 +358,7 @@ func (vm *VM) registerDictionaryPrimitives() {
 			// value on a non-Dictionary receiver.
 			return v.SignalPrimitiveError("at:put:", "receiver is not a Dictionary")
 		}
-		dict.Set(v.registry, key, value)
+		dict.SetKey(v, key, value)
 		return value
 	})
 
@@ -245,11 +368,11 @@ func (vm *VM) registerDictionaryPrimitives() {
 		if dict == nil {
 			return v.SignalPrimitiveError("at:ifAbsent:", "receiver is not a Dictionary")
 		}
-		if val, ok := dict.Get(v.registry, key); ok {
+		if val, ok := dict.GetKey(v, key); ok {
 			return val
 		}
 		// Evaluate the block
-		return v.Send(block, "value", nil)
+		return v.valueOf(block, nil)
 	})
 
 	// at:ifPresent: - evaluate block with value if key exists
@@ -258,9 +381,9 @@ func (vm *VM) registerDictionaryPrimitives() {
 		if dict == nil {
 			return v.SignalPrimitiveError("at:ifPresent:", "receiver is not a Dictionary")
 		}
-		if val, ok := dict.Get(v.registry, key); ok {
+		if val, ok := dict.GetKey(v, key); ok {
 			// Evaluate the block with the value
-			return v.Send(block, "value:", []Value{val})
+			return v.valueOf(block, []Value{val})
 		}
 		return Nil
 	})
@@ -271,7 +394,7 @@ func (vm *VM) registerDictionaryPrimitives() {
 		if dict == nil {
 			return False
 		}
-		if _, ok := dict.Get(v.registry, key); ok {
+		if _, ok := dict.GetKey(v, key); ok {
 			return True
 		}
 		return False
@@ -334,7 +457,7 @@ func (vm *VM) registerDictionaryPrimitives() {
 			return recv
 		}
 		for _, e := range dict.Entries() {
-			v.Send(block, "value:", []Value{e.Value})
+			v.valueOf(block, []Value{e.Value})
 		}
 		return recv
 	})
@@ -347,32 +470,33 @@ func (vm *VM) registerDictionaryPrimitives() {
 			return recv
 		}
 		for _, e := range dict.Entries() {
-			v.Send(block, "value:value:", []Value{e.Key, e.Value})
+			v.valueOf(block, []Value{e.Key, e.Value})
 		}
 		return recv
 	})
 
-	// removeKey: - remove key and return its value, or nil if not found
+	// removeKey: - remove key and return its value; signals KeyNotFound if
+	// absent (CONVENTIONS §1 — removeKey:ifAbsent: is the tolerant form).
 	c.AddMethod1(vm.Selectors, "removeKey:", func(v *VM, recv Value, key Value) Value {
 		dict := v.registry.GetDictionaryObject(recv)
 		if dict == nil {
 			return v.SignalPrimitiveError("removeKey:", "receiver is not a Dictionary")
 		}
-		if val, ok := dict.Delete(v.registry, key); ok {
+		if val, ok := dict.DeleteKey(v, key); ok {
 			return val
 		}
-		return Nil
+		return v.SignalKeyNotFound("removeKey:", key)
 	})
 
 	// removeKey:ifAbsent: - remove key and return value, or evaluate block if absent
 	c.AddMethod2(vm.Selectors, "removeKey:ifAbsent:", func(v *VM, recv Value, key, block Value) Value {
 		dict := v.registry.GetDictionaryObject(recv)
 		if dict == nil {
-			return v.Send(block, "value", nil)
+			return v.valueOf(block, nil)
 		}
-		if val, ok := dict.Delete(v.registry, key); ok {
+		if val, ok := dict.DeleteKey(v, key); ok {
 			return val
 		}
-		return v.Send(block, "value", nil)
+		return v.valueOf(block, nil)
 	})
 }

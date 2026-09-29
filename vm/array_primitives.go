@@ -345,7 +345,7 @@ func (vm *VM) DictionaryAtPut(dict Value, key Value, value Value) {
 	if d == nil {
 		return
 	}
-	d.Set(vm.registry, key, value)
+	d.SetKey(vm, key, value)
 }
 
 // DictionaryAt gets a value from a dictionary by key.
@@ -354,7 +354,7 @@ func (vm *VM) DictionaryAt(dict Value, key Value) Value {
 	if d == nil {
 		return Nil
 	}
-	if val, ok := d.Get(vm.registry, key); ok {
+	if val, ok := d.GetKey(vm, key); ok {
 		return val
 	}
 	return Nil

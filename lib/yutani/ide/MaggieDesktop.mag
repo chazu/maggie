@@ -102,7 +102,7 @@ MaggieDesktop subclass: IDEToolBase
 
       window onClosed: [
           scratchpads := scratchpads reject: [:s | s = scratchpad].
-          windowComponents removeKey: window widgetId
+          windowComponents removeKey: window widgetId ifAbsent: [nil]
       ]
   ]
 
@@ -136,7 +136,7 @@ MaggieDesktop subclass: IDEToolBase
       "Cleanup on close"
       window onClosed: [
           inspectors := inspectors reject: [:i | i = inspector].
-          windowComponents removeKey: window widgetId
+          windowComponents removeKey: window widgetId ifAbsent: [nil]
       ]
   ]
 

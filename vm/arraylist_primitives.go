@@ -39,22 +39,11 @@ func (vm *VM) registerArrayListPrimitives() {
 	c.AddClassMethod1(vm.Selectors, "new:", newCapFn)
 	c.AddClassMethod1(vm.Selectors, "primNew:", newCapFn)
 
-	// ArrayList class>>withAll: anArray - create from existing array
-	withAllFn := func(v *VM, recv Value, arr Value) Value {
-		if !arr.IsObject() {
-			al := createArrayList(0)
-			return v.registerArrayList(al)
-		}
-		obj := ObjectFromValue(arr)
-		if obj == nil {
-			al := createArrayList(0)
-			return v.registerArrayList(al)
-		}
-		n := obj.NumSlots()
-		al := createArrayList(n)
-		for i := 0; i < n; i++ {
-			al.Add(obj.GetSlot(i))
-		}
+	// ArrayList class>>withAll: aCollection - create from any collection
+	withAllFn := func(v *VM, recv Value, coll Value) Value {
+		elems := v.collectionElements("withAll:", coll)
+		al := createArrayList(len(elems))
+		al.AppendSlice(elems)
 		return v.registerArrayList(al)
 	}
 	c.AddClassMethod1(vm.Selectors, "withAll:", withAllFn)
@@ -74,28 +63,14 @@ func (vm *VM) registerArrayListPrimitives() {
 	c.AddMethod1(vm.Selectors, "add:", addFn)
 	c.AddMethod1(vm.Selectors, "primAdd:", addFn)
 
-	// addAll: collection - append all elements from an Array or ArrayList
+	// addAll: collection - append all elements of any collection
 	addAllFn := func(v *VM, recv Value, coll Value) Value {
 		al := v.getArrayList(recv)
 		if al == nil {
 			return recv
 		}
-		// Try as ArrayList first
-		if other := v.getArrayList(coll); other != nil {
-			// Snapshot handles the aliasing case (list addAll: list) safely.
-			al.AppendSlice(other.Snapshot())
-			return recv
-		}
-		// Try as Array (Object with slots)
-		if coll.IsObject() {
-			obj := ObjectFromValue(coll)
-			if obj != nil {
-				n := obj.NumSlots()
-				for i := 0; i < n; i++ {
-					al.Add(obj.GetSlot(i))
-				}
-			}
-		}
+		// collectionElements snapshots, so (list addAll: list) is safe.
+		al.AppendSlice(v.collectionElements("addAll:", coll))
 		return recv
 	}
 	c.AddMethod1(vm.Selectors, "addAll:", addAllFn)
@@ -162,18 +137,23 @@ func (vm *VM) registerArrayListPrimitives() {
 	c.AddMethod0(vm.Selectors, "capacity", capFn)
 	c.AddMethod0(vm.Selectors, "primCapacity", capFn)
 
-	// removeLast
+	// removeLast — signals SubscriptOutOfBounds on an empty list, matching
+	// last (CONVENTIONS §1: nil is never a failure signal).
 	removeLastFn := func(v *VM, recv Value) Value {
 		al := v.getArrayList(recv)
 		if al == nil {
 			return v.SignalPrimitiveError("removeLast", "receiver is not an ArrayList")
 		}
-		return al.RemoveLast()
+		elem, ok := al.RemoveLast()
+		if !ok {
+			return v.SignalSubscriptOutOfBounds("removeLast", 1, 0)
+		}
+		return elem
 	}
 	c.AddMethod0(vm.Selectors, "removeLast", removeLastFn)
 	c.AddMethod0(vm.Selectors, "primRemoveLast", removeLastFn)
 
-	// removeAt: index
+	// removeAt: index — signals SubscriptOutOfBounds unless 1 <= index <= size.
 	removeAtFn := func(v *VM, recv Value, index Value) Value {
 		al := v.getArrayList(recv)
 		if al == nil {
@@ -182,7 +162,13 @@ func (vm *VM) registerArrayListPrimitives() {
 		if !index.IsSmallInt() {
 			return v.SignalTypeError("removeAt:", 1, "SmallInteger", index)
 		}
-		return al.RemoveAt(int(index.SmallInt() - 1))
+		// Signal on out-of-bounds like at:, rather than answering nil.
+		i := index.SmallInt()
+		elem, size, ok := al.RemoveAt(int(i - 1))
+		if !ok {
+			return v.SignalSubscriptOutOfBounds("removeAt:", i, size)
+		}
+		return elem
 	}
 	c.AddMethod1(vm.Selectors, "removeAt:", removeAtFn)
 	c.AddMethod1(vm.Selectors, "primRemoveAt:", removeAtFn)
@@ -468,4 +454,47 @@ func (vm *VM) registerArrayListPrimitives() {
 	}
 	c.AddMethod1(vm.Selectors, "sort:", sortFn)
 	c.AddMethod1(vm.Selectors, "primSort:", sortFn)
+}
+
+// collectionElements answers the elements of coll, in iteration order, for
+// withAll:/addAll:. Arrays and ArrayLists take a direct fast path; any other
+// object is asked for its asArray (Enumerable>>asArray, i.e. its do:), so
+// Sets, Dictionaries, Strings, Intervals etc. contribute their elements
+// rather than their internal slots. Anything that cannot answer an Array
+// signals a TypeError (programmer error).
+func (vm *VM) collectionElements(selector string, coll Value) []Value {
+	if al := vm.getArrayList(coll); al != nil {
+		return al.Snapshot()
+	}
+	if elems, ok := vm.arrayElements(coll); ok {
+		return elems
+	}
+	if vm.ClassFor(coll).LookupMethod(vm.Selectors, "asArray") != nil {
+		if elems, ok := vm.arrayElements(vm.Send(coll, "asArray", nil)); ok {
+			return elems
+		}
+	}
+	vm.SignalTypeError(selector, 1, "a collection", coll)
+	return nil
+}
+
+// arrayElements answers a copy of v's slots if v is an Array (or an instance
+// of an Array subclass). Other slotted objects are not collections.
+func (vm *VM) arrayElements(v Value) ([]Value, bool) {
+	if !v.IsObject() {
+		return nil, false
+	}
+	obj := ObjectFromValue(v)
+	if obj == nil {
+		return nil, false
+	}
+	if cls := vm.ClassFor(v); cls == nil || !cls.IsSubclassOf(vm.ArrayClass) {
+		return nil, false
+	}
+	n := obj.NumSlots()
+	elems := make([]Value, n)
+	for i := 0; i < n; i++ {
+		elems[i] = obj.GetSlot(i)
+	}
+	return elems, true
 }

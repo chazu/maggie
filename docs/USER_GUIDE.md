@@ -633,8 +633,11 @@ ArrayList withAll: #(1 2 3)  -- from existing Array
 -- Adding / removing
 add: element                 -- append (amortized O(1))
 addAll: collection           -- append all from Array or ArrayList
-removeLast                   -- O(1)
-removeAt: index              -- O(n) shift
+removeLast                   -- O(1); SubscriptOutOfBounds if empty
+removeFirst                  -- O(n); SubscriptOutOfBounds if empty
+removeAt: index              -- O(n) shift; SubscriptOutOfBounds if out of range
+remove: element              -- NotFound if absent
+remove: element ifAbsent: [] -- tolerant form
 clear                        -- remove all, keep capacity
 
 -- Access (same protocol as Array)

@@ -93,7 +93,18 @@ Set subclass: Collection
   """Add element to the set. Returns self."""
   method: add: element ^<Self> [ <primitive> ]
 
-  """Remove element from the set."""
+  """
+  Remove element from the set and return it. Signals NotFound if element
+  is absent; use remove:ifAbsent: when absence is expected.
+
+  ```test
+  s := Set new.
+  s add: 1.
+  s remove: 1 >>> 1
+  s size >>> 0
+  [s remove: 1] on: NotFound do: [:e | #missing] >>> #missing
+  ```
+  """
   method: remove: element [ <primitive> ]
 
   """

@@ -571,8 +571,16 @@ Exception
     MessageNotUnderstood
     ZeroDivide
     SubscriptOutOfBounds
+    NotFound
+      KeyNotFound
     StackOverflow
 ```
+
+`NotFound` is signaled when removing an element that is not present
+(`Set>>remove:`, `ArrayList>>remove:`); its subclass `KeyNotFound` by
+`Dictionary>>removeKey:`. The `ifAbsent:` variants (`remove:ifAbsent:`,
+`removeKey:ifAbsent:`) are the tolerant forms. `ArrayList>>removeAt:`,
+`removeFirst` and `removeLast` signal `SubscriptOutOfBounds`, like `at:`.
 
 `StackOverflow` is raised when call frame depth exceeds `DefaultMaxFrameDepth` (4096). It is catchable via `on:do:` like any other exception.
 

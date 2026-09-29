@@ -77,34 +77,37 @@ func (al *ArrayListObject) Capacity() int {
 	return c
 }
 
-// RemoveLast removes and returns the last element. Returns Nil if empty.
-func (al *ArrayListObject) RemoveLast() Value {
+// RemoveLast removes and returns the last element. ok is false (and the list
+// unchanged) if the list is empty — the size check and the removal happen
+// under one lock, so callers need no separate, racy isEmpty test.
+func (al *ArrayListObject) RemoveLast() (v Value, ok bool) {
 	al.mu.Lock()
 	defer al.mu.Unlock()
 	n := len(al.elements)
 	if n == 0 {
-		return Nil
+		return Nil, false
 	}
-	v := al.elements[n-1]
+	v = al.elements[n-1]
 	al.elements[n-1] = Nil // help GC
 	al.elements = al.elements[:n-1]
-	return v
+	return v, true
 }
 
-// RemoveAt removes the element at index i, shifting remaining elements.
-// Returns Nil if out of bounds.
-func (al *ArrayListObject) RemoveAt(i int) Value {
+// RemoveAt removes the element at 0-based index i, shifting remaining
+// elements. ok is false (and the list unchanged) if i is out of bounds; size
+// is the list size observed under the lock, for error reporting.
+func (al *ArrayListObject) RemoveAt(i int) (v Value, size int, ok bool) {
 	al.mu.Lock()
 	defer al.mu.Unlock()
 	n := len(al.elements)
 	if i < 0 || i >= n {
-		return Nil
+		return Nil, n, false
 	}
-	v := al.elements[i]
+	v = al.elements[i]
 	copy(al.elements[i:], al.elements[i+1:])
 	al.elements[n-1] = Nil // help GC
 	al.elements = al.elements[:n-1]
-	return v
+	return v, n, true
 }
 
 // Clear removes all elements but keeps the backing capacity.

@@ -187,28 +187,34 @@ ArrayList subclass: Collection
   # --- Removing ---
 
   """
-  Remove and return the last element. O(1).
+  Remove and return the last element. O(1). Signals SubscriptOutOfBounds
+  if the list is empty (check isEmpty first when emptiness is expected).
 
   ```test
   (ArrayList withAll: #(1 2 3)) removeLast >>> 3
+  [ArrayList new removeLast] on: SubscriptOutOfBounds do: [:e | #empty] >>> #empty
   ```
   """
   method: removeLast [ <primitive> ]
 
   """
   Remove and return the element at index, shifting remaining elements.
+  Signals SubscriptOutOfBounds unless 1 <= index <= size, like at:.
 
   ```test
   (ArrayList withAll: #(10 20 30)) removeAt: 2 >>> 20
+  [(ArrayList withAll: #(10 20)) removeAt: 3] on: SubscriptOutOfBounds do: [:e | #oob] >>> #oob
   ```
   """
   method: removeAt: index <Integer> [ <primitive> ]
 
   """
   Remove and return the first element, shifting the rest left. O(n).
+  Signals SubscriptOutOfBounds if the list is empty.
 
   ```test
   (ArrayList withAll: #(10 20 30)) removeFirst >>> 10
+  [ArrayList new removeFirst] on: SubscriptOutOfBounds do: [:e | #empty] >>> #empty
   ```
   """
   method: removeFirst [
@@ -216,15 +222,17 @@ ArrayList subclass: Collection
   ]
 
   """
-  Remove the first occurrence of anObject (compared with =). Raises if the
-  element is not present; use remove:ifAbsent: for the safe form.
+  Remove the first occurrence of anObject (compared with =). Signals
+  NotFound if the element is not present; use remove:ifAbsent: for the
+  tolerant form.
 
   ```test
   (ArrayList withAll: #(1 2 3)) remove: 2; size >>> 2
+  [(ArrayList withAll: #(1 2 3)) remove: 9] on: NotFound do: [:e | #missing] >>> #missing
   ```
   """
   method: remove: anObject [
-      ^self remove: anObject ifAbsent: [self error: 'object not found']
+      ^self remove: anObject ifAbsent: [NotFound signal: 'remove: object not found']
   ]
 
   """

@@ -1,6 +1,9 @@
 package vm
 
-import "strings"
+import (
+	"sort"
+	"strings"
+)
 
 // ---------------------------------------------------------------------------
 // Class Reflection Primitives
@@ -224,26 +227,24 @@ func (vm *VM) registerClassReflectionPrimitives() {
 	c.AddClassMethod0(vm.Selectors, "allClassesSorted", func(v *VM, recv Value) Value {
 		interp := v.currentInterpreter()
 		classes := v.Classes.All()
-		// Filter and collect names
-		var names []string
-		classMap := make(map[string]*Class)
+		var visible []*Class
 		for _, cls := range classes {
 			if !interp.IsGlobalHidden(cls.FullName()) && !interp.IsGlobalHidden(cls.Name) {
-				names = append(names, cls.Name)
-				classMap[cls.Name] = cls
+				visible = append(visible, cls)
 			}
 		}
-		// Simple bubble sort (classes list is small)
-		for i := 0; i < len(names)-1; i++ {
-			for j := 0; j < len(names)-i-1; j++ {
-				if names[j] > names[j+1] {
-					names[j], names[j+1] = names[j+1], names[j]
-				}
+		// Sort the classes themselves (not a name-keyed map, which collapsed
+		// same-named classes from different namespaces into one); the full
+		// name breaks ties deterministically.
+		sort.Slice(visible, func(i, j int) bool {
+			if visible[i].Name != visible[j].Name {
+				return visible[i].Name < visible[j].Name
 			}
-		}
-		values := make([]Value, len(names))
-		for i, name := range names {
-			values[i] = v.registry.RegisterClassValue(classMap[name])
+			return visible[i].FullName() < visible[j].FullName()
+		})
+		values := make([]Value, len(visible))
+		for i, cls := range visible {
+			values[i] = v.registry.RegisterClassValue(cls)
 		}
 		return v.NewArrayWithElements(values)
 	})

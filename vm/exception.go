@@ -190,6 +190,17 @@ func (vm *VM) bootstrapExceptionClasses() {
 	// mysterious nil-DNU far from the cause.
 	vm.RestrictedGlobalClass = vm.createClass("RestrictedGlobal", vm.ErrorClass)
 
+	// NotFound - removing (or demanding) an element that is not present,
+	// e.g. Set>>remove: of an absent element. A programmer error per the
+	// failure doctrine (docs/CONVENTIONS.md §1); callers that expect absence
+	// use the tolerant ifAbsent: variants instead.
+	vm.NotFoundClass = vm.createClass("NotFound", vm.ErrorClass)
+
+	// KeyNotFound - a keyed lookup/removal of an absent key, e.g.
+	// Dictionary>>removeKey:. Subclass of NotFound so `on: NotFound` catches
+	// both.
+	vm.KeyNotFoundClass = vm.createClass("KeyNotFound", vm.NotFoundClass)
+
 	// Warning is for non-fatal conditions
 	vm.WarningClass = vm.createClass("Warning", vm.ExceptionClass)
 
@@ -209,6 +220,8 @@ func (vm *VM) bootstrapExceptionClasses() {
 	vm.globals["TypeError"] = vm.classValue(vm.TypeErrorClass)
 	vm.globals["StackOverflow"] = vm.classValue(vm.StackOverflowClass)
 	vm.globals["RestrictedGlobal"] = vm.classValue(vm.RestrictedGlobalClass)
+	vm.globals["NotFound"] = vm.classValue(vm.NotFoundClass)
+	vm.globals["KeyNotFound"] = vm.classValue(vm.KeyNotFoundClass)
 	vm.globals["Warning"] = vm.classValue(vm.WarningClass)
 	vm.globals["Halt"] = vm.classValue(vm.HaltClass)
 	vm.globals["Notification"] = vm.classValue(vm.NotificationClass)
@@ -489,6 +502,20 @@ func (vm *VM) SignalSubscriptOutOfBounds(selector string, index int64, size int)
 		vm.registry.NewStringValue(fmt.Sprintf("%s: index %d is out of bounds for size %d", selector, index, size)))
 }
 
+// SignalNotFound signals a NotFound error: selector was asked to remove an
+// element that is not present.
+func (vm *VM) SignalNotFound(selector string, elem Value) Value {
+	return vm.signalException(vm.NotFoundClass,
+		vm.registry.NewStringValue(fmt.Sprintf("%s: %s not found", selector, vm.describeForError(elem))))
+}
+
+// SignalKeyNotFound signals a KeyNotFound error: selector was asked to act on
+// a key that is not present.
+func (vm *VM) SignalKeyNotFound(selector string, key Value) Value {
+	return vm.signalException(vm.KeyNotFoundClass,
+		vm.registry.NewStringValue(fmt.Sprintf("%s: key %s not found", selector, vm.describeForError(key))))
+}
+
 // SignalZeroDivide signals a ZeroDivide error.
 func (vm *VM) SignalZeroDivide() Value {
 	return vm.signalException(vm.ZeroDivideClass,
@@ -500,6 +527,27 @@ func (vm *VM) SignalTypeError(selector string, argPos int, expected string, actu
 	typeName := vm.valueTypeName(actual)
 	msg := fmt.Sprintf("%s: argument %d must be %s, got %s", selector, argPos, expected, typeName)
 	return vm.signalException(vm.TypeErrorClass, vm.registry.NewStringValue(msg))
+}
+
+// describeForError renders a value for an error message without sending any
+// messages (a user printString could itself signal mid-signal): literals are
+// shown as literals, everything else as its type name.
+func (vm *VM) describeForError(v Value) string {
+	switch {
+	case v.IsSmallInt():
+		return fmt.Sprintf("%d", v.SmallInt())
+	case v.IsSymbol():
+		return "#" + vm.Symbols.Name(v.SymbolID())
+	case IsStringValue(v):
+		return fmt.Sprintf("%q", vm.registry.GetStringContent(v))
+	case v == Nil:
+		return "nil"
+	case v == True:
+		return "true"
+	case v == False:
+		return "false"
+	}
+	return "a " + vm.valueTypeName(v)
 }
 
 // valueTypeName returns a human-readable type name for a Value.
