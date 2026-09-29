@@ -790,3 +790,33 @@ func TestCompileAll_ContentStore_MultipleClasses(t *testing.T) {
 		t.Errorf("MethodCount: got %d, want at least 3", store.MethodCount())
 	}
 }
+
+// Project code can include a trait that lives in the image (Comparable): the
+// trait table is saved in the image, not only in the classes built with it.
+func TestProjectIncludesImageTrait(t *testing.T) {
+	vmInst := newTestVM(t)
+	pipe := newPipeline(vmInst)
+	tmpDir := t.TempDir()
+	writeMagFile(t, tmpDir, "Money.mag", `Money subclass: Object
+  include: Comparable
+  instanceVars: amt
+
+  method: amt [ ^amt ]
+  method: amt: a [ amt := a ]
+  method: < other [ ^amt < other amt ]
+`)
+	if _, err := pipe.CompilePath(tmpDir); err != nil {
+		t.Fatalf("CompilePath failed: %v", err)
+	}
+	cls := vmInst.LookupClass("Money")
+	if cls == nil {
+		t.Fatal("Money class not found")
+	}
+	a := vmInst.Send(vmInst.ClassValue(cls), "new", nil)
+	b := vmInst.Send(vmInst.ClassValue(cls), "new", nil)
+	vmInst.Send(a, "amt:", []vm.Value{vm.FromSmallInt(1)})
+	vmInst.Send(b, "amt:", []vm.Value{vm.FromSmallInt(5)})
+	if got := vmInst.Send(a, "max:", []vm.Value{b}); got != b {
+		t.Errorf("max: from Comparable = %v, want the larger Money", got)
+	}
+}

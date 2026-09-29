@@ -122,8 +122,10 @@ func (tt *TraitTable) Len() int {
 // IncludeTrait composes a trait's methods into this class.
 // Trait methods are added to the class's VTable only if the class
 // doesn't already define a method with that selector (class wins).
+// With a symbol table, the copies are bound to this class's instance
+// variables (see bindTraitIvars); nil skips that step.
 // Returns an error message if required methods are not satisfied, or "" on success.
-func (c *Class) IncludeTrait(trait *Trait, selectors *SelectorTable) string {
+func (c *Class) IncludeTrait(trait *Trait, selectors *SelectorTable, symbols *SymbolTable) string {
 	// First, check that all required methods are satisfied
 	for _, reqSelector := range trait.Requires {
 		if c.VTable.Lookup(reqSelector) == nil {
@@ -134,23 +136,103 @@ func (c *Class) IncludeTrait(trait *Trait, selectors *SelectorTable) string {
 
 	// Add trait methods (class methods take precedence).
 	// Clone so each class owns its own copy with correct class pointer.
+	ivarIDs := c.traitIvarSymbolIDs(symbols)
 	for selectorID, method := range trait.Methods {
 		if c.VTable.Lookup(selectorID) == nil {
-			cloned := method.Clone()
-			cloned.SetClass(c)
-			c.VTable.AddMethod(selectorID, cloned)
+			c.VTable.AddMethod(selectorID, bindTraitIvars(method, c, ivarIDs))
 		}
 	}
 
 	return ""
 }
 
+// traitIvarSymbolIDs maps the symbol ID of each of this class's instance
+// variable names (inherited first, as the compiler numbers them) to its slot.
+func (c *Class) traitIvarSymbolIDs(symbols *SymbolTable) map[uint32]int {
+	if symbols == nil {
+		return nil
+	}
+	ids := make(map[uint32]int)
+	for i, name := range c.AllInstVarNames() {
+		if id, ok := symbols.Lookup(name); ok && i <= 0xFF {
+			ids[id] = i
+		}
+	}
+	return ids
+}
+
+// bindTraitIvars returns a copy of a trait method owned by class c. A trait is
+// compiled once, without knowing any host, so a reference to the host's
+// instance variable compiles as a global of that name (which reads nil). The
+// copy rewrites each PUSH_GLOBAL/STORE_GLOBAL of an instance-variable name to
+// PUSH_IVAR/STORE_IVAR on this class's slot — the same resolution the host's
+// own methods get, where instance variables shadow globals. The ivar form is
+// one byte shorter, so a NOP pads it and no jump offset moves.
+func bindTraitIvars(m *CompiledMethod, c *Class, ivarIDs map[uint32]int) *CompiledMethod {
+	cloned := m.Clone()
+	cloned.SetClass(c)
+	if len(ivarIDs) == 0 {
+		return cloned
+	}
+	if bc, ok := rebindGlobalsToIvars(m.Bytecode, m.Literals, ivarIDs); ok {
+		cloned.Bytecode = bc
+	}
+	var blocks []*BlockMethod
+	for i, blk := range m.Blocks {
+		bc, ok := rebindGlobalsToIvars(blk.Bytecode, blk.Literals, ivarIDs)
+		if !ok {
+			continue
+		}
+		if blocks == nil {
+			blocks = append([]*BlockMethod(nil), m.Blocks...)
+		}
+		copied := *blk
+		copied.Bytecode = bc
+		copied.Outer = cloned
+		blocks[i] = &copied
+	}
+	if blocks != nil {
+		cloned.Blocks = blocks
+	}
+	return cloned
+}
+
+// rebindGlobalsToIvars returns a rewritten copy of bc (and true) if any
+// global access names an instance variable in ivarIDs; bc is never mutated.
+func rebindGlobalsToIvars(bc []byte, literals []Value, ivarIDs map[uint32]int) ([]byte, bool) {
+	var out []byte
+	for i := 0; i < len(bc); i += 1 + Opcode(bc[i]).Info().OperandBytes {
+		op := Opcode(bc[i])
+		if (op != OpPushGlobal && op != OpStoreGlobal) || i+2 >= len(bc) {
+			continue
+		}
+		lit := int(bc[i+1]) | int(bc[i+2])<<8
+		if lit >= len(literals) || !literals[lit].IsSymbol() {
+			continue
+		}
+		slot, ok := ivarIDs[literals[lit].SymbolID()]
+		if !ok {
+			continue
+		}
+		if out == nil {
+			out = append([]byte(nil), bc...)
+		}
+		out[i] = byte(OpPushIvar)
+		if op == OpStoreGlobal {
+			out[i] = byte(OpStoreIvar)
+		}
+		out[i+1] = byte(slot)
+		out[i+2] = byte(OpNOP)
+	}
+	return out, out != nil
+}
+
 // IncludeTraitByName looks up a trait by name and includes it in this class.
 // Returns an error message on failure, or "" on success.
-func (c *Class) IncludeTraitByName(traitName string, traits *TraitTable, selectors *SelectorTable) string {
+func (c *Class) IncludeTraitByName(traitName string, traits *TraitTable, selectors *SelectorTable, symbols *SymbolTable) string {
 	trait := traits.Lookup(traitName)
 	if trait == nil {
 		return "unknown trait: " + traitName
 	}
-	return c.IncludeTrait(trait, selectors)
+	return c.IncludeTrait(trait, selectors, symbols)
 }

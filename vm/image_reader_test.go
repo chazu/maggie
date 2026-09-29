@@ -1168,3 +1168,57 @@ func TestRoundTripSourceMap(t *testing.T) {
 		t.Fatalf("sourceMap[1]: %+v", cm.SourceMap[1])
 	}
 }
+
+// ---------------------------------------------------------------------------
+// TestRoundTripTraits: the trait table survives the image, so code loaded
+// after the image can still `include:` lib traits.
+// ---------------------------------------------------------------------------
+
+func TestRoundTripTraits(t *testing.T) {
+	vm1 := NewVM()
+	trait := NewTrait("Greets")
+	trait.DocString = "Says hello."
+	selID := vm1.Selectors.Intern("hello")
+	trait.AddMethod(selID, &CompiledMethod{
+		selector: selID,
+		name:     "hello",
+		Literals: []Value{FromSmallInt(99)},
+		Bytecode: []byte{byte(OpPushLiteral), 0, 0, byte(OpReturnTop)},
+	})
+	trait.AddRequires(vm1.Selectors.Intern("name"))
+	vm1.Traits.Register(trait)
+
+	data, err := vm1.SaveImageBytes()
+	if err != nil {
+		t.Fatalf("SaveImageBytes: %v", err)
+	}
+	vm2 := NewVM()
+	if err := vm2.LoadImageFromBytes(data); err != nil {
+		t.Fatalf("LoadImageFromBytes: %v", err)
+	}
+
+	loaded := vm2.Traits.Lookup("Greets")
+	if loaded == nil {
+		t.Fatal("trait Greets not restored from the image")
+	}
+	if loaded.DocString != "Says hello." {
+		t.Errorf("docstring = %q", loaded.DocString)
+	}
+	if len(loaded.Requires) != 1 || vm2.Selectors.Name(loaded.Requires[0]) != "name" {
+		t.Errorf("requires not restored: %v", loaded.Requires)
+	}
+
+	// A class defined after the load can include it.
+	cls := NewClass("Greeter", vm2.ObjectClass)
+	vm2.Classes.Register(cls)
+	cls.VTable.AddMethod(vm2.Selectors.Intern("name"), &CompiledMethod{
+		name: "name", Bytecode: []byte{byte(OpPushNil), byte(OpReturnTop)},
+	})
+	if msg := cls.IncludeTraitByName("Greets", vm2.Traits, vm2.Selectors, vm2.Symbols); msg != "" {
+		t.Fatal(msg)
+	}
+	obj := cls.NewInstance().ToValue()
+	if r := vm2.Send(obj, "hello", nil); !r.IsSmallInt() || r.SmallInt() != 99 {
+		t.Fatalf("trait method after round trip = %v, want 99", r)
+	}
+}

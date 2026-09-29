@@ -422,7 +422,7 @@ func (p *Pipeline) CompileAll(files []ParsedFile) (int, error) {
 
 		// Apply trait inclusions
 		for _, traitName := range classDef.Traits {
-			errMsg := class.IncludeTraitByName(traitName, vmInst.Traits, vmInst.Selectors)
+			errMsg := class.IncludeTraitByName(traitName, vmInst.Traits, vmInst.Selectors, vmInst.Symbols)
 			if errMsg != "" {
 				return compiled, fmt.Errorf("error including trait %s in %s (%s): %s", traitName, classDef.Name, pf.Path, errMsg)
 			}

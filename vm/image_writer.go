@@ -291,6 +291,7 @@ type ImageWriter struct {
 	classes   []*Class
 	methods   []*CompiledMethod
 	objects   []*Object
+	traits    []*Trait
 
 	// Class variable data (collected from ObjectRegistry)
 	classVarData map[*Class]map[string]Value
@@ -373,6 +374,28 @@ func (w *ImageWriter) collectFromVM(vm *VM) {
 		w.collectClass(class)
 	}
 
+	// Collect traits (sorted by full name for deterministic output). Their
+	// methods go into the shared method table with no owning class.
+	w.traits = vm.Traits.All()
+	sort.Slice(w.traits, func(i, j int) bool {
+		return traitFullName(w.traits[i]) < traitFullName(w.traits[j])
+	})
+	for _, tr := range w.traits {
+		w.registerString(tr.Name)
+		if tr.Namespace != "" {
+			w.registerString(tr.Namespace)
+		}
+		if tr.DocString != "" {
+			w.registerString(tr.DocString)
+		}
+		for _, sel := range tr.Requires {
+			w.registerString(vm.Selectors.Name(sel))
+		}
+		for _, cm := range w.sortedTraitMethods(tr) {
+			w.collectMethod(cm)
+		}
+	}
+
 	// Collect class variable names and cache
 	w.classVarData = make(map[*Class]map[string]Value)
 	for _, class := range w.classes {
@@ -427,6 +450,60 @@ func (w *ImageWriter) sortedMethods(vt *VTable) []*CompiledMethod {
 		}
 	}
 	return out
+}
+
+// traitFullName is a trait's namespace-qualified name (the sort key).
+func traitFullName(t *Trait) string {
+	if t.Namespace == "" {
+		return t.Name
+	}
+	return t.Namespace + "::" + t.Name
+}
+
+// sortedTraitMethods returns a trait's methods ordered by selector name, for
+// the same reproducibility reason as sortedMethods.
+func (w *ImageWriter) sortedTraitMethods(t *Trait) []*CompiledMethod {
+	ids := make([]int, 0, len(t.Methods))
+	for id := range t.Methods {
+		ids = append(ids, id)
+	}
+	sort.Slice(ids, func(i, j int) bool {
+		return w.vm.Selectors.Name(ids[i]) < w.vm.Selectors.Name(ids[j])
+	})
+	out := make([]*CompiledMethod, 0, len(ids))
+	for _, id := range ids {
+		out = append(out, t.Methods[id])
+	}
+	return out
+}
+
+// buildTraitDefs builds the envelope's trait section. Must run after every
+// trait method has been collected into the method table.
+func (w *ImageWriter) buildTraitDefs() []traitDef {
+	defs := make([]traitDef, 0, len(w.traits))
+	for _, tr := range w.traits {
+		nameIdx, _ := w.encoder.LookupString(tr.Name)
+		td := traitDef{Name: nameIdx, Namespace: -1}
+		if tr.Namespace != "" {
+			nsIdx, _ := w.encoder.LookupString(tr.Namespace)
+			td.Namespace = int64(nsIdx)
+		}
+		if tr.DocString != "" {
+			td.DocString, _ = w.encoder.LookupString(tr.DocString)
+			td.HasDocString = true
+		}
+		for _, cm := range w.sortedTraitMethods(tr) {
+			if idx, ok := w.encoder.LookupMethod(cm); ok {
+				td.Methods = append(td.Methods, idx)
+			}
+		}
+		for _, sel := range tr.Requires {
+			reqIdx, _ := w.encoder.LookupString(w.vm.Selectors.Name(sel))
+			td.Requires = append(td.Requires, reqIdx)
+		}
+		defs = append(defs, td)
+	}
+	return defs
 }
 
 func (w *ImageWriter) collectClass(c *Class) {
@@ -628,6 +705,7 @@ func (w *ImageWriter) WriteImage() ([]byte, error) {
 		Globals:    globalEntries,
 		ClassVars:  classVarEntries,
 		EntryPoint: w.entryPoint,
+		Traits:     w.buildTraitDefs(),
 	}
 
 	return cborSerialEncMode.Marshal(cbor.Tag{

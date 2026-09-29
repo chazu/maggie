@@ -41,6 +41,19 @@ type imageEnvelope struct {
 	Globals    []globalEntry   `cbor:"10,keyasint"`
 	ClassVars  []classVarEntry `cbor:"11,keyasint,omitempty"`
 	EntryPoint uint32          `cbor:"12,keyasint,omitempty"` // method index
+	// Traits is optional: images written before it existed load with an
+	// empty trait table.
+	Traits []traitDef `cbor:"13,keyasint,omitempty"`
+}
+
+// traitDef records one trait so code loaded after the image can include it.
+type traitDef struct {
+	Name         uint32   `cbor:"1,keyasint"`           // string index
+	Namespace    int64    `cbor:"2,keyasint"`           // string index or -1
+	Methods      []uint32 `cbor:"3,keyasint,omitempty"` // method indices
+	Requires     []uint32 `cbor:"4,keyasint,omitempty"` // selector names (string indices)
+	DocString    uint32   `cbor:"5,keyasint,omitempty"` // string index
+	HasDocString bool     `cbor:"6,keyasint,omitempty"`
 }
 
 type imageStats struct {

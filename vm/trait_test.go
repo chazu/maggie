@@ -122,7 +122,7 @@ func TestClassIncludeTrait(t *testing.T) {
 	class := NewClass("MyClass", nil)
 
 	// Include trait
-	errMsg := class.IncludeTrait(trait, selectors)
+	errMsg := class.IncludeTrait(trait, selectors, nil)
 	if errMsg != "" {
 		t.Errorf("unexpected error including trait: %s", errMsg)
 	}
@@ -161,7 +161,7 @@ func TestClassMethodTakesPrecedence(t *testing.T) {
 	class.VTable.AddMethod(printSelector, classMethod)
 
 	// Include trait
-	errMsg := class.IncludeTrait(trait, selectors)
+	errMsg := class.IncludeTrait(trait, selectors, nil)
 	if errMsg != "" {
 		t.Errorf("unexpected error including trait: %s", errMsg)
 	}
@@ -185,7 +185,7 @@ func TestTraitRequiredMethods(t *testing.T) {
 	class := NewClass("MyClass", nil)
 
 	// Include trait should fail
-	errMsg := class.IncludeTrait(trait, selectors)
+	errMsg := class.IncludeTrait(trait, selectors, nil)
 	if errMsg == "" {
 		t.Error("expected error for missing required method")
 	}
@@ -196,7 +196,7 @@ func TestTraitRequiredMethods(t *testing.T) {
 	class.VTable.AddMethod(lessThanSelector, requiredMethod)
 
 	// Include trait should succeed now
-	errMsg = class.IncludeTrait(trait, selectors)
+	errMsg = class.IncludeTrait(trait, selectors, nil)
 	if errMsg != "" {
 		t.Errorf("unexpected error: %s", errMsg)
 	}
@@ -218,7 +218,7 @@ func TestIncludeTraitByName(t *testing.T) {
 	class := NewClass("MyClass", nil)
 
 	// Include by name
-	errMsg := class.IncludeTraitByName("Printable", traits, selectors)
+	errMsg := class.IncludeTraitByName("Printable", traits, selectors, nil)
 	if errMsg != "" {
 		t.Errorf("unexpected error: %s", errMsg)
 	}
@@ -233,7 +233,7 @@ func TestIncludeTraitByName(t *testing.T) {
 	}
 
 	// Try unknown trait
-	errMsg = class.IncludeTraitByName("UnknownTrait", traits, selectors)
+	errMsg = class.IncludeTraitByName("UnknownTrait", traits, selectors, nil)
 	if errMsg == "" {
 		t.Error("expected error for unknown trait")
 	}

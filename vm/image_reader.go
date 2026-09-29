@@ -288,6 +288,11 @@ func (cr *ImageReader) ReadAll(vm *VM) error {
 		return fmt.Errorf("failed to read methods: %w", err)
 	}
 
+	// 5b. Register traits (their methods were read in step 5)
+	if err := cr.readTraits(vm); err != nil {
+		return fmt.Errorf("failed to read traits: %w", err)
+	}
+
 	// 6. Read objects (two-pass)
 	if err := cr.readObjects(vm); err != nil {
 		return fmt.Errorf("failed to read objects: %w", err)
@@ -422,6 +427,32 @@ func (cr *ImageReader) readMethods(vm *VM) error {
 		cr.decoder.AddMethod(method)
 	}
 
+	return nil
+}
+
+// readTraits re-registers the image's traits so code loaded afterwards can
+// include them. An image written before traits were stored has none.
+func (cr *ImageReader) readTraits(vm *VM) error {
+	for i, def := range cr.envelope.Traits {
+		tr := NewTrait(cr.resolveString(def.Name))
+		if def.Namespace >= 0 {
+			tr.Namespace = cr.resolveString(uint32(def.Namespace))
+		}
+		if def.HasDocString {
+			tr.DocString = cr.resolveString(def.DocString)
+		}
+		for _, idx := range def.Methods {
+			if int(idx) >= len(cr.methods) {
+				return fmt.Errorf("trait %d (%s): method index %d out of range", i, tr.Name, idx)
+			}
+			m := cr.methods[idx]
+			tr.AddMethod(m.selector, m)
+		}
+		for _, req := range def.Requires {
+			tr.AddRequires(vm.Selectors.Intern(cr.resolveString(req)))
+		}
+		vm.Traits.Register(tr)
+	}
 	return nil
 }
 
