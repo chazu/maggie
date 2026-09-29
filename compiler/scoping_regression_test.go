@@ -248,3 +248,55 @@ func TestCascadeMessageChains(t *testing.T) {
 	// Single-message parts are unchanged.
 	wantSmallInt(t, doItValue(t, "(Array new: 2) at: 1 put: 9; at: 1"), 9)
 }
+
+// A block captures a plain variable by copying it, so a variable reassigned in
+// its own scope AFTER a block captured it must be a cell — otherwise the block
+// answers the stale value.
+func TestBlockSeesOwnScopeAssignmentAfterCapture(t *testing.T) {
+	cases := []struct {
+		name, src string
+		want      int64
+	}{
+		{"reassigned after capture", `afterCapture
+	| x blk |
+	x := 1. blk := [x]. x := 2.
+	^blk value`, 2},
+		{"loop assigns before capture textually", `loopOrder
+	| i blk |
+	i := 0.
+	[i < 3] whileTrue: [i := i + 1. blk isNil ifTrue: [blk := [i]]].
+	^blk value`, 3},
+		{"loop condition", `loopCond
+	| i blk |
+	i := 0. blk := [i].
+	[(i := i + 1) < 5] whileTrue.
+	^blk value`, 5},
+		{"block-local temp", `blockLocal
+	^[:a | | y blk | y := 10. blk := [y]. y := a. blk value] value: 20`, 20},
+		{"value captures its own target", `selfRef
+	| x |
+	x := [x].
+	^(x value == x) ifTrue: [1] ifFalse: [0]`, 1},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			wantSmallInt(t, runOnSmallInt(t, vm.NewVM(), tc.src, nil), tc.want)
+		})
+	}
+}
+
+// A variable only assigned before any capture keeps the cheaper copy-capture.
+func TestFindCellVariables_AssignedOnlyBeforeCapture(t *testing.T) {
+	method, err := ParseMethodDef(`method: foo [ | x i |
+  x := 1.
+  i := 0.
+  [i < 3] whileTrue: [i := i + 1].
+  ^[x + i] value
+]`)
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if cells := NewCompiler(nil, nil, nil).findCellVariables(method); len(cells) != 0 {
+		t.Errorf("no variable is assigned after a capture; got cells %v", cells)
+	}
+}

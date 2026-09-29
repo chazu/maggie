@@ -1107,19 +1107,64 @@ func (c *Compiler) findCapturedVariables(block *Block, enclosingBlockVars map[st
 }
 
 // findCellVariables analyzes a method to find variables that need cell boxing.
-// A variable (method-level or block-local) needs a cell if it's captured by a
-// nested block AND assigned in that nested block. This ensures mutations through
-// the cell are visible to all scopes sharing the reference.
+// A block captures a plain variable by copying its value, so a variable
+// (method-level or block-local) needs a cell whenever it is captured by a
+// nested block AND some assignment to it can run after a capture:
+//   - an assignment inside a nested block (it runs whenever the block does);
+//   - an assignment in the variable's own scope that follows a capture in
+//     evaluation order (`blk := [x]. x := 2` — blk must see 2);
+//   - an assignment in the variable's own scope inside an inlined loop that
+//     also captures it: the next iteration's assignment follows this
+//     iteration's capture, whatever their textual order.
+//
+// Variables captured but only assigned before any capture keep the cheaper
+// copy-on-capture representation.
 func (c *Compiler) findCellVariables(method *MethodDef) map[string]bool {
 	cellVars := make(map[string]bool)
 
-	// Track: for each block-local variable, is it captured? is it assigned in nested scope?
 	type varInfo struct {
 		captured            bool
-		assignedInNestedBlk bool // assigned in a block deeper than where defined
-		blockDepth          int  // depth where defined
+		assignedInNestedBlk bool          // assigned in a block deeper than where defined
+		assignedAfterCapt   bool          // own-scope assignment after a capture
+		blockDepth          int           // depth where defined
+		captureLoops        map[Node]bool // inlined loops (in scope) enclosing a capture
+		assignLoops         map[Node]bool // inlined loops (in scope) enclosing an own-scope assignment
 	}
 	varInfos := make(map[string]*varInfo)
+
+	needsCell := func(vi *varInfo) bool {
+		if !vi.captured {
+			return false
+		}
+		if vi.assignedInNestedBlk || vi.assignedAfterCapt {
+			return true
+		}
+		for loop := range vi.assignLoops {
+			if vi.captureLoops[loop] {
+				return true
+			}
+		}
+		return false
+	}
+
+	// Inlined loops currently being walked, with the scope depth they sit at.
+	// Only loops at or inside a variable's own scope can repeat both its
+	// capture and its assignment within one activation.
+	type activeLoop struct {
+		node  Node
+		depth int
+	}
+	var loops []activeLoop
+	noteLoops := func(set *map[Node]bool, varDepth int) {
+		for _, l := range loops {
+			if l.depth >= varDepth {
+				if *set == nil {
+					*set = make(map[Node]bool)
+				}
+				(*set)[l.node] = true
+			}
+		}
+	}
 
 	// Traversal is centralized in ast.Walk/Inspect (see ast_walk.go); only
 	// scope entry (Block) needs explicit recursion to track depth. This
@@ -1142,15 +1187,31 @@ func (c *Compiler) findCellVariables(method *MethodDef) map[string]bool {
 				// Accessing a variable from an outer scope (block or method level)
 				if vi, ok := varInfos[e.Name]; ok && vi.blockDepth < depth {
 					vi.captured = true
+					noteLoops(&vi.captureLoops, vi.blockDepth)
 				}
 			case *Assignment:
-				// Assigning to an outer-scope variable: captured AND assigned
-				if vi, ok := varInfos[e.Variable]; ok && vi.blockDepth < depth {
-					vi.captured = true
-					vi.assignedInNestedBlk = true
+				// The value is evaluated before the store, so walk it first:
+				// in `x := [x]` the capture precedes the assignment.
+				walkNode(e.Value, depth)
+				if vi, ok := varInfos[e.Variable]; ok {
+					if vi.blockDepth < depth {
+						// Assigning to an outer-scope variable: captured AND assigned
+						vi.captured = true
+						vi.assignedInNestedBlk = true
+					} else {
+						if vi.captured {
+							vi.assignedAfterCapt = true
+						}
+						noteLoops(&vi.assignLoops, vi.blockDepth)
+					}
 				}
+				return false // value walked above
 			case *KeywordMessage:
 				if parts, ok := keywordInlineParts(e); ok {
+					isLoop := e.Selector == "whileTrue:" || e.Selector == "whileFalse:"
+					if isLoop {
+						loops = append(loops, activeLoop{e, depth})
+					}
 					for _, sub := range parts.exprs {
 						walkNode(sub, depth)
 					}
@@ -1158,11 +1219,16 @@ func (c *Compiler) findCellVariables(method *MethodDef) map[string]bool {
 						// Inlinable blocks have no params/temps to register.
 						walkStmts(blk.Statements, depth)
 					}
+					if isLoop {
+						loops = loops[:len(loops)-1]
+					}
 					return false // handled recursion ourselves
 				}
 			case *UnaryMessage:
 				if cond, ok := unaryInlineParts(e); ok {
+					loops = append(loops, activeLoop{e, depth})
 					walkStmts(cond.Statements, depth)
+					loops = loops[:len(loops)-1]
 					return false
 				}
 			case *Block:
@@ -1183,7 +1249,7 @@ func (c *Compiler) findCellVariables(method *MethodDef) map[string]bool {
 				}
 				walkStmts(e.Statements, depth+1)
 				for name, prev := range saved {
-					if vi := varInfos[name]; vi.captured && vi.assignedInNestedBlk {
+					if needsCell(varInfos[name]) {
 						cellVars[name] = true
 					}
 					if prev == nil {
@@ -1217,13 +1283,12 @@ func (c *Compiler) findCellVariables(method *MethodDef) map[string]bool {
 	walkStmts(method.Statements, 0)
 
 	// Collect method-level variables that need cells (block-local ones were
-	// recorded as each block's scope closed). A variable needs a cell if it's
-	// captured by a block AND assigned from a block. Method-level variables
+	// recorded as each block's scope closed). Method-level variables
 	// go through captures (not HomeBP) so blocks can outlive their method
 	// frame without reading stale stack data. cellVars is keyed by name, so a
 	// name is boxed in every scope that declares it — consistent, if eager.
 	for name, vi := range varInfos {
-		if vi.captured && vi.assignedInNestedBlk {
+		if needsCell(vi) {
 			cellVars[name] = true
 		}
 	}
