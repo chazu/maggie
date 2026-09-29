@@ -2,6 +2,7 @@ package cue
 
 import (
 	"fmt"
+	"os"
 	"sync"
 
 	"cuelang.org/go/cue"
@@ -169,9 +170,28 @@ func registerConstraintStorePrimitives(v *vm.VM) {
 		cs.watchers = append(cs.watchers, w)
 		cs.mu.Unlock()
 
+		// The callback fires on a fresh goroutine, which has no registered
+		// interpreter: a bare vmInst.Send would fall back to the MAIN
+		// interpreter and push/pop frames on it concurrently with the main
+		// program (a data race that corrupts its stack). RunIsolated gives the
+		// callback its own interpreter. The goroutine is not a Process, so an
+		// unhandled error (or a ^ whose home frame is gone) is recovered and
+		// reported here rather than crashing the VM.
 		go func() {
 			<-w.ch
-			vmInst.Send(blockVal, "value", nil)
+			defer func() {
+				r := recover()
+				if r == nil {
+					return
+				}
+				if _, ok := r.(vm.NonLocalReturn); ok {
+					return
+				}
+				fmt.Fprintf(os.Stderr, "ConstraintStore watch:do: callback failed: %v\n", r)
+			}()
+			vmInst.RunIsolated(func() {
+				vmInst.Send(blockVal, "value", nil)
+			})
 		}()
 
 		return vm.True

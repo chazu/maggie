@@ -26,7 +26,8 @@ const (
 type TupleEntry struct {
 	value    vm.Value
 	mode     TupleMode
-	deadline int64 // unix milliseconds, 0 = no expiry (only for affine)
+	deadline int64  // unix milliseconds, 0 = no expiry (only for affine)
+	seq      uint64 // insertion sequence number (identifies the entry put() just stored)
 }
 
 // isExpired returns true if this is an affine tuple past its deadline.
@@ -42,6 +43,7 @@ type TupleSpaceObject struct {
 	mu      sync.Mutex
 	tuples  []TupleEntry   // stored tuples
 	waiters []*tupleWaiter // blocked in/read operations
+	nextSeq uint64         // last TupleEntry.seq handed out
 }
 
 // MarkRoots implements vm.RootMarker: it reports every Maggie Value the tuple
@@ -166,56 +168,110 @@ func (ts *TupleSpaceObject) removeIndices(indices []int) {
 	ts.tuples = ts.tuples[:n]
 }
 
-// notifyWaiters checks all waiters against current tuples after an out:.
-// Handles single, compound (inAll:), and choice (inAny:) waiters.
-// Must be called with ts.mu held. May unlock/relock ts.mu to send on channels.
-func notifyWaiters(v *vm.VM, ts *TupleSpaceObject, tupleVal vm.Value) bool {
-	for i, w := range ts.waiters {
-		if w.template != nil && w.templates == nil && w.chArray == nil {
-			// Single-template waiter (in: or read: or inAny: single)
-			if matchTuple(v, w.template, tupleVal) {
-				ts.waiters = append(ts.waiters[:i], ts.waiters[i+1:]...)
-				ts.mu.Unlock()
+// put stores entry and then wakes every parked waiter it satisfies. Storing
+// FIRST matters: compound (inAll:) waiters are satisfied by the combination of
+// the new tuple and tuples already present, so they must see it in the space.
+//
+// Invariant (maintained because every out goes through put, and in:/read:/
+// inAll:/inAny: park only after a failed scan under ts.mu): no parked waiter
+// is satisfiable by the tuples stored before this put. So only waiters that
+// the NEW entry can satisfy need checking — single and choice waiters are
+// matched against the new entry alone, compound waiters are re-tried over the
+// whole space only when one of their templates matches it.
+//
+// Waiters are visited in FIFO order. Non-consuming read: waiters take a copy
+// and dispatch continues, so a parked read: can no longer swallow the wakeup a
+// parked in: needed. A consuming waiter removes the entry (unless persistent)
+// and later waiters cannot see it. The entry is never re-stored, so an affine
+// tuple keeps its TTL.
+//
+// Must be called with ts.mu held; it does not release the lock. Every waiter
+// channel has capacity 1 and a waiter is removed from ts.waiters before its
+// single send, so sends here never block.
+func (ts *TupleSpaceObject) put(v *vm.VM, entry TupleEntry) {
+	ts.nextSeq++
+	entry.seq = ts.nextSeq
+	ts.tuples = append(ts.tuples, entry)
+	if len(ts.waiters) == 0 {
+		return
+	}
 
-				if !w.consume {
-					// Non-destructive read: keep tuple in space
-					ts.mu.Lock()
-					ts.tuples = append(ts.tuples, TupleEntry{value: tupleVal, mode: TupleModeLinear})
-					ts.mu.Unlock()
-				}
+	// newIndex locates the just-stored entry (it is at or near the end;
+	// removals preserve order and nothing appends during dispatch).
+	newIndex := func() int {
+		for i := len(ts.tuples) - 1; i >= 0; i-- {
+			if ts.tuples[i].seq == entry.seq {
+				return i
+			}
+		}
+		return -1
+	}
 
-				w.ch <- tupleVal
-				return true
+	remaining := ts.waiters[:0]
+	for wi, w := range ts.waiters {
+		idx := newIndex()
+		if idx < 0 || ts.tuples[idx].isExpired() {
+			// New entry already consumed (or expired): nobody else can be
+			// woken by this put.
+			remaining = append(remaining, ts.waiters[wi:]...)
+			break
+		}
+		if !ts.tryWake(v, w, idx) {
+			remaining = append(remaining, w)
+		}
+	}
+	for i := len(remaining); i < len(ts.waiters); i++ {
+		ts.waiters[i] = nil // drop references held by the backing array
+	}
+	ts.waiters = remaining
+}
+
+// tryWake delivers to w if the entry at newIdx (the tuple just stored)
+// satisfies it, returning true if w was woken. Must be called with ts.mu held.
+func (ts *TupleSpaceObject) tryWake(v *vm.VM, w *tupleWaiter, newIdx int) bool {
+	e := ts.tuples[newIdx]
+	switch {
+	case w.template != nil && w.templates == nil && w.chArray == nil:
+		// Single-template waiter (in: or read:)
+		if !matchTuple(v, w.template, e.value) {
+			return false
+		}
+		if w.consume && e.mode != TupleModePersistent {
+			ts.tuples = append(ts.tuples[:newIdx], ts.tuples[newIdx+1:]...)
+		}
+		w.ch <- e.value
+		return true
+
+	case w.templates != nil && w.chArray != nil:
+		// Compound waiter (inAll:) — only the new tuple can have made it
+		// satisfiable, so skip the full scan unless it matches a template.
+		relevant := false
+		for _, tmpl := range w.templates {
+			if matchTuple(v, tmpl, e.value) {
+				relevant = true
+				break
 			}
-		} else if w.templates != nil && w.chArray != nil {
-			// Compound waiter (inAll:) — check if ALL templates now satisfiable
-			results, indices, ok := tryMatchAll(v, ts, w.templates)
-			if ok {
-				ts.waiters = append(ts.waiters[:i], ts.waiters[i+1:]...)
-				ts.removeIndices(indices)
-				ts.mu.Unlock()
-				w.chArray <- results
-				return true
-			}
-		} else if w.templates != nil && w.ch != nil {
-			// Choice waiter (inAny:) — check if ANY template matches
-			now := time.Now().UnixMilli()
-			for _, tmpl := range w.templates {
-				for j, entry := range ts.tuples {
-					if entry.mode == TupleModeAffine && entry.deadline > 0 && now > entry.deadline {
-						continue
-					}
-					if matchTuple(v, tmpl, entry.value) {
-						ts.waiters = append(ts.waiters[:i], ts.waiters[i+1:]...)
-						matched := entry.value
-						if entry.mode != TupleModePersistent {
-							ts.tuples = append(ts.tuples[:j], ts.tuples[j+1:]...)
-						}
-						ts.mu.Unlock()
-						w.ch <- matched
-						return true
-					}
+		}
+		if !relevant {
+			return false
+		}
+		results, indices, ok := tryMatchAll(v, ts, w.templates)
+		if !ok {
+			return false
+		}
+		ts.removeIndices(indices) // persistent ones are kept
+		w.chArray <- results
+		return true
+
+	case w.templates != nil && w.ch != nil:
+		// Choice waiter (inAny:) — any template matching the new tuple.
+		for _, tmpl := range w.templates {
+			if matchTuple(v, tmpl, e.value) {
+				if e.mode != TupleModePersistent {
+					ts.tuples = append(ts.tuples[:newIdx], ts.tuples[newIdx+1:]...)
 				}
+				w.ch <- e.value
+				return true
 			}
 		}
 	}
@@ -245,15 +301,7 @@ func registerTupleSpacePrimitives(v *vm.VM) {
 		}
 
 		ts.mu.Lock()
-
-		// Check if any waiter matches this tuple
-		if notifyWaiters(v, ts, tupleVal) {
-			// notifyWaiters unlocked ts.mu
-			return tupleVal
-		}
-
-		// No waiter matched — store the tuple
-		ts.tuples = append(ts.tuples, TupleEntry{value: tupleVal, mode: TupleModeLinear})
+		ts.put(v, TupleEntry{value: tupleVal, mode: TupleModeLinear})
 		ts.mu.Unlock()
 		return tupleVal
 	})
@@ -267,55 +315,9 @@ func registerTupleSpacePrimitives(v *vm.VM) {
 
 		ts.mu.Lock()
 
-		// For persistent tuples, always store them (even if a waiter matches,
-		// persistent tuples stay in the space)
-		ts.tuples = append(ts.tuples, TupleEntry{value: tupleVal, mode: TupleModePersistent})
-
-		// Still check waiters — deliver a copy to matching waiters
-		// but the tuple stays. We handle this via notifyWaiters which
-		// will find the tuple already stored.
-		// For single waiters, check directly:
-		for i, w := range ts.waiters {
-			if w.template != nil && w.templates == nil && w.chArray == nil {
-				if matchTuple(v, w.template, tupleVal) {
-					ts.waiters = append(ts.waiters[:i], ts.waiters[i+1:]...)
-					ts.mu.Unlock()
-					w.ch <- tupleVal
-					return tupleVal
-				}
-			} else if w.templates != nil && w.chArray != nil {
-				// Compound waiter
-				results, indices, ok := tryMatchAll(v, ts, w.templates)
-				if ok {
-					ts.waiters = append(ts.waiters[:i], ts.waiters[i+1:]...)
-					ts.removeIndices(indices) // persistent ones won't be removed
-					ts.mu.Unlock()
-					w.chArray <- results
-					return tupleVal
-				}
-			} else if w.templates != nil && w.ch != nil {
-				// Choice waiter
-				now := time.Now().UnixMilli()
-				for _, tmpl := range w.templates {
-					for j, entry := range ts.tuples {
-						if entry.mode == TupleModeAffine && entry.deadline > 0 && now > entry.deadline {
-							continue
-						}
-						if matchTuple(v, tmpl, entry.value) {
-							ts.waiters = append(ts.waiters[:i], ts.waiters[i+1:]...)
-							matched := entry.value
-							if entry.mode != TupleModePersistent {
-								ts.tuples = append(ts.tuples[:j], ts.tuples[j+1:]...)
-							}
-							ts.mu.Unlock()
-							w.ch <- matched
-							return tupleVal
-						}
-					}
-				}
-			}
-		}
-
+		// Persistent tuples stay in the space; put delivers a copy to every
+		// parked waiter they satisfy.
+		ts.put(v, TupleEntry{value: tupleVal, mode: TupleModePersistent})
 		ts.mu.Unlock()
 		return tupleVal
 	})
@@ -338,13 +340,7 @@ func registerTupleSpacePrimitives(v *vm.VM) {
 		}
 
 		ts.mu.Lock()
-
-		// Check waiters first (tuple might be consumed before TTL matters)
-		if notifyWaiters(v, ts, tupleVal) {
-			return tupleVal
-		}
-
-		ts.tuples = append(ts.tuples, TupleEntry{
+		ts.put(v, TupleEntry{
 			value:    tupleVal,
 			mode:     TupleModeAffine,
 			deadline: deadline,
@@ -366,15 +362,8 @@ func registerTupleSpacePrimitives(v *vm.VM) {
 		}
 
 		ts.mu.Lock()
-
-		// Check waiters first
-		if notifyWaiters(v, ts, tupleVal) {
-			return tupleVal
-		}
-
-		// Store as linear tuple
-		entry := TupleEntry{value: tupleVal, mode: TupleModeLinear}
-		ts.tuples = append(ts.tuples, entry)
+		// Store as linear tuple (a parked waiter may consume it immediately)
+		ts.put(v, TupleEntry{value: tupleVal, mode: TupleModeLinear})
 		ts.mu.Unlock()
 
 		// Start goroutine to watch for cancellation

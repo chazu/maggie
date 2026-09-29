@@ -1,5 +1,11 @@
 package vm
 
+import "fmt"
+
+// maxSemaphoreCapacity bounds new: — the permits channel is allocated and
+// pre-filled eagerly, so an absurd capacity would exhaust memory.
+const maxSemaphoreCapacity = 1 << 24
+
 // ---------------------------------------------------------------------------
 // Semaphore: Counting semaphore using buffered channel pattern
 // ---------------------------------------------------------------------------
@@ -12,10 +18,9 @@ type SemaphoreObject struct {
 	capacity int
 }
 
+// createSemaphore builds a semaphore with capacity permits. Callers must
+// validate capacity >= 1 (see new:); it is not clamped here.
 func createSemaphore(capacity int) *SemaphoreObject {
-	if capacity < 1 {
-		capacity = 1
-	}
 	sem := &SemaphoreObject{
 		permits:  make(chan struct{}, capacity),
 		capacity: capacity,
@@ -38,13 +43,20 @@ func isSemaphoreValue(v Value) bool {
 func (vm *VM) registerSemaphorePrimitives() {
 	s := vm.SemaphoreClass
 
-	// Semaphore class>>new: capacity - create a semaphore with given capacity
+	// Semaphore class>>new: capacity - create a semaphore with given capacity.
+	// A non-Integer or non-positive capacity is a programmer error and signals
+	// (it used to answer nil / silently clamp to 1). The upper bound keeps the
+	// pre-filled permit channel allocation sane.
 	newCapFn := func(v *VM, recv Value, capacity Value) Value {
 		if !capacity.IsSmallInt() {
-			return Nil
+			return v.SignalTypeError("new:", 1, "Integer", capacity)
 		}
-		cap := int(capacity.SmallInt())
-		sem := createSemaphore(cap)
+		n := capacity.SmallInt()
+		if n < 1 || n > maxSemaphoreCapacity {
+			return v.SignalPrimitiveError("new:",
+				fmt.Sprintf("capacity must be between 1 and %d, got %d", maxSemaphoreCapacity, n))
+		}
+		sem := createSemaphore(int(n))
 		return v.registerSemaphore(sem)
 	}
 	s.AddClassMethod1(vm.Selectors, "new:", newCapFn)

@@ -1,6 +1,7 @@
 package vm
 
 import (
+	"math"
 	"sync"
 	"sync/atomic"
 )
@@ -13,25 +14,34 @@ import (
 type WaitGroupObject struct {
 	vtable  *VTable
 	wg      sync.WaitGroup
+	mu      sync.Mutex   // serializes counter updates with wg.Add
 	counter atomic.Int32 // Track count for inspection
 }
 
-// tryDone decrements the counter by one, returning false (and leaving the
-// WaitGroup untouched) if it is already zero. sync.WaitGroup.Done below zero
-// panics 'negative WaitGroup counter' and crashes the goroutine, so every
-// decrement goes through this guard; the CAS loop keeps the mirror and the
-// real wg in lockstep.
-func (w *WaitGroupObject) tryDone() bool {
-	for {
-		cur := w.counter.Load()
-		if cur <= 0 {
-			return false
-		}
-		if w.counter.CompareAndSwap(cur, cur-1) {
-			w.wg.Done()
-			return true
-		}
+// tryAdd adjusts the counter by n, returning false (and leaving the WaitGroup
+// untouched) if the result would leave the range sync.WaitGroup supports:
+// below zero it panics 'negative WaitGroup counter' AFTER corrupting its
+// state, and its counter is 32 bits, so a total above MaxInt32 would silently
+// wrap. The check and the wg.Add happen under mu so the mirror and the real
+// wg can never disagree (a CAS-then-Add would let a racing decrement reach
+// the wg before the matching increment and drive it negative).
+func (w *WaitGroupObject) tryAdd(n int64) bool {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	next := int64(w.counter.Load()) + n
+	if next < 0 || next > math.MaxInt32 {
+		return false
 	}
+	w.wg.Add(int(n))
+	w.counter.Store(int32(next))
+	return true
+}
+
+// tryDone decrements the counter by one, returning false (and leaving the
+// WaitGroup untouched) if it is already zero. Every decrement goes through
+// this guard.
+func (w *WaitGroupObject) tryDone() bool {
+	return w.tryAdd(-1)
 }
 
 func createWaitGroup() *WaitGroupObject {
@@ -60,34 +70,25 @@ func (vm *VM) registerWaitGroupPrimitives() {
 		return v.registerWaitGroup(waitGroup)
 	})
 
-	// WaitGroup>>add: count - add to the wait group counter
-	wg.AddMethod1(vm.Selectors, "add:", func(v *VM, recv Value, count Value) Value {
+	// WaitGroup>>add: count - add to the wait group counter. Negative counts
+	// are allowed as long as the counter stays >= 0; a result below zero (or
+	// beyond the 32-bit counter) is a programmer error and signals without
+	// touching the group.
+	addFn := func(v *VM, recv Value, count Value) Value {
 		w := v.getWaitGroup(recv)
 		if w == nil {
 			return Nil
 		}
 		if !count.IsSmallInt() {
-			return Nil
+			return v.SignalTypeError("add:", 1, "Integer", count)
 		}
-		n := int(count.SmallInt())
-		w.wg.Add(n)
-		w.counter.Add(int32(n))
+		if !w.tryAdd(count.SmallInt()) {
+			return v.SignalPrimitiveError("add:", "WaitGroup counter would go negative or overflow")
+		}
 		return recv
-	})
-
-	wg.AddMethod1(vm.Selectors, "primAdd:", func(v *VM, recv Value, count Value) Value {
-		w := v.getWaitGroup(recv)
-		if w == nil {
-			return Nil
-		}
-		if !count.IsSmallInt() {
-			return Nil
-		}
-		n := int(count.SmallInt())
-		w.wg.Add(n)
-		w.counter.Add(int32(n))
-		return recv
-	})
+	}
+	wg.AddMethod1(vm.Selectors, "add:", addFn)
+	wg.AddMethod1(vm.Selectors, "primAdd:", addFn)
 
 	// WaitGroup>>done - decrement the wait group counter by 1
 	doneFn := func(v *VM, recv Value) Value {
@@ -153,8 +154,9 @@ func (vm *VM) registerWaitGroupPrimitives() {
 		}
 
 		// Add 1 to the wait group
-		w.wg.Add(1)
-		w.counter.Add(1)
+		if !w.tryAdd(1) {
+			return v.SignalPrimitiveError("wrap:", "WaitGroup counter overflow")
+		}
 
 		// Fork the block with automatic done
 		proc := v.createProcess()

@@ -2425,44 +2425,8 @@ func TestSemaphoreOverRelease(t *testing.T) {
 	}
 }
 
-// TestSemaphoreZeroCapacity verifies that creating a semaphore with capacity 0
-// is clamped to 1. The createSemaphore function enforces a minimum of 1.
-func TestSemaphoreZeroCapacity(t *testing.T) {
-	vm := NewVM()
-
-	sem := vm.Send(vm.classValue(vm.SemaphoreClass), "new:", []Value{FromSmallInt(0)})
-	if sem == Nil {
-		t.Fatal("Semaphore new: 0 returned nil")
-	}
-
-	// Capacity should be clamped to 1
-	cap := vm.Send(sem, "capacity", nil)
-	if !cap.IsSmallInt() || cap.SmallInt() != 1 {
-		t.Errorf("Semaphore capacity for new: 0 = %v, want 1 (clamped minimum)", cap)
-	}
-
-	// Should have 1 available permit
-	avail := vm.Send(sem, "available", nil)
-	if !avail.IsSmallInt() || avail.SmallInt() != 1 {
-		t.Errorf("Semaphore available for new: 0 = %v, want 1", avail)
-	}
-}
-
-// TestSemaphoreNegativeCapacity verifies that creating a semaphore with
-// negative capacity is clamped to 1.
-func TestSemaphoreNegativeCapacity(t *testing.T) {
-	vm := NewVM()
-
-	sem := vm.Send(vm.classValue(vm.SemaphoreClass), "new:", []Value{FromSmallInt(-5)})
-	if sem == Nil {
-		t.Fatal("Semaphore new: -5 returned nil")
-	}
-
-	cap := vm.Send(sem, "capacity", nil)
-	if !cap.IsSmallInt() || cap.SmallInt() != 1 {
-		t.Errorf("Semaphore capacity for new: -5 = %v, want 1 (clamped minimum)", cap)
-	}
-}
+// Non-positive / non-Integer capacities signal: see
+// TestSemaphoreNonPositiveCapacitySignals in semaphore_test.go.
 
 // TestSemaphoreTryAcquireWhenNoneAvailable verifies that tryAcquire returns
 // False when all permits are held.
