@@ -194,15 +194,35 @@ Object subclass: nil
 
   """
   Called by the VM when a message is sent to an object that does not
-  understand it. Signals an error with the unrecognized selector name.
+  understand it. Signals MessageNotUnderstood (an Error subclass) naming
+  the unrecognized selector.
+
+  ```test
+  ([3 frobnicate] on: MessageNotUnderstood do: [:e | e messageText]) >>> 'Message not understood: frobnicate'
+  ```
 
   ```example
   "Typically not called directly -- triggered by the VM"
-  3 frobnicate   "=> error: Message not understood: frobnicate"
+  3 frobnicate   "=> MessageNotUnderstood: Message not understood: frobnicate"
   ```
   """
-  method: doesNotUnderstand: aMessage <Message> [
-      ^self error: 'Message not understood: ', aMessage selector
+  method: doesNotUnderstand: aMessage <Message> [ <primitive> ]
+
+  """
+  Mark a method that an abstract class declares but each concrete
+  subclass must override. Signals an Error naming the receiver's class.
+
+  ```test
+  ([Object new subclassResponsibility] on: Error do: [:e | e messageText]) >>> 'Object must override this method (subclass responsibility)'
+  ```
+
+  ```example
+  "In an abstract class:"
+  method: area [ ^self subclassResponsibility ]
+  ```
+  """
+  method: subclassResponsibility [
+      ^self error: self class name, ' must override this method (subclass responsibility)'
   ]
 
   """

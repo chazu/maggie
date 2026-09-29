@@ -159,6 +159,10 @@ WaitGroup subclass: Object
   Fork every block in `blocks`, wait for all to complete, and
   return an Array of their results in the original order.
 
+  ```test
+  (WaitGroup new forkAllCollect: {[1 + 1]. [2 + 2]. [3 + 3]}) >>> #(2 4 6 )
+  ```
+
   ```example
   | wg <WaitGroup> |
   wg := WaitGroup new.
@@ -166,26 +170,15 @@ WaitGroup subclass: Object
   ```
   """
   method: forkAllCollect: blocks <Array> ^<Array> ! <Process> [
-      | results <Array> channel <Channel> |
+      | results <Array> |
       results := Array new: blocks size.
-      channel := Channel new: blocks size.
-
-      blocks withIndexDo: [:block :index |
-          self wrap: [
-              | result |
-              result := block value.
-              channel send: (Array with: index with: result)
-          ]
+      "Each process writes only its own slot, and wait orders those writes
+      before the read below. A block that signals leaves its slot nil
+      rather than leaving the collector waiting for a result forever."
+      1 to: blocks size do: [:index |
+          self wrap: [results at: index put: (blocks at: index) value]
       ].
-
       self wait.
-
-      blocks size timesRepeat: [
-          | pair <Array> |
-          pair := channel receive.
-          results at: (pair at: 1) put: (pair at: 2)
-      ].
-
       ^results
   ]
 

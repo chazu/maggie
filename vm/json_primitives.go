@@ -91,7 +91,11 @@ func (vm *VM) registerJSONPrimitives() {
 
 	// Json encode: anObject -> String
 	jsonClass.AddClassMethod1(vm.Selectors, "primEncode:", func(v *VM, recv Value, obj Value) Value {
-		goVal := v.valueToGoJSON(obj)
+		goVal, err := v.valueToGoJSON(obj, 0)
+		if err != nil {
+			return v.signalException(jsonParseErrorClass,
+				v.registry.NewStringValue(fmt.Sprintf("Json encode: %v", err)))
+		}
 		data, err := json.Marshal(goVal)
 		if err != nil {
 			return v.signalException(jsonParseErrorClass,
@@ -102,7 +106,11 @@ func (vm *VM) registerJSONPrimitives() {
 
 	// Json encodePretty: anObject -> String
 	jsonClass.AddClassMethod1(vm.Selectors, "primEncodePretty:", func(v *VM, recv Value, obj Value) Value {
-		goVal := v.valueToGoJSON(obj)
+		goVal, err := v.valueToGoJSON(obj, 0)
+		if err != nil {
+			return v.signalException(jsonParseErrorClass,
+				v.registry.NewStringValue(fmt.Sprintf("Json encodePretty: %v", err)))
+		}
 		data, err := json.MarshalIndent(goVal, "", "  ")
 		if err != nil {
 			return v.signalException(jsonParseErrorClass,
@@ -127,6 +135,13 @@ func (vm *VM) registerJSONPrimitives() {
 		if err := dec.Decode(&goResult); err != nil {
 			return v.signalException(jsonParseErrorClass,
 				v.registry.NewStringValue(fmt.Sprintf("Json decode: invalid JSON: %v", err)))
+		}
+		// The whole string must be ONE JSON value: `{"a":1} garbage` or `1 2`
+		// is invalid, not the first value with the rest silently dropped
+		// (JsonReader is the API for a stream of values).
+		if _, err := dec.Token(); err != io.EOF {
+			return v.signalException(jsonParseErrorClass,
+				v.registry.NewStringValue("Json decode: invalid JSON: unexpected data after the top-level value"))
 		}
 		return v.goJSONToValue(goResult)
 	})
@@ -215,7 +230,11 @@ func (vm *VM) registerJSONPrimitives() {
 		if writer == nil {
 			return recv
 		}
-		goVal := v.valueToGoJSON(obj)
+		goVal, err := v.valueToGoJSON(obj, 0)
+		if err != nil {
+			return v.signalException(jsonParseErrorClass,
+				v.registry.NewStringValue(fmt.Sprintf("JsonWriter write: %v", err)))
+		}
 		if err := writer.enc.Encode(goVal); err != nil {
 			return v.signalException(jsonParseErrorClass,
 				v.registry.NewStringValue(fmt.Sprintf("JsonWriter write: error: %v", err)))
@@ -256,63 +275,93 @@ func (vm *VM) registerJSONPrimitives() {
 // Value <-> Go conversion helpers
 // ---------------------------------------------------------------------------
 
-// valueToGoJSON converts a Maggie Value to a Go interface{} suitable for json.Marshal.
-func (vm *VM) valueToGoJSON(v Value) interface{} {
-	if v == Nil {
-		return nil
+// maxJSONDepth bounds valueToGoJSON's recursion, like maxSerialDepth does
+// for the serializer: a self-containing collection would otherwise recurse
+// until the Go stack overflows — a fatal error no Maggie handler can catch.
+const maxJSONDepth = 256
+
+// valueToGoJSON converts a Maggie Value to a Go interface{} suitable for
+// json.Marshal. Values with no JSON representation (and Dictionary keys that
+// are not strings, symbols or integers) are an error rather than a silent
+// null or a dump of internal slots.
+func (vm *VM) valueToGoJSON(v Value, depth int) (interface{}, error) {
+	if depth > maxJSONDepth {
+		return nil, fmt.Errorf("nesting deeper than %d (cyclic structure?)", maxJSONDepth)
 	}
-	if v == True {
-		return true
-	}
-	if v == False {
-		return false
-	}
-	if v.IsSmallInt() {
-		return v.SmallInt()
-	}
-	if v.IsFloat() {
-		return v.Float64()
-	}
-	if IsStringValue(v) {
-		return vm.registry.GetStringContent(v)
-	}
-	if IsDictionaryValue(v) {
+	switch {
+	case v == Nil:
+		return nil, nil
+	case v == True:
+		return true, nil
+	case v == False:
+		return false, nil
+	case v.IsSmallInt():
+		return v.SmallInt(), nil
+	case v.IsFloat():
+		return v.Float64(), nil
+	case IsStringValue(v):
+		return vm.registry.GetStringContent(v), nil
+	case v.IsSymbol():
+		return vm.Symbols.Name(v.SymbolID()), nil
+	case IsBigIntValue(v):
+		if bi := vm.registry.GetBigInt(v); bi != nil {
+			return json.Number(bi.Value.String()), nil
+		}
+	case IsDictionaryValue(v):
 		dict := vm.registry.GetDictionaryObject(v)
 		if dict == nil {
-			return nil
+			return nil, nil
 		}
 		entries := dict.Entries()
 		m := make(map[string]interface{}, len(entries))
 		for _, e := range entries {
 			var keyStr string
-			if IsStringValue(e.Key) {
+			switch {
+			case IsStringValue(e.Key):
 				keyStr = vm.registry.GetStringContent(e.Key)
-			} else if e.Key.IsSmallInt() {
+			case e.Key.IsSymbol():
+				keyStr = vm.Symbols.Name(e.Key.SymbolID())
+			case e.Key.IsSmallInt():
 				keyStr = fmt.Sprintf("%d", e.Key.SmallInt())
-			} else {
-				keyStr = fmt.Sprintf("%v", e.Key)
+			default:
+				return nil, fmt.Errorf("cannot encode a %s as an object key", vm.jsonClassName(e.Key))
 			}
-			m[keyStr] = vm.valueToGoJSON(e.Value)
+			val, err := vm.valueToGoJSON(e.Value, depth+1)
+			if err != nil {
+				return nil, err
+			}
+			m[keyStr] = val
 		}
-		return m
-	}
-	if v.IsObject() {
-		obj := ObjectFromValue(v)
-		if obj == nil {
-			return nil
+		return m, nil
+	case isArrayListValue(v):
+		return vm.jsonArray(vm.registry.GetArrayList(v).Snapshot(), depth)
+	case v.IsObject():
+		if obj := ObjectFromValue(v); obj != nil && vm.ArrayClass != nil && obj.VTablePtr() == vm.ArrayClass.VTable {
+			return vm.jsonArray(obj.AllSlots(), depth)
 		}
-		n := obj.NumSlots()
-		arr := make([]interface{}, n)
-		for i := 0; i < n; i++ {
-			arr[i] = vm.valueToGoJSON(obj.GetSlot(i))
+	}
+	return nil, fmt.Errorf("cannot encode a %s", vm.jsonClassName(v))
+}
+
+// jsonArray converts a sequence of elements for valueToGoJSON.
+func (vm *VM) jsonArray(elems []Value, depth int) (interface{}, error) {
+	arr := make([]interface{}, len(elems))
+	for i, e := range elems {
+		val, err := vm.valueToGoJSON(e, depth+1)
+		if err != nil {
+			return nil, err
 		}
-		return arr
+		arr[i] = val
 	}
-	// Symbols and other types: convert to string
-	if v.IsSymbol() {
-		return vm.Symbols.Name(v.SymbolID())
+	return arr, nil
+}
+
+// jsonClassName names v's class for an encode error message.
+func (vm *VM) jsonClassName(v Value) string {
+	if cls := vm.ClassFor(v); cls != nil {
+		return cls.Name
 	}
-	return nil
+	return "value"
 }
 
 // goJSONToValue converts a Go interface{} (from json.Decode with UseNumber) to a Maggie Value.

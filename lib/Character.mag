@@ -8,7 +8,7 @@ Character subclass: Object
 
   # Printing
   method: printOn: aStream [
-      aStream nextPutAll: self description
+      aStream nextPutAll: self printString
   ]
 
   # Conversion
@@ -40,8 +40,37 @@ Character subclass: Object
   """Return true if the receiver sorts before other."""
   method: < other <Character> ^<Boolean> [ <primitive> ]
 
-  """Return true if the receiver sorts after other."""
+  """
+  Return true if the receiver sorts after other. Like the other
+  comparisons, a non-Character argument is simply not ordered (false);
+  these primitives take precedence over the Comparable trait's defaults.
+
+  ```test
+  ($b > $a) >>> true
+  ($a > 3) >>> false
+  ($a <= nil) >>> false
+  ($a >= $a) >>> true
+  ```
+  """
   method: > other <Character> ^<Boolean> [ <primitive> ]
+
+  """
+  Return true if the receiver sorts before or equal to other.
+
+  ```example
+  $a <= $b
+  ```
+  """
+  method: <= other <Character> ^<Boolean> [ <primitive> ]
+
+  """
+  Return true if the receiver sorts after or equal to other.
+
+  ```example
+  $b >= $a
+  ```
+  """
+  method: >= other <Character> ^<Boolean> [ <primitive> ]
 
   """Return true if the receiver equals other."""
   method: = other <Object> ^<Boolean> [ <primitive> ]

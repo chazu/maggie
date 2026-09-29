@@ -383,7 +383,13 @@ ArrayList subclass: Collection
   """
   Sort the list in-place using a comparison block.
   The block receives two elements and should return a negative number
-  (a < b), zero (a = b), or positive number (a > b). Returns self.
+  (a < b), zero (a = b), or positive number (a > b) — of any numeric
+  kind — or a Boolean that is true when a sorts before b. Any other
+  answer signals an error. Returns self.
+
+  ```test
+  ((ArrayList withAll: #(3.5 1.5 2.5)) sort: [:x :y | x - y]) asArray >>> #(1.5 2.5 3.5 )
+  ```
   """
   method: sort: aBlock ^<Self> [ <primitive> ]
 

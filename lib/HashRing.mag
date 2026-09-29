@@ -52,6 +52,9 @@ HashRing subclass: Object
   """Add a node to the ring. The node can be any object (typically a Node or String)."""
   method: add: node [
       | nodeKey <String> |
+      "Adding a node twice would double-count it in size and give it twice
+      the virtual positions."
+      (nodes includes: node) ifTrue: [^self].
       nodes add: node.
       nodeKey := node printString.
       1 to: replicas do: [:i |
@@ -82,21 +85,37 @@ HashRing subclass: Object
       ^(positions at: 1) at: 2
   ]
 
-  """Return the N nodes responsible for the given key (for replication)."""
+  """
+  Return the N distinct nodes responsible for the given key (for
+  replication): the owner (`nodeFor:`) first, then the next distinct nodes
+  walking clockwise around the ring from the key's position.
+
+  ```test
+  ring := HashRing new: 4.
+  ring add: 'a'; add: 'b'; add: 'c'.
+  (ring nodesFor: 'k' count: 1) first = (ring nodeFor: 'k') >>> true
+  (ring nodesFor: 'k' count: 3) size >>> 3
+  (ring nodesFor: 'k' count: 9) size >>> 3
+  (ring nodesFor: 'k' count: 0) size >>> 0
+  ```
+  """
   method: nodesFor: key <String> count: n <Integer> ^<Array> [
-      | result <ArrayList> node seen <Dictionary> candidate candidateKey <String> |
-      positions isEmpty ifTrue: [^Array new: 0].
+      | result <ArrayList> seen <Dictionary> keyHash <Integer> total <Integer> start <Integer> candidate candidateKey <String> |
+      (positions isEmpty or: [n <= 0]) ifTrue: [^Array new: 0].
       result := ArrayList new.
       seen := Dictionary new.
-      node := self nodeFor: key.
-      node notNil ifTrue: [
-          result add: node.
-          seen at: node printString put: true
-      ].
-      "Walk clockwise collecting unique nodes"
-      positions do: [:pair |
+      keyHash := self hashKey: key.
+      total := positions size.
+      "Start at the first position >= keyHash (the owner, as in nodeFor:),
+      wrapping to the first position past the end of the ring."
+      start := 1.
+      [start <= total and: [((positions at: start) at: 1) < keyHash]]
+          whileTrue: [start := start + 1].
+      start > total ifTrue: [start := 1].
+      "Walk clockwise from there, collecting unique nodes"
+      0 to: total - 1 do: [:j |
           result size < n ifTrue: [
-              candidate := pair at: 2.
+              candidate := (positions at: (start - 1 + j) \\ total + 1) at: 2.
               candidateKey := candidate printString.
               (seen at: candidateKey ifAbsent: [nil]) isNil ifTrue: [
                   result add: candidate.

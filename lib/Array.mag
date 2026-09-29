@@ -235,12 +235,16 @@ Array subclass: Collection
   """
   Return a new sorted array using a comparison block (non-destructive).
   The block receives two elements and should return a negative number
-  (a < b), zero (a = b), or positive number (a > b).
+  (a < b), zero (a = b), or positive number (a > b) — of any numeric
+  kind — or a Boolean that is true when a sorts before b. Any other
+  answer signals an error.
 
   ```test
   a := #(3 1 2).
   a sorted: [:a :b | a - b] >>> #(1 2 3 )
   a >>> #(3 1 2 )
+  #(3.5 1.5 2.5) sorted: [:x :y | x - y] >>> #(1.5 2.5 3.5 )
+  #(3 1 2) sorted: [:x :y | x < y] >>> #(1 2 3 )
   ```
   """
   method: sorted: aBlock ^<Array> [

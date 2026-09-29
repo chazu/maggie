@@ -1,5 +1,10 @@
 package vm
 
+import (
+	"fmt"
+	"strings"
+)
+
 // ---------------------------------------------------------------------------
 // Object Primitives
 // ---------------------------------------------------------------------------
@@ -157,49 +162,28 @@ func (vm *VM) registerObjectPrimitives() {
 		return v.evaluateBlock(notNilBlock, []Value{recv})
 	})
 
-	// perform: - send message by selector
+	// perform: family - send a message by selector. The selector must be a
+	// Symbol (or String) whose arity matches the argument count: a mismatch is
+	// a programmer error and signals, rather than silently padding missing
+	// arguments with nil or dropping extras.
 	c.AddMethod1(vm.Selectors, "perform:", func(v *VM, recv Value, selector Value) Value {
-		if selector.IsSymbol() {
-			selName := v.Symbols.Name(selector.SymbolID())
-			return v.Send(recv, selName, nil)
-		}
-		return Nil
+		return v.perform("perform:", recv, selector, nil)
 	})
 
-	// perform:with: - send message with one argument
 	c.AddMethod2(vm.Selectors, "perform:with:", func(v *VM, recv Value, selector, arg Value) Value {
-		if selector.IsSymbol() {
-			selName := v.Symbols.Name(selector.SymbolID())
-			return v.Send(recv, selName, []Value{arg})
-		}
-		return Nil
+		return v.perform("perform:with:", recv, selector, []Value{arg})
 	})
 
-	// perform:with:with: - send message with two arguments
 	c.AddMethod3(vm.Selectors, "perform:with:with:", func(v *VM, recv Value, selector, a1, a2 Value) Value {
-		if selector.IsSymbol() {
-			selName := v.Symbols.Name(selector.SymbolID())
-			return v.Send(recv, selName, []Value{a1, a2})
-		}
-		return Nil
+		return v.perform("perform:with:with:", recv, selector, []Value{a1, a2})
 	})
 
-	// perform:withArguments: - send message with an Array of arguments
 	c.AddMethod2(vm.Selectors, "perform:withArguments:", func(v *VM, recv Value, selector, argsVal Value) Value {
-		if !selector.IsSymbol() {
-			return Nil
-		}
-		selName := v.Symbols.Name(selector.SymbolID())
 		obj := ObjectFromValue(argsVal)
 		if obj == nil {
 			return v.SignalPrimitiveError("perform:withArguments:", "arguments must be an Array")
 		}
-		n := obj.NumSlots()
-		args := make([]Value, n)
-		for i := 0; i < n; i++ {
-			args[i] = obj.GetSlot(i)
-		}
-		return v.Send(recv, selName, args)
+		return v.perform("perform:withArguments:", recv, selector, obj.AllSlots())
 	})
 
 	// respondsTo: - true if receiver's class (or any superclass) implements aSelector.
@@ -256,8 +240,13 @@ func (vm *VM) registerObjectPrimitives() {
 		return Nil // unreachable — signalException always panics
 	})
 
-	// = - value equality (default to identity)
+	// = - value equality (default to identity). Floats (which inherit this)
+	// compare numerically, as the OpSendEQ fast path does: NaN is unequal to
+	// itself and 0.0 = -0.0, although their bit patterns say otherwise.
 	c.AddMethod1(vm.Selectors, "=", func(_ *VM, recv Value, arg Value) Value {
+		if recv.IsFloat() && arg.IsFloat() {
+			return FromBool(recv.Float64() == arg.Float64())
+		}
 		if recv == arg {
 			return True
 		}
@@ -266,6 +255,9 @@ func (vm *VM) registerObjectPrimitives() {
 
 	// ~= - value inequality
 	c.AddMethod1(vm.Selectors, "~=", func(_ *VM, recv Value, arg Value) Value {
+		if recv.IsFloat() && arg.IsFloat() {
+			return FromBool(recv.Float64() != arg.Float64())
+		}
 		if recv != arg {
 			return True
 		}
@@ -497,4 +489,37 @@ func (vm *VM) registerObjectPrimitives() {
 		v.dependentsMu.Unlock()
 		return recv
 	})
+}
+
+// perform sends selector (a Symbol or String) to recv with args, first
+// checking that the selector's arity matches len(args).
+func (vm *VM) perform(prim string, recv, selector Value, args []Value) Value {
+	var name string
+	switch {
+	case selector.IsSymbol():
+		name = vm.Symbols.Name(selector.SymbolID())
+	case IsStringValue(selector):
+		name = vm.registry.GetStringContent(selector)
+	default:
+		return vm.SignalTypeError(prim, 1, "Symbol", selector)
+	}
+	if n := selectorArity(name); n != len(args) {
+		return vm.SignalPrimitiveError(prim, fmt.Sprintf("#%s takes %d argument(s), got %d", name, n, len(args)))
+	}
+	return vm.Send(recv, name, args)
+}
+
+// selectorArity returns the number of arguments a selector takes: one per
+// colon for a keyword selector, 1 for a binary operator, 0 for a unary one.
+func selectorArity(name string) int {
+	if n := strings.Count(name, ":"); n > 0 {
+		return n
+	}
+	if name != "" {
+		c := name[0]
+		if !(c == '_' || c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z') {
+			return 1 // binary operator such as + or ->
+		}
+	}
+	return 0
 }

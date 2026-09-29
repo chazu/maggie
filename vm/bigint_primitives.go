@@ -70,7 +70,7 @@ func (vm *VM) registerBigIntegerPrimitives() {
 				result, _ := af.Add(af, bf).Float64()
 				return FromFloat64(result)
 			}
-			return Nil
+			return v.SignalPrimitiveError("+", "argument must be a number")
 		}
 		result := new(big.Int).Add(a, b)
 		return v.registry.NewBigIntValue(result)
@@ -90,7 +90,7 @@ func (vm *VM) registerBigIntegerPrimitives() {
 				result, _ := af.Sub(af, bf).Float64()
 				return FromFloat64(result)
 			}
-			return Nil
+			return v.SignalPrimitiveError("-", "argument must be a number")
 		}
 		result := new(big.Int).Sub(a, b)
 		return v.registry.NewBigIntValue(result)
@@ -110,7 +110,7 @@ func (vm *VM) registerBigIntegerPrimitives() {
 				result, _ := af.Mul(af, bf).Float64()
 				return FromFloat64(result)
 			}
-			return Nil
+			return v.SignalPrimitiveError("*", "argument must be a number")
 		}
 		result := new(big.Int).Mul(a, b)
 		return v.registry.NewBigIntValue(result)
@@ -130,7 +130,7 @@ func (vm *VM) registerBigIntegerPrimitives() {
 				result, _ := af.Quo(af, bf).Float64()
 				return FromFloat64(result)
 			}
-			return Nil
+			return v.SignalPrimitiveError("/", "argument must be a number")
 		}
 		if b.Sign() == 0 {
 			return v.SignalZeroDivide() // catchable, consistent with SmallInt /
@@ -147,7 +147,7 @@ func (vm *VM) registerBigIntegerPrimitives() {
 		}
 		b := getBigIntOperand(v, arg)
 		if b == nil {
-			return Nil
+			return v.SignalPrimitiveError("\\\\", "argument must be a number")
 		}
 		if b.Sign() == 0 {
 			return v.SignalZeroDivide()
@@ -164,7 +164,7 @@ func (vm *VM) registerBigIntegerPrimitives() {
 		}
 		b := getBigIntOperand(v, arg)
 		if b == nil {
-			return Nil
+			return v.SignalPrimitiveError("//", "argument must be a number")
 		}
 		if b.Sign() == 0 {
 			return v.SignalZeroDivide()
@@ -338,7 +338,7 @@ func (vm *VM) registerBigIntegerPrimitives() {
 		}
 		b := getBigIntOperand(v, arg)
 		if b == nil {
-			return Nil
+			return v.SignalPrimitiveError("bitAnd:", "argument must be a number")
 		}
 		result := new(big.Int).And(a, b)
 		return v.registry.NewBigIntValue(result)
@@ -351,7 +351,7 @@ func (vm *VM) registerBigIntegerPrimitives() {
 		}
 		b := getBigIntOperand(v, arg)
 		if b == nil {
-			return Nil
+			return v.SignalPrimitiveError("bitOr:", "argument must be a number")
 		}
 		result := new(big.Int).Or(a, b)
 		return v.registry.NewBigIntValue(result)
@@ -364,7 +364,7 @@ func (vm *VM) registerBigIntegerPrimitives() {
 		}
 		b := getBigIntOperand(v, arg)
 		if b == nil {
-			return Nil
+			return v.SignalPrimitiveError("bitXor:", "argument must be a number")
 		}
 		result := new(big.Int).Xor(a, b)
 		return v.registry.NewBigIntValue(result)

@@ -798,3 +798,24 @@ func TestInstVarSizeNonObject(t *testing.T) {
 		t.Errorf("instVarSize on SmallInt = %v, want 0", result)
 	}
 }
+
+// AllSlots on a variable-sized object must return its logical elements;
+// it used to index past the end for Arrays shorter than the inline slots.
+func TestAllSlotsSmallArray(t *testing.T) {
+	vm := NewVM()
+	for n := 0; n <= 5; n++ {
+		elems := make([]Value, n)
+		for i := range elems {
+			elems[i] = FromSmallInt(int64(i + 1))
+		}
+		got := ObjectFromValue(vm.NewArrayWithElements(elems)).AllSlots()
+		if len(got) != n {
+			t.Fatalf("n=%d: AllSlots length = %d", n, len(got))
+		}
+		for i := range got {
+			if got[i] != elems[i] {
+				t.Errorf("n=%d: AllSlots()[%d] = %v, want %v", n, i, got[i], elems[i])
+			}
+		}
+	}
+}

@@ -199,11 +199,7 @@ func (vm *VM) registerArrayPrimitives() {
 		sort.SliceStable(indices, func(i, j int) bool {
 			a := elems[indices[i]]
 			b := elems[indices[j]]
-			result := v.evaluateBlock(block, []Value{a, b})
-			if result.IsSmallInt() {
-				return result.SmallInt() < 0
-			}
-			return false
+			return v.sortBlockOrder(v.evaluateBlock(block, []Value{a, b})) < 0
 		})
 		// Rearrange slots according to sorted indices
 		sorted := make([]Value, n)
@@ -255,11 +251,7 @@ func (vm *VM) registerArrayPrimitives() {
 			elems[i] = obj.GetSlot(i)
 		}
 		sort.SliceStable(elems, func(i, j int) bool {
-			result := v.evaluateBlock(block, []Value{elems[i], elems[j]})
-			if result.IsSmallInt() {
-				return result.SmallInt() < 0
-			}
-			return false
+			return v.sortBlockOrder(v.evaluateBlock(block, []Value{elems[i], elems[j]})) < 0
 		})
 		return v.NewArrayWithElements(elems)
 	})
@@ -321,6 +313,45 @@ func (vm *VM) NewArray(size int) Value {
 	obj.SetSize(size) // Set the logical size for arrays
 	val := obj.ToValue()
 	return val
+}
+
+// sortBlockOrder interprets a sort block's answer for (a, b): negative when
+// a sorts before b, positive when after, 0 when they tie. The block may answer
+// a number of any kind (a Float or BigInteger difference such as
+// [:a :b | a - b] is common) or, Smalltalk-80 style, a Boolean that is true
+// when a sorts before b. Any other answer signals: sorting on it used to leave
+// the collection silently unsorted.
+func (vm *VM) sortBlockOrder(r Value) int {
+	switch {
+	case r.IsSmallInt():
+		n := r.SmallInt()
+		switch {
+		case n < 0:
+			return -1
+		case n > 0:
+			return 1
+		}
+		return 0
+	case r.IsFloat():
+		f := r.Float64()
+		switch {
+		case f < 0:
+			return -1
+		case f > 0:
+			return 1
+		}
+		return 0 // zero and NaN tie
+	case IsBigIntValue(r):
+		if bi := vm.registry.GetBigInt(r); bi != nil {
+			return bi.Value.Sign()
+		}
+	case r == True:
+		return -1
+	case r == False:
+		return 1
+	}
+	vm.SignalPrimitiveError("sort:", "sort block must answer a number or a Boolean")
+	return 0 // unreachable: signalling panics
 }
 
 // NewArrayWithElements creates a new Array object with the given elements.

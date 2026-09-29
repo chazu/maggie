@@ -83,7 +83,9 @@ func (vm *VM) registerStringPrimitivesExtended() {
 		if !IsStringValue(other) && !IsCharacterValue(other) && !other.IsSymbol() {
 			return v.SignalPrimitiveError("primConcat:", "argument must be a string")
 		}
-		s1 := v.registry.GetStringContent(recv)
+		// getStringLike for the receiver too: Symbol inherits this method,
+		// and a Symbol has no registry string content (#foo , 'x' was 'x').
+		s1 := v.getStringLike(recv)
 		s2 := v.getStringLike(other)
 		return v.registry.NewStringValue(s1 + s2)
 	})
@@ -91,7 +93,7 @@ func (vm *VM) registerStringPrimitivesExtended() {
 	// primEquals: - compare two strings for equality
 	c.AddMethod1(vm.Selectors, "primEquals:", func(v *VM, recv Value, other Value) Value {
 		if !IsStringValue(other) {
-			return v.SignalPrimitiveError("primEquals:", "argument must be a string")
+			return False // a non-string is not equal (String>>= must answer a Boolean)
 		}
 		s1 := v.registry.GetStringContent(recv)
 		s2 := v.registry.GetStringContent(other)

@@ -22,7 +22,7 @@ The combinators (`collect:`, `select:`, `reject:`, `take:`, `drop:`,
 ```
 """
 Stream subclass: Object
-  instanceVars: generator index exhausted limit
+  instanceVars: generator index exhausted limit lookahead hasLookahead
 
   """
   Create a stream from a generator block. The block receives a 1-based
@@ -94,6 +94,12 @@ Stream subclass: Object
   method: next [
       | val |
       self atEnd ifTrue: [^nil].
+      hasLookahead == true ifTrue: [
+          val := lookahead.
+          lookahead := nil.
+          hasLookahead := false.
+          ^val
+      ].
       val := generator value: index.
       index := index + 1.
       ^val
@@ -110,17 +116,32 @@ Stream subclass: Object
   ```test
   (Stream over: #(nil)) atEnd >>> false
   ```
+
+  ```test
+  "a stateful generator is called once per element, not once per probe"
+  q := ArrayList new. q add: 1; add: 2; add: 3.
+  (Stream on: [:i | q isEmpty ifTrue: [nil] ifFalse: [q removeFirst]]) asArray >>> #(1 2 3 )
+  ```
   """
   method: atEnd ^<Boolean> [
+      | val |
       exhausted ifTrue: [^true].
       limit isNil ifFalse: [
           index > limit ifTrue: [exhausted := true. ^true].
           ^false
       ].
-      (generator value: index) isNil ifTrue: [
+      "A generator stream can only learn it is at its end by producing the
+      next value. Buffer that value for `next` rather than discarding it, so
+      the generator runs exactly once per index."
+      hasLookahead == true ifTrue: [^false].
+      val := generator value: index.
+      index := index + 1.
+      val isNil ifTrue: [
           exhausted := true.
           ^true
       ].
+      lookahead := val.
+      hasLookahead := true.
       ^false
   ]
 

@@ -441,7 +441,7 @@ func (vm *VM) registerArrayListPrimitives() {
 			j := i - 1
 			for j >= 0 {
 				cmp := v.evaluateBlock(block, []Value{elems[j], key})
-				if !cmp.IsSmallInt() || cmp.SmallInt() <= 0 {
+				if v.sortBlockOrder(cmp) <= 0 {
 					break
 				}
 				elems[j+1] = elems[j]

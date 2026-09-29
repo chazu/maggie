@@ -161,6 +161,7 @@ SmallInteger subclass: Number
   """
   method: factorial ^<Integer> [
       | result |
+      self < 0 ifTrue: [^self error: 'factorial is undefined for negative integers'].
       result := 1.
       1 to: self do: [:i | result := result * i].
       ^result
@@ -190,9 +191,11 @@ SmallInteger subclass: Number
   4 lcm: 6 >>> 12
   3 lcm: 5 >>> 15
   7 lcm: 7 >>> 7
+  0 lcm: 0 >>> 0
   ```
   """
   method: lcm: other <Integer> ^<Integer> [
+      (self = 0 or: [other = 0]) ifTrue: [^0].
       ^(self * other) abs // (self gcd: other)
   ]
 

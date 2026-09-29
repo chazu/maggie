@@ -1849,6 +1849,9 @@ func (i *Interpreter) primitiveGE(a, b Value) Value {
 
 func (i *Interpreter) primitiveEQ(a, b Value) Value {
 	if a == b {
+		if a.IsFloat() {
+			return FromBool(a.Float64() == a.Float64()) // NaN = NaN is false (IEEE 754)
+		}
 		return True // identical NaN-boxed values (incl. equal SmallInts, nil, booleans)
 	}
 	// Fast paths for the common value types.

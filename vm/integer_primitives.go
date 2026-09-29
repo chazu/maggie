@@ -222,7 +222,11 @@ func (vm *VM) registerSmallIntegerPrimitives() {
 				return FromBool(a.Cmp(b) == 0)
 			}
 		}
-		return v.SignalPrimitiveError("=", "argument must be a number")
+		// = must answer a Boolean for ANY argument: a non-integer is simply
+		// not equal. Signalling here broke Go-side equality sends (ArrayList
+		// includes:/indexOf:, perform: #=) that the OpSendEQ fast path — which
+		// answers false for a type mismatch — never exercises.
+		return False
 	})
 
 	// Bit operations

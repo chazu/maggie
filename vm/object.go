@@ -351,13 +351,13 @@ func (obj *Object) ForEachSlot(fn func(index int, value Value)) {
 
 // AllSlots returns all slot values as a slice.
 // This allocates; use ForEachSlot for allocation-free iteration.
+// The result has NumSlots() elements, so for an Array it is the logical
+// elements (possibly fewer than the four inline slots).
 func (obj *Object) AllSlots() []Value {
 	slots := make([]Value, obj.NumSlots())
-	slots[0] = obj.slot0
-	slots[1] = obj.slot1
-	slots[2] = obj.slot2
-	slots[3] = obj.slot3
-	copy(slots[NumInlineSlots:], obj.overflow)
+	for i := range slots {
+		slots[i] = obj.GetSlot(i)
+	}
 	return slots
 }
 
