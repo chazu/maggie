@@ -596,6 +596,12 @@ func (l *Lexer) readBinarySelector(pos Position) Token {
 	start := l.pos
 
 	for IsBinaryChar(l.ch) {
+		// A '-' after the first character that starts a number is that
+		// number's sign, not part of the selector: `x>-1` is `x > -1` and
+		// `3@-4` is `3 @ -4` (as in Pharo), not the selectors `>-` / `@-`.
+		if l.ch == '-' && l.pos > start && isDigit(l.peekChar()) {
+			break
+		}
 		l.readChar()
 	}
 

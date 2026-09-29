@@ -1,6 +1,7 @@
 package compiler
 
 import (
+	"strings"
 	"testing"
 )
 
@@ -765,6 +766,33 @@ func TestLexerFQN_InMethodBody(t *testing.T) {
 		}
 		if tok.Literal != exp.lit {
 			t.Errorf("token[%d] literal = %q, want %q", i, tok.Literal, exp.lit)
+		}
+	}
+}
+
+// A '-' that starts a number after another binary character is the number's
+// sign: `x>-1` lexes as `x`, `>`, `-1` — not the selector `>-`.
+func TestLexerBinarySelectorStopsBeforeNegativeNumber(t *testing.T) {
+	tests := []struct {
+		input string
+		want  []string
+	}{
+		{"x>-1", []string{"x", ">", "-1"}},
+		{"3@-4", []string{"3", "@", "-4"}},
+		{"a->-2", []string{"a", "->", "-2"}},
+		{"x--1", []string{"x", "-", "-1"}},
+		{"x->y", []string{"x", "->", "y"}},
+		{"x>=-1.5", []string{"x", ">=", "-1.5"}},
+	}
+	for _, tc := range tests {
+		var got []string
+		for _, tok := range Tokenize(tc.input) {
+			if tok.Type != TokenEOF {
+				got = append(got, tok.Literal)
+			}
+		}
+		if strings.Join(got, " ") != strings.Join(tc.want, " ") {
+			t.Errorf("Tokenize(%q) = %q, want %q", tc.input, got, tc.want)
 		}
 	}
 }
