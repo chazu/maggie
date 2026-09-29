@@ -36,6 +36,9 @@ existing code or deployments observe:
 - **`String>>fromHex` answers a Result** (`Success` wrapping the bytes, or
   `Failure`); `Ed25519 generateFromSeed:`/`sign:key:` signal on a key of
   the wrong length instead of answering a Failure in place of the value.
+- **`Context>>tempAt:` is 1-based** like every other subscript (was
+  0-based), and a bad index signals `SubscriptOutOfBounds`/`TypeError`
+  instead of answering nil.
 
 **Now honoured**
 - `[image] include-source = false` strips method source from images saved

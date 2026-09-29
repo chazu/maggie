@@ -64,28 +64,29 @@ func (vm *VM) registerContextPrimitives() {
 		return v.NewArrayWithElements(ctx.Args)
 	})
 
-	// tempAt: - returns the temporary at the given index
+	// tempAt: - returns the temporary at the given 1-based index (arguments
+	// come first). A non-Integer or out-of-range index signals, like at:.
 	c.AddMethod1(vm.Selectors, "tempAt:", func(v *VM, recv Value, idx Value) Value {
 		ctx := v.registry.GetContextFromValue(recv)
-		if ctx == nil || !idx.IsSmallInt() {
+		if ctx == nil {
 			return Nil
 		}
-		i := int(idx.SmallInt())
-		if i < 0 || i >= len(ctx.Temps) {
+		i, ok := v.contextTempIndex("tempAt:", ctx, idx)
+		if !ok {
 			return Nil
 		}
 		return ctx.Temps[i]
 	})
 
-	// tempAt:put: - stores a value in the temporary at the given index
+	// tempAt:put: - stores a value in the temporary at the given 1-based index
 	// Note: This modifies the captured snapshot, not the live execution
 	c.AddMethod2(vm.Selectors, "tempAt:put:", func(v *VM, recv Value, idx Value, val Value) Value {
 		ctx := v.registry.GetContextFromValue(recv)
-		if ctx == nil || !idx.IsSmallInt() {
+		if ctx == nil {
 			return Nil
 		}
-		i := int(idx.SmallInt())
-		if i < 0 || i >= len(ctx.Temps) {
+		i, ok := v.contextTempIndex("tempAt:put:", ctx, idx)
+		if !ok {
 			return Nil
 		}
 		ctx.Temps[i] = val
@@ -146,4 +147,20 @@ func (vm *VM) registerContextPrimitives() {
 		}
 		return v.registry.NewStringValue("a Context")
 	})
+}
+
+// contextTempIndex converts a 1-based temp index to a slice index, signalling
+// TypeError / SubscriptOutOfBounds for a bad index (ok is false only if the
+// signal returns, which it does not in a running interpreter).
+func (vm *VM) contextTempIndex(selector string, ctx *ContextValue, idx Value) (int, bool) {
+	if !idx.IsSmallInt() {
+		vm.SignalTypeError(selector, 1, "an Integer", idx)
+		return 0, false
+	}
+	n := idx.SmallInt()
+	if n < 1 || n > int64(len(ctx.Temps)) {
+		vm.SignalSubscriptOutOfBounds(selector, n, len(ctx.Temps))
+		return 0, false
+	}
+	return int(n - 1), true
 }
