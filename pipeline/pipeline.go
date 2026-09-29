@@ -198,6 +198,10 @@ func (p *Pipeline) CompileAll(files []ParsedFile) (int, error) {
 		created  bool // skeleton created by this batch (not a pre-existing class being extended)
 	}
 	var classEntries []classEntry
+	// Classes created by this load. Several files may declare the same
+	// class (a definition plus method-only extensions); until the load
+	// finishes such a class has no instances, so its layout is still open.
+	createdHere := make(map[*vm.Class]bool)
 
 	// ---------------------------------------------------------------
 	// Pass 1a — Register class and trait skeletons
@@ -260,9 +264,29 @@ func (p *Pipeline) CompileAll(files []ParsedFile) (int, error) {
 
 				p.logf("  Created class %s (skeleton)\n", qualifiedName(pf.Namespace, classDef.Name))
 
+				createdHere[class] = true
 				classEntries = append(classEntries, classEntry{class: class, classDef: classDef, pf: pf, created: true})
 			} else {
-				// Class already exists (extending core class) — still track for method compilation
+				// Class already exists (extending core class) — still track for method compilation.
+				// A file that omits instanceVars: is a method-only extension.
+				// Otherwise the instance variables must agree: the names
+				// would otherwise compile as globals.
+				if len(classDef.InstanceVariables) > 0 && !slices.Equal(classDef.InstanceVariables, class.InstVars) {
+					switch {
+					case createdHere[class] && len(class.InstVars) == 0:
+						// An extension earlier in this load created the
+						// class; this is its definition. No instances exist
+						// yet, so adopt its ivars (pass 1c sizes the slots).
+						class.InstVars = append([]string(nil), classDef.InstanceVariables...)
+					case createdHere[class]:
+						return 0, fmt.Errorf("class %s: conflicting instance variables %v and %v\n  declared in: %s",
+							class.FullName(), class.InstVars, classDef.InstanceVariables, pf.Path)
+					default:
+						// Existing instances keep their slot layout.
+						return 0, fmt.Errorf("class %s: already defined with instance variables %v; redefining it with %v is not supported in a running image (restart to reload it)\n  declared in: %s",
+							class.FullName(), class.InstVars, classDef.InstanceVariables, pf.Path)
+					}
+				}
 				if classDef.DocString != "" && class.DocString == "" {
 					class.DocString = classDef.DocString
 				}
@@ -306,6 +330,14 @@ func (p *Pipeline) CompileAll(files []ParsedFile) (int, error) {
 		if resolved.IsSubclassOf(ce.class) {
 			return 0, fmt.Errorf("class %s: circular superclass chain through %s\n  declared in: %s",
 				ce.classDef.Name, resolved.FullName(), ce.pf.Path)
+		}
+
+		// Re-parenting a class that already existed before this load must
+		// not change its slot layout: existing instances (and subclasses'
+		// NumSlots) were laid out for the old chain.
+		if !createdHere[ce.class] && len(resolved.AllInstVarNames())+len(ce.class.InstVars) != ce.class.NumSlots {
+			return 0, fmt.Errorf("class %s: changing its superclass to %s would change the layout of existing instances; this is not supported in a running image (restart to reload it)\n  declared in: %s",
+				ce.class.FullName(), resolved.FullName(), ce.pf.Path)
 		}
 
 		ce.class.Superclass = resolved

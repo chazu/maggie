@@ -52,7 +52,8 @@ the process exit code. An unhandled exception yields exit code 1. Any
 other return value yields exit code 0. See the Go primitive for details.
 """
 Command subclass: Object
-  instanceVars: name shortDoc longDoc runBlock flags envBindings children
+  # No instanceVars: a command's state (name, docs, run block, flags,
+  # subcommands) lives in the Go-side cobra wrapper, which has no slots.
 
   # --- Class-side constructors ---------------------------------------------
 
