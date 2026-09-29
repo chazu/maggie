@@ -17,8 +17,8 @@ success path.
 
 ```example
 "Transform and branch on a successful result"
-(Success with: 10)
-    map: [:v | v * 2]
+((Success with: 10)
+    map: [:v | v * 2])
     ifSuccess: [:v | 'Result is: ', v printString]
 ```
 """

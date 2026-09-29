@@ -16,8 +16,8 @@ block; branching methods (`ifSuccess:`, `ifFailure:`,
 
 ```example
 "Failures propagate through chains untouched"
-(Failure with: 'bad input')
-    map: [:v | v * 2]
+((Failure with: 'bad input')
+    map: [:v | v * 2])
     then: [:v | Success with: v + 1]
 ```
 """

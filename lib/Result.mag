@@ -17,8 +17,8 @@ to create instances. Pattern-match on the result with `ifSuccess:`,
 
 ```example
 "Chain a sequence of fallible operations"
-(Result success: 5)
-    map: [:v | v * 2]
+((Result success: 5)
+    map: [:v | v * 2])
     then: [:v | Result success: v + 1]
 ```
 """
