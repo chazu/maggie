@@ -1,5 +1,37 @@
 # Changelog
 
+## 2026-09-29 — Fresh-eyes audit: semantics and wire changes
+
+Most fixes in this sweep restore documented behaviour; these change what
+existing code or deployments observe:
+
+**Breaking**
+- **`\\` is floored modulo.** Like Smalltalk-80/Pharo, `\\` now takes the
+  sign of the divisor and pairs with `//` (`-7 \\ 2` is `1`, was `-1`).
+  The new `rem:` is the truncated remainder that pairs with `/`
+  (`-7 rem: 2` is `-1`).
+- **Wire protocol v2.** Signed envelopes carry a timestamp and are rejected
+  outside ±30s of the receiver's clock (the window request authentication
+  already uses); v1 envelopes are rejected, so upgrade nodes together.
+  Evicted trust records keep their nonce marks for that window, closing a
+  replay-after-key-flood hole.
+- **Namespaces keep acronyms.** Directory/dependency names map to
+  namespaces by upper-casing each word's first letter only: `UI` stays
+  `UI` and `HTTPServer` stays `HTTPServer` (were `Ui`, `Httpserver`).
+- **`classVars:` are per-class.** They previously compiled to one global
+  shared by every class declaring the name; `Compiler getGlobal:` no longer
+  sees them.
+- **Class redefinition is checked.** Loading a class again with different
+  instance variables, or a superclass that shifts its slots, is now an
+  error instead of silently miscompiling.
+
+**Now honoured**
+- `[image] include-source = false` strips method source from images saved
+  by `mag --save-image` and `mag build`; a `[[target]]` can switch it
+  either way. (`[image] output` is still not read by any command.)
+- The lock file pins the locked commit; a changed dependency URL re-clones.
+- The node identity and chunk cache live in the project root's `.maggie`.
+
 ## 2026-07-17 — Distribution: request-response, code-on-demand, cluster membership
 
 Three distribution features plus a second full adversarial-review sweep the day

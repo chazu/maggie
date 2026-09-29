@@ -256,7 +256,7 @@ SmallInteger subclass: Number
 
   ```example
   "rem: keeps the receiver's sign; \\ takes the divisor's"
-  (-7 rem: 2) -> (-7 \\ 2)
+  {-7 rem: 2. -7 \\ 2}
   ```
   """
   method: rem: other <Integer> ^<Integer> [ <primitive> ]
