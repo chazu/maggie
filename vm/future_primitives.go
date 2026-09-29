@@ -26,7 +26,7 @@ func (vm *VM) registerFuturePrimitives() {
 		if f == nil {
 			return Nil
 		}
-		<-f.done // block until resolved; re-entrant (closed channel) for repeat awaits and multiple waiters
+		v.waitKillable(f.done) // block until resolved; re-entrant (closed channel) for repeat awaits and multiple waiters
 		return v.futureResolvedValue(f)
 	})
 
@@ -45,6 +45,9 @@ func (vm *VM) registerFuturePrimitives() {
 		case <-f.done:
 			return v.futureResolvedValue(f)
 		case <-time.After(time.Duration(ms) * time.Millisecond):
+			return Nil
+		case <-v.killSignal():
+			v.abortIfKilled()
 			return Nil
 		}
 	})
@@ -65,6 +68,9 @@ func (vm *VM) registerFuturePrimitives() {
 			return v.futureResolvedValue(f)
 		case <-time.After(time.Duration(ms) * time.Millisecond):
 			return v.evaluateBlock(blockVal, nil)
+		case <-v.killSignal():
+			v.abortIfKilled()
+			return Nil
 		}
 	})
 

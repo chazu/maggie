@@ -40,6 +40,10 @@ func (vm *VM) registerSignalPrimitives() {
 		sigSymVal := v.Symbols.SymbolValue(strings.ToUpper(name))
 
 		go func() {
+			// Once the target channel closes nobody consumes these signals;
+			// Stop restores the default disposition instead of swallowing
+			// them for the life of the process.
+			defer signal.Stop(goCh)
 			for range goCh {
 				// safeSend instead of a raw send: a closed channel stops
 				// delivery instead of panicking this goroutine.
@@ -79,6 +83,7 @@ func (vm *VM) registerSignalPrimitives() {
 		signal.Notify(goCh, sigs...)
 
 		go func() {
+			defer signal.Stop(goCh) // see trap:toChannel:
 			for s := range goCh {
 				sigName := strings.ToUpper(s.String())
 				// Normalize to match input format

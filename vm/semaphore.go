@@ -62,7 +62,7 @@ func (vm *VM) registerSemaphorePrimitives() {
 		if sem == nil {
 			return Nil
 		}
-		<-sem.permits
+		v.waitPermit(sem)
 		return recv
 	}
 	s.AddMethod0(vm.Selectors, "acquire", acquireFn)
@@ -138,7 +138,7 @@ func (vm *VM) registerSemaphorePrimitives() {
 		}
 
 		// Acquire permit
-		<-sem.permits
+		v.waitPermit(sem)
 		defer func() {
 			// Release permit
 			select {
@@ -159,4 +159,14 @@ func (vm *VM) registerSemaphorePrimitives() {
 	// Semaphore>>withPermit: aBlock — same behavior as critical:, registered to
 	// the same function rather than a verbatim copy.
 	s.AddMethod1(vm.Selectors, "withPermit:", semCriticalFn)
+}
+
+// waitPermit takes a permit from sem, unwinding early if the calling process
+// is killed.
+func (vm *VM) waitPermit(sem *SemaphoreObject) {
+	select {
+	case <-sem.permits:
+	case <-vm.killSignal():
+		vm.abortIfKilled()
+	}
 }

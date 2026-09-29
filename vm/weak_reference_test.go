@@ -2,7 +2,9 @@ package vm
 
 import (
 	"runtime"
+	"sync/atomic"
 	"testing"
+	"time"
 )
 
 // ---------------------------------------------------------------------------
@@ -229,4 +231,31 @@ func BenchmarkWeakReferenceGet(b *testing.B) {
 		_ = wr.Get()
 	}
 	runtime.KeepAlive(obj)
+}
+
+// Setting a finalizer twice must not register two runtime cleanups: the
+// target's collection runs the (latest) callback exactly once.
+func TestWeakReferenceFinalizerRunsOnce(t *testing.T) {
+	var calls atomic.Int32
+	done := make(chan struct{}, 4)
+	wr := func() *WeakReference {
+		obj := NewObject(nil, 2)
+		wr := NewWeakReference(obj)
+		wr.SetFinalizer(func(Value) { calls.Add(1); done <- struct{}{} })
+		wr.SetFinalizer(func(Value) { calls.Add(1); done <- struct{}{} })
+		runtime.KeepAlive(obj)
+		return wr
+	}()
+	runtime.GC()
+	select {
+	case <-done:
+	case <-time.After(3 * time.Second):
+		t.Fatal("finalizer never ran")
+	}
+	runtime.GC()
+	time.Sleep(50 * time.Millisecond)
+	if n := calls.Load(); n != 1 {
+		t.Fatalf("finalizer ran %d times, want 1", n)
+	}
+	runtime.KeepAlive(wr)
 }

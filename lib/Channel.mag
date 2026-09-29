@@ -32,11 +32,15 @@ ch isClosed >>> true
 ```
 
 ```example
-"Producer-consumer with a buffered channel"
-| ch <Channel> |
+"Producer-consumer with a buffered channel. Drain with receiveIfClosed:,
+ not isClosed — isClosed turns true as soon as the producer closes, while
+ values may still be buffered, so testing it would drop them."
+| ch <Channel> v sum <Integer> |
 ch := Channel new: 10.
 [1 to: 10 do: [:i | ch send: i]. ch close] fork.
-[ch isClosed not] whileTrue: [ch receive]
+sum := 0.
+[(v := ch receiveIfClosed: [#closed]) == #closed] whileFalse: [sum := sum + v].
+sum "=> 55"
 ```
 """
 Channel subclass: Object

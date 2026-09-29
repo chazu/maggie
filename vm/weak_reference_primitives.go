@@ -57,11 +57,16 @@ func (vm *VM) registerWeakReferencePrimitives() {
 			return recv
 		}
 		// Set up the finalizer to evaluate the block. It runs on a Go GC cleanup
-		// goroutine, so guard against a shutting-down VM with recover.
+		// goroutine, so guard against a shutting-down VM with recover. That
+		// goroutine is unregistered: without its own interpreter it would be
+		// handed the main interpreter (the no-forks fast path) and run the
+		// block on the main program's frame stack concurrently.
 		if block.IsBlock() {
 			wr.SetFinalizer(func(oldValue Value) {
 				defer func() { _ = recover() }()
-				v.evaluateBlock(block, []Value{oldValue})
+				v.RunIsolated(func() {
+					v.evaluateBlock(block, []Value{oldValue})
+				})
 			})
 		}
 		return recv

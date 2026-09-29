@@ -292,3 +292,33 @@ func TestMailbox_RingBufferWrapAround(t *testing.T) {
 		}
 	}
 }
+
+// TestMailbox_ReceiveTimeoutNoLostWakeup guards the regression where the
+// timeout goroutine Broadcast without holding m.mu: with a tiny timeout the
+// Broadcast could land before the receiver entered cond.Wait, the wakeup was
+// lost, and ReceiveTimeout on an idle mailbox hung forever. Reproduces
+// reliably under -race (which widens the window).
+func TestMailbox_ReceiveTimeoutNoLostWakeup(t *testing.T) {
+	const workers, iters = 8, 2000
+	var wg sync.WaitGroup
+	for w := 0; w < workers; w++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			mb := NewMailbox(4)
+			for i := 0; i < iters; i++ {
+				if _, ok := mb.ReceiveTimeout(time.Duration(i%50) * time.Microsecond); ok {
+					t.Error("ReceiveTimeout on an empty mailbox should time out")
+					return
+				}
+			}
+		}()
+	}
+	done := make(chan struct{})
+	go func() { wg.Wait(); close(done) }()
+	select {
+	case <-done:
+	case <-time.After(20 * time.Second):
+		t.Fatal("ReceiveTimeout hung: timeout wakeup was lost")
+	}
+}

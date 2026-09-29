@@ -1,6 +1,9 @@
 package vm
 
 import (
+	"errors"
+	"os"
+	"os/exec"
 	"syscall"
 	"testing"
 	"time"
@@ -91,4 +94,42 @@ func TestSignalUnknownSignal(t *testing.T) {
 	if isFailure != True {
 		t.Error("expected failure for unknown signal, got non-failure")
 	}
+}
+
+// TestSignalTrapStopsNotifyWhenChannelCloses guards the regression where the
+// forwarding goroutine exited on a closed target channel but never called
+// signal.Stop, so the signal stayed swallowed for the rest of the process.
+// After the fix the default disposition is restored: a later SIGTERM kills
+// the process. Runs in a child process so that death is observable safely.
+func TestSignalTrapStopsNotifyWhenChannelCloses(t *testing.T) {
+	if os.Getenv("MAGGIE_SIGNAL_STOP_CHILD") == "1" {
+		signalStopChild()
+		return
+	}
+	cmd := exec.Command(os.Args[0], "-test.run=^TestSignalTrapStopsNotifyWhenChannelCloses$")
+	cmd.Env = append(os.Environ(), "MAGGIE_SIGNAL_STOP_CHILD=1")
+	out, err := cmd.CombinedOutput()
+	var exitErr *exec.ExitError
+	if !errors.As(err, &exitErr) {
+		t.Fatalf("child survived a second SIGTERM — signal still swallowed (err=%v)\n%s", err, out)
+	}
+	ws, ok := exitErr.Sys().(syscall.WaitStatus)
+	if !ok || !ws.Signaled() || ws.Signal() != syscall.SIGTERM {
+		t.Fatalf("child should die from SIGTERM (default disposition restored), got %v\n%s", err, out)
+	}
+}
+
+// signalStopChild traps SIGTERM to a channel, closes the channel, triggers the
+// forwarder's exit with one SIGTERM, then sends another. Only a restored
+// default disposition terminates the process; otherwise it exits 0.
+func signalStopChild() {
+	v := NewVM()
+	ch := v.Send(v.globals["Channel"], "new:", []Value{FromSmallInt(1)})
+	v.Send(v.globals["Signal"], "trap:toChannel:", []Value{v.registry.NewStringValue("SIGTERM"), ch})
+	v.Send(ch, "close", nil)
+	syscall.Kill(syscall.Getpid(), syscall.SIGTERM) // forwarder sees closed ch, exits
+	time.Sleep(300 * time.Millisecond)
+	syscall.Kill(syscall.Getpid(), syscall.SIGTERM)
+	time.Sleep(300 * time.Millisecond)
+	os.Exit(0)
 }

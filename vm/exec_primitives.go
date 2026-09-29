@@ -3,6 +3,7 @@ package vm
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"os"
 	"os/exec"
 	"strings"
@@ -28,13 +29,75 @@ type ExternalProcessObject struct {
 	err      error
 
 	// For async processes
-	cmd     *exec.Cmd
-	started bool
-	done    bool
-	mu      sync.Mutex
+	cmd      *exec.Cmd
+	started  bool
+	done     bool
+	finished chan struct{} // closed by finish(); non-nil once started
+	mu       sync.Mutex    // guards every field above; never held across the child's run
 
 	// For cancellation/timeout
 	cancel context.CancelFunc
+}
+
+// begin launches the child described by p and marks p started. p.mu is held
+// only while launching — never across the child's run — so kill and the
+// accessors stay responsive. ctx/cancel are non-nil for runWithTimeout:.
+// Answers a nil cmd if p was already started or the child failed to start
+// (the failure is already recorded); otherwise the caller must c.Wait() and
+// then finish().
+func (p *ExternalProcessObject) begin(ctx context.Context, cancel context.CancelFunc) (c *exec.Cmd, stdout, stderr *bytes.Buffer) {
+	p.mu.Lock()
+	if p.started {
+		p.mu.Unlock()
+		return nil, nil, nil
+	}
+	if ctx != nil {
+		c = exec.CommandContext(ctx, p.command, p.args...)
+	} else {
+		c = exec.Command(p.command, p.args...)
+	}
+	c.Env = buildEnv(p.env)
+	if p.dir != "" {
+		c.Dir = p.dir
+	}
+	stdout, stderr = &bytes.Buffer{}, &bytes.Buffer{}
+	c.Stdout = stdout
+	c.Stderr = stderr
+
+	p.started = true
+	p.finished = make(chan struct{})
+	p.cancel = cancel
+	if err := c.Start(); err != nil {
+		p.mu.Unlock()
+		p.finish("", "", err, false)
+		return nil, nil, nil
+	}
+	p.cmd = c
+	p.mu.Unlock()
+	return c, stdout, stderr
+}
+
+// finish records the child's outcome and wakes wait. Caller must not hold p.mu.
+func (p *ExternalProcessObject) finish(stdout, stderr string, err error, timedOut bool) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.stdout = stdout
+	p.stderr = stderr
+	p.done = true
+	p.err = err
+	switch {
+	case err == nil:
+		p.exitCode = 0
+	case timedOut:
+		p.exitCode = -1
+		p.err = context.DeadlineExceeded
+	default:
+		p.exitCode = -1
+		if exitErr, ok := err.(*exec.ExitError); ok {
+			p.exitCode = exitErr.ExitCode()
+		}
+	}
+	close(p.finished)
 }
 
 // ---------------------------------------------------------------------------
@@ -117,22 +180,14 @@ func (vm *VM) registerExecPrimitives() {
 			if exitErr, ok := err.(*exec.ExitError); ok {
 				exitCode = exitErr.ExitCode()
 			}
-			reason := stderr.String()
+			reason := strings.TrimRight(stderr.String(), "\n")
 			if reason == "" {
 				reason = err.Error()
 			}
-			// Return a Dictionary with exit code, stdout, stderr for non-zero exits
-			dict := v.registry.NewDictionaryValue()
-			dictObj := v.registry.GetDictionaryObject(dict)
-			if dictObj != nil {
-				exitKey := v.registry.NewStringValue("exitCode")
-				stdoutKey := v.registry.NewStringValue("stdout")
-				stderrKey := v.registry.NewStringValue("stderr")
-				dictObj.Put(v.registry, exitKey, FromSmallInt(int64(exitCode)))
-				dictObj.Put(v.registry, stdoutKey, v.registry.NewStringValue(stdout.String()))
-				dictObj.Put(v.registry, stderrKey, v.registry.NewStringValue(strings.TrimRight(reason, "\n")))
-			}
-			return v.newFailureResult("Process exited with code " + strings.TrimRight(err.Error(), "\n"))
+			// Documented contract: stdout String or a Failure. The Failure
+			// carries the exit code and stderr; callers needing structured
+			// output use command:args: + run + exitCode/stdout/stderr.
+			return v.newFailureResult(fmt.Sprintf("Process exited with code %d: %s", exitCode, reason))
 		}
 
 		return v.registry.NewStringValue(stdout.String())
@@ -182,40 +237,10 @@ func (vm *VM) registerExecPrimitives() {
 		if p == nil {
 			return Nil
 		}
-		p.mu.Lock()
-		defer p.mu.Unlock()
-
-		if p.started {
-			return recv
+		if c, stdout, stderr := p.begin(nil, nil); c != nil {
+			err := c.Wait()
+			p.finish(stdout.String(), stderr.String(), err, false)
 		}
-
-		c := exec.Command(p.command, p.args...)
-		c.Env = buildEnv(p.env)
-		if p.dir != "" {
-			c.Dir = p.dir
-		}
-
-		var stdout, stderr bytes.Buffer
-		c.Stdout = &stdout
-		c.Stderr = &stderr
-
-		p.started = true
-		err := c.Run()
-		p.stdout = stdout.String()
-		p.stderr = stderr.String()
-		p.done = true
-
-		if err != nil {
-			p.err = err
-			if exitErr, ok := err.(*exec.ExitError); ok {
-				p.exitCode = exitErr.ExitCode()
-			} else {
-				p.exitCode = -1
-			}
-		} else {
-			p.exitCode = 0
-		}
-
 		return recv
 	})
 
@@ -233,47 +258,12 @@ func (vm *VM) registerExecPrimitives() {
 			return v.newFailureResult("runWithTimeout: requires a positive timeout")
 		}
 
-		p.mu.Lock()
-		defer p.mu.Unlock()
-
-		if p.started {
-			return recv
-		}
-
 		ctx, cancel := context.WithTimeout(context.Background(), time.Duration(ms)*time.Millisecond)
 		defer cancel()
-		p.cancel = cancel
-
-		c := exec.CommandContext(ctx, p.command, p.args...)
-		c.Env = buildEnv(p.env)
-		if p.dir != "" {
-			c.Dir = p.dir
+		if c, stdout, stderr := p.begin(ctx, cancel); c != nil {
+			err := c.Wait()
+			p.finish(stdout.String(), stderr.String(), err, ctx.Err() == context.DeadlineExceeded)
 		}
-
-		var stdout, stderr bytes.Buffer
-		c.Stdout = &stdout
-		c.Stderr = &stderr
-
-		p.started = true
-		err := c.Run()
-		p.stdout = stdout.String()
-		p.stderr = stderr.String()
-		p.done = true
-
-		if err != nil {
-			p.err = err
-			if ctx.Err() == context.DeadlineExceeded {
-				p.exitCode = -1
-				p.err = ctx.Err()
-			} else if exitErr, ok := err.(*exec.ExitError); ok {
-				p.exitCode = exitErr.ExitCode()
-			} else {
-				p.exitCode = -1
-			}
-		} else {
-			p.exitCode = 0
-		}
-
 		return recv
 	})
 
@@ -283,76 +273,31 @@ func (vm *VM) registerExecPrimitives() {
 		if p == nil {
 			return Nil
 		}
-		p.mu.Lock()
-		defer p.mu.Unlock()
-
-		if p.started {
-			return recv
+		if c, stdout, stderr := p.begin(nil, nil); c != nil {
+			// Wait in a goroutine to capture output
+			go func() {
+				err := c.Wait()
+				p.finish(stdout.String(), stderr.String(), err, false)
+			}()
 		}
-
-		c := exec.Command(p.command, p.args...)
-		c.Env = buildEnv(p.env)
-		if p.dir != "" {
-			c.Dir = p.dir
-		}
-
-		var stdout, stderr bytes.Buffer
-		c.Stdout = &stdout
-		c.Stderr = &stderr
-
-		err := c.Start()
-		if err != nil {
-			p.err = err
-			p.exitCode = -1
-			p.done = true
-			p.started = true
-			return recv
-		}
-
-		p.cmd = c
-		p.started = true
-
-		// Wait in a goroutine to capture output
-		go func() {
-			waitErr := c.Wait()
-			p.mu.Lock()
-			defer p.mu.Unlock()
-			p.stdout = stdout.String()
-			p.stderr = stderr.String()
-			p.done = true
-			if waitErr != nil {
-				p.err = waitErr
-				if exitErr, ok := waitErr.(*exec.ExitError); ok {
-					p.exitCode = exitErr.ExitCode()
-				} else {
-					p.exitCode = -1
-				}
-			} else {
-				p.exitCode = 0
-			}
-		}()
-
 		return recv
 	})
 
-	// wait — Block until async process completes, return self
+	// wait — Block until async process completes, return self. Waiting on a
+	// process that was never started is a programmer error (it would block
+	// forever), so it signals.
 	epClass.AddMethod0(vm.Selectors, "wait", func(v *VM, recv Value) Value {
 		p := v.vmGetExtProcess(recv)
 		if p == nil {
 			return Nil
 		}
-
-		// Spin-wait with short sleeps (process goroutine sets done)
-		for {
-			p.mu.Lock()
-			done := p.done
-			p.mu.Unlock()
-			if done {
-				break
-			}
-			time.Sleep(1 * time.Millisecond)
+		p.mu.Lock()
+		started, finished := p.started, p.finished
+		p.mu.Unlock()
+		if !started {
+			return v.SignalPrimitiveError("wait", "process was never started (send start first)")
 		}
-
+		<-finished
 		return recv
 	})
 
@@ -368,7 +313,7 @@ func (vm *VM) registerExecPrimitives() {
 		if p.cancel != nil {
 			p.cancel()
 		}
-		if p.cmd != nil && p.cmd.Process != nil {
+		if p.cmd != nil && p.cmd.Process != nil && !p.done {
 			p.cmd.Process.Kill()
 		}
 		return recv
@@ -384,7 +329,10 @@ func (vm *VM) registerExecPrimitives() {
 		if p == nil {
 			return Nil
 		}
-		return v.registry.NewStringValue(p.stdout)
+		p.mu.Lock()
+		out := p.stdout
+		p.mu.Unlock()
+		return v.registry.NewStringValue(out)
 	})
 
 	// stderr — Return captured stderr as string
@@ -393,7 +341,10 @@ func (vm *VM) registerExecPrimitives() {
 		if p == nil {
 			return Nil
 		}
-		return v.registry.NewStringValue(p.stderr)
+		p.mu.Lock()
+		errOut := p.stderr
+		p.mu.Unlock()
+		return v.registry.NewStringValue(errOut)
 	})
 
 	// exitCode — Return exit code (integer, -1 if not yet run or error)
@@ -402,7 +353,10 @@ func (vm *VM) registerExecPrimitives() {
 		if p == nil {
 			return Nil
 		}
-		return FromSmallInt(int64(p.exitCode))
+		p.mu.Lock()
+		code := p.exitCode
+		p.mu.Unlock()
+		return FromSmallInt(int64(code))
 	})
 
 	// isSuccess — Return true if exit code is 0
@@ -411,7 +365,10 @@ func (vm *VM) registerExecPrimitives() {
 		if p == nil {
 			return False
 		}
-		if p.done && p.exitCode == 0 {
+		p.mu.Lock()
+		ok := p.done && p.exitCode == 0
+		p.mu.Unlock()
+		if ok {
 			return True
 		}
 		return False
@@ -479,7 +436,10 @@ func buildEnv(overrides map[string]string) []string {
 	return env
 }
 
-// valueToStringArray converts an Array Value to a []string.
+// valueToStringArray converts an Array Value to a []string. String and Symbol
+// elements are kept even when empty — the empty string is a legitimate argv entry, and
+// dropping it would silently shift the remaining arguments. Elements of any
+// other class are skipped.
 func (vm *VM) valueToStringArray(v Value) []string {
 	arr := vm.getArrayValue(v)
 	if arr == nil {
@@ -487,9 +447,8 @@ func (vm *VM) valueToStringArray(v Value) []string {
 	}
 	result := make([]string, 0, len(arr))
 	for _, elem := range arr {
-		s := vm.valueToString(elem)
-		if s != "" {
-			result = append(result, s)
+		if IsStringValue(elem) || elem.IsSymbol() {
+			result = append(result, vm.valueToString(elem))
 		}
 	}
 	return result

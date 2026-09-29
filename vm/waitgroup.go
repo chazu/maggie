@@ -16,6 +16,24 @@ type WaitGroupObject struct {
 	counter atomic.Int32 // Track count for inspection
 }
 
+// tryDone decrements the counter by one, returning false (and leaving the
+// WaitGroup untouched) if it is already zero. sync.WaitGroup.Done below zero
+// panics 'negative WaitGroup counter' and crashes the goroutine, so every
+// decrement goes through this guard; the CAS loop keeps the mirror and the
+// real wg in lockstep.
+func (w *WaitGroupObject) tryDone() bool {
+	for {
+		cur := w.counter.Load()
+		if cur <= 0 {
+			return false
+		}
+		if w.counter.CompareAndSwap(cur, cur-1) {
+			w.wg.Done()
+			return true
+		}
+	}
+}
+
 func createWaitGroup() *WaitGroupObject {
 	return &WaitGroupObject{}
 }
@@ -77,19 +95,9 @@ func (vm *VM) registerWaitGroupPrimitives() {
 		if w == nil {
 			return Nil
 		}
-		// Guard: sync.WaitGroup.Done below zero panics 'negative WaitGroup
-		// counter' and crashes the goroutine. Only Done() when the counter is
-		// positive; the CAS loop keeps the mirror and the real wg in lockstep.
-		for {
-			cur := w.counter.Load()
-			if cur <= 0 {
-				return v.SignalPrimitiveError("done", "WaitGroup counter is already zero")
-			}
-			if w.counter.CompareAndSwap(cur, cur-1) {
-				break
-			}
+		if !w.tryDone() {
+			return v.SignalPrimitiveError("done", "WaitGroup counter is already zero")
 		}
-		w.wg.Done()
 		return recv
 	}
 	wg.AddMethod0(vm.Selectors, "done", doneFn)
@@ -101,7 +109,7 @@ func (vm *VM) registerWaitGroupPrimitives() {
 		if w == nil {
 			return Nil
 		}
-		w.wg.Wait()
+		v.waitGroupKillable(&w.wg)
 		return recv
 	})
 
@@ -110,7 +118,7 @@ func (vm *VM) registerWaitGroupPrimitives() {
 		if w == nil {
 			return Nil
 		}
-		w.wg.Wait()
+		v.waitGroupKillable(&w.wg)
 		return recv
 	})
 
@@ -152,11 +160,17 @@ func (vm *VM) registerWaitGroupPrimitives() {
 		proc := v.createProcess()
 		procValue := v.registerProcess(proc)
 
+		// Restrictions MUST be computed here, on the caller's goroutine: on
+		// the new goroutine currentInterpreter() resolves to the main
+		// interpreter, and a forkRestricted: process would escape its sandbox.
+		hidden := v.inheritedHidden(nil)
+
 		go func() {
 			defer func() {
-				// Always call done, even if block panics
-				w.counter.Add(-1)
-				w.wg.Done()
+				// Always call done, even if block panics. Guarded: an extra
+				// `wg done` inside (or racing) the block may already have
+				// taken the counter to zero.
+				w.tryDone()
 
 				v.HandleForkedPanic(proc, recover())
 				v.unregisterInterpreter()
@@ -165,8 +179,8 @@ func (vm *VM) registerWaitGroupPrimitives() {
 			// newForkedInterpreter (not newInterpreter) so global writes go to
 			// a COW overlay and forkRestricted: hidden-global restrictions are
 			// inherited — otherwise a sandboxed process escapes via wrap:.
-			interp := v.newForkedInterpreter(v.inheritedHidden(nil))
-			interp.processID = proc.id
+			interp := v.newForkedInterpreter(hidden)
+			interp.bindProcess(proc)
 			v.registerInterpreter(interp)
 			result := interp.ExecuteBlockDetached(bv.Block, bv.Captures, nil, bv.HomeSelf, bv.HomeMethod)
 			// FinishProcess (not markDone) so the live-process index and name

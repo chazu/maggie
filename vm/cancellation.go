@@ -254,7 +254,7 @@ func (vm *VM) registerCancellationContextPrimitives() {
 		if ctx == nil {
 			return Nil
 		}
-		<-ctx.Done()
+		v.waitKillable(ctx.Done())
 		return recv
 	})
 

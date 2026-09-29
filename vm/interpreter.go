@@ -86,6 +86,11 @@ type Interpreter struct {
 	hidden      map[string]bool  // restricted global names (nil if unrestricted)
 	forked      bool             // true for forked interpreters (writes go to localWrites)
 	processID   uint64           // ID of the ProcessObject this interpreter belongs to (0 = main)
+	// proc is the process this interpreter runs (nil for the main and
+	// request interpreters, which cannot be killed). killDelivered is set
+	// once the kill has been raised, so ensure: blocks run during the unwind.
+	proc          *ProcessObject
+	killDelivered bool
 
 	// NLR unwinding state (replaces panic/recover for non-local returns)
 	unwinding    bool
@@ -423,6 +428,7 @@ func (i *Interpreter) signalMustBeBoolean(cond Value) {
 
 func (i *Interpreter) pushFrame(method *CompiledMethod, receiver Value, args []Value) {
 	i.checkFrameOverflow()
+	i.checkKilled()
 
 	i.fp++
 	if i.fp >= len(i.frames) {
@@ -463,6 +469,7 @@ func (i *Interpreter) pushFrame(method *CompiledMethod, receiver Value, args []V
 
 func (i *Interpreter) pushBlockFrame(block *BlockMethod, captures []Value, args []Value, homeFrame int, homeBP int, homeSelf Value, homeMethod *CompiledMethod) {
 	i.checkFrameOverflow()
+	i.checkKilled()
 
 	i.fp++
 	if i.fp >= len(i.frames) {
@@ -985,6 +992,10 @@ func (i *Interpreter) runFrame() Value {
 			offset := int16(binary.LittleEndian.Uint16(bc[frame.IP:]))
 			frame.IP += 2
 			frame.IP += int(offset)
+			if offset < 0 {
+				// Backward jump: an inlined loop that may never send.
+				i.checkKilled()
+			}
 
 		case OpJumpTrue:
 			offset := int16(binary.LittleEndian.Uint16(bc[frame.IP:]))

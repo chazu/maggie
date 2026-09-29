@@ -117,6 +117,28 @@ func (co *ChannelObject) SafeSend(val Value) bool { return co.safeSend(val) }
 // SafeTrySend attempts a non-blocking send.
 func (co *ChannelObject) SafeTrySend(val Value) bool { return co.safeTrySend(val) }
 
+// receiveKillable receives from ch for a primitive, unwinding early if the
+// calling process is killed.
+func (vm *VM) receiveKillable(ch *ChannelObject) (Value, bool) {
+	select {
+	case val, ok := <-ch.ch:
+		return val, ok
+	case <-vm.killSignal():
+		vm.abortIfKilled()
+		return Nil, false
+	}
+}
+
+// sendKillable sends on ch for a primitive (false if the channel closed),
+// unwinding early if the calling process is killed.
+func (vm *VM) sendKillable(ch *ChannelObject, val Value) bool {
+	sent, err := ch.sendCtx(vm.killCtx(), val)
+	if err != nil {
+		vm.abortIfKilled()
+	}
+	return sent
+}
+
 // Receive blocks until a value is received. Returns (value, ok).
 func (co *ChannelObject) Receive() (Value, bool) {
 	val, ok := <-co.ch
@@ -156,14 +178,23 @@ func (co *ChannelObject) TryReceive() (Value, bool, bool) {
 // Close closes the channel. Parked senders are woken via done and observe
 // the close as sent=false; ch itself is closed only after they vacate, so
 // close(co.ch) never races a parked sender.
+//
+// senders.Wait() runs AFTER releasing mu: a select with several send cases
+// registers them one at a time under mu, so waiting while holding mu would
+// deadlock against a select parked between two registrations. Dropping mu
+// early is safe because every send path (sendCtx, safeTrySend, select
+// registration) checks closed under mu before touching ch — once closed is
+// set no new sender can register or send, and the ones already registered
+// are covered by the Wait.
 func (co *ChannelObject) Close() {
 	co.mu.Lock()
-	defer co.mu.Unlock()
 	if co.closed.Load() {
+		co.mu.Unlock()
 		return
 	}
 	co.closed.Store(true)
 	close(co.done)
+	co.mu.Unlock()
 	co.senders.Wait()
 	close(co.ch)
 }
@@ -205,7 +236,7 @@ func (v *VM) runForkedBlock(proc *ProcessObject, hidden map[string]bool, bv *Blo
 			v.unregisterInterpreter()
 		}()
 		interp := v.newForkedInterpreter(hidden)
-		interp.processID = proc.id
+		interp.bindProcess(proc)
 		v.registerInterpreter(interp)
 		result := interp.ExecuteBlockDetached(bv.Block, bv.Captures, args, bv.HomeSelf, bv.HomeMethod)
 		v.FinishProcess(proc, ExitNormal(result))
@@ -270,7 +301,7 @@ func (p *ProcessObject) markDone(result Value, err error) {
 	p.mu.Lock()
 	p.result = result
 	p.err = err
-	p.exitReason = ExitReason{Normal: err == nil, Result: result, Error: err}
+	p.exitReason = ExitReason{Normal: err == nil, Result: result, Error: err, ExceptionValue: Nil}
 	p.state.Store(int32(ProcessTerminated))
 	p.mu.Unlock()
 	p.waitGroup.Done()
@@ -333,7 +364,7 @@ func (vm *VM) registerChannelPrimitives() {
 			return Nil // Can't send to closed channel
 		}
 		// A send on an unbuffered/full channel blocks until a receiver drains.
-		ok := ch.safeSend(val)
+		ok := v.sendKillable(ch, val)
 		if !ok {
 			return Nil // Channel closed between check and send
 		}
@@ -346,7 +377,7 @@ func (vm *VM) registerChannelPrimitives() {
 		if ch == nil {
 			return Nil
 		}
-		val, ok := <-ch.ch
+		val, ok := v.receiveKillable(ch)
 		if !ok {
 			return Nil // Channel closed
 		}
@@ -418,7 +449,7 @@ func (vm *VM) registerChannelPrimitives() {
 		if ch.closed.Load() {
 			return Nil
 		}
-		if !ch.safeSend(val) {
+		if !v.sendKillable(ch, val) {
 			return Nil
 		}
 		return recv
@@ -430,7 +461,7 @@ func (vm *VM) registerChannelPrimitives() {
 		if ch == nil {
 			return Nil
 		}
-		val, ok := <-ch.ch
+		val, ok := v.receiveKillable(ch)
 		if !ok {
 			return Nil
 		}
@@ -477,7 +508,7 @@ func (vm *VM) registerChannelPrimitives() {
 		if ch == nil {
 			return v.evaluateBlock(blockVal, nil)
 		}
-		val, ok := <-ch.ch
+		val, ok := v.receiveKillable(ch)
 		if !ok {
 			return v.evaluateBlock(blockVal, nil)
 		}
@@ -650,6 +681,7 @@ func (vm *VM) registerProcessPrimitives() {
 		if proc == nil {
 			return Nil
 		}
+		v.waitKillable(proc.done)
 		return proc.wait()
 	})
 
@@ -658,6 +690,7 @@ func (vm *VM) registerProcessPrimitives() {
 		if proc == nil {
 			return Nil
 		}
+		v.waitKillable(proc.done)
 		return proc.wait()
 	})
 
@@ -733,7 +766,7 @@ func (vm *VM) registerProcessPrimitives() {
 			return recv
 		}
 		duration := time.Duration(ms.SmallInt()) * time.Millisecond
-		time.Sleep(duration)
+		v.sleepKillable(duration)
 		return recv
 	})
 
@@ -997,6 +1030,8 @@ func (vm *VM) registerMailboxPrimitives() {
 		}
 		msg, ok := proc.mailbox.Receive()
 		if !ok {
+			// A kill closes the mailbox, which is what woke us.
+			v.abortIfKilled()
 			return Nil
 		}
 		return msg
@@ -1014,6 +1049,7 @@ func (vm *VM) registerMailboxPrimitives() {
 		ms := timeoutVal.SmallInt()
 		msg, ok := proc.mailbox.ReceiveTimeout(time.Duration(ms) * time.Millisecond)
 		if !ok {
+			v.abortIfKilled()
 			return Nil
 		}
 		return msg

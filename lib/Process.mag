@@ -29,7 +29,9 @@ Process subclass: Object
 
   """
   Terminate the process. The process will stop executing and
-  its result will be nil.
+  its result will be nil. It stops promptly even when parked in a
+  blocking operation (channel, sleep, lock, wait); its ensure: blocks
+  run as it unwinds, and no on:do: handler can catch the termination.
 
   ```example
   | p <Process> |

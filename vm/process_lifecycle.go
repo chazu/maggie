@@ -1,10 +1,158 @@
 package vm
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"os"
 	"runtime/debug"
+	"sync"
+	"time"
 )
+
+// processKilled is the panic value that unwinds a process's goroutine once
+// the process has been finished from outside (terminate, a linked exit, node
+// death). Go cannot stop a goroutine, so the process stops itself: the
+// interpreter checks at every frame push and backward jump, and blocking
+// primitives wake on the process's done channel. It is not a Maggie
+// exception — on:do: never catches it — but ensure: blocks run as it passes.
+type processKilled struct{}
+
+// bindProcess ties a forked interpreter to the process it runs, so that
+// finishing the process from outside stops it.
+func (i *Interpreter) bindProcess(proc *ProcessObject) {
+	i.processID = proc.id
+	i.proc = proc
+}
+
+// checkKilled raises processKilled once the interpreter's process has been
+// finished. After the first raise it is inert, so the ensure: blocks run
+// while unwinding are not killed in turn.
+func (i *Interpreter) checkKilled() {
+	if p := i.proc; p != nil && !i.killDelivered && p.finished.Load() {
+		i.killDelivered = true
+		panic(processKilled{})
+	}
+}
+
+// killSignal returns a channel that is closed once the current process has
+// been killed, for blocking primitives to select on; nil (never ready) when
+// the caller cannot be killed or is already unwinding from a kill.
+func (vm *VM) killSignal() <-chan struct{} {
+	i := vm.currentInterpreter()
+	if i == nil || i.proc == nil || i.killDelivered {
+		return nil
+	}
+	return i.proc.done
+}
+
+// abortIfKilled unwinds the current process if it has been killed. Blocking
+// primitives call it after waking so a killed process does not carry on.
+func (vm *VM) abortIfKilled() {
+	if i := vm.currentInterpreter(); i != nil {
+		i.checkKilled()
+	}
+}
+
+// errProcessKilled is the Err of a killContext once its process is killed.
+var errProcessKilled = errors.New("process killed")
+
+// killContext adapts a process's kill signal to context.Context, for blocking
+// helpers that already take a context (channel send/receive).
+type killContext struct{ kill <-chan struct{} }
+
+func (killContext) Deadline() (time.Time, bool) { return time.Time{}, false }
+func (c killContext) Done() <-chan struct{}     { return c.kill }
+func (killContext) Value(any) any               { return nil }
+func (c killContext) Err() error {
+	select {
+	case <-c.kill:
+		return errProcessKilled
+	default:
+		return nil
+	}
+}
+
+// killCtx returns a context cancelled when the current process is killed, or
+// nil (block without one) when the caller cannot be killed.
+func (vm *VM) killCtx() context.Context {
+	if kill := vm.killSignal(); kill != nil {
+		return killContext{kill}
+	}
+	return nil
+}
+
+// sleepKillable sleeps for d, unwinding early if the process is killed.
+func (vm *VM) sleepKillable(d time.Duration) {
+	kill := vm.killSignal()
+	if kill == nil {
+		time.Sleep(d)
+		return
+	}
+	t := time.NewTimer(d)
+	defer t.Stop()
+	select {
+	case <-t.C:
+	case <-kill:
+		vm.abortIfKilled()
+	}
+}
+
+// waitKillable blocks until done is closed, unwinding early if the process is
+// killed.
+func (vm *VM) waitKillable(done <-chan struct{}) {
+	select {
+	case <-done:
+	case <-vm.killSignal():
+		vm.abortIfKilled()
+	}
+}
+
+// waitGroupKillable waits for wg, unwinding early if the process is killed.
+// sync.WaitGroup cannot be selected on, so a killable caller waits through a
+// helper goroutine that lingers until the group completes.
+func (vm *VM) waitGroupKillable(wg *sync.WaitGroup) {
+	kill := vm.killSignal()
+	if kill == nil {
+		wg.Wait()
+		return
+	}
+	done := make(chan struct{})
+	go func() {
+		wg.Wait()
+		close(done)
+	}()
+	vm.waitKillable(done)
+}
+
+// lockKillable acquires mu, unwinding early if the process is killed. A
+// contended lock by a killable caller is taken on a helper goroutine; if the
+// kill wins, the helper releases the lock as soon as it gets it, so a killed
+// process never ends up holding it.
+func (vm *VM) lockKillable(mu *sync.Mutex) {
+	if mu.TryLock() {
+		return
+	}
+	kill := vm.killSignal()
+	if kill == nil {
+		mu.Lock()
+		return
+	}
+	acquired := make(chan struct{})
+	go func() {
+		mu.Lock()
+		close(acquired)
+	}()
+	select {
+	case <-acquired:
+	case <-kill:
+		go func() {
+			<-acquired
+			mu.Unlock()
+		}()
+		vm.abortIfKilled()
+	}
+}
 
 // HandleForkedPanic is the standard recover() handler for goroutines spawned
 // by fork primitives. If r is nil it is a no-op. NonLocalReturn panics are
@@ -14,6 +162,9 @@ import (
 func (vm *VM) HandleForkedPanic(proc *ProcessObject, r interface{}) {
 	if r == nil {
 		return
+	}
+	if _, ok := r.(processKilled); ok {
+		return // already finished by whoever killed it
 	}
 	if nlr, ok := r.(NonLocalReturn); ok {
 		vm.FinishProcess(proc, ExitNormal(nlr.Value))
@@ -156,9 +307,9 @@ func (vm *VM) deliverExitSignal(target *ProcessObject, from *ProcessObject, reas
 		}
 	} else {
 		// Kill the target process with a "linked" signal.
-		// Note: Go goroutines can't be forcibly stopped. The goroutine
-		// continues until it hits a yield point (receive, sleep, etc.)
-		// and notices it's been terminated.
+		// Go cannot stop a goroutine from outside: the target unwinds
+		// itself at its next frame push, backward jump, or blocking
+		// primitive (see processKilled).
 		linkedReason := ExitSignal("linked", reason.Result)
 		vm.FinishProcess(target, linkedReason)
 	}

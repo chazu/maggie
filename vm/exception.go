@@ -703,6 +703,9 @@ func (vm *VM) executeProtectedBlock(
 	func() {
 		defer func() {
 			if r := recover(); r != nil {
+				if _, killed := r.(processKilled); killed {
+					panic(r) // a kill is not an exception: no handler catches it
+				}
 				if sigEx, ok := r.(SignaledException); ok {
 					// Exception was signaled - check if our handler handles it
 					if interp.isKindOf(sigEx.Object.ExceptionClass, exceptionClass) {
@@ -957,20 +960,20 @@ func (vm *VM) evaluateBlockIfCurtailed(blockVal Value, curtailBlock Value) Value
 	}
 
 	// NLR unwinding through us — curtailed, so run the curtail block
-	if vm.interpreter.unwinding {
-		savedValue := vm.interpreter.unwindValue
-		savedTarget := vm.interpreter.unwindTarget
-		vm.interpreter.unwinding = false
+	if interp.unwinding {
+		savedValue := interp.unwindValue
+		savedTarget := interp.unwindTarget
+		interp.unwinding = false
 
 		if cbv != nil {
-			vm.interpreter.ExecuteBlock(cbv.Block, cbv.Captures, nil, cbv.HomeFrame, cbv.HomeSelf, cbv.HomeMethod)
+			interp.ExecuteBlock(cbv.Block, cbv.Captures, nil, cbv.HomeFrame, cbv.HomeSelf, cbv.HomeMethod)
 		}
 
 		// Restore unwinding state (curtail block's own NLR replaces if it did one)
-		if !vm.interpreter.unwinding {
-			vm.interpreter.unwinding = true
-			vm.interpreter.unwindValue = savedValue
-			vm.interpreter.unwindTarget = savedTarget
+		if !interp.unwinding {
+			interp.unwinding = true
+			interp.unwindValue = savedValue
+			interp.unwindTarget = savedTarget
 		}
 		return Nil
 	}

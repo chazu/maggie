@@ -451,7 +451,7 @@ func (vm *VM) ExecuteSpawnBlock(sb *SpawnBlock, restrictions []string, pullFunc 
 		}()
 
 		interp := vm.newForkedInterpreter(hidden)
-		interp.processID = proc.id
+		interp.bindProcess(proc)
 		vm.registerInterpreter(interp)
 
 		var result Value

@@ -4,6 +4,7 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+	"time"
 )
 
 // epClass returns the ExternalProcess class value from the VM globals.
@@ -334,5 +335,136 @@ func TestExecKill(t *testing.T) {
 	isDone := vm.Send(proc, "isDone", nil)
 	if isDone != True {
 		t.Error("expected isDone after kill + wait")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Regression tests: locking, wait-without-start, empty args, run:args: failure
+// ---------------------------------------------------------------------------
+
+// TestExecKillDuringRun guards the regression where run held p.mu across
+// c.Run(), so kill blocked on the same lock until the child exited on its own
+// (and could not have found p.cmd anyway).
+func TestExecKillDuringRun(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("needs sleep")
+	}
+	vm := NewVM()
+	proc := vm.Send(epClass(vm), "command:args:", []Value{
+		vm.registry.NewStringValue("sleep"),
+		vm.NewArrayWithElements([]Value{vm.registry.NewStringValue("30")}),
+	})
+
+	runDone := make(chan struct{})
+	go func() {
+		defer close(runDone)
+		vm.Send(proc, "run", nil)
+	}()
+	time.Sleep(200 * time.Millisecond) // let run start the child
+
+	killDone := make(chan struct{})
+	go func() {
+		defer close(killDone)
+		vm.Send(proc, "kill", nil)
+	}()
+	select {
+	case <-killDone:
+	case <-time.After(5 * time.Second):
+		t.Fatal("kill blocked while run was in progress")
+	}
+	select {
+	case <-runDone:
+	case <-time.After(5 * time.Second):
+		t.Fatal("run did not return after kill")
+	}
+	if code := vm.Send(proc, "exitCode", nil); code == FromSmallInt(0) {
+		t.Error("killed process should not report exit code 0")
+	}
+}
+
+// TestExecWaitWithoutStartDoesNotHang guards the regression where wait on a
+// never-started process spun forever. It must signal a catchable Error.
+func TestExecWaitWithoutStartDoesNotHang(t *testing.T) {
+	vm := NewVM()
+	proc := vm.Send(epClass(vm), "command:", []Value{vm.registry.NewStringValue("true")})
+
+	result := make(chan any, 1)
+	go func() {
+		defer func() { result <- recover() }()
+		vm.Send(proc, "wait", nil)
+	}()
+	select {
+	case r := <-result:
+		if _, ok := r.(SignaledException); !ok {
+			t.Fatalf("wait before start: expected SignaledException, got %T: %v", r, r)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("wait on a never-started process hung")
+	}
+}
+
+// TestExecAccessorsWhileRunningRaceFree guards the regression where
+// stdout/stderr/exitCode/isSuccess read fields the wait goroutine writes,
+// without the lock. Run under -race.
+func TestExecAccessorsWhileRunningRaceFree(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("needs echo")
+	}
+	vm := NewVM()
+	proc := vm.Send(epClass(vm), "command:args:", []Value{
+		vm.registry.NewStringValue("echo"),
+		vm.NewArrayWithElements([]Value{vm.registry.NewStringValue("hi")}),
+	})
+	vm.Send(proc, "start", nil)
+	deadline := time.Now().Add(5 * time.Second)
+	for vm.Send(proc, "isDone", nil) != True && time.Now().Before(deadline) {
+		vm.Send(proc, "stdout", nil)
+		vm.Send(proc, "stderr", nil)
+		vm.Send(proc, "exitCode", nil)
+		vm.Send(proc, "isSuccess", nil)
+	}
+	vm.Send(proc, "wait", nil)
+	if vm.Send(proc, "isSuccess", nil) != True {
+		t.Error("echo should succeed")
+	}
+}
+
+// TestExecEmptyStringArgPreserved guards the regression where
+// valueToStringArray dropped empty-string elements, silently shifting argv.
+func TestExecEmptyStringArgPreserved(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("needs printf")
+	}
+	vm := NewVM()
+	s := vm.registry.NewStringValue
+	proc := vm.Send(epClass(vm), "command:args:", []Value{
+		s("printf"),
+		vm.NewArrayWithElements([]Value{s("%s|"), s("a"), s(""), s("b")}),
+	})
+	vm.Send(proc, "run", nil)
+	out := vm.registry.GetStringContent(vm.Send(proc, "stdout", nil))
+	if out != "a||b|" {
+		t.Errorf("expected empty arg to be preserved (%q), got %q", "a||b|", out)
+	}
+}
+
+// TestExecRunArgsFailureMessage checks run:args: reports the exit code and
+// stderr in its Failure (it used to build a details Dictionary and discard it).
+func TestExecRunArgsFailureMessage(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("needs sh")
+	}
+	vm := NewVM()
+	s := vm.registry.NewStringValue
+	result := vm.Send(epClass(vm), "run:args:", []Value{
+		s("sh"),
+		vm.NewArrayWithElements([]Value{s("-c"), s("echo oops >&2; exit 3")}),
+	})
+	if vm.Send(result, "isFailure", nil) != True {
+		t.Fatal("expected Failure")
+	}
+	msg := vm.registry.GetStringContent(vm.Send(result, "error", nil))
+	if !strings.Contains(msg, "3") || !strings.Contains(msg, "oops") {
+		t.Errorf("failure message should carry exit code and stderr, got %q", msg)
 	}
 }

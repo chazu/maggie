@@ -14,6 +14,21 @@ type MutexObject struct {
 	vtable *VTable
 	mu     sync.Mutex
 	locked atomic.Bool // Track if locked (for tryLock and debugging)
+
+	// owner is a token unique to the current acquisition (0 = unlocked). It
+	// lets critical:'s cleanup release only the acquisition it made: if the
+	// block unlocks the mutex itself (and another process then takes it),
+	// the cleanup must neither double-unlock nor release the new holder.
+	owner   atomic.Uint64
+	nextTok atomic.Uint64
+}
+
+// acquired records a fresh acquisition. Caller must hold mu.mu.
+func (mu *MutexObject) acquired() uint64 {
+	tok := mu.nextTok.Add(1)
+	mu.owner.Store(tok)
+	mu.locked.Store(true)
+	return tok
 }
 
 func createMutex() *MutexObject {
@@ -45,8 +60,8 @@ func (vm *VM) registerMutexPrimitives() {
 		if mu == nil {
 			return Nil
 		}
-		mu.mu.Lock()
-		mu.locked.Store(true)
+		v.lockKillable(&mu.mu)
+		mu.acquired()
 		return recv
 	}
 	m.AddMethod0(vm.Selectors, "lock", lockFn)
@@ -65,6 +80,7 @@ func (vm *VM) registerMutexPrimitives() {
 		if !mu.locked.CompareAndSwap(true, false) {
 			return v.SignalPrimitiveError("unlock", "mutex is not locked")
 		}
+		mu.owner.Store(0)
 		mu.mu.Unlock()
 		return recv
 	}
@@ -79,7 +95,7 @@ func (vm *VM) registerMutexPrimitives() {
 			return False
 		}
 		if mu.mu.TryLock() {
-			mu.locked.Store(true)
+			mu.acquired()
 			return True
 		}
 		return False
@@ -114,11 +130,17 @@ func (vm *VM) registerMutexPrimitives() {
 			return Nil
 		}
 
-		mu.mu.Lock()
-		mu.locked.Store(true)
+		v.lockKillable(&mu.mu)
+		tok := mu.acquired()
 		defer func() {
-			mu.locked.Store(false)
-			mu.mu.Unlock()
+			// Release only our own acquisition: `m critical: [m unlock]`
+			// already released it, and an unconditional Unlock here would be
+			// Go's uncatchable 'unlock of unlocked mutex' fatal error (or
+			// would release another process that has since locked m).
+			if mu.owner.CompareAndSwap(tok, 0) {
+				mu.locked.Store(false)
+				mu.mu.Unlock()
+			}
 		}()
 
 		// Execute the block using ExecuteBlockDetached to avoid stale

@@ -119,6 +119,16 @@ func (vm *VM) primitiveSelectLocal(cases []SelectCase, defaultHandler Value) Val
 			return Nil
 		}
 
+		// A killed process must not stay parked in the select.
+		killIdx := -1
+		if kill := vm.killSignal(); kill != nil && !hasDefault {
+			killIdx = len(reflectCases)
+			reflectCases = append(reflectCases, reflect.SelectCase{
+				Dir:  reflect.SelectRecv,
+				Chan: reflect.ValueOf(kill),
+			})
+		}
+
 		if hasDefault {
 			reflectCases = append(reflectCases, reflect.SelectCase{
 				Dir: reflect.SelectDefault,
@@ -130,6 +140,10 @@ func (vm *VM) primitiveSelectLocal(cases []SelectCase, defaultHandler Value) Val
 		// Vacate the sendq before anything else so Close() can proceed.
 		for _, co := range registered {
 			co.senders.Done()
+		}
+		if chosen == killIdx {
+			vm.abortIfKilled()
+			return Nil
 		}
 
 		if hasDefault && chosen == len(reflectCases)-1 {
@@ -201,7 +215,7 @@ func (vm *VM) primitiveSelectMixed(cases []SelectCase, defaultHandler Value) Val
 		}
 
 		// Backoff and retry
-		time.Sleep(wait)
+		vm.sleepKillable(wait)
 		if wait < maxWait {
 			wait *= 2
 			if wait > maxWait {

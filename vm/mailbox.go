@@ -77,19 +77,17 @@ func (m *Mailbox) ReceiveTimeout(timeout time.Duration) (Value, bool) {
 		if remaining <= 0 {
 			return Nil, false
 		}
-		// Timer goroutine wakes us on timeout
-		done := make(chan struct{})
-		go func() {
-			timer := time.NewTimer(remaining)
-			defer timer.Stop()
-			select {
-			case <-timer.C:
-				m.cond.Broadcast()
-			case <-done:
-			}
-		}()
+		// Timer wakes us on timeout. It MUST Broadcast under m.mu: we hold mu
+		// until cond.Wait atomically releases it, so taking mu guarantees the
+		// Broadcast lands after we are on the wait list. An unlocked Broadcast
+		// could fire before Wait and the wakeup would be lost (a hang).
+		timer := time.AfterFunc(remaining, func() {
+			m.mu.Lock()
+			m.cond.Broadcast()
+			m.mu.Unlock()
+		})
 		m.cond.Wait()
-		close(done)
+		timer.Stop()
 	}
 	if m.count == 0 {
 		return Nil, false

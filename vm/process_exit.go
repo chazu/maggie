@@ -9,22 +9,26 @@ type ExitReason struct {
 	ExceptionValue Value  // the exception Value if the process died from a SignaledException
 }
 
+// Every constructor sets unused Value fields to Nil explicitly: the zero Value
+// is NOT nil (it decodes as the Float 0.0), so `[nil foo] fork wait` would
+// otherwise answer 0.0.
+
 // ExitNormal creates a normal exit reason.
 func ExitNormal(result Value) ExitReason {
-	return ExitReason{Normal: true, Result: result}
+	return ExitReason{Normal: true, Result: result, ExceptionValue: Nil}
 }
 
 // ExitError creates an error exit reason.
 func ExitError(err error) ExitReason {
-	return ExitReason{Normal: false, Error: err}
+	return ExitReason{Normal: false, Error: err, Result: Nil, ExceptionValue: Nil}
 }
 
 // ExitException creates an exit reason from a Maggie exception.
 func ExitException(err error, exVal Value) ExitReason {
-	return ExitReason{Normal: false, Error: err, ExceptionValue: exVal}
+	return ExitReason{Normal: false, Error: err, Result: Nil, ExceptionValue: exVal}
 }
 
 // ExitSignal creates a signal-based exit reason (for link propagation).
 func ExitSignal(signal string, originResult Value) ExitReason {
-	return ExitReason{Normal: false, Signal: signal, Result: originResult}
+	return ExitReason{Normal: false, Signal: signal, Result: originResult, ExceptionValue: Nil}
 }
