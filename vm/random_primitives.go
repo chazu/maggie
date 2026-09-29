@@ -3,6 +3,7 @@ package vm
 import (
 	"math/rand/v2"
 	"reflect"
+	"sync"
 )
 
 // ---------------------------------------------------------------------------
@@ -10,7 +11,28 @@ import (
 // ---------------------------------------------------------------------------
 // Random provides random number generation. Class methods use the global
 // source (auto-seeded by the runtime). Instance methods use a per-instance
-// *rand.Rand stored via GoObjectWrapper.
+// *rand.Rand stored via GoObjectWrapper, backed by a lockedSource because an
+// instance can be shared by concurrently forked processes.
+
+// lockedSource serializes access to a rand.Source. rand.Rand keeps all of
+// its state in its Source, so a Rand over a lockedSource is safe for
+// concurrent use.
+type lockedSource struct {
+	mu  sync.Mutex
+	src rand.Source
+}
+
+func (s *lockedSource) Uint64() uint64 {
+	s.mu.Lock()
+	n := s.src.Uint64()
+	s.mu.Unlock()
+	return n
+}
+
+// newLockedRand returns a concurrency-safe *rand.Rand over src.
+func newLockedRand(src rand.Source) *rand.Rand {
+	return rand.New(&lockedSource{src: src})
+}
 
 func (vm *VM) registerRandomPrimitives() {
 	c := vm.RandomClass
@@ -60,7 +82,7 @@ func (vm *VM) registerRandomPrimitives() {
 
 	// Random new → auto-seeded instance
 	c.AddClassMethod0(vm.Selectors, "new", func(v *VM, _ Value) Value {
-		rng := rand.New(rand.NewPCG(rand.Uint64(), rand.Uint64()))
+		rng := newLockedRand(rand.NewPCG(rand.Uint64(), rand.Uint64()))
 		return v.wrapRandom(rng)
 	})
 
@@ -72,7 +94,7 @@ func (vm *VM) registerRandomPrimitives() {
 		} else {
 			return Nil
 		}
-		rng := rand.New(rand.NewPCG(seed, seed))
+		rng := newLockedRand(rand.NewPCG(seed, seed))
 		return v.wrapRandom(rng)
 	})
 

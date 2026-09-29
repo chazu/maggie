@@ -472,14 +472,16 @@ String subclass: Collection
   ]
 
   """
-  Return a quoted string representation suitable for display.
+  Return a quoted string representation suitable for display. Embedded
+  single quotes are doubled, so the result reads back as the same literal.
 
   ```test
   'hello' printString >>> '''hello'''
+  'it''s' printString >>> '''it''''s'''
   ```
   """
   method: printString ^<String> [
-      ^'''', self, ''''
+      ^'''', (self replaceAll: '''' with: ''''''), ''''
   ]
 
   """

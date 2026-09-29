@@ -1,6 +1,7 @@
 package vm
 
 import (
+	"math/big"
 	"reflect"
 	"time"
 )
@@ -25,7 +26,8 @@ func (vm *VM) registerDateTimePrimitives() {
 		return v.wrapDateTime(&now)
 	})
 
-	// DateTime parse: str format: fmt — parse a time string
+	// DateTime parse: str format: fmt — parse a time string. Answers Success
+	// wrapping the DateTime, or Failure when the string does not match.
 	dtClass.AddClassMethod2(vm.Selectors, "parse:format:", func(v *VM, recv Value, strVal Value, fmtVal Value) Value {
 		str := v.valueToString(strVal)
 		format := v.valueToString(fmtVal)
@@ -36,10 +38,11 @@ func (vm *VM) registerDateTimePrimitives() {
 		if err != nil {
 			return v.newFailureResult("DateTime parse:format: " + err.Error())
 		}
-		return v.wrapDateTime(&t)
+		return v.newSuccessResult(v.wrapDateTime(&t))
 	})
 
-	// DateTime fromEpoch: seconds — from Unix epoch seconds
+	// DateTime fromEpoch: seconds — from Unix epoch seconds. A non-number is
+	// a programmer error and signals (CONVENTIONS §1).
 	dtClass.AddClassMethod1(vm.Selectors, "fromEpoch:", func(v *VM, recv Value, epochVal Value) Value {
 		var secs int64
 		if epochVal.IsSmallInt() {
@@ -47,7 +50,7 @@ func (vm *VM) registerDateTimePrimitives() {
 		} else if epochVal.IsFloat() {
 			secs = int64(epochVal.Float64())
 		} else {
-			return v.newFailureResult("DateTime fromEpoch: requires a number")
+			return v.SignalPrimitiveError("DateTime fromEpoch:", "argument must be a number")
 		}
 		t := time.Unix(secs, 0).UTC()
 		return v.wrapDateTime(&t)
@@ -111,7 +114,8 @@ func (vm *VM) registerDateTimePrimitives() {
 		return FromSmallInt(int64(t.Second()))
 	})
 
-	// format: layoutStr — format using Go layout string
+	// format: layoutStr — format using Go layout string. Formatting cannot
+	// fail; a missing/non-String layout is a programmer error and signals.
 	dtClass.AddMethod1(vm.Selectors, "format:", func(v *VM, recv Value, fmtVal Value) Value {
 		t := v.unwrapDateTime(recv)
 		if t == nil {
@@ -119,7 +123,7 @@ func (vm *VM) registerDateTimePrimitives() {
 		}
 		layout := v.valueToString(fmtVal)
 		if layout == "" {
-			return v.newFailureResult("DateTime format: requires a non-empty layout string")
+			return v.SignalPrimitiveError("DateTime format:", "layout must be a non-empty String")
 		}
 		return v.registry.NewStringValue(t.Format(layout))
 	})
@@ -130,7 +134,7 @@ func (vm *VM) registerDateTimePrimitives() {
 		if t == nil {
 			return Nil
 		}
-		return FromSmallInt(t.Unix())
+		return v.registry.NewIntegerValue(t.Unix())
 	})
 
 	// epochMillis — Unix timestamp in milliseconds
@@ -139,7 +143,7 @@ func (vm *VM) registerDateTimePrimitives() {
 		if t == nil {
 			return Nil
 		}
-		return FromSmallInt(t.UnixMilli())
+		return v.registry.NewIntegerValue(t.UnixMilli())
 	})
 
 	// addSeconds: n — return new DateTime offset by n seconds
@@ -148,9 +152,7 @@ func (vm *VM) registerDateTimePrimitives() {
 		if t == nil {
 			return Nil
 		}
-		n := v.valueToInt(nVal)
-		result := t.Add(time.Duration(n) * time.Second)
-		return v.wrapDateTime(&result)
+		return v.dateTimeAddSeconds("addSeconds:", *t, v.valueToInt(nVal), 1)
 	})
 
 	// addMinutes: n — return new DateTime offset by n minutes
@@ -159,9 +161,7 @@ func (vm *VM) registerDateTimePrimitives() {
 		if t == nil {
 			return Nil
 		}
-		n := v.valueToInt(nVal)
-		result := t.Add(time.Duration(n) * time.Minute)
-		return v.wrapDateTime(&result)
+		return v.dateTimeAddSeconds("addMinutes:", *t, v.valueToInt(nVal), 60)
 	})
 
 	// addHours: n — return new DateTime offset by n hours
@@ -170,9 +170,7 @@ func (vm *VM) registerDateTimePrimitives() {
 		if t == nil {
 			return Nil
 		}
-		n := v.valueToInt(nVal)
-		result := t.Add(time.Duration(n) * time.Hour)
-		return v.wrapDateTime(&result)
+		return v.dateTimeAddSeconds("addHours:", *t, v.valueToInt(nVal), 3600)
 	})
 
 	// addDays: n — return new DateTime offset by n days
@@ -193,8 +191,7 @@ func (vm *VM) registerDateTimePrimitives() {
 		if t == nil || other == nil {
 			return Nil
 		}
-		diff := t.Sub(*other)
-		return FromSmallInt(int64(diff.Seconds()))
+		return v.dateTimeDifferenceSeconds(*t, *other)
 	})
 
 	// printString — ISO 8601 representation
@@ -215,7 +212,9 @@ func (vm *VM) registerDateTimePrimitives() {
 func (vm *VM) wrapDateTime(t *time.Time) Value {
 	val, err := vm.RegisterGoObject(t)
 	if err != nil {
-		return vm.newFailureResult("DateTime wrap error: " + err.Error())
+		// Internal error (DateTime type not registered): not an expected
+		// failure, so signal rather than smuggle a Failure into a DateTime slot.
+		return vm.SignalPrimitiveError("DateTime", "wrap error: "+err.Error())
 	}
 	return val
 }
@@ -231,6 +230,37 @@ func (vm *VM) unwrapDateTime(v Value) *time.Time {
 		return nil
 	}
 	return t
+}
+
+// dateTimeAddSeconds answers t offset by n*unit seconds. It works in Unix
+// seconds rather than time.Duration, which overflows past ~292 years (the
+// offset silently wrapped around); a result time.Time cannot hold signals.
+func (vm *VM) dateTimeAddSeconds(selector string, t time.Time, n, unit int64) Value {
+	delta := new(big.Int).Mul(big.NewInt(n), big.NewInt(unit))
+	secs := delta.Add(delta, big.NewInt(t.Unix()))
+	// time.Time wraps silently near the int64 limits, so check the round trip.
+	var result time.Time
+	if secs.IsInt64() {
+		result = time.Unix(secs.Int64(), int64(t.Nanosecond())).In(t.Location())
+	}
+	if !secs.IsInt64() || result.Unix() != secs.Int64() {
+		return vm.SignalPrimitiveError(selector, "result is out of the representable time range")
+	}
+	return vm.wrapDateTime(&result)
+}
+
+// dateTimeDifferenceSeconds answers (t - other) in whole seconds, truncated
+// toward zero. Unlike t.Sub, it does not saturate at ~292 years.
+func (vm *VM) dateTimeDifferenceSeconds(t, other time.Time) Value {
+	secs := new(big.Int).Sub(big.NewInt(t.Unix()), big.NewInt(other.Unix()))
+	nanos := t.Nanosecond() - other.Nanosecond()
+	switch {
+	case secs.Sign() > 0 && nanos < 0:
+		secs.Sub(secs, big.NewInt(1))
+	case secs.Sign() < 0 && nanos > 0:
+		secs.Add(secs, big.NewInt(1))
+	}
+	return vm.registry.NewBigIntValue(secs)
 }
 
 // valueToInt extracts an integer from a Value (SmallInt or Float).

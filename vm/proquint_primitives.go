@@ -1,6 +1,8 @@
 package vm
 
 import (
+	"math/big"
+
 	"github.com/chazu/goquint"
 )
 
@@ -23,16 +25,26 @@ func (vm *VM) registerProquintPrimitives() {
 		return v.registry.NewStringValue(result)
 	})
 
-	// Proquint encode64: anInteger — encode a 64-bit integer as proquint string
+	// Proquint encode64: anInteger — encode a 64-bit integer as proquint string.
+	// Accepts BigIntegers up to 2^64-1 so decode64: results round-trip.
 	c.AddClassMethod1(vm.Selectors, "encode64:", func(v *VM, recv Value, arg Value) Value {
-		if !arg.IsSmallInt() {
+		var n uint64
+		switch {
+		case arg.IsSmallInt():
+			if arg.SmallInt() < 0 {
+				return Nil
+			}
+			n = uint64(arg.SmallInt())
+		case IsBigIntValue(arg):
+			b := v.registry.GetBigInt(arg)
+			if b == nil || b.Value.Sign() < 0 || !b.Value.IsUint64() {
+				return Nil
+			}
+			n = b.Value.Uint64()
+		default:
 			return Nil
 		}
-		n := arg.SmallInt()
-		if n < 0 {
-			return Nil
-		}
-		result := goquint.Encode64(uint64(n))
+		result := goquint.Encode64(n)
 		return v.registry.NewStringValue(result)
 	})
 
@@ -59,7 +71,8 @@ func (vm *VM) registerProquintPrimitives() {
 		if err != nil {
 			return Nil
 		}
-		return FromSmallInt(int64(n))
+		// Up to 2^64-1: promote beyond the SmallInteger range.
+		return v.registry.NewBigIntValue(new(big.Int).SetUint64(n))
 	})
 
 	// Proquint random — generate a random 32-bit proquint

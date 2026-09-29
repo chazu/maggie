@@ -167,10 +167,17 @@ func (vm *VM) registerBigIntegerPrimitives() {
 			return Nil
 		}
 		if b.Sign() == 0 {
-			return Nil
+			return v.SignalZeroDivide()
 		}
-		result := new(big.Int).Div(a, b) // Div is Euclidean/floor division in math/big
-		return v.registry.NewBigIntValue(result)
+		// Floor division, matching SmallInteger //. math/big's Div is
+		// Euclidean (differs from floor when b < 0), so start from the
+		// truncated quotient and step down when the signs differ and the
+		// division is inexact.
+		q, r := new(big.Int).QuoRem(a, b, new(big.Int))
+		if r.Sign() != 0 && (r.Sign() < 0) != (b.Sign() < 0) {
+			q.Sub(q, big.NewInt(1))
+		}
+		return v.registry.NewBigIntValue(q)
 	})
 
 	// Comparison: <

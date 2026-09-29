@@ -57,7 +57,11 @@ func TestDateTimeParseFormat(t *testing.T) {
 	dt := getDateTimeClass(v)
 	str := v.registry.NewStringValue("2025-06-15 14:30:45")
 	layout := v.registry.NewStringValue("2006-01-02 15:04:05")
-	result := v.Send(dt, "parse:format:", []Value{str, layout})
+	parsed := v.Send(dt, "parse:format:", []Value{str, layout})
+	if !isResultValue(parsed) || v.Send(parsed, "isSuccess", nil) != True {
+		t.Fatal("parse:format: should answer a Success on a valid date")
+	}
+	result := v.Send(parsed, "value", nil)
 
 	tests := []struct {
 		sel  string
@@ -86,7 +90,7 @@ func TestDateTimeFormat(t *testing.T) {
 	dt := getDateTimeClass(v)
 	str := v.registry.NewStringValue("2025-03-14")
 	layout := v.registry.NewStringValue("2006-01-02")
-	result := v.Send(dt, "parse:format:", []Value{str, layout})
+	result := v.Send(v.Send(dt, "parse:format:", []Value{str, layout}), "value", nil)
 
 	outLayout := v.registry.NewStringValue("01/02/2006")
 	formatted := v.Send(result, "format:", []Value{outLayout})
@@ -191,7 +195,33 @@ func TestDateTimeParseInvalid(t *testing.T) {
 	result := v.Send(dt, "parse:format:", []Value{str, layout})
 
 	// Should return a Failure result, not a GoObject
-	if !isResultValue(result) {
+	if !isResultValue(result) || v.Send(result, "isFailure", nil) != True {
 		t.Fatal("parsing invalid date should return a Result (Failure)")
+	}
+}
+
+// format: can only fail on a bad layout argument -- a programmer error -- so
+// it signals instead of answering an untagged String | Failure union.
+func TestDateTimeFormatBadLayoutSignals(t *testing.T) {
+	v := NewVM()
+	defer v.Shutdown()
+	epoch := v.Send(getDateTimeClass(v), "fromEpoch:", []Value{FromSmallInt(0)})
+	for _, arg := range []Value{v.registry.NewStringValue(""), FromSmallInt(3)} {
+		if _, signaled := signalsPrimitiveError(v, func() {
+			v.Send(epoch, "format:", []Value{arg})
+		}); !signaled {
+			t.Errorf("format: with bad layout %v should signal", arg)
+		}
+	}
+}
+
+// fromEpoch: with a non-number is a type error -- signal, never a Failure.
+func TestDateTimeFromEpochNonNumberSignals(t *testing.T) {
+	v := NewVM()
+	defer v.Shutdown()
+	if _, signaled := signalsPrimitiveError(v, func() {
+		v.Send(getDateTimeClass(v), "fromEpoch:", []Value{v.registry.NewStringValue("x")})
+	}); !signaled {
+		t.Error("fromEpoch: with a non-number should signal")
 	}
 }

@@ -112,11 +112,18 @@ func (vm *VM) registerCharacterPrimitives() {
 	// --- Class methods ---
 
 	// value: anInteger - create character from code point
-	c.AddClassMethod1(vm.Selectors, "value:", func(_ *VM, recv Value, arg Value) Value {
+	// Only valid Unicode scalar values are accepted: anything else would be
+	// OR'd into the NaN-box marker bits and decode as a different immediate.
+	c.AddClassMethod1(vm.Selectors, "value:", func(v *VM, recv Value, arg Value) Value {
 		if !arg.IsSmallInt() {
-			return Nil
+			return v.SignalTypeError("value:", 1, "SmallInteger", arg)
 		}
-		return FromCharacter(rune(arg.SmallInt()))
+		n := arg.SmallInt()
+		if n < 0 || n > unicode.MaxRune || (n >= 0xD800 && n <= 0xDFFF) {
+			return v.SignalPrimitiveError("Character value:",
+				fmt.Sprintf("%d is not a valid Unicode code point", n))
+		}
+		return FromCharacter(rune(n))
 	})
 
 	// Character constants

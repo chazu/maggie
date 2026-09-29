@@ -5,6 +5,13 @@ immutable — arithmetic methods return new DateTime objects.
 Uses Go-style layout strings for parsing and formatting. The reference
 time is `Mon Jan 2 15:04:05 MST 2006` (Go's reference layout).
 
+Failure contract (CONVENTIONS §1):
+  - `DateTime parse: str format: layout` answers a Result: `Success`
+    wrapping the DateTime, or `Failure` with the parse error when the
+    string does not match the layout.
+  - `DateTime fromEpoch: n` answers a DateTime; a non-number signals.
+  - `format:` always answers a String; an empty or non-String layout signals.
+
 Common layouts:
   - `'2006-01-02'` — date only
   - `'15:04:05'` — time only
@@ -15,12 +22,12 @@ Common layouts:
 (DateTime fromEpoch: 0) epochSeconds >>> 0
 (DateTime fromEpoch: 1000) year >>> 1970
 (DateTime fromEpoch: 0) format: '2006' >>> '1970'
-(DateTime parse: '2025-06-15' format: '2006-01-02') month >>> 6
-(DateTime parse: '2025-06-15' format: '2006-01-02') day >>> 15
-(DateTime parse: '2025-06-15 14:30:00' format: '2006-01-02 15:04:05') hour >>> 14
-(DateTime parse: '2025-06-15 14:30:00' format: '2006-01-02 15:04:05') minute >>> 30
-(DateTime parse: '2025-06-15 14:30:45' format: '2006-01-02 15:04:05') second >>> 45
-(DateTime parse: '2025-03-14' format: '2006-01-02') format: '01/02/2006' >>> '03/14/2025'
+(DateTime parse: '2025-06-15' format: '2006-01-02') value month >>> 6
+(DateTime parse: '2025-06-15' format: '2006-01-02') value day >>> 15
+(DateTime parse: '2025-06-15 14:30:00' format: '2006-01-02 15:04:05') value hour >>> 14
+(DateTime parse: '2025-06-15 14:30:00' format: '2006-01-02 15:04:05') value minute >>> 30
+(DateTime parse: '2025-06-15 14:30:45' format: '2006-01-02 15:04:05') value second >>> 45
+(DateTime parse: '2025-03-14' format: '2006-01-02') value format: '01/02/2006' >>> '03/14/2025'
 (DateTime fromEpoch: 0) epochMillis >>> 0
 (DateTime fromEpoch: 3600) epochSeconds >>> 3600
 ((DateTime fromEpoch: 0) addSeconds: 60) epochSeconds >>> 60
@@ -30,6 +37,7 @@ Common layouts:
 (DateTime fromEpoch: 100) differenceFrom: (DateTime fromEpoch: 0) >>> 100
 (DateTime fromEpoch: 0) differenceFrom: (DateTime fromEpoch: 100) >>> -100
 (DateTime fromEpoch: 0) printString >>> '1970-01-01T00:00:00Z'
+(DateTime parse: 'not-a-date' format: '2006-01-02') isFailure >>> true
 ```
 
 ```example
@@ -42,8 +50,15 @@ now year printString
 ```example
 "Parse an ISO date string"
 | dt <DateTime> |
-dt := DateTime parse: '2025-03-14' format: '2006-01-02'.
+dt := (DateTime parse: '2025-03-14' format: '2006-01-02') value.
 dt year   "=> 2025"
+```
+
+```example
+"Parse user input, handling a bad date"
+(DateTime parse: '2025-13-40' format: '2006-01-02')
+    onSuccess: [:dt | dt year]
+    onFailure: [:reason | 'invalid date']
 ```
 
 ```example
@@ -74,7 +89,8 @@ DateTime subclass: Object
   """Return the second (0-59)."""
   method: second ^<Integer> [ <primitive> ]
 
-  """Format the receiver using a Go layout string."""
+  """Format the receiver using a Go layout string. Always answers a String;
+  an empty or non-String layout is a programmer error and signals."""
   method: format: layout <String> ^<String> [ <primitive> ]
 
   """Return the Unix epoch timestamp in seconds."""
