@@ -88,3 +88,14 @@ func gitIsClean(dir string) (bool, error) {
 	}
 	return len(strings.TrimSpace(string(out))) == 0, nil
 }
+
+// gitRemoteURL returns the fetch URL of the clone's origin remote.
+func gitRemoteURL(dir string) (string, error) {
+	cmd := exec.Command("git", "remote", "get-url", "origin")
+	cmd.Dir = dir
+	out, err := cmd.Output()
+	if err != nil {
+		return "", fmt.Errorf("git remote get-url origin in %s: %w", dir, err)
+	}
+	return strings.TrimSpace(string(out)), nil
+}

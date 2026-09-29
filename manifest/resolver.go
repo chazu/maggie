@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 )
 
 // ResolvedDep represents a dependency that has been resolved to a local path.
@@ -189,7 +190,29 @@ func (r *Resolver) resolveOne(name string, dep Dependency, baseDir string) (*Res
 		// Git dependency
 		depDir := filepath.Join(depsDir, name)
 
-		// Check if already cloned
+		// A clone of a different repository (the manifest's git URL changed)
+		// must not be reused: fetching would keep pulling from the old origin.
+		if _, err := os.Stat(depDir); err == nil {
+			if r.cloneIsStale(name, dep, depDir) {
+				if r.verbose {
+					fmt.Printf("  Re-cloning %s (origin changed to %s)\n", name, dep.Git)
+				}
+				if err := os.RemoveAll(depDir); err != nil {
+					return nil, fmt.Errorf("removing stale clone of %s: %w", name, err)
+				}
+			}
+		}
+
+		// The lock pins the commit when it was written for this same URL and
+		// ref. An explicit commit in the manifest must agree with it.
+		var lockedCommit string
+		if locked := r.lock.FindLockedDep(name); locked != nil &&
+			locked.Commit != "" && locked.Git == dep.Git &&
+			locked.Tag == dep.Tag && locked.Branch == dep.Branch &&
+			(dep.Commit == "" || dep.Commit == locked.Commit) {
+			lockedCommit = locked.Commit
+		}
+
 		if _, err := os.Stat(depDir); os.IsNotExist(err) {
 			if r.verbose {
 				fmt.Printf("  Cloning %s from %s\n", name, dep.Git)
@@ -197,50 +220,49 @@ func (r *Resolver) resolveOne(name string, dep Dependency, baseDir string) (*Res
 			if err := gitClone(dep.Git, depDir); err != nil {
 				return nil, err
 			}
-		} else {
-			// Check if we need to update
-			locked := r.lock.FindLockedDep(name)
-			if locked != nil && locked.Tag == dep.Tag && locked.Branch == dep.Branch {
-				if dep.Commit == "" || locked.Commit == dep.Commit {
-					// Already at correct version, skip fetch
-				} else {
-					if r.verbose {
-						fmt.Printf("  Fetching %s\n", name)
-					}
-					if err := gitFetch(depDir); err != nil {
-						return nil, err
-					}
-				}
-			} else {
-				if r.verbose {
-					fmt.Printf("  Fetching %s\n", name)
-				}
-				if err := gitFetch(depDir); err != nil {
-					return nil, err
-				}
+		} else if lockedCommit == "" {
+			if r.verbose {
+				fmt.Printf("  Fetching %s\n", name)
+			}
+			if err := gitFetch(depDir); err != nil {
+				return nil, err
 			}
 		}
 
-		// Checkout the requested ref (tag, branch, or commit)
-		ref := dep.Tag
-		if ref == "" {
-			ref = dep.Branch
-		}
-		if ref == "" {
-			ref = dep.Commit
-		}
-		if ref != "" {
-			if err := gitCheckout(depDir, ref); err != nil {
-				return nil, err
-			}
-			// For a branch, `git checkout <branch>` on an already-checked-out
-			// local branch leaves it at its old commit — it never advances to
-			// the fetched remote tip. Hard-reset to origin/<branch> so the dep
-			// actually tracks the branch. (Tags/commits are immutable refs and
-			// need no reset.)
-			if dep.Tag == "" && dep.Commit == "" && dep.Branch != "" {
-				if err := gitResetHard(depDir, "origin/"+dep.Branch); err != nil {
+		if lockedCommit != "" {
+			// Check out exactly the locked commit — not the branch tip — so
+			// every checkout (fresh clone, CI) builds the same code. Fetch only
+			// if the clone doesn't have it yet.
+			if err := gitCheckout(depDir, lockedCommit); err != nil {
+				if fetchErr := gitFetch(depDir); fetchErr != nil {
+					return nil, fetchErr
+				}
+				if err := gitCheckout(depDir, lockedCommit); err != nil {
 					return nil, err
+				}
+			}
+		} else {
+			// Checkout the requested ref (tag, branch, or commit)
+			ref := dep.Tag
+			if ref == "" {
+				ref = dep.Branch
+			}
+			if ref == "" {
+				ref = dep.Commit
+			}
+			if ref != "" {
+				if err := gitCheckout(depDir, ref); err != nil {
+					return nil, err
+				}
+				// For a branch, `git checkout <branch>` on an already-checked-out
+				// local branch leaves it at its old commit — it never advances to
+				// the fetched remote tip. Hard-reset to origin/<branch> so the dep
+				// actually tracks the branch. (Tags/commits are immutable refs and
+				// need no reset.)
+				if dep.Tag == "" && dep.Commit == "" && dep.Branch != "" {
+					if err := gitResetHard(depDir, "origin/"+dep.Branch); err != nil {
+						return nil, err
+					}
 				}
 			}
 		}
@@ -263,6 +285,33 @@ func (r *Resolver) resolveOne(name string, dep Dependency, baseDir string) (*Res
 	}
 
 	return nil, fmt.Errorf("dependency %q has no git or path specified", name)
+}
+
+// cloneIsStale reports whether the existing clone at depDir came from a
+// different repository than dep.Git: either the lock recorded another URL, or
+// the clone's origin differs. The origin comparison is skipped for local-path
+// URLs, which git stores rewritten (absolute, uncleaned), so they would never
+// compare equal.
+func (r *Resolver) cloneIsStale(name string, dep Dependency, depDir string) bool {
+	if locked := r.lock.FindLockedDep(name); locked != nil && locked.Git != "" && locked.Git != dep.Git {
+		return true
+	}
+	if !strings.Contains(dep.Git, "://") && !strings.Contains(dep.Git, "@") {
+		return false // local path
+	}
+	origin, err := gitRemoteURL(depDir)
+	return err != nil || origin != dep.Git
+}
+
+// excludesDevDeps reports whether this resolver was given a dependency set
+// that leaves out some of the manifest's dev-dependencies.
+func (r *Resolver) excludesDevDeps() bool {
+	for name := range r.manifest.DevDependencies {
+		if _, ok := r.deps[name]; !ok {
+			return true
+		}
+	}
+	return false
 }
 
 // writeLock writes the resolved dependencies to the lock file.
@@ -306,6 +355,19 @@ func (r *Resolver) writeLock(resolved map[string]*ResolvedDep) error {
 		}
 
 		lf.Deps = append(lf.Deps, ld)
+	}
+
+	// A run that leaves out declared dev-dependencies (e.g. `mag build`) must
+	// not drop their pins — and those of their transitive deps — from the
+	// lock: carry over every earlier entry this run did not resolve. A full
+	// run rewrites the lock from scratch, pruning removed dependencies.
+	if r.excludesDevDeps() && r.lock != nil {
+		for _, prev := range r.lock.Deps {
+			if _, ok := resolved[prev.Name]; !ok {
+				lf.Deps = append(lf.Deps, prev)
+			}
+		}
+		sort.Slice(lf.Deps, func(i, j int) bool { return lf.Deps[i].Name < lf.Deps[j].Name })
 	}
 
 	// Ensure directory exists
