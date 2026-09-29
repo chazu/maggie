@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 )
 
@@ -180,5 +181,35 @@ func TestTwoIdentities_Different(t *testing.T) {
 	id2, _ := GenerateIdentity()
 	if id1.NodeID() == id2.NodeID() {
 		t.Error("two generated identities should have different NodeIDs")
+	}
+}
+
+// Processes racing to create the identity must all end up with the same key,
+// not each keep a different one while the last writer's wins on disk.
+func TestLoadOrCreateIdentity_ConcurrentCreatorsAgree(t *testing.T) {
+	dir := t.TempDir()
+	const n = 16
+	ids := make([]*NodeIdentity, n)
+	errs := make([]error, n)
+	var wg sync.WaitGroup
+	for i := 0; i < n; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			ids[i], errs[i] = LoadOrCreateIdentity(dir)
+		}(i)
+	}
+	wg.Wait()
+	for i := 0; i < n; i++ {
+		if errs[i] != nil {
+			t.Fatalf("creator %d: %v", i, errs[i])
+		}
+		if ids[i].NodeID() != ids[0].NodeID() {
+			t.Fatalf("creator %d got a different identity", i)
+		}
+	}
+	onDisk, err := LoadOrCreateIdentity(dir)
+	if err != nil || onDisk.NodeID() != ids[0].NodeID() {
+		t.Fatalf("on-disk identity differs from the one handed out: %v", err)
 	}
 }

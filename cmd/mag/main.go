@@ -566,7 +566,7 @@ func loadVM(customImagePath string, verbose bool) (*vm.VM, *dist.DiskCache, erro
 	vmInst.ReRegisterBooleanPrimitives()
 
 	var diskCache *dist.DiskCache
-	if dc, err := dist.NewDiskCache(".maggie/cache"); err == nil {
+	if dc, err := dist.NewDiskCache(filepath.Join(projectStateDir(), "cache")); err == nil {
 		diskCache = dc
 		loaded, loadErr := dc.LoadInto(vmInst.ContentStore())
 		if loadErr != nil {

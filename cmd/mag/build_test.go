@@ -153,3 +153,23 @@ func TestBuild_MapWrapDirsToImports_MalformedHeader(t *testing.T) {
 		t.Errorf("expected empty map for malformed header, got %v", result)
 	}
 }
+
+// Per-project state lives beside maggie.toml even when mag runs from a
+// subdirectory, so the node identity doesn't change with the working dir.
+func TestProjectStateDir_FromSubdirectory(t *testing.T) {
+	root, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "maggie.toml"), []byte("[project]\nname = \"p\"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	sub := filepath.Join(root, "src", "deep")
+	if err := os.MkdirAll(sub, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Chdir(sub)
+	if got, want := projectStateDir(), filepath.Join(root, ".maggie"); got != want {
+		t.Errorf("projectStateDir() = %q, want %q", got, want)
+	}
+}

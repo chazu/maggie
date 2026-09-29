@@ -4,6 +4,7 @@ import (
 	"crypto/ed25519"
 	"fmt"
 	"os"
+	"path/filepath"
 	"sync"
 
 	"connectrpc.com/connect"
@@ -22,12 +23,34 @@ var (
 	localIdentity     *dist.NodeIdentity
 )
 
+// projectStateDir returns the .maggie directory for per-project state (node
+// identity, chunk cache): the one beside the nearest maggie.toml at or above
+// the working directory — the same root the manifest and trust settings come
+// from — or ./.maggie outside a project. Resolving it from the working
+// directory alone gave a project a different node ID (and so failed peer
+// whitelists) whenever mag ran from a subdirectory.
+func projectStateDir() string {
+	if dir, err := os.Getwd(); err == nil {
+		for {
+			if _, err := os.Stat(filepath.Join(dir, "maggie.toml")); err == nil {
+				return filepath.Join(dir, ".maggie")
+			}
+			parent := filepath.Dir(dir)
+			if parent == dir {
+				break
+			}
+			dir = parent
+		}
+	}
+	return ".maggie"
+}
+
 // loadLocalIdentity loads (or creates on first use) the node identity from
-// .maggie/node.key in the current directory. Returns nil if the key cannot
-// be loaded or created.
+// node.key in projectStateDir. Returns nil if the key cannot be loaded or
+// created.
 func loadLocalIdentity() *dist.NodeIdentity {
 	localIdentityOnce.Do(func() {
-		id, err := dist.LoadOrCreateIdentity(".maggie")
+		id, err := dist.LoadOrCreateIdentity(projectStateDir())
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "warning: no node identity (%v); peer requests will be unauthenticated\n", err)
 			return

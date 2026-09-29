@@ -102,7 +102,33 @@ func LoadOrCreateIdentity(dir string) (*NodeIdentity, error) {
 	copy(keyData[:32], seed)
 	copy(keyData[32:], id.PublicKey)
 
-	if err := os.WriteFile(keyPath, keyData, 0600); err != nil {
+	// Publish the key atomically and only if none exists: write a temp file,
+	// then hard-link it into place (Link fails if keyPath exists). Two
+	// processes starting together would otherwise each write a key, one
+	// overwriting the other's after it had already been handed out — and a
+	// reader could see a half-written file.
+	tmp, err := os.CreateTemp(dir, ".node.key-*")
+	if err != nil {
+		return nil, fmt.Errorf("dist: write key: %w", err)
+	}
+	tmpName := tmp.Name()
+	defer os.Remove(tmpName)
+	_, werr := tmp.Write(keyData)
+	if cerr := tmp.Close(); werr == nil {
+		werr = cerr
+	}
+	if werr != nil {
+		return nil, fmt.Errorf("dist: write key: %w", werr)
+	}
+	if err := os.Link(tmpName, keyPath); err != nil {
+		if os.IsExist(err) {
+			// Another process won the race: use its key.
+			data, rerr := os.ReadFile(keyPath)
+			if rerr != nil {
+				return nil, fmt.Errorf("dist: read key: %w", rerr)
+			}
+			return parseKeyFile(data)
+		}
 		return nil, fmt.Errorf("dist: write key: %w", err)
 	}
 
