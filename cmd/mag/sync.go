@@ -149,12 +149,13 @@ func handleSyncPush(vmInst *vm.VM, peerAddr string, verbose bool) {
 	// Build chunks in dependency order: methods first, then classes
 	var methodChunks [][]byte
 	var classChunks [][]byte
+	toChunk := dist.MethodChunker(store)
 	for _, wantHash := range annResp.Msg.Want {
 		var h [32]byte
 		copy(h[:], wantHash)
 
 		if m := store.LookupMethod(h); m != nil {
-			chunk := dist.MethodToChunk(m, nil)
+			chunk := toChunk(m, nil)
 			data, err := dist.MarshalChunk(chunk)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "Warning: failed to marshal method chunk: %v\n", err)

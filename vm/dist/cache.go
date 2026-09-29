@@ -153,6 +153,9 @@ func (dc *DiskCache) LoadInto(store *vm.ContentStore) (int, error) {
 		case ChunkMethod:
 			m := &vm.CompiledMethod{Source: chunk.Content}
 			m.SetContentHash(chunk.Hash)
+			if chunk.TypedHash != ([32]byte{}) {
+				m.SetTypedHash(chunk.TypedHash)
+			}
 			store.IndexMethod(m)
 			loaded++
 		case ChunkClass:
@@ -163,6 +166,12 @@ func (dc *DiskCache) LoadInto(store *vm.ContentStore) (int, error) {
 			}
 			d.Hash = chunk.Hash
 			d.MethodHashes = chunk.Dependencies
+			if chunk.TypedHash != ([32]byte{}) {
+				d.TypedHash = chunk.TypedHash
+			}
+			if len(chunk.TypedDependencies) > 0 {
+				d.TypedMethodHashes = chunk.TypedDependencies
+			}
 			store.IndexClass(d)
 			loaded++
 		}
@@ -174,6 +183,7 @@ func (dc *DiskCache) LoadInto(store *vm.ContentStore) (int, error) {
 // Returns the number of chunks written.
 func (dc *DiskCache) SaveFrom(store *vm.ContentStore) (int, error) {
 	written := 0
+	toChunk := MethodChunker(store)
 
 	// Save methods
 	for _, h := range store.MethodHashes() {
@@ -184,7 +194,7 @@ func (dc *DiskCache) SaveFrom(store *vm.ContentStore) (int, error) {
 		if m == nil {
 			continue
 		}
-		chunk := MethodToChunk(m, nil)
+		chunk := toChunk(m, nil)
 		if err := dc.Put(chunk); err != nil {
 			return written, fmt.Errorf("dist: save method %x: %w", h, err)
 		}

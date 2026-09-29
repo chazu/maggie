@@ -1,6 +1,8 @@
 package dist
 
 import (
+	"strings"
+
 	"github.com/chazu/maggie/vm"
 )
 
@@ -26,6 +28,39 @@ func MethodToChunk(m *vm.CompiledMethod, caps []string) *Chunk {
 		}
 	}
 	return c
+}
+
+// MethodChunker returns a MethodToChunk variant that also fills in the owning
+// class for detached method stubs. Methods indexed from received sync chunks
+// or loaded from the disk cache carry only source and hashes — no *Class — so
+// MethodToChunk alone would emit ClassName "" and a receiver would verify the
+// chunk with no ivar/namespace context, computing a different hash for any
+// method that touches an instance variable or a namespaced global. The owner
+// is recovered from the store's class digests (any digest listing the hash
+// will do: the same hash under two owners means both contexts hash alike).
+//
+// The owner index is built once, so reuse one chunker for a whole batch.
+func MethodChunker(store *vm.ContentStore) func(m *vm.CompiledMethod, caps []string) *Chunk {
+	owners := make(map[[32]byte]string)
+	if store != nil {
+		for _, d := range store.AllClassDigests() {
+			for _, mh := range d.MethodHashes {
+				if _, ok := owners[mh]; !ok {
+					owners[mh] = d.FQN()
+				}
+			}
+		}
+	}
+	return func(m *vm.CompiledMethod, caps []string) *Chunk {
+		c := MethodToChunk(m, caps)
+		if c.ClassName == "" {
+			if owner, ok := owners[c.Hash]; ok {
+				c.ClassName = owner
+				c.IsClassSide = strings.HasPrefix(strings.TrimSpace(m.Source), "classMethod:")
+			}
+		}
+		return c
+	}
 }
 
 // ClassToChunk creates a Chunk from a ClassDigest. The Content field is

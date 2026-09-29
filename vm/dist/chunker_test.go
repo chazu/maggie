@@ -323,3 +323,43 @@ func TestBuildCapabilityManifest(t *testing.T) {
 		t.Errorf("manifest should include File and HTTP, got %v", manifest.Required)
 	}
 }
+
+// A method stub indexed from a received chunk (or the disk cache) has no
+// *Class; re-serving it must still name the owning class so the next hop
+// verifies it in the right ivar/namespace context.
+func TestMethodChunker_DetachedStubGetsOwner(t *testing.T) {
+	store := vm.NewContentStore()
+
+	inst := &vm.CompiledMethod{Source: "method: x [ ^x ]"}
+	instHash := sha256.Sum256([]byte("inst"))
+	inst.SetContentHash(instHash)
+	store.IndexMethod(inst)
+
+	cls := &vm.CompiledMethod{Source: "  classMethod: make [ ^self new ]"}
+	clsHash := sha256.Sum256([]byte("class"))
+	cls.SetContentHash(clsHash)
+	store.IndexMethod(cls)
+
+	orphan := &vm.CompiledMethod{Source: "method: y [ ^1 ]"}
+	orphan.SetContentHash(sha256.Sum256([]byte("orphan")))
+
+	store.IndexClass(&vm.ClassDigest{
+		Name:         "Point",
+		Namespace:    "Geo",
+		InstVars:     []string{"x"},
+		MethodHashes: [][32]byte{instHash, clsHash},
+		Hash:         sha256.Sum256([]byte("Point")),
+	})
+
+	toChunk := MethodChunker(store)
+
+	if c := toChunk(inst, nil); c.ClassName != "Geo::Point" || c.IsClassSide {
+		t.Errorf("instance stub: got ClassName=%q IsClassSide=%v", c.ClassName, c.IsClassSide)
+	}
+	if c := toChunk(cls, nil); c.ClassName != "Geo::Point" || !c.IsClassSide {
+		t.Errorf("class-side stub: got ClassName=%q IsClassSide=%v", c.ClassName, c.IsClassSide)
+	}
+	if c := toChunk(orphan, nil); c.ClassName != "" {
+		t.Errorf("unowned stub: got ClassName=%q, want empty", c.ClassName)
+	}
+}

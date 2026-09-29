@@ -368,6 +368,7 @@ func (s *SyncService) Serve(
 	var available [][]byte
 	var methodChunks [][]byte
 	var classChunks [][]byte
+	toChunk := dist.MethodChunker(s.store)
 
 	for _, h := range allHashes {
 		hCopy := h
@@ -378,7 +379,7 @@ func (s *SyncService) Serve(
 		}
 
 		if m := s.store.LookupMethod(h); m != nil {
-			chunk := dist.MethodToChunk(m, nil)
+			chunk := toChunk(m, nil)
 			data, err := dist.MarshalChunk(chunk)
 			if err == nil {
 				methodChunks = append(methodChunks, data)
