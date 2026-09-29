@@ -102,7 +102,29 @@ func (vm *VM) registerSmallIntegerPrimitives() {
 		return v.SignalPrimitiveError("/", "argument must be a number")
 	})
 
+	// \\ - modulo, floored: the result has the sign of the divisor, so it
+	// pairs with // — (a // b) * b + (a \\ b) = a (Smalltalk-80).
 	c.AddMethod1(vm.Selectors, "\\\\", func(v *VM, recv Value, arg Value) Value {
+		if arg.IsSmallInt() {
+			if arg.SmallInt() == 0 {
+				return v.SignalZeroDivide()
+			}
+			return FromSmallInt(FloorMod(recv.SmallInt(), arg.SmallInt()))
+		}
+		if IsBigIntValue(arg) {
+			a := big.NewInt(recv.SmallInt())
+			b := getBigIntOperand(v, arg)
+			if b != nil && b.Sign() != 0 {
+				return v.registry.NewBigIntValue(floorModBig(a, b))
+			}
+			return v.SignalZeroDivide()
+		}
+		return v.SignalPrimitiveError("\\\\", "argument must be a number")
+	})
+
+	// rem: - remainder truncated toward zero: the result has the sign of the
+	// receiver, so it pairs with / — (a / b) * b + (a rem: b) = a.
+	c.AddMethod1(vm.Selectors, "rem:", func(v *VM, recv Value, arg Value) Value {
 		if arg.IsSmallInt() {
 			if arg.SmallInt() == 0 {
 				return v.SignalZeroDivide()
@@ -117,7 +139,7 @@ func (vm *VM) registerSmallIntegerPrimitives() {
 			}
 			return v.SignalZeroDivide()
 		}
-		return v.SignalPrimitiveError("\\\\", "argument must be a number")
+		return v.SignalPrimitiveError("rem:", "argument must be a number")
 	})
 
 	// // - truncated integer division (floor division)
@@ -325,4 +347,25 @@ func (vm *VM) registerSmallIntegerPrimitives() {
 		}
 		return recv
 	})
+}
+
+// FloorMod returns a modulo b rounded toward negative infinity: the result
+// has the sign of b (Smalltalk's \\). b must be non-zero. Exported for the
+// compiler's constant folder, which must agree with the runtime.
+func FloorMod(a, b int64) int64 {
+	m := a % b
+	if m != 0 && (m < 0) != (b < 0) {
+		m += b
+	}
+	return m
+}
+
+// floorModBig is FloorMod for big integers. math/big's Mod is Euclidean
+// (always non-negative), which differs when b < 0.
+func floorModBig(a, b *big.Int) *big.Int {
+	m := new(big.Int).Rem(a, b)
+	if m.Sign() != 0 && (m.Sign() < 0) != (b.Sign() < 0) {
+		m.Add(m, b)
+	}
+	return m
 }

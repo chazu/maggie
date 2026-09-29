@@ -251,3 +251,16 @@ func TestPushPopNotAcrossJumpTarget(t *testing.T) {
 		t.Errorf("else-push / merge-POP clobbered across jump target: %v", out)
 	}
 }
+
+// Folding \\ must agree with the runtime's floored modulo.
+func TestConstantFoldModIsFloored(t *testing.T) {
+	bc := []byte{
+		byte(vm.OpPushInt8), byte(0xF9), // -7
+		byte(vm.OpPushInt8), 2,
+		byte(vm.OpSendMod),
+	}
+	out, _ := Peephole(bc, nil)
+	if len(out) != 2 || vm.Opcode(out[0]) != vm.OpPushInt8 || int8(out[1]) != 1 {
+		t.Errorf("-7 \\\\ 2 folded to %v, want PushInt8(1)", out)
+	}
+}

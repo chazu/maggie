@@ -139,7 +139,7 @@ func (vm *VM) registerBigIntegerPrimitives() {
 		return v.registry.NewBigIntValue(result)
 	})
 
-	// Arithmetic: \\ (modulo)
+	// Arithmetic: \\ (modulo, floored — sign of the divisor, pairs with //)
 	c.AddMethod1(vm.Selectors, "\\\\", func(v *VM, recv Value, arg Value) Value {
 		a := getBigIntOperand(v, recv)
 		if a == nil {
@@ -152,8 +152,23 @@ func (vm *VM) registerBigIntegerPrimitives() {
 		if b.Sign() == 0 {
 			return v.SignalZeroDivide()
 		}
-		result := new(big.Int).Rem(a, b)
-		return v.registry.NewBigIntValue(result)
+		return v.registry.NewBigIntValue(floorModBig(a, b))
+	})
+
+	// Arithmetic: rem: (remainder truncated toward zero — pairs with /)
+	c.AddMethod1(vm.Selectors, "rem:", func(v *VM, recv Value, arg Value) Value {
+		a := getBigIntOperand(v, recv)
+		if a == nil {
+			return Nil
+		}
+		b := getBigIntOperand(v, arg)
+		if b == nil {
+			return v.SignalPrimitiveError("rem:", "argument must be a number")
+		}
+		if b.Sign() == 0 {
+			return v.SignalZeroDivide()
+		}
+		return v.registry.NewBigIntValue(new(big.Int).Rem(a, b))
 	})
 
 	// Arithmetic: // (floor division)

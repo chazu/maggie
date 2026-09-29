@@ -101,7 +101,7 @@ func foldConstants(bc []byte, targets map[int]bool) bool {
 				}
 			case vm.OpSendMod:
 				if b != 0 {
-					result, ok = a%b, true
+					result, ok = vm.FloorMod(a, b), true
 				}
 			}
 

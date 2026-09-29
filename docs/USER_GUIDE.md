@@ -493,7 +493,8 @@ Immediate integer values.
 ```smalltalk
 -- Arithmetic
 + - * / //      -- basic operations (// is integer division)
-\\ other        -- modulo
+\\ other        -- modulo, floored (sign of the divisor; pairs with //)
+rem: other      -- remainder, truncated (sign of the receiver; pairs with /)
 negated         -- negate
 abs             -- absolute value
 

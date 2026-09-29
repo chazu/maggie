@@ -99,8 +99,17 @@ BigInteger subclass: Number
   """Return the integer quotient (truncated toward negative infinity)."""
   method: // other ^<Integer> [ <primitive> ]
 
-  """Return the remainder."""
+  """Return the modulo, rounded toward negative infinity (sign of the argument; pairs with //)."""
   method: \\ other ^<Integer> [ <primitive> ]
+
+  """
+  Return the remainder, truncated toward zero (sign of the receiver; pairs with /).
+
+  ```example
+  (1 bitShift: 60) negated rem: 7
+  ```
+  """
+  method: rem: other ^<Integer> [ <primitive> ]
 
   # --- Comparison primitives ---
 

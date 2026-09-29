@@ -1790,7 +1790,7 @@ func (i *Interpreter) primitiveMod(a, b Value) Value {
 		if b.SmallInt() == 0 {
 			return i.vm.SignalZeroDivide()
 		}
-		return FromSmallInt(a.SmallInt() % b.SmallInt())
+		return FromSmallInt(FloorMod(a.SmallInt(), b.SmallInt()))
 	}
 	return i.sendBinaryFallback(a, b, i.selectorMod)
 }

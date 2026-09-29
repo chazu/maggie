@@ -36,8 +36,10 @@ Guide03Numbers subclass: Object
   """
   SmallInteger supports the standard arithmetic operators. Division with /
   performs truncating integer division (the result is always a SmallInteger).
-  The \\ operator returns the remainder (modulo), and // performs floor
-  division that rounds toward negative infinity.
+  // performs floor division that rounds toward negative infinity, and \\ is
+  its modulo: the result has the sign of the divisor, so
+  (a // b) * b + (a \\ b) = a. rem: is the remainder that pairs with /
+  instead (sign of the receiver).
 
   ```test
   3 + 4 >>> 7
@@ -47,6 +49,8 @@ Guide03Numbers subclass: Object
   10 \\ 3 >>> 1
   17 // 5 >>> 3
   -7 // 2 >>> -4
+  -7 \\ 2 >>> 1
+  -7 rem: 2 >>> -1
   ```
 
   When a SmallInteger operation involves a Float argument, the result is

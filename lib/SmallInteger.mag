@@ -229,8 +229,37 @@ SmallInteger subclass: Number
   """Return the integer quotient of the receiver divided by the argument (truncated toward negative infinity)."""
   method: // other <Integer> ^<Integer> [ <primitive> ]
 
-  """Return the remainder of the receiver divided by the argument."""
+  """
+  Return the receiver modulo the argument, rounded toward negative infinity:
+  the result has the sign of the argument, so it pairs with //
+  ((a // b) * b + (a \\ b) = a). Use rem: for the remainder that pairs with /.
+
+  ```test
+  17 \\ 5 >>> 2
+  -7 \\ 2 >>> 1
+  7 \\ -2 >>> -1
+  -7 \\ -2 >>> -1
+  ```
+  """
   method: \\ other <Integer> ^<Integer> [ <primitive> ]
+
+  """
+  Return the remainder of the receiver divided by the argument, truncated
+  toward zero: the result has the sign of the receiver, so it pairs with /
+  ((a / b) * b + (a rem: b) = a).
+
+  ```test
+  17 rem: 5 >>> 2
+  -7 rem: 2 >>> -1
+  7 rem: -2 >>> 1
+  ```
+
+  ```example
+  "rem: keeps the receiver's sign; \\ takes the divisor's"
+  (-7 rem: 2) -> (-7 \\ 2)
+  ```
+  """
+  method: rem: other <Integer> ^<Integer> [ <primitive> ]
 
   # --- Comparison primitives ---
 
