@@ -2,9 +2,9 @@ package manifest
 
 import (
 	"fmt"
-	"sort"
 	"os"
 	"path/filepath"
+	"sort"
 )
 
 // ResolvedDep represents a dependency that has been resolved to a local path.
@@ -13,6 +13,11 @@ type ResolvedDep struct {
 	LocalPath string    // local filesystem path
 	Namespace string    // namespace for this dependency
 	Manifest  *Manifest // the dependency's own manifest (may be nil)
+
+	// Dep is the dependency declaration this was resolved from (from the root
+	// manifest for direct deps, from the declaring dep's manifest for
+	// transitive ones). writeLock uses it to pin git URL/ref/commit.
+	Dep Dependency
 }
 
 // Resolver manages dependency resolution.
@@ -56,7 +61,7 @@ func (r *Resolver) Resolve() ([]ResolvedDep, error) {
 
 	// Resolve each direct dependency
 	resolved := make(map[string]*ResolvedDep)
-	order, err := r.resolveAll(r.deps, resolved)
+	order, err := r.resolveAll(r.deps, r.manifest.Dir, resolved)
 	if err != nil {
 		return nil, err
 	}
@@ -69,9 +74,11 @@ func (r *Resolver) Resolve() ([]ResolvedDep, error) {
 	return order, nil
 }
 
-// resolveAll resolves a set of dependencies recursively.
+// resolveAll resolves a set of dependencies recursively. baseDir is the
+// directory of the manifest that declares deps; relative `path` dependencies
+// resolve against it.
 // Returns dependencies in topological order (deps before dependents).
-func (r *Resolver) resolveAll(deps map[string]Dependency, resolved map[string]*ResolvedDep) ([]ResolvedDep, error) {
+func (r *Resolver) resolveAll(deps map[string]Dependency, baseDir string, resolved map[string]*ResolvedDep) ([]ResolvedDep, error) {
 	var order []ResolvedDep
 
 	// Iterate in sorted name order: the returned load order (and the lock file
@@ -89,7 +96,7 @@ func (r *Resolver) resolveAll(deps map[string]Dependency, resolved map[string]*R
 			continue // already resolved
 		}
 
-		rd, err := r.resolveOne(name, dep)
+		rd, err := r.resolveOne(name, dep, baseDir)
 		if err != nil {
 			return nil, fmt.Errorf("resolving %s: %w", name, err)
 		}
@@ -98,7 +105,7 @@ func (r *Resolver) resolveAll(deps map[string]Dependency, resolved map[string]*R
 
 		// Check for transitive dependencies
 		if rd.Manifest != nil && len(rd.Manifest.Dependencies) > 0 {
-			transitive, err := r.resolveAll(rd.Manifest.Dependencies, resolved)
+			transitive, err := r.resolveAll(rd.Manifest.Dependencies, rd.LocalPath, resolved)
 			if err != nil {
 				return nil, err
 			}
@@ -134,15 +141,21 @@ func resolveNamespace(name string, dep Dependency, depManifest *Manifest) (strin
 	return ns, nil
 }
 
-// resolveOne resolves a single dependency.
-func (r *Resolver) resolveOne(name string, dep Dependency) (*ResolvedDep, error) {
+// resolveOne resolves a single dependency. Relative path dependencies are
+// resolved against baseDir (the declaring manifest's directory).
+func (r *Resolver) resolveOne(name string, dep Dependency, baseDir string) (*ResolvedDep, error) {
+	// Defensive: the name becomes a directory under depsDir, so never trust it
+	// even if manifest validation was bypassed.
+	if err := ValidateDependencyName(name); err != nil {
+		return nil, err
+	}
 	depsDir := r.manifest.DepsDir()
 
 	if dep.Path != "" {
 		// Local path dependency
 		localPath := dep.Path
 		if !filepath.IsAbs(localPath) {
-			localPath = filepath.Join(r.manifest.Dir, localPath)
+			localPath = filepath.Join(baseDir, localPath)
 		}
 
 		localPath, err := filepath.Abs(localPath)
@@ -168,6 +181,7 @@ func (r *Resolver) resolveOne(name string, dep Dependency) (*ResolvedDep, error)
 			LocalPath: localPath,
 			Namespace: ns,
 			Manifest:  depManifest,
+			Dep:       dep,
 		}, nil
 	}
 
@@ -244,6 +258,7 @@ func (r *Resolver) resolveOne(name string, dep Dependency) (*ResolvedDep, error)
 			LocalPath: depDir,
 			Namespace: ns,
 			Manifest:  depManifest,
+			Dep:       dep,
 		}, nil
 	}
 
@@ -268,10 +283,7 @@ func (r *Resolver) writeLock(resolved map[string]*ResolvedDep) error {
 			Name: rd.Name,
 		}
 
-		dep, ok := r.deps[rd.Name]
-		if !ok {
-			dep = r.manifest.Dependencies[rd.Name]
-		}
+		dep := rd.Dep
 		if dep.Git != "" {
 			ld.Git = dep.Git
 			ld.Tag = dep.Tag
@@ -281,7 +293,16 @@ func (r *Resolver) writeLock(resolved map[string]*ResolvedDep) error {
 				ld.Commit = commit
 			}
 		} else if dep.Path != "" {
+			// Record the path relative to the root project so transitive path
+			// deps (declared relative to their parent) stay meaningful.
 			ld.Path = dep.Path
+			if !filepath.IsAbs(dep.Path) {
+				if rel, err := filepath.Rel(r.manifest.Dir, rd.LocalPath); err == nil {
+					ld.Path = filepath.ToSlash(rel)
+				} else {
+					ld.Path = rd.LocalPath
+				}
+			}
 		}
 
 		lf.Deps = append(lf.Deps, ld)

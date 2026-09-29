@@ -2,6 +2,7 @@ package manifest
 
 import (
 	"fmt"
+	"path/filepath"
 	"strconv"
 	"strings"
 )
@@ -25,6 +26,9 @@ func (m *Manifest) Validate(toolVersion string) error {
 		allDeps[k] = v
 	}
 	for name, dep := range allDeps {
+		if err := ValidateDependencyName(name); err != nil {
+			return err
+		}
 		refCount := 0
 		if dep.Tag != "" {
 			refCount++
@@ -58,6 +62,22 @@ func (m *Manifest) Validate(toolVersion string) error {
 	}
 
 	return nil
+}
+
+// ValidateDependencyName rejects dependency names that are unsafe to use as a
+// directory name under .maggie/deps: empty, ".", "..", absolute paths, or any
+// name containing a path separator. The dependency key comes straight from
+// maggie.toml, so without this check a manifest could direct git clone/fetch/
+// reset at an arbitrary directory.
+func ValidateDependencyName(name string) error {
+	switch {
+	case name == "", name == ".", name == "..":
+	case strings.ContainsAny(name, "/\\\x00"):
+	case filepath.IsAbs(name), filepath.VolumeName(name) != "":
+	default:
+		return nil
+	}
+	return fmt.Errorf("invalid dependency name %q: must be a plain name without path separators or \"..\"", name)
 }
 
 // semver holds a parsed semantic version.
