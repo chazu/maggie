@@ -360,10 +360,14 @@ Both fixed; see beads `maggie-gossip-ssrf-6dn`, `maggie-gossip-poison-1cj`.
   subject (NodeID == public key). Gossip carries only self-signed **Alive/Left**
   records; **Dead is decided solely by the local failure detector and never
   accepted from gossip**, so a forged Dead cannot evict a live peer and forged
-  addr/metadata cannot be injected for another node. Residual (noted): incarnation
+  addr/metadata cannot be injected for another node. ~~Residual: incarnation
   resets to 0 on node restart (a recovered node's Alive can lose to a stale
-  Dead@N) — a general SWIM incarnation-persistence issue, tracked separately from
-  the poison fix.
+  Dead@N).~~ Resolved 2026-09-29 (maggie-4vm): incarnations are seeded from the
+  startup wall clock (ms), so a restarted node outranks its old records; and a
+  peer's own signed Alive delivered BY that peer (signature- and nonce-proven
+  sender) revives a locally-decided Dead at the same incarnation — a transient
+  detector failure no longer evicts a live peer forever. Relayed Alive still
+  cannot resurrect a Dead peer.
 
 ## Phase 2 design blockers (must change the design)
 

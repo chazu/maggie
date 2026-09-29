@@ -3,6 +3,7 @@ package dist
 import (
 	"context"
 	"crypto/ed25519"
+	"maps"
 	"math/rand"
 	"net"
 	"sync"
@@ -197,6 +198,11 @@ func NewMembership(v *vm.VM, trust *TrustStore, self NodeID, selfAddr string, de
 		detector:     detector,
 		rng:          rand.New(rand.NewSource(time.Now().UnixNano())),
 		stopCh:       make(chan struct{}),
+		// Seed from the wall clock (ms): a restarted node then outranks every
+		// record left from its previous run — including a peer's locally
+		// decided Dead, which only a higher incarnation (or first-hand
+		// evidence) can override. Incarnations are never persisted.
+		selfIncarnation: uint64(time.Now().UnixMilli()),
 	}
 	return m
 }
@@ -421,12 +427,14 @@ func (m *Membership) gossipTick() {
 }
 
 // ApplyGossip merges an inbound gossip digest into the view. fromPeer is the
-// signature-proven sender (for future anti-poisoning heuristics). Records about
+// signature-proven sender: a peer's own Alive record, sent by that peer, is
+// first-hand evidence that revives a locally-Dead record. Records about
 // ourselves trigger refutation; others merge by incarnation. Newly-alive
 // gossiped peers are connected per the join policy.
 func (m *Membership) ApplyGossip(records []MemberRecord, fromPeer NodeID) {
 	var events []MemberEvent
 	var toConnect []MemberRecord
+	var revived []MemberRecord
 
 	for _, r := range records {
 		if r.Peer == m.self {
@@ -449,6 +457,16 @@ func (m *Membership) ApplyGossip(records []MemberRecord, fromPeer NodeID) {
 		// invalidate the signature we must relay verbatim, and a legitimate node
 		// stays within the caps.
 		if !m.metadataWithinCaps(r.Metadata) {
+			continue
+		}
+		// First-hand evidence: the subject itself sent its own Alive, so it is
+		// up now — overriding a Dead our detector decided at the same
+		// incarnation (the peer never learns it was declared dead, so it
+		// would never bump). Relayed copies are not evidence of anything.
+		if r.Peer == fromPeer && r.Status == StatusAlive && m.reviveIfDead(r) {
+			ev := MemberEvent{Peer: r.Peer, Status: StatusAlive, Kind: EventUp, Record: r}
+			events = append(events, ev)
+			revived = append(revived, r)
 			continue
 		}
 		ev, changed := m.mergeIncoming(r)
@@ -477,6 +495,25 @@ func (m *Membership) ApplyGossip(records []MemberRecord, fromPeer NodeID) {
 	for _, r := range toConnect {
 		m.maybeJoin(r)
 	}
+	// A revived peer was a member we connected to and tracked before the
+	// detector gave up on it: reconnect regardless of the join policy.
+	for _, r := range revived {
+		m.ConnectAsync(r.Addr)
+	}
+}
+
+// reviveIfDead replaces a locally-Dead record with r (the peer's own Alive at
+// the same or a higher incarnation) and reports whether it did.
+func (m *Membership) reviveIfDead(r MemberRecord) bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	existing, ok := m.view[r.Peer]
+	if !ok || existing.Status != StatusDead || r.Incarnation < existing.Incarnation {
+		return false
+	}
+	cp := r
+	m.view[r.Peer] = &cp
+	return true
 }
 
 // maybeJoin applies the join policy to a gossiped peer we are not connected to.
@@ -545,6 +582,16 @@ func (m *Membership) mergeIncoming(r MemberRecord) (MemberEvent, bool) {
 	case r.Incarnation == existing.Incarnation && statusRank(r.Status) > statusRank(existing.Status):
 		existing.Status = r.Status
 		return MemberEvent{Peer: r.Peer, Status: r.Status, Record: *existing}, true
+	case r.Incarnation == existing.Incarnation && r.Status == existing.Status &&
+		len(existing.Sig) == 0 && len(r.Sig) > 0:
+		// The peer's own signed record supersedes the unsigned placeholder
+		// connectPeer stores for a direct connection. Only signed records are
+		// gossiped, so keeping the placeholder would stop the peer from ever
+		// being relayed. Same status: only a metadata/addr change is news.
+		changed := r.Addr != existing.Addr || !maps.Equal(r.Metadata, existing.Metadata)
+		cp := r
+		m.view[r.Peer] = &cp
+		return MemberEvent{Peer: r.Peer, Status: r.Status, Record: cp}, changed
 	default:
 		return MemberEvent{}, false
 	}

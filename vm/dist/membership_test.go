@@ -364,3 +364,72 @@ func TestGossipWire_RoundTrip(t *testing.T) {
 		t.Errorf("record 1 round-trip mismatch: %+v", r0)
 	}
 }
+
+// A directly connected peer is first recorded unsigned (connectPeer has no
+// signature to store). Its own signed record at the same incarnation must
+// replace that placeholder — otherwise the peer is never relayed onward,
+// since only signed records are gossiped.
+func TestMembership_SignedRecordReplacesUnsignedPlaceholder(t *testing.T) {
+	m := newTestMembership(t, nid(1))
+	peer, _ := GenerateIdentity()
+	pid := idNodeID(peer)
+
+	if _, changed := m.mergeIncoming(MemberRecord{Peer: pid, Addr: "a:1", Status: StatusAlive}); !changed {
+		t.Fatal("placeholder not recorded")
+	}
+	md := map[string]string{"role": "worker"}
+	m.ApplyGossip([]MemberRecord{signedRecordFor(t, peer, "a:1", StatusAlive, 0, md)}, nid(9))
+
+	r, ok := findRecord(m.Members(), pid)
+	if !ok || len(r.Sig) == 0 {
+		t.Fatalf("signed record did not replace the unsigned placeholder: %+v", r)
+	}
+	if r.Metadata["role"] != "worker" {
+		t.Errorf("metadata from the signed record not adopted: %v", r.Metadata)
+	}
+	if _, present := findRecord(m.gossipRecords(), pid); !present {
+		t.Error("directly connected peer is not relayed in gossip")
+	}
+}
+
+// A peer the local detector marked Dead comes back when it proves liveness
+// first-hand: its own signed Alive, delivered by the peer itself. The same
+// record relayed by a third party still cannot resurrect it (stale gossip).
+func TestMembership_FirstHandAliveRevivesDead(t *testing.T) {
+	m := newTestMembership(t, nid(1))
+	peer, _ := GenerateIdentity()
+	pid := idNodeID(peer)
+	rec := signedRecordFor(t, peer, "127.0.0.1:1", StatusAlive, 5, nil)
+
+	m.ApplyGossip([]MemberRecord{rec}, nid(9))
+	m.markDead(pid)
+
+	m.ApplyGossip([]MemberRecord{rec}, nid(9)) // relayed: must not revive
+	if r, _ := findRecord(m.Members(), pid); r.Status != StatusDead {
+		t.Fatalf("third-party Alive revived a locally-Dead peer (status %d)", r.Status)
+	}
+
+	var got []MemberEvent
+	m.Subscribe(func(ev MemberEvent) { got = append(got, ev) })
+	m.ApplyGossip([]MemberRecord{rec}, pid) // from the peer itself
+	if r, _ := findRecord(m.Members(), pid); r.Status != StatusAlive {
+		t.Fatalf("first-hand Alive should revive the peer, status %d", r.Status)
+	}
+	if len(got) != 1 || got[0].Kind != EventUp || got[0].Peer != pid {
+		t.Errorf("want one EventUp for the revived peer, got %+v", got)
+	}
+}
+
+// Incarnations start from the wall clock, so a restarted node outranks the
+// records (including a stale local Dead) left from its previous run.
+func TestMembership_IncarnationSeededFromClock(t *testing.T) {
+	before := uint64(time.Now().UnixMilli())
+	m := newTestMembership(t, nid(1))
+	self, ok := findRecord(m.Snapshot(), nid(1))
+	if !ok {
+		t.Fatal("self record missing")
+	}
+	if self.Incarnation < before {
+		t.Errorf("self incarnation %d not seeded from the clock (>= %d)", self.Incarnation, before)
+	}
+}
