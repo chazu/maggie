@@ -53,6 +53,7 @@ type icSnapshot struct {
 	State   CacheState
 	Count   int8
 	Entries [MaxPICEntries]InlineCacheEntry
+	epoch   uint64 // methodEpoch the entries were resolved under
 }
 
 // emptySnapshot is the canonical zero-state snapshot used after Reset.
@@ -101,7 +102,9 @@ func (ic *InlineCache) Entries() []InlineCacheEntry {
 // Returns the cached method on hit, nil on miss.
 func (ic *InlineCache) Lookup(class *Class) Method {
 	s := ic.snap.Load()
-	if s == nil {
+	if s == nil || s.epoch != methodEpoch.Load() {
+		// Empty, or resolved before a method-table change: the cached
+		// methods may have been redefined, removed or shadowed since.
 		ic.Misses.Add(1)
 		return nil
 	}
@@ -132,6 +135,14 @@ func (ic *InlineCache) Lookup(class *Class) Method {
 // are best-effort and the racing goroutine's snapshot will satisfy the
 // next Lookup.
 func (ic *InlineCache) Update(class *Class, method Method) {
+	ic.UpdateAt(class, method, methodEpoch.Load())
+}
+
+// UpdateAt is Update for a method resolved under the given methodEpoch. The
+// interpreter reads the epoch BEFORE its vtable lookup, so a method change
+// racing the lookup can only make the entry look older (a harmless future
+// miss), never newer than the method it caches.
+func (ic *InlineCache) UpdateAt(class *Class, method Method, epoch uint64) {
 	if method == nil {
 		return // Don't cache failed lookups.
 	}
@@ -140,6 +151,12 @@ func (ic *InlineCache) Update(class *Class, method Method) {
 	var next *icSnapshot
 
 	switch {
+	case old != nil && old.epoch != epoch:
+		// Entries from another epoch must not be carried forward (and a
+		// megamorphic verdict is re-earned): start over as monomorphic.
+		next = &icSnapshot{State: CacheMonomorphic, Count: 1}
+		next.Entries[0] = InlineCacheEntry{Class: class, Method: method}
+
 	case old == nil || old.State == CacheEmpty:
 		next = &icSnapshot{State: CacheMonomorphic, Count: 1}
 		next.Entries[0] = InlineCacheEntry{Class: class, Method: method}
@@ -174,6 +191,7 @@ func (ic *InlineCache) Update(class *Class, method Method) {
 
 	// Best-effort publish. CAS failure is acceptable: the winner's
 	// snapshot is at least as good as ours for future Lookups.
+	next.epoch = epoch
 	ic.snap.CompareAndSwap(old, next)
 }
 

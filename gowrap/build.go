@@ -618,7 +618,7 @@ func generateEmbeddedMain(maggieModule, entryPoint, namespace, projectDir, wrapD
 		fmt.Fprintf(&b, "\t\tfmt.Fprintf(os.Stderr, \"Error: method %%q not found on %%s\\n\", methodName, qualifiedName)\n")
 		fmt.Fprintf(&b, "\t\tos.Exit(1)\n")
 		fmt.Fprintf(&b, "\t}\n")
-		fmt.Fprintf(&b, "\tclassValue := v.Symbols.SymbolValue(qualifiedName)\n")
+		fmt.Fprintf(&b, "\tclassValue := v.ClassValue(class)\n")
 		fmt.Fprintf(&b, "\tif cm, ok := method.(*vm.CompiledMethod); ok {\n")
 		fmt.Fprintf(&b, "\t\tv.Execute(cm, classValue, nil)\n")
 		fmt.Fprintf(&b, "\t} else {\n")

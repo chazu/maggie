@@ -160,12 +160,12 @@ func TestVMNewWeakRef(t *testing.T) {
 func TestWeakReferencePrimitiveOn(t *testing.T) {
 	vm := NewVM()
 
-	objVal := vm.Send(vm.Symbols.SymbolValue("Object"), "new", nil)
+	objVal := vm.Send(vm.ClassValue(vm.Classes.Lookup("Object")), "new", nil)
 	if !objVal.IsObject() {
 		t.Fatal("Failed to create object")
 	}
 
-	wrVal := vm.Send(vm.Symbols.SymbolValue("WeakReference"), "on:", []Value{objVal})
+	wrVal := vm.Send(vm.ClassValue(vm.Classes.Lookup("WeakReference")), "on:", []Value{objVal})
 	if !wrVal.IsWeakRef() {
 		t.Fatal("WeakReference on: should return a weak reference")
 	}
@@ -174,8 +174,8 @@ func TestWeakReferencePrimitiveOn(t *testing.T) {
 func TestWeakReferencePrimitiveGet(t *testing.T) {
 	vm := NewVM()
 
-	objVal := vm.Send(vm.Symbols.SymbolValue("Object"), "new", nil)
-	wrVal := vm.Send(vm.Symbols.SymbolValue("WeakReference"), "on:", []Value{objVal})
+	objVal := vm.Send(vm.ClassValue(vm.Classes.Lookup("Object")), "new", nil)
+	wrVal := vm.Send(vm.ClassValue(vm.Classes.Lookup("WeakReference")), "on:", []Value{objVal})
 
 	result := vm.Send(wrVal, "get", nil)
 	if result != objVal {
@@ -186,8 +186,8 @@ func TestWeakReferencePrimitiveGet(t *testing.T) {
 func TestWeakReferencePrimitiveIsAlive(t *testing.T) {
 	vm := NewVM()
 
-	objVal := vm.Send(vm.Symbols.SymbolValue("Object"), "new", nil)
-	wrVal := vm.Send(vm.Symbols.SymbolValue("WeakReference"), "on:", []Value{objVal})
+	objVal := vm.Send(vm.ClassValue(vm.Classes.Lookup("Object")), "new", nil)
+	wrVal := vm.Send(vm.ClassValue(vm.Classes.Lookup("WeakReference")), "on:", []Value{objVal})
 
 	result := vm.Send(wrVal, "isAlive", nil)
 	if result != True {
@@ -205,8 +205,8 @@ func TestWeakReferencePrimitiveIsAlive(t *testing.T) {
 func TestWeakReferencePrintString(t *testing.T) {
 	vm := NewVM()
 
-	objVal := vm.Send(vm.Symbols.SymbolValue("Object"), "new", nil)
-	wrVal := vm.Send(vm.Symbols.SymbolValue("WeakReference"), "on:", []Value{objVal})
+	objVal := vm.Send(vm.ClassValue(vm.Classes.Lookup("Object")), "new", nil)
+	wrVal := vm.Send(vm.ClassValue(vm.Classes.Lookup("WeakReference")), "on:", []Value{objVal})
 
 	result := vm.Send(wrVal, "printString", nil)
 	if !IsStringValue(result) {

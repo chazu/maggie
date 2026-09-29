@@ -1202,14 +1202,9 @@ func (vm *VM) Send(receiver Value, selector string, args []Value) Value {
 		// Use the central dispatch table for all symbol-encoded types
 		class, isClassSide = vm.symbolDispatch.ClassForSymbolVM(receiver, vm)
 		if class == nil {
-			// Not a registered symbol type — check if it's a class name
-			symName := vm.Symbols.Name(receiver.SymbolID())
-			if cls := vm.Classes.Lookup(symName); cls != nil {
-				class = cls
-				isClassSide = true
-			} else {
-				class = vm.SymbolClass
-			}
+			// A plain Symbol, even one that spells a class name (classes are
+			// first-class class values), matching ClassFor and the interpreter.
+			class = vm.SymbolClass
 		}
 	} else if isClassValue(receiver) {
 		// A class value dispatches class-side via the class's ClassVTable —

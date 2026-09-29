@@ -491,7 +491,7 @@ func TestVMArrayPrimitives(t *testing.T) {
 	}
 
 	// Test Array new: - create array of given size via class-side message
-	arrayClassSymbol := v.Symbols.SymbolValue("Array")
+	arrayClassSymbol := v.ClassValue(v.Classes.Lookup("Array"))
 	arr := v.Send(arrayClassSymbol, "new:", []Value{FromSmallInt(5)})
 
 	if !arr.IsObject() {
@@ -555,7 +555,7 @@ func TestVMArrayPrimitives(t *testing.T) {
 func TestVMArrayWithFactoryMethods(t *testing.T) {
 	v := NewVM()
 
-	arrayClassSymbol := v.Symbols.SymbolValue("Array")
+	arrayClassSymbol := v.ClassValue(v.Classes.Lookup("Array"))
 
 	// Test with: - create single-element array
 	arr := v.Send(arrayClassSymbol, "with:", []Value{FromSmallInt(42)})

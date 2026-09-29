@@ -19,6 +19,7 @@ type CompiledMethod struct {
 	IsClassMethod bool   // true if this is a class-side method
 	category      string // method category/protocol (e.g., "accessing", "testing", "private")
 	docString     string // documentation from """ ... """ (empty if none)
+	fromTrait     bool   // installed by IncludeTrait (a later trait may replace it)
 
 	// Method signature
 	Arity    int // number of arguments (not including self)

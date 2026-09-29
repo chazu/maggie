@@ -286,7 +286,7 @@ func BenchmarkVTableLookup(b *testing.B) {
 // BenchmarkObjectNew measures object allocation via new
 func BenchmarkObjectNew(b *testing.B) {
 	vm := benchmarkVM()
-	classSymbol := vm.Symbols.SymbolValue("Object")
+	classSymbol := vm.ClassValue(vm.Classes.Lookup("Object"))
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -313,7 +313,7 @@ func BenchmarkGarbageCollection(b *testing.B) {
 	vm := benchmarkVM()
 
 	// Create some objects to collect
-	classSymbol := vm.Symbols.SymbolValue("Object")
+	classSymbol := vm.ClassValue(vm.Classes.Lookup("Object"))
 	for i := 0; i < 1000; i++ {
 		vm.Send(classSymbol, "new", nil)
 	}
@@ -691,7 +691,7 @@ func BenchmarkSumLoopNative(b *testing.B) {
 // BenchmarkChannelSendReceive measures channel throughput
 func BenchmarkChannelSendReceive(b *testing.B) {
 	vm := benchmarkVM()
-	chSymbol := vm.Symbols.SymbolValue("Channel")
+	chSymbol := vm.ClassValue(vm.Classes.Lookup("Channel"))
 	ch := vm.Send(chSymbol, "new", nil)
 	val := FromSmallInt(42)
 
@@ -714,7 +714,7 @@ func BenchmarkChannelSendReceive(b *testing.B) {
 // BenchmarkChannelCreation measures channel allocation
 func BenchmarkChannelCreation(b *testing.B) {
 	vm := benchmarkVM()
-	chSymbol := vm.Symbols.SymbolValue("Channel")
+	chSymbol := vm.ClassValue(vm.Classes.Lookup("Channel"))
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -886,7 +886,7 @@ func BenchmarkHotPath_BlockEvalClosure(b *testing.B) {
 // BenchmarkHotPath_BufferedChannelThroughput measures send/receive on a buffered channel
 func BenchmarkHotPath_BufferedChannelThroughput(b *testing.B) {
 	vm := benchmarkVM()
-	chSymbol := vm.Symbols.SymbolValue("Channel")
+	chSymbol := vm.ClassValue(vm.Classes.Lookup("Channel"))
 	ch := vm.Send(chSymbol, "new:", []Value{FromSmallInt(64)})
 	val := FromSmallInt(42)
 
@@ -903,7 +903,7 @@ func BenchmarkHotPath_ClassInstantiation(b *testing.B) {
 	// Create a class with instance variables to measure allocation overhead
 	class := NewClassWithInstVars("BenchPoint", vm.ObjectClass, []string{"x", "y", "z"})
 	vm.Classes.Register(class)
-	classSymbol := vm.Symbols.SymbolValue("BenchPoint")
+	classSymbol := vm.ClassValue(vm.Classes.Lookup("BenchPoint"))
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {

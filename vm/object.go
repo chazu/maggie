@@ -80,6 +80,7 @@ type vtSnapshot struct {
 	entries []vtEntry // Open-addressed hash table; empty iff method == nil
 	mask    uint32    // len(entries) - 1
 	shift   uint      // 32 - log2(len(entries)); precomputed for hot path
+	epoch   uint64    // methodEpoch when built; stale once the epoch moves on
 }
 
 // vtEntry is one slot in the open-addressed dispatch hash table.

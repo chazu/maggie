@@ -119,9 +119,11 @@ func (tt *TraitTable) Len() int {
 // Class trait composition
 // ---------------------------------------------------------------------------
 
-// IncludeTrait composes a trait's methods into this class.
-// Trait methods are added to the class's VTable only if the class
-// doesn't already define a method with that selector (class wins).
+// IncludeTrait composes a trait's methods into this class, following the
+// documented resolution order (Guide07): a method defined on the class itself
+// wins; otherwise the trait's method is installed — overriding an inherited
+// one, and replacing a method installed by an earlier include (the
+// last-included trait wins a conflict).
 // With a symbol table, the copies are bound to this class's instance
 // variables (see bindTraitIvars); nil skips that step.
 // Returns an error message if required methods are not satisfied, or "" on success.
@@ -138,9 +140,14 @@ func (c *Class) IncludeTrait(trait *Trait, selectors *SelectorTable, symbols *Sy
 	// Clone so each class owns its own copy with correct class pointer.
 	ivarIDs := c.traitIvarSymbolIDs(symbols)
 	for selectorID, method := range trait.Methods {
-		if c.VTable.Lookup(selectorID) == nil {
-			c.VTable.AddMethod(selectorID, bindTraitIvars(method, c, ivarIDs))
+		// LookupLocal, not Lookup: an INHERITED method must not block the
+		// trait's (Lookup walks the superclass chain).
+		if existing := c.VTable.LookupLocal(selectorID); existing != nil {
+			if cm, ok := existing.(*CompiledMethod); !ok || !cm.fromTrait {
+				continue // the class's own method (or Go primitive) wins
+			}
 		}
+		c.VTable.AddMethod(selectorID, bindTraitIvars(method, c, ivarIDs))
 	}
 
 	return ""
@@ -171,6 +178,7 @@ func (c *Class) traitIvarSymbolIDs(symbols *SymbolTable) map[uint32]int {
 func bindTraitIvars(m *CompiledMethod, c *Class, ivarIDs map[uint32]int) *CompiledMethod {
 	cloned := m.Clone()
 	cloned.SetClass(c)
+	cloned.fromTrait = true
 	if len(ivarIDs) == 0 {
 		return cloned
 	}

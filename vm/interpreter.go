@@ -1165,6 +1165,7 @@ func (i *Interpreter) send(selector int, argc int) (result Value) {
 
 	// Cache miss - do full vtable lookup
 	if method == nil {
+		epoch := methodEpoch.Load() // before the lookup; see UpdateAt
 		method = vt.Lookup(selector)
 		if method == nil {
 			return i.sendDoesNotUnderstand(rcvr, selector, args)
@@ -1172,7 +1173,7 @@ func (i *Interpreter) send(selector int, argc int) (result Value) {
 
 		// Update cache on miss
 		if ic != nil {
-			ic.Update(receiverClass, method)
+			ic.UpdateAt(receiverClass, method, epoch)
 		}
 	}
 
@@ -1390,16 +1391,9 @@ func (i *Interpreter) vtableForVM(v Value, vm *VM) *VTable {
 			}
 			return cls.VTable
 		}
-		// Not a registered type — check if it's a class name (for class-side messages)
-		if i.Symbols != nil {
-			symName := i.Symbols.Name(v.SymbolID())
-			if cls := i.Classes.Lookup(symName); cls != nil {
-				if cls.ClassVTable != nil {
-					return cls.ClassVTable
-				}
-				return cls.VTable
-			}
-		}
+		// A plain Symbol — even one that spells a class name. (Classes are
+		// first-class class values; treating #Object as the Object class made
+		// symbol messages like asString or == answer nil.)
 		return vm.SymbolClass.VTable
 	case v.isHeap():
 		if v.hi == kindObject {

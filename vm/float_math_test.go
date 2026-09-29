@@ -118,7 +118,7 @@ func TestFloatPow(t *testing.T) {
 func TestFloatClassConstants(t *testing.T) {
 	vm := NewVM()
 
-	floatSym := FromSymbolID(vm.Intern("Float"))
+	floatSym := vm.ClassValue(vm.Classes.Lookup("Float"))
 
 	// Float pi
 	result := vm.Send(floatSym, "pi", nil)

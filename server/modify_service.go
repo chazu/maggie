@@ -201,7 +201,7 @@ func (s *ModifyService) CreateClass(
 		v.Classes.Register(cls)
 
 		// Register as a global (so Maggie code can reference the class by name)
-		v.SetGlobal(req.Msg.Name, v.Symbols.SymbolValue(req.Msg.Name))
+		v.SetGlobal(req.Msg.Name, v.ClassValue(cls))
 
 		return &maggiev1.CreateClassResponse{
 			Success: true,

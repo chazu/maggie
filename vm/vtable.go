@@ -1,5 +1,7 @@
 package vm
 
+import "sync/atomic"
+
 // VTable holds the method dispatch table for a class.
 //
 // Local methods are stored in a compact `methods` map keyed by selector ID,
@@ -14,6 +16,11 @@ package vm
 // snapshot is rebuilt lazily on the first Lookup after any structural
 // mutation (AddMethod / RemoveMethod / SetParent), and rebuilds are
 // serialized by `mu` using double-checked locking.
+//
+// Because a snapshot flattens the whole chain, a mutation must invalidate
+// the snapshots of every subclass too, not just the mutated vtable's. That
+// is what methodEpoch is for: every mutation bumps it, and a snapshot (or
+// inline cache entry) built under an older epoch is treated as a miss.
 //
 // Concurrency model:
 //   - Readers (Lookup) do one atomic.Pointer.Load on snap. No mutex on
@@ -36,6 +43,19 @@ func vtSelectorHash(sel int) uint32 {
 	return uint32(sel) * 2654435761
 }
 
+// methodEpoch counts method-table mutations (AddMethod / RemoveMethod /
+// SetParent) across all vtables. Dispatch snapshots and inline caches record
+// the epoch they were built under and are rebuilt once it moves on, so a
+// method added, redefined or removed on a superclass is seen by every
+// subclass and every call site. Mutations are rare after image load, so the
+// resulting global invalidation costs little.
+var methodEpoch atomic.Uint64
+
+// bumpMethodEpoch invalidates every dispatch snapshot and inline cache.
+func bumpMethodEpoch() {
+	methodEpoch.Add(1)
+}
+
 // Lookup finds a method by selector ID using the flattened dispatch table.
 // Returns nil if no method is found (triggers doesNotUnderstand:).
 //
@@ -43,7 +63,7 @@ func vtSelectorHash(sel int) uint32 {
 // tag compare → return. Lock-free.
 func (vt *VTable) Lookup(selector int) Method {
 	s := vt.snap.Load()
-	if s == nil {
+	if s == nil || s.epoch != methodEpoch.Load() {
 		s = vt.rebuildLocked()
 		if s == nil {
 			return nil
@@ -86,7 +106,7 @@ func (vt *VTable) rebuildLocked() *vtSnapshot {
 	vt.mu.Lock()
 	// Double-checked locking: another goroutine may have rebuilt while
 	// we were waiting for the mutex.
-	if s := vt.snap.Load(); s != nil {
+	if s := vt.snap.Load(); s != nil && s.epoch == methodEpoch.Load() {
 		vt.mu.Unlock()
 		return s
 	}
@@ -106,17 +126,26 @@ func (vt *VTable) buildSnapshot() *vtSnapshot {
 	// a child overrides a parent (each contributes once), but that just
 	// means a marginally larger table — correctness is unaffected.
 	//
-	// We do not lock parent vtables here. Reading parent.methods races
-	// with concurrent AddMethod on the parent only if the parent class
-	// is being mutated while a child is being dispatched against — a
-	// pattern that is not currently safe in this VM regardless (the
-	// child's snapshot would not pick up the parent change without a
-	// child-side markDirty). Class-definition is conventionally a
-	// quiescent operation w.r.t. that class hierarchy. The alternative
-	// (locking every ancestor in order) would complicate teardown and
-	// is not warranted by current usage.
-	total := 0
+	// Capture the epoch BEFORE reading any method table: a mutation that
+	// lands mid-build bumps the epoch past this value, so the snapshot is
+	// already stale when published and the next Lookup rebuilds it.
+	epoch := methodEpoch.Load()
+
+	// Collect the chain (child first). Ancestor method maps are read under
+	// their own mu (vt.mu is held by the caller), always locking in
+	// descendant → ancestor order, so concurrent AddMethod on an ancestor
+	// cannot race the map reads below.
+	var chain []*VTable
 	for v := vt; v != nil; v = v.parent {
+		chain = append(chain, v)
+	}
+	for _, v := range chain[1:] {
+		v.mu.Lock()
+		defer v.mu.Unlock()
+	}
+
+	total := 0
+	for _, v := range chain {
 		total += len(v.methods)
 	}
 
@@ -138,11 +167,6 @@ func (vt *VTable) buildSnapshot() *vtSnapshot {
 	shift := 32 - bitsForMask(mask)
 
 	// Walk parent → child so child overrides win.
-	// Collect chain bottom-up first.
-	var chain []*VTable
-	for v := vt; v != nil; v = v.parent {
-		chain = append(chain, v)
-	}
 	for i := len(chain) - 1; i >= 0; i-- {
 		for sel, m := range chain[i].methods {
 			if m == nil {
@@ -161,7 +185,7 @@ func (vt *VTable) buildSnapshot() *vtSnapshot {
 		}
 	}
 
-	return &vtSnapshot{entries: entries, mask: mask, shift: shift}
+	return &vtSnapshot{entries: entries, mask: mask, shift: shift, epoch: epoch}
 }
 
 // markDirty invalidates the published snapshot so the next Lookup
@@ -194,6 +218,7 @@ func (vt *VTable) AddMethod(selector int, method Method) {
 	vt.methods[selector] = method
 	vt.mu.Unlock()
 	vt.markDirty()
+	bumpMethodEpoch()
 }
 
 // RemoveMethod removes a method at the given selector ID.
@@ -207,6 +232,7 @@ func (vt *VTable) RemoveMethod(selector int) {
 		delete(vt.methods, selector)
 		vt.mu.Unlock()
 		vt.markDirty()
+		bumpMethodEpoch()
 		return
 	}
 	vt.mu.Unlock()
@@ -228,6 +254,7 @@ func (vt *VTable) SetParent(parent *VTable) {
 	vt.parent = parent
 	vt.mu.Unlock()
 	vt.markDirty()
+	bumpMethodEpoch()
 }
 
 // Class returns the class this vtable belongs to.

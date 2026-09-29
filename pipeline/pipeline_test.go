@@ -361,7 +361,7 @@ Factory subclass: Object
 		t.Fatalf("CompilePath failed: %v", err)
 	}
 
-	result := vmInst.Send(vmInst.Symbols.SymbolValue("App::Factory"), "makeButton", nil)
+	result := vmInst.Send(vmInst.ClassValue(vmInst.Classes.Lookup("App::Factory")), "makeButton", nil)
 	labelResult := vmInst.Send(result, "label", nil)
 	if !vm.IsStringValue(labelResult) {
 		t.Fatalf("expected string result from label, got %v", labelResult)
@@ -395,7 +395,7 @@ func TestFQN_SameNamespaceClassReference(t *testing.T) {
 		t.Fatalf("CompilePath failed: %v", err)
 	}
 
-	result := vmInst.Send(vmInst.Symbols.SymbolValue("Models::Derived"), "create", nil)
+	result := vmInst.Send(vmInst.ClassValue(vmInst.Classes.Lookup("Models::Derived")), "create", nil)
 	kindResult := vmInst.Send(result, "kind", nil)
 	if !vm.IsStringValue(kindResult) {
 		t.Fatalf("expected string result from kind, got %v", kindResult)
@@ -431,7 +431,7 @@ Worker subclass: Object
 		t.Fatalf("CompilePath failed: %v", err)
 	}
 
-	result := vmInst.Send(vmInst.Symbols.SymbolValue("App::Worker"), "getHelper", nil)
+	result := vmInst.Send(vmInst.ClassValue(vmInst.Classes.Lookup("App::Worker")), "getHelper", nil)
 	helpResult := vmInst.Send(result, "help", nil)
 	if !vm.IsStringValue(helpResult) {
 		t.Fatalf("expected string result from help, got %v", helpResult)
@@ -472,7 +472,7 @@ Setup subclass: Object
 		t.Fatalf("CompilePath failed: %v", err)
 	}
 
-	result := vmInst.Send(vmInst.Symbols.SymbolValue("App::Setup"), "createConfig", nil)
+	result := vmInst.Send(vmInst.ClassValue(vmInst.Classes.Lookup("App::Setup")), "createConfig", nil)
 	nameResult := vmInst.Send(result, "name", nil)
 	if !vm.IsStringValue(nameResult) {
 		t.Fatalf("expected string from name, got %v", nameResult)
@@ -604,7 +604,7 @@ Factory subclass: Object
 		t.Fatalf("CompilePath failed: %v", err)
 	}
 
-	result := vmInst.Send(vmInst.Symbols.SymbolValue("App::Factory"), "makeGreeter", nil)
+	result := vmInst.Send(vmInst.ClassValue(vmInst.Classes.Lookup("App::Factory")), "makeGreeter", nil)
 	greetResult := vmInst.Send(result, "greet", nil)
 	if !vm.IsStringValue(greetResult) {
 		t.Fatalf("expected string result from greet, got %v", greetResult)
@@ -649,7 +649,7 @@ Factory subclass: Object
 		t.Fatalf("CompilePath failed: %v", err)
 	}
 
-	result := vmInst.Send(vmInst.Symbols.SymbolValue("App::Factory"), "makeButton", nil)
+	result := vmInst.Send(vmInst.ClassValue(vmInst.Classes.Lookup("App::Factory")), "makeButton", nil)
 	labelResult := vmInst.Send(result, "label", nil)
 	if !vm.IsStringValue(labelResult) {
 		t.Fatalf("expected string result from label, got %v", labelResult)
@@ -689,7 +689,7 @@ Factory subclass: Object
 		t.Fatalf("CompilePath failed: %v", err)
 	}
 
-	result := vmInst.Send(vmInst.Symbols.SymbolValue("App::Factory"), "makeSlider", nil)
+	result := vmInst.Send(vmInst.ClassValue(vmInst.Classes.Lookup("App::Factory")), "makeSlider", nil)
 	kindResult := vmInst.Send(result, "kind", nil)
 	if !vm.IsStringValue(kindResult) {
 		t.Fatalf("expected string result from kind, got %v", kindResult)

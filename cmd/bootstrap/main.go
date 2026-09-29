@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 
 	"github.com/chazu/maggie/compiler"
 	"github.com/chazu/maggie/compiler/hash"
@@ -219,10 +220,25 @@ func compileAllFiles(files []string, vmInst *vm.VM, verbose bool) (int, error) {
 		for _, classDef := range pf.sf.Classes {
 			var class *vm.Class
 
-			// Look up the class in the VM (for core classes)
+			// Look up the class in the VM (for core classes). Any class the VM
+			// already defines (not just those in classMapping) must be reused:
+			// creating a same-named duplicate hid the built-in's Go primitives
+			// during bootstrap, so <primitive> stubs found nothing and trait
+			// methods were installed in their place — and on image load those
+			// methods were attached to the real class by name, overriding its
+			// primitives (Character's >, <=, >= became Comparable's defaults).
 			classGetter, ok := classMapping[classDef.Name]
 			if ok {
 				class = classGetter(vmInst)
+			} else if existing := vmInst.Classes.Lookup(classDef.Name); existing != nil {
+				class = existing
+				if len(classDef.InstanceVariables) > 0 && !slices.Equal(classDef.InstanceVariables, existing.InstVars) {
+					fmt.Printf("ERROR: %s declares instanceVars %v but the VM defines %v\n",
+						classDef.Name, classDef.InstanceVariables, existing.InstVars)
+					os.Exit(1)
+				}
+			}
+			if class != nil {
 				// The declaration must tell the truth about the hardwired
 				// hierarchy (L-7): the loader VERIFIES instead of silently
 				// ignoring it — `Array subclass: Object` while the VM wires

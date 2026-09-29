@@ -27,7 +27,7 @@ func TestArrayNewRejectsOversize(t *testing.T) {
 	vm := NewVM()
 	defer vm.Shutdown()
 
-	arrayClass := vm.Symbols.SymbolValue("Array")
+	arrayClass := vm.ClassValue(vm.Classes.Lookup("Array"))
 
 	msg, signaled := signalsPrimitiveError(vm, func() {
 		vm.Send(arrayClass, "new:", []Value{FromSmallInt(MaxArrayElements + 1)})
@@ -89,14 +89,14 @@ func TestArrayListAndChannelNewRejectOversize(t *testing.T) {
 	vm := NewVM()
 	defer vm.Shutdown()
 
-	alClass := vm.Symbols.SymbolValue("ArrayList")
+	alClass := vm.ClassValue(vm.Classes.Lookup("ArrayList"))
 	if _, signaled := signalsPrimitiveError(vm, func() {
 		vm.Send(alClass, "new:", []Value{FromSmallInt(MaxArrayElements + 1)})
 	}); !signaled {
 		t.Error("ArrayList new: oversize should raise a catchable error")
 	}
 
-	chClass := vm.Symbols.SymbolValue("Channel")
+	chClass := vm.ClassValue(vm.Classes.Lookup("Channel"))
 	if _, signaled := signalsPrimitiveError(vm, func() {
 		vm.Send(chClass, "new:", []Value{FromSmallInt(MaxArrayElements + 1)})
 	}); !signaled {

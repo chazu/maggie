@@ -787,9 +787,9 @@ func runMain(vmInst *vm.VM, entry string, verbose bool) (vm.Value, error) {
 		if verbose {
 			fmt.Printf("Found class method %s, executing...\n", methodName)
 		}
-		// Execute class method - send to the class itself
-		// Class values are represented as symbols of the class name
-		classValue := vmInst.Symbols.SymbolValue(qualifiedName)
+		// Execute class method - send to the class itself (a first-class
+		// class value; a Symbol naming the class is just a Symbol)
+		classValue := vmInst.ClassValue(class)
 		return runMainEntry(vmInst, classValue, methodName)
 	}
 

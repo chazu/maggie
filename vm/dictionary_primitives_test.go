@@ -51,7 +51,7 @@ func TestDictionaryNew(t *testing.T) {
 	vm := NewVM()
 
 	// Create dictionary via class-side new
-	dictClass := vm.Symbols.SymbolValue("Dictionary")
+	dictClass := vm.ClassValue(vm.Classes.Lookup("Dictionary"))
 	d := vm.Send(dictClass, "new", nil)
 
 	if !IsDictionaryValue(d) {
