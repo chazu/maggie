@@ -142,6 +142,28 @@ func TestGetHierarchy_ValidClass(t *testing.T) {
 	}
 }
 
+// Superclasses run root-first with increasing depth (browsing.proto).
+func TestGetHierarchy_RootFirst(t *testing.T) {
+	svc := newTestBrowseService()
+
+	resp, err := svc.GetHierarchy(bg(), connectReq(&maggiev1.GetHierarchyRequest{ClassName: "SmallInteger"}))
+	if err != nil {
+		t.Fatalf("GetHierarchy returned error: %v", err)
+	}
+	supers := resp.Msg.Superclasses
+	if len(supers) < 2 || supers[0].Name != "Object" {
+		t.Fatalf("superclasses should start at Object: %v", supers)
+	}
+	for i, e := range supers {
+		if e.Depth != int32(i) {
+			t.Errorf("superclasses[%d] %s depth = %d, want %d", i, e.Name, e.Depth, i)
+		}
+	}
+	if resp.Msg.Self.Depth != int32(len(supers)) {
+		t.Errorf("Self depth = %d, want %d", resp.Msg.Self.Depth, len(supers))
+	}
+}
+
 func TestGetHierarchy_NotFound(t *testing.T) {
 	svc := newTestBrowseService()
 

@@ -501,3 +501,39 @@ func TestSendMessage_BadArgumentSyntax(t *testing.T) {
 		t.Logf("note: ErrorMessage = %q", resp.Msg.ErrorMessage)
 	}
 }
+
+// inspectSource evaluates source and inspects the resulting handle.
+func inspectSource(t *testing.T, source string) *maggiev1.InspectResponse {
+	t.Helper()
+	evalResp, err := newTestEvalService().Evaluate(bg(), connectReq(&maggiev1.EvaluateRequest{Source: source}))
+	if err != nil || !evalResp.Msg.Success {
+		t.Fatalf("Evaluate(%q) failed: %v %v", source, err, evalResp.Msg.GetErrorMessage())
+	}
+	resp, err := newTestInspectService().Inspect(bg(), connectReq(&maggiev1.InspectRequest{
+		HandleId: evalResp.Msg.Handle.Id,
+	}))
+	if err != nil {
+		t.Fatalf("Inspect(%q) returned error: %v", source, err)
+	}
+	return resp.Msg
+}
+
+// A buffered Channel's queue length is not an indexable size: inspecting it
+// used to send at: to the Channel and fail the whole request.
+func TestInspect_BufferedChannel(t *testing.T) {
+	msg := inspectSource(t, "| c | c := Channel new: 3. c send: 1. c send: 2. c")
+	if msg.IsIndexable {
+		t.Error("Channel must not be reported as indexable")
+	}
+}
+
+// Values without a specialized inspector view still report their class.
+func TestInspect_FallbackReportsClass(t *testing.T) {
+	msg := inspectSource(t, "| l | l := ArrayList new. l add: 1. l")
+	if msg.ClassName != "ArrayList" {
+		t.Errorf("ClassName = %q, want ArrayList", msg.ClassName)
+	}
+	if strings.Contains(msg.DisplayString, "unknown") {
+		t.Errorf("DisplayString = %q, want the class name", msg.DisplayString)
+	}
+}

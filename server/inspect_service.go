@@ -338,8 +338,10 @@ func (s *InspectService) inspectValue(v *vm.VM, val vm.Value, handleID string) *
 		}
 	}
 
-	// Populate indexed elements for indexable objects (arrays)
-	if result.Size > 0 {
+	// Populate indexed elements for indexable objects (arrays). Only Object
+	// results carry an indexable Size; a Channel's Size is its queue length
+	// and it does not understand at:.
+	if result.Type == "Object" && result.Size > 0 {
 		resp.IsIndexable = true
 		resp.IndexableSize = int32(result.Size)
 

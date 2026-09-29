@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 
@@ -91,8 +92,11 @@ func (s *BrowseService) GetHierarchy(
 			return fmt.Errorf("class %q not found", req.Msg.ClassName)
 		}
 
-		// Superclass chain (from root to parent)
+		// Superclass chain from root to parent (the proto contract).
+		// Superclasses() walks parent-first, so reverse it: the root gets
+		// depth 0 and the class itself len(supers).
 		supers := cls.Superclasses()
+		slices.Reverse(supers)
 		superEntries := make([]*maggiev1.HierarchyEntry, len(supers))
 		for i, sup := range supers {
 			superEntries[i] = &maggiev1.HierarchyEntry{

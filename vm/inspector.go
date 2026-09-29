@@ -132,8 +132,16 @@ func (i *Inspector) InspectDepth(v Value, depth int) *InspectionResult {
 		return i.inspectObject(v, depth)
 
 	default:
+		// No specialized view (ArrayList, Block, Exception, Go objects, …),
+		// but the VM still knows the class: report it rather than raw bits.
 		result.Type = "Unknown"
 		result.Value = fmt.Sprintf("<unknown:0x%016x>", v.hi)
+		if i.vm != nil {
+			if cls := i.vm.ClassFor(v); cls != nil {
+				result.ClassName = cls.Name
+				result.Value = "a " + cls.Name
+			}
+		}
 	}
 
 	return result
