@@ -399,7 +399,18 @@ func (w *ImageWriter) collectFromVM(vm *VM) {
 	// Collect class variable names and cache
 	w.classVarData = make(map[*Class]map[string]Value)
 	for _, class := range w.classes {
-		vars := vm.registry.GetClassVarStorage(class)
+		vars := vm.registry.GetClassVarStorage(class) // a snapshot we may extend
+		// Persist every declared class variable, set or not: the reader
+		// rebuilds Class.ClassVars from these entries, and a declaration
+		// lost on reload would turn the name back into a global.
+		for _, name := range class.ClassVars {
+			if _, ok := vars[name]; !ok {
+				if vars == nil {
+					vars = make(map[string]Value)
+				}
+				vars[name] = Nil
+			}
+		}
 		if len(vars) > 0 {
 			w.classVarData[class] = vars
 			varNames := make([]string, 0, len(vars))

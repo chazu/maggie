@@ -31,6 +31,29 @@ func (i *Interpreter) signalRestrictedGlobal(name, accessKind string) {
 	panic(msg)
 }
 
+// frameClassVarOwner returns the class that declares a class variable named
+// name, as seen from the method running in frame (its class and superclasses),
+// or nil. The compiler emits a free name — class variable or global — as a
+// global access; class variables are resolved here, at run time, so every
+// compile path (pipeline, rehydration, live coding, trait methods cloned into
+// a host class) gets them without threading class context through each one.
+func frameClassVarOwner(frame *CallFrame, name string) *Class {
+	m := frame.Method
+	if m == nil && frame.Block != nil {
+		if m = frame.Block.Outer; m == nil {
+			m = frame.HomeMethod
+		}
+	}
+	if m == nil {
+		return nil
+	}
+	cls := m.Class()
+	if cls == nil {
+		return nil
+	}
+	return cls.findClassVarOwner(name)
+}
+
 func (i *Interpreter) execPushGlobal(frame *CallFrame, bc []byte, literals []Value) {
 	idx := binary.LittleEndian.Uint16(bc[frame.IP:])
 	frame.IP += 2
@@ -44,6 +67,10 @@ func (i *Interpreter) execPushGlobal(frame *CallFrame, bc []byte, literals []Val
 			globalName = i.vm.registry.GetStringContent(lit)
 		}
 		if globalName != "" {
+			if owner := frameClassVarOwner(frame, globalName); owner != nil {
+				i.push(i.vm.registry.GetClassVar(owner, globalName))
+				return
+			}
 			if i.hidden != nil && i.hidden[globalName] {
 				// Restricted process touched a hidden global: signal a
 				// catchable RestrictedGlobal instead of silently pushing nil
@@ -103,6 +130,10 @@ func (i *Interpreter) execStoreGlobal(frame *CallFrame, bc []byte, literals []Va
 			globalName = i.vm.registry.GetStringContent(lit)
 		}
 		if globalName != "" {
+			if owner := frameClassVarOwner(frame, globalName); owner != nil {
+				i.vm.registry.SetClassVar(owner, globalName, i.top())
+				return
+			}
 			if i.hidden != nil && i.hidden[globalName] {
 				// Signal instead of silently dropping the write (see
 				// signalRestrictedGlobal).

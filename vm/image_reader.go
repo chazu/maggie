@@ -5,6 +5,7 @@ import (
 	"io"
 	"math/big"
 	"os"
+	"slices"
 
 	"github.com/fxamacker/cbor/v2"
 )
@@ -669,6 +670,11 @@ func (cr *ImageReader) readClassVars(vm *VM) error {
 				return fmt.Errorf("class var %d for class %d: %w", j, entry.Class, err)
 			}
 			vm.registry.SetClassVar(class, name, val)
+			// The entry is also the declaration: restore it on the class
+			// so the interpreter resolves the name as a class variable.
+			if !slices.Contains(class.ClassVars, name) {
+				class.ClassVars = append(class.ClassVars, name)
+			}
 		}
 	}
 	return nil

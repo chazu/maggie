@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 
@@ -266,6 +267,15 @@ func (p *Pipeline) CompileAll(files []ParsedFile) (int, error) {
 					class.DocString = classDef.DocString
 				}
 				classEntries = append(classEntries, classEntry{class: class, classDef: classDef, pf: pf})
+			}
+
+			// Declare class variables (extension files may add more). The
+			// interpreter resolves them before globals, so each class gets
+			// its own storage instead of sharing one global of that name.
+			for _, name := range classDef.ClassVariables {
+				if !slices.Contains(class.ClassVars, name) {
+					class.ClassVars = append(class.ClassVars, name)
+				}
 			}
 		}
 	}
