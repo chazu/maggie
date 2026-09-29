@@ -796,3 +796,12 @@ func TestLexerBinarySelectorStopsBeforeNegativeNumber(t *testing.T) {
 		}
 	}
 }
+
+func TestLexerUnterminatedQuotedSymbol(t *testing.T) {
+	if tok := NewLexer("#'abc").NextToken(); tok.Type != TokenError {
+		t.Errorf("#'abc: got %v %q, want an error token", tok.Type, tok.Literal)
+	}
+	if tok := NewLexer("#'a''b'").NextToken(); tok.Type != TokenSymbol || tok.Literal != "a'b" {
+		t.Errorf("#'a''b': got %v %q, want symbol a'b", tok.Type, tok.Literal)
+	}
+}

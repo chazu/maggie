@@ -367,9 +367,12 @@ func (l *Lexer) readQuotedSymbol(pos Position) Token {
 		l.readChar()
 	}
 
-	if l.ch == '\'' {
-		l.readChar() // consume closing '
+	if l.ch != '\'' {
+		// Like an unterminated string: reaching end of input must not
+		// silently yield a symbol of whatever text followed the quote.
+		return Token{Type: TokenError, Literal: "unterminated quoted symbol", Pos: pos}
 	}
+	l.readChar() // consume closing '
 
 	return Token{Type: TokenSymbol, Literal: sb.String(), Pos: pos}
 }
