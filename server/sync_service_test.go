@@ -278,11 +278,11 @@ func TestSyncTransfer_ClassChunk(t *testing.T) {
 	store.IndexMethod(m2)
 
 	// Create class chunk with pre-indexed method deps
-	classHash := sha256.Sum256([]byte("MyClass"))
+	classHash := vm.HashClass("MyClass", "", "", nil, nil, "", [][32]byte{m1h, m2h})
 	chunk := &dist.Chunk{
 		Hash:         classHash,
 		Type:         dist.ChunkClass,
-		Content:      "MyClass",
+		Content:      "CLASS MyClass",
 		Dependencies: [][32]byte{m1h, m2h},
 	}
 	chunkBytes, err := dist.MarshalChunk(chunk)
@@ -309,11 +309,11 @@ func TestSyncTransfer_ClassChunk_MissingDep(t *testing.T) {
 
 	// Class chunk with dependency that's NOT in the store
 	missingDep := sha256.Sum256([]byte("not-indexed"))
-	classHash := sha256.Sum256([]byte("MyClass"))
+	classHash := vm.HashClass("MyClass", "", "", nil, nil, "", [][32]byte{missingDep})
 	chunk := &dist.Chunk{
 		Hash:         classHash,
 		Type:         dist.ChunkClass,
-		Content:      "MyClass",
+		Content:      "CLASS MyClass",
 		Dependencies: [][32]byte{missingDep},
 	}
 	chunkBytes, err := dist.MarshalChunk(chunk)

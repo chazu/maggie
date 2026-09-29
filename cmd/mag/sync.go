@@ -300,8 +300,8 @@ func handleSyncPull(vmInst *vm.VM, peerAddr string, rootHashHex string, verbose 
 			}
 			d, decErr := dist.DecodeClassContent(chunk.Content)
 			if decErr != nil {
-				// Fallback: treat Content as bare class name for backward compat
-				d = &vm.ClassDigest{Name: chunk.Content}
+				rejected++ // unreachable: VerifyChunkClass already decoded it
+				continue
 			}
 			d.Hash = chunk.Hash
 			d.MethodHashes = chunk.Dependencies
@@ -799,7 +799,7 @@ func buildPullFunc(vmInst *vm.VM, peerAddrs *sync.Map) func(peerID dist.NodeID, 
 				}
 				d, decErr := dist.DecodeClassContent(chunk.Content)
 				if decErr != nil {
-					d = &vm.ClassDigest{Name: chunk.Content}
+					continue // unreachable: VerifyChunkClass already decoded it
 				}
 				d.Hash = chunk.Hash
 				d.MethodHashes = chunk.Dependencies

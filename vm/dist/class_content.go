@@ -2,6 +2,7 @@ package dist
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/chazu/maggie/vm"
@@ -19,7 +20,10 @@ import (
 //	DOC A simple greeter class.
 //
 // Empty/zero fields are omitted. CLASS is always present.
-// IVARS and CVARS are space-separated.
+// IVARS and CVARS are space-separated. A docstring spanning several lines
+// (the common case for class comments) is written as DOCQ followed by the
+// Go-quoted string, since a raw newline would end the DOC line; single-line
+// docstrings keep the plain DOC form.
 // MethodHashes and Hash are NOT encoded — they live on the Chunk itself.
 func EncodeClassContent(d *vm.ClassDigest) string {
 	var b strings.Builder
@@ -44,8 +48,13 @@ func EncodeClassContent(d *vm.ClassDigest) string {
 		b.WriteString(strings.Join(d.ClassVars, " "))
 	}
 	if d.DocString != "" {
-		b.WriteString("\nDOC ")
-		b.WriteString(d.DocString)
+		if strings.ContainsAny(d.DocString, "\r\n") {
+			b.WriteString("\nDOCQ ")
+			b.WriteString(strconv.Quote(d.DocString))
+		} else {
+			b.WriteString("\nDOC ")
+			b.WriteString(d.DocString)
+		}
 	}
 
 	return b.String()
@@ -89,6 +98,12 @@ func DecodeClassContent(content string) (*vm.ClassDigest, error) {
 			d.ClassVars = strings.Fields(value)
 		case "DOC":
 			d.DocString = value
+		case "DOCQ":
+			doc, err := strconv.Unquote(value)
+			if err != nil {
+				return nil, fmt.Errorf("dist: invalid quoted docstring: %w", err)
+			}
+			d.DocString = doc
 		default:
 			return nil, fmt.Errorf("dist: unknown class content tag: %q", tag)
 		}

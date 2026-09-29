@@ -363,3 +363,29 @@ func TestMethodChunker_DetachedStubGetsOwner(t *testing.T) {
 		t.Errorf("unowned stub: got ClassName=%q, want empty", c.ClassName)
 	}
 }
+
+func TestEncodeDecodeClassContentMultiLineDoc(t *testing.T) {
+	// Class comments are usually multi-line; a raw newline used to end the
+	// DOC line and make the next doc line parse as an (unknown) tag.
+	original := &vm.ClassDigest{
+		Name:           "Greeter",
+		SuperclassName: "Object",
+		DocString:      "Greets people.\nSUPER Evil\r\n\n  with \"quotes\" and \\ backslashes",
+	}
+	encoded := EncodeClassContent(original)
+	decoded, err := DecodeClassContent(encoded)
+	if err != nil {
+		t.Fatalf("DecodeClassContent: %v", err)
+	}
+	if decoded.DocString != original.DocString {
+		t.Errorf("DocString: got %q, want %q", decoded.DocString, original.DocString)
+	}
+	if decoded.SuperclassName != "Object" {
+		t.Errorf("SuperclassName: got %q, want Object", decoded.SuperclassName)
+	}
+
+	// Single-line docstrings keep the plain DOC form.
+	if got := EncodeClassContent(&vm.ClassDigest{Name: "A", DocString: "One line."}); got != "CLASS A\nDOC One line." {
+		t.Errorf("single-line encoding changed: %q", got)
+	}
+}

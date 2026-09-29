@@ -219,8 +219,7 @@ func (s *SyncService) indexVerifiedMethod(chunk *dist.Chunk) {
 func (s *SyncService) indexVerifiedClass(chunk *dist.Chunk) {
 	d, err := dist.DecodeClassContent(chunk.Content)
 	if err != nil {
-		// Fallback: treat Content as bare class name for backward compat
-		d = &vm.ClassDigest{Name: chunk.Content}
+		return // unreachable: VerifyChunkClass already decoded the content
 	}
 	d.Hash = chunk.Hash
 	d.MethodHashes = chunk.Dependencies

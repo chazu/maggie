@@ -156,12 +156,26 @@ func VerifyChunkMethod(c *Chunk, ctx MethodContext, compile CompileFunc) error {
 	return nil
 }
 
-// VerifyChunkClass verifies that a class chunk's declared dependency hashes
-// (method hashes) all exist in the content store. This ensures we have all
-// methods before accepting the class digest.
+// VerifyChunkClass decodes a class chunk, re-hashes its structure and
+// declared method hashes, and checks the result against the chunk's declared
+// hashes; it also verifies that every dependency (method hash) already
+// exists in the content store, so we have all methods before accepting the
+// class digest.
 func VerifyChunkClass(c *Chunk, store *vm.ContentStore) error {
 	if c.Type != ChunkClass {
 		return fmt.Errorf("dist: cannot verify non-class chunk (type=%d)", c.Type)
+	}
+	d, err := DecodeClassContent(c.Content)
+	if err != nil {
+		return err
+	}
+	if h := vm.HashClass(d.Name, d.Namespace, d.SuperclassName, d.InstVars, d.ClassVars, d.DocString, c.Dependencies); h != c.Hash {
+		return fmt.Errorf("dist: class hash mismatch: declared %x, computed %x", c.Hash, h)
+	}
+	if c.TypedHash != ([32]byte{}) {
+		if h := vm.HashClass(d.Name, d.Namespace, d.SuperclassName, d.InstVars, d.ClassVars, d.DocString, c.TypedDependencies); h != c.TypedHash {
+			return fmt.Errorf("dist: typed class hash mismatch: declared %x, computed %x", c.TypedHash, h)
+		}
 	}
 	for _, dep := range c.Dependencies {
 		if !store.HasHash(dep) {

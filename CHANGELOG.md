@@ -24,6 +24,11 @@ existing code or deployments observe:
 - **Class redefinition is checked.** Loading a class again with different
   instance variables, or a superclass that shifts its slots, is now an
   error instead of silently miscompiling.
+- **Class chunks are re-hashed on receipt.** Sync and code-on-demand now
+  recompute a class chunk's hash from its decoded structure and reject a
+  mismatch (legacy bare-name class chunks are rejected). Multi-line class
+  docstrings travel as a quoted `DOCQ` line; they previously failed to
+  decode and the class was indexed under its whole content blob.
 
 **Now honoured**
 - `[image] include-source = false` strips method source from images saved

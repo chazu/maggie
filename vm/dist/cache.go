@@ -161,7 +161,13 @@ func (dc *DiskCache) LoadInto(store *vm.ContentStore) (int, error) {
 		case ChunkClass:
 			d, decErr := DecodeClassContent(chunk.Content)
 			if decErr != nil {
-				// Fallback: treat Content as bare class name for backward compat
+				// Legacy entries carried a bare class name. Anything else
+				// that fails to decode (e.g. a multi-line DOC written before
+				// DOCQ existed) is corrupt: indexing it would name a class
+				// after the whole content blob.
+				if strings.ContainsAny(chunk.Content, " \n") {
+					continue
+				}
 				d = &vm.ClassDigest{Name: chunk.Content}
 			}
 			d.Hash = chunk.Hash

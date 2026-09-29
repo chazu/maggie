@@ -271,11 +271,11 @@ func TestVerifyChunkClass_Valid(t *testing.T) {
 	m1.SetContentHash(m1h)
 	store.IndexMethod(m1)
 
-	classHash := sha256.Sum256([]byte("MyClass"))
+	classHash := vm.HashClass("MyClass", "", "", nil, nil, "", [][32]byte{m1h})
 	c := &Chunk{
 		Hash:         classHash,
 		Type:         ChunkClass,
-		Content:      "MyClass",
+		Content:      "CLASS MyClass",
 		Dependencies: [][32]byte{m1h},
 	}
 
@@ -289,11 +289,11 @@ func TestVerifyChunkClass_MissingDep(t *testing.T) {
 	store := vm.NewContentStore()
 
 	missingDep := sha256.Sum256([]byte("not-in-store"))
-	classHash := sha256.Sum256([]byte("MyClass"))
+	classHash := vm.HashClass("MyClass", "", "", nil, nil, "", [][32]byte{missingDep})
 	c := &Chunk{
 		Hash:         classHash,
 		Type:         ChunkClass,
-		Content:      "MyClass",
+		Content:      "CLASS MyClass",
 		Dependencies: [][32]byte{missingDep},
 	}
 
@@ -310,5 +310,51 @@ func TestVerifyChunkClass_WrongType(t *testing.T) {
 	err := VerifyChunkClass(c, store)
 	if err == nil {
 		t.Error("VerifyChunkClass should reject non-class chunks")
+	}
+}
+
+func TestVerifyChunkClass_RoundTripsRealDigest(t *testing.T) {
+	store := vm.NewContentStore()
+	m1h := sha256.Sum256([]byte("m1"))
+	m1 := vm.NewCompiledMethodBuilder("m1", 0).Build()
+	m1.SetContentHash(m1h)
+	store.IndexMethod(m1)
+
+	d := &vm.ClassDigest{
+		Name:           "Greeter",
+		Namespace:      "App",
+		SuperclassName: "Object",
+		InstVars:       []string{"name", "greeting"},
+		DocString:      "A greeter.\nIt greets.",
+		MethodHashes:   [][32]byte{m1h},
+	}
+	d.Hash = vm.HashClass(d.Name, d.Namespace, d.SuperclassName, d.InstVars, d.ClassVars, d.DocString, d.MethodHashes)
+	if err := VerifyChunkClass(ClassToChunk(d, nil), store); err != nil {
+		t.Fatalf("VerifyChunkClass rejected an honest chunk: %v", err)
+	}
+}
+
+func TestVerifyChunkClass_RejectsTamperedContent(t *testing.T) {
+	store := vm.NewContentStore()
+	m1h := sha256.Sum256([]byte("m1"))
+	m1 := vm.NewCompiledMethodBuilder("m1", 0).Build()
+	m1.SetContentHash(m1h)
+	store.IndexMethod(m1)
+
+	// Hash declares superclass Object, content claims Evil.
+	c := &Chunk{
+		Hash:         vm.HashClass("MyClass", "", "Object", nil, nil, "", [][32]byte{m1h}),
+		Type:         ChunkClass,
+		Content:      "CLASS MyClass\nSUPER Evil",
+		Dependencies: [][32]byte{m1h},
+	}
+	if err := VerifyChunkClass(c, store); err == nil {
+		t.Fatal("VerifyChunkClass accepted content that does not match its hash")
+	}
+
+	// Undecodable content (legacy bare name) cannot be verified.
+	c.Content = "MyClass"
+	if err := VerifyChunkClass(c, store); err == nil {
+		t.Fatal("VerifyChunkClass accepted undecodable content")
 	}
 }
