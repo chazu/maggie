@@ -5,6 +5,7 @@ import (
 
 	protocol "github.com/tliron/glsp/protocol_3_16"
 
+	"github.com/chazu/maggie/compiler"
 	"github.com/chazu/maggie/vm"
 )
 
@@ -499,5 +500,78 @@ func TestLSP_DocumentStore(t *testing.T) {
 	lsp.mu.Unlock()
 	if ok {
 		t.Error("document should be removed after close")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// UTF-16 position handling (LSP Position.Character is in UTF-16 code units)
+// ---------------------------------------------------------------------------
+
+func TestExtractWord_AfterMultiByteChars(t *testing.T) {
+	// '日' and '本' are 3 bytes in UTF-8 but 1 UTF-16 unit each.
+	text := "x := '日本' , Foo new"
+	// UTF-16 col 12 is the start of "Foo" (byte offset 16).
+	word := extractWord(text, protocol.Position{Line: 0, Character: 12})
+	if word != "Foo" {
+		t.Errorf("extractWord = %q, want %q", word, "Foo")
+	}
+}
+
+func TestExtractPrefix_AfterMultiByteChars(t *testing.T) {
+	text := "x := '日本' , Foo new"
+	// UTF-16 columns: F=12 o=13 o=14 ' '=15 n=16. Cursor at 15 is just after "Foo".
+	prefix := extractPrefix(text, protocol.Position{Line: 0, Character: 17})
+	if prefix != "n" {
+		t.Errorf("extractPrefix = %q, want %q", prefix, "n")
+	}
+	prefix = extractPrefix(text, protocol.Position{Line: 0, Character: 15})
+	if prefix != "Foo" {
+		t.Errorf("extractPrefix = %q, want %q", prefix, "Foo")
+	}
+}
+
+func TestExtractWord_AfterSurrogatePair(t *testing.T) {
+	// '😀' is 4 bytes in UTF-8 and 2 UTF-16 code units (a surrogate pair).
+	text := "'😀' Bar"
+	// UTF-16: '=0, 😀=1-2, '=3, ' '=4, B=5
+	word := extractWord(text, protocol.Position{Line: 0, Character: 6})
+	if word != "Bar" {
+		t.Errorf("extractWord = %q, want %q", word, "Bar")
+	}
+}
+
+func TestUTF16Conversions(t *testing.T) {
+	line := "a日😀b"
+	// bytes: a=0, 日=1..3, 😀=4..7, b=8 ; utf16: a=0, 日=1, 😀=2-3, b=4
+	for _, tc := range []struct{ u16, want int }{{0, 0}, {1, 1}, {2, 4}, {3, 4}, {4, 8}, {5, 9}, {99, 9}} {
+		if got := utf16ColToByteOffset(line, tc.u16); got != tc.want {
+			t.Errorf("utf16ColToByteOffset(%d) = %d, want %d", tc.u16, got, tc.want)
+		}
+	}
+	if got := utf16Len(line); got != 5 {
+		t.Errorf("utf16Len = %d, want 5", got)
+	}
+}
+
+func TestSpanToRange_UTF16Columns(t *testing.T) {
+	// The compiler's Span columns count runes; LSP wants UTF-16 units.
+	text := "'😀' Bar"
+	// "Bar" starts at rune column 5 (1-based), i.e. UTF-16 col 5 (0-based).
+	s := compiler.Span{
+		Start: compiler.Position{Line: 1, Column: 5},
+		End:   compiler.Position{Line: 1, Column: 8},
+	}
+	r := spanToRange(text, s)
+	if r.Start.Character != 5 || r.End.Character != 8 {
+		t.Errorf("spanToRange = %+v, want start 5 end 8", r)
+	}
+}
+
+func TestFormattingRangeEndIsUTF16(t *testing.T) {
+	text := "a\n'日本😀'"
+	r := wholeDocumentRange(text)
+	// ' 日 本 😀(2) ' = 6 UTF-16 units (12 bytes).
+	if r.End.Line != 1 || r.End.Character != 6 {
+		t.Errorf("wholeDocumentRange end = %+v, want line 1 char 6", r.End)
 	}
 }

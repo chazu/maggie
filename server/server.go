@@ -92,7 +92,8 @@ func WithPeerAddrRegistry(m *sync.Map) ServerOption {
 // modify/session services and does NOT expose any peer surface. Enable it only
 // for a node acting as a distribution peer, and pair it with a configured
 // WithTrustStore — the channel RPCs in particular are reachable by anyone who
-// can call the mounted endpoint.
+// can call the mounted endpoint. A sync server serves ONLY the SyncService:
+// the unauthenticated developer services are not mounted alongside it.
 func WithSyncService() ServerOption {
 	return func(c *serverConfig) { c.mountSync = true }
 }
@@ -126,24 +127,29 @@ func New(v *vm.VM, opts ...ServerOption) *MaggieServer {
 		mux:      http.NewServeMux(),
 	}
 
-	// Register Connect/gRPC service handlers
-	evalSvc := NewEvalService(worker, handles, sessions)
-	sessionSvc := NewSessionServiceImpl(worker, sessions)
-	browseSvc := NewBrowseService(worker)
-	modifySvc := NewModifyService(worker, handles, sessions)
-	inspectSvc := NewInspectService(worker, handles)
+	// Register the developer-facing Connect/gRPC services (eval, sessions,
+	// browse, modify, inspect). They are unauthenticated — eval is arbitrary
+	// code execution — so they are mounted only on a developer server, never
+	// on a peer-facing one (WithSyncService), whose listener other nodes reach.
+	if !cfg.mountSync {
+		evalSvc := NewEvalService(worker, handles, sessions)
+		sessionSvc := NewSessionServiceImpl(worker, sessions)
+		browseSvc := NewBrowseService(worker)
+		modifySvc := NewModifyService(worker, handles, sessions)
+		inspectSvc := NewInspectService(worker, handles)
 
-	evalPath, evalHandler := maggiev1connect.NewEvaluationServiceHandler(evalSvc)
-	sessionPath, sessionHandler := maggiev1connect.NewSessionServiceHandler(sessionSvc)
-	browsePath, browseHandler := maggiev1connect.NewBrowsingServiceHandler(browseSvc)
-	modifyPath, modifyHandler := maggiev1connect.NewModificationServiceHandler(modifySvc)
-	inspectPath, inspectHandler := maggiev1connect.NewInspectionServiceHandler(inspectSvc)
+		evalPath, evalHandler := maggiev1connect.NewEvaluationServiceHandler(evalSvc)
+		sessionPath, sessionHandler := maggiev1connect.NewSessionServiceHandler(sessionSvc)
+		browsePath, browseHandler := maggiev1connect.NewBrowsingServiceHandler(browseSvc)
+		modifyPath, modifyHandler := maggiev1connect.NewModificationServiceHandler(modifySvc)
+		inspectPath, inspectHandler := maggiev1connect.NewInspectionServiceHandler(inspectSvc)
 
-	s.mux.Handle(evalPath, evalHandler)
-	s.mux.Handle(sessionPath, sessionHandler)
-	s.mux.Handle(browsePath, browseHandler)
-	s.mux.Handle(modifyPath, modifyHandler)
-	s.mux.Handle(inspectPath, inspectHandler)
+		s.mux.Handle(evalPath, evalHandler)
+		s.mux.Handle(sessionPath, sessionHandler)
+		s.mux.Handle(browsePath, browseHandler)
+		s.mux.Handle(modifyPath, modifyHandler)
+		s.mux.Handle(inspectPath, inspectHandler)
+	}
 
 	// The peer-facing SyncService (sync/message/spawn/channel RPCs) is mounted
 	// only when explicitly enabled via WithSyncService, and always behind the

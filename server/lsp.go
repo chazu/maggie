@@ -8,6 +8,8 @@ import (
 	"strings"
 	"sync"
 	"unicode"
+	"unicode/utf16"
+	"unicode/utf8"
 
 	"github.com/tliron/commonlog"
 	"github.com/tliron/glsp"
@@ -739,96 +741,136 @@ func (s *LspServer) publishDiagnostics(ctx *glsp.Context, uri protocol.DocumentU
 
 // --- Text extraction helpers ---
 
+// utf16ColToByteOffset converts an LSP column (UTF-16 code units) on line to a
+// byte offset into line. Characters outside the BMP count as two units. A
+// column that falls inside a surrogate pair maps to the start of that rune; a
+// column past the end of the line clamps to len(line).
+func utf16ColToByteOffset(line string, col int) int {
+	units := 0
+	for i, r := range line {
+		if units >= col {
+			return i
+		}
+		n := utf16.RuneLen(r)
+		if n < 1 {
+			n = 1 // invalid UTF-8 decodes to RuneError, which is 1 unit
+		}
+		if units+n > col {
+			return i
+		}
+		units += n
+	}
+	return len(line)
+}
+
+// utf16Len returns the length of s in UTF-16 code units.
+func utf16Len(s string) int {
+	n := 0
+	for _, r := range s {
+		if l := utf16.RuneLen(r); l > 0 {
+			n += l
+		} else {
+			n++
+		}
+	}
+	return n
+}
+
+// runeColToUTF16 converts a 0-based rune column on line (as counted by the
+// compiler lexer) to a 0-based UTF-16 column.
+func runeColToUTF16(line string, runeCol int) int {
+	units, i := 0, 0
+	for _, r := range line {
+		if i >= runeCol {
+			break
+		}
+		if l := utf16.RuneLen(r); l > 0 {
+			units += l
+		} else {
+			units++
+		}
+		i++
+	}
+	return units + (runeCol - i) // columns past end of line pass through
+}
+
+// lineAndByteCol splits text into lines and returns the requested line plus
+// the cursor's byte offset within it (converted from the UTF-16 column).
+func lineAndByteCol(text string, pos protocol.Position) (string, int, bool) {
+	lines := strings.Split(text, "\n")
+	if int(pos.Line) >= len(lines) {
+		return "", 0, false
+	}
+	line := lines[pos.Line]
+	return line, utf16ColToByteOffset(line, int(pos.Character)), true
+}
+
+func isIdentRune(r rune) bool {
+	return unicode.IsLetter(r) || unicode.IsDigit(r) || r == '_'
+}
+
+// scanIdentBack moves i backwards over runes satisfying ok.
+func scanIdentBack(line string, i int, ok func(rune) bool) int {
+	for i > 0 {
+		r, size := utf8.DecodeLastRuneInString(line[:i])
+		if !ok(r) {
+			break
+		}
+		i -= size
+	}
+	return i
+}
+
+// scanIdentForward moves i forwards over runes satisfying ok.
+func scanIdentForward(line string, i int, ok func(rune) bool) int {
+	for i < len(line) {
+		r, size := utf8.DecodeRuneInString(line[i:])
+		if !ok(r) {
+			break
+		}
+		i += size
+	}
+	return i
+}
+
 // extractPrefix returns the word fragment before the cursor for completion.
 // Includes :: namespace separators so that typing "Widgets::B" completes FQN class names.
 func extractPrefix(text string, pos protocol.Position) string {
-	lines := strings.Split(text, "\n")
-	if int(pos.Line) >= len(lines) {
+	line, col, ok := lineAndByteCol(text, pos)
+	if !ok {
 		return ""
 	}
-	line := lines[pos.Line]
-	col := int(pos.Character)
-	if col > len(line) {
-		col = len(line)
-	}
 
-	// Walk backwards from cursor to find the start of the identifier
-	start := col
-	for start > 0 {
-		ch := rune(line[start-1])
-		if unicode.IsLetter(ch) || unicode.IsDigit(ch) || ch == '_' || ch == ':' {
-			start--
-		} else {
-			break
-		}
-	}
-
+	// Walk backwards from cursor to find the start of the identifier.
+	// Including ':' covers '::' for FQN prefixes and keyword selectors.
+	start := scanIdentBack(line, col, func(r rune) bool { return isIdentRune(r) || r == ':' })
 	if start == col {
 		return ""
 	}
-
-	// The existing logic already includes ':' which covers '::' for FQN prefixes.
 	return line[start:col]
 }
 
 // extractWord returns the full identifier under the cursor, including :: namespace separators.
 func extractWord(text string, pos protocol.Position) string {
-	lines := strings.Split(text, "\n")
-	if int(pos.Line) >= len(lines) {
+	line, col, ok := lineAndByteCol(text, pos)
+	if !ok {
 		return ""
-	}
-	line := lines[pos.Line]
-	col := int(pos.Character)
-	if col > len(line) {
-		col = len(line)
 	}
 
 	// Find start of the immediate identifier segment
-	start := col
-	for start > 0 {
-		ch := rune(line[start-1])
-		if unicode.IsLetter(ch) || unicode.IsDigit(ch) || ch == '_' {
-			start--
-		} else {
-			break
-		}
-	}
+	start := scanIdentBack(line, col, isIdentRune)
 
 	// Extend backwards across :: separators (e.g., Widgets::Button)
 	for start >= 2 && line[start-1] == ':' && line[start-2] == ':' {
-		start -= 2
-		for start > 0 {
-			ch := rune(line[start-1])
-			if unicode.IsLetter(ch) || unicode.IsDigit(ch) || ch == '_' {
-				start--
-			} else {
-				break
-			}
-		}
+		start = scanIdentBack(line, start-2, isIdentRune)
 	}
 
 	// Find end of the immediate identifier segment
-	end := col
-	for end < len(line) {
-		ch := rune(line[end])
-		if unicode.IsLetter(ch) || unicode.IsDigit(ch) || ch == '_' {
-			end++
-		} else {
-			break
-		}
-	}
+	end := scanIdentForward(line, col, isIdentRune)
 
 	// Extend forwards across :: separators
 	for end+1 < len(line) && line[end] == ':' && line[end+1] == ':' {
-		end += 2
-		for end < len(line) {
-			ch := rune(line[end])
-			if unicode.IsLetter(ch) || unicode.IsDigit(ch) || ch == '_' {
-				end++
-			} else {
-				break
-			}
-		}
+		end = scanIdentForward(line, end+2, isIdentRune)
 	}
 
 	if start == end {
@@ -861,7 +903,7 @@ func (s *LspServer) textDocumentDocumentSymbol(ctx *glsp.Context, params *protoc
 	// Namespace declaration
 	if sf.Namespace != nil {
 		nsKind := protocol.SymbolKindNamespace
-		nsRange := spanToRange(sf.Namespace.SpanVal)
+		nsRange := spanToRange(text, sf.Namespace.SpanVal)
 		symbols = append(symbols, protocol.DocumentSymbol{
 			Name:           "namespace: " + sf.Namespace.Name,
 			Kind:           nsKind,
@@ -873,7 +915,7 @@ func (s *LspServer) textDocumentDocumentSymbol(ctx *glsp.Context, params *protoc
 	// Classes
 	for _, cls := range sf.Classes {
 		clsKind := protocol.SymbolKindClass
-		clsRange := spanToRange(cls.SpanVal)
+		clsRange := spanToRange(text, cls.SpanVal)
 		clsSym := protocol.DocumentSymbol{
 			Name:           cls.Name,
 			Kind:           clsKind,
@@ -888,7 +930,7 @@ func (s *LspServer) textDocumentDocumentSymbol(ctx *glsp.Context, params *protoc
 		// Instance methods
 		for _, m := range cls.Methods {
 			methodKind := protocol.SymbolKindMethod
-			mRange := spanToRange(m.SpanVal)
+			mRange := spanToRange(text, m.SpanVal)
 			clsSym.Children = append(clsSym.Children, protocol.DocumentSymbol{
 				Name:           m.Selector,
 				Kind:           methodKind,
@@ -900,7 +942,7 @@ func (s *LspServer) textDocumentDocumentSymbol(ctx *glsp.Context, params *protoc
 		// Class methods
 		for _, m := range cls.ClassMethods {
 			methodKind := protocol.SymbolKindMethod
-			mRange := spanToRange(m.SpanVal)
+			mRange := spanToRange(text, m.SpanVal)
 			detail := "class-side"
 			clsSym.Children = append(clsSym.Children, protocol.DocumentSymbol{
 				Name:           m.Selector,
@@ -917,7 +959,7 @@ func (s *LspServer) textDocumentDocumentSymbol(ctx *glsp.Context, params *protoc
 	// Traits
 	for _, trait := range sf.Traits {
 		traitKind := protocol.SymbolKindInterface
-		traitRange := spanToRange(trait.SpanVal)
+		traitRange := spanToRange(text, trait.SpanVal)
 		traitSym := protocol.DocumentSymbol{
 			Name:           trait.Name,
 			Kind:           traitKind,
@@ -926,7 +968,7 @@ func (s *LspServer) textDocumentDocumentSymbol(ctx *glsp.Context, params *protoc
 		}
 		for _, m := range trait.Methods {
 			methodKind := protocol.SymbolKindMethod
-			mRange := spanToRange(m.SpanVal)
+			mRange := spanToRange(text, m.SpanVal)
 			traitSym.Children = append(traitSym.Children, protocol.DocumentSymbol{
 				Name:           m.Selector,
 				Kind:           methodKind,
@@ -940,7 +982,7 @@ func (s *LspServer) textDocumentDocumentSymbol(ctx *glsp.Context, params *protoc
 	// Extension methods (methods outside any class)
 	for _, m := range sf.Methods {
 		methodKind := protocol.SymbolKindFunction
-		mRange := spanToRange(m.SpanVal)
+		mRange := spanToRange(text, m.SpanVal)
 		symbols = append(symbols, protocol.DocumentSymbol{
 			Name:           m.Selector,
 			Kind:           methodKind,
@@ -952,8 +994,10 @@ func (s *LspServer) textDocumentDocumentSymbol(ctx *glsp.Context, params *protoc
 	return symbols, nil
 }
 
-// spanToRange converts a compiler.Span (1-based) to an LSP Range (0-based).
-func spanToRange(s compiler.Span) protocol.Range {
+// spanToRange converts a compiler.Span (1-based line, 1-based rune column) to
+// an LSP Range (0-based line, 0-based UTF-16 column). text is the document the
+// span was parsed from; it is needed to convert rune columns to UTF-16 units.
+func spanToRange(text string, s compiler.Span) protocol.Range {
 	startLine := s.Start.Line
 	if startLine > 0 {
 		startLine--
@@ -969,6 +1013,13 @@ func spanToRange(s compiler.Span) protocol.Range {
 	endCol := s.End.Column
 	if endCol > 0 {
 		endCol--
+	}
+	lines := strings.Split(text, "\n")
+	if startLine < len(lines) {
+		startCol = runeColToUTF16(lines[startLine], startCol)
+	}
+	if endLine < len(lines) {
+		endCol = runeColToUTF16(lines[endLine], endCol)
 	}
 	return protocol.Range{
 		Start: protocol.Position{Line: protocol.UInteger(startLine), Character: protocol.UInteger(startCol)},
@@ -994,20 +1045,21 @@ func (s *LspServer) textDocumentFormatting(ctx *glsp.Context, params *protocol.D
 		return nil, nil // don't format broken files; no-op if unchanged
 	}
 
-	// Count lines in original to build a range covering the entire document
-	lines := strings.Count(text, "\n")
-	lastLineLen := len(text) - strings.LastIndex(text, "\n") - 1
-	if lastLineLen < 0 {
-		lastLineLen = len(text)
-	}
-
 	return []protocol.TextEdit{{
-		Range: protocol.Range{
-			Start: protocol.Position{Line: 0, Character: 0},
-			End:   protocol.Position{Line: protocol.UInteger(lines), Character: protocol.UInteger(lastLineLen)},
-		},
+		Range:   wholeDocumentRange(text),
 		NewText: formatted,
 	}}, nil
+}
+
+// wholeDocumentRange returns an LSP Range covering all of text. The end
+// column is measured in UTF-16 code units, as LSP requires.
+func wholeDocumentRange(text string) protocol.Range {
+	lines := strings.Count(text, "\n")
+	lastLine := text[strings.LastIndex(text, "\n")+1:]
+	return protocol.Range{
+		Start: protocol.Position{Line: 0, Character: 0},
+		End:   protocol.Position{Line: protocol.UInteger(lines), Character: protocol.UInteger(utf16Len(lastLine))},
+	}
 }
 
 // formatMaggieSource formats Maggie source code. This duplicates the core logic
