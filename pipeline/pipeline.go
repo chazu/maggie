@@ -22,6 +22,12 @@ type ParsedFile struct {
 	Imports   []string // import paths
 	Path      string   // source file path
 	BasePath  string   // for error messages
+
+	// NamespaceDeclared is true when Namespace came from the file's own
+	// `namespace:` declaration rather than its directory. A declared
+	// namespace is already absolute, so dependency prefixing must remap it
+	// instead of nesting it (see PrefixDepNamespaces).
+	NamespaceDeclared bool
 }
 
 // Pipeline orchestrates compilation of Maggie source files into a VM.
@@ -139,11 +145,12 @@ func collectFilesImpl(path string, exclude []string) ([]ParsedFile, error) {
 		}
 
 		result = append(result, ParsedFile{
-			SF:        sf,
-			Namespace: namespace,
-			Imports:   imports,
-			Path:      fp,
-			BasePath:  basePath,
+			SF:                sf,
+			Namespace:         namespace,
+			Imports:           imports,
+			Path:              fp,
+			BasePath:          basePath,
+			NamespaceDeclared: sf.Namespace != nil,
 		})
 	}
 

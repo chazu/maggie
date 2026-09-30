@@ -171,3 +171,43 @@ func TestCheckNamespaceCollisions(t *testing.T) {
 		}
 	})
 }
+
+// A dependency file that declares its own namespace under the dep's
+// namespace used to be nested again (Yutani::Yutani::Events), so the dep's
+// own `import: 'Yutani::Events'` no longer resolved. Declared namespaces are
+// absolute: they are remapped onto the resolved namespace like imports.
+func TestPrefixDepNamespacesDeclared(t *testing.T) {
+	yutaniManifest := &manifest.Manifest{Project: manifest.Project{Namespace: "Yutani"}}
+	cases := []struct {
+		name string
+		dep  manifest.ResolvedDep
+		file ParsedFile
+		want string
+	}{
+		{"declared under own namespace",
+			manifest.ResolvedDep{Name: "yutani", Namespace: "Yutani", Manifest: yutaniManifest},
+			ParsedFile{Namespace: "Yutani::Events", NamespaceDeclared: true}, "Yutani::Events"},
+		{"declared as own namespace",
+			manifest.ResolvedDep{Name: "yutani", Namespace: "Yutani", Manifest: yutaniManifest},
+			ParsedFile{Namespace: "Yutani", NamespaceDeclared: true}, "Yutani"},
+		{"declared under own namespace, consumer override",
+			manifest.ResolvedDep{Name: "yutani", Namespace: "ThirdParty::Yutani", Manifest: yutaniManifest},
+			ParsedFile{Namespace: "Yutani::Events", NamespaceDeclared: true}, "ThirdParty::Yutani::Events"},
+		{"declared under fallback namespace, no manifest",
+			manifest.ResolvedDep{Name: "my-lib", Namespace: "MyLib"},
+			ParsedFile{Namespace: "MyLib::Util", NamespaceDeclared: true}, "MyLib::Util"},
+		{"declared elsewhere is still prefixed",
+			manifest.ResolvedDep{Name: "yutani", Namespace: "Yutani", Manifest: yutaniManifest},
+			ParsedFile{Namespace: "Widgets", NamespaceDeclared: true}, "Yutani::Widgets"},
+		{"directory-derived matching the dep name is still nested",
+			manifest.ResolvedDep{Name: "yutani", Namespace: "Yutani", Manifest: yutaniManifest},
+			ParsedFile{Namespace: "Yutani"}, "Yutani::Yutani"},
+	}
+	for _, tc := range cases {
+		files := []ParsedFile{tc.file}
+		PrefixDepNamespaces(files, tc.dep, nil)
+		if files[0].Namespace != tc.want {
+			t.Errorf("%s: namespace = %q, want %q", tc.name, files[0].Namespace, tc.want)
+		}
+	}
+}

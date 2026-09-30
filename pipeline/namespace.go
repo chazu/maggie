@@ -82,6 +82,12 @@ func CheckNamespaceCollisions(deps []manifest.ResolvedDep) error {
 // PrefixDepNamespaces prefixes all file namespaces with the dependency's resolved namespace.
 // Root-level files (no directory-derived namespace) get dep.Namespace only.
 // Subdir files get dep.Namespace + "::" + existing namespace.
+//
+// A namespace the file declared itself (`namespace: 'Lib::Events'`) is
+// absolute: when it lies under the dep's own namespace (its manifest's, or
+// the resolved one) it is remapped onto dep.Namespace exactly like an
+// import, rather than nested — nesting produced Lib::Lib::Events, which
+// the dep's own `import: 'Lib::Events'` could no longer resolve.
 func PrefixDepNamespaces(files []ParsedFile, dep manifest.ResolvedDep, verbose io.Writer) {
 	if dep.Namespace == "" {
 		return
@@ -98,10 +104,16 @@ func PrefixDepNamespaces(files []ParsedFile, dep manifest.ResolvedDep, verbose i
 	needsRemap := originalNS != "" && originalNS != dep.Namespace
 
 	for i := range files {
-		if files[i].Namespace == "" {
+		ns := files[i].Namespace
+		switch {
+		case ns == "":
 			files[i].Namespace = dep.Namespace
-		} else {
-			files[i].Namespace = dep.Namespace + "::" + files[i].Namespace
+		case files[i].NamespaceDeclared && originalNS != "" && inNamespace(ns, originalNS):
+			files[i].Namespace = RemapImport(ns, originalNS, dep.Namespace)
+		case files[i].NamespaceDeclared && inNamespace(ns, dep.Namespace):
+			// Already under the resolved namespace; leave it.
+		default:
+			files[i].Namespace = dep.Namespace + "::" + ns
 		}
 
 		// Remap imports if consumer override differs from original namespace
@@ -117,4 +129,9 @@ func PrefixDepNamespaces(files []ParsedFile, dep manifest.ResolvedDep, verbose i
 			}
 		}
 	}
+}
+
+// inNamespace reports whether ns is prefix itself or nested under it.
+func inNamespace(ns, prefix string) bool {
+	return ns == prefix || strings.HasPrefix(ns, prefix+"::")
 }
