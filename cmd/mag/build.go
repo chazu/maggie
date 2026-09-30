@@ -366,7 +366,7 @@ func mapWrapDirsToImports(wrapBase string) map[string]string {
 	return result
 }
 
-// copyDepWrapFiles copies pre-built wrap files (wrap.go, stubs.mag) from a
+// copyDepWrapFiles copies pre-built wrap files (wrap.go, stubs*.mag) from a
 // dependency's wrap directory into the project's wrap directory.
 // Returns the Go package name extracted from the wrap.go file.
 func copyDepWrapFiles(srcDir, dstBaseDir, importPath string, verbose bool) (string, error) {
@@ -399,13 +399,13 @@ func copyDepWrapFiles(srcDir, dstBaseDir, importPath string, verbose bool) (stri
 		return "", fmt.Errorf("creating %s: %w", dstDir, err)
 	}
 
-	// Copy wrap.go and stubs.mag
-	for _, fname := range []string{"wrap.go", "stubs.mag"} {
+	// Copy wrap.go and the Maggie stubs (stubs_types.mag holds struct classes)
+	for _, fname := range []string{"wrap.go", "stubs.mag", "stubs_types.mag"} {
 		srcPath := filepath.Join(srcDir, fname)
 		srcBytes, err := os.ReadFile(srcPath)
 		if err != nil {
-			if fname == "stubs.mag" {
-				continue // stubs.mag is optional
+			if fname != "wrap.go" {
+				continue // stubs are optional
 			}
 			return "", fmt.Errorf("reading %s: %w", srcPath, err)
 		}

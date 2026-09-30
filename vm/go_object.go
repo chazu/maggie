@@ -306,12 +306,10 @@ func (vm *VM) ValueToGo(v Value) interface{} {
 		return v.Float64()
 	case IsStringValue(v):
 		return vm.registry.GetStringContent(v)
+	case isGoObjectValue(v):
+		// GoObjects are heap Values (ptr != nil), never symbol-encoded.
+		return vm.registry.GetGoObject(v).Value
 	case v.IsSymbolEncoded():
-		// Check GoObject first
-		if wrapper := vm.registry.GetGoObject(v); wrapper != nil {
-			return wrapper.Value
-		}
-		// Regular symbol
 		return vm.Symbols.Name(v.SymbolID())
 	default:
 		return nil
@@ -349,6 +347,79 @@ func (vm *VM) GoUintArg(v Value, bits int) uint64 {
 	}
 	vm.SignalPrimitiveError("Go argument", fmt.Sprintf("expected an Integer that fits uint%d, got %s", bits, vm.describeIntArg(v, ok)))
 	return 0
+}
+
+// GoStringArg converts a String (or Symbol) argument for a Go string
+// parameter. gowrap-generated bindings call it; an unchecked .(string)
+// assertion on ValueToGo panicked uncaught on any other argument.
+// Anything else signals a PrimitiveError.
+func (vm *VM) GoStringArg(v Value) string {
+	if IsStringValue(v) {
+		return vm.registry.GetStringContent(v)
+	}
+	if v.IsSymbol() {
+		return vm.Symbols.Name(v.SymbolID())
+	}
+	vm.SignalPrimitiveError("Go argument", "expected a String, got "+vm.describeForError(v))
+	return ""
+}
+
+// GoBoolArg converts a Boolean argument for a Go bool parameter; anything
+// other than true or false signals a PrimitiveError.
+func (vm *VM) GoBoolArg(v Value) bool {
+	switch v {
+	case True:
+		return true
+	case False:
+		return false
+	}
+	vm.SignalPrimitiveError("Go argument", "expected a Boolean, got "+vm.describeForError(v))
+	return false
+}
+
+// GoFloatArg converts a Float or Integer argument for a Go float parameter
+// (Value.Float64 silently misread non-Floats); anything else signals a
+// PrimitiveError.
+func (vm *VM) GoFloatArg(v Value) float64 {
+	if v.IsFloat() {
+		return v.Float64()
+	}
+	if n, ok := vm.integerArg(v); ok {
+		f, _ := new(big.Float).SetInt(n).Float64()
+		return f
+	}
+	vm.SignalPrimitiveError("Go argument", "expected a Float or Integer, got "+vm.describeForError(v))
+	return 0
+}
+
+// GoPointerArg converts a GoObject argument for a *T parameter of a
+// gowrap-generated binding; nil passes a nil pointer. Any other argument
+// signals a PrimitiveError (an unchecked type assertion panicked uncaught).
+func GoPointerArg[T any](vm *VM, v Value) *T {
+	if v == Nil {
+		return nil
+	}
+	if wrapper := vm.registry.GetGoObject(v); wrapper != nil {
+		if p, ok := wrapper.Value.(*T); ok {
+			return p
+		}
+	}
+	var zero T
+	vm.SignalPrimitiveError("Go argument", fmt.Sprintf("expected a %T, got %s", &zero, vm.describeForError(v)))
+	return nil
+}
+
+// GoStructArg converts a GoObject argument for a struct-valued T parameter
+// (GoObjects hold *T; the value is copied out). nil and anything else signal.
+func GoStructArg[T any](vm *VM, v Value) T {
+	if p := GoPointerArg[T](vm, v); p != nil {
+		return *p
+	}
+	var zero T
+	if v == Nil {
+		vm.SignalPrimitiveError("Go argument", fmt.Sprintf("expected a %T, got nil", zero))
+	}
+	return zero
 }
 
 // integerArg returns v as a big.Int when it is a SmallInteger or BigInteger.

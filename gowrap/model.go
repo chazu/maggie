@@ -14,11 +14,11 @@ type PackageModel struct {
 
 // TypeModel represents an exported Go type (struct or named type).
 type TypeModel struct {
-	Name       string
-	GoType     types.Type
-	IsStruct   bool
-	Fields     []FieldModel
-	Methods    []FunctionModel // pointer-receiver methods
+	Name     string
+	GoType   types.Type
+	IsStruct bool
+	Fields   []FieldModel
+	Methods  []FunctionModel // pointer-receiver methods
 }
 
 // FunctionModel represents an exported function or method.
@@ -29,6 +29,7 @@ type FunctionModel struct {
 	Params     []ParamModel
 	Results    []ParamModel
 	ReturnsErr bool // true if last result is error
+	IsVariadic bool // true if the last param is ...T
 }
 
 // ParamModel represents a function parameter or result.

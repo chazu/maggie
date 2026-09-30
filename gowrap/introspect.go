@@ -50,6 +50,10 @@ func IntrospectPackage(importPath string, includeFilter map[string]bool) (*Packa
 
 		switch o := obj.(type) {
 		case *types.Func:
+			// Generic functions can't be called without instantiation.
+			if o.Type().(*types.Signature).TypeParams().Len() > 0 {
+				continue
+			}
 			model.Functions = append(model.Functions, extractFunction(o))
 
 		case *types.TypeName:
@@ -74,6 +78,10 @@ func extractFunction(fn *types.Func) FunctionModel {
 func extractType(tn *types.TypeName, pkg *types.Package) *TypeModel {
 	named, ok := tn.Type().(*types.Named)
 	if !ok {
+		return nil
+	}
+	// Generic types can't be registered without instantiation.
+	if named.TypeParams().Len() > 0 {
 		return nil
 	}
 
@@ -134,9 +142,10 @@ func extractConstant(c *types.Const) ConstantModel {
 
 func functionModelFromSig(name string, sig *types.Signature, isMethod bool, recvType string) FunctionModel {
 	fm := FunctionModel{
-		Name:     name,
-		IsMethod: isMethod,
-		RecvType: recvType,
+		Name:       name,
+		IsMethod:   isMethod,
+		RecvType:   recvType,
+		IsVariadic: sig.Variadic(),
 	}
 
 	params := sig.Params()
