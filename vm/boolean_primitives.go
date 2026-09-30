@@ -4,6 +4,13 @@ package vm
 // Boolean Primitives (True, False, UndefinedObject)
 // ---------------------------------------------------------------------------
 
+// Conditional and short-circuit arguments are evaluated with valueOf, not
+// evaluateBlock: a real block still runs directly (so ^ unwinds to its home
+// method), and any other argument is sent #value. evaluateBlock silently
+// answered nil for a non-block, so `true ifTrue: aNonBlock` lost its value.
+// (Literal-block forms never reach these primitives — the compiler inlines
+// them; see compiler/inline_control_flow.go.)
+
 func (vm *VM) registerBooleanPrimitives() {
 	// True class
 	vm.TrueClass.AddMethod0(vm.Selectors, "not", func(_ *VM, recv Value) Value {
@@ -18,30 +25,12 @@ func (vm *VM) registerBooleanPrimitives() {
 		return True
 	})
 
-	vm.TrueClass.AddMethod1(vm.Selectors, "ifTrue:", func(v *VM, recv Value, block Value) Value {
-		return v.evaluateBlock(block, nil)
-	})
-
-	vm.TrueClass.AddMethod1(vm.Selectors, "ifFalse:", func(_ *VM, recv Value, block Value) Value {
-		return Nil
-	})
-
-	vm.TrueClass.AddMethod2(vm.Selectors, "ifTrue:ifFalse:", func(v *VM, recv Value, trueBlock, falseBlock Value) Value {
-		return v.evaluateBlock(trueBlock, nil)
-	})
-
-	// and: - short-circuit and (evaluate block only if receiver is true)
-	vm.TrueClass.AddMethod1(vm.Selectors, "and:", func(v *VM, recv Value, block Value) Value {
-		return v.evaluateBlock(block, nil)
-	})
-
-	// or: - short-circuit or (don't evaluate block since receiver is true)
-	vm.TrueClass.AddMethod1(vm.Selectors, "or:", func(_ *VM, recv Value, block Value) Value {
-		return True
-	})
-
-	// xor: - exclusive or
-	vm.TrueClass.AddMethod1(vm.Selectors, "xor:", func(_ *VM, recv Value, arg Value) Value {
+	// xor: - exclusive or. A non-Boolean argument is a type error: answering
+	// true for `true xor: nil` would hide it.
+	vm.TrueClass.AddMethod1(vm.Selectors, "xor:", func(v *VM, recv Value, arg Value) Value {
+		if arg != True && arg != False {
+			return v.SignalTypeError("xor:", 1, "a Boolean", arg)
+		}
 		if arg == True {
 			return False
 		}
@@ -49,7 +38,10 @@ func (vm *VM) registerBooleanPrimitives() {
 	})
 
 	// eqv: - equivalence (same as =)
-	vm.TrueClass.AddMethod1(vm.Selectors, "eqv:", func(_ *VM, recv Value, arg Value) Value {
+	vm.TrueClass.AddMethod1(vm.Selectors, "eqv:", func(v *VM, recv Value, arg Value) Value {
+		if arg != True && arg != False {
+			return v.SignalTypeError("eqv:", 1, "a Boolean", arg)
+		}
 		if arg == True {
 			return True
 		}
@@ -69,30 +61,11 @@ func (vm *VM) registerBooleanPrimitives() {
 		return arg
 	})
 
-	vm.FalseClass.AddMethod1(vm.Selectors, "ifTrue:", func(_ *VM, recv Value, block Value) Value {
-		return Nil
-	})
-
-	vm.FalseClass.AddMethod1(vm.Selectors, "ifFalse:", func(v *VM, recv Value, block Value) Value {
-		return v.evaluateBlock(block, nil)
-	})
-
-	vm.FalseClass.AddMethod2(vm.Selectors, "ifTrue:ifFalse:", func(v *VM, recv Value, trueBlock, falseBlock Value) Value {
-		return v.evaluateBlock(falseBlock, nil)
-	})
-
-	// and: - short-circuit and (don't evaluate block since receiver is false)
-	vm.FalseClass.AddMethod1(vm.Selectors, "and:", func(_ *VM, recv Value, block Value) Value {
-		return False
-	})
-
-	// or: - short-circuit or (evaluate block since receiver is false)
-	vm.FalseClass.AddMethod1(vm.Selectors, "or:", func(v *VM, recv Value, block Value) Value {
-		return v.evaluateBlock(block, nil)
-	})
-
 	// xor: - exclusive or
-	vm.FalseClass.AddMethod1(vm.Selectors, "xor:", func(_ *VM, recv Value, arg Value) Value {
+	vm.FalseClass.AddMethod1(vm.Selectors, "xor:", func(v *VM, recv Value, arg Value) Value {
+		if arg != True && arg != False {
+			return v.SignalTypeError("xor:", 1, "a Boolean", arg)
+		}
 		if arg == False {
 			return False
 		}
@@ -100,34 +73,18 @@ func (vm *VM) registerBooleanPrimitives() {
 	})
 
 	// eqv: - equivalence
-	vm.FalseClass.AddMethod1(vm.Selectors, "eqv:", func(_ *VM, recv Value, arg Value) Value {
+	vm.FalseClass.AddMethod1(vm.Selectors, "eqv:", func(v *VM, recv Value, arg Value) Value {
+		if arg != True && arg != False {
+			return v.SignalTypeError("eqv:", 1, "a Boolean", arg)
+		}
 		if arg == False {
 			return True
 		}
 		return False
 	})
 
-	// UndefinedObject (nil)
-	vm.UndefinedObjectClass.AddMethod0(vm.Selectors, "isNil", func(_ *VM, recv Value) Value {
-		return True
-	})
-
-	vm.UndefinedObjectClass.AddMethod0(vm.Selectors, "notNil", func(_ *VM, recv Value) Value {
-		return False
-	})
-
-	vm.UndefinedObjectClass.AddMethod1(vm.Selectors, "ifNil:", func(v *VM, recv Value, block Value) Value {
-		return v.evaluateBlock(block, nil)
-	})
-
-	vm.UndefinedObjectClass.AddMethod1(vm.Selectors, "ifNotNil:", func(_ *VM, recv Value, block Value) Value {
-		return Nil
-	})
-
-	// ifNil:ifNotNil: - evaluate first block
-	vm.UndefinedObjectClass.AddMethod2(vm.Selectors, "ifNil:ifNotNil:", func(v *VM, recv Value, nilBlock, notNilBlock Value) Value {
-		return v.evaluateBlock(nilBlock, nil)
-	})
+	vm.ReRegisterBooleanPrimitives()
+	vm.ReRegisterNilPrimitives()
 }
 
 // ReRegisterBooleanPrimitives forces re-registration of True/False primitives.
@@ -135,7 +92,7 @@ func (vm *VM) registerBooleanPrimitives() {
 func (vm *VM) ReRegisterBooleanPrimitives() {
 	// True class - must override Boolean.mag's abstract methods
 	vm.TrueClass.AddMethod1(vm.Selectors, "ifTrue:", func(v *VM, recv Value, block Value) Value {
-		return v.evaluateBlock(block, nil)
+		return v.valueOf(block, nil)
 	})
 
 	vm.TrueClass.AddMethod1(vm.Selectors, "ifFalse:", func(_ *VM, recv Value, block Value) Value {
@@ -143,13 +100,15 @@ func (vm *VM) ReRegisterBooleanPrimitives() {
 	})
 
 	vm.TrueClass.AddMethod2(vm.Selectors, "ifTrue:ifFalse:", func(v *VM, recv Value, trueBlock, falseBlock Value) Value {
-		return v.evaluateBlock(trueBlock, nil)
+		return v.valueOf(trueBlock, nil)
 	})
 
+	// and: - short-circuit and (evaluate block only if receiver is true)
 	vm.TrueClass.AddMethod1(vm.Selectors, "and:", func(v *VM, recv Value, block Value) Value {
-		return v.evaluateBlock(block, nil)
+		return v.valueOf(block, nil)
 	})
 
+	// or: - short-circuit or (don't evaluate block since receiver is true)
 	vm.TrueClass.AddMethod1(vm.Selectors, "or:", func(_ *VM, recv Value, block Value) Value {
 		return True
 	})
@@ -160,19 +119,21 @@ func (vm *VM) ReRegisterBooleanPrimitives() {
 	})
 
 	vm.FalseClass.AddMethod1(vm.Selectors, "ifFalse:", func(v *VM, recv Value, block Value) Value {
-		return v.evaluateBlock(block, nil)
+		return v.valueOf(block, nil)
 	})
 
 	vm.FalseClass.AddMethod2(vm.Selectors, "ifTrue:ifFalse:", func(v *VM, recv Value, trueBlock, falseBlock Value) Value {
-		return v.evaluateBlock(falseBlock, nil)
+		return v.valueOf(falseBlock, nil)
 	})
 
+	// and: - short-circuit and (don't evaluate block since receiver is false)
 	vm.FalseClass.AddMethod1(vm.Selectors, "and:", func(_ *VM, recv Value, block Value) Value {
 		return False
 	})
 
+	// or: - short-circuit or (evaluate block since receiver is false)
 	vm.FalseClass.AddMethod1(vm.Selectors, "or:", func(v *VM, recv Value, block Value) Value {
-		return v.evaluateBlock(block, nil)
+		return v.valueOf(block, nil)
 	})
 }
 
@@ -188,14 +149,15 @@ func (vm *VM) ReRegisterNilPrimitives() {
 	})
 
 	vm.UndefinedObjectClass.AddMethod1(vm.Selectors, "ifNil:", func(v *VM, recv Value, block Value) Value {
-		return v.evaluateBlock(block, nil)
+		return v.valueOf(block, nil)
 	})
 
 	vm.UndefinedObjectClass.AddMethod1(vm.Selectors, "ifNotNil:", func(_ *VM, recv Value, block Value) Value {
 		return Nil
 	})
 
+	// ifNil:ifNotNil: - evaluate first block
 	vm.UndefinedObjectClass.AddMethod2(vm.Selectors, "ifNil:ifNotNil:", func(v *VM, recv Value, nilBlock, notNilBlock Value) Value {
-		return v.evaluateBlock(nilBlock, nil)
+		return v.valueOf(nilBlock, nil)
 	})
 }

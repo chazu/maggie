@@ -154,12 +154,12 @@ func (vm *VM) registerObjectPrimitives() {
 
 	// ifNotNil: - for non-nil objects, evaluate block with receiver as argument
 	c.AddMethod1(vm.Selectors, "ifNotNil:", func(v *VM, recv Value, block Value) Value {
-		return v.evaluateBlock(block, []Value{recv})
+		return v.valueOf(block, []Value{recv})
 	})
 
 	// ifNil:ifNotNil: - for non-nil objects, evaluate second block with receiver
 	c.AddMethod2(vm.Selectors, "ifNil:ifNotNil:", func(v *VM, recv Value, nilBlock, notNilBlock Value) Value {
-		return v.evaluateBlock(notNilBlock, []Value{recv})
+		return v.valueOf(notNilBlock, []Value{recv})
 	})
 
 	// perform: family - send a message by selector. The selector must be a
