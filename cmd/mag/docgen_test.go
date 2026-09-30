@@ -1,8 +1,13 @@
 package main
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
+	"unicode/utf8"
+
+	"github.com/chazu/maggie/vm"
 )
 
 // ---------------------------------------------------------------------------
@@ -109,9 +114,9 @@ func TestDocgen_isGuideClass(t *testing.T) {
 		{"Guide01Intro", true},
 		{"Guide99Advanced", true},
 		{"Guide10", true},
-		{"Guide1Intro", false},    // only one digit
+		{"Guide1Intro", false}, // only one digit
 		{"NotAGuide", false},
-		{"MyGuide01", false},       // doesn't start with Guide
+		{"MyGuide01", false}, // doesn't start with Guide
 		{"Guide", false},
 		{"", false},
 	}
@@ -466,5 +471,70 @@ func TestDocgen_extractBrief(t *testing.T) {
 				t.Errorf("extractBrief(%q) = %q, want %q", tt.input, got, tt.want)
 			}
 		})
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Review regressions: URL paths, rune-safe briefs, headings, arrow escaping
+// ---------------------------------------------------------------------------
+
+func TestDocgen_classRelPathIsURLPath(t *testing.T) {
+	cls := vm.NewClass("Button", nil)
+	cls.Namespace = "Yutani::Widgets"
+	got := classRelPath(cls)
+	if got != "classes/Yutani/Widgets/Button.html" {
+		t.Errorf("classRelPath = %q, want slash-separated classes/Yutani/Widgets/Button.html", got)
+	}
+	if d := depthPrefix(got); d != "../../.." {
+		t.Errorf("depthPrefix(%q) = %q, want ../../..", got, d)
+	}
+}
+
+func TestDocgen_extractBriefRuneSafe(t *testing.T) {
+	in := strings.Repeat("é", 200)
+	got := extractBrief(in)
+	if !utf8.ValidString(got) {
+		t.Fatalf("extractBrief split a rune: %q", got)
+	}
+	if want := strings.Repeat("é", 117) + "..."; got != want {
+		t.Errorf("extractBrief = %q, want %q", got, want)
+	}
+}
+
+func TestDocgen_headingDoesNotSwallowFollowingLines(t *testing.T) {
+	got := renderProseBlockHTML("## Usage\nSend `foo` to it.")
+	if !strings.Contains(got, "<h2>Usage</h2>") {
+		t.Errorf("heading not rendered alone: %q", got)
+	}
+	if !strings.Contains(got, "<p>Send <code>foo</code> to it.</p>") {
+		t.Errorf("following line not rendered as a paragraph: %q", got)
+	}
+	got = renderProseBlockHTML("### Example\n    x := 1")
+	if !strings.Contains(got, "<h3>Example</h3>") || !strings.Contains(got, "<pre><code>x := 1</code></pre>") {
+		t.Errorf("heading + code block: %q", got)
+	}
+}
+
+func TestDocgen_superclassChainArrowNotEscaped(t *testing.T) {
+	dir := t.TempDir()
+	doc := classDoc{
+		Name:            "Array",
+		FullName:        "Array",
+		SuperclassChain: []string{"ArrayedCollection", "Object"},
+		RelPath:         "classes/Array.html",
+	}
+	if err := writeClassPage(dir, "Test", doc, sidebarData{}); err != nil {
+		t.Fatal(err)
+	}
+	b, err := os.ReadFile(filepath.Join(dir, doc.RelPath))
+	if err != nil {
+		t.Fatal(err)
+	}
+	page := string(b)
+	if strings.Contains(page, "&amp;larr;") {
+		t.Error("superclass chain arrow was double-escaped to &amp;larr;")
+	}
+	if !strings.Contains(page, "ArrayedCollection ← Object") {
+		t.Errorf("superclass chain not joined with ←")
 	}
 }

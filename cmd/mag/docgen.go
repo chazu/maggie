@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"html/template"
 	"os"
+	"path"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -23,8 +24,8 @@ type DocSectionType int
 
 const (
 	DocProse   DocSectionType = iota
-	DocTest                    // ```test blocks with >>> assertions
-	DocExample                 // ```example blocks for interactive playground
+	DocTest                   // ```test blocks with >>> assertions
+	DocExample                // ```example blocks for interactive playground
 )
 
 // DocSection represents a parsed section of a docstring.
@@ -283,13 +284,13 @@ func handleDocCommand(vmInst *vm.VM, args []string) {
 			usageFlags([][2]string{
 				{"--output <dir>", "Output directory (default: docs/api)"},
 				{"--title <string>", "Documentation title (default: Maggie API Reference)"},
-				{"--serve", "Generate docs and serve on HTTP"},
+				{"--serve", "Generate docs and serve on HTTP (loopback only)"},
 				{"--port <number>", "Port for --serve (default: 8080)"},
 			}),
 			usageExamples([][2]string{
 				{"mag doc", "Generate HTML docs to docs/api/"},
 				{"mag doc --output ./site", "Generate to custom directory"},
-				{"mag doc --serve", "Generate and serve on :8080"},
+				{"mag doc --serve", "Generate and serve on localhost:8080"},
 				{"mag doc --serve --port 3000", "Serve on custom port"},
 			}),
 		)
@@ -577,9 +578,10 @@ func classRelPath(cls *vm.Class) string {
 	if cls.Namespace == "" {
 		return "classes/" + cls.Name + ".html"
 	}
-	// Convert namespace separators to directory separators
-	nsPath := strings.ReplaceAll(cls.Namespace, "::", string(filepath.Separator))
-	return filepath.Join("classes", nsPath, cls.Name+".html")
+	// RelPath is used in hrefs, so it is always slash-separated (never
+	// filepath.Separator); filepath.Join(outputDir, RelPath) accepts slashes.
+	nsPath := strings.ReplaceAll(cls.Namespace, "::", "/")
+	return path.Join("classes", nsPath, cls.Name+".html")
 }
 
 // extractBrief returns the first sentence of a docstring for the index page.
@@ -592,8 +594,8 @@ func extractBrief(doc string) string {
 	if idx := strings.Index(first, ". "); idx != -1 && idx < 120 {
 		return first[:idx+1]
 	}
-	if len(first) > 120 {
-		return first[:117] + "..."
+	if runes := []rune(first); len(runes) > 120 {
+		return string(runes[:117]) + "..."
 	}
 	return first
 }
@@ -649,10 +651,11 @@ func writeIndexPage(outputDir, title string, groups []namespaceGroup, sidebar si
 }
 
 // depthPrefix computes the relative path back to the doc root from a page.
+// relPath is a slash-separated URL path (see classRelPath).
 // For "classes/Array.html" (1 separator), returns "..".
 // For "classes/Ns/Foo.html" (2 separators), returns "../..".
 func depthPrefix(relPath string) string {
-	depth := strings.Count(relPath, string(filepath.Separator))
+	depth := strings.Count(relPath, "/")
 	if depth == 0 {
 		return "."
 	}
@@ -847,18 +850,14 @@ func renderProseBlockHTML(block string) string {
 		return ""
 	}
 
-	// Heading (check longest prefix first)
-	if strings.HasPrefix(block, "### ") {
-		title := strings.TrimPrefix(block, "### ")
-		return "<h3>" + renderInlineMarkdown(template.HTMLEscapeString(title)) + "</h3>\n"
-	}
-	if strings.HasPrefix(block, "## ") {
-		title := strings.TrimPrefix(block, "## ")
-		return "<h2>" + renderInlineMarkdown(template.HTMLEscapeString(title)) + "</h2>\n"
-	}
-	if strings.HasPrefix(block, "# ") {
-		title := strings.TrimPrefix(block, "# ")
-		return "<h2>" + renderInlineMarkdown(template.HTMLEscapeString(title)) + "</h2>\n"
+	// Heading (check longest prefix first). A heading is one line; any
+	// lines after it in the same block are rendered as a block of their own.
+	for _, h := range []struct{ prefix, tag string }{{"### ", "h3"}, {"## ", "h2"}, {"# ", "h2"}} {
+		if strings.HasPrefix(block, h.prefix) {
+			title, rest, _ := strings.Cut(strings.TrimPrefix(block, h.prefix), "\n")
+			return "<" + h.tag + ">" + renderInlineMarkdown(template.HTMLEscapeString(title)) + "</" + h.tag + ">\n" +
+				renderProseBlockHTML(rest)
+		}
 	}
 
 	lines := strings.Split(block, "\n")
@@ -1322,7 +1321,7 @@ const classTemplate = `<!DOCTYPE html>
         <h1>{{.Class.Name}}</h1>
 {{if .Class.SuperclassChain}}
         <div class="superclass-chain">
-            Inherits from: {{join .Class.SuperclassChain " &larr; "}}
+            Inherits from: {{join .Class.SuperclassChain " ← "}}
         </div>
 {{end}}
 {{if .Class.InstVars}}

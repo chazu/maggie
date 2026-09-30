@@ -1,10 +1,12 @@
 package main
 
 import (
-	"context"
+	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -12,36 +14,40 @@ import (
 	"github.com/chazu/maggie/vm"
 )
 
+const (
+	// maxEvalBodyBytes bounds a playground eval request body.
+	maxEvalBodyBytes = 10 * 1024
+	// evalTimeout bounds how long a request waits for its evaluation.
+	evalTimeout = 5 * time.Second
+	// maxConcurrentEvals caps evaluations running at once. The VM has no way
+	// to interrupt a running interpreter, so an evaluation that outlives its
+	// timeout keeps running (and holding its slot) until it finishes; the cap
+	// keeps runaway loops from piling up without bound.
+	maxConcurrentEvals = 4
+)
+
+// evalSlots is the semaphore enforcing maxConcurrentEvals.
+var evalSlots = make(chan struct{}, maxConcurrentEvals)
+
+// errEvalBusy is returned when every evaluation slot is taken.
+var errEvalBusy = errors.New("Evaluator busy: too many evaluations in progress (a previous evaluation may still be running)")
+
+// errEvalTimeout is returned when an evaluation exceeds its timeout.
+var errEvalTimeout = errors.New("Evaluation timed out")
+
 // handleDocServe starts an HTTP server that serves generated documentation
 // from docDir and provides an /api/eval endpoint for running Maggie expressions.
+//
+// /api/eval runs arbitrary code, so the server binds to loopback only and the
+// endpoint rejects cross-origin and non-loopback-Host requests (see
+// requireLocalRequest).
 func handleDocServe(vmInst *vm.VM, docDir string, port int) {
-	mux := http.NewServeMux()
-
-	// Static file serving for generated docs
-	mux.Handle("/", http.FileServer(http.Dir(docDir)))
-
-	// Eval endpoint with CORS support
-	evalHandler := makeEvalHandler(vmInst)
-	mux.HandleFunc("/api/eval", func(w http.ResponseWriter, r *http.Request) {
-		// Set CORS headers for all requests
-		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
-
-		if r.Method == "OPTIONS" {
-			w.WriteHeader(200)
-			return
-		}
-
-		evalHandler(w, r)
-	})
-
-	addr := fmt.Sprintf(":%d", port)
-	fmt.Printf("Documentation server running at http://localhost:%d\n", port)
+	addr := docServeAddr(port)
+	fmt.Printf("Documentation server running at http://localhost:%d (loopback only)\n", port)
 
 	server := &http.Server{
 		Addr:    addr,
-		Handler: mux,
+		Handler: newDocServeMux(vmInst, docDir),
 	}
 
 	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
@@ -49,93 +55,260 @@ func handleDocServe(vmInst *vm.VM, docDir string, port int) {
 	}
 }
 
+// docServeAddr is the doc server's listen address: loopback only, since
+// /api/eval is unauthenticated.
+func docServeAddr(port int) string {
+	return net.JoinHostPort("127.0.0.1", strconv.Itoa(port))
+}
+
+// newDocServeMux builds the doc server's routes: static docs plus /api/eval.
+func newDocServeMux(vmInst *vm.VM, docDir string) *http.ServeMux {
+	mux := http.NewServeMux()
+	mux.Handle("/", http.FileServer(http.Dir(docDir)))
+	mux.Handle("/api/eval", requireLocalRequest(makeEvalHandler(vmInst)))
+	return mux
+}
+
+// requireLocalRequest guards the eval endpoint against other websites and
+// other hosts: the Host header must name a loopback address (defeats DNS
+// rebinding), and a present Origin header must be this server's own origin
+// (defeats cross-site requests, including CORS "simple" text/plain POSTs,
+// which browsers send without a preflight). The playground page fetches
+// /api/eval same-origin, so it passes both checks.
+func requireLocalRequest(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !isLoopbackHostHeader(r.Host) {
+			http.Error(w, "Forbidden: eval is only served to localhost", http.StatusForbidden)
+			return
+		}
+		if origin := r.Header.Get("Origin"); origin != "" {
+			u, err := url.Parse(origin)
+			if err != nil || (u.Scheme != "http" && u.Scheme != "https") || !strings.EqualFold(u.Host, r.Host) {
+				http.Error(w, "Forbidden: cross-origin eval request", http.StatusForbidden)
+				return
+			}
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+// isLoopbackHostHeader reports whether a Host header value (host or
+// host:port) names localhost or a loopback IP.
+func isLoopbackHostHeader(hostport string) bool {
+	host := hostport
+	if h, _, err := net.SplitHostPort(hostport); err == nil {
+		host = h
+	}
+	host = strings.ToLower(strings.TrimSuffix(strings.Trim(host, "[]"), "."))
+	return isLoopbackHost(host)
+}
+
 // makeEvalHandler returns an http.HandlerFunc that evaluates Maggie expressions.
 func makeEvalHandler(vmInst *vm.VM) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != "POST" {
-			http.Error(w, "Method not allowed", 405)
+		if r.Method != http.MethodPost {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, maxEvalBodyBytes))
+		if err != nil {
+			var tooLarge *http.MaxBytesError
+			if errors.As(err, &tooLarge) {
+				http.Error(w, fmt.Sprintf("Expression too large (limit %d bytes)", maxEvalBodyBytes), http.StatusRequestEntityTooLarge)
+				return
+			}
+			http.Error(w, "Failed to read body", http.StatusBadRequest)
+			return
+		}
+
+		expr := strings.TrimSpace(string(body))
+		if expr == "" {
+			http.Error(w, "Empty expression", http.StatusBadRequest)
+			return
+		}
+
+		result, err := evalWithTimeout(vmInst, expr, evalTimeout)
+		switch {
+		case errors.Is(err, errEvalBusy):
+			http.Error(w, err.Error(), http.StatusServiceUnavailable)
+			return
+		case err != nil:
+			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
 
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-
-		// Read body with 10KB limit
-		body, err := io.ReadAll(io.LimitReader(r.Body, 10*1024))
-		if err != nil {
-			http.Error(w, "Failed to read body", 400)
-			return
-		}
-		defer r.Body.Close()
-
-		expr := strings.TrimSpace(string(body))
-		if expr == "" {
-			http.Error(w, "Empty expression", 400)
-			return
-		}
-
-		// Execute with 5-second timeout
-		result, err := evalWithTimeout(vmInst, expr, 5*time.Second)
-		if err != nil {
-			http.Error(w, err.Error(), 400)
-			return
-		}
-
-		w.WriteHeader(200)
+		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(result))
 	}
 }
 
-// evalWithTimeout executes a Maggie expression with a timeout.
-// It compiles and runs the expression in a goroutine and returns the result
-// or an error if the evaluation times out or fails.
+// evalWithTimeout compiles and runs expr on its own per-call interpreter
+// (vm.RunIsolated), so concurrent requests never share the main interpreter's
+// stack. It returns errEvalBusy when maxConcurrentEvals evaluations are
+// already running. On timeout it returns errEvalTimeout, but the evaluation
+// itself cannot be interrupted: it keeps running, holding its slot, until it
+// finishes.
 func evalWithTimeout(vmInst *vm.VM, expr string, timeout time.Duration) (string, error) {
 	type evalResult struct {
 		value string
 		err   error
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
+	select {
+	case evalSlots <- struct{}{}:
+	default:
+		return "", errEvalBusy
+	}
 
 	ch := make(chan evalResult, 1)
-
 	go func() {
-		defer func() {
-			if r := recover(); r != nil {
-				ch <- evalResult{err: fmt.Errorf("%v", r)}
-			}
-		}()
-
-		// Wrap as doIt method — handles multi-line playground input.
-		// Each line becomes a statement; the last is returned with ^.
-		source := wrapAsDoIt(expr)
-
-		method, err := vmInst.Compile(source, nil)
-		if err != nil {
-			ch <- evalResult{err: fmt.Errorf("Compile error: %v", err)}
-			return
-		}
-		if method == nil {
-			ch <- evalResult{err: fmt.Errorf("Compile error: compiler returned nil")}
-			return
-		}
-
-		result, err := vmInst.ExecuteSafe(method, vm.Nil, nil)
-		if err != nil {
-			ch <- evalResult{err: err}
-			return
-		}
-
-		// Convert result to string
-		ch <- evalResult{value: formatEvalResult(vmInst, result)}
+		var res evalResult
+		vmInst.RunIsolated(func() {
+			defer func() {
+				if r := recover(); r != nil {
+					res = evalResult{err: fmt.Errorf("%v", r)}
+				}
+			}()
+			res.value, res.err = evalExpression(vmInst, expr)
+		})
+		<-evalSlots // free the slot before reporting, so a caller's next eval can take it
+		ch <- res
 	}()
 
+	timer := time.NewTimer(timeout)
+	defer timer.Stop()
 	select {
 	case res := <-ch:
 		return res.value, res.err
-	case <-ctx.Done():
-		return "", fmt.Errorf("Evaluation timed out after %v", timeout)
+	case <-timer.C:
+		return "", fmt.Errorf("%w after %v (the evaluation cannot be interrupted and continues in the background)", errEvalTimeout, timeout)
 	}
+}
+
+// evalExpression compiles expr with the doIt compiler (a statement sequence
+// with optional leading temps, answering the value of the last statement) and
+// runs it. Must be called on a goroutine with a registered interpreter
+// (RunIsolated).
+func evalExpression(vmInst *vm.VM, expr string) (string, error) {
+	methods, err := compileEvalSource(vmInst, expr)
+	if err != nil {
+		return "", fmt.Errorf("Compile error: %v", err)
+	}
+	result := vm.Nil
+	for _, method := range methods {
+		result, err = vmInst.ExecuteSafe(method, vm.Nil, nil)
+		if err != nil {
+			return "", err
+		}
+	}
+	return formatEvalResult(vmInst, result), nil
+}
+
+// compileEvalSource compiles playground input into one or more doIt methods
+// to run in order; the last one's value is the answer.
+//
+// Input that parses as a statement sequence compiles as a single doIt. Doc
+// examples, however, often hold several independent snippets separated by a
+// blank line, each declaring its own temps, or put one expression per line
+// without separating periods. So the source is first split into snippets at
+// blank lines followed by a temp declaration (splitEvalSnippets), and a
+// snippet that does not compile as a whole is split further at line
+// boundaries the parser itself confirms (splitEvalChunks). Source is never
+// edited within a line, so string literals, comments and blocks are never
+// corrupted. If splitting does not help, the snippet's compile error is
+// returned.
+func compileEvalSource(vmInst *vm.VM, src string) ([]*vm.CompiledMethod, error) {
+	var methods []*vm.CompiledMethod
+	for _, snippet := range splitEvalSnippets(src) {
+		ms, err := compileEvalSnippet(vmInst, snippet)
+		if err != nil {
+			return nil, err
+		}
+		methods = append(methods, ms...)
+	}
+	if len(methods) == 0 {
+		return nil, errors.New("empty expression")
+	}
+	return methods, nil
+}
+
+// compileEvalSnippet compiles one snippet as a doIt, falling back to one
+// doIt per parser-confirmed chunk (see compileEvalSource).
+func compileEvalSnippet(vmInst *vm.VM, src string) ([]*vm.CompiledMethod, error) {
+	method, err := vmInst.CompileExpression(src)
+	if err == nil && method != nil {
+		return []*vm.CompiledMethod{method}, nil
+	}
+	if err == nil {
+		err = errors.New("compiler returned nil")
+	}
+	chunks := splitEvalChunks(vmInst, src)
+	if len(chunks) < 2 {
+		return nil, err
+	}
+	methods := make([]*vm.CompiledMethod, 0, len(chunks))
+	for _, chunk := range chunks {
+		m, cerr := vmInst.CompileExpression(chunk)
+		if cerr != nil || m == nil {
+			return nil, err
+		}
+		methods = append(methods, m)
+	}
+	return methods, nil
+}
+
+// splitEvalSnippets splits src before each temp declaration ("| x |") that
+// follows a blank line after earlier code. Temps may only open a doIt, so
+// such a line always starts a new, independent snippet.
+func splitEvalSnippets(src string) []string {
+	var snippets []string
+	var cur strings.Builder
+	prevBlank := false
+	for _, line := range strings.Split(src, "\n") {
+		trimmed := strings.TrimSpace(line)
+		if prevBlank && strings.HasPrefix(trimmed, "|") && strings.TrimSpace(cur.String()) != "" {
+			snippets = append(snippets, cur.String())
+			cur.Reset()
+		}
+		cur.WriteString(line)
+		cur.WriteByte('\n')
+		prevBlank = trimmed == ""
+	}
+	if strings.TrimSpace(cur.String()) != "" {
+		snippets = append(snippets, cur.String())
+	}
+	return snippets
+}
+
+// splitEvalChunks splits src at line boundaries where the text so far
+// compiles on its own but stops compiling once the next line is appended —
+// i.e. where the next line starts a new statement rather than continuing the
+// current one (a keyword continuation, a block body, or a trailing comment
+// keeps the chunk together).
+func splitEvalChunks(vmInst *vm.VM, src string) []string {
+	compiles := func(s string) bool {
+		m, err := vmInst.CompileExpression(s)
+		return err == nil && m != nil
+	}
+	var chunks []string
+	cur := ""
+	for _, line := range strings.Split(src, "\n") {
+		if strings.TrimSpace(line) == "" || strings.TrimSpace(cur) == "" {
+			cur += line + "\n"
+			continue
+		}
+		if compiles(cur) && !compiles(cur+line) {
+			chunks = append(chunks, cur)
+			cur = ""
+		}
+		cur += line + "\n"
+	}
+	if strings.TrimSpace(cur) != "" {
+		chunks = append(chunks, cur)
+	}
+	return chunks
 }
 
 // formatEvalResult converts a VM value to a display string.
@@ -173,91 +346,6 @@ func safeSend(vmInst *vm.VM, receiver vm.Value, selector string) (result vm.Valu
 	}()
 	result = vmInst.Send(receiver, selector, nil)
 	return result, true
-}
-
-// wrapAsDoIt wraps Maggie expression(s) as a doIt method for evaluation.
-//
-// Groups input lines into statements using indentation: lines starting at
-// column 0 begin a new statement, indented lines continue the previous one.
-// This correctly handles both multi-line expressions (chained keyword messages)
-// and multi-statement examples (one expression per line). All statements except
-// the last are separated by periods; the last is returned with ^.
-func wrapAsDoIt(expr string) string {
-	expr = strings.TrimSpace(expr)
-	if expr == "" {
-		return "doIt\n    ^nil"
-	}
-
-	// Group lines into statements: a line at column 0 starts a new statement,
-	// an indented line continues the previous one.
-	lines := strings.Split(expr, "\n")
-	var stmts []string
-	var cur strings.Builder
-	for _, line := range lines {
-		if strings.TrimSpace(line) == "" {
-			continue
-		}
-		startsAtCol0 := len(line) > 0 && line[0] != ' ' && line[0] != '\t'
-		if startsAtCol0 && cur.Len() > 0 {
-			stmts = append(stmts, cur.String())
-			cur.Reset()
-		}
-		if cur.Len() > 0 {
-			cur.WriteByte('\n')
-		}
-		cur.WriteString(line)
-	}
-	if cur.Len() > 0 {
-		stmts = append(stmts, cur.String())
-	}
-
-	if len(stmts) == 0 {
-		return "doIt\n    ^nil"
-	}
-
-	// Single statement: just indent and return it.
-	if len(stmts) == 1 {
-		return "doIt\n    ^" + indentContinuation(strings.TrimSuffix(stmts[0], "."))
-	}
-
-	// Multiple statements: all but last get periods, last gets ^.
-	var buf strings.Builder
-	buf.WriteString("doIt\n")
-	for i, stmt := range stmts {
-		stmt = strings.TrimSpace(stmt)
-		if stmt == "" {
-			continue
-		}
-		if i < len(stmts)-1 {
-			if !strings.HasSuffix(stmt, ".") {
-				stmt += "."
-			}
-			buf.WriteString("    ")
-			buf.WriteString(indentContinuation(stmt))
-			buf.WriteByte('\n')
-		} else {
-			buf.WriteString("    ^")
-			buf.WriteString(indentContinuation(strings.TrimSuffix(stmt, ".")))
-			buf.WriteByte('\n')
-		}
-	}
-	return buf.String()
-}
-
-// indentContinuation adds 4-space indentation to continuation lines (lines 2+)
-// in a multi-line statement, so they sit inside the doIt method body.
-func indentContinuation(stmt string) string {
-	if !strings.Contains(stmt, "\n") {
-		return stmt
-	}
-	lines := strings.Split(stmt, "\n")
-	var buf strings.Builder
-	buf.WriteString(lines[0])
-	for _, line := range lines[1:] {
-		buf.WriteString("\n    ")
-		buf.WriteString(line)
-	}
-	return buf.String()
 }
 
 // ---------------------------------------------------------------------------
