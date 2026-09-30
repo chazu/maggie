@@ -32,9 +32,19 @@ func (vm *VM) registerRegexPrimitives() {
 // Regex class methods
 // ---------------------------------------------------------------------------
 
+// isTextValue reports whether v is a String or Symbol — the argument kinds the
+// regex primitives accept. Anything else is a programmer error and signals a
+// TypeError rather than being silently matched as the empty string.
+func isTextValue(v Value) bool {
+	return IsStringValue(v) || v.IsSymbol()
+}
+
 func (vm *VM) registerRegexClassMethods(regexClass *Class) {
 	// Regex compile: pattern — compile a regex pattern, returns Success(Regex) or Failure
 	regexClass.AddClassMethod1(vm.Selectors, "compile:", func(v *VM, recv Value, patternVal Value) Value {
+		if !isTextValue(patternVal) {
+			return v.SignalTypeError("compile:", 1, "a String", patternVal)
+		}
 		pattern := v.valueToString(patternVal)
 		if pattern == "" {
 			return v.newFailureResult("Regex compile: requires a non-empty pattern string")
@@ -78,6 +88,9 @@ func (vm *VM) registerRegexInstanceMethods(regexClass *Class) {
 		if ro == nil {
 			return False
 		}
+		if !isTextValue(strVal) {
+			return v.SignalTypeError("matches:", 1, "a String", strVal)
+		}
 		s := v.valueToString(strVal)
 		if ro.re.MatchString(s) {
 			return True
@@ -90,6 +103,9 @@ func (vm *VM) registerRegexInstanceMethods(regexClass *Class) {
 		ro := getRegex(v, recv)
 		if ro == nil {
 			return Nil
+		}
+		if !isTextValue(strVal) {
+			return v.SignalTypeError("findIn:", 1, "a String", strVal)
 		}
 		s := v.valueToString(strVal)
 		match := ro.re.FindString(s)
@@ -104,6 +120,9 @@ func (vm *VM) registerRegexInstanceMethods(regexClass *Class) {
 		ro := getRegex(v, recv)
 		if ro == nil {
 			return v.NewArrayWithElements(nil)
+		}
+		if !isTextValue(strVal) {
+			return v.SignalTypeError("findAllIn:", 1, "a String", strVal)
 		}
 		s := v.valueToString(strVal)
 		matches := ro.re.FindAllString(s, -1)
@@ -123,6 +142,12 @@ func (vm *VM) registerRegexInstanceMethods(regexClass *Class) {
 		if ro == nil {
 			return strVal
 		}
+		if !isTextValue(strVal) {
+			return v.SignalTypeError("replaceIn:with:", 1, "a String", strVal)
+		}
+		if !isTextValue(replVal) {
+			return v.SignalTypeError("replaceIn:with:", 2, "a String", replVal)
+		}
 		s := v.valueToString(strVal)
 		repl := v.valueToString(replVal)
 		result := ro.re.ReplaceAllString(s, repl)
@@ -134,6 +159,9 @@ func (vm *VM) registerRegexInstanceMethods(regexClass *Class) {
 		ro := getRegex(v, recv)
 		if ro == nil {
 			return v.NewArrayWithElements(nil)
+		}
+		if !isTextValue(strVal) {
+			return v.SignalTypeError("split:", 1, "a String", strVal)
 		}
 		s := v.valueToString(strVal)
 		parts := ro.re.Split(s, -1)
@@ -167,11 +195,18 @@ func (vm *VM) registerRegexInstanceMethods(regexClass *Class) {
 // String convenience methods for regex
 // ---------------------------------------------------------------------------
 
+// The String conveniences take their pattern as source text, so a malformed
+// pattern is a programmer error: it signals instead of answering false (which
+// was indistinguishable from "no match"). Untrusted patterns belong in
+// `Regex compile:`, which answers a Result.
 func (vm *VM) registerStringRegexMethods() {
 	c := vm.StringClass
 
 	// matchesRegex: pattern — test if string matches a regex pattern string
 	c.AddMethod1(vm.Selectors, "matchesRegex:", func(v *VM, recv Value, patternVal Value) Value {
+		if !isTextValue(patternVal) {
+			return v.SignalTypeError("matchesRegex:", 1, "a String", patternVal)
+		}
 		s := v.valueToString(recv)
 		pattern := v.valueToString(patternVal)
 		if pattern == "" {
@@ -179,7 +214,7 @@ func (vm *VM) registerStringRegexMethods() {
 		}
 		matched, err := regexp.MatchString(pattern, s)
 		if err != nil {
-			return False
+			return v.SignalPrimitiveError("matchesRegex:", err.Error())
 		}
 		if matched {
 			return True
@@ -189,6 +224,9 @@ func (vm *VM) registerStringRegexMethods() {
 
 	// splitRegex: pattern — split string by regex pattern
 	c.AddMethod1(vm.Selectors, "splitRegex:", func(v *VM, recv Value, patternVal Value) Value {
+		if !isTextValue(patternVal) {
+			return v.SignalTypeError("splitRegex:", 1, "a String", patternVal)
+		}
 		s := v.valueToString(recv)
 		pattern := v.valueToString(patternVal)
 		if pattern == "" {
@@ -196,7 +234,7 @@ func (vm *VM) registerStringRegexMethods() {
 		}
 		re, err := regexp.Compile(pattern)
 		if err != nil {
-			return v.NewArrayWithElements([]Value{recv})
+			return v.SignalPrimitiveError("splitRegex:", err.Error())
 		}
 		parts := re.Split(s, -1)
 		values := make([]Value, len(parts))
