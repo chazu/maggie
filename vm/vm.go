@@ -1489,23 +1489,27 @@ func (vm *VM) Shutdown() {
 
 // StartSamplingProfiler creates and starts a wall-clock sampling profiler.
 // If one is already running, it is stopped first.
+//
+// The new profiler is started before it is published and the previous one is
+// swapped out atomically, so concurrent Start/Stop calls (e.g. two Maggie
+// processes sending `Compiler startProfiling`) can neither double-close a
+// profiler nor leak a sampling goroutine that nobody can stop.
 func (vm *VM) StartSamplingProfiler(interval time.Duration) *SamplingProfiler {
-	if old := vm.SamplingProfiler(); old != nil {
-		old.Stop()
-	}
 	sp := NewSamplingProfiler(vm, interval)
-	vm.setSamplingProfiler(sp)
 	sp.Start()
+	if old := vm.samplingProfiler.Swap(&samplingProfilerHolder{p: sp}); old != nil {
+		old.p.Stop()
+	}
 	return sp
 }
 
 // StopSamplingProfiler stops the sampling profiler and returns it
 // (so callers can write output). Returns nil if no profiler was running.
 func (vm *VM) StopSamplingProfiler() *SamplingProfiler {
-	sp := vm.SamplingProfiler()
-	if sp != nil {
-		sp.Stop()
-		vm.setSamplingProfiler(nil)
+	h := vm.samplingProfiler.Swap(nil)
+	if h == nil {
+		return nil
 	}
-	return sp
+	h.p.Stop()
+	return h.p
 }

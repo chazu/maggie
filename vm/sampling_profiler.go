@@ -31,8 +31,9 @@ type SamplingProfiler struct {
 	samples uint64
 	dropped uint64
 
-	stop chan struct{}
-	done chan struct{}
+	runMu sync.Mutex // guards stop/done: Stop may race Shutdown or another Stop
+	stop  chan struct{}
+	done  chan struct{}
 }
 
 // trieNode is a node in the aggregation trie. Each path from root to leaf
@@ -50,8 +51,17 @@ type SamplingProfilerStats struct {
 	Dropped      uint64
 }
 
+// minSamplingInterval bounds the sampling rate: time.NewTicker panics on a
+// non-positive interval, and would do so on the sampler goroutine where
+// nothing can recover it.
+const minSamplingInterval = time.Microsecond
+
 // NewSamplingProfiler creates a new sampling profiler attached to the given VM.
+// Intervals below minSamplingInterval are raised to it.
 func NewSamplingProfiler(vm *VM, interval time.Duration) *SamplingProfiler {
+	if interval < minSamplingInterval {
+		interval = minSamplingInterval
+	}
 	return &SamplingProfiler{
 		vm:       vm,
 		interval: interval,
@@ -60,14 +70,23 @@ func NewSamplingProfiler(vm *VM, interval time.Duration) *SamplingProfiler {
 }
 
 // Start begins the sampling loop in a background goroutine.
+// Starting a running profiler is a no-op.
 func (sp *SamplingProfiler) Start() {
+	sp.runMu.Lock()
+	defer sp.runMu.Unlock()
+	if sp.stop != nil {
+		return
+	}
 	sp.stop = make(chan struct{})
 	sp.done = make(chan struct{})
-	go sp.loop()
+	go sp.loop(sp.stop, sp.done)
 }
 
 // Stop signals the sampling goroutine to stop and waits for it to finish.
+// It is idempotent and safe to call concurrently.
 func (sp *SamplingProfiler) Stop() {
+	sp.runMu.Lock()
+	defer sp.runMu.Unlock()
 	if sp.stop != nil {
 		close(sp.stop)
 		<-sp.done
@@ -133,14 +152,15 @@ func (sp *SamplingProfiler) writeTrie(w io.Writer, node *trieNode, path []string
 }
 
 // loop is the main sampling goroutine.
-func (sp *SamplingProfiler) loop() {
-	defer close(sp.done)
+// It takes its channels as arguments so it never reads the fields Stop clears.
+func (sp *SamplingProfiler) loop(stop <-chan struct{}, done chan<- struct{}) {
+	defer close(done)
 	ticker := time.NewTicker(sp.interval)
 	defer ticker.Stop()
 
 	for {
 		select {
-		case <-sp.stop:
+		case <-stop:
 			return
 		case <-ticker.C:
 			sp.sampleAll()
@@ -151,11 +171,14 @@ func (sp *SamplingProfiler) loop() {
 // sampleAll takes a snapshot of all interpreter stacks.
 func (sp *SamplingProfiler) sampleAll() {
 	// Sample main interpreter
-	sp.sampleInterpreter(sp.vm.interpreter)
+	main := sp.vm.interpreter
+	sp.sampleInterpreter(main)
 
-	// Sample all forked interpreters
+	// Sample all forked interpreters. The registry also holds the main
+	// interpreter (registered by NewVM); skip it or every main-thread stack
+	// is counted twice.
 	sp.vm.interpreters.Range(func(key, value interface{}) bool {
-		if interp, ok := value.(*Interpreter); ok {
+		if interp, ok := value.(*Interpreter); ok && interp != main {
 			sp.sampleInterpreter(interp)
 		}
 		return true

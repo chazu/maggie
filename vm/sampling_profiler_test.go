@@ -3,6 +3,7 @@ package vm
 import (
 	"bytes"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -233,5 +234,60 @@ func TestSamplingProfilerMaggieAPI(t *testing.T) {
 	result = isProfMethod.Invoke(vmInst, compilerVal, nil)
 	if result != False {
 		t.Error("isProfiling should return false after stop")
+	}
+}
+
+// TestSamplingProfilerSamplesMainOnce guards the regression where sampleAll
+// sampled the main interpreter directly and again via the interpreter
+// registry (NewVM registers it there), double-counting main-thread stacks.
+func TestSamplingProfilerSamplesMainOnce(t *testing.T) {
+	vmInst := NewVM()
+	defer vmInst.Shutdown()
+	// One active method frame on the main interpreter.
+	vmInst.interpreter.frames[0] = CallFrame{Method: &CompiledMethod{name: "probe"}}
+	vmInst.interpreter.fp = 0
+	defer func() {
+		vmInst.interpreter.fp = -1
+		vmInst.interpreter.frames[0] = CallFrame{}
+	}()
+
+	sp := NewSamplingProfiler(vmInst, time.Millisecond)
+	sp.sampleAll()
+	if got := sp.Stats().TotalSamples; got != 1 {
+		t.Fatalf("one sampleAll over only the main interpreter: want 1 sample, got %d", got)
+	}
+}
+
+// TestSamplingProfilerConcurrentStop guards the regression where concurrent
+// stops (two `Compiler stopProfiling` sends, or one racing Shutdown) closed
+// the profiler's stop channel twice and panicked the process.
+func TestSamplingProfilerConcurrentStop(t *testing.T) {
+	vmInst := NewVM()
+	defer vmInst.Shutdown()
+	for round := 0; round < 20; round++ {
+		sp := vmInst.StartSamplingProfiler(time.Millisecond)
+		var wg sync.WaitGroup
+		for i := 0; i < 4; i++ {
+			wg.Add(2)
+			go func() { defer wg.Done(); vmInst.StopSamplingProfiler() }()
+			go func() { defer wg.Done(); sp.Stop() }()
+		}
+		wg.Wait()
+		if vmInst.SamplingProfiler() != nil {
+			t.Fatal("profiler still published after StopSamplingProfiler")
+		}
+	}
+}
+
+// TestSamplingProfilerZeroInterval guards against `Compiler startProfiling:`
+// with a rate above 1 GHz: the interval truncated to 0 and time.NewTicker
+// panicked on the sampler goroutine, killing the process.
+func TestSamplingProfilerZeroInterval(t *testing.T) {
+	vmInst := NewVM()
+	defer vmInst.Shutdown()
+	vmInst.StartSamplingProfiler(0)
+	time.Sleep(2 * time.Millisecond)
+	if vmInst.StopSamplingProfiler() == nil {
+		t.Fatal("expected a running profiler")
 	}
 }
