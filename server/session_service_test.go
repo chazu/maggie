@@ -268,3 +268,40 @@ func TestSessionStore_GetMissing(t *testing.T) {
 		t.Error("Get for nonexistent session should return false")
 	}
 }
+
+// Evaluate and EvaluateInContext used to create their result handles with an
+// empty session ID, ignoring the request's session_id, so DestroySession
+// released none of them (they lingered until the TTL sweep).
+func TestDestroySession_ReleasesEvaluateHandles(t *testing.T) {
+	sessionSvc := newTestSessionService()
+	evalSvc := newTestEvalService()
+
+	createResp, err := sessionSvc.CreateSession(bg(), connectReq(&maggiev1.CreateSessionRequest{}))
+	if err != nil {
+		t.Fatalf("CreateSession: %v", err)
+	}
+	sid := createResp.Msg.SessionId
+
+	evalResp, err := evalSvc.Evaluate(bg(), connectReq(&maggiev1.EvaluateRequest{Source: "3 + 4", SessionId: sid}))
+	if err != nil || !evalResp.Msg.Success {
+		t.Fatalf("Evaluate: err=%v resp=%v", err, evalResp)
+	}
+	h1 := evalResp.Msg.Handle.Id
+
+	ctxResp, err := evalSvc.EvaluateInContext(bg(), connectReq(&maggiev1.EvaluateInContextRequest{
+		Source: "self + 1", SessionId: sid, Context: evalResp.Msg.Handle,
+	}))
+	if err != nil || !ctxResp.Msg.Success {
+		t.Fatalf("EvaluateInContext: err=%v resp=%v", err, ctxResp)
+	}
+	h2 := ctxResp.Msg.Handle.Id
+
+	if _, err := sessionSvc.DestroySession(bg(), connectReq(&maggiev1.DestroySessionRequest{SessionId: sid})); err != nil {
+		t.Fatalf("DestroySession: %v", err)
+	}
+	for _, h := range []string{h1, h2} {
+		if _, ok := testHandles.Lookup(h); ok {
+			t.Errorf("handle %s survived DestroySession of its session", h)
+		}
+	}
+}

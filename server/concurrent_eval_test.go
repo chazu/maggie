@@ -39,7 +39,7 @@ func TestConcurrentEvaluateRace(t *testing.T) {
 	// method's send sites before the goroutines pile on (concurrent IC fill is
 	// itself covered by the audit, but warming keeps the assertion crisp).
 	v.RunIsolated(func() {
-		if resp := svc.evaluate(v, src); !resp.Success {
+		if resp := svc.evaluate(v, src, ""); !resp.Success {
 			t.Fatalf("warmup eval failed: %s", resp.ErrorMessage)
 		}
 	})
@@ -57,7 +57,7 @@ func TestConcurrentEvaluateRace(t *testing.T) {
 			for i := 0; i < N; i++ {
 				var resp *maggiev1.EvaluateResponse
 				v.RunIsolated(func() {
-					resp = svc.evaluate(v, src)
+					resp = svc.evaluate(v, src, "")
 				})
 				if !resp.Success {
 					errs <- resp.ErrorMessage
@@ -110,7 +110,7 @@ func TestConcurrentDistinctExpressionsRace(t *testing.T) {
 				src := want // a String literal renders back to itself via formatValue
 				var resp *maggiev1.EvaluateResponse
 				v.RunIsolated(func() {
-					resp = svc.evaluate(v, src)
+					resp = svc.evaluate(v, src, "")
 				})
 				if !resp.Success {
 					errs <- resp.ErrorMessage

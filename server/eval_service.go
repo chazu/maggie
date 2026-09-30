@@ -39,7 +39,7 @@ func (s *EvalService) Evaluate(
 	}
 
 	result, err := s.worker.DoForSource(source, func(v *vm.VM) interface{} {
-		return s.evaluate(v, source)
+		return s.evaluate(v, source, req.Msg.SessionId)
 	})
 	if err != nil {
 		return connect.NewResponse(&maggiev1.EvaluateResponse{
@@ -72,7 +72,7 @@ func (s *EvalService) EvaluateInContext(
 	}
 
 	result, err := s.worker.DoForSource(source, func(v *vm.VM) interface{} {
-		return s.evaluateInContext(v, source, receiver)
+		return s.evaluateInContext(v, source, receiver, req.Msg.SessionId)
 	})
 	if err != nil {
 		return connect.NewResponse(&maggiev1.EvaluateResponse{
@@ -116,10 +116,11 @@ func (s *EvalService) CheckSyntax(
 	return connect.NewResponse(result.(*maggiev1.CheckSyntaxResponse)), nil
 }
 
-// evaluate compiles and runs source, returning an EvaluateResponse.
+// evaluate compiles and runs source, returning an EvaluateResponse. The result
+// handle is owned by sessionID (may be empty), so DestroySession releases it.
 // Must be called inside a VMWorker gate closure (Do/DoConcurrent), which runs
 // it on a registered per-request interpreter.
-func (s *EvalService) evaluate(v *vm.VM, source string) *maggiev1.EvaluateResponse {
+func (s *EvalService) evaluate(v *vm.VM, source, sessionID string) *maggiev1.EvaluateResponse {
 	// The doIt compiler answers the value of the last statement. Prefixing
 	// the text with ^ would return after the FIRST statement of `a. b.`.
 	method, err := v.CompileExpression(source)
@@ -141,7 +142,7 @@ func (s *EvalService) evaluate(v *vm.VM, source string) *maggiev1.EvaluateRespon
 	display := formatValue(v, result)
 	className := classNameFor(v, result)
 
-	handleID := s.handles.Create(result, className, display, "")
+	handleID := s.handles.Create(result, className, display, sessionID)
 
 	return &maggiev1.EvaluateResponse{
 		Success: true,
@@ -154,10 +155,11 @@ func (s *EvalService) evaluate(v *vm.VM, source string) *maggiev1.EvaluateRespon
 	}
 }
 
-// evaluateInContext compiles and runs source with a specific receiver.
+// evaluateInContext compiles and runs source with a specific receiver. The
+// result handle is owned by sessionID (may be empty).
 // Must be called inside a VMWorker gate closure (Do/DoConcurrent), which runs
 // it on a registered per-request interpreter.
-func (s *EvalService) evaluateInContext(v *vm.VM, source string, receiver vm.Value) *maggiev1.EvaluateResponse {
+func (s *EvalService) evaluateInContext(v *vm.VM, source string, receiver vm.Value, sessionID string) *maggiev1.EvaluateResponse {
 	method, err := v.CompileExpression(source)
 	if err != nil {
 		return &maggiev1.EvaluateResponse{
@@ -177,7 +179,7 @@ func (s *EvalService) evaluateInContext(v *vm.VM, source string, receiver vm.Val
 	display := formatValue(v, result)
 	className := classNameFor(v, result)
 
-	handleID := s.handles.Create(result, className, display, "")
+	handleID := s.handles.Create(result, className, display, sessionID)
 
 	return &maggiev1.EvaluateResponse{
 		Success: true,
