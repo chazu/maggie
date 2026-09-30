@@ -95,3 +95,42 @@ func TestHandleNewCommand_ErrorOnExistingDir(t *testing.T) {
 		t.Fatalf("setup: dir should exist: %v", err)
 	}
 }
+
+// `mag new work/my-app` used to write name = "work/my-app" and namespace
+// "WorkMyApp", and its Main.mag failed the `mag fmt --check` prebuild the
+// scaffold itself suggests.
+func TestHandleNewCommand_PathArgumentAndFormattedMain(t *testing.T) {
+	dir := t.TempDir()
+	origDir, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Chdir(origDir)
+	if err := os.Chdir(dir); err != nil {
+		t.Fatal(err)
+	}
+
+	handleNewCommand([]string{"work/my-app"})
+
+	toml, err := os.ReadFile(filepath.Join("work", "my-app", "maggie.toml"))
+	if err != nil {
+		t.Fatalf("read maggie.toml: %v", err)
+	}
+	for _, want := range []string{`name = "my-app"`, `namespace = "MyApp"`} {
+		if !strings.Contains(string(toml), want) {
+			t.Errorf("maggie.toml missing %s:\n%s", want, toml)
+		}
+	}
+
+	main, err := os.ReadFile(filepath.Join("work", "my-app", "src", "Main.mag"))
+	if err != nil {
+		t.Fatalf("read Main.mag: %v", err)
+	}
+	formatted, err := Format(string(main))
+	if err != nil {
+		t.Fatalf("format Main.mag: %v", err)
+	}
+	if formatted != string(main) {
+		t.Errorf("scaffolded Main.mag is not formatter-stable:\n--- got\n%s--- formatted\n%s", main, formatted)
+	}
+}

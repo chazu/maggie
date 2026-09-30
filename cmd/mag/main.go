@@ -699,7 +699,13 @@ func isLoopbackHost(host string) bool {
 
 func newLanguageServer(vmInst *vm.VM, addr string) *server.MaggieServer {
 	peerAddrs := &sync.Map{}
-	vmInst.SetLocalListenAddr(addr)
+	// The local listen address is the return address peers use to reach
+	// this node, and only a [sync] listener serves the peer surface. When one
+	// is running it has already set the address; overwriting it with this
+	// developer server's (which mounts no Sync service) broke forkOn: replies.
+	if vmInst.GetLocalListenAddr() == "" {
+		vmInst.SetLocalListenAddr(addr)
+	}
 	return server.New(vmInst,
 		server.WithCompileFunc(buildCompileFunc(vmInst)),
 		server.WithPullFunc(buildPullFunc(vmInst, peerAddrs)),

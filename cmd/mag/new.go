@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/chazu/maggie/manifest"
 )
@@ -23,17 +25,29 @@ func handleNewCommand(args []string) {
 		)
 	}
 
-	name := args[0]
+	// The argument is where to create the project; the project name and
+	// namespace come from its last path element (`mag new work/myapp`
+	// names the project "myapp", not "work/myapp").
+	dir := args[0]
+	name := filepath.Base(filepath.Clean(dir))
 	namespace := manifest.ToPascalCase(name)
+	if first, _ := utf8.DecodeRuneInString(namespace); !unicode.IsLetter(first) {
+		fmt.Fprintf(os.Stderr, "Error: cannot derive a namespace from %q: it must start with a letter\n", name)
+		os.Exit(1)
+	}
+	if manifest.IsReservedNamespace(namespace) {
+		fmt.Fprintf(os.Stderr, "Error: namespace %q (from %q) is reserved for a core class; choose another project name\n", namespace, name)
+		os.Exit(1)
+	}
 
 	// Error if directory already exists
-	if _, err := os.Stat(name); err == nil {
-		fmt.Fprintf(os.Stderr, "Error: directory %q already exists\n", name)
+	if _, err := os.Stat(dir); err == nil {
+		fmt.Fprintf(os.Stderr, "Error: directory %q already exists\n", dir)
 		os.Exit(1)
 	}
 
 	// Create directory structure
-	srcDir := filepath.Join(name, "src")
+	srcDir := filepath.Join(dir, "src")
 	if err := os.MkdirAll(srcDir, 0755); err != nil {
 		fmt.Fprintf(os.Stderr, "Error creating directories: %v\n", err)
 		os.Exit(1)
@@ -60,17 +74,18 @@ entry = "Main.start"
 # test-helpers = { path = "../test-helpers" }
 `, name, namespace)
 
-	tomlPath := filepath.Join(name, "maggie.toml")
+	tomlPath := filepath.Join(dir, "maggie.toml")
 	if err := os.WriteFile(tomlPath, []byte(tomlContent), 0644); err != nil {
 		fmt.Fprintf(os.Stderr, "Error writing %s: %v\n", tomlPath, err)
 		os.Exit(1)
 	}
 
-	// Write src/Main.mag
+	// Write src/Main.mag, laid out exactly as `mag fmt` would, so the
+	// suggested `prebuild = "mag fmt --check"` passes on a fresh project.
 	mainContent := fmt.Sprintf(`Main subclass: Object
 
   classMethod: start [
-    '%s started!' println
+      '%s started!' println
   ]
 `, namespace)
 
@@ -84,14 +99,14 @@ entry = "Main.start"
 	gitignoreContent := `.maggie/
 *.image
 `
-	gitignorePath := filepath.Join(name, ".gitignore")
+	gitignorePath := filepath.Join(dir, ".gitignore")
 	if err := os.WriteFile(gitignorePath, []byte(gitignoreContent), 0644); err != nil {
 		fmt.Fprintf(os.Stderr, "Error writing %s: %v\n", gitignorePath, err)
 		os.Exit(1)
 	}
 
 	// Print instructions
-	fmt.Printf("Created project %q in ./%s/\n\n", name, name)
-	fmt.Printf("  cd %s\n", name)
+	fmt.Printf("Created project %q in %s\n\n", name, dir)
+	fmt.Printf("  cd %s\n", dir)
 	fmt.Printf("  mag -m Main.start\n\n")
 }

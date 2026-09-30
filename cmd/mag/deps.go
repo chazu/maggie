@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"sort"
 
 	"github.com/chazu/maggie/manifest"
 )
@@ -40,9 +41,18 @@ func handleDepsCommand(args []string, verbose bool) {
 		subcmd = args[0]
 	}
 
+	// Resolve and lock dev-dependencies too: `mag test` loads them, and a
+	// lock written from [dependencies] alone (as `update` did, having just
+	// deleted the old lock) left them unpinned.
+	allDeps, err := m.AllDependencies()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		os.Exit(1)
+	}
+
 	switch subcmd {
 	case "", "resolve":
-		resolver := manifest.NewResolver(m, verbose)
+		resolver := manifest.NewResolver(m, verbose, allDeps)
 		deps, err := resolver.Resolve()
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error resolving dependencies: %v\n", err)
@@ -55,9 +65,12 @@ func handleDepsCommand(args []string, verbose bool) {
 
 	case "update":
 		lockPath := m.LockFilePath()
-		os.Remove(lockPath)
+		if err := os.Remove(lockPath); err != nil && !os.IsNotExist(err) {
+			fmt.Fprintf(os.Stderr, "Error removing lock file: %v\n", err)
+			os.Exit(1)
+		}
 
-		resolver := manifest.NewResolver(m, verbose)
+		resolver := manifest.NewResolver(m, verbose, allDeps)
 		deps, err := resolver.Resolve()
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error resolving dependencies: %v\n", err)
@@ -69,15 +82,26 @@ func handleDepsCommand(args []string, verbose bool) {
 		}
 
 	case "list":
-		if len(m.Dependencies) == 0 {
+		if len(allDeps) == 0 {
 			fmt.Println("No dependencies configured.")
 			return
 		}
 		fmt.Printf("Dependencies for %s:\n", m.Project.Name)
-		for name, dep := range m.Dependencies {
+		names := make([]string, 0, len(allDeps))
+		for name := range allDeps {
+			names = append(names, name)
+		}
+		sort.Strings(names)
+		for _, name := range names {
+			dep := allDeps[name]
+			if _, dev := m.DevDependencies[name]; dev {
+				name += " (dev)"
+			}
 			if dep.Git != "" {
 				tag := dep.Tag
-				if tag == "" {
+				if tag == "" && dep.Branch != "" {
+					tag = "branch " + dep.Branch
+				} else if tag == "" {
 					tag = "(latest)"
 				}
 				fmt.Printf("  %s: %s @ %s\n", name, dep.Git, tag)
